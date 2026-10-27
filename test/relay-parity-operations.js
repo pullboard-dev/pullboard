@@ -15,6 +15,7 @@ import { createStudyExercise, seedStudyState, seedRehome, seedHandoff } from './
 import { submitFixture } from './board-submit-fixture.js';
 import { seedOutside, seedLandingObservations, seedMembership, seedAdministrative, seedBatch, seedCoordinatorAuthority, seedSpecOutcomes, seedBarSignature, seedCurrentOperations, seedPersonSigning } from './relay-parity-extra-seeds.js';
 import { seedTypedRequests } from './relay-parity-typed-requests.js';
+import { seedItemPatches } from './relay-parity-item-patches.js';
 import { syntheticFlakeObservation } from './flake-observation-fixture.js';
 
 /** Run inside the existing private fixture's genuine environment, retaining one HTTP server and person session. */
@@ -49,6 +50,7 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
         agentId: 'coordinator', baseline: captureSpecApprovalBaseline(root, loadConfig(root)) }));
     }
     await seedStudyState(context);
+    await seedItemPatches(context);
     await seedOutside(context);
     await seedLandingObservations(context);
     await seedMembership(context);

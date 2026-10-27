@@ -19,6 +19,7 @@ import { HELP } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
 import { Refused } from '../src/refused.js';
 import { assertRehomeTriggerDeclaration } from './rehome-machine-fixture.js';
+import { runnerControllerCallees, assertRunnerControllerReachability } from './runner-controller-machine-fixture.js';
 import {
   assertConfiguredReviewLease,
   assertLifecycleReservation,
@@ -231,7 +232,7 @@ function codeWalk(read, { caught = false } = {}) {
         }
       }
       const spaces = new Map([...source.matchAll(/import \* as (\w+) from '(\.\.?)\/([\w-]+\.js)'/g)].map(([, space, dots, name]) => [space, under(dots, name)]).filter(([, from]) => from));
-      files.set(file, { bodies: functionsIn(source), named, spaces });
+      files.set(file, { bodies: functionsIn(source), named, spaces, source });
     }
     return files.get(file);
   };
@@ -239,7 +240,7 @@ function codeWalk(read, { caught = false } = {}) {
     if (seen.has(key) || skip.has(key) || TRANSPORT_BOUNDARIES.has(key)) return new Set();
     seen.add(key);
     const [file, name] = key.split('#');
-    const { bodies, named, spaces } = load(file);
+    const { bodies, named, spaces, source } = load(file);
     // A facade may import and re-export the helper; follow its real definition after extraction.
     if (!bodies.has(name) && named.has(name)) return refusalsOf(named.get(name), skip, seen);
     const body = bodies.get(name) ?? '';
@@ -248,6 +249,7 @@ function codeWalk(read, { caught = false } = {}) {
       ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
       ...[...body.matchAll(/\b(\w+)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : undefined)),
     ];
+    callees.push(...runnerControllerCallees(file, body, source));
     for (const callee of callees.filter(Boolean)) {
       if (caught && (CAUGHT[key] ?? []).includes(callee)) continue;
       for (const code of refusalsOf(callee, skip, seen)) codes.add(code);
@@ -483,7 +485,7 @@ test('the declared lifecycle is sound: reachable, no traps, no second door, ever
   assert.deepEqual(machineRules.machineProblems(), []);
   assert.deepEqual(machineRules.MACHINE.states.map((state) => state.id), ['open', 'claimed', 'submitted', 'verified', 'withdrawn']);
   assert.deepEqual(machineRules.MACHINE.states.filter((state) => state.final).map((state) => state.id), ['withdrawn']);
-  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
+  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['patch', 'rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
   assert.deepEqual(machineRules.MACHINE.moves.find((move) => move.verb === 'rehomeImport').sets, ['item_verified_by', 'item_commit']);
 });
 
@@ -1486,6 +1488,10 @@ test('transport boundaries keep a new item refusal in ordered dispatch visible [
     'MOON_PHASE is raised by accept and reject but not declared there',
     'MOON_PHASE is raised by submit but not declared there',
   ], 'transport authentication is separate but a dispatcher item guard still belongs to the lifecycle');
+});
+
+test('same-file runner controller bridges retain child refusals in the lifecycle audit [M1,M4,C7]', () => {
+  assertRunnerControllerReachability({ codeProblems, codeWalk, editedSource, machine: machineRules.MACHINE });
 });
 
 

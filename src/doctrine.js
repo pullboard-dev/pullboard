@@ -1,3 +1,4 @@
+/** @pullboard-test-input src/standard-doctrine.md */
 /** The shared house rules (D1–D4): one packaged standard and a repo's explicit changes to it. */
 import { readFileSync } from 'node:fs';
 import {

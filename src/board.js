@@ -17,6 +17,7 @@ import { SPEC_REFREEZE } from './spec-row-apply.js';
 import * as reviewFamilies from './required-review-family.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from './automatic-dispatch-engine.js';
 import { correctedBar } from './corrected-bar.js';
+import { UNCHANGED_REFREEZE_ENGINE } from './unchanged-refreeze-engine.js';
 import { applyLaneLead } from './lane-lead-policy.js';
 import { applyHealthFindings } from './board-health.js';
 import {
@@ -33,6 +34,10 @@ import {
 export { laneLeads };
 
 import { companionPlan } from './companion.js';
+import { itemPatchReviewProblem } from './item-patches.js';
+import { applyItemPatchAttachment } from './item-patches.js';
+import { applyItemPatchRemoval } from './item-patches.js';
+export { itemPatches, itemPatchDigest } from './item-patches.js';
 import { applyCompanionRequest } from './companion.js';
 export { readBoardMembers, setBoardMembers } from './board-members.js';
 import { heartbeatSeat } from './seat-presence.js';
@@ -872,7 +877,7 @@ function declaredCodes(move, id) {
  * @param {{ checks: Record<string, ((item: any) => Refused | null) | null>, set?: (item: any) => object, before?: (item: any) => void, transition?: object }} how
  * @returns {any} The item as it was before the move.
  */
-function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}, transition = null }) {
+function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}, transition = null, unchanged = null }) {
   const move = transition ?? MOVES.find((entry) => entry.verb === verb);
   if (!move) throw new Refused(UNKNOWN_MOVE.refuse, `${UNKNOWN_MOVE.rule}: ${UNKNOWN_MOVE.next}`);
   let item = null;
@@ -893,6 +898,8 @@ function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}
     }
     throw refusal;
   }
+  // A validated no-op retains the exact row, including its lease and update time.
+  if (unchanged?.(item)) return item;
   before(item);
   const fields = { ...set(item), item_status: move.to };
   const requires = STATES.find((state) => state.id === move.to).requires;
@@ -905,6 +912,30 @@ function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}
     board.db.exec('DELETE FROM temp.moving');
   }
   return item;
+}
+
+/** Return changed companion inputs to submitted through the same declared lifecycle as every status update. */
+function invalidateItemPatch(board, id, agentId) {
+  moveItem(board, id, 'patch', {
+    checks: {
+      joined: null,
+      [IN_STATE]: found => new Refused('ITEM_PATCH_STATE', `item #${id} is ${found.item_status}; attach only to submitted, unmerged work`),
+      coordinatorOnly: () => onlyCoordinator(agentId, 'changes companion inputs'),
+      notMerged: found => found.item_merged_commit ? new Refused('ALREADY_MERGED', 'file a follow-up for landed work') : null,
+    },
+    set: found => ({ item_built_by: found.item_built_by, item_frozen_digest: found.item_frozen_digest,
+      item_verdict: null, item_verified_by: null, item_review_by: null, item_review_until: null }),
+  });
+}
+
+/** Attach native bytes atomically, with lifecycle mutation confined to moveItem. */
+export function attachItemPatch(board, id, options) {
+  return applyItemPatchAttachment(board, id, options, { invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
+}
+
+/** Stop applying native bytes without discarding their historical author exclusions. */
+export function removeItemPatch(board, id, options) {
+  return applyItemPatchRemoval(board, id, options, { invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
 }
 
 /**
@@ -1340,7 +1371,7 @@ function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'of
  * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
  * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', cause, head, digest, policy, familyPolicy = 'off', check, review, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox }) {
+export function verify(board, id, { agentId, decision, reason, note = '', cause, head, digest, policy, familyPolicy = 'off', check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
@@ -1367,7 +1398,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
         ...reviewerChecks(board, { agentId, policy, familyPolicy }),
         criterionUnchanged: (found) =>
           digest === found.item_frozen_digest
-            ? null
+            ? isAccept ? itemPatchReviewProblem(board, found, companionDigest) : null
             : new Refused('CRITERIA_CHANGED', `the criterion for #${id} changed after it was claimed; the coordinator runs: pullboard refreeze ${id}`),
         reasonIsMet: () => (reason && reason !== ACCEPT_REASON ? new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`) : null),
         trunkMergeClean: null,
@@ -1390,7 +1421,8 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     const reservation = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalDetail(board, item, reopenFirstRefusalMinutes, returnedAt) : {};
     const derivedCause = !isAccept && engine >= RIGOR_AUTO_ENGINE
       ? deriveRigorCause(board, item, { cause, reason: code, agentId }) : !isAccept && cause != null ? { cause } : {};
-    const detail = { ...reservation, reason: code, commit: item.item_commit, ...derivedCause };
+    const detail = { ...reservation, reason: code, commit: item.item_commit, ...derivedCause,
+      ...(companionDigest ? { companionDigest } : {}) };
     if (isAccept && engine >= SPEC_APPROVAL_ENGINE) detail.note = note.trim();
     if (isAccept && check !== undefined) detail.check = check;
     if (environment !== undefined) detail.environment = environment;
@@ -1546,7 +1578,8 @@ export function withdraw(board, id, { agentId, reason }) {
 /**
  * Freeze the current criterion and rows again (V2,V3). A pending coordinator correction is
  * adopted within its live claim, keeping the holder, lease and base; other refreezes reopen the
- * item so its next claim builds against the bar a verdict will check.
+ * item so its next claim builds against the bar a verdict will check. Identical bars preserve
+ * the validated item unchanged; historical engines retain release-on-refreeze behavior.
  *
  * @param {any} board
  * @param {number} id
@@ -1557,6 +1590,7 @@ export function refreeze(board, id, { agentId, freeze, [SPEC_REFREEZE]: specCorr
   specCorrection &&= (board.executionEngineVersion ?? ENGINE_VERSION) >= AUTOMATIC_DISPATCH_ENGINE;
   return atomic(board, () => {
     let frozen = null;
+    let unchanged = false;
     const currentItem = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id);
     const pending = currentItem ? pendingRefreeze(board, id) : [];
     const retainsClaim = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
@@ -1579,6 +1613,9 @@ export function refreeze(board, id, { agentId, freeze, [SPEC_REFREEZE]: specCorr
         rowsInForce: (found) => {
           try {
             frozen = freeze(found);
+            unchanged = (board.executionEngineVersion ?? ENGINE_VERSION) >= UNCHANGED_REFREEZE_ENGINE
+              && (found.item_status !== 'claimed' || isHeld(board, found))
+              && frozen.text === found.item_frozen && frozen.digest === found.item_frozen_digest;
             return null;
           } catch (error) {
             if (error instanceof Refused) return error;
@@ -1593,9 +1630,11 @@ export function refreeze(board, id, { agentId, freeze, [SPEC_REFREEZE]: specCorr
         ...(!retainsClaim ? { item_owner: null, item_lease_until: null } : {}),
       }),
       transition,
+      unchanged: () => unchanged,
     });
-    logEvent(board, agentId, 'refreeze', id, { before: item.item_frozen_digest, after: frozen.digest, ...(retainsClaim ? { retainedClaim: true } : {}) });
-    return { before: item.item_frozen_digest, after: frozen.digest, ...(retainsClaim ? { retainedClaim: true } : {}) };
+    const keptClaim = retainsClaim || unchanged && currentItem?.item_status === 'claimed' && isHeld(board, currentItem);
+    logEvent(board, agentId, 'refreeze', id, { before: item.item_frozen_digest, after: frozen.digest, ...(keptClaim ? { retainedClaim: true } : {}), ...(unchanged ? { unchanged: true } : {}) });
+    return { before: item.item_frozen_digest, after: frozen.digest, ...(keptClaim ? { retainedClaim: true } : {}), ...(unchanged ? { unchanged: true } : {}) };
   });
 }
 
@@ -1615,9 +1654,9 @@ export { getItem } from './board-query.js';
  * @param {{ from: string, to: string, text: string, lanes: string[], item?: number, decision?: boolean, answers?: number | null, evidence?: any, request?: boolean, news?: boolean, channel?: 'terminal' | 'view', detail?: object }} message - detail: extra event fields
  * @returns {number}
  */
-function insertShout(board, { from, to, text, lanes, item, decision = false, answers = null, evidence = null, request = false, news = false, channel = 'terminal', detail = {}, options }) {
+function insertShout(board, { from, to, text, lanes, item, decision = false, answers = null, evidence = null, request = false, news = false, channel = 'terminal', detail = {}, options, effects }) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
-  const validatedDecision = itemDecisions.itemDecisionDetail(board, { options, decision, item, from }, engine);
+  const validatedDecision = itemDecisions.itemDecisionDetail(board, { options, decision, item, from, effects }, engine);
   detail = { ...detail, ...validatedDecision };
   if (item !== undefined) {
     if (engine < ITEM_SHOUT_ENGINE) throw new Refused('ENGINE_VERSION', 'item messages require engine 93; upgrade every linked device before sending one');
@@ -1660,7 +1699,10 @@ function insertShout(board, { from, to, text, lanes, item, decision = false, ans
   if (personAnswer && !['terminal', 'view'].includes(channel)) {
     throw new Refused('B26_PERSON_CHANNEL', 'record the person answer through the terminal or the view; run pullboard view');
   }
-  return persistShout(board, { from, to, text, decision, answers, evidence, request, news, channel, detail, outcome, personAnswer, decisionRecord: validatedDecision.decisionOptions ? { item, options: validatedDecision.decisionOptions } : null });
+  return persistShout(board, { from, to, text, decision, answers, evidence, request, news, channel, detail, outcome, personAnswer, decisionRecord: validatedDecision.decisionOptions || validatedDecision.decisionEffects
+    ? { ...(item === undefined ? {} : { item }),
+      ...(validatedDecision.decisionOptions ? { options: validatedDecision.decisionOptions } : {}),
+      ...(validatedDecision.decisionEffects ? { effects: validatedDecision.decisionEffects } : {}) } : null });
 }
 
 /** Persist a validated message or a fixed internal notice inside the caller's transaction. */

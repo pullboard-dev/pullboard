@@ -1,6 +1,8 @@
 import {
   policyAt,
 } from './trusted-policy-read.js';
+import { carriedRunnerTrunk } from './runner-policy.js';
+import { mainCheckout } from './git.js';
 import {
   COLLECTION_ID_ENV,
   parseCollectionReports,
@@ -103,6 +105,9 @@ import {
 import {
   Refused,
 } from './refused.js';
+import {
+  probeRunnerTransport,
+} from './runner-transport.js';
 import {
   missingGate,
 } from './gate-config.js';
@@ -310,7 +315,8 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
   gateLease?.tracker?.mark('runAt');
   const remoteCommand = landing && collectAll ? `(export ${LANDING_COLLECT_ALL_ENV}=1 ${COLLECTION_ID_ENV}=${collectionId}\n${command}\n)` : command;
   const run = gateLease?.runner ? { ...runOnRunner(root, remoteCommand, { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
-    browser: gateLease.browser, pipefail, stages, waivers: landing ? waivers : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage, ...(timeoutMs ? { timeoutMs } : {}) } }) }
+    browser: gateLease.browser, pipefail, stages, waivers: landing ? waivers : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,
+      testStage: inherited.PULLBOARD_TEST_STAGE, ...(timeoutMs ? { timeoutMs } : {}) } }) }
     : runShell(root, command, { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease) });
   gateLease?.tracker?.mark('ranAt');
   if (gateLease) {
@@ -415,7 +421,8 @@ export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlo
   gateLease?.tracker?.mark('runAt');
   if (gateLease?.runner) {
     const run = await runOnRunnerAsync(root, command, { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
-      browser: gateLease.browser, metadata: { ...(gateLease.runMetadata ?? {}), landing } });
+      browser: gateLease.browser, metadata: { ...(gateLease.runMetadata ?? {}), landing,
+        testStage: gateLease.receiptKind ?? (landing ? 'land' : 'gate') } });
     gateLease.environment = run.environment ?? null;
     gateLease.gui = run.executionCapabilities?.gui ?? null;
     gateLease.executionAdmission = run.executionAdmission ?? null;
@@ -579,6 +586,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   const floorMB = memoryFloorMB();
   const capacityProvider = () => settingsProvider().gateSlots;
   const source = runnerSource(root);
+  const policyTrunk = source ? mainCheckout(root) ?? carriedRunnerTrunk(root) : null;
   if (runnerOnly && (!remote || !source)) throw new Refused('RUNNER_SOURCE', 'CPU-load tests need a clean committed checkout for runner execution; commit the source and retry, with no local fallback');
   // Read the board once before queueing, never inside the machine admission transaction.
   const releaseContext = gateQueueSettings().currentReleaseFirst
@@ -614,20 +622,40 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     onWait,
   });
   tracker.mark('admittedAt');
+  let healthyTransportRetry = false;
   try {
     while (true) {
       lease.source = source;
-      lease.runMetadata = { landing, itemCheck, diagnostic, gui, timing, item: String(item), kind };
+      lease.runMetadata = { landing, itemCheck, diagnostic, gui, timing, item: String(item), kind,
+        ...(policyTrunk?.commit ? { trunk: { ref: policyTrunk.branch ?? policyTrunk.ref, commit: policyTrunk.commit } } : {}) };
       timed(lease).tracker.mark('actionAt');
       try { return await action(lease); }
       catch (error) {
         // A cleanup the runner could not verify is the runner's failure, not the run's: rerun it locally (#1063).
         const cleanup = error instanceof Refused && error.code === 'RUNNER_CLEANUP_TIMEOUT';
         if (!(error instanceof RunnerDropped || cleanup) || !lease.runner || !lease.requeueRunner) throw error;
-        const runnerUnavailable = { host: lease.runner.host, reason: cleanup ? error.message : 'transport lost before a complete result', until: 'the host is checked and re-registered' };
+        // A separate Node process cannot prove that a worker which missed READY can accept a job.
+        const admissionDeadline = !cleanup && (error.diagnostic?.reason === 'admission-deadline'
+          || error.diagnostic?.phase !== 'ready' && Number.isSafeInteger(lease.runnerWaitDeadline) && Date.now() >= lease.runnerWaitDeadline);
+        const health = cleanup || admissionDeadline ? null : await probeRunnerTransport(lease.runner);
+        const diagnostic = { ...(error.diagnostic ?? { reason: error.name }), confirmingProbe: health };
+        // A persistent receipt/capsule failure must surface; rotating through healthy hosts cannot repair it.
+        if (health?.healthy && healthyTransportRetry) {
+          const refused = new Refused('RUNNER_RESULT_INVALID', `runner ${lease.runner.host} answers SSH and Node but a second attempt lacks a valid completion (${diagnostic.reason}); inspect the retained transport diagnostic before retrying`);
+          refused.runnerDiagnostic = diagnostic;
+          throw refused;
+        }
+        if (health?.healthy) healthyTransportRetry = true;
+        const runnerUnavailable = { host: lease.runner.host,
+          reason: cleanup ? error.message : admissionDeadline ? 'worker did not become ready before its admission deadline'
+            : health.healthy ? 'transient failure; confirming SSH and Node observation succeeded' : 'failed call and confirming transport observation failed',
+          diagnostic, until: cleanup ? 'cleanup is verified and the host is re-registered'
+            : admissionDeadline ? 'worker readiness is checked and the host is re-registered'
+              : health.healthy ? 'the original ticket is readmitted' : 'the next successful automatic health observation' };
         if (onWait) await onWait({ holders: [], line: [], position: 0, runnerUnavailable });
         else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly ? 'rerunning it locally' : 'requeueing the run'}\n`);
-        lease = await lease.requeueRunner(cleanup ? 'cleanup-unverified' : 'transport-lost', { local: cleanup && !runnerOnly });
+        lease = await lease.requeueRunner(cleanup ? 'cleanup-unverified' : admissionDeadline ? 'worker-unresponsive' : 'transport-lost', {
+          local: cleanup && !runnerOnly, quarantine: !health?.healthy, diagnostic });
       }
     }
   } finally {

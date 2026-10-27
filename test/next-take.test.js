@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as store from '../src/board.js';
+import { fixtureBoard } from './board-fixture.js';
 import { main } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
 import { applyRelayMove, appliedSequence, prepareEngineMove } from '../src/engine.js';
@@ -70,6 +71,7 @@ async function fixture(t, { route = 'strong', family = 'off', policy = 'any' } =
   const initialized = await cli({ clock }, root, ['init']);
   assert.equal(initialized.code, 0, initialized.out + initialized.err);
   const file = join(root, '.git/pullboard/board.sqlite');
+  // @pullboard-board-file journey: share the durable board initialized by the real CLI and selected by its worktree dispatch.
   const board = store.openBoard(file, clock);
   const seats = {};
   for (const [name, lane, parent, vendor] of [
@@ -261,8 +263,7 @@ test('an atomic correction replays identically and a bad frozen payload changes 
   const box = await fixture(t);
   const id = box.add('A deterministic corrected bar');
   box.claim(id, box.seats.actor);
-  const replica = store.openBoard(join(box.root, '.git/pullboard/replica.sqlite'), box.clock);
-  t.after(() => store.closeBoard(replica));
+  const replica = fixtureBoard(t, { clock: box.clock });
   importBoard(replica, exportBoard(box.board));
   const change = { agentId: 'coordinator', criterion: 'A sealed correction', reason: 'Correct the actual bar', correction: true,
     freeze: item => {

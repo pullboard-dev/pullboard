@@ -1,0 +1,18 @@
+/** Native coordinator patch inputs preserve source and author authority [V4,H16]. */
+import { ITEM_PATCH_ENGINE } from '../item-patch-engine.js';
+/** Old engines must never interpret new patch payloads. */
+function minimumEngine() { return ITEM_PATCH_ENGINE; }
+/** The actor is the explicit coordinator argument, not the patch author. */
+function actor(move) { return move.args[1]?.agentId ?? null; }
+export default Object.freeze({ operation: 'attachItemPatch', engine: ITEM_PATCH_ENGINE,
+  itemIdFirstArgument: true, minimumEngine, actor, nextSteps: Object.freeze({
+    ITEM_PATCH_OUTSIDE: 'ask the outside source author to revise its PR; patches attach only to native items',
+    ITEM_PATCH_KEY: 'choose a stable immutable patch key',
+    ITEM_PATCH_STATE: 'attach only to an unmerged submitted or verified item',
+    ITEM_PATCH_SOURCE: 'bind patches to the exact submitted commit and compose them before review',
+    ITEM_PATCH_AUTHOR: 'name an existing native author seat',
+    ITEM_PATCH_FORMAT: 'supply bounded UTF8 git unified or binary patch bytes',
+    ITEM_PATCH_CONFLICT: 'keep the original key immutable; use another key for different input',
+    ITEM_PATCH_CHANGED: 'read and compose the current patch set before reviewing',
+    NO_ITEM_PATCH: 'list the current item patches and select an existing key'
+  }) });
