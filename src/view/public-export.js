@@ -1,4 +1,4 @@
-/** Fail closed on public snapshot prose; coordinator rulings 064965a1, 919d562b and f15ecdcb [N26]. */
+/** Fail closed on public snapshot prose; coordinator rulings 064965a1, 919d562b, f15ecdcb and 5b1543f9 [N26]. */
 import { Refused } from '../refused.js';
 
 /** The complete public export block list; internal messages are omitted before prose is checked. */
@@ -59,6 +59,7 @@ function structuredIdentity(path, value, eventKind) {
   if (EVENT_PATH.test(path.slice(0, -3).join('/')) && ['detail', 'event_detail'].includes(path.at(-3))) {
     if (['add', 'edit', 'check-baseline'].includes(eventKind) && path.slice(-2).join('/') === 'checkBaseline/main') width = 40;
     if (['accept', 'reject'].includes(eventKind) && /^review\/(?:commit|head|trunk)$/u.test(path.slice(-2).join('/'))) width = 40;
+    if (eventKind === 'submit' && /^submissionSize\/(?:base|head)$/u.test(path.slice(-2).join('/'))) width = 40;
   }
   return width > 0 && new RegExp(`^[a-f0-9]{${width}}$`, 'u').test(value);
 }
@@ -81,7 +82,10 @@ export function publicSnapshot(document, { privateBoard = false } = {}) {
       if ((EVENT_PATH.test(location) || /^state\/state\/(?:shouts|asked|decisions|decisionQueue|requests)\/\*$/u.test(location)
         || /^state\/state\/items\/\*\/history\/\*$/u.test(location)) && internalShout(value)) return undefined;
       const kind = EVENT_PATH.test(location) ? value.event_kind ?? value.kind : eventKind;
-      return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key,
+      const entries = location === 'state/state/agents/*'
+        ? [['agent_id', value.agent_id], ['agent_lane', value.agent_lane], ['model', value.model ?? value.agent_model]]
+        : Object.entries(value);
+      return Object.fromEntries(entries.map(([key, entry]) => [key,
         key === 'event_detail' ? JSON.stringify(visit(detailOf(value), [...path, key], kind)) : visit(entry, [...path, key], kind),
       ]).filter(([, entry]) => entry !== undefined));
     }

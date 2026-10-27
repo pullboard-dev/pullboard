@@ -49,7 +49,8 @@ test('the declared public filter blocks every ruled kind without echoing its val
   assert.throws(() => publicSnapshot({ items: [{ title: 'Private fixture work' }] }, { privateBoard: true }), /private item/u);
   const native = { listing: { boards: [{ id: 'd'.repeat(32) }] }, state: { state: { board: 'd'.repeat(32), rowAgesAt: { 'SPEC.md': 'a'.repeat(40) },
     items: [{ id: 1, commit: 'a'.repeat(40), merged: 'b'.repeat(40) }] } },
-    events: { events: [{ event_kind: 'submit', event_detail: JSON.stringify({ commit: 'a'.repeat(40), tree: 'b'.repeat(40), criterionDigest: 'c'.repeat(64) }) }] } };
+    events: { events: [{ event_kind: 'submit', event_detail: JSON.stringify({ commit: 'a'.repeat(40), tree: 'b'.repeat(40), criterionDigest: 'c'.repeat(64),
+      submissionSize: { base: 'b'.repeat(40), head: 'a'.repeat(40), lines: 1, method: 'added-plus-deleted-no-renames' } }) }] } };
   assert.deepEqual(publicSnapshot(native), native, 'only native paths with exact identifier widths are exempt');
   for (const forged of [{ customer_id: 'a'.repeat(64) }, { note_id: 'a'.repeat(64) }, { commit: 'a'.repeat(40) },
     { events: { events: [{ event_kind: 'fact', event_detail: JSON.stringify({ note_id: 'a'.repeat(64), commit: 'b'.repeat(40) }) }] } },
@@ -72,6 +73,9 @@ test('internal messages disappear from rows, historical JSON and derived decisio
   assert.equal(input.state.state.shouts.length, 2, 'the pure filter does not mutate the source');
   assert.throws(() => publicSnapshot({ events: [{ event_kind: 'fact', event_detail: '{"text":"\\u0070ricing"}' }] }), /pricing term/u,
     'encoded historical free text cannot bypass the scan');
+  assert.deepEqual(publicSnapshot({ state: { state: { agents: [{ agent_id: 'web-1', agent_lane: 'web', agent_model: 'Fixture',
+    agent_parent_session: 'a'.repeat(64), agent_path: '/work/test-host.local', host: 'a5x', executionRunner: 'user@host' }] } } }),
+  { state: { state: { agents: [{ agent_id: 'web-1', agent_lane: 'web', model: 'Fixture' }] } } }, 'public agents have no internal session, worktree or machine linkage');
 });
 
 test('public CLI export refuses blocked prose without creating or changing output [N26]', () => {
@@ -134,7 +138,7 @@ test('a clean public export renders offline with public work and no write path [
   box.run(alpha.repo, 'shout', 'all', 'Internal notice');
   const output = join(box.dir, 'clean-export');
   const result = command(box, alpha.repo, 'view', '--export', output, '--public');
-  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
   const listing = JSON.parse(readFileSync(join(output, 'api/v1/boards.json'), 'utf8'));
   const state = JSON.parse(readFileSync(join(output, 'api/v1/boards', listing.boards[0].id, 'state.json'), 'utf8'));
   assert.equal(JSON.stringify(state).includes('Internal notice'), false);
