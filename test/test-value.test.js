@@ -47,6 +47,7 @@ function fixture(t) {
   const green = commit('2026-10-15T00:00:00Z', 'fix: product repair');
   let now = new Date(NOW);
   const clock = { now: () => new Date(now) };
+  // @pullboard-board-file journey: the public report CLI reopens this Git project's persisted synthetic receipt history.
   const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: root });

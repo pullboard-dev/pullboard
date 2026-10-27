@@ -95,6 +95,7 @@ const OPTIONS = {
   diagnostics: { type: 'boolean' },
   landing: { type: 'boolean' },
   adopt: { type: 'boolean' },
+  due: { type: 'boolean' },
   affected: { type: 'boolean' },
   waive: { type: 'string' },
   until: { type: 'string' },

@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { Refused } from './refused.js';
 import { environmentProblem } from './execution-environment.js';
 import { registryGuardsProblem } from './registry-guards.js';
+import { cadenceProblem } from './landing-cadence.js';
 
 export const CONFIG_FILE = 'pullboard.json';
 export const COORDINATOR = 'coordinator';
@@ -232,7 +233,9 @@ export function configProblems(config) {
     problems.push(`"landing.environment" ${environmentProblem(config.landing.environment)}`);
   }
   if (config.landing?.parallel !== undefined && typeof config.landing.parallel !== 'boolean') problems.push('"landing.parallel" is a boolean; omit it or use false to keep serial landing');
-  for (const key of ['timeout', 'cadence']) {
+  const cadenceError = cadenceProblem(config.landing?.cadence);
+  if (cadenceError) problems.push(cadenceError);
+  for (const key of ['timeout']) {
     const value = config.landing?.[key];
     const match = typeof value === 'string' ? CHECK_TIMEOUT_RE.exec(value) : null;
     const ms = match ? Number(match[1]) * CHECK_TIMEOUT_MS[match[2]] : NaN;
@@ -361,7 +364,7 @@ export function configFromSource(source) {
   return {
     ...config,
     check: { ...config.check, timeoutMs: Number(timeout[1]) * CHECK_TIMEOUT_MS[timeout[2]] },
-    ...(config.landing ? { landing: { ...config.landing, ...Object.fromEntries(['timeout', 'cadence'].filter(key => config.landing[key] !== undefined).map(key => { const value = CHECK_TIMEOUT_RE.exec(config.landing[key]); return [`${key}Ms`, Number(value[1]) * CHECK_TIMEOUT_MS[value[2]]]; })) } } : {}),
+    ...(config.landing ? { landing: { ...config.landing, ...Object.fromEntries(['timeout', 'cadence'].filter(key => config.landing[key] !== undefined).map(key => { const value = CHECK_TIMEOUT_RE.exec(key === 'cadence' && typeof config.landing[key] === 'object' ? config.landing[key].every : config.landing[key]); return [`${key}Ms`, Number(value[1]) * CHECK_TIMEOUT_MS[value[2]]]; })) } } : {}),
     leaseMs: durationMs(config.lease),
     reviewLeaseMs: durationMs(config.reviewLease, 'reviewLease'),
   };
