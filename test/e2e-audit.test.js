@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** Value placement and incremental audit control contracts, without executing repository journeys [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -6,7 +7,10 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from '../src/git.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { indexedStageSelection, readPlacementIndex, writePlacementIndex } from '../src/test-economics-index.js';
+import { indexedStageSelection, readPlacementIndex, readPlacementReport, writePlacementIndex } from '../src/test-economics-index.js';
+import { mainAuditFixture } from './main-audit-project.js';
+import { runFixtureGit } from './fixture-child.js';
+import { paidTests, placementLandingGate, VALUE_GATE, valueGateCommand } from '../src/test-placement.js';
 import { packageBranchCoverage } from '../src/audit-coverage.js';
 import {
   auditFailureItem,
@@ -133,4 +137,66 @@ test('audit package coverage unions branch hits across shards and leaves unloade
   const incompatible = packageBranchCoverage([sample([1, 0]), changedRuntime], options);
   assert.deepEqual(incompatible.find(row => row.package === 'a').invalid, ['packages/a/code.js']);
   assert.equal(incompatible.find(row => row.package === 'a').percent, null);
+});
+
+test('production landing projection leaves CLI journeys for audit and preserves static and mandatory checks [C7]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true', undefined, { withWorktree: false });
+  const report = inventory();
+  writePlacementIndex(box.repo, report);
+  const selected = placementLandingGate(box.repo, { gate: 'node bin/static.js && node bin/run-tests.js' },
+    { full: false, files: report.files.map(row => row.file) }, ['test/mandatory.test.js']);
+  assert.match(selected.gate, /^node bin\/static.js &&/u);
+  assert.match(selected.gate, /test\/contract\.test\.js/u);
+  assert.match(selected.gate, /test\/mandatory\.test\.js/u);
+  assert.doesNotMatch(selected.gate, /test\/journey\.test\.js|test\/unknown\.test\.js/u);
+  assert.deepEqual(paidTests(box.repo, report.files.map(row => row.file), 'submit'), ['test/unit.test.js']);
+  assert.equal(selected[VALUE_GATE], true, 'a selected gate cannot stamp full-suite green');
+  assert.equal(valueGateCommand(box.repo, 'node bin/run-tests.js --test-name-pattern=required', []), null, 'explicit check filters remain separate required obligations');
+  assert.equal(valueGateCommand(box.repo, 'node bin/run-tests.js | cat', []), null, 'opaque gate keeps legacy behavior');
+});
+
+test('production audit runs a CLI journey, reuses an unchanged unit and files a real main-red item for a seeded failure [C7]', { timeout: 180_000 }, async t => {
+  const box = await mainAuditFixture(t, { initialGreen: true });
+  runFixtureGit(['merge', '--ff-only', box.tip], { cwd: box.repo, env: box.env });
+  await box.runWorker();
+  const first = JSON.parse(readFileSync(join(box.directory, box.key + '.json')));
+  assert.equal(first.state, 'complete', JSON.stringify(first));
+  assert.equal(first.green, true);
+  assert.equal(readFileSync(box.unitMarker, 'utf8'), 'ran');
+  const firstReceipt = box.readGateReceipt(box.receiptStore(box.repo), first.receiptId);
+  assert.equal(firstReceipt.collection.full, true);
+  const placement = readPlacementReport(box.repo);
+  assert.equal(placement.files.find(row => row.file === 'test/a.test.js').tier, 'audit');
+  assert.ok(first.plan.run.includes('test/a.test.js'), 'the actual CLI-spawning journey ran in the audit');
+  assert.ok(first.coverage.samples > 0, 'coverage comes from actual Node events');
+  assert.ok(first.coverage.packages.some(row => row.percent === null && row.missing.length), 'unloaded product coverage stays unknown');
+  const secondBatch = box.appendBatch();
+  await box.runWorker();
+  const second = JSON.parse(readFileSync(join(box.directory, secondBatch.key + '.json')));
+  assert.equal(second.state, 'complete', JSON.stringify(second));
+  assert.equal(second.green, true);
+  assert.ok(second.plan.reused.some(row => row.file === 'test/b.test.js'));
+  assert.ok(!second.plan.run.includes('test/b.test.js'));
+  assert.equal(readFileSync(box.unitMarker, 'utf8'), 'ran', 'unchanged body was not executed again');
+  assert.equal(box.readGateReceipt(box.receiptStore(box.repo), second.receiptId).collection.full, false, 'selected native proof is labeled selected');
+  const failedBatch = box.appendBatch({ fail: true });
+  await box.runWorker();
+  const failed = JSON.parse(readFileSync(join(box.directory, failedBatch.key + '.json')));
+  assert.equal(failed.state, 'complete', JSON.stringify(failed));
+  assert.equal(failed.green, false);
+  const defects = box.board(db => box.store.landingTestDefects(db)).filter(row => row.batchId === failedBatch.batchId);
+  assert.equal(defects.length, 1);
+  const item = box.board(db => box.store.getItem(db, defects[0].item));
+  assert.match(item.item_title, /^Main red: scheduled audit/u);
+  assert.equal(item.item_status, 'open');
+  assert.match(item.item_criterion, /audit seeded red/u);
+  assert.ok(item.item_criterion.includes(failedBatch.tip));
+  assert.ok(!item.item_criterion.includes(secondBatch.tip), 'the previous complete green landing is excluded');
+  const cursor = JSON.parse(readFileSync(join(box.directory, 'last-green.json')));
+  assert.equal(cursor.tip, secondBatch.tip, 'red audit cannot advance the green cursor');
+  const cadence = JSON.parse(readFileSync(join(box.directory, 'schedule.json')));
+  assert.equal(cadence.inputs.escapes, 1, 'lambda counts an actual audit-filed repair item');
+  assert.ok(cadence.hours > 0);
 });

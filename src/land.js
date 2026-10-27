@@ -60,6 +60,7 @@ import { testsNeedBrowser } from './browser-admission.js';
 import { testsNeedGui } from './gui-admission.js';
 import { selectAffectedTests } from './affected-tests.js';
 import { selectRegistryGuards } from './registry-guards.js';
+import { placementLandingGate } from './test-placement.js';
 import { laneOf } from './lanes.js';
 import { takeLandingResource } from './landing-resource.js';
 import {
@@ -423,12 +424,16 @@ function batchAffectedTests(state) {
     ? selectAffectedTests(root, { base: state.batch.base, commit })
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
   const registry = selectRegistryGuards(root, state.config.registryGuards, { base: state.batch.base });
-  return { ...selection, files: [...new Set([...(state.config.submitInvariants ?? []), ...registry, ...(!selection.full ? selection.files : [])])].sort() };
+  const mandatory = [...new Set([...(state.config.submitInvariants ?? []), ...registry])].sort();
+  return { ...selection, mandatory, files: [...new Set([...mandatory, ...(!selection.full ? selection.files : [])])].sort() };
 }
 
 /** Bind every cached landing proof to the full gate and its merged-tree affected floor. */
 function batchGatePlan(state) {
   const selection = batchAffectedTests(state);
+  const changed = git(state.batch.root, ['diff', '--no-renames', '--name-only', '-z', state.batch.base, 'HEAD']).split('\0').filter(Boolean);
+  const valued = placementLandingGate(state.batch.root, state.config, selection, selection.mandatory, changed);
+  if (valued) return { config: valued, affectedGate: createHash('sha256').update(valued.gate).digest('hex') };
   const appended = selection.files.length ? `${state.config.affectedTests} ${selection.files.map(quote).join(' ')}` : '';
   const config = appended ? { ...state.config, gate: `(\n${state.config.gate}\n) && ${appended}` } : state.config;
   return { config, affectedGate: createHash('sha256').update(config.gate).digest('hex') };

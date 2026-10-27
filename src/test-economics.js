@@ -8,7 +8,9 @@ export const TEST_VALUE_DEFAULTS = Object.freeze({ escape: 1000, waitPerSecond: 
 export function testValueCosts(value = {}) {
   const costs = { ...TEST_VALUE_DEFAULTS, ...value };
   for (const [name, cost] of Object.entries(costs)) {
-    if (!Number.isFinite(cost) || cost <= 0) throw new TypeError(`test value cost ${name} must be positive`);
+    if (!Number.isFinite(cost) || cost < 0 || ['delayPerHour', 'auditCost'].includes(name) && cost === 0) {
+      throw new TypeError(`test value cost ${name} must be nonnegative, with positive audit/delay costs`);
+    }
   }
   return costs;
 }
@@ -68,11 +70,11 @@ export function testsAtStage(files, report, stage) {
 
 /** Optimal interval in hours; no observed escapes means an unknown/infinite interval, not an invented rate. */
 export function auditInterval({ runCost, escapes, observationHours, delayCost }) {
-  if (![runCost, observationHours, delayCost].every(value => Number.isFinite(value) && value > 0)
+  if (![runCost, delayCost].every(value => Number.isFinite(value) && value >= 0) || !Number.isFinite(observationHours) || observationHours <= 0
       || !Number.isSafeInteger(escapes) || escapes < 0) throw new TypeError('invalid audit cadence inputs');
   const lambda = escapes / observationHours;
-  return { lambda, hours: lambda === 0 ? null : Math.sqrt(2 * runCost / (lambda * delayCost)),
-    reason: lambda === 0 ? 'no audit-found main-red rate yet; release/manual audit remains required' : 'optimal expected cost' };
+  return { lambda, hours: lambda === 0 || delayCost === 0 ? null : Math.sqrt(2 * runCost / (lambda * delayCost)),
+    reason: delayCost === 0 ? 'zero delay cost; release/manual audit remains required' : lambda === 0 ? 'no audit-found main-red rate yet; release/manual audit remains required' : 'optimal expected cost' };
 }
 
 /** Compare exact action keys only against the last complete green audit; unknown keys always run. */
@@ -84,7 +86,7 @@ export function incrementalAudit(keys, previous = null) {
     else run.push(file);
   }
   return { run: run.sort(), reused: reused.sort((a, b) => a.file.localeCompare(b.file)),
-    planDigest: createHash('sha256').update(JSON.stringify([...keys.keys()].sort())).digest('hex') };
+    planDigest: createHash('sha256').update(JSON.stringify([...keys].sort(([a], [b]) => a.localeCompare(b)))).digest('hex') };
 }
 
 /** Name every landing after the last green audit; a failed audit is not attributed to an arbitrary item. */

@@ -66,6 +66,12 @@ export function readPlacementIndex(root, files) {
   return { version: 1, generation: current, files: rows };
 }
 
+/** Read the complete published report only for an explicit report or audit, never a change gate. */
+export function readPlacementReport(root) {
+  try { return validatePlacementIndex(JSON.parse(readFileSync(join(directory(root), generation(root), 'report.json'), 'utf8'))); }
+  catch { return null; }
+}
+
 /** Publish an audit inventory only after every row is written; failure retains the prior pointer. */
 export function writePlacementIndex(root, report) {
   validatePlacementIndex(report);
@@ -76,6 +82,7 @@ export function writePlacementIndex(root, report) {
   const temporary = join(store, `${next}.tmp`);
   try {
     for (const row of report.files) writeFileSync(join(folder, entryName(row.file)), JSON.stringify(row) + '\n', { mode: 0o600, flag: 'wx' });
+    writeFileSync(join(folder, 'report.json'), JSON.stringify(report) + '\n', { mode: 0o600, flag: 'wx' });
     writeFileSync(temporary, JSON.stringify({ version: 1, generation: next, at: report.at, head: report.head }) + '\n', { mode: 0o600, flag: 'wx' });
     renameSync(temporary, join(store, 'current.json'));
   } catch (error) {
