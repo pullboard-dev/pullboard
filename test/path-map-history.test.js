@@ -9,6 +9,7 @@ import { checkBaseline } from '../src/check-baseline.js';
 import { itemsTouching } from '../src/why-file.js';
 import { rigorReport } from '../src/rigor.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
+import { coChangedPaths, historicalPaths, mappedCheck, readPathMap } from '../src/path-map.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const e2e = createE2eHelpers();
@@ -40,6 +41,34 @@ test('a frozen check executes the moved file without rewriting its frozen bar [C
   assert.equal(ran.checked, true);
   assert.match(ran.outputTail, /moved-check-executed/u);
   assert.equal(item.item_frozen, frozen);
+  const invalid = { ...item, item_commit: 'f'.repeat(40) };
+  assert.equal(checkAtCommit(box.repo, invalid).state, 'unverified', 'an unavailable source never earns a green alias');
+});
+
+test('co-change identities follow committed chains without duplicates or prefix guesses [C7]', () => {
+  const box = movedFixture();
+  const map = readPathMap(box.repo);
+  assert.deepEqual(new Set(historicalPaths(map, NEW)), new Set([OLD, MID, NEW]));
+  assert.deepEqual(coChangedPaths(map, OLD, [[OLD, MID, NEW, 'web/peer.js'], [NEW, 'web/peer.js'], ['web/other.js']]),
+    [{ file: 'web/peer.js', count: 2 }]);
+  assert.equal(mappedCheck(box.repo, `node '${OLD}' && node ./${OLD}`), `node '${NEW}' && node '${NEW}'`);
+  assert.equal(mappedCheck(box.repo, `node ${OLD}.extra --test-name-pattern=${OLD} -e 'console.log("${OLD}")'`),
+    `node ${OLD}.extra --test-name-pattern=${OLD} -e 'console.log("${OLD}")'`);
+  assert.equal(mappedCheck(box.repo, box.command, { commit: box.base }), box.command, 'the selected historical source owns its map');
+  writeFileSync(join(box.repo, 'path-map.json'), JSON.stringify({ [OLD]: 'web/uncommitted.mjs' }));
+  assert.equal(mappedCheck(box.repo, box.command), `node '${NEW}'`, 'an uncommitted map cannot redirect a frozen read');
+});
+
+test('malformed, cyclic and escaping committed maps cannot partially resolve history [C7]', () => {
+  const box = movedFixture();
+  for (const value of ['{', 'null', '[]', JSON.stringify({ [OLD]: '../elsewhere.js' }),
+    JSON.stringify({ [OLD]: '/tmp/elsewhere.js' }), JSON.stringify({ [OLD]: 'web/../elsewhere.js' }),
+    JSON.stringify({ [OLD]: 'web\\\\elsewhere.js' }), JSON.stringify({ [OLD]: MID, [MID]: OLD })]) {
+    writeFileSync(join(box.repo, 'path-map.json'), value);
+    box.git(box.repo, 'add', 'path-map.json');
+    box.git(box.repo, 'commit', '-q', '-m', 'chore: record malformed map fixture');
+    assert.throws(() => readPathMap(box.repo), error => error.code === 'NO_POLICY');
+  }
 });
 
 test('a check baseline resolves paths at its selected main and retains the recorded command [C7]', () => {

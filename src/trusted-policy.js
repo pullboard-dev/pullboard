@@ -1,4 +1,5 @@
 import { localDependencyIds } from './item-dependencies.js';
+import { mappedCheck } from './path-map.js';
 import { trunkMerge } from './trunk-merge.js';
 export { trunkMerge } from './trunk-merge.js';
 import { privateGuard } from './runner-private-mode.js';
@@ -146,11 +147,12 @@ export function frozenCheck(item) {
  *   mutate changes the scratch tree after checkout (a guard revert) and returns a reason when it cannot [C7,V4].
  */
 export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, gateLease, mutate, guard } = {}) {
-  const command = frozenCheck(item);
-  if (!command) return { state: 'pass', green: true, checked: false, report: '' };
+  const frozenCommand = frozenCheck(item);
+  if (!frozenCommand) return { state: 'pass', green: true, checked: false, report: '' };
+  let command;
   let policy;
   let config;
-  try { policy = itemPolicy(root, item); config = policy.config; }
+  try { policy = itemPolicy(root, item); config = policy.config; command = mappedCheck(root, frozenCommand, { commit: item.item_commit }); }
   catch { return checkResult('unverified', 'policy', '', '', { root, item }); }
   if (gateLease?.runner) {
     let descriptor;

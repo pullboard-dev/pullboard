@@ -1,5 +1,6 @@
 /** Typed failure observations preserve evidence separately from person-authorized waivers [C7,D1,H16]. */
 import { createHash } from 'node:crypto';
+import { mappedPath, readPathMap } from './path-map.js';
 import {
   addItem,
   atomic,
@@ -81,7 +82,7 @@ function observationKey(value) {
 }
 
 /** Read only allocated typed events, preserving every original observation and repair relationship. */
-export function flakeLedger(board) {
+export function flakeLedger(board, { root } = {}) {
   const rows = new Map();
   for (const event of board.db.prepare("SELECT * FROM event WHERE event_kind IN ('flake-observation','flake-repair') ORDER BY event_id").all()) {
     const detail = JSON.parse(event.event_detail);
@@ -107,7 +108,28 @@ export function flakeLedger(board) {
     const merged = board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE event_kind='merged' AND item_id=?").get(row.item);
     if (item.item_merged_commit && merged.id > row.lastEventId) row.status = 'fixed';
   }
-  return [...rows.values()];
+  return root ? mappedLedger([...rows.values()], readPathMap(root)) : [...rows.values()];
+}
+
+/** Join read identities after interpreting the original repair keys, retaining every original observation. */
+function mappedLedger(rows, map) {
+  if (!map.size) return rows;
+  const grouped = new Map();
+  for (const row of rows) {
+    const file = row.file === null ? null : mappedPath(map, row.file);
+    const key = file === null ? row.key : observationKey({ file, name: row.name });
+    const previous = grouped.get(key);
+    if (!previous) { grouped.set(key, { ...row, key, file, repairs: row.item === null ? [] : [row.item] }); continue; }
+    const latest = previous.lastEventId > row.lastEventId ? previous : row;
+    grouped.set(key, { ...latest, key, file, count: previous.count + row.count,
+      firstSeen: previous.firstSeen < row.firstSeen ? previous.firstSeen : row.firstSeen,
+      lastSeen: latest.lastSeen, lastEventId: latest.lastEventId,
+      observations: [...previous.observations, ...row.observations],
+      repairs: [...new Set([...previous.repairs, ...(row.item === null ? [] : [row.item])])],
+      item: latest.item ?? previous.item ?? row.item,
+      status: previous.status === 'active' || row.status === 'active' ? 'active' : latest.status });
+  }
+  return [...grouped.values()];
 }
 
 /** Atomically append one observation, drafting ordinary repair work only on a second confirmed sighting. */

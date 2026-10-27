@@ -50,7 +50,7 @@ export function flakesCommand(ctx, { first, second, rest }, withBoard, services 
   }
   if (first || second || rest.length) throw new Refused('USAGE', 'pullboard flakes lists observations; pullboard flakes rerun|quarantine on|off sets the coordinator’s opt-in policy; pullboard flakes import <folder> records downloaded CI results');
   return withBoard(ctx, board => {
-    const rows = flakeLedger(board);
+    const rows = flakeLedger(board, { root: ctx.info.root });
     const flakes = rows.filter(row => row.count > 0);
     const unclassified = rows.filter(row => row.count === 0 && row.classification === 'unclassified');
     const regressions = rows.filter(row => row.count === 0 && row.classification === 'possible-regression');

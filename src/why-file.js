@@ -8,6 +8,7 @@ import { tryGit } from './git.js';
 import { mainCheckout } from './git.js';
 import { Refused } from './refused.js';
 import { originOf } from './decision-origin.js';
+import { historicalPaths, mappedPath, readPathMap } from './path-map.js';
 
 /**
  * Split `path` or `path:line` into the file and an optional line.
@@ -30,7 +31,9 @@ export function parseFileTarget(target) {
 export function itemsTouching(root, { file, line }) {
   const trunk = mainCheckout(root);
   if (!trunk?.commit) return [];
-  const range = line === null ? ['--', `:(literal)${file}`] : [`-L${line},${line}:${file}`, '-s'];
+  const map = readPathMap(root, { commit: trunk.commit });
+  const range = line === null ? ['--', ...historicalPaths(map, file).map(path => `:(literal)${path}`)]
+    : [`-L${line},${line}:${mappedPath(map, file)}`, '-s'];
   const log = tryGit(root, ['log', '--first-parent', '--diff-merges=first-parent', '--reverse', '--format=%x01%B', trunk.commit, ...range]);
   if (log.status !== 0) {
     if (line !== null && /no such path|file .* has only|there is no path/iu.test(log.stderr)) return [];
