@@ -1,26 +1,20 @@
 /** @pullboard-test-input source-tree */
-/** Typed notes preserve authority and historical replay on real Git and SQLite replicas [B29,B30,B31,H16]. */
+/** Typed notes preserve authority and historical replay on independent in-memory SQLite replicas [B29,B30,B31,H16]. */
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
-import { after, test } from 'node:test';
+import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { ITEM_NOTES_ENGINE } from '../src/item-notes-engine.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
-import { createE2eHelpers } from './e2e-helpers.js';
-
-const helpers = createE2eHelpers();
-after(helpers.cleanup);
+import { fixtureBoard } from './board-fixture.js';
 
 /** Seed identical private replicas without a background writer or already-active future receipt. */
 function replicas(t) {
-  const box = helpers.project();
-  const primary = store.openBoard(join(box.dir, 'notes-primary.sqlite'));
-  const peer = store.openBoard(join(box.dir, 'notes-peer.sqlite'));
-  t.after(() => { store.closeBoard(primary); store.closeBoard(peer); });
-  store.register(primary, { lane: 'coordinator', path: box.repo });
-  store.register(primary, { lane: 'web', path: box.web });
+  const primary = fixtureBoard(t);
+  const peer = fixtureBoard(t);
+  store.register(primary, { lane: 'coordinator', path: '/fixture' });
+  store.register(primary, { lane: 'web', path: '/fixture/web' });
   const id = store.addItem(primary, { by: 'coordinator', lane: 'web', title: 'Versioned conversation' });
   importBoard(peer, exportBoard(primary));
   return { boards: [primary, peer], id };
