@@ -344,7 +344,6 @@ async function runMain(argv, streams) {
   }
   try {
     if (needsRepo) {
-      (await import('./cli-presence.js')).heartbeatCommand(io);
       await rememberTrunk(io, git);
     }
     traceServeStartup('cli-command-preamble-start');
