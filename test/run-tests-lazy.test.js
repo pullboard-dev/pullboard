@@ -67,25 +67,30 @@ function sourceTreeReader(source) {
   return header.split(/\r?\n/u).some(line => line.trim() === '/** @pullboard-test-input source-tree */');
 }
 
-/** A cache-unknown module can still have an independently proven literal import chain to the changed board. */
+/** Independently trace literal imports for cache-unknown roots; never invent a removed board edge. */
 function knownUncacheableImporters(closures, modules) {
-  const suffix = ['src/gate-slot.js', 'src/release-queue.js', 'src/board.js'];
-  const chains = [
-    ['test/run-tests-kill.test.js', 'bin/run-tests.js', ...suffix],
-    ['test/run-tests-timeout.test.js', 'bin/run-tests.js', ...suffix],
-    ['test/runners.test.js', 'src/gate.js', ...suffix],
-  ];
-  const sources = [...new Set(chains.flat())];
-  const imports = new Map(importsIn(sources.map(file => modules.get(file))).map((edges, index) => [sources[index], edges]));
-  for (const chain of chains) {
-    assert.equal(closures.get(chain[0]).files, null, 'known edges do not turn an unknown cache closure into a reusable one');
-    for (let index = 0; index < chain.length - 1; index++) {
-      const relative = posix.relative(posix.dirname(chain[index]), chain[index + 1]);
-      const specifier = relative.startsWith('.') ? relative : `./${relative}`;
-      assert.ok(imports.get(chain[index]).includes(specifier), `${chain[index]} really imports ${chain[index + 1]}`);
+  const roots = ['test/run-tests-kill.test.js', 'test/run-tests-timeout.test.js', 'test/runners.test.js'];
+  const releaseImports = importsIn([modules.get('src/release-queue.js')])[0];
+  for (const file of ['board-read-open.js', 'board-query.js', 'board-read-auxiliary.js']) assert.ok(releaseImports.includes(`./${file}`), `release capture uses canonical reader ${file}`);
+  assert.ok(!releaseImports.includes('./board.js'), 'release capture does not import the writer facade');
+  const parsed = new Map();
+  const known = new Set();
+  for (const root of roots) {
+    assert.equal(closures.get(root).files, null, 'literal inspection does not make unknown cache closures reusable');
+    const pending = [root], seen = new Set();
+    while (pending.length) {
+      const file = pending.pop();
+      if (seen.has(file)) continue;
+      seen.add(file);
+      if (file === 'src/board.js') { known.add(root); break; }
+      if (!modules.has(file)) continue;
+      if (!parsed.has(file)) parsed.set(file, importsIn([modules.get(file)])[0]);
+      for (const edge of parsed.get(file)) {
+        if (edge.startsWith('.')) pending.push(posix.normalize(posix.join(posix.dirname(file), edge)));
+      }
     }
   }
-  return new Set(chains.map(chain => chain[0]));
+  return known;
 }
 
 test('a plain test run loads no gate board or machine modules through its runner [C7,V4]', { timeout: 90_000 }, // budget: one real private admission and test-file child; hang ceiling only.

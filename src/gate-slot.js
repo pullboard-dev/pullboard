@@ -28,7 +28,7 @@ import {
 import {
   RunnerDropped,
   runnerSource,
-} from './runner-policy.js';
+} from './gate-policy-load.js';
 
 /** Close a gated run's receipt (#836) as its evidence is written; the slot's release records this same receipt. */
 export function settleReceipt(lease) {

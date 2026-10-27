@@ -16,6 +16,7 @@ import {
   openBoard,
   orderMilestoneItems,
   register,
+  roadmap,
   verify,
 } from '../src/board.js';
 import {
@@ -77,6 +78,10 @@ test('a run from a private clone keeps its release rank [C7,O5]', () => {
     git(dir, 'clone', '-q', '--shared', repo, clone);
     const fromClone = captureReleaseQueue(clone, current);
     const fromBoard = captureReleaseQueue(repo, current);
+    const readable = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+    try {
+      for (const id of [current, later, 999]) assert.equal(captureReleaseQueue(repo, id).rank, localReleaseRank(roadmap(readable), id), 'lightweight capture matches the canonical roadmap rank');
+    } finally { closeBoard(readable); }
     assert.ok(fromClone, 'the clone finds the board it was cloned from');
     assert.deepEqual(fromClone, fromBoard, 'the clone and the board checkout see the same board and rank');
     const now = Date.UTC(2026, 9, 17, 2);

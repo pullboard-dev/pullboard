@@ -3,11 +3,9 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
-import {
-  boardId,
-  openBoardReadOnly,
-  roadmap,
-} from './board.js';
+import { openBoardReadOnly } from './board-read-open.js';
+import { boardId, listItems } from './board-query.js';
+import { milestones } from './board-read-auxiliary.js';
 import {
   cleanGitEnvironment,
   repoInfo,
@@ -30,8 +28,19 @@ export function captureReleaseQueue(root, item) {
   const db = openBoardReadOnly(file);
   try {
     const board = { db, clock: { now: () => new Date() } };
-    return { board: boardId(board), rank: localReleaseRank(roadmap(board), item) };
+    return { board: boardId(board), rank: localReleaseRank(releaseRankInputs(board), item) };
   } finally { db.close(); }
+}
+
+/** Read only the canonical roadmap fields that rank local releases, without loading milestone writers.
+ * Lease projection changes claimed to open only; both remain unfinished. Roadmap shipping excludes
+ * withdrawn local items, retains missing ids, and never resolves external references for queue rank.
+ */
+function releaseRankInputs(board) {
+  const items = new Map(listItems(board, { all: true }).map(item => [item.item_id, item]));
+  return milestones(board).map(milestone => ({ items: milestone.items.map(id => ({
+    id, status: typeof id === 'number' ? items.get(id)?.item_status ?? 'missing' : 'unavailable',
+  })).filter(item => item.status !== 'withdrawn') }));
 }
 
 /**

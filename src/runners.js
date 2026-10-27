@@ -2,7 +2,7 @@ import {
   validateRunner,
   runnerSource,
   RunnerDropped,
-} from './runner-policy.js';
+} from './gate-policy-load.js';
 export { validateRunner, runnerSource, RunnerDropped };
 /** Exact committed source and bounded, credential-free SSH execution for machine runners [C7]. */
 export { placeRunner, runnerStage } from './runner-stage.js';
