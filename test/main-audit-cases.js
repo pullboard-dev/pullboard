@@ -1,7 +1,8 @@
+/** @pullboard-module-loads src/board.js src/main-audit-state.js src/gate-run-receipt.js */
+/** @pullboard-test-input src/** bin/** package.json */
 import { assertMainAuditOpenRouteReplay } from './main-audit-receipt-fixture.js';
 import { assertMainAuditReceiptReplay } from './main-audit-receipt-fixture.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
-/** @pullboard-test-input source-tree */
 /** Actual production main audit completes every failure and routes exact file obligations [C7,V4,H16]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
