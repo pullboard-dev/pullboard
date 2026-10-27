@@ -1,5 +1,6 @@
 import { mechanicalConflictFiles } from './mechanical-merge.js';
 import { localDependencyIds } from './item-dependencies.js';
+import { dispatchHealth } from './dispatch-health.js';
 /**
  * `pullboard health`: every stuck item on the board, why it is stuck, since when, the one next step
  * and who takes it [A6]. Doctor checks a board's integrity; health checks its flow, so nobody has
@@ -111,7 +112,7 @@ export function healthReport({ db, root, config, now }) {
   const at = now.getTime();
   const age = (iso) => at - Date.parse(iso);
   const board = { db, clock: { now: () => now } };
-  report.stuck.push(...missedJobFindings(board, at));
+  report.stuck.push(...missedJobFindings(board, at), ...dispatchHealth(board, config).findings);
   for (const stale of staleRowDecisions(rowDecisions(board), root, config)) {
     report.stuck.push(finding('STALE_ROW_DECISION', null, {
       subject: `${stale.kind}:${stale.id}`, key: `STALE_ROW_DECISION:${stale.kind}:${stale.id}`,
