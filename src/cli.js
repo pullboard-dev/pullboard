@@ -1526,9 +1526,19 @@ function nextSessionSeats(ctx, board) {
 
 /** Choose or open the matching lane seat, retaining ordinary checkout ownership and lane guards. */
 async function nextSeatContext(ctx, board, me, item, seats) {
-  const available = seats.filter((agent) => agent.agent_lane === item.item_lane
-    && store.ROUTES.indexOf(agent.agent_route) >= store.ROUTES.indexOf(item.item_route));
   const held = item.item_status === 'claimed';
+  const occupied = new Set(store.listItems(board).filter(entry => entry.item_status === 'claimed'
+    && entry.item_parent_id === null).map(entry => entry.item_owner));
+  /** A new claim never borrows an occupied or dirty checkout, even from this same session. */
+  function freeCheckout(agent) {
+    if (held) return agent.agent_id === item.item_owner;
+    if (occupied.has(agent.agent_id)) return false;
+    try { return repoInfo(agent.agent_path).commonDir === ctx.info.commonDir
+      && isClean(agent.agent_path) && untracked(agent.agent_path).length === 0; }
+    catch { return false; }
+  }
+  const available = seats.filter((agent) => agent.agent_lane === item.item_lane
+    && store.ROUTES.indexOf(agent.agent_route) >= store.ROUTES.indexOf(item.item_route) && freeCheckout(agent));
   let agent = held ? available.find((seat) => seat.agent_id === item.item_owner)
     : available.find((seat) => seat.agent_id === me.id) ?? available[0];
   let created = false;
@@ -1543,6 +1553,18 @@ async function nextSeatContext(ctx, board, me, item, seats) {
   if (target.info.commonDir !== ctx.info.commonDir) throw new Refused('NOT_YOUR_CHECKOUT', 'the selected lane seat no longer belongs to this board; run pullboard next again');
   await bindLocalSession(target.info, { agent: agent.agent_id, digest: personIdentity.agentSessionDigest() });
   return { context: target, seat: { agent: agent.agent_id, lane: agent.agent_lane, path: target.info.root, created } };
+}
+
+/** Enrich the ordinary lane refusal with a clean destination owned by this session; never widen claim authority. */
+export async function wrongLaneGuidance(ctx, board, me, id, error) {
+  if (!(error instanceof Refused) || error.code !== 'WRONG_LANE') return error;
+  const seats = nextSessionSeats(ctx, board);
+  if (!seats) return error;
+  const item = store.getItem(board, id);
+  if (item.item_lane === COORDINATOR || store.ROUTES.indexOf(item.item_route) > store.ROUTES.indexOf(me.route)) return error;
+  const { seat } = await nextSeatContext(ctx, board, me, item, seats);
+  return new Refused('WRONG_LANE', `item #${id} is in the ${item.item_lane} lane; this checkout is in ${me.lane}. Build it in ${seat.agent} at ${seat.path}`,
+    `${cdTo(seat.path)} pullboard claim ${id}`);
 }
 
 /**
@@ -1588,10 +1610,11 @@ function nextPick(ctx, board, values) {
   const heldItem = seats ? store.listItems(board).find((item) => item.item_status === 'claimed'
     && item.item_parent_id === null && item.item_owner === me.id
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
-  const { item, reasons, shared } = heldItem ? { item: heldItem, reasons: [], shared: [] }
-    : store.nextFor(board, { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
-      ...(seats ? { lanes: laneNames(ctx.config).filter((lane) => lane !== COORDINATOR) } : {}),
-      priority: mainRedReworkItems(ctx.info.root, board) });
+  const selection = { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
+    priority: mainRedReworkItems(ctx.info.root, board) };
+  const own = heldItem ? { item: heldItem, reasons: [], shared: [] } : store.nextFor(board, selection);
+  const { item, reasons, shared } = own.item || !seats ? own : store.nextFor(board, { ...selection,
+    lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
   const held = item?.item_status === 'claimed';
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
   const findOffer = () => store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,

@@ -27,6 +27,7 @@ import { deliverHealthNotices } from '../src/health-receipts.js';
 import { runFixtureGit } from './fixture-child.js';
 import { proveRequiredReviewFamily } from './required-review-family-fixture.js';
 import { assertSpecCorrectionRefreezesCitations, assertSpecRefreezeReplay } from './spec-refreeze-fixture.js';
+import { crossLaneFixture } from './cross-lane-fixture.js';
 
 /** Run the actual command parser and operation pipeline against this fixture's clock. */
 async function cli(box, cwd, args) {
@@ -147,6 +148,48 @@ test('a free seat is handed one eligible item without screening [N2,V1,B3]', asy
   assert.equal(offered.document.item.item_id, review);
   assert.equal(store.getItem(box.board, review).item_review_by, box.seats.actor.id);
   assert.equal(claims().length, 0, 'review reservation and build claim are mutually exclusive');
+});
+
+test('ordinary next prefers its own lane, then claims foreign work in that lane’s clean checkout [N2,B13,L2]', t => {
+  const box = crossLaneFixture(t);
+  const web = box.seat('own-web', 'web', box.session);
+  const foreign = box.add('api', 'Earlier foreign work');
+  const own = box.add('web', 'Ready own-lane work');
+  box.milestone('earlier', foreign); box.milestone('later', own);
+  const first = box.json(box.runAs(box.session, web.root, 'next', '--build', '--json'));
+  assert.equal(first.item.item_id, own);
+  assert.equal(first.item.item_owner, web.agent);
+  box.json(box.runAs(box.session, web.root, 'release', String(own), '--json'));
+  box.json(box.run(box.repo, 'hold', String(own), '--reason', 'Blocked own-lane fixture', '--json'));
+  const next = box.json(box.runAs(box.session, web.root, 'next', '--build', '--json'));
+  assert.equal(next.item.item_id, foreign);
+  assert.equal(next.seat.lane, 'api');
+  assert.equal(next.seat.created, true);
+  assert.equal(next.item.item_owner, next.seat.agent);
+  assert.equal(box.git(next.seat.path, 'status', '--porcelain'), '');
+  const who = box.json(box.runAs(box.session, next.seat.path, 'whoami', '--json'));
+  assert.equal(who.lane, 'api');
+  assert.equal(who.id, next.seat.agent);
+});
+
+test('ordinary next never reuses a dirty or occupied target-lane seat or a peer’s checkout [N2,B13,L2]', t => {
+  const box = crossLaneFixture(t);
+  const web = box.seat('idle-web', 'web', box.session);
+  const dirty = box.seat('dirty-api', 'api', box.session);
+  const busy = box.seat('busy-api', 'api', box.session);
+  const peer = box.seat('peer-api', 'api', 'separate-peer-session');
+  writeFileSync(join(dirty.root, 'uncommitted.txt'), 'retain these private fixture bytes\n');
+  const occupied = box.add('api', 'An existing claim');
+  box.json(box.runAs(box.session, busy.root, 'claim', String(occupied), '--json'));
+  const free = box.add('api', 'Ready unowned work');
+  const bindings = [dirty, busy, peer].map(seat => box.binding(seat.root));
+  const next = box.json(box.runAs(box.session, web.root, 'next', '--build', '--json'));
+  assert.equal(next.item.item_id, free);
+  assert.equal(next.seat.created, true);
+  for (const seat of [dirty, busy, peer]) assert.notEqual(next.seat.path, seat.root);
+  assert.deepEqual([dirty, busy, peer].map(seat => box.binding(seat.root)), bindings);
+  assert.equal(box.git(dirty.root, 'status', '--porcelain'), '?? uncommitted.txt');
+  assert.equal(box.json(box.run(box.repo, 'show', String(occupied), '--json')).item_owner, busy.agent);
 });
 
 test('a review goes only to an independent seat [V1,B3]', async t => {
