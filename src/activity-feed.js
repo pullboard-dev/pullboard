@@ -104,6 +104,15 @@ export function projectAgentActivity({ agent, interests, events, shouts, changes
       }
       continue;
     }
+    if (event.event_kind === 'typed-request' || event.event_kind === 'typed-request-answer') {
+      const addressed = event.event_kind === 'typed-request' ? agent.agent_id === 'coordinator' : detail.requester === agent.agent_id;
+      if (addressed) entries.push(activityEntry(event,
+        event.event_kind === 'typed-request'
+          ? `typed request #${event.event_id}: ${detail.request?.verb} #${event.item_id} [${detail.request?.cause}]; run pullboard request list`
+          : `typed request #${detail.requestId} ${detail.outcome}; run pullboard request list --all`,
+        { typedRequest: true }));
+      continue;
+    }
     if (event.event_kind === 'main-moved') {
       const changed = changesForMain?.(detail.sha, { ...detail, base: event.activityBase });
       if (changed === null || changed === undefined) {
