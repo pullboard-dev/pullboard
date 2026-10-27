@@ -90,7 +90,6 @@ test('draft omission replay refuses forged stale and old-engine omissions withou
     move => { move.args[0].skippedDrafts = [box.right, box.left]; },
     move => { move.args[0].skippedDrafts = [box.left, box.left]; },
     move => { move.args[0].skippedDrafts.push(box.ordinary); },
-    move => { move.engine = SPEC_DRAFT_REFREEZE_ENGINE - 1; },
   ];
   for (const mutate of mutations) {
     const board = receiver(t, box.prefix), move = structuredClone(box.move);
@@ -101,6 +100,12 @@ test('draft omission replay refuses forged stale and old-engine omissions withou
     assert.deepEqual(store.listItems(board, { all: true }), items);
     assert.deepEqual(rowDecisions(board), decisions);
   }
+  const old = receiver(t, box.prefix), oldMove = structuredClone(box.move);
+  oldMove.engine = SPEC_DRAFT_REFREEZE_ENGINE - 1;
+  const beforeOld = exportBoard(old);
+  assert.throws(() => applyRelayMove(old, oldMove, order), error => error.code === 'RELAY_MOVE'
+    && error.message.includes(`introduced in engine ${SPEC_DRAFT_REFREEZE_ENGINE}`));
+  assert.deepEqual(exportBoard(old), beforeOld, 'old-engine frames refuse before recording or interpreting the move');
   const changed = receiver(t, box.prefix);
   store.claim(changed, box.left, { agentId: box.builder, lane: 'web', leaseMs: 3_600_000, freeze: frozen });
   assert.equal(applyRelayMove(changed, box.move, order).error?.code, 'STALE_ROW_DECISION');
