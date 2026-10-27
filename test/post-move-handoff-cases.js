@@ -21,12 +21,14 @@ import { readFileSync } from 'node:fs';
 test('the actual submitted value is repaired', () => assert.equal(readFileSync(new URL('./value.js', import.meta.url), 'utf8'), 'export const value = 1;\\n'));
 `,
       'package.json': '{"type":"module"}\n',
+      'web/followup.js': 'export const followup = true;\n',
     };
     const box = await fixture(t, { files });
     const seat = box.seats.actor;
     const check = `env -u NODE_TEST_CONTEXT "${process.execPath}" --test --test-reporter=tap web/handoff.test.js`;
     const first = box.add('Repair the actual value', { check });
-    const next = box.add('Continue in the same seat', { check });
+    const next = box.add('Continue in the same seat', { check,
+      brief: 'Files: web/followup.js\nTest: continue independent work after the submitted value repair.' });
     const claimed = await cli(box, seat.path, ['claim', String(first)]);
     assert.equal(claimed.code, 0, claimed.out + claimed.err);
     writeFileSync(join(seat.path, 'web/value.js'), 'export const value = 1;\n');
