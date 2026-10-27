@@ -178,7 +178,9 @@ export async function seedSpecAndHandoff(context) {
   const row = { kind: 'spec', id: 'Z1281', file: 'SPEC.md', source: '- Z1281 [draft, must] Study row. | gate: review',
     replacement: '- Z1281 [approved, must] Study row. | gate: review', text: 'Study row.', decision: 'approve' };
   const decisions = await exercise('recordRowDecisions', () => store.recordRowDecisions(board, { agentId: 'person', channel: 'terminal', decisions: [row] }));
-  if (decisions) await exercise('applyRowDecisions', () => store.applyRowDecisions(board, { agentId: 'coordinator', events: decisions.map(value => value.event) }));
+  if (decisions) await exercise('applyRowDecisions', () => store.applyRowDecisions(board, {
+    agentId: 'coordinator', events: decisions.map(value => value.event), refreezes: [],
+  }));
   return context;
 }
 

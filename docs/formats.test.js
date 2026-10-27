@@ -331,7 +331,7 @@ function recordEventContract() {
   const builder = register(board, { lane: 'docs', path: '/builder' });
   register(board, { lane: 'docs', path: '/builder', family: 'codex' });
   register(board, { lane: 'docs', path: '/builder', model: 'Fixture Model' });
-  const reviewer = register(board, { lane: 'tests', path: '/reviewer' });
+  const reviewer = register(board, { lane: 'tests', path: '/reviewer', family: 'Fixture Review' });
   setLaneLead(board, { agentId: coordinator, lane: 'docs', seat: builder, lanes: ['docs', 'tests'] });
   const laneWorker = register(board, { lane: 'docs', path: '/lane-worker' });
   const laneQuestion = shout(board, { from: laneWorker, to: coordinator, text: 'sample lane escalation', decision: true, lanes: ['docs', 'tests'] });
@@ -359,13 +359,13 @@ function recordEventContract() {
     interrupts: [{ id: `event:${deliveryEvent.event_id}`, eventId: deliveryEvent.event_id, reason: 'answered' }] });
   actOnActivity(board, { agentId: builder, ids: [`event:${deliveryEvent.event_id}`] });
   const decisions = recordRowDecisions(board, { agentId: PERSON, channel: 'terminal', decisions: [{ kind: 'spec', file: 'SPEC.md', id: 'A1', source: '- A1 [draft] Exact row.', replacement: '- A1 [approved] Exact row.', text: 'Exact row.', decision: 'approve', reason: '' }] });
-  applyRowDecisions(board, { agentId: coordinator, events: decisions.map((record) => record.event) });
+  applyRowDecisions(board, { agentId: coordinator, events: decisions.map((record) => record.event), refreezes: [] });
   draftSpecRow(board, { agentId: builder, row: { id: 'A2', text: 'A lane drafted row.', gate: 'review', tier: 'must', section: 'A · Fixture' } });
   const freeze = (digest) => () => ({ text: `criterion-${digest}`, digest });
-  const first = addItem(board, { by: coordinator, lane: 'docs', title: 'Accepted example', criterion: 'Initial', specIds: ['A1'], route: 'strong' });
+  const first = addItem(board, { by: coordinator, lane: 'docs', title: 'Accepted example', criterion: 'Initial', specIds: ['A1'], route: 'strong', reviewFamily: 'Fixture Review' });
   const fact = appendFact(board, first, { agentId: builder, kind: 'note', text: 'Captured evidence', ref: 'docs/formats.md:1-3@' + 'a'.repeat(40) });
   appendFact(board, first, { agentId: coordinator, kind: 'measurement', text: 'Corrected evidence', supersedes: fact.id });
-  editItem(board, first, { agentId: coordinator, brief: 'Files: docs/formats.md\nTest: docs/formats.test.js', route: 'mid', criterion: 'Changed', check: 'node test' });
+  editItem(board, first, { agentId: coordinator, brief: 'Files: docs/formats.md\nTest: docs/formats.test.js', route: 'mid', criterion: 'Changed', check: 'node test', reviewFamily: 'Fixture Review' });
   const dependency = addItem(board, { by: coordinator, lane: 'docs', title: 'Dependency example' });
   requestCompanion(board, { agentId: builder, parentId: dependency, lane: 'core', key: 'format-event', title: 'Companion event example' });
   editItem(board, first, { agentId: coordinator, after: [dependency] });
