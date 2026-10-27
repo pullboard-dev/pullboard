@@ -101,3 +101,39 @@ test('untimed real catches remain unknown without claiming that no catches exist
   assert.deepEqual(plan.order.map(entry => entry.file), ['costly.test.js']);
   assert.equal(plan.removesTests, false);
 });
+
+/** Describe an actual native event shape without lending it gate authority. */
+function nativeEvent(kind, at, detail, item = null) {
+  return { event_kind: kind, event_at: at, item_id: item, event_detail: JSON.stringify(detail) };
+}
+
+test('capacity counts actual merged history and groups explicit successful train receipts, never unfinished snapshots [C7]', () => {
+  const since = Date.parse('2026-10-13T00:00:00Z'), until = Date.parse('2026-10-27T00:00:00Z');
+  const old = 'a'.repeat(40), first = 'b'.repeat(40), second = 'c'.repeat(40), third = 'd'.repeat(40);
+  const history = [nativeEvent('merged', '2026-10-12T00:00:00Z', { commit: old }, 1),
+    nativeEvent('merged', '2026-10-14T00:00:00Z', { commit: old }, 1),
+    nativeEvent('merged', '2026-10-15T00:00:00Z', { commit: first }, 2),
+    nativeEvent('merged', '2026-10-15T00:00:01Z', { commit: first }, 3),
+    nativeEvent('landing_batch', '2026-10-16T00:00:00Z', { batch: { id: 'incomplete', state: 'merging', tip: third } }),
+    nativeEvent('merged', '2026-10-17T00:00:00Z', { commit: second }, 4),
+    nativeEvent('merged', '2026-10-17T00:00:01Z', { commit: third }, 5),
+    nativeEvent('main-moved', '2026-10-17T00:00:02Z', { sha: third, batch: 'real-train', items: [4, 5] }),
+    nativeEvent('landing_batch', '2026-10-17T00:00:03Z', { batch: { id: 'real-train', state: 'landed', tip: third,
+      items: [{ id: 4, merge: second }, { id: 5, merge: third }] } })];
+  assert.equal(landedBatchCount(history, since, until), 2,
+    'one manual merge plus one explicit train, excluding old first landings and unfinished snapshots');
+  assert.equal(landedBatchCount(history.filter(event => event.event_kind === 'merged'), since, until), 3,
+    'the real board legacy/manual path needs no landed snapshot to count three distinct new merge commits');
+  assert.equal(landedBatchCount(history.filter(event => event.event_kind === 'landing_batch' && JSON.parse(event.event_detail).batch.state !== 'landed'), since, until), 0);
+});
+
+test('unknown suite measurement identifies the required complete audit receipt and missing file timings [C7]', () => {
+  const absent = capacitySummary({ value: report(), history: [], inventory: [], latestAudit: null, timings: null });
+  assert.equal(absent.suite.minutes, null);
+  assert.match(absent.suite.unavailableReason, /complete.*full.*native.*audit.*receipt/iu);
+  const partial = capacitySummary({ value: report(), history: [], inventory: [],
+    latestAudit: { id: 'audit', head: 'source', green: false, collection: { files: ['a.test.js'] } }, timings: null });
+  assert.equal(partial.suite.minutes, null);
+  assert.match(partial.suite.unavailableReason, /audit.*per-file.*timing/iu);
+  assert.deepEqual(partial.suite.missingFiles, ['a.test.js']);
+});
