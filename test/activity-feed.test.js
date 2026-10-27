@@ -19,9 +19,52 @@ import { relaySenderProblem } from '../src/relay-sender.js';
 import { readActivityDelivery } from '../src/activity-delivery-read.js';
 import { prepareSpecRefreezes } from '../src/spec-refreeze.js';
 import { activityMainFiles, activityWorkingFiles, readActivityCursor, saveActivityCursor } from '../src/activity-inbox.js';
+import { fixtureBoard } from './board-fixture.js';
+import { runFixtureChild } from './fixture-child.js';
+import { DatabaseSync } from 'node:sqlite';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
+
+test('worker inbox handles nineteen aliases and forty thousand shouts within one second per read [B7,C7]', t => {
+  const result = runFixtureChild(process.execPath, [join(import.meta.dirname, 'worker-inbox-scale-fixture.js')],
+    { encoding: 'utf8', timeout: 15_000 });
+  assert.equal(result.status, 0, `bounded history fixture: ${result.error?.message ?? ''}\n${result.stderr}\n${result.stdout}`);
+  const measured = JSON.parse(result.stdout);
+  t.diagnostic(JSON.stringify(measured));
+  assert.equal(measured.seats, 19);
+  assert.equal(measured.historicalShouts, 40000);
+  for (const key of ['previewMs', 'countMs', 'peekMs', 'inboxMs']) {
+    assert.ok(measured[key] < 1000, `${key}=${measured[key]} ms; limit 1000 ms`);
+  }
+});
+
+test('inbox reads leave the writer available and acknowledge only after selection [B7,R2,C7]', t => {
+  const board = fixtureBoard(t, { storage: 'file', purpose: 'locking' });
+  const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main').file;
+  const competitor = new DatabaseSync(file);
+  t.after(() => competitor.close());
+  competitor.exec('PRAGMA busy_timeout=0');
+  store.register(board, { lane: 'coordinator', path: '/lock/root' });
+  const seat = store.register(board, { lane: 'web', path: '/lock/worker', session: 'private-lock-worker' });
+  const original = board.db.prepare.bind(board.db);
+  let reads = 0;
+  /** An independent connection must acquire the writer while the inbox prepares its selection. */
+  board.db.prepare = sql => {
+    if (sql.includes('FROM shout')) {
+      assert.doesNotThrow(() => competitor.exec('BEGIN IMMEDIATE; ROLLBACK'), 'message selection holds no writer');
+      reads++;
+    }
+    return original(sql);
+  };
+  for (const markRead of [false, true]) {
+    const sent = store.shout(board, { from: 'coordinator', to: seat, text: 'Read after selection', lanes: ['coordinator', 'web'] });
+    const delivered = store.inbox(board, seat, { markRead });
+    assert.ok(delivered.some(shout => shout.shout_id === sent));
+    assert.equal(store.agentById(board, seat).agent_last_shout_id, markRead ? sent : 0);
+  }
+  assert.equal(reads, 2);
+});
 
 test('a recorded submit stays successful when its later activity delivery fails [N26,H16,V4]', () => {
   const box = e2e.project('true');

@@ -1,5 +1,4 @@
 /** @pullboard-test-input src/** bin/** package.json */
-/** @pullboard-module-loads src/board.js src/main-audit-state.js src/gate-run-receipt.js */
 import { assertMainAuditOpenRouteReplay } from './main-audit-receipt-fixture.js';
 import { assertMainAuditReceiptReplay } from './main-audit-receipt-fixture.js';
 import { exportBoard, importBoard } from '../src/exchange.js';

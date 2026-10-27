@@ -44,6 +44,12 @@ test('a native companion patch is independently checked and lands the exact acce
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  const policyFile = join(box.repo, 'pullboard.json');
+  const policy = JSON.parse(readFileSync(policyFile, 'utf8'));
+  writeFileSync(policyFile, JSON.stringify({ ...policy, maintainers: [box.env.GIT_AUTHOR_EMAIL] }, null, 2) + '\n');
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: enforce companion author sign-off [G1]');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const remote = join(box.dir, 'origin.git');
   box.git(box.dir, 'init', '-q', '--bare', remote);
   box.git(box.repo, 'remote', 'add', 'origin', remote);
