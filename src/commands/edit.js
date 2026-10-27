@@ -56,6 +56,8 @@ export async function run(io, args) {
     brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
     reviewFamily: values['review-family'],
     route: values.route,
+    ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
+    ...(values['review-family'] === undefined ? {} : { reviewFamily: values['review-family'] }),
     criterion: values.criterion,
     check: values.check,
     after: editAfter(values.after),

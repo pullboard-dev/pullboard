@@ -1,3 +1,4 @@
+import { REVIEW_INDEPENDENCE_ENGINE } from '../review-independence-engine.js';
 import { REFERENCE_ENGINE } from '../reference-engine.js';
 import { CROSS_REPO_DEPENDENCY_ENGINE } from '../cross-repo-dependency-engine.js';
 import { hasForeignDependencies } from '../item-dependencies.js';
@@ -26,7 +27,7 @@ function existingEngine(args, board, at) {
 
 /** Preserve every historical floor while preventing older replicas from flattening foreign references. */
 function minimumEngine(args, board, at) {
-  return Math.max((args[1]?.referenceAuthors !== undefined || args[1]?.referenceAuthority !== undefined) ? REFERENCE_ENGINE : 1,
+  return Math.max((args[1]?.sensitive !== undefined || args[1]?.reviewFamily === null) ? REVIEW_INDEPENDENCE_ENGINE : 1, (args[1]?.referenceAuthors !== undefined || args[1]?.referenceAuthority !== undefined) ? REFERENCE_ENGINE : 1,
     existingEngine(args, board, at), hasForeignDependencies(args[1]?.after) ? CROSS_REPO_DEPENDENCY_ENGINE : 1,
     args[1]?.reviewFamily !== undefined || args[1]?.correction === true ? AUTOMATIC_DISPATCH_ENGINE : 1);
 }
@@ -37,6 +38,7 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "editItem", order: 9, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+  "BAD_REVIEW_POLICY": 'restore the native review policy before reviewing this item',
   "REFERENCE_AUTHOR": "use the issue or pull request author's handle, or remove the handle from its Reference line, then add or edit the item again",
   "REFERENCE_IS_BOARD": "use --specs for spec rows, --after for item dependencies, or --parent for a parent item",
   "BAD_REVIEW_FAMILY": "use --review-family with a nonempty declared reviewer family of at most 100 characters",
