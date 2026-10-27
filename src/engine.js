@@ -370,7 +370,7 @@ export function applyEngineMove(board, move, { sequence, at, standing = null, en
         if (engineVersion === undefined) delete board.executionEngineVersion;
         else board.executionEngineVersion = engineVersion;
       }
-      recordReviewPolicyActivation(board, move.engine);
+      if (!outcome.error) recordReviewPolicyActivation(board, move.engine);
       recordRequestMove(board, move, outcome, sequence, at);
       metadata(board, 'relay_receipt_' + move.id, JSON.stringify({ sequence, move: encoded, outcome }));
     }
