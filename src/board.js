@@ -1970,7 +1970,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
       ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] };
   }
   const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
-  // Read-only build planning may disregard exactly this caller's claim; claim() still enforces ONE_CLAIM.
+  // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
   const plannedRelease = held && held.item_id === afterRelease ? held.item_id : null;
   if (held && plannedRelease === null) return { item: held, reasons: [] };
   const selectedLanes = new Set(lanes ?? [lane]);
