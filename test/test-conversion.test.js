@@ -143,3 +143,16 @@ test('unknown suite measurement identifies the required complete audit receipt a
   assert.match(partial.suite.unavailableReason, /audit.*per-file.*timing/iu);
   assert.deepEqual(partial.suite.missingFiles, ['a.test.js']);
 });
+
+test('explicit batch cost belongs to its first success, while manual commits retain their first landing [C7]', () => {
+  const since = Date.parse('2026-10-13T00:00:00Z'), until = Date.parse('2026-10-27T00:00:00Z');
+  const old = 'e'.repeat(40), fresh = 'f'.repeat(40);
+  const history = [nativeEvent('merged', '2026-10-12T23:59:59Z', { commit: old }, 11),
+    nativeEvent('merged', '2026-10-14T00:00:00Z', { commit: fresh }, 12),
+    nativeEvent('main-moved', '2026-10-14T00:00:01Z', { sha: fresh, batch: 'boundary', items: [11, 12] })];
+  assert.equal(landedBatchCount(history, since, until), 1, 'the successful explicit batch is in the window');
+  const firstSuccessBefore = [...history.slice(0, 1),
+    nativeEvent('main-moved', '2026-10-12T23:59:59Z', { sha: old, batch: 'old-success', items: [11] }),
+    nativeEvent('main-moved', '2026-10-14T00:00:01Z', { sha: old, batch: 'old-success', items: [11] })];
+  assert.equal(landedBatchCount(firstSuccessBefore, since, until), 0, 'a repeated old batch success is not new');
+});
