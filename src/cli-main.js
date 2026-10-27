@@ -173,7 +173,7 @@ function parseCommandArgs(argv) {
       try {
         const candidate = parseArgs({ args: argv, options: { ...OPTIONS, wait, take }, allowPositionals: true }).positionals[0];
         if (command === undefined) command = candidate;
-        if (['add', 'edit'].includes(candidate) !== (wait.type === 'boolean')) continue;
+        if (['add', 'edit', 'submit', 'done'].includes(candidate) !== (wait.type === 'boolean')) continue;
         if ((candidate === 'next') !== (take.type === 'boolean')) continue;
         command = candidate;
         break choose;
@@ -181,7 +181,7 @@ function parseCommandArgs(argv) {
     }
   }
   const options = { ...OPTIONS,
-    ...(['add', 'edit'].includes(command) ? { wait: { type: 'boolean' } } : {}),
+    ...(['add', 'edit', 'submit', 'done'].includes(command) ? { wait: { type: 'boolean' } } : {}),
     ...(command === 'next' ? { take: { type: 'boolean' } } : {}),
   };
   // Flow consumes a history file; show retains its existing boolean --history switch.
