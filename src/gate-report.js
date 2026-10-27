@@ -1,7 +1,13 @@
-/** Describe completed gate stages without initializing their runners. */
-import { join } from 'node:path';
-import { receiptLine } from './gate-receipt.js';
-import { digestOf } from './gate-output.js';
+/** Concern-specific gate stage; public callers keep the gate facade. */
+import {
+  join,
+} from 'node:path';
+import {
+  receiptLine,
+} from './gate-receipt.js';
+import {
+  digestOf,
+} from './gate-output.js';
 /** The durable words a submission and its reviewers read for an affected selection moved to the landing gate. */
 export function deferredSelectionNote(files) {
   return `${files.length} affected test files deferred to the landing gate`;

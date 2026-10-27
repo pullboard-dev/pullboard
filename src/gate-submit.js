@@ -1,7 +1,13 @@
-/** Select and execute the item and submission proof stages without changing admission. */
-import { withGateSlot } from './gate-slot.js';
-import { mappedCheck } from './path-map.js';
-import { placementSubmitSelection } from './test-placement.js';
+/** Concern-specific gate stage; public callers keep the gate facade. */
+import {
+  withGateSlot,
+} from './gate-slot.js';
+import {
+  mappedCheck,
+} from './path-map.js';
+import {
+  placementSubmitSelection,
+} from './test-placement.js';
 import {
   checkNeedsGui,
   projectNeedsGui,
@@ -11,18 +17,34 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
-import { gitPath } from './git.js';
-import { Refused } from './refused.js';
-import { missingGate } from './gate-config.js';
-import { browserFreeChecksEnabled } from './settings.js';
-import { selectAffectedTests } from './affected-tests.js';
-import { selectRegistryGuards } from './registry-guards.js';
+import {
+  join,
+} from 'node:path';
+import {
+  gitPath,
+} from './git.js';
+import {
+  Refused,
+} from './refused.js';
+import {
+  missingGate,
+} from './gate-config.js';
+import {
+  browserFreeChecksEnabled,
+} from './settings.js';
+import {
+  selectAffectedTests,
+} from './affected-tests.js';
+import {
+  selectRegistryGuards,
+} from './registry-guards.js';
 import {
   checkNeedsBrowser,
   testsNeedBrowser,
 } from './browser-admission.js';
-import { writeTimingProfile } from './gate-output.js';
+import {
+  writeTimingProfile,
+} from './gate-output.js';
 import {
   fullGateRun,
   pinRunMain,

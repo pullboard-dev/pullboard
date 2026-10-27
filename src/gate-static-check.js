@@ -1,11 +1,25 @@
-/** Run the declared static stage under ordinary gate admission. */
-import { withGateSlot } from './gate-slot.js';
-import { checkNeedsGui } from './gui-admission.js';
-import { Refused } from './refused.js';
-import { browserFreeChecksEnabled } from './settings.js';
-import { checkNeedsBrowser } from './browser-admission.js';
-import { digestOf } from './gate-output.js';
-import { runProfiledShell } from './gate-execution.js';
+/** Concern-specific gate stage; public callers keep the gate facade. */
+import {
+  withGateSlot,
+} from './gate-slot.js';
+import {
+  checkNeedsGui,
+} from './gui-admission.js';
+import {
+  Refused,
+} from './refused.js';
+import {
+  browserFreeChecksEnabled,
+} from './settings.js';
+import {
+  checkNeedsBrowser,
+} from './browser-admission.js';
+import {
+  digestOf,
+} from './gate-output.js';
+import {
+  runProfiledShell,
+} from './gate-execution.js';
 /** Quote a fixed executable or selected path without permitting shell expansion. */
 export function commandWord(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
