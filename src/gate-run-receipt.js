@@ -5,6 +5,7 @@
  * never enters a commit. This module reads and checks receipts; nothing here writes one. Only the gate's private
  * writer in gate.js does, right after its child exits, so no caller can hand it a result to record.
  */
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import {
   dirname,
@@ -20,6 +21,7 @@ const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;
 const ID = /^[a-f0-9-]{36}$/u;
 const MOST_FAILURES = 500;
+const MOST_COLLECTION_FILES = 100000;
 
 /**
  * Where this checkout's gate keeps its receipts: the common git directory's pullboard folder, the same folder that
@@ -62,12 +64,37 @@ export function receiptFields(value) {
   try { return checkedFields(value); } catch { return null; }
 }
 
+/** Validate observed collection coverage independently from green/red gate quality. */
+function collectionFields(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || value.version !== 1 || value.mode !== 'all'
+    || !/^[a-zA-Z0-9_-]{1,80}$/u.test(value.batchId ?? '')
+    || typeof value.complete !== 'boolean' || typeof value.full !== 'boolean'
+    || !Array.isArray(value.files) || value.files.length > MOST_COLLECTION_FILES
+    || value.files.some(file => !line(file, 4096) || file.startsWith('/') || /^[a-zA-Z]:/u.test(file)
+      || file.includes('\\') || file.split('/').some(part => !part || part === '.' || part === '..'))
+    || !Number.isSafeInteger(value.plannedFiles) || value.plannedFiles < 0
+    || !Number.isSafeInteger(value.completedFiles) || value.completedFiles < 0
+    || !DIGEST.test(value.planDigest ?? '') || !DIGEST.test(value.completedDigest ?? '')) throw new TypeError('malformed collection receipt');
+  const files = [...value.files].sort();
+  if (files.length !== value.plannedFiles || new Set(files).size !== files.length
+    || JSON.stringify(files) !== JSON.stringify(value.files)
+    || createHash('sha256').update(JSON.stringify(files)).digest('hex') !== value.planDigest) throw new TypeError('collection plan does not match explicit files');
+  if (value.complete && !(value.plannedFiles > 0 && value.plannedFiles === value.completedFiles
+    && value.planDigest === value.completedDigest)) throw new TypeError('incomplete collection cannot claim completeness');
+  return { version: 1, mode: 'all', batchId: value.batchId, full: value.full, files, complete: value.complete,
+    plannedFiles: value.plannedFiles, completedFiles: value.completedFiles,
+    planDigest: value.planDigest, completedDigest: value.completedDigest };
+}
+
 /** The checks behind receiptFields; each malformed field throws, and receiptFields turns that into null. */
 function checkedFields(value) {
   const bad = () => new TypeError('malformed gate receipt');
   if (Object.hasOwn(value ?? {}, 'environment') && value.environment !== null && environmentProblem(value.environment)) throw bad();
   const proof = value?.version === 2 ? proofFields(value.proof) : null;
   const version = value?.version;
+  const hasCollection = Object.hasOwn(value ?? {}, 'collection');
+  if (hasCollection && (version !== 1 || value.kind !== 'land')) throw bad();
+  const collection = hasCollection ? collectionFields(value.collection) : null;
   const kinds = version === 2 ? ['check', 'submit', 'verdict'] : ['gate', 'land', 'submit'];
   if (!value || ![1, 2].includes(version) || version === 2 && !proof || !ID.test(value.id ?? '') || !kinds.includes(value.kind)
     || !(version === 2 && value.tree === null) && !SHA.test(value.tree ?? '')
@@ -85,7 +112,8 @@ function checkedFields(value) {
     || !Number.isSafeInteger(load.cpus) || load.cpus < 1 || !Number.isSafeInteger(load.freeMB) || load.freeMB < 0)) throw bad();
   return { version, id: value.id, kind: value.kind, tree: value.tree, head: value.head, main: value.main, command: value.command,
     green: value.green, failures, load: load === null ? null : { average: [...load.average], cpus: load.cpus, freeMB: load.freeMB }, at: value.at,
-    ...(proof ? { proof } : {}), ...(Object.hasOwn(value, 'environment') ? { environment: value.environment } : {}) };
+    ...(proof ? { proof } : {}), ...(Object.hasOwn(value, 'environment') ? { environment: value.environment } : {}),
+    ...(hasCollection ? { collection } : {}) };
 }
 
 /**

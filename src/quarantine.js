@@ -1,3 +1,5 @@
+import { MAIN_AUDIT_ENGINE } from './main-audit-engine.js';
+import { landingBatches } from './landing-batch-history.js';
 /**
  * Gate runs and flake quarantine [C7,D1]. Every real gate run leaves its tree, its failing test ids and the host load on
  * the board, as the receipt its gate wrote. When one tree has been both red and green for the same test, that is proof
@@ -109,6 +111,9 @@ export function requireBound(board, receipt) {
  * @returns {{ run: object, duplicate?: boolean, quarantined: {file: string, name: string, item: number}[] }}
  */
 export function recordGateRun(board, { agentId, receipt, lane }) {
+  if (Object.hasOwn(receipt ?? {}, 'collection') && (board.executionEngineVersion ?? ENGINE_VERSION) < MAIN_AUDIT_ENGINE) {
+    throw new Refused('ENGINE_VERSION', `collection receipts require engine ${MAIN_AUDIT_ENGINE}`);
+  }
   if (Object.hasOwn(receipt ?? {}, 'environment') && (board.executionEngineVersion ?? ENGINE_VERSION) < LANDING_ENVIRONMENT_ENGINE) throw new Refused('ENGINE_VERSION', `gate environments require engine ${LANDING_ENVIRONMENT_ENGINE}`);
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < GATE_RUN_ENGINE) throw new Refused('ENGINE_VERSION', `gate runs require engine ${GATE_RUN_ENGINE}; upgrade Pullboard`);
   if (!listAgents(board).some(agent => agent.agent_id === agentId)) throw new Refused('NOT_JOINED', 'join this board before recording a gate run');
@@ -117,13 +122,22 @@ export function recordGateRun(board, { agentId, receipt, lane }) {
   // (prepareEngineMove), because another machine holds no copy of that receipt; quarantineWaivers checks again here.
   if (board.executionEngineVersion === undefined) requireBound(board, value);
   return atomic(board, () => {
+    if (Object.hasOwn(value, 'collection')) {
+      if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator records a landed batch audit');
+      const batch = landingBatches(board).find(entry => entry.id === value.collection.batchId);
+      if (!batch || batch.state !== 'landed' || batch.tip !== value.head
+        || batch.proof?.tree && batch.proof.tree !== value.tree) {
+        throw new Refused('GATE_RUN_UNBOUND', 'the audit receipt must name the exact recorded landed batch tip and tree');
+      }
+    }
     const existing = gateRuns(board).find(entry => entry.id === value.id);
     if (existing) {
       const { eventId, by, ...stored } = existing;
       if (JSON.stringify(stored) !== JSON.stringify(value)) throw new Refused('GATE_RUN_CHANGED', 'a run id already binds different evidence; keep the original and use a new id');
       return { run: stored, duplicate: true, quarantined: [] };
     }
-    logEvent(board, agentId, 'gate-run', null, { engine: Object.hasOwn(value, 'environment') ? LANDING_ENVIRONMENT_ENGINE : GATE_RUN_ENGINE, run: value });
+    logEvent(board, agentId, 'gate-run', null, { engine: Object.hasOwn(value, 'collection') ? Math.max(MAIN_AUDIT_ENGINE, Object.hasOwn(value, 'environment') ? LANDING_ENVIRONMENT_ENGINE : GATE_RUN_ENGINE)
+      : Object.hasOwn(value, 'environment') ? LANDING_ENVIRONMENT_ENGINE : GATE_RUN_ENGINE, run: value });
     // Only the coordinator's runs prove a flake: its landing and main-checkout gates run accepted work, and no seat can
     // send a move as the coordinator. A seat's runs stay on the board as evidence of what it saw [C7,D1].
     const sameTree = gateRuns(board).filter(entry => entry.tree === value.tree && entry.by === COORDINATOR);
