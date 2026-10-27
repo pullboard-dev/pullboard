@@ -45,7 +45,7 @@ function translatedAllowance(metric, key, map) {
 /** Mark only the explicitly recorded pre-cell transition families; malformed or absent evidence stays strict. */
 function transitionalGrowth(report, metric) {
   return report.transition?.item === 1527 && report.transition.until === 1395 && report.transition.active === true
-    && ['boundaries', 'legacySource', 'strays'].includes(metric);
+    && metric !== 'cycles';
 }
 
 /** Retain every rise; callers may enforce the approved transition while baseline updates always inspect all debt. */
