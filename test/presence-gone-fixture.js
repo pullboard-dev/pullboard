@@ -37,7 +37,9 @@ export function goneClaimFixture(t) {
   };
   /** Exercise the public sentinel handler with health scanning explicitly off in this private fixture. */
   const scan = async (enabled = true, actor = 'coordinator') => {
-    const ctx = { config: { claims: { releaseGone: enabled }, health: { sentinel: false } }, io: { say() {}, result() {} } };
+    // Coordinator maintenance captures native stale-state evidence even when watch execution is disabled.
+    const ctx = { info: { root: box.repo, isMain: true }, clock,
+      config: { claims: { releaseGone: enabled }, health: { sentinel: false } }, io: { say() {}, result() {} } };
     return sentinelCommand({ ctx, words: ['run'], values: { 'health-only': true },
       withBoard: (_ctx, work) => work(board), whoAmI: () => ({ id: actor }), ordered });
   };
