@@ -14,7 +14,7 @@ export async function nudgeMainAudit(root) {
   // An independent job may not borrow the foreground command's admission or checkout ownership.
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN',
     'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_CHECKOUT_SESSION_TOKEN']) delete env[key];
-  const child = spawn(process.execPath, [fileURLToPath(new URL('../bin/main-audit.js', import.meta.url)), info.root, randomUUID()],
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../bin/main-audit.js', import.meta.url)), info.root, randomUUID(), '--scheduled'],
     { cwd: info.root, env, detached: true, stdio: 'ignore' });
   await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
   child.unref();
