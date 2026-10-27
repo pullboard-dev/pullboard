@@ -199,6 +199,7 @@ async function readSpec() {
     || typeof value.pipefail !== 'boolean' || !Number.isSafeInteger(value.slots) || value.slots < 1
     || !Number.isSafeInteger(value.browser) || value.browser < 0
     || typeof value.browserRequired !== 'boolean'
+    || value.browserRequired && value.browser < 1
     || value.guiRequired !== undefined && typeof value.guiRequired !== 'boolean'
     || (value.timing !== undefined && typeof value.timing !== 'boolean')
     || (value.browserByLaunch !== undefined && typeof value.browserByLaunch !== 'boolean')
@@ -909,7 +910,6 @@ async function main() {
   const spec = await readSpec();
   workSpecAccepted = true;
   workerId = spec.id;
-  if (spec.browserRequired && spec.browser < 1) throw new Error('browser capacity is not configured');
   const sink = outputSink();
   let api;
   let lease = null;

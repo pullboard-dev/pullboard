@@ -68,7 +68,8 @@ test('invalid framed specs exit promptly with a named refusal while controller s
   }
 });
 
-test('the controller reports an invalid-spec failure once and releases its real private gate slot [C7]', { timeout: 45000 }, async t => { // budget: real Git/capsule setup, one refusal and one valid private runner control.
+/** Exercise the real controller with either malformed structure or a generated capacity contradiction. */
+async function controllerCase(t, { invalidSpec, browser }) {
   const f = fixture(t);
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: f.repo, env: f.env });
   writeFileSync(join(f.repo, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
@@ -78,7 +79,7 @@ test('the controller reports an invalid-spec failure once and releases its real 
   writeFileSync(join(f.machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 0 }));
   const requests = join(f.directory, 'requests.jsonl');
   installSshStandIn({ bin: f.bin, worker: f.worker, home: f.remoteHome, machineHome: f.remoteMachine,
-    requests, invalidSpec: true });
+    requests, invalidSpec });
   const moduleURL = name => pathToFileURL(resolve(import.meta.dirname, '../src', name)).href;
   const script = `
     import assert from 'node:assert/strict';
@@ -91,7 +92,7 @@ test('the controller reports an invalid-spec failure once and releases its real 
       await withGateSlot(root, async () => {
         const held = listResources({ root }).find(row => row.name === 'gate');
         assert.equal(held.holders.length, 1, 'the controller actually holds a private gate slot');
-        await runOnRunnerAsync(root, 'printf must-not-run', { runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 } });
+        await runOnRunnerAsync(root, 'printf must-not-run', { browser: ${browser}, runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 } });
       }, { remote: false, browser: false, gui: false, diagnostic: true, shortEligible: false,
         agent: 'private-invalid-spec-controller', kind: 'test' });
     } catch (error) { refusal = error; }
@@ -122,4 +123,12 @@ test('the controller reports an invalid-spec failure once and releases its real 
   `], { cwd: f.repo, env: f.env, encoding: 'utf8', timeout: 20000 }); // budget: unchanged small real source setup and one trivial valid command.
   assert.equal(valid.status, 0, valid.stderr || valid.failure);
   assert.deepEqual(JSON.parse(valid.stdout), { code: 0, output: 'valid-work' });
+}
+
+test('the controller reports an invalid-spec failure once and releases its real private gate slot [C7]', { timeout: 45000 }, async t => { // budget: real Git/capsule setup, one refusal and one valid private runner control.
+  await controllerCase(t, { invalidSpec: true, browser: false });
+});
+
+test('a generated browser-required spec with zero capacity refuses before setup and releases the slot [C7]', { timeout: 45000 }, async t => { // budget: real source/capsule setup and a valid control following the bounded capacity refusal.
+  await controllerCase(t, { invalidSpec: false, browser: true });
 });
