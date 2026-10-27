@@ -79,7 +79,7 @@ const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 const MAX_HISTORY_TAGS = 1_024;
 const MAX_TAG_CHAIN = 8;
 const TOOL_ROOT = fileURLToPath(new URL('../', import.meta.url));
-const RUNTIME_NAMES = ['runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js'];
+const RUNTIME_NAMES = ['runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-recovery.js', 'runner-transport.js'];
 
 /** Validate an SSH destination as one argument, never a command or an SSH option. */
 export function validateRunner(value) {
@@ -109,11 +109,30 @@ export function runnerSource(root) {
 
 /** A missing authenticated completion receipt is a transport loss, never a passing test result. */
 export class RunnerDropped extends Error {
-  constructor(host) {
+  constructor(host, diagnostic = { reason: 'completion unavailable' }) {
     super(`runner ${host} disconnected before a complete result; the run returns to the queue`);
     this.name = 'RunnerDropped';
     this.host = host;
+    this.diagnostic = diagnostic;
   }
+}
+
+/** Bound diagnostic text, exclude protocol payloads, and suppress any possible credential instead of echoing it. */
+function transportText(value) {
+  const text = String(value ?? '').split(/\r?\n/u).filter(line => !line.startsWith('PULLBOARD_RUNNER_')).join('\n').slice(-8192);
+  return secretsIn(text.split('\n').map((line, index) => ({ path: 'runner transport', line: index + 1, text: line }))).length
+    ? '[possible credential redacted]' : text;
+}
+
+/** Preserve which transport/protocol check failed without retaining source capsules, credentials or command output. */
+function runnerFailure(request, result, reason) {
+  return new RunnerDropped(request.runner.host, { reason, request: request.spec?.id ?? null,
+    source: request.spec?.commit ?? null, tree: request.spec?.tree ?? null,
+    tooling: request.spec?.tooling?.sha256 ?? null, phase: request.phase ?? 'connect',
+    command: ['ssh', ...(request.args ?? []).slice(0, -1), '[pinned Pullboard worker]'],
+    exitCode: result.status ?? null, signal: result.signal ?? null,
+    error: result.error ? { code: result.error.code ?? result.error.name, message: transportText(result.error.message) } : null,
+    stderr: transportText(result.stderr), outputBytes: result.rawBytes ?? Buffer.byteLength(result.stdout ?? '') });
 }
 
 /** Run a source-only Git read without inherited Git configuration, hooks or replacement objects. */
@@ -548,31 +567,31 @@ function resultFrom(request, result) {
   try {
     if (receipts.length !== 1) throw new Error('missing receipt');
     receipt = JSON.parse(Buffer.from(receipts[0].slice(prefix.length), 'base64').toString('utf8'));
-  } catch { throw new RunnerDropped(request.runner.host); }
+  } catch { throw runnerFailure(request, result, receipts.length === 1 ? 'receipt-json' : 'receipt-count'); }
   if (result.error || result.status !== 0 || receipt.id !== request.spec.id || receipt.commit !== request.spec.commit
     || receipt.tree !== request.spec.tree || receipt.runtimeSha256 !== request.spec.runtime.sha256 || receipt.toolingSha256 !== request.spec.tooling.sha256 || !Number.isInteger(receipt.code) || receipt.code < 0 || receipt.code > 255
     || typeof receipt.root !== 'string' || !Number.isFinite(receipt.wallMs) || receipt.wallMs < 0
     || receipt.outputSha256 !== (request.spec.trustedMode ? result.rawSha256 : createHash('sha256').update(output).digest('hex'))) {
-    throw new RunnerDropped(request.runner.host);
+    throw runnerFailure(request, result, result.error ? 'local-transport-error' : result.status !== 0 ? 'ssh-exit' : 'receipt-binding');
   }
-  if (receipt.gui !== undefined && ![true, false, null].includes(receipt.gui)) throw new RunnerDropped(request.runner.host);
+  if (receipt.gui !== undefined && ![true, false, null].includes(receipt.gui)) throw runnerFailure(request, result, 'gui-metadata');
   // This field is bound to this exact request and output digest, never read from command text.
   recordRunnerGui(request.runner.host, receipt.gui ?? null);
   if (receipt.refused === 'RUNNER_GUI_SESSION_REQUIRED') {
-    if (!request.spec.guiRequired || receipt.gui === true || receipt.code === 0) throw new RunnerDropped(request.runner.host);
+    if (!request.spec.guiRequired || receipt.gui === true || receipt.code === 0) throw runnerFailure(request, result, 'gui-refusal-binding');
     const refused = new Refused('RUNNER_GUI_SESSION_REQUIRED', `runner ${request.runner.host} has no confirmed GUI session at job start; rerun this GUI-marked file locally or register a logged-in GUI runner`);
     refused.runnerAttempt = { host: request.runner.host, exitCode: receipt.code, output: output.toString('utf8'), gui: receipt.gui ?? null };
     throw refused;
   }
-  if (receipt.timedOut !== undefined && (receipt.timedOut !== true || !request.spec.timeoutMs || receipt.code === 0)) throw new RunnerDropped(request.runner.host);
+  if (receipt.timedOut !== undefined && (receipt.timedOut !== true || !request.spec.timeoutMs || receipt.code === 0)) throw runnerFailure(request, result, 'timeout-metadata');
   if (receipt.refused !== undefined) {
-    if (typeof receipt.refused !== 'string' || !/^[A-Z][A-Z0-9_]{0,63}$/u.test(receipt.refused) || receipt.code === 0) throw new RunnerDropped(request.runner.host);
+    if (typeof receipt.refused !== 'string' || !/^[A-Z][A-Z0-9_]{0,63}$/u.test(receipt.refused) || receipt.code === 0) throw runnerFailure(request, result, 'refusal-metadata');
     // The runner answered, so this is a named failure, not a dropped transport to requeue.
     throw new Refused('RUNNER_SETUP_REFUSED', `runner ${request.runner.host} refused this run before it started: [${receipt.refused}] from its own resource pool; run pullboard resources and pullboard settings on ${request.runner.host} to fix that pool, then run again`);
   }
   // The runner classified any file denial against its own checkout; only its evidence is trusted here.
   const sandboxBlocked = receipt.denial === undefined ? null : remoteFileDenial(receipt.denial, request.runner.host);
-  if (receipt.denial !== undefined && (!sandboxBlocked || receipt.code === 0)) throw new RunnerDropped(request.runner.host);
+  if (receipt.denial !== undefined && (!sandboxBlocked || receipt.code === 0)) throw runnerFailure(request, result, 'denial-metadata');
   let staged = null;
   if (request.spec.stageMarker && !receipt.signal) {
     const split = gateStages(request.spec.command);
@@ -591,14 +610,14 @@ function resultFrom(request, result) {
       if (result.rawOutputPath !== request.rawOutputPath || statSync(result.rawOutputPath).size !== result.rawBytes) throw new Error('missing complete private-check capture');
       privateResult = privateCheckPhases(request.spec.trustedMode, receipt.trustedMode, result.rawBytes);
       if ((privateResult.state === 'pass') !== (receipt.code === 0 && !receipt.signal)) throw new Error('inconsistent private-check completion');
-    } catch { throw new RunnerDropped(request.runner.host); }
-  } else if (receipt.trustedMode !== undefined) throw new RunnerDropped(request.runner.host);
+    } catch { throw runnerFailure(request, result, 'private-phase-binding'); }
+  } else if (receipt.trustedMode !== undefined) throw runnerFailure(request, result, 'unexpected-private-phases');
   const text = staged?.output ?? output.toString('utf8');
-  if (receipt.environment !== undefined && environmentProblem(receipt.environment)) throw new RunnerDropped(request.runner.host);
-  if (receipt.testRuntimes != null && !testRuntimeRows(receipt.testRuntimes)) throw new RunnerDropped(request.runner.host);
-  if (receipt.browserRefused !== undefined && (receipt.browserRefused !== true || receipt.code === 0 || request.spec.browserRequired)) throw new RunnerDropped(request.runner.host);
+  if (receipt.environment !== undefined && environmentProblem(receipt.environment)) throw runnerFailure(request, result, 'environment-metadata');
+  if (receipt.testRuntimes != null && !testRuntimeRows(receipt.testRuntimes)) throw runnerFailure(request, result, 'test-runtime-metadata');
+  if (receipt.browserRefused !== undefined && (receipt.browserRefused !== true || receipt.code === 0 || request.spec.browserRequired)) throw runnerFailure(request, result, 'browser-metadata');
   const admission = remoteAdmission(receipt.executionAdmission);
-  if (request.spec.timing === true && (receipt.timing !== true || !admission)) throw new RunnerDropped(request.runner.host);
+  if (request.spec.timing === true && (receipt.timing !== true || !admission)) throw runnerFailure(request, result, 'timing-admission');
   // Only the lease guard's own receipt counts; text a test prints is never a refusal (#1043).
   if (receipt.browserRefused === true) {
     const refused = new Refused('RUNNER_BROWSER_SLOT_REQUIRED', `runner ${request.runner.host} refused this run's lease for want of a browser slot (BROWSER_SLOT_REQUIRED)`);
@@ -654,21 +673,22 @@ process.on('SIGTERM',abort); process.on('SIGHUP',abort); process.stdout.on('erro
 const parentWatch=setInterval(()=>{if(process.ppid!==request.parentPid)abort();},1000);
 if(process.ppid!==request.parentPid)abort();
 try { process.stdout.write(JSON.stringify({result:await runOnRunnerAsync(request.root,request.command,{...request.options,signal:canceled.signal})})); }
-catch(error) { process.stdout.write(JSON.stringify({error:{name:error.name,code:error.code,message:error.message,host:error.host,runnerAttempt:error.runnerAttempt}})); process.exitCode=1; }
+catch(error) { process.stdout.write(JSON.stringify({error:{name:error.name,code:error.code,message:error.message,host:error.host,runnerAttempt:error.runnerAttempt,diagnostic:error.diagnostic}})); process.exitCode=1; }
 finally {clearInterval(parentWatch);}`;
   const child = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
     cwd: root, input: JSON.stringify({ root, command, options, parentPid: process.pid }), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   let reply;
-  try { reply = JSON.parse(child.stdout); } catch { throw new RunnerDropped(options.runner.host); }
+  try { reply = JSON.parse(child.stdout); } catch { throw runnerFailure({runner:options.runner,args:[],phase:'sync-bridge'},child,'bridge-json'); }
   if (reply.error?.name === 'Refused') {
     const prefix = `[${reply.error.code}] `;
     const refused = new Refused(reply.error.code, reply.error.message.startsWith(prefix) ? reply.error.message.slice(prefix.length) : reply.error.message);
     if (reply.error.runnerAttempt) refused.runnerAttempt = reply.error.runnerAttempt;
     throw refused;
   }
-  if (reply.error || child.error || child.status !== 0) throw new RunnerDropped(options.runner.host);
+  if (reply.error?.name === 'RunnerDropped') throw new RunnerDropped(options.runner.host, reply.error.diagnostic);
+  if (reply.error || child.error || child.status !== 0) throw runnerFailure({runner:options.runner,args:[],phase:'sync-bridge'},child,'bridge-exit');
   return reply.result;
 }
 
@@ -682,6 +702,7 @@ export async function runOnRunnerAsync(root, command, options) {
   let rawFd = null;
   try {
     if (request.rawOutputPath) rawFd = openSync(request.rawOutputPath, 'wx', 0o600);
+    request.phase = 'connect';
     const child = spawn('ssh', request.args, { env: request.env, stdio: ['pipe', 'pipe', 'pipe'] });
     const output = [], diagnostics = [];
     let bytes = 0, error, control = '', requested = false, transfer = null, cleanupReason = '';
@@ -729,7 +750,7 @@ export async function runOnRunnerAsync(root, command, options) {
       let newline;
       while ((newline = control.indexOf('\n')) >= 0) {
         const line = control.slice(0, newline); control = control.slice(newline + 1);
-        if (line === `PULLBOARD_RUNNER_READY ${request.spec.id}`) clearTimeout(runnerWaitTimer);
+        if (line === `PULLBOARD_RUNNER_READY ${request.spec.id}`) { request.phase = 'ready'; clearTimeout(runnerWaitTimer); }
         const cleanupPrefix = `PULLBOARD_RUNNER_CLEANUP_UNVERIFIED ${request.spec.id} `;
         if (line.startsWith(cleanupPrefix)) cleanupReason = line.slice(cleanupPrefix.length, cleanupPrefix.length + 240);
         if (line === `PULLBOARD_RUNNER_CLEANUP_TIMEOUT ${request.spec.id}`) {
@@ -739,7 +760,7 @@ export async function runOnRunnerAsync(root, command, options) {
         const prefix = `PULLBOARD_RUNNER_NEED ${request.spec.id} `;
         if (!line.startsWith(prefix)) continue;
         if (requested) { error = new Error('duplicate runner inventory'); child.kill(); return; }
-        requested = true;
+        requested = true; request.phase = 'inventory';
         transfer = (async () => {
           const inventory = JSON.parse(Buffer.from(line.slice(prefix.length), 'base64').toString('utf8'));
           if (!Array.isArray(inventory.tips) || inventory.tips.length > 1024
@@ -750,20 +771,22 @@ export async function runOnRunnerAsync(root, command, options) {
             || inventory.tagObjects.some(object => typeof object !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(object))) {
             throw new Error('invalid runner tag inventory');
           }
+          request.phase = 'pack';
           const pack = historyPack(root, request.source, inventory.tips, request.directory, request.spec.tags, inventory.tagObjects);
           await pipeline(createReadStream(pack), child.stdin);
+          if (request.phase !== 'ready') request.phase = 'source-sent';
         })().catch(failure => { error = failure; child.stdin.destroy(); child.kill(); });
       }
     });
     child.stdin.on('error', failure => { if (failure.code !== 'EPIPE') error ??= failure; });
     child.once('error', failure => { error = failure; });
     child.stdin.write(request.frame);
-    const status = await new Promise(resolve => child.once('close', resolve));
+    const {status,signal} = await new Promise(resolve => child.once('close', (status,signal) => resolve({status,signal})));
     if (transfer) await transfer;
     if (error instanceof Refused) throw error;
     if (rawFd !== null) { closeSync(rawFd); rawFd = null; }
     const bounded = request.rawOutputPath ? Buffer.concat([head, ...(rawBytes > half * 2 ? [Buffer.from('\n[output capped at 8 MiB; middle omitted]\n')] : []), tail]) : Buffer.concat(output);
-    return resultFrom(request, { status, error, stdout: bounded, stderr: Buffer.concat(diagnostics),
+    return resultFrom(request, { status, signal, error, stdout: bounded, stderr: Buffer.concat(diagnostics),
       ...(request.rawOutputPath ? { rawOutputPath: request.rawOutputPath, rawBytes, rawSha256: rawHash.digest('hex') } : {}) });
   } finally { clearTimeout(runnerWaitTimer); clearTimeout(runnerWaitKill); if (rawFd !== null) closeSync(rawFd); removeAbort(); request.cleanup(); }
 }
