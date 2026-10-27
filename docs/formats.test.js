@@ -33,7 +33,7 @@ import { exportView } from '../src/serve.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { discoverEngines } from '../src/engine-metadata.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { appliedSequence, applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import {
   ACCEPT_REASON,
   actOnActivity,
@@ -498,7 +498,7 @@ function recordEventContract() {
   ] });
   const omissionMove = prepareEngineMove(board, 'applyRowDecisions', [{ agentId: coordinator,
     events: omissionDecisions.map(record => record.event), refreezes: [], skippedDrafts: [omitted] }]);
-  assert.equal(applyEngineMove(board, omissionMove, { sequence: 3, at: board.clock.now().toISOString() }).error, undefined);
+  assert.equal(applyEngineMove(board, omissionMove, { sequence: appliedSequence(board) + 1, at: board.clock.now().toISOString() }).error, undefined);
   const rows = events(board).map((row) => ({ ...row, detail: JSON.parse(row.event_detail) }));
   closeBoard(board);
   return { rows, actors: { [coordinator]: 'coordinator', [builder]: 'builder', [returnedBuilder]: 'builder', [unattendedBuilder]: 'builder', [reviewer]: 'reviewer', [PERSON]: 'person', board: 'board', rigor: 'rigor' } };
