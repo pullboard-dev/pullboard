@@ -2314,3 +2314,5 @@ export function actOnActivity(board, options) {
 }
 import { FLOW_SIZE_ENGINE } from './flow-size-engine.js';
 import { submissionSize } from './submission-size.js';
+
+export { fileTypedRequest, typedRequests, answerTypedRequests } from './typed-requests.js';

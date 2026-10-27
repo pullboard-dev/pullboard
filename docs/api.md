@@ -128,6 +128,7 @@ For example: `flow: review wait average 61 min (1 measured; > 60 min); bottlenec
 | `health` | `version:number`, `asOf:string`, `thresholds:object`, `stuck:array`, `waiting:array` |
 | `skills` | `version:number`, `updated:array`, `current:array`, `customized:array` |
 | `inbox` | `version:number`, `shouts:array` |
+| `request` | `version:number`, `requests:array` |
 | `decisions` | `version:number`, `decisions:array` |
 | `ledger` | `version:number`, `items:array`, `stats:object` |
 | `log` | `version:number`, `events:array` |
@@ -789,3 +790,9 @@ The request accepts ordinary `--criterion`, `--brief`, `--specs` and `--route` c
 ### Seat addresses
 
 `whoami.address` and each `agents` entry expose `pullboard:<board-id>:<percent-encoded-seat-id>`. The address uses the persistent board identity and registered seat id, not its checkout path. Send with `pullboard shout <address> "<text>"` from a checkout linked to that board with the sender’s own grant; the existing sealed relay authenticates the sender and orders the ordinary shout. Another board’s address is refused with `SEAT_ADDRESS_BOARD`. An address grants no access, and revoked credentials cannot deliver a message.
+
+## Typed coordinator requests
+
+`pullboard request reopen|hold|withdraw|reroute <item> --cause <key> [--route light|mid|strong] [--note text]` queues a request without executing the target move. Filing returns `{version:1,id,requests}`; `id` is the native request event ID and `requests` contains the filed row. `request list [--all]` and `request answer <request-ids> done|declined --note text [--acted-on <event-ids>]` return `{version:1,requests}`. Non-coordinators list their own requests; the coordinator lists the queue and alone answers it.
+
+Each request row contains `id`, `item`, `verb`, `cause`, optional `route`, `note`, `requester`, `status` (`open`, `done`, or `declined`), and nullable `answer`. An answer contains `id`, `by`, `outcome`, `note`, and nullable `eventId`. Request IDs and acted-on IDs are native event identities, not item IDs: the comma-separated acted-on list maps positionally to the request list. DONE requires the actual matching coordinator operation after the request and matching current item state; a prose answer does not execute that operation. Decline requires a note. Batch validation is atomic; exact answer retries preserve the recorded result and conflicting retries refuse.
