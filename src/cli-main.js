@@ -137,6 +137,7 @@ const OPTIONS = {
   decision: { type: 'boolean' },
   kind: { type: 'string' },
   options: { type: 'string' },
+  effects: { type: 'string' },
   news: { type: 'boolean' },
   evidence: { type: 'string' },
   outcome: { type: 'string' },
