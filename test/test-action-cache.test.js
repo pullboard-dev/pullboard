@@ -200,3 +200,25 @@ test('only passing results under the current key prove the whole suite [C7]', ()
   assert.deepEqual(suiteProven(files, new Map([[files[0], fresh], [files[1], { ...reused, currentKey: 'k2' }]])).stale, [files[1]]);
   assert.equal(suiteProven([], new Map()).proven, false, 'an empty suite proves nothing');
 });
+
+test('filtered results reuse only the same selection and still invalidate reached inputs [C7]', t => {
+  const fixture = makeFixture(t);
+  fixture.change('test/b.test.js', `${fixtureTest('b', 'b')}
+test('other [C7]', () => appendFileSync(process.env.PULLBOARD_ACTION_CAPTURE, 'other\\n'));
+`);
+  const selected = ['--test-name-pattern', '^b ', 'test/b.test.js'];
+  const first = fixture.run(selected);
+  assert.equal(first.status, 0, first.output);
+  assert.deepEqual(first.ran, ['b']);
+  const second = fixture.run(selected);
+  assert.equal(second.status, 0, second.output);
+  assert.deepEqual(second.ran, [], 'the identical filtered proof is reused without executing its body');
+  assert.match(second.output, /^# reused /mu);
+  const whole = fixture.run(['test/b.test.js']);
+  assert.equal(whole.status, 0, whole.output);
+  assert.deepEqual(whole.ran, ['b', 'other'], 'a filtered proof never stands in for the whole file');
+  fixture.change('lib/b.js', "export const value = 'green'; // reached input changed\n");
+  const changed = fixture.run(selected);
+  assert.equal(changed.status, 0, changed.output);
+  assert.deepEqual(changed.ran, ['b'], 'a reached-module edit invalidates the matching filtered proof');
+});
