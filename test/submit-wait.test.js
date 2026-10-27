@@ -111,12 +111,12 @@ test('done --wait preserves submission JSON and prints the exact accepted verdic
 /** A withdrawn acceptance must never turn an old attached submission into a successful result. */
 test('a withdrawn verdict does not finish a submission wait successfully [V2,V6]', async t => {
   const box = await waitingVerdict(t, 'ACCEPT');
-  const commit = onBoard(box, board => store.getItem(board, 1).item_commit);
+  const { item_id: id, item_commit: commit } = onBoard(box, board => store.getItem(board, 1));
   const receipt = onBoard(box, board => store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'submit'));
   onBoard(box, board => store.reopen(board, 1, { agentId: 'coordinator', withdrawVerdict: true,
     note: 'The reviewer withdrew this acceptance after a concrete gap was found.' }));
   const io = { cwd: box.repo, say: () => {}, err: () => {} };
-  await assert.rejects(waitForSubmissionVerdict(context(io), 1, { id: 1, commit }, receipt),
+  await assert.rejects(waitForSubmissionVerdict(context(io), id, { id, commit }, receipt),
     error => error.code === 'SUBMISSION_CHANGED');
 });
 
@@ -142,7 +142,7 @@ test('a wait keeps its original receipt across a same-SHA refrozen resubmission 
     reason: 'BEHAVIOR_MISMATCH', note: 'This verdict belongs only to the later attempt.', policy: 'any',
     digest: store.getItem(board, 1).item_frozen_digest, head: submission.commit }));
   const io = { cwd: box.repo, say: () => {}, err: () => {} };
-  await assert.rejects(waitForSubmissionVerdict(context(io), 1, submission, receipt),
+  await assert.rejects(waitForSubmissionVerdict(context(io), submission.id, submission, receipt),
     error => error.code === 'SUBMISSION_CHANGED');
 });
 
