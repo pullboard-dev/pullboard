@@ -244,8 +244,11 @@ test('modern Strict policy fences old-engine reserve, selection and verdict repl
 
 
 test('ordered activation protects legacy family items and preserves genuine engine 142 receipts [V4,B26,H16]', t => {
+  for (const activation of ['success', 'refusal']) {
   const f = fixture(t, { historical: true });
+  f.board.clock = { now: () => new Date('2026-10-27T00:02:00.000Z') };
   const id = f.add({ reviewFamily: 'claude' });
+  store.appendFact(f.board, id, { agentId: 'core-2', kind: 'note', text: 'Historical item write becomes a Strict touch after rollout.' });
   f.submit(id);
   delete f.board.executionEngineVersion;
   const args = [id, { agentId: 'core-5', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'off' }];
@@ -254,9 +257,11 @@ test('ordered activation protects legacy family items and preserves genuine engi
   assert.equal(first.error, undefined, 'real historical 142 reservation is accepted before activation');
   const receipt = f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value;
   store.release(f.board, id, 'core-5');
-  const modern = prepareEngineMove(f.board, 'appendFact', [id,
-    { agentId: 'core-2', kind: 'note', text: 'A modern recorded native write activates review semantics.' }], { id: 'activate-review-prefix' });
-  assert.equal(applyEngineMove(f.board, modern, { sequence: 2, at: '2026-10-27T00:02:00.000Z' }).error, undefined);
+  const modern = activation === 'success'
+    ? prepareEngineMove(f.board, 'appendFact', [id, { agentId: 'core-2', kind: 'note', text: 'Modern recorded native mutation activates review semantics.' }], { id: 'activate-review-prefix' })
+    : prepareEngineMove(f.board, 'reserveReview', [id, { ...args[1], agentId: 'core-3' }], { id: 'activate-refusal-prefix' });
+  const activated = applyEngineMove(f.board, modern, { sequence: 2, at: '2026-10-27T00:02:00.000Z' });
+  assert.equal(activated.error?.code, activation === 'success' ? undefined : 'STRICT_REVIEW_TOUCHED');
   const newArgs = [id, { ...args[1], agentId: 'core-3' }];
   const next = prepareEngineMove(f.board, 'reserveReview', newArgs, { id: 'new-review-old-item' });
   const before = exportBoard(f.board);
@@ -268,4 +273,5 @@ test('ordered activation protects legacy family items and preserves genuine engi
   assert.deepEqual(applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-27T00:01:00.000Z' }), first);
   assert.equal(f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value, receipt);
   assert.deepEqual(exportBoard(f.board), replayBefore, 'already recorded old receipt replays byte-identically after activation');
+  }
 });
