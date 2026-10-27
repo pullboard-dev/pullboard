@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { test } from 'node:test';
 import { testsNeedBrowser } from '../src/browser-admission.js';
 import { memoryBrowserSourceFiles, realBrowserSourceFiles, snapshotBrowserSourceFiles, withBrowserSourceFiles } from '../src/browser-source-files.js';
@@ -64,3 +64,23 @@ test('source snapshots retain captured bytes and never change real-default or co
   Promise.resolve().then(async () => (await import('../src/browser-source-files.js')).browserSourceFiles() === realBrowserSourceFiles)]);
   assert.deepEqual(actual, [true, true]);
 });
+
+for (const implementation of ['real', 'memory', 'snapshot']) {
+  test(`aliased source root resolves relative links from their real parent: ${implementation} [C7,O5]`, async t => {
+    const box = fixture(t);
+    const aliasParent = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-source-alias-')));
+    t.after(() => rmSync(aliasParent, { recursive: true, force: true }));
+    const alias = join(aliasParent, 'repo');
+    symlinkSync(box.root, alias);
+    box.entries.set(alias, { kind: 'symlink', target: box.root });
+    const target = `../${basename(box.root)}/untracked.js`;
+    writeFileSync(join(box.root, 'untracked.js'), 'export const captured = true;');
+    symlinkSync(target, join(box.root, 'relative.js'));
+    box.entries.set(join(box.root, 'untracked.js'), { kind: 'file', bytes: 'export const captured = true;' });
+    box.entries.set(join(box.root, 'relative.js'), { kind: 'symlink', target });
+    const adapter = implementation === 'real' ? realBrowserSourceFiles : implementation === 'memory'
+      ? memoryBrowserSourceFiles(box.entries) : await snapshotBrowserSourceFiles(alias, ['relative.js']);
+    assert.equal(await adapter.realpath(join(alias, 'relative.js')), join(box.root, 'untracked.js'));
+    assert.equal(await adapter.readFile(join(alias, 'relative.js'), 'utf8'), 'export const captured = true;');
+  });
+}

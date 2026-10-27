@@ -95,7 +95,7 @@ export async function snapshotBrowserSourceFiles(root, files) {
     if (info.isSymbolicLink()) {
       const target = await fs.readlink(path);
       entries.set(key, { kind: 'symlink', target });
-      await capture(resolve(dirname(path), target));
+      await capture(resolve(dirname(key), target));
     } else if (info.isDirectory()) entries.set(key, { kind: 'directory' });
     else if (info.isFile()) entries.set(key, { kind: 'file',
       ...(key.startsWith(actualRoot + sep) ? { bytes: await fs.readFile(path) } : {}) });
