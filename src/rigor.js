@@ -8,7 +8,7 @@ import { Refused } from './refused.js';
 import { HEALTH_SENTINEL_ENGINE } from './health-receipts.js';
 import { BOARD_SENTINEL_ENGINE } from './sentinel-engine.js';
 import { NATIVE_FLAKE_ENGINE } from './flake-engine.js';
-import { mappedCause, readPathMap } from './path-map.js';
+import { historyPathMap, mappedCause } from './path-map.js';
 import {
   conflictCause,
   reopenConflictEvidence,
@@ -150,7 +150,7 @@ function neverAgainCause(event, person) {
  * @returns {{ causes: { key: string, reads: string, items: { id: number, commits: string[] }[], occurrences: number, neverAgain: boolean }[], uncaused: number }}
  */
 export function rigorReport(events, { person, root }) {
-  const map = root ? readPathMap(root) : new Map();
+  const map = root ? historyPathMap(root) : new Map();
   const byKey = new Map();
   let uncaused = 0;
   /** The running record for one cause key. */

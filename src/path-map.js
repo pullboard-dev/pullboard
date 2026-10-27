@@ -1,5 +1,5 @@
 /** Committed file moves translate read identities; original checks and event evidence stay immutable [C7]. */
-import { tryGit } from './git.js';
+import { mainCheckout, tryGit } from './git.js';
 import { literalShellWords } from './literal-shell-words.js';
 import { Refused } from './refused.js';
 
@@ -41,6 +41,12 @@ export function readPathMap(root, { commit = 'HEAD' } = {}) {
   return resolved;
 }
 
+/** History readers share the primary branch's map even when called from an older worktree. */
+export function historyPathMap(root) {
+  const trunk = mainCheckout(root);
+  return readPathMap(root, { commit: trunk?.commit ?? 'HEAD' });
+}
+
 /** Resolve one explicit identity, allowing the conventional leading ./ without guessing basenames. */
 export function mappedPath(map, path) {
   const relative = path.startsWith('./') ? path.slice(2) : path;
@@ -51,6 +57,19 @@ export function mappedPath(map, path) {
 export function historicalPaths(map, path) {
   const current = mappedPath(map, path);
   return [...new Set([path, current, ...[...map].filter(([, target]) => target === current).map(([from]) => from)])];
+}
+
+/** Find a named test's regular file at a historical source, refusing ambiguous surviving aliases. */
+export function pathAtCommit(root, map, path, commit) {
+  const paths = historicalPaths(map, path);
+  const selected = tryGit(root, ['ls-tree', '-z', commit, '--', ...paths.map(file => `:(literal)${file}`)]);
+  if (selected.status !== 0) throw invalidMap();
+  const files = selected.stdout.split('\0').filter(Boolean).filter(entry => /^100(?:644|755) blob /u.test(entry))
+    .map(entry => entry.slice(entry.indexOf('\t') + 1));
+  const current = mappedPath(map, path);
+  if (files.includes(current)) return current;
+  if (files.length === 1) return files[0];
+  throw invalidMap();
 }
 
 /** Resolve exact literal shell words; preserve expansions, selectors, prose and all surrounding syntax. */

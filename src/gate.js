@@ -1,4 +1,5 @@
 import { policyAt } from './trusted-policy-read.js';
+import { mappedCheck } from './path-map.js';
 import {
   COLLECTION_ID_ENV,
   parseCollectionReports,
@@ -743,6 +744,7 @@ export async function runStaticChecks(root, config, { agent, item = '', onWait, 
 export async function runSubmitGate(root, config, { base, trunk, changed, check, agent, item = '', kind = 'submit', onWait, onBrowserFallback, onFailure, proofContext }) {
   if (!config.gate.trim()) throw missingGate(root);
   await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback });
+  check = check ? mappedCheck(root, check) : check;
   const selection = config.affectedTests
     ? selectAffectedTests(root, { base, trunk, changed })
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };

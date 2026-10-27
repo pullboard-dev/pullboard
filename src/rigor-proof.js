@@ -27,6 +27,7 @@ import { parseProcessCensus } from './process-census.js';
 import { withGateSlot } from './gate.js';
 import { gateSlotEnvironment } from './resources.js';
 import { Refused } from './refused.js';
+import { historyPathMap, mappedCheck, mappedPath, pathAtCommit } from './path-map.js';
 
 const CHECK_TIMEOUT_MS = 10 * 60_000;
 const OUTPUT_LIMIT = 64 * 1024 * 1024;
@@ -52,6 +53,7 @@ export async function prepareCauseProof(root, cause, { check, red, green }) {
   let runner = null;
   if (match) {
     const [, file, title] = match;
+    const pathMap = historyPathMap(root);
     if (isAbsolute(file) || posix.normalize(file) !== file || file.startsWith('../') || file.includes('\\') || /[\0*?\[\]{}]/u.test(file)) refuse('the failing test must name a repository-relative regular file');
     const words = literalShellWords(check);
     const executable = words && resolveExecutable(words[0]);
@@ -61,6 +63,7 @@ export async function prepareCauseProof(root, cause, { check, red, green }) {
     const args = words.slice(2);
     let pattern = null;
     const files = [];
+    let fileIndex = -1;
     for (let index = 0; index < args.length; index += 1) {
       const arg = args[index];
       if (arg === '--test-name-pattern') {
@@ -70,21 +73,21 @@ export async function prepareCauseProof(root, cause, { check, red, green }) {
         if (pattern !== null) refuse('the named-test selector is repeated');
         pattern = arg.slice('--test-name-pattern='.length);
       } else if (arg.startsWith('-')) refuse(`the proof does not accept the test option ${arg}; use the exact failing file and optional --test-name-pattern`);
-      else files.push(arg);
+      else { files.push(arg); fileIndex = index + 2; }
     }
-    if (files.length !== 1 || files[0] !== file) refuse(`the check must execute exactly the noticed test file ${file}`);
+    if (files.length !== 1 || mappedPath(pathMap, files[0]) !== mappedPath(pathMap, file)) refuse(`the check must execute exactly the noticed test file ${file}`);
     if (pattern !== null) {
       let selected = false;
       try { selected = new RegExp(pattern).test(title); } catch { /* Invalid selectors cannot prove execution. */ }
       if (!selected) refuse(`the check's selector excludes the noticed test ${title}`);
     }
+    const filesAt = {};
     for (const commit of commits) {
-      const entry = tryGit(root, ['--literal-pathspecs', 'ls-tree', '-z', commit, '--', file]);
-      const records = entry.stdout.split('\0').filter(Boolean);
-      if (entry.status !== 0 || records.length !== 1 || !/^(?:100644|100755) blob [0-9a-f]+\t/u.test(records[0]) || records[0].slice(records[0].indexOf('\t') + 1) !== file) refuse(`${file} is not a regular committed test at ${commit}`);
+      try { filesAt[commit] = pathAtCommit(root, pathMap, file, commit); }
+      catch { refuse(`${file} is not an unambiguous regular committed test at ${commit}`); }
     }
     // Force the real runner's machine-readable report; the caller cannot substitute a shell echo.
-    runner = { executable, command: words[0], args: ['--test', '--test-reporter=tap', ...args], file, title };
+    runner = { executable, command: words[0], args: ['--test', '--test-reporter=tap', ...args], file, title, fileIndex, filesAt };
   }
   return { key: cause.key, receipts, check: check.trim(), commits, runner };
 }
@@ -198,7 +201,9 @@ export async function runCheckAt(root, commit, check, runner = null, { timeoutMs
   let drained = added.status !== 0;
   try {
     if (added.status !== 0) throw unproven(`cannot check out ${commit}`, 'unknown');
-    const run = await runOwnedCheck(tree, check, runner, timeoutMs, gateEnvironment, tree);
+    const selectedRunner = runner?.filesAt?.[commit] ? { ...runner,
+      args: runner.args.map((arg, index) => index === runner.fileIndex ? runner.filesAt[commit] : arg) } : runner;
+    const run = await runOwnedCheck(tree, runner ? check : mappedCheck(tree, check), selectedRunner, timeoutMs, gateEnvironment, tree);
     drained = true;
     return { commit, ...run, problems: run.stdout.split(/\r?\n/u).filter(line => line.trim()).length };
   } catch (error) {

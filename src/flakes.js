@@ -1,6 +1,6 @@
 /** Typed failure observations preserve evidence separately from person-authorized waivers [C7,D1,H16]. */
 import { createHash } from 'node:crypto';
-import { mappedPath, readPathMap } from './path-map.js';
+import { historyPathMap, mappedPath } from './path-map.js';
 import {
   addItem,
   atomic,
@@ -108,7 +108,7 @@ export function flakeLedger(board, { root } = {}) {
     const merged = board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE event_kind='merged' AND item_id=?").get(row.item);
     if (item.item_merged_commit && merged.id > row.lastEventId) row.status = 'fixed';
   }
-  return root ? mappedLedger([...rows.values()], readPathMap(root)) : [...rows.values()];
+  return root ? mappedLedger([...rows.values()], historyPathMap(root)) : [...rows.values()];
 }
 
 /** Join read identities after interpreting the original repair keys, retaining every original observation. */

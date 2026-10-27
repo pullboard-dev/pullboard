@@ -10,6 +10,7 @@ import { itemsTouching } from '../src/why-file.js';
 import { rigorReport } from '../src/rigor.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
 import { coChangedPaths, historicalPaths, mappedCheck, readPathMap } from '../src/path-map.js';
+import { prepareCauseProof, runCheckAt } from '../src/rigor-proof.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const e2e = createE2eHelpers();
@@ -80,6 +81,55 @@ test('a check baseline resolves paths at its selected main and retains the recor
   assert.equal(checkBaseline(box.repo, box.command, { main: box.base }).result, 'green', 'the old source keeps its old path');
 });
 
+test('native check, submit and independent verification execute the old frozen path after a move [C7]', () => {
+  const box = movedFixture();
+  const web = join(box.dir, 'path-map-builder');
+  box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/path-map-builder');
+  /** A successful public command supplies each observed board result. */
+  const json = (cwd, ...args) => {
+    const result = box.run(cwd, ...args, '--json');
+    assert.equal(result.code, 0, result.err || result.out);
+    return JSON.parse(result.out);
+  };
+  json(web, 'join', 'web');
+  json(box.repo, 'add', 'web', 'Mapped frozen command', '--specs', 'G1', '--criterion', 'the moved command executes', '--check', box.command);
+  json(web, 'claim', '1');
+  const before = json(web, 'show', '1').item_frozen;
+  assert.equal(json(web, 'check', '1', '--yes').green, true);
+  assert.equal(e2e.commitFile(box, web, 'web/item.txt', 'built\n', 'feat(web): build mapped fixture [G1]').status, 0);
+  const submitted = json(web, 'submit', '1');
+  box.git(box.repo, 'switch', '-q', '--detach', submitted.commit);
+  try { json(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'The original frozen command executes the mapped file.'); }
+  finally { box.git(box.repo, 'switch', '-q', 'main'); }
+  assert.equal(json(web, 'show', '1').item_frozen, before);
+});
+
+test('a named Rigor proof checks the actual old red file and moved green file [C7]', async () => {
+  const box = e2e.project('true', undefined, { withWorktree: false });
+  const title = 'mapped proof [C7]';
+  mkdirSync(join(box.repo, 'web/cell'), { recursive: true });
+  const source = expected => `import test from 'node:test'; import assert from 'node:assert/strict'; test('${title}', () => assert.equal(1, ${expected}));\n`;
+  writeFileSync(join(box.repo, OLD), source(2));
+  box.git(box.repo, 'add', '-A'); box.git(box.repo, 'commit', '-q', '-m', 'chore: seed failing named proof');
+  const red = box.git(box.repo, 'rev-parse', 'HEAD');
+  renameSync(join(box.repo, OLD), join(box.repo, NEW));
+  writeFileSync(join(box.repo, NEW), source(1));
+  writeFileSync(join(box.repo, 'path-map.json'), JSON.stringify({ [OLD]: NEW }));
+  box.git(box.repo, 'add', '-A'); box.git(box.repo, 'commit', '-q', '-m', 'chore: repair and move named proof');
+  const green = box.git(box.repo, 'rev-parse', 'HEAD');
+  // Synthetic noticed metadata tests source binding; the two checks below execute real Node tests.
+  const cause = { key: `test:${NEW}::${title}`, items: [{ id: 1, commits: [red] }] };
+  const prepared = await prepareCauseProof(box.repo, cause, { check: `node --test ${NEW}`, red, green });
+  assert.equal(prepared.runner.filesAt[red], OLD);
+  assert.equal(prepared.runner.filesAt[green], NEW);
+  const failed = await runCheckAt(box.repo, red, prepared.check, prepared.runner);
+  const passed = await runCheckAt(box.repo, green, prepared.check, prepared.runner);
+  assert.equal(failed.exit, 1);
+  assert.equal(passed.exit, 0);
+  assert.match(failed.stdout, /not ok 1 - mapped proof/u);
+  assert.match(passed.stdout, /ok 1 - mapped proof/u);
+});
+
 test('why on an old name includes work landed at the new name [C7]', () => {
   const box = e2e.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
@@ -124,7 +174,7 @@ test('flake and Rigor read projections join moved names while original SQLite ev
     /** Synthetic receipt metadata tests identity projection without claiming a native flake. */
     const receipt = green => ({ green, sha256: (green ? 'a' : 'b').repeat(64), bytes: 1,
       artifact: `flake-evidence/fixture/${green ? 'paired' : 'original'}.log`, profileSha256: null });
-    for (const [index, file] of [OLD, NEW].entries()) {
+    for (const [index, file] of [OLD, OLD, NEW, NEW].entries()) {
       store.recordFlakeObservation(board, { agentId: actor, lane: 'web', observation: {
         id: `path-map-synthetic-${index}`, file, name: 'synthetic path identity fixture', head: box.head,
         tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}'), main: box.head,
@@ -136,14 +186,22 @@ test('flake and Rigor read projections join moved names while original SQLite ev
     const projected = store.flakeLedger(board, { root: box.repo });
     assert.equal(projected.length, 1);
     assert.equal(projected[0].file, NEW);
-    assert.equal(projected[0].count, 2);
-    assert.deepEqual(projected[0].observations.map(value => value.file), [OLD, NEW]);
+    assert.equal(projected[0].count, 4);
+    assert.deepEqual(projected[0].observations.map(value => value.file), [OLD, OLD, NEW, NEW]);
+    assert.equal(projected[0].repairs.length, 2, 'both independently drafted repair relationships survive joining');
+    const oldReader = join(box.dir, 'old-reader');
+    box.git(box.repo, 'worktree', 'add', '-q', '--detach', oldReader, box.base);
+    assert.deepEqual(store.flakeLedger(board, { root: oldReader }), projected, 'an old reader uses the primary branch map');
+    const printed = box.run(oldReader, 'flakes');
+    assert.equal(printed.code, 0, printed.err);
+    for (const id of projected[0].repairs) assert.match(printed.out, new RegExp(`#${id}\\b`, 'u'));
     const history = before.filter(event => event.event_kind === 'flake-observation');
     assert.ok(history.every(event => JSON.parse(event.event_detail).engine === NATIVE_FLAKE_ENGINE));
     const causes = rigorReport(history, { person: 'person', root: box.repo }).causes;
     assert.equal(causes.length, 1);
     assert.equal(causes[0].key, `test:${NEW}::synthetic path identity fixture`);
-    assert.equal(causes[0].occurrences, 2);
+    assert.equal(causes[0].occurrences, 4);
+    assert.deepEqual(rigorReport(history, { person: 'person', root: oldReader }).causes, causes);
     assert.deepEqual(store.events(board), before, 'queries never rewrite source observations or their authority');
   } finally { store.closeBoard(board); }
 });
