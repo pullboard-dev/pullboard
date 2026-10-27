@@ -184,7 +184,7 @@ export function configProblems(config) {
   if (!costs || typeof costs !== 'object' || Array.isArray(costs)
     || Object.keys(costs).some(key => !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].includes(key))
     || !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].every(key => Number.isFinite(costs[key]) && costs[key] >= 0)) {
-    problems.push('"testEconomics" has nonnegative finite costOfEscape, costOfWaiting and costOfFalseRed numbers (seconds of equivalent waiting); it changes the report only');
+    problems.push('"testEconomics" has nonnegative finite costOfEscape, costOfWaiting and costOfFalseRed numbers (seconds of equivalent waiting); it controls reported value and published submit/landing placement');
   }
   if (config.pushReceiptCheck !== undefined && (!config.pushReceiptCheck || typeof config.pushReceiptCheck !== 'object'
     || Array.isArray(config.pushReceiptCheck) || Object.keys(config.pushReceiptCheck).some(key => key !== 'smoke')
