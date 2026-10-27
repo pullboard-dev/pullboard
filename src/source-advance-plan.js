@@ -1,6 +1,7 @@
 /** A source advance executes the real raw affected closure, never placement deferral [C7,V4]. */
 import { createHash } from 'node:crypto';
 import { selectAffectedTests } from './affected-tests.js';
+import { selectTestTreeGuards } from './affected-tests.js';
 import { selectRegistryGuards } from './registry-guards.js';
 import { mappedCheck } from './path-map.js';
 
@@ -15,7 +16,8 @@ export function sourceAdvancePlan(root, config, { base, changed, check }) {
   let selection = config.affectedTests ? selectAffectedTests(root, { base, changed })
     : { full: true, reason: 'affected-test selection is not enabled', files: [] };
   if (!selection.full && !selection.files.length) selection = { ...selection, full: true, reason: 'an empty affected closure requires the full gate for source advance' };
-  const registryGuards = selectRegistryGuards(root, config.registryGuards, { base, changed });
+  const registryGuards = [...new Set([...selectRegistryGuards(root, config.registryGuards, { base, changed }),
+    ...selectTestTreeGuards(root, { base, changed })])].sort();
   const invariants = [...new Set(config.submitInvariants ?? [])].sort();
   const proofFiles = [...new Set([...selection.files, ...invariants, ...registryGuards])].sort();
   const guardCommand = registryGuards.length ? `${config.affectedTests.trimEnd()} ${registryGuards.map(path => word('./' + path)).join(' ')}` : '';
