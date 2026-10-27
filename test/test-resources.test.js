@@ -180,15 +180,21 @@ test('module launchers and dynamic builtins keep browser admission conservative 
     assert.equal(await testsNeedBrowser(root, [`test/${file}.test.js`]), true, file);
   }
 
-  mkdirSync(join(root, 'src'), { recursive: true });
-  copyFileSync(resolve(import.meta.dirname, '../src/module-imports.js'), join(root, 'src/module-imports.js'));
-  copyFileSync(resolve(import.meta.dirname, '../src/js-lex.js'), join(root, 'src/js-lex.js'));
+  // The reviewed parser has real local dependencies; preserve its actual source closure.
+  cpSync(resolve(import.meta.dirname, '../src'), join(root, 'src'), { recursive: true });
   writeFileSync(join(root, 'test/parser.test.js'), "import '../src/module-imports.js';\n");
   const parserFallbacks = [];
   const parserBrowser = await testsNeedBrowser(root, ['test/parser.test.js'], { onFallback: decision => parserFallbacks.push(decision) });
   t.diagnostic('reviewed parser fallback: ' + JSON.stringify(parserFallbacks));
   assert.equal(parserBrowser, false,
     'the reviewed V8 compile-only import parser may use node:vm without evaluating the test graph');
+  assert.deepEqual(parserFallbacks, [], 'the positive control inspects the real complete parser closure');
+  rmSync(join(root, 'src/test-isolation.js'));
+  const missingFallbacks = [];
+  assert.equal(await testsNeedBrowser(root, ['test/parser.test.js'], { onFallback: decision => missingFallbacks.push(decision) }), true,
+    'a missing real parser helper remains conservative, rather than receiving the compile-only exception');
+  assert.ok(missingFallbacks.some(decision => decision.file === 'src/module-imports.js'
+    && decision.reason === 'import ./test-isolation.js is missing or ambiguous'));
 });
 
 test('only actual CommonJS loader words trigger browser admission in JavaScript source [C7]', async t => {
