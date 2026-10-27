@@ -33,6 +33,7 @@ function section(html, name) {
 /** Count actual item rows rendered in a card, excluding links and headings. */
 function itemRows(html) { return [...html.matchAll(/class="dash-item"/gu)].length; }
 
+// Native Git setup, ten CLI submissions and complete API projections share this 90-second fixture budget.
 test('Dashboard renders populated release, chart, agents, landing and capped lists from native history [N26]', { timeout: 90_000 }, async () => {
   const box = machine();
   const alpha = project(box, 'dashboard-render', undefined, {

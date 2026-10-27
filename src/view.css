@@ -1109,7 +1109,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .dash-agent-axis > span:nth-child(2) { display: flex; justify-content: space-between; }
 .dash-old { color: var(--warn) !important; }
 .dashboard details > summary { padding-top: 10px; color: var(--ink-muted); cursor: pointer; font-size: 12px; }
-@media (max-width: 1100px) { .dash-two { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dash-flight li { flex-wrap: wrap; gap: 0; padding-bottom: 6px; } .dash-flight small { width: 100%; } }
+@media (max-width: 1100px) { .dash-two { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dash-flight li { flex-wrap: wrap; gap: 0; padding-bottom: 6px; } .dash-flight .dash-item { flex-basis: 100%; } .dash-flight small { width: 100%; } }
 @media (max-width: 700px) {
   .dashboard { padding: 10px; gap: 12px; }
   .dash-card { padding: 14px; border-radius: 12px; }

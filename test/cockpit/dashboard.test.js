@@ -71,6 +71,12 @@ test('a board opens on Dashboard with API-backed work, shared pace and existing 
       assert.equal(await chrome.stable(`Array.from(document.querySelectorAll('#tabs [data-tab]')).every(button => {
         const rect = button.getBoundingClientRect(); return rect.width > 0 && rect.left >= 0 && rect.right <= document.documentElement.clientWidth + 1;
       })`), true, 'every retained tab is accessible inside the viewport');
+      const title = await chrome.stable(`(() => {
+        const element = document.querySelector('#dashboard [aria-label="Shipping now"] .dash-flight .dash-item b');
+        const rect = element.getBoundingClientRect(); return { text: element.textContent.trim(), width: rect.width };
+      })()`);
+      assert.equal(title.text, 'A task in flight', 'the building row retains the actual task title');
+      assert.ok(title.width > 24, `${scheme} at ${width}px leaves visible width for the building title: ${JSON.stringify(title)}`);
       const contentHeight = await chrome.stable('Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)');
       const capture = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true,
         clip: { x: 0, y: 0, width, height: Math.ceil(contentHeight), scale: 1 } });
