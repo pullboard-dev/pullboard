@@ -1,13 +1,15 @@
+import { REVIEW_INDEPENDENCE_ENGINE } from '../review-independence-engine.js';
 import { PRIVATE_REHOME_ENGINE } from '../private-rehome-engine.js';
 
 /** Destination application uses the source identity as its idempotency key [H16]. */
-function minimumEngine() { return PRIVATE_REHOME_ENGINE; }
+function minimumEngine(args) { return args[0]?.reviewPolicy ? Math.max(PRIVATE_REHOME_ENGINE, REVIEW_INDEPENDENCE_ENGINE) : PRIVATE_REHOME_ENGINE; }
 /** Destination replay is attributed to the authenticated local/relay actor [H2,H16]. */
 function actor(move) { return move.args[1]?.destinationAgentId ?? move.args[1]?.agentId ?? null; }
 
 export default Object.freeze({ operation: 'applyRehomeItem', order: 10002, engine: PRIVATE_REHOME_ENGINE,
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
+    BAD_REVIEW_POLICY: 'restore the native review policy before reviewing this item',
     REHOME_CHECK: 'keep the source check unchanged and choose a destination board whose policy accepts it',
     REHOME_CONFLICT: 'keep the original source move ID and resolve the destination board conflict before retrying',
     REHOME_DESTINATION: 'apply the source move on its named destination board',

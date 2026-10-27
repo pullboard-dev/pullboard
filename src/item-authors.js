@@ -1,3 +1,6 @@
+import { committedItemAuthors } from './review-independence.js';
+import { strictReviewProblem } from './review-independence.js';
+import { twoTierReviews } from './review-independence.js';
 /** Review independence follows every claim and submit author, never just the latest owner [V1,B3]. */
 import { ENGINE_VERSION } from './machine.js';
 import { itemPatchAuthors } from './item-patch-state.js';
@@ -9,6 +12,7 @@ import { standingProblem } from './seats.js';
 
 /** Read one item's indexed author history; older ordered moves retain their original current-builder rule. */
 export function itemAuthors(board, item) {
+  if (twoTierReviews(board)) return committedItemAuthors(board, item);
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < HISTORICAL_AUTHORS_ENGINE) return [item.item_built_by].filter(Boolean);
   const authors = new Set([item.item_built_by, item.item_owner].filter(Boolean));
   for (const event of board.db.prepare("SELECT DISTINCT event_by FROM event WHERE item_id = ? AND event_kind IN ('claim', 'submit')").all(item.item_id)) {
@@ -43,6 +47,8 @@ export function itemAuthorProblem(board, item, reviewer) {
   const authors = itemAuthors(board, item);
   const identity = authorIdentityProblem(board, item, reviewer, authors);
   if (identity) return identity;
+  const strict = strictReviewProblem(board, item, reviewer);
+  if (strict) return strict;
   return (authors.length ? authors : [item.item_built_by])
     .map(author => standingProblem(board, reviewer, author, item.item_id)).find(Boolean) ?? null;
 }
