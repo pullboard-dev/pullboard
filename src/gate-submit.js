@@ -2,8 +2,15 @@
 import { withGateSlot } from './gate-slot.js';
 import { mappedCheck } from './path-map.js';
 import { placementSubmitSelection } from './test-placement.js';
-import { checkNeedsGui, projectNeedsGui, testsNeedGui } from './gui-admission.js';
-import { statSync, writeFileSync } from 'node:fs';
+import {
+  checkNeedsGui,
+  projectNeedsGui,
+  testsNeedGui,
+} from './gui-admission.js';
+import {
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { gitPath } from './git.js';
 import { Refused } from './refused.js';
@@ -11,10 +18,23 @@ import { missingGate } from './gate-config.js';
 import { browserFreeChecksEnabled } from './settings.js';
 import { selectAffectedTests } from './affected-tests.js';
 import { selectRegistryGuards } from './registry-guards.js';
-import { checkNeedsBrowser, testsNeedBrowser } from './browser-admission.js';
+import {
+  checkNeedsBrowser,
+  testsNeedBrowser,
+} from './browser-admission.js';
 import { writeTimingProfile } from './gate-output.js';
-import { fullGateRun, pinRunMain, recordRun, refuseSandboxBlocked, runProfiledShell, safeLog } from './gate-execution.js';
-import { commandWord, runStaticChecks } from './gate-static-check.js';
+import {
+  fullGateRun,
+  pinRunMain,
+  recordRun,
+  refuseSandboxBlocked,
+  runProfiledShell,
+  safeLog,
+} from './gate-execution.js';
+import {
+  commandWord,
+  runStaticChecks,
+} from './gate-static-check.js';
 /**
  * Prove the frozen item check and selected imports under one lease. Subsets neither read nor write
  * the full-gate stamp. An uncertain selection runs the full configured gate and records its reason.

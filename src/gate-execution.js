@@ -1,34 +1,95 @@
 /** Execute full and focused gate stages while retaining their native proof evidence. */
-import { settleReceipt, withGateSlot } from './gate-slot.js';
+import {
+  settleReceipt,
+  withGateSlot,
+} from './gate-slot.js';
 import { policyAt } from './trusted-policy-read.js';
-import { COLLECTION_ID_ENV, parseCollectionReports } from './landing-collection-report.js';
+import {
+  COLLECTION_ID_ENV,
+  parseCollectionReports,
+} from './landing-collection-report.js';
 import { retainTestValueTimings } from './test-value-timing.js';
-import { VALUE_GATE, valueGateCommand } from './test-placement.js';
+import {
+  VALUE_GATE,
+  valueGateCommand,
+} from './test-placement.js';
 import { projectNeedsGui } from './gui-admission.js';
 import { spawn } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
-import { dirname, isAbsolute, join, relative, sep } from 'node:path';
-import { availableParallelism, freemem, loadavg } from 'node:os';
+import {
+  createHash,
+  randomUUID,
+} from 'node:crypto';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  sep,
+} from 'node:path';
+import {
+  availableParallelism,
+  freemem,
+  loadavg,
+} from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { captureTestRuntimes, executionEnvironment, testRuntimeEnvironment } from './execution-environment.js';
+import {
+  captureTestRuntimes,
+  executionEnvironment,
+  testRuntimeEnvironment,
+} from './execution-environment.js';
 import { constrainedLandingHost } from './landing-host.js';
-import { gitChildEnv, gitPath, headCommit, headTree, invalidateGitFacts, isClean, tryGit, untracked } from './git.js';
+import {
+  gitChildEnv,
+  gitPath,
+  headCommit,
+  headTree,
+  invalidateGitFacts,
+  isClean,
+  tryGit,
+  untracked,
+} from './git.js';
 import { recordGateRun } from './gate-control.js';
-import { receiptBody, receiptFields, receiptStore } from './gate-run-receipt.js';
-import { committedTest, tapTests } from './tap-tests.js';
-import { checkAtCommit, frozenCheck, mainPolicy } from './trusted-policy.js';
+import {
+  receiptBody,
+  receiptFields,
+  receiptStore,
+} from './gate-run-receipt.js';
+import {
+  committedTest,
+  tapTests,
+} from './tap-tests.js';
+import {
+  checkAtCommit,
+  frozenCheck,
+  mainPolicy,
+} from './trusted-policy.js';
 import { proofCounts } from './proof-provenance.js';
 import { logLines } from './timing.js';
 import { secretsIn } from './hooks.js';
 import { Refused } from './refused.js';
 import { missingGate } from './gate-config.js';
-import { GATE_SLOT_HELD_ENV, gateSlotEnvironment } from './resources.js';
-import { timingFromOutput, timingRunner } from './timing.js';
+import {
+  GATE_SLOT_HELD_ENV,
+  gateSlotEnvironment,
+} from './resources.js';
+import {
+  timingFromOutput,
+  timingRunner,
+} from './timing.js';
 import { landingShardProfile } from './landing-shards.js';
 import { runShell } from './shell-run.js';
 import { writeTimingProfile } from './gate-output.js';
-import { runOnRunner, runOnRunnerAsync } from './runners.js';
+import {
+  runOnRunner,
+  runOnRunnerAsync,
+} from './runners.js';
 import { sandboxBlockedOperation } from './sandbox-denial.js';
 const STAMP = 'pullboard-gate-green';
 const LOG = 'pullboard-gate.log';
