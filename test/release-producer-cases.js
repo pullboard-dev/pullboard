@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { awaitNestedRun } from '../src/test-file-pool.js';
 import { runFixtureChild, runFixtureChildAsync } from './fixture-child.js';
+import { installRegistrationProbeStandIn } from './runner-ssh-fixture.js';
 
 const SOURCE = resolve(import.meta.dirname, '..');
 const NAMES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
@@ -85,12 +86,13 @@ function fixture(t, { red = false, hosts = 7 } = {}) {
   git(box, 'init', '-q', '-b', 'main');
   git(box, 'add', '.');
   git(box, 'commit', '-q', '-m', 'test: commit private native release fixture');
-  installSsh(box);
+  installRegistrationProbeStandIn({ bin: box.bin });
   for (const host of Object.keys(box.workers)) {
     const added = runFixtureChild(process.execPath, [join(box.repo, 'bin/pullboard.js'), 'runner', 'add', host,
       '--slots', '1', '--browser', '0', '--json'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
     assert.equal(added.status, 0, added.context);
   }
+  installSsh(box); // Job statistics exclude the separately recorded real registration probes.
   return box;
 }
 

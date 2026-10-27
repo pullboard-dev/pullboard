@@ -6,6 +6,7 @@ import { tmpdir, userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
+import { installRegistrationProbeStandIn } from './runner-ssh-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const MACHINE_HOME_MODULE = resolve(import.meta.dirname, '../src/machine-home.js');
@@ -46,8 +47,11 @@ test('[O5,O6] gateSlots defaults to two, reads and sets atomically, and refuses 
     assert.equal(JSON.parse(refused.stdout).error.code, 'BAD_GATE_SLOTS');
 
     writeFileSync(join(home, 'settings.json'), saved);
+    const bin = join(home, 'bin');
+    mkdirSync(bin);
+    installRegistrationProbeStandIn({ bin });
     const runner = runFixtureChild(process.execPath, [BIN, 'runner', 'add', 'settings-fixture.invalid', '--slots', '1', '--browser', '1', '--json'], {
-      encoding: 'utf8', env: { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home },
+      encoding: 'utf8', env: { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home, PATH: `${bin}:${process.env.PATH}` },
     });
     assert.equal(runner.status, 0, `${runner.stdout}${runner.stderr}`);
     const browserZero = settings(home, 'browserSlots', '0');
