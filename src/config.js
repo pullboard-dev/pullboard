@@ -52,6 +52,7 @@ export function defaults() {
     registryGuards: [],
     staticChecks: '',
     lease: '2h',
+    claims: { releaseGone: false },
     reviewLease: '30m',
     worktrees: 'beside',
     verify: { policy: 'any', family: 'off', reviewRatio: 3 },
@@ -118,6 +119,8 @@ function merge(base, raw) {
       : raw.agents && typeof raw.agents === 'object' && !Array.isArray(raw.agents)
         ? { ...base.agents, ...raw.agents }
         : raw.agents,
+    claims: raw.claims && typeof raw.claims === 'object' && !Array.isArray(raw.claims)
+      ? { ...base.claims, ...raw.claims } : raw.claims === undefined ? base.claims : raw.claims,
     claim: raw.claim === undefined ? base.claim
       : raw.claim && typeof raw.claim === 'object' && !Array.isArray(raw.claim)
         ? { ...base.claim, ...raw.claim }
@@ -261,6 +264,10 @@ export function configProblems(config) {
   if (config.checks !== undefined && (typeof config.checks !== 'object' || config.checks === null || Array.isArray(config.checks)
     || Object.keys(config.checks).some((key) => key !== 'provesNothing') || !['hold', 'warn'].includes(config.checks.provesNothing))) {
     problems.push('"checks" is { "provesNothing": "hold" or "warn" }: "hold" refuses claim and submit while an item\'s check already passes on main');
+  }
+  if (!config.claims || typeof config.claims !== 'object' || Array.isArray(config.claims)
+    || Object.keys(config.claims).some(key => key !== 'releaseGone') || typeof config.claims.releaseGone !== 'boolean') {
+    problems.push('claims.releaseGone is a boolean; false preserves ordinary claim leases');
   }
   if (!config.claim || typeof config.claim !== 'object' || Array.isArray(config.claim)
     || !Number.isSafeInteger(config.claim.reopenFirstRefusalMinutes) || config.claim.reopenFirstRefusalMinutes < 0

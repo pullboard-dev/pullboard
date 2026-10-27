@@ -117,7 +117,7 @@ Each move checks its guards in this order and refuses with the first one that do
 | LINE_SETTING_RANGE | the recorded queue policy and roadmap are readable when selecting the next review, only next --verify selection; a review reserved by id does not consult the roadmap | restore the recorded board line setting from its ordered event history, then retry next --verify |
 | MAIN_IS_COORDINATOR | in the main checkout, the caller says it is the coordinator | verify from your own worktree; the coordinator adds --as coordinator |
 | NOT_YOURS | the caller holds the item, or is the coordinator | shout its holder, or the coordinator |
-| NOT_YOURS | the caller holds the claim or is the builder yielding its active first-refusal window | release your own claim or reservation, or ask the current builder |
+| NOT_YOURS | the caller holds the claim, yields its own first-refusal window, or is the coordinator recording its gone holder and last heartbeat | release your own claim or reservation, or ask the current builder |
 | NOT_YOURS | the caller holds the claim | pullboard claim <id> |
 | OUTSIDE_NATIVE_BUILD | the caller holds the claim | the outside author revises the PR; ask the coordinator to return it, then intake the new exact head |
 | WRONG_LANE | the item is in the caller's lane; the main checkout builds coordinator-lane items only | cd <the lane's worktree> && pullboard claim <id> |
