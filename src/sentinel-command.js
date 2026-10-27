@@ -1,3 +1,5 @@
+import { prepareStaleObservation } from './stale-state-command.js';
+import { planStaleState } from './stale-state-maintenance.js';
 import { releaseGoneClaims } from './gone-claims.js';
 /** CLI proposal and exact person decisions for board-owned watches [A6,D3]. */
 import { PERSON } from './board.js';
@@ -40,6 +42,13 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, healthOnly = fals
   return withBoard(ctx, async board => {
     const me = whoAmI(ctx, board);
     await releaseGoneClaims(ctx, board, me, ordered);
+    if (me.id === 'coordinator') {
+      const snapshot = await prepareStaleObservation(ctx, board, ordered);
+      const plan = planStaleState(snapshot);
+      if (plan.holdWarnings.length || plan.holdExpiries.length || plan.reviewReleases.length) {
+        await ordered(ctx, board, 'maintainStaleState', [{ agentId: me.id, snapshot, health: ctx.config.health ?? {} }]);
+      }
+    }
     const enabled = healthSentinelEnabled(ctx.config);
     if (enabled) {
       // Preserve bootstrap-before-observation ordering so the compatibility move cannot stale the scan.

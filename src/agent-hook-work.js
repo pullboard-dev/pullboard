@@ -30,7 +30,7 @@ async function work(event) {
       && item.item_owner === agent.agent_id && item.item_claim_head && item.item_claim_head !== head
       && tryGit(info.root, ['merge-base', '--is-ancestor', item.item_claim_head, head]).status === 0
       && tryGit(info.root, ['diff', '--quiet', item.item_claim_head, head, '--']).status === 1);
-    if (items.length) process.stdout.write(`Committed work on ${items.map(item => '#' + item.item_id).join(', ')} is not submitted. Run pullboard submit <id> when it is ready.\n`);
+    if (items.length) process.stdout.write(`Committed work on ${items.map(item => '#' + item.item_id).join(', ')} is not submitted. Run pullboard submit <id> --wait when it is ready.\n`);
   } finally { store.closeBoard(board); }
 }
 
