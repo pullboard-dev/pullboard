@@ -81,9 +81,20 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
       await helpers.waitFor(() => existsSync(ready), 'private gate holder');
       verification = helpers.launch(box, reviewer, process.execPath, [helpers.BIN, 'verify', '1', 'accept', '--note', 'real admission fixture', '--json']);
       const db = new DatabaseSync(join(box.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite'), { readOnly: true });
+      // This observer must wait for a real in-flight writer, without changing admission or its deadline.
+      db.exec('PRAGMA busy_timeout = 500');
+      let busyReads = 0;
       try {
-        queued = await helpers.waitFor(() => db.prepare("SELECT gui, browser FROM waiter WHERE kind = 'review' AND item = '1'").get(), 'the actual verification admission request');
+        queued = await helpers.waitFor(() => {
+          try { return db.prepare("SELECT gui, browser FROM waiter WHERE kind = 'review' AND item = '1'").get(); }
+          catch (error) {
+            if (error.code !== 'ERR_SQLITE_ERROR' || !/database is (?:locked|busy)/u.test(error.message)) throw error;
+            busyReads += 1;
+            return null;
+          }
+        }, 'the actual verification admission request');
       } finally { db.close(); }
+      if (busyReads) t.diagnostic(`verification observer retried ${busyReads} busy reads before seeing the actual waiter`);
     } finally {
       writeFileSync(release, 'release');
       assert.equal((await holder.closed).code, 0, holder.stderrText);
