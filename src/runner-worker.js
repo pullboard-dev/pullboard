@@ -991,8 +991,9 @@ async function main() {
     const browserRefusal = join(runDirectory, 'browser-refusal.json');
     const resultStore = join(runnerRoot, 'test-results', spec.repoId);
     if (spec.testResults) importTestResults(resultStore, spec.testResults.packet, spec.testResults.inputKeys);
-    const commandEnv = { ...env, [TEST_RESULT_STORE_ENV]: resultStore,
-      ...(spec.testResults ? { [TEST_RESULT_ORIGIN_ENV]: spec.testResults.origin, PULLBOARD_TEST_STAGE: spec.testResults.stage } : {}),
+    // A request without an exchange comes from a caller that opted out of reuse: run every file, read no store.
+    const commandEnv = { ...env, ...(spec.testResults ? { [TEST_RESULT_STORE_ENV]: resultStore,
+      [TEST_RESULT_ORIGIN_ENV]: spec.testResults.origin, PULLBOARD_TEST_STAGE: spec.testResults.stage } : { PULLBOARD_TEST_REUSE: '0' }),
       PULLBOARD_TEST_CACHE_TOOLING: spec.tooling.sha256,
       PULLBOARD_LANDING_RUN: spec.landing === true ? '1' : '0', [api.BROWSER_REFUSAL_FILE_ENV]: browserRefusal, ...(typeof spec.browserByLaunch === 'boolean' ? { PULLBOARD_TEST_BROWSER_BY_LAUNCH: spec.browserByLaunch ? '1' : '0' } : {}), PULLBOARD_LANDING_WAIVERS: JSON.stringify(spec.landing === true ? spec.waivers ?? [] : []) };
     process.stderr.write(`PULLBOARD_RUNNER_READY ${spec.id}\n`);

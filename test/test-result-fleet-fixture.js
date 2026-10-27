@@ -43,7 +43,9 @@ test('fleet cache probe [C7]', () => { console.log('${EXECUTED}'); assert.ok(val
   git('add', 'package.json', 'src', 'bin', 'lib', 'test');
   git('commit', '-q', '-m', 'test: commit cache fixture');
   const changedEnv = ['HOME', 'PATH', 'PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME',
-    'PULLBOARD_TEST_RESULT_STORE', 'PULLBOARD_TEST_RESULT_ORIGIN', 'PULLBOARD_TEST_CACHE_TOOLING'];
+    'PULLBOARD_TEST_RESULT_STORE', 'PULLBOARD_TEST_RESULT_ORIGIN', 'PULLBOARD_TEST_CACHE_TOOLING',
+    // This test opts in to reuse, as recordTestAction documents, so its fixture runners exchange results.
+    'PULLBOARD_TEST_REUSE'];
   const previous = Object.fromEntries(changedEnv.map(key => [key, process.env[key]]));
   for (const key of changedEnv) {
     if (key.startsWith('PULLBOARD_TEST_')) delete process.env[key];

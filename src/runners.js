@@ -1,6 +1,5 @@
 /** Exact committed source and bounded, credential-free SSH execution for machine runners [C7]. */
 export { placeRunner, runnerStage } from './runner-stage.js';
-import { prepareTestResultExchange } from './test-action-transfer.js';
 import { importTestResults } from './test-result-store.js';
 import {
   spawn,
@@ -513,13 +512,16 @@ async function requestFor(root, command, { runner, source, browser = false, byLa
   const repoId = createHash('sha256').update(realpathSync(repoInfo(root).commonDir)).digest('hex');
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-runner-send-'));
   try {
-    const exchange = await prepareTestResultExchange(root, command, selected.commit);
+    // A caller that opted out of reuse (a test's own fixture runner) sends no exchange, so its worker runs every file.
+    const reuse = process.env.PULLBOARD_TEST_REUSE !== '0';
+    // Loaded on demand: read commands that import this module never pay for the key analyzer.
+    const exchange = reuse ? await (await import('./test-action-transfer.js')).prepareTestResultExchange(root, command, selected.commit) : null;
     const { worker, tooling, runtime } = trustedTooling();
     const projection = metadata.landing === true && Array.isArray(waivers) ? waivers.filter(entry => ['file', 'name'].includes(entry?.kind) && typeof entry.test === 'string' && entry.test).map(({ kind, test }) => ({ kind, test })) : [];
     if (secretsIn([{ path: 'runner continuation', line: 1, text: JSON.stringify(projection) }]).length) throw new Refused('RUNNER_SECRET', 'the continuation projection contains a possible secret; keep this run local');
     const stage = /^[a-z][a-z0-9-]{0,63}$/u.test(metadata.testStage ?? '') ? metadata.testStage : metadata.landing ? 'land' : 'focused';
     const spec = { version: 1, id: randomUUID(), repoId, ...(originBase ? { origin, originBase } : {}), runtime, tooling, tags, commit: selected.commit, tree: selected.tree, command, pipefail, slots: runner.slots,
-      testResults: { inputKeys: exchange?.inputKeys ?? [], packet: exchange?.packet ?? null, stage, origin: runner.host },
+      ...(reuse ? { testResults: { inputKeys: exchange?.inputKeys ?? [], packet: exchange?.packet ?? null, stage, origin: runner.host } } : {}),
       ...(trustedMode ? { trustedMode } : {}),
       browser: runner.browser, browserRequired: browser, guiRequired: metadata.gui === true, landing: metadata.landing === true,
       ...(metadata.landing === true && metadata.timeoutMs ? { timeoutMs: metadata.timeoutMs } : {}),
@@ -531,11 +533,11 @@ async function requestFor(root, command, { runner, source, browser = false, byLa
       ...(typeof metadata.main === 'string' && /^[0-9a-f]{40,64}$/u.test(metadata.main) ? { main: metadata.main } : {}) };
     let encodedSpec = Buffer.from(JSON.stringify(spec));
     // Optional cache bytes cannot make an otherwise valid runner request fail its existing bound.
-    if (encodedSpec.length > 1024 ** 2) {
+    if (encodedSpec.length > 1024 ** 2 && spec.testResults) {
       spec.testResults.packet = null;
       encodedSpec = Buffer.from(JSON.stringify(spec));
     }
-    if (encodedSpec.length > 1024 ** 2) {
+    if (encodedSpec.length > 1024 ** 2 && spec.testResults) {
       spec.testResults.inputKeys = [];
       encodedSpec = Buffer.from(JSON.stringify(spec));
     }
