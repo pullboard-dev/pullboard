@@ -53,7 +53,8 @@ test('the declared public filter blocks every ruled kind without echoing its val
   assert.deepEqual(publicSnapshot(native), native, 'only native paths with exact identifier widths are exempt');
   for (const forged of [{ customer_id: 'a'.repeat(64) }, { note_id: 'a'.repeat(64) }, { commit: 'a'.repeat(40) },
     { events: { events: [{ event_kind: 'fact', event_detail: JSON.stringify({ note_id: 'a'.repeat(64), commit: 'b'.repeat(40) }) }] } },
-    { state: { state: { rowAgesAt: { 'SPEC.md': 'a'.repeat(64) } } } }]) {
+    { state: { state: { rowAgesAt: { 'SPEC.md': 'a'.repeat(64) } } } },
+    { personRequests: [{ text: 'a'.repeat(64) }] }, { kind: 'decision', text: 'a'.repeat(64) }]) {
     assert.throws(() => publicSnapshot(forged), /secret-shaped string/u, 'arbitrary keys and wrong native shapes stay checked');
   }
   assert.throws(() => publicSnapshot({ commit: 'sk-fixtureonly12345678' }), /secret-shaped string/u, 'an identity key does not exempt an arbitrary credential');
@@ -64,11 +65,11 @@ test('the declared public filter blocks every ruled kind without echoing its val
 test('internal messages disappear from rows, historical JSON and derived decisions [N26]', () => {
   const internal = { shout_from: 'coordinator', shout_to: 'all', shout_text: 'Internal notice' };
   const external = { shout_from: 'web-1', shout_to: 'web', shout_text: 'Public progress' };
-  const input = { shouts: [internal, external], needs: [{ kind: 'decision', text: 'Internal notice' }],
+  const input = { state: { state: { shouts: [internal, external], needs: [{ kind: 'decision', text: 'Internal notice' }],
     events: [{ event_kind: 'shout', event_by: 'web-1', event_detail: JSON.stringify({ to: 'person', text: 'Internal notice' }) }],
-    thread: [{ kind: 'shout', by: 'sentinel', detail: { to: 'all', text: 'Internal notice' } }] };
-  assert.deepEqual(publicSnapshot(input), { shouts: [external], needs: [], events: [], thread: [] });
-  assert.equal(input.shouts.length, 2, 'the pure filter does not mutate the source');
+    items: [{ thread: [{ kind: 'shout', by: 'sentinel', detail: { to: 'all', text: 'Internal notice' } }] }] } } };
+  assert.deepEqual(publicSnapshot(input), { state: { state: { shouts: [external], needs: [], events: [], items: [{ thread: [] }] } } });
+  assert.equal(input.state.state.shouts.length, 2, 'the pure filter does not mutate the source');
   assert.throws(() => publicSnapshot({ events: [{ event_kind: 'fact', event_detail: '{"text":"\\u0070ricing"}' }] }), /pricing term/u,
     'encoded historical free text cannot bypass the scan');
 });

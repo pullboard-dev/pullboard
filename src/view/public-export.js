@@ -24,7 +24,6 @@ function detailOf(value) {
 /** Identify the existing internal categories consistently in state, event history and item threads. */
 function internalShout(value) {
   const kind = value.event_kind ?? value.kind;
-  if (kind === 'decision') return true; // The Needs you projection repeats the internal decision's prose.
   const row = Object.hasOwn(value, 'shout_from');
   if (!row && !['shout', 'shout_news', 'pass', 'answer'].includes(kind)) return false;
   const detail = detailOf(value);
@@ -74,12 +73,14 @@ export function publicSnapshot(document, { privateBoard = false } = {}) {
   const blocked = new Set(privateBoard ? [PUBLIC_EXPORT_BLOCKS.private] : []);
   /** Traverse every retained API value, including decoded event details and historical thread prose. */
   function visit(value, path = [], eventKind = null) {
-    const field = path.at(-1);
-    if (field === 'personRequests') return []; // Phone intent is person-addressed, including its status projection.
+    const location = path.join('/');
+    if (location === 'state/state/personRequests') return []; // Phone intent is person-addressed, including its status projection.
     if (Array.isArray(value)) return value.map(entry => visit(entry, [...path, '*'], eventKind)).filter(entry => entry !== undefined);
     if (value && typeof value === 'object') {
-      if (internalShout(value)) return undefined;
-      const kind = EVENT_PATH.test(path.join('/')) ? value.event_kind ?? value.kind : eventKind;
+      if (location === 'state/state/needs/*' && value.kind === 'decision') return undefined;
+      if ((EVENT_PATH.test(location) || /^state\/state\/(?:shouts|asked|decisions|decisionQueue|requests)\/\*$/u.test(location)
+        || /^state\/state\/items\/\*\/history\/\*$/u.test(location)) && internalShout(value)) return undefined;
+      const kind = EVENT_PATH.test(location) ? value.event_kind ?? value.kind : eventKind;
       return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key,
         key === 'event_detail' ? JSON.stringify(visit(detailOf(value), [...path, key], kind)) : visit(entry, [...path, key], kind),
       ]).filter(([, entry]) => entry !== undefined));
