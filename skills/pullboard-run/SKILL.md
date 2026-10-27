@@ -65,6 +65,39 @@ After `blueprint add` or `init --blueprint`, record a fit proposal for each draf
 
 `pullboard roadmap` lists the milestones in order. `pullboard milestone order <name> <ids>` ranks those items inside their milestone, so `pullboard next` hands them out in that order; an unranked item follows the ranked ones, oldest first. Work the current release's open items first. Within it, take repairs before new work: rework a verifier sent back, and anything health reports, comes ahead of a new build. Reviews come before new builds, so a submission never waits while a builder starts something else. `pullboard health` sets rework planned for a later release apart under `waiting for a later release`.
 
+## Look up and record rulings
+
+Before deciding a repeated matter, run `pullboard rulings <key>` for its reason category. Use exactly one of these fixed keys; an unknown key is refused:
+
+| Key | Reason category |
+| --- | --- |
+| `routing-assignment` | Routing and assignment |
+| `bar-ambiguity` | Bar ambiguity |
+| `proof-red-tests` | Proof and red tests |
+| `design-choice` | Design choice within the bar |
+| `conflicting-rulings` | Conflicting rulings |
+| `person-authority` | The person's authority |
+| `tool-defect` | Other and tool defects |
+
+Every modern decision answer needs its category: `pullboard answer <id> <text> --cause <key>`. For example:
+
+```sh
+pullboard rulings bar-ambiguity
+pullboard answer 12 "The criterion requires both totals." --cause bar-ambiguity
+```
+
+The answer records its ruling as a durable native fact. Read the precedent's source, author and provenance; recording or finding a ruling gives nobody additional authority. An authenticated person answer uses the existing person channel and confirmation. A coordinator relaying the person's words uses `--origin person-relayed`; that records the coordinator as relayer, not an authenticated person decision. A relayed yes never approves a row or replaces the person's confirmation.
+
+For a sourced standing-rule proposal, use `pullboard spec draft "<rule>" --doctrine --source "<where it was said>" --cause <key>`. For example:
+
+```sh
+pullboard spec draft "Escalate an ambiguous bar before changing it." --doctrine --source "chat, 2026-10-27" --cause bar-ambiguity
+```
+
+This reserves a draft and records the sourced proposal; it does not approve or apply doctrine. Only the person can approve it through the existing approval flow. Keep the source and category explicit rather than guessing them from message text.
+
+A request receipt such as `pullboard answer <request-id> "done"` or `pullboard answer <request-id> "declined <reason>"` is an acknowledgement, not automatically a ruling. Add `--cause <key>` only when explicitly recording that receipt as a ruling; the category does not prove that the requested action happened. Preserve the request's normal completion checks.
+
 ## Write a ruling into the bar
 
 When you or the person rule on something that changes what an item must do, write it into the criterion in the same step, so the next builder and verifier read the ruling from the item itself. Once an item has been claimed, the change needs a reason:
@@ -90,6 +123,12 @@ Start every reviewer outside the builder's root: a fresh session, or a subagent 
 ## Close every decision
 
 A decision stays open until someone answers it. Answer each one addressed to you with `pullboard answer <id> "<the decision>"`, and add `--implies <ids>` when it settles items. Pass one that belongs to the person with `pullboard pass <id> "<note>"`. `pullboard decisions` lists what is still open, and `pullboard health` reports one left over an hour as `unanswered`.
+
+## Queue coordinator moves
+
+Use `pullboard request` for a typed coordinator move instead of a decision shout. File `pullboard request reopen 12 --cause bar-ambiguity`, `pullboard request hold 12 --cause routing-assignment`, or `pullboard request withdraw 12 --cause tool-defect`. A model-tier change is `pullboard request reroute 12 --route mid --cause routing-assignment`; it does not move an item to another lane. Add `--note "why"` for context. The command only queues work and never grants the requester coordinator or person authority.
+
+Run `pullboard request list` to read pending requests and add `--all` for answered history. The coordinator performs each move through its original command and guards, then answers a batch with `pullboard request answer 41,42 done --acted-on 51,52`, pairing request IDs with the exact native operation event IDs in the same order. Inspect the item's `pullboard log` to find those events. To decline a batch, run `pullboard request answer 41,42 declined --note "why"`. Answers are atomic; a missing, wrong or reversed action cannot be called done. Inbox delivers requests to the coordinator and answers to their original requesters.
 
 ## Sign a bar before anyone claims
 
