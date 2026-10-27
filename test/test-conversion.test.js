@@ -122,6 +122,12 @@ test('capacity counts actual merged history and groups explicit successful train
       items: [{ id: 4, merge: second }, { id: 5, merge: third }] } })];
   assert.equal(landedBatchCount(history, since, until), 2,
     'one manual merge plus one explicit train, excluding old first landings and unfinished snapshots');
+  assert.equal(landedBatchCount(history.filter(event => event.event_kind !== 'landing_batch'), since, until), 2,
+    'main-moved alone groups the actual preceding per-item merge receipts');
+  assert.equal(landedBatchCount(history.filter(event => event.event_kind !== 'main-moved'), since, until), 2,
+    'the landed snapshot groups every item merge, not only its final tip');
+  assert.equal(landedBatchCount([...history, history.at(-2), history.at(-1)], since, until), 2,
+    'repeated successful receipts cannot create another landing');
   assert.equal(landedBatchCount(history.filter(event => event.event_kind === 'merged'), since, until), 3,
     'the real board legacy/manual path needs no landed snapshot to count three distinct new merge commits');
   assert.equal(landedBatchCount(history.filter(event => event.event_kind === 'landing_batch' && JSON.parse(event.event_detail).batch.state !== 'landed'), since, until), 0);

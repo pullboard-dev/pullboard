@@ -20,7 +20,8 @@ export function run(io, { first, second, rest, values }) {
   });
   io.result?.({ report });
   io.say(`suite test-work: ${minutes(report.suite.minutes)} (serial per-file execution work, not parallel elapsed wall time)`);
-  io.say(`test-work per landing: ${minutes(report.perLanding.minutes)} (${report.perLanding.landings} batches; known subtotal ${minutes(report.perLanding.knownMinutes)}; ${report.perLanding.missingExecutions} missing executions; ${report.perLanding.unknownReceipts} unknown-file receipts)`);
+  if (report.suite.unavailableReason) io.say(report.suite.unavailableReason);
+  io.say(`test-work per landing: ${minutes(report.perLanding.minutes)} (${report.perLanding.landings} landings; known subtotal ${minutes(report.perLanding.knownMinutes)}; ${report.perLanding.missingExecutions} missing executions; ${report.perLanding.unknownReceipts} unknown-file receipts)`);
   io.say(`declared pure/contract-only share: ${report.files.pure + report.files.contract}/${report.files.total}; ${report.files.unknown} unknown files (lower bound)`);
   io.say(report.conversion.basis);
   for (const row of report.conversion.order) io.say(`${row.file}: ${row.runtimeMs}ms; ${row.realCatches} recorded catches; ${row.proposal}`);
