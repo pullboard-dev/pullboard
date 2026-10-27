@@ -903,7 +903,9 @@ function milestoneRow(row, titles, hidden = false) {
 function readMilestone(milestone, p) {
   const visible = milestone.items.map((entry) => milestoneItem(entry, p)).filter((row) => row.state !== 'withdrawn');
   const verified = visible.filter((row) => row.state === 'verified');
-  const rows = visible.filter((row) => row.state !== 'verified').concat(verified);
+  /** Group work in the legend's shipping order; stable sorting preserves milestone order within each group. */
+  const rank = (row) => row.stage === 'merged' ? 5 : row.stage === 'accepted' ? 0 : row.stage === 'submitted' ? 1 : row.held ? 4 : row.stage === 'claimed' ? 2 : row.state === 'verified' ? 5 : 3;
+  const rows = [...visible].sort((a, b) => rank(a) - rank(b));
   // Current API milestones own their landed count and explicit shipment. Old exports retain their old count.
   /** Reject malformed snapshot counts before they reach numeric HTML attributes. */
   const numeric = value => Number.isInteger(value) && value >= 0 ? value : null;
@@ -1424,7 +1426,7 @@ function render() {
     const defaults = kind === 'doctrine' ? rows.filter((r) => r.origin === 'standard') : [];
     const labels = { decide: 'Needs your decision', ...(defaults.length ? { defaults: 'Defaults to review' } : {}), all: 'All rows', approved: 'Approved' };
     /** Inherited defaults are reviewed in the repo's doctrine; only local proposals ask for a decision. */
-    const undecided = (r) => (['pending', 'draft'].includes(r.status) && !r.decision || !!r.staleDecision) && !(kind === 'doctrine' && r.origin === 'standard');
+    const undecided = (r) => (['pending', 'draft'].includes(r.status) && !r.decision || !!r.staleDecision || kind === 'spec' && agentApprovals.some(approval => approval.id === r.id)) && !(kind === 'doctrine' && r.origin === 'standard');
     const n = { decide: rows.filter(undecided).length, defaults: defaults.length, all: rows.length, approved: rows.filter((r) => r.status === 'approved').length };
     $(kind + '-chips').innerHTML = Object.keys(labels).map((f) => '<button data-rows="' + kind + ':' + f + '" class="' + (filter === f ? 'on' : '') + '" type="button">' + labels[f] + '<b>' + n[f] + '</b></button>').join('');
     const shownRows = rows.filter((r) => filter === 'all' || (filter === 'decide' ? undecided(r) : filter === 'defaults' ? r.origin === 'standard' : r.status === 'approved'));
@@ -1460,7 +1462,8 @@ function render() {
     // Only a standard rule gets a note; who approves rows is said once elsewhere, not in every detail (#822).
     const home = kind === 'doctrine' && row && row.origin === 'standard' ? 'Standard rules come with Pullboard as defaults to review; override or decline one in DOCTRINE.md.' : '';
     const rowStatus = row?.stage || row?.status;
-    const rowDecisionActions = !snapshot && (!readOnly || requests) && row && undecided(row) && (kind === 'spec' || row.origin !== 'standard')
+    const agentApproval = kind === 'spec' && row ? agentApprovals.find(approval => approval.id === row.id) : null;
+    const rowDecisionActions = agentApproval ? agentApprovalActions(agentApproval, true) : !snapshot && (!readOnly || requests) && row && undecided(row) && (kind === 'spec' || row.origin !== 'standard')
       ? '<div class="spec-decision-actions detail-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-kind="' + kind + '" data-row-id="' + esc(row.id) + '" title="Approve (A, from the list)" type="button">Approve <kbd>A</kbd></button><button class="decline-row" data-row-decision="decline" data-row-kind="' + kind + '" data-row-id="' + esc(row.id) + '" title="Decline (D, from the list)" type="button">Decline <kbd>D</kbd></button></div>'
       : '';
     $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div>' + rowDecisionActions + (kind === 'spec' && view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'detail' && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '') + '<dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div>' + (home ? '<div class="muted">' + home + '</div>' : '') + '</div>' : '<div class="empty">' + (view.tab === kind && view.addressDetail !== null ? 'No ' + (kind === 'spec' ? 'Spec' : 'Doctrine') + ' row ' + esc(view.addressDetail) + ' exists here.' : 'Pick a row to see it, and the items that cite it.') + '</div>';

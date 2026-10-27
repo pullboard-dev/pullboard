@@ -80,8 +80,11 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       assert.equal(listed.tab, 'shouts');
       assert.equal(listed.summaries, true, 'the view sends item summaries: no history, criterion or thread');
       assert.deepEqual(listed.rows.sort(), ['2', '3'], 'the Active list shows the submitted and the open item');
-      // Current Roadmap keeps pending work before verified rows (readMilestone).
-      assert.deepEqual(listed.roadmap, ['#2 to verify', '#1 accepted'], 'the roadmap reads each item state from its summary');
+      assert.deepEqual([...listed.roadmap].sort(), ['#1 accepted', '#2 to verify'], 'the roadmap reads every member and its exact state from summaries');
+      // Shipping groups follow the approved legend order, independently of item IDs or milestone membership order.
+      const group = { accepted: 0, 'to verify': 1, building: 2, unclaimed: 3, 'sent back': 3, held: 4, verified: 5 };
+      const ranks = listed.roadmap.map((row) => group[row.slice(row.indexOf(' ') + 1)]);
+      assert.ok(ranks.every((rank, index) => Number.isInteger(rank) && (!index || ranks[index - 1] <= rank)), `the roadmap groups accepted, review, building, waiting, held, then landed: ${JSON.stringify(listed.roadmap)}`);
       assert.deepEqual(itemReads(listed.reads), [], 'the list renders with no item detail fetched');
 
       // Search asks the API, which matches the criterion the summaries leave out, and its result opens the item.

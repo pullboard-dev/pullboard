@@ -566,7 +566,7 @@ test('an agent-approved row shows in Needs you with its agent and commit and a c
       assert.equal(row.agent, 'Agent & \"unconfirmed\" seat');
       assert.ok(page.show('needs').includes('Agent &amp; &quot;unconfirmed&quot; seat'), 'author text is escaped rather than promoted into markup');
       assert.ok(page.show('needs').includes(row.commit));
-      assert.ok(page.show('needs').includes(row.attribution));
+      assert.ok(page.show('needs').includes('Approved in Git by'), 'Git provenance is expressed plainly without inventing a person identity');
     }
     assert.match(page.show('needs'), />Confirm</u);
     assert.match(page.show('needs'), />Decline</u);

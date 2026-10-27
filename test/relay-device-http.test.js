@@ -11,7 +11,10 @@ import { createAuthHandler } from '../relay/auth-http.js';
 import { createDeviceHandler } from '../relay/device-http.js';
 import { createDeviceStore } from '../relay/device-store.js';
 import { createGitHubClient } from '../relay/github.js';
-import { createRelayAuth } from '../relay/auth.js';
+import {
+  ACCESS_WINDOW_MS,
+  createRelayAuth,
+} from '../relay/auth.js';
 import { createRelayHandler } from '../relay/service.js';
 import { Refused } from '../src/refused.js';
 import { ENGINE_VERSION } from '../src/machine.js';
@@ -252,6 +255,13 @@ test('relay devices isolate accounts, persist opaque wraps, expire enrollments a
   assert.equal(crossAccount.document.error?.code, 'DEVICE_NOT_ENROLLED');
   // Even if the other account can write this repository, it cannot add data to A's device id.
   box.state.permissionAccountID = 8;
+  const cachedForeignPut = await deviceRequest(box, `/api/v1/devices/${pair.keys.deviceId}/boards/${boardA}`, {
+    method: 'PUT', cookie: cookieB, origin: box.origin, engine: ENGINE_VERSION,
+    body: { engine: ENGINE_VERSION, wrapped },
+  });
+  assert.equal(cachedForeignPut.document.error?.code, 'NO_REPO_ACCESS',
+    'restored repository permission does not bypass the cached denial inside its window');
+  box.advance(ACCESS_WINDOW_MS);
   const foreignPut = await deviceRequest(box, `/api/v1/devices/${pair.keys.deviceId}/boards/${boardA}`, {
     method: 'PUT', cookie: cookieB, origin: box.origin, engine: ENGINE_VERSION,
     body: { engine: ENGINE_VERSION, wrapped },

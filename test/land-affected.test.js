@@ -18,13 +18,14 @@ function valueTest(expected) {
 
 /** Reject the actual merged importer, exercising either full fallback or the finite import subset. */
 function affectedBatch(t, { stableBadges = false, inline = false, waive = false, opaque = false } = {}) {
-  const box = e2e.project('node --test web/*.test.js');
+  // The execution and waiver assertions inspect TAP; Node 22 and 24 have different default reporters.
+  const box = e2e.project('node --test --test-reporter=tap web/*.test.js');
   // A fixture CLI is a fresh process, not the outer Node test worker. Admission markers stay intact.
   delete box.env.NODE_TEST_CONTEXT;
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  writeFileSync(configFile, JSON.stringify({ ...config, gate: inline ? (opaque ? '(node --test web/floor.test.js)' : 'node --test web/floor.test.js') : config.gate,
-    affectedTests: 'node --test', submitGate: 'landing',
+  writeFileSync(configFile, JSON.stringify({ ...config, gate: inline ? (opaque ? '(node --test --test-reporter=tap web/floor.test.js)' : 'node --test --test-reporter=tap web/floor.test.js') : config.gate,
+    affectedTests: 'node --test --test-reporter=tap', submitGate: 'landing',
     submitInvariants: ['web/floor.test.js'], submitDeferAbove: 20, landing: inline ? {} : { publish: 'separate' },
     verify: { policy: 'any', unrelatedTrunkMoves: true } }, null, 2) + '\n');
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
@@ -42,7 +43,7 @@ function affectedBatch(t, { stableBadges = false, inline = false, waive = false,
   }
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const item = json(box, box.repo, 'add', 'web', 'Change the value and its test', '--specs', 'G1',
-    '--criterion', 'the changed value passes its test', '--check', 'node --test web/value.test.js').item.item_id;
+    '--criterion', 'the changed value passes its test', '--check', 'node --test --test-reporter=tap web/value.test.js').item.item_id;
   assert.equal(box.run(box.web, 'claim', String(item)).code, 0);
   writeFileSync(join(box.web, 'web/value.js'), 'export const value = 2;\n');
   writeFileSync(join(box.web, 'web/value.test.js'), valueTest(2));
@@ -68,7 +69,7 @@ function affectedBatch(t, { stableBadges = false, inline = false, waive = false,
   assert.match(readFileSync(join(box.repo, '.git/pullboard-gate.log'), 'utf8'), inline ? /# tests 1\b/u : /# tests 3\b/u,
     'main really executes its configured gate');
   if (inline) {
-    const importer = runFixtureChild(process.execPath, ['--test', 'web/new-importer.test.js'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+    const importer = runFixtureChild(process.execPath, ['--test', '--test-reporter=tap', 'web/new-importer.test.js'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
     assert.equal(importer.status, 0, importer.context);
     assert.match(importer.stdout, /# tests 1\b/u, 'the omitted importer really passes on main');
   }

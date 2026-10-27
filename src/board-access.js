@@ -1,6 +1,15 @@
 import { boardWriteHolderText } from './board-write-lock.js';
 /** Name a board this process cannot write, such as one inside a read-only agent sandbox [I1,P4]. */
-import { dirname } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import {
+  closeSync,
+  openSync,
+  unlinkSync,
+} from 'node:fs';
+import {
+  dirname,
+  join,
+} from 'node:path';
 import { AGENT_SHELL_MARKERS } from './person.js';
 import { Refused } from './refused.js';
 
@@ -29,6 +38,23 @@ export function boardNotWritable(file, error, environment = process.env) {
   }
   return new Refused('BOARD_NOT_WRITABLE',
     `Cannot write the board in "${folder}". Give the agent write access to that folder, the repo's .git/pullboard, or run the command outside the sandbox.`);
+}
+
+/**
+ * Check the write capability an agent needs after resume, without changing board data or taking its SQLite lock.
+ * Opening the file for writing and creating one temporary sibling exercise actual sandbox permissions, including
+ * journal creation; mode bits or access() alone cannot establish that capability. The sibling is removed immediately.
+ */
+export function requireBoardWriteAccess(file) {
+  try {
+    const board = openSync(file, 'r+');
+    closeSync(board);
+    const probe = join(dirname(file), `.write-access-${randomUUID()}`);
+    const handle = openSync(probe, 'wx', 0o600);
+    try { closeSync(handle); } finally { unlinkSync(probe); }
+  } catch (error) {
+    throw boardNotWritable(file, error);
+  }
 }
 
 /**

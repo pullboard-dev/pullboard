@@ -12,6 +12,7 @@ import {
   backgroundViewLine,
 } from '../background-view.js';
 import * as store from '../board.js';
+import { requireBoardWriteAccess } from '../board-access.js';
 import {
   briefFiles,
 } from '../brief.js';
@@ -140,6 +141,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   const ordered = keylessBookkeeping(sendOrdered);
   const initialBaseline = withBoardRead(ctx, board => {
     whoAmI(ctx, board);
+    requireBoardWriteAccess(ctx.file);
     return initialSpecApprovalBaseline(ctx, board, 'recordHealthFindings');
   });
   if (initialBaseline) {

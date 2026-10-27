@@ -305,7 +305,23 @@ test('one publish pass computes pull request coverage once with bounded git call
   let itemReads = 0;
   const observed = { ...board, db: {
     exec: sql => board.db.exec(sql),
-    prepare(sql) { if (/^SELECT \* FROM item WHERE/u.test(sql)) itemReads += 1; return board.db.prepare(sql); },
+    /** Count real executions of full item reads, including the canonical imported-item join. */
+    prepare(sql) {
+      const statement = board.db.prepare(sql);
+      if (!/^SELECT (?:[A-Za-z_]\w*\.)?\*(?:,.*?)? FROM item(?:\s|$)/iu.test(sql.replace(/\s+/gu, ' ').trim())) return statement;
+      return new Proxy(statement, {
+        /** Bind native SQLite methods while observing each read, even if a statement is reused. */
+        get(target, property) {
+          const value = Reflect.get(target, property, target);
+          if (typeof value !== 'function') return value;
+          /** Execute the original SQLite operation; the observer cannot supply query results. */
+          return (...args) => {
+            if (['all', 'get', 'iterate'].includes(property)) itemReads += 1;
+            return Reflect.apply(value, target, args);
+          };
+        },
+      });
+    },
   } };
   try {
     process.env.PATH = traceBin + delimiter + before.PATH;

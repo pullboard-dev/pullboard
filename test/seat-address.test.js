@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
+import {
+  UNREAD_SHOUT_SQL,
+  unreadShoutBindings,
+} from '../src/shout-audience.js';
 import { fileURLToPath } from 'node:url';
 import { runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
@@ -56,7 +61,38 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   const revoked = await fetch(box.origin + '/auth/tokens/revoke', { method: 'POST',
     headers: { authorization: 'Bearer ' + person.token, 'content-type': 'application/json' }, body: JSON.stringify({ id: tokenId }) });
   assert.equal(revoked.status, 200, 'the real owner revokes only this private sender grant');
-  const denied = await second.cliAt(sender.path, 'shout', initial.address, 'After revocation');
-  assert.notEqual(denied.code, 0, 'a revoked board grant cannot send to a known seat address');
-  assert.ok(!document(await box.cliAt(recipient.path, 'inbox')).shouts.some(row => row.shout_text === 'After revocation'));
+  const queued = document(await second.cliAt(sender.path, 'shout', initial.address, 'After revocation'));
+  const summaryFile = join(second.root, '.git', 'pullboard', 'relay-outbox.summary.json');
+  const waiting = JSON.parse(readFileSync(summaryFile, 'utf8'));
+  assert.ok(waiting.moves.some(move => move.operation === 'shout' && move.actor === sender.id),
+    'an unknown remote revocation does not block the local-first queue');
+  assert.ok(readFileSync(join(second.root, '.git', 'pullboard', 'relay-outbox.sealed')).length > 0,
+    'the accepted local move has a durable sealed outbox, not a delivery acknowledgment');
+
+  const synced = document(await second.cliAt(sender.path, 'relay', 'status'));
+  assert.ok(synced.diagnostics?.some(line => line.includes(`the relay token of ${sender.id} was revoked on this board`)),
+    'the sender is told when replay obtains a fresh refusal');
+  assert.equal(JSON.parse(readFileSync(join(second.root, '.git', 'pullboard', 'relay.json'), 'utf8'))
+    .agentTokens[sender.id].revoked, true, 'the confirmed refusal fences this seat locally');
+  assert.deepEqual(JSON.parse(readFileSync(summaryFile, 'utf8')).moves, waiting.moves,
+    'the refused send retains its pending history');
+  const denied = await second.cliAt(sender.path, 'shout', initial.address, 'After known revocation');
+  assert.notEqual(denied.code, 0, 'a known revoked grant cannot queue another message');
+  assert.equal(denied.document.error.code, 'TOKEN_REVOKED');
+  const senderInbox = await second.cliAt(sender.path, 'inbox');
+  assert.notEqual(senderInbox.code, 0, 'a revoked seat cannot record native inbox delivery');
+  assert.equal(senderInbox.document.error.code, 'TOKEN_REVOKED');
+  const replica = new DatabaseSync(join(second.root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  let localInbox;
+  try {
+    // Inspect the real sender replica with the inbox's canonical audience query without recording a delivery.
+    const agent = replica.prepare('SELECT * FROM agent WHERE agent_id=?').get(sender.id);
+    localInbox = replica.prepare(`SELECT * ${UNREAD_SHOUT_SQL}`).all(...unreadShoutBindings(0, sender.id, agent.agent_lane));
+  } finally { replica.close(); }
+  for (const rows of [document(await box.cliAt(recipient.path, 'inbox')).shouts,
+    document(await box.cli('inbox')).shouts, localInbox]) {
+    assert.ok(!rows.some(row => row.shout_id === queued.id
+      || ['After revocation', 'After known revocation'].includes(row.shout_text)),
+    'neither revoked message reaches a genuine recipient, coordinator or sender inbox');
+  }
 });

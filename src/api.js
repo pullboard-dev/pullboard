@@ -1,6 +1,7 @@
 import { buildLocalBoardState } from './native-board-state.js';
 import { stateFileInputs } from './native-board-state.js';
 import { fileRevision } from './native-board-state.js';
+import { WHOLE_STATE_DELTA_FIELDS } from './api-delta-fields.js';
 import { nativeStateClockMatches } from './native-state-clock.js';
 import { foreignDependencyStates } from './cross-repo-dependencies.js';
 import {
@@ -444,8 +445,8 @@ function snapshotEntry(revision, state, preparedFlow, { inputs = null, itemMeta 
     print: fingerprint(summary), items: new Map(state.items.map((item) => [item.id, item])), itemMeta, itemMoveCounts, inputs, clockWindow, searchTexts: null };
 }
 
-/** State fields every delta carries whole: this request's unread count and flow, and the small Needs-you lists. */
-const DELTA_WHOLE = new Set(['observedAt', 'unseen', 'proofStats', 'decisions', 'decisionQueue', 'holds', 'requests', 'personRequests']);
+/** Per-read projections, including observation time, are not part of a cached build fingerprint. */
+const DELTA_WHOLE = new Set(WHOLE_STATE_DELTA_FIELDS);
 /** The state lists a delta merges entry by entry, and the field that names each entry. */
 const DELTA_KEYS = Object.freeze({ items: 'id', shouts: 'shout_id', asked: 'shout_id', events: 'event_id', agents: 'agent_id', spec: 'id', practice: 'id', milestones: 'name' });
 /** How many recent builds of each board a server keeps as possible delta bases. */

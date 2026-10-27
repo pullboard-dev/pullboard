@@ -462,7 +462,8 @@ test('next claims the next free item; --verify names the next to check [N2]', ()
   box.run(box.web, 'submit', '1');
   const blocked = box.run(box.web, 'next');
   assert.equal(blocked.code, 1);
-  assert.match(blocked.err, /NOTHING_FREE\] #2 waits on #1 \(submitted, web lane\)/);
+  // Since the idle-seat queue step, the refusal first names the seat's lane and route.
+  assert.match(blocked.err, /NOTHING_FREE\] lane web, route strong: #2 waits on #1 \(submitted, web lane\)/);
   assert.match(box.run(box.repo, 'next', '--verify').err, /MAIN_IS_COORDINATOR/);
   const named = box.run(box.repo, 'next', '--verify', '--as', 'coordinator').out;
   assert.match(named, /next to verify: #1 Page, built by web-1/);

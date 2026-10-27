@@ -165,8 +165,8 @@ import { recordVerdict } from './verdict-assurance.js';
 import {
   mergeOnlyBasis,
   mergeOnlyProblem,
-  prepareMergeOnlySubmit,
 } from './merge-only-verdict.js';
+import { prepareMergeOnlySubmit } from './merge-only-submit.js';
 import { MERGE_ONLY_VERDICT_ENGINE } from './merge-only-verdict-engine.js';
 import {
   atomic,

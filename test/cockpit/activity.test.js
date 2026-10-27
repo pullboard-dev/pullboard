@@ -239,13 +239,14 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
     assert.ok(routes.some((route) => route.title.includes(`claim, open to claimed, by the agent or coordinator: pullboard claim &lt;id&gt;. Made 6 times.\nChecks, in order:\n  ${claimChecks.map(esc).join('\n  ')}`)), 'each check in order, escaped');
     // The moves made along a route and how often, or its moves when none was; the routes into the
     // state below the row join into one, labelled once with their total.
-    // The new claimed-to-verified shortcut is the farthest incoming route to the below-row
-    // verified box, so it carries the shared accept count; each title still pins its own verb.
+    // The claimed-to-verified shortcut carries the ordinary routes' shared accept count;
+    // an unused import-only route cannot take that label. Each title still pins its own verb.
     assert.deepEqual(Object.fromEntries(routes.map((route) => [route.pair, route.label])), {
       'open>claimed': 'claim 6',
       'claimed>open': 'release · lapse · escalate · refreeze (none yet)',
       'claimed>submitted': 'submit 3',
       'claimed>verified': 'accept 1',
+      'open>verified': null,
       'open>submitted': 'intake (none yet)',
       'submitted>verified': null,
       'submitted>open': 'reject 1',

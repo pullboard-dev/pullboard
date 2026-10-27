@@ -200,13 +200,26 @@ test('[N26,D1] the caught list never interrupts', async (t) => {
   const before = store.events(board);
   const shouts = board.db.prepare('SELECT count(*) AS n FROM shout').get().n;
   for (const args of [['status'], ['list'], ['inbox'], ['lanes']]) {
+    const earlier = store.events(board);
     const out = await run(root, args);
     assert.doesNotMatch(out.stdout + out.stderr, /caught/iu, `pullboard ${args[0]} stays silent about catches`);
+    const added = store.events(board).slice(earlier.length);
+    assert.deepEqual(store.events(board).slice(0, earlier.length), earlier, `pullboard ${args[0]} leaves earlier history unchanged`);
+    if (args[0] !== 'inbox') {
+      assert.deepEqual(added, [], `pullboard ${args[0]} records no move for a catch`);
+      continue;
+    }
+    // Inbox records its own delivery receipt; the first ordered move on a main checkout also records the spec baseline.
+    assert.deepEqual(added.map(event => event.event_kind).sort(), ['activity-delivered', 'spec_approval_baseline'],
+      'inbox records only its own delivery receipt and the one-time spec baseline');
+    const delivery = JSON.parse(added.find(event => event.event_kind === 'activity-delivered').event_detail);
+    assert.deepEqual(delivery.interrupts, [], 'the delivery receipt carries no catch');
+    assert.ok(added.every(event => event.item_id === null), 'neither event names an item');
   }
-  assert.deepEqual(store.events(board), before, 'no ordinary command records a move for a catch');
+  const afterOrdinary = store.events(board);
   await run(root, ['stats']);
   await run(root, ['digest']);
-  assert.deepEqual(store.events(board), before, 'asking for the list records nothing');
+  assert.deepEqual(store.events(board), afterOrdinary, 'asking for the list records nothing');
   assert.equal(board.db.prepare('SELECT count(*) AS n FROM shout').get().n, shouts, 'a catch pushes no shout, banner or notification');
 });
 

@@ -185,6 +185,37 @@ test('a move and a read return within a second with no network call while the se
   await eventually('the sender sends the queued move once the relay lock is free', () => outboxEmpty(box) && box.moveAcks.length > acks, () => senderLog(env));
 });
 
+test('a locally known revoked seat cannot queue or apply a move and retains earlier valid outbox history [H2,H9,H21]', async t => {
+  const { box, env } = await linkedBoard(t);
+  const lock = box.linkFile + '.lock';
+  mkdirSync(lock, { mode: 0o700 });
+  writeFileSync(join(lock, 'pid'), String(process.pid), { mode: 0o600 });
+  t.after(() => rmSync(lock, { recursive: true, force: true }));
+  const text = 'A valid move queued before this seat was revoked';
+  await local(box, t, box.root, env, 'before-local-revocation', ['shout', 'all', text]);
+  const exported = await local(box, t, box.root, env, 'before-revocation-export', ['export']);
+  const actor = exported.document.tables.shout.find(row => row.shout_text === text).shout_from;
+  const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  // The real phone-approved revocation flow is covered in relay-agent; here its persisted marker isolates offline admission.
+  state.agentTokens ??= {};
+  state.agentTokens[actor] = { ...state.agentTokens[actor], revoked: true };
+  writeFileSync(box.linkFile, JSON.stringify(state) + '\n', { mode: 0o600 });
+  const sealed = join(dirname(box.linkFile), 'relay-outbox.sealed');
+  const generation = join(dirname(box.linkFile), 'relay-outbox.generation');
+  const beforeOutbox = readFileSync(sealed);
+  const beforeGeneration = readFileSync(generation, 'utf8');
+  const calls = box.calls.length;
+  const refused = await runFixtureChildAsync(process.execPath,
+    [CLI, 'shout', 'all', 'A revoked seat must not create this move', '--json'], { cwd: box.root, env });
+  assert.equal(refused.status, 1, refused.context);
+  assert.equal(JSON.parse(refused.stdout).error.code, 'TOKEN_REVOKED');
+  assert.equal(box.calls.length, calls, 'known revocation is refused without network or token minting');
+  assert.equal(readFileSync(sealed).equals(beforeOutbox), true, 'earlier valid queued moves remain byte-identical');
+  assert.equal(readFileSync(generation, 'utf8'), beforeGeneration, 'a refused move never advances the outbox generation');
+  const after = await local(box, t, box.root, env, 'after-revocation-export', ['export']);
+  assert.deepEqual(after.document.tables, exported.document.tables, 'the refused move changes no native board row');
+});
+
 test('a seat registration waits for relay authority while ordinary moves and reads stay local [H21,H5,H16]', async t => {
   const { box, env } = await linkedBoard(t);
   const agentPath = join(dirname(box.root), 'local-first-registration-agent');

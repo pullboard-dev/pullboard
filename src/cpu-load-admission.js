@@ -2,7 +2,6 @@
 import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { statSync } from 'node:fs';
-import { isBuiltin } from 'node:module';
 import { dirname } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
@@ -45,7 +44,8 @@ export function testsNeedCpuRunner(root, files) {
       const edges = importsIn(readable.map(({ entry }) => entry.source));
       for (const [index, { entry, depth }] of readable.entries()) {
         for (const name of edges[index]) {
-          if (!isBuiltin(name) && (name.startsWith('./') || name.startsWith('../'))) {
+          // Builtin and package names are never relative paths into this checkout.
+          if (name.startsWith('./') || name.startsWith('../')) {
             pending.push({ path: resolve(dirname(entry.path), name), depth: depth + 1 });
           }
         }

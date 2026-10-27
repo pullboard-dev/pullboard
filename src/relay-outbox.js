@@ -34,6 +34,7 @@ import { leaveConflictNotice } from './relay-conflicts.js';
 import { withOutboxGuard } from './relay-outbox-guard.js';
 import { transientRelayFailure } from './relay-move-fallback.js';
 import {
+  refuseRevokedSeat,
   seatReceipt,
   withSeatName,
 } from './relay-seats.js';
@@ -51,6 +52,16 @@ import { undoQueued } from './relay-outbox-undo.js';
 import { stampCoordinatorHolder } from './coordinator-hold.js';
 import { Refused } from './refused.js';
 import {
+  outboxFile,
+  outboxSummaryFile,
+  readOutboxSummary,
+} from './relay-outbox-summary.js';
+export {
+  outboxFile,
+  outboxSummaryFile,
+  readOutboxSummary,
+};
+import {
   createdItemAt,
   createsItems,
   entryCreatedItems,
@@ -62,11 +73,6 @@ const KEPT_REFUSALS = 20;
 
 /** Commands that already said their move waits in the outbox, so a command says it once. */
 const OUTBOX_NOTICES = new WeakSet();
-
-/** The sealed outbox beside a link file. */
-export function outboxFile(linkFile) {
-  return join(dirname(linkFile), 'relay-outbox.sealed');
-}
 
 /** Whether a link holds moves the relay has not ordered yet, while the local board still shows them applied. */
 export function outboxAhead(state) {
@@ -337,23 +343,6 @@ export function outboxQueueable(state, error, operation, io, args = []) {
     && !args.some(arg => arg?.landingFence !== undefined) && transientRelayFailure(error) && outboxEnabled(io);
 }
 
-/** The key-free summary of the outbox beside a link file, which pullboard status reads (#1013). */
-export function outboxSummaryFile(linkFile) {
-  return join(dirname(linkFile), 'relay-outbox.summary.json');
-}
-
-/**
- * Read the key-free outbox summary, or null when no move waits.
- * Why: a move queues itself without the relay lock, so it never writes relay.json, which the sender owns; the
- * summary lives in its own file, and the link reads it from there (#1013).
- */
-export function readOutboxSummary(linkFile) {
-  try {
-    const summary = JSON.parse(readFileSync(outboxSummaryFile(linkFile), 'utf8'));
-    return Array.isArray(summary?.moves) && summary.moves.length ? summary : null;
-  } catch { return null; }
-}
-
 /** Keep the key-free outbox summary beside the link, or drop it once the outbox is empty. */
 function saveOutboxSummary({ file, state }, outbox) {
   const where = outboxSummaryFile(file);
@@ -416,6 +405,7 @@ export async function queueMove(link, { operation, args, command, move, error, a
     move = stampCoordinatorHolder(localRecords(root, (board) => prepareEngineMove(board, operation, sent)), state.machine, state.computerName);
     move.actor = relayMoveActor(move) ?? credentialActor(move);
   }
+  refuseRevokedSeat(state, credentialActor(move));
   const stray = strayItemRefs(outbox, move);
   if (stray.length) {
     throw new Refused('RELAY_OUTBOX_UNBOUND', `this move names #${stray[0]}, which this machine added while the relay was down, in a field the outbox cannot follow if the relay renumbers it; run it again once the relay answers`);

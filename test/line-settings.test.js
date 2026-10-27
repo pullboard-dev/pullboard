@@ -10,6 +10,7 @@ import { settingsInventory } from '../src/settings-inventory.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { LAND_COLLISION_ENGINE } from '../src/landing-collision-engine.js';
 import { BAR_CHECK_ENGINE } from '../src/bar-check-engine.js';
+import { LINE_SETTING_DEFINITIONS } from '../src/queue-settings.js';
 
 /** A private SQLite board with coordinator and builder identities. */
 function fixture(t) {
@@ -68,7 +69,10 @@ test('the settings inventory exposes board line values and defaults without audi
   } finally {
     for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
   }
-  assert.equal(rows.length, 9);
+  assert.deepEqual(rows.map(row => row.key).sort(),
+    Object.keys(LINE_SETTING_DEFINITIONS).map(key => `line.${key}`).sort());
+  for (const row of rows) assert.equal(row.value, row.key === 'line.wipPerReviewer' ? 2 : false,
+    `${row.key} exposes its configured value or default`);
   assert.deepEqual(rows.find(row => row.key === 'line.wipPerReviewer'), { key: 'line.wipPerReviewer', scope: 'board',
     board: store.boardId(board), root: box.repo, value: 2, default: false,
     source: join(box.repo, '.git', 'pullboard', 'board.sqlite'), origin: 'configured' });
@@ -100,7 +104,7 @@ test('[R2,H16] bar.check setting moves require the new engine and current client
   const board = fixture(t);
   const options = change({ key: 'bar.check' });
   const move = prepareEngineMove(board, 'setLineSetting', [options], { id: 'bar-check-policy', actor: 'coordinator' });
-  assert.equal(move.engine, BAR_CHECK_ENGINE, 'the new line-setting key carries its own engine floor');
+  assert.ok(move.engine >= BAR_CHECK_ENGINE, 'the new line-setting key carries at least its engine floor');
   const envelope = { sequence: 1, at: '2026-10-24T00:00:00Z', kind: 'move',
     sender: { kind: 'agent', agent: 'coordinator', userId: 'fixture' } };
   assert.throws(() => applyRelayMove(board, { ...move, engine: BAR_CHECK_ENGINE - 1 }, envelope), /RELAY_MOVE.*introduced in engine/u);

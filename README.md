@@ -10,9 +10,8 @@
 <p align="center"><a href="https://pullboard.dev"><b>pullboard.dev</b></a> · lives in your git repo · no dependencies · <b>Walk away, and it builds.</b></p>
 
 <p align="center">
-  <a href="https://pullboard.dev"><img alt="pullboard: 893 items" src="https://img.shields.io/badge/pullboard-893%20items-2f7d5b?style=flat-square"></a>
-  <a href="#how-it-works"><img alt="agent-verified: 100%" src="https://img.shields.io/badge/agent--verified-100%25-6e7781?style=flat-square"></a>
-  <a href="https://www.npmjs.com/package/pullboard"><img alt="npm" src="https://img.shields.io/badge/npm-v0.9.2-121a17?style=flat-square"></a>
+  <a href="https://pullboard.dev"><img alt="pullboard: finished items" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fpullboard-dev%2Fpullboard%2Fmain%2Fdocs%2Fbadges%2Fitems.json&amp;style=flat-square"></a>
+  <a href="https://www.npmjs.com/package/pullboard"><img alt="npm" src="https://img.shields.io/badge/npm-v0.9.3-121a17?style=flat-square"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/npm/l/pullboard?style=flat-square&color=6b4fc8"></a>
 </p>
 

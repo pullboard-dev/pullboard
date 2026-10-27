@@ -84,7 +84,7 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   assert.match(box.run(light, 'run', '--agent-mid', `sh ${agent}`).err, /ROUTE.*joined on the light route, so it cannot take mid items/);
   const ran = box.run(light, 'run', '--agent-light', `sh ${agent}`, '--attempts', '2', '--minutes', '2');
   assert.equal(ran.code, 0, ran.err);
-  assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 2: green \(agent \d+s, check \d+s\)\nsubmitted #1/);
+  assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 2: green \(agent \d+s, check \d+s\)\n[1-9]\d* lane updates; details remain on the board\nsubmitted #1 at [0-9a-f]{12};/);
   assert.match(ran.out, /nothing left to run: no open light runnable items in the web lane/);
   assert.match(ran.out, /#2 attempt 2: red[\s\S]*#2 escalated light -> mid; the attempt is pinned at refs\/pullboard\/attempts\/2\//);
   assert.match(ran.out, /runner done: 1 submitted, 1 escalated/);
@@ -265,7 +265,7 @@ test('resume puts an agent back to work from the board: its claim, its branch, w
   box.git(box.repo, 'switch', '-q', 'main');
   assert.match(box.run(box.web, 'resume').out, /branch web\/one: 1 ahead of main, 0 behind/);
   assert.match(back, /sent back: #1 TEST_FAILURE by coordinator \(unknown\): no test proves the heading$/m);
-  assert.match(back, /next: pullboard claim 1, fix what the verifier found, and submit again/);
+  assert.match(back, /^next: pullboard next; pullboard claim 1, fix what the verifier found, and submit again$/m);
 });
 
 test('next takes work near your recent files; submit records them; show names related verified work [N20, N21]', () => {

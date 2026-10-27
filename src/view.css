@@ -1033,9 +1033,14 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .machine-settings-entry { display: none; }
 .boardless .machine-settings-entry { display: block; }
 
-/* Approval provenance is literal text, including an unabridged commit on a phone. */
+/* Complete approval context wraps on a phone; the two person actions stay together. */
+.row.agent-approval { grid-template-columns: 12px minmax(0, 1fr); grid-template-areas: none; align-items: start; cursor: default; }
+.row.agent-approval > .dot { grid-area: auto; margin-top: 4px; }
+.row.agent-approval > div { display: block; min-width: 0; }
+.row.agent-approval .t { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.row.agent-approval .meta { white-space: normal; overflow: visible; }
 .agent-approval p { margin: 6px 0; overflow-wrap: anywhere; }
-.agent-approval .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.agent-approval .actions { display: flex; flex-wrap: nowrap; gap: 8px; margin-top: 8px; }
 
 /* Revision proposals compare complete row bytes even on a phone; authority stays in the core. */
 .row.spec-revision { display: block; cursor: default; }

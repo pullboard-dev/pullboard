@@ -164,6 +164,7 @@ import {
 import { Refused } from './refused.js';
 import { landingRelayCallbacks } from './landing-relay.js';
 import { relayOrigin } from './relay-origin.js';
+import { readRelayLink } from './relay-link-read.js';
 import { refusalFromReceipt } from './recorded-refusal.js';
 import { relayNotices } from './relay-notices.js';
 import {
@@ -342,16 +343,8 @@ function forgetDeletedCopy(root, file, state, io) {
 
 /** Validate private link metadata before trusting its destination or acknowledgement cursor. */
 function loadLink(file) {
-  if (!existsSync(file)) return null;
-  const stat = lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Refused('RELAY_STORAGE', 'restore relay.json as an owner-only regular file with mode 600');
-  let state;
-  try { state = JSON.parse(readFileSync(file, 'utf8')); } catch { throw new Refused('RELAY_STORAGE', 'restore valid relay link metadata before syncing this board'); }
-  if (!state || typeof state !== 'object' || state.version !== 1 || !/^[0-9a-f]{32}$/.test(state.board) || !(state.token === undefined || state.personReauth && state.token === null || /^(ps_|pa_|pm_)[A-Za-z0-9_-]{43}$/.test(state.token)) ||
-      !Number.isSafeInteger(state.sequence) || state.sequence < 0 || !Number.isSafeInteger(state.cursor) || state.cursor < 0) {
-    throw new Refused('RELAY_STORAGE', 'restore supported relay link metadata before syncing this board');
-  }
-  relayOrigin(state.url);
+  const state = readRelayLink(file);
+  if (!state) return null;
   if (state.token === undefined || state.token?.startsWith('ps_')) {
     state.token = null;
     delete state.tokenId;
@@ -1051,14 +1044,18 @@ function localFirstLink(file, operation, args, io) {
  * Make a move on this machine at once and queue it for the relay (#1013): no network call and no relay lock, only
  * the short outbox guard. The background sender sends it and rebuilds the board once the relay has ordered it.
  */
-async function queueLocally(root, file, state, operation, args, io, command, applyLocally, onRecorded) {
+async function queueLocally(root, file, operation, args, io, command, applyLocally, onRecorded) {
   const guarded = landingRelayCallbacks(operation, args, {
     apply: () => typeof applyLocally === 'function' ? applyLocally() : localRecords(root, (board) => store[operation](board, ...args)),
     queue: () => { throw new Refused('RELAY_OUTBOX', 'a local-first move queues itself; it is never queued twice'); },
   });
   // An unlink that finished while this move waited for the guard leaves an ordinary local board.
-  const result = await withOutboxGuard(file, () => !existsSync(file) ? guarded.apply() : queueMove(outboxLink(root, file, state, io),
-    { operation, args, command, applyLocally: guarded.apply, quiet: true }));
+  const result = await withOutboxGuard(file, () => {
+    // A revoke can finish while this move waits: admission uses the cache protected by this guard, never its earlier snapshot.
+    const current = loadLink(file);
+    return !current ? guarded.apply() : queueMove(outboxLink(root, file, current, io),
+      { operation, args, command, applyLocally: guarded.apply, quiet: true });
+  });
   onRecorded?.();
   nudgeRelaySender(root, file);
   return result;
@@ -1069,7 +1066,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
   const roundTripStarted = Date.now();
   const file = linkFile(root);
   const local = localFirstLink(file, operation, args, io);
-  if (local) return queueLocally(root, file, local, operation, args, io, command, applyLocally, onRecorded);
+  if (local) return queueLocally(root, file, operation, args, io, command, applyLocally, onRecorded);
   return locked(file, async () => {
     const state = loadLink(file);
     if (operation === 'rehomeItem') await requireAuthoritativeRehomeItem(file, state, args?.[0]);
@@ -1311,8 +1308,12 @@ export async function relayRevoke(root, id, io) {
     }
     const result = await nativePhoneAction(state, 'revoke-token', id, io, request);
     if (result.id !== id || result.revoked !== true) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge this token revocation; retry its opaque id');
-    for (const credential of Object.values(state.agentTokens ?? {})) if (credential.id === id) credential.revoked = true;
-    saveLink(file, state);
+    // Queue admission and the local revocation marker share one short guard; the phone and network never hold it.
+    await withOutboxGuard(file, () => {
+      const current = loadLink(file);
+      for (const credential of Object.values(current.agentTokens ?? {})) if (credential.id === id) credential.revoked = true;
+      saveLink(file, current);
+    });
     return { ...tokenContext(state), id: result.id, revoked: result.revoked };
   });
 }

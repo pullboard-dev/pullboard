@@ -4,32 +4,48 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-10-26
+
+Teams and many boards: a board now knows its people and their roles, each repo can keep a private board beside the team board, and every move completes locally at once.
+
 ### Added
 
-- pullboard init now adds light hooks for Claude Code and Codex: they resume your work at the start of a session and remind you of unsubmitted work at the end. They never block, and init --no-hooks skips them.
-- Decisions now record where they came from (you, relayed from you, an agent, or inherited), and pullboard why <file> lists the decisions behind a file. (#970)
+- The board knows its people: events name who made each move, approvers decide, and moves only a person may make are signed with a passkey tap from any terminal, including over SSH (#343, #408, #1135).
+- Every session can read and move: a terminal, SSH, an agent, a job or CI. Each board has one coordinator, passed by takeover across sessions and people (#344, #347).
+- A clone of a linked repo joins its board, and a member's device hands over the key. A linked computer goes by the name you give it when linking, and you can pair a second phone or browser with the command the page shows (#342, #978, #1004).
+- Each repo can keep a private board beside the team board, and items move between them (#345).
+- Boards work across repos: an item can wait on an item in another repo's board, written `repo#id`; `pullboard decisions` lists every open decision across a project's repos; and linked boards pass decisions, item offers and receipts with only the fields you permit (#558, #559, #1245, #1247, #1248).
+- Without the relay, two machines share one board through the repo's git remote, and a phone can see and act on a board through the view on your local network (#562, #563, #1226).
+- Review independence: an agent's grant narrows to its item at claim, an agent's helpers are recorded under it, a reviewer is refused for any item its session ever built, and a reviewer can withdraw its own accept before the item lands (#348, #800, #1085, #1102, #1143).
+- The view opens on whether the rules hold, then on what needs you. Needs you shows agent-approved rows, sentinel drafts and Rigor's automatic drafts with Approve and Decline, each showing the row's full text and check (#965, #967, #1021, #1026, #1150, #1374).
+- Agents can propose a change to an approved spec row; it waits in Needs you with the old and new text side by side (#980, #1191).
+- When Pullboard blocks something only a person can do, it says so at once with the one step, shows it in Needs you in plain words, and clears it when the move later succeeds (#1022, #1060, #1077).
+- A Settings page shows every setting by scope, read-only (#969).
+- The README's item-count badge is live: it reads the board's own record and refreshes on every landing (#1061, #1410).
+- Decisions record where they came from (you, relayed from you, an agent, inherited), and `pullboard why <file>` lists the decisions behind a file. Decisions have their own queue, so the asker keeps working and the answer lands on the item (#970, #1220).
+- `pullboard init` adds light hooks for Claude Code and Codex: resume at session start and a reminder about unsubmitted work at the end. They never block; `init --no-hooks` skips them. An agent can work the whole loop through MCP (#961, #971).
+- Pull requests get a "verified by a second agent" status teams can require; a pull request made outside Pullboard shows as not verified. Teams that work in pull requests can have Pullboard open one pull request per release carrying each item's proof, and merging it ships the release. `pullboard intake <PR>` files an outside pull request as an item verified only in a sandbox (#987, #988, #1027).
+- `pullboard next` orders the queue itself: unblockers and quick wins first, the focus milestone first when the board names one, longest remaining path first, and never work that collides with work in flight. A seat with no claim is never told to wait. A milestone can carry an item limit and lists its open items first (#1017, #1094, #1114, #1190, #1210, #1239, #1242, #1382).
+- Messages go to the item and the people on it, not to everyone. Item conversation is typed notes on the item thread, each agent reads a feed tailored to its work, and the feed splits into interrupts and a digest for natural breaks. Seats report presence (live, idle or gone), and every seat has its own address so agents outside this machine can message it (#994, #1115, #1166, #1167, #1171, #1172).
+- Landing runs one batch at a time under the board's lease, never batches two items that touch the same file, tests candidate batches in parallel, resolves machine-resolvable conflicts itself, and prunes merged items' clean worktrees (#417, #418, #1098, #1118, #1177, #1333).
+- Registered runners: remove one by name (a busy runner drains first), they use the capacity they were registered with, landing spreads across all of them, and review checks run on them at the exact commit. A test that needs a desktop runs only on a runner with a confirmed logged-in session (#925, #1005, #1066, #1069, #1078, #1134, #1209).
+- Architecture blueprints bring their own rules and a check for each one (#998).
 
-- Pull requests get a 'verified by a second agent' status that teams can require; a pull request made outside Pullboard shows as not verified. (#988)
+### Changed
 
-- Agents can propose a change to an approved spec row, such as a moved gate file; it waits in Needs you with the old and new text until you approve or decline it. (#980)
-
-- A test that needs a desktop runs only on a runner with a confirmed logged-in session; the runner checks again before it starts. (#1134)
-
-- You can pair a second phone or browser with the command the page shows. (#978)
-
-- Teams that work in pull requests can have Pullboard open one pull request per release, carrying each item's proof; merging it ships the release. (#987)
-- Every agent seat has its own address, so agents outside this machine can message it. (#994)
-- Architecture blueprints bring their own rules and a check for each one.
+- Local first: every move completes locally at once, reads never wait on the relay, a move sends one small event instead of the whole board, and the phone shows moves past its last checkpoint as pending (#1013, #1014, #1113).
+- Faster: `pullboard status` answers in under 100 ms and an item's detail opens at once on a large board; read commands never take the write lock; submit answers in minutes, leaving a large test selection for landing (#1039, #1040, #1041, #1047, #1048, #1070).
+- The view's secret leaves the address bar: the first link trades it for a cookie. `init` and the bare view address send you to app.pullboard.dev (#188, #1019, #1020).
+- Only the person can exclude a board from the relay, and you can see the relay's health (#1283, #1289).
 
 ### Fixed
 
-- pullboard.dev now says when a board is too big to share, instead of waiting for its first copy. (#984)
-
-- pullboard.dev now says when a board is excluded from sharing, and how to include it. Paired browsers decrypt its name; other browsers see only the computer and the number excluded. (#983)
-
-- An old pairing link no longer blocks a browser that is already paired. (#982)
-
-- A browser you removed now says so, instead of a blank page or a sign-in screen. (#981)
+- pullboard.dev says when a board is too big to share, and when a board is excluded from sharing and how to include it (#983, #984).
+- An old pairing link no longer blocks an already-paired browser, and a removed browser says so instead of showing a blank page, on a computer and on a phone (#981, #982).
+- Relinking after `relay off` no longer fails every move, a deleted relay copy relinks, and an offline hand-off keeps its own item number when another machine adds items (#1179, #1183, #1289).
+- A refusal after a move was recorded says it was recorded, never to run it again; a GitHub rate limit is named as a rate limit, not lost repository access; a busy board names who holds the lock instead of printing a stack trace (#1023, #1024, #1142, #1197).
+- Boards that can no longer be read collapse to one line, and while the board list loads the page never tells a person with boards to run init (#1035, #1104).
+- The tab bar fits a 320px screen with the Home tab, and shout cards fit beside a classic scrollbar (#1079, #1083).
 
 ## [0.9.2] - 2026-10-21
 

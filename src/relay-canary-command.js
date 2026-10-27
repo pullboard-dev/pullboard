@@ -47,10 +47,12 @@ function requireSeat(ctx, board, config) {
 async function notify(ctx, config, notice, observation) {
   const delayed = !observation.ok || Date.parse(observation.at) > Date.parse(notice.at) ? 'DELAYED: relay delivery is pending; this is a local native notice, not a phone acknowledgement. ' : '';
   const text = `${delayed}Relay canary ${notice.kind} at ${notice.at}: ${notice.step} (${notice.code}). Inspect pullboard relay canary status; keep working locally.`;
-  await withBoard(ctx, async board => {
-    const me = requireSeat(ctx, board, config);
+  // A provisional local queue entry is not the native acknowledgment that clears a durable canary notice.
+  const notification = { ...ctx, io: { ...ctx.io, relayCanary: true } };
+  await withBoard(notification, async board => {
+    const me = requireSeat(notification, board, config);
     for (const to of [COORDINATOR, PERSON]) {
-      await ordered(ctx, board, 'shout', [{ from: me.id, to, text, lanes: laneNames(ctx.config), decision: false }]);
+      await ordered(notification, board, 'shout', [{ from: me.id, to, text, lanes: laneNames(ctx.config), decision: false }]);
     }
   });
 }

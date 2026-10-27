@@ -109,7 +109,7 @@ function wordCount(text) {
 test('README has the approved centered header, logo and one-line facts [I10,I12]', () => {
   assert.match(README, /^<p align="center">\n  <picture>\n    <source media="\(prefers-color-scheme: dark\)" srcset="docs\/img\/logo-dark\.svg">\n    <img src="docs\/img\/logo\.svg" alt="" width="72">\n  <\/picture>\n<\/p>\n\n<h1 align="center">Pullboard<\/h1>/u);
   assert.match(README, /<p align="center"><a href="https:\/\/pullboard\.dev"><b>pullboard\.dev<\/b><\/a> · lives in your git repo · no dependencies · <b>Walk away, and it builds\.<\/b><\/p>/u, 'the centered header pins the product facts and the tagline in one line');
-  for (const badge of ['pullboard', 'agent-verified', 'npm', 'MIT license']) assert.match(README, new RegExp(`alt="${badge}(?:: [^"]+)?"`), `${badge} badge remains in the header`);
+  for (const badge of ['pullboard', 'npm', 'MIT license']) assert.match(README, new RegExp(`alt="${badge}(?:: [^"]+)?"`), `${badge} badge remains in the header`);
   assert.ok(readFileSync(join(ROOT, 'docs/img/logo.svg'), 'utf8').startsWith('<svg '), 'the approved light logo is present');
   assert.ok(readFileSync(join(ROOT, 'docs/img/logo-dark.svg'), 'utf8').startsWith('<svg '), 'the approved dark logo is present');
 });

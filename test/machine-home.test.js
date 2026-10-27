@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** Real machine-storage permission refusals preserve the shared queue location [I1,C7,Q4]. */
 import assert from 'node:assert/strict';
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -141,4 +141,25 @@ test('a Codex agent that cannot write the board is told the Codex step that gran
     assert.match(error.message, /Codex's workspace-write sandbox keeps \.git read-only/u);
     assert.equal(error.next, `restart Codex with that folder writable: codex --add-dir '${folder}'; to keep it in ~/.codex/config.toml, a permission profile takes ${JSON.stringify(folder)} = "write" in its [permissions.<active-profile>.filesystem] table, and only settings without a profile use writable_roots under [sandbox_workspace_write]; then run the command again`);
   } finally { unlockBoard(folder); }
+});
+
+test('resume checks both board-file and journal-folder write capability without leaving a probe [I1,L3,P4]', () => {
+  for (const blocked of ['file', 'folder']) {
+    const p = project();
+    const folder = join(p.repo, '.git', 'pullboard');
+    const file = join(folder, 'board.sqlite');
+    assert.equal(p.run(p.repo, 'resume').code, 0, 'resume succeeds before access is removed');
+    const before = readFileSync(file);
+    chmodSync(blocked === 'file' ? file : folder, blocked === 'file' ? 0o444 : 0o555);
+    try {
+      if (blocked === 'file') assert.throws(() => appendFileSync(file, ''), { code: 'EACCES' });
+      else assert.throws(() => writeFileSync(join(folder, 'permission-sentinel'), ''), { code: 'EACCES' });
+      const result = p.run(p.repo, 'resume', '--json');
+      assert.notEqual(result.code, 0, `${blocked}: ${result.out}${result.err}`);
+      assert.equal(JSON.parse(result.out).error.code, 'BOARD_NOT_WRITABLE', `${blocked} permission has its own real refusal`);
+      assert.equal(readFileSync(file).equals(before), true, 'the readiness check changes no board bytes');
+    } finally { chmodSync(blocked === 'file' ? file : folder, blocked === 'file' ? 0o644 : 0o755); }
+    assert.equal(p.run(p.repo, 'resume').code, 0, 'the named permission repair restores readiness');
+    assert.deepEqual(readdirSync(folder).filter(name => name.startsWith('.write-access-')), [], 'successful and refused checks leave no probe');
+  }
 });

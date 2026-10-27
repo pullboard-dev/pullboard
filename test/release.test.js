@@ -86,7 +86,8 @@ test('a packed release installs with no network and runs the whole loop from a f
 
   git(repo, 'merge', '-q', '--no-edit', commit);
   const merge = git(repo, 'rev-parse', 'HEAD');
-  assert.equal(pullboard(repo, 'merged', '1', merge).trim(), `#1 merged as ${merge.slice(0, 12)}`);
+  assert.equal(pullboard(repo, 'merged', '1', merge).trim(),
+    `#1 merged as ${merge.slice(0, 12)}\ncode map refreshed for main ${merge.slice(0, 12)}`, 'merged also refreshes the main-stamped code map');
   const shown = pullboard(repo, 'show', '1');
   assert.match(shown, /#1 {2}verified/);
   assert.match(shown, /merged as [0-9a-f]{12}/);

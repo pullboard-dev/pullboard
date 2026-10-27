@@ -11,11 +11,13 @@ import {
 import { join } from 'node:path';
 import { runOnRunner } from './runners.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
+import { proofCounts } from './proof-provenance.js';
 import {
   policyGit,
   trunkRef,
 } from './trusted-policy-read.js';
 import {
+  logLines,
   timingFromLog,
   timingRunner,
 } from './timing.js';
@@ -90,13 +92,18 @@ export function runnerPrivateCheck(root, item, command, policy, lease, guard, wa
     }
   } catch { captureProblem = true; }
   const profile = checkLogPath ? timingFromLog(checkLogPath, timingRunner(command)) : { files: [], tests: [] };
+  // A recorded check phase ran on the runner, so it earns the same native proof receipt as a local run.
+  const checkPhase = result.privateCheck.receipt.phases.check;
+  let counts = null;
+  try { counts = checkLogPath ? proofCounts(logLines(checkLogPath)) : null; } catch { counts = { passed: null, failed: null, skipped: null }; }
   const formatted = format(captureProblem ? 'unverified' : result.privateCheck.state, captureProblem ? `private-check output could not be authenticated or saved; raw output retained at ${result.rawOutputPath} sha256 ${result.rawOutputSha256}` : result.privateCheck.stage, installCapture, checkCapture,
     { root, item, commandRoot: result.executionRoot, installLogPath, checkLogPath, waitMs,
       timingProfile: { ...profile, wallMs: Date.now() - started, environment: result.environment, testRuntimes: result.testRuntimes,
         executionRunner: result.executionRunner, executionSource: result.executionSource, executionMain: result.executionMain,
         executionLoad: result.executionLoad, executionAdmission: result.executionAdmission,
         privateCheckPolicySha256: mode.sha256, rawOutputPath: result.rawOutputPath, rawOutputSha256: result.rawOutputSha256 },
-      environment: result.environment, testRuntimes: result.testRuntimes, executionSourceUnchanged: result.privateCheck.receipt.sourceUnchanged });
+      environment: result.environment, testRuntimes: result.testRuntimes, executionSourceUnchanged: result.privateCheck.receipt.sourceUnchanged,
+      executed: Boolean(checkPhase), exitCode: checkPhase?.code ?? null, proofCounts: counts });
   return { ...formatted, testRuntimes: result.testRuntimes ?? null, sandboxBlocked: result.sandboxBlocked ?? formatted.sandboxBlocked, executionRunner: result.executionRunner, executionSource: result.executionSource,
     executionLoad: result.executionLoad, executionMain: result.executionMain, executionAdmission: result.executionAdmission,
     rawOutputPath: result.rawOutputPath, rawOutputSha256: result.rawOutputSha256,

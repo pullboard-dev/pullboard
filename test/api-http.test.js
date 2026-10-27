@@ -12,6 +12,7 @@ import { createLocalApiHandler, serveApi } from '../src/api.js';
 import { serveView } from '../src/serve.js';
 import { main } from '../src/cli.js';
 import { applyStateDelta, createApiHandler } from '../src/api-http.js';
+import { WHOLE_STATE_DELTA_FIELDS } from '../src/api-delta-fields.js';
 import { registryFile, registerProject, forgetProject } from '../src/projects.js';
 import { Refused } from '../src/refused.js';
 import * as store from '../src/board.js';
@@ -861,8 +862,8 @@ test('[A2, N26] a delta brings a snapshot up to date', async (t) => {
    * Ask for what changed since the held snapshot, apply it, and compare it with a fresh snapshot
    * read at the same instant, so the flow observation in both is the same.
    */
-  async function catchUp(label) {
-    t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+  async function catchUp(label, observedAt = Date.now()) {
+    t.mock.timers.enable({ apis: ['Date'], now: observedAt });
     try {
       const answer = await box.call(box.path + '/state?since=' + held.sequence);
       const fresh = await box.call(box.path + '/state');
@@ -887,10 +888,15 @@ test('[A2, N26] a delta brings a snapshot up to date', async (t) => {
   assert.deepEqual(changed(claimed, 'items'), [item], 'only the claimed item travels');
   assert.equal(claimed.merge.items.set[0].claim.by, builder.agent);
   assert.equal(Object.hasOwn(claimed.merge.items, 'ids'), false, 'no item came or went, so the order is not sent');
-  const still = await catchUp('nothing changed');
+  const unchangedSequence = held.sequence;
+  const nextObservation = Date.parse(held.observedAt) + 1; // One logical clock tick; no board move or timed wait.
+  const still = await catchUp('only the observation clock changed', nextObservation);
+  assert.equal(held.sequence, unchangedSequence, 'advancing the observation clock writes no board event');
+  assert.equal(still.replace.observedAt, new Date(nextObservation).toISOString(),
+    'even a no-event delta must refresh the held snapshot observation time');
   assert.deepEqual(still.merge, {}, 'an unchanged board merges nothing');
-  assert.deepEqual(Object.keys(still.replace).sort(), ['decisionQueue', 'decisions', 'holds', 'personRequests', 'proofStats', 'requests', 'unseen'],
-    'only the always-whole fields come, including the landed coordinator decision queue');
+  assert.deepEqual(Object.keys(still.replace).sort(), [...WHOLE_STATE_DELTA_FIELDS].sort(),
+    'only the declared per-read projections and small decision lists travel whole');
   assert.deepEqual(still.replace.decisionQueue, [], 'the unchanged empty coordinator queue travels as a whole field');
 
   await move({ verb: 'submit', item, agent: builder.agent });

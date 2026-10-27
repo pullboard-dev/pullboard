@@ -1,10 +1,12 @@
 /** Project this checkout's active relay-canary alert into its local Needs-you list [H5,H15,C7]. */
 import { readRelayHealth } from './relay-canary-health.js';
-import { relayStatus } from './relay.js';
+import { readOutboxCount } from './relay-outbox-summary.js';
+import { relayLinkFile } from './local-state.js';
+import { repoInfo } from './git.js';
 
 /** Count only this local link's queued moves; status is read-only and never contacts the relay. */
 function queuedMoves(root) {
-  try { return relayStatus(root).outbox?.length ?? 0; }
+  try { return readOutboxCount(relayLinkFile(repoInfo(root).commonDir)); }
   catch { return 0; }
 }
 

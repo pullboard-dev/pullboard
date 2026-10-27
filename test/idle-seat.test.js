@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { agentHookCommand } from '../src/agent-hooks.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 
@@ -26,11 +27,13 @@ test('a seat with no claim is sent to pullboard next and never told to wait for 
   const guide = readFileSync(join(box.repo, 'AGENTS.md'), 'utf8');
   assert.match(guide, /no (?:active )?claim[\s\S]{0,100}pullboard next/iu, 'generated guidance states the idle-seat rule');
   const settings = JSON.parse(readFileSync(join(box.repo, '.claude/settings.json'), 'utf8'));
-  const command = settings.hooks.SessionStart.flatMap(entry => entry.hooks).find(hook => /pullboard resume/u.test(hook.command)).command;
+  const command = settings.hooks.SessionStart.flatMap(entry => entry.hooks).find(hook => hook.command === agentHookCommand('SessionStart'))?.command;
+  assert.ok(command, 'the generated SessionStart hook runs pullboard hook SessionStart');
   const hooked = runFixtureChild('/bin/sh', ['-c', command], { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(hooked.status, 0, hooked.failure || hooked.stderr || hooked.stdout);
-  assert.match(hooked.stdout, /next: pullboard next/u, 'the actual session hook gives the same queue instruction');
-  assert.doesNotMatch(hooked.stdout, /wait for (?:an? )?assignment|wait to be assigned/iu);
+  const context = JSON.parse(hooked.stdout).hookSpecificOutput?.additionalContext ?? '';
+  assert.match(context, /next: pullboard next/u, 'the actual session hook gives the same queue instruction');
+  assert.doesNotMatch(context, /wait for (?:an? )?assignment|wait to be assigned/iu);
   const empty = box.run(box.web, 'next', '--json');
   assert.equal(empty.code, 1, empty.out);
   const refusal = JSON.parse(empty.out).error;

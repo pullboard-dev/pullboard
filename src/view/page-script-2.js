@@ -765,19 +765,23 @@ function flowSvg(p) {
   for (const s of below) {
     const t = pos.get(s.id), into = pairs.filter((pair) => pair.to === s.id && col(pair.from) >= 0);
     const said = told(into), tTop = t.y - BH / 2;
-    const xs = into.map((pair) => pos.get(pair.from).x).sort((a, b) => a - b);
+    // A new import-only route cannot carry the existing ordinary moves' shared label.
+    const ordinary = into.filter((pair) => pair.moves.some((move) => move.verb !== 'rehomeImport'));
+    const carriers = ordinary.length ? ordinary : into;
+    const xs = carriers.map((pair) => pos.get(pair.from).x).sort((a, b) => a - b);
     const left = xs.filter((x) => x < t.x - 0.5), right = xs.filter((x) => x > t.x + 0.5);
     const label = left.length
       ? lines((left[0] + (left[1] ?? t.x - BW / 2)) / 2, t.y - 8, wrap(said.words, (left[1] ?? t.x - BW / 2) - left[0] - 20, 12), tone(said))
       : right.length
         ? lines((right[right.length - 1] + (right[right.length - 2] ?? t.x + BW / 2)) / 2, t.y - 8, wrap(said.words, right[right.length - 1] - (right[right.length - 2] ?? t.x + BW / 2) - 20, 12), tone(said))
         : lines(t.x + 10, (bottom + tTop) / 2 + 4, said.words, tone(said), 'start');
-    // The label goes with the route that reaches furthest, drawn first; the others join it.
+    // Keep path order intact, but bind the label to its ordinary route family before placement.
     const order = [...into].sort((p1, p2) => Math.abs(pos.get(p2.from).x - t.x) - Math.abs(pos.get(p1.from).x - t.x));
-    order.forEach((pair, n) => {
+    const carrier = order.find((pair) => carriers.includes(pair));
+    order.forEach((pair) => {
       const a = pos.get(pair.from);
       const d = Math.abs(a.x - t.x) < 0.5 ? path([[a.x, bottom], [t.x, tTop - 1]]) : path([[a.x, bottom], [a.x, t.y], [a.x < t.x ? t.x - BW / 2 - 1 : t.x + BW / 2 + 1, t.y]]);
-      routes.push(group([pair], { d }, n === 0 ? label : ''));
+      routes.push(group([pair], { d }, pair === carrier ? label : ''));
     });
   }
   // A below-row state can move back into the row or on to another below-row state.

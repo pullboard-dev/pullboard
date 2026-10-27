@@ -71,6 +71,11 @@ function renewalDue(cached) {
     ? cached.expires - (cached.expires - cached.created) / 2 : cached.expires - 60_000;
 }
 
+/** Refuse a seat whose locally recorded revocation also forbids provisional offline moves [H2,H9,H21]. */
+export function refuseRevokedSeat(state, actor) {
+  if (state.agentTokens?.[actor]?.revoked) throw new Refused('TOKEN_REVOKED', `the relay token of ${actor} was revoked on this board; work from a seat with its own token, or ask the coordinator for a fresh worktree`);
+}
+
 /**
  * The current token of one registered seat (#579). A live token renews itself with itself; a lost
  * or expired one is reissued by the seat that enrolled it, walking up to the coordinator, whose
@@ -80,7 +85,7 @@ function renewalDue(cached) {
 async function seatToken(root, file, state, actor, io, depth = 0) {
   if (depth > 64) throw new Refused('RELAY_ACTOR', 'this seat\'s line of creators loops; ask the coordinator to make a fresh seat');
   const cached = state.agentTokens?.[actor];
-  if (cached?.revoked) throw new Refused('TOKEN_REVOKED', `the relay token of ${actor} was revoked on this board; work from a seat with its own token, or ask the coordinator for a fresh worktree`);
+  refuseRevokedSeat(state, actor);
   if (cached?.token && cached.expires > Date.now()) {
     if (Date.now() < renewalDue(cached)) return cached.token;
     const renewed = await request({ ...state, token: cached.token, agent: actor }, '/auth/tokens', { method: 'POST', body: { board: state.board, agent: actor } }, io);
