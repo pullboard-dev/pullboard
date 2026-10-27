@@ -47,6 +47,7 @@ function fixture(t) {
   const green = commit('2026-10-15T00:00:00Z', 'fix: product repair');
   let now = new Date(NOW);
   const clock = { now: () => new Date(now) };
+  // @pullboard-board-file journey: the public report CLI reopens this Git project's persisted synthetic receipt history.
   const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: root });
@@ -121,7 +122,7 @@ test('[C7] fourteen-day fixture pins every test-value number, code catches, flak
   assert.deepEqual(report.coverage, { receipts: 6, unknownFileReceipts: 0, gitHistoryAvailable: true, unknownCommitReceipts: 0, untrackedFileExecutions: 0, nonTestFileExecutions: 0 });
   const text = await f.cli('test-value');
   assert.equal(text.code, 0, text.stderr);
-  assert.match(text.stdout, /2 code-fixed catches; 0 flakes; runtime 2000ms\/run; 1 edits; value 1198 per run/u);
+  assert.match(text.stdout, /2 catches \(code-fixed or native audit\); 0 flakes; runtime 2000ms\/run; 1 edits; value 1198 per run/u);
   assert.match(text.stdout, /runtime unknown/u);
   assert.deepEqual(store.events(f.board), before, 'both public report forms append no event');
 });

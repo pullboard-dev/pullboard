@@ -1,3 +1,4 @@
+/** @pullboard-test-input src/standard-doctrine.md */
 /** One complete native state builder for local HTTP and sealed relay projections [A2,H5,H16]. */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';

@@ -60,6 +60,12 @@ function readBinding(file, takeover) {
   }
 }
 
+/** Read this seat's authenticated local digest for eligibility observations, without binding or taking over. */
+export function localSeatSessionDigest(info, agent) {
+  const current = readBinding(checkoutSessionFile(info), false);
+  return current?.agent === agent ? current.digest : null;
+}
+
 /** Check whether this already-bound checkout belongs to the invoking agent session. */
 export function localSessionMatches(info, { agent, digest }) {
   const current = readBinding(checkoutSessionFile(info), false);

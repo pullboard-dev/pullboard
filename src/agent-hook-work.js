@@ -7,6 +7,10 @@ async function work(event) {
   try { heartbeatCommand({ cwd: process.cwd(), err: text => process.stderr.write(text + '\n') }); }
   catch { /* A failed private observation must not suppress the ordinary native context. */ }
   if (event === 'SessionEnd') return;
+  // This explicit native heartbeat may claim work; ordinary read commands never do.
+  const { main: dispatch } = await import('./cli.js');
+  await dispatch(['heartbeat'], { cwd: process.cwd(),
+    stdout: process.stdout, stderr: process.stderr, stdin: process.stdin });
   if (event === 'SessionStart') {
     const { main } = await import('./cli.js');
     process.exitCode = await main(['resume'], { cwd: process.cwd(),

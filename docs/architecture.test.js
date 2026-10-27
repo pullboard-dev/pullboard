@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-test-input README.md */
 /**
  * Keep docs/architecture.md in step with the relay code it describes [H5,H7]: every table the
  * relay creates, every credential prefix the relay and its client use, and every file and

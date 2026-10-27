@@ -24,6 +24,7 @@ export function runnerWaitReasons(db, runners, waiter, unavailable) {
     const holders = db.prepare('SELECT browser, timing FROM holder WHERE name = ?').all(`runner:${runner.host}`);
     let reason = 'available';
     if (unavailable.has(runner.host) && recorded?.detail === 'TRANSPORT_LOST') reason = 'unreachable (transport lost)';
+    else if (unavailable.has(runner.host) && recorded?.detail === 'WORKER_UNRESPONSIVE') reason = 'unreachable (worker did not become ready)';
     else if (unavailable.has(runner.host)) reason = 'unavailable (cleanup or draining)';
     else if (waiter.gui === 1 && !gui) reason = 'unavailable (GUI session required)';
     else if (waiter.browser === 1 && runner.browser < 1) reason = 'unavailable (browser capacity required)';

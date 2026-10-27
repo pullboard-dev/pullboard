@@ -1,5 +1,9 @@
+import { validateRunner } from './runner-registration.js';
+import { validRunnerTrunk } from './runner-policy.js';
+export { validateRunner };
 /** Exact committed source and bounded, credential-free SSH execution for machine runners [C7]. */
 export { placeRunner, runnerStage } from './runner-stage.js';
+import { importTestResults } from './test-result-store.js';
 import {
   spawn,
   spawnSync,
@@ -80,25 +84,17 @@ const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 const MAX_HISTORY_TAGS = 1_024;
 const MAX_TAG_CHAIN = 8;
 const TOOL_ROOT = fileURLToPath(new URL('../', import.meta.url));
-const RUNTIME_NAMES = ['runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'git-adapter.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js'];
+const RUNTIME_NAMES = ['audit-coverage-reporter.js', 'runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'git-adapter.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js', 'runner-policy.js', 'runner-recovery.js', 'runner-transport.js', 'test-result-store.js'];
+const LOADED_TOOLING = loadedTooling();
 
-/** Validate an SSH destination as one argument, never a command or an SSH option. */
-export function validateRunner(value) {
-  if (!value || typeof value.host !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.@:\[\]-]{0,254}$/u.test(value.host)
-    || !Number.isSafeInteger(value.slots) || value.slots < 1
-    || !Number.isSafeInteger(value.browser) || value.browser < 0 || value.browser > value.slots) {
-    throw new Refused('BAD_RUNNER', 'use an SSH host or alias, positive --slots, and --browser from zero through slots');
-  }
-  if (value.gui !== undefined && value.gui !== null && typeof value.gui !== 'boolean') throw new Refused('BAD_RUNNER', 'runner gui must be true, false, or unknown');
-  for (const key of ['node', 'root']) {
-    if (value[key] !== undefined && (typeof value[key] !== 'string' || /[\u0000-\u001f\u007f]/u.test(value[key])
-      || !(value[key].startsWith('/') && value[key].length > 1 || key === 'node' && value[key] === 'node'))) {
-      throw new Refused('BAD_RUNNER', `runner ${key} must be an absolute remote path${key === 'node' ? ' or node' : ''}`);
-    }
-  }
-  return { host: value.host, slots: value.slots, browser: value.browser, ...(value.gui !== undefined ? { gui: value.gui } : {}),
-    ...(value.node ? { node: value.node } : {}), ...(value.root ? { root: value.root } : {}) };
+/** Pin the module generation this controller loaded; later disk upgrades require a fresh controller process. */
+function loadedTooling() {
+  try {
+    return Object.fromEntries([...RUNTIME_NAMES, 'runner-worker.js', 'runners.js'].map(name =>
+      [name, readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8')]));
+  } catch { return null; }
 }
+
 
 /** Dirty or non-repository commands cannot claim to execute an exact committed source remotely. */
 export function runnerSource(root) {
@@ -110,11 +106,30 @@ export function runnerSource(root) {
 
 /** A missing authenticated completion receipt is a transport loss, never a passing test result. */
 export class RunnerDropped extends Error {
-  constructor(host) {
+  constructor(host, diagnostic = { reason: 'completion unavailable' }) {
     super(`runner ${host} disconnected before a complete result; the run returns to the queue`);
     this.name = 'RunnerDropped';
     this.host = host;
+    this.diagnostic = diagnostic;
   }
+}
+
+/** Bound diagnostic text, exclude protocol payloads, and suppress any possible credential instead of echoing it. */
+function transportText(value) {
+  const text = String(value ?? '').split(/\r?\n/u).filter(line => !line.startsWith('PULLBOARD_RUNNER_')).join('\n').slice(-8192);
+  return secretsIn(text.split('\n').map((line, index) => ({ path: 'runner transport', line: index + 1, text: line }))).length
+    ? '[possible credential redacted]' : text;
+}
+
+/** Preserve which transport/protocol check failed without retaining source capsules, credentials or command output. */
+function runnerFailure(request, result, reason) {
+  return new RunnerDropped(request.runner.host, { reason: request.admissionDeadlineExceeded ? 'admission-deadline' : reason, request: request.spec?.id ?? null,
+    source: request.spec?.commit ?? null, tree: request.spec?.tree ?? null,
+    tooling: request.spec?.tooling?.sha256 ?? null, phase: request.phase ?? 'connect',
+    command: ['ssh', ...(request.args ?? []).slice(0, -1), '[pinned Pullboard worker]'],
+    exitCode: result.status ?? null, signal: result.signal ?? null,
+    error: result.error ? { code: result.error.code ?? result.error.name, message: transportText(result.error.message) } : null,
+    stderr: transportText(result.stderr), outputBytes: result.rawBytes ?? Buffer.byteLength(result.stdout ?? '') });
 }
 
 /** Run a source-only Git read without inherited Git configuration, hooks or replacement objects. */
@@ -204,11 +219,18 @@ function protectedHistoryPath(path, protect) {
   return blockedPaths([path], protect).length || /(?:^|\/)board\.sqlite(?:-(?:wal|shm))?$/u.test(path);
 }
 
+/** Read admitted protection rules from its immutable commit, retaining non-board defaults. */
+function protectionAt(root, commit) {
+  const record = sourceGit(root, ['ls-tree', '-z', commit, '--', 'pullboard.json']);
+  const object = record.match(/^\d+ blob ([a-f0-9]{40,64})\t/u)?.[1];
+  return object ? configFromSource(sourceGit(root, ['cat-file', 'blob', object])).protect : defaults().protect;
+}
+
 /** Apply current protection rules to all selected historical names before any anonymous cache seed. */
-function protectHistory(root, source, protect) {
+function protectHistory(root, source, policies) {
   const paths = [...new Set(sourceGit(root, ['log', '--format=', '--name-only', '-z', '--no-renames', '--root', '-m', '--full-history', source.commit])
     .split('\0').filter(Boolean))];
-  if (paths.some(path => protectedHistoryPath(path, protect))) {
+  if (paths.some(path => policies.some(protect => protectedHistoryPath(path, protect)))) {
     throw new Refused('RUNNER_SECRET', 'selected history includes a blocked private path; keep this run local or remove that private history');
   }
 }
@@ -397,10 +419,20 @@ function sshEnvironment() {
   return { ...env, LC_ALL: 'C', LANG: 'C', TZ: 'UTC' };
 }
 
-/** Snapshot, scan and pin the actual tooling bytes independently of the project being tested. */
-function trustedTooling() {
+/** Refuse changed controller bytes before dispatch, without running cached dependency callbacks. */
+function loadedToolingFiles() {
   const files = Object.fromEntries([...RUNTIME_NAMES, 'runner-worker.js']
     .map(name => [name, readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8')]));
+  if (!LOADED_TOOLING || readFileSync(fileURLToPath(import.meta.url), 'utf8') !== LOADED_TOOLING['runners.js']
+    || Object.entries(files).some(([name, source]) => source !== LOADED_TOOLING[name])) {
+    throw new Refused('RUNNER_TOOLING_CHANGED', 'runner tooling changed since this controller loaded; restart the command from the current committed CLI before retrying');
+  }
+  return files;
+}
+
+/** Snapshot, scan and pin the actual tooling bytes independently of the project being tested. */
+function trustedTooling() {
+  const files = loadedToolingFiles();
   for (const [name, source] of Object.entries(files)) {
     if (Buffer.byteLength(source) > MAX_BLOB_BYTES
       || secretsIn(source.split(/\r?\n/u).map((text, index) => ({ path: `tooling/${name}`, line: index + 1, text }))).length) {
@@ -483,7 +515,7 @@ function anonymousOrigin(root) {
 }
 
 /** Prepare the pinned request before negotiating history; cleanup owns only its scratch directory. */
-function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath }) {
+async function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath }) {
   runner = validateRunner(runner);
   const current = runnerSource(root);
   if (!current || (source && (current.commit !== source.commit || current.tree !== source.tree))) {
@@ -491,6 +523,10 @@ function requestFor(root, command, { runner, source, browser = false, byLaunch, 
   }
   const trustedMode = privateCheck ? privateCheckEnvelope(privateCheck) : null;
   let selected = current;
+  if (!trustedMode && metadata.trunk !== undefined) {
+    if (!validRunnerTrunk(metadata.trunk, current.commit)) throw new Refused('NO_POLICY', 'the admitted runner policy is invalid; rerun through the controller with its pinned coordinator policy');
+    selected = { ...current, extraCommits: [metadata.trunk.commit] };
+  }
   if (trustedMode) {
     if (!checkedSource || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(checkedSource.commit ?? '')
       || sourceGit(root, ['rev-parse', `${checkedSource.commit}^{tree}`]).trim() !== checkedSource.tree
@@ -504,20 +540,28 @@ function requestFor(root, command, { runner, source, browser = false, byLaunch, 
   if (secretsIn([command, trustedMode?.install ?? ''].flatMap(value => value.split('\n')).map((text, index) => ({ path: 'run command', line: index + 1, text }))).length) {
     throw new Refused('RUNNER_SECRET', 'the run command contains a possible secret; use a command that does not transfer credentials');
   }
-  const protect = sourceObjects(root, selected);
-  for (const commit of [selected.commit, ...(selected.extraCommits ?? [])]) protectHistory(root, { commit }, protect);
+  const protection = [sourceObjects(root, selected)];
+  if (!trustedMode && metadata.trunk) protection.push(protectionAt(root, metadata.trunk.commit));
+  for (const commit of [selected.commit, ...(selected.extraCommits ?? [])]) protectHistory(root, { commit }, protection);
   const origin = anonymousOrigin(root);
   const originBase = origin ? originAncestor(root, selected) : undefined;
   const tags = candidateTags(root, selected);
   const repoId = createHash('sha256').update(realpathSync(repoInfo(root).commonDir)).digest('hex');
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-runner-send-'));
   try {
+    // A caller that opted out of reuse (a test's own fixture runner) sends no exchange, so its worker runs every file.
+    const reuse = process.env.PULLBOARD_TEST_REUSE !== '0';
+    // Loaded on demand: read commands that import this module never pay for the key analyzer.
+    const exchange = reuse ? await (await import('./test-action-transfer.js')).prepareTestResultExchange(root, command, selected.commit) : null;
     const { worker, tooling, runtime } = trustedTooling();
     const projection = metadata.landing === true && Array.isArray(waivers) ? waivers.filter(entry => ['file', 'name'].includes(entry?.kind) && typeof entry.test === 'string' && entry.test).map(({ kind, test }) => ({ kind, test })) : [];
     if (secretsIn([{ path: 'runner continuation', line: 1, text: JSON.stringify(projection) }]).length) throw new Refused('RUNNER_SECRET', 'the continuation projection contains a possible secret; keep this run local');
+    const stage = /^[a-z][a-z0-9-]{0,63}$/u.test(metadata.testStage ?? '') ? metadata.testStage : metadata.landing ? 'land' : 'focused';
     const spec = { version: 1, id: randomUUID(), repoId, ...(originBase ? { origin, originBase } : {}), runtime, tooling, tags, commit: selected.commit, tree: selected.tree, command, pipefail, slots: runner.slots,
+      ...(reuse ? { testResults: { inputKeys: exchange?.inputKeys ?? [], packet: exchange?.packet ?? null, stage, origin: runner.host } } : {}),
       ...(trustedMode ? { trustedMode } : {}),
-      browser: runner.browser, browserRequired: browser, guiRequired: metadata.gui === true, landing: metadata.landing === true,
+      ...(!trustedMode && metadata.trunk ? { trunk: { ...metadata.trunk } } : {}),
+      browser: runner.browser, browserRequired: browser, guiRequired: metadata.gui === true, landing: metadata.landing === true, auditCoverage: metadata.auditCoverage === true,
       ...(metadata.landing === true && metadata.timeoutMs ? { timeoutMs: metadata.timeoutMs } : {}),
       // The classification this controller used, so the runner never reclassifies by its own settings (#1043).
       browserByLaunch: byLaunch ?? carriedBrowserByLaunch() ?? readMachineSettingsFile()?.gate?.browserByLaunch === true,
@@ -525,11 +569,20 @@ function requestFor(root, command, { runner, source, browser = false, byLaunch, 
       itemCheck: metadata.itemCheck === true, diagnostic: metadata.diagnostic === true, timing: metadata.timing === true,
       item: String(metadata.item ?? ''), kind: String(metadata.kind ?? ''), ...(runner.root ? { root: runner.root } : {}),
       ...(typeof metadata.main === 'string' && /^[0-9a-f]{40,64}$/u.test(metadata.main) ? { main: metadata.main } : {}) };
-    const encodedSpec = Buffer.from(JSON.stringify(spec));
+    let encodedSpec = Buffer.from(JSON.stringify(spec));
+    // Optional cache bytes cannot make an otherwise valid runner request fail its existing bound.
+    if (encodedSpec.length > 1024 ** 2 && spec.testResults) {
+      spec.testResults.packet = null;
+      encodedSpec = Buffer.from(JSON.stringify(spec));
+    }
+    if (encodedSpec.length > 1024 ** 2 && spec.testResults) {
+      spec.testResults.inputKeys = [];
+      encodedSpec = Buffer.from(JSON.stringify(spec));
+    }
     if (encodedSpec.length > 1024 ** 2) throw new Refused('RUNNER_REQUEST_LIMIT', 'runner tooling request exceeds its safe transfer limit; keep this run local');
     const remote = remoteWorkerCommand(runner, worker, tooling, runtime);
     // These are transport hang ceilings, independent of the command's execution budget.
-    return { spec, runner, args: ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
+    return { spec, runner, exchange, args: ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
       '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=3',
       '--', runner.host, remote], root, source: selected, ...(trustedMode ? { rawOutputPath } : {}), directory, frame: Buffer.concat([Buffer.from(`${encodedSpec.length}\n`), encodedSpec]), env: sshEnvironment(),
     cleanup() { rmSync(directory, { recursive: true, force: true }); } };
@@ -558,31 +611,31 @@ function resultFrom(request, result) {
   try {
     if (receipts.length !== 1) throw new Error('missing receipt');
     receipt = JSON.parse(Buffer.from(receipts[0].slice(prefix.length), 'base64').toString('utf8'));
-  } catch { throw new RunnerDropped(request.runner.host); }
+  } catch { throw runnerFailure(request, result, receipts.length === 1 ? 'receipt-json' : 'receipt-count'); }
   if (result.error || result.status !== 0 || receipt.id !== request.spec.id || receipt.commit !== request.spec.commit
     || receipt.tree !== request.spec.tree || receipt.runtimeSha256 !== request.spec.runtime.sha256 || receipt.toolingSha256 !== request.spec.tooling.sha256 || !Number.isInteger(receipt.code) || receipt.code < 0 || receipt.code > 255
     || typeof receipt.root !== 'string' || !Number.isFinite(receipt.wallMs) || receipt.wallMs < 0
     || receipt.outputSha256 !== (request.spec.trustedMode ? result.rawSha256 : createHash('sha256').update(output).digest('hex'))) {
-    throw new RunnerDropped(request.runner.host);
+    throw runnerFailure(request, result, result.error ? 'local-transport-error' : result.status !== 0 ? 'ssh-exit' : 'receipt-binding');
   }
-  if (receipt.gui !== undefined && ![true, false, null].includes(receipt.gui)) throw new RunnerDropped(request.runner.host);
+  if (receipt.gui !== undefined && ![true, false, null].includes(receipt.gui)) throw runnerFailure(request, result, 'gui-metadata');
   // This field is bound to this exact request and output digest, never read from command text.
   recordRunnerGui(request.runner.host, receipt.gui ?? null);
   if (receipt.refused === 'RUNNER_GUI_SESSION_REQUIRED') {
-    if (!request.spec.guiRequired || receipt.gui === true || receipt.code === 0) throw new RunnerDropped(request.runner.host);
+    if (!request.spec.guiRequired || receipt.gui === true || receipt.code === 0) throw runnerFailure(request, result, 'gui-refusal-binding');
     const refused = new Refused('RUNNER_GUI_SESSION_REQUIRED', `runner ${request.runner.host} has no confirmed GUI session at job start; rerun this GUI-marked file locally or register a logged-in GUI runner`);
     refused.runnerAttempt = { host: request.runner.host, exitCode: receipt.code, output: output.toString('utf8'), gui: receipt.gui ?? null };
     throw refused;
   }
-  if (receipt.timedOut !== undefined && (receipt.timedOut !== true || !request.spec.timeoutMs || receipt.code === 0)) throw new RunnerDropped(request.runner.host);
+  if (receipt.timedOut !== undefined && (receipt.timedOut !== true || !request.spec.timeoutMs || receipt.code === 0)) throw runnerFailure(request, result, 'timeout-metadata');
   if (receipt.refused !== undefined) {
-    if (typeof receipt.refused !== 'string' || !/^[A-Z][A-Z0-9_]{0,63}$/u.test(receipt.refused) || receipt.code === 0) throw new RunnerDropped(request.runner.host);
+    if (typeof receipt.refused !== 'string' || !/^[A-Z][A-Z0-9_]{0,63}$/u.test(receipt.refused) || receipt.code === 0) throw runnerFailure(request, result, 'refusal-metadata');
     // The runner answered, so this is a named failure, not a dropped transport to requeue.
     throw new Refused('RUNNER_SETUP_REFUSED', `runner ${request.runner.host} refused this run before it started: [${receipt.refused}] from its own resource pool; run pullboard resources and pullboard settings on ${request.runner.host} to fix that pool, then run again`);
   }
   // The runner classified any file denial against its own checkout; only its evidence is trusted here.
   const sandboxBlocked = receipt.denial === undefined ? null : remoteFileDenial(receipt.denial, request.runner.host);
-  if (receipt.denial !== undefined && (!sandboxBlocked || receipt.code === 0)) throw new RunnerDropped(request.runner.host);
+  if (receipt.denial !== undefined && (!sandboxBlocked || receipt.code === 0)) throw runnerFailure(request, result, 'denial-metadata');
   let staged = null;
   if (request.spec.stageMarker && !receipt.signal) {
     const split = gateStages(request.spec.command);
@@ -601,20 +654,25 @@ function resultFrom(request, result) {
       if (result.rawOutputPath !== request.rawOutputPath || statSync(result.rawOutputPath).size !== result.rawBytes) throw new Error('missing complete private-check capture');
       privateResult = privateCheckPhases(request.spec.trustedMode, receipt.trustedMode, result.rawBytes);
       if ((privateResult.state === 'pass') !== (receipt.code === 0 && !receipt.signal)) throw new Error('inconsistent private-check completion');
-    } catch { throw new RunnerDropped(request.runner.host); }
-  } else if (receipt.trustedMode !== undefined) throw new RunnerDropped(request.runner.host);
+    } catch { throw runnerFailure(request, result, 'private-phase-binding'); }
+  } else if (receipt.trustedMode !== undefined) throw runnerFailure(request, result, 'unexpected-private-phases');
   const text = staged?.output ?? output.toString('utf8');
-  if (receipt.environment !== undefined && environmentProblem(receipt.environment)) throw new RunnerDropped(request.runner.host);
-  if (receipt.executionPhases !== undefined && !runnerPhaseFields(receipt.executionPhases)) throw new RunnerDropped(request.runner.host);
-  if (receipt.testRuntimes != null && !testRuntimeRows(receipt.testRuntimes)) throw new RunnerDropped(request.runner.host);
-  if (receipt.browserRefused !== undefined && (receipt.browserRefused !== true || receipt.code === 0 || request.spec.browserRequired)) throw new RunnerDropped(request.runner.host);
+  if (receipt.environment !== undefined && environmentProblem(receipt.environment)) throw runnerFailure(request, result, 'environment-metadata');
+  if (receipt.executionPhases !== undefined && !runnerPhaseFields(receipt.executionPhases)) throw runnerFailure(request, result, 'phase-metadata');
+  if (receipt.testRuntimes != null && !testRuntimeRows(receipt.testRuntimes)) throw runnerFailure(request, result, 'test-runtime-metadata');
+  if (receipt.browserRefused !== undefined && (receipt.browserRefused !== true || receipt.code === 0 || request.spec.browserRequired)) throw runnerFailure(request, result, 'browser-metadata');
   const admission = remoteAdmission(receipt.executionAdmission);
-  if (request.spec.timing === true && (receipt.timing !== true || !admission)) throw new RunnerDropped(request.runner.host);
+  if (request.spec.timing === true && (receipt.timing !== true || !admission)) throw runnerFailure(request, result, 'timing-admission');
   // Only the lease guard's own receipt counts; text a test prints is never a refusal (#1043).
   if (receipt.browserRefused === true) {
     const refused = new Refused('RUNNER_BROWSER_SLOT_REQUIRED', `runner ${request.runner.host} refused this run's lease for want of a browser slot (BROWSER_SLOT_REQUIRED)`);
     refused.runnerAttempt = { host: request.runner.host, exitCode: receipt.code, output: text };
     throw refused;
+  }
+  // A cache packet is considered only after the nonce, exact source, complete output and private
+  // source guard have authenticated this completion. A dropped run imports no passing receipt.
+  if (request.exchange && !receipt.signal && (!privateResult || privateResult.state === 'pass')) {
+    importTestResults(request.exchange.store, receipt.testResults, request.spec.testResults.inputKeys);
   }
   return { isGreen: receipt.code === 0 && !receipt.signal, output: text, sandboxBlocked, ...(receipt.timedOut ? { timedOut: true } : {}),
     environment: receipt.environment ?? null, testRuntimes: receipt.testRuntimes ?? null, executionCapabilities: { gui: receipt.gui ?? null },
@@ -654,46 +712,100 @@ function remoteLoad(load) {
     ? { average, cpus: load.cpus, freeMB: load.freeMB } : null;
 }
 
-/** Keep synchronous gate callers on the same negotiated transport as asynchronous comparisons. */
-export function runOnRunner(root, command, options) {
-  const script = `import { runOnRunnerAsync } from ${JSON.stringify(import.meta.url)};
-let input=''; for await (const chunk of process.stdin) input+=chunk;
-const request=JSON.parse(input);
-const canceled=new AbortController();
-const abort=()=>canceled.abort();
-process.on('SIGTERM',abort); process.on('SIGHUP',abort); process.stdout.on('error',abort);
-// Budget: check actual parent identity every second while the negotiated SSH transport is active.
-const parentWatch=setInterval(()=>{if(process.ppid!==request.parentPid)abort();},1000);
-if(process.ppid!==request.parentPid)abort();
-try { process.stdout.write(JSON.stringify({result:await runOnRunnerAsync(request.root,request.command,{...request.options,signal:canceled.signal})})); }
-catch(error) { process.stdout.write(JSON.stringify({error:{name:error.name,code:error.code,message:error.message,host:error.host,runnerAttempt:error.runnerAttempt}})); process.exitCode=1; }
-finally {clearInterval(parentWatch);}`;
-  const child = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
-    cwd: root, input: JSON.stringify({ root, command, options, parentPid: process.pid }), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
+/** Reconstruct the native transport outcome across a fresh controller process. */
+function bridgeResult(request, result, phase) {
   let reply;
-  try { reply = JSON.parse(child.stdout); } catch { throw new RunnerDropped(options.runner.host); }
+  try { reply = JSON.parse(result.stdout); }
+  catch { throw runnerFailure({ runner: request.options.runner, args: [], phase }, result, 'bridge-json'); }
   if (reply.error?.name === 'Refused') {
     const prefix = `[${reply.error.code}] `;
     const refused = new Refused(reply.error.code, reply.error.message.startsWith(prefix) ? reply.error.message.slice(prefix.length) : reply.error.message);
     if (reply.error.runnerAttempt) refused.runnerAttempt = reply.error.runnerAttempt;
     throw refused;
   }
-  if (reply.error || child.error || child.status !== 0) throw new RunnerDropped(options.runner.host);
+  if (reply.error?.name === 'RunnerDropped') throw new RunnerDropped(request.options.runner.host, reply.error.diagnostic);
+  if (reply.error || result.error || result.status !== 0) throw runnerFailure({ runner: request.options.runner, args: [], phase }, result, 'bridge-exit');
   return reply.result;
 }
 
-/** Negotiate missing history objects while the remote cache lease stays held in one SSH session. */
+/** Keep synchronous callers on the same fresh controller entry without a second bridge. */
+export function runOnRunner(root, command, options) {
+  const request = { root, command, options, parentPid: process.pid };
+  const child = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--pullboard-runner-controller'], {
+    cwd: root, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  return bridgeResult(request, child, 'sync-bridge');
+}
+
+/** Isolate asynchronous execution from dependencies cached before an installation upgrade. */
 export async function runOnRunnerAsync(root, command, options) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
-  const request = requestFor(root, command, options);
+  // Preserve the stale-controller refusal; full provenance and transfer scans run once in the fresh process.
+  loadedToolingFiles();
+  const { signal, ...plainOptions } = options;
+  const request = { root, command, options: plainOptions, parentPid: process.pid };
+  const input = JSON.stringify(request);
+  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), '--pullboard-runner-controller'], {
+    cwd: root, stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  const output = [], diagnostics = [];
+  let bytes = 0, error;
+  // Budget: retain the synchronous bridge's worst-case JSON escaping limit, never an unbounded child response.
+  const limit = MAX_OUTPUT_BYTES * 6 + 1024 ** 2;
+  const abort = () => child.kill('SIGTERM');
+  signal?.addEventListener('abort', abort, { once: true });
+  if (signal?.aborted) abort();
+  child.stdout.on('data', chunk => {
+    bytes += chunk.length;
+    if (bytes > limit) { error ??= new Error('runner bridge output exceeded its JSON limit'); abort(); }
+    else output.push(chunk);
+  });
+  child.stderr.on('data', chunk => {
+    diagnostics.push(chunk);
+    if (diagnostics.reduce((sum, value) => sum + value.length, 0) > 8192) {
+      const tail = Buffer.concat(diagnostics).subarray(-8192); diagnostics.splice(0, diagnostics.length, tail);
+    }
+  });
+  child.on('error', caught => { error ??= caught; });
+  child.stdin.on('error', caught => { error ??= caught; });
+  child.stdin.end(input);
+  try {
+    const { status, signal: stopped } = await new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));
+    return bridgeResult(request, { status, signal: stopped, error, stdout: Buffer.concat(output).toString('utf8'), stderr: Buffer.concat(diagnostics).toString('utf8') }, 'async-bridge');
+  } finally { signal?.removeEventListener('abort', abort); }
+}
+
+/** Serve only a directly launched controller, whose dependency cache starts in this process. */
+async function serveRunnerController() {
+  let input = '';
+  for await (const chunk of process.stdin) input += chunk;
+  const request = JSON.parse(input);
+  const canceled = new AbortController();
+  const abort = () => canceled.abort();
+  for (const signal of ['SIGTERM', 'SIGHUP', 'SIGINT']) process.on(signal, abort);
+  process.stdout.on('error', abort);
+  // Budget: notice loss of the exact originating controller once per second while SSH is active.
+  const parentWatch = setInterval(() => { if (process.ppid !== request.parentPid) abort(); }, 1000);
+  if (process.ppid !== request.parentPid) abort();
+  try { process.stdout.write(JSON.stringify({ result: await runInController(request.root, request.command, { ...request.options, signal: canceled.signal }) })); }
+  catch (error) {
+    process.stdout.write(JSON.stringify({ error: { name: error.name, code: error.code, message: error.message, host: error.host, runnerAttempt: error.runnerAttempt, diagnostic: error.diagnostic } }));
+    process.exitCode = 1;
+  } finally { clearInterval(parentWatch); }
+}
+
+/** Negotiate missing history objects while the remote cache lease stays held in one SSH session. */
+async function runInController(root, command, options) {
+  if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
+  const request = await requestFor(root, command, options);
   let removeAbort = () => {};
   let runnerWaitTimer;
   let runnerWaitKill;
   let rawFd = null;
   try {
     if (request.rawOutputPath) rawFd = openSync(request.rawOutputPath, 'wx', 0o600);
+    request.phase = 'connect';
     const child = spawn('ssh', request.args, { env: request.env, stdio: ['pipe', 'pipe', 'pipe'] });
     const output = [], diagnostics = [];
     let bytes = 0, error, control = '', requested = false, transfer = null, cleanupReason = '';
@@ -704,6 +816,7 @@ export async function runOnRunnerAsync(root, command, options) {
     // Bound connection, worker admission and checkout, until READY immediately before execution.
     // An executing test keeps its existing test timeout and may outlive the runner wait.
     if (Number.isSafeInteger(options.runnerWaitDeadline)) runnerWaitTimer = setTimeout(() => {
+      request.admissionDeadlineExceeded = true;
       abort();
       // Budget: a non-responsive SSH child cannot retain a local reservation forever.
       runnerWaitKill = setTimeout(() => child.kill('SIGKILL'), 1_000);
@@ -741,7 +854,7 @@ export async function runOnRunnerAsync(root, command, options) {
       let newline;
       while ((newline = control.indexOf('\n')) >= 0) {
         const line = control.slice(0, newline); control = control.slice(newline + 1);
-        if (line === `PULLBOARD_RUNNER_READY ${request.spec.id}`) clearTimeout(runnerWaitTimer);
+        if (line === `PULLBOARD_RUNNER_READY ${request.spec.id}`) { request.phase = 'ready'; clearTimeout(runnerWaitTimer); }
         const cleanupPrefix = `PULLBOARD_RUNNER_CLEANUP_UNVERIFIED ${request.spec.id} `;
         if (line.startsWith(cleanupPrefix)) cleanupReason = line.slice(cleanupPrefix.length, cleanupPrefix.length + 240);
         if (line === `PULLBOARD_RUNNER_CLEANUP_TIMEOUT ${request.spec.id}`) {
@@ -751,7 +864,7 @@ export async function runOnRunnerAsync(root, command, options) {
         const prefix = `PULLBOARD_RUNNER_NEED ${request.spec.id} `;
         if (!line.startsWith(prefix)) continue;
         if (requested) { error = new Error('duplicate runner inventory'); child.kill(); return; }
-        requested = true;
+        requested = true; request.phase = 'inventory';
         transfer = (async () => {
           const inventory = JSON.parse(Buffer.from(line.slice(prefix.length), 'base64').toString('utf8'));
           if (!Array.isArray(inventory.tips) || inventory.tips.length > 1024
@@ -762,20 +875,31 @@ export async function runOnRunnerAsync(root, command, options) {
             || inventory.tagObjects.some(object => typeof object !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(object))) {
             throw new Error('invalid runner tag inventory');
           }
+          request.phase = 'pack';
           const pack = historyPack(root, request.source, inventory.tips, request.directory, request.spec.tags, inventory.tagObjects);
           await pipeline(createReadStream(pack), child.stdin);
+          if (request.phase !== 'ready') request.phase = 'source-sent';
         })().catch(failure => { error = failure; child.stdin.destroy(); child.kill(); });
       }
     });
     child.stdin.on('error', failure => { if (failure.code !== 'EPIPE') error ??= failure; });
     child.once('error', failure => { error = failure; });
     child.stdin.write(request.frame);
-    const status = await new Promise(resolve => child.once('close', resolve));
+    const {status,signal} = await new Promise(resolve => child.once('close', (status,signal) => resolve({status,signal})));
     if (transfer) await transfer;
     if (error instanceof Refused) throw error;
     if (rawFd !== null) { closeSync(rawFd); rawFd = null; }
     const bounded = request.rawOutputPath ? Buffer.concat([head, ...(rawBytes > half * 2 ? [Buffer.from('\n[output capped at 8 MiB; middle omitted]\n')] : []), tail]) : Buffer.concat(output);
-    return resultFrom(request, { status, error, stdout: bounded, stderr: Buffer.concat(diagnostics),
+    return resultFrom(request, { status, signal, error, stdout: bounded, stderr: Buffer.concat(diagnostics),
       ...(request.rawOutputPath ? { rawOutputPath: request.rawOutputPath, rawBytes, rawSha256: rawHash.digest('hex') } : {}) });
   } finally { clearTimeout(runnerWaitTimer); clearTimeout(runnerWaitKill); if (rawFd !== null) closeSync(rawFd); removeAbort(); request.cleanup(); }
 }
+
+/** A direct file entry is private bridge transport, never an option that callers can use to bypass isolation. */
+function isRunnerControllerEntry() {
+  if (process.argv[2] !== '--pullboard-runner-controller' || !process.argv[1]) return false;
+  try { return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url); }
+  catch { return false; }
+}
+
+if (isRunnerControllerEntry()) serveRunnerController().catch(error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });

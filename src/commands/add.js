@@ -75,6 +75,7 @@ export async function run(io, args) {
     parentId,
     after,
     brief: briefInLane(ctx, first, briefArg(io, values) ?? ''),
+    reviewFamily: values['review-family'],
     route: values.route ?? 'strong',
     check: values.check,
   };
