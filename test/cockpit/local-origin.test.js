@@ -1325,8 +1325,9 @@ test('a browser paired here before says it was signed out above this computer\'s
       const address = new URL(asked.url);
       (async () => {
         if (address.origin === LOCAL) {
-          const reply = await call({ base: view.base }, address.pathname + address.search, { method: asked.method, headers: Object.fromEntries(Object.entries(asked.headers).filter(([name]) => name.toLowerCase() !== 'host')) });
-          return chrome.send('Fetch.fulfillRequest', { requestId, responseCode: reply.status, responseHeaders: Object.entries(reply.headers).filter(([name]) => !['content-length', 'transfer-encoding', 'connection', 'keep-alive', 'date'].includes(name)).map(([name, value]) => ({ name, value: String(value) })), body: Buffer.from(reply.body).toString('base64') });
+          // Let the browser carry method, body and authentication to the real local server. Buffering
+          // through call() waits for response end and leaves a live event stream paused indefinitely.
+          return chrome.send('Fetch.continueRequest', { requestId, url: view.base + address.pathname + address.search });
         }
         let head = {}, body = '';
         const handled = await relay({ method: 'GET', url: address.pathname, headers: {} }, { writeHead: (status, headers) => { head = headers; }, end: (content) => { body = content ?? ''; } });
