@@ -29,7 +29,7 @@ export async function seedSourceAdvance({ board, box, store, exercise, agent, cl
     '});', '',
   ].join('\n'));
   writeFileSync(configFile, JSON.stringify({ ...config, gate: check, affectedTests: 'node --test --test-reporter=tap',
-    staticChecks: [], submitInvariants: [], registryGuards: [] }, null, 2) + '\n');
+    staticChecks: '', submitInvariants: [], registryGuards: [] }, null, 2) + '\n');
   git(root, ['add', '--', 'pullboard.json', 'test/source-advance-parity.test.mjs']);
   const baseTree = git(root, ['write-tree']);
   const previous = git(root, ['rev-parse', 'HEAD']);
