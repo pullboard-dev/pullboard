@@ -341,3 +341,36 @@ test('a failed late dispatch cannot buy another startup budget on a different fr
     } finally { first?.release(); second?.release(); late?.release(); }
   });
 });
+
+test('a late first dispatch cannot jump an older compatible runner waiter [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const options = { name: 'gate', root: box.repo, capacity: 0, remote: true, runnerOnly: true,
+      runnerProvider: () => settings.runners };
+    let held = await takeResource(options), admitted;
+    let signalQueued, releaseQueue;
+    const queued = new Promise(done => { signalQueued = done; });
+    const barrier = new Promise(done => { releaseQueue = done; });
+    const older = takeResource({ ...options, runnerWaitMs: 5_000, agent: 'older-runner-waiter', onWait: async state => {
+      if (!state.admitted) { signalQueued(); await barrier; }
+    } });
+    try {
+      await queued;
+      let waited = false;
+      await assert.rejects(takeResource({ ...options, runnerWaitMs: 60, agent: 'later-runner-waiter', onWait: async state => {
+        if (state.admitted || waited) return;
+        waited = true;
+        await new Promise(done => setTimeout(done, 80)); // budget: expire only the later private request.
+        held.release(); held = null;
+      } }), { code: 'RUNNER_WAIT_DEADLINE' }, 'a free runner belongs to the earlier compatible ticket');
+      releaseQueue();
+      admitted = await older;
+      assert.equal(admitted.runner.host, settings.runners[0].host);
+      assert.equal(admitted.lateRunnerDispatch, undefined, 'the older request retains its own unexpired clock');
+    } finally {
+      held?.release(); releaseQueue();
+      admitted ??= await older;
+      admitted?.release();
+    }
+  });
+});
