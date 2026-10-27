@@ -1,3 +1,4 @@
+import { setItem } from './item-fields.js';
 import { releaseClaim } from './release-claim.js';
 import { REFERENCE_ENGINE } from './reference-engine.js';
 import { validateReferences } from './reference-authors.js';
@@ -19,6 +20,11 @@ import { correctedBar } from './corrected-bar.js';
 import { UNCHANGED_REFREEZE_ENGINE } from './unchanged-refreeze-engine.js';
 import { applyLaneLead } from './lane-lead-policy.js';
 import { applyHealthFindings } from './board-health.js';
+import {
+  applyItemHold,
+  applyItemHoldRelease,
+} from './item-holds.js';
+import { applyStaleState } from './stale-state-store.js';
 import {
   isLaneEscalation,
   laneLeads,
@@ -510,21 +516,6 @@ export function recordRelayRefusal(board, { by, sequence, kind, operation, actor
 }
 
 export { itemById } from './board-query.js';
-
-/**
- * Write some of an item's fields, and its updated time. Field names come from this module only.
- *
- * @param {any} board
- * @param {number} id
- * @param {Record<string, string | number | null>} fields
- */
-function setItem(board, id, fields) {
-  const keys = Object.keys(fields);
-  const sets = keys.map((key) => `${key} = ?`).join(', ');
-  board.db
-    .prepare(`UPDATE item SET ${sets}, item_updated_at = ? WHERE item_id = ?`)
-    .run(...keys.map((key) => fields[key]), now(board), id);
-}
 
 /** Link a fresh neutral CI repair to its merged original without changing either status [B2,R3]. */
 export function linkPublishRepair(board, { agentId, item, repair }) {
@@ -1138,7 +1129,7 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, 
  */
 export function release(board, id, agentId, note = '', goneSeat) {
   return releaseClaim(board, id, agentId, note, goneSeat, { atomic, itemById, reviewHolder,
-    reviewReleaseNoteProblem, setItem, moveItem, logEvent });
+    reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout });
 }
 
 export { prepareMergeOnlySubmit };
@@ -1437,8 +1428,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     if (environment !== undefined) detail.environment = environment;
     if (sandbox !== undefined) detail.sandbox = sandbox;
     if (newReview) detail.review = { commit: review.commit, ...(Object.hasOwn(review, 'head') ? { head: review.head } : {}), trunk: review.trunk, paths: [...review.paths] };
-    logEvent(board, agentId, verb, id, implies?.length ? { ...detail, implies } : detail, returnedAt);
-    const trigger = board.lastEvent;
+    const trigger = logEvent(board, agentId, verb, id, implies?.length ? { ...detail, implies } : detail, returnedAt);
     tellFirstRefusal(board, item, reservation, persistShout);
     if (!isAccept) recordRejectedItemRoute(board, id, engine, item, { escalate, shout, logEvent });
     tellVerdictImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), id, { seed: impliesId, implies });
@@ -1523,9 +1513,8 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
     const derivedCause = currentEngine >= RIGOR_AUTO_ENGINE
       ? deriveRigorCause(board, item, { cause, conflict, landingFailure, agentId }) : cause != null ? { cause } : {};
     const returnedWithCause = currentEngine >= RIGOR_AUTO_ENGINE ? { ...returned, ...derivedCause } : { ...derivedCause, ...returned };
-    logEvent(board, agentId, 'reopen', id, { commit: submittedCommit, note: note.trim() || conflictNote(conflict), judgment: null, ...reservation,
+    const trigger = logEvent(board, agentId, 'reopen', id, { commit: submittedCommit, note: note.trim() || conflictNote(conflict), judgment: null, ...reservation,
       ...returnedWithCause }, returnedAt);
-    const trigger = board.lastEvent;
     tellFirstRefusal(board, item, reservation, persistShout);
     if (!reservation.reopenFirstRefusal && forMerge && supersedes === undefined && item.item_built_by) persistShout(board, { from: agentId, to: item.item_built_by, text: returnedHeadNotice(id, submittedCommit, conflict) });
     postRigorNotices(board, trigger);
@@ -2121,35 +2110,20 @@ export { laneHold, laneHolds } from './board-query.js';
 
 export { itemHold } from './board-query.js';
 
-/** Hold an open or already-claimed item without changing its current lifecycle state. */
-export function holdItem(board, id, { agentId, reason }) {
-  coordinatorOnly(agentId, 'holds an item');
-  const text = String(reason ?? '').trim();
-  if (!text) throw new Refused('USAGE', `a hold needs a reason: pullboard hold ${id} "why"`);
-  return atomic(board, () => {
-    const item = getItem(board, id);
-    if (!['open', 'claimed'].includes(item.item_status)) {
-      throw new Refused('ITEM_NOT_OPEN', `item #${id} is ${item.item_status}; only open or claimed items can be held`);
-    }
-    const at = now(board);
-    setItem(board, id, { item_hold_reason: text, item_hold_by: agentId, item_hold_at: at });
-    logEvent(board, agentId, 'hold_item', id, { reason: text });
-    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= RIGOR_AUTO_ENGINE) postRigorNotices(board, board.lastEvent);
-    return itemHold(board, id);
-  });
+/** Hold an item through the unchanged coordinator transaction. */
+export function holdItem(board, id, options) {
+  return applyItemHold(board, id, options, { coordinatorOnly, atomic, getItem, setItem, now, logEvent, postRigorNotices, itemHold });
 }
 
-/** Lift an item's coordinator hold without changing any other item state. */
-export function releaseItemHold(board, id, { agentId }) {
-  coordinatorOnly(agentId, 'lifts an item hold');
-  return atomic(board, () => {
-    const held = itemHold(board, id);
-    if (!held) throw new Refused('NOT_HELD', `item #${id} is not held`);
-    setItem(board, id, { item_hold_reason: null, item_hold_by: null, item_hold_at: null });
-    logEvent(board, agentId, 'unhold_item', id, { reason: held.item_hold_reason });
-  });
+/** Lift an item hold through its existing native operation. */
+export function releaseItemHold(board, id, options) {
+  return applyItemHoldRelease(board, id, options, { coordinatorOnly, atomic, itemHold, setItem, logEvent });
 }
 
+/** Apply one captured stale-state plan under authenticated coordinator authority. */
+export function maintainStaleState(board, options) {
+  return applyStaleState(board, options, { atomic, getItem, setItem, releaseItemHold, logEvent, insertShout });
+}
 
 // A lane agent's drafted rows live in row-drafts.js (#878); exported here so the engine dispatches them.
 export { draftSpecRow, rowDrafts } from './row-drafts.js';
