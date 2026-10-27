@@ -186,6 +186,8 @@ Work
   Inbox combines direct coordination with item/dependency, file and cited-row activity; other lane activity is summarized.
   pullboard shout [<to>] <text> --decision       ask for a decision; defaults to your coordinator or the person
   pullboard shout coordinator <question> --item <id> --decision --options <json>
+  pullboard shout coordinator <question> --decision --effects <json>
+    Concrete effects compute whose call it is from current rows; declarations grant no execution authority.
                                         ask an item decision with choices, as --options '["first","second"]'
   pullboard shout <to> <text> --evidence attempt|receipt --outcome <word> --item <id> --commit <rev>
   pullboard answer <shout-id|repo#id> <text> [--as person]

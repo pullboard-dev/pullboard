@@ -1,3 +1,4 @@
+import { projectRulingOwners } from '../ruling-owner-context.js';
 /** The pullboard decisions command, in its own module so an item adding another command never edits these lines. */
 import { basename } from 'node:path';
 import * as store from '../board.js';
@@ -33,19 +34,21 @@ export function run(io, { values }) {
     if (asPerson && siblings.length) {
       return { project: projectPersonDecisions(ctx.info.root, labels.get(self.root), board, siblings), asPerson };
     }
-    return { asks: store.openDecisions(board, asPerson ? 'person' : [me.id, me.lane]), agents: store.listAgents(board), asPerson };
+    return { asks: projectRulingOwners(store.openDecisions(board, asPerson ? 'person' : [me.id, me.lane]), { root: ctx.info.root, config: ctx.config }), agents: store.listAgents(board), asPerson };
   });
   if (project) {
+    project.decisions = project.decisions.map(entry => ({ ...entry, ask: projectRulingOwners([entry.ask],
+      { root: entry.root, config: entry.config ?? (entry.root === ctx.info.root ? ctx.config : undefined) })[0] }));
     io.result?.({ project: ctx.config.project, decisions: project.decisions.map((entry) => entry.ask), ...(project.unreadable.length ? { unreadable: project.unreadable } : {}) });
     if (!project.decisions.length) io.say('no open decisions');
     for (const { ask, repo, agents: repoAgents, config } of project.decisions) {
-      io.say(`${repo}#${ask.shout_id}  ${agentDisplayName(repoAgents, config ?? ctx.config, ask.shout_from)} -> ${agentDisplayName(repoAgents, config ?? ctx.config, ask.shout_to)}, ${span(ctx, ask.shout_at)} ago: ${firstLine(ask.shout_text)}`);
+      io.say(`${repo}#${ask.shout_id}  ${agentDisplayName(repoAgents, config ?? ctx.config, ask.shout_from)} -> ${agentDisplayName(repoAgents, config ?? ctx.config, ask.shout_to)}, ${span(ctx, ask.shout_at)} ago: ${firstLine(ask.shout_text)}${ask.ruling ? `; computed call: ${ask.ruling.owner ?? 'unresolved'}` : ''}`);
     }
     for (const name of project.unreadable) io.err(`could not read ${name}'s board; its decisions are not listed`);
     return 0;
   }
   io.result?.({ decisions: asks });
   if (!asks.length) io.say('no open decisions');
-  for (const ask of asks) io.say(`#${ask.shout_id}  ${agentDisplayName(agents, ctx.config, ask.shout_from)} -> ${agentDisplayName(agents, ctx.config, ask.shout_to)}, ${span(ctx, ask.shout_at)} ago: ${firstLine(ask.shout_text)}${ask.options ? '\n' + ask.options.map((option, index) => `  ${index + 1}. ${option}`).join('\n') : ''}`);
+  for (const ask of asks) io.say(`#${ask.shout_id}  ${agentDisplayName(agents, ctx.config, ask.shout_from)} -> ${agentDisplayName(agents, ctx.config, ask.shout_to)}, ${span(ctx, ask.shout_at)} ago: ${firstLine(ask.shout_text)}${ask.ruling ? `; computed call: ${ask.ruling.owner ?? 'unresolved'}` : ''}${ask.options ? '\n' + ask.options.map((option, index) => `  ${index + 1}. ${option}`).join('\n') : ''}`);
   return 0;
 }
