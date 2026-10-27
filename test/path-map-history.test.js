@@ -248,3 +248,18 @@ test('literal operand roles preserve data flags quoting boundaries and unknown c
     `grep --unknown-option ${OLD} ${OLD}`, `node --test ${OLD} > ${OLD}`,
     `node --test ${OLD} # ${OLD}`]) assert.equal(mappedCheck(box.repo, command), command);
 });
+
+
+test('ordinary script arguments eval expressions and shell comments never become mapped files [C7]', () => {
+  const box = movedFixture();
+  for (const command of [`node script.mjs --test ${OLD}`, `node script.mjs --test-name-pattern ${OLD}`,
+    `node --eval=${OLD} ${OLD}`, `node --print=${OLD} ${OLD}`,
+    `# comment && node ${OLD}`, `node --test ${OLD} # comment && node ${OLD}`]) {
+    assert.equal(mappedCheck(box.repo, command), command);
+  }
+  assert.equal(mappedCheck(box.repo, `# comment && node ${OLD}\nnode ${OLD}`),
+    `# comment && node ${OLD}\nnode '${NEW}'`, 'a real newline ends the shell comment');
+  assert.equal(mappedCheck(box.repo, `grep -e '#' ${OLD}`), `grep -e '#' '${NEW}'`, 'a quoted hash is pattern data');
+  assert.equal(mappedCheck(box.repo, `node --test \\# && node ${OLD}`),
+    `node --test \\# && node '${NEW}'`, 'an escaped hash does not start a shell comment');
+});

@@ -20,6 +20,7 @@ function nodeFiles(words) {
       continue;
     }
     if (!positional && value.startsWith('-')) {
+      if (/^(?:--eval|--print|-e|-p)=/u.test(value)) return files;
       if (value === '--test') testMode = true;
       else if (!NODE_FLAGS.has(value) && !NODE_DATA.has(value.split('=')[0])) return [];
       continue;
@@ -29,6 +30,7 @@ function nodeFiles(words) {
     if (!script) {
       script = true;
       testMode ||= value === 'bin/run-tests.js' || value === './bin/run-tests.js';
+      if (!testMode) break; // Every later word belongs to the ordinary script, not Node's options.
     }
   }
   return files;
@@ -66,12 +68,12 @@ function grepFiles(words) {
 export function pathMapFileWords(command) {
   const selected = [];
   let segment = [];
+  let comment = false;
   /** Classify one literal simple command without expanding or evaluating any shell input. */
   const finish = () => {
     const words = segment.map(token => literalShellWords(token.raw));
     if (words.every(value => value?.length === 1)) {
       const values = words.map(value => value[0]);
-      if (values.some(value => value.startsWith('#'))) { segment = []; return; }
       const name = values[0]?.split('/').at(-1);
       const files = ['node', 'nodejs'].includes(name) ? nodeFiles(values) : name === 'grep' ? grepFiles(values) : [];
       for (const index of files) selected.push(segment[index]);
@@ -79,6 +81,11 @@ export function pathMapFileWords(command) {
     segment = [];
   };
   for (const token of command.matchAll(/&&|\|\||[;&|<>()[\]\n]|(?:'[^']*'|"(?:[^"\\]|\\.)*"|\\[\s\S]|[^\s;&|<>()'"\[\]])+/gu)) {
+    if (comment) {
+      if (token[0] === '\n') { comment = false; finish(); }
+      continue;
+    }
+    if (token[0].startsWith('#')) { segment = []; comment = true; continue; }
     if (/^(?:&&|\|\||[;&|\n])$/u.test(token[0])) finish();
     else segment.push({ raw: token[0], start: token.index, end: token.index + token[0].length });
   }
