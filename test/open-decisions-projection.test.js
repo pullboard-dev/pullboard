@@ -28,7 +28,7 @@ test('recipient decision seeks retain live roles, options and legacy shapes with
   const plain = store.shout(board, { from: 'api-1', to: 'web-1', text: 'Legacy direct', decision: true, lanes });
   store.shout(board, { from: 'api-1', to: 'web', text: 'Lane decision', decision: true, lanes });
   store.shout(board, { from: 'api-1', to: 'coordinator', text: 'Coordinator decision', decision: true, lanes });
-  store.shout(board, { from: 'api-1', to: COORDINATION_SHOUT, text: 'Shared coordinator question', decision: true, lanes });
+  store.shout(board, { from: 'api-1', to: 'all', text: 'Shared coordinator question', decision: true, lanes });
   store.shout(board, { from: 'web-1', to: 'coordinator', item, text: 'Structured item choice', decision: true, options: ['ship', 'wait'], lanes });
   for (let i = 0; i < 12; i += 1) store.shout(board, { from: 'web-1', to: 'api', text: `Unrelated ${i}`, decision: true, lanes });
   const audiences = [null, [], 'coordinator', 'person', 'web-1', 'web-2', 'web', ['web-1', 'web', 'web-1'], [`item:${item}`, 'web-1']];
