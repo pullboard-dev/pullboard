@@ -1,3 +1,5 @@
+import './main-audit-cases.js';
+import './main-audit-receipt.test.js';
 /** The landing gate splits its test files into shards across local slots and runners [C7,V4]. */
 import { awaitNestedRun } from '../src/test-file-pool.js';
 import assert from 'node:assert/strict';
@@ -223,6 +225,12 @@ const mode = existsSync(${JSON.stringify(mode)}) ? readFileSync(${JSON.stringify
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 test('fixture file ' + name, async () => {
   writeFileSync(${JSON.stringify(markers)} + '/' + name + '.' + host + '.started', '');
+  if (mode === 'collect-all' && (name === 'a' || name === 'b')) throw new Error('collect-all deliberate failure ' + name);
+  if (mode === 'collect-all') {
+    if (process.env.PULLBOARD_LANDING_COLLECT_ALL !== undefined || process.env.PULLBOARD_LANDING_COLLECTION_ID !== undefined) throw new Error('collect-all marker leaked into test child');
+    writeFileSync(${JSON.stringify(markers)} + '/' + name + '.' + host + '.finished', '');
+    return;
+  }
   if (mode === 'fail' && name === 'a') throw new Error('fixture failure in file a');
   if (mode === 'late-fail' && name === 'a') { await sleep(6_000); throw new Error('late fixture failure in file a'); }
   // Long enough that only a stop can end the other files before the scenario's deadline.
@@ -297,8 +305,8 @@ function startLandingGate(box, label, deadlineMs, repo = box.repo) {
   const script = `const { runGate } = await import(${JSON.stringify(gateUrl)});
 const { loadConfig } = await import(${JSON.stringify(configUrl)});
 const root = ${JSON.stringify(repo)};
-const gate = await runGate(root, loadConfig(root), { landing: true, trustStamp: false, agent: 'landing-shards-fixture' });
-process.stdout.write(JSON.stringify({ isGreen: gate.isGreen, output: gate.output, profile: gate.profile }));`;
+const gate = await runGate(root, loadConfig(root), { landing: true, trustStamp: false, agent: 'landing-shards-fixture', collectAll: ${box.collectAll === true} });
+process.stdout.write(JSON.stringify({ isGreen: gate.isGreen, collectAllComplete: gate.collectAllComplete, output: gate.output, profile: gate.profile }));`;
   const child = spawn(process.execPath, ['--input-type=module', '-e', script], { cwd: repo, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '';
   let stderr = '';
@@ -384,6 +392,7 @@ test('a landing gate split into shards reports one result [C7,V4]', { timeout: 3
   // One failing file: the gate goes red and the other shards are stopped, long before their files end.
   scenario(box, 'fail');
   const red = await landingGate(box, 'failing shard', 60_000);
+  assert.notEqual(red.collectAllComplete,true,'cancelled failfast siblings never establish full collection');
   assert.equal(red.isGreen, false, red.output);
   assert.match(red.output, /^# landing shard \d\/3 attempt 1 on \S+: red in \d+ ms$/mu);
   assert.equal([...red.output.matchAll(/^# landing shard \d\/3 attempt \d+ on \S+: stopped in \d+ ms$/gmu)].length, 2, red.output);
@@ -614,5 +623,77 @@ test('own a detached child', async () => {
   } finally {
     // Only the fixture's own recorded grandchild is ever signalled here.
     if (pid && alive(pid)) process.kill(pid, 'SIGKILL');
+  }
+});
+
+for (const count of [1, 3]) test(`collect-all retains two real failures and later green files with ${count} shard(s) [C7,V4]`, { timeout: 90_000 }, async t => {
+  const box=fixture({runner:false});
+  t.after(()=>rmSync(box.dir,{recursive:true,force:true}));
+  writeFileSync(join(box.repo,'pullboard.json'),JSON.stringify({gate:'node bin/run-tests.js',landingShards:count}));
+  if(git(box.repo,box.env,'status','--porcelain','pullboard.json').trim()) {
+    git(box.repo,box.env,'add','pullboard.json');git(box.repo,box.env,'commit','-q','-m','test: collect-all shard count');
+  }
+  box.collectAll=true;
+  scenario(box,'collect-all');
+  const result=await landingGate(box,`collect both reds ${count}`,60_000);
+  assert.equal(result.isGreen,false,'complete collection never turns red green');
+  assert.equal(result.collectAllComplete,true,'actual native runner reports all planned files complete despite both failures');
+  for(const name of ['a','b']) {
+    assert.match(result.output,new RegExp(`not ok[^\\n]*fixture file ${name}`,'u'),result.output);
+    assert.match(result.output,new RegExp(`collect-all deliberate failure ${name}`,'u'),result.output);
+    assert.match(result.output,new RegExp(`test/${name}\\.test\\.js`,'u'),result.output);
+  }
+  assert.deepEqual(marks(box,'.finished').map(name=>name.split('.')[0]).sort(),['c','d','e','f'],
+    'later green bodies actually finish; neither an abort nor omitted body counts as collected');
+  assert.doesNotMatch(result.output,/Landing gate stopped early|attempt \d+ on \S+: stopped/u);
+  if(count>1) {
+    assert.equal(result.profile.landingShards.shards.some(row=>row.status==='stopped'),false);
+    assert.equal(result.profile.landingShards.files.length,6);
+  }
+});
+
+
+test('a collect-all shard cancelled by its owner reports drained but incomplete [C7,V4]', {timeout:90_000}, async t => {
+  const box=fixture({runner:false});
+  t.after(()=>rmSync(box.dir,{recursive:true,force:true}));
+  const ready=join(box.dir,'collect-cancel-ready');
+  const source=`import {test} from 'node:test';import {writeFileSync} from 'node:fs';test('cancelled collection body',async()=>{writeFileSync(${JSON.stringify(ready)},'ready');await new Promise(r=>setTimeout(r,60000));});\n`;
+  writeFileSync(join(box.repo,'test/a.test.js'),source);
+  for(const name of NAMES.slice(1))rmSync(join(box.repo,'test',name+'.test.js'));
+  git(box.repo,box.env,'add','-A');git(box.repo,box.env,'commit','-q','-m','test: real collect-all cancellation');
+  const gateUrl=pathToFileURL(join(box.repo,'src/gate.js')).href;
+  const resourceUrl=pathToFileURL(join(box.repo,'src/resources.js')).href;
+  const reportUrl=pathToFileURL(join(box.repo,'src/landing-collection-report.js')).href;
+  const id='11111111-1111-4111-8111-111111111111';
+  const program=`import {spawn} from 'node:child_process';import {once} from 'node:events';
+import {withGateSlot} from ${JSON.stringify(gateUrl)};import {gateSlotEnvironment} from ${JSON.stringify(resourceUrl)};
+import {parseCollectionReports} from ${JSON.stringify(reportUrl)};
+await withGateSlot(process.cwd(),async lease=>{
+ const child=spawn(process.execPath,['bin/run-tests.js','test/a.test.js'],{cwd:process.cwd(),env:{...process.env,...gateSlotEnvironment(lease),PULLBOARD_LANDING_RUN:'1',PULLBOARD_LANDING_SHARD:'1/1',PULLBOARD_LANDING_COLLECT_ALL:'1',PULLBOARD_LANDING_COLLECTION_ID:${JSON.stringify(id)}},stdio:['ignore','pipe','pipe']});
+ let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
+ const closed=once(child,'close');
+ process.once('message',()=>child.kill('SIGTERM'));
+ process.send({runner:child.pid});
+ const[code,signal]=await closed;
+ const report=parseCollectionReports(output,{id:${JSON.stringify(id)},scope:'shard',shard:'1/1',plannedFiles:['test/a.test.js'],requireComplete:false});
+ process.send({terminal:true,code,signal,report,output});
+},{remote:false,browser:true,agent:'collect-cancel-fixture'});process.disconnect();`;
+  const child=spawn(process.execPath,['--input-type=module','-e',program],{cwd:box.repo,env:box.env,detached:true,stdio:['ignore','pipe','pipe','ipc']});
+  const messages=[];child.on('message',m=>messages.push(m));child.stdout.resume();let stderr='';child.stderr.on('data',b=>stderr+=b);const closed=new Promise(resolve=>child.once('close',(code,signal)=>resolve({code,signal})));
+  try {
+    const deadline=Date.now()+30_000;
+    while(!existsSync(ready)&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,20));
+    assert.equal(existsSync(ready),true,'actual test body started before owner cancellation');
+    assert.ok(messages.some(m=>Number.isSafeInteger(m.runner)),'owned exact runner identified');
+    child.send('stop-owned-runner');
+    const ended=await closed;assert.equal(ended.code,0,stderr);assert.equal(ended.signal,null,stderr);
+    const terminal=messages.find(m=>m.terminal);assert.ok(terminal,stderr);
+    assert.equal(terminal.code,1,terminal.output);assert.equal(terminal.signal,null,terminal.output);
+    assert.ok(terminal.report,'native false report survives actual cancellation');
+    assert.equal(terminal.report.complete,false,terminal.output);
+    assert.equal(terminal.report.cleanupVerified,true,'cleanup and completed coverage are separate facts');
+    // A file may publish a terminal cancelled summary; that does not make collection complete.
+  } finally {
+    if(child.exitCode===null&&child.signalCode===null){try{process.kill(-child.pid,'SIGTERM');}catch{child.kill('SIGTERM');}await closed;}
   }
 });
