@@ -2,6 +2,9 @@
 /** @pullboard-test-input test-tree */
 /** @pullboard-test-loads src/move-registry.js src/moves/*.js */
 /** Move-only registry discovery preserves a pinned historical resolution and real replay [C7,V4,H3,H16]. */
+import attachItemPatch from '../src/moves/attachItemPatch.js';
+import removeItemPatch from '../src/moves/removeItemPatch.js';
+import { DEFAULT_NEXT_STEPS } from '../src/next-step-defaults.js';
 import { TYPED_REQUEST_OPERATIONS, TYPED_REQUEST_STEPS } from './typed-request-registry.test.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -29,6 +32,8 @@ import { PRIVATE_REHOME_ENGINE } from '../src/private-rehome-engine.js';
 
 const SNAPSHOT = JSON.parse(readFileSync(new URL('./move-registry-baseline.json', import.meta.url), 'utf8'));
 const CONSUMERS = ['src/engine.js', 'src/relay-sender.js', 'src/next-step-words.js'];
+const ITEM_PATCH_OPERATIONS = ['attachItemPatch', 'removeItemPatch'];
+const ITEM_PATCH_STEPS = { ...attachItemPatch.nextSteps, ...removeItemPatch.nextSteps, ITEM_PATCH: DEFAULT_NEXT_STEPS.ITEM_PATCH };
 const REHOME_OPERATIONS = ['reserveRehomeItemId', 'rehomeItem', 'applyRehomeItem'];
 const REHOME_STEPS = Object.freeze({
   BAD_ITEM_ID: 'use owner/repo#id, ~owner/repo#id, or one safe positive item number on the current board',
@@ -72,8 +77,8 @@ export default { operation: ${JSON.stringify(name)}, order: ${engine + 1000}, en
 }
 
 test('today\'s move order, actors, refusal recovery text and recorded SQLite prefix are unchanged [C7,V4,H3,H16]', t => {
-  assert.deepEqual(ENGINE_OPERATIONS.filter(operation => !REHOME_OPERATIONS.includes(operation) && !TYPED_REQUEST_OPERATIONS.includes(operation)), SNAPSHOT.operations);
-  assert.deepEqual(NEXT_STEPS, { ...SNAPSHOT.nextSteps, ...REHOME_STEPS, ...TYPED_REQUEST_STEPS });
+  assert.deepEqual(ENGINE_OPERATIONS.filter(operation => !REHOME_OPERATIONS.includes(operation) && !TYPED_REQUEST_OPERATIONS.includes(operation) && !ITEM_PATCH_OPERATIONS.includes(operation)), SNAPSHOT.operations);
+  assert.deepEqual(NEXT_STEPS, { ...SNAPSHOT.nextSteps, ...REHOME_STEPS, ...TYPED_REQUEST_STEPS, ...ITEM_PATCH_STEPS });
   assert.equal(minimumMoveEngine('recordProofRun', [{ landingFence: {}, receipt: { environment: {} } }, { cause: 'conflict:new' }]), PROOF_RUN_ENGINE);
   assert.equal(MOVE_REGISTRY.recordProofRun.engine, PROOF_RUN_ENGINE);
   assert.equal(MOVE_REGISTRY.recordProofRun.itemIdFirstArgument, false);
@@ -194,7 +199,7 @@ process.stdout.write(JSON.stringify(result));`;
   const result = JSON.parse(run(root, process.execPath, ['--input-type=module', '-e', child]));
   assert.ok(result.operations.includes('seedAlpha'), 'the first independent operation file is discovered');
   assert.ok(result.operations.includes('seedBeta'), 'the second independent operation file is discovered');
-  assert.deepEqual(result.operations.filter(name => !name.startsWith('seed') && !REHOME_OPERATIONS.includes(name) && !TYPED_REQUEST_OPERATIONS.includes(name)), SNAPSHOT.operations, 'existing order does not move');
+  assert.deepEqual(result.operations.filter(name => !name.startsWith('seed') && !REHOME_OPERATIONS.includes(name) && !TYPED_REQUEST_OPERATIONS.includes(name) && !ITEM_PATCH_OPERATIONS.includes(name)), SNAPSHOT.operations, 'existing order does not move');
   assert.deepEqual(result.seedFloors, [9, 11]);
   assert.equal(result.pureImportClosure, true, 'routing metadata never imports its consumers, board writers or Git/process launchers');
   assert.equal(result.alphaActor, 'seed-agent');

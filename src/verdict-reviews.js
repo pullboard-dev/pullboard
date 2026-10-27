@@ -1,6 +1,7 @@
 /** Sealed review validation and immutable acceptance projections [E8,H16]. */
 import { verdictWithdrawals } from './verdict-withdrawal.js';
 import { Refused } from './refused.js';
+import { itemPatchDigest } from './item-patches.js';
 
 /** Validate a sealed review without consulting Git or changing either replica [E8,H16]. */
 export function verdictReviewProblem(review, commit, { checked } = {}) {
@@ -30,7 +31,7 @@ export function verdictsFor(board, id) {
   return verdicts.map((verdict, index) => {
     let detail = {};
     try { detail = JSON.parse(receipts[index]?.event_detail ?? '{}'); } catch { /* Malformed legacy details remain unknown. */ }
-    return { ...verdict, ...(withdrawals.has(verdict.verdict_id) ? { withdrawn: true, withdrawal: withdrawals.get(verdict.verdict_id) } : {}), assurance: verdictAssurance(board, verdict), check: detail.check ?? 'unknown', ...(detail.review ? { review: detail.review } : {}),
+    return { ...verdict, ...(withdrawals.has(verdict.verdict_id) ? { withdrawn: true, withdrawal: withdrawals.get(verdict.verdict_id) } : {}), assurance: verdictAssurance(board, verdict), check: detail.check ?? 'unknown', ...(detail.review ? { review: detail.review } : {}), ...(detail.companionDigest ? { companionDigest: detail.companionDigest } : {}),
       ...(Object.hasOwn(detail, 'environment') ? { environment: detail.environment } : {}) };
   });
 }
@@ -71,7 +72,12 @@ export function acceptedVerdict(board, item) {
 
 /** The exact checked composition for a new acceptance, or the historical submitted candidate. */
 export function checkedLandingCommit(board, item) {
-  return acceptedVerdict(board, item)?.review?.head ?? item.item_commit;
+  const accepted = acceptedVerdict(board, item);
+  const patches = itemPatchDigest(board, item.item_id);
+  if (item.item_status === 'verified' && patches && accepted?.companionDigest !== patches) {
+    throw new Refused('ITEM_PATCH_CHANGED', 'the accepted patch set changed; review the current composition before landing');
+  }
+  return accepted?.review?.head ?? item.item_commit;
 }
 
 /** Old verdicts without an assurance record never acquire independent status from later seat enrollment. */
