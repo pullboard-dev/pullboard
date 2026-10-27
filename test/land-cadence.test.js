@@ -133,4 +133,13 @@ test('land runs on cadence at either injected-clock boundary and lands all waiti
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), landed.batch.tip);
   for (const id of [first, second]) assert.ok(json(box, box.repo, 'show', String(id)).item_merged_commit);
   assertLegacyCooldown(box);
+  const recorded = onBoard(box, board => ({ batches: store.landingBatches(board).length, gates: store.gateRuns(board).length }));
+  // Only this disposable fixture simulates a crash after genuine receipts but before the local Git fast-forward.
+  box.git(box.repo, 'reset', '--hard', landed.batch.base);
+  const recovered = json(box, box.repo, 'land', '--due');
+  assert.equal(recovered.batch, null, 'an empty queue needs only recorded Git repair, not a new landing');
+  assert.equal(recovered.cadence.count, 0);
+  assert.equal(box.git(box.repo, 'rev-parse', 'main'), landed.batch.tip, 'due no-op cannot strand the recorded Git repair');
+  assert.deepEqual(onBoard(box, board => ({ batches: store.landingBatches(board).length, gates: store.gateRuns(board).length })), recorded,
+    'repair neither creates a new batch nor records another gate run');
 });

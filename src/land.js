@@ -1268,7 +1268,7 @@ export async function land(options) {
   const branch = trunk?.branch;
   if (!branch) throw new Refused('LAND_TRUNK', 'landing needs the coordinator’s primary branch; return its checkout to the trunk');
   if (trunk.commit) requireParallelGateAdmission(options.root, policyAt(options.root, trunk.commit).config);
-  if (trunk.commit && !options.adopt) {
+  if (trunk.commit && !options.adopt && (!options.due || idleLanding(options.board, trunk.commit))) {
     requireConfirmedLanding(options.board);
     const deferred = cadenceDeferral(options.board, policyAt(options.root, trunk.commit).config, branch, options.say, options.due);
     if (deferred) return deferred;
