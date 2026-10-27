@@ -114,7 +114,7 @@
     "test/relay-snapshot-size.test.js": 74,
     "test/relay-stuck-upload.test.js": 79,
     "test/relay.test.js": 976,
-    "test/reopen.test.js": 434,
+    "test/reopen.test.js": 451,
     "test/resources.test.js": 1374,
     "test/resume-flow.test.js": 476,
     "test/review-queue.test.js": 47,

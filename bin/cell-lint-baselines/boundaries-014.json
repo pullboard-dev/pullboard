@@ -352,7 +352,9 @@
     "test/reopen.test.js->src/exchange.js": 1,
     "test/reopen.test.js->src/machine.js": 1,
     "test/reopen.test.js->src/quoted-landing-failure-engine.js": 1,
+    "test/reopen.test.js->src/reopen-history.js": 1,
     "test/reopen.test.js->test/e2e-helpers.js": 1,
+    "test/reopen.test.js->test/fixture-child.js": 1,
     "test/reopen.test.js->test/release-archive.js": 1,
     "test/required-review-family-fixture.js->src/board.js": 1,
     "test/required-review-family-fixture.js->src/exchange.js": 1,
@@ -399,8 +401,6 @@
     "test/review-queue-cli.test.js->test/board-submit-fixture.js": 1,
     "test/review-queue-cli.test.js->test/fixture-child.js": 1,
     "test/review-queue-cli.test.js->test/http-fixture.js": 1,
-    "test/review-queue-replay.test.js->src/agent-grant-engine.js": 1,
-    "test/review-queue-replay.test.js->src/board.js": 1,
-    "test/review-queue-replay.test.js->src/engine.js": 1
+    "test/review-queue-replay.test.js->src/agent-grant-engine.js": 1
   }
 }

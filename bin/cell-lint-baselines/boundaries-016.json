@@ -2,6 +2,8 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "test/stats-cold.test.js->test/fixture-child.js": 1,
+    "test/stats-cold.test.js->test/fixtures/proof-stats-legacy.js": 1,
     "test/stats-counts.test.js->src/board.js": 1,
     "test/stats-counts.test.js->src/exchange.js": 1,
     "test/stats-counts.test.js->src/machine.js": 1,

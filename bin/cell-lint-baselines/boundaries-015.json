@@ -2,6 +2,8 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "test/review-queue-replay.test.js->src/board.js": 1,
+    "test/review-queue-replay.test.js->src/engine.js": 1,
     "test/review-queue-replay.test.js->src/exchange.js": 1,
     "test/review-queue-replay.test.js->src/machine.js": 1,
     "test/review-queue-replay.test.js->test/board-submit-fixture.js": 1,
@@ -399,8 +401,6 @@
     "test/stats-cli.test.js->test/http-fixture.js": 1,
     "test/stats-cold.test.js->src/board.js": 1,
     "test/stats-cold.test.js->src/proof-counters.js": 1,
-    "test/stats-cold.test.js->src/stats.js": 1,
-    "test/stats-cold.test.js->test/fixture-child.js": 1,
-    "test/stats-cold.test.js->test/fixtures/proof-stats-legacy.js": 1
+    "test/stats-cold.test.js->src/stats.js": 1
   }
 }
