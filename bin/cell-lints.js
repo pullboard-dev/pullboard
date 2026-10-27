@@ -17,7 +17,7 @@ if (!['--report', '--check', '--init', '--update'].includes(mode) || process.arg
   throw new Error('use node bin/cell-lints.js --report|--check|--init|--update [root]');
 }
 const root = resolve(directory), file = resolve(root, CELL_BASELINE_DESCRIPTOR), report = cellLintReport(root);
-if (mode === '--report') console.log(JSON.stringify(report, null, 2));
+if (mode === '--report') console.log(JSON.stringify({ ...report, growth: existsSync(file) ? cellLintGrowth(report, readCellLintBaseline(root)) : null }, null, 2));
 else if (mode === '--init') {
   if (existsSync(file)) throw new Error('a cell lint baseline already exists; use --update to lower it');
   const plan = planCellLintBaseline(report);
@@ -33,7 +33,7 @@ else if (mode === '--init') {
   }
   else {
     const problems = cellLintGrowth(report, baseline);
-    for (const row of problems) console.error(`${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed}`);
-    process.exitCode = problems.length ? 1 : 0;
+    for (const row of problems) console.error(`${row.advisory ? `advisory item #${row.item} until #${row.until}: ` : ''}${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed}`);
+    process.exitCode = problems.some(row => !row.advisory) ? 1 : 0;
   }
 }
