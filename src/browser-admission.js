@@ -5,9 +5,7 @@ import {
 } from 'node:fs';
 import {
   lstat,
-  readFile,
   realpath,
-  stat,
 } from 'node:fs/promises';
 import {
   posix,
@@ -26,6 +24,7 @@ import {
 import { literalShellWords } from './literal-shell-words.js';
 import { foreignNodeOptions } from './test-isolation.js';
 import { sourceLaunchesBrowser } from './browser-launch-source.js';
+import { browserSourceFiles } from './browser-source-files.js';
 
 const MODULE_SUFFIXES = ['.js', '.mjs', '.cjs', '.cts', '.json'];
 const CHROME_FIXTURE = 'test/chrome-fixture.js';
@@ -462,8 +461,9 @@ function repositoryPath(root, file) {
 }
 
 /** Check that a resolved path stays inside the real repository, including through symlinks. */
-async function staysInside(root, absolute) {
-  const [realRoot, realTarget] = await Promise.all([realpath(root), realpath(absolute)]);
+async function staysInside(root, absolute, sourceOnly = false) {
+  const files = sourceOnly ? browserSourceFiles() : { realpath };
+  const [realRoot, realTarget] = await Promise.all([files.realpath(root), files.realpath(absolute)]);
   return realTarget.startsWith(realRoot + sep);
 }
 
@@ -480,8 +480,8 @@ async function localTarget(root, importer, request) {
   for (const candidate of candidates) {
     const absolute = resolve(root, ...candidate.split('/'));
     try {
-      if (!(await staysInside(root, absolute))) return null;
-      if ((await stat(absolute)).isFile()) found.push(candidate);
+      if (!(await staysInside(root, absolute, true))) return null;
+      if ((await browserSourceFiles().stat(absolute)).isFile()) found.push(candidate);
     } catch (error) {
       if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR') throw error;
     }
@@ -526,9 +526,10 @@ function parsedSources(sources, memo) {
  * @param {boolean} [byLaunch] - unset reads gate.browserByLaunch from this machine's settings
  * @param {Map<string, {commonJs:boolean, imports:string[]}>} [memo] - parses shared across one census of many files
  * @param {Map<string, boolean>} [launchFree] - Chrome fixture import verdicts shared the same way
+ * @param {Map<string, boolean>} [safeChildImports] - exact-byte fixed-Git import parses within this census only
  * @returns {Promise<boolean>}
  */
-async function testsNeedBrowserInTree(root, files, committed = null, onFallback, byLaunch = undefined, memo = new Map(), launchFree = new Map()) {
+async function testsNeedBrowserInTree(root, files, committed = null, onFallback, byLaunch = undefined, memo = new Map(), launchFree = new Map(), safeChildImports = new Map()) {
   byLaunch ??= await browserByLaunchSetting();
   if (!Array.isArray(files) || files.length === 0) return browserFallback(onFallback, '<test selection>', 'selection is empty or unavailable');
   const normalized = files.map((file) => repositoryPath(root, file));
@@ -554,8 +555,8 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
           sources.push(source);
         } else {
           const absolute = resolve(root, ...path.split('/'));
-          if (!(await staysInside(root, absolute))) return browserFallback(onFallback, path, 'live source resolves outside the repository');
-          sources.push(await readFile(absolute, 'utf8'));
+          if (!(await staysInside(root, absolute, true))) return browserFallback(onFallback, path, 'live source resolves outside the repository');
+          sources.push(await browserSourceFiles().readFile(absolute, 'utf8'));
         }
       }
       if (!sources.length) break;
@@ -592,9 +593,13 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
             ? committedTarget(committed, paths[index], request)
             : await localTarget(root, paths[index], request);
           if (!target) return browserFallback(onFallback, paths[index], `import ${request} is missing or ambiguous`);
-          if (target === FIXTURE_CHILD && !safeFixtureChildImport(sources[index], request)) {
-            if (byLaunch) starts[index] = true;
-            else return browserFallback(onFallback, paths[index], 'fixture-child import exposes a generic caller-selected process target');
+          if (target === FIXTURE_CHILD) {
+            const key = `${request}\0${sources[index]}`;
+            if (!safeChildImports.has(key)) safeChildImports.set(key, safeFixtureChildImport(sources[index], request));
+            if (!safeChildImports.get(key)) {
+              if (byLaunch) starts[index] = true;
+              else return browserFallback(onFallback, paths[index], 'fixture-child import exposes a generic caller-selected process target');
+            }
           }
           if (target === CHROME_FIXTURE) {
             if (!byLaunch) return true;
@@ -641,9 +646,10 @@ export async function browserBoundFiles(root, files, { byLaunch } = {}) {
   byLaunch ??= await browserByLaunchSetting();
   const memo = new Map();
   const launchFree = new Map();
+  const safeChildImports = new Map();
   const bound = [];
   for (const file of files) {
-    if (await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree)) bound.push(file);
+    if (await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports)) bound.push(file);
   }
   return bound;
 }

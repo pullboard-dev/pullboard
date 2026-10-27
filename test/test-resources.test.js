@@ -11,6 +11,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { browserBoundFiles, checkNeedsBrowser, testsNeedBrowser } from '../src/browser-admission.js';
 import { browserInCall } from '../src/browser-slot-guard.js';
+import { snapshotBrowserSourceFiles, withBrowserSourceFiles } from '../src/browser-source-files.js';
 
 const TEST_RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
 
@@ -437,7 +438,10 @@ test('only a file that reaches a browser launch takes a browser slot [C7,O5]', a
   const listed = spawnSync('git', ['ls-files', '-z', 'test'], { cwd: repository, env: plainGitEnvironment(), encoding: 'utf8' });
   assert.equal(listed.status, 0, listed.stderr);
   const tracked = listed.stdout.split('\0').filter(path => /\.test\.(?:js|mjs)$/u.test(path)).sort();
-  const bound = await browserBoundFiles(repository, tracked, { byLaunch: true });
+  const snapshotPaths = spawnSync('git', ['ls-files', '-z'], { cwd: repository, env: plainGitEnvironment(), encoding: 'utf8' });
+  assert.equal(snapshotPaths.status, 0, snapshotPaths.stderr);
+  const sourceFiles = await snapshotBrowserSourceFiles(repository, snapshotPaths.stdout.split('\0').filter(Boolean));
+  const bound = await withBrowserSourceFiles(sourceFiles, () => browserBoundFiles(repository, tracked, { byLaunch: true }));
   assert.ok(!bound.includes('test/runners.test.js'), 'runner subprocess fixture source data does not launch a browser in the runner test process');
   const missed = CENSUS_LAUNCHED.filter(file => tracked.includes(file) && !bound.includes(file));
   assert.deepEqual(missed, [], 'every file that launched Chrome in the census is classified browser-bound');
