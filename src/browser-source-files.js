@@ -1,7 +1,14 @@
 /** Read-only source files for browser graph logic; runtime executable trust always uses real IO [C7]. */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import * as fs from 'node:fs/promises';
-import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
+import { isAbsolute } from 'node:path';
+import { join } from 'node:path';
+import { parse } from 'node:path';
+import { relative } from 'node:path';
+import { resolve } from 'node:path';
+import { sep } from 'node:path';
 
 const selected = new AsyncLocalStorage();
 export const realBrowserSourceFiles = Object.freeze({

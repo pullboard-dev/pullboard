@@ -1,5 +1,6 @@
 /** Observed test-work cost and explicit boundary inventory, without changing admission [C7]. */
-import { context, withBoardRead } from '../cli.js';
+import { context } from '../cli.js';
+import { withBoardRead } from '../cli.js';
 import { Refused } from '../refused.js';
 import { testCapacityReport } from '../test-capacity.js';
 
