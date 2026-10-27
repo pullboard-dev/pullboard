@@ -8,6 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import * as store from '../src/board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { SUBMIT_ADMISSION_ENGINE } from '../src/submit-admission-engine.js';
 import { registerProject } from '../src/projects.js';
 import { serveView } from '../src/serve.js';
 import { runFixtureChild } from './fixture-child.js';
@@ -216,7 +217,7 @@ function admittedCompletionReplicas(box, id, snapshot) {
   const receipt = store.proofReceipts(box.board, id).findLast(run => run.submitAdmission);
   assert.ok(receipt, 'the real mandatory submit proof carries its admission witness');
   const proof = prepareEngineMove(box.board, 'recordProofRun', [{ agentId: receipt.seat, itemId: id, receiptId: receipt.id }]);
-  for (const scenario of ['same admission', 'different commit', 'different tree', 'reclaim', 'historical engine']) {
+  for (const scenario of ['same admission', 'admission engine', 'different commit', 'different tree', 'reclaim', 'historical engine']) {
     let instant = box.clock.now().getTime();
     const clock = { now: () => new Date(instant) };
     const peer = store.openBoard(join(box.dir, `completion-${scenario.replaceAll(' ', '-')}.sqlite`), clock);
@@ -237,9 +238,11 @@ function admittedCompletionReplicas(box, id, snapshot) {
         commit: scenario === 'different commit' ? '1'.repeat(receipt.commit.length) : receipt.commit,
         tree: scenario === 'different tree' ? '2'.repeat(receipt.tree.length) : receipt.tree,
         submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'private replay of actual native proof' } }]);
-      if (scenario === 'historical engine') move.engine = proof.engine - 1;
+      if (scenario === 'admission engine') move.engine = SUBMIT_ADMISSION_ENGINE;
+      // Historical means before admission support, regardless of later engine allocations.
+      if (scenario === 'historical engine') move.engine = SUBMIT_ADMISSION_ENGINE - 1;
       const result = applyEngineMove(peer, move, { sequence: appliedSequence(peer) + 1, at: clock.now().toISOString() });
-      assert.equal(result.error?.code, scenario === 'same admission' ? undefined : 'AGENT_GRANT_EXPIRED', scenario);
+      assert.equal(result.error?.code, ['same admission', 'admission engine'].includes(scenario) ? undefined : 'AGENT_GRANT_EXPIRED', scenario);
     } finally { store.closeBoard(peer); }
   }
 }
