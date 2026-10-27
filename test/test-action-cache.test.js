@@ -1,9 +1,9 @@
 /** @pullboard-test-input source-tree */
 /** A test file whose inputs did not change reuses its green result; a changed import, a red result or a bad entry runs it [C7]. */
 import assert from 'node:assert/strict';
-import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
@@ -65,7 +65,7 @@ function makeFixture(t) {
   const capture = join(root, 'machine', 'ran.txt');
   const env = { ...process.env, PULLBOARD_MACHINE_HOME: join(root, 'machine'), PULLBOARD_ACTION_CAPTURE: capture, PULLBOARD_LANDING_RUN: '0',
     GIT_AUTHOR_NAME: 'Action Fixture', GIT_AUTHOR_EMAIL: 'action@example.test', GIT_COMMITTER_NAME: 'Action Fixture', GIT_COMMITTER_EMAIL: 'action@example.test' };
-  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_TEST_STAGE', 'PULLBOARD_TEST_ACTIONS', 'PULLBOARD_TEST_REUSE']) delete env[key];
+  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_TEST_STAGE', 'PULLBOARD_TEST_ACTIONS', 'PULLBOARD_TEST_REUSE', 'PULLBOARD_TEST_RESULT_STORE', 'PULLBOARD_TEST_RESULT_ORIGIN', 'PULLBOARD_TEST_CACHE_TOOLING']) delete env[key];
   mkdirSync(join(root, 'machine'));
   /** Run one fixture git command under the private environment. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
@@ -83,7 +83,7 @@ function makeFixture(t) {
     return { status: result.status, output: `${result.stdout}\n${result.stderr}`, ran, context: result.context };
   };
   const store = join(root, '.git', 'pullboard', 'test-actions');
-  return { root, change, run, store };
+  return { root, change, run, store, env };
 }
 
 test('an unchanged closure reuses its green result and a changed import reruns it [C7]', (t) => {
@@ -199,4 +199,72 @@ test('only passing results under the current key prove the whole suite [C7]', ()
   assert.deepEqual(suiteProven(files, new Map([[files[0], fresh], [files[1], { ...fresh, status: 'fail' }]])).failed, [files[1]]);
   assert.deepEqual(suiteProven(files, new Map([[files[0], fresh], [files[1], { ...reused, currentKey: 'k2' }]])).stale, [files[1]]);
   assert.equal(suiteProven([], new Map()).proven, false, 'an empty suite proves nothing');
+});
+
+test('filtered results reuse only the same selection and still invalidate reached inputs [C7]', t => {
+  const fixture = makeFixture(t);
+  fixture.change('test/b.test.js', `${fixtureTest('b', 'b')}
+test('other [C7]', () => appendFileSync(process.env.PULLBOARD_ACTION_CAPTURE, 'other\\n'));
+`);
+  const selected = ['--test-name-pattern', '^b ', 'test/b.test.js'];
+  const first = fixture.run(selected);
+  assert.equal(first.status, 0, first.output);
+  assert.deepEqual(first.ran, ['b']);
+  const second = fixture.run(selected);
+  assert.equal(second.status, 0, second.output);
+  assert.deepEqual(second.ran, [], 'the identical filtered proof is reused without executing its body');
+  assert.match(second.output, /^# reused /mu);
+  const whole = fixture.run(['test/b.test.js']);
+  assert.equal(whole.status, 0, whole.output);
+  assert.deepEqual(whole.ran, ['b', 'other'], 'a filtered proof never stands in for the whole file');
+  fixture.change('lib/b.js', "export const value = 'green'; // reached input changed\n");
+  const changed = fixture.run(selected);
+  assert.equal(changed.status, 0, changed.output);
+  assert.deepEqual(changed.ran, ['b'], 'a reached-module edit invalidates the matching filtered proof');
+});
+
+test('an unchanged selected proof crosses stages without reading the repository graph again [C7]', t => {
+  const fixture = makeFixture(t);
+  fixture.env.PULLBOARD_TEST_STAGE = 'submit';
+  const first = fixture.run(['test/b.test.js']);
+  assert.equal(first.status, 0, first.output);
+  assert.deepEqual(first.ran, ['b']);
+  const git = fixture.env.PATH.split(delimiter).map(folder => join(folder, 'git')).find(existsSync);
+  assert.ok(git, 'the fixture uses the real installed Git');
+  const bin = join(fixture.root, 'machine', 'bin');
+  mkdirSync(bin);
+  // Reject graph construction at its actual Git boundary, rather than timing it or mocking a key.
+  writeFileSync(join(bin, 'git'), `#!/bin/sh
+for arg do
+  case "$arg" in ls-tree|cat-file|show) echo 'unexpected repository graph read' >&2; exit 97;; esac
+done
+exec '${realpathSync(git).replaceAll("'", "'\\''")}' "$@"
+`);
+  chmodSync(join(bin, 'git'), 0o700);
+  fixture.env.PATH = `${bin}${delimiter}${fixture.env.PATH}`;
+  fixture.env.PULLBOARD_TEST_STAGE = 'verify';
+  const second = fixture.run(['test/b.test.js']);
+  assert.equal(second.status, 0, second.output);
+  assert.deepEqual(second.ran, [], 'the unchanged proof is found without a graph scan or another worker body');
+  assert.match(second.output, /^# reused [0-9a-f]{64} from submit /mu, 'the original stage remains its provenance');
+});
+
+test('a harness dependency edit changes every key, and a test edit stays local to its file [C7]', async (t) => {
+  const fixture = makeFixture(t);
+  // Commit the harness, so its own imports are inputs the keys can name.
+  runFixtureGit(['add', '-f', 'bin', 'src'], { cwd: fixture.root, env: fixture.env });
+  runFixtureGit(['commit', '-q', '-m', 'commit the harness'], { cwd: fixture.root, env: fixture.env });
+  const before = await testActionKeys(fixture.root);
+  const isolation = readFileSync(join(fixture.root, 'src', 'test-isolation.js'), 'utf8');
+  fixture.change('src/test-isolation.js', `${isolation}\n// A harness-only edit that no test imports.\n`);
+  const harnessEdit = await testActionKeys(fixture.root);
+  for (const name of ['a', 'b', 'c']) {
+    assert.notEqual(harnessEdit.get(`test/${name}.test.js`).inputKey, before.get(`test/${name}.test.js`).inputKey,
+      `${name}: a module the harness loads is an input of its result`);
+  }
+  fixture.change('test/c.test.js', fixtureTest('c', 'b'));
+  const testEdit = await testActionKeys(fixture.root);
+  assert.notEqual(testEdit.get('test/c.test.js').inputKey, harnessEdit.get('test/c.test.js').inputKey);
+  assert.equal(testEdit.get('test/b.test.js').inputKey, harnessEdit.get('test/b.test.js').inputKey,
+    'another test file is not harness code, so editing it leaves this key alone');
 });
