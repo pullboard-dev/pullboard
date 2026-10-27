@@ -1,5 +1,6 @@
 /** @pullboard-test-loads src/board.js src/engine.js src/machine.js */
 /** Rigor: a repeated failure cause is noticed from structured fields, never from notes [D1,V1]. */
+import { REJECT_CLAUSE_ENGINE } from '../src/reject-clause-engine.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -104,6 +105,7 @@ function history(file, { freeze: suppliedFreeze } = {}) {
   /** Reject the current submission, naming a cause key or none. */
   const reject = (id, cause, note = 'the named test failed at this commit') => store.verify(board, id, {
     agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note, ...(cause === undefined ? {} : { cause }),
+    ...((board.executionEngineVersion ?? REJECT_CLAUSE_ENGINE) >= REJECT_CLAUSE_ENGINE ? { clause: store.getItem(board, id).item_title } : {}),
     head: store.getItem(board, id).item_commit, digest: store.getItem(board, id).item_frozen_digest, policy: 'any',
   });
   /** Accept, then reopen after a red landing whose failing test the note names in the landing format. */
@@ -113,7 +115,7 @@ function history(file, { freeze: suppliedFreeze } = {}) {
     return store.reopen(board, id, { agentId: 'coordinator', note: `${test.file}: ${test.name}; merge commit ${MERGE}` });
   };
   /** Add one item in the fixture lane. */
-  const add = (title) => store.addItem(board, { by: 'coordinator', lane: 'app', title });
+  const add = (title) => store.addItem(board, { by: 'coordinator', lane: 'app', title, criterion: title });
   return { board, add, submit, reject, landReopen, close: () => store.closeBoard(board) };
 }
 

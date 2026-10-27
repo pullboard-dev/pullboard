@@ -1,3 +1,4 @@
+import { REJECT_CLAUSE_ENGINE } from '../reject-clause-engine.js';
 import { ITEM_PATCH_ENGINE } from '../item-patch-engine.js';
 import { requiredReviewFamilyEngine } from '../required-review-family.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
@@ -31,7 +32,8 @@ function existingEngine(args, board, at) {
 function minimumEngine(args, board, at) {
   const outside = args[1]?.sandbox !== undefined || board && Boolean(outsideSource(board, args[0]));
   const patches = args[1]?.companionDigest !== undefined || board && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`item_patches:${args[0]}`);
-  return Math.max(requiredReviewFamilyEngine(board, args[0]), patches ? ITEM_PATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at));
+  return Math.max(requiredReviewFamilyEngine(board, args[0]), patches ? ITEM_PATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at),
+    args[1] && Object.hasOwn(args[1], 'clause') ? REJECT_CLAUSE_ENGINE : 1);
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */
@@ -45,13 +47,16 @@ export default Object.freeze({ operation: "verify", order: 18, engine: 1,
   "RUNNER_BROWSER_SLOT_REQUIRED": "nothing to do: the run reruns on a local gate slot; if it repeats, set gate.browserByLaunch the same on this machine and that runner",
   "A5_GRAMMAR_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "ALREADY_MERGED": "file the follow-up as a new item: pullboard add <lane> \"<title>\"",
+  "BAR_CLAUSE_REQUIRED": "add --clause \"exact wording from the frozen criterion or spec row\"",
+  "BAR_CLAUSE_UNKNOWN": "read pullboard show <id>, then quote the failing requirement with --clause",
+  "LINE_SETTING_RANGE": "read the allowed range with pullboard settings line, then record an in-range value or off with its reason and window numbers",
   "BAD_CAUSE": "name the cause as test:<file>::<title>, refusal:<CODE>, row:<id> or doctrine:<id>, or leave --cause out",
   "BAD_CONFIG": "fix pullboard.json as the message says, then commit it: git commit -m \"chore: fix pullboard config\" pullboard.json",
-  "BAD_DECISION": "choose accept or reject with a supported reason: pullboard verify <id> reject --reason TEST_FAILURE --note \"<what failed>\"",
+  "BAD_DECISION": "choose accept or reject with a supported reason: pullboard verify <id> reject --reason TEST_FAILURE --clause \"<frozen wording>\" --note \"<what failed>\"",
   "BAD_REASON": "accept with --note \"how you proved it\", or reject with --reason TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD or OTHER",
   "BAD_VERDICT_REVIEW": "restore the submitted commit and reviewed Git objects, then re-review the clean composition with current Pullboard",
   "CHECK_NO_PROOF": "strengthen the trusted criterion so it fails before the outside change, then ask the coordinator to refreeze it",
-  "CHECK_RED": "reject with what failed: pullboard verify <id> reject --reason TEST_FAILURE --note \"<what failed>\"",
+  "CHECK_RED": "reject with what failed: pullboard verify <id> reject --reason TEST_FAILURE --clause \"<frozen wording>\" --note \"<what failed>\"",
   "CHECK_UNVERIFIED": "restore the install or check environment, then run pullboard verify <id> again",
   "CLOSED": "read its state with pullboard show <id>, then take open work: pullboard next",
   "COORDINATOR_VERIFIES": "leave the review to the coordinator; shout it when the item is ready: pullboard shout coordinator \"#<id> is ready to verify\"",
@@ -59,7 +64,7 @@ export default Object.freeze({ operation: "verify", order: 18, engine: 1,
   "DIRTY": "commit your changes, then run the command again",
   "ENGINE_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "GIT_GRAFTS": "ask the coordinator to remove the git graft file: pullboard shout coordinator \"please remove .git/info/grafts\"",
-  "GUARD_CANNOT_FAIL": "reject: the check does not test the guard; ask for one that fails with the guard reverted: pullboard verify <id> reject --reason TEST_FAILURE --note \"<what the check missed>\"",
+  "GUARD_CANNOT_FAIL": "reject: the check does not test the guard; ask for one that fails with the guard reverted: pullboard verify <id> reject --reason TEST_FAILURE --clause \"<frozen wording>\" --note \"<what the check missed>\"",
   "GUARD_NOT_FOUND": "reject: the named guard is not in the submitted commit; fix the guard line in the criterion with the coordinator: pullboard shout coordinator --decision \"<id> guard does not match the commit\"",
   "ITEM_LEASE_LOST": "read pullboard show <id>; if the item is free, claim it again for a build or reserve it with pullboard next --verify <id> for a review, then retry",
   "LAND_HEADER": "shout the coordinator: pullboard shout coordinator \"#<id> landing message fails its check\"",

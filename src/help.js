@@ -176,7 +176,8 @@ Work
   pullboard submit <id>                 needs a clean tree, item check and affected tests green at HEAD (alias: done)
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
   pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
-  pullboard verify <id> reject --reason TEST_FAILURE --note "what failed" [--cause <key>]
+  pullboard verify <id> reject --reason TEST_FAILURE --clause "failing frozen requirement" --note "what failed" [--cause <key>]
+                                        two rejects of the same frozen clause hold the item for a sharper bar
                                         a cause is test:<file>::<title>, refusal:<CODE>, row:<id> or doctrine:<id>
                                         a verdict takes --implies <ids>; a later verdict on the item supersedes it
                                         any --note can be --note-file <file>, which keeps quotes, $ and backticks intact

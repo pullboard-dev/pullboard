@@ -155,6 +155,7 @@ const OPTIONS = {
   conflict: { type: 'string', multiple: true },
   'withdraw-verdict': { type: 'boolean' },
   cause: { type: 'string' },
+  clause: { type: 'string' },
   'never-again': { type: 'boolean' },
   'draft-splits': { type: 'boolean' },
   implies: { type: 'string' },

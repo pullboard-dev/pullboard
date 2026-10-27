@@ -112,7 +112,8 @@ export async function verifyHere(ctx, id, { second, values }) {
     const previous = recovered?.args[1];
     if (recovered?.operation === 'verify' && recovered.args[0] === id && previous?.agentId === me.id &&
         previous.decision === decision && previous.reason === values.reason &&
-        previous.note === (textArg(ctx.io, values, 'note') ?? '') && previous.cause === (decision === 'REJECT' ? values.cause : undefined)) {
+        previous.note === (textArg(ctx.io, values, 'note') ?? '') && previous.cause === (decision === 'REJECT' ? values.cause : undefined) &&
+        previous.clause === (decision === 'REJECT' ? values.clause : undefined)) {
       if (decision === 'ACCEPT' && !recordedRecovery(board, recovered)) {
         const item = store.getItem(board, id);
         const commit = resolveCommit(root, item.item_commit);
@@ -213,6 +214,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       reason: values.reason,
       note: (textArg(ctx.io, values, 'note') ?? '') + unaffectedMove + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (approvalNote ? `\n${approvalNote}` : ''),
       ...(decision === 'REJECT' && values.cause !== undefined ? { cause: values.cause } : {}),
+      ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,
       digest,
       policy: ctx.config.verify.policy,
@@ -237,7 +239,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   const verifiedTiming = result.decision === 'ACCEPT' && verificationProfile && verifiedSummary ? `\n${verifiedSummary}\ntiming profile: ${verificationProfile.profilePath ?? '(not saved)'}` : '';
   ctx.io.say(result.decision === 'ACCEPT'
     ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verifiedTiming}`
-    : `rejected #${id}: ${result.reason}; it is open again for rework`);
+    : `rejected #${id}: ${result.reason}${result.clause ? `; clause: ${result.clause}` : ''}; ${result.held ? 'held until its bar is sharpened' : 'it is open again for rework'}`);
   if (accepted) ctx.io.say(landNext(ctx.info, accepted, acceptedLandingCommit, { spec: loadSpec(ctx.info.root, ctx.config) }));
   return 0;
 }

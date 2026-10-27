@@ -24,7 +24,7 @@ function fixture(t) {
 /** Claim the item with a frozen bar and a bounded lease. */
 function claim(f, id, agentId) {
   return store.claim(f.board, id, { agentId, lane: 'core', leaseMs: 7_200_000,
-    freeze: () => ({ text: JSON.stringify({ policy: { version: 1, commit: COMMIT, verify: { policy: 'any', family: 'off' } } }), digest: 'digest:bar' }) });
+    freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion, policy: { version: 1, commit: COMMIT, verify: { policy: 'any', family: 'off' } } }), digest: 'digest:bar' }) });
 }
 /** Submit and return an item through the real rejection, landing-failure or conflict path. */
 function returned(f, cause, minutes, causeKey) {
@@ -32,7 +32,7 @@ function returned(f, cause, minutes, causeKey) {
   claim(f, id, f.builder);
   submitFixture(f.board, id, { agentId: f.builder, commit: COMMIT, tree: COMMIT });
   const verdict = { agentId: f.other, head: COMMIT, digest: 'digest:bar', policy: 'any', note: 'proof', ...(causeKey ? { cause: causeKey } : {}) };
-  if (cause === 'reject') store.verify(f.board, id, { ...verdict, decision: 'REJECT', reason: 'OTHER', reopenFirstRefusalMinutes: minutes });
+  if (cause === 'reject') store.verify(f.board, id, { ...verdict, decision: 'REJECT', reason: 'OTHER', clause: 'prove', reopenFirstRefusalMinutes: minutes });
   else {
     store.verify(f.board, id, { ...verdict, decision: 'ACCEPT' });
     store.reopen(f.board, id, { agentId: 'coordinator', reopenFirstRefusalMinutes: minutes, ...(causeKey ? { cause: causeKey } : {}),

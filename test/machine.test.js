@@ -712,7 +712,7 @@ function submittedItem(board, options = {}) {
  * @param {'ACCEPT' | 'REJECT'} decision
  */
 function verdictOn(board, id, agentId, decision) {
-  const reason = decision === 'REJECT' ? { reason: 'TEST_FAILURE' } : {};
+  const reason = decision === 'REJECT' ? { reason: 'TEST_FAILURE', clause: 'Page' } : {};
   store.verify(board, id, { agentId, decision, head: SHA_A, digest: 'digest:Page', policy: 'any', note: 'reverted the fix; its test went red; restored it', ...reason });
 }
 
@@ -1013,7 +1013,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     const claimAs = (id, agentId, lane, freezer = retiredFreeze) => outcome(() => store.claim(board, id, { agentId, lane, leaseMs: 7_200_000, freeze: freezer }));
     const done = submittedItem(board);
     const returned = submittedItem(board);
-    store.verify(board, returned, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', head: SHA_A, digest: 'digest:Page', policy: 'any', note: 'the check fails', reopenFirstRefusalMinutes: 30 });
+    store.verify(board, returned, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'Page', head: SHA_A, digest: 'digest:Page', policy: 'any', note: 'the check fails', reopenFirstRefusalMinutes: 30 });
     const dependency = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
     const target = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page', after: [dependency] });
     const spare = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
@@ -1119,6 +1119,7 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
         // Only a reject reads a cause key, so only its order has the malformed-cause step (#713).
         ...(verb === 'reject' ? [judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page', note: 'reverted the fix; its test went red', cause: 'free text' })] : []),
         judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page', note: 'reverted the fix; its test went red' }),
+        ...(verb === 'reject' ? [judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page', note: 'reverted the fix; its test went red', clause: 'Page' })] : []),
       ];
       assert.deepEqual(fired, [...declaredBoardOrder(verb), 'ok'], verb);
     }
@@ -1167,7 +1168,7 @@ test('a reserved review refuses every other verdict while its lease lives, and o
         store.verify(board, id, {
           agentId,
           decision,
-          reason: decision === 'REJECT' ? 'TEST_FAILURE' : undefined,
+          reason: decision === 'REJECT' ? 'TEST_FAILURE' : undefined, ...(decision === 'REJECT' ? { clause: 'Page' } : {}),
           note: 'reverted the fix; its test went red',
           head: store.getItem(board, id).item_commit,
           digest: 'digest:Page',

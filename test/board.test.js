@@ -3,6 +3,7 @@
  * The board's rules on an in-memory board with a hand-turned clock (B4–B7, V1, V2, V5, V6, V8, R1,
  * R2). The git-facing rules (V3, V4, V7) run against real repos in e2e.test.js.
  */
+import { verifyFrozenFixture } from './reject-clause-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync, runFixtureGit } from './fixture-child.js';
@@ -309,11 +310,8 @@ function submitted() {
   return id;
 }
 
-/**
- * A verdict with the defaults a correct verifier would pass.
- */
-const verdict = (id, fields) =>
-  store.verify(board, id, { head: SHA_A, digest: 'digest:Page', policy: 'any', note: 'broke the fix; its test failed; restored it', ...fields });
+/** Pass this test's current board to the unchanged verdict fixture defaults. */
+const verdict = (id, fields) => verifyFrozenFixture(board, id, fields);
 
 /** Submit one new revision and record its rejection on the item's real SQLite board [B15,V6].
  *
@@ -444,7 +442,7 @@ test('a rejected commit resubmits after its bar is corrected [V4,B3]', async (t)
   submitFixture(durable, id, { agentId: builder, commit, tree });
   store.verify(durable, id, {
     agentId: reviewer, decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH',
-    note: 'the heading is missing', head: commit, digest: originalClaim.digest, policy: 'any',
+    clause: 'the page renders its heading', note: 'the heading is missing', head: commit, digest: originalClaim.digest, policy: 'any',
   });
 
   store.claim(durable, id, { agentId: builder, lane: 'web', leaseMs: HOUR, freeze: criterionFreeze });
@@ -476,7 +474,7 @@ test('a rejected commit resubmits after its bar is corrected [V4,B3]', async (t)
   assert.equal(resubmission.criterionDigest, correction.after, 'the engine-9 submit event names its corrected frozen digest');
   store.verify(durable, id, {
     agentId: reviewer, decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH',
-    note: 'the corrected criterion still fails', head: commit, digest: correction.after, policy: 'any',
+    clause: 'the page renders an accessible heading', note: 'the corrected criterion still fails', head: commit, digest: correction.after, policy: 'any',
   });
   store.claim(durable, id, { agentId: builder, lane: 'web', leaseMs: HOUR, freeze: criterionFreeze });
   assert.throws(
@@ -753,7 +751,7 @@ test('next finds the oldest free item in your lane, or says what everything wait
   assert.deepEqual(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).reasons, [
     `no open items in the web lane; #${contract} still awaits a verdict, and a rejected item comes back to this lane. A lane is done when its items are verified`,
   ]);
-  store.verify(board, contract, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', note: 'the contract test fails', head: SHA_A, digest: 'digest:Contract', policy: 'any' });
+  store.verify(board, contract, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', note: 'the contract test fails', clause: 'Contract', head: SHA_A, digest: 'digest:Contract', policy: 'any' });
   assert.deepEqual(store.nextFor(board, { agentId: 'api-1', lane: 'api' }).reasons, [`#${later} waits on #${contract} (open, rejected, web lane)`]);
   assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).item.item_id, contract);
 });
@@ -920,6 +918,8 @@ test('a hand escalation starts a new route rejection count [B15,B13]', () => {
   rejectRevision(id, SHA_B, 'first mid-route reject');
   assert.equal(store.getItem(board, id).item_route, 'mid', 'the prior light rejection does not carry over');
   assert.equal(store.events(board, { itemId: id }).filter((event) => event.event_kind === 'escalate').length, 1);
+  assert.ok(store.getItem(board, id).item_hold_reason, 'the repeated frozen clause is held');
+  store.releaseItemHold(board, id, { agentId: 'coordinator', reason: 'Continue this route-counter fixture after acknowledging the bar hold.' });
   rejectRevision(id, SHA_C, 'second mid-route reject');
   assert.equal(store.getItem(board, id).item_route, 'strong');
   const escalations = store.events(board, { itemId: id }).filter((event) => event.event_kind === 'escalate');
@@ -938,6 +938,8 @@ test('a coordinator route edit starts a new rejection count [B15,B13]', () => {
   assert.equal(store.getItem(board, id).item_route, 'mid');
   assert.equal(store.events(board, { itemId: id }).filter((event) => event.event_kind === 'escalate').length, 0);
 
+  assert.ok(store.getItem(board, id).item_hold_reason, 'the repeated frozen clause is held');
+  store.releaseItemHold(board, id, { agentId: 'coordinator' });
   rejectRevision(id, SHA_C, 'second edited mid-route reject');
   assert.equal(store.getItem(board, id).item_route, 'strong');
   const escalations = store.events(board, { itemId: id }).filter((event) => event.event_kind === 'escalate');
@@ -966,6 +968,8 @@ test('two send-backs at the strongest route record no escalation [B15,B13,H16]',
   const rigorDraft = store.events(board).find(event => event.event_kind === 'rigor-draft' && event.event_by === 'rigor');
   const rigorDraftDetail = JSON.parse(rigorDraft?.event_detail ?? '{}');
   assert.deepEqual([rigorDraftDetail.target, rigorDraftDetail.cause, rigorDraftDetail.unproved], ['doctrine', 'refusal:TEST_FAILURE', true], 'the independent notice retains its durable Rigor draft event');
+  assert.ok(store.getItem(board, id).item_hold_reason, 'the repeated frozen clause is held');
+  store.releaseItemHold(board, id, { agentId: 'coordinator', reason: 'Continue this route-counter fixture after acknowledging the bar hold.' });
   rejectRevision(id, SHA_C, 'third strong send-back');
   const pairNoticesAfterThird = store.allShouts(board).filter(entry => entry.shout_to === 'coordinator' && entry.shout_text.includes(`#${id} has two send-backs at the strongest route`));
   assert.equal(pairNoticesAfterThird.length, 1, 'one further rejection cannot repeat the pair notice');

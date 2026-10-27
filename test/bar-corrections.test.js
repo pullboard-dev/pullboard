@@ -70,10 +70,10 @@ function fixture() {
 }
 
 /** Submit an item from the builder and reject it from the reviewer. */
-function rejectOnce(box, id, note) {
+function rejectOnce(box, id, note, clause) {
   box.json(box.web, 'submit', String(id));
   box.json(box.review, 'next', '--verify', String(id));
-  box.json(box.review, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--note', note);
+  box.json(box.review, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--clause', clause, '--note', note);
 }
 
 test('[B10,B31] a corrected bar records why the old one was wrong', () => {
@@ -93,7 +93,7 @@ test('[B10,B31] a corrected bar records why the old one was wrong', () => {
   assert.deepEqual(edit.detail.barCorrection, { fields: ['criterion'], reject: null }, 'the edit is marked as a bar correction');
 
   box.json(box.web, 'refreeze', '1');
-  rejectOnce(box, 1, 'the WAL lock never appears');
+  rejectOnce(box, 1, 'the WAL lock never appears', 'Corrected item works under WAL');
   const unexplained = box.run(box.repo, 'edit', '1', '--check', 'true # wal', '--json');
   assert.equal(JSON.parse(unexplained.out).error?.code, 'BAR_REASON', 'a check correction on an item that was claimed needs a reason too');
   box.json(box.repo, 'edit', '1', '--check', 'true # wal', '--reason', 'the old check never opened a WAL board');
@@ -112,7 +112,7 @@ test('[B10,B31] a corrected bar records why the old one was wrong', () => {
   assert.equal(unclaimedEdit.detail.barCorrection, undefined, 'an edit before any claim is not a bar correction');
 
   box.json(box.web, 'claim', '3');
-  rejectOnce(box, 3, 'the build is broken');
+  rejectOnce(box, 3, 'the build is broken', 'Build-failed item works');
   const stats = box.json(box.repo, 'stats').stats.bars;
   assert.deepEqual(stats, { coordinator: { corrections: 2, barRejects: 1, buildRejects: 1 } },
     'stats reports, per coordinator, bar corrections and rejects caused by a bar, beside rejects caused by the build');

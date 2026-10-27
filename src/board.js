@@ -1,3 +1,4 @@
+import * as rejectClause from './reject-clause.js';
 import { setItem } from './item-fields.js';
 import { releaseClaim } from './release-claim.js';
 import { REFERENCE_ENGINE } from './reference-engine.js';
@@ -1368,10 +1369,10 @@ function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'of
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
+ * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, clause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
  * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', cause, head, digest, policy, familyPolicy = 'off', check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox }) {
+export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
@@ -1380,6 +1381,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
   landingEnvironment.requireVerdict(board, environment);
   const declaration = MOVES.find(move => move.verb === verb);
   const newReview = engine >= VERDICT_REVIEW_ENGINE && review !== undefined;
+  let clauseDetail = {};
   // Without the new sealed metadata, old moves keep their exact submitted-only semantics.
   const transition = newReview ? declaration : { ...declaration, from: ['submitted'],
     guards: declaration.guards.filter(guard => !['notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent'].includes(guard)) };
@@ -1412,8 +1414,12 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
         reasonCoded: () => (reason && REJECT_REASONS.includes(reason) ? null : new Refused('BAD_REASON', `a reject names one of: ${REJECT_REASONS.join(', ')}`)),
         noteGiven: () => (note.trim() ? null : new Refused('NOTE_REQUIRED', 'a reject says what failed: --note "..."')),
         causeWellFormed: () => causeProblem(cause),
+        clauseWellFormed: found => isAccept ? null : rejectClause.rejectionClauseProblem(found, clause, engine),
       },
-      before: (found) => recordVerdict(board, found, { agentId, decision, reason: code, note, digest, head }),
+      before: (found) => {
+        if (!isAccept) clauseDetail = rejectClause.rejectionClauseDetail(found, clause, engine);
+        recordVerdict(board, found, { agentId, decision, reason: code, note, digest, head });
+      },
       set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
     });
     if (isAccept && sandbox && outsideSource(board, id)) saveOutsideSource(board, id, { ...outsideSource(board, id), sandbox });
@@ -1421,7 +1427,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     const reservation = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalDetail(board, item, reopenFirstRefusalMinutes, returnedAt) : {};
     const derivedCause = !isAccept && engine >= RIGOR_AUTO_ENGINE
       ? deriveRigorCause(board, item, { cause, reason: code, agentId }) : !isAccept && cause != null ? { cause } : {};
-    const detail = { ...reservation, reason: code, commit: item.item_commit, ...derivedCause,
+    const detail = { ...reservation, reason: code, commit: item.item_commit, ...derivedCause, ...clauseDetail,
       ...(companionDigest ? { companionDigest } : {}) };
     if (isAccept && engine >= SPEC_APPROVAL_ENGINE) detail.note = note.trim();
     if (isAccept && check !== undefined) detail.check = check;
@@ -1429,11 +1435,13 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     if (sandbox !== undefined) detail.sandbox = sandbox;
     if (newReview) detail.review = { commit: review.commit, ...(Object.hasOwn(review, 'head') ? { head: review.head } : {}), trunk: review.trunk, paths: [...review.paths] };
     const trigger = logEvent(board, agentId, verb, id, implies?.length ? { ...detail, implies } : detail, returnedAt);
+    if (!isAccept) rejectClause.sharpenRepeatedClause(board, item, clauseDetail, { holdItem, shout, logEvent });
     tellFirstRefusal(board, item, reservation, persistShout);
     if (!isAccept) recordRejectedItemRoute(board, id, engine, item, { escalate, shout, logEvent });
     tellVerdictImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), id, { seed: impliesId, implies });
     if (!isAccept) postRigorNotices(board, trigger);
-    return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}) };
+    return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}),
+      ...(clauseDetail.clause ? { clause: clauseDetail.clause, held: Boolean(itemHold(board, id)) } : {}) };
   });
 }
 

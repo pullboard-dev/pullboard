@@ -79,6 +79,7 @@ test('the settings inventory exposes board line values and defaults without audi
   assert.equal(rows.find(row => row.key === 'line.focusMilestone').value, false);
   assert.equal(rows.find(row => row.key === 'line.reviewsFirst').value, false);
   assert.equal(rows.find(row => row.key === 'line.bar.check').value, false);
+  assert.equal(rows.find(row => row.key === 'line.bar.sharpenToPerson').value, false);
   assert.equal(rows.find(row => row.key === 'line.reviewsFirst').origin, 'default');
   assert.doesNotMatch(JSON.stringify(rows), /PRIVATE_REASON_CANARY|activeReviewers|reviewMedianMinutes/u);
   assert.equal(store.events(board).length, before, 'inventory is a read, not a line-setting change');

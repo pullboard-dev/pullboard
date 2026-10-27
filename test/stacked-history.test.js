@@ -56,7 +56,7 @@ function submittedSiblingHistory() {
   const oldReview = join(box.dir, 'review-old-a');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', oldReview, oldHead);
   assert.match(box.run(oldReview, 'join', 'api').out, /joined as api-/u);
-  const rejected = box.run(oldReview, 'verify', String(itemA), 'reject', '--reason', 'TEST_FAILURE', '--note', 'revise A before acceptance', '--json');
+  const rejected = box.run(oldReview, 'verify', String(itemA), 'reject', '--reason', 'TEST_FAILURE', '--clause', 'A old submitted head', '--note', 'revise A before acceptance', '--json');
   assert.equal(rejected.code, 0, rejected.out + rejected.err);
 
   const base = box.git(box.repo, 'rev-parse', `${oldHead}^`);

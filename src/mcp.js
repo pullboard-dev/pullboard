@@ -99,7 +99,7 @@ export const MCP_TOOLS = Object.freeze([
   },
   {
     name: 'verify',
-    description: 'Give a verdict on another agent\'s submitted item from its checked-out commit. Mirrors pullboard verify <id> accept --note "<how>" or reject --reason <CODE> --note "<what failed>".',
+    description: 'Give a verdict on another agent\'s submitted item from its checked-out commit. Mirrors pullboard verify <id> accept --note "<how>" or reject --reason <CODE> --clause "<frozen wording>" --note "<what failed>".',
     inputSchema: {
       type: 'object',
       properties: {
@@ -108,6 +108,7 @@ export const MCP_TOOLS = Object.freeze([
         note: { type: 'string', description: 'How it was proved, or what failed.' },
         reason: { type: 'string', description: 'For a reject: the reason code, such as TEST_FAILURE.' },
         cause: { type: 'string', description: 'For a reject: the cause key, when one is known.' },
+        clause: { type: 'string', description: 'For a reject: exact wording from the frozen criterion or spec row.' },
       },
       required: ['id', 'decision', 'note'],
       additionalProperties: false,
@@ -198,7 +199,8 @@ function loopArgv(name, input) {
   if (name === 'submit') return ['submit', '--json', ...(input.infra === undefined ? [] : [`--infra=${input.infra}`]), '--', String(input.id)];
   if (name === 'verify') {
     return ['verify', '--json', `--note=${input.note}`, ...(input.reason === undefined ? [] : [`--reason=${input.reason}`]),
-      ...(input.cause === undefined ? [] : [`--cause=${input.cause}`]), '--', String(input.id), input.decision];
+      ...(input.cause === undefined ? [] : [`--cause=${input.cause}`]),
+      ...(input.clause === undefined ? [] : [`--clause=${input.clause}`]), '--', String(input.id), input.decision];
   }
   if (name === 'resume') return ['resume', '--json'];
   return null;

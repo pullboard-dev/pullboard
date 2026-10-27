@@ -32,7 +32,8 @@ export function verdictsFor(board, id) {
     let detail = {};
     try { detail = JSON.parse(receipts[index]?.event_detail ?? '{}'); } catch { /* Malformed legacy details remain unknown. */ }
     return { ...verdict, ...(withdrawals.has(verdict.verdict_id) ? { withdrawn: true, withdrawal: withdrawals.get(verdict.verdict_id) } : {}), assurance: verdictAssurance(board, verdict), check: detail.check ?? 'unknown', ...(detail.review ? { review: detail.review } : {}), ...(detail.companionDigest ? { companionDigest: detail.companionDigest } : {}),
-      ...(Object.hasOwn(detail, 'environment') ? { environment: detail.environment } : {}) };
+      ...(Object.hasOwn(detail, 'environment') ? { environment: detail.environment } : {}),
+      ...(typeof detail.clause === 'string' && typeof detail.barKey === 'string' ? { clause: detail.clause, barKey: detail.barKey } : {}) };
   });
 }
 

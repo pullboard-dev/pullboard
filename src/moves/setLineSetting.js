@@ -1,3 +1,4 @@
+import { REJECT_CLAUSE_ENGINE } from '../reject-clause-engine.js';
 import { FOCUS_MILESTONE_ENGINE } from '../focus-milestone-engine.js';
 import { LAND_COLLISION_ENGINE } from '../landing-collision-engine.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
@@ -24,6 +25,7 @@ function minimumEngine(args, board, at) {
     historicalMinimumEngine(args, board, at),
     args[0]?.key === 'focusMilestone' ? FOCUS_MILESTONE_ENGINE : 1,
     args[0]?.key === 'bar.check' ? BAR_CHECK_ENGINE : 1,
+    args[0]?.key === 'bar.sharpenToPerson' ? REJECT_CLAUSE_ENGINE : 1,
   );
 }
 

@@ -817,7 +817,7 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
   const review = box.run(reviewPath, 'next', '--verify', '1');
   assert.equal(review.code, 0, review.err);
   box.git(reviewPath, 'merge', '--ff-only', submitted.commit);
-  const rejected = box.run(reviewPath, 'verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--note', 'the corrected criterion still fails');
+  const rejected = box.run(reviewPath, 'verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'The page renders a heading.', '--note', 'the corrected criterion still fails');
   assert.equal(rejected.code, 0, rejected.err);
   const reclaimed = box.run(box.web, 'claim', '1');
   assert.equal(reclaimed.code, 0, reclaimed.err);
@@ -842,7 +842,7 @@ test('retained main controls builder first refusal during detached review [B13,B
     'the candidate does not carry the enabled setting');
   box.git(box.repo, 'switch', '-q', '--detach', commit);
   try {
-    const rejected = box.run(box.repo, 'verify', '1', 'reject', '--as', 'coordinator', '--reason', 'OTHER', '--note', 'the private proof requires rework');
+    const rejected = box.run(box.repo, 'verify', '1', 'reject', '--as', 'coordinator', '--reason', 'OTHER', '--clause', 'The page renders.', '--note', 'the private proof requires rework');
     assert.equal(rejected.code, 0, rejected.err);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), main);

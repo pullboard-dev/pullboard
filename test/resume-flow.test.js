@@ -280,11 +280,11 @@ function fixture(t, { wait = null, age = null, reservation = null, otherAge = nu
   store.register(board, { lane: 'coordinator', path: root });
   const builder = store.register(board, { lane: 'web', path: web });
   const reviewer = store.register(board, { lane: 'review', path: join(root, 'reviewer') });
-  const freeze = () => ({ text: JSON.stringify({ rows: [] }), digest: 'frozen' });
+  const freeze = () => ({ text: JSON.stringify({ criterion: 'Flow fixture', rows: [] }), digest: 'frozen' });
   /** Add and submit an item at exact recorded minute offsets. */
   function submit(start, submitted) {
     at = start;
-    const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Flow fixture' });
+    const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Flow fixture', criterion: 'Flow fixture' });
     store.claim(board, id, { agentId: builder, lane: 'web', leaseMs: 1000 * MINUTE, freeze });
     at = submitted;
     submitFixture(board, id, { agentId: builder, commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
@@ -311,7 +311,7 @@ function fixture(t, { wait = null, age = null, reservation = null, otherAge = nu
         store.release(board, waiting, reviewer, 'Fixture releases its review.');
       } else if (reservation === 'verdict') {
         at = 450;
-        store.verify(board, waiting, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'Fixture rejection.', head: 'a'.repeat(40), digest: 'frozen', policy: 'any' });
+        store.verify(board, waiting, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'Fixture rejection.', clause: 'Flow fixture', head: 'a'.repeat(40), digest: 'frozen', policy: 'any' });
       }
     }
   }

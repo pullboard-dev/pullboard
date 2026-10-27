@@ -34,6 +34,13 @@ import { PRIVATE_REHOME_ENGINE } from '../src/private-rehome-engine.js';
 
 const SNAPSHOT = JSON.parse(readFileSync(new URL('./move-registry-baseline.json', import.meta.url), 'utf8'));
 const CONSUMERS = ['src/engine.js', 'src/relay-sender.js', 'src/next-step-words.js'];
+const CLAUSE_STEPS = Object.freeze({
+  BAR_CLAUSE_REQUIRED: 'add --clause "exact wording from the frozen criterion or spec row"',
+  BAR_CLAUSE_UNKNOWN: 'read pullboard show <id>, then quote the failing requirement with --clause',
+  BAD_DECISION: 'choose accept or reject with a supported reason: pullboard verify <id> reject --reason TEST_FAILURE --clause "<frozen wording>" --note "<what failed>"',
+  CHECK_RED: 'reject with what failed: pullboard verify <id> reject --reason TEST_FAILURE --clause "<frozen wording>" --note "<what failed>"',
+  GUARD_CANNOT_FAIL: 'reject: the check does not test the guard; ask for one that fails with the guard reverted: pullboard verify <id> reject --reason TEST_FAILURE --clause "<frozen wording>" --note "<what the check missed>"',
+});
 const ITEM_PATCH_OPERATIONS = ['attachItemPatch', 'removeItemPatch'];
 const ITEM_PATCH_STEPS = { ...attachItemPatch.nextSteps, ...removeItemPatch.nextSteps, ITEM_PATCH: DEFAULT_NEXT_STEPS.ITEM_PATCH };
 const REHOME_OPERATIONS = ['reserveRehomeItemId', 'rehomeItem', 'applyRehomeItem'];
@@ -80,7 +87,7 @@ export default { operation: ${JSON.stringify(name)}, order: ${engine + 1000}, en
 
 test('today\'s move order, actors, refusal recovery text and recorded SQLite prefix are unchanged [C7,V4,H3,H16]', t => {
   assert.deepEqual(ENGINE_OPERATIONS.filter(operation => !REHOME_OPERATIONS.includes(operation) && !TYPED_REQUEST_OPERATIONS.includes(operation) && !ITEM_PATCH_OPERATIONS.includes(operation) && !STALE_STATE_OPERATIONS.includes(operation)), SNAPSHOT.operations);
-  assert.deepEqual(NEXT_STEPS, { ...SNAPSHOT.nextSteps, ...REHOME_STEPS, ...TYPED_REQUEST_STEPS, ...ITEM_PATCH_STEPS, ...STALE_STATE_STEPS });
+  assert.deepEqual(NEXT_STEPS, { ...SNAPSHOT.nextSteps, ...REHOME_STEPS, ...TYPED_REQUEST_STEPS, ...ITEM_PATCH_STEPS, ...STALE_STATE_STEPS, ...CLAUSE_STEPS });
   assert.equal(minimumMoveEngine('recordProofRun', [{ landingFence: {}, receipt: { environment: {} } }, { cause: 'conflict:new' }]), PROOF_RUN_ENGINE);
   assert.equal(MOVE_REGISTRY.recordProofRun.engine, PROOF_RUN_ENGINE);
   assert.equal(MOVE_REGISTRY.recordProofRun.itemIdFirstArgument, false);
