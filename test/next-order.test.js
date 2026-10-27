@@ -299,6 +299,7 @@ test('an agent exhausts ready own-lane work before pulling another lane [N2,B13]
   assert.equal(resumed.seat.agent, api.agent);
   const sibling = box.runAs(box.session, box.web, 'next', '--build', '--json');
   assert.equal(sibling.code, 1, 'the idle sibling never resumes the API seat’s claim (#958)');
+  box.json(box.run(box.repo, 'hold', String(later), '--off', '--json'));
   const wrongLane = box.runAs(box.session, api.root, 'claim', String(later), '--json');
   assert.equal(wrongLane.code, 1);
   assert.equal(JSON.parse(wrongLane.out).error.code, 'WRONG_LANE', 'cross-lane routing does not widen a seat’s write authority');
@@ -537,15 +538,15 @@ test('a cross-checkout claim leads with its seat and other checkouts cannot act 
   const box = crossLaneFixture(t);
   const web = box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'Cross-lane test', '--json'));
   const api = box.seat('owned-api', 'api', box.session);
-  const later = box.add('web', 'Later web work');
   const first = box.add('api', 'Earlier API release');
   box.milestone('first', first);
-  box.milestone('later', later);
   const next = box.runAs(box.session, box.web, 'next', '--build');
   assert.equal(next.code, 0, next.out + next.err);
   const lines = next.out.trim().split('\n');
   assert.match(lines[0], new RegExp(`^${api.agent} .*${api.root.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`, 'u'), `the output leads with the holding seat and its checkout: ${lines[0]}`);
   assert.ok(lines.slice(0, 3).some((line) => line.includes(`cd '${api.root}'`) || line.includes(`cd ${api.root}`)), 'and the command to continue there');
+  const later = box.add('web', 'Later web work');
+  box.milestone('later', later);
   for (const args of [['check', String(first), '--yes'], ['submit', String(first)], ['release', String(first)]]) {
     const refused = box.runAs(box.session, box.web, ...args, '--json');
     assert.notEqual(refused.code, 0, `${args[0]} from another checkout is refused`);

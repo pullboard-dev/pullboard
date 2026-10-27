@@ -45,7 +45,7 @@ test('lane names list the coordinator first [L1]', () => {
 test('WRONG_LANE names a clean native lane checkout and the claim there retains its lane hook [L2,B13,N2]', t => {
   const box = crossLaneFixture(t);
   const web = box.seat('claim-web', 'web', box.session);
-  const api = box.seat('claim-api', 'api', box.session);
+  const api = box.seat('claim api', 'api', box.session);
   const id = box.add('api', 'Build only in the API lane');
   const wrong = box.runAs(box.session, web.root, 'claim', String(id), '--json');
   assert.equal(wrong.code, 1);
