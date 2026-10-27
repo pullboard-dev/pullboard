@@ -80,6 +80,15 @@ const MAX_HISTORY_TAGS = 1_024;
 const MAX_TAG_CHAIN = 8;
 const TOOL_ROOT = fileURLToPath(new URL('../', import.meta.url));
 const RUNTIME_NAMES = ['runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-recovery.js', 'runner-transport.js'];
+const LOADED_TOOLING = loadedTooling();
+
+/** Pin the module generation this controller loaded; later disk upgrades require a fresh controller process. */
+function loadedTooling() {
+  try {
+    return Object.fromEntries([...RUNTIME_NAMES, 'runner-worker.js', 'runners.js'].map(name =>
+      [name, readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8')]));
+  } catch { return null; }
+}
 
 /** Validate an SSH destination as one argument, never a command or an SSH option. */
 export function validateRunner(value) {
@@ -419,6 +428,10 @@ function sshEnvironment() {
 function trustedTooling() {
   const files = Object.fromEntries([...RUNTIME_NAMES, 'runner-worker.js']
     .map(name => [name, readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8')]));
+  if (!LOADED_TOOLING || readFileSync(fileURLToPath(import.meta.url), 'utf8') !== LOADED_TOOLING['runners.js']
+    || Object.entries(files).some(([name, source]) => source !== LOADED_TOOLING[name])) {
+    throw new Refused('RUNNER_TOOLING_CHANGED', 'runner tooling changed since this controller loaded; restart the command from the current committed CLI before retrying');
+  }
   for (const [name, source] of Object.entries(files)) {
     if (Buffer.byteLength(source) > MAX_BLOB_BYTES
       || secretsIn(source.split(/\r?\n/u).map((text, index) => ({ path: `tooling/${name}`, line: index + 1, text }))).length) {
