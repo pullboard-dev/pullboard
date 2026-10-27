@@ -175,10 +175,11 @@ test('the review vendor setting defaults off and requires its native engine on r
     reason: 'Synthetic ordered policy contract.', window: { syntheticSeats: 1 } };
   assert.equal(minimumMoveEngine('setLineSetting', [options]), REVIEW_INDEPENDENCE_ENGINE);
   const move = prepareEngineMove(board, 'setLineSetting', [options], { id: 'synthetic-review-vendor-policy' });
-  const old = applyEngineMove(board, { ...move, engine: REVIEW_INDEPENDENCE_ENGINE - 1 }, { sequence: 1, at: '2026-10-27T00:00:00.000Z' });
-  assert.equal(old.error?.code, 'ENGINE_VERSION');
-  assert.equal(store.lineSettings(board).requireReviewFamilies, false);
-  const current = applyEngineMove(board, { ...move, id: 'synthetic-review-vendor-policy-current' }, { sequence: 2, at: '2026-10-27T00:01:00.000Z' });
+  const before = exportBoard(board);
+  assert.throws(() => applyEngineMove(board, { ...move, engine: REVIEW_INDEPENDENCE_ENGINE - 1 },
+    { sequence: 1, at: '2026-10-27T00:00:00.000Z' }), { code: 'RELAY_MOVE' });
+  assert.deepEqual(exportBoard(board), before, 'unsupported replay refuses before any native state or cursor mutation');
+  const current = applyEngineMove(board, { ...move, id: 'synthetic-review-vendor-policy-current' }, { sequence: 1, at: '2026-10-27T00:01:00.000Z' });
   assert.equal(current.error, undefined);
   assert.equal(store.lineSettings(board).requireReviewFamilies, true);
 });

@@ -28,7 +28,7 @@ const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../src/co
  * A scratch directory with a `pullboard` shim on the PATH, so the hooks git runs find the CLI, and
  * git isolated from the machine's own config.
  */
-function sandbox({ declareFamilies = true } = {}) {
+function sandbox({ declareFamilies = false } = {}) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-e2e-')));
   sandboxes.push(dir);
   const shims = join(dir, 'bin');
@@ -88,8 +88,8 @@ const SPEC = `# Demo spec
 
 /**
  * A repo set up with pullboard, two lanes and a spec, committed through its own hooks, plus a
- * worktree joined to the web lane. Vendor declarations are explicit synthetic fixture data;
- * sandbox({ declareFamilies: false }) retains unknown-vendor controls. The coordinator's model
+ * worktree joined to the web lane. Vendors stay undeclared by default; setting-on cases use
+ * sandbox({ declareFamilies: true }) for explicit synthetic labels. The coordinator's model
  * stays deliberately undeclared; later agents retain the runner's model.
  * Coordinator-only fixtures may omit the unused worktree and its join.
  */

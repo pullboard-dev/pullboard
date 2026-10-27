@@ -60,7 +60,7 @@ function freeze() {
 }
 
 test('status moves are feed events and the board sends no status shout [B3,R2,N26,H16]', t => {
-  const box = e2e.project();
+  const box = e2e.project(undefined, e2e.sandbox({ declareFamilies: true }));
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
   const committed = e2e.commitFile(box, box.web, 'web/activity.txt', 'private activity fixture\n', 'feat(web): activity fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
@@ -408,7 +408,7 @@ test('old ordinary shout replay does not become newly typed news [H16,N26]', (t)
 
 
 test('interrupts arrive at once and the digest arrives as a short summary at a break [R2,N26,H16]', t => {
-  const box = e2e.project('true');
+  const box = e2e.project('true', e2e.sandbox({ declareFamilies: true }));
   const foreignRoot = join(box.dir, 'interrupt-other');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', foreignRoot, 'main');
   assert.equal(box.run(foreignRoot, 'join', 'api', '--json').code, 0);
