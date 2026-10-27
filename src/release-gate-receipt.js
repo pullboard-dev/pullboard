@@ -1,4 +1,5 @@
 /** Structural release evidence only: transport authentication and native custody must be verified separately [C7,V4]. */
+import { createHash } from 'node:crypto';
 import {
   closeSync,
   constants,
@@ -50,6 +51,24 @@ function executors(value) {
     && value.every(id => typeof id === 'string' && LABEL.test(id)) && new Set(value).size === value.length;
 }
 
+/** Normalize observed participation once so its private native digest binds every recorded field. */
+export function releaseParticipationFields(p) {
+  try {
+    return { version: p.version, id: p.id, head: p.head, tree: p.tree, command: p.command,
+      required: [...p.required].sort(),
+      shards: p.shards.map(s => ({ shard: s.shard, files: [...s.files].sort(), executor: s.executor,
+        head: s.head, tree: s.tree, command: s.command, green: s.green, complete: s.complete,
+        cleanupVerified: s.cleanupVerified })).sort((a, b) => a.shard < b.shard ? -1 : a.shard > b.shard ? 1 : 0),
+      startedAt: p.startedAt, finishedAt: p.finishedAt };
+  } catch { return null; }
+}
+
+/** Hash canonical participation only; matching bytes gain custody from the separate private gate receipt. */
+export function releaseParticipationDigest(participation) {
+  const fields = releaseParticipationFields(participation);
+  return fields ? createHash('sha256').update(JSON.stringify(fields)).digest('hex') : null;
+}
+
 /** Check the shard partition and source bindings; the JSON itself does not prove who executed it. */
 function shardProblem(participation, gate, expected) {
   const files = new Set();
@@ -95,6 +114,7 @@ function checked(envelope, expected) {
     || !equal([...p.required].sort(), [...expected.required].sort())) return 'participation does not match release binding';
   const start = instant(p.startedAt), finish = instant(p.finishedAt), at = instant(gate.at);
   if (start === null || finish === null || at === null || start > finish || at < start || at > finish) return 'invalid release receipt dates';
+  if (gate.participationDigest !== releaseParticipationDigest(p)) return 'participation differs from native gate binding';
   return shardProblem(p, gate, expected);
 }
 
@@ -107,13 +127,8 @@ export function releaseReceiptProblem(envelope, expected) {
 /** Return deterministic structural fields only after every source, coverage and participation binding passes. */
 export function releaseReceiptFields(envelope, expected) {
   if (releaseReceiptProblem(envelope, expected)) return null;
-  const p = envelope.participation;
-  return { version: 1, gateReceipt: receiptFields(envelope.gateReceipt), participation: {
-    version: 1, id: p.id, head: p.head, tree: p.tree, command: p.command, required: [...p.required].sort(),
-    shards: p.shards.map(s => ({ shard: s.shard, files: [...s.files].sort(), executor: s.executor,
-      head: s.head, tree: s.tree, command: s.command, green: true, complete: true, cleanupVerified: true }))
-      .sort((a, b) => a.shard < b.shard ? -1 : a.shard > b.shard ? 1 : 0),
-    startedAt: p.startedAt, finishedAt: p.finishedAt } };
+  return { version: 1, gateReceipt: receiptFields(envelope.gateReceipt),
+    participation: releaseParticipationFields(envelope.participation) };
 }
 
 /** Canonical JSON bytes do not authenticate the envelope; hosted readers must verify their transport separately. */

@@ -11,7 +11,9 @@ import {
   releaseReceiptBody,
   releaseReceiptFields,
   releaseReceiptProblem,
+  releaseParticipationDigest,
 } from '../src/release-gate-receipt.js';
+import { receiptBody, receiptFields } from '../src/gate-run-receipt.js';
 
 /** Hash synthetic command and collection data using the native digest format, without claiming they ran. */
 function digest(text) { return createHash('sha256').update(text).digest('hex'); }
@@ -31,6 +33,7 @@ function fixture() {
     shards: files.map((file, i) => ({ shard: `synthetic-shard-${i + 1}`, files: [file], executor: required[i],
       head: expected.head, tree: expected.tree, command: digest(`synthetic shard ${file}`), green: true, complete: true, cleanupVerified: true })),
     startedAt: '2026-10-27T10:00:00.000Z', finishedAt: '2026-10-27T10:02:00.000Z' };
+  gateReceipt.participationDigest = releaseParticipationDigest(participation);
   return { expected, envelope: { version: 1, gateReceipt, participation } };
 }
 
@@ -48,6 +51,10 @@ export function installReleaseReceiptCases() {
     reordered.participation.shards.reverse();
     assert.equal(releaseReceiptBody(reordered, expected), body, 'canonical field order is independent of supplied participant order');
     assert.equal(Object.hasOwn(JSON.parse(body), 'auditBatchId'), false, 'standalone release structure never invents a landing audit');
+    const legacyBody = '{"version":1,"id":"ff6e3e7b-df07-4ff1-a84f-378aeb883705","kind":"land","tree":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","main":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","command":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","green":true,"failures":[],"load":{"average":[0,0,0],"cpus":8,"freeMB":4096},"at":"2026-10-27T10:01:00.000Z"}\n';
+    const ordinary = JSON.parse(legacyBody);
+    assert.equal(receiptBody(ordinary), legacyBody, 'ordinary land bytes retain their legacy field layout');
+    assert.equal(receiptFields({ ...ordinary, participationDigest: 'a'.repeat(64) }), null, 'release binding cannot be mixed into landing custody');
   });
 
   test('release structure rejects wrong source gate command run identity and incomplete native collection [C7,V4]', () => {
@@ -56,6 +63,8 @@ export function installReleaseReceiptCases() {
       e => { e.gateReceipt.tree = 'c'.repeat(40); },
       e => { e.gateReceipt.command = digest('another full gate'); },
       e => { e.gateReceipt.kind = 'land'; },
+      e => { delete e.gateReceipt.participationDigest; },
+      e => { e.gateReceipt.participationDigest = '0'.repeat(64); },
       e => { e.gateReceipt.green = false; },
       e => { e.gateReceipt.collection.full = false; },
       e => { e.gateReceipt.collection.complete = false; },
@@ -89,6 +98,7 @@ export function installReleaseReceiptCases() {
       e => { e.participation.shards[0].head = 'c'.repeat(40); },
       e => { e.participation.shards[0].tree = 'c'.repeat(40); },
       e => { e.participation.shards[0].command = 'node ./bin/run-tests.js'; },
+      e => { e.participation.shards[0].command = '0'.repeat(64); },
       e => { e.participation.shards[0].green = false; },
       e => { e.participation.shards[0].complete = false; },
       e => { e.participation.shards[0].cleanupVerified = false; },

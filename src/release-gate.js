@@ -79,10 +79,7 @@ export async function runReleaseGate(root, { agent = 'release', onWait } = {}) {
   const gateReceipt = readGateReceipt(receiptStore(root), run.receiptId);
   const observed = run.releaseParticipation;
   const expected = { head: source.head, tree: source.tree, command: source.command, required: executors.map(entry => entry.id) };
-  const envelope = { version: 1, gateReceipt, participation: {
-    version: observed?.version, id: observed?.id, head: observed?.head, tree: observed?.tree,
-    command: source.command, required: observed?.required, shards: observed?.shards,
-    startedAt, finishedAt: new Date().toISOString() } };
+  const envelope = { version: 1, gateReceipt, participation: observed };
   const problem = releaseReceiptProblem(envelope, expected);
   if (!run.isGreen || problem) {
     throw new Refused('GATE_RUN_EVIDENCE', `release gate did not produce complete green evidence: ${problem ?? 'the actual gate failed'}; inspect its native gate log`);

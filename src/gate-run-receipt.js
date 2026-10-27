@@ -92,6 +92,9 @@ function checkedFields(value) {
   if (Object.hasOwn(value ?? {}, 'environment') && value.environment !== null && environmentProblem(value.environment)) throw bad();
   const proof = value?.version === 2 ? proofFields(value.proof) : null;
   const version = value?.version;
+  const hasParticipation = Object.hasOwn(value ?? {}, 'participationDigest');
+  if (hasParticipation && (version !== 1 || value.kind !== 'release' || !DIGEST.test(value.participationDigest ?? ''))
+    || value?.kind === 'release' && !hasParticipation) throw bad();
   const hasCollection = Object.hasOwn(value ?? {}, 'collection');
   if (hasCollection && (version !== 1 || !['land', 'release'].includes(value.kind))) throw bad();
   const collection = hasCollection ? collectionFields(value.collection) : null;
@@ -113,7 +116,7 @@ function checkedFields(value) {
   return { version, id: value.id, kind: value.kind, tree: value.tree, head: value.head, main: value.main, command: value.command,
     green: value.green, failures, load: load === null ? null : { average: [...load.average], cpus: load.cpus, freeMB: load.freeMB }, at: value.at,
     ...(proof ? { proof } : {}), ...(Object.hasOwn(value, 'environment') ? { environment: value.environment } : {}),
-    ...(hasCollection ? { collection } : {}) };
+    ...(hasCollection ? { collection } : {}), ...(hasParticipation ? { participationDigest: value.participationDigest } : {}) };
 }
 
 /**

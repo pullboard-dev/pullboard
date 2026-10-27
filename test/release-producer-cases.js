@@ -102,7 +102,7 @@ import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {runReleaseGate,verifyNativeReleaseReceipt} from './src/release-gate.js';
 import {isStampedGreen} from './src/gate.js';
-import {releaseReceiptBody} from './src/release-gate-receipt.js';
+import {releaseReceiptBody,releaseParticipationDigest} from './src/release-gate-receipt.js';
 import {openBoard,closeBoard} from './src/board.js';
 const root=process.cwd();
 const board=openBoard(join(root,'.git','pullboard','board.sqlite'));closeBoard(board);
@@ -133,12 +133,26 @@ assert.equal(verifyNativeReleaseReceipt(root,'not-a-native-id'),null);
 const expected={head:receipt.participation.head,tree:receipt.participation.tree,command:receipt.participation.command,required:receipt.participation.required};
 const original=readFileSync(run.file,'utf8');
 assert.equal(original,releaseReceiptBody(receipt,expected));
-const substituted=structuredClone(receipt);substituted.participation.shards[0].command='0'.repeat(64);
-const substitutedBytes=releaseReceiptBody(substituted,expected);
-assert.ok(substitutedBytes,'the custody negative preserves valid structural fields');
-writeFileSync(run.file,substitutedBytes);
-try { assert.equal(verifyNativeReleaseReceipt(root,id)===null,true,'a valid shard-command substitution cannot inherit native custody'); }
-finally { writeFileSync(run.file,original); }
+const substitutions=[
+ p=>{p.shards[0].command='0'.repeat(64);},
+ p=>{[p.shards[0].executor,p.shards[1].executor]=[p.shards[1].executor,p.shards[0].executor];},
+ p=>{p.startedAt=new Date(Date.parse(p.startedAt)-1).toISOString();},
+ p=>{p.finishedAt=new Date(Date.parse(p.finishedAt)+1).toISOString();}
+];
+for(const substitute of substitutions){
+ const substituted=structuredClone(receipt);substitute(substituted.participation);
+ assert.equal(releaseReceiptBody(substituted,expected),null,'changed participation loses the observed gate binding');
+ writeFileSync(run.file,JSON.stringify(substituted)+'\\n');
+ try { assert.equal(verifyNativeReleaseReceipt(root,id)===null,true,'valid participation substitutions cannot inherit native custody'); }
+ finally { writeFileSync(run.file,original); }
+ substituted.gateReceipt.participationDigest=releaseParticipationDigest(substituted.participation);
+ const substitutedBytes=releaseReceiptBody(substituted,expected);
+ assert.ok(substitutedBytes,'a forged matching hash preserves structure but cannot alter the private native gate record');
+ writeFileSync(run.file,substitutedBytes);
+ try { assert.equal(verifyNativeReleaseReceipt(root,id)===null,true,'recomputing a forged digest cannot inherit native custody'); }
+ finally { writeFileSync(run.file,original); }
+}
+assert.deepEqual(verifyNativeReleaseReceipt(root,id),receipt,'the unmodified real native receipt remains valid');
 const forged=structuredClone(receipt);forged.participation.shards[0].files=['test/not-planned.test.js'];
 writeFileSync(run.file,JSON.stringify(forged)+'\\n');
 assert.equal(verifyNativeReleaseReceipt(root,id),null,'tampering a private envelope cannot create native custody');
