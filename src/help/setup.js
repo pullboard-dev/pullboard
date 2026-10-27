@@ -37,7 +37,8 @@ export const setupHelp = `Set up
                                         items, shouts, doctrine, agents and activity; --port 0 chooses a free port
                                         --project limits this view to the registered project for this repository
                                         add items, shout and hold lanes from it
-  pullboard view --export <dir>         a read-only snapshot with event replay, for any static host
+  pullboard view --export <dir> [--public]  a read-only snapshot with event replay, for any static host
+                                        --public requires a checked public filter
   pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
                                         behind the session secret in its printed address
   pullboard mcp                        MCP tools over stdio for this worktree's agent, started by its MCP client:
