@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { cockpitPage } from '../../src/cockpit.js';
 import {
-  boardOf, chooseFilter, chromeExecutable, closeSnapshotChrome, machine, openSnapshotChrome,
+  boardOf, chooseFilter, chromeExecutable, closeSnapshotChrome, fetchLive, machine, openSnapshotChrome,
   pickProject, press, project, startView,
 } from './fixture.js';
 
@@ -100,6 +100,12 @@ test('a board opens on Dashboard with API-backed work, shared pace and existing 
     assert.equal(await chrome.stable('view.state'), 'ready', 'Items preserves the filter chosen by the Dashboard link');
     await chooseFilter(chrome, 'state:active');
     assert.match(await chrome.stable('document.querySelector("#chain").textContent'), /A task in flight/u);
+    for (const path of ['/dashboard', '/dashboard-live/dashboard']) {
+      const response = await fetchLive(view.base + path, { headers: { 'x-pullboard-key': view.key } });
+      assert.equal(response.status, 200, 'Dashboard addresses serve the board page directly');
+    }
+    await chrome.send('Page.navigate', { url: view.base + '/dashboard' });
+    await chrome.waitFor(`typeof view !== 'undefined' && view.tab === 'dashboard' && data?.project?.root === ${JSON.stringify(alpha.repo)}`);
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     await view.stop();
