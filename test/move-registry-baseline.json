@@ -6481,6 +6481,8 @@
     }
   ],
   "nextSteps": {
+    "BAD_REVIEW_FAMILY": "use --review-family with a nonempty declared reviewer family of at most 100 characters",
+    "REQUIRED_REVIEW_FAMILY": "ask a reviewer whose declared family matches the item review-family requirement",
     "BAD_DECISION_OPTIONS": "ask an item decision with --decision --item <id> --options '[\"first\",\"second\"]'",
     "NOT_YOUR_ITEM_DECISION": "ask on an item you build or review, or ask the coordinator for a cross-item decision",
     "BAD_VERDICT_WITHDRAW": "use --withdraw-verdict with a note, or report a conflict separately",
