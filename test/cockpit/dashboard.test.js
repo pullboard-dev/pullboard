@@ -1,3 +1,6 @@
+import './dashboard-runtime.test.js';
+import './dashboard-clock.test.js';
+import './dashboard-model.test.js';
 /** @pullboard-test-gui */
 /** The approved Dashboard opens a real board and presents its live state [N26]. */
 import assert from 'node:assert/strict';
@@ -60,6 +63,17 @@ test('a board opens on Dashboard with API-backed work, shared pace and existing 
       const fits = await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1');
       assert.equal(fits, true, `${scheme} at ${width}px has no sideways page scroll`);
     }
+    assert.equal(await chrome.stable('document.querySelector("#dashboard [aria-label=Agents]").textContent.includes("web-1")'), true, 'the live summary holder appears in Agents');
+    await press(chrome, 'document.querySelector("#dashboard [data-dashboard-list=review]")');
+    await chrome.waitFor('view.tab === "items" && view.state === "verify"');
+    await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
+    await chrome.waitFor('view.tab === "dashboard"');
+    await press(chrome, 'document.querySelector("#dashboard [data-dashboard-list=next]")');
+    await chrome.waitFor('view.tab === "items" && view.state === "ready"');
+    await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
+    await chrome.waitFor('view.tab === "dashboard"');
+    box.run(alpha.repo, 'shout', 'person', 'Which release wording should we use?', '--decision');
+    await chrome.waitFor(`document.querySelector('#dashboard [aria-label="Needs you"]').textContent.includes('Which release wording')`);
     await press(chrome, 'document.querySelector("[data-tab=items]")');
     await chrome.waitFor('view.tab === "items"');
     assert.match(await chrome.stable('document.querySelector("#chain").textContent'), /A task in flight/u);

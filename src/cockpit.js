@@ -1,3 +1,7 @@
+import { dashboardModel } from './view/dashboard-model.js';
+import { dashboardHtml } from './view/dashboard-render.js';
+import { dashboardRuntime } from './view/dashboard-runtime.js';
+import { releaseNotice } from './view/release-notice.js';
 import { sharingPresentation } from './view/sharing-invitation.js';
 import {
   hostedReleaseDistance,
@@ -101,7 +105,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   const releaseInfo = hostedReleaseInfo(hostedReleaseVersion, hostedReleaseVersions, releaseHosted);
   const css = stylesheet ?? (snapshot ? 'view.css' : transportModule ? '/view.css' : '/view.css?k=' + encodeURIComponent(key));
   const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-  const pageScope = { STAR_KEY, applyStateDelta, closePageDialog, connection, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeRules, hostedState, lifecycle, moduleOption, openPageDialog, pageStartup, paths, personNeeds, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
+  const pageScope = { dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, closePageDialog, connection, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeRules, hostedState, lifecycle, moduleOption, openPageDialog, pageStartup, paths, personNeeds, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -131,6 +135,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
 <div class="body">
 <header class="top">
   <nav class="tabs" id="tabs" aria-label="Board">
+    <button class="tab" data-tab="dashboard" type="button">Dashboard</button>
     <button class="tab" data-tab="home" type="button">Home</button>
     <button class="tab" data-tab="items" type="button">Items</button>
     <button class="tab" data-tab="shouts" type="button">Shouts</button>
@@ -167,6 +172,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <section class="card-panel group-panel"><h2>Activity</h2><div class="feed" id="group-activity"></div></section>
   </section>
   <section class="card-panel person-requests" id="person-requests" aria-label="Your requests" aria-live="polite" hidden></section>
+  <section data-pane="dashboard" id="dashboard" class="dashboard" aria-label="Dashboard"></section>
   <section data-pane="home" class="home" aria-label="Home"><section class="card-panel home-card" id="home-rules" aria-label="Your rules"></section><section class="card-panel home-card" aria-label="Needs you"><h2>Needs you</h2><ol class="needs home-needs" id="home-needs"></ol><p class="empty" id="home-calm" hidden>Nothing needs you.</p></section></section>
   <section data-pane="items" class="two">
     <div class="primary">
@@ -309,6 +315,7 @@ ${pageScriptPart3(pageScope)}async function refresh(fresh = null, attempt = 1) {
     data = next;
     showFlowAges();
     tickAges();
+    if (view.tab === 'dashboard' && data.project) dashboardView.draw(data.project, $('home-needs').innerHTML);
   }
   if (changed) {
     address(false);
@@ -1039,27 +1046,9 @@ function newerRelease(version, previous) {
   return false;
 }
 
-/** Remember one upgrade per board while retaining its card through this page's background refreshes. */
+/** The existing upgrade card is kept outside the cockpit's page-size budget. */
 function renderReleaseNotes(project) {
-  const region = $('upgrade-note');
-  region.hidden = true;
-  if (snapshot || !project?.releaseNotes) return;
-  const info = project.releaseNotes;
-  let notice = releaseNotices.get(project.root);
-  if (notice?.version !== info.version) {
-    const key = 'pb.release.' + project.root;
-    const previous = keep(key);
-    const releases = previous ? info.releases.filter((release) => newerRelease(release.version, previous)) : [];
-    notice = { version: info.version, releases, notes: info.notes };
-    releaseNotices.set(project.root, notice);
-    keep(key, info.version);
-  }
-  if (!notice.releases.length) return;
-  region.innerHTML = '<header><h2>New in ' + esc(notice.version) + '</h2><button class="ghost" type="button" data-upgrade-dismiss>Dismiss</button></header>'
-    + notice.releases.slice(0, 3).map((release) => '<article><h3>' + esc(release.version) + ' · ' + esc(release.headline) + '</h3><p>' + esc(release.paragraph) + '</p></article>').join('')
-    + '<footer>' + (notice.releases.length > 3 ? '<span>+' + (notice.releases.length - 3) + ' more</span> · ' : '')
-    + '<a href="' + esc(notice.notes) + '" target="_blank" rel="noopener noreferrer">Full release notes</a></footer>';
-  region.hidden = false;
+  return (${releaseNotice.toString()})(project, { $, snapshot, releaseNotices, keep, newerRelease, esc });
 }
 
 /** Draw the board shown: the sidebar, then every tab's panes from the project's board. */
@@ -1155,6 +1144,7 @@ function render() {
   $('home-rules').innerHTML = homeRules(p.spec);
   $('home-needs').innerHTML = needsHtml;
   $('home-calm').hidden = Boolean(needsHtml);
+  if (view.tab === 'dashboard') dashboardView.draw(p, needsHtml);
 
   const lanes = p.lanes;
   const working = lanes.filter((l) => l !== 'coordinator');
@@ -1180,11 +1170,13 @@ function render() {
   // Gated is one test, shared by the rows, the Gated filter and the status bar: open and waiting on an item or a held lane.
   const heldLanes = new Map(p.holds.map((h) => [h.hold_lane, h]));
   const gatedOf = (i) => stateOf(i) === 'open' && (i.blockedBy.length > 0 || heldLanes.has(i.lane));
-  const inState = (s) => (i) => s === 'all' || (s === 'active' ? !['verified', 'withdrawn'].includes(stateOf(i)) : s === 'gated' ? gatedOf(i) : stateOf(i) === s);
+  const dashboardReady = new Set((dashboardModel(p, [], { complete: false })).next.map(item => item.id));
+  const inState = (s) => (i) => s === 'ready' ? dashboardReady.has(i.id) : s === 'all' || (s === 'active' ? !['verified', 'withdrawn'].includes(stateOf(i)) : s === 'gated' ? gatedOf(i) : stateOf(i) === s);
   const names = { active: 'Active', verified: 'Verified', all: 'All' };
   // The status bar can open a narrower list; it shows as a fourth choice until another is picked.
   if (view.state === 'verify') names.verify = 'To verify';
   if (view.state === 'gated') names.gated = 'Gated';
+  if (view.state === 'ready') names.ready = 'Ready, in rank order';
   // A lane narrows the list as a state does, and each counts within the other's choice.
   const inLane = (lane) => (i) => !lane || i.lane === lane;
   if (view.lane && !matching.some(inLane(view.lane))) view.lane = null;
@@ -1217,7 +1209,8 @@ function render() {
   $('filter-toggle').setAttribute('aria-label', filterLabel);
   $('filter-toggle').title = filterLabel;
   if (view.filterOpen && activeChoice) [...menu.querySelectorAll('[data-filter-choice]')].find((option) => option.dataset.filterChoice === activeChoice)?.focus({ preventScroll: true });
-  const shown = inView.filter(inLane(view.lane)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const readyOrder = new Map((p.dashboardNext || []).map((id, index) => [id,index]));
+  const shown = inView.filter(inLane(view.lane)).sort((a, b) => view.dashboardList === 'next' && view.state === 'ready' ? (readyOrder.get(a.id) ?? Infinity)-(readyOrder.get(b.id) ?? Infinity) || a.id-b.id : view.dashboardList === 'review' && view.state === 'verify' ? (a.since || a.updatedAt).localeCompare(b.since || b.updatedAt) : b.updatedAt.localeCompare(a.updatedAt));
   const finishedUnderAll = !shown.length && p.items.length > 0 && p.items.every((item) => stateOf(item) === 'verified')
     && view.tab === 'items' && view.itemsView === 'list' && view.state === 'active' && !view.lane && !q && !snapshot;
   $('pipeline').innerHTML = pipeline ? pipelineCard(shown) : '';

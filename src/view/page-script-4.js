@@ -23,7 +23,7 @@ function showTab() {
 
 /** Read the selected repo, tab and detail from a path or the hosted page's fragment. */
 function placeAtAddress(page = data) {
-  const tabs = ['home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings'];
+  const tabs = ['dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings'];
   const hash = location.hash || '';
   let path = routed ? location.pathname || '/' : hash.slice(1);
   if (hash === '#items/pipeline' || hash === '#roadmap') path = hash.slice(1);
@@ -750,7 +750,7 @@ function switchTo(root, target = null, record = true) {
   const requestedItem = typeof item === 'number' ? item : item ? Number(item[1]) : null;
   view.item = requestedItem;
   view.adding = false;
-  if (record && view.item !== null) { view.tab = 'items'; keep('pb.tab', view.tab); }
+  if (record) { view.tab = view.item !== null ? 'items' : 'dashboard'; keep('pb.tab', view.tab); }
   keep('pb.project', root);
   if (record) { view.addressDetail = requestedItem === null ? null : String(requestedItem); view.shout = null; address(); }
   fold(false);
@@ -770,6 +770,11 @@ $('shouts-pane').addEventListener('click', (event) => {
   if (event.target.closest('[data-credentials]')) { void loadCredentials(); return; }
   const revoke = event.target.closest('[data-revoke-token]');
   if (revoke) { void revokeCredential(revoke.dataset.revokeToken); return; }
+  const dashboardList = event.target.closest('[data-dashboard-list]');
+  if (dashboardList) {
+    view.dashboardList = dashboardList.dataset.dashboardList; view.state = view.dashboardList === 'review' ? 'verify' : 'ready';
+    view.lane = null; view.before = null; $('q').value = ''; openTab('items'); render(); return;
+  }
   const more = event.target.closest('[data-more]'), pick = event.target.closest('[data-agent]');
   if (more) {
     const card = more.closest('.shout'), id = Number(card.dataset.shoutId);
