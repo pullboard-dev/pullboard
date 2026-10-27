@@ -243,7 +243,7 @@ async function readSpec() {
     tagNames.add(tag.name);
     if (tag.chain.length ? tag.chain[0] !== tag.object : tag.object !== tag.peeledCommit) throw new Error('invalid tag manifest');
   }
-  const runtimeNames = ['runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js'];
+  const runtimeNames = ['runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'test-result-store.js'];
   if (Object.keys(value.runtime.files).length !== runtimeNames.length
     || runtimeNames.some(name => typeof value.runtime.files[name] !== 'string')) throw new Error('invalid work specification');
   if (createHash('sha256').update(JSON.stringify(value.runtime.files)).digest('hex') !== value.runtime.sha256) throw new Error('invalid trusted runtime');
