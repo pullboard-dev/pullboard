@@ -43,6 +43,7 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'answerTypedRequests') args = [{ agentId: actor, answers: [{ requestId: 999999, outcome: 'declined', note: 'credential fixture' }] }];
     if (operation === 'setBoardMembers') args = [{ agentId: actor, document: null }]; // Native format refusal still exercises the authenticated credential.
     if (operation === 'setBarReady') args = [{ agentId: actor, enabled: false }];
+    if (operation === 'maintainStaleState') args = [{ agentId: actor, snapshot: null }];
     if (operation === 'recordHealthFindings') args = [{ agentId: actor, observedRevision: 0, findings: [] }];
     if (operation === 'recordActivityDelivery') args = [{ agentId: actor, through: 0, interrupts: [] }];
     if (operation === 'actOnActivity') args = [{ agentId: actor, ids: ['event:1'] }];
@@ -96,6 +97,7 @@ test('every current operation selects its native actor credential without a seco
     { operation: 'openHandoff', args: [{}], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'takeHandoff', args: [{ item: 999999 }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordPublishFinding', args: [{ item: 999999 }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
+    { operation: 'maintainStaleState', args: [{ snapshot: null }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordHealthFindings', args: [{ observedRevision: 0, findings: [] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'setBoardMembers', args: [{ document: null }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordActivityDelivery', args: [{ through: 0, interrupts: [] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },

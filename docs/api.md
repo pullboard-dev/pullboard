@@ -120,6 +120,10 @@ For example: `flow: review wait average 61 min (1 measured; > 60 min); bottlenec
 | `milestone remove` | `version:number`, `milestone:object` |
 | `milestone ship` | `version:number`, `milestone:object`, `into:string|null`, `moved:array`, `notMoved:array` |
 | `companion` | `version:number`, `item:object`, `created:boolean` |
+| `patch` | `version:number`, `item:number` |
+| `patch attach` | `version:number`, `item:number`, `key:string`, `digest:string`, `changed:boolean` |
+| `patch list` | `version:number`, `item:number`, `digest:string\|null`, `patches:array` |
+| `patch remove` | `version:number`, `item:number`, `key:string`, `digest:string`, `changed:boolean` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array`, `thread:array` |
 | `capacity` | `version:number`, `report:object` |
 | `stats` | `version:number`, `stats:object`, `gateWaits:array` |
