@@ -30,6 +30,7 @@ function fixture() {
   config.submitDeferAbove = 1;
   put(box.repo, 'pullboard.json', JSON.stringify(config));
   put(box.repo, 'package.json', '{"type":"module"}\n');
+  put(box.repo, 'src/js-lex.js', readFileSync(new URL('../src/js-lex.js', import.meta.url), 'utf8'));
   for (const file of ['board-files.js', 'board-file-baseline.js', 'scan.js']) {
     put(box.repo, `bin/checks/${file}`, readFileSync(new URL(`../bin/checks/${file}`, import.meta.url), 'utf8'));
   }
