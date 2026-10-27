@@ -48,6 +48,7 @@ export function defaults() {
     practice: DOCTRINE_FILE,
     gate: '',
     submit: { requireInfraNote: false },
+    testEconomics: { costOfEscape: 3600, costOfWaiting: 1, costOfFalseRed: 300 },
     itemSizeBudget: 100,
     submitInvariants: [],
     registryGuards: [],
@@ -109,6 +110,9 @@ function merge(base, raw) {
   return {
     ...base,
     ...raw,
+    testEconomics: raw.testEconomics === undefined ? base.testEconomics
+      : raw.testEconomics && typeof raw.testEconomics === 'object' && !Array.isArray(raw.testEconomics)
+        ? { ...base.testEconomics, ...raw.testEconomics } : raw.testEconomics,
     spec: spec ? spec.file : raw.spec === undefined ? base.spec : raw.spec,
     specAgentApproval: spec?.agentApproval === undefined ? 'flag' : spec.agentApproval,
     commits: { ...base.commits, ...(raw.commits ?? {}) },
@@ -176,6 +180,17 @@ function laneProblems(name, lane) {
  */
 export function configProblems(config) {
   const problems = [];
+  const costs = config.testEconomics;
+  if (!costs || typeof costs !== 'object' || Array.isArray(costs)
+    || Object.keys(costs).some(key => !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].includes(key))
+    || !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].every(key => Number.isFinite(costs[key]) && costs[key] >= 0)) {
+    problems.push('"testEconomics" has nonnegative finite costOfEscape, costOfWaiting and costOfFalseRed numbers (seconds of equivalent waiting); it changes the report only');
+  }
+  if (config.pushReceiptCheck !== undefined && (!config.pushReceiptCheck || typeof config.pushReceiptCheck !== 'object'
+    || Array.isArray(config.pushReceiptCheck) || Object.keys(config.pushReceiptCheck).some(key => key !== 'smoke')
+    || typeof config.pushReceiptCheck.smoke !== 'string' || !config.pushReceiptCheck.smoke.trim())) {
+    problems.push('"pushReceiptCheck" has only an explicit nonempty "smoke" command; this config does not activate the replacement hook');
+  }
   if (config.publish !== undefined && (!config.publish || typeof config.publish !== 'object' || Array.isArray(config.publish)
     || Object.keys(config.publish).some(key => key !== 'pullRequest') || ![undefined, false, 'release', 'item'].includes(config.publish.pullRequest))) {
     problems.push('"publish.pullRequest" is false (default), "release" for one PR per release, or "item" for one PR per item');

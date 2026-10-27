@@ -515,7 +515,7 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
     for (const event of board.db.prepare(`SELECT * FROM event WHERE event_id>? AND event_id<=? AND item_id IN (${ids.map(() => '?').join(',')}) ORDER BY event_id`).all(after, cursor, ...ids)) rows.set(event.event_id, event);
   }
   for (const event of board.db.prepare(`SELECT * FROM event WHERE event_id>? AND event_id<=?
-    AND event_kind IN ('main-moved','row_decision','row_apply','row_draft','shout','shout_news','pass','answer') ORDER BY event_id`).all(after, cursor)) rows.set(event.event_id, event);
+    AND event_kind IN ('main-moved','row_decision','row_apply','row_draft','shout','shout_news','pass','answer','typed-request','typed-request-answer') ORDER BY event_id`).all(after, cursor)) rows.set(event.event_id, event);
   if (sessionStart) for (const event of board.db.prepare(`SELECT * FROM event WHERE event_id>? AND event_id<=? AND event_kind='shout_news'
     ORDER BY event_id`).all(newsAfter, cursor)) rows.set(event.event_id, event);
   const messages = board.db.prepare(`SELECT * ${UNREAD_SQL} AND shout_id<=? ORDER BY shout_id`)
