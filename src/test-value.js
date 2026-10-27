@@ -193,7 +193,8 @@ export function testValueReport(board, { root, costs, now = Date.now() }) {
       const row = entry(file);
       row.runs += count;
       row.receiptIds.push(run.id);
-      if (run.tests.some(test => test.file === file)) row.namedOutcomeRuns += count;
+      // Historical named outcomes carry no worker/attempt identity. One sample cannot cover repeated executions.
+      if (count === 1 && run.tests.some(test => test.file === file)) row.namedOutcomeRuns += 1;
       const timings = run.timings.filter(value => value.file === file);
       // A partial set of file measurements never becomes a complete mean for this receipt.
       if (timings.length === count) {
@@ -216,7 +217,7 @@ export function testValueReport(board, { root, costs, now = Date.now() }) {
       && (run.tests.some(test => test.file === observation.file && test.name === observation.name && !test.passed)
         || run.failures.some(test => test.file === observation.file && test.name === observation.name)));
     // Historical observations lack a native receipt id: ambiguity remains explicit.
-    if (candidates.length === 1) matchedFlakes.add(JSON.stringify([observation.file, candidates[0].id]));
+    if (candidates.length === 1 && candidates[0].files.get(observation.file) === 1) matchedFlakes.add(JSON.stringify([observation.file, candidates[0].id]));
     else row.unmatchedFlakes += 1;
   }
   for (const repair of repairs.found) { const row = entry(repair.file); row.realCatches += 1; row.catches.push(repair); }
@@ -228,7 +229,7 @@ export function testValueReport(board, { root, costs, now = Date.now() }) {
     row.flakeRuns = [...matchedFlakes].filter(value => JSON.parse(value)[0] === row.file).length;
     if (row.runs > 0) {
       row.catchRate = row.unattributedFailures || row.namedOutcomeRuns !== row.runs ? null : row.catchRuns / row.runs;
-      row.flakeRate = row.unmatchedFlakes ? null : row.flakeRuns / row.runs;
+      row.flakeRate = row.unmatchedFlakes || row.namedOutcomeRuns !== row.runs ? null : row.flakeRuns / row.runs;
       if (row.timedRuns === row.runs) row.meanRuntimeMs = row.runtimeMs / row.runs;
       if (row.meanRuntimeMs !== null && row.catchRate !== null && row.flakeRate !== null) row.valuePerRun = row.catchRate * costs.costOfEscape
         - row.meanRuntimeMs / 1000 * costs.costOfWaiting - row.flakeRate * costs.costOfFalseRed;
@@ -253,5 +254,5 @@ export function testValueReport(board, { root, costs, now = Date.now() }) {
     || (right.valuePerRun ?? 0) - (left.valuePerRun ?? 0) || left.file.localeCompare(right.file));
   return { since, asOf, days: 14, costs, files,
     coverage: { receipts: windowRuns.length, unknownFileReceipts, gitHistoryAvailable: source.available, ...sourceCoverage },
-    method: 'Descriptive observed catch/flake rates per recorded file execution. Real catches require a typed failure, exact named red and green outcomes, later acceptance, unchanged tests/fixtures and a product-code delta. A flake is associated only with a unique matching same-head named red; ambiguous sightings keep its rate unknown. Runtime mean is measured file wall time rather than gate queue time, and is unknown when incomplete. Last-observed single-file native receipt wall time or landing-file-times and its value estimate are separate, with unknown age when the store has no timestamp; one sample is never expanded into historical totals. Worker names are bound to tracked test blobs at each receipt commit; historical inventories lack child cwd, so same-path nested-fixture collisions cannot be resolved. Costs use seconds of equivalent waiting. Missing history is not proof of no defects; identical worker identities cannot prove additional executions. Report only: no test selection or gate policy changes.' };
+    method: 'Descriptive observed catch/flake rates per recorded file execution. Real catches require a typed failure, exact named red and green outcomes, later acceptance, unchanged tests/fixtures and a product-code delta. A flake is associated only with a unique matching same-head named red; ambiguous sightings keep its rate unknown. Runtime mean is measured file wall time rather than gate queue time, and is unknown when incomplete. Last-observed single-file native receipt wall time or landing-file-times and its value estimate are separate, with unknown age when the store has no timestamp; one sample is never expanded into historical totals. Worker names are bound to tracked test blobs at each receipt commit; historical inventories lack child cwd, so same-path nested-fixture collisions cannot be resolved. Costs use seconds of equivalent waiting. Missing history is not proof of no defects; identical worker identities cannot prove additional executions. Repeated same-file workers lack attempt-bound named outcomes, so catch and flake rates remain unknown even when every duration is present. Report only: no test selection or gate policy changes.' };
 }

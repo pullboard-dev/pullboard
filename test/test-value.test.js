@@ -268,3 +268,34 @@ test('[C7] a single-file native receipt supplies observed wall time, never aggre
   assert.equal(row.estimatedValuePerRun, -2.5, 'a separately labelled estimate applies the rule without inventing a complete mean');
   assert.equal(report.files.find(row => row.file === 'test/beta.test.js').lastObservedRuntime, null);
 });
+
+
+test('[C7] one unbound named outcome cannot cover two same-file worker executions', t => {
+  const f = fixture(t), file = 'test/alpha.test.js', id = randomUUID();
+  f.event('proof-run', 1, '2026-10-14T00:00:00Z', { receipt: { id, at: '2026-10-14T00:00:00Z',
+    commit: f.red, sourceClean: true, exitCode: 0,
+    testRuntimes: [{ pid: 100, file, environment: ENVIRONMENT }, { pid: 101, file, environment: ENVIRONMENT }] } });
+  assert.equal(retainTestValueTimings(boardReceiptStore(f.board), id, {
+    files: [{ path: file, durationMs: 1000 }, { path: file, durationMs: 2000 }],
+    tests: [{ file, name: 'target', passed: true }],
+  }), true);
+  f.run('test/beta.test.js', '2026-10-15T00:00:00Z', { duration: 1000 });
+  let report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
+  const row = report.files.find(row => row.file === file);
+  assert.equal(row.runs, 2);
+  assert.equal(row.timedRuns, 2);
+  assert.equal(row.meanRuntimeMs, 1500, 'complete durations do not imply complete named outcomes');
+  assert.equal(row.namedOutcomeRuns, 0);
+  assert.equal(row.catchRate, null);
+  assert.equal(row.flakeRate, null);
+  assert.equal(row.valuePerRun, null);
+  assert.equal(row.estimatedValuePerRun, null);
+  assert.equal(report.files.find(row => row.file === 'test/beta.test.js').valuePerRun, -1,
+    'an independently observed single execution retains the measured scenario');
+  // Even a uniquely matching receipt cannot assign a same-head flake to one of its unbound workers.
+  f.event('flake-observation', null, '2026-10-14T00:00:01Z', { engine: NATIVE_FLAKE_ENGINE,
+    observation: { id: 'ambiguous-workers', file, name: 'target', head: f.red,
+      at: '2026-10-14T00:00:01Z', classification: 'flake', original: { sha256: 'c'.repeat(64) } } });
+  report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
+  assert.equal(report.files.find(row => row.file === file).flakeRate, null);
+});
