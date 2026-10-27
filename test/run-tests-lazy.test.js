@@ -149,8 +149,15 @@ test('a board change selects its real importers in the actual committed reposito
   assert.ok(selection.files.includes('test/board.test.js'), 'the board contract is an actual importer');
   const { closures, modules } = testClosures(ROOT, 'HEAD');
   const known = knownUncacheableImporters(closures, modules);
-  const expected = [...closures].filter(([file, closure]) => closure.files?.includes('src/board.js')
+  for (const [file, closure] of closures) {
+    if (closure.files !== null) continue;
+    assert.ok(selection.files.includes(file), `unknown root ${file} remains conservatively selected`);
+    assert.ok(closure.reason, `unknown root ${file} has a nonempty reason`);
+    assert.ok(selection.reason.includes(file), `selection discloses unknown root ${file}`);
+    assert.ok(selection.reason.includes(closure.reason), `selection discloses the reason for ${file}`);
+  }
+  const expected = [...closures].filter(([file, closure]) => closure.files === null || closure.files.includes('src/board.js')
     || sourceTreeReader(modules.get(file)) || known.has(file)).map(([file]) => file).sort();
-  assert.deepEqual(selection.files, expected, 'only actual transitive importers and declared source-tree readers are selected');
+  assert.deepEqual(selection.files, expected, 'exact selection retains actual board importers, declared readers and disclosed conservative unknown roots');
   assert.ok(selection.files.length < closures.size, 'unrelated tests do not become board dependencies through the runner');
 });
