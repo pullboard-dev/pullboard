@@ -29,5 +29,6 @@ export function exerciseRejectedWorkFormat(board, { coordinator, reviewer }) {
       observedRevision: store.events(board).at(-1).event_id, findings: [finding], returnRejected: true });
     const returned = store.events(board, { itemId: id }).findLast(event => event.event_kind === 'reject_returned');
     assert.equal(JSON.parse(returned.event_detail).reason, 'inactive');
+    return builder;
   } finally { board.clock = clock; }
 }
