@@ -45,6 +45,17 @@ const EVENT_IDENTITIES = Object.freeze({
   edit: { correctedFrozen: 64, unfrozen: 64 },
 });
 
+/** Diagnostics may name only these fixed schema words; dynamic keys and array indexes are redacted. */
+const DIAGNOSTIC_FIELDS = new Set(('listing boards state events board root id rowAgesAt items agents shouts asked requests decisions decisionQueue needs personRequests '
+  + 'personBars personRows personProposals event_detail detail thread history title criterion brief text note reason check commit tree digest policyCommit '
+  + 'criterionDigest submissionProof submissionSize base head review trunk checkBaseline main verdict verdicts verdictState spec practice products releaseNotes '
+  + 'source record row rowDecisions specRevisions rigorDrafts sentinelDrafts proofStats ruleCounts config parent signature publicKey agent_id agent_lane model').split(' '));
+
+/** Name a projection location without echoing arbitrary object keys, identifiers or filesystem names. */
+function diagnosticPath(path) {
+  return path.map(key => DIAGNOSTIC_FIELDS.has(key) ? key : key === '*' ? '*' : '[field]').join('.');
+}
+
 /** Exempt exact native paths and formats; free text and arbitrary *_id detail keys never qualify. */
 function structuredIdentity(path, value, eventKind) {
   const location = path.join('/');
@@ -72,6 +83,7 @@ function structuredIdentity(path, value, eventKind) {
  */
 export function publicSnapshot(document, { privateBoard = false } = {}) {
   const blocked = new Set(privateBoard ? [PUBLIC_EXPORT_BLOCKS.private] : []);
+  const fields = new Set();
   /** Traverse every retained API value, including decoded event details and historical thread prose. */
   function visit(value, path = [], eventKind = null) {
     const location = path.join('/');
@@ -92,12 +104,13 @@ export function publicSnapshot(document, { privateBoard = false } = {}) {
     if (typeof value === 'string') {
       for (const [kind, pattern] of PUBLIC_EXPORT_BLOCKS.text) {
         if (kind === 'secret-shaped string' && structuredIdentity(path, value, eventKind)) continue;
-        if (pattern.test(value)) blocked.add(kind);
+        if (pattern.test(value)) { blocked.add(kind); fields.add(diagnosticPath(path)); }
       }
     }
     return value;
   }
   const result = visit(document);
-  if (blocked.size) throw new Refused('PUBLIC_EXPORT_BLOCKED', `public export blocked: ${[...blocked].join(', ')}`, 'remove blocked public text or use a normal local export; do not publish the refused snapshot');
+  if (blocked.size) throw new Refused('PUBLIC_EXPORT_BLOCKED', `public export blocked: ${[...blocked].join(', ')}`,
+    `${fields.size ? `inspect public fields ${[...fields].slice(0, 8).join(', ')}; ` : ''}remove blocked public text or use a normal local export; do not publish the refused snapshot`);
   return result;
 }

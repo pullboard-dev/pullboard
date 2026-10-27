@@ -61,6 +61,10 @@ test('the declared public filter blocks every ruled kind without echoing its val
   assert.throws(() => publicSnapshot({ commit: 'sk-fixtureonly12345678' }), /secret-shaped string/u, 'an identity key does not exempt an arbitrary credential');
   assert.deepEqual(publicSnapshot({ title: 'A private implementation detail', reviewPolicy: { sensitive: true }, brief: 'A sale client connects.' }),
     { title: 'A private implementation detail', reviewPolicy: { sensitive: true }, brief: 'A sale client connects.' }, 'review sensitivity and ordinary technical words are not privacy flags');
+  const privateKey = 'arbitrary-user-supplied-name';
+  assert.throws(() => publicSnapshot({ state: { state: { items: [{ [privateKey]: 'sk-fixtureonly12345678' }] } } }), error =>
+    error.next.includes('state.state.items.*.[field]') && !error.next.includes(privateKey) && !error.next.includes('fixtureonly'),
+  'diagnostics expose only allowlisted schema names and a category');
 });
 
 test('internal messages disappear from rows, historical JSON and derived decisions [N26]', () => {
