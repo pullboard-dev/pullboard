@@ -11,7 +11,7 @@ import {
   setResourceCapacity,
   updateRunnerSettings,
 } from './resources.js';
-import { validateRunner } from './runners.js';
+import { validateRunner } from './runner-policy.js';
 import { Refused } from './refused.js';
 import { relayCanaryConfig } from './relay-canary-config.js';
 import { relayCanaryProblem } from './relay-canary-config.js';

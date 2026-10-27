@@ -1,3 +1,9 @@
+import {
+  settleReceipt,
+  withGateSlot,
+} from './gate-slot.js';
+export { withGateSlot };
+export { performanceCores, testConcurrency, landingShardCount } from './test-concurrency.js';
 /**
  * The gate (V4, C3, Q1, Q2, V18): the repo's check command and shared queue for gates and item checks. A green
  * run over a committed tree, with nothing untracked and nothing changed while it ran, leaves that
@@ -120,10 +126,8 @@ import {
 // A read that checks a baseline or a trusted policy summarizes output without loading the gate's queue and runners.
 export { digestOf, runShell, writeTimingProfile };
 import {
-  RunnerDropped,
   runOnRunner,
   runOnRunnerAsync,
-  runnerSource,
 } from './runners.js';
 import {
   sandboxBlockedOperation,
@@ -138,56 +142,6 @@ const LOG = 'pullboard-gate.log';
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
 // Live person waivers, as {kind, test}, so a landing run does not stop early on a waived failure.
 const LANDING_WAIVERS_ENV = 'PULLBOARD_LANDING_WAIVERS';
-/** Detect the performance-core budget on Apple Silicon, or the runtime's usable CPU budget elsewhere. */
-export function performanceCores() {
-  if (process.platform === 'darwin') {
-    const result = spawnSync('/usr/sbin/sysctl', ['-n', 'hw.perflevel0.physicalcpu'], { encoding: 'utf8' });
-    const count = Number(result.stdout?.trim());
-    if (result.status === 0 && Number.isSafeInteger(count) && count > 0) return count;
-  }
-  return Math.max(1, availableParallelism());
-}
-
-/** One policy for native file concurrency and the separate per-run browser-file limit. */
-export function testConcurrency(root, cores = performanceCores()) {
-  const file = join(root, 'pullboard.json');
-  let config = {};
-  if (existsSync(file)) {
-    try { config = JSON.parse(readFileSync(file, 'utf8')); }
-    catch { throw new Refused('BAD_CONFIG', 'pullboard.json must be valid JSON before running tests'); }
-  }
-  const setting = config.testConcurrency ?? {};
-  if (!setting || typeof setting !== 'object' || Array.isArray(setting)) {
-    throw new Refused('BAD_CONFIG', 'testConcurrency must be an object with positive integer files and browser fields');
-  }
-  const files = setting.files ?? cores;
-  const browser = setting.browser ?? 2;
-  if (!Number.isSafeInteger(files) || files < 1 || !Number.isSafeInteger(browser) || browser < 1 || browser > 2) {
-    throw new Refused('BAD_CONFIG', 'testConcurrency.files must be positive; testConcurrency.browser must be 1 or 2');
-  }
-  return { files, browser: Math.min(files, browser) };
-}
-
-/**
- * How many shards the landing gate's test files split into: `landingShards` in pullboard.json,
- * 1 when absent, which keeps today's single run.
- *
- * @param {string} root
- * @returns {number}
- */
-export function landingShardCount(root) {
-  const file = join(root, 'pullboard.json');
-  if (!existsSync(file)) return 1;
-  let config;
-  try { config = JSON.parse(readFileSync(file, 'utf8')); }
-  catch { throw new Refused('BAD_CONFIG', 'pullboard.json must be valid JSON before running tests'); }
-  const count = config?.landingShards ?? 1;
-  if (!Number.isSafeInteger(count) || count < 1 || count > 64) {
-    throw new Refused('BAD_CONFIG', 'landingShards must be a whole number from 1 to 64; set it in pullboard.json, or remove it for one landing run');
-  }
-  return count;
-}
-
 /**
  * The tree a gate run would check, or null when the working copy differs from HEAD or holds
  * untracked files, since a pass over it would vouch for something no commit holds.
@@ -390,25 +344,6 @@ export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlo
   return { isGreen: status === 0 && !overflow && !failure, environment, testRuntimes, sandboxBlocked: status === 0 ? null : sandboxBlockedOperation(root, output), output, seconds: Math.round(wallMs / 1000), profile, profilePath, logPath: null };
 }
 
-/** Close a gated run's receipt (#836) as its evidence is written; the slot's release records this same receipt. */
-function settleReceipt(lease) {
-  if (!lease?.tracker) return undefined;
-  const executor = lease.executionAdmission;
-  const local = !lease.runner;
-  const descriptor = local ? lease.localDescriptor ?? localRunnerDescriptor(lease.capacity ?? null, null)
-    : { id: lease.runner.host, kind: 'ssh', slots: { current: executor?.slots ?? lease.runner.slots, limit: executor?.slots ?? lease.runner.slots, elastic: false },
-      capabilities: { os: lease.environment?.platform ?? null, browser: lease.runner.browser > 0, gui: lease.gui ?? null } };
-  const admittedAt = local ? lease.admittedAt ?? new Date(lease.tracker.marks.admittedAt ?? lease.tracker.marks.requestedAt).toISOString() : executor?.admittedAt ?? null;
-  const finishedAt = local ? new Date().toISOString() : executor?.finishedAt ?? null;
-  const load = local ? { start: lease.startLoad ?? sampleRunnerLoad(), end: sampleRunnerLoad() } : executor?.load ?? null;
-  lease.receipt = { ...receiptOf(lease.tracker, { kind: lease.receiptKind, slot: lease.slot }), environment: lease.environment ?? null,
-    runner: descriptor, admittedAt, finishedAt, timing: lease.timing === true, inherited: lease.inherited === true,
-    occupiedSlots: lease.timing ? descriptor.slots.current : 1, load,
-    ...(local ? lease.timingEvidence?.() ?? { exclusive: false, unfencedClients: [] }
-      : { exclusive: executor?.exclusive === true, unfencedClients: executor?.unfencedClients ?? [] }) };
-  return lease.receipt;
-}
-
 /** Keep raw TAP intact while resolving its measured filenames against the checkout that ran them. */
 function runTiming(run, command, root) {
   const shards = landingShardProfile(run.output);
@@ -439,125 +374,10 @@ function runTiming(run, command, root) {
     tests: (profile.tests ?? []).map(test => ({ ...test, file: localPath(test.file) })) };
 }
 
-/** Run work under the machine queue: landings first, then every other eligible waiter in arrival order.
- * Local executors wait while this machine is out of memory; remote runners keep admitting.
- *
- * @param {string} root - Checkout used to locate the machine resource database.
- * shortEligible marks a run that names its test files: with gate.shortSlots above 0 it may take a
- * short slot when every ordinary slot is held, and a full suite can never inherit that slot. A memory
- * hold (gate.memoryFloorMB) holds short slots too, since a short run uses the same machine memory.
- *
- * @param {(lease: { waitMs: number, token?: string, pool?: string, browser?: boolean, slotClass?: 'gate'|'short', release: () => void }) => any | Promise<any>} action - Work to perform while holding a slot.
- * @param {{ landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, gui?: boolean, remote?: boolean, runnerOnly?: boolean, timing?: boolean, agent?: string, item?: string|number, kind?: string, onWait?: (state: object) => void, onReceipt?: (receipt: object) => void, readMemory?: typeof readMachineMemory }} [options] - Queue class, short-slot eligibility, remote eligibility, progress reporter, the run's receipt once its slot is released (#836) and, for tests, the machine memory reader.
- * @returns {Promise<any>} The action's result after releasing its lease.
- */
-export async function withGateSlot(root, action, options = {}) {
-  try { return await withOneGateSlot(root, action, options); }
-  catch (error) {
-    if (!['RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED'].includes(error?.code) || options.remote === false || options.runnerOnly) throw error;
-    // The runner's red attempt stays on record beside the local rerun.
-    const attempt = error.runnerAttempt ?? { host: '', exitCode: null, output: '' };
-    const required = error.code === 'RUNNER_GUI_SESSION_REQUIRED' ? 'a GUI session' : 'a browser slot';
-    process.stderr.write(`${error.message}; its attempt (exit ${attempt.exitCode}):\n${attempt.output}${attempt.output.endsWith('\n') || !attempt.output ? '' : '\n'}rerunning it locally with ${required}\n`);
-    const result = await withOneGateSlot(root, action, { ...options, remote: false, browser: true });
-    if (result && typeof result === 'object') result.runnerAttempt = attempt;
-    return result;
-  }
-}
-
 /** Validate landing membership before admission; generic SSH capacity cannot stand in for a constrained host. */
 export async function withLandingGateSlot(root, action, options = {}) {
   const constrained = constrainedLandingHost(root);
   return withGateSlot(root, action, { ...options, landing: true, ...(constrained ? { remote: false } : {}) });
-}
-
-/** One gate admission and its action; withGateSlot may call it again for a local rerun. */
-async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, timing = false, agent, item = '', kind = '', onWait, onReceipt, readMemory = readMachineMemory } = {}) {
-  const tracker = startReceipt();
-  const receiptKind = kind || (landing ? 'landing' : 'gate');
-  /** Hand the run its receipt tracker and slot, then record its receipt once the slot is released (#836). */
-  const timed = lease => Object.assign(lease, { tracker, receiptKind,
-    ...(!lease.runner ? { startLoad: lease.startLoad ?? sampleRunnerLoad(),
-      localDescriptor: localRunnerDescriptor(lease.capacity ?? null, loadMachineSettings().browserSlots > 0) } : {}),
-    slot: slotOf(lease, { browserFree: browserFreeChecksEnabled() }) });
-  const record = lease => {
-    const timing = lease.receipt ?? receiptOf(tracker, { kind: receiptKind, slot: lease.slot });
-    const receipt = { ...timing, ...(lease.proofReceiptIds?.length ? { proofReceiptIds: [...lease.proofReceiptIds] } : {}) };
-    recordReceipt(root, receipt);
-    onReceipt?.(receipt);
-  };
-  const inherited = inheritedGateSlot({ root, browser, namedFiles: shortEligible, timing });
-  if (inherited && (!runnerOnly || inherited.runnerExecution)) {
-    timed(Object.assign(inherited, { inherited: true }));
-    try {
-      await onWait?.({ admitted: true });
-      inherited.tracker.mark('actionAt');
-      return await action(inherited);
-    }
-    finally {
-      try { settleReceipt(inherited); } finally { inherited.release(); }
-      record(inherited);
-    }
-  }
-  const settingsProvider = () => loadMachineSettings();
-  const floorMB = memoryFloorMB();
-  const capacityProvider = () => settingsProvider().gateSlots;
-  const source = runnerSource(root);
-  if (runnerOnly && (!remote || !source)) throw new Refused('RUNNER_SOURCE', 'CPU-load tests need a clean committed checkout for runner execution; commit the source and retry, with no local fallback');
-  // Read the board once before queueing, never inside the machine admission transaction.
-  const releaseContext = gateQueueSettings().currentReleaseFirst
-    ? (await import('./release-queue.js')).captureReleaseQueue(root, item) : undefined;
-  tracker.mark('queuedAt');
-  let lease = await takeResource({
-    name: 'gate',
-    capacity: capacityProvider(),
-    capacityProvider,
-    shortCapacityProvider: () => gateShortSlots(),
-    shortEligible,
-    browserCapacityProvider: () => settingsProvider().browserSlots,
-    scope: 'machine',
-    root,
-    repo: root,
-    agent,
-    item: String(item),
-    kind,
-    landing,
-    itemCheck,
-    diagnostic,
-    browser,
-    gui,
-    timing,
-    allowIdleCapacityUpdate: true,
-    remote: remote && Boolean(source),
-    runnerOnly,
-    runnerProvider: () => loadMachineSettings().runners ?? [],
-    runnersFirstProvider: gateRunnersFirstEnabled,
-    runnerWaitMs: gateRunnerWaitMs(),
-    releaseContext,
-    memory: floorMB === null ? undefined : memoryAdmission({ floorBytes: () => (memoryFloorMB() ?? floorMB) * 1024 ** 2, read: readMemory }),
-    onWait,
-  });
-  tracker.mark('admittedAt');
-  try {
-    while (true) {
-      lease.source = source;
-      lease.runMetadata = { landing, itemCheck, diagnostic, gui, timing, item: String(item), kind };
-      timed(lease).tracker.mark('actionAt');
-      try { return await action(lease); }
-      catch (error) {
-        // A cleanup the runner could not verify is the runner's failure, not the run's: rerun it locally (#1063).
-        const cleanup = error instanceof Refused && error.code === 'RUNNER_CLEANUP_TIMEOUT';
-        if (!(error instanceof RunnerDropped || cleanup) || !lease.runner || !lease.requeueRunner) throw error;
-        const runnerUnavailable = { host: lease.runner.host, reason: cleanup ? error.message : 'transport lost before a complete result', until: 'the host is checked and re-registered' };
-        if (onWait) await onWait({ holders: [], line: [], position: 0, runnerUnavailable });
-        else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly ? 'rerunning it locally' : 'requeueing the run'}\n`);
-        lease = await lease.requeueRunner(cleanup ? 'cleanup-unverified' : 'transport-lost', { local: cleanup && !runnerOnly });
-      }
-    }
-  } finally {
-    try { settleReceipt(lease); } finally { lease.release(); }
-    record(lease);
-  }
 }
 
 /** Carry a failure observer's pinned main on the lease, so a remote runner's receipt names the main this run used (#925). */
