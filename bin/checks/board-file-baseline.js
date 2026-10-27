@@ -1,4 +1,5 @@
-{
+/** Unclassified direct board-file opens at the first memory conversion; a ceiling, not permission to grow [C7]. */
+export const BOARD_FILE_BASELINE = {
   "docs/formats.test.js": 5,
   "docs/handoff.test.js": 1,
   "test/activity-feed.test.js": 7,
@@ -144,4 +145,4 @@
   "test/verify.test.js": 1,
   "test/watch.test.js": 1,
   "test/why.test.js": 1
-}
+};

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /** Name file-backed board opens in tests and refuse growth of the unclassified debt [C7]. */
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
+import { BOARD_FILE_BASELINE } from './board-file-baseline.js';
 import { lex, lineAt, readText, report, TEST_FILE, walk } from './scan.js';
 
 /**
@@ -58,5 +59,5 @@ if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[
   const args = process.argv.slice(2);
   const root = resolve(args.find(value => !value.startsWith('--')) ?? process.cwd());
   if (args.includes('--report')) report(boardFileReport(root));
-  else report(boardFileProblems(root, JSON.parse(readFileSync(join(import.meta.dirname, '../../test/board-files-baseline.json'), 'utf8'))));
+  else report(boardFileProblems(root, BOARD_FILE_BASELINE));
 }

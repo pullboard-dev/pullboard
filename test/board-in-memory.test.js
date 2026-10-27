@@ -1,12 +1,13 @@
 /** @pullboard-test-input test-tree */
 /** Production SQLite schema and move contracts stay identical without board files [C7,B2,M1,H16]. */
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { fixtureBoard } from './board-fixture.js';
+import { BOARD_FILE_BASELINE } from '../bin/checks/board-file-baseline.js';
 import { boardFileGrowth, boardFileOpens, boardFileProblems, boardFileReport } from '../bin/checks/board-files.js';
 
 const AT = '2026-10-27T00:00:00.000Z';
@@ -102,7 +103,7 @@ test('the board-file lint names direct, namespaced and aliased logic file opens 
 
 test('the board-file debt ratchet names outstanding tests and prevents new logic file opens [C7]', () => {
   const root = join(import.meta.dirname, '..');
-  const baseline = JSON.parse(readFileSync(join(import.meta.dirname, 'board-files-baseline.json'), 'utf8'));
+  const baseline = BOARD_FILE_BASELINE;
   assert.deepEqual(boardFileProblems(root, baseline), []);
   const debt = boardFileReport(root);
   assert.ok(debt.every(row => /\.(?:test|spec)\.[cm]?js$/u.test(row.path) && row.line > 0));
