@@ -205,3 +205,33 @@ test('flake and Rigor read projections join moved names while original SQLite ev
     assert.deepEqual(store.events(board), before, 'queries never rewrite source observations or their authority');
   } finally { store.closeBoard(board); }
 });
+
+test('a split test-name pattern stays data while its positional file follows the map [C7]', () => {
+  const box = movedFixture();
+  writeFileSync(join(box.repo, NEW), `import {test} from 'node:test'; test(${JSON.stringify(OLD)},()=>console.log('SELECTED_OLD_TITLE')); test('unselected',()=>{throw Error('must stay unselected')});\n`);
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: name a private case after its original file');
+  const command = `node --test --test-name-pattern ${OLD} ${OLD}`;
+  assert.equal(mappedCheck(box.repo, command), `node --test --test-name-pattern ${OLD} '${NEW}'`);
+  assert.equal(mappedCheck(box.repo, `node --test --test-name-pattern=${OLD} ${OLD}`),
+    `node --test --test-name-pattern=${OLD} '${NEW}'`, 'equals-form selector stays unchanged');
+  const item = { item_id: 1, item_commit: box.git(box.repo, 'rev-parse', 'HEAD'), item_claim_head: box.base,
+    item_frozen: JSON.stringify({ check: command, policy: { commit: box.base } }) };
+  const result = checkAtCommit(box.repo, item);
+  assert.equal(result.state, 'pass', result.report);
+  assert.match(result.outputTail, /SELECTED_OLD_TITLE/u);
+});
+
+test('a file-looking grep pattern stays data while its positional input follows the map [C7]', () => {
+  const box = movedFixture();
+  writeFileSync(join(box.repo, NEW), OLD + '\n');
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: retain an original path as private searched data');
+  const command = `grep -F ${OLD} ${OLD}`;
+  assert.equal(mappedCheck(box.repo, command), `grep -F ${OLD} '${NEW}'`);
+  const item = { item_id: 1, item_commit: box.git(box.repo, 'rev-parse', 'HEAD'), item_claim_head: box.base,
+    item_frozen: JSON.stringify({ check: command, policy: { commit: box.base } }) };
+  const result = checkAtCommit(box.repo, item);
+  assert.equal(result.state, 'pass', result.report);
+  assert.match(result.outputTail, /web\/old-check\.mjs/u);
+});
