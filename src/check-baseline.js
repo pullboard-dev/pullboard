@@ -18,6 +18,7 @@ import {
   tryGit,
 } from './git.js';
 import { runShell } from './shell-run.js';
+import { mappedCheck } from './path-map.js';
 import { Refused } from './refused.js';
 
 /**
@@ -40,7 +41,7 @@ export function checkBaseline(root, command, { main = undefined } = {}) {
     const clone = spawnSync('git', ['clone', '--quiet', '--shared', '--no-checkout', '--', root, checkout], { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     const selected = clone.status === 0 && spawnSync('git', ['-c', 'core.hooksPath=/dev/null', 'checkout', '--quiet', '--detach', base.main], { cwd: checkout, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     if (!selected || selected.status !== 0) return { ...base, result: 'unavailable', reason: 'temporary checkout could not be prepared' };
-    const ran = runShell(checkout, command);
+    const ran = runShell(checkout, mappedCheck(checkout, command));
     return { ...base, result: ran.isGreen ? 'green' : 'red', seconds: ran.seconds, testEvidence: baselineTestEvidence(ran.output, command) };
   } finally {
     rmSync(directory, { recursive: true, force: true });
