@@ -64,8 +64,8 @@ test('native and relay readers expire a person block at the same observedAt with
 
 /** Seed real lifecycle events with synthetic acceptance metadata; this is not gate, CI or outside-review assurance. */
 function seedLandingPace(box) {
-  const builder = store.register(box.board, { lane: box.lane, path: join(box.root, 'clock-builder'), parentDigest: 'a'.repeat(64) });
-  const reviewer = store.register(box.board, { lane: 'tests', path: join(box.root, 'clock-reviewer'), parentDigest: 'b'.repeat(64) });
+  const builder = store.register(box.board, { lane: box.lane, path: join(box.root, 'clock-builder'), family: 'Fixture Clock Builder Vendor', parentDigest: 'a'.repeat(64) });
+  const reviewer = store.register(box.board, { lane: 'tests', path: join(box.root, 'clock-reviewer'), family: 'Fixture Clock Reviewer Vendor', parentDigest: 'b'.repeat(64) });
   const head = resolveCommit(box.root, 'HEAD');
   const tree = tryGit(box.root, ['rev-parse', `${head}^{tree}`]).stdout.trim();
   for (let index = 0; index < 3; index++) {
