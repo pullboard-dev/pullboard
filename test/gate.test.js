@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit, startFixtureChild as spawn } from './fixture-child.js';
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
@@ -904,4 +905,49 @@ test('a large affected selection is deferred to landing at submit [C7]', () => {
   const off = largeSelectionProject(null).submitChange(2);
   assert.equal(off.proof.submissionProof.deferredFiles, undefined);
   assert.deepEqual(off.ran.sort(), all, 'with the setting off, submit runs all thirty as today');
+});
+
+/** Locate only durable logs belonging to this private fixture's actual native landing batches. */
+function deferredLandingLogs(box) {
+  const directory = join(box.repo, '.git', 'pullboard', 'landings');
+  if (!existsSync(directory)) return [];
+  return readdirSync(directory, { recursive: true }).filter(path => path.endsWith('.log'))
+    .map(path => ({ path: join(directory, path), text: readFileSync(join(directory, path), 'utf8') }));
+}
+
+test('a red deferred landing keeps its real failing file and durable log [C7]', () => {
+  const project = largeSelectionProject(20, { inline: true });
+  const red = project.submitChange('red');
+  project.accept(red.id, red.receipt.commit);
+  const result = project.box.run(project.box.repo, 'land', '--json');
+  assert.equal(result.code, 0, result.err + result.out);
+  const shown = JSON.parse(project.box.run(project.box.repo, 'show', String(red.id), '--json').out);
+  assert.ok(shown.thread.some(entry => entry.kind === 'reopen' && /web\/selected-00\.test\.js/u.test(entry.detail.note)), 'the refusal retains the actual failing file');
+  const logs = deferredLandingLogs(project.box);
+  assert.ok(logs.some(log => /selected 0 \[G1\]/u.test(log.text) && /not ok/u.test(log.text)), 'a durable native landing log retains the actual failing test output');
+});
+
+test('a pre-test native policy refusal is not reported as deferred files red [C7]', () => {
+  const project = largeSelectionProject(20, { inline: true });
+  const missing = join(project.box.dir, 'uncommitted-policy');
+  mkdirSync(missing);
+  project.box.git(missing, 'init', '-q', '-b', 'main');
+  const source = new URL('../src/trusted-policy.js', import.meta.url).href;
+  const launcher = `import { mainPolicy } from ${JSON.stringify(source)};\nimport { spawnSync } from 'node:child_process';\nconst files=process.argv.slice(2);\nif (!files.some(file=>file.includes('selected-'))) { const child=spawnSync(process.execPath,['--test','--test-reporter=tap',...files],{stdio:'inherit'}); process.exitCode=child.status??1; } else { try { mainPolicy(${JSON.stringify(missing)}); throw new Error('missing policy unexpectedly accepted'); } catch (error) { if (!error.code) throw error; console.log(JSON.stringify({version:1,error:{code:error.code,message:error.message,next:'restore the committed coordinator policy'}},null,2)); process.exitCode=1; } }\n`;
+  writeFileSync(join(project.box.repo, 'web/policy-launcher.mjs'), launcher);
+  const policy = join(project.box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(policy, 'utf8'));
+  writeFileSync(policy, JSON.stringify({ ...config, affectedTests: 'node web/policy-launcher.mjs' }, null, 2));
+  project.box.git(project.box.repo, 'add', '-A');
+  project.box.git(project.box.repo, 'commit', '-q', '-m', 'chore: exercise a native policy refusal before tests');
+  project.box.git(project.box.web, 'merge', '-q', '--ff-only', 'main');
+  const ready = project.submitChange(2);
+  project.accept(ready.id, ready.receipt.commit);
+  rmSync(project.box.env.DEFER_MARKER, { force: true });
+  const result = project.box.run(project.box.repo, 'land', '--json');
+  assert.equal(result.code, 1, result.err + result.out);
+  assert.equal(JSON.parse(result.out).error.code, 'NO_POLICY', 'the exact native refusal survives without a test-red wrapper');
+  assert.doesNotMatch(result.out + result.err, /\d+ file\(s\) red|the deferred affected tests are red/u);
+  assert.deepEqual(project.ran(), [], 'no selected test or invariant executes after the pre-test policy refusal');
+  assert.ok(deferredLandingLogs(project.box).some(log => /NO_POLICY/u.test(log.text)), 'the refusal output is retained for diagnosis');
 });
