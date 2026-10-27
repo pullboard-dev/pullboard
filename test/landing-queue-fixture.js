@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
+import { mainAuditKey } from '../src/main-audit-state.js';
+import {
+  readGateReceipt,
+  receiptStore,
+} from '../src/gate-run-receipt.js';
 import * as store from '../src/board.js';
 import { invalidateGitFacts } from '../src/git.js';
 import { runLandingBatch } from '../src/land.js';
@@ -139,6 +144,45 @@ async function repairedPolicyControls(box, batch) {
   } finally { store.closeBoard(board); }
 }
 
+/** Count every foreground invocation; exclude only an independently source-bound audit of these batches. */
+function landingPolicyCalls(box, batches, records) {
+  const roots = new Set(batches.map(batch => batch.root));
+  const directory = join(box.repo, '.git', 'pullboard', 'main-audits');
+  const board = readBoard(box, store.boardId);
+  const calls = [];
+  const audits = new Set();
+  for (const record of records) {
+    if (roots.has(record.cwd)) { calls.push(record.args); continue; }
+    assert.equal(dirname(record.cwd), directory, 'an unknown gate root cannot disappear from the policy count');
+    assert.match(basename(record.cwd), /^source-[a-f0-9]{64}$/u);
+    const key = basename(record.cwd).slice('source-'.length);
+    assert.equal(audits.has(key), false, 'a duplicate audit invocation cannot disappear from the policy count');
+    audits.add(key);
+    const job = JSON.parse(readFileSync(join(directory, key + '.json'), 'utf8'));
+    const batch = batches.find(candidate => candidate.id === job.batchId);
+    assert.ok(batch, 'only an audit of this exact native landed batch is independent of its foreground run');
+    assert.equal(job.board, board);
+    assert.equal(job.tip, batch.tip);
+    assert.equal(job.tree, box.git(box.repo, 'rev-parse', batch.tip + '^{tree}'));
+    assert.equal(mainAuditKey(job), key);
+    assert.equal(job.version, 1);
+    assert.ok(['running', 'measured', 'complete'].includes(job.state), 'the native worker recorded this audit before its gate ran');
+    if (job.state === 'running') {
+      assert.equal(job.source, record.cwd);
+      assert.ok(Number.isSafeInteger(job.controller) && job.controller > 0);
+    } else {
+      const receipt = readGateReceipt(receiptStore(box.repo), job.receiptId);
+      assert.ok(receipt, 'a measured audit retains its actual native receipt');
+      assert.equal(receipt.head, job.tip);
+      assert.equal(receipt.tree, job.tree);
+      assert.equal(receipt.kind, 'land');
+      if (receipt.collection) assert.equal(receipt.collection.batchId, job.batchId);
+    }
+    assert.deepEqual(record.args, ['--new-policy'], 'an observed background audit also uses the accepted new policy');
+  }
+  return calls;
+}
+
 /** Prove named waiting, exclusion and verdict order with two real overlapping land commands. */
 export async function landingQueueCase(t, helpers, { staleAfterFirst = false, killParent = false, killGuardian = false, suspendParent = false, policyAfterFirst = false } = {}) {
   const sandbox = helpers.sandbox();
@@ -153,7 +197,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     "const fs = require('node:fs'); const assert = require('node:assert/strict');",
     `const [arm,entered,release,gatePid] = ${JSON.stringify([arm, entered, release, gatePid])};`,
     `fs.appendFileSync(${JSON.stringify(policyOrigins)}, JSON.stringify({ pid: process.pid, ppid: process.ppid, cwd: process.cwd(), args: process.argv.slice(2), node: process.version }) + '\\n');`,
-    `fs.appendFileSync(${JSON.stringify(policyCalls)}, JSON.stringify(process.argv.slice(2)) + '\\n');`,
+    `fs.appendFileSync(${JSON.stringify(policyCalls)}, JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2) }) + '\\n');`,
     ...(suspendParent ? ["if (fs.existsSync(gatePid)) { const old = Number(fs.readFileSync(gatePid,'utf8')); try { process.kill(old,0); throw new Error('the previous landing gate is still running when the successor gate starts'); } catch(error) { if (error.code !== 'ESRCH') throw error; } }"] : []),
     // Budget: the suspended-parent control holds beyond the real 30s lease; 65s is a runaway ceiling, not a speed target.
     `if (fs.existsSync(arm)) { fs.writeFileSync(gatePid, String(process.pid)); fs.writeFileSync(entered, process.cwd()); const end = Date.now() + ${suspendParent ? 65000 : 20000}; while (!fs.existsSync(release) && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20); assert.ok(fs.existsSync(release), 'owning test releases the gate'); }`,
@@ -276,9 +320,18 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
   assert.equal(batches[1].base, batches[0].tip, 'the waiter selects against the completed first landing');
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), batches[1].tip);
   if (policyAfterFirst) {
-    const calls = readFileSync(policyCalls, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    const records = readFileSync(policyCalls, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    const calls = landingPolicyCalls(box, batches, records);
     if (calls.length !== 2) t.diagnostic('policy-call-origins ' + readFileSync(policyOrigins, 'utf8'));
     assert.deepEqual(calls, [[], ['--new-policy']], 'the waiter uses the policy accepted while it queued');
+    // These synthetic extra records test the fixture oracle, never claim another real gate ran.
+    assert.throws(() => landingPolicyCalls(box, batches, [{ cwd: join(box.dir, 'unbound-gate'), args: [] }]),
+      /unknown gate root/u);
+    assert.notDeepEqual(landingPolicyCalls(box, batches, [...records, { cwd: batches[0].root, args: [] }]),
+      [[], ['--new-policy']], 'an extra foreground gate remains a failure of the original oracle');
+    const audit = records.find(record => !batches.some(batch => batch.root === record.cwd));
+    if (audit) assert.throws(() => landingPolicyCalls(box, batches, [...records, audit]), /duplicate audit invocation/u);
+    t.diagnostic(`policy journal: ${calls.length} foreground invocations; ${records.length - calls.length} independently bound audit invocations`);
   }
   for (const entry of entries) {
     assert.equal(readFileSync(join(box.repo, `web/queue-${entry.id}.txt`), 'utf8'), 'works\n');
