@@ -4,6 +4,7 @@
 /** @pullboard-test-loads src/move-registry.js src/moves/*.js */
 /** Move-only registry discovery preserves a pinned historical resolution and real replay [C7,V4,H3,H16]. */
 import { STALE_STATE_OPERATIONS, STALE_STATE_STEPS, installStaleStateRegistryCases } from './stale-state-registry-cases.js';
+import advanceItemSource from '../src/moves/advanceItemSource.js';
 import attachItemPatch from '../src/moves/attachItemPatch.js';
 import removeItemPatch from '../src/moves/removeItemPatch.js';
 import { DEFAULT_NEXT_STEPS } from '../src/next-step-defaults.js';
@@ -34,6 +35,8 @@ import { PRIVATE_REHOME_ENGINE } from '../src/private-rehome-engine.js';
 
 const SNAPSHOT = JSON.parse(readFileSync(new URL('./move-registry-baseline.json', import.meta.url), 'utf8'));
 const CONSUMERS = ['src/engine.js', 'src/relay-sender.js', 'src/next-step-words.js'];
+const SOURCE_ADVANCE_OPERATIONS = ['advanceItemSource'];
+const SOURCE_ADVANCE_STEPS = advanceItemSource.nextSteps;
 const ITEM_PATCH_OPERATIONS = ['attachItemPatch', 'removeItemPatch'];
 const ITEM_PATCH_STEPS = { ...attachItemPatch.nextSteps, ...removeItemPatch.nextSteps, ITEM_PATCH: DEFAULT_NEXT_STEPS.ITEM_PATCH };
 const SUBMISSION_WAIT_STEPS = { SUBMISSION_CHANGED: 'run pullboard show <id> to inspect its current submission attempt and verdict; do not resubmit an acknowledged attempt' };
@@ -80,8 +83,8 @@ export default { operation: ${JSON.stringify(name)}, order: ${engine + 1000}, en
 }
 
 test('today\'s move order, actors, refusal recovery text and recorded SQLite prefix are unchanged [C7,V4,H3,H16]', t => {
-  assert.deepEqual(ENGINE_OPERATIONS.filter(operation => !REHOME_OPERATIONS.includes(operation) && !TYPED_REQUEST_OPERATIONS.includes(operation) && !ITEM_PATCH_OPERATIONS.includes(operation) && !STALE_STATE_OPERATIONS.includes(operation)), SNAPSHOT.operations);
-  assert.deepEqual(NEXT_STEPS, { ...SNAPSHOT.nextSteps, ...REHOME_STEPS, ...TYPED_REQUEST_STEPS, ...ITEM_PATCH_STEPS, ...STALE_STATE_STEPS, ...SUBMISSION_WAIT_STEPS });
+  assert.deepEqual(ENGINE_OPERATIONS.filter(operation => !REHOME_OPERATIONS.includes(operation) && !TYPED_REQUEST_OPERATIONS.includes(operation) && !ITEM_PATCH_OPERATIONS.includes(operation) && !STALE_STATE_OPERATIONS.includes(operation) && !SOURCE_ADVANCE_OPERATIONS.includes(operation)), SNAPSHOT.operations);
+  assert.deepEqual(NEXT_STEPS, { ...SNAPSHOT.nextSteps, ...REHOME_STEPS, ...TYPED_REQUEST_STEPS, ...ITEM_PATCH_STEPS, ...STALE_STATE_STEPS, ...SUBMISSION_WAIT_STEPS, ...SOURCE_ADVANCE_STEPS });
   assert.equal(minimumMoveEngine('recordProofRun', [{ landingFence: {}, receipt: { environment: {} } }, { cause: 'conflict:new' }]), PROOF_RUN_ENGINE);
   assert.equal(MOVE_REGISTRY.recordProofRun.engine, PROOF_RUN_ENGINE);
   assert.equal(MOVE_REGISTRY.recordProofRun.itemIdFirstArgument, false);
@@ -203,13 +206,13 @@ process.stdout.write(JSON.stringify(result));`;
   const result = JSON.parse(run(root, process.execPath, ['--input-type=module', '-e', child]));
   assert.ok(result.operations.includes('seedAlpha'), 'the first independent operation file is discovered');
   assert.ok(result.operations.includes('seedBeta'), 'the second independent operation file is discovered');
-  assert.deepEqual(result.operations.filter(name => !name.startsWith('seed') && !REHOME_OPERATIONS.includes(name) && !TYPED_REQUEST_OPERATIONS.includes(name) && !ITEM_PATCH_OPERATIONS.includes(name) && !STALE_STATE_OPERATIONS.includes(name)), SNAPSHOT.operations, 'existing order does not move');
+  assert.deepEqual(result.operations.filter(name => !name.startsWith('seed') && !REHOME_OPERATIONS.includes(name) && !TYPED_REQUEST_OPERATIONS.includes(name) && !ITEM_PATCH_OPERATIONS.includes(name) && !STALE_STATE_OPERATIONS.includes(name) && !SOURCE_ADVANCE_OPERATIONS.includes(name)), SNAPSHOT.operations, 'existing order does not move');
   assert.deepEqual(result.seedFloors, [9, 11]);
   assert.equal(result.pureImportClosure, true, 'routing metadata never imports its consumers, board writers or Git/process launchers');
   assert.equal(result.alphaActor, 'seed-agent');
   assert.equal(result.alphaStep, 'repair the first seeded move');
   assert.equal(result.betaStep, 'repair the second seeded move');
-  assert.deepEqual(result.itemIds.filter(name => !name.startsWith('seed') && !ITEM_PATCH_OPERATIONS.includes(name)).sort(), [...SNAPSHOT.itemIdFirstArgument, 'rehomeItem'].sort());
+  assert.deepEqual(result.itemIds.filter(name => !name.startsWith('seed') && !ITEM_PATCH_OPERATIONS.includes(name) && !SOURCE_ADVANCE_OPERATIONS.includes(name)).sort(), [...SNAPSHOT.itemIdFirstArgument, 'rehomeItem'].sort());
   assert.ok(result.itemIds.includes('seedAlpha'));
   assert.ok(!result.itemIds.includes('seedBeta'));
   assert.deepEqual(result.floors, SNAPSHOT.floorCases.map(entry => entry.expected), 'all historical first-match floor vectors retain their results');

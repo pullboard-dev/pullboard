@@ -152,10 +152,10 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
-      let checkedCommit = companionDigest ? prepareItemPatchReview(root, board, item).commit : reReview ? head : commit;
+      let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item).commit : reReview ? head : commit;
       let checkedLabel = reReview ? 'reviewed composition' : 'submitted commit';
       const composeNow = () => composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack });
-      const admitted = companionDigest === null && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
+      const admitted = companionDigest === null && !item.item_effective_head && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
       let trunk = null;
       if (!admitted) ({ trunk, review } = composeNow());
       for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -217,6 +217,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       digest,
       policy: ctx.config.verify.policy,
       familyPolicy: ctx.config.verify.family,
+      sourceAdvanceHead: item.item_effective_head ?? null,
       review,
       ...(companionDigest ? { companionDigest } : {}),
       environment: check?.environment ?? null,

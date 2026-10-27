@@ -1,3 +1,4 @@
+import { sourceAdvancePlan } from './source-advance-plan.js';
 import {
   settleReceipt,
   withGateSlot,
@@ -328,7 +329,10 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
     try { main = mainPolicy(root).commit; } catch { /* An unavailable policy remains unknown in this execution record. */ }
     const receipt = receiptFields({ version: 2, id: randomUUID(), kind: context.kind,
       tree: before.tree, head: before.head, main, command: createHash('sha256').update(command).digest('hex'),
-      green: run.isGreen ?? run.state === 'pass', failures: [],
+      green: run.isGreen ?? run.state === 'pass', failures: (run.isGreen ?? run.state === 'pass') ? []
+        : tapTests(run.output ?? '', run.executionRoot ?? root).filter(row => !row.passed && !row.skip && row.file
+          && row.type !== 'suite' && !['subtestsFailed','cancelledByParent','testAborted'].includes(row.failureType))
+          .slice(0, 500).map(({ file, name }) => ({ file, name })),
       load: run.executionLoad ?? (remote || lease?.runner ? null : localLoad), at: new Date().toISOString(),
       proof: { item: context.item, frozenDigest: context.frozenDigest ?? null, seat: context.seat,
         environment, testRuntimes, runner: remote ?? (lease?.runner ? null
@@ -619,19 +623,20 @@ export async function runStaticChecks(root, config, { agent, item = '', onWait, 
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, agent, item = '', kind = 'submit', onWait, onBrowserFallback, onFailure, proofContext }) {
+export async function runSubmitGate(root, config, { base, trunk, changed, check, agent, item = '', kind = 'submit', onWait, onBrowserFallback, onFailure, proofContext, sourceAdvance = false }) {
   if (!config.gate.trim()) throw missingGate(root);
   await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback });
-  check = check ? mappedCheck(root, check) : check;
-  const selection = config.affectedTests
+  const advancePlan = sourceAdvance ? sourceAdvancePlan(root, config, { base, changed, check }) : null;
+  check = advancePlan ? advancePlan.criterion : check ? mappedCheck(root, check) : check;
+  const selection = advancePlan?.selection ?? (config.affectedTests
     ? placementSubmitSelection(root, selectAffectedTests(root, { base, trunk, changed }), changed ?? [])
-    : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
-  const deferred = config.submitGate === 'landing';
+    : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] });
+  const deferred = !sourceAdvance && config.submitGate === 'landing';
   const deferFullFallback = deferred && selection.full;
   // A selection over submitDeferAbove files moves to the landing gate, which runs every recorded file before the item lands.
   const deferSelection = deferred && !selection.full && Number.isSafeInteger(config.submitDeferAbove) && selection.files.length > config.submitDeferAbove;
-  const invariants = deferred ? [...new Set(config.submitInvariants ?? [])].sort() : [];
-  const registryGuards = selectRegistryGuards(root, config.registryGuards, { base, trunk, changed });
+  const invariants = advancePlan?.invariants ?? (deferred ? [...new Set(config.submitInvariants ?? [])].sort() : []);
+  const registryGuards = advancePlan?.registryGuards ?? selectRegistryGuards(root, config.registryGuards, { base, trunk, changed });
   if (invariants.length && !config.affectedTests?.trim()) {
     throw new Refused('BAD_CONFIG', 'submitInvariants requires the project affectedTests runner');
   }

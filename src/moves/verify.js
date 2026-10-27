@@ -1,3 +1,4 @@
+import { SOURCE_ADVANCE_ENGINE } from '../source-advance-engine.js';
 import { ITEM_PATCH_ENGINE } from '../item-patch-engine.js';
 import { requiredReviewFamilyEngine } from '../required-review-family.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
@@ -29,9 +30,10 @@ function existingEngine(args, board, at) {
 }
 /** Keep outside-source isolation as the original maximum over the older engine rule. */
 function minimumEngine(args, board, at) {
+  const sourceAdvance = args[1]?.sourceAdvanceHead !== undefined ? SOURCE_ADVANCE_ENGINE : 1;
   const outside = args[1]?.sandbox !== undefined || board && Boolean(outsideSource(board, args[0]));
   const patches = args[1]?.companionDigest !== undefined || board && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`item_patches:${args[0]}`);
-  return Math.max(requiredReviewFamilyEngine(board, args[0]), patches ? ITEM_PATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at));
+  return Math.max(sourceAdvance, requiredReviewFamilyEngine(board, args[0]), patches ? ITEM_PATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at));
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

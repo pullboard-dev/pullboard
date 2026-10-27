@@ -1,3 +1,4 @@
+import { effectiveItemHead } from './source-advance-state.js';
 /**
  * pullboard next --verify (V15, #807): before a review is offered, every submitted head that no longer merges onto
  * the trunk goes back to its builder with Git's conflicting files, so no reviewer reserves work that cannot land.
@@ -22,7 +23,7 @@ export async function returnUnmergeable(root, board, me, { ordered, trunkMerge }
   const returned = [];
   for (const item of store.listItems(board).filter((entry) => entry.item_status === 'submitted' && entry.item_commit)) {
     let merge;
-    try { merge = trunkMerge(root, item.item_commit); }
+    try { merge = trunkMerge(root, effectiveItemHead(board, item) ?? item.item_commit); }
     catch (error) { if (error instanceof Refused) return returned; throw error; }
     if (!merge.files?.length) continue;
     try {
