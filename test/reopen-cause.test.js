@@ -1,0 +1,164 @@
+/** Real conflict returns and read-only correction of legacy conflict notes [C7,B3,D1]. */
+import assert from 'node:assert/strict';
+import {
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import {
+  after,
+  test,
+} from 'node:test';
+import * as store from '../src/board.js';
+import { eventCauses } from '../src/rigor.js';
+import { conflictReport } from '../src/rigor-conflicts.js';
+import { trunkMerge } from '../src/trunk-merge.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+
+const helpers = createE2eHelpers();
+after(helpers.cleanup);
+const FILE = 'web/shared.js';
+const SECOND = 'web/other.js';
+
+/** Assert a fixture command succeeded before using its structured receipt. */
+function json(box, path, ...args) {
+  const result = box.run(path, ...args, '--json');
+  assert.equal(result.code, 0, result.out + result.err);
+  return JSON.parse(result.out);
+}
+
+/** Create a local-only real board and a shared Git base without changing the person's storage. */
+function project() {
+  const box = helpers.project('true');
+  const file = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, JSON.stringify({ ...config, landing: { publish: 'separate' } }));
+  mkdirSync(join(box.repo, 'web'), { recursive: true });
+  for (const path of [FILE, SECOND]) writeFileSync(join(box.repo, path), 'export const value = "base";\n');
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: establish conflict fixture base');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  return box;
+}
+
+/** Submit a genuine branch changing both files, optionally using another joined lane seat. */
+function submit(box, number = 1) {
+  const path = number === 1 ? box.web : join(box.dir, 'builder-' + number);
+  if (number !== 1) {
+    box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/conflict-' + number, path, 'main');
+    json(box, path, 'join', 'web');
+  }
+  const added = json(box, box.repo, 'add', 'web', 'Conflict fixture ' + number, '--specs', 'G1',
+    '--criterion', 'Both modules remain valid.', '--check', 'node --check ' + FILE);
+  const id = added.item.item_id;
+  json(box, path, 'claim', String(id));
+  for (const file of [FILE, SECOND]) writeFileSync(join(path, file), `export const value = "item-${number}";\n`);
+  box.git(path, 'add', FILE, SECOND);
+  box.git(path, 'commit', '-q', '-m', 'feat(web): build conflict fixture [G1]');
+  const commit = box.git(path, 'rev-parse', 'HEAD');
+  json(box, path, 'submit', String(id));
+  return { id, path, commit };
+}
+
+/** Independently check the private fixture submission before restoring its main checkout. */
+function accept(box, entry) {
+  box.git(box.repo, 'switch', '-q', '--detach', entry.commit);
+  try { json(box, box.repo, 'verify', String(entry.id), 'accept', '--as', 'coordinator', '--note', 'Both modules parse at the exact submitted commit.'); }
+  finally { box.git(box.repo, 'switch', '-q', 'main'); }
+}
+
+/** Move main into a real conflict, and obtain the exact file list independently from Git. */
+function conflict(box, entry) {
+  for (const file of [FILE, SECOND]) writeFileSync(join(box.repo, file), 'export const value = "main";\n');
+  box.git(box.repo, 'add', FILE, SECOND);
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: move the conflict fixture trunk');
+  const merge = trunkMerge(box.repo, entry.commit);
+  assert.deepEqual([...merge.files].sort(), [FILE, SECOND].sort(), 'Git establishes both conflicts');
+  return merge;
+}
+
+/** Inspect original durable event bytes rather than trusting the command's completion message. */
+function latest(box, id) {
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    const row = board.db.prepare("SELECT * FROM event WHERE item_id=? AND event_kind='reopen' ORDER BY event_id DESC LIMIT 1").get(id);
+    assert.ok(row, 'a real reopen was appended');
+    return { row, detail: JSON.parse(row.event_detail), item: store.getItem(board, id) };
+  } finally { store.closeBoard(board); }
+}
+
+/** Every newly recorded conflict names all Git files and excludes even an explicitly supplied test cause. */
+function assertConflict(record, files) {
+  assert.equal(record.item.item_status, 'open');
+  assert.deepEqual([...record.detail.conflict.files].sort(), [...files].sort());
+  assert.deepEqual([...record.detail.causeDerivation.files].sort(), [...files].sort());
+  assert.ok(record.detail.cause.startsWith('conflict:'));
+  assert.ok(eventCauses(record.row).every(key => key.startsWith('conflict:')));
+  assert.deepEqual(eventCauses(record.row).sort(), files.map(file => 'conflict:' + encodeURI(file)).sort());
+  assert.equal(record.detail.landingFailure, undefined, 'a conflict is never recorded as a failed test');
+}
+
+test('manual landing conflict notes are verified by Git and recorded as conflicts [C7,B3]', () => {
+  const box = project();
+  const entry = submit(box);
+  accept(box, entry);
+  const merge = conflict(box, entry);
+  const note = `${FILE}: does not merge onto the trunk (conflicts: ${merge.files.join(' ')}), reopened for the builder merge; merge commit ${merge.commit}`;
+  json(box, box.repo, 'reopen', String(entry.id), '--note', note);
+  assertConflict(latest(box, entry.id), merge.files);
+});
+
+test('a confirmed conflict overrides an unrelated explicit test cause [C7,B3,D1]', () => {
+  const box = project();
+  const entry = submit(box);
+  accept(box, entry);
+  const merge = conflict(box, entry);
+  json(box, box.repo, 'reopen', String(entry.id), ...merge.files.flatMap(file => ['--conflict', file]),
+    '--cause', 'test:web/unrelated.test.js::unrelated test');
+  assertConflict(latest(box, entry.id), merge.files);
+});
+
+test('review selection records the actual submitted-head conflict files [C7,B3]', () => {
+  const box = project();
+  const entry = submit(box);
+  const merge = conflict(box, entry);
+  const reviewer = join(box.dir, 'reviewer');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
+  json(box, reviewer, 'join', 'api');
+  box.run(reviewer, 'next', '--verify', '--json');
+  assertConflict(latest(box, entry.id), merge.files);
+});
+
+test('landing a train records a sibling collision as a conflict with Git files [C7,B3]', () => {
+  const box = project();
+  const first = submit(box, 1);
+  const second = submit(box, 2);
+  accept(box, first);
+  accept(box, second);
+  const landed = json(box, box.repo, 'land');
+  assert.deepEqual(landed.landed, [first.id]);
+  assert.equal(landed.conflicts.length, 1);
+  assert.deepEqual([...landed.conflicts[0].files].sort(), [FILE, SECOND].sort());
+  assertConflict(latest(box, second.id), landed.conflicts[0].files);
+});
+
+test('historical conflict-note correction is explicit and leaves original event bytes untouched [C7,D1]', () => {
+  const box = project();
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Legacy correction', specs: 'G1', criterion: 'Retain original evidence.', check: 'true' });
+    const trunk = box.git(box.repo, 'rev-parse', 'main');
+    const name = `does not merge onto the trunk (conflicts: ${FILE} ${SECOND}), reopened for the builder merge`;
+    const note = `${FILE}: ${name}; merge commit ${trunk}`;
+    store.logEvent(board, 'coordinator', 'reopen', id, { commit: 'a'.repeat(40), note, judgment: null,
+      cause: `test:${FILE}::${name}`, landingFailure: { batch: null, tests: [{ file: FILE, name }], mergeCommit: trunk } });
+    const original = board.db.prepare("SELECT * FROM event WHERE item_id=? AND event_kind='reopen'").get(id);
+    assert.deepEqual(eventCauses(original).sort(), [FILE, SECOND].map(file => 'conflict:' + encodeURI(file)).sort());
+    const report = conflictReport(store.events(board), { now: board.clock.now() });
+    assert.deepEqual(report.conflictFiles.map(row => row.file).sort(), [FILE, SECOND].sort());
+    assert.ok(report.conflictFiles.every(row => row.events[0].source === 'legacy-conflict-note'), 'inferred note history never claims Git attestation');
+    assert.deepEqual(board.db.prepare('SELECT * FROM event WHERE event_id=?').get(original.event_id), original, 'read correction never rewrites immutable history');
+    assert.equal(store.getItem(board, id).item_status, 'open', 'a historical correction creates no acceptance or workflow authority');
+  } finally { store.closeBoard(board); }
+});
