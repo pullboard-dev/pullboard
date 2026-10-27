@@ -84,6 +84,11 @@ test('the activity lifecycle draws a move out of a state below the row [N26, M1]
     assert.ok(route, 'the fixture machine declares verified > open');
     assert.equal(route.label, 'reopen (none yet)');
     assert.ok(route.points.length >= 4, 'the outgoing route has a path from the below-row state to open');
+    assert.equal(route.back, false, 'the lower-lane return is not an above-row back route');
+    assert.equal(route.points[1][1], route.points[2][1], 'the return runs through a horizontal lower lane');
+    const fixtureBottoms = [...svg.matchAll(/<rect class="box" x="[\d.]+" y="([\d.]+)" width="[\d.]+" height="([\d.]+)"/g)]
+      .map(([, y, height]) => Number(y) + Number(height));
+    assert.ok(route.points[1][1] > Math.max(...fixtureBottoms), 'the lower lane clears every state box');
     const pairs = fixture.moves.flatMap((move) => move.from.map((from) => `${from}>${move.to}`));
     assert.deepEqual(diagram.routes.map((entry) => entry.pair).sort(), pairs.sort(),
       'each move pair is drawn once, including between two below-row states');
@@ -218,7 +223,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
     assert.deepEqual(Object.fromEntries(boxes.filter((entry) => entry.keeps).map((entry) => [entry.state, entry.keeps])), {
       open: '↻ release · escalate · refreeze (none yet)',
       claimed: '↻ claim 1',
-      submitted: '↻ reserve (none yet)',
+      submitted: '↻ patch · reserve (none yet)',
       verified: '↻ accept (none yet)',
     });
     assert.deepEqual(boxes.filter((entry) => entry.keeps).map((entry) => entry.state), keeping, 'each state a move keeps');
@@ -239,21 +244,21 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
     assert.ok(routes.some((route) => route.title.includes(`claim, open to claimed, by the agent or coordinator: pullboard claim &lt;id&gt;. Made 6 times.\nChecks, in order:\n  ${claimChecks.map(esc).join('\n  ')}`)), 'each check in order, escaped');
     // The moves made along a route and how often, or its moves when none was; the routes into the
     // state below the row join into one, labelled once with their total.
-    // The claimed-to-verified shortcut carries the ordinary routes' shared accept count;
-    // an unused import-only route cannot take that label. Each title still pins its own verb.
+    // Each declared route retains its own move label and observed count.
     assert.deepEqual(Object.fromEntries(routes.map((route) => [route.pair, route.label])), {
       'open>claimed': 'claim 6',
       'claimed>open': 'release · lapse · escalate · refreeze (none yet)',
       'claimed>submitted': 'submit 3',
-      'claimed>verified': 'accept 1',
-      'open>verified': null,
+      'claimed>verified': 'submit-merge (none yet)',
+      'open>verified': 'rehomeImport (none yet)',
       'open>submitted': 'intake (none yet)',
-      'submitted>verified': null,
+      'submitted>verified': 'accept 1',
+      'verified>submitted': 'patch (none yet)',
       'submitted>open': 'reject 1',
       'open>withdrawn': verifiedIsFinal ? 'withdraw 4' : 'withdraw 1',
       'claimed>withdrawn': verifiedIsFinal ? null : 'withdraw 2',
       'submitted>withdrawn': verifiedIsFinal ? null : 'withdraw 1',
-      ...(!verifiedIsFinal ? { 'verified>open': 'reject · reopen (none yet)' } : {}),
+      ...(!verifiedIsFinal ? { 'verified>open': 'reject · reopen · refreeze (none yet)' } : {}),
     });
 
     // Every route is square, and the ones back to an earlier state are dashed, each at its own height.
@@ -261,8 +266,23 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
       route.points.slice(1).forEach(([x, y], n) => assert.ok(x === route.points[n][0] || y === route.points[n][1], `${route.pair} runs square: ${JSON.stringify(route.points)}`));
     }
     const backs = routes.filter((route) => route.back);
-    assert.deepEqual(backs.map((route) => route.pair).sort(), ['claimed>open', 'submitted>open'], 'the routes back are the ones to an earlier state');
-    assert.equal(new Set(backs.map((route) => route.points[1][1])).size, backs.length, 'each at its own height');
+    const row = ['open', 'claimed', 'verified', 'submitted', 'withdrawn'];
+    const rowBoxes = [...svg.matchAll(/<g class="s-([^"]+)"><title>[^<]*<\/title><rect class="box" x="([\d.]+)" y="([\d.]+)"/g)]
+      .map(([, state, x, y]) => ({ state, x: Number(x), y: Number(y) }));
+    assert.deepEqual(rowBoxes.toSorted((a, b) => a.x - b.x).map((box) => box.state), row,
+      'the declared longest path orders every state on the main row');
+    assert.equal(new Set(rowBoxes.map((box) => box.y)).size, 1, 'all main-row boxes align');
+    assert.deepEqual(backs.map((route) => route.pair).sort(),
+      ['claimed>open', 'submitted>open', 'submitted>verified', 'verified>open'],
+      'every return to an earlier main-row state is dashed');
+    const lanes = backs.map((route) => {
+      const [from, to] = route.pair.split('>');
+      return { span: row.indexOf(from) - row.indexOf(to), y: route.points[1][1] };
+    });
+    for (const one of lanes) for (const other of lanes) {
+      if (one.span === other.span) assert.equal(one.y, other.y, 'equal-span returns share their declared level');
+      else if (one.span > other.span) assert.ok(one.y < other.y, 'longer returns clear shorter return levels');
+    }
     assert.match(await styleOf(view), /\n\.flow \.edge\.back \{ stroke: var\(--reject\); stroke-dasharray: 5 4; \}/, 'dashed');
 
     // No word comes within two units of another, a box it is not in, or a route.
@@ -272,10 +292,10 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
     if (!verifiedIsFinal) {
       const verifiedReturn = routes.find((route) => route.pair === 'verified>open');
       assert.ok(verifiedReturn, 'the non-final verified state has a route back to open');
-      assert.equal(verifiedReturn.label, 'reject · reopen (none yet)', 'the verified return route carries its label');
-      assert.equal(verifiedReturn.back, false, 'the lower-lane return is not an above-row back route');
-      assert.equal(verifiedReturn.points[1][1], verifiedReturn.points[2][1], 'the verified return runs through a horizontal lower lane');
-      assert.ok(verifiedReturn.points[1][1] > Math.max(...rects.map((rect) => rect.bottom)), 'the lower lane clears every state box');
+      assert.equal(verifiedReturn.label, 'reject · reopen · refreeze (none yet)', 'the verified return route carries its label');
+      assert.equal(verifiedReturn.back, true, 'the main-row verified return is an above-row back route');
+      assert.equal(verifiedReturn.points[1][1], verifiedReturn.points[2][1], 'the verified return runs through a horizontal back lane');
+      assert.ok(verifiedReturn.points[1][1] < Math.min(...rects.map((rect) => rect.top)) - 2, 'the back lane clears every state box');
     }
     texts.forEach((one, n) => {
       for (const other of texts.slice(n + 1)) assert.ok(!meet(one, other, 2), `"${one.words}" and "${other.words}" overlap`);
