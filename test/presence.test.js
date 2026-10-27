@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { fixtureBoard } from './board-fixture.js';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { gunzipSync } from 'node:zlib';
@@ -419,8 +420,7 @@ test('a gone seat claim returns to the queue with a note [B3,B5,H16]', async t =
   assert.equal(store.nextFor(f.board, { agentId: f.other, lane: 'web' }).item.item_id, id);
   await f.scan();
   assert.equal(f.moves.length, 1, 'maintenance is idempotent after the ordinary release');
-  const replica = store.openBoard(join(f.box.dir, 'replica.sqlite'), f.clock);
-  t.after(() => store.closeBoard(replica));
+  const replica = fixtureBoard(t, { clock: f.clock });
   importBoard(replica, prefix);
   heartbeatSeat(replica, f.owner);
   assert.equal(store.agentById(replica, f.owner).presence, 'live');
@@ -472,8 +472,7 @@ test('gone maintenance leaves unknown imported holders and submitted reviews alo
   const { submitFixture } = await import('./board-submit-fixture.js');
   const f = goneClaimFixture(t);
   const id = f.claim();
-  const replica = store.openBoard(join(f.box.dir, 'unknown.sqlite'), f.clock);
-  t.after(() => store.closeBoard(replica));
+  const replica = fixtureBoard(t, { clock: f.clock });
   importBoard(replica, exportBoard(f.board));
   f.advance(1_800_000);
   let attempted = false;
