@@ -41,6 +41,7 @@ const OPTIONS = {
   revises: { type: 'string' },
   status: { type: 'string' },
   off: { type: 'boolean' },
+  stale: { type: 'boolean' },
   port: { type: 'string' },
   slots: { type: 'string' },
   browser: { type: 'string' },

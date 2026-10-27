@@ -165,7 +165,7 @@ Work
                                         coverage rows retain whole-file observations; slow files require named checks and explicit landing coverage
   pullboard bar <id>                    show missing prerequisites and the current revision
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
-  pullboard release <id> [--note "why"]  hand it back; a review release needs a one-line reason
+  pullboard release <id> [--stale --note "why"]  hand it back; coordinator --stale requires measured inactivity and a note
   pullboard submit <id>                 needs a clean tree, item check and affected tests green at HEAD (alias: done)
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
   pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
@@ -222,7 +222,7 @@ Coordinator
   pullboard reopen <id> --conflict <file> [--conflict <file>]
                                         return accepted work that conflicts with the trunk for a main merge
   pullboard hold <lane> --reason "..."   pause a lane: next there claims nothing and names the reason
-  pullboard hold <id> "reason"          hold one item so next skips it
+  pullboard hold <id> "reason" [--until verified|landed]  hold until the next named event on this item
   pullboard hold <lane|id> --off        lift a lane or item hold
 
 Receipts

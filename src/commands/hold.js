@@ -17,6 +17,7 @@ import {
 
 /** Run `pullboard hold` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
+  if (values.off && values.until !== undefined) throw new Refused('USAGE', '--off and --until cannot be combined');
   const act = (work) => actOn(io, work);
   return act(async (ctx, board, me) => {
   const itemTarget = /^#?\d+$/u.test(first ?? '');
@@ -27,12 +28,13 @@ export async function run(io, { first, second, rest, values }) {
       await ordered(ctx, board, 'releaseItemHold', [id, { agentId: me.id }]);
       io.say(`lifted the hold on #${id}`);
     } else {
-      await ordered(ctx, board, 'holdItem', [id, { agentId: me.id, reason }]);
+      await ordered(ctx, board, 'holdItem', [id, { agentId: me.id, reason, ...(values.until === undefined ? {} : { until: values.until }) }]);
       io.say(`holding #${id}: ${reason}. Lift it with: pullboard hold ${id} --off`);
     }
     io.result?.({ id, lane: store.getItem(board, id).item_lane, held: !values.off, reason: values.off ? null : reason });
     return 0;
   }
+  if (values.until !== undefined) throw new Refused('USAGE', '--until applies to an item hold, not a lane hold');
   if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
   const asPerson = io.personChannel === 'view' || values.as === 'person' && personMode(ctx, me, values);
   if (asPerson) {

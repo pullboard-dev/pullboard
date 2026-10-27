@@ -1,3 +1,4 @@
+import { STALE_STATE_ENGINE } from '../stale-state-engine.js';
 import { GONE_CLAIM_ENGINE } from '../gone-claim-engine.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by release, discovered without a shared registry edit [C7,V4,H16]. */
@@ -17,7 +18,7 @@ function existingEngine(args, board, at) {
 
 /** An observation cannot be silently ignored by an older release implementation. */
 function minimumEngine(args, board, at) {
-  return Math.max(args[3] !== undefined ? GONE_CLAIM_ENGINE : 1, existingEngine(args, board, at));
+  return Math.max(args[3]?.staleClaim !== undefined ? STALE_STATE_ENGINE : args[3] !== undefined ? GONE_CLAIM_ENGINE : 1, existingEngine(args, board, at));
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */
