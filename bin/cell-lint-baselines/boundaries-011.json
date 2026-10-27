@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "test/cockpit/snapshot.test.js->src/board-read-open.js": 1,
+    "test/cockpit/snapshot.test.js->src/board.js": 1,
+    "test/cockpit/snapshot.test.js->src/local-fetch.js": 1,
     "test/cockpit/snapshot.test.js->src/serve.js": 1,
     "test/cockpit/snapshot.test.js->src/stats.js": 1,
     "test/cockpit/snapshot.test.js->test/cockpit/fixture.js": 1,
@@ -398,9 +401,6 @@
     "test/item-hold.test.js->test/e2e-helpers.js": 1,
     "test/item-notes-engine.test.js->src/board.js": 1,
     "test/item-notes-engine.test.js->src/engine.js": 1,
-    "test/item-notes-engine.test.js->src/exchange.js": 1,
-    "test/item-notes-engine.test.js->src/item-notes-engine.js": 1,
-    "test/item-notes-engine.test.js->src/move-registry.js": 1,
-    "test/item-notes-engine.test.js->test/board-fixture.js": 1
+    "test/item-notes-engine.test.js->src/exchange.js": 1
   }
 }

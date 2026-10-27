@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/gate-control.js->src/git.js": 1,
+    "src/gate-output.js->src/execution-environment.js": 1,
+    "src/gate-output.js->src/hooks.js": 1,
     "src/gate-policy-load.js->src/git.js": 1,
     "src/gate-policy-load.js->src/runner-registration.js": 1,
     "src/gate-receipt.js->src/git.js": 1,
@@ -398,9 +401,6 @@
     "src/main-audit-worker.js->src/main-audit-scheduler.js": 1,
     "src/main-audit-worker.js->src/main-audit-state.js": 1,
     "src/main-audit-worker.js->src/relay-outbox-guard.js": 1,
-    "src/main-audit-worker.js->src/trusted-policy-read.js": 1,
-    "src/main-failure-matches.js->src/land.js": 1,
-    "src/main-red.js->src/board.js": 1,
-    "src/main-red.js->src/browser-admission.js": 1
+    "src/main-audit-worker.js->src/trusted-policy-read.js": 1
   }
 }

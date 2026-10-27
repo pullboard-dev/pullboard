@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "test/relay-local-origin.test.js->relay/browser-page.js": 1,
+    "test/relay-local-origin.test.js->src/refused.js": 1,
+    "test/relay-local-origin.test.js->test/cockpit/fixture.js": 1,
     "test/relay-local-origin.test.js->test/hosted-shapes-fixture.js": 1,
     "test/relay-local-origin.test.js->test/webkit-fixture.js": 1,
     "test/relay-machine-auth.test.js->relay/auth.js": 1,
@@ -398,9 +401,6 @@
     "test/review-queue-cli.test.js->test/http-fixture.js": 1,
     "test/review-queue-replay.test.js->src/agent-grant-engine.js": 1,
     "test/review-queue-replay.test.js->src/board.js": 1,
-    "test/review-queue-replay.test.js->src/engine.js": 1,
-    "test/review-queue-replay.test.js->src/exchange.js": 1,
-    "test/review-queue-replay.test.js->src/machine.js": 1,
-    "test/review-queue-replay.test.js->test/board-submit-fixture.js": 1
+    "test/review-queue-replay.test.js->src/engine.js": 1
   }
 }

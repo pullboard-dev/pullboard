@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/needs-state.js->src/config.js": 1,
+    "src/needs-state.js->src/doctrine.js": 1,
+    "src/needs-state.js->src/git.js": 1,
     "src/needs-state.js->src/needs-summary.js": 1,
     "src/needs-state.js->src/needs.js": 1,
     "src/needs-state.js->src/rigor-counters.js": 1,
@@ -398,9 +401,6 @@
     "src/relay-ordering.js->src/relay-seats.js": 1,
     "src/relay-ordering.js->src/relay-sender.js": 1,
     "src/relay-origin.js->src/refused.js": 1,
-    "src/relay-outbox-summary.js->src/relay-link-read.js": 1,
-    "src/relay-outbox-undo.js->src/board-event-log.js": 1,
-    "src/relay-outbox-undo.js->src/board-store-guards.js": 1,
-    "src/relay-outbox.js->src/board-capture.js": 1
+    "src/relay-outbox-summary.js->src/relay-link-read.js": 1
   }
 }

@@ -253,3 +253,58 @@ test('the actual repository gate refuses any cell debt above its committed per-e
   const root = dirname(dirname(BIN)), report = cellLintReport(root), baseline = readCellLintBaseline(root);
   assert.deepEqual(cellLintGrowth(report, baseline), [], 'normal npm test enforces the literal repository baseline without updating it');
 });
+
+test('transitional roots follow real package CLI/browser declarations and never arbitrary fixture HTML [C7,CD62]', t => {
+  const box = fixture(t);
+  box.remove('apps');
+  box.put('package.json', JSON.stringify({ type: 'module', bin: { real: 'bin/real.js' }, browser: 'web/index.html', imports: { '#*': './packages/*/index.js' } }));
+  box.put('bin/real.js', "import { value } from '#sample'; console.log(value);\n");
+  box.put('bin/not-an-entry.js', 'export const alone = 1;\n');
+  box.put('web/index.html', '<!doctype html><script type="module" src="./start.js"></script><template><script src="../proof/fixture-only.js"></script></template><textarea><script src="../proof/fixture-only.js"></script></textarea><script type="application/json" src="../proof/fixture-only.js"></script>\n');
+  box.put('web/start.js', "import { displayed } from '#browser'; console.log(displayed);\n");
+  box.put('packages/browser/index.js', 'export const displayed = 1; export const neverUsed = 2;\n');
+  box.put('proof/sample.html', '<!doctype html><script src="./fixture-only.js"></script>\n');
+  box.put('proof/fixture-only.js', "import { neverUsed } from '#browser'; console.log(neverUsed);\n");
+  const report = box.report();
+  assert.equal(report.rootMode, 'transitional');
+  assert.deepEqual(report.roots, ['bin/real.js', 'web/index.html', 'web/start.js']);
+  assert.ok(!report.metrics.unreachableExports.findings.some(row => row.key.endsWith('#value') || row.key.endsWith('#displayed')));
+  assert.ok(report.metrics.unreachableExports.findings.some(row => row.key.endsWith('#neverUsed')));
+  assert.ok(report.metrics.unreachable.findings.some(row => row.key === 'bin/not-an-entry.js'));
+});
+
+test('real apps replace transitional roots without letting test programs seed application reach [C7,CD62]', t => {
+  const box = fixture(t);
+  box.remove('apps');
+  box.put('package.json', JSON.stringify({ type: 'module', bin: 'bin/old.js', browser: 'test/fixture.html', imports: { '#*': './packages/*/index.js' } }));
+  box.put('bin/old.js', "import { value } from '#sample'; console.log(value);\n");
+  box.put('test/fixture.html', '<!doctype html><script src="./fixture.js"></script>\n');
+  box.put('test/fixture.js', 'throw new Error("must never run or root");\n');
+  let report = box.report();
+  assert.deepEqual(report.roots, ['bin/old.js']);
+  assert.ok(report.unknown.some(row => row.specifier === 'test/fixture.html'));
+  box.put('apps/live/index.js', 'console.log("actual app");\n');
+  box.put('apps/live/tests/only.test.js', "import { value } from '#sample'; console.log(value);\n");
+  report = box.report();
+  assert.equal(report.rootMode, 'apps');
+  assert.deepEqual(report.roots, ['apps/live/index.js']);
+  assert.ok(report.metrics.unreachable.findings.some(row => row.key === 'bin/old.js'));
+  assert.ok(report.metrics.unreachableExports.findings.some(row => row.key.endsWith('#value')));
+  box.put('apps/live/index.js', "import { value } from '#sample'; console.log(value);\n");
+  assert.ok(!box.report().metrics.unreachableExports.findings.some(row => row.key.endsWith('#value')));
+});
+
+test('audited browser serving roots require real entry URLs, not every served browser asset or embedded example [C7,CD62]', t => {
+  const box = fixture(t);
+  box.remove('apps');
+  box.put('relay/browser-page.js', "import { readFileSync } from 'node:fs';\nconst assets = new Map([['/relay/client.js', ['text/javascript', readFileSync(new URL('./browser-client.js', import.meta.url), 'utf8')]], ['/service-worker.js', ['text/javascript', readFileSync(new URL('./service-worker.js', import.meta.url), 'utf8')]], ['/relay/not-an-entry.js', ['text/javascript', readFileSync(new URL('./not-an-entry.js', import.meta.url), 'utf8')]]]);\nconst options = { transportModule: '/relay/client.js' };\nconst example = `const ignored = { transportModule: '/relay/not-an-entry.js' };`;\n''.replace('</body>', '<script src=\"/relay/generated.js\"></script>');\n");
+  box.put('relay/browser-client.js', "import { value } from '#sample'; console.log(value);\n");
+  box.put('relay/browser-install.js', "export function register(browser) { return browser.serviceWorker.register('/service-worker.js'); }\n");
+  box.put('relay/service-worker.js', 'console.log("worker entry");\n');
+  box.put('relay/not-an-entry.js', 'export const unused = 1;\n');
+  const report = box.report();
+  assert.deepEqual(report.roots, ['relay/browser-client.js', 'relay/service-worker.js']);
+  assert.ok(report.metrics.unreachable.findings.some(row => row.key === 'relay/not-an-entry.js'));
+  assert.ok(report.unknown.some(row => row.specifier === '/relay/generated.js' && row.reason.includes('unproven')));
+  assert.ok(!report.metrics.unreachableExports.findings.some(row => row.key.endsWith('#value')));
+});

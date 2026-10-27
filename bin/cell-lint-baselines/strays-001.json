@@ -31,16 +31,11 @@
     "bin/cell-lint-baselines/strays-002.json": 1,
     "bin/cell-lint-baselines/unknown-001.json": 1,
     "bin/cell-lint-baselines/unreachable-001.json": 1,
-    "bin/cell-lint-baselines/unreachable-002.json": 1,
-    "bin/cell-lint-baselines/unreachable-003.json": 1,
     "bin/cell-lint-baselines/unreachableExports-001.json": 1,
     "bin/cell-lint-baselines/unreachableExports-002.json": 1,
     "bin/cell-lint-baselines/unreachableExports-003.json": 1,
     "bin/cell-lint-baselines/unreachableExports-004.json": 1,
     "bin/cell-lint-baselines/unreachableExports-005.json": 1,
-    "bin/cell-lint-baselines/unreachableExports-006.json": 1,
-    "bin/cell-lint-baselines/unreachableExports-007.json": 1,
-    "bin/cell-lint-baselines/unreachableExports-008.json": 1,
     "bin/cell-lints.js": 1,
     "bin/check-baseline.js": 1,
     "bin/check-perf-budgets.js": 1,
@@ -401,6 +396,11 @@
     "test/landing-waiver-replay.test.js": 1,
     "test/lane-add.test.js": 1,
     "test/lane-bypass.test.js": 1,
-    "test/lane-lead.test.js": 1
+    "test/lane-lead.test.js": 1,
+    "test/lanes.test.js": 1,
+    "test/line-capacity.test.js": 1,
+    "test/line-settings.test.js": 1,
+    "test/local-fetch.test.js": 1,
+    "test/lsof-lookups.test.js": 1
   }
 }

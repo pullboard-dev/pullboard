@@ -1,3 +1,4 @@
+import { cellRoots } from './cell-lint-roots.js';
 import { readPathMap } from './path-map.js';
 import { exportReachability } from './cell-lint-exports.js';
 /** Report migration debt from accepted RFC 0006; report reads never initialize or rewrite ratchets [C7,CD64]. */
@@ -19,7 +20,9 @@ export function cellLintReport(root) {
     metrics[metric].count += count;
     metrics[metric].findings.push({ key, count, detail });
   }
-  const graph = new Map(), reachable = new Set(), pending = [];
+  const rootInfo = cellRoots(files);
+  unknown.push(...rootInfo.unknown);
+  const graph = new Map(), reachable = new Set(), pending = [...rootInfo.roots];
   for (const file of files.keys()) {
     const cell = cellOf(file), tail = cell ? file.slice(cell.length + 1) : null;
     if (file.startsWith('src/')) add('legacySource', file);
@@ -30,7 +33,6 @@ export function cellLintReport(root) {
         || top === 'src' && !/^src\/(?:core|shell)\//u.test(tail)) add('strays', file, 1, 'outside accepted cell anatomy');
       if (/\.(?:md|mdx|rst|txt|adoc|html?)$/iu.test(file)) add('documents', file);
       if (!testFile(file)) graph.set(cell, graph.get(cell) ?? new Set());
-      if (cell.startsWith('apps/') && tail === 'index.js') pending.push(file);
     } else if (!ROOT_FILES.has(file) && !/^(?:docs|\.github|src)\//u.test(file)) add('strays', file, 1, 'outside cells and explicit root allowlist');
     const source = files.get(file).toString('utf8');
     if (!files.get(file).includes(0) && Buffer.from(source).equals(files.get(file))) {
@@ -64,5 +66,5 @@ export function cellLintReport(root) {
   unknown.push(...exports.unknown);
   for (const row of unknown) add('unknown', `${row.file}:${row.specifier ?? ''}:${row.reason}`, 1, row.reason);
   for (const value of Object.values(metrics)) value.findings.sort((a, b) => a.key.localeCompare(b.key));
-  return { version: 1, metrics, unknown, pathMap: files.has('path-map.json') ? Object.fromEntries(readPathMap(root)) : {}, qualification: 'Known production file and individual export reach from app front doors; tests never seed reach. Opaque bindings/loaders remain named debt, not proven reachable.' };
+  return { version: 1, metrics, unknown, rootMode: rootInfo.mode, roots: rootInfo.roots, pathMap: files.has('path-map.json') ? Object.fromEntries(readPathMap(root)) : {}, qualification: 'Known production file and individual export reach from declared transitional entrypoints or real app front doors; tests never seed reach. Opaque bindings/loaders remain named debt, not proven reachable.' };
 }

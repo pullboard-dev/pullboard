@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "test/agent-guidance.test.js->test/e2e-helpers.js": 1,
+    "test/agent-model-engine.test.js->src/agent-grant-engine.js": 1,
+    "test/agent-model-engine.test.js->src/board.js": 1,
     "test/agent-model-engine.test.js->src/config.js": 1,
     "test/agent-model-engine.test.js->src/engine.js": 1,
     "test/agent-model-engine.test.js->src/exchange.js": 1,
@@ -398,9 +401,6 @@
     "test/cockpit/shouts.test.js->src/board.js": 1,
     "test/cockpit/shouts.test.js->src/relay-sender.js": 1,
     "test/cockpit/shouts.test.js->test/cockpit/fixture.js": 1,
-    "test/cockpit/shouts.test.js->test/cockpit/stable.js": 1,
-    "test/cockpit/snapshot.test.js->src/board-read-open.js": 1,
-    "test/cockpit/snapshot.test.js->src/board.js": 1,
-    "test/cockpit/snapshot.test.js->src/local-fetch.js": 1
+    "test/cockpit/shouts.test.js->test/cockpit/stable.js": 1
   }
 }

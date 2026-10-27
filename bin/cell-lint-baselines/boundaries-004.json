@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/commands/resume.js->src/stats.js": 1,
+    "src/commands/resume.js->src/trunk-conflict.js": 1,
+    "src/commands/resume.js->src/verdict-freshness.js": 1,
     "src/commands/rigor.js->src/board.js": 1,
     "src/commands/rigor.js->src/cli.js": 1,
     "src/commands/rigor.js->src/config.js": 1,
@@ -398,9 +401,6 @@
     "src/focus-milestone.js->src/machine.js": 1,
     "src/gate-config.js->src/config.js": 1,
     "src/gate-config.js->src/git.js": 1,
-    "src/gate-config.js->src/refused.js": 1,
-    "src/gate-control.js->src/git.js": 1,
-    "src/gate-output.js->src/execution-environment.js": 1,
-    "src/gate-output.js->src/hooks.js": 1
+    "src/gate-config.js->src/refused.js": 1
   }
 }

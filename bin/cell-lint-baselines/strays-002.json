@@ -2,11 +2,6 @@
   "version": 1,
   "metric": "strays",
   "allowances": {
-    "test/lanes.test.js": 1,
-    "test/line-capacity.test.js": 1,
-    "test/line-settings.test.js": 1,
-    "test/local-fetch.test.js": 1,
-    "test/lsof-lookups.test.js": 1,
     "test/machine-home.test.js": 1,
     "test/machine-reservation-fixture.js": 1,
     "test/machine.test.js": 1,

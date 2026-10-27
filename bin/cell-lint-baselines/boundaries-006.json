@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/main-failure-matches.js->src/land.js": 1,
+    "src/main-red.js->src/board.js": 1,
+    "src/main-red.js->src/browser-admission.js": 1,
     "src/main-red.js->src/gate.js": 1,
     "src/main-red.js->src/git.js": 1,
     "src/main-red.js->src/gui-admission.js": 1,
@@ -398,9 +401,6 @@
     "src/native-flakes.js->src/trusted-policy.js": 1,
     "src/native-state-clock.js->src/roadmap.js": 1,
     "src/needs-state.js->src/blueprint-fit.js": 1,
-    "src/needs-state.js->src/board.js": 1,
-    "src/needs-state.js->src/config.js": 1,
-    "src/needs-state.js->src/doctrine.js": 1,
-    "src/needs-state.js->src/git.js": 1
+    "src/needs-state.js->src/board.js": 1
   }
 }

@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/relay-outbox-undo.js->src/board-event-log.js": 1,
+    "src/relay-outbox-undo.js->src/board-store-guards.js": 1,
+    "src/relay-outbox.js->src/board-capture.js": 1,
     "src/relay-outbox.js->src/board.js": 1,
     "src/relay-outbox.js->src/coordinator-hold.js": 1,
     "src/relay-outbox.js->src/engine.js": 1,
@@ -398,9 +401,6 @@
     "src/runner-worker.js->src/runner-private-mode.js": 1,
     "src/runner-worker.js->src/sandbox-denial.js": 1,
     "src/runner-worker.js->src/test-result-store.js": 1,
-    "src/runners.js->src/config.js": 1,
-    "src/runners.js->src/execution-environment.js": 1,
-    "src/runners.js->src/gate-policy-load.js": 1,
-    "src/runners.js->src/gate-stages.js": 1
+    "src/runners.js->src/config.js": 1
   }
 }

@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "legacySource",
   "allowances": {
+    "src/test-selection.js": 1,
     "src/test-value-source.js": 1,
     "src/test-value-timing.js": 1,
     "src/test-value.js": 1,

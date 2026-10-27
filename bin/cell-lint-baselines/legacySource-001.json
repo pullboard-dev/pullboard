@@ -100,6 +100,7 @@
     "src/cell-lint-exports.js": 1,
     "src/cell-lint-inventory.js": 1,
     "src/cell-lint-ratchet.js": 1,
+    "src/cell-lint-roots.js": 1,
     "src/cell-lint-store.js": 1,
     "src/cell-lints.js": 1,
     "src/changelog.js": 1,
@@ -400,7 +401,6 @@
     "src/main-audit-engine.js": 1,
     "src/main-audit-nudge.js": 1,
     "src/main-audit-scheduler.js": 1,
-    "src/main-audit-state.js": 1,
-    "src/main-audit-worker.js": 1
+    "src/main-audit-state.js": 1
   }
 }

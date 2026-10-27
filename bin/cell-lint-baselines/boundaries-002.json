@@ -226,11 +226,14 @@
     "src/cell-lint-ratchet.js->src/cell-lints.js": 1,
     "src/cell-lint-ratchet.js->src/path-map.js": 1,
     "src/cell-lint-ratchet.js->src/refused.js": 1,
+    "src/cell-lint-roots.js->src/cell-lint-inventory.js": 1,
+    "src/cell-lint-roots.js->src/js-lex.js": 1,
     "src/cell-lint-store.js->src/cell-lint-ratchet.js": 1,
     "src/cell-lint-store.js->src/cell-lints.js": 1,
     "src/cell-lint-store.js->src/refused.js": 1,
     "src/cell-lints.js->src/cell-lint-exports.js": 1,
     "src/cell-lints.js->src/cell-lint-inventory.js": 1,
+    "src/cell-lints.js->src/cell-lint-roots.js": 1,
     "src/cell-lints.js->src/js-lex.js": 1,
     "src/cell-lints.js->src/path-map.js": 1,
     "src/check-accept.js->src/board.js": 1,
@@ -398,9 +401,6 @@
     "src/cli.js->src/relay-environment.js": 1,
     "src/cli.js->src/relay-sender.js": 1,
     "src/cli.js->src/relay-setup.js": 1,
-    "src/cli.js->src/relay.js": 1,
-    "src/cli.js->src/resume.js": 1,
-    "src/cli.js->src/row-decision-state.js": 1,
-    "src/cli.js->src/row-decisions.js": 1
+    "src/cli.js->src/relay.js": 1
   }
 }

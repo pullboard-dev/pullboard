@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/cli.js->src/resume.js": 1,
+    "src/cli.js->src/row-decision-state.js": 1,
+    "src/cli.js->src/row-decisions.js": 1,
     "src/cli.js->src/row-drafts.js": 1,
     "src/cli.js->src/seat-checkout.js": 1,
     "src/cli.js->src/sentinel-command.js": 1,
@@ -398,9 +401,6 @@
     "src/commands/resume.js->src/setup-rows.js": 1,
     "src/commands/resume.js->src/spec-approval-bootstrap.js": 1,
     "src/commands/resume.js->src/spec.js": 1,
-    "src/commands/resume.js->src/stats-flow.js": 1,
-    "src/commands/resume.js->src/stats.js": 1,
-    "src/commands/resume.js->src/trunk-conflict.js": 1,
-    "src/commands/resume.js->src/verdict-freshness.js": 1
+    "src/commands/resume.js->src/stats-flow.js": 1
   }
 }
