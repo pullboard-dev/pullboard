@@ -66,12 +66,16 @@ function fixture() {
   for (const title of ['Corrected item', 'Unclaimed item', 'Build-failed item']) {
     json(repo, 'add', 'web', title, '--specs', 'G1', '--criterion', `${title} works`, '--check', 'true');
   }
-  return { repo, web, review, run, json };
+  return { repo, web, review, run, json, git };
 }
 
 /** Submit an item from the builder and reject it from the reviewer. */
 function rejectOnce(box, id, note, clause) {
+  writeFileSync(join(box.web, 'web', 'shared.txt'), `implemented item ${id}\n`);
+  box.git(box.web, 'add', 'web/shared.txt');
+  box.git(box.web, 'commit', '-q', '-m', 'fix: implement bar fixture [G1]');
   box.json(box.web, 'submit', String(id));
+  box.git(box.review, 'switch', '--detach', box.json(box.repo, 'show', String(id)).item_commit);
   box.json(box.review, 'next', '--verify', String(id));
   box.json(box.review, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--clause', clause, '--note', note);
 }
@@ -92,7 +96,22 @@ test('[B10,B31] a corrected bar records why the old one was wrong', () => {
   assert.equal(edit.detail.reason, 'the old bar described a lock a WAL board never takes', 'the reason is stored with the edit');
   assert.deepEqual(edit.detail.barCorrection, { fields: ['criterion'], reject: null }, 'the edit is marked as a bar correction');
 
-  box.json(box.web, 'refreeze', '1');
+  const beforeRefreeze = box.json(box.repo, 'show', '1');
+  const builderRefreeze = box.run(box.web, 'refreeze', '1', '--json');
+  assert.notEqual(builderRefreeze.code, 0, 'only the coordinator refreezes a corrected bar');
+  assert.equal(JSON.parse(builderRefreeze.out).error?.code, 'COORDINATOR_ONLY');
+  const afterRefusal = box.json(box.repo, 'show', '1');
+  assert.equal(afterRefusal.item_frozen_digest, beforeRefreeze.item_frozen_digest, 'the refused builder refreeze preserves the frozen bar');
+  assert.equal(afterRefusal.item_owner, beforeRefreeze.item_owner, 'the refused builder refreeze preserves the owner');
+  const refrozen = box.json(box.repo, 'refreeze', '1');
+  assert.equal(refrozen.retainedClaim, true, 'coordinator refreeze keeps the active claim');
+  assert.equal(refrozen.unchanged, true, 'the coordinator edit already made the corrected frozen bar effective');
+  const afterRefreeze = box.json(box.repo, 'show', '1');
+  assert.equal(afterRefreeze.item_status, 'claimed');
+  assert.equal(afterRefreeze.item_owner, beforeRefreeze.item_owner);
+  assert.equal(afterRefreeze.item_lease_until, beforeRefreeze.item_lease_until, 'refreeze keeps the existing lease');
+  assert.equal(afterRefreeze.item_frozen_digest, beforeRefreeze.item_frozen_digest, 'an unchanged refreeze preserves the corrected bar digest');
+  assert.equal(JSON.parse(afterRefreeze.item_frozen).criterion, 'Corrected item works under WAL');
   rejectOnce(box, 1, 'the WAL lock never appears', 'Corrected item works under WAL');
   const unexplained = box.run(box.repo, 'edit', '1', '--check', 'true # wal', '--json');
   assert.equal(JSON.parse(unexplained.out).error?.code, 'BAR_REASON', 'a check correction on an item that was claimed needs a reason too');
@@ -111,6 +130,7 @@ test('[B10,B31] a corrected bar records why the old one was wrong', () => {
   const unclaimedEdit = box.json(box.repo, 'show', '2').thread.filter((entry) => entry.type === 'move' && entry.kind === 'edit').at(-1);
   assert.equal(unclaimedEdit.detail.barCorrection, undefined, 'an edit before any claim is not a bar correction');
 
+  box.git(box.web, 'switch', '--detach', box.git(box.repo, 'rev-parse', 'HEAD'));
   box.json(box.web, 'claim', '3');
   rejectOnce(box, 3, 'the build is broken', 'Build-failed item works');
   const stats = box.json(box.repo, 'stats').stats.bars;
