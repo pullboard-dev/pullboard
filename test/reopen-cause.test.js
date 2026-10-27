@@ -12,6 +12,15 @@ import {
 } from 'node:test';
 import * as store from '../src/board.js';
 import { eventCauses } from '../src/rigor.js';
+import {
+  exportBoard,
+  importBoard,
+} from '../src/exchange.js';
+import {
+  ensureRigorCounters,
+  resumeRigorCounters,
+  RIGOR_COLD_NOTICE,
+} from '../src/rigor-counters.js';
 import { conflictReport } from '../src/rigor-conflicts.js';
 import { trunkMerge } from '../src/trunk-merge.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -109,11 +118,39 @@ test('manual landing conflict notes are verified by Git and recorded as conflict
   assertConflict(latest(box, entry.id), merge.files);
 });
 
+test('a legacy-shaped conflict note cannot reopen clean Git work [C7,B3]', () => {
+  const box = project();
+  const entry = submit(box);
+  accept(box, entry);
+  const trunk = box.git(box.repo, 'rev-parse', 'main');
+  const note = `${FILE}: does not merge onto the trunk (conflicts: ${FILE}), reopened for the builder merge; merge commit ${trunk}`;
+  const refused = box.run(box.repo, 'reopen', String(entry.id), '--note', note, '--json');
+  assert.equal(refused.code, 1);
+  assert.equal(JSON.parse(refused.out).error.code, 'NOT_CONFLICTING');
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    assert.equal(store.getItem(board, entry.id).item_status, 'verified');
+    assert.equal(store.events(board, { itemId: entry.id }).filter(row => row.event_kind === 'reopen').length, 0);
+  } finally { store.closeBoard(board); }
+});
+
 test('a confirmed conflict overrides an unrelated explicit test cause [C7,B3,D1]', () => {
   const box = project();
   const entry = submit(box);
   accept(box, entry);
   const merge = conflict(box, entry);
+  const source = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const older = store.openBoard(join(box.dir, 'older-engine.sqlite'));
+  try {
+    importBoard(older, exportBoard(source));
+    older.executionEngineVersion = 137;
+    store.reopen(older, entry.id, { agentId: 'coordinator', conflict: { files: merge.files, trunk: merge.commit },
+      cause: 'test:web/unrelated.test.js::unrelated test' });
+    const oldDetail = JSON.parse(store.events(older, { itemId: entry.id }).findLast(row => row.event_kind === 'reopen').event_detail);
+    assert.equal(oldDetail.cause, 'test:web/unrelated.test.js::unrelated test', 'engine137 replay retains its original recorded meaning');
+    assert.equal(oldDetail.causeDerivation, undefined);
+    assert.equal(store.getItem(source, entry.id).item_status, 'verified', 'the replay control never changes the native board');
+  } finally { store.closeBoard(older); store.closeBoard(source); }
   json(box, box.repo, 'reopen', String(entry.id), ...merge.files.flatMap(file => ['--conflict', file]),
     '--cause', 'test:web/unrelated.test.js::unrelated test');
   assertConflict(latest(box, entry.id), merge.files);
@@ -160,5 +197,20 @@ test('historical conflict-note correction is explicit and leaves original event 
     assert.ok(report.conflictFiles.every(row => row.events[0].source === 'legacy-conflict-note'), 'inferred note history never claims Git attestation');
     assert.deepEqual(board.db.prepare('SELECT * FROM event WHERE event_id=?').get(original.event_id), original, 'read correction never rewrites immutable history');
     assert.equal(store.getItem(board, id).item_status, 'open', 'a historical correction creates no acceptance or workflow authority');
+    const thread = store.itemThread(board, id).find(row => row.eventId === original.event_id);
+    assert.equal(thread.detail.cause, JSON.parse(original.event_detail).cause, 'the original cause remains inspectable');
+    assert.equal(thread.causeCorrection.source, 'legacy-conflict-note');
+    assert.deepEqual(thread.causeCorrection.causeDerivation.files, [FILE, SECOND]);
+    ensureRigorCounters(board);
+    const key = 'local:proof-stats:rigor:v1:summary';
+    const summary = JSON.parse(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key).meta_value);
+    summary.data.version = 1;
+    board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(summary), key);
+    assert.equal(resumeRigorCounters(board, {}).notice, RIGOR_COLD_NOTICE, 'the pre-correction summary cannot pretend to be current');
+    assert.deepEqual(resumeRigorCounters(board, {}).causes, []);
+    ensureRigorCounters(board);
+    assert.equal(resumeRigorCounters(board, {}).notice, null);
+    assert.deepEqual(resumeRigorCounters(board, {}).causes, []);
+    assert.deepEqual(board.db.prepare('SELECT * FROM event WHERE event_id=?').get(original.event_id), original);
   } finally { store.closeBoard(board); }
 });

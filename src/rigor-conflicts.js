@@ -1,39 +1,16 @@
 /** Recent merge collisions are architectural advice, separate from proof-bound Rigor causes [D1]. */
 import {
-  conflictNote,
   shownPath,
 } from './trunk-conflict.js';
 
+import {
+  conflictNoteFiles,
+  reopenConflictEvidence,
+} from './reopen-cause.js';
+export { conflictNoteFiles } from './reopen-cause.js';
+
 const WINDOW_DAYS = 14;
 const HOT_ITEMS = 2;
-
-/** Read only the complete canonical machine-note syntax; this is not authenticated Git evidence. */
-export function conflictNoteFiles(note) {
-  if (typeof note !== 'string') return null;
-  const match = /^conflicts with the trunk at ([a-f0-9]{12}) in ([\s\S]+); merge main and resubmit$/u.exec(note);
-  if (!match) return null;
-  const body = match[2];
-  const token = /"(?:[^"\\]|\\.)*"|[\w./@+-]+/uy;
-  const files = [];
-  let offset = 0;
-  while (offset < body.length) {
-    token.lastIndex = offset;
-    const found = token.exec(body);
-    if (!found) return null;
-    let file = found[0];
-    if (file.startsWith('"')) {
-      try { file = JSON.parse(file); }
-      catch { return null; /* A malformed quoted path is not a canonical conflict note. */ }
-    }
-    if (!file || file.includes('\0') || files.includes(file) || shownPath(file) !== found[0]) return null;
-    files.push(file);
-    offset = token.lastIndex;
-    if (offset === body.length) break;
-    if (body.slice(offset, offset + 2) !== ', ' || offset + 2 === body.length) return null;
-    offset += 2;
-  }
-  return files.length && conflictNote({ files, trunk: match[1] }) === note ? files : null;
-}
 
 /** Count each recent reopen or hold once per exact file, retaining inspectable event provenance. */
 export function conflictReport(events, { now = new Date() } = {}) {
@@ -50,9 +27,8 @@ export function conflictReport(events, { now = new Date() } = {}) {
     const detail = JSON.parse(event.event_detail);
     const evidence = { id: event.event_id, item: event.item_id, kind: event.event_kind, at: event.event_at };
     let files = null;
-    if (event.event_kind === 'reopen' && Array.isArray(detail.conflict?.files)
-      && detail.conflict.files.length && detail.conflict.files.every(file => typeof file === 'string' && file && !file.includes('\0'))
-      && /^[a-f0-9]{40}$/u.test(detail.conflict.trunk)) files = [...new Set(detail.conflict.files)];
+    const conflict = event.event_kind === 'reopen' ? reopenConflictEvidence(detail) : null;
+    if (conflict) files = conflict.files;
     if (event.event_kind === 'hold_item') {
       files = conflictNoteFiles(detail.reason);
       if (!files && /\bconflicts?\b/iu.test(detail.reason ?? '')) {
@@ -65,7 +41,7 @@ export function conflictReport(events, { now = new Date() } = {}) {
       const entry = byFile.get(file);
       entry[event.event_kind === 'reopen' ? 'reopens' : 'holds'] += 1;
       entry.items.add(event.item_id);
-      entry.events.push({ ...evidence, source: event.event_kind === 'reopen' ? 'typed-conflict' : 'machine-note-syntax' });
+      entry.events.push({ ...evidence, source: event.event_kind === 'reopen' ? conflict.source : 'machine-note-syntax' });
     }
   }
   const conflictFiles = [...byFile.values()].map(entry => ({ ...entry, items: [...entry.items].sort((a, b) => a - b),

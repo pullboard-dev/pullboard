@@ -74,7 +74,7 @@ export function requireTrunkConflict(trunkMerge, commit, files) {
   if (!merge.files) throw new Refused('NOT_CONFLICTING', `${commit.slice(0, 12)} merges cleanly onto ${branch} at ${merge.commit.slice(0, 12)}; merge it, or reopen with --note "<test file>: <test name>; merge commit <sha>" after a red landing`);
   const unknown = files.filter((file) => !merge.files.includes(file));
   if (unknown.length) throw new Refused('CONFLICT_FILES', `${shownPaths(unknown)} ${unknown.length === 1 ? 'does' : 'do'} not conflict with ${branch} at ${merge.commit.slice(0, 12)}; the conflicting files are ${shownPaths(merge.files) || 'unnamed'}; name each with its own --conflict <file>`);
-  return { files, trunk: merge.commit };
+  return { files: [...new Set([...files, ...merge.files])], trunk: merge.commit };
 }
 
 /**

@@ -27,12 +27,15 @@ import {
   rigorDecisionKey,
 } from './rigor-auto-source.js';
 import { RIGOR_AUTO_ENGINE } from './rigor-auto-engine.js';
+import { REOPEN_CAUSE_ENGINE } from './reopen-cause-engine.js';
+import { ENGINE_VERSION } from './engine-metadata.js';
+import { conflictCause } from './reopen-cause.js';
 
 /** Prefer structured exact-head failures; a coded fallback is a coarse category, never a root-cause finding. */
 export function deriveRigorCause(board, item, { cause, reason, conflict, landingFailure, agentId }) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_CAUSE_ENGINE && conflict?.files?.length) return conflictCause(conflict.files);
   if (cause !== undefined && cause !== null) return { cause };
-  if (conflict?.files?.length) return { cause: `conflict:${encodeURI(conflict.files[0])}`,
-    causes: [...new Set(conflict.files.map(file => `conflict:${encodeURI(file)}`))], causeDerivation: { kind: 'merge-conflict', files: [...conflict.files] } };
+  if (conflict?.files?.length) return conflictCause(conflict.files);
   const landing = landingFailure?.tests?.find(failure => !causeProblem(testCause(failure)));
   if (landing) return { cause: testCause(landing), causeDerivation: { kind: 'landing-failure', mergeCommit: landingFailure.mergeCommit } };
   const history = events(board);
