@@ -41,6 +41,13 @@ import { Refused } from './refused.js';
 import { guiSession } from './gui-session.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
 import {
+  TEST_RESULT_ORIGIN_ENV,
+  TEST_RESULT_STORE_ENV,
+  importTestResults,
+  packTestResults,
+  selectedTestResults,
+} from './test-result-store.js';
+import {
   gateStages,
   stagedScript,
   readPipes,
@@ -253,6 +260,11 @@ async function readSpec() {
   for (const field of ['item', 'kind']) {
     if (value[field] !== undefined && typeof value[field] !== 'string') throw new Error('invalid work specification');
   }
+  if (value.testResults !== undefined && (!Array.isArray(value.testResults.inputKeys)
+    || value.testResults.inputKeys.some(key => typeof key !== 'string' || !/^[0-9a-f]{64}$/u.test(key))
+    || !(value.testResults.packet === null || typeof value.testResults.packet === 'string')
+    || !/^[a-z][a-z0-9-]{0,63}$/u.test(value.testResults.stage)
+    || typeof value.testResults.origin !== 'string' || /[\r\n\0]/u.test(value.testResults.origin))) throw new Error('invalid test-result exchange');
   if (value.root !== undefined && (typeof value.root !== 'string' || !isAbsolute(value.root))) throw new Error('invalid work specification');
   return value;
 }
@@ -866,6 +878,7 @@ async function receipt(spec, fields, sink) {
     // The execution host's load and the pinned main this run used, so a paired rerun here can be judged (#925).
     main: typeof spec.main === 'string' ? spec.main : null, load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) },
     ...(fields.trustedMode ? { trustedMode: fields.trustedMode } : {}),
+    ...(fields.testResults ? { testResults: fields.testResults } : {}),
     ...(spec.stageMarker ? { pipeStatuses: fields.pipeStatuses ?? null } : {}), ...(fields.timedOut ? { timedOut: true } : {}), ...(fields.refused ? { refused: fields.refused } : {}), ...(fields.browserRefused ? { browserRefused: true } : {}), ...(fields.denial ? { denial: fields.denial } : {}) };
   const encoded = Buffer.from(JSON.stringify(body)).toString('base64');
   await new Promise((resolveWrite, rejectWrite) => process.stderr.write(`${RECEIPT} ${spec.id} ${encoded}\n`, error => error ? rejectWrite(error) : resolveWrite()));
@@ -976,9 +989,15 @@ async function main() {
     }
     setupStep = 'command start';
     const browserRefusal = join(runDirectory, 'browser-refusal.json');
-    const commandEnv = { ...env, PULLBOARD_LANDING_RUN: spec.landing === true ? '1' : '0', [api.BROWSER_REFUSAL_FILE_ENV]: browserRefusal, ...(typeof spec.browserByLaunch === 'boolean' ? { PULLBOARD_TEST_BROWSER_BY_LAUNCH: spec.browserByLaunch ? '1' : '0' } : {}), PULLBOARD_LANDING_WAIVERS: JSON.stringify(spec.landing === true ? spec.waivers ?? [] : []) };
+    const resultStore = join(runnerRoot, 'test-results', spec.repoId);
+    if (spec.testResults) importTestResults(resultStore, spec.testResults.packet, spec.testResults.inputKeys);
+    const commandEnv = { ...env, [TEST_RESULT_STORE_ENV]: resultStore,
+      ...(spec.testResults ? { [TEST_RESULT_ORIGIN_ENV]: spec.testResults.origin, PULLBOARD_TEST_STAGE: spec.testResults.stage } : {}),
+      PULLBOARD_TEST_CACHE_TOOLING: spec.tooling.sha256,
+      PULLBOARD_LANDING_RUN: spec.landing === true ? '1' : '0', [api.BROWSER_REFUSAL_FILE_ENV]: browserRefusal, ...(typeof spec.browserByLaunch === 'boolean' ? { PULLBOARD_TEST_BROWSER_BY_LAUNCH: spec.browserByLaunch ? '1' : '0' } : {}), PULLBOARD_LANDING_WAIVERS: JSON.stringify(spec.landing === true ? spec.waivers ?? [] : []) };
     process.stderr.write(`PULLBOARD_RUNNER_READY ${spec.id}\n`);
     final = { ...(spec.trustedMode ? await runPrivateCheck(spec, root, commandEnv, sink, tracker) : await runCommand(spec, root, commandEnv, sink, tracker)), root };
+    if (spec.testResults) final.testResults = packTestResults(selectedTestResults(resultStore, spec.testResults.inputKeys));
     if (final.code !== 0 && existsSync(browserRefusal)) final.browserRefused = true;
   } catch (error) {
     const refused = setupRefusalCode(error);

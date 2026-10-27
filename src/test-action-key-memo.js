@@ -1,10 +1,23 @@
 /** Immutable, per-file key memos: an unchanged tree reads only the requested key records [C7]. */
-import { createHash, randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  createHash,
+  randomUUID,
+} from 'node:crypto';
+import {
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 /** Name a selector without making its path part of a cache filesystem path. */
 function name(file) { return createHash('sha256').update(file).digest('hex'); }
+
+/** Detect a damaged memo record even when its altered key is still syntactically a hash. */
+function checksum(identity, file, value) {
+  return createHash('sha256').update(JSON.stringify({ identity, file, value })).digest('hex');
+}
 
 /** Publish one complete JSON value; another planner never sees a partially written record. */
 function publish(path, value) {
@@ -36,6 +49,7 @@ export async function memoizedActionKeys(store, identity, files, build) {
     for (const file of selected) {
       const record = JSON.parse(readFileSync(join(directory, `${name(file)}.json`), 'utf8'));
       if (record.identity !== identity || record.file !== file
+        || record.checksum !== checksum(identity, file, record.value)
         || !(record.value?.key === null || /^[0-9a-f]{64}$/u.test(record.value?.key)) || typeof record.value.reason !== 'string') throw new Error('invalid key record');
       keys.set(file, record.value);
     }
@@ -44,7 +58,7 @@ export async function memoizedActionKeys(store, identity, files, build) {
   const keys = await build();
   try {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    for (const [file, value] of keys) publish(join(directory, `${name(file)}.json`), { identity, file, value });
+    for (const [file, value] of keys) publish(join(directory, `${name(file)}.json`), { identity, file, value, checksum: checksum(identity, file, value) });
     publish(join(directory, 'files.json'), [...keys.keys()]);
     publish(join(directory, 'index.json'), { identity });
   } catch { /* Storage is an optimization; the freshly computed keys remain usable. */ }

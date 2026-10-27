@@ -1,5 +1,7 @@
 /** Exact committed source and bounded, credential-free SSH execution for machine runners [C7]. */
 export { placeRunner, runnerStage } from './runner-stage.js';
+import { prepareTestResultExchange } from './test-action-transfer.js';
+import { importTestResults } from './test-result-store.js';
 import {
   spawn,
   spawnSync,
@@ -79,7 +81,7 @@ const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 const MAX_HISTORY_TAGS = 1_024;
 const MAX_TAG_CHAIN = 8;
 const TOOL_ROOT = fileURLToPath(new URL('../', import.meta.url));
-const RUNTIME_NAMES = ['runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js'];
+const RUNTIME_NAMES = ['runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'test-result-store.js'];
 
 /** Validate an SSH destination as one argument, never a command or an SSH option. */
 export function validateRunner(value) {
@@ -482,7 +484,7 @@ function anonymousOrigin(root) {
 }
 
 /** Prepare the pinned request before negotiating history; cleanup owns only its scratch directory. */
-function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath }) {
+async function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath }) {
   runner = validateRunner(runner);
   const current = runnerSource(root);
   if (!current || (source && (current.commit !== source.commit || current.tree !== source.tree))) {
@@ -511,10 +513,13 @@ function requestFor(root, command, { runner, source, browser = false, byLaunch, 
   const repoId = createHash('sha256').update(realpathSync(repoInfo(root).commonDir)).digest('hex');
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-runner-send-'));
   try {
+    const exchange = await prepareTestResultExchange(root, command, selected.commit);
     const { worker, tooling, runtime } = trustedTooling();
     const projection = metadata.landing === true && Array.isArray(waivers) ? waivers.filter(entry => ['file', 'name'].includes(entry?.kind) && typeof entry.test === 'string' && entry.test).map(({ kind, test }) => ({ kind, test })) : [];
     if (secretsIn([{ path: 'runner continuation', line: 1, text: JSON.stringify(projection) }]).length) throw new Refused('RUNNER_SECRET', 'the continuation projection contains a possible secret; keep this run local');
+    const stage = /^[a-z][a-z0-9-]{0,63}$/u.test(metadata.testStage ?? '') ? metadata.testStage : metadata.landing ? 'land' : 'focused';
     const spec = { version: 1, id: randomUUID(), repoId, ...(originBase ? { origin, originBase } : {}), runtime, tooling, tags, commit: selected.commit, tree: selected.tree, command, pipefail, slots: runner.slots,
+      testResults: { inputKeys: exchange?.inputKeys ?? [], packet: exchange?.packet ?? null, stage, origin: runner.host },
       ...(trustedMode ? { trustedMode } : {}),
       browser: runner.browser, browserRequired: browser, guiRequired: metadata.gui === true, landing: metadata.landing === true,
       ...(metadata.landing === true && metadata.timeoutMs ? { timeoutMs: metadata.timeoutMs } : {}),
@@ -524,11 +529,20 @@ function requestFor(root, command, { runner, source, browser = false, byLaunch, 
       itemCheck: metadata.itemCheck === true, diagnostic: metadata.diagnostic === true, timing: metadata.timing === true,
       item: String(metadata.item ?? ''), kind: String(metadata.kind ?? ''), ...(runner.root ? { root: runner.root } : {}),
       ...(typeof metadata.main === 'string' && /^[0-9a-f]{40,64}$/u.test(metadata.main) ? { main: metadata.main } : {}) };
-    const encodedSpec = Buffer.from(JSON.stringify(spec));
+    let encodedSpec = Buffer.from(JSON.stringify(spec));
+    // Optional cache bytes cannot make an otherwise valid runner request fail its existing bound.
+    if (encodedSpec.length > 1024 ** 2) {
+      spec.testResults.packet = null;
+      encodedSpec = Buffer.from(JSON.stringify(spec));
+    }
+    if (encodedSpec.length > 1024 ** 2) {
+      spec.testResults.inputKeys = [];
+      encodedSpec = Buffer.from(JSON.stringify(spec));
+    }
     if (encodedSpec.length > 1024 ** 2) throw new Refused('RUNNER_REQUEST_LIMIT', 'runner tooling request exceeds its safe transfer limit; keep this run local');
     const remote = remoteWorkerCommand(runner, worker, tooling, runtime);
     // These are transport hang ceilings, independent of the command's execution budget.
-    return { spec, runner, args: ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
+    return { spec, runner, exchange, args: ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
       '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=3',
       '--', runner.host, remote], root, source: selected, ...(trustedMode ? { rawOutputPath } : {}), directory, frame: Buffer.concat([Buffer.from(`${encodedSpec.length}\n`), encodedSpec]), env: sshEnvironment(),
     cleanup() { rmSync(directory, { recursive: true, force: true }); } };
@@ -605,6 +619,11 @@ function resultFrom(request, result) {
     refused.runnerAttempt = { host: request.runner.host, exitCode: receipt.code, output: text };
     throw refused;
   }
+  // A cache packet is considered only after the nonce, exact source, complete output and private
+  // source guard have authenticated this completion. A dropped run imports no passing receipt.
+  if (request.exchange && !receipt.signal && (!privateResult || privateResult.state === 'pass')) {
+    importTestResults(request.exchange.store, receipt.testResults, request.spec.testResults.inputKeys);
+  }
   return { isGreen: receipt.code === 0 && !receipt.signal, output: text, sandboxBlocked, ...(receipt.timedOut ? { timedOut: true } : {}),
     environment: receipt.environment ?? null, testRuntimes: receipt.testRuntimes ?? null, executionCapabilities: { gui: receipt.gui ?? null },
     ...(request.spec.stageMarker ? { stages: staged?.stages ?? null } : {}),
@@ -675,7 +694,7 @@ finally {clearInterval(parentWatch);}`;
 /** Negotiate missing history objects while the remote cache lease stays held in one SSH session. */
 export async function runOnRunnerAsync(root, command, options) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
-  const request = requestFor(root, command, options);
+  const request = await requestFor(root, command, options);
   let removeAbort = () => {};
   let runnerWaitTimer;
   let runnerWaitKill;
