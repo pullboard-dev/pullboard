@@ -1398,7 +1398,7 @@ function statusWriters(read) {
   const writers = [];
   for (const file of fs.readdirSync(new URL('../src/', import.meta.url)).filter((name) => name.endsWith('.js'))) {
     const source = read(file);
-    const allowedNames = file === 'board.js' ? ['moveItem', 'setItem'] : file === 'board-query.js' ? ['current'] : [];
+    const allowedNames = file === 'board.js' ? ['moveItem'] : file === 'item-fields.js' ? ['setItem'] : file === 'board-query.js' ? ['current'] : [];
     const allowed = allowedNames.map((name) => functionsIn(source).get(name));
     const spans = allowed.filter(Boolean).map((body) => [source.indexOf(body), source.indexOf(body) + body.length]);
     if (file === 'json.js') {
@@ -1418,6 +1418,9 @@ function statusWriters(read) {
 
 test('only moveItem writes an item\'s status, and a write anywhere else fails the check [M1]', () => {
   assert.deepEqual(statusWriters(fromDisk), []);
+  const besideSetter = editedSource('item-fields.js', /^export function setItem/m,
+    "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function setItem");
+  assert.deepEqual(statusWriters(besideSetter), ['item-fields.js#reopenByHand'], 'the generic setter exemption never covers a writer beside it');
   const besideReader = editedSource('board-query.js', /^export function current/m,
     "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function current");
   assert.deepEqual(statusWriters(besideReader), ['board-query.js#reopenByHand'], 'the projection exemption never covers a writer beside it');

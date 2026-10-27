@@ -32,7 +32,7 @@ export function forgetHoldMaintenance(board, id) {
 }
 
 /** Lift once at the first qualifying event after this exact hold; replay reads only native evidence. */
-export function liftConditionalHold(board, event, logEvent) {
+export function liftConditionalHold(board, event, logEvent, setItem) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < STALE_STATE_ENGINE || event.item_id === null) return;
   const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`stale_hold_until:${event.item_id}`);
   if (!row) return;
@@ -47,8 +47,7 @@ export function liftConditionalHold(board, event, logEvent) {
   if (!item || item.item_hold_by !== 'coordinator' || item.item_hold_at !== condition.heldAt || !item.item_hold_reason) return;
   // Delete first: the resulting native unhold cannot recursively satisfy this condition again.
   forgetHoldMaintenance(board, event.item_id);
-  board.db.prepare('UPDATE item SET item_hold_reason=NULL,item_hold_by=NULL,item_hold_at=NULL,item_updated_at=? WHERE item_id=?')
-    .run(event.event_at, event.item_id);
+  setItem(board, event.item_id, { item_hold_reason: null, item_hold_by: null, item_hold_at: null });
   logEvent(board, 'coordinator', 'unhold_item', event.item_id, { reason: item.item_hold_reason,
     until: condition.kind, holdEventId: condition.holdEventId, triggerEventId: event.event_id });
 }

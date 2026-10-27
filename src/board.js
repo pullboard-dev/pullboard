@@ -1,3 +1,4 @@
+import { setItem } from './item-fields.js';
 import { releaseClaim } from './release-claim.js';
 import { REFERENCE_ENGINE } from './reference-engine.js';
 import { validateReferences } from './reference-authors.js';
@@ -506,21 +507,6 @@ export function recordRelayRefusal(board, { by, sequence, kind, operation, actor
 }
 
 export { itemById } from './board-query.js';
-
-/**
- * Write some of an item's fields, and its updated time. Field names come from this module only.
- *
- * @param {any} board
- * @param {number} id
- * @param {Record<string, string | number | null>} fields
- */
-function setItem(board, id, fields) {
-  const keys = Object.keys(fields);
-  const sets = keys.map((key) => `${key} = ?`).join(', ');
-  board.db
-    .prepare(`UPDATE item SET ${sets}, item_updated_at = ? WHERE item_id = ?`)
-    .run(...keys.map((key) => fields[key]), now(board), id);
-}
 
 /** Link a fresh neutral CI repair to its merged original without changing either status [B2,R3]. */
 export function linkPublishRepair(board, { agentId, item, repair }) {

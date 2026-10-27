@@ -1,3 +1,4 @@
+import { seedStaleState } from './relay-parity-stale-state.js';
 /** Exercise every declared native operation through the complete current reader oracle [H5,H16,A2]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -53,6 +54,7 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
     await seedMembership(context);
     await seedAdministrative(context);
     await seedTypedRequests(context);
+    await seedStaleState(context);
     await seedBatch(context);
     await seedSpecOutcomes(context);
     await seedCurrentOperations(context);

@@ -27,6 +27,7 @@ function actor(move) { return move.args[1] ?? null; }
 export default Object.freeze({ operation: "release", order: 14, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+  "BAD_CONFIG": "fix pullboard.json as the message says, then commit it: git commit -m \"chore: fix pullboard config\" pullboard.json",
   "NOTE_REQUIRED": "add --note \"<what happened>\"",
   "NOT_JOINED": "join a lane from this worktree: pullboard join <lane> --model \"<model name>\" (see: pullboard lanes)",
   "NOT_YOURS": "shout its holder or the coordinator: pullboard shout coordinator \"<what you need>\"",

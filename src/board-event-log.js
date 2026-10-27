@@ -1,3 +1,4 @@
+import { setItem } from './item-fields.js';
 import { liftConditionalHold } from './conditional-holds.js';
 import { requireHandoffActive } from './handoff-state.js';
 /** Append native events and their rebuildable proof projection in the same transaction [R2]. */
@@ -104,7 +105,7 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
     appendProofCounter(board, event);
     board.lastEvent = event;
     (board.emittedEvents ??= []).push(event);
-    liftConditionalHold(board, event, logEvent);
+    liftConditionalHold(board, event, logEvent, setItem);
     board.db.exec('RELEASE proof_event_append');
   } catch (error) {
     board.db.exec('ROLLBACK TO proof_event_append; RELEASE proof_event_append');
