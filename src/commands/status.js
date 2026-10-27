@@ -9,6 +9,7 @@ import { relayStateExists } from '../local-state.js';
 import { unlinkedRelayStatus } from '../relay-status-fields.js';
 import { ruleProofCounts } from '../rule-proof-counts.js';
 import { memoryHeldRuns } from '../memory-held.js';
+import { readRunnerUtilization } from '../runner-utilization.js';
 import {
   runnerDeadlineLine,
   runnerDeadlineRuns,
@@ -62,6 +63,7 @@ export async function run(io, { values }) {
   }
   summary.memoryHeld = memoryHeldRuns();
   summary.runnerDeadlines = runnerDeadlineRuns();
+  summary.runnerUtilization = readRunnerUtilization(ctx.info.root);
   if (values.json) {
     io.result(summary);
     return 0;
@@ -75,6 +77,7 @@ export async function run(io, { values }) {
   if (summary.specApprovalBaseline?.invalid) io.say('approval baseline unreadable: existing rows need approval evidence; restore a known-good board export to recover the original baseline');
   io.say(reviewQueueLine(ctx, summary.reviewQueue, span));
   io.say(signingLine(summary.person));
+  for (const warning of summary.runnerUtilization.warnings) io.say(warning);
   io.say(`seats: ${summary.presenceCounts.live} live, ${summary.presenceCounts.idle} idle, ${summary.presenceCounts.gone} gone`);
   for (const seat of summary.agents.filter(seat => values.all || seat.presence !== 'gone')) io.say(`${seat.agent_id}: ${seat.presence}${seat.heartbeatAt ? ` (heartbeat ${seat.heartbeatAt})` : ' (no local heartbeat)'}`);
   if (summary.memoryHeld === null) io.say('local memory hold status unavailable; pullboard resources shows the queue');

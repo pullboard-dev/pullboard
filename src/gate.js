@@ -212,6 +212,7 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
     gateLease.environment = run.environment ?? null;
     gateLease.gui = run.executionCapabilities?.gui ?? null;
     gateLease.executionAdmission = run.executionAdmission ?? null;
+    gateLease.executionPhases = run.executionPhases ?? null;
   }
   const sandboxBlocked = run.isGreen ? null : run.sandboxBlocked ?? (run.executionRunner
     // The controller cannot realpath remote files; retain the network denial signal without treating remote paths as local paths.
@@ -300,6 +301,7 @@ export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlo
     gateLease.environment = run.environment ?? null;
     gateLease.gui = run.executionCapabilities?.gui ?? null;
     gateLease.executionAdmission = run.executionAdmission ?? null;
+    gateLease.executionPhases = run.executionPhases ?? null;
     gateLease.tracker?.mark('ranAt');
     const wallMs = Math.max(0, Date.now() - started);
     const profilePath = join(dirname(gitPath(root, LOG)), `pullboard-gate-${randomUUID()}.profile.json`);
@@ -344,6 +346,7 @@ export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlo
   return { isGreen: status === 0 && !overflow && !failure, environment, testRuntimes, sandboxBlocked: status === 0 ? null : sandboxBlockedOperation(root, output), output, seconds: Math.round(wallMs / 1000), profile, profilePath, logPath: null };
 }
 
+
 /** Keep raw TAP intact while resolving its measured filenames against the checkout that ran them. */
 function runTiming(run, command, root) {
   const shards = landingShardProfile(run.output);
@@ -370,6 +373,7 @@ function runTiming(run, command, root) {
     return suffix && suffix !== '..' && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix) ? suffix : original;
   };
   return { ...profile, executionRunner: run.executionRunner, executionSource: run.executionSource,
+    ...(run.executionPhases ? { executionPhases: run.executionPhases } : {}),
     files: (profile.files ?? []).map(file => ({ ...file, path: localPath(file.path) })),
     tests: (profile.tests ?? []).map(test => ({ ...test, file: localPath(test.file) })) };
 }

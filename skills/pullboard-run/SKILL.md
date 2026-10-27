@@ -91,6 +91,12 @@ Start every reviewer outside the builder's root: a fresh session, or a subagent 
 
 A decision stays open until someone answers it. Answer each one addressed to you with `pullboard answer <id> "<the decision>"`, and add `--implies <ids>` when it settles items. Pass one that belongs to the person with `pullboard pass <id> "<note>"`. `pullboard decisions` lists what is still open, and `pullboard health` reports one left over an hour as `unanswered`.
 
+## Queue coordinator moves
+
+Use `pullboard request` for a typed coordinator move instead of a decision shout. File `pullboard request reopen 12 --cause bar-ambiguity`, `pullboard request hold 12 --cause routing-assignment`, or `pullboard request withdraw 12 --cause tool-defect`. A model-tier change is `pullboard request reroute 12 --route mid --cause routing-assignment`; it does not move an item to another lane. Add `--note "why"` for context. The command only queues work and never grants the requester coordinator or person authority.
+
+Run `pullboard request list` to read pending requests and add `--all` for answered history. The coordinator performs each move through its original command and guards, then answers a batch with `pullboard request answer 41,42 done --acted-on 51,52`, pairing request IDs with the exact native operation event IDs in the same order. Inspect the item's `pullboard log` to find those events. To decline a batch, run `pullboard request answer 41,42 declined --note "why"`. Answers are atomic; a missing, wrong or reversed action cannot be called done. Inbox delivers requests to the coordinator and answers to their original requesters.
+
 ## Sign a bar before anyone claims
 
 When the board requires ready bars (the coordinator turns this on with `pullboard bar ready on` and off with `pullboard bar ready off`; `pullboard bar ready` shows the setting), an item cannot be claimed until its bar is signed. Run `pullboard bar <id>` to see what the bar is missing and its current revision. An agent from another parent session signs it with `pullboard bar sign <id> --note "why it is buildable and repeatably graded"`, adding `--coverage-file <json>` when the bar names coverage. An edit to the item clears the signature; sign the new revision. Never sign a bar your own session wrote. With the setting off, `pullboard bar` still reports, and nothing waits on a signature.
@@ -161,6 +167,7 @@ At the start of every coordinator cycle, check the flow from the `flow:` line in
 - When preparing a verified batch for the main line, use `pullboard sweep` to file one item per flagged file, `pullboard land` to gate and push the durable batch, and `pullboard merged <id> <commit>` to record where an accepted item landed.
 - When you need an append-only observation for an item, run `pullboard fact <id>`; use `pullboard ledger` for the board's event ledger and `pullboard log` for its readable activity timeline.
 - When inspecting the queue, use `pullboard status`, `pullboard list`, and `pullboard inbox`; use `pullboard show <id>` to read the frozen criterion and item history.
+- When estimating collisions or deciding staffing, run `pullboard capacity --window 14d --json` for collision estimates; check its coverage and held-out error before changing how many agents work at once.
 - When validating a project before planning, run `pullboard doctor`; when a published Claude Code skill changed, run `pullboard skills --update` to refresh only unchanged installed copies.
 - When hooks are missing after a clone, run `pullboard hooks` to reinstall them; when diagnosing one hook directly, run `pullboard hook pre-commit`, `pullboard hook pre-merge-commit`, `pullboard hook commit-msg`, or `pullboard hook pre-push` for the hook in question.
 - When linking this board to the relay, run `pullboard relay on`; use `pullboard relay off` to unlink it, `pullboard relay pair` to print a one-use code, and `pullboard relay join <code>` in the clone that receives that code. Run `pullboard relay` to inspect link state.
