@@ -95,6 +95,10 @@ export async function measureFileInflation(t, mode) {
   let peakConcurrentRuns = 0;
   const db = new DatabaseSync(join(machine, 'test-file-pool.sqlite'), { readOnly: true });
   const resources = new DatabaseSync(join(machine, 'resources.sqlite'), { readOnly: true });
+  // Observer lock waits are bounded custody, never changes to the process-lifetime budget.
+  db.exec('PRAGMA busy_timeout = 5000');
+  resources.exec('PRAGMA busy_timeout = 5000');
+  let sampleError = null;
   /** Observe already spawned files, including those blocked in preload; dispatcher PIDs are not file processes. */
   const sample = () => {
     const rows = db.prepare('SELECT pid FROM file_holder UNION SELECT pid FROM file_waiter').all();
@@ -102,10 +106,18 @@ export async function measureFileInflation(t, mode) {
     const holders = resources.prepare("SELECT pid FROM holder WHERE name = 'gate'").all();
     peakConcurrentRuns = Math.max(peakConcurrentRuns, holders.filter(row => parents.has(row.pid)).length);
   };
-  const monitor = setInterval(sample, 20); // budget: one private read every 20 ms observes overspawn; this is not a speed threshold.
+  const monitor = setInterval(() => {
+    try { sample(); } catch (error) { sampleError ??= error; }
+  }, 20); // budget: one private read every 20 ms observes overspawn; this is not a speed threshold.
   let results;
   try { results = await Promise.all(runs.map(run => awaitNestedRun(run))); sample(); }
-  finally { clearInterval(monitor); db.close(); resources.close(); }
+  finally {
+    clearInterval(monitor);
+    // A sampling failure must not remove the fixture while its four owned runs still write there.
+    await Promise.allSettled(runs);
+    db.close(); resources.close();
+  }
+  if (sampleError) throw sampleError;
   for (const result of results) assert.equal(result.status, 0, result.failure ?? result.stdout);
   const concurrent = observations(times).filter(row => row.run.startsWith('concurrent-'));
   assert.equal(concurrent.length, 32, 'four runs of all eight real files completed without action reuse');

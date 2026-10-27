@@ -268,9 +268,7 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   // The outer gate decides whether this invocation is fail-fast. Its test workers and
   // any nested runner commands always retain ordinary runner semantics.
   env[LANDING_RUN_ENV] = '0';
-  delete env[LANDING_COLLECT_ALL_ENV];
-  delete env[COLLECTION_ID_ENV];
-  delete env.PULLBOARD_RELEASE_EXECUTORS;
+  for (const name of [LANDING_COLLECT_ALL_ENV, COLLECTION_ID_ENV, 'PULLBOARD_RELEASE_EXECUTORS']) delete env[name];
   Object.assign(env, gateMarkers);
   env[LANDING_RUN_ENV] = '0';
   return env;
@@ -723,9 +721,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   const { pathToFileURL } = await import('node:url');
   const { options, env: testEnv } = await landingTestOptions(args, env, concurrency);
   delete testEnv[LANDING_WAIVERS_ENV];
-  delete testEnv[LANDING_COLLECT_ALL_ENV];
-  delete testEnv[COLLECTION_ID_ENV];
-  delete testEnv.PULLBOARD_RELEASE_EXECUTORS;
+  for (const name of [LANDING_COLLECT_ALL_ENV, COLLECTION_ID_ENV, 'PULLBOARD_RELEASE_EXECUTORS']) delete testEnv[name];
   if (options.isolation !== 'process') {
     throw new Error('landing gate early-stop requires --test-isolation=process so started files and owned children can be tracked safely');
   }
@@ -741,6 +737,10 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   const selectedFiles = options.selectedFiles;
   if (!legacy) { options.files = selectedFiles; delete options.shard; }
   delete options.selectedFiles;
+  if (env.PULLBOARD_AUDIT_COVERAGE_REPORTER) {
+    options.coverage = true;
+    options.reporters.push({ reporter: env.PULLBOARD_AUDIT_COVERAGE_REPORTER, destination: 'stdout' });
+  }
   const reporterEntries = options.reporters;
   if (process.env.PULLBOARD_TEST_ACTIONS) reporterEntries.push({ reporter: fileURLToPath(new URL('../src/test-action-reporter.js', import.meta.url)), destination: devNull });
   if (testEnv.PULLBOARD_TEST_SELECTION) reporterEntries.push({ reporter: fileURLToPath(new URL('../src/test-selection.js', import.meta.url)), destination: devNull });
@@ -1356,16 +1356,18 @@ async function main(args) {
     const legacyHeld = process.env[GATE_SLOT_HELD_ENV] === '1';
     // Shard payloads carry files only; filtered discovery keeps the existing admitted run and its name filter.
     const filteredByName = testSelectionPatterns(actions.args, optionTakesValue).length > 0;
-    if (fullSuite && process.env[LANDING_RUN_ENV] === '1' && !shardLabel && !filteredByName) {
+    if ((fullSuite || process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) && process.env[LANDING_RUN_ENV] === '1' && !shardLabel && !filteredByName) {
       const { landingShardCount } = await import('../src/gate.js');
       const count = process.env.PULLBOARD_RELEASE_EXECUTORS ? 8 : landingShardCount(process.cwd());
       if (count > 1) {
-        const files = actions.files ?? (isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : []);
+        const files = actions.files ?? (fullSuite
+          ? (isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : [])
+          : explicitTestFiles(args));
         if (!files.length) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
         const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null;
         const { runLandingShards } = await import('../src/landing-shards.js');
         const { testsNeedBrowser } = await import('../src/browser-admission.js');
-        const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited,
+        const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite,
           needsBrowser: shardFiles => testsNeedBrowser(process.cwd(), shardFiles) });
         process.exitCode = result.isGreen ? 0 : 1;
         return;

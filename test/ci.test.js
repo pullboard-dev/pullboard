@@ -117,3 +117,27 @@ test("the README header shows the board's own badges, not the CI status badge [C
   assert.doesNotMatch(header, /actions\/workflows\/gate\.yml/u, 'the header carries no CI status badge');
   for (const badge of ['pullboard', 'npm']) assert.match(header, new RegExp(`alt="${badge}(?:: [^"]+)?"`, 'u'), `the header shows the ${badge} badge`);
 });
+
+test('a proven tag publishes by hand without the GitHub CI gate, with the tag job\'s own notes [C7,I15]', (t) => {
+  const start = RELEASE.indexOf('\n  publish-proven:\n');
+  assert.ok(start > RELEASE.indexOf('id: main-ci'), 'the tag job keeps its CI gate and comes first');
+  const proven = RELEASE.slice(start);
+  assert.match(RELEASE, /\n {2}workflow_dispatch:\n {4}inputs:\n {6}tag:\n/u, 'a person names the tag to publish');
+  assert.match(proven, /\n {4}if: github\.event_name == 'workflow_dispatch'\n/u, 'only a manual run takes this path');
+  assert.match(RELEASE, /\n {4}if: github\.event_name == 'push'\n {4}runs-on/u, 'a tag push still takes the CI-gated path');
+  assert.doesNotMatch(proven, /gh run (?:list|view)/u, 'GitHub CI is a second opinion here, not a gate');
+  assert.match(proven, /git merge-base --is-ancestor [^\n]*origin\/main/u, 'only a commit on main publishes');
+  assert.ok(proven.includes('test "v$(node -p "require(\'./package.json\').version")" = "$TAG"'), 'the tag must match the package version');
+  assert.ok(proven.indexOf("<<'NOTES'") < proven.indexOf('run: npm publish --provenance --access public'), 'notes are extracted before publishing');
+  const awk = proven.match(/awk "([^\n]*)" \.github\/workflows\/release\.yml/u);
+  assert.ok(awk, 'the manual path reuses the tag job\'s notes script');
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-release-proven-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  writeFileSync(join(directory, 'CHANGELOG.md'), '# Changelog\n\n## [1.2.3] - 2026-10-27\n\n### Fixed\n\n- One line.\n');
+  writeFileSync(join(directory, 'release.yml'), RELEASE);
+  const extracted = runFixtureChild('sh', ['-c', `awk "${awk[1].replaceAll('"', '\\"')}" release.yml | sed 's/^ \\{10\\}//' > notes.mjs && GITHUB_REF_NAME=v1.2.3 "${process.execPath}" notes.mjs`], {
+    cwd: directory, encoding: 'utf8', env: { ...process.env, RUNNER_TEMP: directory },
+  });
+  assert.equal(extracted.status, 0, extracted.stderr);
+  assert.equal(readFileSync(join(directory, 'release-notes.md'), 'utf8'), '\n### Fixed\n\n- One line.\n', 'the same section the tag job would publish');
+});

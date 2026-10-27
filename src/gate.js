@@ -12,6 +12,14 @@ import {
  * run, not the run (V10): a passing suite's output costs tokens and says nothing.
  */
 import {
+  retainTestValueTimings,
+} from './test-value-timing.js';
+import {
+  placementSubmitSelection,
+  VALUE_GATE,
+  valueGateCommand,
+} from './test-placement.js';
+import {
   checkNeedsGui,
   projectNeedsGui,
   testsNeedGui,
@@ -286,7 +294,7 @@ function safeLog(output) {
  * @param {string} command
  * @param {{ waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean, collectAll?: boolean, stages?: boolean, timeoutMs?: number, waivers?: Array<{ kind: string, test: string }> }} [options]
  */
-export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs } = {}) {
+export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs, auditCoverage = false } = {}) {
   const proofSource = gateLease?.proof ? proofSourceAt(root) : null;
   const directory = artifactDirectory ?? dirname(gitPath(root, LOG));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -296,6 +304,7 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
   const started = Date.now();
   const collectionId = landing && collectAll ? randomUUID() : null;
   const inherited = {
+    ...(auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('./audit-coverage-reporter.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
     ...(gateLease && !gateLease.runner ? gateSlotEnvironment(gateLease) : gateSlotHeld ? { [GATE_SLOT_HELD_ENV]: '1' } : {}),
     [LANDING_RUN_ENV]: landing ? '1' : '0',
     [LANDING_COLLECT_ALL_ENV]: landing && collectAll ? '1' : '0',
@@ -309,7 +318,7 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
   gateLease?.tracker?.mark('runAt');
   const remoteCommand = landing && collectAll ? `(export ${LANDING_COLLECT_ALL_ENV}=1 ${COLLECTION_ID_ENV}=${collectionId}\n${command}\n)` : command;
   const run = gateLease?.runner ? { ...runOnRunner(root, remoteCommand, { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
-    browser: gateLease.browser, pipefail, stages, waivers: landing ? waivers : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, ...(timeoutMs ? { timeoutMs } : {}) } }) }
+    browser: gateLease.browser, pipefail, stages, waivers: landing ? waivers : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage, ...(timeoutMs ? { timeoutMs } : {}) } }) }
     : runShell(root, command, { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease) });
   gateLease?.tracker?.mark('ranAt');
   if (gateLease) {
@@ -346,6 +355,15 @@ function proofSourceAt(root, commit = null) {
   return { head: clean ? head : null, tree: clean && tree?.status === 0 ? tree.stdout : null, clean };
 }
 
+/** Retain explicit executed TAP outcomes; skipped, aggregate and aborted cases prove no named result. */
+function testValueProfile(root, run) {
+  try {
+    return { ...run.profile, tests: tapTests(run.output ?? '', run.executionRoot ?? root).filter(row =>
+      !row.skip && row.type !== 'suite'
+      && !['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType)) };
+  } catch { return null; }
+}
+
 /** The private gate writer records process results, never provenance supplied by a CLI argument. */
 function leaveProofReceipt(root, command, run, before, context, lease) {
   try {
@@ -376,6 +394,7 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });
     writeFileSync(join(store, `${receipt.id}.json`), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
+    retainTestValueTimings(store, receipt.id, testValueProfile(root, run));
     if (lease) {
       lease.proofReceiptIds ??= [];
       lease.proofReceiptIds.push(receipt.id);
@@ -468,7 +487,7 @@ function settleReceipt(lease) {
   lease.receipt = { ...receiptOf(lease.tracker, { kind: lease.receiptKind, slot: lease.slot }), environment: lease.environment ?? null,
     runner: descriptor, admittedAt, finishedAt, timing: lease.timing === true, inherited: lease.inherited === true,
     occupiedSlots: lease.timing ? descriptor.slots.current : 1, load,
-    ...(lease.executionPhases ? { executionPhases: lease.executionPhases } : {}),
+    executionPhases: lease.executionPhases ?? null,
     ...(local ? lease.timingEvidence?.() ?? { exclusive: false, unfencedClients: [] }
       : { exclusive: executor?.exclusive === true, unfencedClients: executor?.unfencedClients ?? [] }) };
   return lease.receipt;
@@ -647,7 +666,7 @@ export function pinRunMain(lease, observer) {
  * @param {{ trustStamp?: boolean, onWait?: (state: object) => void, landing?: boolean, collectAll?: boolean, auditBatchId?: string, agent?: string, item?: string|number }} [options]
  * @returns {Promise<{ isGreen: boolean, isCached: boolean, output: string, seconds: number, log: string, profile?: object, profilePath?: string }>}
  */
-export async function runGate(root, config, { trustStamp = true, onWait, landing = false, collectAll = false, auditBatchId, releaseRequest, agent, item = '', stages = false, waivers = [], onFailure } = {}) {
+export async function runGate(root, config, { trustStamp = true, onWait, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, agent, item = '', stages = false, waivers = [], onFailure } = {}) {
   const releaseStartedAt = releaseRequest ? new Date().toISOString() : null;
   if (releaseRequest && (!landing || !collectAll || trustStamp || auditBatchId !== undefined
     || releaseRequest.version !== 1 || !/^[a-f0-9-]{36}$/u.test(releaseRequest.id ?? '')
@@ -657,13 +676,21 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
   if (auditBatchId !== undefined && (!landing || !collectAll || !/^[a-zA-Z0-9_-]{1,80}$/u.test(auditBatchId))) {
     throw new Refused('GATE_RUN_EVIDENCE', 'a main audit needs its exact landing batch and full collection mode');
   }
+  if (auditFiles !== undefined) {
+    if (!auditBatchId || !Array.isArray(auditFiles) || !auditFiles.length
+      || auditFiles.some(file => !committedTest(root, headCommit(root), file))) throw new Refused('GATE_RUN_EVIDENCE', 'an incremental audit needs committed test files');
+    const gate = valueGateCommand(root, config.gate, [...new Set(auditFiles)].sort());
+    if (!gate) throw new Refused('GATE_RUN_EVIDENCE', 'this gate cannot safely select incremental audit files');
+    config = { ...config, gate, [VALUE_GATE]: true };
+  }
+  if (auditCoverage && !auditBatchId) throw new Refused('GATE_RUN_EVIDENCE', 'coverage collection belongs to a native main audit');
   if (!config.gate.trim()) {
     throw missingGate(root);
   }
-  if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
+  if (trustStamp && !config[VALUE_GATE] && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   return await (landing ? withLandingGateSlot : withGateSlot)(root, async (lease) => {
     pinRunMain(lease, onFailure);
-    const run = fullGateRun(root, config, trustStamp, { waitMs: lease.waitMs, gateLease: lease, landing, collectAll, auditBatchId, releaseRequest, releaseStartedAt, stages, waivers, kind: releaseRequest ? 'release' : landing ? 'land' : 'gate' });
+    const run = fullGateRun(root, config, trustStamp, { waitMs: lease.waitMs, gateLease: lease, landing, collectAll, auditBatchId, auditFiles, auditCoverage, releaseRequest, releaseStartedAt, stages, waivers, kind: releaseRequest ? 'release' : landing ? 'land' : 'gate' });
     if (!run.isGreen && !run.timedOut && onFailure) await onFailure(run, { root, command: config.gate, lease });
     await recordRun(onFailure, run);
     return run;
@@ -687,13 +714,14 @@ async function recordRun(observer, run) {
  *
  * @returns {string | null} the receipt id
  */
-function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, releaseRequest, receiptAt }) {
+function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditFiles, releaseRequest, receiptAt }) {
   try {
     if (before === null || committedTree(root) !== before || run.executionSourceUnchanged === false) return null;
     const head = headCommit(root);
     const policy = auditBatchId === undefined && !releaseRequest ? mainPolicy(root) : policyAt(root, head);
     const store = receiptStore(root);
-    if (policy.config.gate !== config.gate || !head || !store) return null;
+    const expected = auditFiles === undefined ? policy.config.gate : valueGateCommand(root, policy.config.gate, [...new Set(auditFiles)].sort());
+    if (expected !== config.gate || !head || !store) return null;
     const failures = new Map();
     for (const row of run.isGreen ? [] : tapTests(run.output ?? '', run.executionRoot ?? root)) {
       if (row.passed || row.skip || row.type === 'suite' || ['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType)) continue;
@@ -713,15 +741,16 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, releas
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });
     writeFileSync(join(store, `${receipt.id}.json`), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
+    if (!run.proofReceiptId) retainTestValueTimings(store, receipt.id, testValueProfile(root, run));
     return receipt.id;
   } catch { return null; }
 }
 
 /** Run a full gate while its caller owns the queue lease; only a full run may stamp its tree. */
-function fullGateRun(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, releaseRequest, releaseStartedAt, stages = false, waivers = [], kind = 'gate' } = {}) {
-  if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
+function fullGateRun(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, releaseStartedAt, stages = false, waivers = [], kind = 'gate' } = {}) {
+  if (trustStamp && !config[VALUE_GATE] && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   const before = committedTree(root);
-  const run = runProfiledShell(root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, releaseRequest, stages, waivers, timeoutMs: landing ? config.landing?.timeoutMs : undefined });
+  const run = runProfiledShell(root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, releaseRequest, stages, waivers, auditCoverage, timeoutMs: landing ? config.landing?.timeoutMs : undefined });
   const { isGreen, output, seconds, profile, profilePath } = run;
   writeFileSync(log, output);
   // The environment refusing a run says nothing about the gate, so only a real result is recorded (U41).
@@ -729,10 +758,10 @@ function fullGateRun(root, config, trustStamp = false, { waitMs = 0, log = gitPa
   const receiptAt = new Date().toISOString();
   if (releaseRequest) run.releaseParticipation = releaseParticipationFields({ ...run.releaseParticipation,
     command: createHash('sha256').update(config.gate).digest('hex'), startedAt: releaseStartedAt, finishedAt: receiptAt });
-  const receiptId = run.sandboxBlocked ? null : leaveRunReceipt(root, config, run, { before, kind, auditBatchId, releaseRequest, receiptAt });
+  const receiptId = run.sandboxBlocked ? null : leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditFiles, releaseRequest, receiptAt });
   refuseSandboxBlocked(run);
   // The release producer validates full collection and every executor before it may stamp this tree.
-  if (!releaseRequest && isGreen && before !== null && committedTree(root) === before) writeFileSync(gitPath(root, STAMP), `${before}\n`);
+  if (!releaseRequest && isGreen && !config[VALUE_GATE] && before !== null && committedTree(root) === before) writeFileSync(gitPath(root, STAMP), `${before}\n`);
   return { isGreen, isCached: false, output, seconds, log, profile, profilePath, receiptId, environment: run.environment ?? null,
     ...(releaseRequest ? { releaseParticipation: run.releaseParticipation ?? null } : {}),
     ...(collectAll ? { collectAllComplete: run.collectAllComplete === true, collectionReport: run.collectionReport ?? null,
@@ -797,7 +826,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   if (!config.gate.trim()) throw missingGate(root);
   await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback });
   const selection = config.affectedTests
-    ? selectAffectedTests(root, { base, trunk, changed })
+    ? placementSubmitSelection(root, selectAffectedTests(root, { base, trunk, changed }), changed ?? [])
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
   const deferred = config.submitGate === 'landing';
   const deferFullFallback = deferred && selection.full;
