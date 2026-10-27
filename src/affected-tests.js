@@ -399,7 +399,11 @@ function graphAt(root, commit, changedDocs = []) {
  * @returns {{ closures: Map<string, { files: string[] | null, helpers?: string[], reason: string }>, modules: Map<string, string>, blobs: Map<string, string> }}
  */
 export function testClosures(root, commit = 'HEAD') {
-  const graph = graphAt(root, commit);
+  return closuresInGraph(graphAt(root, commit));
+}
+
+/** Compute the same complete-or-unknown root closures from an already-pinned selection graph. */
+function closuresInGraph(graph) {
   const forward = new Map();
   for (const [dependency, importers] of graph.reverse) {
     for (const importer of importers) {
@@ -489,11 +493,20 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     }
     const changedTestInput = changed.some(path => path.startsWith('test/') || TEST.test(path) || /^test\.[cm]?js$/u.test(path));
     const changedSourceInput = changed.some(path => path.startsWith('src/') || path.startsWith('bin/'));
-    const selected = files.filter(path => reached.has(path)
+    // An opaque loader may read any changed dependency: retain its roots without inventing missing edges.
+    const unknownRoots = new Map();
+    for (const graph of [before, after]) {
+      for (const [test, closure] of closuresInGraph(graph).closures) {
+        if (closure.files === null) unknownRoots.set(test, closure.reason);
+      }
+    }
+    const selected = files.filter(path => reached.has(path) || unknownRoots.has(path)
       || (changedTestInput && (before.testTreeReaders.has(path) || after.testTreeReaders.has(path)))
       || (changedSourceInput && (before.sourceTreeReaders.has(path) || after.sourceTreeReaders.has(path))));
     if (selected.length === files.length) return { full: true, reason: 'the change reaches every test file', files };
-    return { full: false, reason: '', files: selected };
+    const unresolved = selected.filter(path => unknownRoots.has(path))
+      .map(path => `${path}: ${unknownRoots.get(path)}`);
+    return { full: false, reason: unresolved.length ? `unresolved root closures retained: ${unresolved.join('; ')}` : '', files: selected };
   } catch (error) {
     return { full: true, reason: `import selection could not be computed: ${error.message}`, files };
   }
