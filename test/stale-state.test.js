@@ -32,7 +32,7 @@ function fixture(t) {
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, health: { sentinel: false } }));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-qm', 'chore: isolate private maintenance fixture');
-  let at = Date.now();
+  let at = Math.ceil(Date.now() / 1000) * 1000;
   const clock = { now: () => new Date(at) };
   /** Create a real private worktree with its HEAD reflog timestamp bound to the injected fixture clock. */
   const worktree = (path, branch) => {
