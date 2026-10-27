@@ -16,6 +16,9 @@ import { initializeRunnerRecovery } from '../src/runner-recovery.js';
 import { recordRunnerFailure } from '../src/runner-recovery.js';
 import { recoverUnavailableRunners } from '../src/runner-recovery.js';
 
+// Budget: the real configured-Node observation must recover in seconds, well before the old five-minute retry.
+const RECOVERY_BOUND_MS = 5_000;
+
 /** Build a real private project and a private SSH executable; no configured machine host is contacted. */
 function fixture(t) {
   const e2e = createE2eHelpers(); t.after(e2e.cleanup);
@@ -101,9 +104,7 @@ test('a recovered runner is cleared on its first successful probe instead of a f
   assert.deepEqual(JSON.parse(failed.failure).original, original);
   assert.equal(JSON.parse(failed.failure).latestProbe.reason, 'still down');
   db.prepare('UPDATE runner_unavailable SET probe_after=0').run();
-  const started = Date.now();
   assert.equal(await recoverUnavailableRunners(db, [runner], { probe: async () => ({ healthy: true }) }), true);
-  assert.ok(Date.now() - started < 5_000, 'recovery is an observed answer, not a five-minute clock expiry');
   assert.equal(db.prepare('SELECT COUNT(*) n FROM runner_unavailable').get().n, 0);
 });
 
@@ -127,7 +128,7 @@ test('real configured Node recovery clears the transport row within seconds [C7]
   assert.equal(result.bad.code, 127);
   assert.equal(result.recovered, true);
   assert.equal(result.remaining, 0);
-  assert.ok(result.elapsed < 5_000, `observed recovery took ${result.elapsed}ms`);
+  assert.ok(result.elapsed < RECOVERY_BOUND_MS, `observed recovery took ${result.elapsed}ms`);
 });
 
 test('concurrent recovery probes cannot clear a newer transport failure or cleanup hold [C7]', async t => {
