@@ -1,3 +1,4 @@
+import { completeMoveHandoff } from '../post-move-handoff.js';
 import {
   barReadySetting,
   barReadyProblem,
@@ -283,6 +284,8 @@ export async function run(io, { first, values }) {
   const submissionResult = {};
   const ctx = { ...context(io), submissionResult };
   const id = idArg(first);
+  /** Dispatch before optional verdict waiting, retaining this exact submission document. */
+  ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission);
   const previous = io.onOrderedMove;
   io.onOrderedMove = receipt => {
     previous?.(receipt);

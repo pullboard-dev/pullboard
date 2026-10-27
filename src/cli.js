@@ -1314,6 +1314,10 @@ export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; ${gate.report}`);
   ctx.io.say(`pinned as ${pin}, so this work can't be lost; keep your worktree until it is merged`);
   ctx.io.say(`next: ${reviewerStartup(primaryCheckoutRoot(ctx.info), ctx.config, id)}`);
+  if (ctx.afterSubmission) {
+    const handed = await ctx.afterSubmission(submission);
+    if (ctx.submissionResult) ctx.submissionResult.value = handed;
+  }
   return 0;
 }
 
@@ -1591,11 +1595,11 @@ function nextPick(ctx, board, values) {
   const { item, reasons, shared } = heldItem ? { item: heldItem, reasons: [], shared: [] }
     : store.nextFor(board, { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
       ...(seats ? { lanes: laneNames(ctx.config).filter((lane) => lane !== COORDINATOR) } : {}),
-      priority: mainRedReworkItems(ctx.info.root, board) });
+      priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [] });
   const held = item?.item_status === 'claimed';
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
   const findOffer = () => store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
-    familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes });
+    familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes, omitIds: values.omitIds ?? [] });
   const offer = held ? null : relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
   if (offer && !values.build && focusReviewFirst(board, offer.item, item)) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item) };
   if (!item) return { reasons, laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };

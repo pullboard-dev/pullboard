@@ -13,13 +13,13 @@ import {
 import { lineWipLimit } from './line-wip-limit.js';
 
 /** Offer the existing eligible review with either the historical ratio or enabled total-cap threshold. */
-export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy = 'off', ratio = 3, runnable = false, routes = ROUTES }, nextFor) {
+export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy = 'off', ratio = 3, runnable = false, routes = ROUTES, omitIds = [] }, nextFor) {
   const queue = reviewQueue(board);
   const settings = capacitySettings(board);
   const capacity = settings.reviewsFirst === true ? lineCapacitySnapshot(board) : null;
   if (capacity) ratio = typeof settings.wipPerReviewer === 'number' ? settings.wipPerReviewer : 3;
   if (capacity ? queue.pending <= lineWipLimit(ratio, capacity.activeReviewers) : queue.pending < ratio * Math.max(queue.reviewing, 1)) return null;
-  const { item } = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes });
+  const { item } = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, omitIds });
   return item ? { item, queue, ratio } : null;
 }
 

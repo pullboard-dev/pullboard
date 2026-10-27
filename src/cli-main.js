@@ -53,6 +53,7 @@ const OPTIONS = {
   project: { type: 'boolean' },
   export: { type: 'string' },
   'no-open': { type: 'boolean' },
+  'no-next': { type: 'boolean' },
   lan: { type: 'boolean' },
   'no-permissions': { type: 'boolean' },
   'no-hooks': { type: 'boolean' },
