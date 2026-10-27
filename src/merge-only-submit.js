@@ -6,7 +6,7 @@ import {
 } from './merge-only-verdict.js';
 import { retainedVerifierIdentityProblem } from './item-authors.js';
 import { getItem } from './board-query.js';
-import { itemPatchDigest } from './item-patches.js';
+import { itemPatchDigest } from './item-patch-state.js';
 
 /** Derive the origin’s carry before sealing; caller-supplied carry facts are discarded. */
 export function prepareMergeOnlySubmit(board, id, options) {

@@ -1,11 +1,15 @@
 /** Immutable coordinator patch inputs retain native author provenance and invalidate stale acceptance [V4,H16]. */
 import { createHash } from 'node:crypto';
-import { atomic, logEvent } from './board-event-log.js';
+import { atomic } from './board-event-log.js';
+import { logEvent } from './board-event-log.js';
 import { getItem } from './board-query.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { ITEM_PATCH_ENGINE } from './item-patch-engine.js';
 import { Refused } from './refused.js';
 import { outsideSource } from './outside-source.js';
+import { itemPatchRecords as records } from './item-patch-state.js';
+import { itemPatchDigest } from './item-patch-state.js';
+export { itemPatches, itemPatchDigest, itemPatchAuthors, itemPatchSetDigest } from './item-patch-state.js';
 
 const PREFIX = 'item_patches:';
 const KEY = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u;
@@ -18,14 +22,6 @@ function fields(value, allowed) {
   return value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(key => allowed.includes(key));
 }
 /** Read immutable records, including removed entries; no reader writes a projection. */
-function records(board, id) {
-  if ((board.executionEngineVersion ?? ENGINE_VERSION) < ITEM_PATCH_ENGINE || !Number.isSafeInteger(id) || id < 1) return [];
-  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(PREFIX + id);
-  if (!row) return [];
-  const saved = JSON.parse(row.meta_value);
-  if (saved.version !== 1 || !Array.isArray(saved.patches)) throw new Refused('ITEM_PATCH_FORMAT', 'restore the native item patch metadata before reviewing');
-  return saved.patches;
-}
 /** Persist one ordered patch history in the caller transaction. */
 function save(board, id, patches) {
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
@@ -60,23 +56,6 @@ function patchBytes(patch) {
 function invalidate(board, id) {
   board.db.prepare("UPDATE item SET item_status='submitted',item_verdict=NULL,item_verified_by=NULL,item_review_by=NULL,item_review_until=NULL,item_updated_at=? WHERE item_id=?")
     .run(board.clock.now().toISOString(), id);
-}
-/** Canonical composition digest ignores presentation fields and retains native author identity. */
-export function itemPatchSetDigest(commit, patches) {
-  return hash(JSON.stringify({ commit, patches: patches.map(({ key, commit: source, digest, author }) => ({ key, commit: source, digest,
-    author: { agentId: author.agentId, parentSession: author.parentSession, session: author.session } })) }));
-}
-/** Return active patches in native attachment order, with independent result objects. */
-export function itemPatches(board, id) { return structuredClone(records(board, id).filter(record => record.active)); }
-/** No-history legacy items have no new digest; a removed set still has an explicit digest. */
-export function itemPatchDigest(board, id) {
-  const history = records(board, id);
-  return history.length ? itemPatchSetDigest(getItem(board, id).item_commit, history.filter(record => record.active)) : null;
-}
-/** Removed patches retain all recorded author identities for independent-review checks. */
-export function itemPatchAuthors(board, id) {
-  const unique = new Map(records(board, id).map(record => [JSON.stringify(record.author), record.author]));
-  return structuredClone([...unique.values()]);
 }
 /** Attach one immutable, source-bound patch; an exact retry never reactivates a removed key. */
 export function attachItemPatch(board, id, options) {

@@ -1,6 +1,6 @@
 /** Review independence follows every claim and submit author, never just the latest owner [V1,B3]. */
 import { ENGINE_VERSION } from './machine.js';
-import { itemPatchAuthors } from './item-patches.js';
+import { itemPatchAuthors } from './item-patch-state.js';
 import { HISTORICAL_AUTHORS_ENGINE } from './historical-authors-engine.js';
 import { Refused } from './refused.js';
 import { PARENT_SESSION_ENGINE } from './parent-session-engine.js';

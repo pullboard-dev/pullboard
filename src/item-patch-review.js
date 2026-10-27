@@ -1,9 +1,13 @@
 /** Compose native companion inputs without granting their author another lane's authority [V4,H16]. */
-import { composeItemPatches, itemPatchPaths } from './item-patch-compose.js';
-import { itemPatches, itemPatchDigest, itemPatchReviewProblem } from './item-patches.js';
+import { composeItemPatches } from './item-patch-compose.js';
+import { itemPatchPaths } from './item-patch-compose.js';
+import { itemPatches } from './item-patches.js';
+import { itemPatchDigest } from './item-patches.js';
+import { itemPatchReviewProblem } from './item-patches.js';
 import { outOfLane } from './lanes.js';
 import { contains } from './git.js';
-import { itemPolicy, requireTrunkMerge } from './trusted-policy.js';
+import { itemPolicy } from './trusted-policy.js';
+import { requireTrunkMerge } from './trusted-policy.js';
 import { retryReviewCommit } from './verdict-retry.js';
 import { Refused } from './refused.js';
 

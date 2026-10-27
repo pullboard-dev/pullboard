@@ -1,11 +1,15 @@
 /** Attach, inspect, or remove an immutable source-bound patch for a submitted item [V4,H16]. */
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import * as store from '../board.js';
 import { Refused } from '../refused.js';
 import { validateItemPatchInput } from '../item-patch-review.js';
-import { relayCommandReceipt, relayCommandReceiptReported } from '../relay.js';
-import { actOn, idArg, ordered } from '../cli.js';
+import { relayCommandReceipt } from '../relay.js';
+import { relayCommandReceiptReported } from '../relay.js';
+import { actOn } from '../cli.js';
+import { idArg } from '../cli.js';
+import { ordered } from '../cli.js';
 import { context } from '../cli-read-context.js';
 import { withBoardRead } from '../cli-board-read.js';
 

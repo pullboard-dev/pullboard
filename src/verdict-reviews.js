@@ -1,7 +1,7 @@
 /** Sealed review validation and immutable acceptance projections [E8,H16]. */
 import { verdictWithdrawals } from './verdict-withdrawal.js';
 import { Refused } from './refused.js';
-import { itemPatchDigest } from './item-patches.js';
+import { itemPatchDigest } from './item-patch-state.js';
 
 /** Validate a sealed review without consulting Git or changing either replica [E8,H16]. */
 export function verdictReviewProblem(review, commit, { checked } = {}) {
