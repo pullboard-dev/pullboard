@@ -164,14 +164,21 @@ test('a controller and worker mixed across an upgrade exposes a missing capsule 
   cpSync(join(import.meta.dirname, '../src'), join(installed, 'src'), { recursive: true });
   cpSync(join(import.meta.dirname, '../package.json'), join(installed, 'package.json'));
   const url = pathToFileURL(join(installed, 'src/runners.js')).href;
-  const result = child(box, `import {runOnRunner} from ${JSON.stringify(url)};
+  const result = child(box, `import {runOnRunnerAsync} from ${JSON.stringify(url)};
     import {readFileSync,writeFileSync} from 'node:fs';
     const worker=${JSON.stringify(join(installed, 'src/runner-worker.js'))};
+    const controller=${JSON.stringify(join(installed, 'src/runners.js'))};
     writeFileSync(${JSON.stringify(join(installed, 'src/after-controller-load.js'))},'export {};\\n');
-    writeFileSync(worker,"import './after-controller-load.js';\\n"+readFileSync(worker,'utf8'));
-    try {runOnRunner(process.cwd(),'true',{runner:${JSON.stringify({ ...box.runner, host: HOST })}});process.exitCode=1;}
-    catch(error){console.log(JSON.stringify({name:error.name,code:error.code,diagnostic:error.diagnostic}));}`);
+    writeFileSync(controller,readFileSync(controller,'utf8').replace('const RUNTIME_NAMES = [',"const RUNTIME_NAMES = ['after-controller-load.js', "));
+    writeFileSync(worker,"import './after-controller-load.js';\\n"+readFileSync(worker,'utf8').replace('const runtimeNames = [',"const runtimeNames = ['after-controller-load.js', "));
+    let failure;
+    try {await runOnRunnerAsync(process.cwd(),'true',{runner:${JSON.stringify({ ...box.runner, host: HOST })}});process.exitCode=1;}
+    catch(error){failure={name:error.name,code:error.code,diagnostic:error.diagnostic};}
+    const fresh=await import(${JSON.stringify(url + '?upgraded=1')});
+    const valid=await fresh.runOnRunnerAsync(process.cwd(),'true',{runner:${JSON.stringify({ ...box.runner, host: HOST })}});
+    console.log(JSON.stringify({...failure,freshGreen:valid.isGreen}));`);
   assert.equal(result.name, 'RunnerDropped');
   assert.match(result.diagnostic.stderr, /after-controller-load\.js/u);
   assert.match(result.diagnostic.stderr, /ERR_MODULE_NOT_FOUND/u);
+  assert.equal(result.freshGreen, true, 'both upgraded allowlists are coherent when loaded by a fresh controller');
 });

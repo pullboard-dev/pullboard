@@ -680,7 +680,7 @@ test('a queued run executes on a registered runner and its result comes back [C7
       agent: 'fixture-local-holder', item: 'local-holder', kind: 'controlled-hold' });
     const olderCode = `require('node:fs').appendFileSync(${JSON.stringify(order)}, 'older-local\\n'); require('node:fs').writeFileSync(${JSON.stringify(olderStarted)}, 'started\\n');`;
     const firstCode = `const fs=require('node:fs'); const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-(async()=>{ fs.writeFileSync(${JSON.stringify(firstStarted)}, 'started\\n'); fs.appendFileSync(${JSON.stringify(order)}, 'retry-first\\n');
+(async()=>{ fs.appendFileSync(${JSON.stringify(order)}, 'retry-first\\n'); fs.writeFileSync(${JSON.stringify(firstStarted)}, 'started\\n');
 while(!fs.existsSync(${JSON.stringify(releaseFirst)})) await sleep(5); })().catch(error=>{console.error(error);process.exitCode=2});`;
     second = observe(startQueueController(repo, env, `node -e ${shellQuote(olderCode)}`,
       { item: 'older-local', queueMarker: olderQueued, firstItem: null, remote: false }));
