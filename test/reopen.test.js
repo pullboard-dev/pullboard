@@ -14,6 +14,7 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import { QUOTED_LANDING_FAILURE_ENGINE } from '../src/quoted-landing-failure-engine.js';
 import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { safeFixtureDiagnostic } from './fixture-child.js';
 import { unpackRelease } from './release-archive.js';
 
 const e2e = createE2eHelpers();
@@ -810,7 +811,15 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
   claimedBoardOpen = false;
 
   const resubmission = box.run(box.web, 'submit', '1', '--json');
-  assert.equal(resubmission.code, 0, resubmission.err);
+  let resubmissionDiagnostic = resubmission.err;
+  if (resubmission.code !== 0) {
+    let refusal;
+    try { refusal = JSON.parse(resubmission.out).error; }
+    catch { refusal = { code: 'UNREADABLE_NATIVE_ERROR', message: 'native failure JSON was unreadable' }; }
+    resubmissionDiagnostic = safeFixtureDiagnostic(
+      `${refusal?.code ?? 'UNKNOWN'}: ${refusal?.message ?? ''}\n${resubmission.err}`, box.env);
+  }
+  assert.equal(resubmission.code, 0, resubmissionDiagnostic);
   assert.equal(JSON.parse(resubmission.out).commit, submitted.commit, 'the corrected bar accepts the original commit without inventing an empty commit');
   const board = openFixtureBoard(t, box);
   assert.equal(store.getItem(board, 1).item_commit, submitted.commit);
