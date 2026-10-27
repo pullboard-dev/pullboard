@@ -1,7 +1,6 @@
 /** Parse import edges without evaluating repository code, using V8 rather than a JavaScript grammar guess [V4,C7]. */
 import { spawnSync } from 'node:child_process';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { foreignNodeOptions } from './test-isolation.js';
 import {
   mkdtempSync,
   rmSync,
@@ -54,9 +53,9 @@ function compileSources(sources) {
 const compilationScopes = new AsyncLocalStorage();
 const MAX_COMPILED_SOURCE_BYTES = 64 * 1024 * 1024;
 
-/** Scope exact compile-only results to one census; foreign loaders/preloads retain uncached execution. */
+/** Scope exact compile-only results to one census; any Node option retains uncached real execution. */
 export function withImportParseCache(work) {
-  if (foreignNodeOptions(process.env.NODE_OPTIONS)) return work();
+  if (Boolean(process.env.NODE_OPTIONS?.trim())) return work();
   return compilationScopes.run({ epochs: new Map(), bytes: 0, entries: 0 }, work);
 }
 
@@ -66,7 +65,7 @@ function copyCompilation(row) { return { compiles: row.compiles, imports: [...ro
 /** Compile fresh bytes with real V8, reusing only successful subprocess results in this one scope. */
 function look(sources) {
   const scope = compilationScopes.getStore();
-  if (!scope || foreignNodeOptions(process.env.NODE_OPTIONS)) return compileSources(sources);
+  if (!scope || Boolean(process.env.NODE_OPTIONS?.trim())) return compileSources(sources);
   const epoch = JSON.stringify([process.execPath, process.versions.node,
     Object.hasOwn(process.env, 'NODE_OPTIONS') ? process.env.NODE_OPTIONS : null,
     '--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', PARSER]);
