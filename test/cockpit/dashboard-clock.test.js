@@ -16,6 +16,7 @@ test('Dashboard pace crosses every cached window without a milestone or a native
   box.run(alpha.repo, 'add', 'web', 'A recorded landing for the clock fixture', '--specs', 'G1',
     '--criterion', 'The private project configuration exists.', '--check', 'test -f pullboard.json', '--wait');
   const base = Date.now() + 1_000, clock = { at: base };
+  // @pullboard-board-file journey: the CLI seeds the persisted Git-local board that serveApi reopens over HTTP.
   const board = store.openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(base) });
   t.after(() => store.closeBoard(board));
   const reviewer = store.register(board, { lane: 'tests', path: join(box.dir, 'clock-reviewer'), parentDigest: 'b'.repeat(64) });
