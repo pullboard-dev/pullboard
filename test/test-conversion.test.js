@@ -92,3 +92,12 @@ test('landings use the first actual landed transition and declarations only come
   assert.equal(declaredTestBoundary('const x = "@pullboard-test-boundary pure";'), 'unknown');
   assert.equal(declaredTestBoundary('/**\n * @pullboard-test-boundary pure\n * @pullboard-test-boundary contract\n */'), 'unknown');
 });
+
+
+test('untimed real catches remain unknown without claiming that no catches exist [C7]', () => {
+  const plan = testConversionPlan(report([row('caught.test.js', null, 1), row('costly.test.js', 90_000)]));
+  assert.match(plan.basis, /recorded catches lack timed conversion candidates/u);
+  assert.deepEqual(plan.unknown, ['caught.test.js']);
+  assert.deepEqual(plan.order.map(entry => entry.file), ['costly.test.js']);
+  assert.equal(plan.removesTests, false);
+});

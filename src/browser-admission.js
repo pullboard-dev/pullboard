@@ -16,6 +16,7 @@ import {
 import {
   commonJsIn,
   importsIn,
+  withImportParseCache,
 } from './module-imports.js';
 import {
   cleanGitEnvironment,
@@ -643,13 +644,15 @@ export async function testsNeedBrowser(root, files, { onFallback, byLaunch } = {
  * @returns {Promise<string[]>}
  */
 export async function browserBoundFiles(root, files, { byLaunch } = {}) {
-  byLaunch ??= await browserByLaunchSetting();
-  const memo = new Map();
-  const launchFree = new Map();
-  const safeChildImports = new Map();
-  const bound = [];
-  for (const file of files) {
-    if (await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports)) bound.push(file);
-  }
-  return bound;
+  return withImportParseCache(async () => {
+    byLaunch ??= await browserByLaunchSetting();
+    const memo = new Map();
+    const launchFree = new Map();
+    const safeChildImports = new Map();
+    const bound = [];
+    for (const file of files) {
+      if (await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports)) bound.push(file);
+    }
+    return bound;
+  });
 }
