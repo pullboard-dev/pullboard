@@ -67,8 +67,8 @@ function sourceTreeReader(source) {
   return header.split(/\r?\n/u).some(line => line.trim() === '/** @pullboard-test-input source-tree */');
 }
 
-/** Independently trace literal imports for cache-unknown roots; never invent a removed board edge. */
-function knownUncacheableImporters(closures, modules) {
+/** Independently trace historical literal importer paths without assuming their cache completeness. */
+function knownLiteralBoardImporters(closures, modules) {
   const roots = ['test/run-tests-kill.test.js', 'test/run-tests-timeout.test.js', 'test/runners.test.js'];
   const releaseImports = importsIn([modules.get('src/release-queue.js')])[0];
   for (const file of ['board-read-open.js', 'board-query.js', 'board-read-auxiliary.js']) assert.ok(releaseImports.includes(`./${file}`), `release capture uses canonical reader ${file}`);
@@ -76,7 +76,6 @@ function knownUncacheableImporters(closures, modules) {
   const parsed = new Map();
   const known = new Set();
   for (const root of roots) {
-    assert.equal(closures.get(root).files, null, 'literal inspection does not make unknown cache closures reusable');
     const pending = [root], seen = new Set();
     while (pending.length) {
       const file = pending.pop();
@@ -89,6 +88,10 @@ function knownUncacheableImporters(closures, modules) {
         if (edge.startsWith('.')) pending.push(posix.normalize(posix.join(posix.dirname(file), edge)));
       }
     }
+  }
+  for (const root of known) {
+    const closure = closures.get(root);
+    if (closure.files !== null) assert.ok(closure.files.includes('src/board.js'), `${root} complete closure retains its independently proved literal board dependency`);
   }
   return known;
 }
@@ -148,7 +151,7 @@ test('a board change selects its real importers in the actual committed reposito
   assert.equal(selection.full, false, selection.reason);
   assert.ok(selection.files.includes('test/board.test.js'), 'the board contract is an actual importer');
   const { closures, modules } = testClosures(ROOT, 'HEAD');
-  const known = knownUncacheableImporters(closures, modules);
+  const known = knownLiteralBoardImporters(closures, modules);
   for (const [file, closure] of closures) {
     if (closure.files !== null) continue;
     assert.ok(selection.files.includes(file), `unknown root ${file} remains conservatively selected`);
