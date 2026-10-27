@@ -42,7 +42,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
   mkdirSync(join(repo,'web')); mkdirSync(join(repo,'test')); mkdirSync(join(repo,'docs'));
   writeFileSync(join(repo,'SPEC.md'),'# Private fixture specification\n');
   const check = 'node --test --test-reporter=tap test/check.test.js';
-  writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:check,affectedTests:'node --test --test-reporter=tap',submitGate:'landing',submitDeferAbove:0,
+  writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:check,affectedTests:'node --test --test-reporter=tap',submitGate:'landing',submitDeferAbove:1,
     spec:'SPEC.md',verify:'any',lanes:{web:{owns:['web/'],specs:[]},review:{owns:['test/'],specs:[]}},shared:['docs/','src/','bin/','package.json','pullboard.json']}));
   writeFileSync(join(repo,'web/feature.js'),"export const feature = 'base';\n");
   writeFileSync(join(repo,'web/other.js'),"export const other = 'base';\n");
