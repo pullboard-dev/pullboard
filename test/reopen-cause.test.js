@@ -96,6 +96,7 @@ function conflict(box, entry) {
 
 /** Inspect original durable event bytes rather than trusting the command's completion message. */
 function latest(box, id) {
+  // @pullboard-board-file journey: inspect the durable reopen event written by the preceding native CLI command.
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const row = board.db.prepare("SELECT * FROM event WHERE item_id=? AND event_kind='reopen' ORDER BY event_id DESC LIMIT 1").get(id);
@@ -136,6 +137,7 @@ test('a legacy-shaped conflict note cannot reopen clean Git work [C7,B3]', () =>
   const refused = box.run(box.repo, 'reopen', String(entry.id), '--note', note, '--json');
   assert.equal(refused.code, 1);
   assert.equal(JSON.parse(refused.out).error.code, 'NOT_CONFLICTING');
+  // @pullboard-board-file journey: observe the actual project board after a refused native CLI reopen.
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.equal(store.getItem(board, entry.id).item_status, 'verified');
@@ -155,6 +157,7 @@ test('legacy notes preserve ordinary state refusals before a submitted commit ex
     const refused = box.run(box.repo, 'reopen', String(id), '--note', note, '--json');
     assert.equal(refused.code, 1);
     assert.equal(JSON.parse(refused.out).error.code, 'NOT_SUBMITTED');
+    // @pullboard-board-file journey: verify the project board after each native CLI state refusal.
     const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     try {
       assert.equal(store.getItem(board, id).item_status, claimed ? 'claimed' : 'open');
@@ -168,7 +171,9 @@ test('a confirmed conflict overrides an unrelated explicit test cause [C7,B3,D1]
   const entry = submit(box);
   accept(box, entry);
   const merge = conflict(box, entry);
+  // @pullboard-board-file journey: compare the native CLI-created board with a historical-engine copy before the real conflict reopen.
   const source = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  // @pullboard-board-file journey: isolate the imported prior-engine board used by the native conflict comparison.
   const older = store.openBoard(join(box.dir, 'older-engine.sqlite'));
   try {
     importBoard(older, exportBoard(source));
@@ -213,6 +218,7 @@ test('local and inline landing trains record sibling conflict files [C7,B3]', ()
 
 test('historical conflict-note correction is explicit and leaves original event bytes untouched [C7,D1]', () => {
   const box = project();
+  // @pullboard-board-file journey: inspect native project event and counter history alongside its real Git trunk.
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Legacy correction', specs: 'G1', criterion: 'Retain original evidence.', check: 'true' });
