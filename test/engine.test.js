@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/engine.js src/machine.js */
-/** Real-SQLite tests for the deterministic, sequence-ordered move engine [H3,H16]. */
+/** In-memory SQLite tests for the deterministic, sequence-ordered move engine [H3,H16]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard, restoreRelaySnapshot } from '../src/exchange.js';
 import { applyEngineMove, applyRelayMove, prepareEngineMove, appliedSequence, engineReceipt, refuseRelayMove, startRelayEpoch, checkpointSequence, ENGINE_OPERATIONS } from '../src/engine.js';
@@ -21,8 +22,7 @@ const CLAIM_AT = '2026-10-07T18:00:00.000Z';
 
 /** Open two independent SQLite copies of the same registered board and one available item. */
 function engineCopies(t, initialize = () => {}, seedEngine = ENGINE_VERSION) {
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-engine-'));
-  const source = store.openBoard(join(directory, 'source.sqlite'));
+  const source = fixtureBoard(t);
   // A historical move needs the actual historical join prefix, not a current writer's activated grant.
   source.executionEngineVersion = seedEngine;
   store.register(source, { lane: 'coordinator', path: '/source' });
@@ -32,18 +32,13 @@ function engineCopies(t, initialize = () => {}, seedEngine = ENGINE_VERSION) {
   initialize(source);
   delete source.executionEngineVersion;
   const document = exportBoard(source);
-  const copies = ['one', 'two'].map((name, index) => {
+  const copies = [0, 1].map(index => {
     const clock = { now: () => new Date(`2026-10-07T${index + 16}:00:00.000Z`) };
-    const board = store.openBoard(join(directory, `${name}.sqlite`), clock);
+    const board = fixtureBoard(t, { clock });
     importBoard(board, document);
     return board;
   });
-  t.after(() => {
-    for (const board of copies) store.closeBoard(board);
-    store.closeBoard(source);
-    rmSync(directory, { recursive: true, force: true });
-  });
-  return { directory, source, copies, item };
+  return { source, copies, item };
 }
 
 /** Prepare the same allowlisted claim on a clone, including its actor and lease inputs. */
@@ -303,7 +298,9 @@ test('fallback refusal identity hashes operation arguments when no ciphertext di
 });
 
 test('released engine 3 stops a background completion before changing rows or its cursor [V2,H16]', async t => {
-  const { directory, copies, item } = engineCopies(t);
+  const { copies, item } = engineCopies(t);
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-engine-release-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
   unpackRelease('v0.8.1', directory);
   const released = await import(pathToFileURL(join(directory, 'src/engine.js')).href);
   const releasedMachine = await import(pathToFileURL(join(directory, 'src/machine.js')).href);
@@ -337,7 +334,9 @@ test('released engine 3 stops a background completion before changing rows or it
 });
 
 test('an engine 6 client meets an item hold and is told to upgrade [H16,M1]', async t => {
-  const { directory, copies, item } = engineCopies(t);
+  const { copies, item } = engineCopies(t);
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-engine-release-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
   unpackRelease('v0.8.3', directory);
   const released = await import(pathToFileURL(join(directory, 'src/engine.js')).href);
   const releasedMachine = await import(pathToFileURL(join(directory, 'src/machine.js')).href);
@@ -503,13 +502,13 @@ const RECEIPT_ID = 'checkpoint-claim';
 
 /** Open a source board with one applied move and an occupied, divergent same-board replica. */
 function snapshotFixture(t) {
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-snapshot-'));
-  const source = store.openBoard(join(directory, 'source.sqlite'), { now: () => new Date(CHECKPOINT_AT) });
+  const clock = { now: () => new Date(CHECKPOINT_AT) };
+  const source = fixtureBoard(t, { clock });
   store.register(source, { lane: 'coordinator', path: '/source' });
   store.register(source, { lane: 'web', path: '/source/web-1' });
   const item = store.addItem(source, { by: 'coordinator', lane: 'web', title: 'Acknowledged item' });
   const base = exportBoard(source);
-  const replica = store.openBoard(join(directory, 'replica.sqlite'), { now: () => new Date(CHECKPOINT_AT) });
+  const replica = fixtureBoard(t, { clock });
   importBoard(replica, base);
   store.addItem(replica, { by: 'coordinator', lane: 'web', title: 'Divergent local item' });
 
@@ -523,11 +522,6 @@ function snapshotFixture(t) {
   const applied = applyMoveForSnapshot(source, move);
   assert.ok(applied.result, 'the checkpoint includes a successfully applied move');
   const document = exportBoard(source);
-  t.after(() => {
-    store.closeBoard(replica);
-    store.closeBoard(source);
-    rmSync(directory, { recursive: true, force: true });
-  });
   return { source, replica, item, document };
 }
 
@@ -722,7 +716,7 @@ test('engine 93 item messages replay and older broadcasts keep their recorded me
 test('outside author facts and exact owner approval replay without manufacturing a native builder [H3,H16,B26]', async t => {
   const { createHash } = await import('node:crypto');
   const { OUTSIDE_INTAKE_ENGINE } = await import('../src/outside-intake-engine.js');
-  const { copies: [one, two], directory } = engineCopies(t);
+  const { copies: [one, two] } = engineCopies(t);
   // These object IDs exercise deterministic storage only; no outside program or sandbox execution is claimed.
   const text = JSON.stringify({ title: 'Outside replay fixture', criterion: 'record the source', rows: [], check: 'true' });
   const frozen = { text, digest: createHash('sha256').update(text).digest('hex') };
@@ -751,9 +745,7 @@ test('outside author facts and exact owner approval replay without manufacturing
     assert.deepEqual(store.getItem(board, id).outside.ownerApproval, { by: 'person', commit: source.commit, at: CLAIM_AT });
   }
   assert.deepEqual(exportBoard(one).tables, exportBoard(two).tables);
-  const imported = store.openBoard(join(directory, 'outside-import.sqlite'));
-  try {
-    importBoard(imported, exportBoard(one));
-    assert.deepEqual(store.getItem(imported, id).outside, store.getItem(one, id).outside, 'public facts and approval survive the native export boundary');
-  } finally { store.closeBoard(imported); }
+  const imported = fixtureBoard(t);
+  importBoard(imported, exportBoard(one));
+  assert.deepEqual(store.getItem(imported, id).outside, store.getItem(one, id).outside, 'public facts and approval survive the native export boundary');
 });
