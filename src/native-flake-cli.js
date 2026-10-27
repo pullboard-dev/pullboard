@@ -1,6 +1,7 @@
 /** CLI diagnostic adapters keep policy capture, execution and evidence inside the existing gate admission. */
 import { readFileSync } from 'node:fs';
 import { COORDINATOR } from './config.js';
+import { mappedCheck } from './path-map.js';
 import { laneOf } from './lanes.js';
 import {
   mainPolicy,
@@ -60,6 +61,7 @@ export function observer(ctx, { kind, board, main, commit, privateCheck = false,
 
 /** Prepare an ordinary check callback before it queues; the callback observes red under that same lease. */
 export function check(ctx, item, command, services) {
+  command = mappedCheck(ctx.info.root, command);
   const observe = observer(ctx, { kind: 'check' }, services);
   return async lease => {
     pinRunMain(lease, observe);
