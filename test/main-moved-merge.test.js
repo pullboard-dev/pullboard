@@ -37,6 +37,7 @@ test('a clean main move keeps the accepted verdict on its genuinely checked merg
     const phase=artifacts.filter(row=>row.roles.includes(role));assert.equal(phase.length,1);
     const output=readFileSync(phase[0].file,'utf8');
     assert.equal(createHash('sha256').update(output).digest('hex'),phase[0].sha256);
+    t.diagnostic(JSON.stringify({phase:role,output,proofCounts:now.proofs.map(row=>row.counts)}));
     assert.equal(output.split('SOURCE_ADVANCE_BODY').length-1,1,`${role} retains exactly one actual executed body`);
     assert.match(output,/ok 1 - actual exact composed behavior/u);
   }

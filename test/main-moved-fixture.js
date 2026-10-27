@@ -29,7 +29,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
     PULLBOARD_MACHINE_HOME: machine, GIT_CONFIG_GLOBAL:'/dev/null', GIT_CONFIG_NOSYSTEM:'1',
     GIT_AUTHOR_NAME:'Fixture', GIT_AUTHOR_EMAIL:'fixture@example.invalid', GIT_COMMITTER_NAME:'Fixture', GIT_COMMITTER_EMAIL:'fixture@example.invalid' };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_') && !/^(?:GIT_CONFIG_|GIT_AUTHOR_|GIT_COMMITTER_)/u.test(key)) delete env[key];
-  for (const key of ['PULLBOARD_GATE_SLOT_HELD','PULLBOARD_GATE_SLOT_POOL','PULLBOARD_GATE_SLOT_TOKEN','PULLBOARD_BROWSER_SLOT_HELD','PULLBOARD_CHECKOUT_SESSION_TOKEN','PULLBOARD_RELAY_TOKEN','SSH_AUTH_SOCK']) delete env[key];
+  for (const key of ['NODE_TEST_CONTEXT','PULLBOARD_GATE_SLOT_HELD','PULLBOARD_GATE_SLOT_POOL','PULLBOARD_GATE_SLOT_TOKEN','PULLBOARD_BROWSER_SLOT_HELD','PULLBOARD_CHECKOUT_SESSION_TOKEN','PULLBOARD_RELAY_TOKEN','SSH_AUTH_SOCK']) delete env[key];
   writeFileSync(join(machine,'settings.json'),JSON.stringify({gateSlots:1,browserSlots:1,gate:{browserFreeChecks:true}}));
   /** Real Git output is retained on failure rather than replaced with fixture results. */
   function git(cwd,...args) {
