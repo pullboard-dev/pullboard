@@ -92,7 +92,7 @@ async function compose(root, inputHead, trunk, work) {
     // A source conflict has no child/controller custody; clear only this private tracked merge before normal removal.
     if (added && (!controllerStarted || controllerTerminal)) {
       git(directory, ['reset', '--hard', inputHead]);
-      git(directory, ['clean', '-fdx']);
+      git(directory, ['clean', '-ffdx']);
     }
     if (added && controllerStarted && !controllerTerminal) throw new Error(`source-advance controller custody is unknown; retain owned source ${directory}`);
     if (added) git(root, ['worktree', 'remove', directory]);
