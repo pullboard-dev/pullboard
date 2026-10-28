@@ -131,6 +131,7 @@ Successful `submit` (including `done`), `release`, and `verify` commands normall
 | `patch list` | `version:number`, `item:number`, `digest:string\|null`, `patches:array` |
 | `patch remove` | `version:number`, `item:number`, `key:string`, `digest:string`, `changed:boolean` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array`, `thread:array`, `reviewEligibility:object` |
+| `capacity` | `version:number`, `report:object` |
 | `stats` | `version:number`, `stats:object`, `gateWaits:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `ruleCounts:object`, `stats:object`, `reviewQueue:object`, `unread:number`, `relay:object` |
 | `heartbeat` | `version:number`, `seat:string|null`, `presence:string`, `heartbeatAt:string|null` |
