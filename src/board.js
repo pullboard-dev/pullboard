@@ -9,6 +9,10 @@ import { reviewPolicyChange } from './review-independence.js';
 import { saveItemReviewPolicy } from './review-independence.js';
 import { twoTierReviews } from './review-independence.js';
 import { setItem } from './item-fields.js';
+import {
+  idleReason,
+  liveRouteProblem,
+} from './routing-presence.js';
 import { releaseClaim } from './release-claim.js';
 import { REFERENCE_ENGINE } from './reference-engine.js';
 import { validateReferences } from './reference-authors.js';
@@ -1955,6 +1959,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     }));
     const heldByMe = candidates.find((candidate) => candidate.holder === agentId)?.entry;
     if (heldByMe) return { item: heldByMe, reasons: [] };
+    const presenceProblem = liveRouteProblem(board, agentId);
+    if (presenceProblem) return { item: null, reasons: [presenceProblem] };
     const milestonePriority = milestonePriorities(board);
     const rank = milestoneRanks(board, milestonePriority);
     const scarcity = lineOrderEnabled(board) ? reviewerScarcity(board, candidates.map(candidate => candidate.entry), (entry, reviewer) =>
@@ -1981,6 +1987,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
   const plannedRelease = held && held.item_id === afterRelease ? held.item_id : null;
   if (held && plannedRelease === null) return { item: held, reasons: [] };
+  const presenceProblem = liveRouteProblem(board, agentId);
+  if (presenceProblem) return { item: null, reasons: [presenceProblem] };
   const selectedLanes = new Set(lanes ?? [lane]);
   const reasons = allItems.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane) && entry.item_hold_reason)
     .map((entry) => `#${entry.item_id} is held by coordinator: ${entry.item_hold_reason}`);
@@ -2053,23 +2061,6 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
 function waitingOn(item) {
   const rejected = item.item_status === 'open' && item.item_verdict === 'REJECT' ? ', rejected' : '';
   return `#${item.item_id} (${item.item_status}${rejected}, ${item.item_lane} lane)`;
-}
-
-/**
- * Why a lane has nothing to claim (N13): a lane whose items still await verdicts is not done, since
- * a rejected item comes back to it; the coordinator builds only its own lane's items.
- *
- * @param {any[]} items - Items not yet verified or withdrawn, as the agent may see them.
- * @param {string} lane
- * @param {string} routed
- * @returns {string}
- */
-function idleReason(items, lane, routed) {
-  const reason = `no open ${routed}items in the ${lane} lane`;
-  if (lane === COORDINATOR) return `${reason}; lane items are built from each lane's own worktree`;
-  const awaiting = items.filter((entry) => entry.item_lane === lane && entry.item_status === 'submitted').map((entry) => `#${entry.item_id}`);
-  if (!awaiting.length) return reason;
-  return `${reason}; ${awaiting.join(', ')} still await${awaiting.length === 1 ? 's' : ''} a verdict, and a rejected item comes back to this lane. A lane is done when its items are verified`;
 }
 
 export { relatedItems } from './board-query.js';

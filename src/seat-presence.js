@@ -134,9 +134,9 @@ export function importSeatObservations(board, rows) {
 }
 
 /** Project exact ten/thirty-minute boundaries while retaining the seat's permanent identity. */
-export function withSeatPresence(board, seats) {
+export function withSeatPresence(board, seats, { localOnly = false } = {}) {
   const local = heartbeatRows(board);
-  const imported = importedHeartbeatRows(board);
+  const imported = localOnly ? new Map() : importedHeartbeatRows(board);
   const now = board.clock.now().getTime();
   const identity = observationIdentity(board);
   return seats.map(seat => {
@@ -149,4 +149,9 @@ export function withSeatPresence(board, seats) {
     const elapsed = heartbeatAt === null ? Infinity : Math.max(0, now - Date.parse(heartbeatAt));
     return { ...seat, heartbeatAt, presence: elapsed < 600_000 ? 'live' : elapsed < 1_800_000 ? 'idle' : 'gone' };
   });
+}
+
+/** Project authenticated local activity only; imported relay observations remain display-only. */
+export function withLocalSeatPresence(board, seats) {
+  return withSeatPresence(board, seats, { localOnly: true });
 }
