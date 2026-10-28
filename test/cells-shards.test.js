@@ -22,12 +22,17 @@ import { readPathMap } from '../src/path-map.js';
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-cell-shards-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Cell fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Cell fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
   /** Commit only a selected cell's independent path-map file. */
   function commit(cell) {
-    const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Cell fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Cell fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
     const file = `bin/cells-plan/path-map/${cell}.json`;
     runFixtureGit(['add', '--', file], { cwd: root, env });
     runFixtureGit(['commit', '-qm', `move ${cell}`], { cwd: root, env });
+  }
+  /** Accept an existing shard so a later missing file must refuse. */
+  function accept(cell) {
+    runFixtureGit(['add', '--', `bin/cell-lint-baselines/cells/${cell}.json`], { cwd: root, env });
+    runFixtureGit(['commit', '-qm', `accept ${cell} baseline`], { cwd: root, env });
   }
   /** Write one exact fixture file. */
   function put(file, bytes) {
@@ -40,9 +45,9 @@ function fixture(t) {
   for (const [file, bytes] of cellLintFiles({ version: 1, metrics })) put(file, bytes);
   put('bin/cells-plan/path-map/alpha.json', JSON.stringify({ 'src/alpha.js': 'packages/alpha/src/core/alpha.js' }) + '\n');
   put('bin/cells-plan/path-map/beta.json', JSON.stringify({ 'src/beta.js': 'packages/beta/src/core/beta.js' }) + '\n');
-  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' } });
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
   initializeCellLintCellShards(root);
-  return { root, commit, base: readCellLintBaseline(root) };
+  return { root, put, commit, accept, base: readCellLintBaseline(root) };
 }
 
 /** Lower only one moved cell's own allowance identities. */
@@ -87,4 +92,18 @@ test('two cell moves in either order combine to the same baseline without a shar
   const beta = join(first.root, 'bin/cell-lint-baselines/cells/beta.json'), original = readFileSync(beta);
   writeFileSync(beta, original.subarray(0, original.length - 2));
   assert.throws(() => readCellLintBaseline(first.root), { code: 'CELL_BASELINE' }, 'a partial cell shard never lowers the ratchet');
+});
+
+test('a newly mapped cell has an empty delta until written, while an accepted missing shard refuses [C7,CD64]', t => {
+  const box = fixture(t);
+  box.commit('alpha');
+  box.commit('beta');
+  box.put('bin/cells-plan/path-map/gamma.json', JSON.stringify({ 'src/gamma.js': 'packages/gamma/src/core/gamma.js' }) + '\n');
+  box.commit('gamma');
+  assert.deepEqual(readCellLintBaseline(box.root), box.base, 'a new cell without lowered allowances inherits the immutable baseline');
+  writeCellLintBaseline(box.root, box.base, { previous: box.base });
+  assert.ok(readFileSync(join(box.root, 'bin/cell-lint-baselines/cells/gamma.json'), 'utf8').includes('"cell": "gamma"'));
+  box.accept('alpha');
+  rmSync(join(box.root, 'bin/cell-lint-baselines/cells/alpha.json'));
+  assert.throws(() => readCellLintBaseline(box.root), { code: 'CELL_BASELINE' }, 'a previously accepted shard cannot silently disappear');
 });

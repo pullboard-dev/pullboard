@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { CELL_METRICS } from './cell-lints.js';
 import { cellLintGrowth } from './cell-lint-ratchet.js';
 import { validateCellLintBaseline } from './cell-lint-ratchet.js';
+import { tryGit } from './git.js';
 import { readPathMap } from './path-map.js';
 import { Refused } from './refused.js';
 
@@ -39,6 +40,12 @@ function cellMaps(root, cells) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Refused('CELL_BASELINE', `invalid ${cell} path-map shard`);
     return [cell, value];
   }));
+}
+/** Distinguish a new cell with no delta from removal of a previously accepted shard. */
+function acceptedShard(root, cell) {
+  const file = `${SHARD_DIRECTORY}/${cell}.json`;
+  const result = tryGit(root, ['ls-tree', 'HEAD', '--', file]);
+  return result.status === 0 && result.stdout.endsWith(`\t${file}`);
 }
 /** Assign a changed allowance to the moved path's cell, retaining disjoint shard ownership. */
 function allowanceCell(metric, key, maps) {
@@ -84,7 +91,8 @@ export function readCellLintCellBaseline(root, base) {
   const cells = cellLintCells(root);
   if (!cells.length) return base;
   const directory = join(root, SHARD_DIRECTORY), actual = existsSync(directory) ? readdirSync(directory).filter(name => name !== '.write-lock').sort() : [];
-  if (actual.join() !== cells.map(cell => `${cell}.json`).join()) throw new Refused('CELL_BASELINE', 'restore the complete per-cell baseline shard set');
+  if (actual.some(name => !cells.includes(name.slice(0, -5)) || !name.endsWith('.json'))
+    || cells.some(cell => !actual.includes(`${cell}.json`) && acceptedShard(root, cell))) throw new Refused('CELL_BASELINE', 'restore the complete accepted per-cell baseline shard set');
   const baseSha256 = digest(readFileSync(join(root, DESCRIPTOR)));
   const baseline = { version: 1, metrics: Object.fromEntries(CELL_METRICS.map(metric => [metric, {
     count: base.metrics[metric].count,
@@ -92,6 +100,7 @@ export function readCellLintCellBaseline(root, base) {
   }])) };
   const touched = new Set();
   for (const cell of cells) {
+    if (!actual.includes(`${cell}.json`)) continue;
     const document = JSON.parse(readFileSync(join(root, SHARD_DIRECTORY, `${cell}.json`), 'utf8'));
     if (!document || Object.keys(document).sort().join() !== 'baseSha256,cell,metrics,sha256,version') throw new Refused('CELL_BASELINE', `invalid ${cell} baseline document`);
     const { sha256, ...payload } = document;
@@ -130,9 +139,7 @@ export function writeCellLintCellBaseline(root, base, target, verify) {
   mkdirSync(lock);
   const before = new Map();
   try {
-    const present = [...files.keys()].filter(file => existsSync(join(root, file)));
-    if (present.length && present.length !== files.size) throw new Refused('CELL_BASELINE', 'restore the complete previous per-cell baseline shard set');
-    if (present.length) readCellLintCellBaseline(root, base);
+    readCellLintCellBaseline(root, base);
     for (const file of files.keys()) if (existsSync(join(root, file))) before.set(file, readFileSync(join(root, file)));
     for (const [file, bytes] of files) if (!before.has(file) || !before.get(file).equals(Buffer.from(bytes))) writeFileSync(join(root, file), bytes);
     const combined = readCellLintCellBaseline(root, base);

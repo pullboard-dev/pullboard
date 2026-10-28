@@ -91,7 +91,7 @@ export function storedCellLintFiles(root) {
   readCellLintBaseline(root);
   const descriptor = readFileSync(join(root, DESCRIPTOR)), parsed = JSON.parse(descriptor);
   const legacy = [[DESCRIPTOR, descriptor], ...Object.values(parsed.metrics).flatMap(row => row.shards.map(({ file }) => [file, readFileSync(join(root, file))]))];
-  const cells = cellLintCells(root).map(cell => `${DIRECTORY}/cells/${cell}.json`);
+  const cells = cellLintCells(root).map(cell => `${DIRECTORY}/cells/${cell}.json`).filter(file => existsSync(join(root, file)));
   return new Map([...legacy, ...cells.map(file => [file, readFileSync(join(root, file))])]);
 }
 
