@@ -426,6 +426,7 @@ test('an agent claims, submits, verifies and resumes through MCP with the CLI\'s
   const resumed = await builder.call('resume', {});
   assert.equal(resumed.isError, false, JSON.stringify(resumed.structuredContent));
   assert.equal(resumed.structuredContent.version, 1);
+  assert.equal(resumed.structuredContent.view.state, 'off', 'MCP resume never starts or probes a background view');
   assertProtocolOnly((await builder.close()).lines);
 
   // Another agent, in its own session, takes the review and accepts through MCP.
