@@ -12,6 +12,8 @@ import {
 } from './rigor-auto.js';
 import { normalizedDispatch } from './dispatch-health.js';
 import { rejectedWorkReturns } from './rejected-work-return.js';
+import { guardLandingWrite } from './board-landing-lease.js';
+
 import { recordRowVerification as applyRowVerification } from './spec-verdicts.js';
 import { decideSpecRevisions as applySpecRevisionDecisions } from './spec-revisions.js';
 import { draftSpecRow as applySpecRowDraft } from './row-drafts.js';
@@ -146,7 +148,8 @@ export function nativeBoardPorts() {
   const enginePorts = boardEnginePorts();
   return Object.freeze({
     nativePorts, enginePorts, operations: enginePorts.operations, logEvent,
-    sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody, receiptFields }),
+    sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody, receiptFields, guardLandingWrite }),
+
     verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters }),
     guards: Object.freeze({ guardStore, refreshStoreDeclarations, storeTriggers }),
     lifecycle: Object.freeze({ atomic, ensureProofCounters, ensureHotIndexes, missingAdditiveIndexes,
