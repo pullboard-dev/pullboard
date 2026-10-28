@@ -25,7 +25,7 @@ import { withGitFacts } from '../src/git.js';
 
 /** Read the real private gate invocations, retaining their exact Git heads. */
 function gateHeads(box) {
-  return readFileSync(box.gateCalls, 'utf8').trim().split('\n').map(line => JSON.parse(line).head);
+  return box.readGateCalls().trim().split('\n').map(line => JSON.parse(line).head);
 }
 
 test("publish opens one pull request with each item's receipt and records the person's merge as the release [B3,R3]", async t => {

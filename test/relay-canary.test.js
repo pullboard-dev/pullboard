@@ -215,7 +215,12 @@ async function independentCanaryHost(host, lane, name) {
   assert.equal(saved.config.root, root);
   assert.equal(saved.config.agentId, joined.document.agent);
   assert.equal(saved.config.enabled, true);
-  return { ...host, ...saved, root, healthFile: join(saved.commonDir, 'pullboard', 'relay-health.sqlite') };
+  const healthFile = join(saved.commonDir, 'pullboard', 'relay-health.sqlite');
+  /** Retain the exact saved host-health bytes for the independent-host noninterference assertions. */
+  function readHealth() {
+    return readFileSync(healthFile);
+  }
+  return { ...host, ...saved, root, healthFile, readHealth };
 }
 
 test('two paired host configurations independently alert and recover through real configured canaries [H5,H15,H17]',
@@ -269,13 +274,13 @@ test('two paired host configurations independently alert and recover through rea
     }
     const drills = [];
     for (const [host, other] of [[left, right], [right, left]]) {
-      const untouched = readFileSync(other.healthFile);
+      const untouched = other.readHealth();
       now += 1_000;
       const first = await run(host, true);
       assert.equal(first.transition, null, 'one failed probe degrades without inventing an alert');
       assert.equal(first.health.status, 'degraded');
       assert.equal(first.health.consecutiveFailures, 1);
-      assert.deepEqual(readFileSync(other.healthFile), untouched, 'another host’s first failure cannot change this host’s health');
+      assert.deepEqual(other.readHealth(), untouched, 'another host’s first failure cannot change this host’s health');
       now += 119_000;
       const alert = await run(host, true);
       assert.equal(alert.transition, 'alert', 'the second real failed pull alerts within the simulated two-minute window');
@@ -283,7 +288,7 @@ test('two paired host configurations independently alert and recover through rea
       assert.equal(alert.health.status, 'degraded');
       assert.ok(displayText(alert.finding).includes('pull'), 'the persisted finding names the actual failed step');
       assert.equal(readRelayHealth(host.root, { now }).step, 'pull');
-      assert.deepEqual(readFileSync(other.healthFile), untouched, 'another host’s alert cannot overwrite this host’s health');
+      assert.deepEqual(other.readHealth(), untouched, 'another host’s alert cannot overwrite this host’s health');
       now += 1_000;
       const recovered = await run(host);
       assert.equal(recovered.transition, 'recovery');
@@ -291,7 +296,7 @@ test('two paired host configurations independently alert and recover through rea
       assert.equal(recovered.health.consecutiveFailures, 0);
       assert.equal(recovered.finding, null);
       assert.equal(readRelayHealth(host.root, { now }).status, 'healthy');
-      assert.deepEqual(readFileSync(other.healthFile), untouched, 'recovery belongs only to the host that completed the round trip');
+      assert.deepEqual(other.readHealth(), untouched, 'recovery belongs only to the host that completed the round trip');
       drills.push({ alertAt: alert.health.lastAt, recoveryAt: recovered.health.lastAt, failedStep: alert.observation.step });
     }
     t.diagnostic(JSON.stringify({ drill: 'two independently paired machine configurations share one loopback relay',

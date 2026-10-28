@@ -239,3 +239,34 @@ test('local fixture reader ports retain direct immutable source proof without as
       'unknown and asynchronous constructor fields never gain implicit source authority');
   }
 });
+
+test('copied source remains a move obligation while generated journals and recursive inventories stay explicit [C7]', () => {
+  const options = { file: 'test/source-obligations.js', moves: [['src/leaf.js', 'packages/git/src/shell/leaf.js'],
+    ['src/baseline.json', 'packages/git/src/shell/baseline.json']] };
+  const source = "import { readFileSync, copyFileSync } from 'node:fs';\n"
+    + "const original = readFileSync(new URL('../src/leaf.js', import.meta.url), 'utf8');\n"
+    + "copyFileSync(new URL('../src/leaf.js', import.meta.url), new URL('../fixture/leaf.js', import.meta.url));";
+  const result = fixtureSourceEdits(source, options);
+  assert.deepEqual(result.problems, []);
+  assert.equal(result.edits.length, 2, 'a copied source body remains an actual dependency, even in a private fixture');
+  let rewritten = source;
+  for (const edit of [...result.edits].sort((a, b) => b.start - a.start)) {
+    rewritten = rewritten.slice(0, edit.start) + edit.text + rewritten.slice(edit.end);
+  }
+  assert.equal(rewritten.includes("new URL('../src/leaf.js', import.meta.url)"), false);
+  assert.ok(rewritten.includes("new URL('../fixture/leaf.js', import.meta.url)"), 'the fixture destination is unchanged');
+  const listed = fixtureSourceEdits("import { readFileSync } from 'node:fs';\n"
+    + "for (const file of ['leaf.js']) readFileSync(new URL(`../src/${file}`, import.meta.url));", options);
+  assert.deepEqual(listed.problems, []);
+  assert.equal(listed.edits.length, 1, 'a finite declared source inventory carries its moved source operand');
+  for (const body of ["readFileSync(join(directory, key + '.json'), 'utf8');",
+    "readFileSync(join(root, failure.file));", "readFileSync(box.healthFile);",
+    "const module = await import('../src/leaf.js'); readFileSync(module.input);",
+    "for (const file of readdirSync(root, { recursive: true })) readFileSync(join(root, file));",
+    "cpSync(box.keyFile, target);", "cpSync(join(box.root, '.git'), target, { recursive: true });"]) {
+    const unresolved = fixtureSourceEdits("import { readFileSync, cpSync, readdirSync } from 'node:fs';\n"
+      + "import { join } from 'node:path';\n" + body, options);
+    assert.ok(unresolved.problems.length, 'an artifact name or private-root assumption cannot erase a possible source dependency: ' + body);
+    assert.deepEqual(unresolved.edits, [], 'unknown source identity never creates a guessed rewrite');
+  }
+});
