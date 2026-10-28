@@ -239,5 +239,5 @@ test('cut refresh refuses a newly tracked unplanned endpoint without changing an
   assert.notEqual(run.status, 0, 'an unowned endpoint cannot silently disappear from refreshed cuts');
   assert.match(run.stderr, /CELLS_PLAN_UNPLANNED.*src\/unplanned-provider\.js/su);
   assert.deepEqual(readPlan(root), plan, 'refusal preserves the exact prior plan');
-  assert.equal(git(root, 'diff', '--', 'bin/cells-plan.json', 'bin/cells-plan').stdout, '', 'no partial generated writes survive refusal');
+  assert.equal(git(root, 'diff', '--', 'bin/cells-plan.json', 'bin/cells-plan'), '', 'no partial generated writes survive refusal');
 });
