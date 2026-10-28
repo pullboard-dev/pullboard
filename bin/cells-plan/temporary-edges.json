@@ -12,6 +12,12 @@
       "target": "src/doctrine.js",
       "contractItem": 1739,
       "expires": "2026-10-30"
+    },
+    {
+      "importer": "src/runner-policy.js",
+      "target": "src/trusted-policy-read.js",
+      "contractItem": 1699,
+      "expires": "2026-10-30"
     }
   ]
 }

@@ -16,8 +16,11 @@ import {
 /** Require connection-local dependencies before creating or touching any SQLite file; never infer a global root. */
 export function requireRuntimePorts(ports) {
   if (!ports || typeof ports !== 'object' || Array.isArray(ports)) throw new Refused('NO_POLICY', 'Open a native board through its composition root with explicit runtime ports.');
-  for (const group of ['guards', 'query', 'auth', 'lifecycle', 'nativePorts', 'enginePorts', 'verification']) {
+  for (const group of ['guards', 'query', 'auth', 'lifecycle', 'nativePorts', 'enginePorts', 'sourceAdvanceReceipts', 'verification']) {
     if (!ports[group] || typeof ports[group] !== 'object' || Array.isArray(ports[group])) throw new Refused('NO_POLICY', `The native board root must supply its ${group} port group.`);
+  }
+  for (const name of ['boardReceiptStore', 'readGateReceipt', 'receiptBody']) {
+    if (typeof ports.sourceAdvanceReceipts[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply sourceAdvanceReceipts.${name}.`);
   }
   if (!Array.isArray(ports.operations) || ports.operations.some(name => typeof name !== 'string')) throw new Refused('NO_POLICY', 'Supply the native operation names from the move registry.');
   if (typeof ports.logEvent !== 'function') throw new Refused('NO_POLICY', 'The native board root must supply logEvent.');

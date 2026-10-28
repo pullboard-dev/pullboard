@@ -1,5 +1,8 @@
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
+import { mainRedReviewItems } from '../main-red.js';
+import { mainRedReworkItems } from '../main-red.js';
+import { computedReturnArgs } from '../computed-conflict-return.js';
 import {
   mainRedBuildOffer,
   nextTake,
@@ -17,11 +20,16 @@ import {
 import * as seatCheckout from '../seat-checkout.js';
 import {
   agentDisplayName,
+  MainSpecMerged,
+  checkMainVerifier,
+  claimFreezer,
+  claimOrdered,
   cdTo,
   context,
   displayedWait,
   idArg,
   nextOnce,
+  ordered,
   sayBrief,
   span,
   whoAmI,
@@ -55,6 +63,8 @@ function inboxReasons(ctx) {
  */
 export async function nextHere(io, values) {
   let ctx = context(io);
+  const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
+    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, computedReturnArgs };
   if (values.take && (values.build || values.verify || values.verifyId !== undefined || values.as !== undefined)) {
     throw new Refused('USAGE', 'run pullboard next --take without an item id, --build, --verify or --as');
   }
@@ -70,8 +80,8 @@ export async function nextHere(io, values) {
   const deadline = Date.now() + minutes * 60_000;
   const origin = ctx.info.root;
   for (;;) {
-    const takeMainRed = !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values);
-    const found = values.take || takeMainRed ? await nextTake(ctx, values) : await nextOnce(ctx, values);
+    const takeMainRed = !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices);
+    const found = values.take || takeMainRed ? await nextTake(ctx, values, takeServices) : await nextOnce(ctx, values);
     if (found.context) ctx = found.context;
     if (found.specMerged) {
       io.say(`merged main before claiming #${found.specMerged.item}: added spec rows ${found.specMerged.rows.join(', ')}`);

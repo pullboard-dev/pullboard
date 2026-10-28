@@ -127,7 +127,11 @@ test('push evidence refuses missing landings and unfiled newest audit failures w
 function nativeSmoke(box) {
   const module = new URL('../src/push-receipt-smoke.js', import.meta.url).href;
   const source = `import {runPushReceiptSmoke} from ${JSON.stringify(module)};
-try { const run=await runPushReceiptSmoke(process.cwd(),{agent:'coordinator'});
+import {checkNeedsBrowser} from ${JSON.stringify(new URL('../src/browser-admission.js', import.meta.url).href)};
+import {checkNeedsGui} from ${JSON.stringify(new URL('../src/gui-admission.js', import.meta.url).href)};
+import {runProfiledShellAsync,withGateSlot} from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};
+try { const run=await runPushReceiptSmoke(process.cwd(),{agent:'coordinator'},
+{checkNeedsBrowser,checkNeedsGui,runProfiledShellAsync,withGateSlot});
 console.log(JSON.stringify({green:run.isGreen,policy:run.policyCommit,output:run.output})); }
 catch(error) { console.log(JSON.stringify({code:error.code,message:error.message})); process.exitCode=1; }`;
   return runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
