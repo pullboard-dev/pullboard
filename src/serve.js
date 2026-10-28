@@ -62,7 +62,7 @@ import {
 } from './projects.js';
 import { fetchLocal } from './local-fetch.js';
 import { Refused } from './refused.js';
-import { refusalDocument } from './json.js';
+import { refusalDocument } from './next-step-words.js';
 import { relayLinkAvailability } from './relay.js';
 import { personNeeds } from './needs.js';
 import { rigorDraftNeeds } from './rigor-notices.js';
