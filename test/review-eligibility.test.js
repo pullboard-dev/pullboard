@@ -514,7 +514,7 @@ test('an undeclared seat declares its vendor family once from a new session and 
   const parentOf = () => f.board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='agent_parent_session:core-7'").get()?.meta_value;
   const before = parentOf();
   // The same seat joined again from another session: before this engine that was PARENT_SESSION_CHANGED.
-  const again = family => store.register(f.board, { ...seat, family, parentDigest: '9'.repeat(64) });
+  const again = (family, parent = '9') => store.register(f.board, { ...seat, family, parentDigest: parent.repeat(64) });
   assert.equal(again('Anthropic'), 'core-7');
   assert.equal(f.board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get('core-7').agent_family, 'Anthropic');
   const events = f.board.db.prepare("SELECT event_detail FROM event WHERE event_kind='family' AND event_by='core-7'").all();
@@ -522,7 +522,7 @@ test('an undeclared seat declares its vendor family once from a new session and 
   assert.equal(parentOf(), before, 'the recorded parent session is untouched');
   assert.doesNotThrow(() => f.reserve(id, 'core-7'), 'the declared seat is now reviewable');
   assert.throws(() => again('OpenAI'), error => error.code === 'FAMILY_DECLARED' && /never changed/u.test(error.message), 'another vendor is refused');
-  assert.doesNotThrow(() => again('claude-family'), 'an alias of the declared family is the same declaration');
+  assert.doesNotThrow(() => again('claude-family', '7'), 'an alias of the declared family is the same declaration');
   assert.equal(f.board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get('core-7').agent_family, 'Anthropic', 'a refused or repeated declaration changes nothing');
 });
 
