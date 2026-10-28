@@ -26,8 +26,8 @@ export function cpuLoadFixture(e2e, { declaration = '{ cpuLoad: true }', binding
   const remoteMachineHome = join(remoteHome, '.pullboard');
   const requests = join(box.dir, 'ssh-requests.jsonl');
   for (const path of [bin, join(box.dir, 'worker'), remoteMachineHome, join(box.repo, 'test')]) mkdirSync(path, { recursive: true });
-  copyFixtureRunner(SOURCE, box.repo);
-  writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '1.0.0', type: 'module' }) + '\n');
+  const runtimeFiles = copyFixtureRunner(SOURCE, box.repo);
+  writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '1.0.0', type: 'module', files: runtimeFiles.filter(file => file !== 'package.json') }) + '\n');
   if (registrationHelper) {
     writeFileSync(join(box.repo, 'test', 'registrations.js'), registrationHelper === 'wrapper'
       ? "import { test, after } from 'node:test'; export { after }; export const launch = (...args) => test(...args);\n"
