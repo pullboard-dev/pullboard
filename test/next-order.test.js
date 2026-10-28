@@ -1,3 +1,5 @@
+import * as queueStore from '../src/board.js';
+import { eligibilityProblem as queueEligibility } from '../src/review-eligibility.js';
 import { crossLaneFixture } from './e2e-helpers.js';
 import { HOUR } from './next-order-fixture.js';
 import { MID_ITEM_DETAILS } from './next-order-fixture.js';
@@ -46,7 +48,7 @@ test('next offers the item on the longest remaining path first [N2,B13,N20]', t 
     reason: 'Synthetic focused DAG scheduling fixture.', window: { items: 14 } });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, wide,
     'ruling 29931: higher (unblocks + 1) / effort wins before the longer path inside the focus');
-  assert.equal(workQueue(board).first.strong, wide, 'queue and next share the primary score order');
+  assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).first.strong, wide, 'queue and next share the primary score order');
 });
 
 /** The sharpened primary score leaves a real equal-score tie for the critical path to resolve. */
@@ -66,7 +68,7 @@ test('equal primary scores use the longer remaining path before age [N2,B13,N20]
     reason: 'Equal-score critical-path tie fixture under ruling 29931.', window: { items: 6 } });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, long,
     'both roots score 3/3; only the remaining path distinguishes them before their age');
-  assert.equal(workQueue(board).first.strong, long, 'the queue resolves the same equal-score tie');
+  assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).first.strong, long, 'the queue resolves the same equal-score tie');
 });
 
 test('a file overlap keeps the hard collision skip under the sharpened precedence [N2,N20]', t => {
@@ -78,8 +80,8 @@ test('a file overlap keeps the hard collision skip under the sharpened precedenc
   const colliding = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Ready overlapping work', brief: 'Files: src/shared.js' });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item, null,
     'ruling 29931 retains the hard collision skip even when the colliding item is the only ready work');
-  assert.equal(workQueue(board).first.strong, null, 'queue and next both retain the collision block');
-  assert.ok(workQueue(board).releases.flatMap(release => release.items).concat(workQueue(board).unreleased)
+  assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).first.strong, null, 'queue and next both retain the collision block');
+  assert.ok(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).releases.flatMap(release => release.items).concat(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).unreleased)
     .find(item => item.id === colliding).waits.length > 0, 'the blocked offer still explains its live collision');
   const free = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Equally short independent work', brief: 'Files: src/free.js' });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, free,
@@ -684,7 +686,7 @@ test('the historical queue names the same noncolliding work next can serve [N2,N
   const c = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Can proceed now',
     brief: 'Files: src/free.js' });
   store.claim(board, a, { agentId: busy, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
-  const queue = workQueue(board);
+  const queue = workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility });
   assert.equal(queue.first.strong, c, 'queue does not advertise a file collision as available');
   assert.equal(queue.first.strong, store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id);
   assert.ok(queue.unreleased.find(item => item.id === b).waits.some(reason => reason.includes(`#${a}`)

@@ -1,9 +1,4 @@
 /** Atomic replacement receipts on the ordinary board, independent of chat tools [B3,N19,H16]. */
-import { addItem } from './board.js';
-import { agentById } from './board.js';
-import { appendFact } from './board.js';
-import { atomic } from './board.js';
-import { logEvent } from './board.js';
 import { HANDOFF_ENGINE } from './handoff-engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { agentHandoff } from '../packages/state/src/core/handoff-state.js';
@@ -12,7 +7,7 @@ import { requireHandoffActive } from '../packages/state/src/core/handoff-state.j
 import { Refused } from './refused.js';
 
 /** Only a registered worktree seat can give up or take an agent's role. */
-function worktreeAgent(board, id) {
+function worktreeAgent(board, id, agentById) {
   const agent = agentById(board, id);
   if (!agent || ['coordinator', 'person'].includes(id)) throw new Refused('HANDOFF_WORKTREE', 'run pullboard handoff from a joined agent worktree; the main checkout uses its separate coordinator takeover flow');
   return agent;
@@ -24,11 +19,11 @@ function requireHandoffEngine(board) {
 }
 
 /** Find or create exactly one channel per outgoing seat under the same write lock. */
-export function openHandoff(board, { agentId }) {
+export function openHandoff(board, { agentId }, { atomic, addItem, agentById, logEvent }) {
   return atomic(board, () => {
     requireHandoffEngine(board);
     requireHandoffActive(board, agentId, 'openHandoff', []);
-    const agent = worktreeAgent(board, agentId);
+    const agent = worktreeAgent(board, agentId, agentById);
     const existing = agentHandoff(board, agentId);
     if (existing && !['verified', 'withdrawn'].includes(board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(existing.item).item_status)) return existing;
     const item = addItem(board, { by: agentId, lane: agent.agent_lane, route: 'strong', title: `Hand-off from ${agentId}`,
@@ -40,11 +35,11 @@ export function openHandoff(board, { agentId }) {
 }
 
 /** First incoming seat wins atomically; repeating its own acknowledged takeover adds no fact. */
-export function takeHandoff(board, { agentId, item }) {
+export function takeHandoff(board, { agentId, item }, { atomic, agentById, logEvent, appendFact }) {
   return atomic(board, () => {
     requireHandoffEngine(board);
     requireHandoffActive(board, agentId, 'takeHandoff', []);
-    worktreeAgent(board, agentId);
+    worktreeAgent(board, agentId, agentById);
     const handoff = itemHandoff(board, item);
     if (!handoff || ['verified', 'withdrawn'].includes(board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(item)?.item_status)) throw new Refused('NO_HANDOFF', `#${item} is not an agent hand-off; ask the outgoing agent to run pullboard handoff`);
     if (handoff.outgoing === agentId) throw new Refused('HANDOFF_SELF', 'the incoming agent takes the hand-off from its own new worktree: pullboard handoff --take <id>');

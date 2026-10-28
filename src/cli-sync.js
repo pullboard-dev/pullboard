@@ -78,7 +78,7 @@ export async function retrySync(io) {
   if (local) {
     try { tellLocalKeyDiagnostic(io, local); } catch (error) { await reportQuietly(io, error); }
     // No sync and no lock: hand the relay's work to the machine's sender, and deliver finished baselines here.
-    nudgeRelaySender(local.root, local.file);
+    nudgeRelaySender(local.root, local.file, io.launchRelaySender);
     try { await retryCheckBaselines(io.cwd, io); } catch (error) { await reportQuietly(io, error); }
     return;
   }

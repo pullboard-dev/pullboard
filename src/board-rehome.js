@@ -1,3 +1,5 @@
+import { itemReviewPolicy } from './review-independence.js';
+import { twoTierReviews } from './review-independence.js';
 /** Re-homing facades share the board's ordinary mutations without growing its central store. */
 import {
   itemRedirect as readItemRedirect,
@@ -48,5 +50,5 @@ export function rehomeDestinationItemId(board, sourceBoardId, sourceItemId) {
 
 /** Record the one ordered source-board move and its permanent old-ID redirect [E15]. */
 export function rehomeItem(board, id, options) {
-  return recordRehome(board, id, options, { atomic, boardId, current, itemById, logEvent });
+  return recordRehome(board, id, options, { atomic, boardId, current, itemById, logEvent, itemReviewPolicy, twoTierReviews });
 }

@@ -130,6 +130,10 @@ const CALLBACKS = {
     'gateLease.executionServices.runners.runOnRunner': 'runners.js#runOnRunner',
     'gateLease.executionServices.runners.runOnRunnerAsync': 'runners.js#runOnRunnerAsync',
   },
+  // Explicit item ports preserve these canonical authority and sandbox refusal paths.
+  'reopen-authority.js': { verdictWithdrawalTarget: 'verdict-withdrawal.js#verdictWithdrawalTarget' },
+  'outside-verify.js': { verifyOutsideSandbox: 'sandbox-verify.js#verifyOutsideSandbox' },
+  'item-authors.js': { strictReviewProblem: 'review-independence.js#strictReviewProblem' },
   // Native verification ports retain these exact receipt and projection guards.
   'proof-cli.js': { proofRunReceipt: 'proof-receipts.js#proofRunReceipt' },
   'proof-counters.js': {
@@ -157,7 +161,7 @@ const CALLBACKS = {
  */
 const CAUGHT = {
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
-  'cross-repo-dependencies.js#stateFor': ['board-link-format.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
+  'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   'line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
   'commands/submit.js#submitHere': ['native-flakes.js#observeFailure', 'cli.js#freezer', 'main-red.js#compareMainFailures', 'main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
@@ -570,14 +574,14 @@ test('a broken copy of the declaration fails the check against the code, both wa
 
 test('a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
   for (const [file, pattern] of [
-    ['board-link-format.js', /^export function boardLinkRecord\(value\) \{$/m],
+    ['../packages/kernel/src/core/registry-guards.js', /^export function boardLinkRecord\(value\) \{$/m],
     ['board-link-state.js', /^export function readReceivedBoardState\(board, .*$/m],
   ]) {
     const inForeignReader = editedSource(file, pattern,
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignReader), [], 'only the exact foreign evidence reader is caught as unavailable');
   }
-  const inForeignCaller = editedSource('cross-repo-dependencies.js', /^function stateFor\(board, ref\) \{$/m,
+  const inForeignCaller = editedSource('cross-repo-dependencies.js', /^function stateFor\(board, ref, readReceivedBoardState\) \{$/m,
     "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignCaller).sort(), [
     'MOON_PHASE is raised by claim but not declared there',

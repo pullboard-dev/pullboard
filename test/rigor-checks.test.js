@@ -24,7 +24,7 @@ import { loadDoctrine } from '../src/doctrine.js';
 import { loadConfig } from '../src/config.js';
 import { draftConflictSplits } from '../src/rigor-splits.js';
 import { proposeDoctrine } from '../src/doctrine-rulings.js';
-import { conflictNote } from '../src/trunk-conflict.js';
+import { conflictNote } from '../packages/kernel/src/core/registry-guards.js';
 import { conflictNoteFiles, conflictReport } from '../src/rigor-conflicts.js';
 import { RIGOR_AUTO_ENGINE } from '../src/rigor-auto-engine.js';
 import {

@@ -1,3 +1,4 @@
+import { digestNativePorts } from './digest-native-ports.fixture.js';
 /**
  * pullboard health names every stuck item, why, since when, the next step and who takes it, on a
  * real SQLite board in a real git repo with an injected clock, and never changes either [A6].
@@ -61,7 +62,7 @@ test('health upper bindings retain actual dispatch findings without changing the
   const digest = await dispatchCli(box, box.root, ['digest']);
   assert.equal(digest.code, 0, digest.err);
   for (const finding of expected) assert.ok(digest.document.markdown.includes(finding.title), 'the actual digest CLI retains dispatch health');
-  assert.doesNotThrow(() => readDigest(box.file), 'a root-free digest still needs no health operation');
+  assert.doesNotThrow(() => readDigest(box.file, undefined, digestNativePorts), 'a root-free digest still needs no health operation');
   assert.deepEqual(store.events(box.board), before, 'health observation is read-only');
   assert.throws(() => healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now() }),
     /requires its dispatchHealth observation port/u, 'an omitted port never silently drops findings');

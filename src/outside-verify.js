@@ -1,4 +1,3 @@
-import { checkNeedsBrowser } from './browser-admission.js';
 import { browserFreeChecksEnabled } from './settings.js';
 import { requireOutsideReceipt } from './outside-proof.js';
 /** Outside verification uses the ordinary native verdict authority but never checks out its executable tree. */
@@ -7,22 +6,11 @@ import {
   isClean,
   untracked,
 } from './git.js';
-import {
-  freezer,
-  ordered,
-  resourceAgent,
-  textArg,
-} from './cli.js';
-import { withGateSlot } from './gate.js';
 import { Refused } from './refused.js';
-import { verifyOutsideSandbox } from './sandbox-verify.js';
-import {
-  itemPolicy,
-  requireTrunkMerge,
-} from './trusted-policy.js';
 
 /** Accept only a bound sandbox result; rejection does not execute contributed programs. */
-export async function outsideVerdict(ctx, board, item, me, decision, values, executionServices) {
+export async function outsideVerdict(ctx, board, item, me, decision, values, ports) {
+  const { checkNeedsBrowser, freezer, ordered, resourceAgent, textArg, withGateSlot, verifyOutsideSandbox, itemPolicy, requireTrunkMerge, executionServices } = ports;
   if (decision === 'ACCEPT' && !values.sandbox) throw new Refused('OUTSIDE_SANDBOX_REQUIRED', `outside code cannot be verified on the host; run pullboard verify ${item.item_id} accept --sandbox --note "what you checked"`);
   const policy = itemPolicy(ctx.info.root, item);
   const digest = freezer(ctx, { board })(item).digest;

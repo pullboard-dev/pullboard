@@ -12,7 +12,6 @@ import {
   createHash,
   randomUUID,
 } from 'node:crypto';
-import { requirePersonChannel } from './person.js';
 import {
   gitConfig,
   repoInfo,
@@ -142,7 +141,7 @@ export function blockOwner(audience, info) {
 }
 
 /** Record only the matching completed move's clear, leaving later or unrelated blocks intact. */
-export function clearCompletedBlocks(io, now = io.clock?.now?.() ?? new Date()) {
+export function clearCompletedBlocks(io, { requirePersonChannel }, now = io.clock?.now?.() ?? new Date()) {
   let info;
   try { info = repoInfo(io.cwd); } catch { return; }
   const moveKeys = blockMoveKeys(io);
