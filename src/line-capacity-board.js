@@ -18,8 +18,9 @@ import {
 import { lineWipLimit } from './line-wip-limit.js';
 
 /** Offer the existing eligible review with either the historical ratio or enabled total-cap threshold. */
-export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy = 'off', ratio = 3, runnable = false, routes = ROUTES, omitIds = [], skipIds = [], priority = [] }, nextFor) {
-  const offered = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, omitIds, skipIds, priority });
+export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy = 'off', ratio = 3, runnable = false, routes = ROUTES, omitIds = [], skipIds = [], priority = [], observeIdle = false }, nextFor) {
+  const offered = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, omitIds, skipIds, priority, observeIdle });
+  if (observeIdle && !offered.item) return { item: null, idleReason: offered.idleReason };
   const queue = reviewQueue(board);
   const held = offered.item && reviewHolder(board, offered.item) === agentId;
   if (reviewRoutingEnabled(board) && held) return { item: offered.item, queue, ratio, urgent: 'held-review', held: true };

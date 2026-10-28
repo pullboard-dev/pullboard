@@ -1,3 +1,4 @@
+import { withDerivedFamily } from './family-declaration.js';
 /** Local inbox acknowledgement keeps delivery metadata out of immutable activity history [R2,N26]. */
 import { atomic } from './board.js';
 import { openRequests } from './board-read-auxiliary.js';
@@ -16,7 +17,7 @@ export function inbox(board, agentId, { through, markRead = true } = {}) {
   if (through !== undefined && (!Number.isSafeInteger(through) || through < 0)) {
     throw new Refused('BAD_ACTIVITY_CURSOR', 'the inbox high-water mark is a nonnegative shout id; read inbox again');
   }
-  const agent = board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(agentId);
+  const agent = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(agentId));
   if (!agent) throw new Refused('NO_AGENT', `no agent ${agentId}`);
   const query = workerInboxQuery(board, agent);
   const shouts = board.db.prepare(`${query.sql}${through === undefined ? '' : ' AND shout_id<=?'} ORDER BY shout_id`)

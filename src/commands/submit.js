@@ -28,6 +28,10 @@ import {
 } from '../bar-readiness.js';
 import { barCheckWarning } from '../bar-check.js';
 import { requireSubmitComposition } from '../submit-composition.js';
+import { composeAfterProof } from '../submit-composition.js';
+import { trunkMoveFact } from '../submit-composition.js';
+import { selectAffectedTests } from '../affected-tests.js';
+import { explicitCheckFiles } from '../browser-admission.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import {
@@ -86,6 +90,9 @@ import * as seatCheckout from '../seat-checkout.js';
 import {
   submitPreflight,
 } from '../submit-preflight.js';
+import {
+  refuseUnreviewable,
+} from '../review-reachability.js';
 import {
   changedLines,
   oversizeNote,
@@ -286,7 +293,7 @@ export async function submitHere(ctx, id, infra) {
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   // A trunk checkout can have advanced since the claim; comparing it with itself would bless its own new red test.
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : acceptedMain.commit;
-  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }, { atomic: store.atomic, submit: store.submit }));
+  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }, { atomic: store.atomic, submit: store.submit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }) }));
   const trunk = requireTrunkMerge(root, commit);
   const companion = await withBoard(ctx, async board => {
     if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
@@ -294,7 +301,8 @@ export async function submitHere(ctx, id, infra) {
     }
     return prepareItemPatchSubmit(root, board, held, commit);
   });
-  if (requireComposition) requireSubmitComposition(root, commit, trunk, acceptedMain.commit);
+  // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
+  if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit);
   withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
@@ -355,24 +363,37 @@ export async function submitHere(ctx, id, infra) {
       `when the gate ended, HEAD or a tracked file differed from ${commit.slice(0, 12)}, the commit it started on, so the gate did not end on what you would submit; leave the worktree alone until the gate finishes, then submit again`,
     );
   }
-  const currentTrunk = requireTrunkMerge(root, commit); // The trunk may have moved while the gate ran.
-  const measuredLines = changedLines(root, currentTrunk.commit, commit);
+  let currentTrunk = requireTrunkMerge(root, commit); // The trunk may have moved while the gate ran.
+  // A main that moved through commits touching nothing this proof depends on is merged without a rerun (#1816).
+  let submitted = commit;
+  let trunkMove = null;
+  if (requireComposition && !companion && currentTrunk.commit !== acceptedMain.commit) {
+    const composed = await composeAfterProof(root, { id, proofCommit: commit, proved: acceptedMain.commit, item: held, check: frozenCheck(held),
+      readTrunk: () => requireTrunkMerge(root, commit) }, { selectAffectedTests, explicitCheckFiles });
+    submitted = composed.commit;
+    trunkMove = composed.evidence;
+    currentTrunk = requireTrunkMerge(root, submitted);
+  }
+  const measuredLines = changedLines(root, currentTrunk.commit, submitted);
   const size = measuredLines === null ? undefined : {
-    base: currentTrunk.commit, head: commit, lines: measuredLines, method: SUBMISSION_SIZE_METHOD,
+    base: currentTrunk.commit, head: submitted, lines: measuredLines, method: SUBMISSION_SIZE_METHOD,
   };
-  if (requireComposition) requireSubmitComposition(root, commit, currentTrunk, acceptedMain.commit);
+  if (requireComposition) requireSubmitComposition(root, submitted, currentTrunk, trunkMove ? trunkMove.to : acceptedMain.commit);
   const waivedLines = waived ? waived.map(waiverLine) : [];
   await withBoard(ctx, async (board) => {
-    refuseUnverifiedStack(root, board, store.getItem(board, id), commit, currentTrunk);
+    refuseUnverifiedStack(root, board, store.getItem(board, id), submitted, currentTrunk);
     // The waived run is written to the item's thread before the submission, so no waived proof reads as green.
     if (waived) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof at ${commit.slice(0, 12)} was red and is recorded as waived, not green; every failure is covered by a live person waiver:\n${waivedLines.join('\n')}` }]);
     if (knownMainFailures) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof at ${commit.slice(0, 12)} remains red; known main failures at ${knownMainFailures.main}: ${knownMainFailures.failures.map(row => `${row.file} (${row.name}), open repair #${row.item}`).join('; ')}. The item check passed; no new or unaccounted failure is accepted.` }]);
-    return await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...(infraRecord ? { infra: infraRecord } : {}),
+    const submittedMove = await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit: submitted, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...(infraRecord ? { infra: infraRecord } : {}),
       gateGreen: gate.isGreen && !waived,
       ...(size ? { submissionSize: size } : {}),
       ...(companion ? { companion } : {}),
       submissionProof: { version: 1, files: gate.files, full: gate.full, deferred: gate.deferred, reason: boundedProofReason(gate.reason), ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), ...(knownMainFailures ? { knownMainFailures } : {}) },
       ...(gate.deferred ? { note: gate.deferredFiles ? deferredSelectionNote(gate.deferredFiles) : 'full suite deferred to the landing gate' } : {}) }]);
+    // One fact records the merge and the evidence that the main move touched nothing this proof depends on.
+    if (trunkMove) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: trunkMoveFact(trunkMove) }]);
+    return submittedMove;
   });
   // A large submit still goes through; the note only suggests a chain of smaller items (#1162).
   const sizeNote = oversizeNote(measuredLines, acceptedMain.config.itemSizeBudget);
@@ -383,7 +404,8 @@ export async function submitHere(ctx, id, infra) {
     : waived
     ? `submission proof waived, not green: ${waived.length} failure(s), each covered by a live person waiver; the whole output is in ${gate.log}\n${waivedLines.join('\n')}`
     : submitGateReport(gate);
-  return reportSubmission(ctx, id, commit, { green: gate.isGreen, report, files: gate.files, full: gate.full, deferred: gate.deferred, deferFullFallback: gate.deferFullFallback, ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), reason: gate.reason, check: gate.check,
+  if (trunkMove) ctx.io.say(trunkMoveFact(trunkMove));
+  return reportSubmission(ctx, id, submitted, { green: gate.isGreen, report, files: gate.files, full: gate.full, deferred: gate.deferred, deferFullFallback: gate.deferFullFallback, ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), reason: gate.reason, check: gate.check,
     log: gate.log, profile: gate.profile, profilePath: gate.profilePath, proofLog: gate.proofLog, proofProfilePath: gate.proofProfilePath,
     ...(companion ? { companion } : {}),
     ...(knownMainFailures ? { knownMainFailures } : {}),
