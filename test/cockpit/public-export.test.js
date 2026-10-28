@@ -40,7 +40,7 @@ function command(box, root, ...args) {
 }
 
 test('the declared public filter blocks every ruled kind without echoing its value [N26]', () => {
-  assert.deepEqual(PUBLIC_EXPORT_BLOCKS.text.map(([kind]) => kind), ['machine or host name', 'email', 'secret-shaped string', 'pricing term']);
+  assert.deepEqual(PUBLIC_EXPORT_BLOCKS.text.map(([kind]) => kind), ['machine or host name', 'email', 'secret-shaped string', 'pricing term', 'home path', 'chat or agent session id']);
   const labels = new Set(PUBLIC_EXPORT_BLOCKS.text.map(([kind]) => kind));
   for (const [kind, text] of BLOCKED) {
     assert.throws(() => publicSnapshot({ brief: text }), error => error.code === 'PUBLIC_EXPORT_BLOCKED'

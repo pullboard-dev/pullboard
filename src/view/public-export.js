@@ -1,4 +1,4 @@
-/** Fail closed on public snapshot prose; coordinator rulings 064965a1, 919d562b, f15ecdcb, 5b1543f9 and 8540102d [N26]. */
+/** Fail closed on public snapshot prose; coordinator rulings 064965a1, 919d562b, f15ecdcb, 5b1543f9, 8540102d, a9b48855 and 785d4f8d [N26]. */
 import { Refused } from '../refused.js';
 
 /** The complete public export block list; internal messages are omitted before prose is checked. */
@@ -11,6 +11,8 @@ export const PUBLIC_EXPORT_BLOCKS = Object.freeze({
     ['email', /\b[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+\b/iu],
     ['secret-shaped string', /\b(?:sk-|gh[pousr]_|github_pat_|AKIA)[A-Za-z0-9_-]{8,}|\bBearer\s+[A-Za-z0-9._~+/-]{8,}|\b(?:token|secret|password|api[_ -]?key)\s*[:=]\s*["']?\S{8,}|\b[a-f0-9]{32,}\b|(?<![\w/.:])[A-Za-z0-9+/_-]{40,}={0,2}(?![\w/.])/iu],
     ['pricing term', /\$\s*\d[\d,.]*|\bper\s+month\b|\/month\b|\b(?:pricing|price\s+of|subscription\s+price|acquisition|valuation)\b/iu],
+    ['home path', /(?<![\w/:])(?:file:\/\/)?\/(?:Users|home)\/[^/\s"'<>]+(?:\/[^\s"'<>]*)?/iu],
+    ['chat or agent session id', /(?<![a-f0-9])[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}(?![a-f0-9])/iu],
   ],
 });
 
@@ -49,7 +51,7 @@ const EVENT_IDENTITIES = Object.freeze({
 const DIAGNOSTIC_FIELDS = new Set(('listing boards state events board root id rowAgesAt items agents shouts asked requests decisions decisionQueue needs personRequests '
   + 'personBars personRows personProposals event_detail detail thread history title criterion brief text note reason check commit tree digest policyCommit '
   + 'criterionDigest receipt frozenDigest submissionProof submissionSize base head review trunk checkBaseline main verdict verdicts verdictState spec practice products releaseNotes '
-  + 'source record row rowDecisions specRevisions rigorDrafts sentinelDrafts proofStats ruleCounts config parent signature publicKey agent_id agent_lane model').split(' '));
+  + 'source record row rowDecisions specRevisions rigorDrafts sentinelDrafts proofStats ruleCounts config parent signature publicKey agent_id agent_lane model dashboardLanded').split(' '));
 
 /** Name a projection location without echoing arbitrary object keys, identifiers or filesystem names. */
 function diagnosticPath(path) {
@@ -69,6 +71,7 @@ function structuredIdentity(path, value, eventKind) {
   if (/^(?:listing\/boards\/\*\/id|state\/state\/board|state\/board|events\/board)$/u.test(location)) width = 32;
   if (path.length === 4 && path.slice(0, 3).join('/') === 'state/state/rowAgesAt') width = 40;
   if (/^state\/state\/items\/\*\/(?:commit|merged|verdict\/commit|verdicts\/\*\/commit|checkBaseline\/main)$/u.test(location)) width = 40;
+  if (/^state\/state\/dashboardLanded\/\*\/commit$/u.test(location)) width = 40;
   if (/^state\/state\/(?:shouts|asked)\/\*\/shout_evidence_commit$/u.test(location)) width = 40;
   if (EVENT_PATH.test(path.slice(0, -2).join('/')) && ['detail', 'event_detail'].includes(path.at(-2))) {
     width = EVENT_IDENTITIES[eventKind]?.[path.at(-1)] ?? 0;
@@ -94,6 +97,13 @@ function structuredIdentity(path, value, eventKind) {
 export function publicSnapshot(document, { privateBoard = false } = {}) {
   const blocked = new Set(privateBoard ? [PUBLIC_EXPORT_BLOCKS.private] : []);
   const fields = new Set();
+  /** Check retained keys as prose; only string values at exact native paths can be structured identities. */
+  function inspect(text, path, eventKind, allowIdentity = true) {
+    for (const [kind, pattern] of PUBLIC_EXPORT_BLOCKS.text) {
+      if (allowIdentity && kind === 'secret-shaped string' && structuredIdentity(path, text, eventKind)) continue;
+      if (pattern.test(text)) { blocked.add(kind); fields.add(diagnosticPath(path)); }
+    }
+  }
   /** Traverse every retained API value, including decoded event details and historical thread prose. */
   function visit(value, path = [], eventKind = null) {
     const location = path.join('/');
@@ -107,16 +117,12 @@ export function publicSnapshot(document, { privateBoard = false } = {}) {
       const entries = location === 'state/state/agents/*'
         ? [['agent_id', value.agent_id], ['agent_lane', value.agent_lane], ['model', value.model ?? value.agent_model]]
         : Object.entries(value).filter(([key]) => !proofReceiptPath(path, kind) || !['parentSession', 'runner'].includes(key));
-      return Object.fromEntries(entries.map(([key, entry]) => [key,
-        key === 'event_detail' ? JSON.stringify(visit(detailOf(value), [...path, key], kind)) : visit(entry, [...path, key], kind),
-      ]).filter(([, entry]) => entry !== undefined));
+      return Object.fromEntries(entries.map(([key, entry]) => {
+        inspect(key, [...path, key], kind, false);
+        return [key, key === 'event_detail' ? JSON.stringify(visit(detailOf(value), [...path, key], kind)) : visit(entry, [...path, key], kind)];
+      }).filter(([, entry]) => entry !== undefined));
     }
-    if (typeof value === 'string') {
-      for (const [kind, pattern] of PUBLIC_EXPORT_BLOCKS.text) {
-        if (kind === 'secret-shaped string' && structuredIdentity(path, value, eventKind)) continue;
-        if (pattern.test(value)) { blocked.add(kind); fields.add(diagnosticPath(path)); }
-      }
-    }
+    if (typeof value === 'string') inspect(value, path, eventKind);
     return value;
   }
   const result = visit(document);
