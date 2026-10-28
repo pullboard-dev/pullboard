@@ -68,6 +68,10 @@ try {
   await assert.rejects(takeResource({...base,agent:'runner-only-waiter',runnerOnly:true,
     browser:mode==='incompatible',browserCapacityProvider:()=>1,shortEligible:true,shortCapacityProvider:()=>1,
     runnerProvider:()=>mode==='empty'?[]:[runner],runnerWaitMs:80,runnerDeadlineAt:cutoff,
+    memory:()=>{
+      waited ||= listResources({scope:'machine'}).some(row=>row.line.some(waiter=>waiter.agent==='runner-only-waiter'));
+      return null;
+    },
     onWait:state=>{if(!state.admitted)waited=true;}}),error=>error.code==='RUNNER_WAIT_DEADLINE'
       && error.message.includes(new Date(cutoff).toISOString())
       && error.message.includes(mode==='empty'?'no registered runner':mode==='busy'?'private-runner: busy':'browser capacity required'));
