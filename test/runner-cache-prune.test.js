@@ -25,9 +25,7 @@ after(e2e.cleanup);
 
 /** Execute actual private Git with complete diagnostics and normal fixture isolation. */
 function git(root, args, input) {
-  const result = runFixtureGit(args, { cwd: root, input, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr);
-  return result.stdout.trim();
+  return runFixtureGit(args, { cwd: root, input, encoding: 'utf8' });
 }
 
 /** Import a deterministic real commit chain, not cache/proof records or operational history. */
@@ -135,9 +133,7 @@ test('native cache lease serializes peers and Git CAS refuses a changed ref with
       git(root, ['update-ref', name, box.commits.at(-1)]);
       changed = true;
     }
-    const result = runFixtureGit(args, { cwd: root, input, encoding: 'utf8' });
-    if (result.status !== 0) throw new Error(result.stderr);
-    return result.stdout.trim();
+    return runFixtureGit(args, { cwd: root, input, encoding: 'utf8' });
   };
   await assert.rejects(pruneSourceCache({ ...box, lease, roots: [box.commits.at(-1)], limit: 2, git: conflictingGit }), /cannot lock ref|expected/u);
   assert.equal(changed, true);
