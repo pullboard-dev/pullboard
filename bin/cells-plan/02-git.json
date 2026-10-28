@@ -7,7 +7,7 @@
  "placedBy": {
   "seed": 5,
   "rule": 4,
-  "imports": 4
+  "imports": 7
  },
  "paths": [
   ["src/committed-file-reader.js","packages/git/src/shell/committed-file-reader.js","seed"],
@@ -22,7 +22,10 @@
   ["src/source-advance-nudge.js","packages/git/src/shell/source-advance-nudge.js","imports"],
   ["src/trunk-revision.js","packages/git/src/shell/trunk-revision.js","seed"],
   ["src/worktree.js","packages/git/src/shell/worktree.js","seed"],
-  ["test/git-provenance.test.js","packages/git/tests/git-provenance.test.js","seed"]
+  ["test/git-provenance.test.js","packages/git/tests/git-provenance.test.js","seed"],
+  ["src/git-child-selectors.js","packages/git/src/core/git-child-selectors.js","imports"],
+  ["src/git-landing-batches.js","packages/git/src/core/git-landing-batches.js","imports"],
+  ["src/git-trunk-ref.js","packages/git/src/shell/git-trunk-ref.js","imports"]
  ],
  "reexports": [
   "src/committed-file-reader.js",
