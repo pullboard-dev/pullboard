@@ -14,6 +14,7 @@ import {
 import { tryGit } from './git.js';
 import { proofFields } from './proof-provenance.js';
 import { environmentProblem } from './config.js';
+import { runTimingFields } from './run-timing.js';
 
 /** The folder beside the board that holds gate run receipts. */
 export const RECEIPT_FOLDER = 'gate-receipts';
@@ -98,7 +99,13 @@ function checkedFields(value) {
   const hasCollection = Object.hasOwn(value ?? {}, 'collection');
   if (hasCollection && (version !== 1 || !['land', 'release'].includes(value.kind))) throw bad();
   const collection = hasCollection ? collectionFields(value.collection) : null;
-  const kinds = version === 2 ? ['check', 'submit', 'verdict'] : ['gate', 'land', 'submit', 'release'];
+  const hasTiming = Object.hasOwn(value ?? {}, 'timing');
+  const hasFull = Object.hasOwn(value ?? {}, 'full');
+  const timing = hasTiming ? runTimingFields(value.timing) : null;
+  if (value?.kind === 'main-red' && (!hasTiming || value.full !== false || timing?.compareMs === null || !timing)) throw bad();
+  if (hasTiming !== hasFull || hasTiming && (version !== 1 || !timing
+    || !(value.full === null || typeof value.full === 'boolean'))) throw bad();
+  const kinds = version === 2 ? ['check', 'submit', 'verdict'] : ['gate', 'land', 'submit', 'release', ...(hasTiming ? ['suite', 'main-red'] : [])];
   if (!value || ![1, 2].includes(version) || version === 2 && !proof || !ID.test(value.id ?? '') || !kinds.includes(value.kind)
     || !(version === 2 && value.tree === null) && !SHA.test(value.tree ?? '')
     || !(version === 2 && value.head === null) && !SHA.test(value.head ?? '')
@@ -116,7 +123,8 @@ function checkedFields(value) {
   return { version, id: value.id, kind: value.kind, tree: value.tree, head: value.head, main: value.main, command: value.command,
     green: value.green, failures, load: load === null ? null : { average: [...load.average], cpus: load.cpus, freeMB: load.freeMB }, at: value.at,
     ...(proof ? { proof } : {}), ...(Object.hasOwn(value, 'environment') ? { environment: value.environment } : {}),
-    ...(hasCollection ? { collection } : {}), ...(hasParticipation ? { participationDigest: value.participationDigest } : {}) };
+    ...(hasCollection ? { collection } : {}), ...(hasParticipation ? { participationDigest: value.participationDigest } : {}),
+    ...(hasTiming ? { full: value.full, timing } : {}) };
 }
 
 /**

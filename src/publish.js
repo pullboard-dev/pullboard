@@ -93,7 +93,7 @@ export async function publishTrunk({ root, board, config, say, onWait, onFailure
     // Push from the worktree that ran the suite, so the pre-push hook reads that run's green stamp instead of rerunning it.
     if (gate.isGreen) {
       // Landing depends on the full-suite verdict, independently of whether the subsequent network push succeeds.
-      writeFileSync(stateFile(root), JSON.stringify({ green: head, published }) + '\n');
+      writeFileSync(stateFile(root), JSON.stringify({ green: head, published, receipt: gate.receiptId ?? null }) + '\n');
       const pushed = tryGit(directory, ['push', remote, `HEAD:refs/heads/${branch}`]);
       if (pushed.status !== 0) throw new Refused('LAND_PUSH', `the landing push failed: ${pushed.stderr || pushed.stdout}; inspect the remote and hooks, then run pullboard publish again`);
     }
@@ -102,7 +102,7 @@ export async function publishTrunk({ root, board, config, say, onWait, onFailure
     if (existsSync(directory)) rmSync(directory, { recursive: true, force: true });
   }
   if (gate.isGreen) {
-    writeFileSync(stateFile(root), JSON.stringify({ published: head }) + '\n');
+    writeFileSync(stateFile(root), JSON.stringify({ published: head, receipt: gate.receiptId ?? null }) + '\n');
     say(`published ${branch} at ${head.slice(0, 12)}: the whole suite passed`);
     return { head, published: true, red: [] };
   }

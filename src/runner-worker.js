@@ -279,6 +279,7 @@ async function readSpec() {
   for (const field of ['item', 'kind']) {
     if (value[field] !== undefined && typeof value[field] !== 'string') throw new Error('invalid work specification');
   }
+  if (value.timingRunId !== undefined && !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(value.timingRunId)) throw new Error('invalid timing invocation');
   if (value.testResults !== undefined && (!Array.isArray(value.testResults.inputKeys)
     || value.testResults.inputKeys.some(key => typeof key !== 'string' || !/^[0-9a-f]{64}$/u.test(key))
     || !(value.testResults.packet === null || typeof value.testResults.packet === 'string')
@@ -1052,6 +1053,7 @@ async function main() {
       // An audit-coverage run always executes every file, whatever the exchange holds.
       ...(spec.auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('./audit-coverage-reporter.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
       PULLBOARD_TEST_CACHE_TOOLING: spec.tooling.sha256,
+      ...(spec.timingRunId ? { PULLBOARD_TIMING_RUN_ID: spec.timingRunId } : {}),
       PULLBOARD_LANDING_RUN: spec.landing === true ? '1' : '0', [api.BROWSER_REFUSAL_FILE_ENV]: browserRefusal, ...(typeof spec.browserByLaunch === 'boolean' ? { PULLBOARD_TEST_BROWSER_BY_LAUNCH: spec.browserByLaunch ? '1' : '0' } : {}), PULLBOARD_LANDING_WAIVERS: JSON.stringify(spec.landing === true ? spec.waivers ?? [] : []) };
     process.stderr.write(`PULLBOARD_RUNNER_READY ${spec.id}\n`);
     phases.mark('commandMs');
