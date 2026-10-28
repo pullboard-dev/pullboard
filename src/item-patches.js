@@ -108,19 +108,20 @@ const PREVIEWED = Symbol('item patch author preview');
  * The author is written inside a transaction that always rolls back, so nothing is recorded; the ordered move
  * keeps its own deterministic check against every registered seat so replay never reads local heartbeats [C7,V4].
  */
-export function refuseLiveAttach(board, item, { key, author }, { atomic, review }) {
+export function refuseLiveAttach(board, item, { key, author, commit, patch = '' }, { atomic, review }) {
   try {
     atomic(board, () => {
       const patches = records(board, item.item_id);
       if (!patches.some(record => record.key === key)) {
-        patches.push({ key, commit: item.item_commit ?? 'preview', source: { commit: item.item_commit ?? 'preview' }, patch: '', digest: '', author: authorIdentity(board, author), active: true });
+        patches.push({ key, commit: commit ?? item.item_commit, source: { commit: commit ?? item.item_commit }, patch, digest: hash(patch), author: authorIdentity(board, author), active: true });
         save(board, item.item_id, patches);
       }
       refuseUnreviewable(board, asSubmitted(board, item), review);
       throw PREVIEWED;
     });
   } catch (error) {
-    if (error !== PREVIEWED) throw error;
+    // Any other refusal (a stale source, a bad patch) belongs to the ordered move that runs next and reports it by its own code.
+    if (error !== PREVIEWED && error?.code === 'NO_ELIGIBLE_REVIEWER') throw error;
   }
 }
 /** Check exact bounded git diff bytes; application/path safety is enforced by the composition consumer. */
