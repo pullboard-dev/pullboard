@@ -16,10 +16,10 @@ import {
   createHash,
 } from 'node:crypto';
 import {
-  mkdirSync,
+  existsSync,
 } from 'node:fs';
 import {
-  existsSync,
+  mkdirSync,
 } from 'node:fs';
 import {
   readFileSync,
@@ -271,10 +271,12 @@ async function audit(root, directory, job, write, options) {
 export async function runMainAudits(root, token, { scheduled = false, forceFull = false } = {}) {
   const info = repoInfo(root);
   if (!info.isMain || !codeIsFromMain() || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
-  const directory = mainAuditDirectory(info); mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const directory = mainAuditDirectory(info);
+  if (!existsSync(join(directory, 'activation.json'))) return;
   const activation = readMainAudit(join(directory, 'activation.json'));
   if (!activation) return; // No implicit historical barrier or retroactive full-suite queue.
   if (activation.version !== 1 || !Number.isSafeInteger(activation.afterEventId) || activation.afterEventId < 0) throw new Error('invalid main audit activation');
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
   const schedule = readMainAudit(join(directory, 'schedule.json'));
   if (scheduled && (!schedule || schedule.dueAt === null || Date.parse(schedule.dueAt) > Date.now())) {
     if (schedule?.dueAt) await scheduleMainAudit(root, directory, schedule.dueAt);

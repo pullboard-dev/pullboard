@@ -11,6 +11,11 @@ import { repoInfo } from './git.js';
 export async function nudgeSourceAdvances(root, { workerUrl }) {
   const info = repoInfo(root);
   if (!info.isMain || !codeIsFromMain()) return null;
+  // Decide from the same readonly native snapshot before spawning an unjoined child.
+  // The worker repeats this check and still takes its normal serialized snapshot for real work.
+  try {
+    if (!(await import('./source-advance-worker.js')).hasSourceAdvanceJobs(root, info)) return null;
+  } catch { /* Unknown state keeps the normal worker path, which records incomplete work. */ }
   const env = gitChildEnv(root);
   for (const key of ['PULLBOARD_GATE_SLOT_HELD','PULLBOARD_GATE_SLOT_POOL','PULLBOARD_GATE_SLOT_TOKEN',
     'PULLBOARD_BROWSER_SLOT_HELD','PULLBOARD_CHECKOUT_SESSION_TOKEN']) delete env[key];

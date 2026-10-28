@@ -2,8 +2,9 @@
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -11,6 +12,10 @@ import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { flakeSource, observeNativeFailure } from '../src/native-flakes.js';
 import * as store from '../src/board.js';
 import { land } from '../src/land.js';
+import { nudgeMainAudit } from '../src/main-audit-nudge.js';
+import { nudgeSourceAdvances } from '../src/source-advance-nudge.js';
+import { runMainAudits } from '../src/main-audit-worker.js';
+import { runSourceAdvances } from '../src/source-advance-worker.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TITLE = 'a controlled intermittent assertion [C7]';
@@ -57,6 +62,24 @@ function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = false } 
   git('add', '-A'); git('commit', '-q', '-m', 'chore: prepare private flake fixture');
   return { root, scratch, env, git, cli, cliAt, counter, lane: 'build' };
 }
+
+test('empty automatic wakes leave no advisory state in a private repository [C7,H16]', async t => {
+  const box = flakyProject(t);
+  const { repoInfo } = await import('../src/git.js');
+  const pullboard = join(repoInfo(box.root).commonDir, 'pullboard');
+  assert.equal(await nudgeSourceAdvances(box.root, { workerUrl: new URL('../bin/source-advance.js', import.meta.url) }), null,
+    'the foreground skips spawning a source worker when its exact native snapshot has no work');
+  assert.equal(await nudgeMainAudit(box.root), null,
+    'the foreground skips spawning an audit worker before explicit activation');
+  await Promise.all([
+    runSourceAdvances(box.root, randomUUID()),
+    runMainAudits(box.root, randomUUID()),
+  ]);
+  assert.equal(existsSync(join(pullboard, 'source-advances')), false,
+    'a source worker with no eligible submissions leaves no lock or wake files');
+  assert.equal(existsSync(join(pullboard, 'main-audits')), false,
+    'an audit worker without the explicit activation leaves no directory');
+});
 
 /** Keep the exact same test identity on main and a candidate, with independently controlled behavior. */
 function writeTarget(root, counter, alwaysPass = false, mutate = false) {

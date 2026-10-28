@@ -85,6 +85,11 @@ function snapshot(root, info) {
   });
 }
 
+/** Exact readonly eligibility probe used by the foreground nudge before it spawns a worker. */
+export function hasSourceAdvanceJobs(root, info = repoInfo(root)) {
+  return snapshot(root, info).length > 0;
+}
+
 /** Signal incomplete work once through the ordinary item thread without a self-shout or fabricated authority. */
 async function incomplete(write, file, job, reason) {
   const saved = readMainAudit(file) ?? {};
@@ -161,6 +166,11 @@ async function advance(root, directory, job, write) {
 export async function runSourceAdvances(root, token) {
   const info = repoInfo(root);
   if (!info.isMain || !codeIsFromMain() || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
+  // A wake with no source obligations must be observationally inert. A successful CLI
+  // command can start this worker just before its caller removes a private fixture repo;
+  // creating advisory state before discovering an empty snapshot races that cleanup.
+  // The serialized snapshot below remains authoritative for every real job.
+  if (!hasSourceAdvanceJobs(root, info)) return;
   const directory = sourceAdvanceDirectory(info); mkdirSync(directory, { recursive: true, mode: 0o700 });
   const ownerFile = join(directory,'owner.json'), wakeFile = join(directory,'wake.json'), lock = join(directory,'owner.guard.sqlite');
   const acquired = await withFileLock(lock, () => {
