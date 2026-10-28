@@ -2,7 +2,7 @@
  "version": 1,
  "item": 1473,
  "rfc": "docs/rfcs/0006-cells.md",
- "base": "ae8489468958820fac9607a57395bfc764732e5f",
+ "base": "4869a2ea1335ada80c263f40b0093ad9984322eb",
  "seed": {
   "source": "pullboard-research/2026-10-26-cells/dryrun/raw/map.json",
   "sha256": "cfd97ccc7a130179d9166536653ffb96301bbb21f0c50d248b8aca4e4d53cb7e",
