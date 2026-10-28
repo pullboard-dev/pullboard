@@ -43,9 +43,21 @@ function inputScript() {
       evidence.actions.push(sample);
       const pane = document.querySelector('[data-pane="' + sample.tab + '"]');
       let revision = 0, previous = null;
+      sample.hiddenMutations = [];
+      const paneObservers = Object.entries({ spec: '#spec-list', doctrine: '#doctrine-list', items: '#chain',
+        roadmap: '#roadmap', dashboard: '#dashboard', shouts: '#feed', activity: '#activity' }).map(([tab, selector]) => {
+        const watched = document.querySelector(selector);
+        const monitor = new MutationObserver(() => {
+          if (tab !== sample.tab && !sample.hiddenMutations.includes(tab)) sample.hiddenMutations.push(tab);
+        });
+        if (watched) monitor.observe(watched, { childList: true, subtree: true, characterData: true });
+        return monitor;
+      });
+      /** Stop only the observers created for this input after its measurement settles. */
+      const finish = () => { observer.disconnect(); for (const monitor of paneObservers) monitor.disconnect(); };
       const observer = new MutationObserver(() => { revision++; });
       if (pane) observer.observe(pane, { childList: true, subtree: true, characterData: true });
-      const timeout = setTimeout(() => { sample.ready = false; observer.disconnect(); }, 60000);
+      const timeout = setTimeout(() => { sample.ready = false; finish(); }, 60000);
       /** End after the actual target is visible and unchanged across two painted frames. */
       function frame() {
         if (sample.ready === false) return;
@@ -56,7 +68,7 @@ function inputScript() {
         const ready = Boolean(view.tab === sample.tab && pane && !pane.hidden && content && box.width > 0 && box.height > 0);
         const key = ready ? [revision, box.width, box.height].join(':') : null;
         if (key && key === previous) {
-          sample.ready = true; sample.end = performance.now(); observer.disconnect(); clearTimeout(timeout); return;
+          sample.ready = true; sample.end = performance.now(); finish(); clearTimeout(timeout); return;
         }
         previous = key;
         requestAnimationFrame(frame);
