@@ -386,7 +386,17 @@ async function runMain(argv, streams) {
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
     if (advanceAfterCommand) {
-      try { await (await import('./source-advance-nudge.js')).nudgeSourceAdvances(io.cwd, { workerUrl: new URL('../bin/source-advance.js', import.meta.url) }); }
+      try {
+        let eligible = true;
+        try {
+          const { landingLeaseState } = await import('./landing-lease.js');
+          eligible = (await import('./source-advance-worker.js')).hasSourceAdvanceJobs(io.cwd, { landingLeaseState });
+        }
+        catch { /* Unknown state keeps the normal worker path, which records incomplete work. */ }
+        await (await import('./source-advance-nudge.js')).nudgeSourceAdvances(io.cwd, {
+          workerUrl: new URL('../bin/source-advance.js', import.meta.url), eligible,
+        });
+      }
       catch { io.err('pullboard: the automatic main-merge worker could not start; run pullboard sentinel run --health-only to retry'); }
     }
     if (auditAfterCommand) {
