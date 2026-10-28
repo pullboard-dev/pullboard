@@ -1,3 +1,7 @@
+import { CAPACITY_VERSION } from './capacity-counter.js';
+import { emptyCapacityCounter } from './capacity-counter.js';
+import { appendCapacityCounter } from './capacity-counter.js';
+import { refreshCapacity } from './capacity-store.js';
 import { appendReportCounter } from './flow-report-counter.js';
 import { emptyReportCounter } from './flow-report-counter.js';
 import { reportEvent } from './stats-flow-report.js';
@@ -10,6 +14,7 @@ import { appendRuleProof } from './rule-proof-index.js';
 
 export const PROOF_COUNTER_PREFIX = 'local:proof-stats:';
 const PREFIX = `${PROOF_COUNTER_PREFIX}v2:`;
+const REPLAYING = new WeakSet();
 
 /** Encode non-finite timestamps with external paths, so user detail objects cannot collide with markers. */
 function encode(value) {
@@ -114,6 +119,7 @@ export function appendProofCounter(board, event) {
   appendRigorCounter(board, event);
   const summary = proofCounter(board, 'summary') ?? emptySummary();
   ensureReportCounters(board, summary.last);
+  ensureCapacityCounters(board, summary.last);
   board.onProofStatsEvent?.(event);
   let detail;
   try { detail = JSON.parse(event.event_detail); }
@@ -122,10 +128,11 @@ export function appendProofCounter(board, event) {
   const at = Date.parse(event.event_at);
   if (!Number.isFinite(at)) summary.invalid = true;
   summary.last = event.event_id;
-  if (summary.invalid) { put(board, 'summary', summary); return; }
+  if (summary.invalid) { put(board, 'summary', summary); put(board, 'capacity-summary', { ...emptyCapacityCounter(), invalid: true, last: event.event_id }); return; }
   if (summary.firstEventAt === null || at < Date.parse(summary.firstEventAt)) summary.firstEventAt = event.event_at;
   if (summary.lastEventAt === null || at >= Date.parse(summary.lastEventAt)) summary.lastEventAt = event.event_at;
   appendReportCounter(event, detail, at, key => proofCounter(board, key), (key, value) => put(board, key, value));
+  appendCapacityCounter(event, detail, at, key => proofCounter(board, key), (key, value) => put(board, key, value));
   const key = `item:${event.item_id}`;
   const item = proofCounter(board, key) ?? { id: event.item_id, flow: { id: event.item_id, lane: 'unknown' } };
   const contribution = countItem(summary, item, event, detail);
@@ -150,16 +157,54 @@ export function appendProofCounter(board, event) {
   }
   appendRuleProof(board, event, detail, key => proofCounter(board, key), (key, value) => put(board, key, value));
   put(board, 'summary', summary);
+  if (!REPLAYING.has(board)) refreshCapacityCache(board);
+}
+
+/** Refresh the derived forecast using bounded indexed sample dates, never native history. */
+function refreshCapacityCache(board, options) {
+  refreshCapacity(board, key => proofCounter(board, key), (key, value) => put(board, key, value),
+    (kind, from, to) => kind !== 'capacity-sample' ? proofCounterRows(board, kind) : board.db.prepare(
+      'SELECT meta_value FROM board_meta WHERE meta_key>=? AND meta_key<? ORDER BY meta_key')
+      .all(`${PREFIX}capacity-sample:${new Date(from).toISOString().slice(0, 10)}`, `${PREFIX}capacity-sample:${new Date(to).toISOString().slice(0, 10)}`)
+      .map(row => decode(row.meta_value)), options);
+}
+
+/** Optional capacity migration has its own cursor so older writers cannot silently omit events. */
+function ensureCapacityCounters(board, until) {
+  let summary = proofCounter(board, 'capacity-summary');
+  if (!summary || summary.version !== CAPACITY_VERSION) {
+    board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PREFIX}capacity-*`);
+    summary = emptyCapacityCounter(); put(board, 'capacity-summary', summary);
+  }
+  if (summary.last >= until || summary.invalid) return;
+  const query = board.db.prepare('SELECT * FROM event WHERE event_id>? AND event_id<=? ORDER BY event_id LIMIT 256');
+  let cursor = summary.last;
+  while (true) {
+    const batch = query.all(cursor, until);
+    if (!batch.length) return;
+    for (const event of batch) {
+      let detail;
+      try { detail = JSON.parse(event.event_detail); } catch { detail = null; }
+      const at = Date.parse(event.event_at);
+      if (detail === null || !Number.isFinite(at)) { put(board, 'capacity-summary', { ...summary, invalid: true }); return; }
+      appendCapacityCounter(event, detail, at, key => proofCounter(board, key), (key, value) => put(board, key, value));
+      cursor = event.event_id;
+    }
+  }
 }
 
 /** Fully consume bounded read batches before writing shards, including on Node22.13's SQLite API. */
 function replayProofTail(board, cursor) {
-  const read = board.db.prepare('SELECT * FROM event WHERE event_id>? ORDER BY event_id LIMIT 256');
-  while (true) {
-    const batch = read.all(cursor);
-    if (!batch.length) return;
-    for (const event of batch) { appendProofCounter(board, event); cursor = event.event_id; }
-  }
+  const nested = REPLAYING.has(board);
+  REPLAYING.add(board);
+  try {
+    const read = board.db.prepare('SELECT * FROM event WHERE event_id>? ORDER BY event_id LIMIT 256');
+    while (true) {
+      const batch = read.all(cursor);
+      if (!batch.length) break;
+      for (const event of batch) { appendProofCounter(board, event); cursor = event.event_id; }
+    }
+  } finally { if (!nested) REPLAYING.delete(board); }
 }
 
 /** Reset only the optional report when its representation changes; preserve established proof shards. */
@@ -205,16 +250,20 @@ export function rebuildProofCounters(board) {
   put(board, 'summary', emptySummary());
   resetReportCounters(board);
   replayProofTail(board, 0);
+  ensureCapacityCounters(board, proofCounter(board, 'summary').last);
+  refreshCapacityCache(board, { force: true });
 }
 
 /** Catch up an older writer once; ordinary current-writer appends then decode only their new event. */
-export function ensureProofCounters(board) {
+export function ensureProofCounters(board, { refresh = true } = {}) {
   const { ensureRigorCounters } = board.runtimePorts.verification;
   ensureRigorCounters(board);
   const summary = proofCounter(board, 'summary');
   if (!summary) { rebuildProofCounters(board); return; }
   ensureReportCounters(board, summary.last);
+  ensureCapacityCounters(board, summary.last);
   replayProofTail(board, summary.last);
+  if (refresh) refreshCapacityCache(board);
 }
 
 /** Readers never take a write lock to warm or repair a derived cache. */
