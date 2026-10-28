@@ -49,10 +49,11 @@ const root = ${JSON.stringify(box.repo)};
 const view = await serveView({ port: 0, projectRoot: root });
 try {
   const link = new URL(view.url);
-  const page = await fetch(link);
+  const headers = { 'x-pullboard-key': link.searchParams.get('k') };
+  const page = await fetch(link.origin + '/', { headers });
   assert.equal(page.status, 200);
   assert.match(await page.text(), /<html/);
-  const response = await fetch(link.origin + '/api/v1/boards', { headers: { 'x-pullboard-key': link.searchParams.get('k') } });
+  const response = await fetch(link.origin + '/api/v1/boards', { headers });
   assert.equal(response.status, 200);
   assert.deepEqual((await response.json()).boards.map(board => board.root), [root]);
 } finally { await view.close(); }
