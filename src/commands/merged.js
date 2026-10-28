@@ -1,7 +1,11 @@
 /** The pullboard merged command, in its own module so an item adding another command never edits these lines. */
 import { warnMainMoved } from '../main-moved-warning.js';
 import * as store from '../board.js';
+import { mainPolicy } from '../trusted-policy-read.js';
+import { prepareTrainLanding } from '../train-landing.js';
+import { COORDINATOR } from '../config.js';
 import {
+  codeIsFromMain,
   contains,
   mainCheckout,
   patchId,
@@ -47,9 +51,11 @@ export async function run(io, { first, second, values }) {
   if (recovered) {
     io.recordedMove = true;
     for (const event of recovered.events) io.onEvent?.(event);
-    const commit = recovered.move.args[1].commit;
-    io.result?.({ id: idArg(first), commit });
-    io.say(`#${first} merged as ${commit.slice(0, 12)}`);
+    const train = recovered.move.operation === 'recordTrainLanding' ? recovered.move.args[0] : null;
+    const commit = train ? train.batch.tip : recovered.move.args[1].commit;
+    const ids = train ? train.batch.items.map(item => item.id) : [idArg(first)];
+    io.result?.({ id: idArg(first), commit, ...(train ? { ids, batch: train.batch.id, receiptId: train.receipt.id } : {}) });
+    io.say(`${ids.map(id => `#${id}`).join(', ')} merged as ${commit.slice(0, 12)}`);
     await refreshMap(ctx, io, board, commit);
     await relayCommandReceiptReported(ctx.info.root, recovered.move.id);
     return 0;
@@ -57,6 +63,21 @@ export async function run(io, { first, second, values }) {
   const commit = resolveCommit(ctx.info.root, second ?? '');
   if (!commit) throw new Refused('NO_COMMIT', `no commit "${second ?? ''}" in this repo`);
   const id = idArg(first);
+  if (values['gate-receipt'] !== undefined || mainPolicy(ctx.info.root).config.landing?.requireReceipts === true) {
+    if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the primary coordinator records a train envelope');
+    const ids = values.items === undefined ? [id] : String(values.items).split(',').map(value => idArg(value.trim()));
+    if (!ids.includes(id)) throw new Refused('USAGE', '--items must include the first named item');
+    const request = prepareTrainLanding(ctx.info.root, board, ids, commit, values['gate-receipt']);
+    if (codeIsFromMain()) {
+      const afterEventId = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
+      await (await import('../main-audit-state.js')).activateMainAudits(ctx.info.root, afterEventId, store.boardId(board));
+    }
+    const batch = await ordered(ctx, board, 'recordTrainLanding', [request]);
+    io.result?.({ id, ids, commit, batch: batch.id, receiptId: request.receipt.id });
+    io.say(`${ids.map(value => `#${value}`).join(', ')} merged as ${commit.slice(0, 12)}`);
+    await refreshMap(ctx, io, board, commit);
+    return 0;
+  }
   const note = (textArg(io, values, 'note') ?? '').trim();
   const item = store.getItem(board, id);
   if (item.item_status === 'verified') {

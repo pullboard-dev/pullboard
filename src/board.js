@@ -15,6 +15,7 @@ import {
   liveRouteProblem,
 } from './routing-presence.js';
 import { releaseClaim } from './release-claim.js';
+export { recordTrainLanding } from './record-train-landing.js';
 import { REFERENCE_ENGINE } from './reference-engine.js';
 import { validateReferences } from './reference-authors.js';
 import {

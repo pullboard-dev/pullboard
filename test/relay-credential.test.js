@@ -88,11 +88,14 @@ test('every current operation selects its native actor credential without a seco
     // A gate run with no receipt from this machine's own gate is refused before it reaches transport.
     // An automatic source advance, like a gate receipt, requires private native origin custody before transport.
     if (operation === 'advanceItemSource') return { operation, args, kind, sent: false, expected: 'SOURCE_ADVANCE_STALE' };
+    if (operation === 'recordTrainLanding') return { operation, args: [{ agentId: 'coordinator',
+      batch: { root: box.root, items: [{ id: 999999 }], tip: 'a'.repeat(40) } }], kind, sent: false, expected: 'LAND_RECEIPT_REQUIRED' };
     if (operation === 'recordProofRun') return { operation, args, kind, sent: false, expected: 'PROOF_RUN_UNBOUND' };
     if (operation === 'recordGateRun') return { operation, args, kind, sent: false, expected: 'GATE_RUN_UNBOUND' };
     return { operation, args, kind, ...(kind === 'person' ? { sent: false } : {}) };
   });
   cases.push(
+    { operation: 'recordTrainLanding', args: [{}, { agentId: actor }], kind: 'agent', sent: false, expected: 'COORDINATOR_ONLY' },
     { operation: 'fileTypedRequest', args: [{ verb: 'hold', itemId: 999999, cause: 'routing-assignment' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'answerTypedRequests', args: [{ answers: [{ requestId: 999999, outcome: 'declined', note: 'missing actor' }] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'requestCompanion', args: [{ parentId: 999999, lane: box.lane, key: 'missing-actor', title: 'Missing actor' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },

@@ -16,6 +16,7 @@ import { submitFixture } from './board-submit-fixture.js';
 import { seedOutside, seedLandingObservations, seedMembership, seedAdministrative, seedBatch, seedCoordinatorAuthority, seedSpecOutcomes, seedBarSignature, seedCurrentOperations, seedPersonSigning } from './relay-parity-extra-seeds.js';
 import { seedTypedRequests } from './relay-parity-typed-requests.js';
 import { seedSourceAdvance } from './relay-parity-source-advance.js';
+import { seedNativeTrain } from './relay-parity-train.js';
 import { seedItemPatches } from './relay-parity-item-patches.js';
 import { syntheticFlakeObservation } from './flake-observation-fixture.js';
 
@@ -60,6 +61,7 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
     await seedTypedRequests(context);
     await seedStaleState(context);
     await seedBatch(context);
+    await seedNativeTrain(context);
     await seedSpecOutcomes(context);
     await seedCurrentOperations(context);
     await seedBarSignature(context);

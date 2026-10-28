@@ -31,6 +31,7 @@ import { registryProblems } from './move-registry-invariants.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
 import { historyProblems } from './move-registry-history.js';
 import { installRegistryMergeCase } from './move-registry-merge-cases.js';
+import { TRAIN_LANDING_ENGINE } from '../src/train-landing-engine.js';
 
 const SNAPSHOT = JSON.parse(readFileSync(new URL('./move-registry-baseline.json', import.meta.url), 'utf8'));
 const CONSUMERS = ['src/engine.js', 'src/relay-sender.js', 'src/next-step-words.js'];
@@ -88,6 +89,13 @@ test('live registry invariants and historical actors, order and SQLite replay ho
   assert.equal(relayMoveActor({ operation: 'rehomeItem', args: [1, { agentId: 'source' }] }), 'source');
   assert.equal(relayMoveActor({ operation: 'applyRehomeItem', args: [{}, { destinationAgentId: 'destination' }] }), 'destination');
   for (const operation of REHOME_OPERATIONS) assert.equal(minimumMoveEngine(operation, []), PRIVATE_REHOME_ENGINE, `${operation} uses the declared re-home floor`);
+  assert.equal(ENGINE_OPERATIONS.filter(operation => operation === 'recordTrainLanding').length, 1);
+  assert.equal(MOVE_REGISTRY.recordTrainLanding.engine, TRAIN_LANDING_ENGINE);
+  assert.equal(MOVE_REGISTRY.recordTrainLanding.itemIdFirstArgument, false);
+  assert.equal(minimumMoveEngine('recordTrainLanding', []), TRAIN_LANDING_ENGINE);
+  assert.equal(relayMoveActor({ operation: 'recordTrainLanding', args: [{ agentId: 'coordinator' }] }), 'coordinator');
+  assert.equal(relayMoveActor({ operation: 'recordTrainLanding', args: [{}, { agentId: 'wrong-position' }] }), null);
+  assert.equal(relayMoveActor({ operation: 'recordTrainLanding', args: [] }), null);
   assert.equal(relayMoveActor({ operation: 'toString', args: [] }), null, 'object prototype names are not moves');
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-registry-replay-'));
   const board = store.openBoard(join(directory, 'replica.sqlite'), { now: () => new Date(REGISTRY_AT) });

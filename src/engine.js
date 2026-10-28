@@ -2,6 +2,10 @@ import { sealSourceAdvanceReturn } from './source-advance-origin.js';
 import { sealSourceAdvance } from './source-advance-origin.js';
 import { recordReviewPolicyActivation } from './review-policy.js';
 import { computedReturnArgs } from './computed-conflict-return.js';
+import {
+  prepareTrainLanding,
+  prepareNativeTrainLanding,
+} from './train-landing.js';
 import { requirePreparedComputedConflict } from './computed-conflict-receipt.js';
 import { preflightComputedConflict } from './computed-conflict-receipt.js';
 import { agentGrantMinimum } from './agent-grant.js';
@@ -104,6 +108,15 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
   if (!ENGINE_OPERATIONS.includes(operation) || !Array.isArray(args)) throw new Refused('RELAY_MOVE', 'use a supported board-engine operation with its argument array');
   if (operation === 'reopen') args = computedReturnArgs(board, args);
   const values = args.map((value) => value && typeof value === 'object' ? { ...value } : value);
+  if (operation === 'recordTrainLanding') {
+    const request = values[0];
+    if (request?.agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator seals a train landing');
+    const prepared = request?.nativeBatch
+      ? prepareNativeTrainLanding(request?.batch?.root, board, request.nativeBatch, request?.receipt?.id)
+      : prepareTrainLanding(request?.batch?.root, board,
+        request?.batch?.items?.map(item => item.id), request?.batch?.tip, request?.receipt?.id);
+    values[0] = { ...prepared, ...(request?.landingFence === undefined ? {} : { landingFence: request.landingFence }) };
+  }
   if (operation === 'rehomeItem' && values[1] && typeof values[1] === 'object') {
     if (values[1].sourceMoveId !== undefined && values[1].sourceMoveId !== id) throw new Refused('RELAY_MOVE', 'a re-home must retain its exact source MOVEID');
     values[1] = { ...values[1], sourceMoveId: id };
