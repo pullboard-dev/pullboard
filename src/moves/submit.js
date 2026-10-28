@@ -1,3 +1,4 @@
+import { checkTimingEngine } from '../check-timing.js';
 import { itemPatchRecords } from '../item-patch-state.js';
 import { ITEM_PATCH_SUBMIT_ENGINE } from '../item-patch-submit-engine.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
@@ -19,7 +20,7 @@ import { submissionProof } from '../../packages/state/src/core/submission-proof.
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {
   const barCheck = board && barCheckEnabled(board) ? BAR_CHECK_ENGINE : 1;
-  if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return Math.max(barCheck, RIGOR_AUTO_ENGINE);
+  if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return Math.max(checkTimingEngine(board, args[0]), barCheck, RIGOR_AUTO_ENGINE);
   if (board && barReadySetting(board).enabled) return Math.max(barCheck, BAR_READY_ENGINE);
   if (args[0]?.landingFence !== undefined) return Math.max(barCheck, LANDING_LEASE_ENGINE);
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('sentinel:')) return Math.max(barCheck, BOARD_SENTINEL_ENGINE);

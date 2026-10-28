@@ -1,7 +1,8 @@
+import { checkTimingEngine } from '../check-timing.js';
 /** An autonomous trusted worker records a proved main merge without manufacturing a review [C7,V4,H16]. */
 import { SOURCE_ADVANCE_ENGINE } from '../source-advance-engine.js';
 /** The feature must be understood by every replay receiver. */
-function minimumEngine() { return SOURCE_ADVANCE_ENGINE; }
+function minimumEngine(args, board) { return Math.max(SOURCE_ADVANCE_ENGINE, checkTimingEngine(board, args[0])); }
 /** Only the ordinary coordinator transport may publish the worker result. */
 function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: 'advanceItemSource', engine: SOURCE_ADVANCE_ENGINE,
