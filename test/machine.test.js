@@ -5,6 +5,8 @@
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
  */
 import { sourceFacts } from './machine-source-functions.fixture.js';
+import { moveOf } from './machine-source-functions.fixture.js';
+import { declaredBoardOrder } from './machine-source-functions.fixture.js';
 import { sourceReader } from './machine-source-functions.fixture.js';
 import { sourceDirectories } from './machine-source-functions.fixture.js';
 import { packageFiles } from '../src/package-files.js';
@@ -331,14 +333,6 @@ function editedSource(file, line, replacement) {
  */
 const copy = () => structuredClone(machineRules.MACHINE);
 
-/**
- * The move with this verb.
- *
- * @param {any} machine
- * @param {string} verb
- * @returns {any}
- */
-const moveOf = (machine, verb) => machine.moves.find((move) => move.verb === verb);
 
 /**
  * Accept and reject hold a verifier to the same checks, in the same order, until the verdict's own
@@ -958,18 +952,6 @@ const PRECHECKED = {
   reject: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit', 'reviewTreeCurrent'],
 };
 
-/**
- * The refusal codes a move's board-checked guards raise, in the order the declaration checks them.
- *
- * @param {string} verb
- * @returns {string[]}
- */
-function declaredBoardOrder(verb) {
-  const move = moveOf(machineRules.MACHINE, verb);
-  return machineRules.effectiveGuards(move)
-    .filter((id) => !PRECHECKED[verb].includes(id))
-    .map((id) => (id === machineRules.IN_STATE ? move.refuse : machineRules.MACHINE.guards.find((guard) => guard.id === id).refuse));
-}
 
 /**
  * The refusal code a call raises, or 'ok'.
@@ -1048,7 +1030,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     fired.push(claimAs(target, strong, 'web'));
     store.release(board, spare, strong);
     fired.push(claimAs(target, strong, 'web'), claimAs(target, strong, 'web', freeze));
-    assert.deepEqual(fired, [...declaredBoardOrder('claim'), 'ok']);
+    assert.deepEqual(fired, [...declaredBoardOrder(machineRules, PRECHECKED, 'claim'), 'ok']);
     assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'BAR_NOT_READY', 'ITEM_HELD', 'WRONG_LANE', 'ROUTE', 'BLOCKED', 'HELD', 'REOPEN_HELD_FOR_BUILDER', 'PENDING_REFREEZE', 'LANE_HELD', 'LINE_WIP_LIMIT', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
   } finally {
     lab.done();
@@ -1081,7 +1063,7 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
   submits.push(submitAs(piece, 'web-1', SHA_A));
   store.withdraw(board, child, { agentId: 'coordinator', reason: 'folded into the parent' });
   submits.push(submitAs(piece, 'web-1', SHA_A), submitAs(piece, 'web-1', SHA_B));
-  assert.deepEqual(submits, [...declaredBoardOrder('submit'), 'ok']);
+  assert.deepEqual(submits, [...declaredBoardOrder(machineRules, PRECHECKED, 'submit'), 'ok']);
 
   // A family is one derived value since #1783, so each vendor role is its own seat rather than a rewritten column.
   const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
@@ -1121,7 +1103,7 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
       judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page', note: 'reverted the fix; its test went red' }),
       ...(verb === 'reject' ? [judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page', note: 'reverted the fix; its test went red', clause: 'Page' })] : []),
     ];
-    assert.deepEqual(fired, [...declaredBoardOrder(verb), 'ok'], verb);
+    assert.deepEqual(fired, [...declaredBoardOrder(machineRules, PRECHECKED, verb), 'ok'], verb);
   }
 });
 
@@ -1145,7 +1127,7 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
   fired.push(reserveAs(vendorOnly, otherVendor, 'any', 'require'));
   store.reserveReview(board, built, { agentId: otherRequired, leaseMs: 3_600_000, policy: 'any' });
   fired.push(reserveAs(built, 'web-2', 'any'), reserveAs(built, otherRequired, 'any'));
-  assert.deepEqual(fired, [...declaredBoardOrder('reserve'), 'ok']);
+  assert.deepEqual(fired, [...declaredBoardOrder(machineRules, PRECHECKED, 'reserve'), 'ok']);
   assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
 });
 

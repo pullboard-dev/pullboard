@@ -83,3 +83,27 @@ export function sourceDirectories(files) {
   return [...new Set(files.filter(file => /^(?:src|bin|packages)\//u.test(file) && file.endsWith('.js'))
     .map(file => posix.dirname(file)))].sort();
 }
+
+/**
+ * The move with this verb.
+ *
+ * @param {any} machine
+ * @param {string} verb
+ * @returns {any}
+ */
+export const moveOf = (machine, verb) => machine.moves.find((move) => move.verb === verb);
+
+/**
+ * The refusal codes a move's board-checked guards raise, in the order the declaration checks them.
+ *
+ * @param {any} machineRules
+ * @param {Record<string, string[]>} prechecked
+ * @param {string} verb
+ * @returns {string[]}
+ */
+export function declaredBoardOrder(machineRules, prechecked, verb) {
+  const move = moveOf(machineRules.MACHINE, verb);
+  return machineRules.effectiveGuards(move)
+    .filter((id) => !prechecked[verb].includes(id))
+    .map((id) => (id === machineRules.IN_STATE ? move.refuse : machineRules.MACHINE.guards.find((guard) => guard.id === id).refuse));
+}
