@@ -43,7 +43,10 @@ function inputScript() {
       evidence.actions.push(sample);
       requestAnimationFrame(() => requestAnimationFrame(() => {
         const pane = document.querySelector('[data-pane="' + sample.tab + '"]'), box = pane?.getBoundingClientRect();
-        if (view.tab === sample.tab && pane && !pane.hidden && box.width > 0 && box.height > 0) sample.end = performance.now();
+        const targets = { spec: '#spec-list .row', doctrine: '#doctrine-list .row', items: '#chain .row',
+          roadmap: '#roadmap .milestone-head', dashboard: '#dashboard .dash-hero' };
+        const content = pane?.querySelector(targets[sample.tab]);
+        if (view.tab === sample.tab && pane && !pane.hidden && content && box.width > 0 && box.height > 0) sample.end = performance.now();
       }));
     }, true);
   })()`;
@@ -75,7 +78,7 @@ export async function measureTabSpeed(board) {
       items: data.project.items.length, agents: data.project.agents.length,
       visibleTab: view.tab, browser: navigator.userAgent })`);
   } finally {
-    if (chrome) await chrome.close();
-    if (server) await stopView(server);
+    try { if (chrome) await chrome.close(); }
+    finally { if (server) await stopView(server); }
   }
 }
