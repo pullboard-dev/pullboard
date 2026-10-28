@@ -65,9 +65,13 @@ export function dashboardModel(project, history, { now = Date.now(), complete = 
   }
   const claims = items.filter(item => item.status === 'claimed' && item.claim?.by && item.claim.by === item.owner && Date.parse(item.claim.until) > now);
   const reviewing = items.filter(item => item.status === 'submitted');
-  for (const [key, held] of [...work]) close(key, now);
-  for (const item of claims) row(item.owner)?.current.push({ kind: 'build', item });
-  for (const item of reviewing) if (item.reviewer && Date.parse(item.reviewUntil) > now) row(item.reviewer)?.current.push({ kind: 'review', item });
+  // A live hold keeps its own unclipped start, apart from the per-minute union below, so a seat holding a review and
+  // a build at once still reports each one's age; null means the history holds no open stay for this holder.
+  /** When this holder's still-open stay on the item began, or null. */
+  const since = (kind, item, by) => { const held = work.get(kind + ':' + item.id); return held?.actor === by ? held.start : null; };
+  for (const item of claims) row(item.owner)?.current.push({ kind: 'build', item, since: since('build', item, item.owner) });
+  for (const item of reviewing) if (item.reviewer && Date.parse(item.reviewUntil) > now) row(item.reviewer)?.current.push({ kind: 'review', item, since: since('review', item, item.reviewer) });
+  for (const [key] of [...work]) close(key, now);
   const agents = [...rows.values()].filter(agent => agent.last > start || agent.current.length || agent.segments.length);
   for (const agent of agents) {
     // Union overlapping intervals: a minute is counted once, with building taking precedence.
