@@ -79,17 +79,31 @@ function fixture(t, { red = false, hosts = 7 } = {}) {
   // Accepted fake-runner fixture isolation: these nested runs acquire their own actual private leases.
   for (const key of Object.keys(box.env)) if (/^PULLBOARD_(GATE|BROWSER|TEST|LANDING|RELEASE)_/u.test(key)
     || ['NODE_OPTIONS', 'NODE_TEST_CONTEXT', 'GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'].includes(key)) delete box.env[key];
-  copyPackageFiles(SOURCE, box.repo);
-  const shippedManifest = JSON.parse(readFileSync(join(box.repo, 'package.json'), 'utf8'));
-  writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ ...shippedManifest, name: 'pullboard', version: '0.0.0-fixture', private: true, type: 'module' }) + '\n');
+  // Installed tooling is complete, but its vendor documentation tests are not this project's eight cases.
+  box.tool = join(box.repo, '.tooling');
+  const shipped = copyPackageFiles(SOURCE, box.tool);
+  mkdirSync(join(box.repo, 'bin'));
+  writeFileSync(join(box.repo, 'bin/run-tests.js'), `/** @pullboard-module-loads .tooling/bin/run-tests.js */
+/** Invoke the real installed dispatcher without replacing its arguments, output or verdict. */
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+const entry=fileURLToPath(new URL('../.tooling/bin/run-tests.js',import.meta.url));
+const child=spawnSync(process.execPath,[entry,...process.argv.slice(2)],{stdio:'inherit'});
+if(child.error)throw child.error;
+if(child.signal)process.kill(process.pid,child.signal);
+else process.exitCode=child.status??1;
+`);
+  writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '0.0.0-fixture', private: true, type: 'module' }) + '\n');
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ gate: 'node bin/run-tests.js', landingShards: 1 }));
   for (const name of NAMES) writeFileSync(join(box.repo, 'test', `${name}.test.js`), tinyTest(name, box, red));
   git(box, 'init', '-q', '-b', 'main');
   git(box, 'add', '.');
   git(box, 'commit', '-q', '-m', 'test: commit private native release fixture');
+  assert.deepEqual(git(box, 'ls-files', '-z', '--', '.tooling', 'bin/run-tests.js').split('\0').filter(Boolean).sort(),
+    [...shipped.map(file => '.tooling/' + file), 'bin/run-tests.js'].sort(), 'the real launcher and complete installed package enter the immutable release source');
   installRegistrationProbeStandIn({ bin: box.bin });
   for (const host of Object.keys(box.workers)) {
-    const added = runFixtureChild(process.execPath, [join(box.repo, 'bin/pullboard.js'), 'runner', 'add', host,
+    const added = runFixtureChild(process.execPath, [join(box.tool, 'bin/pullboard.js'), 'runner', 'add', host,
       '--slots', '1', '--browser', '0', '--json'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
     assert.equal(added.status, 0, added.context);
   }
@@ -103,10 +117,10 @@ async function producer(box, checks) {
 import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
-import {runReleaseGate,verifyNativeReleaseReceipt} from './src/release-gate.js';
-import {isStampedGreen} from './src/gate.js';
-import {releaseReceiptBody,releaseParticipationDigest} from './src/release-gate-receipt.js';
-import {openBoard,closeBoard} from './src/board.js';
+import {runReleaseGate,verifyNativeReleaseReceipt} from './.tooling/src/release-gate.js';
+import {isStampedGreen} from './.tooling/src/gate.js';
+import {releaseReceiptBody,releaseParticipationDigest} from './.tooling/src/release-gate-receipt.js';
+import {openBoard,closeBoard} from './.tooling/src/board.js';
 const root=process.cwd();
 const board=openBoard(join(root,'.git','pullboard','board.sqlite'));closeBoard(board);
 try {
