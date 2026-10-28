@@ -1030,11 +1030,9 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.setBarReady(board, { agentId: 'coordinator', enabled: false });
     fired.push(claimAs(target, light, 'api'));
     store.releaseItemHold(board, target, { agentId: 'coordinator' });
-    fired.push(claimAs(target, light, 'api'), claimAs(target, light, 'web'));
     const barring = store.setRoutingRule(board, { agentId: 'coordinator', act: 'build', scope: { item: target }, effect: 'bar-seat', value: strong, source: 1 });
-    fired.push(claimAs(target, strong, 'web'));
-    store.setRoutingRule(board, { agentId: 'coordinator', revoke: barring });
-    fired.push(claimAs(target, strong, 'web'));
+    fired.push(claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web'));
+    store.setRoutingRule(board, { agentId: 'coordinator', revoke: barring }); fired.push(claimAs(target, strong, 'web'));
     verdictOn(board, dependency, 'web-2', 'ACCEPT');
     fired.push(claimAs(target, strong, 'web'), claimAs(returned, strong, 'web'));
     store.editItem(board, target, { agentId: 'coordinator', criterion: 'Pending correction before the lane guard.' });
