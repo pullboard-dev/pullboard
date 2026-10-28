@@ -214,7 +214,7 @@ function recordStructuredQuarantines(board, agentId, value, lane, owners) {
   for (const outcome of value.testOutcomes) {
     if (outcome.skipped) continue;
     const key = testKey(outcome.file, outcome.name), prior = known.get(key);
-    if (prior?.status === 'quarantined' && prior.nativeCore) continue;
+    if (prior?.status === 'quarantined') continue;
     const eligible = runs.filter(run => run.eventId > (prior?.since ?? 0)
       && run.testOutcomes.some(row => !row.skipped && testKey(row.file, row.name) === key));
     const red = eligible.find(run => run.testOutcomes.some(row => testKey(row.file, row.name) === key && !row.skipped && !row.passed));

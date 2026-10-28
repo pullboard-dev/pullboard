@@ -20,7 +20,7 @@ const TARGET = 'actual quarantine target [C7]';
 const FILE = 'test/control.test.js';
 
 /** Commit a complete installed runtime and one private test universe through ordinary fixture hooks. */
-function quarantineProject(t) {
+function quarantineProject(t, { legacy = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project(`node bin/run-tests.js ${FILE}`, helpers.sandbox(), { withWorktree: false });
@@ -32,7 +32,8 @@ function quarantineProject(t) {
   for (const file of copied) if (/\.test\.[cm]?js$/u.test(file)) rmSync(join(box.repo, file), { force: true });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, flakes: { rerun: false, quarantine: true },
-    lanes: { web: { owns: ['test/'], specs: [] } } }) + '\n');
+    lanes: { web: { owns: ['test/'], specs: [] } },
+    ...(legacy ? { gate: `node --test --test-reporter=tap ${FILE}` } : {}) }) + '\n');
   writeFileSync(join(box.repo, 'SPEC.md'), spec);
   writeFileSync(join(box.repo, FILE), `import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
@@ -49,7 +50,8 @@ test('unrelated positive [C7]',()=>assert.equal(2+2,4));\n`);
 
 // This committed fixture program executes actual gate children and native ordered receipt moves; it fabricates no receipts.
 const DRIVER = `import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readFileSync,writeFileSync} from 'node:fs';
+import {git} from './src/git.js';
 import {runGate} from './src/gate.js';
 import {receiptRecorder} from './src/native-flake-receipts.js';
 import {context,ordered,withBoard,resourceAgent} from './src/cli.js';
@@ -73,11 +75,34 @@ async function run(mode){
  process.env.PULLBOARD_QUARANTINE_CASE_MODE=mode;
  const value=await runGate(root,config,{trustStamp:false,agent:agentId,onFailure:observer,executionServices});
  const receipt=readGateReceipt(receiptStore(root),value.receiptId);
- assert.ok(receipt?.testOutcomes,'actual native outcomes must survive reporters, receipt normalization and recording');
+ if(config.gate.includes('bin/run-tests.js'))assert.ok(receipt?.testOutcomes,'actual native outcomes must survive reporters, receipt normalization and recording');
+ else assert.ok(receipt && !receipt.testOutcomes,'the initial legacy path carries genuine native v1 receipts without per-test passes');
  assert.equal(value.isGreen,mode!=='red');
  assert.equal(receipt.green,mode!=='red','the canonical receipt preserves the actual red');
  return {value,receipt};
 }
+/** Preserve a real legacy quarantine while a new source tree gains structured verdicts. */
+async function legacyCase(){
+ await run('red');await run('green');
+ const before=snapshot(),entry=before.quarantines[0];
+ assert.equal(entry.nativeCore,undefined);
+ assert.equal(before.waivers.length,1,'real prior receipts grant the existing legacy waiver');
+ config.gate='node bin/run-tests.js test/control.test.js';
+ writeFileSync('pullboard.json',JSON.stringify(config)+'\\n');
+ git(root,['add','--','pullboard.json']);
+ git(root,['commit','-q','-m','test: enable native outcomes in legacy fixture']);
+ await run('red');await run('green');
+ const after=snapshot();
+ assert.deepEqual(after.quarantines,before.quarantines,'native-core evidence cannot replace an already-active legacy quarantine');
+ assert.deepEqual(after.waivers,before.waivers,'its existing landing authority stays exactly as it was');
+ assert.equal(after.items.length,1);
+ await withBoard(ctx,board=>ordered(ctx,board,'withdraw',[entry.item,{agentId,reason:'legacy repair withdrawal lifecycle control'}]));
+ assert.equal(snapshot().quarantines[0].status,'lifted','legacy withdrawal semantics remain unchanged');
+ assert.deepEqual(snapshot().waivers,[]);
+ console.log(JSON.stringify({legacyPreserved:true}));
+}
+/** Exercise exact structured lifecycle against actual executed tests and bound receipts. */
+async function nativeCase(){
 const red=await run('red');
 assert.equal(red.value.exitCode,1,'the original process exit is preserved');
 assert.equal(proofCounts(red.value.output).failed,1,'the actual failed counter is preserved');
@@ -128,6 +153,8 @@ assert.equal(state.quarantines[0].cleanRuns,20);
 assert.equal(state.quarantines[0].status,'lifted');
 assert.equal(state.items.length,1);
 console.log(JSON.stringify({quarantineCore:true,runs:state.runs.length,rawRed:red.receipt.green,release:state.quarantines[0]}));
+}
+await (process.argv.includes('--legacy')?legacyCase():nativeCase());
 `;
 
 test('native same-tree test verdicts file once, still report raw red, and release after 20 executed passes [C7,H16]', async t => {
@@ -138,6 +165,13 @@ test('native same-tree test verdicts file once, still report raw red, and releas
   assert.equal(report.quarantineCore, true);
   assert.equal(report.rawRed, false);
   assert.equal(report.release.cleanRuns, 20);
+});
+
+test('native-core verdicts preserve an active legacy quarantine, its waiver and withdrawal lifecycle [C7,H16]', async t => {
+  const box = quarantineProject(t, { legacy: true });
+  const result = await runFixtureChildAsync(process.execPath, ['quarantine-driver.mjs', '--legacy'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  assert.equal(JSON.parse(result.stdout.trim().split('\n').at(-1)).legacyPreserved, true);
 });
 
 test('structured native outcomes reject duplicates, reporter text and incomplete or cancelled evidence [C7,H16]', () => {
