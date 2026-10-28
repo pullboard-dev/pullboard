@@ -494,21 +494,17 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
     return tail.length ? tail : null;
   }
 
-  /** A closed trailing path cannot name an old source or any directory containing it. */
-  function disjointPathTail(range, directory = false) {
+  /** A closed regular-file tail cannot name an old source; directories may carry source indirectly. */
+  function disjointPathTail(range) {
     const tail = closedPathTail(range);
     if (!tail) return false;
     const suffix = tail.join('/');
-    return ![...moved.keys()].some(from => {
-      const parts = from.split('/');
-      const candidates = directory ? parts.map((_, index) => parts.slice(0, index + 1).join('/')) : [from];
-      return candidates.some(candidate => candidate === suffix || candidate.endsWith('/' + suffix));
-    });
+    return ![...moved.keys()].some(from => from === suffix || from.endsWith('/' + suffix));
   }
 
   /** Edit only the fs source argument; unsupported source construction never masquerades as success. */
   function sourceArgument(range, reader, regularFile) {
-    if ((regularFile && disjointSuffix(range)) || disjointPathTail(range, !regularFile)) return;
+    if (regularFile && (disjointSuffix(range) || disjointPathTail(range))) return;
     const dynamic = [...code.slice(range.start, range.end).matchAll(new RegExp(`\\b(${ID})\\b`, 'gu'))]
       .map(match => ({ name: match[1], at: range.start + match.index })).filter(row => loops.some(loop => loop.name === row.name && row.at > loop.body && row.at < loop.end));
     const variables = [...new Set(dynamic.map(row => row.name))];

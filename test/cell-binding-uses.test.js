@@ -2,7 +2,18 @@
 /** Bounded compile-only binding proof never executes candidate source or weakens shadow uncertainty [C7,CD62]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import {
+  readGateReceipt,
+  receiptBody,
+} from '../src/gate-run-receipt.js';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { runFixtureGit } from './fixture-child.js';
@@ -31,18 +42,36 @@ test('named metadata leaves and complete moved-body tails keep their exact input
   ]) assert.ok(fixtureSourceEdits(prefix + body, options).problems.length, body);
 });
 
-test('recursive fixture copies prove a closed metadata tail without hiding source ancestors [C7]', () => {
+test('recursive fixture copies remain explicit inputs even with apparently private path tails [C7]', () => {
   const prefix = "import { cpSync } from 'node:fs'; import { join } from 'node:path';\n";
   const options = { file: 'test/private-copy.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']] };
-  assert.deepEqual(fixtureSourceEdits(prefix + "cpSync(join(box.root, '.git', 'pullboard'), target, {recursive:true});", options),
-    { edits: [], problems: [] });
   for (const body of [
+    "cpSync(join(box.root, '.git', 'pullboard'), target, {recursive:true});",
     "cpSync(join(root, 'src'), target, {recursive:true});",
     "cpSync(join(root, 'src', 'git.js'), target, {recursive:true});",
     "cpSync(join(root, 'git.js'), target, {recursive:true});",
     "cpSync(join(root, '.git', '..', 'src'), target, {recursive:true});",
     "cpSync(box.input, target, {recursive:true});",
   ]) assert.ok(fixtureSourceEdits(prefix + body, options).problems.length, body);
+});
+
+test('native receipt input retains exact bytes and rejects missing or changed format [C7]', (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'pb-receipt-format-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const value = { version: 1, id: '11111111-1111-4111-8111-111111111111', kind: 'gate',
+    tree: 'a'.repeat(40), head: 'b'.repeat(40), main: null, command: 'c'.repeat(64), green: true, failures: [],
+    load: { average: [0, 0, 0], cpus: 1, freeMB: 1 }, at: '2026-10-28T12:00:00.000Z' };
+  const bytes = receiptBody(value);
+  assert.equal(typeof bytes, 'string', 'synthetic format input is valid, without claiming native execution');
+  const file = join(directory, `${value.id}.json`);
+  writeFileSync(file, bytes);
+  assert.equal(receiptBody(readGateReceipt(directory, value.id)), bytes);
+  assert.equal(readGateReceipt(directory, '22222222-2222-4222-8222-222222222222'), null);
+  assert.equal(readGateReceipt(directory, '../untrusted'), null);
+  for (const changed of ['{malformed', bytes + '\n', bytes.replace('"green":true', '"green": true')]) {
+    writeFileSync(file, changed);
+    assert.equal(readGateReceipt(directory, value.id), null, 'same JSON value with altered bytes is not a bound receipt');
+  }
 });
 
 /** Hide only this actual import declaration, just as the production callers do; every other spelling stays visible. */
@@ -209,7 +238,7 @@ test('session path producers prove a fixed leaf without granting authority to th
 });
 
 test('named metadata constants follow exact bounded reexports and retain collision refusal [C7]', () => {
-  const consumer = "import { readFileSync } from 'node:fs'; import { join } from 'node:path'; import { FILE } from '../src/facade.js'; readFileSync(join(root, '.git', FILE));";
+  const consumer = "import { readFileSync } from 'node:fs'; import { join } from 'node:path'; import { FILE } from '../src/facade.js'; readFileSync(join(root, FILE));";
   const options = { file: 'test/metadata.js', moves: [['src/git-launch-baseline.json', 'packages/git/src/shell/git-launch-baseline.json']] };
   const facade = "export { INPUT as FILE } from './value.js';";
   const sources = { 'src/facade.js': facade, 'src/value.js': "export const INPUT = 'pullboard-runner-policy.json';" };
