@@ -1,4 +1,6 @@
 /** Shell boundary for checking actual import cuts and filing their independent board items [C7,D3]. */
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
 import { spawnSync } from 'node:child_process';
 import { cellInventory } from '../src/cell-lint-inventory.js';
 import { testFile } from '../src/cell-lint-inventory.js';
@@ -34,7 +36,7 @@ function onlyForwards(source, computed) {
 export function checkCuts(root, plan, name) {
   const group = importCuts(plan).find(row => row.cell === name);
   if (!group) throw new Refused('CELLS_PLAN_CELL', `no import-cut group ${name}; use an importing cell from node bin/cells-plan.js --file-cuts`);
-  const { files, edges, unknown } = cellInventory(root);
+  const { files, edges, unknown } = cellInventory(root, { importsIn, commonJsIn });
   const map = readPathMap(root);
   const owner = ownerFor(plan, map);
   const temporary = temporaryCellEdges(files);

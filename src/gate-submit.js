@@ -73,7 +73,7 @@ export function submitGateConfig(config, accepted) {
 /** Derive exact criterion/final phases once from accepted policy and the selected immutable Git source. */
 export function submitGatePlan(root, config, { base, trunk, changed, check, sourceAdvance = false, commit = 'HEAD' }) {
   if (sourceAdvance && commit !== 'HEAD') throw new Refused('BAD_CONFIG', 'source-advance planning requires its actual execution checkout');
-  const advancePlan = sourceAdvance ? sourceAdvancePlan(root, config, { base, changed, check }) : null;
+  const advancePlan = sourceAdvance ? sourceAdvancePlan(root, config, { base, changed, check }, { selectAffectedTests, selectTestTreeGuards }) : null;
   check = advancePlan ? advancePlan.criterion : check ? mappedCheck(root, check, { commit }) : check;
   const selection = advancePlan?.selection ?? (config.affectedTests
     ? placementSubmitSelection(root, selectAffectedTests(root, { base, trunk, commit, changed }), changed ?? [])
