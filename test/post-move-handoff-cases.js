@@ -65,7 +65,8 @@ test('the actual submitted value is repaired', () => assert.equal(readFileSync(n
     const reserved = await cli(box, seat.path, ['next', '--take']);
     assert.equal(reserved.code, 0, reserved.out + reserved.err);
     assert.equal(reserved.document.item.item_id, first);
-    const result = await cli(box, seat.path, ['verify', String(first), 'reject', '--reason', 'TEST_FAILURE', '--note', 'Observed fixture defect; source must be repaired.']);
+    const result = await cli(box, seat.path, ['verify', String(first), 'reject', '--reason', 'TEST_FAILURE',
+      '--clause', 'The real fixture succeeds.', '--note', 'Observed fixture defect; source must be repaired.']);
     assert.equal(result.code, 0, result.out + result.err);
     assert.equal(store.getItem(box.board, first).item_verdict, 'REJECT');
     assert.equal(store.getItem(box.board, pending[0]).item_review_by, seat.id, 'the actual eligible waiting review is reserved');
