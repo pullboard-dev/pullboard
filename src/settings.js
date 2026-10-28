@@ -22,13 +22,23 @@ import {
 } from './runner-wait.js';
 import {
   carriedBrowserByLaunch,
-  gateQueueSettings,
-  machineSettingsFile,
+  readGateQueueSettings,
   readMachineSettingsFile,
 } from './queue-settings.js';
+import { machineSettingsFile } from './machine-home.js';
 
 // The gate queue's settings live in queue-settings.js so the runner runtime can read them too.
-export { gateQueueSettings, machineSettingsFile };
+export { machineSettingsFile };
+
+/**
+ * The gate pool's admission order from this machine's settings file. The front door for callers
+ * above the config cell; queue-settings.js reads whichever file its caller names.
+ *
+ * @returns {{ reviewsFirst: boolean, currentReleaseFirst: boolean, agingMinutes: number }}
+ */
+export function gateQueueSettings() {
+  return readGateQueueSettings(machineSettingsFile());
+}
 
 const DEFAULT_SHORT_SLOTS = 0;
 

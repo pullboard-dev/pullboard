@@ -2,12 +2,15 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { machineHome } from './machine-home.js';
+import {
+  machineHome,
+  machineSettingsFile,
+} from './machine-home.js';
 import { readMachineSettingsFile } from './queue-settings.js';
 
 /** An unset floor keeps status on its existing lightweight path; old pools have no per-run holds. */
 export function memoryHeldRuns() {
-  if (readMachineSettingsFile()?.gate?.memoryFloorMB === undefined) return [];
+  if (readMachineSettingsFile(machineSettingsFile())?.gate?.memoryFloorMB === undefined) return [];
   const file = join(machineHome(), 'resources.sqlite');
   if (!existsSync(file)) return [];
   let db;

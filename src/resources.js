@@ -24,6 +24,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { repoInfo } from './git.js';
 import {
   machineHome,
+  machineSettingsFile,
   withMachineHomeWrite,
 } from './machine-home.js';
 import { Refused } from './refused.js';
@@ -32,7 +33,7 @@ import {
   recordRunnerFailure,
   recoverUnavailableRunners,
 } from './runner-recovery.js';
-import { gateQueueSettings } from './queue-settings.js';
+import { readGateQueueSettings } from './queue-settings.js';
 import {
   localWaitBranch,
   runnerDeadlineLine,
@@ -357,7 +358,7 @@ function removeEmptyViewPortResources(db) {
  */
 function queueOrder(scope) {
   if (scope !== 'machine') return ARRIVAL_ORDER;
-  const { reviewsFirst, currentReleaseFirst, agingMinutes } = gateQueueSettings();
+  const { reviewsFirst, currentReleaseFirst, agingMinutes } = readGateQueueSettings(machineSettingsFile());
   return { reviewsFirst, currentReleaseFirst, ageMs: agingMinutes * 60_000 };
 }
 
