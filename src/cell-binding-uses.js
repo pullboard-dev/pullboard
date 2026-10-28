@@ -124,8 +124,11 @@ export function bindingReadsForModules(modules) {
     }
   }
   flush();
-  for (const prepared of preparedModules) if (!prepared.originalValid) {
-    for (const row of prepared.result.values()) { row.reads = []; row.opaque = 'original module does not compile within the source budget'; }
+  for (const prepared of preparedModules) {
+    for (const row of prepared.result.values()) {
+      if (!prepared.originalValid) { row.reads = []; row.opaque = 'original module does not compile within the source budget'; }
+      else row.reads.sort((left, right) => left - right);
+    }
   }
   return results;
 }
