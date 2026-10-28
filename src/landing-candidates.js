@@ -9,7 +9,7 @@ import {
   mainCheckout,
   repoInfo,
 } from './git.js';
-import { assertLandingLease } from './landing-lease.js';
+import { assertLandingLease } from './board-landing-lease.js';
 import { Refused } from './refused.js';
 
 

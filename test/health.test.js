@@ -18,7 +18,7 @@ import { boardHealth, healthReport } from '../src/health.js';
 import { fixture as dispatchFixture, cli as dispatchCli } from './next-take-fixture.js';
 import { readDigest } from '../src/digest.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
-import { recurringJobs } from '../src/recurring-jobs.js';
+import { recurringJobs } from '../src/board-recurring-jobs.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { loadConfig } from '../src/config.js';
 import { gateRuns } from '../src/gate-control.js';

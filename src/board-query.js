@@ -9,7 +9,7 @@ import {
   isActivityNews,
   itemActivity,
   projectAgentActivity,
-} from './activity-feed.js';
+} from './board-activity-feed.js';
 export { itemById };
 import { outsideSource } from './outside-source.js';
 import {

@@ -11,7 +11,7 @@ import { git } from '../src/git.js';
 import { runGate } from '../src/gate.js';
 import { boardReceiptStore, readGateReceipt, receiptBinds, receiptStore } from '../src/gate-run-receipt.js';
 import { gateRuns, recordGateRun } from '../src/quarantine.js';
-import { recordLandingTestDefect } from '../src/landing-test-defects.js';
+import { recordLandingTestDefect } from '../src/board-landing-test-defects.js';
 import { nativePushReceiptProblems as evaluateNativePushReceiptProblems } from '../src/push-native-evidence.js';
 import { COORDINATOR } from '../src/config.js';
 import { policyAt } from '../src/trusted-policy-read.js';

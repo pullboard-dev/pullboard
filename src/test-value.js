@@ -11,7 +11,7 @@ import {
 } from './gate-run-receipt.js';
 import { readTestValueTimings } from './test-value-timing.js';
 import { flakeLedger } from './flakes.js';
-import { eventCauses } from './rigor.js';
+import { eventCauses } from './board-rigor.js';
 import { tryGit } from './git.js';
 
 const DAY = 86_400_000;

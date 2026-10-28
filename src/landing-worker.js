@@ -201,7 +201,7 @@ function assertWorkerFence(board, fence, root) {
   if (mainCheckout(root)?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed; start a fresh land command for its current branch');
   return holder;
 }
-import { assertLandingLease } from './landing-lease.js';
+import { assertLandingLease } from './board-landing-lease.js';
 
 /** A nonblocking guardian survives CLI death and stops its own whole group, even while the worker is synchronous. */
 function guardianMain({ workerFile }) {

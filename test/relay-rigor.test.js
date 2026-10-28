@@ -8,7 +8,7 @@ import { closeBoard, events, openBoard, PERSON } from '../src/board.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { ENGINE_VERSION } from '../src/machine.js';
-import { rigorReport } from '../src/rigor.js';
+import { rigorReport } from '../src/board-rigor.js';
 import { decodeBoardKey, seal, unseal } from '../src/seal.js';
 import { legacyRelayClientFixture as relayClientFixture } from './relay-client-fixture.js';
 

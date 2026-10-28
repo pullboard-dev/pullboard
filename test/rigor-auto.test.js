@@ -22,7 +22,7 @@ import { loadConfig } from '../src/config.js';
 import { RIGOR_AUTO_ENGINE } from '../src/rigor-auto-engine.js';
 import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
 import { conflictNote } from '../src/trunk-conflict.js';
-import { automaticDecisionSource, rigorDecisionKey } from '../src/rigor-auto-source.js';
+import { automaticDecisionSource, rigorDecisionKey } from '../src/board-rigor-auto-source.js';
 
 const roots = [];
 /** Bind real upper health providers for direct digest reads without changing their board snapshot. */

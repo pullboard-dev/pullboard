@@ -1,7 +1,7 @@
 /** pullboard loop: declare a recurring job's cadence, record each run, and list the jobs [D1,C7]. */
 import { COORDINATOR } from './config.js';
 import { Refused } from './refused.js';
-import { recurringJobs } from './recurring-jobs.js';
+import { recurringJobs } from './board-recurring-jobs.js';
 
 /**
  * Run pullboard loop declare <name> --every 10m --owner <seat or lane>, loop ran <name>, or loop to list.

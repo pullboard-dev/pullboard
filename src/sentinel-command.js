@@ -1,5 +1,5 @@
 import { prepareStaleObservation } from './stale-state-command.js';
-import { planStaleState } from './stale-state-maintenance.js';
+import { planStaleState } from './board-stale-state-maintenance.js';
 import { releaseGoneClaims } from './gone-claims.js';
 /** CLI proposal and exact person decisions for board-owned watches [A6,D3]. */
 import { PERSON } from './board.js';

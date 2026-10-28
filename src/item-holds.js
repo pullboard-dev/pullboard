@@ -2,7 +2,7 @@ import {
   forgetHoldMaintenance,
   holdUntilKind,
   rememberHoldCondition,
-} from './conditional-holds.js';
+} from './board-conditional-holds.js';
 import { STALE_STATE_ENGINE } from './stale-state-engine.js';
 /** Ordinary item holds share their existing transaction and event semantics [B4,C7]. */
 import { Refused } from './refused.js';

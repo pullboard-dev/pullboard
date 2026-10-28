@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard, restoreRelaySnapshot, semanticBoardDigest } from '../src/exchange.js';
-import { assertLandingLease } from '../src/landing-lease.js';
+import { assertLandingLease } from '../src/board-landing-lease.js';
 import { LANDING_LOCAL_PREFIX, localLandingEntry } from '../src/board-landing-local-lease.js';
 import { takeLandingResource } from '../src/landing-resource.js';
 import { LANDING_LEASE_ENGINE } from '../src/landing-lease-engine.js';

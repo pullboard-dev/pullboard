@@ -16,7 +16,7 @@ import {
   idleReason,
   liveRouteProblem,
 } from './routing-presence.js';
-import { releaseClaim } from './release-claim.js';
+import { releaseClaim } from './board-release-claim.js';
 import { REFERENCE_ENGINE } from './reference-engine.js';
 import { validateReferences } from './reference-authors.js';
 import {
@@ -41,7 +41,7 @@ import {
   applyItemHold,
   applyItemHoldRelease,
 } from './item-holds.js';
-import { applyStaleState } from './stale-state-store.js';
+import { applyStaleState } from './board-stale-state-store.js';
 import {
   isLaneEscalation,
   laneLeads,
@@ -204,9 +204,9 @@ import {
   checkedLandingCommit,
 } from './verdict-reviews.js';
 export { verdictReviewProblem, verdictsFor, acceptedVerdict, checkedLandingCommit };
-export { landingTestDefects, recordLandingTestDefect } from './landing-test-defects.js';
-export { landingLeaseMove, landingLeaseState } from './landing-lease.js';
-import { guardLandingWrite } from './landing-lease.js';
+export { landingTestDefects, recordLandingTestDefect } from './board-landing-test-defects.js';
+export { landingLeaseMove, landingLeaseState } from './board-landing-lease.js';
+import { guardLandingWrite } from './board-landing-lease.js';
 import {
   randomUUID,
 } from 'node:crypto';
@@ -279,7 +279,7 @@ import {
   newRigorNotices,
   rigorNoticeText,
 } from './rigor-notices.js';
-import { RIGOR_NOTICE_ENGINE } from './rigor-source.js';
+import { RIGOR_NOTICE_ENGINE } from './board-rigor-source.js';
 import { RIGOR_AUTO_ENGINE } from './rigor-auto-engine.js';
 import {
   milestoneRanks,
@@ -292,7 +292,7 @@ import {
 import {
   causeProblem,
   requireNeverAgain,
-} from './rigor.js';
+} from './board-rigor.js';
 import { barCorrectionFields } from './bar-corrections.js';
 import {
   conflictDetail,
@@ -328,7 +328,7 @@ import {
 export { landingFlakes, landingWaiverCovers, landingWaiverKind };
 export { landingWaivers, landingWaiverFor, waivedLandingProof } from './landing-waivers.js';
 export { acceptCheck } from './check-accept.js';
-export { declareJob, recordJobRun } from './recurring-jobs.js';
+export { declareJob, recordJobRun } from './board-recurring-jobs.js';
 export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } from './sentinels.js';
 export { flakeLedger, recordFlakeObservation } from './flakes.js';
 export { flakeQuarantines, gateRuns, recordGateRun } from './quarantine.js';
@@ -1684,7 +1684,7 @@ function checkEvidence(board, { kind, outcome, item, commit }) {
 
 export { openDecisions } from './board-query.js';
 
-export { inbox } from './inbox-store.js';
+export { inbox } from './board-inbox-store.js';
 
 export { unreadCount } from './board-query.js';
 

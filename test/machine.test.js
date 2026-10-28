@@ -166,15 +166,15 @@ const CAUGHT = {
   // Historical decline metadata is parsed inside a non-throwing boundary, covered by the Rigor history control.
   'board.js#reopen': ['rigor-notices.js#declinedRigorSource'],
   // Rigor projection folds inspect invalid cause results as data, never lifecycle refusals.
-  'rigor.js#eventCauses': ['rigor.js#causeProblem'],
-  'rigor-counter-state.js#neverKey': ['rigor.js#causeProblem'],
+  'board-rigor.js#eventCauses': ['board-rigor.js#causeProblem'],
+  'rigor-counter-state.js#neverKey': ['board-rigor.js#causeProblem'],
   // Historical decline grammar is caught locally; typed readers return invalid evidence as null.
   'rigor-counter-state.js#declineKey': ['spec.js#parseSpec'],
-  'rigor-source.js#readRigorSource': ['rigor.js#causeProblem'],
-  'rigor-auto-source.js#readAutomaticRigorSource': ['rigor.js#causeProblem'],
+  'board-rigor-source.js#readRigorSource': ['board-rigor.js#causeProblem'],
+  'board-rigor-auto-source.js#readAutomaticRigorSource': ['board-rigor.js#causeProblem'],
   // Only an unsupported historical grammar is ignored; new caller refusals remain audited below.
-  'rigor-auto-source.js#automaticDecisionSource': ['spec.js#parseSpec'],
-  'rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec'],
+  'board-rigor-auto-source.js#automaticDecisionSource': ['spec.js#parseSpec'],
+  'board-rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec'],
   'person-row-proof.js#signedRowDecisionsMatch': ['blueprints.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
 };
 /**
@@ -590,7 +590,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
   ], 'the caller is not exempt: only the exact reader call is inside its catch');
 
   for (const helper of ['automaticDecisionSource', 'rigorDecisionKey']) {
-    const inHistoricalCaller = editedSource('rigor-auto-source.js',
+    const inHistoricalCaller = editedSource('board-rigor-auto-source.js',
       new RegExp(`^export function ${helper}\\(record\\) \\{$`, 'm'),
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inHistoricalCaller).sort(), [

@@ -23,7 +23,7 @@ import {
 import {
   rigorLines,
   rigorReport,
-} from '../rigor.js';
+} from '../board-rigor.js';
 import {
   context,
   ordered,

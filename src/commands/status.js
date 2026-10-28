@@ -1,6 +1,6 @@
 import { releaseBlockingItems } from '../stale-state-blockers.js';
 import { staleStateSnapshot } from '../stale-state-query.js';
-import { staleStateLine } from '../stale-state-policy.js';
+import { staleStateLine } from '../board-stale-state-policy.js';
 import { routingCapacity } from '../routing-capacity.js';
 import { existsSync } from 'node:fs';
 import { relayMachineDirectory } from '../local-state.js';

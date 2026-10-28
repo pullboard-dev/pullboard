@@ -1,6 +1,6 @@
 /** Read a recipient's interrupt obligations without consuming a message or writing an acknowledgement [R2,N26,H16]. */
 import { agentActivity } from './board-query.js';
-import { activityEventDetail } from './activity-feed.js';
+import { activityEventDetail } from './board-activity-feed.js';
 import { classifyActivityDelivery } from './activity-delivery.js';
 import {
   activityDeliveryState,

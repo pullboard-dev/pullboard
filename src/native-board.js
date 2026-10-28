@@ -81,7 +81,7 @@ import {
   holdUntilKind,
   forgetHoldMaintenance,
   rememberHoldCondition,
-} from './conditional-holds.js';
+} from './board-conditional-holds.js';
 import {
   STALE_STATE_ENGINE,
 } from './stale-state-engine.js';

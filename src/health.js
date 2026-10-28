@@ -12,7 +12,7 @@ import { localDependencyIds } from './item-dependencies.js';
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { missedJobFindings } from './recurring-jobs.js';
+import { missedJobFindings } from './board-recurring-jobs.js';
 import {
   COORDINATOR,
   durationMs,

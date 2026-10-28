@@ -15,7 +15,7 @@ import {
 import * as store from '../src/board.js';
 import { invalidateGitFacts } from '../src/git.js';
 import { runLandingBatch } from '../src/land.js';
-import { assertLandingLease } from '../src/landing-lease.js';
+import { assertLandingLease } from '../src/board-landing-lease.js';
 
 /** Run an ordinary fixture command and retain its full refusal on failure. */
 function run(box, root, ...args) {

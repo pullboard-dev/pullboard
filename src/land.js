@@ -79,7 +79,7 @@ import { takeLandingResource } from './landing-resource.js';
 import {
   landingLeaseState,
   requireConfirmedLanding,
-} from './landing-lease.js';
+} from './board-landing-lease.js';
 import { runLandingWorker } from './landing-worker.js';
 import { runLandingCandidateWorker } from './landing-candidates.js';
 import { inheritedGateSlot } from './resources.js';

@@ -5,7 +5,7 @@ import {
   staleInstant,
   staleStateAge,
   staleStateLimits,
-} from './stale-state-policy.js';
+} from './board-stale-state-policy.js';
 
 /** Read recorded detail without letting incomplete legacy data establish expiry authority. */
 function detailOf(event) {

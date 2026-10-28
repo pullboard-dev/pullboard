@@ -53,7 +53,7 @@ import {
   automaticSourceFromText,
   rigorDecisionKey,
   readAutomaticRigorSource,
-} from './rigor-auto-source.js';
+} from './board-rigor-auto-source.js';
 import {
   rowDecisionContext,
   staleRowDecision,

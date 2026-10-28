@@ -5,7 +5,7 @@ import {
   assertLandingLease,
   landingLeaseState,
   renewLocalLanding,
-} from './landing-lease.js';
+} from './board-landing-lease.js';
 import { Refused } from './refused.js';
 import { coordinatorHolder } from './coordinator-hold.js';
 import {
@@ -76,7 +76,7 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
       if (queued && current.holder && entry && current.holder.lineage === (coordinatorHolder(board)?.lineage ?? null)) {
         if (current.holder.lineage === null) {
           // An unlinked board has one physical authority; refresh the existing ticket without a relay.
-          const { landingLeaseMove } = await import('./landing-lease.js');
+          const { landingLeaseMove } = await import('./board-landing-lease.js');
           result = landingLeaseMove(board, { ...parameters, action: 'request' });
         } else result = { holder: current.holder, position: current.line.indexOf(entry) + 1, acquired: false, generation: null };
         rememberLocalLanding(board, { ...entry, until: new Date(board.clock.now().getTime() + 30_000).toISOString() });
