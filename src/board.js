@@ -47,7 +47,7 @@ import { applySpecRowDecisions } from './spec-row-apply.js';
 import { SPEC_REFREEZE } from './spec-row-apply.js';
 import * as reviewFamilies from './required-review-family.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from './automatic-dispatch-engine.js';
-import { correctedBar } from './corrected-bar.js';
+import { itemEditBar } from './item-edit-bar.js';
 import {
   saveCheckTiming,
   validateCheckTiming,
@@ -601,16 +601,7 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
     const { item, next, command, unfreeze, bar } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming });
     const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, id, { sensitive, reviewFamily, reviewTier }) : null;
     const baseline = normalizeCheckBaseline(agentId, command, checkBaseline);
-    const pendingFields = [
-      ...(next.item_criterion !== item.item_criterion ? ['criterion'] : []),
-      ...(command !== undefined && next.item_check !== item.item_check ? ['check'] : []),
-      ...(next.item_after !== item.item_after ? ['after'] : []),
-      ...(next.item_check_timing !== item.item_check_timing ? ['checkTiming'] : []),
-    ];
-    const frozen = correctedBar(board, item, next, { correction, freeze });
-    const pendingRefreeze = !frozen && (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
-      && item.item_status === 'claimed' && agentId === COORDINATOR && pendingFields.length > 0;
-    const clearFrozen = !frozen && ((unfreeze && !pendingRefreeze) || Boolean(expiredHolder));
+    const { pendingFields, frozen, pendingRefreeze, clearFrozen } = itemEditBar(board, item, next, { command, agentId, correction, freeze, unfreeze, expiredHolder });
     if (expiredHolder) {
       moveItem(board, id, 'lapse', { checks: {}, set: () => ({ item_owner: null, item_lease_until: null }) });
     }
