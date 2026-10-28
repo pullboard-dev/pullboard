@@ -7,23 +7,15 @@ import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from './board.js';
-import { context } from './cli.js';
-import { ordered } from './cli.js';
-import { withBoard } from './cli.js';
 import { codeIsFromMain } from './git.js';
 import { gitChildEnv } from './git.js';
 import { repoInfo } from './git.js';
-import { runSubmitGate } from './gate.js';
 import { frozenCheck } from './trusted-policy.js';
 import { mainPolicy } from './trusted-policy-read.js';
 import { captureSourceAdvanceBasis } from './source-advance-origin.js';
 import { prepareSourceAdvance } from './source-advance-origin.js';
 import { prepareSourceAdvanceReturn } from './source-advance-origin.js';
 import { withSourceComposition } from './source-advance-compose.js';
-import { withFileLock } from './relay-outbox-guard.js';
-import { readMainAudit } from './main-audit-state.js';
-import { saveMainAudit } from './main-audit-state.js';
-import { landingLeaseState } from './landing-lease.js';
 
 /** Read immutable Git facts with a bounded child; never execute repository hooks. */
 function git(root, args) {
@@ -41,7 +33,7 @@ function readBoard(info, work) {
 }
 
 /** Native writes always use the accepted coordinator context and normal ordered sender binding. */
-function writer(root) {
+function writer(root, { context, ordered, withBoard }) {
   const ctx = context({ cwd: root, say() {}, err() {}, stderr: { write() {} } });
   return work => withBoard(ctx, board => work(board, (operation, args) => ordered(ctx, board, operation, args)));
 }
@@ -65,7 +57,7 @@ function ownerLive(owner) {
 }
 
 /** Capture finite exact-main obligations; an active landing completes before this worker starts a gate. */
-function snapshot(root, info) {
+function snapshot(root, info, { landingLeaseState }) {
   return readBoard(info, board => {
     if (landingLeaseState(board).holder) return [];
     return store.listItems(board, { all: true }).filter(item => ['submitted','verified'].includes(item.item_status)
@@ -86,7 +78,7 @@ function snapshot(root, info) {
 }
 
 /** Signal incomplete work once through the ordinary item thread without a self-shout or fabricated authority. */
-async function incomplete(write, file, job, reason) {
+async function incomplete(write, file, job, reason, { readMainAudit, saveMainAudit }) {
   const saved = readMainAudit(file) ?? {};
   saveMainAudit(file, { ...saved, state: 'incomplete', reason: String(reason).slice(0,2000) });
   if (saved.notified) return;
@@ -96,7 +88,7 @@ async function incomplete(write, file, job, reason) {
 }
 
 /** Retain the actual raw phase logs and profiles before removing their private Git directory. */
-function retainArtifacts(directory, job, gate, composition) {
+function retainArtifacts(directory, job, gate, composition, { saveMainAudit }) {
   const folder = join(directory, job.key); mkdirSync(folder, { recursive: true, mode: 0o700 });
   const sources = new Map();
   for (const [role,source] of [['combined',gate.log],['combined-profile',gate.profilePath],['criterion',gate.check?.log],
@@ -114,12 +106,13 @@ function retainArtifacts(directory, job, gate, composition) {
 }
 
 /** Execute one exact composition; any known returned child is cleaned before its terminal advisory state is written. */
-async function advance(root, directory, job, write) {
+async function advance(root, directory, job, write, services) {
+  const { readMainAudit, saveMainAudit, runSubmitGate } = services;
   const file = join(directory, `${job.key}.json`);
   const old = readMainAudit(file);
   if (old) return; // Unknown/crashed or logically incomplete work is not a hot retry on every health wake.
   saveMainAudit(file, { version: 1, item: job.item.item_id, basis: job.basis, state: 'pending' });
-  if (job.error) { await incomplete(write, file, job, job.error); return; }
+  if (job.error) { await incomplete(write, file, job, job.error, services); return; }
   let entered = false;
   try {
     await withSourceComposition(root, job.basis.inputHead, job.basis.trunk, async (composition, custody) => {
@@ -133,7 +126,7 @@ async function advance(root, directory, job, write) {
         check: frozenCheck(job.item), agent: 'coordinator', item: String(job.item.item_id), sourceAdvance: true,
         proofContext: { item: job.item.item_id, frozenDigest: job.basis.bar, seat: 'coordinator', kind: 'submit' } });
       if (!gate.cleanupUnverified && !(gate.profile?.landingShards?.unverified?.length > 0)) custody.terminal();
-      const artifacts = retainArtifacts(directory, job, gate, composition);
+      const artifacts = retainArtifacts(directory, job, gate, composition, services);
       const result = await write(async (board, order) => {
         const request = gate.isGreen ? prepareSourceAdvance(root, board, job.item, composition, gate, job.basis)
           : prepareSourceAdvanceReturn(root, board, job.item, job.basis, { composition, gate });
@@ -153,14 +146,15 @@ async function advance(root, directory, job, write) {
         return;
       } catch (returned) { error = returned; }
     }
-    await incomplete(write, file, job, error.message);
+    await incomplete(write, file, job, error.message, services);
   }
 }
 
 /** Drain each wake generation once; no timer daemon, time stealing or parallel gate runs are introduced. */
-export async function runSourceAdvances(root, token) {
+export async function runSourceAdvances(root, token, services) {
   const info = repoInfo(root);
   if (!info.isMain || !codeIsFromMain() || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
+  const { withFileLock, readMainAudit, saveMainAudit } = services;
   const directory = sourceAdvanceDirectory(info); mkdirSync(directory, { recursive: true, mode: 0o700 });
   const ownerFile = join(directory,'owner.json'), wakeFile = join(directory,'wake.json'), lock = join(directory,'owner.guard.sqlite');
   const acquired = await withFileLock(lock, () => {
@@ -174,14 +168,14 @@ export async function runSourceAdvances(root, token) {
     return generation;
   });
   if (acquired === null) return;
-  const write = writer(root), visited = new Set();
+  const write = writer(root, services), visited = new Set();
   let generation = acquired;
   try {
     for (;;) {
-      for (const job of snapshot(root, info)) {
+      for (const job of snapshot(root, info, services)) {
         if (visited.has(job.key)) continue;
         visited.add(job.key);
-        await advance(root, directory, job, write);
+        await advance(root, directory, job, write, services);
       }
       const next = await withFileLock(lock, () => {
         const owner = readMainAudit(ownerFile), wake = readMainAudit(wakeFile);

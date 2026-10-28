@@ -4,7 +4,6 @@ import {
   spawnSync,
 } from 'node:child_process';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import * as store from './board.js';
 import {
   invalidateGitFacts,
@@ -14,7 +13,6 @@ import {
 import { Refused } from './refused.js';
 import { parseProcessCensus } from './process-census.js';
 
-const FILE = fileURLToPath(import.meta.url);
 
 /** Preserve one typed refusal prefix while passing it through more than one process. */
 function messageText(error) { return String(error.message).replace(/^\[[A-Z][A-Z0-9_]*\] /u, ''); }
@@ -77,8 +75,8 @@ function stopNotice(message) { process.stderr.write(message + '\n'); }
 function runningGroup(rows, pgid) { return [...rows.values()].some(row => row.pgid === pgid && !row.state.startsWith('Z')); }
 
 /** Run blocking batch work under a live parent that owns all canonical writes and lease renewal. */
-export async function runLandingWorker(options, { write, checkLease, checkLeaseNow, bindWorker, watchDeadline, onWait, say, signal }) {
-  const child = spawn(process.execPath, [FILE, 'guardian'], { cwd: options.root, env: process.env, detached: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+export async function runLandingWorker(options, { write, checkLease, checkLeaseNow, bindWorker, watchDeadline, onWait, say, signal, workerFile }) {
+  const child = spawn(process.execPath, [workerFile, 'guardian'], { cwd: options.root, env: process.env, detached: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
   const inFlight = new Set();
   let result;
   let failure;
@@ -177,7 +175,7 @@ function channel(group) {
 }
 
 /** Enter batch execution only through the parent's private process channel. */
-async function workerMain(options) {
+async function workerMain(options, { checkAtCommit, candidateWorkerFile }) {
   const pipe = channel(options.guardianPid);
   const { call } = pipe;
   const board = store.openBoard(join(repoInfo(options.root).commonDir, 'pullboard', 'board.sqlite'));
@@ -185,7 +183,7 @@ async function workerMain(options) {
     const { runLandingBatch } = await import('./land.js');
     /** Canonical catch-up may have moved proof or trunk while the request was in flight. */
     const checkLease = async () => { await call('check'); invalidateGitFacts(); assertWorkerFence(board, options.fence, options.root); };
-    const result = await runLandingBatch({ ...options, board, write: (operation, args) => call(operation, args),
+    const result = await runLandingBatch({ ...options, board, checkAtCommit, candidateWorkerFile, write: (operation, args) => call(operation, args),
       say: text => process.send({ type: 'say', text }), onWait: state => call('wait', [state]), checkLease,
       checkLeaseNow: () => assertWorkerFence(board, options.fence, options.root) });
     pipe.finish({ type: 'result', value: result });
@@ -206,7 +204,7 @@ function assertWorkerFence(board, fence, root) {
 import { assertLandingLease } from './landing-lease.js';
 
 /** A nonblocking guardian survives CLI death and stops its own whole group, even while the worker is synchronous. */
-function guardianMain() {
+function guardianMain({ workerFile }) {
   let worker;
   let finished = false;
   let closed = false;
@@ -236,7 +234,7 @@ function guardianMain() {
     if (message.type === 'start' && !worker) {
       // The worker stays in this guardian's detached group; its gates inherit that group too.
       // Worker observations must not leave an optional status-refresh index lock when interrupted.
-      worker = spawn(process.execPath, [FILE, 'worker'], { cwd: message.options.root, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' },
+      worker = spawn(process.execPath, [workerFile, 'worker'], { cwd: message.options.root, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' },
         stdio: ['ignore', 'ignore', 'inherit', 'ipc'] });
       worker.on('message', value => {
         if (!process.connected) return;
@@ -260,9 +258,11 @@ function guardianMain() {
   process.once('disconnect', () => { if (!finished) stop({ pid: process.pid }); });
 }
 
-if (process.argv[1] === FILE && process.send) {
-  if (process.argv[2] === 'guardian') guardianMain();
+/** Enter only from the literal bin composition, retaining the original private IPC modes. */
+export function landingWorkerEntry({ checkAtCommit, workerFile, candidateWorkerFile }) {
+  if (!process.send) return;
+  if (process.argv[2] === 'guardian') guardianMain({ workerFile });
   else if (process.argv[2] === 'worker') process.once('message', message => {
-    if (message.type === 'start') void workerMain(message.options);
+    if (message.type === 'start') void workerMain(message.options, { checkAtCommit, candidateWorkerFile });
   });
 }

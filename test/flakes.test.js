@@ -1,3 +1,4 @@
+import { checkAtCommit } from '../src/runner-private-check.js';
 /** @pullboard-test-input source-tree */
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
 import { copyPackageFiles } from '../src/package-files.js';
@@ -422,7 +423,7 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
     delete process.env.NODE_TEST_CONTEXT;
     let completed;
     try {
-      await assert.rejects(land({ root: box.root, board, config, owner: 'private-interrupted-owner', say: () => {},
+      await assert.rejects(land({ root: box.root, board, config, owner: 'private-interrupted-owner', say: () => {}, landingWorkerFile: resolve(import.meta.dirname, '../bin/landing-worker.js'),
         write: async (operation, args) => {
           if (operation === 'recordLandingBatch' && args[0].batch.state === 'blocked') throw new Error('controlled interruption after retained diagnostic');
           return store[operation](board, ...args);
@@ -475,7 +476,7 @@ test('a ledger recording failure cannot replace the original red or discard its 
   assert.equal(result.status, 1, 'the original assertion really failed before the forced recording error');
   const run = { isGreen: false, output: result.stdout + result.stderr };
   const notices = [];
-  await observeNativeFailure({ root: box.root, config, pin, run, command: config.gate, kind: 'check',
+  await observeNativeFailure({ root: box.root, config, pin, run, checkAtCommit, command: config.gate, kind: 'check',
     record: () => { throw Object.assign(new Error('private injected ledger failure'), { code: 'SYNTHETIC_LEDGER_UNAVAILABLE' }); },
     onError: notice => notices.push(notice),
   });
