@@ -35,7 +35,13 @@ export function dashboardRuntime({ model, html, api, boardPath, current, redraw,
     if (!held?.error || held.prefix !== prefix) held = read(project.root, prefix);
     const complete = held.prefix >= prefix;
     const observedAt = Date.parse(project.observedAt);
-    const state = model(project, held.events.filter(event=>event.event_id<=prefix), { complete, now: Number.isFinite(observedAt) ? observedAt : Date.now() });
+    const now = Number.isFinite(observedAt) ? observedAt : Date.now();
+    // Native snapshots are JSON; include every field so changed live data or an observation clock always invalidates.
+    const projectKey = JSON.stringify(project), cached = held.modelCache;
+    const state = cached && cached.projectKey === projectKey && cached.events === held.events
+      && cached.prefix === prefix && cached.complete === complete && cached.now === now ? cached.state
+      : model(project, held.events.filter(event=>event.event_id<=prefix), { complete, now });
+    held.modelCache = { projectKey, events: held.events, prefix, complete, now, state };
     const progress = state.milestone ? summary(state.milestone)?.detail ?? '' : '';
     // Native details keep each Show-more/quiet disclosure open across live refreshes.
     const expanded = [...region.querySelectorAll('details[open]')].map(entry=>entry.dataset.dashboardDisclosure);

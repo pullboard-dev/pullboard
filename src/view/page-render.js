@@ -101,7 +101,7 @@ export function pageRenderScript() {
     + (drafts ? needRow(['tab:spec', String(drafts), 'draft spec rows to approve or drop'], 'Spec rows waiting on you', 'review') : '');
   $('needs').innerHTML = needsHtml;
   // Home reads the rules first, then the same calls (#967).
-  $('home-rules').innerHTML = homeRules(p.spec);
+  if (view.tab === 'home') $('home-rules').innerHTML = homeRules(p.spec);
   $('home-needs').innerHTML = needsHtml;
   $('home-calm').hidden = Boolean(needsHtml);
   if (view.tab === 'dashboard') dashboardView.draw(p, needsHtml);

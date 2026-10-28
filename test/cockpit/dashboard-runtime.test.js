@@ -30,6 +30,16 @@ test('Dashboard refuses truncated history and isolates a replaced board at the s
   assert.equal(observations.at(-1).options.complete, true);
   assert.deepEqual(observations.at(-1).events.map(event => event.event_id), [1,2,3], 'events beyond the displayed sequence never enter the projection');
   assert.equal(observations.at(-1).options.now, Date.parse(project.observedAt), 'the API observation clock governs rates and lease windows');
+  const sameSnapshotCalls = observations.length;
+  runtime.draw(project, '');
+  assert.equal(observations.length, sameSnapshotCalls, 'returning to the exact native snapshot reuses its already-derived history');
+  project.observedAt = '2026-10-27T12:00:01Z';
+  runtime.draw(project, '');
+  assert.equal(observations.length, sameSnapshotCalls + 1, 'even the same object with a new API clock must recompute its windows');
+  assert.equal(observations.at(-1).options.now, Date.parse(project.observedAt));
+  project.items = [{ id: 9, title: 'New live content at this prefix' }];
+  runtime.draw(project, '');
+  assert.equal(observations.length, sameSnapshotCalls + 2, 'changed live fields are never hidden behind a prefix-only cache');
 
   reply = { events: [{ event_id: 1 }, { event_id: 2 }] };
   runtime.draw({ ...project, sequence: 2 }, ''); await delivered(); runtime.draw({ ...project, sequence: 2 }, '');

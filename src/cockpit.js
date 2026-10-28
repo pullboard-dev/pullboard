@@ -872,9 +872,11 @@ function updateRoadmapPanel() {
   const panel = $('roadmap-panel');
   if (!panel || view.tab !== 'roadmap') return;
   aheadRoadmapRows();
+  const targets = new Map();
+  for (const node of $('roadmap-list').querySelectorAll('[data-key]')) if (!targets.has(node.dataset.key)) targets.set(node.dataset.key, node);
   const entries = [...panel.querySelectorAll('[data-roadmap-jump]')].map((button) => ({
     key: button.dataset.roadmapJump,
-    target: $('roadmap-list').querySelector('[data-key="' + CSS.escape(button.dataset.roadmapJump) + '"]'),
+    target: targets.get(button.dataset.roadmapJump),
   })).filter((entry) => entry.target);
   if (!entries.length) return;
   const threshold = (document.querySelector('.top')?.getBoundingClientRect().bottom ?? 0) + 8;
