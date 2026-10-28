@@ -6,6 +6,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { accountedFailures } from '../src/land.js';
+import { land } from '../src/land.js';
+import { runLandingBatch } from '../src/land.js';
+import { runLandingCandidate } from '../src/land.js';
+import { shardProcesses } from '../src/landing-shards.js';
+import { runLandingShards } from '../src/landing-shards.js';
+import { runLandingWorker } from '../src/landing-worker.js';
+import { landingWaivers } from '../src/landing-waivers.js';
+import { landingPorts } from './landing-ports-fixture.js';
 import { runShell } from '../src/shell-run.js';
 import { runFixtureGit } from './fixture-child.js';
 
@@ -69,4 +77,27 @@ test('an exit in the configured phase cannot skip the affected phase or earn a w
   assert.equal(existsSync(join(root, 'affected.cwd')), true, 'the affected child actually executes');
   assert.equal(run.stages[1].status, null, 'the interrupted original stage never gains an exit receipt');
   assert.equal(accountedFailures(run, root), null);
+});
+
+/** Required provider checks precede real Git, lease, process and board work in each public component entry. */
+test('missing landing providers refuse before admission or work can begin [B3,R3,Q1,Q3,C7]', async () => {
+  let called = false;
+  const untouched = new Proxy({}, { get() { called = true; throw new Error('provider refusal read the board'); } });
+  for (const ports of [undefined, { ...landingPorts, quarantineWaivers: undefined }, { ...landingPorts, observeNativeFailure: undefined }]) {
+    await assert.rejects(land({ root: '/missing-landing-provider', board: untouched, landingPorts: ports }), /explicit canonical operation ports/u);
+    await assert.rejects(runLandingBatch({ root: '/missing-landing-provider', board: untouched, landingPorts: ports }), /explicit canonical operation ports/u);
+    await assert.rejects(runLandingCandidate({ root: '/missing-landing-provider', board: untouched, landingPorts: ports,
+      checkLease() { called = true; } }), /explicit canonical operation ports/u);
+  }
+  await assert.rejects(runLandingShards({ root: '/missing-landing-parser' }), /explicit process census parser/u);
+  await assert.rejects(runLandingWorker({ root: '/missing-landing-parser' }, {}), /explicit process census parser/u);
+  assert.throws(() => landingWaivers(untouched), /explicit quarantine reader/u);
+  assert.equal(called, false, 'missing providers never read the board or enter the lease callback');
+});
+
+/** Explicit unavailable census evidence must remain unavailable without a replacement read. */
+test('an unavailable shard census stays unavailable without another process read [Q1,Q3]', () => {
+  let reads = 0;
+  assert.equal(shardProcesses(process.pid, null, () => { reads += 1; return new Map(); }), null);
+  assert.equal(reads, 0);
 });

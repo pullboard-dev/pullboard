@@ -32,6 +32,7 @@ import {
   initializeRunnerRecovery,
   recordRunnerFailure,
   recoverUnavailableRunners,
+  runnerRecoveryStatus,
 } from './runner-recovery.js';
 import { readGateQueueSettings } from './queue-settings.js';
 import {
@@ -575,11 +576,18 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
   return null;
 }
 
-/** Evidenced transport losses need a successful probe; only legacy rows retain their old expiry behavior. */
-function runnerUnavailable(entry, now) {
-  return Boolean(entry && (entry.detail !== 'TRANSPORT_LOST' || entry.failure
-    || !(now - Date.parse(entry.since) >= RUNNER_RETRY_MS)));
+/** Start due health work on its own connection so a free executor never waits for another host's probe. */
+function startRunnerRecovery(db, file, runners, probe) {
+  if (typeof probe !== 'function' || !db.prepare('SELECT 1 FROM runner_unavailable WHERE probe_after<=? AND probe_until<=? LIMIT 1').get(Date.now(), Date.now())) return;
+  let recovery;
+  try { recovery = open(file); }
+  catch { process.stderr.write('runner recovery storage unavailable; failed hosts remain unavailable\n'); return; }
+  void recoverUnavailableRunners(recovery, runners, { probe }).finally(() => recovery.close())
+    .catch(() => process.stderr.write('runner recovery observation unavailable; failed hosts remain unavailable\n'));
 }
+
+/** Every recorded failure stays unavailable until exact recovery or explicit manual clearance, never merely age. */
+function runnerUnavailable(entry) { return Boolean(entry); }
 
 /** Use the same current transport and draining exclusions for admission and local-memory status. */
 function unavailableRunnerHosts(db, now) {
@@ -618,7 +626,7 @@ export function runnerResourceStatus(runners) {
         try { if (transport) transportFailure = { at: transport.at, ...JSON.parse(transport.diagnostic) }; } catch { /* Malformed legacy diagnostics remain unreported, never guessed. */ }
         const observed = db.prepare('SELECT gui, observed_at FROM runner_gui WHERE host = ?').get(runner.host);
         return [{ ...runner, gui: runner.gui ?? null, ...(observed ? { gui: observed.gui === null ? null : observed.gui === 1, guiObservedAt: observed.observed_at } : {}), inUse: holders.length, browserInUse: holders.filter(holder => holder.browser === 1).length,
-          unavailable: Boolean(unavailable), ...(unavailable ? { unavailableSince: unavailable.since, unavailableReason: unavailable.detail } : {}),
+          unavailable: Boolean(unavailable), ...(unavailable ? { unavailableSince: unavailable.since, unavailableReason: unavailable.detail, recoveryFailure: runnerRecoveryStatus(unavailable.failure) } : {}),
           ...(transportFailure ? { transportFailure } : {}), holders }];
       });
     });
@@ -667,8 +675,6 @@ export function updateRunnerSettings(host, persist, { drain = false } = {}) {
 }
 
 const MEMORY_CACHE_MS = 2_000;
-/** How long a runner whose transport dropped sits out before the pool tries it again. */
-const RUNNER_RETRY_MS = 5 * 60_000;
 const MEMORY_COMMAND_TIMEOUT_MS = 2_000;
 const LINUX_CRITICAL_FULL_AVG10 = 10;
 const LINUX_WARN_SOME_AVG10 = 10;
@@ -1043,6 +1049,7 @@ export async function takeResource(options) {
       }));
       lateAdmissionClosed ||= Boolean(acquired.state.runnerDeadline);
       if (acquired.acquired) {
+        if (runnerProvider) startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe);
         runnerDispatched ||= Boolean(acquired.runner);
         lateRunnerDispatch = acquired.lateRunnerDispatch ?? lateRunnerDispatch;
         if (acquired.state.runnerDeadline && !acquired.runner) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '; running locally\n');
@@ -1146,7 +1153,7 @@ export async function takeResource(options) {
       }
       if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
       await keepItemLease(acquired.state, 'waiter');
-      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()))) continue;
+      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), { probe: options.runnerHealthProbe })) continue;
       await pause(POLL_MS);
     }
   } catch (error) {

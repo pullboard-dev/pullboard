@@ -15,7 +15,6 @@ import {
   readFileSync,
   writeFileSync,
   rmSync,
-  cpSync,
   readdirSync,
   lstatSync,
   renameSync,
@@ -199,11 +198,11 @@ test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: 
   const bobRoot = join(box.root, '..', 'bob-clone');
   runFixtureGit(['clone', '-q', box.root, bobRoot], { cwd: box.root, env: box.env });
   runFixtureGit(['remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git'], { cwd: bobRoot, env: box.env });
-  cpSync(join(box.root, '.git', 'pullboard'), join(bobRoot, '.git', 'pullboard'), { recursive: true, filter: path => !path.endsWith('.lock') });
+  box.copyOwnBoardMetadata(bobRoot);
   const bobHome = join(box.root, '..', 'bob-home');
   const bobEnv = { ...box.env, HOME: bobHome, PULLBOARD_HOME: join(bobHome, '.pullboard'), PULLBOARD_MACHINE_HOME: join(bobHome, 'machine') };
   mkdirSync(join(bobEnv.PULLBOARD_HOME, 'relay-keys'), { recursive: true, mode: 0o700 });
-  cpSync(box.keyFile, join(bobEnv.PULLBOARD_HOME, 'relay-keys', repoBoardId + '.key'));
+  box.copyOwnKey(bobEnv.PULLBOARD_HOME, repoBoardId);
   box.providerState.signer = 'bob';
   const linked = await relayFixtureChild(bobRoot, bobEnv, [CLI, 'relay', 'on', '--url', box.origin, '--json']);
   box.providerState.signer = 'alice';
@@ -724,9 +723,9 @@ test('the board knows its people: events name them, approvers decide [E3,E4,E20]
   runFixtureGit(['remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git'], { cwd: bobRoot, env: box.env });
   const bobHome = join(box.root, '..', 'bob-home');
   const bobEnv = { ...box.env, HOME: bobHome, PULLBOARD_HOME: join(bobHome, '.pullboard'), PULLBOARD_MACHINE_HOME: join(bobHome, 'machine') };
-  cpSync(join(box.root, '.git', 'pullboard'), join(bobRoot, '.git', 'pullboard'), { recursive: true, filter: (path) => !path.endsWith('.lock') });
+  box.copyOwnBoardMetadata(bobRoot);
   mkdirSync(join(bobEnv.PULLBOARD_HOME, 'relay-keys'), { recursive: true, mode: 0o700 });
-  cpSync(box.keyFile, join(bobEnv.PULLBOARD_HOME, 'relay-keys', link.board + '.key'));
+  box.copyOwnKey(bobEnv.PULLBOARD_HOME, link.board);
   box.providerState.signer = 'bob';
   const bobOn = await relayFixtureChild(bobRoot, bobEnv, [CLI, 'relay', 'on', '--url', box.origin, '--json']);
   box.providerState.signer = 'alice';
@@ -1041,7 +1040,7 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
   const items = (await box.cli('export')).document.tables.item;
   assert.ok(items.some((item) => item.item_title === 'Added from CI'), 'the CI move reaches the person’s board');
   assert.equal(filesUnder(join(ciEnv.PULLBOARD_HOME, 'relay-keys')).length, 0, 'CI keeps no key file');
-  const written = [...filesUnder(join(ciRoot, '.git', 'pullboard')), ...filesUnder(ciHome)].map((file) => readFileSync(file)).map((bytes) => bytes.toString('latin1'));
+  const written = [...box.privateTreeBytes(join(ciRoot, '.git', 'pullboard')), ...box.privateTreeBytes(ciHome)].map(bytes => bytes.toString('latin1'));
   assert.equal(written.some((text) => text.includes(token) || text.includes(key)), false, 'neither the token nor the key is written to disk');
   for (const output of [status, listed, added]) {
     const shown = JSON.stringify(output.document) + (output.failure ?? '');
@@ -1181,8 +1180,8 @@ async function passkeyRequest(box, session, document, presence) {
 }
 
 /** True when no regular file under a directory holds a person session or a person grant. */
-function holdsNoPersonCredential(directory) {
-  return filesUnder(directory).every((file) => !/(?:ps_|pg_)[A-Za-z0-9_-]{43}/u.test(readFileSync(file).toString('latin1')));
+function holdsNoPersonCredential(box, directory) {
+  return box.privateTreeBytes(directory).every(bytes => !/(?:ps_|pg_)[A-Za-z0-9_-]{43}/u.test(bytes.toString('latin1')));
 }
 
 test('person-only moves are signed [E22,B26,H16]', { timeout: relayWorkBudgetMs(60) }, async (t) => { // budget: hang ceiling for real CLI runs and relay calls; not a speed target.

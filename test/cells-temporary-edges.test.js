@@ -1,5 +1,7 @@
 /** @pullboard-test-input source-tree bin/cells-plan/** */
 /** Temporary import debt has an explicit removal owner, UTC expiry and visible shim count [C7]. */
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -81,15 +83,15 @@ test('missing contracts, invalid dates, expired entries and duplicates fail by e
 });
 
 test('each declared edge remains visible as shim debt, including expired debt [C7]', t => {
-  const box = fixture(t), before = cellLintReport(box.root).metrics.shims.count;
+  const box = fixture(t), before = cellLintReport(box.root, { importsIn, commonJsIn }).metrics.shims.count;
   box.policy([box.declaration]);
-  let report = cellLintReport(box.root);
+  let report = cellLintReport(box.root, { importsIn, commonJsIn });
   assert.equal(report.metrics.shims.count, before + 1);
   const row = report.metrics.shims.findings.find(row => row.key.startsWith('temporary:'));
   assert.equal(row.key, `temporary:${box.declaration.importer}->${box.declaration.target}`);
   assert.match(row.detail, /contract #1737; expires/u);
   box.policy([{ ...box.declaration, expires: '2000-01-01' }]);
-  report = cellLintReport(box.root);
+  report = cellLintReport(box.root, { importsIn, commonJsIn });
   assert.equal(report.metrics.shims.count, before + 1, 'expiration never erases debt');
   assert.ok(report.unknown.some(row => row.reason.includes('expired')));
 });

@@ -1,8 +1,6 @@
 import { recordReviewPolicyActivation } from '../packages/state/index.js';
 import { agentGrantMinimum } from './agent-grant.js';
 import { requireAgentGrant } from './agent-grant.js';
-import { boundProofReceipt } from './proof-receipts.js';
-import { requireOutsideReceipt } from './outside-proof.js';
 import { rejectedWorkReturns } from '../packages/state/index.js';
 import { handoffMoveProblem } from '../packages/state/index.js';
 import { requireHandoffActive } from '../packages/state/index.js';

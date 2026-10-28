@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { stop } from '../src/landing-worker.js';
+import { parseProcessCensus } from '../src/process-census.js';
 import { startFixtureChild } from './fixture-child.js';
 
 const GROUP = 41001;
@@ -66,7 +67,7 @@ async function stopPrivateChild() {
   try {
     const [message] = await once(child, 'message', { signal: deadline });
     assert.equal(message, 'ready');
-    stop(child);
+    stop(child, undefined, { parseProcessCensus });
     const [, signal] = await closed;
     assert.equal(signal, 'SIGKILL', 'the real owned process group is stopped');
   } finally {

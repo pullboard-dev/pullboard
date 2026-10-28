@@ -9,6 +9,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { gateRunnerAdmission } from '../settings.js';
+import { quarantineWaivers } from '../quarantine.js';
 import { withBoardRead as waitBoardRead } from '../board-read.js';
 import { retrySync } from '../cli-sync.js';
 import { checkAtCommit } from '../runner-private-check.js';
@@ -317,7 +318,7 @@ export async function submitHere(ctx, id, infra) {
     companion.phases = gate.phasePlan.map(({ role, command }) => ({ role, command: createHash('sha256').update(command).digest('hex') }));
   }
   // Only fully accounted exact-main failures or live person waivers pass a red proof; the item check stays mandatory [B3].
-  const waived = !gate.isGreen && gate.check?.green ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, root))) : null;
+  const waived = !gate.isGreen && gate.check?.green ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, root), { quarantineWaivers })) : null;
   const onMeasuredReceipt = receiptId => nativeFlakes.recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent });
   let comparison;
   let knownMainFailures;
