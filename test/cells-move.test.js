@@ -215,4 +215,6 @@ test('the shipped installation includes the first real package and runs its CLI 
   const child = spawnSync(process.execPath, [join(installed, 'bin/pullboard.js'), '--help'], { cwd: installed, env, encoding: 'utf8' });
   assert.equal(child.status, 0, child.stderr);
   assert.match(child.stdout, /pullboard/u);
+  const body = spawnSync(process.execPath, ['--input-type=module', '-e', "import assert from 'node:assert/strict'; import { serveMcp, refusePersonMove } from './src/mcp.js'; assert.equal(typeof serveMcp, 'function'); assert.throws(() => refusePersonMove('spec_approve'), { code: 'HUMAN_REQUIRED' });"], { cwd: installed, env, encoding: 'utf8' });
+  assert.equal(body.status, 0, body.stderr);
 });
