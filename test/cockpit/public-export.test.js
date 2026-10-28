@@ -113,6 +113,36 @@ test('native fact and landing batch UUIDs remain metadata without exempting pros
   }
 });
 
+test('complete native batch hashes remain typed while private execution linkage is omitted [N26]', () => {
+  const id = '018fc314-57c9-7318-a11f-55a08a28a101', commit = 'a'.repeat(40), tree = 'b'.repeat(64);
+  // Schema contract only: this literal carries no recorded gate or landing assurance.
+  const batch = { version: 1, id, state: 'gating', base: commit, tip: tree,
+    root: '/Users/fixture/board', owner: id, logPath: '/Users/fixture/batch.log',
+    candidates: [{ id: 1, commit }], items: [{ id: 1, commit, reviewedCommit: tree, merge: tree }],
+    gateResults: [{ tree, affectedGate: 'c'.repeat(64), isGreen: false, logPath: '/Users/fixture/gate.log' }],
+    proof: { tree, logPath: '/Users/fixture/proof.log' },
+    invariantEvidence: { version: 1, gates: [{ commit, isGreen: false, submissions: [{ id: 1, commit }], failures: [], fileTimes: [] }],
+      diagnostics: [{ commit, test: 'test/public.test.js', isGreen: false, wallMs: null }] } };
+  const native = { events: { events: [{ event_kind: 'landing_batch', event_detail: JSON.stringify({ batch }) },
+    { event_kind: 'main-moved', event_detail: JSON.stringify({ sha: tree, batch: id, items: [1] }) }] } };
+  const projected = publicSnapshot(native);
+  const actual = JSON.parse(projected.events.events[0].event_detail).batch;
+  for (const key of ['root', 'owner', 'logPath']) assert.equal(Object.hasOwn(actual, key), false);
+  assert.equal(Object.hasOwn(actual.gateResults[0], 'logPath'), false);
+  assert.equal(Object.hasOwn(actual.proof, 'logPath'), false);
+  assert.equal(actual.base, commit); assert.equal(actual.tip, tree);
+  assert.equal(actual.items[0].reviewedCommit, tree); assert.equal(actual.gateResults[0].affectedGate, 'c'.repeat(64));
+  assert.equal(actual.invariantEvidence.gates[0].submissions[0].commit, commit);
+  assert.equal(JSON.parse(projected.events.events[1].event_detail).sha, tree);
+  assert.equal(batch.root, '/Users/fixture/board', 'native source metadata is unchanged');
+  for (const changed of [{ ...batch, tip: 'a'.repeat(41) }, { ...batch, note: commit },
+    { ...batch, extra: { base: commit } }, { ...batch, note: '/Users/fixture/private-note' }]) {
+    assert.throws(() => publicSnapshot({ events: { events: [{ event_kind: 'landing_batch', event_detail: JSON.stringify({ batch: changed }) }] } }),
+      /PUBLIC_EXPORT_BLOCKED/u, 'unknown prose and malformed typed fields never gain a hash or private-field exemption');
+  }
+  assert.throws(() => publicSnapshot({ batch }), /PUBLIC_EXPORT_BLOCKED/u, 'an arbitrary batch object is not a native envelope');
+});
+
 test('retained object keys undergo the same public scan as their values [N26]', () => {
   for (const [kind, key] of [['pricing term', 'pricing.md'], ['email', 'fixture@example.invalid'],
     ['secret-shaped string', 'sk-fixtureonly12345678']]) {

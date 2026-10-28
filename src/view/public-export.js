@@ -51,7 +51,7 @@ const EVENT_IDENTITIES = Object.freeze({
 const DIAGNOSTIC_FIELDS = new Set(('listing boards state events board root id rowAgesAt items agents shouts asked requests decisions decisionQueue needs personRequests '
   + 'personBars personRows personProposals event_detail detail thread history title criterion brief text note reason check commit tree digest policyCommit '
   + 'criterionDigest receipt frozenDigest submissionProof submissionSize base head review trunk checkBaseline main verdict verdicts verdictState spec practice products releaseNotes '
-  + 'source record row rowDecisions specRevisions rigorDrafts sentinelDrafts proofStats ruleCounts config parent signature publicKey agent_id agent_lane model dashboardLanded').split(' '));
+  + 'source record row rowDecisions specRevisions rigorDrafts sentinelDrafts proofStats ruleCounts config parent signature publicKey agent_id agent_lane model dashboardLanded batch base tip sha merge reviewedCommit candidates invariantEvidence gates submissions diagnostics gateResults proof affectedGate').split(' '));
 
 /** Name a projection location without echoing arbitrary object keys, identifiers or filesystem names. */
 function diagnosticPath(path) {
@@ -64,6 +64,24 @@ function proofReceiptPath(path, eventKind) {
     && ['detail', 'event_detail'].includes(path.at(-2)) && EVENT_PATH.test(path.slice(0, -2).join('/'));
 }
 
+/** Identify one actual native landing-batch payload, never an arbitrary object called batch. */
+function nativeBatchPath(path, eventKind) {
+  if (eventKind !== 'landing_batch') return null;
+  for (let index = 0; index < path.length; index++) {
+    if (['detail', 'event_detail'].includes(path[index]) && path[index + 1] === 'batch'
+      && EVENT_PATH.test(path.slice(0, index).join('/'))) return path.slice(index + 2);
+  }
+  return null;
+}
+
+/** Private execution linkage is not public board content; the same keys elsewhere remain scanned. */
+function privateBatchField(path, key, eventKind) {
+  const batch = nativeBatchPath(path, eventKind);
+  if (batch === null) return false;
+  return batch.length === 0 && ['root', 'owner', 'logPath', 'parallelProofRoot'].includes(key)
+    || (batch.join('/') === 'proof' || /^gateResults\/\*$/u.test(batch.join('/'))) && key === 'logPath';
+}
+
 /** Exempt exact native paths and formats; free text and arbitrary *_id detail keys never qualify. */
 function structuredIdentity(path, value, eventKind) {
   const location = path.join('/');
@@ -74,6 +92,12 @@ function structuredIdentity(path, value, eventKind) {
     || eventKind === 'landing_batch' && path.slice(-2).join('/') === 'batch/id'
       && ['detail', 'event_detail'].includes(path.at(-3)) && EVENT_PATH.test(path.slice(0, -3).join('/'));
   if (factId || batchId) return /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/u.test(value);
+  if (detailField && eventKind === 'main-moved' && path.at(-1) === 'sha') return /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value);
+  const batch = nativeBatchPath(path, eventKind)?.join('/');
+  if (batch !== undefined && /^(?:base|tip|supersededByMain|(?:items|candidates|culprits)\/\*\/(?:commit|reviewedCommit|merge|mergeCommit)|conflicts\/\*\/(?:trunk|commit|reviewedCommit)|gateResults\/\*\/tree|proof\/tree|invariantEvidence\/gates\/\*\/commit|invariantEvidence\/gates\/\*\/submissions\/\*\/commit|invariantEvidence\/diagnostics\/\*\/commit)$/u.test(batch)) {
+    return /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value);
+  }
+  if (batch !== undefined && /^gateResults\/\*\/affectedGate$/u.test(batch)) return /^[a-f0-9]{64}$/u.test(value);
   let width = 0;
   if (/^(?:listing\/boards\/\*\/id|state\/state\/board|state\/board|events\/board)$/u.test(location)) width = 32;
   if (path.length === 4 && path.slice(0, 3).join('/') === 'state/state/rowAgesAt') width = 40;
@@ -124,7 +148,8 @@ export function publicSnapshot(document, { privateBoard = false } = {}) {
       const kind = EVENT_PATH.test(location) ? value.type === 'fact' ? 'fact' : value.event_kind ?? value.kind : eventKind;
       const entries = location === 'state/state/agents/*'
         ? [['agent_id', value.agent_id], ['agent_lane', value.agent_lane], ['model', value.model ?? value.agent_model]]
-        : Object.entries(value).filter(([key]) => !proofReceiptPath(path, kind) || !['parentSession', 'runner'].includes(key));
+        : Object.entries(value).filter(([key]) => (!proofReceiptPath(path, kind) || !['parentSession', 'runner'].includes(key))
+          && !privateBatchField(path, key, kind));
       return Object.fromEntries(entries.map(([key, entry]) => {
         inspect(key, [...path, key], kind, false);
         return [key, key === 'event_detail' ? JSON.stringify(visit(detailOf(value), [...path, key], kind)) : visit(entry, [...path, key], kind)];
