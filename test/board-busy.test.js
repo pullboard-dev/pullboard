@@ -10,6 +10,7 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
+import { mappedWorkingSource } from '../bin/checks/scan.js';
 import { boardWriteHolderText } from '../src/board-write-lock.js';
 import { exportBoard } from '../src/exchange.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -274,8 +275,10 @@ test('opening an older board names and logs its genuine index-building write [C7
   assert.equal(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-dir'),
     box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'));
   assert.equal(readFileSync(privateBin, 'utf8'), readFileSync(BIN, 'utf8'));
-  assert.equal(readFileSync(join(box.repo, 'src', 'git.js'), 'utf8'),
-    readFileSync(resolve(import.meta.dirname, '../src/git.js'), 'utf8'));
+  const installedGit = mappedWorkingSource(box.repo, 'src/git.js');
+  const sourceGit = mappedWorkingSource(resolve(import.meta.dirname, '..'), 'src/git.js');
+  assert.deepEqual(installedGit.body, sourceGit.body, 'the installed implementation retains exact source Buffer bytes');
+  assert.deepEqual(installedGit.shimBody, sourceGit.shimBody, 'the installed compatibility shim retains exact source bytes');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const added = box.run(box.repo, 'add', 'web', 'private maintenance item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
   assert.equal(added.code, 0, added.err);
@@ -398,7 +401,8 @@ test('native import observes committed and rolled-back write ownership without c
       import { DatabaseSync } from 'node:sqlite';
       import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
       import { exportBoard, importBoard } from ${JSON.stringify(new URL('../src/exchange.js', import.meta.url).href)};
-      import { boardWriteHolderText } from ${JSON.stringify(new URL('../src/board-write-lock.js', import.meta.url).href)};
+      import { mappedWorkingSource } from '../bin/checks/scan.js';
+import { boardWriteHolderText } from ${JSON.stringify(new URL('../src/board-write-lock.js', import.meta.url).href)};
       const file = process.argv[1];
       const document = JSON.parse(readFileSync(process.argv[2], 'utf8'));
       const board = store.openBoard(file, undefined, { writeContext: { command: 'private-import', seat: 'coordinator' } });
@@ -553,7 +557,8 @@ test('a standalone native attempt and nested rollback each observe only their ac
       import { DatabaseSync } from 'node:sqlite';
       import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
       import { exportBoard } from ${JSON.stringify(new URL('../src/exchange.js', import.meta.url).href)};
-      import { boardWriteHolderText } from ${JSON.stringify(new URL('../src/board-write-lock.js', import.meta.url).href)};
+      import { mappedWorkingSource } from '../bin/checks/scan.js';
+import { boardWriteHolderText } from ${JSON.stringify(new URL('../src/board-write-lock.js', import.meta.url).href)};
       const file = process.argv[1];
       const board = store.openBoard(file, undefined, { writeContext: { command: 'private-attempt', seat: 'coordinator' } });
       const before = exportBoard(board);

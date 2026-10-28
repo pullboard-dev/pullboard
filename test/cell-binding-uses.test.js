@@ -3,9 +3,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -22,6 +24,8 @@ import { bindingReadsForModules } from '../src/cell-binding-uses.js';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
 import { mainAuditKey } from '../src/main-audit-state.js';
 import { readAuditJob } from './main-audit-project.js';
+import { mappedWorkingSource } from '../bin/checks/scan.js';
+import { importsIn } from '../src/module-imports.js';
 
 const IMPORT = "import { join } from 'node:path';\n";
 
@@ -93,6 +97,50 @@ test('native audit journal input refuses missing, malformed and mismatched ident
   assert.throws(() => readAuditJob(directory, key), /journal binds/u);
   writeFileSync(file, JSON.stringify({ ...job, version: 2 }));
   assert.throws(() => readAuditJob(directory, key), /journal schema/u);
+});
+
+test('mapped working source preserves implementation, shim and exact Buffer obligations [C7]', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'pb-mapped-source-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, 'src'));
+  mkdirSync(join(root, 'packages', 'git'), { recursive: true });
+  const oldPath = 'src/git.js', bodyPath = 'packages/git/core.js';
+  const shim = "export * from '../packages/git/core.js';\n";
+  const original = Buffer.from([0x2f, 0x2f, 0xff, 0x0a]);
+  writeFileSync(join(root, oldPath), shim);
+  writeFileSync(join(root, bodyPath), original);
+  writeFileSync(join(root, 'path-map.json'), JSON.stringify({ [oldPath]: bodyPath }));
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
+    GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
+  /** Commit only the private fixture's source identity. */
+  function git(...args) { return runFixtureGit(args, { cwd: root, env }); }
+  git('init', '-q', '-b', 'main'); git('add', '-A'); git('commit', '-q', '-m', 'chore: mapped source format');
+  const first = mappedWorkingSource(root, oldPath);
+  assert.equal(first.implementationPath, bodyPath);
+  assert.deepEqual(first.body, original, 'invalid UTF-8 bytes are not decoded and re-encoded');
+  assert.deepEqual(first.shimBody, Buffer.from(shim));
+  writeFileSync(join(root, bodyPath), "import 'node:child_process';\n");
+  const changed = mappedWorkingSource(root, oldPath);
+  assert.notDeepEqual(changed.body, first.body, 'changed implementation is visible even with an unchanged shim');
+  assert.deepEqual(changed.shimBody, first.shimBody);
+  const edges = importsIn([changed.body.toString('utf8')])[0];
+  assert.ok(edges.includes('node:child_process'), 'the actual graph parser sees the changed implementation');
+  assert.throws(() => assert.ok(!edges.includes('node:child_process')), 'the unchanged process-free invariant refuses that body');
+  writeFileSync(join(root, oldPath), shim + '// changed shim\n');
+  assert.notDeepEqual(mappedWorkingSource(root, oldPath).shimBody, first.shimBody, 'copy equality still observes changed shim bytes');
+  assert.throws(() => mappedWorkingSource(root, '../escape'), /identity/u);
+  writeFileSync(join(root, 'path-map.json'), '{}');
+  assert.throws(() => mappedWorkingSource(root, oldPath), /stale or uncommitted/u);
+  git('checkout', '--', 'path-map.json');
+  rmSync(join(root, bodyPath));
+  assert.throws(() => mappedWorkingSource(root, oldPath), { code: 'ENOENT' });
+  symlinkSync(join(root, oldPath), join(root, bodyPath));
+  assert.throws(() => mappedWorkingSource(root, oldPath), /contained regular file/u);
+  mkdirSync(join(root, 'bin', 'cells-plan', 'path-map'), { recursive: true });
+  writeFileSync(join(root, 'bin', 'cells-plan', 'path-map', 'duplicate.json'), JSON.stringify({ [oldPath]: bodyPath }));
+  git('add', '-A'); git('commit', '-q', '-m', 'chore: ambiguous map format control');
+  assert.throws(() => mappedWorkingSource(root, oldPath), { code: 'NO_POLICY' });
 });
 
 /** Hide only this actual import declaration, just as the production callers do; every other spelling stays visible. */
