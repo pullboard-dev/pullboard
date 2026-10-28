@@ -1,15 +1,9 @@
 /** Explicit opt-in smoke execution; this never activates a hook or writes a full-gate stamp [C7]. */
-import { checkNeedsBrowser } from './browser-admission.js';
-import { checkNeedsGui } from './gui-admission.js';
-import {
-  runProfiledShellAsync,
-  withGateSlot,
-} from './gate.js';
 import { mainPolicy } from './trusted-policy-read.js';
 import { Refused } from './refused.js';
 
 /** Run only the accepted policy's explicit smoke command through ordinary native admission. */
-export async function runPushReceiptSmoke(root, { agent, onWait } = {}) {
+export async function runPushReceiptSmoke(root, { agent, onWait } = {}, { checkNeedsBrowser, checkNeedsGui, runProfiledShellAsync, withGateSlot }) {
   const policy = mainPolicy(root);
   const command = policy.config.pushReceiptCheck?.smoke;
   if (typeof command !== 'string' || !command.trim()) {

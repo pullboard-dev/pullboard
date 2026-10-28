@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
-import { checkAtCommit } from '../src/trusted-policy.js';
+import { checkAtCommit } from '../src/runner-private-check.js';
 import { checkBaseline } from '../src/check-baseline.js';
 import { itemsTouching } from '../src/why-file.js';
 import { rigorReport } from '../src/rigor.js';
@@ -240,7 +240,7 @@ test('a split test-name pattern stays data while its positional file follows the
   const env = { ...process.env };
   // Node's inherited test harness context would silently skip this independent nested test command.
   delete env.NODE_TEST_CONTEXT;
-  const script = `import {checkAtCommit} from ${JSON.stringify(new URL('../src/trusted-policy.js', import.meta.url).href)};
+  const script = `import {checkAtCommit} from ${JSON.stringify(new URL('../src/runner-private-check.js', import.meta.url).href)};
 console.log(JSON.stringify(checkAtCommit(${JSON.stringify(box.repo)},${JSON.stringify(item)})));`;
   const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: box.repo, env, encoding: 'utf8' });
   assert.equal(child.status, 0, child.stderr);

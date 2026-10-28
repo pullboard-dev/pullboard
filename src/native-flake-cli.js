@@ -24,7 +24,7 @@ import {
 export { flakesCommand as command } from './flake-command.js';
 
 /** Capture owner policy and source before admission, recording through the CLI's ordinary ordered board moves. */
-export function observer(ctx, { kind, board, main, commit, privateCheck = false, config = ctx.config } = {}, { ordered, withBoard, resourceAgent }) {
+export function observer(ctx, { kind, board, main, commit, privateCheck = false, config = ctx.config } = {}, { ordered, withBoard, resourceAgent, checkAtCommit }) {
   let acceptedConfig, pin, agentId;
   try {
     const owner = main ? policyAt(ctx.info.root, main) : mainPolicy(ctx.info.root);
@@ -50,7 +50,7 @@ export function observer(ctx, { kind, board, main, commit, privateCheck = false,
   };
   // The pinned main rides on the observer, so a remote runner's receipt can name the main this run used (#925).
   return Object.assign(async (run, { root = ctx.info.root, command, lease }) => {
-    await observeNativeFailure({ root, config: acceptedConfig, pin, run, command, lease, kind,
+    await observeNativeFailure({ root, config: acceptedConfig, pin, run, command, lease, kind, checkAtCommit,
       record: observation => {
         const ownerLane = observation.file ? laneOf(acceptedConfig, observation.file) : COORDINATOR;
         const lane = ownerLane === COORDINATOR ? Object.keys(acceptedConfig.lanes)[0] : ownerLane;
@@ -80,7 +80,7 @@ export function verify(ctx, item, command, options, services) {
   return async lease => {
     pinRunMain(lease, observe);
     lease.proof = { seat: services.resourceAgent(ctx) };
-    const result = runFrozenProof(ctx.info.root, item, { waitMs: lease.waitMs, gateLease: lease });
+    const result = runFrozenProof(ctx.info.root, item, { waitMs: lease.waitMs, gateLease: lease }, services);
     await recordNativeProof(ctx, item, result, { ...services, proofRunReceipt }, options.board);
     if (result.state === 'red') await observe({ isGreen: false, output: result.outputPath ? readFileSync(result.outputPath, 'utf8') : result.output,
       log: result.outputPath, profilePath: result.profilePath, executionRoot: result.executionRoot, executionSourceUnchanged: result.executionSourceUnchanged, executionRunner: result.executionRunner,

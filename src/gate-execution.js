@@ -80,7 +80,6 @@ import {
   tapTests,
 } from './tap-tests.js';
 import {
-  checkAtCommit,
   frozenCheck,
   mainPolicy,
 } from './trusted-policy.js';
@@ -296,7 +295,7 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
 }
 
 /** Execute a private immutable check before the gate writes its provenance. */
-export function runFrozenProof(root, item, { gateLease, waitMs = 0 } = {}) {
+export function runFrozenProof(root, item, { gateLease, waitMs = 0 } = {}, { checkAtCommit }) {
   const context = { item: item.item_id, frozenDigest: item.item_frozen_digest ?? null,
     seat: gateLease?.proof?.seat, kind: 'verdict', commit: item.item_commit };
   const before = proofSourceAt(root, item.item_commit);

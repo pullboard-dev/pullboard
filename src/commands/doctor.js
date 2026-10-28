@@ -1,3 +1,4 @@
+import { checkAtCommit } from '../runner-private-check.js';
 /** The pullboard doctor command, in its own module so an item adding another command never edits these lines. */
 import {
   doctorProblems,
@@ -34,7 +35,7 @@ export function run(io) {
   }
   const ctx = context(io);
   const agentHooks = agentHookStatus(ctx.info.root);
-  const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config, { isMain: ctx.allowSchemaUpgrade }), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];
+  const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config, { isMain: ctx.allowSchemaUpgrade, checkAtCommit }), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];
   const checkpointProblem = pendingCheckpointProblem(ctx.info.root);
   if (checkpointProblem) problems.push(checkpointProblem);
   const oversizedSnapshot = checkpointProblem ? null : pendingSnapshotSize(ctx.info.root);
