@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { machineHome } from './machine-home.js';
+import { runnerRecoveryStatus } from './runner-recovery.js';
 import { Refused } from './refused.js';
 
 /** Explain each registered runner from the same local facts used by admission; no network probe. */
@@ -13,7 +14,7 @@ export function runnerWaitReasons(db, runners, waiter, unavailable) {
     const gui = observed ? observed.gui === 1 : runner.gui === true;
     const holders = db.prepare('SELECT browser, timing FROM holder WHERE name = ?').all(`runner:${runner.host}`);
     let reason = 'available';
-    if (unavailable.has(runner.host) && recorded?.detail === 'TRANSPORT_LOST') reason = 'unreachable (transport lost)';
+    if (unavailable.has(runner.host) && ['TRANSPORT_LOST', 'TRANSPORT_UNVERIFIED'].includes(recorded?.detail)) reason = 'unreachable (transport lost)';
     else if (unavailable.has(runner.host) && recorded?.detail === 'WORKER_UNRESPONSIVE') reason = 'unreachable (worker did not become ready)';
     else if (unavailable.has(runner.host)) reason = 'unavailable (cleanup or draining)';
     else if (waiter.gui === 1 && !gui) reason = 'unavailable (GUI session required)';
@@ -22,7 +23,8 @@ export function runnerWaitReasons(db, runners, waiter, unavailable) {
       || waiter.timing === 1 && holders.length > 0
       || waiter.browser === 1 && holders.filter(holder => holder.browser === 1).length >= runner.browser) reason = 'busy';
     if (unavailable.has(runner.host) && recorded) {
-      try { const probe = JSON.parse(recorded.failure).latestProbe; if (probe) reason += `; ${probe.step ?? 'health'}: ${probe.reason}`; } catch { /* Legacy rows retain the named original hold. */ }
+      const probe = runnerRecoveryStatus(recorded.failure);
+      reason += `; ${probe.step}: ${probe.reason}`;
     }
     return { host: runner.host, reason };
   });

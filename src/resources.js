@@ -32,6 +32,7 @@ import {
   initializeRunnerRecovery,
   recordRunnerFailure,
   recoverUnavailableRunners,
+  runnerRecoveryStatus,
 } from './runner-recovery.js';
 import { readGateQueueSettings } from './queue-settings.js';
 import {
@@ -585,11 +586,8 @@ function startRunnerRecovery(db, file, runners, probe) {
     .catch(() => process.stderr.write('runner recovery observation unavailable; failed hosts remain unavailable\n'));
 }
 
-/** Evidenced transport losses need a successful probe; only legacy rows retain their old expiry behavior. */
-function runnerUnavailable(entry, now) {
-  return Boolean(entry && (entry.detail !== 'TRANSPORT_LOST' || entry.failure
-    || !(now - Date.parse(entry.since) >= RUNNER_RETRY_MS)));
-}
+/** Every recorded failure stays unavailable until exact recovery or explicit manual clearance, never merely age. */
+function runnerUnavailable(entry) { return Boolean(entry); }
 
 /** Use the same current transport and draining exclusions for admission and local-memory status. */
 function unavailableRunnerHosts(db, now) {
@@ -628,7 +626,7 @@ export function runnerResourceStatus(runners) {
         try { if (transport) transportFailure = { at: transport.at, ...JSON.parse(transport.diagnostic) }; } catch { /* Malformed legacy diagnostics remain unreported, never guessed. */ }
         const observed = db.prepare('SELECT gui, observed_at FROM runner_gui WHERE host = ?').get(runner.host);
         return [{ ...runner, gui: runner.gui ?? null, ...(observed ? { gui: observed.gui === null ? null : observed.gui === 1, guiObservedAt: observed.observed_at } : {}), inUse: holders.length, browserInUse: holders.filter(holder => holder.browser === 1).length,
-          unavailable: Boolean(unavailable), ...(unavailable ? { unavailableSince: unavailable.since, unavailableReason: unavailable.detail, recoveryFailure: (() => { try { return JSON.parse(unavailable.failure).latestProbe ?? null; } catch { return { step: 'cleanup', reason: 'missing exact request ID or completion record' }; } })() } : {}),
+          unavailable: Boolean(unavailable), ...(unavailable ? { unavailableSince: unavailable.since, unavailableReason: unavailable.detail, recoveryFailure: runnerRecoveryStatus(unavailable.failure) } : {}),
           ...(transportFailure ? { transportFailure } : {}), holders }];
       });
     });
@@ -677,8 +675,6 @@ export function updateRunnerSettings(host, persist, { drain = false } = {}) {
 }
 
 const MEMORY_CACHE_MS = 2_000;
-/** How long a runner whose transport dropped sits out before the pool tries it again. */
-const RUNNER_RETRY_MS = 5 * 60_000;
 const MEMORY_COMMAND_TIMEOUT_MS = 2_000;
 const LINUX_CRITICAL_FULL_AVG10 = 10;
 const LINUX_WARN_SOME_AVG10 = 10;

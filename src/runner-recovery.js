@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { recoveryIdentity } from './runner-transport.js';
 
-/** Extend existing machine queues without changing legacy availability rows or configured capacity. */
+/** Extend existing queues without rewriting legacy holds or changing configured capacity. */
 export function initializeRunnerRecovery(db) {
   db.exec('CREATE TABLE IF NOT EXISTS runner_transport_error(host TEXT PRIMARY KEY,at TEXT NOT NULL,diagnostic TEXT NOT NULL)');
   db.exec('CREATE TABLE IF NOT EXISTS runner_recovery_event(id TEXT PRIMARY KEY,host TEXT NOT NULL,at TEXT NOT NULL,kind TEXT NOT NULL,detail TEXT NOT NULL)');
@@ -11,6 +11,16 @@ export function initializeRunnerRecovery(db) {
     ['probe_token', "TEXT NOT NULL DEFAULT ''"], ['probe_until', 'INTEGER NOT NULL DEFAULT 0'], ['probe_attempts', 'INTEGER NOT NULL DEFAULT 0']]) {
     if (!columns.has(name)) db.exec(`ALTER TABLE runner_unavailable ADD COLUMN ${name} ${type}`);
   }
+}
+
+/** Describe missing legacy custody before a probe, without promising automatic recovery for it. */
+export function runnerRecoveryStatus(failure) {
+  let value;
+  try { value = JSON.parse(failure); } catch { value = {}; }
+  const pending = value?.pending ?? [value?.original?.recovery];
+  if (!pending.length || !pending.every(recoveryIdentity)) return { step: 'cleanup', reason: 'missing exact request ID or completion record; inspect the host and use the existing manual runner command' };
+  return value.latestProbe ? { ...value.latestProbe, step: value.latestProbe.step ?? 'health' }
+    : { step: 'health', reason: 'waiting for pinned-worker readiness and exact-job cleanup proof' };
 }
 
 /** Keep each availability transition and its audit record in the same SQLite commit, including nested callers. */
@@ -43,7 +53,7 @@ export function recordRunnerFailure(db, host, reason, diagnostic, { quarantine =
     VALUES(?,?,?,?,?,'',0) ON CONFLICT(host) DO UPDATE SET since=excluded.since,detail=excluded.detail,
     failure=excluded.failure,probe_after=excluded.probe_after,probe_token='',probe_until=0,probe_attempts=0`)
     .run(host, new Date().toISOString(), reason === 'cleanup-unverified' ? 'CLEANUP_UNVERIFIED'
-      : reason === 'worker-unresponsive' ? 'WORKER_UNRESPONSIVE' : 'TRANSPORT_LOST',
+      : reason === 'worker-unresponsive' ? 'WORKER_UNRESPONSIVE' : 'TRANSPORT_UNVERIFIED',
       JSON.stringify(failure), Date.now() + 1_000);
   });
 }

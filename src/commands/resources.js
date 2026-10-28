@@ -46,7 +46,7 @@ export async function run(io) {
     for (const holder of resource.holders) io.say(`  held by ${agentDisplayName(agents, ctx.config, holder.agent)}${holder.repo ? ` in ${holder.repo}` : ''}${resourceRunLabel(holder, shortSlots)} since ${holder.since}`);
     resource.line.forEach((waiter, index) => io.say(`  ${index + 1}. waiting: ${agentDisplayName(agents, ctx.config, waiter.agent)}${waiter.repo ? ` in ${waiter.repo}` : ''}${resourceRunLabel(waiter, shortSlots)}; class ${waiter.queueClass}${waiter.agedFrom ? `, aged up from ${waiter.agedFrom}` : ''}${waiter.memoryHeld ? '; held by local memory' : ''}`));
   }
-  for (const runner of runners) io.say(`runner ${runner.host}: ${runner.inUse}/${runner.slots} slots, ${runner.browserInUse}/${runner.browser} browser, GUI ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}${runner.unavailable ? ` (unavailable; ${runner.recoveryFailure ? `${runner.recoveryFailure.step}: ${runner.recoveryFailure.reason}` : runner.unavailableReason}; automatic health recovery pending)` : ''}`);
+  for (const runner of runners) io.say(`runner ${runner.host}: ${runner.inUse}/${runner.slots} slots, ${runner.browserInUse}/${runner.browser} browser, GUI ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}${runner.unavailable ? ` (unavailable; ${runner.recoveryFailure ? `${runner.recoveryFailure.step ?? 'health'}: ${runner.recoveryFailure.reason}` : runner.unavailableReason})` : ''}`);
   for (const waiter of resources.find(resource => resource.name === 'gate' && resource.scope === 'machine')?.line ?? []) {
     if (waiter.runnerDeadline) io.say(`${waiter.agent}${waiter.item ? ` #${waiter.item}` : ''}: ${runnerDeadlineLine(waiter.runnerDeadline)}`);
   }

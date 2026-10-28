@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
   mkdirSync,
+  lstatSync,
   readFileSync,
   renameSync,
   statSync,
@@ -61,22 +62,51 @@ export async function probeRunnerTransport(runner, { observeGui = false } = {}) 
 
 /** Accept only controller-issued exact-job identities; absence is legacy custody, never proof of cleanup. */
 export function recoveryIdentity(value) {
-  return value?.version === 1 && /^[A-Za-z0-9_-]{1,100}$/u.test(value.request ?? '')
+  return value?.version === 1 && (value.launchFence === undefined || value.launchFence === 1) && /^[A-Za-z0-9_-]{1,100}$/u.test(value.request ?? '')
     && /^[a-f0-9-]{36}$/u.test(value.nonce ?? '') && /^[a-f0-9]{64}$/u.test(value.tooling ?? '');
 }
 
-/** Persist an exact job completion only after its worker has verified descendants, groups and lease release. */
-export function recordRunnerCompletion(root, identity) {
-  if (!recoveryIdentity(identity)) return;
+/** Atomically reserve the same nonce path for worker startup or cancellation; a loser must never launch. */
+export function claimRunnerLaunch(root, identity, neverStarted = false) {
+  if (!recoveryIdentity(identity) || identity.launchFence !== 1) throw new Error('invalid runner launch identity');
+  const directory = join(root, 'recovery-launches');
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const claim = join(directory, identity.request);
+  try { mkdirSync(claim, { mode: 0o700 }); }
+  catch (error) { if (error.code === 'EEXIST') return false; throw error; }
+  writeFileSync(join(claim, 'identity.json'), JSON.stringify({ ...identity, neverStarted }) + '\n', { mode: 0o600, flag: 'wx' });
+  return true;
+}
+
+/** Refuse delayed direct worker entry when its exact installer claim is absent or was cancelled. */
+export function runnerLaunchAllowed(root, identity) {
+  if (!recoveryIdentity(identity) || identity.launchFence !== 1) return false;
+  try {
+    const file = join(root, 'recovery-launches', identity.request, 'identity.json');
+    if (!statSync(file).isFile() || statSync(file).size > 4096) return false;
+    const actual = JSON.parse(readFileSync(file, 'utf8'));
+    return actual.neverStarted === false && sameRecovery(actual, identity);
+  } catch { return false; /* Unknown launch custody never permits a job to start. */ }
+}
+
+/** Persist verified process/lease drainage before removing the last observable job directory. */
+export function recordRunnerCompletion(root, identity, job) {
+  if (!recoveryIdentity(identity) || typeof job !== 'string' || !job.startsWith(identity.request + '-')
+    || !/^[A-Za-z0-9]{6}$/u.test(job.slice(identity.request.length + 1))) return;
   const directory = join(root, 'recovery');
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const file = join(directory, identity.request + '.json');
   const temporary = file + '.tmp';
-  writeFileSync(temporary, JSON.stringify({ ...identity, clean: true }) + '\n', { mode: 0o600 });
+  writeFileSync(temporary, JSON.stringify({ ...identity, drained: true, job }) + '\n', { mode: 0o600 });
   renameSync(temporary, file);
 }
 
-/** A fresh worker answers readiness and reads only the exact completion requested by its controller. */
+/** Require exact identity equality without interpreting an unrelated filesystem record as this request. */
+function sameRecovery(actual, expected) {
+  return recoveryIdentity(actual) && (actual.launchFence ?? 0) === (expected.launchFence ?? 0) && ['request', 'nonce', 'tooling'].every(key => actual[key] === expected[key]);
+}
+
+/** A fresh pinned worker proves exact drained jobs absent, or atomically fences a never-started request. */
 export function runnerHealthReply(root, request) {
   const base = { version: 1, nonce: request?.nonce, worker: true, cleanup: false };
   const identities = Array.isArray(request?.previous) ? request.previous : [request?.previous];
@@ -84,14 +114,29 @@ export function runnerHealthReply(root, request) {
   for (const identity of identities) {
     try {
       const file = join(root, 'recovery', identity.request + '.json');
-      if (!statSync(file).isFile() || statSync(file).size > 4096) return { ...base, reason: 'invalid exact completion record' };
+      if (!statSync(file).isFile() || statSync(file).size > 4096) return { ...base, reason: 'invalid exact drainage record' };
       const actual = JSON.parse(readFileSync(file, 'utf8'));
-      if (actual.clean === true && recoveryIdentity(actual)
-        && ['request', 'nonce', 'tooling'].every(key => actual[key] === identity[key])) {
-        continue;
+      if (sameRecovery(actual, identity)) {
+        // The earlier complete-record format was written only after actual job-file removal.
+        if (actual.clean === true && actual.drained === undefined) continue;
+        if (actual.drained === true && typeof actual.job === 'string' && actual.job.startsWith(identity.request + '-')
+          && /^[A-Za-z0-9]{6}$/u.test(actual.job.slice(identity.request.length + 1))) {
+          try { lstatSync(join(root, 'jobs', actual.job)); }
+          catch (error) { if (error.code === 'ENOENT') continue; return { ...base, reason: 'exact job-directory absence could not be verified' }; }
+          return { ...base, reason: 'exact job files are still present' };
+        }
+        return { ...base, reason: 'invalid exact job-directory binding' };
       }
-    } catch { /* A missing or unreadable certificate never means that the old job drained. */ }
-    return { ...base, reason: 'missing exact completion record' };
+    } catch { /* Absence of a completion record alone proves nothing; the atomic launch fence decides below. */ }
+    if (identity.launchFence !== 1) return { ...base, reason: 'missing completion record for request predating the launch fence' };
+    try {
+      if (claimRunnerLaunch(root, identity, true)) continue;
+      const claim = join(root, 'recovery-launches', identity.request, 'identity.json');
+      if (!statSync(claim).isFile() || statSync(claim).size > 4096) return { ...base, reason: 'invalid launch custody record' };
+      const actual = JSON.parse(readFileSync(claim, 'utf8'));
+      if (actual.neverStarted === true && sameRecovery(actual, identity)) continue;
+    } catch { /* An unknown claim, incomplete write or permission failure remains unavailable. */ }
+    return { ...base, reason: 'started request has no exact completion record' };
   }
-  return { ...base, cleanup: true, reason: 'exact worker cleanup completed' };
+  return { ...base, cleanup: true, reason: 'exact jobs drained or atomically fenced before startup' };
 }

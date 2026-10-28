@@ -35,6 +35,7 @@ import { loadavg } from 'node:os';
 import { userInfo } from 'node:os';
 import {
   delimiter,
+  basename,
   dirname,
   isAbsolute,
   join,
@@ -48,6 +49,7 @@ import { Refused } from './refused.js';
 import {
   recordRunnerCompletion,
   recoveryIdentity,
+  runnerLaunchAllowed,
   runnerHealthReply,
 } from './runner-transport.js';
 import { guiSession } from './gui-session.js';
@@ -291,6 +293,10 @@ async function readSpec() {
     || !/^[a-z][a-z0-9-]{0,63}$/u.test(value.testResults.stage)
     || typeof value.testResults.origin !== 'string' || /[\r\n\0]/u.test(value.testResults.origin))) throw new Error('invalid test-result exchange');
   if (value.root !== undefined && (typeof value.root !== 'string' || !isAbsolute(value.root))) throw new Error('invalid work specification');
+  if (value.recovery?.launchFence === 1) {
+    const root = value.root ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard-runner');
+    if (!runnerLaunchAllowed(root, value.recovery)) throw new Error('runner launch was fenced or unclaimed');
+  }
   return value;
 }
 
@@ -1097,16 +1103,15 @@ async function main() {
       } finally { await releaseDrainedLease(lease); }
     }
     final.testRuntimes = runtimeCapture?.finish() ?? null;
+    const custody = tracker?.cleanupState();
+    const drained = ownedChildren.size === 0 && (!custody || !custody.uncertain && !custody.censusFailure && !custody.pending.length && !custody.live.length);
+    if (recoveryRoot && runDirectory && drained) {
+      try { recordRunnerCompletion(recoveryRoot, spec.recovery, basename(runDirectory)); }
+      catch { /* Missing durable custody keeps recovery unavailable. */ }
+    }
     cleanupStage = 'job files';
-    if (runDirectory && !cleanupTimedOut) { try { rmSync(runDirectory, { recursive: true, force: true }); } catch {} }
-  }
-  const custody = tracker?.cleanupState();
-  if (recoveryRoot && ownedChildren.size === 0 && (!custody || !custody.uncertain && !custody.censusFailure && !custody.pending.length && !custody.live.length)) {
-    try {
-      // A late but fully verified drain can finish its own files; uncertain custody retains its diagnostic directory.
-      if (runDirectory) rmSync(runDirectory, { recursive: true, force: true });
-      recordRunnerCompletion(recoveryRoot, spec.recovery);
-    } catch { /* Missing durable custody keeps recovery unavailable. */ }
+    // No filesystem writes follow final removal; health separately requires this exact directory to be absent.
+    if (runDirectory && (!cleanupTimedOut || drained)) { try { rmSync(runDirectory, { recursive: true, force: true }); } catch {} }
   }
   if (transportLost || cleanupTimedOut) { clearTimeout(cleanupTimer); clearTimeout(phaseCleanupTimer); process.exitCode = 1; stopReading(); return; }
   cleanupStage = 'result receipt';

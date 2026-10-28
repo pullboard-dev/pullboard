@@ -3,6 +3,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync } from 'node:fs';
+import {
+  existsSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -14,6 +20,11 @@ import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
 import { initializeRunnerRecovery } from '../src/runner-recovery.js';
 import { recordRunnerFailure } from '../src/runner-recovery.js';
+import {
+  claimRunnerLaunch,
+  recordRunnerCompletion,
+  runnerHealthReply,
+} from '../src/runner-transport.js';
 import { recoverUnavailableRunners } from '../src/runner-recovery.js';
 
 /** Open only a private queue; it has no configured machine hosts or leases. */
@@ -27,7 +38,7 @@ function queue(t) {
 
 /** A synthetic identity exercises queue concurrency only, never authorizes an actual worker reply. */
 function identity(request = randomUUID()) {
-  return { version: 1, request, nonce: randomUUID(), tooling: 'a'.repeat(64) };
+  return { version: 1, launchFence: 1, request, nonce: randomUUID(), tooling: 'a'.repeat(64) };
 }
 
 /** Register real worker recovery cases under the existing frozen whole-runner check. */
@@ -84,7 +95,7 @@ console.log(JSON.stringify({wrong,actual:actual.isGreen,first,beforeBackoff,firs
     const box = e2e.project('true');
     const resources = pathToFileURL(join(import.meta.dirname, '../src/resources.js')).href;
     const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
-    const source = `import {listResources,takeResource} from ${JSON.stringify(resources)};
+    const source = `import {listResources,takeResource,runnerResourceStatus} from ${JSON.stringify(resources)};
 import {recordRunnerFailure} from ${JSON.stringify(recovery)};import {DatabaseSync} from 'node:sqlite';
 listResources();const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite');
 const runners=[{host:'free-alternate',slots:1,browser:0},{host:'failed-alternate',slots:1,browser:0}];
@@ -95,7 +106,11 @@ const lease=await takeResource({name:'gate',capacity:0,scope:'machine',remote:tr
 runnerProvider:()=>runners,runnerHealthProbe:async()=>{probes++;return pending;}});
 const admitted=lease.runner.host,probesAtAdmission=probes;lease.release();finish({healthy:true});
 const deadline=Date.now()+2000;while(db.prepare('SELECT COUNT(*) n FROM runner_unavailable').get().n){if(Date.now()>deadline)throw new Error('background health did not finish');await new Promise(resolve=>setTimeout(resolve,20));}
-console.log(JSON.stringify({admitted,probesAtAdmission,probes,events:db.prepare('SELECT kind FROM runner_recovery_event ORDER BY rowid').all()}));db.close();`;
+db.prepare("INSERT INTO runner_unavailable(host,since,detail) VALUES(?,?,?)").run(runners[1].host,new Date(0).toISOString(),'TRANSPORT_LOST');
+const aged=runnerResourceStatus(runners).find(row=>row.host===runners[1].host);
+const next=await takeResource({name:'gate',capacity:0,scope:'machine',remote:true,allowIdleCapacityUpdate:true,runnerProvider:()=>runners,runnerHealthProbe:async()=>{probes++;return {healthy:true};}});
+const admittedAgain=next.runner.host;next.release();
+console.log(JSON.stringify({aged,admittedAgain,admitted,probesAtAdmission,probes,events:db.prepare('SELECT kind FROM runner_recovery_event ORDER BY rowid').all()}));db.close();`;
     const env = { ...box.env }; delete env.NODE_TEST_CONTEXT;
     const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env, encoding: 'utf8', timeout: 10_000 });
     assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
@@ -103,7 +118,81 @@ console.log(JSON.stringify({admitted,probesAtAdmission,probes,events:db.prepare(
     assert.equal(actual.admitted, 'free-alternate');
     assert.equal(actual.probesAtAdmission, 1, 'the due recovery started without blocking admission');
     assert.equal(actual.probes, 1);
+    assert.equal(actual.aged.unavailable, true, 'an aged legacy record never makes its host available');
+    assert.equal(actual.aged.unavailableReason, 'TRANSPORT_LOST', 'legacy identity is retained for its explicit manual recovery');
+    assert.match(actual.aged.recoveryFailure.reason, /manual runner command/u);
+    assert.equal(actual.admittedAgain, 'free-alternate', 'admission also excludes the aged legacy host');
     assert.deepEqual(actual.events.map(event => event.kind), ['unavailable', 'available']);
+  });
+  test('drained custody requires exact job-directory absence and refuses unknown filesystem states [C7]', t => {
+    const e2e = createE2eHelpers(); t.after(e2e.cleanup);
+    const box = e2e.project('true'), root = join(box.dir, 'owned-runner');
+    const previous = identity(), job = previous.request + '-ABC123';
+    mkdirSync(join(root, 'jobs', job), { recursive: true });
+    assert.equal(claimRunnerLaunch(root, previous), true);
+    recordRunnerCompletion(root, previous, job);
+    const request = { nonce: randomUUID(), previous };
+    assert.equal(runnerHealthReply(root, request).cleanup, false, 'a marker alone cannot bless files that remain');
+    renameSync(join(root, 'jobs'), join(root, 'jobs-held'));
+    writeFileSync(join(root, 'jobs'), 'not a directory');
+    assert.equal(runnerHealthReply(root, request).cleanup, false, 'ENOTDIR is unknown, not ENOENT');
+    rmSync(join(root, 'jobs')); renameSync(join(root, 'jobs-held'), join(root, 'jobs'));
+    rmSync(join(root, 'jobs', job), { recursive: true });
+    assert.equal(runnerHealthReply(root, request).cleanup, true);
+    const file = join(root, 'recovery', previous.request + '.json');
+    const actual = JSON.parse(readFileSync(file, 'utf8'));
+    writeFileSync(file, JSON.stringify({ ...actual, job: '../foreign-job' }));
+    assert.equal(runnerHealthReply(root, request).cleanup, false, 'foreign path bindings never establish cleanup');
+    const legacy = { ...identity(), launchFence: undefined };
+    assert.equal(runnerHealthReply(root, { nonce: randomUUID(), previous: legacy }).cleanup, false);
+    assert.equal(existsSync(join(root, 'recovery-launches', legacy.request)), false, 'an old request cannot be guessed never-started');
+  });
+  for (const workerFirst of [false, true]) {
+    test(`an actual delayed installer ${workerFirst ? 'wins its claim and needs completion' : 'is fenced before launch after cancellation'} [C7]`, t => {
+      const e2e = createE2eHelpers(); t.after(e2e.cleanup);
+      const box = e2e.project('true');
+      const bin = join(box.dir, 'launch-bin'), worker = join(box.dir, 'worker'), home = join(box.dir, 'remote-home');
+      const machineHome = join(home, '.pullboard'), deferred = join(box.dir, 'deferred-command'), frame = join(box.dir, 'deferred-frame');
+      for (const directory of [bin, worker, home, machineHome]) mkdirSync(directory, { recursive: true });
+      installSshStandIn({ bin, worker, home, machineHome, requests: join(box.dir, 'requests.jsonl'), nodeCommand: process.execPath, deferFirstWorker: deferred, deferredFrame: frame });
+      const runner = { host: HOST, slots: 1, browser: 0, node: process.execPath };
+      const url = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
+      const source = `import {runOnRunnerAsync,probeRunnerHealth} from ${JSON.stringify(url)};
+import {readFileSync,existsSync} from 'node:fs';import {spawnSync} from 'node:child_process';
+const runner=${JSON.stringify(runner)};let failure;
+try{await runOnRunnerAsync(process.cwd(),'true',{runner});throw new Error('deferred request unexpectedly ran');}catch(error){if(error.name!=='RunnerDropped')throw error;failure=error.diagnostic;}
+const remoteEnv={PATH:process.env.PATH,HOME:${JSON.stringify(home)},PULLBOARD_HOME:${JSON.stringify(home)},PULLBOARD_MACHINE_HOME:${JSON.stringify(machineHome)},LANG:'C',LC_ALL:'C',TZ:'UTC',TMPDIR:process.env.TMPDIR};
+const deferred=readFileSync(${JSON.stringify(deferred)},'utf8');
+const runDeferred=()=>{const value=spawnSync('/bin/sh',['-c',deferred],{env:remoteEnv,input:'',encoding:'utf8',timeout:10000});return {code:value.status,stderr:value.stderr};};
+const first=${workerFirst}?runDeferred():null;
+const health=await probeRunnerHealth(runner,[failure.recovery]);
+const delayed=runDeferred();
+const direct=${workerFirst}?null:spawnSync(process.execPath,[${JSON.stringify(join(home, '.pullboard-runner', 'runtime'))}+'/'+failure.recovery.tooling+'/src/runner-worker.js'],{env:remoteEnv,input:readFileSync(${JSON.stringify(frame)}),encoding:'utf8',timeout:10000});
+console.log(JSON.stringify({direct:direct?{code:direct.status,stderr:direct.stderr}:null,first,health,delayed,jobDirectory:existsSync(${JSON.stringify(join(home, '.pullboard-runner', 'jobs'))})}));`;
+      const env = { ...box.env, PATH: `${bin}:${box.env.PATH}` }; delete env.NODE_TEST_CONTEXT;
+      const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env, encoding: 'utf8', timeout: 30_000 });
+      assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
+      const actual = JSON.parse(result.stdout);
+      assert.equal(actual.health.healthy, !workerFirst);
+      assert.equal(actual.health.step, 'cleanup');
+      if (workerFirst) assert.match(actual.first.stderr, /PULLBOARD_RUNNER_SPEC_REFUSED/u, 'the first installer really reached the worker');
+      assert.notEqual(actual.delayed.code, 0);
+      assert.match(actual.delayed.stderr, /PULLBOARD_RUNNER_LAUNCH_FENCED/u);
+      assert.doesNotMatch(actual.delayed.stderr, /PULLBOARD_RUNNER_(?:READY|NEED|SPEC_REFUSED)/u, 'a fenced installer never enters the worker');
+      if (!workerFirst) {
+        assert.notEqual(actual.direct.code, 0);
+        assert.match(actual.direct.stderr, /PULLBOARD_RUNNER_SPEC_REFUSED/u);
+        assert.doesNotMatch(actual.direct.stderr, /PULLBOARD_RUNNER_(?:READY|NEED)/u);
+      }
+      assert.equal(actual.jobDirectory, false, 'neither a job lease nor project execution was started');
+    });
+  }
+  test('the old Node-only recovery predicate cannot clear new proof-required transport holds [C7]', t => {
+    const db = queue(t), runner = { host: 'private-protocol-upgrade', slots: 1, browser: 0 };
+    recordRunnerFailure(db, runner.host, 'transport-lost', { recovery: identity() });
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM runner_unavailable WHERE detail='TRANSPORT_LOST'").get().n, 0);
+    assert.equal(db.prepare("DELETE FROM runner_unavailable WHERE host=? AND detail='TRANSPORT_LOST'").run(runner.host).changes, 0);
+    assert.equal(db.prepare('SELECT detail FROM runner_unavailable WHERE host=?').get(runner.host).detail, 'TRANSPORT_UNVERIFIED');
   });
   test('legacy cleanup holds never infer recovery from a healthy callback [C7]', async t => {
     const db = queue(t), runner = { host: 'private-legacy', slots: 1, browser: 0 };

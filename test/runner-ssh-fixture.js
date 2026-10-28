@@ -17,7 +17,7 @@ export function shellQuote(value) {
  * `stderrLog` also copies the worker's stderr, so a test can read its result receipt, and `nodeOptions` reaches the
  * worker's own Node process, so a test can force an ordering inside it.
  */
-export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false, healthFailures = 0 }) {
+export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false, healthFailures = 0, deferFirstWorker = '', deferredFrame = '' }) {
   const ssh = join(bin, 'ssh');
   const source = `#!/usr/bin/env node
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -77,6 +77,22 @@ if (${JSON.stringify(healthDown)} && !remoteCommand.startsWith(configuredNode)) 
   record({ healthProbeFailed: true, stdinBytes }); process.exit(255);
 }
 if (workerHealthProbe && call <= ${JSON.stringify(healthFailures)}) { record({ healthProbeFailed: true, stdinBytes }); process.exit(255); }
+if (!registrationGuiProbe && !workerHealthProbe && ${JSON.stringify(deferFirstWorker)} && call === 1) {
+  writeFileSync(${JSON.stringify(deferFirstWorker)}, remoteCommand);
+  await new Promise(resolve => {
+    let frame = Buffer.alloc(0);
+    process.stdin.on('data', part => {
+      frame = Buffer.concat([frame, part]);
+      const newline = frame.indexOf(10);
+      if (newline < 0) return;
+      const size = Number(frame.subarray(0,newline).toString('ascii'));
+      if (!Number.isSafeInteger(size) || size < 1 || size > 1048576) process.exit(255);
+      if (frame.length >= newline+1+size) { writeFileSync(${JSON.stringify(deferredFrame)},frame.subarray(0,newline+1+size)); resolve(); }
+    });
+    process.stdin.resume();
+  });
+  record({ deferredBeforeLaunch: true, stdinBytes }); process.exit(255);
+}
 if (starts) appendFileSync(starts, JSON.stringify({ call, host }) + '\\n');
 const phases = requests + '.phases';
 const hold = registrationGuiProbe || workerHealthProbe ? '' : ${JSON.stringify(hold)};
