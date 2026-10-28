@@ -3,7 +3,7 @@ import { Refused } from './refused.js';
 
 const FIELDS = {
   add: ['by', 'lane', 'title', 'criterion', 'specIds', 'parentId', 'after', 'brief', 'route', 'check'],
-  edit: ['agentId', 'brief', 'route', 'criterion', 'check', 'after', 'reason'],
+  edit: ['agentId', 'brief', 'route', 'criterion', 'check', 'after', 'reason', 'reviewTier'],
   'bar-sign': ['revision', 'digest', 'note', 'coverage'],
 };
 /** Select author-controlled fields with omission preserved; generated evidence and identity cannot ride along. */
@@ -17,7 +17,7 @@ export function normalizePersonBarEffect(verb, effect) {
       || (verb === 'add' && !['coordinator', 'person'].includes(effect.value.by))
       || (verb === 'edit' && effect.value.agentId !== 'coordinator')
       || Object.keys(effect.value).some(key => !FIELDS[verb].includes(key))
-      || ['lane', 'title', 'criterion', 'brief', 'route', 'check', 'reason', 'note', 'digest'].some(key => effect.value[key] !== undefined && typeof effect.value[key] !== 'string')
+      || ['lane', 'title', 'criterion', 'brief', 'route', 'check', 'reason', 'note', 'digest', 'reviewTier'].some(key => effect.value[key] !== undefined && typeof effect.value[key] !== 'string')
       || ['specIds', 'after'].some(key => effect.value[key] !== undefined && (!Array.isArray(effect.value[key])
         || effect.value[key].some(value => key === 'specIds' ? typeof value !== 'string' : !Number.isSafeInteger(value) || value < 1)))
       || (effect.value.parentId !== undefined && effect.value.parentId !== null && (!Number.isSafeInteger(effect.value.parentId) || effect.value.parentId < 1)) || JSON.stringify(effect).length > 524288
@@ -57,6 +57,7 @@ export function browserPersonBarEffect(state, move) {
     before = current.before;
     if (move.verb === 'edit') {
       value = { agentId: 'coordinator', ...Object.fromEntries(['brief', 'route', 'criterion', 'check', 'reason'].filter(key => args[key] !== undefined).map(key => [key, args[key]])),
+        ...(args['review-tier'] === undefined ? {} : { reviewTier: args['review-tier'] }),
         ...(args.after === undefined ? {} : { after: args.after.trim() === 'none' ? [] : ids(args.after).map(number) }) };
     } else {
       if (!current.coverage) throw new Refused('BAR_COVERAGE', 'prepare the required recorded coverage with pullboard bar sign --coverage-file from a terminal, then confirm its exact proposal here');

@@ -13,7 +13,7 @@ const MOVES = {
   'bar-sign': { prefix: ['bar', 'sign'], item: true, flags: ['note'] },
   signing: { prefix: ['settings', 'person.signed'], positions: ['signed'] },
   add: { positions: ['lane', 'title'], flags: ['criterion', 'specs', 'parent', 'after', 'brief', 'route', 'check', 'as'], booleans: ['wait'] },
-  edit: { item: true, flags: ['criterion', 'brief', 'route', 'check', 'reason', 'after', 'as'], booleans: ['wait'] },
+  edit: { item: true, flags: ['criterion', 'brief', 'route', 'check', 'reason', 'after', 'as', 'review-tier'], booleans: ['wait'] },
   fact: { item: true, positions: ['kind', 'text'], flags: ['answers', 'supersedes', 'ref', 'implies', 'as', 'cause'], booleans: ['never-again'] },
   claim: { item: true },
   release: { item: true, flags: ['note'] },
