@@ -371,7 +371,7 @@ import {
 } from './verdict-freshness.js';
 import { proofStats } from './stats.js';
 import { flowAlertLine } from './stats-flow.js';
-import { releaseHeadlinesBetween } from './changelog.js';
+import { releaseHeadlinesBetween } from './release-headlines.js';
 import {
   addSigner,
   assertRequiredSigners,
