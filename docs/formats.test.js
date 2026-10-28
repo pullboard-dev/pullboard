@@ -531,7 +531,7 @@ function recordEventContract() {
   assert.equal(applyEngineMove(board, omissionMove, { sequence: appliedSequence(board) + 1, at: board.clock.now().toISOString() }).error, undefined);
   const rows = events(board).map((row) => ({ ...row, detail: JSON.parse(row.event_detail) }));
   closeBoard(board);
-  return { rows, actors: { [coordinator]: 'coordinator', [builder]: 'builder', [returnedBuilder]: 'builder', [unattendedBuilder]: 'builder', [reviewer]: 'reviewer', [PERSON]: 'person', board: 'board', rigor: 'rigor' } };
+  return { rows, actors: { [coordinator]: 'coordinator', [builder]: 'builder', [returnedBuilder]: 'builder', [widener]: 'builder', [unattendedBuilder]: 'builder', [reviewer]: 'reviewer', [PERSON]: 'person', board: 'board', rigor: 'rigor' } };
 }
 
 /** Reopen a file after removing old-format objects and report the repaired guard event. */
