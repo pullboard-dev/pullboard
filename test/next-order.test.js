@@ -266,7 +266,7 @@ test('an agent exhausts ready own-lane work before pulling another lane [N2,B13]
   const own = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
   assert.equal(own.item.item_id, later, 'ready own-lane work precedes an earlier release in another lane');
   assert.equal(own.item.item_owner, web.agent);
-  box.json(box.runAs(box.session, box.web, 'release', String(later), '--json'));
+  box.json(box.runAs(box.session, box.web, 'release', String(later), '--no-next', '--json'));
   box.json(box.run(box.repo, 'hold', String(later), '--reason', 'Own-lane work is intentionally blocked', '--json'));
   const next = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
   assert.equal(next.item.item_id, first, 'an idle lane falls back to the earlier eligible foreign release');
