@@ -1,5 +1,8 @@
 /** One native board composition root supplies connection-local runtime providers [C7]. */
 import * as store from './board.js';
+import { boardReceiptStore } from './gate-run-receipt.js';
+import { readGateReceipt } from './gate-run-receipt.js';
+import { receiptBody } from './gate-run-receipt.js';
 import { boardEnginePorts } from './board-engine-ports.js';
 import {
   openBoardStore,
@@ -107,6 +110,7 @@ export function nativeBoardPorts() {
   const enginePorts = boardEnginePorts();
   return Object.freeze({
     nativePorts, enginePorts, operations: enginePorts.operations, logEvent,
+    sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody }),
     guards: Object.freeze({ guardStore, refreshStoreDeclarations, storeTriggers }),
     lifecycle: Object.freeze({ atomic, ensureProofCounters, ensureHotIndexes, missingAdditiveIndexes,
       ensureAdditiveIndexes, configureBoardJournal, closeBoardWrites }),
@@ -119,7 +123,7 @@ export function nativeBoardPorts() {
 /** Freeze explicit provider bags without changing the function or canonical operation identities. */
 function freezeRuntimePorts(ports) {
   requireRuntimePorts(ports);
-  for (const name of ['nativePorts', 'enginePorts', 'guards', 'lifecycle', 'query', 'auth']) Object.freeze(ports[name]);
+  for (const name of ['nativePorts', 'enginePorts', 'guards', 'lifecycle', 'query', 'auth', 'sourceAdvanceReceipts']) Object.freeze(ports[name]);
   return Object.freeze(ports);
 }
 
