@@ -8,7 +8,7 @@ import { closeBoard } from './board.js';
 import { JSON_SHAPES } from './json.js';
 import { lifecycleMarkdown } from './machine.js';
 import { formatTable } from './format-registry.js';
-import { HELP_SECTIONS } from './help/sections.js';
+import { HELP_SOURCE_SECTIONS } from './help/declarations.js';
 import { commandHelpModule } from './command-docs.js';
 import { commandHelpText } from './command-docs.js';
 import { replaceDocTable } from './generated-doc-blocks.js';
@@ -33,7 +33,8 @@ export function generatedDocs(root = fileURLToPath(new URL('../', import.meta.ur
       Object.entries(JSON_SHAPES.http).map(([name, shape]) => [name, shape.required]))),
   };
   for (const [name, table] of Object.entries(tables)) api = replaceDocTable(api, name, table);
-  const help = HELP_SECTIONS.map(section => section.name === 'additions' ? commandHelpText(root) : section.text).join('');
+  const help = HELP_SOURCE_SECTIONS.map(section => section.name === 'footer'
+    ? commandHelpText(root) + section.text : section.text).join('');
   return new Map([
     ['docs/formats.md', formats], ['docs/api.md', api], ['docs/lifecycle.md', lifecycleMarkdown()],
     ['src/help/additions.js', commandHelpModule(root)], ['docs/cli-help.txt', help + '\n'],
