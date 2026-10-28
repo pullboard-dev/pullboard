@@ -131,3 +131,24 @@ export function localFirstBoard(file, outboxSetting) {
     || state.baselineConflict || state.environment) return false;
   try { return outboxSetting() === true; } catch { return false; }
 }
+
+/**
+ * The link a move may queue on and return at once (#1013), or null when it must reach the relay first: the board's
+ * relay.outbox is on and the relay accepted its baseline, and the move needs no relay answer to exist (a
+ * registration mints its token there, a takeover needs the relay's sign-in lineage, a person's request is the
+ * phone's, and landing authority needs real order). Environment-token sessions always wait: ephemeral jobs
+ * cannot retain queued moves after they exit.
+ */
+export function localFirstLink(file, operation, args, io, { loadLink, acknowledgedOperations, senderPolicy }) {
+  let state;
+  try { state = loadLink(file); } catch { return null; }
+  if (!state || state.unlinking || state.recovery || state.mode !== 'ordered' || state.baselineAccepted !== true
+    || state.baselineConflict || state.baselinePause || state.baselineStale || state.environment) return null;
+  if (process.env.PULLBOARD_RELAY_TOKEN !== undefined || io?.relayCanary || io?.personRequest || io?.personRequestMoveId) return null;
+  // A takeover needs the relay's authenticated sign-in lineage, which only the relay's order carries.
+  if (acknowledgedOperations.includes(operation) || args?.[0]?.landingFence !== undefined) return null;
+  if (senderPolicy.credentialActor({ operation, args }) === 'person') return null;
+  try { if (io?.relayOutbox?.() !== true) return null; } catch { return null; }
+  if (senderInBackground() && typeof io.launchRelaySender !== 'function') throw new TypeError('local-first relay requires the sender launch port');
+  return state;
+}

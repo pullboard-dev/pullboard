@@ -121,7 +121,7 @@ import { locked } from './relay-lock.js';
 import { withOutboxGuard } from './relay-outbox-guard.js';
 import { relayOrdering } from './relay-ordering.js';
 import { nudgeRelaySender } from './relay-local-first.js';
-import { senderInBackground } from './relay-local-first.js';
+import { localFirstLink } from './relay-local-first.js';
 import { checkpointPublisher } from './relay-checkpoint-publish.js';
 import {
   checkpointInBackground,
@@ -1015,27 +1015,6 @@ function outboxLink(root, file, state, io, senderPolicy) {
 }
 
 /**
- * The link a move may queue on and return at once (#1013), or null when it must reach the relay first: the board's
- * relay.outbox is on and the relay accepted its baseline, and the move needs no relay answer to exist (a
- * registration mints its token there, a takeover needs the relay's sign-in lineage, a person's request is the
- * phone's, and landing authority needs real order). Environment-token sessions always wait: ephemeral jobs
- * cannot retain queued moves after they exit.
- */
-function localFirstLink(file, operation, args, io, senderPolicy) {
-  let state;
-  try { state = loadLink(file); } catch { return null; }
-  if (!state || state.unlinking || state.recovery || state.mode !== 'ordered' || state.baselineAccepted !== true
-    || state.baselineConflict || state.baselinePause || state.baselineStale || state.environment) return null;
-  if (process.env.PULLBOARD_RELAY_TOKEN !== undefined || io?.relayCanary || io?.personRequest || io?.personRequestMoveId) return null;
-  // A takeover needs the relay's authenticated sign-in lineage, which only the relay's order carries.
-  if (ACKNOWLEDGED_OPERATIONS.includes(operation) || args?.[0]?.landingFence !== undefined) return null;
-  if (senderPolicy.credentialActor({ operation, args }) === 'person') return null;
-  try { if (io?.relayOutbox?.() !== true) return null; } catch { return null; }
-  if (senderInBackground() && typeof io.launchRelaySender !== 'function') throw new TypeError('local-first relay requires the sender launch port');
-  return state;
-}
-
-/**
  * Make a move on this machine at once and queue it for the relay (#1013): no network call and no relay lock, only
  * the short outbox guard. The background sender sends it and rebuilds the board once the relay has ordered it.
  */
@@ -1061,7 +1040,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
   const senderPolicy = nativeBoardPorts().enginePorts;
   const roundTripStarted = Date.now();
   const file = linkFile(root);
-  const local = localFirstLink(file, operation, args, io, senderPolicy);
+  const local = localFirstLink(file, operation, args, io, { loadLink, acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, senderPolicy });
   if (local) return queueLocally(root, file, operation, args, io, command, applyLocally, onRecorded, senderPolicy);
   return locked(file, async () => {
     const state = loadLink(file);
