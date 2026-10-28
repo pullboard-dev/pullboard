@@ -13,8 +13,8 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import { CHECK_ACCEPT_ENGINE, acceptCheck, checkDigest } from '../src/check-accept.js';
 import { refusePersonMove } from '../src/mcp.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
-import { boardEnginePorts } from '../src/board-engine-ports.js';
-const { relaySenderProblem } = boardEnginePorts();
+import { nativeBoardPorts } from '../src/native-board.js';
+const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const BOARD_FILE = '.git/pullboard/board.sqlite';
