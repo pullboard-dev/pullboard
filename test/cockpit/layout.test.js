@@ -65,7 +65,7 @@ test('the Dashboard and retained tabs fit two rows on a phone [N26]', async () =
     assert.doesNotMatch(style, /max-width: 480px/, 'at 480px itself the tabs keep their row');
     assert.match(phone, /\.tabs \{ flex: 1 1 100%; display: grid; grid-template-columns: repeat\(4, minmax\(0, 1fr\)\); grid-auto-flow: row;/, 'under 480px eight full labels share two rows of four');
     assert.match(phone, /\.tab \{ display: grid; justify-items: center; align-content: center;/, 'each tab centres its label in its share');
-    assert.match(style, /\n\.tabs \{ display: flex; flex-wrap: wrap; gap: 2px; \}\n/, 'wider, the tabs keep the row they have');
+    assert.match(style, /\n\.tabs \{ display: flex; flex-wrap: wrap; gap: var\(--space-0\); \}\n/, 'wider, the tabs keep the row they have');
     const tabs = [...html.matchAll(/<button class="tab" data-tab="([a-z]+)" type="button">([A-Za-z]+)<\/button>/g)];
     assert.deepEqual(tabs.map((match) => match[2]), ['Dashboard', 'Home', 'Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap'], 'Dashboard leads the retained tabs, each its label alone: their counts are in the status bar');
   } finally {
@@ -164,8 +164,8 @@ test("the view's styles live in their own file [N26]", async () => {
     const style = await styleOf(view);
     assert.match(page.show('detail'), /<\/h2><div class="meta spaced">/);
     assert.match(page.show('spec-detail'), /<\/h2><div class="meta">/);
-    assert.match(style, /\n\.meta \{ [^}]*margin-top: 2px; \}\n/);
-    assert.match(style, /\n\.meta\.spaced \{ margin-top: 6px; \}\n/);
+    assert.match(style, /\n\.meta \{ [^}]*margin-top: var\(--space-0\); \}\n/);
+    assert.match(style, /\n\.meta\.spaced \{ margin-top: var\(--space-2\); \}\n/);
     assert.doesNotMatch(style, /h2 \+ \.meta/, 'no rule reaches past the item into a spec row');
     for (const id of [...page.html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1])) {
       assert.doesNotMatch(page.show(id), /style=/, `#${id} holds no style`);
