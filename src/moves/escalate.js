@@ -20,7 +20,7 @@ export default Object.freeze({ operation: "escalate", order: 11, engine: 1,
   "CLOSED": "read its state with pullboard show <id>, then take open work: pullboard next",
   "NOTE_REQUIRED": "add --note \"<what happened>\"",
   "NOT_JOINED": "join a lane from this worktree: pullboard join <lane> --model \"<model name>\" (see: pullboard lanes)",
-  "NOT_YOURS": "shout its holder or the coordinator: pullboard shout coordinator \"<what you need>\"",
+  "NOT_YOURS": "shout its holder or the coordinator: pullboard shout coordinator --kind question \"<what you need>\"",
   "NO_ITEM": "find the item id: pullboard list --all",
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again"
 }) });

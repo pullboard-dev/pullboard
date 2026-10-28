@@ -38,7 +38,7 @@ const {
 test('decisions are asked, listed and answered, and evidence attached, from the command line [B21, B22, B26]', () => {
   const box = project();
   box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
-  const asked = box.run(box.web, 'shout', 'coordinator', 'ship', 'today?', '--decision');
+  const asked = box.run(box.web, 'shout', 'coordinator', 'ship', 'today?', '--kind', 'question', '--decision');
   assert.equal(asked.code, 0, asked.err);
   const id = /as #(\d+)/.exec(asked.out)?.[1];
   assert.ok(id, asked.out);

@@ -17,7 +17,7 @@ export function routeLaneMessage(board, message, engine) {
     && to === 'coordinator' && item === undefined ? 'question' : undefined);
   if (kind === undefined) return message;
   if (engine < LANE_LEAD_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade every linked device before sending typed lane coordination');
-  if (!['question', 'blocker', 'decision', 'status'].includes(kind)) throw new Refused('BAD_MESSAGE_KIND', 'use question, blocker or decision for lane coordination');
+  if (!['question', 'blocker', 'decision', 'exception', 'idea', 'status'].includes(kind)) throw new Refused('BAD_MESSAGE_KIND', 'use question, blocker, decision, exception or idea for lane coordination');
   if (kind === 'status') throw new Refused('STATUS_IS_ACTIVITY', 'status belongs in board activity, not a shout; keep working on your item');
   if (item !== undefined) throw new Refused('LANE_MESSAGE_ITEM', 'keep item notes separate from lane coordination; omit --kind for an item message');
   const lane = board.db.prepare('SELECT agent_lane FROM agent WHERE agent_id=?').get(from)?.agent_lane;

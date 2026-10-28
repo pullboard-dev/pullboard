@@ -1692,7 +1692,7 @@ function insertShout(board, { from, to, text, lanes, item, decision = false, ans
     throw new Refused('NO_READER', `nobody reads "${to}": name a lane, an agent or all`);
   }
   if (to === PERSON && decision && from !== COORDINATOR) {
-    throw new Refused('B26_PERSON_DECISION', `only the coordinator can ask the person for a decision; ask your coordinator: pullboard shout coordinator "${text.trim()}" --decision`);
+    throw new Refused('B26_PERSON_DECISION', `only the coordinator can ask the person for a decision; ask your coordinator: pullboard shout coordinator --kind question "${text.trim()}" --decision`);
   }
   let outcome = '';
   if (ask?.shout_request) {
