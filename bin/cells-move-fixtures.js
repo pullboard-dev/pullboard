@@ -350,23 +350,65 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
     return values(loop.input, loop.at);
   }
 
-  /** Prove one imported zero-argument return leaf from exact regular Git-source bytes, never from its spelling. */
+  /** Read and verify the exact immutable producer blob without importing or evaluating it. */
+  function producerSnapshot(target) {
+    let snapshot;
+    try { snapshot = readSource?.(target); } catch { return null; }
+    return snapshot && typeof snapshot.source === 'string' && snapshot.source.length <= 1024 ** 2
+      && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(snapshot.object ?? '')
+      && createHash(snapshot.object.length === 64 ? 'sha256' : 'sha1')
+        .update(`blob ${Buffer.byteLength(snapshot.source)}\0`).update(snapshot.source).digest('hex') === snapshot.object ? snapshot : null;
+  }
+
+  /** Follow only explicit constant exports; unknown exports, cycles and runtime expressions stay unsupported. */
+  function producerConstant(target, name, seen = new Set()) {
+    const key = `${target}#${name}`;
+    if (seen.has(key) || seen.size >= 8) return null;
+    const snapshot = producerSnapshot(target);
+    if (!snapshot) return null;
+    const scanned = lex(snapshot.source), values = [];
+    for (const match of scanned.code.matchAll(new RegExp(`\\bexport\\s+const\\s+${name}\\s*=\\s*`, 'gu'))) {
+      if (slashLine(snapshot.source, scanned.code, match.index)) return null;
+      const at = match.index + match[0].length, token = scanned.strings.find(row => row.start === at);
+      const end = scanned.code.indexOf(';', at);
+      if (!token || end < token.end || scanned.code.slice(token.end, end).trim()
+        || token.text.includes('\\') || token.text.includes('${')) return null;
+      values.push(token.text);
+    }
+    for (const token of scanned.strings) {
+      const match = /\bexport\s*\{([^{}]*)\}\s*from\s*$/u.exec(scanned.code.slice(0, token.start));
+      if (!match) continue;
+      if (slashLine(snapshot.source, scanned.code, match.index)) return null;
+      for (const entry of match[1].split(',')) {
+        const names = new RegExp(`^\\s*(${ID})(?:\\s+as\\s+(${ID}))?\\s*$`, 'u').exec(entry);
+        if (!names || (names[2] ?? names[1]) !== name) continue;
+        if (!/^\.\.?\/[^?#%\\]+\.js$/u.test(token.text)) return null;
+        const next = posix.normalize(posix.join(posix.dirname(target), token.text));
+        if (next.startsWith('../') || posix.isAbsolute(next)) return null;
+        values.push(producerConstant(next, names[1], new Set([...seen, key])));
+      }
+    }
+    const again = producerSnapshot(target);
+    return values.length === 1 && typeof values[0] === 'string'
+      && again?.object === snapshot.object && again.source === snapshot.source ? values[0] : null;
+  }
+
+  /** Prove one imported fixed-leaf return from exact Git bytes; arguments never establish a root identity. */
   function producerLeaf(parsed) {
     const binding = imported.bindings.get(parsed?.name);
-    if (binding?.module !== 'source' || binding.imported === '*' || parsed.member || parsed.args.length
+    if (binding?.module !== 'source' || binding.imported === '*' || parsed.member
       || !proven(parsed.name, parsed.at) || typeof readSource !== 'function') return null;
-    const key = `${binding.target}#${binding.imported}`;
-    let snapshot;
-    try { snapshot = readSource(binding.target); } catch { return null; }
-    if (!snapshot || typeof snapshot.source !== 'string' || snapshot.source.length > 1024 ** 2
-      || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(snapshot.object ?? '')
-      || createHash(snapshot.object.length === 64 ? 'sha256' : 'sha1')
-        .update(`blob ${Buffer.byteLength(snapshot.source)}\0`).update(snapshot.source).digest('hex') !== snapshot.object) return null;
+    const key = `${binding.target}#${binding.imported}/${parsed.args.length}`;
+    const snapshot = producerSnapshot(binding.target);
+    if (!snapshot) return null;
     if (producers.has(key)) return producers.get(key).object === snapshot.object ? producers.get(key).leaf : null;
     const scanned = lex(snapshot.source), issues = [], identity = imports(snapshot.source, scanned, issues, binding.target, { producer: true });
-    const definitions = [...scanned.code.matchAll(new RegExp(`\\bexport\\s+function\\s+${binding.imported}\\s*\\(\\s*\\)\\s*\\{`, 'gu'))];
+    const definitions = [...scanned.code.matchAll(new RegExp(`\\bexport\\s+function\\s+${binding.imported}\\s*\\(([^()]*)\\)\\s*\\{`, 'gu'))];
     if (issues.length || definitions.length !== 1) return null;
-    const definition = definitions[0], open = definition.index + definition[0].lastIndexOf('{');
+    const definition = definitions[0], parameters = definition[1].split(',').map(value => value.trim()).filter(Boolean);
+    if (parameters.length !== parsed.args.length || new Set(parameters).size !== parameters.length
+      || parameters.some(value => !new RegExp(`^${ID}$`, 'u').test(value))) return null;
+    const open = definition.index + definition[0].lastIndexOf('{');
     const range = expressions(scanned.code, scanned.strings), end = range.close(open);
     const returned = new RegExp(`^\\s*return\\s+(${ID})(?:\\s*\\.\\s*(${ID}))?\\s*\\(`, 'u').exec(scanned.code.slice(open + 1, end));
     if (end < 0 || !returned) return null;
@@ -401,7 +443,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
 
   /** Prove a disjoint regular-file suffix through constants, without guessing what an unknown fixture root means. */
   function leafName(range, seen = new Set()) {
-    const value = literal(range);
+    const value = closedString(range);
     if (value !== null) return value;
     const name = code.slice(range.start, range.end);
     if (new RegExp(`^${ID}$`, 'u').test(name)) {
@@ -432,28 +474,41 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
     const name = code.slice(range.start, range.end);
     if (!new RegExp(`^${ID}$`, 'u').test(name) || seen.has(name)) return null;
     const declared = constant(name, range.start);
-    return declared ? closedString(declared, new Set([...seen, name])) : null;
+    if (declared) return closedString(declared, new Set([...seen, name]));
+    const binding = imported.bindings.get(name);
+    return binding?.module === 'source' && binding.imported !== '*' && proven(name, range.start)
+      ? producerConstant(binding.target, binding.imported) : null;
   }
 
-  /** A closed trailing path cannot name an old source when even its complete suffix is disjoint. */
-  function disjointPathTail(range) {
+  /** Collect only complete immutable trailing segments; parent traversal or absolute resets prove nothing. */
+  function closedPathTail(range) {
     const parsed = call(range);
-    if (!parsed || !operation(parsed, 'path', ['join', 'resolve']) || parsed.args.length < 2) return false;
+    if (!parsed || !operation(parsed, 'path', ['join', 'resolve']) || parsed.args.length < 2) return null;
     const tail = [];
     for (let index = parsed.args.length - 1; index > 0; index--) {
       const value = closedString(parsed.args[index]);
       if (value === null) break;
-      if (!value || posix.isAbsolute(value) || value.split('/').some(part => !part || part === '.' || part === '..')) return false;
+      if (!value || posix.isAbsolute(value) || value.split('/').some(part => !part || part === '.' || part === '..')) return null;
       tail.unshift(...value.split('/'));
     }
-    if (!tail.length) return false;
+    return tail.length ? tail : null;
+  }
+
+  /** A closed trailing path cannot name an old source or any directory containing it. */
+  function disjointPathTail(range, directory = false) {
+    const tail = closedPathTail(range);
+    if (!tail) return false;
     const suffix = tail.join('/');
-    return ![...moved.keys()].some(from => from === suffix || from.endsWith('/' + suffix));
+    return ![...moved.keys()].some(from => {
+      const parts = from.split('/');
+      const candidates = directory ? parts.map((_, index) => parts.slice(0, index + 1).join('/')) : [from];
+      return candidates.some(candidate => candidate === suffix || candidate.endsWith('/' + suffix));
+    });
   }
 
   /** Edit only the fs source argument; unsupported source construction never masquerades as success. */
   function sourceArgument(range, reader, regularFile) {
-    if (regularFile && (disjointSuffix(range) || disjointPathTail(range))) return;
+    if ((regularFile && disjointSuffix(range)) || disjointPathTail(range, !regularFile)) return;
     const dynamic = [...code.slice(range.start, range.end).matchAll(new RegExp(`\\b(${ID})\\b`, 'gu'))]
       .map(match => ({ name: match[1], at: range.start + match.index })).filter(row => loops.some(loop => loop.name === row.name && row.at > loop.body && row.at < loop.end));
     const variables = [...new Set(dynamic.map(row => row.name))];

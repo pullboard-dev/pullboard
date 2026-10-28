@@ -31,6 +31,20 @@ test('named metadata leaves and complete moved-body tails keep their exact input
   ]) assert.ok(fixtureSourceEdits(prefix + body, options).problems.length, body);
 });
 
+test('recursive fixture copies prove a closed metadata tail without hiding source ancestors [C7]', () => {
+  const prefix = "import { cpSync } from 'node:fs'; import { join } from 'node:path';\n";
+  const options = { file: 'test/private-copy.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']] };
+  assert.deepEqual(fixtureSourceEdits(prefix + "cpSync(join(box.root, '.git', 'pullboard'), target, {recursive:true});", options),
+    { edits: [], problems: [] });
+  for (const body of [
+    "cpSync(join(root, 'src'), target, {recursive:true});",
+    "cpSync(join(root, 'src', 'git.js'), target, {recursive:true});",
+    "cpSync(join(root, 'git.js'), target, {recursive:true});",
+    "cpSync(join(root, '.git', '..', 'src'), target, {recursive:true});",
+    "cpSync(box.input, target, {recursive:true});",
+  ]) assert.ok(fixtureSourceEdits(prefix + body, options).problems.length, body);
+});
+
 /** Hide only this actual import declaration, just as the production callers do; every other spelling stays visible. */
 function proof(body) {
   const source = IMPORT + body;
@@ -174,6 +188,42 @@ test('imported producers need exact source identity and a proven native join ret
   }
   let calls = 0;
   assert.ok(inspect(() => blob(calls++ ? changed : valid)).problems.length, 'source mutation during analysis is refused');
+});
+
+test('session path producers prove a fixed leaf without granting authority to their argument [C7]', () => {
+  const consumer = "import { readFileSync } from 'node:fs'; import { locate } from '../src/producer.js'; readFileSync(locate(info));";
+  const options = { file: 'test/session-path.js', moves: [['src/git-launch-baseline.json', 'packages/git/src/shell/git-launch-baseline.json']] };
+  const valid = "import { join } from 'node:path'; export function locate(info) { return join(info.gitDir, 'pullboard-checkout-session.json'); }";
+  assert.deepEqual(fixtureSourceEdits(consumer, { ...options, readSource: () => blob(valid) }), { edits: [], problems: [] });
+  for (const source of [valid.replace('pullboard-checkout-session.json', 'git-launch-baseline.json'),
+    valid.replace("'pullboard-checkout-session.json'", 'info.file'),
+    valid.replace('locate(info)', 'locate(...info)'),
+    valid.replace('return join', "if (info) return info.file; return join"),
+  ]) assert.ok(fixtureSourceEdits(consumer, { ...options, readSource: () => blob(source) }).problems.length, source);
+  const actual = readFileSync(new URL('../src/agent-session.js', import.meta.url), 'utf8');
+  const direct = "import { readFileSync } from 'node:fs'; import { checkoutSessionFile } from '../src/agent-session.js'; readFileSync(checkoutSessionFile(repoInfo(worker)), 'utf8');";
+  assert.deepEqual(fixtureSourceEdits(direct, { ...options, readSource: file => {
+    assert.equal(file, 'src/agent-session.js');
+    return blob(actual);
+  } }), { edits: [], problems: [] });
+});
+
+test('named metadata constants follow exact bounded reexports and retain collision refusal [C7]', () => {
+  const consumer = "import { readFileSync } from 'node:fs'; import { join } from 'node:path'; import { FILE } from '../src/facade.js'; readFileSync(join(root, '.git', FILE));";
+  const options = { file: 'test/metadata.js', moves: [['src/git-launch-baseline.json', 'packages/git/src/shell/git-launch-baseline.json']] };
+  const facade = "export { INPUT as FILE } from './value.js';";
+  const sources = { 'src/facade.js': facade, 'src/value.js': "export const INPUT = 'pullboard-runner-policy.json';" };
+  const inspect = (replacement, readSource = file => blob({ ...sources, ...replacement }[file])) => fixtureSourceEdits(consumer, { ...options, readSource });
+  assert.deepEqual(inspect({}), { edits: [], problems: [] });
+  for (const replacement of [
+    { 'src/value.js': "export const INPUT = 'git-launch-baseline.json';" },
+    { 'src/value.js': 'export const INPUT = unknown;' },
+    { 'src/value.js': "export { FILE as INPUT } from './facade.js';" },
+    { 'src/value.js': "export let INPUT = 'safe.json'; INPUT = unknown;" },
+  ]) assert.ok(inspect(replacement).problems.length, JSON.stringify(replacement));
+  assert.ok(inspect({}, () => ({ source: sources['src/facade.js'], object: '0'.repeat(40) })).problems.length);
+  const shadowed = consumer.replace('readFileSync(join', 'function read(FILE) { readFileSync(join') + '}';
+  assert.ok(fixtureSourceEdits(shadowed, { ...options, readSource: file => blob(sources[file]) }).problems.length);
 });
 
 
