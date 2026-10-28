@@ -271,7 +271,10 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
     try { main = mainPolicy(root).commit; } catch { /* An unavailable policy remains unknown in this execution record. */ }
     const receipt = receiptFields({ version: 2, id: randomUUID(), kind: context.kind,
       tree: before.tree, head: before.head, main, command: createHash('sha256').update(command).digest('hex'),
-      green: run.isGreen ?? run.state === 'pass', failures: [],
+      green: run.isGreen ?? run.state === 'pass', failures: (run.isGreen ?? run.state === 'pass') ? []
+        : tapTests(run.output ?? '', run.executionRoot ?? root).filter(row => !row.passed && !row.skip && row.file
+          && row.type !== 'suite' && !['subtestsFailed','cancelledByParent','testAborted'].includes(row.failureType))
+          .slice(0, 500).map(({ file, name }) => ({ file, name })),
       load: run.executionLoad ?? (remote || lease?.runner ? null : localLoad), at: new Date().toISOString(),
       proof: { item: context.item, frozenDigest: context.frozenDigest ?? null, seat: context.seat,
         environment, testRuntimes, runner: remote ?? (lease?.runner ? null

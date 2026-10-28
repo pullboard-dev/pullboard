@@ -1,3 +1,4 @@
+import { effectiveItemHead } from './source-advance-state.js';
 import { isRecordedConflictContext } from './recorded-conflict-context.js';
 /** Board-bound computed conflict evidence is verified against immutable Git commits before sealing and on replay [V4,H16]. */
 import { createHash } from 'node:crypto';
@@ -78,7 +79,7 @@ function bindingProblem(board, item, actor, receipt) {
   const identity = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='board_id'").get()?.meta_value;
   const submission = board.db.prepare("SELECT event_id FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1").get(item.item_id)?.event_id;
   if (!fields || fields.submission !== submission || fields.board !== identity || fields.item !== item.item_id || fields.actor !== actor
-    || fields.head !== item.item_commit || item.item_status !== 'submitted') return new Refused('COORDINATOR_ONLY',
+    || fields.head !== (effectiveItemHead(board, item) ?? item.item_commit) || item.item_status !== 'submitted') return new Refused('COORDINATOR_ONLY',
     'automatic conflict evidence must name this board, actor and current submitted head');
   return null;
 }
