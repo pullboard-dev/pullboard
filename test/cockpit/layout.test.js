@@ -625,7 +625,8 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
   /** Every visible enabled action with its height, which references sit in running text, and the named compact ones. */
   const audit = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
     const visible = (e) => { const s = getComputedStyle(e), r = e.getBoundingClientRect(); return !e.disabled && s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 0 && !e.closest('[hidden]'); };
-    const height = (s) => { const e = document.querySelector(s); return e && visible(e) ? Math.round(e.getBoundingClientRect().height) : null; };
+    const targetHeight = e => { const box = e.getBoundingClientRect(), edges = e.matches('.seg button') ? [...e.querySelectorAll('.seg-hit')].map(edge => edge.getBoundingClientRect()) : []; return Math.max(box.bottom, ...edges.map(edge => edge.bottom)) - Math.min(box.top, ...edges.map(edge => edge.top)); };
+    const height = (s) => { const e = document.querySelector(s); return e && visible(e) ? Math.round(targetHeight(e)) : null; };
     const selector = 'button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-tab],[data-go],[data-item],[data-state],[data-row],[data-new]';
     // A reference inside running text is exempt from 44px, as WCAG 2.5.8 exempts inline targets: only the elements named
     // here, and only where text that is not another control's shares their line in the same block.
@@ -643,14 +644,14 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
       }
       return false;
     };
-    const controls = [...new Set(document.querySelectorAll(selector))].filter(visible).map((e) => ({ text: (e.innerText || e.getAttribute('aria-label') || e.id || e.className).trim().slice(0, 40), height: e.getBoundingClientRect().height,
+    const controls = [...new Set(document.querySelectorAll(selector))].filter(visible).map((e) => ({ text: (e.innerText || e.getAttribute('aria-label') || e.id || e.className).trim().slice(0, 40), height: targetHeight(e),
       inline: named(e) && inLine(e), named: named(e), inLine: inLine(e) }));
     return {
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
       tap: getComputedStyle(document.documentElement).getPropertyValue('--tap').trim(), coarse: matchMedia('(pointer: coarse)').matches,
       short: controls.filter((c) => c.height < 44 && !c.inline), count: controls.length,
       exempt: controls.filter((c) => c.named).map((c) => ({ text: c.text, height: Math.round(c.height), inLine: c.inLine })), standalone: inLine(document.querySelector('#new-item')),
-      toolbar: { views: [...document.querySelectorAll('.items-view-switch button')].filter(visible).map((b) => Math.round(b.getBoundingClientRect().height)), filter: height('#filter-toggle'), go: height('#new-item') },
+      toolbar: { views: [...document.querySelectorAll('.items-view-switch button')].filter(visible).map((b) => Math.round(targetHeight(b))), filter: height('#filter-toggle'), go: height('#new-item') },
       composer: { text: height('#shout-text'), send: height('#shout-send') }, status: [...document.querySelectorAll('.status [data-status]')].filter(visible).map((b) => Math.round(b.getBoundingClientRect().height)),
     };
   })())`));

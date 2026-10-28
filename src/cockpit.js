@@ -1,3 +1,5 @@
+import { revealSegmentedChoices } from './view/seg-toggle.js';
+import { segmentedToggle } from './view/seg-toggle.js';
 import { activityWords } from './view/activity-words.js';
 import { activityModel } from './view/activity-model.js';
 import { activityHtml } from './view/activity-render.js';
@@ -107,7 +109,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   const releaseInfo = hostedReleaseInfo(hostedReleaseVersion, hostedReleaseVersions, releaseHosted);
   const css = stylesheet ?? (snapshot ? 'view.css' : transportModule ? '/view.css' : '/view.css?k=' + encodeURIComponent(key));
   const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-  const pageScope = { activityWords, activityModel, activityHtml, dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, closePageDialog, connection, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeRules, hostedState, lifecycle, moduleOption, openPageDialog, pageStartup, paths, personNeeds, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
+  const pageScope = { activityWords, activityModel, activityHtml, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, closePageDialog, connection, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeRules, hostedState, lifecycle, moduleOption, openPageDialog, pageStartup, paths, personNeeds, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -180,7 +182,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <div class="primary">
       <section class="card-panel proof-stats" id="proof-stats" aria-label="Board proof stats" hidden></section>
       <div class="card-panel toolbar" id="items-toolbar">
-        <div class="items-view-switch seg" id="items-view-switch" role="group" aria-label="Items view"></div>
+        <div class="items-view-switch" id="items-view-switch"></div>
         <div class="filter-control"><button class="filter-toggle" id="filter-toggle" data-filter-toggle type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="filter-menu"><span class="filter-label" id="filter-label">Filter</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="filter-menu" id="filter-menu" role="menu" aria-label="Filter" hidden></div></div>
         <button class="go" id="new-item" type="button" aria-label="New item"><span class="new-item-wide">New item</span><span class="new-item-narrow" aria-hidden="true">New</span></button>
       </div>
@@ -212,11 +214,11 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     </aside>
   </section>
   <section data-pane="spec" class="two">
-    <div class="primary"><div class="card-panel rows-card"><div id="spec-fit" class="fit"></div><div class="rows-filter"><div class="seg" id="spec-chips" role="group" aria-label="Show"></div></div><div class="rows" id="spec-list" tabindex="0" aria-label="Spec rows"></div></div></div>
+    <div class="primary"><div class="card-panel rows-card"><div id="spec-fit" class="fit"></div><div class="rows-filter"><div id="spec-chips"></div></div><div class="rows" id="spec-list" tabindex="0" aria-label="Spec rows"></div></div></div>
     <aside class="card-panel detail" aria-label="Spec row"><div id="spec-detail"></div></aside>
   </section>
   <section data-pane="doctrine" class="two">
-    <div class="primary"><div class="card-panel rows-card"><div class="rows-filter"><div class="seg" id="doctrine-chips" role="group" aria-label="Show"></div></div><div class="rows" id="doctrine-list" tabindex="0" aria-label="Doctrine rows"></div></div></div>
+    <div class="primary"><div class="card-panel rows-card"><div class="rows-filter"><div id="doctrine-chips"></div></div><div class="rows" id="doctrine-list" tabindex="0" aria-label="Doctrine rows"></div></div></div>
     <aside class="card-panel detail" aria-label="Practice row"><div id="doctrine-detail"></div></aside>
   </section>
   <section data-pane="activity">

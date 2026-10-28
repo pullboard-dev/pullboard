@@ -184,6 +184,24 @@ test('native read wrappers carry explicit capabilities while SQLite remains read
 });
 
 
+test('source advance receipt capabilities are frozen and refuse missing members before storage exists [C7,B1]', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-source-receipts-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'never-created', 'board.sqlite');
+  const ports = native.nativeBoardPorts();
+  assert.equal(Object.isFrozen(ports.sourceAdvanceReceipts), true);
+  for (const key of ['boardReceiptStore', 'readGateReceipt', 'receiptBody']) {
+    const sourceAdvanceReceipts = { ...ports.sourceAdvanceReceipts };
+    delete sourceAdvanceReceipts[key];
+    assert.throws(() => {
+      // @pullboard-board-file persistence: absent receipt authority refuses before SQLite or its directory exists.
+      const board = native.openBoard(file, undefined, { ports: { ...ports, sourceAdvanceReceipts } });
+      native.closeBoard(board);
+    }, error => error.code === 'NO_POLICY' && error.message.includes(`sourceAdvanceReceipts.${key}`));
+    assert.equal(existsSync(join(directory, 'never-created')), false);
+  }
+});
+
 test('every verification capability is required before storage exists [C7,B1,B2]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-verification-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));

@@ -1,4 +1,18 @@
 import { nextTake } from '../next-take.js';
+import { mainRedReviewItems } from '../main-red.js';
+import { mainRedReworkItems } from '../main-red.js';
+import { computedReturnArgs } from '../computed-conflict-return.js';
+import {
+  MainSpecMerged,
+  checkMainVerifier,
+  claimFreezer,
+  claimOrdered,
+  idArg,
+  ordered,
+  whoAmI,
+  withBoard,
+  withBoardRead as takeBoardRead,
+} from '../cli.js';
 import { heartbeatCommand } from '../cli-presence.js';
 /** Agent session hooks observe activity without adding any shared board move [B3]. */
 import { context } from '../cli-read-context.js';
@@ -14,7 +28,9 @@ export async function run(io) {
   });
   let work;
   if (seat && !ctx.info.isMain) {
-    const found = await nextTake(ctx);
+    const found = await nextTake(ctx, {}, { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered,
+      idArg, ordered, whoAmI, withBoard, withBoardRead: takeBoardRead,
+      mainRedReviewItems, mainRedReworkItems, computedReturnArgs });
     if (found.item) work = { item: found.item.item_id, review: found.review, held: found.held };
   }
   io.result?.({ ...(work ? { work } : {}), seat: seat?.agent_id ?? null, presence: seat?.presence ?? 'gone', heartbeatAt: seat?.heartbeatAt ?? null });

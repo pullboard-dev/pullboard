@@ -1,5 +1,3 @@
-import { mainRedReviewItems } from './main-red.js';
-import { mainRedReworkItems } from './main-red.js';
 import { mainRedBuildRouting } from './main-red-build-routing.js';
 /** Current-seat dispatch shares board eligibility with the heartbeat warning [N2,V1,B3]. */
 import * as store from './board.js';
@@ -11,21 +9,9 @@ import {
 import { headCommit } from './git.js';
 import { trunkMerge } from './trusted-policy.js';
 import { Refused } from './refused.js';
-import { computedReturnArgs } from './computed-conflict-return.js';
-import {
-  MainSpecMerged,
-  checkMainVerifier,
-  claimFreezer,
-  claimOrdered,
-  idArg,
-  ordered,
-  whoAmI,
-  withBoard,
-  withBoardRead,
-} from './cli.js';
 
 /** Resolve current-seat eligibility on either a read snapshot or the final ordered writer. */
-function selected(ctx, board, values) {
+function selected(ctx, board, values, { checkMainVerifier, whoAmI, mainRedReworkItems, mainRedReviewItems }) {
   checkMainVerifier(ctx, board, values);
   const me = whoAmI(ctx, board);
   const routing = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes });
@@ -40,7 +26,7 @@ function selected(ctx, board, values) {
 }
 
 /** Preview whether ordinary next needs the main-red build routing path; no move or worktree is written. */
-export function mainRedBuildOffer(ctx, values = {}) {
+export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mainRedReworkItems }) {
   return withBoardRead(ctx, board => {
     const me = whoAmI(ctx, board);
     return mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes });
@@ -48,11 +34,13 @@ export function mainRedBuildOffer(ctx, values = {}) {
 }
 
 /** Take one eligible review or build through existing ordered guards, without routing to another seat. */
-export async function nextTake(ctx, values = {}) {
-  const looked = withBoardRead(ctx, board => selected(ctx, board, values));
+export async function nextTake(ctx, values = {}, services) {
+  const { MainSpecMerged, claimFreezer, claimOrdered, idArg, ordered, whoAmI, withBoard, withBoardRead,
+    computedReturnArgs, mainRedReviewItems } = services;
+  const looked = withBoardRead(ctx, board => selected(ctx, board, values, services));
   if (!looked.item || looked.buildOffer || looked.releaseRequest || looked.held && !looked.review) return looked;
   return await withBoard(ctx, async board => {
-    const picked = selected(ctx, board, values);
+    const picked = selected(ctx, board, values, services);
     const me = whoAmI(ctx, board);
     if (picked.buildOffer || picked.releaseRequest || picked.held && !picked.review || !picked.item) return picked;
     if (picked.review) {
