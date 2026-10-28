@@ -1,6 +1,7 @@
 /** A holder adds test files to its own check; anything not provably a superset stays the coordinator's [C7,V4,H16]. */
 import { CHECK_WIDEN_SELF_ENGINE } from './check-widen-self-engine.js';
 import { COORDINATOR } from './config.js';
+import { coordinatorCheck } from './item-check-baseline.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { Refused } from './refused.js';
 
@@ -55,4 +56,9 @@ export function selfWidenedFiles(board, item, agentId, change) {
   if (item.item_status !== 'claimed' || item.item_owner !== agentId) return null;
   if (Object.entries(change).some(([key, value]) => key !== 'check' && value !== undefined)) return null;
   return widenedCheckFiles(item.item_check, change.check.trim());
+}
+
+/** The edit's check command: the coordinator's, or a holder's proven widening; anyone else is refused. */
+export function editCheck(agentId, check, widened) {
+  return widened ? check.trim() : coordinatorCheck(agentId, check);
 }

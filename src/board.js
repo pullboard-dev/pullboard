@@ -157,7 +157,6 @@ import {
 import { barCheckFactFields } from './bar-check.js';
 export { setBarReady, signBar } from './bar-readiness.js';
 import {
-  coordinatorCheck,
   normalizeCheckBaseline,
   saveCheckBaseline,
 } from './item-check-baseline.js';
@@ -313,7 +312,7 @@ import {
   requireNeverAgain,
 } from './rigor.js';
 import { barCorrectionFields } from './bar-corrections.js';
-import { selfWidenedFiles } from './check-widen.js';
+import { editCheck, selfWidenedFiles } from './check-widen.js';
 import {
   conflictDetail,
   conflictProblem,
@@ -561,7 +560,7 @@ export function requestCompanion(board, options) {
 export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming }, { sourceMove = null } = {}) {
   const command = sourceMove
     ? validateRehomeCheck(by, check, sourceMove)
-    : coordinatorCheck(by, check) ?? '';
+    : editCheck(by, check) ?? '';
   validateCheckTiming(board, by, checkTiming);
   reviewPolicyChange(board, null, { sensitive, reviewFamily });
   const cleanTitle = title.trim();
@@ -667,7 +666,7 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
   if (item?.item_status === 'claimed' && agentId !== COORDINATOR && !widened) {
     throw new Refused('HELD', `item #${id} is claimed; only the coordinator may edit it while held; shout coordinator`);
   }
-  const command = widened ? check.trim() : coordinatorCheck(agentId, check);
+  const command = editCheck(agentId, check, widened);
   if ([brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming].every((value) => value === undefined)) {
     throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>" or --after <ids|none>');
   }
@@ -697,18 +696,16 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
   };
   checkRoute(next.item_route);
   const moved = ['item_route', 'item_criterion', 'item_check', 'item_after', 'item_check_timing'].filter((key) => next[key] !== item[key]);
-  const routeChanged = next.item_route !== item.item_route;
   const correctionWhileClaimed = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
     && item.item_status === 'claimed' && (agentId === COORDINATOR || widened)
     && (next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_after !== item.item_after || next.item_check_timing !== item.item_check_timing);
-  if (moved.length && item.item_status !== 'open' && (routeChanged || !correctionWhileClaimed)) {
+  if (moved.length && item.item_status !== 'open' && (next.item_route !== item.item_route || !correctionWhileClaimed)) {
     throw new Refused('HELD', `item #${id} is ${item.item_status}; change its route, criterion or check only while it is open`);
   }
   if (brief !== undefined && engine >= REFERENCE_ENGINE) validateReferences(brief, { actor: agentId, authors: referenceAuthors, authority: referenceAuthority, previous: item.item_brief });
   checkRouted({ brief: next.item_brief, route: next.item_route, criterion: next.item_criterion, check: next.item_check }, engine);
   const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_check_timing !== item.item_check_timing || Boolean(reviewPolicy) && (sensitive !== undefined || reviewFamily !== undefined);
-  const bar = widened ? { reason: reason?.trim() || `added test files: ${widened.join(', ')}`, widenedCheck: widened } : barCorrectionFields(board, item, next, { reason });
-  return { item, next, command, unfreeze, bar, widened: widened || null };
+  return { item, next, command, unfreeze, bar: barCorrectionFields(board, item, next, { reason, widened }), widened: widened || null };
 }
 
 /**
