@@ -7,10 +7,15 @@ import {
   loadMachineSettings,
   removeRunner,
 } from '../settings.js';
-import { runnerResourceStatus } from '../resources.js';
+import {
+  recordRunnerGui,
+  runnerResourceStatus,
+} from '../resources.js';
+import { validateRunner } from '../runner-registration.js';
+import { probeRunnerTransport } from '../runner-transport.js';
 
 /** List, add or remove machine-level SSH capacity without requiring a board identity or runner account. */
-export function runnerCommand(io, { first, second, rest, values }) {
+export async function runnerCommand(io, { first, second, rest, values }) {
   if (first === 'list') {
     if (second || rest.length || Object.keys(values).some(key => key !== 'json')) throw new Refused('USAGE', 'pullboard runner list');
     // Registered capacity is what each runner enforces, whatever its own settings say (#1066).
@@ -32,10 +37,13 @@ export function runnerCommand(io, { first, second, rest, values }) {
     || !/^(?:0|[1-9]\d*)$/u.test(values.browser ?? '')) {
     throw new Refused('USAGE', 'pullboard runner add <ssh-host> --slots <positive integer> --browser <integer from zero through slots>');
   }
-  const runner = addRunner({ host: second, slots: Number(values.slots), browser: Number(values.browser),
+  const configured = validateRunner({ host: second, slots: Number(values.slots), browser: Number(values.browser),
     ...(values.node !== undefined ? { node: values.node } : {}), ...(values.root !== undefined ? { root: values.root } : {}) });
+  const observation = await probeRunnerTransport(configured, { observeGui: true });
+  const runner = addRunner({ ...configured, gui: observation.gui });
+  recordRunnerGui(runner.host, observation.gui);
   io.result?.({ runner });
-  io.say(`registered runner ${runner.host}: ${runner.slots} slots, ${runner.browser} browser`);
+  io.say(`registered runner ${runner.host}: ${runner.slots} slots, ${runner.browser} browser; GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown (registration probe unavailable)'}`);
   return 0;
 }
 
