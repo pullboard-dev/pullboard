@@ -41,18 +41,25 @@ function fixture(t) {
   return { board, add, submit, reserve };
 }
 
-test('every gate-judgment source family is Strict while docs and unrelated view code stay Standard [V4,B26]', () => {
-  for (const path of ['src/quarantine.js', 'src/line-settings.js', 'test/run-tests.test.js', 'test/selection-fallbacks.test.js', 'test/lane-bypass.test.js', 'test/resources.test.js', 'src/source-advance.js', 'src/flakes.js', 'src/ci-flakes.js', 'src/native-flakes.js',
-    'src/test-result-store.js', 'src/affected-tests.js', 'src/test-selection.js', 'src/submit-admission.js',
-    'src/tap-tests.js', 'src/runner-work-spec.js', 'src/remote-gate.js', 'src/line-capacity.js',
-    'src/known-main-reworks.js', 'src/review-eligibility.js', 'src/verdict-admission.js', 'src/landing-test-policy.js',
-    'src/train-mechanical-merge.js', 'src/pre-push-receipts.js', 'src/gate-run-receipt.js', 'src/proof-receipts.js',
-    'src/moves/reserveReview.js', 'src/commands/submit.js', 'src/commands/verify.js', 'src/board.js',
-    'test/quarantine.test.js', 'test/gate-resource.test.js', 'test/relay-auth.test.js', 'test/engine.test.js',
-    'src/relay-key.js', 'src/person-signing.js', 'src/discovery.js', 'packages/gate/src/core/test-selection.js', 'bin/run-tests.js', '.github/workflows/ci.yml', 'package.json', 'pullboard.json']) {
-    assert.equal(gateJudgmentPath(path), true, path);
-  }
-  for (const path of ['docs/gate.md', 'README.md', 'relay/README.md', 'packages/gate/README.md', 'src/view/projector.js', 'src/help/gate.js', 'src/gateway-display.js', 'test/project.test.js', 'test/cockpit/detail-model.test.js']) {
+test('ruled judgment areas and named guard tests are Strict while broad product families are Standard [V4,B26]', () => {
+  for (const path of ['src/quarantine.js', 'src/flakes.js', 'src/ci-flakes.js', 'src/test-result-store.js',
+    'src/affected-tests.js', 'src/test-selection.js', 'src/submit-admission.js', 'src/known-main-reworks.js',
+    'src/review-eligibility.js', 'src/verdict-admission.js', 'src/landing-test-policy.js', 'src/runner-worker.js',
+    'src/train-mechanical-merge.js', 'src/pre-push-receipts.js', 'src/gate-run-receipt.js',
+    'src/moves/reserveReview.js', 'src/commands/submit.js', 'src/commands/verify.js',
+    'src/relay-key.js', 'src/check-mask.js', 'src/person-presence.js', 'src/person-signing.js', 'src/discovery.js', 'src/machine.js',
+    'test/person.test.js', 'test/check.test.js', 'test/flakes-ledger.test.js', 'test/review-tier.test.js', 'test/selection-fallbacks.test.js',
+    'test/relay-auth-expired.test.js', 'test/engine.test.js', 'test/landing-shards.test.js',
+    'packages/gate/src/core/test-selection.js', 'bin/run-tests.js', 'bin/checks/test-names.js',
+    '.github/workflows/ci.yml', 'pullboard.json']) assert.equal(gateJudgmentPath(path), true, path);
+  for (const path of ['docs/gate.md', 'README.md', 'relay/README.md', 'packages/gate/README.md',
+    'src/view/projector.js', 'src/help/gate.js', 'src/gateway-display.js', 'test/cockpit/detail-model.test.js',
+    'src/test-value.js', 'src/test-economics.js', 'src/board.js', 'src/board-query.js',
+    'src/review-queue-line.js', 'src/person-signing-words.js',
+    'src/check-words.js', 'src/line-settings.js', 'src/cli-main.js',
+    'src/spec.js', 'src/queue.js', 'src/moves/appendFact.js', 'bin/cells-plan.js',
+    'test/board.test.js', 'test/review-queue.test.js', 'test/person-trusted-cli.js', 'test/test-value.test.js',
+    'test/runner-new-unlisted.test.js', 'test/project.test.js', 'packages/gate/tests/new-unlisted.test.js']) {
     assert.equal(gateJudgmentPath(path), false, path);
   }
 });
