@@ -9,6 +9,16 @@ function escaped(value) {
 const MODULE_BEFORE = /(?:\bfrom|\bimport\s*\(|\brequire\s*\()\s*$/u;
 const MODULE_THROUGH_JSON = /(?:\bfrom|\bimport\s*\(|\brequire\s*\()\s*\$\{\s*JSON\s*\.\s*stringify\s*\(\s*$/u;
 
+/** Return the offset of the parenthesis that closes the call opened at an offset, or -1. */
+function closing(code, open) {
+  let depth = 0;
+  for (let index = open; index < code.length; index++) {
+    if ('([{'.includes(code[index])) depth++;
+    else if (')]}'.includes(code[index]) && --depth === 0) return index;
+  }
+  return -1;
+}
+
 /** Find the call names, outermost last, whose argument list encloses an offset, stopping at the statement. */
 function enclosingCalls(code, at) {
   const calls = [];
@@ -20,7 +30,7 @@ function enclosingCalls(code, at) {
       if (depth) { depth--; continue; }
       if (char !== '(') break;
       const callee = /(new\s+)?([\w$.]+)\s*$/u.exec(code.slice(0, index));
-      calls.push(callee ? { name: callee[2].split('.').at(-1), constructs: Boolean(callee[1]) } : { name: '', constructs: false });
+      calls.push(callee ? { name: callee[2].split('.').at(-1), constructs: Boolean(callee[1]), open: index } : { name: '', constructs: false, open: index });
     } else if (char === ';' && !depth) break;
   }
   return calls;
@@ -51,7 +61,9 @@ export function operationalMentions(source, scanned, basenames) {
     const calls = enclosingCalls(code, row.start);
     if (calls.some(row => copierNames.has(row.name))) return false;
     const toPath = calls.some(call => call.name === 'fileURLToPath');
-    if (!toPath && calls.some(call => call.name === 'pathToFileURL' || call.constructs && call.name === 'URL')) return false;
+    // A file URL is module addressing only once it is a string; the URL object itself is a valid filesystem operand.
+    if (!toPath && calls.some(call => (call.name === 'pathToFileURL' || call.constructs && call.name === 'URL')
+      && /^\s*\.\s*href\b/u.test(code.slice(closing(code, call.open) + 1)))) return false;
     const template = templates.filter(outer => outer.start < row.start && row.end <= outer.end).at(-1);
     if (template) {
       const open = source.lastIndexOf('${', row.start);

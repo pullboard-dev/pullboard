@@ -95,6 +95,8 @@ test('module addressing of a moved source is not a read to repoint [C7]', () => 
 test('a moved source named as a path to read stays reported [C7]', () => {
   const unsafe = [
     "const file = join(root, 'src', 'foo.js');\nreadFileSync(file);\n",
+    "readFileSync(new URL('../src/foo.js', import.meta.url));\n",
+    "readFileSync(pathToFileURL(resolve(import.meta.dirname, '../src/foo.js')), 'utf8');\n",
     "const file = fileURLToPath(new URL('../src/foo.js', import.meta.url));\nreadFileSync(file);\n",
     "const MODULE = resolve(import.meta.dirname, '../src/foo.js');\nreadFileSync(MODULE, 'utf8');\n",
     "const MODULE = resolve(import.meta.dirname, '../src/foo.js');\nconst program = `import { x } from ${JSON.stringify(MODULE)};`;\nreadFileSync(MODULE);\n",
