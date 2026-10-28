@@ -34,7 +34,7 @@ import {
   starMarkup,
 } from './view/star.js';
 import { commandPhrases } from './help.js';
-import { personNeeds } from './needs.js';
+import { personNeeds } from './row-decision-text.js';
 import { homeCapacity } from './view/home.js';
 import { homeRules } from './view/home.js';
 import {

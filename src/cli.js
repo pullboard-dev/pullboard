@@ -1555,11 +1555,12 @@ export async function nextOnce(ctx, values) {
     const routed = seats ? await laneSeatContext(ctx, board, me, item, seats, context) : { context: ctx };
     const target = routed.context;
     const holder = whoAmI(target, board);
+    ctx.io.nextPhase?.('claim', item.item_id);
     try {
       await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped }]);
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, ...routed, specMerged: { item: item.item_id, rows: error.rows } };
-      if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true };
+      if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
       throw error;
     }
     return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons, ...routed };
