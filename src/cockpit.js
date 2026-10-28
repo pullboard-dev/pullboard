@@ -940,7 +940,10 @@ function readMilestone(milestone, p) {
   const visible = milestone.items.map((entry) => milestoneItem(entry, p)).filter((row) => row.state !== 'withdrawn');
   const verified = visible.filter((row) => row.state === 'verified');
   /** Group work in the legend's shipping order; stable sorting preserves milestone order within each group. */
-  const rank = (row) => row.stage === 'merged' ? 5 : row.stage === 'accepted' ? 0 : row.stage === 'submitted' ? 1 : row.held ? 4 : row.stage === 'claimed' ? 2 : row.state === 'verified' ? 5 : 3;
+  const rank = (row) => row.stage === 'merged' ? 6
+    : row.stage === 'accepted' ? 0 : row.stage === 'submitted' ? 1
+      : row.held ? 5 : row.stage === 'claimed' ? 2
+        : row.state === 'verified' ? 6 : row.state === 'back' ? 3 : 4;
   const rows = [...visible].sort((a, b) => rank(a) - rank(b));
   // Current API milestones own their landed count and explicit shipment. Old exports retain their old count.
   /** Reject malformed snapshot counts before they reach numeric HTML attributes. */
