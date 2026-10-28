@@ -2,6 +2,8 @@ import {
   heldChip,
   heldNote,
 } from './held-items.js';
+import { agentFloorModel } from './agent-floor-model.js';
+import { agentFloorHtml } from './agent-floor-render.js';
 /**
  * Part 2 of the hosted page's script, verbatim from src/cockpit.js lines 332-1298 (#745): its
  * text is what the page served before the split, with the values its ${} expressions read passed in as scope.
@@ -18,7 +20,7 @@ const activityWords = (${activityWords.toString()});
 const activityModel = (${activityModel.toString()});
 const activityHtml = (${activityHtml.toString()});
 const dashboardModel = (${dashboardModel.toString()});
-const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry) => roadmapSummary(entry) });
+const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry) => roadmapSummary(entry), floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
 // The update note from src/view/hosted-release.js (#632): only a confirmed read of this machine's view says how far behind it is.
 // Only the hosted page builds it; every other page draws nothing and never touches the DOM for it.
 const renderHostedReleaseNote = ${releaseHosted ? `(${hostedReleaseNote.toString()})(${releaseInfo}, { $, keep, distance: (${hostedReleaseDistance.toString()}),
