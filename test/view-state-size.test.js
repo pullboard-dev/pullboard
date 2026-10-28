@@ -1,4 +1,6 @@
 /** Authenticated native view projections stay bounded at the real board's scale [N26,A2]. */
+import { events as readStatsEvents } from '../src/board.js';
+import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -10,6 +12,10 @@ import { proofStats } from '../src/stats.js';
 import { ensureProofCounters } from '../src/proof-counters.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fetchFresh } from './http-fixture.js';
+
+/** Native read operations explicitly supplied to the statistics under test. */
+const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
+
 
 /** Initialize an actual Git/SQLite project and expose a controlled observation clock over HTTP. */
 async function fixture(t, { items = 1, seats = 1, shouts = 0, recentAge = 0 } = {}) {
@@ -36,7 +42,7 @@ async function fixture(t, { items = 1, seats = 1, shouts = 0, recentAge = 0 } = 
   });
   at = now - recentAge;
   store.shout(board, { from: agents[0], to: 'coordinator', text: 'Recently active seat', lanes: ['web', 'api'] });
-  const fullStats = proofStats(board, { now });
+  const fullStats = proofStats(board, { now }, statsReadPorts);
   /** Emulate loss of one private derived shard, matching the accepted old-counter cache fixture. */
   function forgetReport() { board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run('local:proof-stats:v2:report-summary'); }
   /** Rebuild only derived counters through the normal writer helper, preserving native history. */

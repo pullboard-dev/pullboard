@@ -1,4 +1,6 @@
 /** Coordinator flow alerts reuse the real Git/SQLite statistics and documented thresholds [N32,R1,R2]. */
+import { events as readStatsEvents } from '../src/board.js';
+import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
@@ -14,6 +16,10 @@ import { RESUME_HOOK } from '../src/init.js';
 import { proofStats } from '../src/stats.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { takeDefaultViewPort } from './view-port-fixture.js';
+
+/** Native read operations explicitly supplied to the statistics under test. */
+const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
+
 
 const PRIVATE_CHANGELOG = `# Changelog\n\n## [0.8.7] - 2026-10-12\n\n### A new session\n\nThe latest headline paragraph.\n\n### Added\n\n- The detailed release list is not part of the resume.\n\n## [0.8.6] - 2026-10-11\n\n### See the flow\n\nThe middle headline paragraph.\n\n### Fixed\n\n- A detailed fix.\n\n## [0.8.5] - 2026-10-10\n\n### A prettier board\n\nThe previous release.\n`;
 const LONG_CHANGELOG = `# Changelog\n\n## [0.8.9] - 2026-10-14\n\n### Nine\n\nNine paragraph.\n\n## [0.8.8] - 2026-10-13\n\n### Eight\n\nEight paragraph.\n\n## [0.8.7] - 2026-10-12\n\n### Seven\n\nSeven paragraph.\n\n## [0.8.6] - 2026-10-11\n\n### Six\n\nSix paragraph.\n\n## [0.8.5] - 2026-10-10\n\n### Five\n\nFive paragraph.\n\n## [0.8.4] - 2026-10-09\n\n### Added\n\nThis category heading is not a release headline.\n`;
@@ -324,7 +330,7 @@ function fixture(t, { wait = null, age = null, reservation = null, otherAge = nu
     assert.equal(code, 0, stderr || stdout);
     return args.includes('--json') ? JSON.parse(stdout) : stdout.trimEnd();
   }
-  return { root, web, waiting, run, board, builder, reviewer, stats: () => proofStats(board, { now: clock.now().getTime() }) };
+  return { root, web, waiting, run, board, builder, reviewer, stats: () => proofStats(board, { now: clock.now().getTime() }, statsReadPorts) };
 }
 
 /** Require exactly one final line while preserving the ordinary next-step line immediately before it. */

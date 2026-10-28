@@ -1,3 +1,4 @@
+import { counterProofStats } from '../proof-counter-read.js';
 import { foreignBlockers } from '../cross-repo-dependencies.js';
 import { localDependencyIds } from '../item-dependencies.js';
 /** The pullboard resume command, in its own module so an item adding another command never edits these lines. */
@@ -187,7 +188,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       onFallback: () => {
         proofStatsFallback = 'Proof statistics: counters are unavailable; reading the complete event history for this resume. The next writable command will build the counters.';
       },
-    }).flow : null;
+    }, { events: store.events, counterProofStats }).flow : null;
     return {
       me,
       health: recordedHealthFindings(board),

@@ -1,4 +1,5 @@
 /** The pullboard stats command, in its own module so an item adding another command never edits these lines. */
+import { counterProofStats } from '../proof-counter-read.js';
 import {
   barStatsLines,
 } from '../bar-corrections.js';
@@ -39,7 +40,7 @@ export function run(io, { values }) {
     // Keep counters and optional raw-history window on the same read snapshot while other seats append.
     if (windowMinutes !== undefined) board.db.exec('SAVEPOINT stats_window_read');
     try {
-      const stats = proofStats(board, { since: values.since, now });
+      const stats = proofStats(board, { since: values.since, now }, { events: store.events, counterProofStats });
       // The lifecycle projection validates the date range before capacity reads use its bounds.
       const window = windowMinutes === undefined ? undefined
         : flowStats(store.events(board), null, now, stats, { windowMinutes }).window;

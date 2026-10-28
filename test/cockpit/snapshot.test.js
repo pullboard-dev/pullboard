@@ -1,5 +1,7 @@
 /** @pullboard-test-gui */
 /** Cockpit snapshot checks, using the shared real-board fixtures [N26]. */
+import { events as readStatsEvents } from '../../src/board.js';
+import { counterProofStats as readStatsCounter } from '../../src/proof-counter-read.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, request } from 'node:http';
@@ -14,6 +16,10 @@ import { proofStats } from '../../src/stats.js';
 import { exportView, portableSnapshot } from '../../src/serve.js';
 import { machine, project, build, sendBack, fetchLive, startView, accept, boardId, boardOf, chromeExecutable, browserPause, openSnapshotChrome, closeSnapshotChrome, press, travel, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, serveFolder, proofShot } from './fixture.js';
 
+/** Native read operations explicitly supplied to the statistics under test. */
+const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
+
+
 
 /** Compare every projection field, evaluating running statistics at each real observation clock. */
 function assertSnapshotObservation(expected, actual, board, root, message) {
@@ -22,7 +28,7 @@ function assertSnapshotObservation(expected, actual, board, root, message) {
     const now = Date.parse(observation.proofStats.flow.asOf);
     assert.ok(Number.isFinite(now), 'the projection records a valid observation clock');
     assert.equal(observation.observedAt, new Date(now).toISOString(), 'the root read stamp matches its statistics observation clock');
-    return portableSnapshot(JSON.parse(JSON.stringify(proofStats(board, { now }))), root);
+    return portableSnapshot(JSON.parse(JSON.stringify(proofStats(board, { now }, statsReadPorts))), root);
   };
   assert.deepEqual(expected.proofStats, statisticsAt(expected), 'the live projection matches the public statistics reader at its clock');
   const actualStatistics = statisticsAt(actual);

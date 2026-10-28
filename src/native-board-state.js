@@ -1,5 +1,6 @@
 /** @pullboard-test-input src/standard-doctrine.md */
 /** One complete native state builder for local HTTP and sealed relay projections [A2,H5,H16]. */
+import { counterProofStats } from './proof-counter-read.js';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -96,7 +97,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
         ? milestoneRoadmap(root, board)
         : milestoneRoadmap(root, board, { projects, hideOutOfScope: true }),
       rowDecisions: store.rowDecisions(board),
-      proofStats: viewProofSummary(proofStats(board, { now: observedAt })),
+      proofStats: viewProofSummary(proofStats(board, { now: observedAt }, { events: store.events, counterProofStats })),
     };
     state.proofStats = projectData.proofStats;
     state.requests = projectData.requests;
