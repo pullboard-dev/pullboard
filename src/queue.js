@@ -1,3 +1,4 @@
+import { seatFamily } from './family-declaration.js';
 import { itemWaits } from './queue-readiness.js';
 /**
  * pullboard queue (#797): the work queue agents pull from, top to bottom. Each unshipped release is a
@@ -35,7 +36,7 @@ function holderOf(item, now) {
  */
 export function workQueue(board, ports, reviewer = null, options = {}) {
   const { buildOrder, canTake, listItems, milestonePriorities, milestones, roadmap, ROUTES, eligibilityProblem, foreignBlockers } = ports;
-  const agent = reviewer ? board.db.prepare('SELECT agent_id,agent_route,agent_family FROM agent WHERE agent_id=?').get(reviewer) : null;
+  const agent = reviewer ? board.db.prepare('SELECT agent_id,agent_route FROM agent WHERE agent_id=?').get(reviewer) : null;
   const now = board.clock.now().getTime();
   const release = milestonePriorities(board);
   const planned = roadmap(board, (reference) => ({ id: reference, title: reference, status: 'unavailable' }));

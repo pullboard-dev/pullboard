@@ -1,3 +1,4 @@
+import { withDerivedFamily } from '../../../../src/family-declaration.js';
 /** Freeze coordinator observations into exact rejection episodes, never receiver-local liveness [B13,H16]. */
 import { Refused } from '../../../../src/refused.js';
 
@@ -28,7 +29,7 @@ export function rejectedWorkReturns(board, findings, withSeatPresence) {
       throw new Refused('HEALTH_SCAN_STALE', 'the reject has neither a ten-minute wait nor an inactive-seat observation; scan health again');
     }
     if (!timedOut && board.executionEngineVersion === undefined) {
-      const seat = board.db.prepare('SELECT * FROM agent WHERE agent_id=?').get(item.item_built_by);
+      const seat = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_id=?').get(item.item_built_by));
       if (seat && withSeatPresence(board, [seat])[0].presence === 'live') {
         throw new Refused('HEALTH_SCAN_STALE', 'the rejected builder is live again; scan health before returning its work');
       }

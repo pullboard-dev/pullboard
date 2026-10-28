@@ -51,6 +51,7 @@ const NOT_MOVES = {
   ALREADY_JOINED: 'registering who is asking, before any move',
   BAD_PARENT: 'validating optional parent/session declarations at join, before any move',
   PARENT_SESSION_CHANGED: 'preserving the joined seat’s immutable parent/session identity, before any move',
+  FAMILY_DECLARED: 'a seat\u2019s declared vendor family is final, checked at join before any move',
   BAD_ROUTE: 'registering who is asking, before any move',
   ONE_COORDINATOR: 'registering who is asking, before any move',
   BAD_SEAT_ID: 'registering who is asking, before any move; only a creator naming a new worktree seat raises it',
@@ -685,11 +686,11 @@ function boardOnDisk(clock) {
 }
 
 /** A logic-only board uses the shared memory contract; raw connections stay in boardOnDisk. */
-function memoryBoardLab(t, clock) {
+function memoryBoardLab(t, clock, { reviewerFamily = 'review-vendor' } = {}) {
   const board = fixtureBoard(t, { clock });
   store.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
   store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
-  store.register(board, { lane: 'web', path: '/repo-web-2', family: 'review-vendor' });
+  store.register(board, { lane: 'web', path: '/repo-web-2', family: reviewerFamily });
   return { board };
 }
 
@@ -1055,7 +1056,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
 });
 
 test('submit, accept and reject refuse in the declared order, one failure peeled at a time [M1, M2]', t => {
-  const lab = memoryBoardLab(t);
+  const lab = memoryBoardLab(t, undefined, { reviewerFamily: 'REQUIRED REVIEW' }); // Declared once: a family is one derived value (#1783).
   const { board } = lab;
   const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
   const submitAs = (id, agentId, commit) => outcome(() => submitFixture(board, id, { agentId, commit, tree: 'tree' }));
@@ -1082,12 +1083,13 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
   submits.push(submitAs(piece, 'web-1', SHA_A), submitAs(piece, 'web-1', SHA_B));
   assert.deepEqual(submits, [...declaredBoardOrder('submit'), 'ok']);
 
-  const other = store.register(board, { lane: 'web', path: '/repo-web-other', family: 'review-vendor' });
+  // A family is one derived value since #1783, so each vendor role is its own seat rather than a rewritten column.
+  const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
+  const otherVendor = store.register(board, { lane: 'web', path: '/repo-web-other-vendor', family: 'BUILDER-VENDOR' });
+  const otherRequired = store.register(board, { lane: 'web', path: '/repo-web-other-required', family: 'required review' });
   for (const verb of ['accept', 'reject']) {
     const decision = verb === 'accept' ? 'ACCEPT' : 'REJECT';
-    store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
     store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
-    store.register(board, { lane: 'web', path: '/repo-web-other', family: null });
     const built = submittedItem(board, { reviewFamily: 'Required Review' });
     const vendorOnly = submittedItem(board, { sensitive: true });
     const landed = submittedItem(board);
@@ -1109,13 +1111,8 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
       judge(built, 'web-2', { reason: bad }),
       judge(built, other, { reason: bad, policy: 'any' }),
       /** Observe vendor refusal on Strict work, then restore the required-family peer for later guards. */
-      (() => {
-        store.register(board, { lane: 'web', path: '/repo-web-other', family: 'BUILDER-VENDOR' });
-        const refused = judge(vendorOnly, other, { reason: bad, policy: 'any', familyPolicy: 'require' });
-        store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
-        return refused;
-      })(),
-      judge(built, other, { reason: bad, policy: 'any' }),
+      judge(vendorOnly, otherVendor, { reason: bad, policy: 'any', familyPolicy: 'require' }),
+      judge(built, otherRequired, { reason: bad, policy: 'any' }),
       judge(built, 'web-2', { reason: bad, policy: 'any' }),
       judge(built, 'web-2', { reason: bad, policy: 'any', digest: 'digest:Page' }),
       judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page' }),
@@ -1129,11 +1126,13 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
 });
 
 test('reserve refuses in the declared order, one failure peeled at a time [V15, M1, M2]', t => {
-  const lab = memoryBoardLab(t);
+  const lab = memoryBoardLab(t, undefined, { reviewerFamily: 'REQUIRED REVIEW' }); // Declared once: a family is one derived value (#1783).
   const { board } = lab;
   const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
   const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
-  store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
+  // A family is one derived value since #1783, so each vendor role is its own seat rather than a rewritten column.
+  const otherVendor = store.register(board, { lane: 'web', path: '/repo-web-other-vendor', family: 'BUILDER-VENDOR' });
+  const otherRequired = store.register(board, { lane: 'web', path: '/repo-web-other-required', family: 'required review' });
   store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
   const built = submittedItem(board, { reviewFamily: 'Required Review' });
   const vendorOnly = submittedItem(board, { sensitive: true });
@@ -1143,11 +1142,9 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
   store.reserveReview(board, cooling, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
   store.release(board, cooling, 'web-2', 'another reviewer should take it');
   const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2'), reserveAs(built, other, 'any')];
-  store.register(board, { lane: 'web', path: '/repo-web-other', family: 'BUILDER-VENDOR' });
-  fired.push(reserveAs(vendorOnly, other, 'any', 'require'));
-  store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
-  store.reserveReview(board, built, { agentId: other, leaseMs: 3_600_000, policy: 'any' });
-  fired.push(reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
+  fired.push(reserveAs(vendorOnly, otherVendor, 'any', 'require'));
+  store.reserveReview(board, built, { agentId: otherRequired, leaseMs: 3_600_000, policy: 'any' });
+  fired.push(reserveAs(built, 'web-2', 'any'), reserveAs(built, otherRequired, 'any'));
   assert.deepEqual(fired, [...declaredBoardOrder('reserve'), 'ok']);
   assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
 });
