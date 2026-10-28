@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-module-loads src/board.js */
 /** Real Git and native historical state are setup; only the production worker supplies rerun evidence [C7,V4,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
