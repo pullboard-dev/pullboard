@@ -462,6 +462,7 @@ function render() {
   }
   showTab();
   revealPlace();
+  revealSegmentedChoices(document);
   updateRoadmapPanel();
   drawHistoryNotes();
 }

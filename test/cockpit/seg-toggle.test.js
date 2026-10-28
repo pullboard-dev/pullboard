@@ -128,8 +128,26 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
         await chrome.waitFor('document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + selected + '"]') + ').getAttribute("aria-pressed") === "true"');
         await tapTouch(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"] .seg-hit-bottom') + ')');
         await chrome.waitFor('document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ').getAttribute("aria-pressed") === "true"');
+        const selectedVisible = await chrome.stable(`(() => {
+          const track = document.querySelector(${JSON.stringify(selector)} + ' [data-segmented-control]'), choice = track.querySelector('[aria-pressed="true"]');
+          const outer = track.getBoundingClientRect(), inner = choice.getBoundingClientRect();
+          return inner.left >= outer.left && inner.right <= outer.right;
+        })()`);
+        assert.equal(selectedVisible, true, width + '/' + pane + ': rerender keeps the chosen option visibly in the track');
+        await chrome.stable('document.querySelector(' + JSON.stringify(selector + ' button') + ').focus()');
+        await chrome.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+        await chrome.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+        const focus = JSON.parse(await chrome.stable(`JSON.stringify((() => {
+          const button = document.activeElement, track = button.closest('[data-segmented-control]'), css = getComputedStyle(button);
+          const box = button.getBoundingClientRect(), outer = track?.getBoundingClientRect(), extension = Number.parseFloat(css.outlineWidth) + Number.parseFloat(css.outlineOffset);
+          return { visible:button.matches('.seg button:focus-visible'), width:css.outlineWidth, offset:css.outlineOffset,
+            contained:!!outer && box.top-extension >= outer.top && box.bottom+extension <= outer.bottom };
+        })())`));
+        assert.equal(focus.visible, true, 'native Tab gives the next option a visible keyboard focus');
+        assert.equal(focus.width, '2px'); assert.equal(focus.offset, '-2px'); assert.equal(focus.contained, true, 'the whole focus ring remains inside the scrolling track');
         if (pane === 'items') assert.equal(await chrome.stable('document.querySelector("#pipeline").hidden'), false, 'Pipeline still opens');
         if (pane === 'activity') assert.equal(await chrome.stable('[...document.querySelectorAll("#activity [data-activity-kind]")].every(row => row.dataset.activityKind === "shout")'), true, 'Shouts still filters the real feed');
+        await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await proofShot(chrome, 'seg-toggle-' + pane, width);
         const screenshot = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
         const chunks = screenshot.data.match(/.{1,16000}/gu);
