@@ -219,7 +219,7 @@ test('source advance receipt capabilities are frozen and refuse missing members 
   const file = join(directory, 'never-created', 'board.sqlite');
   const ports = native.nativeBoardPorts();
   assert.equal(Object.isFrozen(ports.sourceAdvanceReceipts), true);
-  for (const key of ['boardReceiptStore', 'readGateReceipt', 'receiptBody']) {
+  for (const key of ['boardReceiptStore', 'readGateReceipt', 'receiptBody', 'guardLandingWrite']) {
     const sourceAdvanceReceipts = { ...ports.sourceAdvanceReceipts };
     delete sourceAdvanceReceipts[key];
     assert.throws(() => {
