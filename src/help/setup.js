@@ -1,5 +1,5 @@
 /** Preserved setup command-group help, composed in its original display order. */
-import { DEFAULT_VIEW_PORT } from '../view-port.js';
+import { DEFAULT_VIEW_PORT } from '../config.js';
 export const setupHelp = `Set up
   pullboard tour                        see it work: a reject and its rework, scripted, in thirty seconds
   pullboard init [--model <name>] [--blueprint <name or file>]... [--no-permissions] [--no-hooks] [--yes] [--verbose]  --no-hooks skips agent nudges; --yes commits only setup's own files with your Git identity
