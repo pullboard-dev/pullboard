@@ -27,11 +27,13 @@ function manyCalls() {
 
 /** Read exact regular committed producer bytes from this source-only test checkout, never machine state. */
 function sourceSnapshot(file) {
-  return { source: readFileSync(new URL('../' + file, import.meta.url), 'utf8'),
-    object: runFixtureGit(['rev-parse', `HEAD:${file}`], { cwd: fileURLToPath(new URL('../', import.meta.url)) }) };
+  assert.equal(file, 'src/projects.js', 'this fixture supplies exactly its actual imported producer source');
+  return { source: readFileSync(new URL('../src/projects.js', import.meta.url), 'utf8'),
+    object: runFixtureGit(['rev-parse', 'HEAD:src/projects.js'], { cwd: fileURLToPath(new URL('../', import.meta.url)) }) };
 }
 
 test('actual api-http fixture config reads resolve without changing their source or move proof [C7]', () => {
+  assert.throws(() => sourceSnapshot('src/git.js'), /exactly its actual imported producer source/);
   const source = readFileSync(new URL('./api-http.test.js', import.meta.url), 'utf8');
   const result = fixtureSourceEdits(source, { file: 'test/api-http.test.js',
     moves: [['src/git.js', 'packages/git/src/shell/git.js']], readSource: sourceSnapshot });
