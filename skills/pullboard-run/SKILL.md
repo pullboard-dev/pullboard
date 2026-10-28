@@ -43,7 +43,11 @@ while :; do pullboard inbox | grep -v '^no new shouts$'; pullboard health | grep
 
 Every line it prints is something to act on. `pullboard inbox` marks what it prints as read, so act on each shout when it arrives. A monitor ends with its session or its time limit: re-arm it at the start of every session, and again as soon as it reports that it stopped.
 
+Agents addressing the coordinator must declare `--kind question|blocker|decision|exception|idea`; record routine progress and results with `pullboard fact <item> note "..."`. Decision requests use `--kind question --decision`; person-origin and coordinator-origin shouts are exempt from the kind requirement.
+
 ## Keep the board moving
+
+Run `pullboard public-split` to inventory internal items and shouts before making a board public; with the person's approval, `pullboard public-split --to ~owner/handle` moves eligible items. Internal shouts remain in the source history and are filtered from the public projection; this command does not erase history.
 
 `pullboard health` lists every stuck item: why, since when, the next step and who takes it. It changes nothing, and it exits 1 while something is stuck. A clear board prints `nothing is stuck`. Each finding is one line that ends in its next step:
 

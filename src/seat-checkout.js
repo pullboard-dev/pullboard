@@ -1,3 +1,8 @@
+import * as store from './board.js';
+import { repoInfo } from './git.js';
+import { isClean } from './git.js';
+import { untracked } from './git.js';
+import { bindLocalSession } from './agent-session.js';
 /**
  * A seat works in its own checkout (#898). One agent session can hold seats in several checkouts (B13), and a helper
  * can start in a checkout that has no seat at all. These refusals and lines keep each claim with the checkout that
@@ -54,4 +59,35 @@ export function refuseHeldElsewhere(info, agents, item, command) {
 /** The line that leads next's output when the claim belongs to a seat in another checkout. */
 export function seatLeadLine(seat, item, held) {
   return `${seat.agent} (${seat.lane} lane) ${held ? 'holds' : 'now holds'} #${item.item_id} in ${seat.path}; continue there: ${cdTo(seat.path)} pullboard next`;
+}
+
+/** Choose or open the matching lane seat, retaining ordinary checkout ownership and lane guards. */
+export async function laneSeatContext(ctx, board, me, item, seats, contextAt) {
+  const held = item.item_status === 'claimed';
+  const occupied = new Set(store.listItems(board).filter(entry => entry.item_status === 'claimed'
+    && entry.item_parent_id === null).map(entry => entry.item_owner));
+  /** A new claim never borrows an occupied or dirty checkout, even from this same session. */
+  function freeCheckout(agent) {
+    if (held) return agent.agent_id === item.item_owner;
+    if (occupied.has(agent.agent_id)) return false;
+    try { return repoInfo(agent.agent_path).commonDir === ctx.info.commonDir
+      && isClean(agent.agent_path) && untracked(agent.agent_path).length === 0; }
+    catch { return false; }
+  }
+  const available = seats.filter((agent) => agent.agent_lane === item.item_lane
+    && store.ROUTES.indexOf(agent.agent_route) >= store.ROUTES.indexOf(item.item_route) && freeCheckout(agent));
+  let agent = held ? available.find((seat) => seat.agent_id === item.item_owner)
+    : available.find((seat) => seat.agent_id === me.id) ?? available[0];
+  let created = false;
+  if (!agent) {
+    let opened;
+    const { worktreeFor } = await import('./commands/worktree.js');
+    await worktreeFor({ ...ctx.io, say: () => {}, result: (value) => { opened = value; } }, item.item_lane, me.route, me.family, me.model, false);
+    agent = store.agentAt(board, opened.path);
+    created = true;
+  }
+  const target = agent.agent_path === ctx.info.root ? ctx : contextAt({ ...ctx.io, cwd: agent.agent_path });
+  if (target.info.commonDir !== ctx.info.commonDir) throw new Refused('NOT_YOUR_CHECKOUT', 'the selected lane seat no longer belongs to this board; run pullboard next again');
+  await bindLocalSession(target.info, { agent: agent.agent_id, digest: agentSessionDigest() });
+  return { context: target, seat: { agent: agent.agent_id, lane: agent.agent_lane, path: target.info.root, created } };
 }
