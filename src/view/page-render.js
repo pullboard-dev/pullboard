@@ -66,6 +66,7 @@ function render() {
   // and the panel back to its top under a person mid-scroll, so both keep where they were.
   const chipsAt = $('roadmap-releases')?.scrollLeft ?? 0, panelAt = $('roadmap-panel')?.scrollTop ?? 0;
   roadmapAhead.clear();
+  roadmapDetails.clear();
   const roadmapHtml = roadmapCards(p, titles);
   const roadmapBoard = p.board ?? data.projects.find(project => project.root === view.root)?.id ?? null;
   if (drawnRoadmap?.root !== view.root || drawnRoadmap.board !== roadmapBoard || drawnRoadmap.html !== roadmapHtml) {

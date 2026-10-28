@@ -805,6 +805,7 @@ function renderGroup(group) {
  * item no listed board holds keeps the status the roadmap read for it, and opens nowhere.
  */
 let renderIndexes = new WeakMap();
+const roadmapDetails = new Map();
 /** Index only the immutable board objects used during this synchronous render. */
 function renderIndex(project) {
   if (!project) return { items: new Map(), titles: new Map(), releases: new Map(), citations: new Map() };
@@ -843,6 +844,14 @@ function milestoneItem(entry, p) {
   if (item && !expanded) roadmapAhead.set('i:' + label, () => detailOf(source, item, 'ahead', root));
   // A status the lifecycle declares; the roadmap says unavailable or missing for an item it could not read.
   const read = item || (FLOW.states.some((state) => state.id === entry.status) ? { status: entry.status, verdict: null } : null);
+  /** Build one row's real summary detail only when opened, before its first painted frame. */
+  const block = summaryOnly => item ? roadmapBlock(detail?.item || item, {
+    holds: root === view.root ? source.holds : source.laneHolds, itemHolds: source.itemHolds, items: source.items, agents: source.agents, state: stateOf,
+    address: (id) => itemAddress(id, root), board: root === view.root ? null : root,
+    releases: renderIndex(p).releases.get(entry.id) || [], summaryOnly,
+    error: expanded ? detail?.error : undefined,
+  }) : null;
+  if (item) roadmapDetails.set(JSON.stringify([view.root, 'i:' + label]), () => block(false).detail);
   return {
     label: local ? '#' + entry.id : String(entry.id),
     title: item ? item.title : read ? entry.title : '',
@@ -850,12 +859,7 @@ function milestoneItem(entry, p) {
     titles: renderIndex(source).titles,
     state: read ? stateOf(read) : null,
     stale: item ? staleChip(item) : '', held: item ? heldNote(item, source, entry) : null,
-    block: item ? roadmapBlock(detail?.item || item, {
-      holds: root === view.root ? source.holds : source.laneHolds, itemHolds: source.itemHolds, items: source.items, agents: source.agents, state: stateOf,
-      address: (id) => itemAddress(id, root), board: root === view.root ? null : root,
-      releases: renderIndex(p).releases.get(entry.id) || [], summaryOnly: !expanded,
-      error: expanded ? detail?.error : undefined,
-    }) : null,
+    block: block(!expanded),
     // Until its omitted fields arrive, an expanded row paints what its summary holds and fills the rest in place (#1039).
     pending: expanded && Boolean(detail?.loading),
     stage: entry.state === 'landed' ? 'merged' : entry.state === 'accepted' ? 'accepted' : item ? pipelineStage(item) : entry.status,

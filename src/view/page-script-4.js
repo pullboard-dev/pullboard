@@ -852,9 +852,13 @@ document.addEventListener('click', (event) => {
   if ('roadmapKey' in t.dataset) {
     const key = t.dataset.roadmapKey, open = t.getAttribute('aria-expanded') !== 'true';
     view.roadmapOpen.set(JSON.stringify([view.root, key]), open);
-    // The row or release opens in place, its block already drawn from the summary, and paints in this frame; the
+    // The row or release opens in place, building only its summary block, and paints in this frame; the
     // full redraw, which fills its detail, follows that paint, so click to paint never waits on it (#1039).
     const panel = t.classList.contains('milestone-item') ? t.nextElementSibling : t.parentElement.querySelector(':scope > .milestone-body');
+    if (open && panel && t.classList.contains('milestone-item')) {
+      const detail = roadmapDetails.get(JSON.stringify([view.root, key]));
+      if (detail) panel.innerHTML = detail();
+    }
     t.setAttribute('aria-expanded', String(open));
     if (panel) panel.hidden = !open;
     requestAnimationFrame(() => setTimeout(() => {
