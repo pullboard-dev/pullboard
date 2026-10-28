@@ -9,6 +9,7 @@ import { accountedFailures } from '../src/land.js';
 import { land } from '../src/land.js';
 import { runLandingBatch } from '../src/land.js';
 import { runLandingCandidate } from '../src/land.js';
+import { shardProcesses } from '../src/landing-shards.js';
 import { runLandingShards } from '../src/landing-shards.js';
 import { runLandingWorker } from '../src/landing-worker.js';
 import { landingWaivers } from '../src/landing-waivers.js';
@@ -92,4 +93,11 @@ test('missing landing providers refuse before admission or work can begin [B3,R3
   await assert.rejects(runLandingWorker({ root: '/missing-landing-parser' }, {}), /explicit process census parser/u);
   assert.throws(() => landingWaivers(untouched), /explicit quarantine reader/u);
   assert.equal(called, false, 'missing providers never read the board or enter the lease callback');
+});
+
+/** Explicit unavailable census evidence must remain unavailable without a replacement read. */
+test('an unavailable shard census stays unavailable without another process read [Q1,Q3]', () => {
+  let reads = 0;
+  assert.equal(shardProcesses(process.pid, null, () => { reads += 1; return new Map(); }), null);
+  assert.equal(reads, 0);
 });

@@ -235,7 +235,7 @@ function census(parseProcessCensus) {
  */
 export function shardProcesses(rootPid, rows, parseProcessCensus) {
   if (rows === undefined && typeof parseProcessCensus !== 'function') throw new TypeError('shard census needs its explicit process parser');
-  rows ??= census(parseProcessCensus);
+  if (rows === undefined) rows = census(parseProcessCensus);
   if (!rows) return null;
   const owned = new Map();
   const children = new Map();
