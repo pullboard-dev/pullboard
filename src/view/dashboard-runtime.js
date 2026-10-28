@@ -45,7 +45,21 @@ export function dashboardRuntime({ model, html, api, boardPath, current, redraw,
     const progress = state.milestone ? summary(state.milestone)?.detail ?? '' : '';
     // Native details keep each Show-more/quiet disclosure open across live refreshes.
     const expanded = [...region.querySelectorAll('details[open]')].map(entry=>entry.dataset.dashboardDisclosure);
-    region.innerHTML = html(state, { needs, progress })+(held.error?'<p class="muted" role="status">Dashboard history is unavailable; live work remains visible.</p>':'');
+    let quietRows;
+    const quietOpen = expanded.includes('quiet');
+    region.innerHTML = html(state, { needs, progress, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; } })+(held.error?'<p class="muted" role="status">Dashboard history is unavailable; live work remains visible.</p>':'');
+    const quiet = region.querySelector('[data-dashboard-disclosure="quiet"]');
+    /** Fill current quiet rows before native summary activation exposes them. */
+    function materializeQuiet() {
+      // A detached prior render cannot materialize its old root or model into the current page.
+      if (!quiet?.isConnected || current() !== project.root || !region.contains(quiet)) return;
+      const target = quiet.querySelector('[data-dashboard-quiet-rows]');
+      if (quietRows && target) { target.innerHTML = quietRows(); quietRows = null; }
+    }
+    if (quiet && quietRows) {
+      quiet.querySelector('summary').addEventListener('click', materializeQuiet);
+      quiet.addEventListener('toggle', () => { if (quiet.open) materializeQuiet(); });
+    }
     for (const disclosure of region.querySelectorAll('details')) if (expanded.includes(disclosure.dataset.dashboardDisclosure)) disclosure.open = true;
   }
   return { draw };

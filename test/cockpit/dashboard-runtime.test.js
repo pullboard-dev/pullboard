@@ -8,7 +8,7 @@ async function delivered() { for (let index = 0; index < 6; index++) await Promi
 
 test('Dashboard refuses truncated history and isolates a replaced board at the same root [N26]', async t => {
   const previous = globalThis.document;
-  const region = { innerHTML: '', querySelectorAll: () => [] };
+  const region = { innerHTML: '', querySelector: () => null, querySelectorAll: () => [] };
   globalThis.document = { getElementById: () => region };
   t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; });
   let identity = 'first', reply = { events: [{ event_id: 2 }, { event_id: 3 }] };

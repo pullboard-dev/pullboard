@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
-import { chromeExecutable, closeSnapshotChrome, machine, openSnapshotChrome, project, startView } from './fixture.js';
+import { chromeExecutable, closeSnapshotChrome, machine, openSnapshotChrome, press, project, startView } from './fixture.js';
 
 test('Dashboard retains offscreen agents and paints their real rows when scrolled into view [N26]', { timeout: 90000 }, async () => {
   const executable = chromeExecutable();
@@ -21,6 +21,21 @@ test('Dashboard retains offscreen agents and paints their real rows when scrolle
       store.shout(board, { from: agent, to: 'person', text: 'Which release should this native fixture observe?' });
       agents.push(agent);
     }
+    // Advance only the displayed observation clock: the same real shouts become quiet after twenty minutes.
+    await chrome.stable(`data.project.observedAt = new Date(Date.now()+30*60_000).toISOString(); render(); true`);
+    await chrome.waitFor(`!!document.querySelector('#dashboard [data-dashboard-disclosure="quiet"]')`);
+    assert.equal(await chrome.stable(`document.querySelectorAll('#dashboard [data-dashboard-disclosure="quiet"] [data-dashboard-agent]').length`), 0,
+      'closed quiet disclosure does not build offscreen rows');
+    await press(chrome, `document.querySelector('#dashboard [data-dashboard-disclosure="quiet"] summary')`);
+    await chrome.waitFor(`document.querySelectorAll('#dashboard [data-dashboard-disclosure="quiet"] [data-dashboard-agent]').length >= ${agents.length}`);
+    for (const id of agents) {
+      const row = `document.querySelector('#dashboard [data-dashboard-agent="${id}"]')`;
+      assert.deepEqual(await chrome.stable(`({svg:!!${row}.querySelector('svg[aria-label]'),numbers:${row}.querySelectorAll('.dash-agent-number').length})`), {svg:true,numbers:3});
+    }
+    await chrome.stable(`data.project.agents.find(agent=>agent.agent_id===${JSON.stringify(agents[0])}).model='fresh quiet model'; render(); true`);
+    assert.equal(await chrome.stable(`document.querySelector('#dashboard [data-dashboard-disclosure="quiet"]').open`), true);
+    assert.ok((await chrome.stable(`document.querySelector('#dashboard [data-dashboard-agent="${agents[0]}"] b').title`)).includes('fresh quiet model'),
+      'an open disclosure redraws from the current model');
   } finally { store.closeBoard(board); }
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-dashboard-rows-'));
   let chrome;
@@ -41,6 +56,21 @@ test('Dashboard retains offscreen agents and paints their real rows when scrolle
       }
       for (const id of agents) assert.equal(await chrome.stable(`!!document.querySelector('#dashboard [data-dashboard-agent="${id}"]')`), true);
     }
+    // Advance only the displayed observation clock: the same real shouts become quiet after twenty minutes.
+    await chrome.stable(`data.project.observedAt = new Date(Date.now()+30*60_000).toISOString(); render(); true`);
+    await chrome.waitFor(`!!document.querySelector('#dashboard [data-dashboard-disclosure="quiet"]')`);
+    assert.equal(await chrome.stable(`document.querySelectorAll('#dashboard [data-dashboard-disclosure="quiet"] [data-dashboard-agent]').length`), 0,
+      'closed quiet disclosure does not build offscreen rows');
+    await press(chrome, `document.querySelector('#dashboard [data-dashboard-disclosure="quiet"] summary')`);
+    await chrome.waitFor(`document.querySelectorAll('#dashboard [data-dashboard-disclosure="quiet"] [data-dashboard-agent]').length >= ${agents.length}`);
+    for (const id of agents) {
+      const row = `document.querySelector('#dashboard [data-dashboard-agent="${id}"]')`;
+      assert.deepEqual(await chrome.stable(`({svg:!!${row}.querySelector('svg[aria-label]'),numbers:${row}.querySelectorAll('.dash-agent-number').length})`), {svg:true,numbers:3});
+    }
+    await chrome.stable(`data.project.agents.find(agent=>agent.agent_id===${JSON.stringify(agents[0])}).model='fresh quiet model'; render(); true`);
+    assert.equal(await chrome.stable(`document.querySelector('#dashboard [data-dashboard-disclosure="quiet"]').open`), true);
+    assert.ok((await chrome.stable(`document.querySelector('#dashboard [data-dashboard-agent="${agents[0]}"] b').title`)).includes('fresh quiet model'),
+      'an open disclosure redraws from the current model');
   } finally {
     try { if (chrome) await closeSnapshotChrome(chrome); }
     finally { await view.stop(); rmSync(profile, { recursive: true, force: true }); }
