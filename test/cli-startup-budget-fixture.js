@@ -73,8 +73,16 @@ export async function assertStartupBudgets(t) {
     const initial=boardDigest(db);
     const expectedItems=JSON.parse(JSON.stringify(store.listItems({db,clock:store.systemClock})));
     const board={db,clock:store.systemClock};
+    // Item 4's seeded submissions at n=3 and n=1003 name core-4 and core-204.
+    // Every other independently seeded seat is eligible under the fixture's Standard/off policy.
+    const authors=['core-204','core-4'];
+    const eligibility={tier:'standard',requiredFamily:null,ready:true,
+      eligible:['coordinator',...Array.from({length:800},(_,index)=>`core-${index+1}`)]
+        .filter(agent=>!authors.includes(agent)).sort(),
+      ineligible:authors.map(agent=>({agent,code:'SELF_VERIFY',
+        rule:'[SELF_VERIFY] the builder never verifies its own work; another agent must'}))};
     const expectedShow=JSON.parse(JSON.stringify({version:1,...store.getItem(board,4),verdicts:store.verdictsFor(board,4),
-      thread:store.itemThread(board,4),checkText:'',agentApproved:[],approvalQualification:''}));
+      thread:store.itemThread(board,4),checkText:'',agentApproved:[],approvalQualification:'',reviewEligibility:eligibility}));
     const samples={version:[],show:[],status:[],list:[]};
     const childEnvironment={...process.env,PULLBOARD_HOME:join(root,'private-home'),PULLBOARD_MACHINE_HOME:join(root,'private-machine'),GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1'};
     for(const name of ['PULLBOARD_RELAY_TOKEN','PULLBOARD_RELAY_KEY']) delete childEnvironment[name];
