@@ -2,7 +2,7 @@
   "kind": "reject_returned",
   "entries": [
     {
-      "order": 19,
+      "order": 20,
       "actor": "coordinator",
       "detail": "`rejection`, `builder`, `commit`, `note`, `reason`, `engine`, inactive `presence`, `heartbeatAt`, `observedAt`"
     }
