@@ -59,7 +59,7 @@ test('a board opens on Dashboard with API-backed work, shared pace and existing 
     assert.equal(await chrome.stable('document.querySelector("#dashboard [data-dashboard-stat=pace6]").dataset.value'),
       String(pace.last6h / 6), 'Dashboard reads the Roadmap six-hour pace');
     await chrome.waitFor(`!!document.querySelector('#dashboard svg[aria-label="Items landed per hour, last 24 hours"]')`);
-    for (const [scheme, width] of [['light', 1280], ['dark', 1280], ['light', 375], ['dark', 375]]) {
+    for (const [scheme, width] of [['light', 1440], ['dark', 1440], ['light', 375], ['dark', 375]]) {
       await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       const fits = await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1');
@@ -77,6 +77,19 @@ test('a board opens on Dashboard with API-backed work, shared pace and existing 
       })()`);
       assert.equal(title.text, 'A task in flight', 'the building row retains the actual task title');
       assert.ok(title.width > 24, `${scheme} at ${width}px leaves visible width for the building title: ${JSON.stringify(title)}`);
+      const agentLayout = await chrome.stable(`(() => {
+        const row = document.querySelector('#dashboard [data-dashboard-agent="web-1"]');
+        const name = row.querySelector('b'), split = document.querySelector('#dashboard .dash-split');
+        const splitCard = split.closest('section'), box = splitCard.getBoundingClientRect(), style = getComputedStyle(splitCard);
+        return { columns: row.querySelectorAll('.dash-agent-number').length, nameWhiteSpace: getComputedStyle(name).whiteSpace,
+          nameText: name.textContent, nameHeight: name.getBoundingClientRect().height,
+          splitWidth: split.getBoundingClientRect().width, contentWidth: box.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - 2 };
+      })()`);
+      assert.equal(agentLayout.columns, 3, 'each seeded holder has Build, Review and Shouts columns');
+      assert.equal(agentLayout.nameWhiteSpace, 'nowrap', 'the seat name occupies one line');
+      assert.equal(agentLayout.nameText, 'web-1', 'model text never wraps into the seat name');
+      assert.ok(agentLayout.nameHeight < 30, 'the mono agent name stays on one line');
+      assert.ok(Math.abs(agentLayout.splitWidth - agentLayout.contentWidth) < 3, 'Agent time spans the full card content width');
       const contentHeight = await chrome.stable('Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)');
       const capture = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true,
         clip: { x: 0, y: 0, width, height: Math.ceil(contentHeight), scale: 1 } });

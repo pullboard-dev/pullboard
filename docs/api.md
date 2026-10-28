@@ -83,6 +83,10 @@ For example: `flow: review wait average 61 min (1 measured; > 60 min); bottlenec
 
 `map --json`, `map <module or function> --json`, and `map --for <item> --json` return the same envelope: `main` is the scanned primary-main commit and `map` is the rendered overview, card, or bounded item slice. Ordinary text output is that same map text. Fresh scans require `src/`, `bin/`, and `test/` to match committed main: changed, untracked, and ignored entries in those directories refuse the scan. Ignore rules alone do not refuse it. Every scanned path, regular-file mode and consumed byte is checked against the committed Git object, including edits hidden by index flags; symbolic input files refuse instead of reading their external targets. A cached committed map does not incorporate later working-tree changes. The scanner reports unobserved effects as `not detected`; the map is source context, not proof that an effect cannot occur.
 
+Successful `submit` (including `done`), `release`, and `verify` commands normally perform native next-work selection before returning. The original result fields remain unchanged, with an optional `next` object: `{item, review, held, reasons}`. `item` is the actual claimed or reserved native item, or `null` when no assignment is available. The selection uses the ordinary review threshold, priority, session independence and claim/reservation guards; it excludes the just-completed or released item rather than undoing a release. A refused next assignment is reported in `next.reasons` and optional `next.error`, without rewriting the acknowledged original operation. An unexpected handoff-only read failure adds `next.unavailable: true` with a bounded error code and recovery message; it does not assert that the seat is empty or discard the primary acknowledgment. Text output gives one line explaining an empty assignment.
+
+`--no-next` opts out without selecting or reserving anything and omits `next`. A `submit --wait` takes its next assignment after the acknowledged submission and before waiting; the final verdict document retains that same `next` result. Each invocation still emits one versioned JSON document.
+
 <!-- api-command-shapes:start -->
 `status --json` and local API state carry `ruleCounts`: `approved`, `gated` (approved rows naming a gate), `ungated`, `proven`, `unproven`, and `contradicted`. Proof requires a green configured full-gate receipt on the current trunk whose supported test selection includes the row's test files. Opaque or unsupported coverage remains unproven. Contradicted counts approved rows whose gate files failed on the trunk in the last seven days; it is independent of proven, so a row can count in both after a later green. The API refreshes this window when evidence ages out, even without a board move.
 
@@ -127,6 +131,7 @@ For example: `flow: review wait average 61 min (1 measured; > 60 min); bottlenec
 | `patch list` | `version:number`, `item:number`, `digest:string\|null`, `patches:array` |
 | `patch remove` | `version:number`, `item:number`, `key:string`, `digest:string`, `changed:boolean` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array`, `thread:array`, `reviewEligibility:object` |
+| `capacity` | `version:number`, `report:object` |
 | `stats` | `version:number`, `stats:object`, `gateWaits:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `ruleCounts:object`, `stats:object`, `reviewQueue:object`, `unread:number`, `relay:object` |
 | `heartbeat` | `version:number`, `seat:string|null`, `presence:string`, `heartbeatAt:string|null` |

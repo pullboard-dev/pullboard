@@ -1311,6 +1311,10 @@ export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; ${gate.report}`);
   ctx.io.say(`pinned as ${pin}, so this work can't be lost; keep your worktree until it is merged`);
   ctx.io.say(`next: ${reviewerStartup(primaryCheckoutRoot(ctx.info), ctx.config, id)}`);
+  if (ctx.afterSubmission) {
+    const handed = await ctx.afterSubmission(submission);
+    if (ctx.submissionResult) ctx.submissionResult.value = handed;
+  }
   return 0;
 }
 
@@ -1576,14 +1580,15 @@ function nextPick(ctx, board, values) {
     && item.item_parent_id === null && item.item_owner === me.id
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
   const selection = { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
-    priority: mainRedReworkItems(ctx.info.root, board) };
+    priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [] };
   const own = heldItem ? { item: heldItem, reasons: [], shared: [] } : store.nextFor(board, selection);
   const { item, reasons, shared } = own.item || !seats ? own : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
   const held = item?.item_status === 'claimed';
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
   const findOffer = () => store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
-    familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes, skipIds: ownSessionReviews(ctx.info, board), priority: mainRedReviewItems(ctx.info.root, board) });
+    familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
+    omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board), priority: mainRedReviewItems(ctx.info.root, board) });
   const offer = held ? null : relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
   if (offer && !values.build && (offer.urgent || focusReviewFirst(board, offer.item, item))) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item) };
   if (!item) return { reasons, laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
