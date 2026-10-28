@@ -10,6 +10,8 @@ import { loadConfig } from '../src/config.js';
 import { loadDoctrine } from '../src/doctrine.js';
 import { frozenCriterion, loadSpec } from '../src/spec.js';
 import { runFixtureGit } from './fixture-child.js';
+import { readyItems } from '../src/queue-readiness.js';
+import { itemWaits } from '../src/queue-readiness.js';
 
 /** Keep the board, Git and injected observation clock private to this case. */
 function fixture(t) {
@@ -126,4 +128,30 @@ test('recently joined, busy and retired seats do not inflate idle route capacity
   box.seat('fresh');
   assert.deepEqual(box.shortages(), [{ route: 'mid', free: 0, idle: 1 }],
     'only the present seat that has neither pulled nor held work for thirty minutes counts');
+});
+
+
+test('ready capacity reads current items and lane holds once per projection [C7,N2]', t => {
+  const box = fixture(t);
+  const ids = Array.from({ length: 12 }, (_, index) => box.addFree(`Capacity ${index}`));
+  box.addFree('Dependency blocked', { after: [ids[0]] });
+  store.holdItem(box.board, ids[1], { agentId: 'coordinator', reason: 'Wait for a decision' });
+  const before = store.listItems(box.board, { all: true });
+  const expected = before.filter(item => item.item_status === 'open' && !itemWaits(box.board, item, before).length);
+  const reads = { items: 0, holds: 0 };
+  const observed = { ...box.board, db: {
+    /** Count actual production SQLite reads while returning each untouched native statement. */
+    prepare(sql) {
+      if (/SELECT item\.\*, imported\.meta_value/u.test(sql)) reads.items++;
+      if (/SELECT \* FROM hold\b/u.test(sql)) reads.holds++;
+      return box.board.db.prepare(sql);
+    },
+  } };
+  assert.deepEqual(readyItems(observed), expected, 'ordinary hold and dependency blockers retain exact rows and order');
+  assert.deepEqual(reads, { items: 1, holds: 1 }, 'capacity does not reread full items or prepare a hold query per open item');
+  store.holdLane(box.board, 'core', { agentId: 'coordinator', reason: 'Pause this lane' });
+  reads.items = 0;
+  reads.holds = 0;
+  assert.deepEqual(readyItems(observed), [], 'the next projection observes an intervening native lane hold');
+  assert.deepEqual(reads, { items: 1, holds: 1 });
 });
