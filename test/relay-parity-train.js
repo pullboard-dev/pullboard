@@ -1,3 +1,4 @@
+import { recordTrainLanding } from '../src/record-train-landing.js';
 /** A real native producer feeds the unchanged complete reader oracle; acceptance alone is synthetic [H5,H16,C7]. */
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
@@ -65,6 +66,6 @@ export async function seedNativeTrain(context) {
   assert.equal(receipt.head, head);
   assert.equal(receipt.tree, tree);
   const request = prepareTrainLanding(box.root, board, [item], head, receipt.id);
-  await exercise('recordTrainLanding', () => store.recordTrainLanding(board, request));
+  await exercise('recordTrainLanding', () => recordTrainLanding(board, request));
   assert.equal(store.getItem(board, item).item_merged_commit, head);
 }

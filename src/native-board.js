@@ -1,3 +1,37 @@
+import { advanceItemSource } from './source-advance.js';
+import { proposeSentinel } from './sentinels.js';
+import { decideSentinel } from './sentinels.js';
+import { beginSentinelRun } from './sentinels.js';
+import { finishSentinelRun } from './sentinels.js';
+import { flakeLedger } from './flakes.js';
+import { recordFlakeObservation } from './flakes.js';
+import { flakeQuarantines } from './quarantine.js';
+import { gateRuns } from './quarantine.js';
+import { recordGateRun } from './quarantine.js';
+import { personProposals } from './person-signing.js';
+import { personSigning } from './person-signing.js';
+import { proposePersonMove } from './person-signing.js';
+import { setPersonSigning } from './person-signing.js';
+import { recordPublishFinding } from './pr-findings.js';
+import { landingWaivers } from './landing-waivers.js';
+import { landingWaiverFor } from './landing-waivers.js';
+import { waivedLandingProof } from './landing-waivers.js';
+import { prepareTrainLanding } from './train-landing.js';
+import { prepareNativeTrainLanding } from './train-landing.js';
+import { sealItemPatchSubmit } from './item-patch-submit.js';
+import { sealItemPatchFollow } from './item-patch-submit.js';
+import { sealSourceAdvance } from './source-advance-origin.js';
+import { computedReturnArgs } from './computed-conflict-return.js';
+import { requirePreparedComputedConflict } from './computed-conflict-receipt.js';
+import { preflightComputedConflict } from './computed-conflict-receipt.js';
+import { signedMoveProblem } from './person-signing.js';
+import { requireBound } from './quarantine.js';
+import { requestMoveProblem } from './relay-requests.js';
+import { recordRequestMove } from './relay-requests.js';
+import { relayPerson } from './relay-requests.js';
+import { requestPerson } from './relay-requests.js';
+import { validPresence } from './person-presence.js';
+import { recordTrainLanding } from './record-train-landing.js';
 import {
   newRigorNotices,
   rigorNoticeText,
@@ -145,7 +179,17 @@ export function nativeBoardPorts() {
     milestones: store.milestones, listItems: store.listItems, buildOrder: store.buildOrder,
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap: store.roadmap, ROUTES: store.ROUTES,
   });
-  const enginePorts = boardEnginePorts();
+  const enginePorts = boardEnginePorts({
+    recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel,
+    beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation,
+    flakeQuarantines, gateRuns, recordGateRun, personProposals,
+    personSigning, proposePersonMove, setPersonSigning, recordPublishFinding,
+    landingWaivers, landingWaiverFor, waivedLandingProof, prepareTrainLanding,
+    prepareNativeTrainLanding, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
+    sealSourceAdvance, computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict,
+    signedMoveProblem, requireBound, requestMoveProblem, recordRequestMove,
+    relayPerson, requestPerson, validPresence
+  });
   return Object.freeze({
     nativePorts, enginePorts, operations: enginePorts.operations, logEvent,
     sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody, receiptFields, guardLandingWrite }),
@@ -196,3 +240,5 @@ export { flakeQuarantines, gateRuns, recordGateRun } from './quarantine.js';
 export { personProposals, personSigning, proposePersonMove, setPersonSigning } from './person-signing.js';
 export { recordPublishFinding } from './pr-findings.js';
 export { landingWaivers, landingWaiverFor, waivedLandingProof } from './landing-waivers.js';
+
+export { recordTrainLanding } from './record-train-landing.js';

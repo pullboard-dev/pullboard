@@ -17,8 +17,6 @@ import { nativeStateClockWindow } from './native-state-clock.js';
 import { milestoneRoadmap } from './roadmap.js';
 import { proofStats } from './stats.js';
 import { readCapacity } from './capacity-read.js';
-import { activeViewAgents } from './view-state-summary.js';
-import { viewProofSummary } from './view-state-summary.js';
 import { ruleProofCounts } from './rule-proof-counts.js';
 import { milestoneNamesByItem } from './item-list.js';
 import { withListFields } from './item-list.js';
@@ -35,8 +33,8 @@ import {
 
 /** Build the complete local API state, including fields that the shared project snapshot omits. */
 export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, fullItemRebuild = true, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null, localCapacity = false } = {}, ports) {
-  if (!ports || typeof ports.verifiedPasskeyRowDecision !== 'function' || typeof ports.pendingFit !== 'function' || typeof ports.projectFit !== 'function' || typeof ports.projectState !== 'function' || typeof ports.personRequestStatuses !== 'function' || typeof ports.personSigningPresentation !== 'function') throw new TypeError('native state needs the explicit upper presentation ports');
-  const { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation } = ports;
+  if (!ports || typeof ports.verifiedPasskeyRowDecision !== 'function' || typeof ports.pendingFit !== 'function' || typeof ports.projectFit !== 'function' || typeof ports.projectState !== 'function' || typeof ports.personRequestStatuses !== 'function' || typeof ports.personSigningPresentation !== 'function' || typeof ports.activeViewAgents !== 'function' || typeof ports.viewProofSummary !== 'function') throw new TypeError('native state needs the explicit upper presentation ports');
+  const { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary } = ports;
   if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new TypeError('native projection needs an observation timestamp');
   board = Object.assign(Object.create(board), { clock: { ...board.clock, now: () => new Date(observedAt) } });
   board.db.exec('BEGIN');

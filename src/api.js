@@ -1,3 +1,5 @@
+import { activeViewAgents } from './view-state-summary.js';
+import { viewProofSummary } from './view-state-summary.js';
 import { personSigningPresentation } from './person-signing-presentation.js';
 import { projectState } from './serve.js';
 import { projectFit } from './blueprint-fit.js';
@@ -910,7 +912,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       observedAt,
       localRelayHealth: relayCanaryNeeds(board.root),
       localCapacity: true,
-    }, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation }), codeIsMain);
+    }, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary }), codeIsMain);
     const state = { ...built.state, sequence: built.sequence };
     const entry = snapshotEntry(before.revision, state, prepareFlowHistory(built.history), {
       inputs: before.inputs,

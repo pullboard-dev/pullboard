@@ -1,3 +1,5 @@
+import { activeViewAgents } from './view-state-summary.js';
+import { viewProofSummary } from './view-state-summary.js';
 import { personSigningPresentation } from './person-signing-presentation.js';
 import { personRequestStatuses } from './relay-requests.js';
 import { projectState } from './serve.js';
@@ -45,7 +47,7 @@ function readRelayPresentation(root, providedBoard, observedAt) {
     const freshnessReader = providedBoard ? null : cachedVerdictStates(root, board, info, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, boardId: store.boardId });
     /** Preserve a single authorized board, including existing unavailable external milestone entries. */
     const project = (clock) => {
-      const built = buildLocalBoardState(root, boardId, board, isMain, { projects, scopeCommonDir: info.commonDir, observedAt: clock, freshnessReader }, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation });
+      const built = buildLocalBoardState(root, boardId, board, isMain, { projects, scopeCommonDir: info.commonDir, observedAt: clock, freshnessReader }, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary });
       return { ...built.state, sequence: built.sequence };
     };
     const state = project(observedAt);

@@ -1,3 +1,6 @@
+import { boardEnginePorts } from '../src/board-engine-ports.js';
+import { validPresence } from '../src/person-presence.js';
+import { recordTrainLanding } from '../src/record-train-landing.js';
 /** Native construction binds all capabilities before guards and preserves the public board API [C7,B1,B2]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -285,4 +288,33 @@ test('the native operation bag and counted public bridge retain actual authority
   assert.throws(() => board.enginePorts.store.setPersonSigning(board, { agentId: 'person', signed: false }), { code: 'PERSON_SIGNED' });
   assert.throws(() => library.setPersonSigning(board, { agentId: 'person', signed: false }), { code: 'PERSON_SIGNED' });
   assert.deepEqual(legacy.events(board), before, 'neither operation path bypasses the actual passkey guard');
+});
+
+test('native engine composition keeps supplied upper operations and refuses missing providers before storage [C7,B1,H16]', t => {
+  const board = fixtureBoard(t);
+  const original = native.nativeBoardPorts().enginePorts;
+  assert.equal(original.store.recordTrainLanding, recordTrainLanding);
+  assert.equal(native.recordTrainLanding, recordTrainLanding);
+  const before = legacy.events(board);
+  const refusal = new Error('EXPLICIT_TRAIN_PROVIDER');
+  let calls = 0;
+  /** Observe the exact injected operation without delegating or mutating the board. */
+  function trainProvider(actualBoard, request) {
+    assert.equal(actualBoard, board);
+    assert.deepEqual(request, { agentId: 'coordinator' });
+    calls++;
+    throw refusal;
+  }
+  const providers = { ...original.store, ...original, validPresence, recordTrainLanding: trainProvider };
+  const composed = boardEnginePorts(providers);
+  assert.equal(composed.store.recordTrainLanding, trainProvider);
+  assert.throws(() => composed.store.recordTrainLanding(board, { agentId: 'coordinator' }), error => error === refusal);
+  assert.equal(calls, 1);
+  assert.deepEqual(legacy.events(board), before);
+  assert.equal(original.store.recordTrainLanding, recordTrainLanding, 'another connection keeps the native provider');
+  for (const name of ['recordTrainLanding', 'validPresence', 'sealItemPatchFollow']) {
+    const missing = { ...providers };
+    delete missing[name];
+    assert.throws(() => boardEnginePorts(missing), error => error.code === 'NO_POLICY' && error.message.includes(name));
+  }
 });
