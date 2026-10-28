@@ -20,6 +20,7 @@ import { applyEngineMove } from '../src/engine.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import { familyIndex } from '../src/review-policy.js';
 import { FAMILY_ALIAS_ENGINE } from '../src/family-alias-engine.js';
+import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
 import { withOpenedBoard } from '../src/cli-read-context.js';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -501,4 +502,34 @@ test('at engine 148 a differently cased family is another vendor; only the alias
   waiting.submit(same);
   waiting.board.executionEngineVersion = REVIEW_INDEPENDENCE_ENGINE;
   assert.equal(store.reserveNextReview(waiting.board, { ...options, familyPolicy: 'require' }).item?.item_id, same, 'selection at engine 148 offers the codex item to a CODEX seat');
+});
+
+test('an undeclared seat declares its vendor family once from a new session and becomes reviewable; a declared seat is refused a change [V4,B26,H16]', t => {
+  const f = fixture(t), id = f.add({ sensitive: true });
+  f.board.familyAliases = familyIndex({ anthropic: ['claude-family'] });
+  const seat = { id: 'core-7', lane: 'core', path: '/fixture/core-7', model: 'Synthetic fixture model' };
+  store.register(f.board, { ...seat, parentDigest: '7'.repeat(64) });
+  f.submit(id, 'core-1');
+  assert.throws(() => f.reserve(id, 'core-7'), error => error.code === 'O2_FAMILY_MATCH', 'an undeclared seat cannot review a strict item');
+  const parentOf = () => f.board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='agent_parent_session:core-7'").get()?.meta_value;
+  const before = parentOf();
+  // The same seat joined again from another session: before this engine that was PARENT_SESSION_CHANGED.
+  const again = family => store.register(f.board, { ...seat, family, parentDigest: '9'.repeat(64) });
+  assert.equal(again('Anthropic'), 'core-7');
+  assert.equal(f.board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get('core-7').agent_family, 'Anthropic');
+  const events = f.board.db.prepare("SELECT event_detail FROM event WHERE event_kind='family' AND event_by='core-7'").all();
+  assert.equal(events.length, 1, 'the declaration is one board event');
+  assert.equal(parentOf(), before, 'the recorded parent session is untouched');
+  assert.doesNotThrow(() => f.reserve(id, 'core-7'), 'the declared seat is now reviewable');
+  assert.throws(() => again('OpenAI'), error => error.code === 'FAMILY_DECLARED' && /never changed/u.test(error.message), 'another vendor is refused');
+  assert.doesNotThrow(() => again('claude-family'), 'an alias of the declared family is the same declaration');
+  assert.equal(f.board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get('core-7').agent_family, 'Anthropic', 'a refused or repeated declaration changes nothing');
+});
+
+test('the one-time family declaration applies only from its engine; an older engine keeps the session refusal [C7,V4,B26,H16]', t => {
+  const f = fixture(t);
+  f.board.executionEngineVersion = FAMILY_DECLARE_ENGINE - 1;
+  const seat = { id: 'core-8', lane: 'core', path: '/fixture/core-8', model: 'Synthetic fixture model' };
+  store.register(f.board, { ...seat, parentDigest: '8'.repeat(64) });
+  assert.throws(() => store.register(f.board, { ...seat, family: 'Anthropic', parentDigest: '9'.repeat(64) }), error => error.code === 'PARENT_SESSION_CHANGED');
 });
