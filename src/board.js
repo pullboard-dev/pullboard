@@ -11,8 +11,6 @@ import {
 } from './conditional-holds.js';
 import { STALE_STATE_ENGINE } from './stale-state-engine.js';
 import { sealItemPatchSubmit } from './item-patch-submit.js';
-import { sealItemPatchFollow } from './item-patch-submit.js';
-import { applyItemPatchFollow } from './item-patches.js';
 import { checkItemPatchSubmit } from './item-patch-submit.js';
 import * as rejectClause from './reject-clause.js';
 import { requireSourceAdvanceReview } from './source-advance-state.js';
@@ -76,7 +74,7 @@ import { itemPatchReviewProblem } from './item-patches.js';
 import { applyItemPatchAttachment } from './item-patches.js';
 import { applyItemPatchRemoval } from './item-patches.js';
 import { invalidateItemPatch as applyItemPatchInvalidation } from './item-patches.js';
-export { itemPatches, itemPatchDigest } from './item-patches.js';
+export { itemPatches, itemPatchDigest, followItemPatches } from './item-patches.js';
 import { applyCompanionRequest } from './companion.js';
 export { readBoardMembers, setBoardMembers } from './board-members.js';
 import { heartbeatSeat } from './seat-presence.js';
@@ -793,12 +791,6 @@ export function attachItemPatch(board, id, options) {
 /** Stop applying native bytes without discarding their historical author exclusions. */
 export function removeItemPatch(board, id, options) {
   return applyItemPatchRemoval(board, id, options, { atomic, logEvent, getItem, invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
-}
-
-/** Follow unchanged companions only after native origin applicability has been sealed. */
-export function followItemPatches(board, id, options) {
-  const sealed = board.executionEngineVersion === undefined ? sealItemPatchFollow(board, id, options) : options;
-  return applyItemPatchFollow(board, id, sealed, { atomic, getItem, logEvent });
 }
 
 /**

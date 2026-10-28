@@ -6,6 +6,7 @@ import { ITEM_PATCH_ENGINE } from './item-patch-engine.js';
 import { PATCH_REVIEW_CUSTODY_ENGINE } from './patch-review-custody-engine.js';
 import { PATCH_FOLLOW_ENGINE } from './patch-follow-engine.js';
 import { itemPatchSetDigest } from './item-patch-state.js';
+import { getItem } from './board-query.js';
 import { Refused } from './refused.js';
 import { outsideSource } from './outside-source.js';
 import { itemPatchRecords as records } from './item-patch-state.js';
@@ -48,6 +49,12 @@ function fields(value, allowed) {
 function save(board, id, patches) {
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
     .run(PREFIX + id, JSON.stringify({ version: 1, patches }));
+}
+
+/** Own the public writer using the board root's explicit sealing and canonical transaction ports. */
+export function followItemPatches(board, id, options) {
+  const sealed = board.executionEngineVersion === undefined ? board.enginePorts.sealItemPatchFollow(board, id, options) : options;
+  return applyItemPatchFollow(board, id, sealed, { atomic: board.nativePorts.atomic, logEvent: board.nativePorts.logEvent, getItem });
 }
 
 /** Replay one all-or-nothing binding change without changing immutable bytes, authors or the claim. */

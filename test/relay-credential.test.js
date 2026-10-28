@@ -35,7 +35,7 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'shout') args = [{ from: actor, to: 'all', text: 'credential actor fixture', lanes: [box.lane] }];
     if (operation === 'release') args = [999999, actor];
     // State-bound companion sealing reads the real item before choosing its replay protocol.
-    if (['claim', 'refreeze', 'attachItemPatch', 'removeItemPatch'].includes(operation)) args = [box.before.tables.item[0].item_id, options];
+    if (['claim', 'refreeze', 'attachItemPatch', 'removeItemPatch', 'followItemPatches'].includes(operation)) args = [box.before.tables.item[0].item_id, options];
     if (operation === 'reserveNextReview') args = [options];
     if (operation === 'reserveRehomeItemId') args = ['a'.repeat(32), 'credential-rehome-reservation', { agentId: actor }];
     if (operation === 'setLineSetting') args = [{ agentId: actor, key: 'reviewsFirst', value: true, reason: 'credential fixture', window: { windowMinutes: 60, activeReviewers: 1 } }];
@@ -89,6 +89,7 @@ test('every current operation selects its native actor credential without a seco
     // A gate run with no receipt from this machine's own gate is refused before it reaches transport.
     // An automatic source advance, like a gate receipt, requires private native origin custody before transport.
     if (operation === 'advanceItemSource') return { operation, args, kind, sent: false, expected: 'SOURCE_ADVANCE_STALE' };
+    if (operation === 'followItemPatches') return { operation, args, kind, sent: false, expected: 'NOT_YOURS' }; // This real fixture row is unclaimed; origin custody stops before transport.
     if (operation === 'recordTrainLanding') return { operation, args: [{ agentId: 'coordinator',
       batch: { root: box.root, items: [{ id: 999999 }], tip: 'a'.repeat(40) } }], kind, sent: false, expected: 'LAND_RECEIPT_REQUIRED' };
     if (operation === 'recordProofRun') return { operation, args, kind, sent: false, expected: 'PROOF_RUN_UNBOUND' };
@@ -97,6 +98,7 @@ test('every current operation selects its native actor credential without a seco
   });
   cases.push(
     { operation: 'recordTrainLanding', args: [{}, { agentId: actor }], kind: 'agent', sent: false, expected: 'COORDINATOR_ONLY' },
+    { operation: 'followItemPatches', args: [box.before.tables.item[0].item_id, {}], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'fileTypedRequest', args: [{ verb: 'hold', itemId: 999999, cause: 'routing-assignment' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'answerTypedRequests', args: [{ answers: [{ requestId: 999999, outcome: 'declined', note: 'missing actor' }] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'requestCompanion', args: [{ parentId: 999999, lane: box.lane, key: 'missing-actor', title: 'Missing actor' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
