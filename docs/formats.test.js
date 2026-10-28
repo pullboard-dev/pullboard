@@ -2,6 +2,7 @@
 /** Keep the format guide aligned with parser behavior, live SQLite schema and static export [A5,A10]. */
 import { recordRelayExclusionIntent } from '../src/relay-exclusion-state.js';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
   mkdirSync,
@@ -447,6 +448,13 @@ function recordEventContract() {
   editItem(board, corrected, { agentId: coordinator, criterion: 'Corrected criterion', reason: 'the fixture corrects its bar' });
   assert.deepEqual(JSON.parse(events(board).filter((row) => row.event_kind === 'edit').at(-1).event_detail).pendingRefreeze, ['criterion']);
   refreeze(board, corrected, { agentId: builder, freeze: freeze('adopted-correction') });
+  const widener = register(board, { lane: 'docs', path: '/widener' });
+  const widened = addItem(board, { by: coordinator, lane: 'docs', title: 'Widened own check', check: 'node bin/run-tests.js docs/formats.test.js' });
+  claim(board, widened, { agentId: widener, lane: 'docs', leaseMs: 60_000, freeze: freeze('before-widening') });
+  const widenedCheck = 'node bin/run-tests.js docs/formats.test.js test/generated-docs.test.js';
+  const widenedBar = JSON.stringify({ criterion: '', check: widenedCheck });
+  editItem(board, widened, { agentId: widener, check: widenedCheck, correction: true, freeze: () => ({ text: widenedBar, digest: createHash('sha256').update(widenedBar).digest('hex') }) });
+  assert.deepEqual(JSON.parse(events(board).filter((row) => row.event_kind === 'edit').at(-1).event_detail).widenedCheck, ['test/generated-docs.test.js'], 'a builder widening is the one edit that carries widenedCheck');
 
   const returnedBuilder = register(board, { lane: 'docs', path: '/returned-builder', model: 'builder' });
   const returned = addItem(board, { by: coordinator, lane: 'docs', title: 'Returned landing example' });
