@@ -36,11 +36,27 @@ import {
 } from './main-red.js';
 import { Refused } from './refused.js';
 import { runnerSource } from './gate-policy-load.js';
+import { fullGateRun } from './gate-execution.js';
+import { timingSource } from './run-timing.js';
+import { trackedDefaultTestFiles } from './test-selection.js';
 import {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
   loadMachineSettings,
 } from './settings.js';
+
+/** Give a direct full suite the same admitted execution and immutable receipt writer as a gate. */
+export async function runFullSuite(root, runner) {
+  if (relative(root, runner).split(sep).join('/') !== 'bin/run-tests.js' || !timingSource(root)) return null;
+  let policy;
+  try { policy = mainPolicy(root); } catch { return null; }
+  const files = trackedDefaultTestFiles(root, process.env);
+  const { cpuRunnerRequired } = await import('./cpu-load-admission.js');
+  const result = await withGateSlot(root, lease => fullGateRun(root, { ...policy.config, gate: 'node ./bin/run-tests.js' }, false,
+    { gateLease: lease, waitMs: lease.waitMs, kind: 'suite' }),
+  { browser: true, gui: testsNeedGui(root, files), runnerOnly: cpuRunnerRequired(root, files), kind: 'gate' });
+  return result;
+}
 
 /** Quote one argument for the configured focused test command. */
 function shellWord(value) {

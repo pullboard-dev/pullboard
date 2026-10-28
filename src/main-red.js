@@ -19,10 +19,14 @@ import { tmpdir } from 'node:os';
 import { stripVTControlCharacters } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import {
-  runProfiledShell,
-  runProfiledShellAsync,
   withGateSlot,
 } from './gate.js';
+import { runMainComparison } from './gate-execution.js';
+import {
+  readGateReceipt,
+  receiptBody,
+  receiptStore,
+} from './gate-run-receipt.js';
 import {
   cleanGitEnvironment,
   mainCheckout,
@@ -45,11 +49,6 @@ import { testsNeedGui } from './gui-admission.js';
 import { browserFreeChecksEnabled } from './settings.js';
 
 const CACHE_RELATIVE = 'pullboard/main-red.json';
-
-/** Quote one shell argument appended to the configured focused test command. */
-function shellWord(value) {
-  return `'${String(value).replaceAll("'", "'\\''")}'`;
-}
 
 /** Resolve one test filename from runner output to a safe repository-relative path. */
 function testPath(root, value) {
@@ -176,6 +175,21 @@ async function withComparisonCache(root, onWait, action) {
   finally { lease.release(); }
 }
 
+/** Retain the writer's exact immutable receipt before its isolated main checkout is removed. */
+function retainComparisonReceipt(root, checkout, id) {
+  const receipt = readGateReceipt(receiptStore(checkout), id);
+  const store = receiptStore(root);
+  if (!receipt || receipt.kind !== 'main-red' || !store) return null;
+  const body = receiptBody(receipt);
+  mkdirSync(store, { recursive: true, mode: 0o700 });
+  const file = join(store, `${id}.json`);
+  try { writeFileSync(file, body, { flag: 'wx', mode: 0o600 }); }
+  catch (error) {
+    if (error.code !== 'EEXIST' || readFileSync(file, 'utf8') !== body) return null;
+  }
+  return id;
+}
+
 /**
  * Compare named failed files against one captured main snapshot. Each result is cached by exact
  * commit and file; later submits reuse completed results rather than rerunning the same file.
@@ -184,10 +198,10 @@ async function withComparisonCache(root, onWait, action) {
  * @param {object} profile
  * @param {(state:object)=>void} [onWait]
  * @param {string} [output] - The failed phase's unchanged reporter output.
- * @param {{commit?: string, detailed?: boolean, fresh?: boolean}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons.
+ * @param {{commit?: string, detailed?: boolean, fresh?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts.
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
  */
-export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false } = {}) {
+export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, onMeasuredReceipt } = {}) {
   const main = commit ? { commit } : mainCheckout(root);
   if (!main?.commit) return { main: null, files: [], unavailable: 'the primary checkout has no committed main snapshot' };
   const policy = policyAt(root, main.commit);
@@ -217,10 +231,13 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
         /** Run main's copy of the file under one gate slot, retaining detailed identity when requested. */
         const measure = remote => withGateSlot(checkout, async lease => {
           // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
-          const command = `PULLBOARD_TEST_REUSE=0 ${policy.config.affectedTests.trimEnd()} ${shellWord('./' + path)}`;
-          const run = detailed
-            ? runProfiledShell(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true })
-            : await runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs });
+          const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs });
+          if (run.receiptId) {
+            try {
+              const id = retainComparisonReceipt(root, checkout, run.receiptId);
+              if (id && onMeasuredReceipt) await onMeasuredReceipt(id);
+            } catch { /* Timing retention never changes the exact-main failure verdict. */ }
+          }
           const failures = detailed ? run.isGreen ? [] : failureSignatures(run, checkout) : null;
           if (detailed && !run.isGreen && !failures) throw new Error('focused main output has no complete named failure account');
           return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}) };

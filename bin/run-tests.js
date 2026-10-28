@@ -19,6 +19,9 @@ import { randomUUID } from 'node:crypto';
 import { channel } from 'node:diagnostics_channel';
 import {
   selectedTestResult,
+  isGitWorkTree,
+  trackedDefaultTestFiles,
+  shardArguments,
   testSelectionPatterns,
 } from '../src/test-selection.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
@@ -28,6 +31,7 @@ import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue 
 import { optionTakesValue } from '../src/test-file-dispatch.js';
 import { knownNodeOption } from '../src/test-file-dispatch.js';
 import { COLLECTION_ID_ENV } from '../src/gate-run-receipt.js';
+import { beginSuiteTiming, TIMING_RUN_ID_ENV } from '../src/run-timing.js';
 const runner = fileURLToPath(import.meta.url);
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
 const LANDING_WORKER_STARTS_ENV = 'PULLBOARD_LANDING_WORKER_STARTS';
@@ -231,6 +235,8 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   for (const key of SSH_SHELL_MARKERS) delete env[key];
   // A test that starts its own run-tests is never a shard of this landing.
   delete env[LANDING_SHARD_ENV];
+  delete env[TIMING_RUN_ID_ENV];
+  delete env[COLLECTION_ID_ENV];
   env.HOME = home;
   env.USERPROFILE = home;
   env.PULLBOARD_HOME = home;
@@ -1063,7 +1069,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     Object.assign(process.env, originalEnv);
     process.off('SIGTERM', stopShard);
   }
-  if (collectAll) publishLandingCollection({collectionId,collectionShard,fullScope,selectedFiles,completedFiles,stoppedByLanding,collectionCancelled,reporterError,cleanupUnverifiedReported});
+  if (collectionId) publishLandingCollection({collectionId,collectionShard,fullScope,selectedFiles,completedFiles,stoppedByLanding,collectionCancelled,reporterError,cleanupUnverifiedReported});
   if (reporterError) throw reporterError;
   if (stoppedByLanding && !firstFailure) {
     process.stderr.write(`\nLanding shard ${process.env[LANDING_SHARD_ENV]} stopped by the landing after another shard failed; its owned processes were drained\n`);
@@ -1088,7 +1094,9 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     process.exitCode = 1;
     return { status: 1, signal: null };
   }
-  return { status: successful && !firstFailure ? 0 : 1, signal: null };
+  return { status: successful && !firstFailure ? 0 : 1, signal: null, completedFiles: [...completedFiles],
+    collectionComplete: !stoppedByLanding && !collectionCancelled && !cleanupUnverifiedReported && selectedFiles?.length > 0
+      && selectedFiles.every(file => completedFiles.has(file)) };
 }
 
 /** Distinguish file selection from option values so filtered discovery still takes a full-suite slot. */
@@ -1178,62 +1186,15 @@ function namesOnlyTestFiles(args) {
   } catch { return false; }
 }
 
-/** Select repository test entry files while keeping imported helpers out of direct discovery. */
-function isDefaultTestFile(path) {
-  const normalized = path.replaceAll('\\', '/');
-  if (normalized.split('/').some(part => part === 'node_modules' || part.startsWith('.'))) return false;
-  return /(?:^|\/)[^/]+\.test\.(?:js|mjs)$/u.test(normalized);
-}
 
-/** Preserve native discovery outside Git, but never hide a repository access failure. */
-function isGitWorkTree(cwd, env) {
-  const result = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
-    cwd, env: { ...env, LC_ALL: 'C' }, encoding: 'utf8',
-  });
-  if (result.error) throw result.error;
-  if (result.status === 0) return result.stdout.trim() === 'true';
-  if (result.status === 128 && /^fatal: not a git repository \(or any /u.test(result.stderr)) return false;
-  throw new Error(result.stderr.trim() || `git rev-parse failed (status ${result.status})`);
-}
 
-/** List tracked repository test entry files, excluding helpers and worktree-only copies. */
-function trackedDefaultTestFiles(cwd, env) {
-  const output = execFileSync('git', ['ls-files', '-z'], { cwd, env, encoding: 'utf8' });
-  return output.split('\0').filter(path => path && isDefaultTestFile(path)).sort()
-    .map(path => `./${path}`);
-}
 
-/** Translate the runner's shard option to Node's native test-shard option, refusing malformed ranges. */
-function shardArguments(args) {
-  const forwarded = [];
-  let shard;
-  for (let index = 0; index < args.length; index += 1) {
-    const argument = args[index];
-    if (argument === '--') {
-      forwarded.push(...args.slice(index));
-      break;
-    }
-    if (argument === '--shard' || argument.startsWith('--shard=')) {
-      if (shard !== undefined) return { error: `duplicate --shard; expected one <i>/<n> value` };
-      shard = argument === '--shard' ? args[++index] : argument.slice('--shard='.length);
-      if (shard === undefined) return { error: '--shard requires a value; expected <i>/<n> with 1 <= i <= n' };
-      continue;
-    }
-    forwarded.push(argument);
-  }
-  if (shard === undefined) return { args: forwarded };
-  const match = shard.match(/^([1-9][0-9]*)\/([1-9][0-9]*)$/u);
-  const index = match ? Number(match[1]) : NaN;
-  const total = match ? Number(match[2]) : NaN;
-  if (!Number.isSafeInteger(index) || !Number.isSafeInteger(total) || index > total) {
-    return { error: `invalid --shard value "${shard}"; expected <i>/<n> with 1 <= i <= n` };
-  }
-  return { args: [`--test-shard=${shard}`, ...forwarded] };
-}
 
 /** Run tests in the disposable environment, preserving a marker only when a parent holds the slot. */
-async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency) {
+async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, timing) {
+  const setupAt = performance.now();
   const env = testEnvironment(sandbox, gateMarkers);
+  timing.phase('setupMs', setupAt);
   const patterns = testSelectionPatterns(args, optionTakesValue);
   if (patterns.length) env.PULLBOARD_TEST_SELECTION = join(sandbox, 'selected-tests.json');
   else delete env.PULLBOARD_TEST_SELECTION;
@@ -1264,11 +1225,15 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency) 
     }
     if (files) selectedArgs = [...args, ...files];
   }
+  const selectionAt = performance.now();
   selectedArgs = await longestFilesFirst(selectedArgs);
+  timing.phase('selectionMs', selectionAt);
+  const attemptAt = performance.now();
   const result = process.env[LANDING_RUN_ENV] === '1'
     ? await runLandingTests(selectedArgs, env, concurrency, fullSuite && patterns.length === 0)
     : await runTests(selectedArgs, env, concurrency);
   if (result.error) throw result.error;
+  timing.complete(result, explicitTestFiles(selectedArgs), performance.now() - attemptAt);
   return selectedTestResult(result, env.PULLBOARD_TEST_SELECTION, patterns, explicitTestFiles(selectedArgs));
 }
 
@@ -1281,6 +1246,14 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency) 
 async function main(args) {
   let concurrency;
   try {
+    if (!args.length && !process.env.PULLBOARD_GATE_SLOT_HELD && !process.env.PULLBOARD_GATE_SLOT_POOL
+      && !process.env.PULLBOARD_GATE_SLOT_TOKEN && !process.env[LANDING_SHARD_ENV]) {
+      const direct = await (await import('../src/test-run.js')).runFullSuite(process.cwd(), runner);
+      if (direct) {
+        if (direct.receiptId) await (await import('../src/native-flake-cli.js')).recordSuiteRun(process.cwd(), direct.receiptId, await import('../src/cli.js'));
+        process.stdout.write(direct.output); process.exitCode = direct.isGreen ? 0 : 1; return;
+      }
+    }
     testTimeoutMs();
     const { testConcurrency } = await import('../src/test-concurrency.js');
     const { browserByLaunchEnabled } = await import('../src/settings.js');
@@ -1290,6 +1263,8 @@ async function main(args) {
     process.exitCode = 1;
     return;
   }
+  const timing = beginSuiteTiming(process.cwd(), args), selectionAt = performance.now();
+  process.env[COLLECTION_ID_ENV] ||= timing.id;
   const sharding = shardArguments(args);
   if (sharding.error) {
     process.stderr.write(`run-tests: ${sharding.error}\n`);
@@ -1305,7 +1280,7 @@ async function main(args) {
     browser = await testsNeedBrowser(process.cwd(), explicitTestFiles(args));
   }
   const actions = await (await import('../src/test-action-cache.js')).planTestActions(process.cwd(), args, { fullSuite, landing: process.env[LANDING_RUN_ENV] === '1', listFiles: () => fullSuite ? trackedDefaultTestFiles(process.cwd(), process.env) : explicitTestFiles(args) });
-  if (actions.done) return;
+  if (actions.done) { timing.phase('selectionMs', selectionAt); return; }
   const { testsNeedGui } = await import('../src/gui-admission.js');
   let guiFiles;
   try {
@@ -1320,10 +1295,14 @@ async function main(args) {
   const gui = testsNeedGui(process.cwd(), guiFiles);
   const { cpuRunnerRequired } = await import('../src/cpu-load-admission.js');
   const runnerOnly = cpuRunnerRequired(process.cwd(), guiFiles);
+  timing.plan(fullSuite && isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : guiFiles,
+    fullSuite && !testSelectionPatterns(args, optionTakesValue).length && !args.some(arg => /^--test[-_](?:shard|skip[-_]pattern|only)(?:=|$)/u.test(arg)));
+  timing.phase('selectionMs', selectionAt);
   let signal = null;
   /** Keep sandbox lifetime inside the held lease, including the complete child process. */
   const shardLabel = process.env[LANDING_SHARD_ENV];
   const run = async (gateMarkers) => {
+    const setupAt = performance.now();
     const sandbox = mkdtempSync(join(tmpdir(), 'pullboard-test-run-'));
     // A shard of a sharded landing reports each file's wall time back to its orchestrator.
     const fileTimes = shardLabel ? join(sandbox, 'landing-file-times.jsonl') : '';
@@ -1334,7 +1313,8 @@ async function main(args) {
     if (fileTimes) process.env[LANDING_FILE_TIMES_ENV] = fileTimes;
     try {
       clonesBefore = cloneCheck?.chromeCloneSnapshot();
-      const result = await executeTests(actions.args, sandbox, gateMarkers, fullSuite && !actions.files, concurrency);
+      timing.phase('setupMs', setupAt);
+      const result = await executeTests(actions.args, sandbox, gateMarkers, fullSuite && !actions.files, concurrency, timing);
       signal = result.signal;
       process.exitCode = result.status ?? 1;
       if (fileTimes) (await import('../src/landing-shards.js')).printShardFileTimes(fileTimes);
@@ -1368,7 +1348,8 @@ async function main(args) {
         const { runLandingShards } = await import('../src/landing-shards.js');
         const { testsNeedBrowser } = await import('../src/browser-admission.js');
         const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite,
-          needsBrowser: shardFiles => testsNeedBrowser(process.cwd(), shardFiles) });
+          needsBrowser: shardFiles => testsNeedBrowser(process.cwd(), shardFiles), timing });
+        timing.sharded(result, files);
         process.exitCode = result.isGreen ? 0 : 1;
         return;
       }
@@ -1398,6 +1379,7 @@ async function main(args) {
         /** Quote the unchanged runner arguments for the remote command shell. */
         const word = value => `'${String(value).replaceAll("'", "'\\''")}'`;
         const command = ['node', `./${runnerPath}`, ...actions.args].map(word).join(' ');
+        timing.forward();
         const result = runOnRunner(process.cwd(), command, { runner: lease.runner, source: lease.source,
           browser, metadata: lease.runMetadata });
         process.stdout.write(result.output);

@@ -23,6 +23,25 @@ import {
 } from './native-flakes.js';
 export { flakesCommand as command } from './flake-command.js';
 
+/** Record the canonical direct-suite receipt through the existing authenticated board move. */
+export async function recordSuiteRun(root, receiptId, { context, ordered, withBoard, resourceAgent }) {
+  try {
+    const ctx = context({ cwd: root, say() {}, err() {}, stderr: { write() {} } });
+    const receipt = readGateReceipt(receiptStore(root), receiptId);
+    if (!receipt || receipt.kind !== 'suite' || !receipt.timing) return;
+    await withBoard(ctx, board => ordered(ctx, board, 'recordGateRun', [{ agentId: resourceAgent(ctx), receipt,
+      lane: Object.keys(ctx.config.lanes)[0] }]));
+  } catch { /* Unavailable board recording preserves the private receipt and the actual suite verdict. */ }
+}
+
+/** Record one fresh partial main comparison without lending it full-gate or flake authority. */
+export async function recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent }) {
+  const receipt = readGateReceipt(receiptStore(ctx.info.root), receiptId);
+  if (!receipt || receipt.kind !== 'main-red' || !receipt.timing || receipt.full !== false) return;
+  await withBoard(ctx, board => ordered(ctx, board, 'recordGateRun', [{ agentId: resourceAgent(ctx), receipt,
+    lane: Object.keys(ctx.config.lanes)[0] }]));
+}
+
 /** Capture owner policy and source before admission, recording through the CLI's ordinary ordered board moves. */
 export function observer(ctx, { kind, board, main, commit, privateCheck = false, config = ctx.config } = {}, { ordered, withBoard, resourceAgent, checkAtCommit }) {
   let acceptedConfig, pin, agentId;

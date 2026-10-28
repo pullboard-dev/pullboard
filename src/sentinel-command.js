@@ -38,7 +38,7 @@ export function resumeSentinels({ ctx, withBoard }) {
 }
 
 /** Scan health, then run due approved watches on pinned trunk unless the observer requests health only. */
-async function runSentinels({ ctx, withBoard, whoAmI, ordered, healthOnly = false }) {
+async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, healthOnly = false }) {
   return withBoard(ctx, async board => {
     const me = whoAmI(ctx, board);
     await releaseGoneClaims(ctx, board, me, ordered);
@@ -70,7 +70,7 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, healthOnly = fals
       ctx.io.say(healthOnly ? 'Health scan complete; approved watches require an explicit pullboard sentinel run.' : 'No enabled sentinel is due.');
       return 0;
     }
-    const { results, trunk } = await withSentinelTrunk(ctx.info.root, root => runDueSentinels({ root, board, agentId: me.id,
+    const { results, trunk } = await withSentinelTrunk(ctx.info.root, root => runDueSentinels({ root, board, agentId: me.id, parseProcessCensus,
       ordered: (operation, args) => ordered(ctx, board, operation, args) }));
     ctx.io.result?.({ sentinels: results, trunk, health });
     ctx.io.say(`Sentinels: ${results.length} run from trunk ${trunk.branch}@${trunk.commit.slice(0, 12)}.`);
@@ -80,9 +80,9 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, healthOnly = fals
 }
 
 /** Keep command parsing separate from the CLI's process and server setup. */
-export async function sentinelCommand({ ctx, words, values, withBoard, whoAmI, ordered }) {
+export async function sentinelCommand({ ctx, words, values, withBoard, whoAmI, ordered, parseProcessCensus }) {
   const [verb, name, ...extra] = words;
-  if (verb === 'run' && !name && !extra.length) return runSentinels({ ctx, withBoard, whoAmI, ordered, healthOnly: Boolean(values['health-only']) });
+  if (verb === 'run' && !name && !extra.length) return runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, healthOnly: Boolean(values['health-only']) });
   if (extra.length || !['propose', 'approve', 'decline'].includes(verb) || !name) {
     throw new Refused('USAGE', 'use pullboard sentinel run, sentinel propose <name> --check "<command>" --every 10m --owner <seat or lane>, sentinel approve <name>, sentinel decline <name> --reason "<why>", or pullboard sentinels');
   }

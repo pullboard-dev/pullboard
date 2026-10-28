@@ -89,7 +89,7 @@ function fixture(t, { agentRoute } = {}) {
     for (const [key, value] of Object.entries(original)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
   });
   return { root, directory, board, agent, clock, ordered, cli, env,
-    run: () => runDueSentinels({ root, board, agentId: 'coordinator', ordered }) };
+    run: () => runDueSentinels({ root, board, agentId: 'coordinator', ordered, parseProcessCensus }) };
 }
 
 /** Quote only a controlled fixture path as a shell word. */
@@ -351,7 +351,7 @@ test('watch timeout drains its owned child group and retains only bounded final 
   const box = fixture(t);
   const check = checker(box, "import {spawn} from 'node:child_process'; import {writeFileSync} from 'node:fs'; const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit'});writeFileSync('child-pid',String(child.pid));console.log('x'.repeat(50000));console.log('final receipt');setInterval(()=>{},1000);");
   const row = sentinelDefinition({ name: 'bounded', check, every: '10m', owner: 'coordinator', timeoutMs: 3_000 }); // budget: actual checker hang ceiling, with startup room under shared CI load.
-  const result = await executeSentinel(box.root, row);
+  const result = await executeSentinel(box.root, row, { parseProcessCensus });
   assert.equal(result.green, false); assert.equal(result.timedOut, true);
   assert.ok(result.output.length <= 16_384); assert.match(result.output, /final receipt/u);
   const pid = Number(readFileSync(join(box.root, 'child-pid'), 'utf8'));
@@ -363,7 +363,7 @@ test('a project directory symlink cannot change an approved watch into outside e
   const box = fixture(t); const outside = join(box.directory, 'outside'); mkdirSync(outside);
   symlinkSync(outside, join(box.root, 'escape'), 'dir');
   const row = sentinelDefinition({ name: 'inside', check: 'echo must-not-run', every: 'daily', owner: 'coordinator', directory: 'escape' });
-  await assert.rejects(executeSentinel(box.root, row), error => error.code === 'BAD_SENTINEL');
+  await assert.rejects(executeSentinel(box.root, row, { parseProcessCensus }), error => error.code === 'BAD_SENTINEL');
   assert.throws(() => sentinelDefinition({ ...row, directory: '../outside' }), error => error.code === 'BAD_SENTINEL');
 });
 
@@ -407,6 +407,32 @@ test('watch receipts replay deterministically, export without execution and keep
   assert.notEqual(sentinelDigest({ ...args[0].row, every: 'daily' }), first.result.digest);
 });
 
+test('a missing census provider cannot launch a watch or claim its ordered lease [A6,H16]', async t => {
+  const box = fixture(t);
+  const check = checker(box, "import {writeFileSync} from 'node:fs'; writeFileSync('unexpected-watch','launched');");
+  const row = store.proposeSentinel(box.board, { agentId: box.agent,
+    row: { name: 'missing-census', check, every: 'hourly', owner: 'core' } });
+  store.decideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: row.name, digest: row.digest, decision: 'approve' });
+  const before = exportBoard(box.board);
+  await assert.rejects(executeSentinel(box.root, row), error => error.code === 'SENTINEL_DRAIN');
+  await assert.rejects(runDueSentinels({ root: box.root, board: box.board, agentId: 'coordinator', ordered: box.ordered }),
+    error => error.code === 'SENTINEL_DRAIN');
+  assert.deepEqual(exportBoard(box.board), before, 'a missing custody provider does not consume a watch lease or publish a receipt');
+  assert.equal(existsSync(join(box.root, 'unexpected-watch')), false, 'no checker runs before its census provider is supplied');
+});
+
+test('an unavailable supplied census refuses the watch before releasing its start pipe [A6]', async t => {
+  if (process.platform === 'win32') return t.skip('POSIX process-group start handshake');
+  const box = fixture(t);
+  const check = checker(box, "import {writeFileSync} from 'node:fs'; writeFileSync('unexpected-watch','launched');");
+  let observed = 0;
+  await assert.rejects(executeSentinel(box.root, sentinelDefinition({ name: 'unavailable-census', check, every: 'hourly', owner: 'core' }), {
+    parseProcessCensus: stdout => { observed++; assert.equal(typeof stdout, 'string'); return null; },
+  }), error => error.code === 'SENTINEL_DRAIN');
+  assert.ok(observed > 0, 'the provided parser receives the real POSIX census');
+  assert.equal(existsSync(join(box.root, 'unexpected-watch')), false, 'a failed census cannot be mistaken for an empty owned group');
+});
+
 /** Read a real locale-stable child census without confusing failure with an empty process set. */
 function childCensus() {
   const read = runFixtureChild('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,lstart=,stat=,comm='], { encoding: 'utf8', env: { ...process.env, LC_ALL: 'C' } });
@@ -435,7 +461,7 @@ test('a successful watch drains an unreferenced descendant before returning its 
     }
     assert.fail('the positively owned fixture child did not drain');
   });
-  const result = await executeSentinel(box.root, sentinelDefinition({name:'background',check,every:'hourly',owner:'coordinator'}));
+  const result = await executeSentinel(box.root, sentinelDefinition({name:'background',check,every:'hourly',owner:'coordinator'}), { parseProcessCensus });
   const pid = Number(readFileSync(join(box.root, 'background-pid'), 'utf8'));
   owned = childCensus().get(pid);
   assert.equal(result.green, true);
@@ -463,7 +489,7 @@ test('cancellation after a watch lease but before launch records no false failur
   const box=fixture(t), controller=new AbortController();
   const row=store.proposeSentinel(box.board,{agentId:box.agent,row:{name:'cancelled',check:'true',every:'hourly',owner:'core'}});
   store.decideSentinel(box.board,{agentId:store.PERSON,channel:'view',name:row.name,digest:row.digest,decision:'approve'});
-  await runDueSentinels({root:box.root,board:box.board,agentId:'coordinator',ordered:box.ordered,signal:controller.signal,
+  await runDueSentinels({root:box.root,board:box.board,agentId:'coordinator',ordered:box.ordered,signal:controller.signal,parseProcessCensus,
     execute:async (root,definition,options)=>{controller.abort();return executeSentinel(root,definition,options);}});
   assert.equal(sentinels(box.board)[0].lastRun.aborted,true,'cancellation keeps its actual outcome');
   assert.equal(store.events(box.board).filter(event=>event.event_kind==='sentinel-failure').length,0,'shutdown does not invent a Rigor failure');
@@ -493,7 +519,7 @@ test('a successful watch drains a descendant that ignores TERM before publishing
     }
     assert.fail('the positively owned stubborn fixture child did not drain');
   });
-  const running = executeSentinel(box.root, sentinelDefinition({ name: 'stubborn', check, every: 'hourly', owner: 'coordinator', timeoutMs: 10_000 })); // budget: fixture command hang ceiling, no throughput claim.
+  const running = executeSentinel(box.root, sentinelDefinition({ name: 'stubborn', check, every: 'hourly', owner: 'coordinator', timeoutMs: 10_000 }), { parseProcessCensus }); // budget: fixture command hang ceiling, no throughput claim.
   void running.catch(() => {});
   const pidFile = join(box.root, 'stubborn-pid');
   const readyDeadline = Date.now() + 10_000; // budget: wait for the fixture's actual child-start receipt.
