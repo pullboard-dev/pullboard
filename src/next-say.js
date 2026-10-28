@@ -6,7 +6,7 @@ import {
   whoAmI,
 } from './cli.js';
 import { withBoardRead } from './board-read.js';
-import { reviewQueueLine } from './next-steps.js';
+import { reviewQueueLine } from './review-queue-line.js';
 import { Refused } from './refused.js';
 
 /** Print an unreserved review first, then the build available through an explicit opt-out. */
