@@ -166,16 +166,6 @@ export async function withMainCheckout(root, commit, run) {
   }
 }
 
-/** Hold the repo cache only for synchronous metadata access, never a checkout or a proof run. */
-async function withComparisonCache(root, onWait, action) {
-  const lease = await takeResource({
-    name: 'main-red-cache', capacity: 1, scope: 'repo', root,
-    agent: process.env.PULLBOARD_AGENT ?? `pid-${process.pid}`, onWait,
-  });
-  try { return action(); }
-  finally { lease.release(); }
-}
-
 /**
  * Compare named failed files against one captured main snapshot. Each result is cached by exact
  * commit and file; later submits reuse completed results rather than rerunning the same file.
@@ -197,59 +187,52 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   const files = failingFiles(root, profile, output);
   if (!files.length) return { main: main.commit, files: [], unavailable: 'could not read which tests failed' };
   const file = cacheFile(root);
-  /** A detailed comparison cannot reuse an old file-only or obsolete-signature cache entry. */
-  const usable = outcome => ['red', 'green'].includes(outcome?.result)
-    && (!detailed || Array.isArray(outcome.failures));
-  /** Read a consistent cache generation in a short metadata-only critical section. */
-  const snapshot = () => withComparisonCache(root, onWait, () => readCache(file));
-  let cache = await snapshot();
-  const missing = files.filter(path => fresh || !usable(cache.entries[main.commit]?.[path]));
-  let failed = null;
-  for (const path of missing) {
-    try {
-      // Another submit may have completed this file after the initial snapshot.
-      if (!fresh && usable((await snapshot()).entries[main.commit]?.[path])) continue;
-      // The slot is taken on the clean main checkout, so a runner can take it even when this worktree is dirty.
-      const measured = await withMainCheckout(root, main.commit, async checkout => {
-        // Use the same exact-file capability checks as ordinary named tests, on main's source.
-        const browser = !browserFreeChecksEnabled() || await testsNeedBrowser(checkout, [path]);
-        const gui = testsNeedGui(checkout, [path]);
-        /** Run main's copy of the file under one gate slot, retaining detailed identity when requested. */
-        const measure = remote => withGateSlot(checkout, async lease => {
-          // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
-          const command = `PULLBOARD_TEST_REUSE=0 ${policy.config.affectedTests.trimEnd()} ${shellWord('./' + path)}`;
-          const run = detailed
-            ? runProfiledShell(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true })
-            : await runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs });
-          const failures = detailed ? run.isGreen ? [] : failureSignatures(run, checkout) : null;
-          if (detailed && !run.isGreen && !failures) throw new Error('focused main output has no complete named failure account');
-          return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}) };
-        }, { diagnostic: true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait });
-        // History a runner may not receive keeps the comparison on this machine, as it ran before runners.
-        try { return await measure(true); }
-        catch (error) { if (error?.code !== 'RUNNER_SECRET') throw error; return measure(false); }
-      });
-      if (measured.unavailable) throw new Error(measured.unavailable);
-      await withComparisonCache(root, onWait, () => {
-        const current = readCache(file);
-        // Preserve a completed exact-main result published while this measurement ran.
-        if (!fresh && usable(current.entries[main.commit]?.[path])) return;
-        current.entries[main.commit] ??= {};
-        current.entries[main.commit][path] = measured;
-        writeCache(file, current);
-      });
+  const cacheLease = await takeResource({
+    name: 'main-red-cache', capacity: 1, scope: 'repo', root,
+    agent: process.env.PULLBOARD_AGENT ?? `pid-${process.pid}`,
+    onWait,
+  });
+  try {
+    let cache = readCache(file);
+    const missing = files.filter(path => fresh || !['red', 'green'].includes(cache.entries[main.commit]?.[path]?.result)
+      || detailed && !Array.isArray(cache.entries[main.commit][path].failures));
+    let failed = null;
+    for (const path of missing) {
+      try {
+        // The slot is taken on the clean main checkout, so a runner can take it even when this worktree is dirty.
+        const measured = await withMainCheckout(root, main.commit, async checkout => {
+          // Use the same exact-file capability checks as ordinary named tests, on main's source.
+          const browser = !browserFreeChecksEnabled() || await testsNeedBrowser(checkout, [path]);
+          const gui = testsNeedGui(checkout, [path]);
+          /** Run main's copy of the file under one gate slot, retaining detailed identity when requested. */
+          const measure = remote => withGateSlot(checkout, async lease => {
+            // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
+            const command = `PULLBOARD_TEST_REUSE=0 ${policy.config.affectedTests.trimEnd()} ${shellWord('./' + path)}`;
+            const run = detailed
+              ? runProfiledShell(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true })
+              : await runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs });
+            const failures = detailed ? run.isGreen ? [] : failureSignatures(run, checkout) : null;
+            if (detailed && !run.isGreen && !failures) throw new Error('focused main output has no complete named failure account');
+            return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}) };
+          }, { diagnostic: true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait });
+          // History a runner may not receive keeps the comparison on this machine, as it ran before runners.
+          try { return await measure(true); }
+          catch (error) { if (error?.code !== 'RUNNER_SECRET') throw error; return measure(false); }
+        });
+        if (measured.unavailable) throw new Error(measured.unavailable);
+        // The cache lease excludes other comparisons; persist each result before yielding again.
+        cache = readCache(file);
+        cache.entries[main.commit] ??= {};
+        cache.entries[main.commit][path] = measured;
+        writeCache(file, cache);
+      }
+      catch (error) { failed ??= error; }
     }
-    catch (error) {
-      // A concurrent completed comparison can satisfy the request even if our own runner failed.
-      if (fresh || !usable((await snapshot()).entries[main.commit]?.[path])) failed ??= error;
-    }
-  }
-  cache = await snapshot();
-  const incomplete = files.some(path => !usable(cache.entries[main.commit]?.[path]));
-  if (failed && (fresh || incomplete)) return { main: main.commit, files: [], unavailable: failed.message ?? 'main comparison could not be completed' };
-  if (incomplete) return { main: main.commit, files: [], unavailable: 'main comparison cache changed before the completed results could be read' };
-  return { main: main.commit, files: files.map(path => ({ file: path, ...(detailed
-    ? cache.entries[main.commit][path] : { result: cache.entries[main.commit][path].result }) })) };
+    if (failed) return { main: main.commit, files: [], unavailable: failed.message ?? 'main comparison could not be completed' };
+    cache = readCache(file);
+    return { main: main.commit, files: files.map(path => ({ file: path, ...(detailed
+      ? cache.entries[main.commit][path] : { result: cache.entries[main.commit][path].result }) })) };
+  } finally { cacheLease.release(); }
 }
 
 /** Map one or more main-red file results only when the row and its open owner are unambiguous. */
