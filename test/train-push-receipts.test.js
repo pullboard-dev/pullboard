@@ -2,8 +2,8 @@
 /** Exercise the native train producer, ordered landing writer and additive push check [C7]. */
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { configFromSource } from '../src/config.js';
@@ -84,6 +84,37 @@ function onBoard(box, action) {
   try { return action(board); } finally { store.closeBoard(board); }
 }
 
+/** Commit every shipped tooling byte through ordinary hooks in batches below the staged-text scan ceiling. */
+function commitTooling(box, tooling) {
+  const files = [];
+  /** Enumerate the real private installation without following directory aliases. */
+  function collect(directory) {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) collect(path);
+      else {
+        assert.ok(entry.isFile(), `published tooling entry must be regular: ${path}`);
+        files.push(path);
+      }
+    }
+  }
+  collect(tooling);
+  let batch = [], bytes = 0, number = 0;
+  /** Keep the original secret scanner and commit hook on every bounded installation commit. */
+  function commit() {
+    if (!batch.length) return;
+    box.git(box.repo, 'add', '--', ...batch);
+    box.git(box.repo, 'commit', '-q', '-m', `test: install native tooling batch ${++number}`);
+    batch = []; bytes = 0;
+  }
+  for (const file of files.sort()) {
+    const size = statSync(file).size + 4096;
+    if (batch.length && bytes + size > 2 * 1024 * 1024) commit();
+    batch.push(relative(box.repo, file)); bytes += size;
+  }
+  commit();
+}
+
 /** Prepare real private source and policy; all gate receipts are produced by actual native executions. */
 function fixture(t, required = true) {
   const helpers = createE2eHelpers();
@@ -103,8 +134,9 @@ function fixture(t, required = true) {
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config,
     landing: { publish: 'separate', requireReceipts: required }, pushReceiptCheck: { smoke: 'node -e ""' } }));
-  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'add', '--', 'package.json', 'pullboard.json', 'web/train.test.js');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare native train fixture');
+  commitTooling(box, tooling);
   const base = box.git(box.repo, 'rev-parse', 'HEAD').trim();
   return { ...box, base, waitFor: helpers.waitFor };
 }
