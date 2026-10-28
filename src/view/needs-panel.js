@@ -32,7 +32,8 @@ export function needsPanelHtml(calls, project, { compact = false, person = false
   };
   /** Render every kind through the same two-line summary and in-place details. */
   const rowHtml = row => {
-    const d = describe(row), key = row.kind + ':' + row.id;
+    // Blocks use only their public reference and timestamp; their internal id contains the refused command.
+    const d = describe(row), key = row.kind + ':' + (row.kind === 'block' ? row.ref + ':' + row.at : row.id);
     const attrs = row.kind === 'agent-approved' ? ' data-agent-approved="' + escape(row.id) + '"' : row.kind === 'sentinel-draft' ? ' data-sentinel-draft="' + escape(row.ref) + '"' : row.kind === 'spec-revision' ? ' data-spec-revision="' + escape(row.id) + '"' : '';
     return '<li class="needs-call ' + (row.kind === 'agent-approved' ? 'agent-approval' : '') + '"' + attrs + '><details data-needs-key="' + escape(key) + '" data-dashboard-disclosure="needs:' + escape(key) + '"' + (expanded.includes(key) ? ' open' : '') + '><summary>' + icon(d.kind)
       + '<span class="needs-copy"><b><span class="needs-id" title="'+escape(d.id)+'">' + escape(d.id) + '</span>' + escape(d.title) + '</b><small>' + escape(d.context) + '</small></span>'
