@@ -40,6 +40,7 @@ function fixture(t) {
   for (const path of paths) git(root, 'worktree', 'add', '-q', '--detach', path, head);
   let at = Date.parse('2026-10-28T05:03:07.314Z');
   const clock = { now: () => new Date(at), advance: ms => { at += ms; } };
+  // @pullboard-board-file persistence: the real CLI reopens this Git board to observe the reservation through another connection.
   const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: root });
