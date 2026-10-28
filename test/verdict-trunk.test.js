@@ -61,7 +61,7 @@ test('page is built', () => {
   json(box.run(reviewer, 'join', 'api', '--json'));
   writeFileSync(armed, 'armed');
   const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'the page builds', '--json');
-  assert.ok(existsSync(landed), 'main really moved while the review ran');
+  assert.ok(existsSync(landed), `main really moved while the review ran: ${verdict.out}${verdict.err}`);
   return { box, verdict, json };
 }
 
