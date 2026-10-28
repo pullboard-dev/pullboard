@@ -415,8 +415,8 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .chips button.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 .chips button b { font: 600 var(--text-2xs) var(--mono); color: var(--ink-faint); margin-left: var(--space-1); }
 /* One component for Items, Spec, Doctrine and Activity; the track matches its neighbouring Filter. */
-.seg { display: inline-flex; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none; height: var(--tap); gap: 2px; padding: 2px; border-radius: var(--radius-md); background: var(--surface-2); }
-.seg button { flex: none; height: calc(var(--tap) - 4px); min-height: 0; border: 0; background: none; padding: 0 var(--space-4); border-radius: var(--radius-sm); color: var(--ink-muted); cursor: pointer; font: var(--text-sm) var(--sans); white-space: nowrap; }
+.seg { display: inline-flex; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none; height: var(--tap); gap: var(--space-0); padding: var(--space-0); border-radius: var(--radius-md); background: var(--surface-2); }
+.seg button { flex: none; height: calc(var(--tap) - var(--space-1)); min-height: 0; border: 0; background: none; padding: 0 var(--space-4); border-radius: var(--radius-sm); color: var(--ink-muted); cursor: pointer; font: var(--text-sm) var(--sans); white-space: nowrap; }
 .seg button:hover { color: var(--ink); }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px var(--shade), 0 0 0 1px var(--line); }
 .seg button b { font: 400 var(--text-2xs) var(--mono); color: var(--ink-faint); margin-left: var(--space-2); }
@@ -765,7 +765,6 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* The Items toolbar's controls stand at the target, 32px under a mouse. */
 .toolbar .go, .toolbar input, .filter-toggle, .filter-option { min-height: var(--tap); }
 .toolbar .go, .toolbar input { padding-block: 0; }
-.seg { max-width: 100%; }
 .inline > label { min-width: 0; }
 /* The label changes at 900px, while the control keeps its accessible name at every size. */
 @media (width < 900px) { .new-item-wide { display: none; } .new-item-narrow { display: inline; } }
@@ -1246,7 +1245,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .activity-lines .resolved > i { background: var(--accent); }
 .activity-lines .stuck > i { background: var(--warn); }
 .activity-next { color: var(--ink-faint); font-size: 12px; }
-@media (max-width: 600px) { .activity-event { grid-template-columns: 62px 22px minmax(0, 1fr); gap: 6px; padding-inline: 4px; } #activity > .activity-bar { padding-inline: 4px; } .activity-bar .seg { max-width: 100%; } }
+@media (max-width: 600px) { .activity-event { grid-template-columns: 62px 22px minmax(0, 1fr); gap: 6px; padding-inline: 4px; } #activity > .activity-bar { padding-inline: 4px; } }
 /* The agent floor (#dashboard/floor): the Dashboard's Agents card opened up to the whole board, in the same tokens.
  * Layout and type carry it; every bar width is an SVG attribute, so no inline style is needed. */
 .dashboard.floor-page { padding-bottom: 28px; }

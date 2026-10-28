@@ -78,7 +78,7 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
         await press(chrome, 'document.querySelector("[data-tab=' + pane + ']")');
         await chrome.waitFor('!document.querySelector("[data-pane=' + pane + ']").hidden && !!document.querySelector(' + JSON.stringify(selector + ' [' + attribute + ']') + ')');
         await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + selected + '"]') + ')');
-        await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: width - 1, y: 899 });
+        await press(chrome, "document.querySelector('#q')");
         await chrome.stable('new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))');
         const actual = await measureControl(chrome, selector);
         console.log('PULLBOARD_SEG_MEASURE ' + JSON.stringify({ width, pane, actual }));
