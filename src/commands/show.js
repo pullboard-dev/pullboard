@@ -41,7 +41,7 @@ import {
   sayBrief,
 } from '../cli-read-context.js';
 import { relayStateExists } from '../local-state.js';
-import { itemCost } from '../cost.js';
+import { itemCost } from '../cost-read.js';
 
 /** Run `pullboard show` and return its exit code. */
 export async function run(io, { first, values }) {
@@ -69,7 +69,7 @@ export async function run(io, { first, values }) {
   const frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null;
   const checkText = frozen ? frozen.check ?? '' : item.item_check ?? '';
   if (values.json) {
-    io.result({ ...item, reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, cost, ...(relayPending.length ? { relayPending } : {}) });
+    io.result({ ...item, reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { cost } : {}), ...(relayPending.length ? { relayPending } : {}) });
     return 0;
   }
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);

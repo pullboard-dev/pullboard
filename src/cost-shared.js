@@ -5,7 +5,7 @@ import { listAgents } from './board-query.js';
 import { logEvent } from './board-event-log.js';
 import { COST_ENGINE } from './cost-engine.js';
 import { sanitizedUsage } from './cost.js';
-import { sumUsage } from './cost.js';
+import { sumUsage } from './cost-read.js';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
 

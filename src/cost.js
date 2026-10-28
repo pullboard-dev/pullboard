@@ -8,9 +8,8 @@ import { COST_ENGINE } from './cost-engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { publicSharedSessions } from './cost-shared.js';
 import { Refused } from './refused.js';
-export { recordSharedUsage } from './cost-shared.js';
-
-const COUNTS = ['inputTokens', 'outputTokens', 'costUSD', 'wallMs', 'knownInputTokens', 'knownOutputTokens', 'knownCostUSD'];
+import { COUNTS } from './cost-read.js';
+import { sumUsage } from './cost-read.js';
 
 /** Only documented numeric summary fields can be sealed, stored or replayed. */
 export function sanitizedUsage(rows) {
@@ -54,23 +53,6 @@ export function recordUsage(board, { agentId, item, revision, records, observedA
   });
 }
 
-/** Sum known partial amounts while keeping incomplete totals visibly unknown. */
-export function sumUsage(rows) {
-  const result = { inputTokens: 0, outputTokens: 0, costUSD: 0, knownInputTokens: 0, knownOutputTokens: 0, knownCostUSD: 0, wallMs: 0, models: [], shared: false };
-  for (const row of rows) {
-    result.shared ||= Boolean(row.shared);
-    for (const name of COUNTS) {
-      if (row[name] === null || result[name] === null) result[name] = null;
-      else {
-        const total = result[name] + row[name];
-        result[name] = Number.isFinite(total) && (name.includes('Cost') || name === 'costUSD' || Number.isSafeInteger(total)) ? total : null;
-      }
-    }
-    if (!result.models.includes(row.model)) result.models.push(row.model);
-  }
-  return { ...result, estimate: true };
-}
-
 /** Read shared summaries, grouping the same immutable numeric records for every machine. */
 export function costTotals(board) {
   const sharedItems = new Set(board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'shared-item:*'").all().map((row) => Number(row.meta_key.slice('shared-item:'.length))));
@@ -86,13 +68,6 @@ export function costTotals(board) {
   return { items: grouped('item', records), lanes: grouped('lane', records), models: grouped('model', [...records, ...sharedModels]),
     milestones: milestones(board).map((milestone) => ({ milestone: milestone.name, ...sumUsage(records.filter((row) => milestone.items.includes(row.item))) })),
     seats: grouped('agent', records), sharedSessions };
-}
-
-/** One item's totals; absence of any reported session is unknown rather than a false zero. */
-export function itemCost(board, item) {
-  const records = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key GLOB ?").all(`cost:${item}:*`).flatMap((row) => { const value = JSON.parse(row.meta_value); return value.records.map((record) => ({ ...record, shared: Boolean(value.shared) })); });
-  const total = records.length ? sumUsage(records) : { inputTokens: null, outputTokens: null, costUSD: null, knownInputTokens: 0, knownOutputTokens: 0, knownCostUSD: 0, wallMs: 0, models: [], estimate: true };
-  return board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`shared-item:${item}`) ? { ...total, inputTokens: null, outputTokens: null, costUSD: null, shared: true } : total;
 }
 
 /** Seed a moved seat's private accumulator from already shared totals instead of resetting its revisions. */
