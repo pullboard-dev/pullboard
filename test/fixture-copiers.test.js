@@ -49,6 +49,9 @@ test('the guard names hand copies including imported aliases, finite lists and r
     "import * as fs from 'node:fs'; for (const entry of ['src', 'bin']) fs.cpSync(join(root, entry), join(target, entry));",
     "import { readFileSync, writeFileSync } from 'node:fs'; const body = readFileSync(new URL('../src/a.js', import.meta.url)); writeFileSync(target, body);",
     "import { cpSync, mkdtempSync } from 'node:fs'; function privateFixture(){const root=mkdtempSync('/tmp/x');return root;} function installed(){const root=new URL('../',import.meta.url);cpSync(new URL('../src/',import.meta.url),target);}",
+    "import { cpSync, mkdtempSync } from 'node:fs'; import {join} from 'node:path'; cpSync(flag ? join(ROOT,'src') : join(mkdtempSync('/tmp/x-'),'src'),target);",
+    "import { cpSync } from 'node:fs'; import {join} from 'node:path'; function mkdtempSync(){return ROOT;} cpSync(join(mkdtempSync('/tmp/x-'),'src'),target);",
+    "import { cpSync, mkdtempSync } from 'node:fs'; import {join} from 'node:path'; function copy(mkdtempSync){cpSync(join(mkdtempSync('/tmp/x-'),'src'),target);}",
   ]) assert.match(fixtureCopierProblems(source, 'planted.js').join('\n'), /planted\.js:1: hand/u);
   assert.match(fixtureCopierProblems("const fs = require('node:fs'); fs.cpSync('../src', target);", 'opaque.js').join('\n'), /opaque filesystem binding/u);
 });
@@ -56,7 +59,7 @@ test('the guard names hand copies including imported aliases, finite lists and r
 test('the guard ignores fixture strings, comments and private board or test-helper copies [C7]', () => {
   const source = "import { cpSync, copyFileSync } from 'node:fs';\n// cpSync('../src', target);\nconst fixture = \"cpSync('../bin', target)\";\ncpSync(join(root, '.git/pullboard'), target);\ncopyFileSync(new URL('./fixture-child.js', import.meta.url), target);";
   assert.deepEqual(fixtureCopierProblems(source), []);
-  assert.deepEqual(fixtureCopierProblems("import { cpSync, mkdtempSync } from 'node:fs'; function fixture(){const root=mkdtempSync('/tmp/x');return root;} const root=fixture(); cpSync(join(root,'src','sample-engine.js'),target);"), []);
+  assert.deepEqual(fixtureCopierProblems("import { cpSync, mkdtempSync } from 'node:fs'; import {join} from 'node:path'; function fixture(){const scratch=mkdtempSync('/tmp/x');return scratch;} const root=fixture(); cpSync(join(root,'src','sample-engine.js'),target);"), []);
 });
 
 test('every test fixture uses the manifest helper for shipped tool copies [C7]', () => {

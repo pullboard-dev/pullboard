@@ -4,11 +4,13 @@ import { join } from 'node:path';
 import { copyPackageFiles } from '../src/package-files.js';
 import { readPathMap } from '../src/path-map.js';
 import { lex } from '../src/js-lex.js';
+import { bindingReadsForModules } from '../src/cell-binding-uses.js';
 
 /** Find executable hand copies of shipped tool paths; comments and fixture-program strings are not code. */
 export function fixtureCopierProblems(source, file = 'fixture.js') {
   if (source.length > 1024 ** 2) return [`${file}: fixture copier source exceeds its analysis bound`];
-  const { code, strings } = lex(source), bindings = new Map(), declarations = new Map(), problems = [];
+  const { code, strings } = lex(source), bindings = new Map(), operations = new Map(), declarations = new Map(), problems = [];
+  let probeBody = code;
   const pairs = new Map(), stack = [], braces = [];
   for (let at = 0; at < code.length; at++) {
     if ('([{'.includes(code[at])) stack.push(at);
@@ -20,18 +22,20 @@ export function fixtureCopierProblems(source, file = 'fixture.js') {
     }
   }
   for (const literal of strings) {
-    if (!['fs', 'node:fs'].includes(literal.text)) continue;
+    if (!['fs', 'node:fs', 'path', 'node:path'].includes(literal.text)) continue;
     if (/\b(?:require|import)\s*\(\s*$/u.test(code.slice(0, literal.start))) {
       problems.push(`${file}:${source.slice(0, literal.start).split('\n').length}: opaque filesystem binding; use an explicit import and copyPackageFiles`);
       continue;
     }
     const match = /\bimport\s+([^;]*?)\s+from\s*$/u.exec(code.slice(0, literal.start));
     if (!match) continue;
+    probeBody = probeBody.slice(0, match.index) + probeBody.slice(match.index, literal.end).replace(/[^\n]/gu, ' ') + probeBody.slice(literal.end);
+    const module = literal.text.replace(/^node:/u, '');
     const clause = match[1].trim(), namespace = /^(?:\*\s+as\s+)?([\w$]+)$/u.exec(clause);
-    if (namespace) bindings.set(namespace[1], '*');
+    if (namespace) { if (module === 'fs') bindings.set(namespace[1], '*'); operations.set(namespace[1], { module, imported: '*' }); }
     else for (const entry of clause.replace(/^\{|\}$/gu, '').split(',')) {
       const named = /^\s*(\w+)(?:\s+as\s+(\w+))?\s*$/u.exec(entry);
-      if (named) bindings.set(named[2] ?? named[1], named[1]);
+      if (named) { if (module === 'fs') bindings.set(named[2] ?? named[1], named[1]); operations.set(named[2] ?? named[1], { module, imported: named[1] }); }
     }
   }
   /** Return a balanced call or declaration range without interpreting candidate expressions. */
@@ -55,7 +59,7 @@ export function fixtureCopierProblems(source, file = 'fixture.js') {
   for (const match of code.matchAll(/\b(?:const|let|var)\s+([\w$]+)\s*=/gu)) {
     const start = match.index + match[0].length;
     const rows = declarations.get(match[1]) ?? [];
-    rows.push({ start, end: end(start, ';'), ...scope(match.index) }); declarations.set(match[1], rows);
+    rows.push({ start, end: end(start, ';'), nameAt: match.index + match[0].indexOf(match[1], match[0].indexOf(' ') + 1), immutable: match[0].startsWith('const'), ...scope(match.index) }); declarations.set(match[1], rows);
   }
   // Finite manual source lists are also data dependencies of their loop variable.
   for (const match of code.matchAll(/\bfor\s*\(\s*(?:const|let)\s+([\w$]+)\s+of\s*/gu)) {
@@ -75,23 +79,64 @@ export function fixtureCopierProblems(source, file = 'fixture.js') {
     }
     return false;
   }
-  /** Copies between newly allocated private fixture paths are not installed-tool source copies. */
+  const proofs = new Map();
+  /** Prove the actual binding at a private-path operation; shadowing, writes and compiler uncertainty never exempt. */
+  function proven(name, at, row = null) {
+    const key = `${name}:${row?.scopeStart ?? 0}:${row?.scopeEnd ?? code.length}:${row?.nameAt ?? ''}`;
+    if (!proofs.has(key)) {
+      let body = row ? code.slice(0, row.scopeStart).replace(/[^\n]/gu, ' ') + code.slice(row.scopeStart, row.scopeEnd)
+        + code.slice(row.scopeEnd).replace(/[^\n]/gu, ' ') : probeBody;
+      if (row) body = body.slice(0, row.nameAt) + ' '.repeat(name.length) + body.slice(row.nameAt + name.length);
+      try { proofs.set(key, bindingReadsForModules([{ file, source, body, bindings: [{ local: name }] }]).get(file).get(name)); }
+      catch { proofs.set(key, null); }
+    }
+    const proof = proofs.get(key);
+    return proof && !proof.opaque && !proof.potentialShadow && proof.reads.includes(at);
+  }
+  /** Accept only an exact private-producing expression, never a private branch inside a mixed expression. */
   function privatePath(start, finish, seen = new Set()) {
     if (seen.size > 128) return false;
-    if (/\bmkdtempSync\s*\(/u.test(code.slice(start, finish))) return true;
-    for (const match of code.slice(start, finish).matchAll(/\b[\w$]+\b/gu)) {
-      if (seen.has(match[0])) continue;
-      const next = new Set([...seen, match[0]]);
-      if (declaration(match[0], start + match.index).some(row => privatePath(row.start, row.end, next))) return true;
-      if (!/^\s*\(/u.test(code.slice(start + match.index + match[0].length))) continue;
-      const definition = new RegExp(`\\bfunction\\s+${match[0].replaceAll('$', '\\$')}\\s*\\([^)]*\\)\\s*\\{`, 'u').exec(code);
-      if (!definition) continue;
-      const body = definition.index + definition[0].length, close = end(body, '}');
-      const returns = [...code.slice(body, close).matchAll(/\breturn\s+([\w$]+)\s*;/gu)];
-      if (returns.length && returns.length === [...code.slice(body, close).matchAll(/\breturn\b/gu)].length
-        && returns.every(row => declaration(row[1], body + row.index).some(value => privatePath(value.start, value.end, next)))) return true;
+    while (/\s/u.test(code[start] ?? '') && start < finish) start++;
+    while (/\s/u.test(code[finish - 1] ?? '') && finish > start) finish--;
+    if (code[start] === '(' && pairs.get(start) === finish - 1) return privatePath(start + 1, finish - 1, seen);
+    const text = code.slice(start, finish), identifier = /^[A-Za-z_$][\w$]*$/u.exec(text);
+    if (identifier) {
+      if (seen.has(text)) return false;
+      const row = declaration(text, start)[0];
+      return Boolean(row?.immutable && proven(text, start, row) && privatePath(row.start, row.end, new Set([...seen, text])));
     }
-    return false;
+    const call = /^([A-Za-z_$][\w$]*)(?:\s*\.\s*([A-Za-z_$][\w$]*))?\s*\(/u.exec(text);
+    if (!call) return false;
+    const open = start + call[0].lastIndexOf('(');
+    if (pairs.get(open) !== finish - 1) return false;
+    const binding = operations.get(call[1]), method = binding?.imported === '*' ? call[2] : !call[2] ? binding?.imported : null;
+    if (binding?.imported === '*') return false;
+    if (binding && !proven(call[1], start)) return false;
+    if (binding?.module === 'fs' && method === 'mkdtempSync') return true;
+    if (binding?.module === 'path' && ['join', 'resolve'].includes(method)) {
+      const first = end(open + 1, ',');
+      // Later operands must be plain relative literals: resolve('/real/source') cannot replace the private base.
+      let at = first;
+      while (at < finish - 1) {
+        const stop = end(at + 1, ',');
+        const literal = strings.find(value => value.start >= at + 1 && value.end <= stop
+          && !code.slice(at + 1, value.start).trim() && !code.slice(value.end, stop).trim());
+        if (!literal || /^(?:[/\\]|[A-Za-z]:)|\$\{|\\/u.test(literal.text)
+          || literal.text.split('/').includes('..')) return false;
+        at = stop;
+      }
+      return privatePath(open + 1, Math.min(first, finish - 1), seen);
+    }
+    // A local factory is accepted only when every return is one proven immutable private alias.
+    if (call[2] || seen.has(call[1])) return false;
+    const definitions = [...code.matchAll(new RegExp(`\\bfunction\\s+${call[1].replaceAll('$', '\\$')}\\s*\\([^)]*\\)\\s*\\{`, 'gu'))];
+    if (definitions.length !== 1) return false;
+    const definition = definitions[0], body = definition.index + definition[0].length, close = end(body, '}');
+    if (!proven(call[1], start, { ...scope(definition.index), nameAt: definition.index + definition[0].indexOf(call[1], 'function'.length) })) return false;
+    const returns = [...code.slice(body, close).matchAll(/\breturn\s+([\w$]+)\s*;/gu)];
+    return returns.length > 0 && returns.length === [...code.slice(body, close).matchAll(/\breturn\b/gu)].length
+      && returns.every(value => privatePath(body + value.index + value[0].indexOf(value[1]),
+        body + value.index + value[0].indexOf(value[1]) + value[1].length, new Set([...seen, call[1]])));
   }
   for (const [name, imported] of bindings) {
     const member = imported === '*' ? '\\s*\\.\\s*(cpSync|copyFileSync|writeFileSync)' : '';
