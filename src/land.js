@@ -1219,7 +1219,7 @@ async function landOnTrunk(state) {
 /** Reject forged or stale canonical carries even when resuming an already-gated batch. */
 function requireLandingCarries(state, batch) {
   for (const entry of batch.items) {
-    const problem = mergeOnlyLandingProblem(state.root, state.board, store.getItem(state.board, entry.id));
+    const problem = mergeOnlyLandingProblem(state.root, state.board, store.getItem(state.board, entry.id), { acceptedVerdict: store.acceptedVerdict });
     if (problem) throw problem;
   }
 }

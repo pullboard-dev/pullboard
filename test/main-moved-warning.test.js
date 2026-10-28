@@ -47,7 +47,7 @@ test('a landing warns on a claimed local HEAD, then submit refuses until a real 
     submitFixture(board, landed, { agentId: builder, commit: trunk, tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}') });
     store.verify(board, landed, { agentId: reviewer, decision: 'ACCEPT', reason: 'CRITERION_MET',
       note: 'synthetic board-state setup only, not an executed proof', head: trunk, digest: 'fixture-landing-digest', policy: 'any' });
-    assert.deepEqual(mainMovedWarnings({ root: box.repo, board, trunk }).find(warning => warning.item === 1),
+    assert.deepEqual(mainMovedWarnings({ root: box.repo, board, trunk }, { listAgents: store.listAgents, listItems: store.listItems }).find(warning => warning.item === 1),
       { item: 1, head: worker, trunk, files: ['web/shared.txt'] });
     const notices = [];
     await refreshLandedCodeMap({ root: box.repo, board, batch: { tip: trunk },

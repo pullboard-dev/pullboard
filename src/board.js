@@ -1169,12 +1169,12 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
   }
   atomic(board, () => {
     const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= MERGE_ONLY_VERDICT_ENGINE;
-    const basis = modern && gateGreen === true ? mergeOnlyBasis(board, getItem(board, id)) : null;
+    const basis = modern && gateGreen === true ? mergeOnlyBasis(board, getItem(board, id), {}, { acceptedVerdict }) : null;
     const mergeOnly = modern ? board.executionEngineVersion === undefined
-      ? prepareMergeOnlySubmit(board, id, { commit, tree, policyCommit, gateGreen })
+      ? prepareMergeOnlySubmit(board, id, { commit, tree, policyCommit, gateGreen }, { getItem, acceptedVerdict })
       : recordedCarry ?? null : null;
     const carry = Boolean(mergeOnly);
-    const carriedProblem = found => mergeOnlyProblem(board, found, mergeOnly, { commit, tree, policyCommit });
+    const carriedProblem = found => mergeOnlyProblem(board, found, mergeOnly, { commit, tree, policyCommit }, { acceptedVerdict });
     const notYours = () => new Refused('NOT_YOURS', `item #${id} is not claimed by you; claim it first`);
     moveItem(board, id, 'submit', {
       ...(carry ? { transition: MOVES.find(move => move.verb === 'submit-merge') } : {}),
