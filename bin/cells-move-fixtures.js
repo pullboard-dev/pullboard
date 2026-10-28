@@ -9,6 +9,7 @@ import { repositoryImport } from '../src/import-map.js';
 const ID = '[A-Za-z_$][\\w$]*';
 const READS = new Set(['readFileSync', 'cpSync', 'copyFileSync']);
 const REPOSITORY = '/__pullboard_fixture_repo__';
+const DATA_FILE = /\.(?:sqlite3?|db|jsonl|log)$/u;
 
 /** Blank spans without changing any source offset or newline. */
 function blank(text, start, end) {
@@ -225,7 +226,7 @@ function imports(source, scanned, problems, file, { producer = false, dynamicPor
 
 /** Return nonoverlapping source-only edits and explicit unsupported sites; never execute candidate code. */
 export function fixtureSourceEdits(source, { file, moves, readSource }) {
-  const moved = new Map(moves), edits = [], problems = [];
+  const moved = new Map(moves), edits = [], problems = [], excluded = [];
   if (source.length > 1024 ** 2) return { edits, problems: [`${file}: fixture source analysis exceeds its byte budget`] };
   const scanned = lex(source);
   const { code, strings } = scanned;
@@ -667,6 +668,21 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
     return ![...moved.keys()].some(from => from === suffix || from.endsWith('/' + suffix));
   }
 
+  /** Name a board or data file root: its declaration ends in a data-file name no moved source shares, so it cannot be a tracked source path. */
+  function dataRoot(range) {
+    const match = new RegExp(`^(?:${ID}\\s*\\.\\s*)?(${ID})$`, 'u').exec(code.slice(range.start, range.end));
+    const entries = match && declarations.get(match[1]);
+    if (!entries?.length) return null;
+    const movedNames = new Set([...moved.keys()].map(from => posix.basename(from)));
+    let leaf = null;
+    for (const entry of entries) {
+      const last = strings.filter(row => row.start >= entry.range.start && row.end <= entry.range.end).at(-1);
+      leaf = last && !last.text.includes('${') && !last.text.includes('\\') ? posix.basename(last.text) : null;
+      if (!leaf || !DATA_FILE.test(leaf) || movedNames.has(leaf)) return null;
+    }
+    return leaf;
+  }
+
   /** Edit only the fs source argument; unsupported source construction never masquerades as success. */
   function sourceArgument(range, reader, regularFile) {
     if (regularFile && (disjointSuffix(range) || disjointPathTail(range))) return;
@@ -697,6 +713,11 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
       const leaf = leafName(range);
       if (regularFile && leaf && !leaf.split('/').some(part => part === '.' || part === '..')
         && ![...moved.keys()].some(from => posix.basename(from) === posix.basename(leaf))) return;
+      const data = dataRoot(range);
+      if (data) {
+        excluded.push(`${file}:${source.slice(0, range.start).split('\n').length}: excluded data read ${code.slice(range.start, range.end).replace(/\s+/gu, '')}: declared as data file ${data}, not a tracked source path`);
+        return;
+      }
       unsupported(range.start, 'unproven input expression or root'); return;
     }
     const target = moved.get(posix.relative(REPOSITORY, resolved.path));
@@ -737,5 +758,5 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
   for (let at = 1; at < edits.length; at++) {
     if (edits[at].start < edits[at - 1].end) return { edits: [], problems: [...new Set([...problems, `${file}: overlapping fixture source edits`])] };
   }
-  return { edits, problems: [...new Set(problems)] };
+  return { edits, problems: [...new Set(problems)], ...excluded.length ? { excluded } : {} };
 }
