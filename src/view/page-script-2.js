@@ -491,9 +491,9 @@ const pipelineStage = (${pipelineStage.toString()});
 const pipelineSince = (${pipelineSince.toString()});
 const itemListFields = (${itemListFields.toString()});
 /** Bind the current lifecycle declaration at the page adapter boundary. */
-function replay(item) { return replayItem(item, FLOW); }
+function replay(item) { return replayItem(item, FLOW, lifecycleMove); }
 /** Keep summary payloads and full snapshot projections on the same pure list path. */
-function listFields(item, fresh = false) { return itemListFields(item, FLOW, { fresh }); }
+function listFields(item, fresh = false) { return itemListFields(item, FLOW, { fresh, match: lifecycleMove }); }
 
 /** Resolve a builder from the full item's owner or the live claim in an API summary. */
 const holderOf = (item) => item.status === 'claimed' ? item.claim?.by ?? item.owner ?? null : null;
