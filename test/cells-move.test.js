@@ -1,5 +1,6 @@
 /** A leaf move preserves behavior and reverses without overwriting unrelated bytes [C7]. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, chmodSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -108,4 +109,45 @@ test('dirty workspace, CommonJS extension and forged postimage cannot mutate sou
   forged.after[input.to].bytes = Buffer.from('export const value = 0;\n').toString('base64');
   assert.throws(() => cellsMove.apply(forged, custody), /custody digest changed/u);
   assert.equal(git(root, 'status', '--porcelain'), '');
+});
+
+
+test('rehashed forged inverse cannot bless a concurrent edit as its postimage [C7]', t => {
+  const { root, custody, input } = fixture(t);
+  const result = cellsMove.apply(cellsMove.plan(input), custody);
+  const forged = JSON.parse(readFileSync(result.record, 'utf8'));
+  const unexpected = 'export const value = 7;\n';
+  writeFileSync(join(root, input.to), unexpected);
+  forged.after[input.to].bytes = Buffer.from(unexpected).toString('base64');
+  const { digest: _digest, ...payload } = forged;
+  forged.digest = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  const record = join(custody, 'forged.json');
+  writeFileSync(record, JSON.stringify(forged));
+  assert.throws(() => cellsMove.undo(record), /immutable canonical derivation/u);
+  assert.equal(readFileSync(join(root, input.to), 'utf8'), unexpected);
+});
+
+test('failed apply preserves a concurrently deleted preexisting path map [C7]', t => {
+  const { root, custody, input } = fixture(t);
+  writeFileSync(join(root, 'path-map.json'), '{}\n');
+  git(root, 'add', '.'); git(root, 'commit', '-qm', 'existing path map');
+  const plan = cellsMove.plan(input);
+  const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim();
+  const shim = join(custody, 'git');
+  const marker = join(custody, 'failed-once');
+  writeFileSync(shim, `#!${process.execPath}\n` +
+    `const fs = require('node:fs'); const cp = require('node:child_process');\n` +
+    `const args = process.argv.slice(2);\n` +
+    `if (args[2] === 'add' && !fs.existsSync(${JSON.stringify(marker)})) {\n` +
+    ` fs.writeFileSync(${JSON.stringify(marker)}, 'yes'); fs.unlinkSync(${JSON.stringify(join(root, 'path-map.json'))}); process.exit(1); }\n` +
+    `const result = cp.spawnSync(${JSON.stringify(realGit)}, args, { stdio: 'inherit' }); process.exit(result.status ?? 1);\n`);
+  chmodSync(shim, 0o755);
+  const previous = process.env.PATH;
+  process.env.PATH = custody + ':' + previous;
+  try {
+    assert.throws(() => cellsMove.apply(plan, custody), /retain exact custody/u);
+  } finally { process.env.PATH = previous; }
+  assert.equal(existsSync(join(root, 'path-map.json')), false);
+  assert.ok(existsSync(join(custody, plan.digest + '.json')));
+  assert.match(readFileSync(join(root, input.from), 'utf8'), /^export \*/u);
 });

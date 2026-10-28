@@ -111,15 +111,16 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
     return next;
   }
   /** Capture a closed four-file preimage before any mutation; old importers keep their shim. */
-  function plan({ root, from, to, frontDoor, purpose }) {
+  function derive({ root, from, to, frontDoor, purpose }, recordedHead = null) {
     root = realpathSync(root);
     [from, to, frontDoor].forEach(filePath);
     requireThat(/^packages\/[a-z][a-z0-9-]*\/index\.js$/u.test(frontDoor), 'front door must be one package index');
     requireThat(to.startsWith(posix.dirname(frontDoor) + '/src/') && /\.(?:m?js)$/u.test(to), 'body must live under the package src tree');
     requireThat(new Set([from, to, frontDoor, 'path-map.json']).size === 4, 'transaction paths overlap');
     requireThat(typeof purpose === 'string' && purpose.trim() && !/[\r\n]|\*\//u.test(purpose), 'give one plain front-door purpose sentence');
-    requireThat(git(root, ['status', '--porcelain=v1', '-z']) === '', 'start from a clean checkout');
-    const head = git(root, ['rev-parse', '--verify', 'HEAD^{commit}']).trim();
+    if (recordedHead === null) requireThat(git(root, ['status', '--porcelain=v1', '-z']) === '', 'start from a clean checkout');
+    const head = recordedHead ?? git(root, ['rev-parse', '--verify', 'HEAD^{commit}']).trim();
+    requireThat(/^[a-f0-9]{40}$/u.test(head), 'recorded HEAD must be an immutable commit');
     const policy = JSON.parse(git(root, ['show', `${head}:package.json`]));
     requireThat(policy.type === 'module', 'one root ESM package is required');
     requireThat(/^src\/[^/]+\.(?:m?js)$/u.test(from), 'this bounded first-leaf tool accepts one top-level legacy source file');
@@ -132,7 +133,13 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
       }
     });
     tracked(root, head, from);
-    const before = Object.fromEntries([from, to, frontDoor, 'path-map.json'].map(file => [file, image(root, file)]));
+    const before = Object.fromEntries([from, to, frontDoor, 'path-map.json'].map(file => {
+      if (recordedHead === null) return [file, image(root, file)];
+      const row = git(root, ['ls-tree', '-z', head, '--', file]);
+      if (!row) return [file, null];
+      tracked(root, head, file);
+      return [file, { bytes: git(root, ['show', `${head}:${file}`], null).toString('base64'), mode: row.startsWith('100755 ') ? 0o755 : 0o644 }];
+    }));
     requireThat(before[from] && !before[to] && !before[frontDoor], 'source must exist and destinations must be absent');
     const sourceBytes = Buffer.from(before[from].bytes, 'base64');
     const source = sourceBytes.toString('utf8');
@@ -164,6 +171,8 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
     const value = { version: 1, directories, root, head, from, to, frontDoor, purpose, before, after };
     return Object.freeze({ ...value, digest: digest(value) });
   }
+  /** Plan only from a clean current checkout; inverse validation derives from immutable Git instead. */
+  function plan(input) { return derive(input); }
   /** Validate a serialized envelope's digest; this is custody, not executable or board authority. */
   function validate(value) {
     const { digest: claimed, ...payload } = value;
@@ -198,6 +207,9 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
         requireThat(row.startsWith(payload.before[file].mode === 0o755 ? '100755 ' : '100644 '), `preimage mode differs for ${file}`);
       }
     }
+    const canonical = derive(payload, payload.head);
+    requireThat(same(canonical.before, payload.before) && same(canonical.after, payload.after),
+      'custody postimages differ from immutable canonical derivation');
     return payload;
   }
   /** Make only recorded empty ancestors, refusing every symlink. */
@@ -223,7 +235,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
       parents(value.root, file);
       const actual = image(value.root, file);
       const movedOriginal = file === value.to ? value.before[value.from] : null;
-      requireThat(actual === null || same(actual, value.before[file]) || same(actual, value.after[file]) || same(actual, movedOriginal),
+      requireThat((actual === null && (value.before[file] === null || file === value.from)) || same(actual, value.before[file]) || same(actual, value.after[file]) || same(actual, movedOriginal),
         `unexpected concurrent bytes at ${file}; retain custody and resolve manually`);
     }
     for (const [file, preimage] of Object.entries(value.before)) put(value.root, file, preimage, created);
