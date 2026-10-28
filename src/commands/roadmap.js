@@ -1,3 +1,4 @@
+import * as store from '../board.js';
 /** The pullboard roadmap command, in its own module so an item adding another command never edits these lines. */
 import {
   Refused,
@@ -12,7 +13,7 @@ import {
 export function run(io, { first, second, rest }) {
   if (first || second || rest.length) throw new Refused('USAGE', 'pullboard roadmap takes no arguments');
   const ctx = context(io);
-  const milestones = withBoard(ctx, (board) => roadmapView.milestoneRoadmap(ctx.info.root, board));
+  const milestones = withBoard(ctx, (board) => roadmapView.milestoneRoadmap(ctx.info.root, board, { ports: store }));
   io.result?.({ milestones });
   if (!milestones.length) io.say('no milestones yet; the coordinator can add one with pullboard milestone add');
   for (const milestone of milestones) {

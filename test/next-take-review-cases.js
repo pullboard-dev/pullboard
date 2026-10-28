@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { main } from '../src/cli.js';
-import { addMilestone } from '../src/milestones.js';
+import { addMilestone } from '../src/board.js';
 import { exportBoard } from '../src/exchange.js';
 
 test('an eleven-minute submission interrupts a free builder before the queue ratio [C7,N2,V1]', async t => {

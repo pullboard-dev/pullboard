@@ -102,6 +102,26 @@ export function ruleCell(file) {
   return null;
 }
 
+/**
+ * Map each src/ asset to the modules that read it by listing or opening a directory the code names with
+ * join(root, 'src', ...), the path form the discovery and declaration readers use [#1778]. Only a direct child of
+ * the listed directory counts, so a reader never claims a deeper tree it does not enumerate.
+ */
+export function assetReaders(sources, assets) {
+  const readers = new Map();
+  for (const [file, source] of sources) {
+    if (testFile(file) || !/\b(?:readdirSync|readFileSync)\b/u.test(source)) continue;
+    for (const match of source.matchAll(/\bjoin\(\s*root\s*,\s*'src'((?:\s*,\s*'[^']+')*)/gu)) {
+      const directory = ['src', ...[...match[1].matchAll(/'([^']+)'/gu)].map(part => part[1])].join('/');
+      for (const asset of assets) {
+        if (posix.dirname(asset) !== directory) continue;
+        readers.set(asset, new Set([...(readers.get(asset) ?? []), file]));
+      }
+    }
+  }
+  return readers;
+}
+
 /** The path inside a cell's src/ that keeps a moved file's subfolder (moves/, commands/, view/, formats/). */
 function innerPath(file) {
   return file.replace(/^(?:src|relay)\//u, '');
@@ -113,7 +133,7 @@ function innerPath(file) {
  * most production imports with (normalized by the square root of its size, as the dry run's map did), so a new
  * module joins its neighbours instead of a hand-typed list.
  */
-export function placePaths({ paths, edges, seed }) {
+export function placePaths({ paths, edges, seed, readers = new Map() }) {
   const placed = new Map(), stays = [];
   for (const file of paths) {
     if (file.startsWith('bin/')) { stays.push({ path: file, reason: 'bin/ stays in place during the move (dry run section 1)' }); continue; }
@@ -155,6 +175,12 @@ export function placePaths({ paths, edges, seed }) {
     for (const [file, cell] of next) placed.set(file, { cell, via: 'imports' });
     pending = pending.filter(file => !placed.has(file));
   }
+  // An asset that no import reaches joins the one cell its readers occupy; readers in several cells leave it unplaced [#1778].
+  for (const file of pending) {
+    const cells = new Set([...(readers.get(file) ?? [])].map(reader => placed.get(reader)?.cell).filter(Boolean));
+    if (cells.size === 1) placed.set(file, { cell: [...cells][0], via: 'rule' });
+  }
+  pending = pending.filter(file => !placed.has(file));
   if (pending.length) {
     throw new Refused('CELLS_UNPLACED', `no seed, name rule or import places ${pending.join(', ')}; add a name rule in src/cells-plan.js and regenerate with node bin/cells-plan.js --write`);
   }
@@ -283,7 +309,8 @@ function cycleCount(graph) {
  * and leaves a re-export shim at every old path something outside the cell still imports.
  */
 export function buildCellsPlan({ paths, edges, sources, seed, base }) {
-  const { placed, stays } = placePaths({ paths, edges, seed });
+  const assets = paths.filter(file => file.startsWith('src/') && !/\.[cm]?js$/u.test(file));
+  const { placed, stays } = placePaths({ paths, edges, seed, readers: assetReaders(sources, assets) });
   const shell = anatomy(placed, edges, sources);
   const cellOf = file => placed.get(file)?.cell ?? null;
   const cells = [...new Set([...placed.values()].map(row => row.cell))].sort();

@@ -1009,7 +1009,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
   if (note !== undefined && (typeof note !== 'string' || !note.trim() || /[\r\n\u2028\u2029]/u.test(note))) {
     throw new Refused('USAGE', 'a submission note, when present, is one nonempty line');
   }
-  atomic(board, () => {
+  atomic(board, () => { reviewRouting.requireStrictBuilderFamily(board, id, agentId);
     const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= MERGE_ONLY_VERDICT_ENGINE;
     const basis = modern && gateGreen === true ? mergeOnlyBasis(board, getItem(board, id), {}, { acceptedVerdict }) : null;
     const mergeOnly = modern ? board.executionEngineVersion === undefined
@@ -1728,7 +1728,7 @@ export function buildOrder(board, { warm = [], agentId, readiness = barReadyForO
   const rank = milestoneRanks(board, milestonePriority, { milestones });
   const recent = new Set(warm);
   const shared = entry => itemFiles(entry).filter(path => recent.has(path)).length;
-  const focus = milestoneFocus(board);
+  const focus = milestoneFocus(board, { milestones });
   const group = item => focus?.ids.has(item.item_id) ? -1 : milestonePriority(item);
   const paths = criticalPathEnabled(board) ? remainingPaths(items, group) : new Map();
   const tieBreak = (first, second) => (paths.get(second.item_id) ?? 0) - (paths.get(first.item_id) ?? 0);
@@ -1737,7 +1737,7 @@ export function buildOrder(board, { warm = [], agentId, readiness = barReadyForO
     || ROUTES.indexOf(second.item_route) - ROUTES.indexOf(first.item_route)
     || shared(second) - shared(first) || first.item_id - second.item_id);
   return focusOrder(board, lineOrderEnabled(board)
-    ? lineBuildOrder({ agentId, release: milestonePriority, rank, items, ready: item => readiness(board, item), fallback }) : fallback);
+    ? lineBuildOrder({ agentId, release: milestonePriority, rank, items, ready: item => readiness(board, item), fallback }) : fallback, { milestones });
 }
 
 /**
@@ -1757,7 +1757,7 @@ export function buildOrder(board, { warm = [], agentId, readiness = barReadyForO
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
 export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease }) {
-  const focusCompare = focusOrder(board, () => 0);
+  const focusCompare = focusOrder(board, () => 0, { milestones });
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   const allItems = listItems(board).reverse();
@@ -1768,7 +1768,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;
   if (verify) {
     const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
-    const hasDifferentFamily = (entry) => Boolean(family && entry.item_builder_family && family !== entry.item_builder_family);
+    const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, entry.item_builder_family);
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
     const standingRefusal = unrelated.map((entry) => itemAuthorProblem(board, entry, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }) ?? reviewFamilyProblem(board, entry, agentId, familyPolicy)).find(Boolean);
     const requiredRefusals = unrelated.map(entry => reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId)).filter(Boolean);
@@ -1793,13 +1793,13 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const previousOrder = (first, second) => scarcity ? scarcity.get(first.item_id) - scarcity.get(second.item_id)
       || lineCompare(first, second) : milestonePriority(first) - milestonePriority(second)
       || rank(first) - rank(second);
-    const focus = milestoneFocus(board);
+    const focus = milestoneFocus(board, { milestones });
     const group = item => focus?.ids.has(item.item_id) ? -1 : milestonePriority(item);
     const order = criticalPathEnabled(board) ? criticalPathOrder({ items: listItems(board, { all: true }), group, fallback: previousOrder }) : previousOrder;
     candidates.sort((first, second) => order(first.entry, second.entry));
     reviewRouting.prioritizeReviews(board, candidates, priority, focusCompare);
     const item = candidates.find((candidate) => !candidate.holder && !candidate.cooldown)?.entry;
-    if (item) return { item, reasons: focusReasons(board, item) };
+    if (item) return { item, reasons: focusReasons(board, item, [], { milestones }) };
     const held = candidates.filter((candidate) => candidate.holder && candidate.holder !== agentId)
       .map(({ entry, holder: reviewer }) => `${reviewer} holds the review of #${entry.item_id} until ${entry.item_review_until}`);
     const cooling = candidates.filter((candidate) => candidate.cooldown)
@@ -1864,7 +1864,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
       continue;
     }
     if (!waiting.length) return { item: entry, reasons: focusReasons(board, entry,
-      [...reasons, ...collisions.map(reason => reason.replace(' waits for ', ' overlaps with '))]), shared };
+      [...reasons, ...collisions.map(reason => reason.replace(' waits for ', ' overlaps with '))], { milestones }), shared };
     reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
   if (!mine.length && !reasons.length) reasons.push(idleReason(items, lane, routed));
@@ -1953,8 +1953,8 @@ export function maintainStaleState(board, options) {
 // A lane agent's drafted rows live in row-drafts.js (#878); exported here so the engine dispatches them.
 export { draftSpecRow, rowDrafts } from './row-drafts.js';
 export { recordSpecApprovalBaseline, specApprovalBaseline, specApprovalBaselineExists } from './spec-approval-baseline.js';
-// The roadmap's moves live in milestones.js; the board keeps exporting them so the engine replays them.
-export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone } from './milestones.js';
+// Temporary milestone composition edge under #1776; remove this facade when its declared public contract expires.
+export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone } from './board-milestones.js';
 export { canonicalMilestoneTarget } from '../packages/state/src/core/milestone-target.js';
 
 export { rowDecisions } from './board-query.js';

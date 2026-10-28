@@ -124,3 +124,18 @@ test('a move item\'s frozen check passes only when the cell moved behind shims [
 
 
 installCutCases({ PLAN, BIN, fixture, git });
+
+test('an asset a placed reader lists joins that reader cell, and an asset nothing reads is still refused by name [D3,CD60]', t => {
+  const { root, put } = fixture(t);
+  put('src/stats-docs/heartbeat.json', '{}\n');
+  put('src/stats-docs-reader.js', "import { readdirSync, readFileSync } from 'node:fs';\nimport { join } from 'node:path';\nexport const docs = (root = '.') => [readdirSync(join(root, 'src', 'stats-docs')), readFileSync];\n");
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'directory reader');
+  const plan = computePlan(root);
+  const row = plan.cells.find(cell => cell.name === 'stats').paths.find(([from]) => from === 'src/stats-docs/heartbeat.json');
+  assert.equal(row?.[2], 'rule', 'the asset joins the stats cell that lists its directory');
+  put('src/orphan/unread.json', '{}\n');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'unread asset');
+  assert.throws(() => computePlan(root), error => error.code === 'CELLS_UNPLACED' && error.message.includes('src/orphan/unread.json'));
+});

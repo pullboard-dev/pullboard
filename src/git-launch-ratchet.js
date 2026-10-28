@@ -61,3 +61,15 @@ export function gitLaunchGrowth(report, allowances) {
   return Object.entries(report.files).flatMap(([file, launches]) => launches.length > (allowances[file] ?? 0)
     ? [{ file, actual: launches.length, allowed: allowances[file] ?? 0 }] : []);
 }
+
+/** Lower the committed allowance to the current report, keeping its scope and original total.
+ * The ratchet only falls: any per-file growth is returned instead of a baseline, so a moved or new
+ * launch site must be routed through the Git adapter rather than recorded as a fresh allowance.
+ */
+export function loweredGitLaunchBaseline(report, baseline) {
+  const growth = gitLaunchGrowth(report, baseline.files);
+  if (growth.length) return { growth };
+  const files = Object.fromEntries(Object.entries(report.files).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([file, launches]) => [file, launches.length]));
+  return { growth, baseline: { ...baseline, files } };
+}
