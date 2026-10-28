@@ -1,3 +1,5 @@
+import { lineSettings } from './line-settings-read.js';
+import { withLocalSeatPresence } from './seat-presence.js';
 /** Observe eligible work beside live free seats without claiming from a read [N2,A6]. */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -29,7 +31,9 @@ export function dispatchHealth(board, config = {}) {
   const previous = row ? JSON.parse(row.event_detail).dispatch ?? [] : [];
   const at = board.clock.now();
   const dispatch = [], findings = [], items = new Set();
-  for (const seat of store.listAgents(board)) {
+  const agents = store.listAgents(board);
+  const seats = lineSettings(board)['route.liveOnly'] ? withLocalSeatPresence(board, agents) : agents;
+  for (const seat of seats) {
     if (seat.agent_id === 'coordinator' || seat.presence !== 'live' || !existsSync(join(seat.agent_path, '.git'))) continue;
     let info, skipIds;
     try {
