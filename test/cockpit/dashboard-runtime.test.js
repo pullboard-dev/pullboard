@@ -12,10 +12,10 @@ test('Dashboard refuses truncated history and isolates a replaced board at the s
   globalThis.document = { getElementById: () => region };
   t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; });
   let identity = 'first', reply = { events: [{ event_id: 2 }, { event_id: 3 }] };
-  const reads = [], observations = [];
+  const reads = [], observations = [], renderedNeeds = [];
   const runtime = dashboardRuntime({
     model: (project, events, options) => { observations.push({ events, options }); return {}; },
-    html: () => '', summary: () => null, current: () => '/private-fixture', redraw: () => {},
+    html: (_state, options) => { renderedNeeds.push(options.needs); return ''; }, summary: () => null, current: () => '/private-fixture', redraw: () => {},
     boardPath: () => '/api/boards/' + identity,
     api: async path => { reads.push(path); return reply; },
   });
@@ -45,4 +45,9 @@ test('Dashboard refuses truncated history and isolates a replaced board at the s
   runtime.draw({ ...project, sequence: 2 }, ''); await delivered(); runtime.draw({ ...project, sequence: 2 }, '');
   assert.equal(reads.at(-1), '/api/boards/replacement/events?after=0', 'a backwards native prefix cannot reuse a later board history');
   assert.equal(observations.at(-1).options.complete, true);
+  runtime.draw(project, 'current compact needs');
+  runtime.draw({ ...project, observedAt: '2026-10-27T12:01:00Z' });
+  assert.equal(renderedNeeds.at(-1), 'current compact needs', 'clock-only redraw retains the selected board compact calls');
+  runtime.draw({ ...project, root: '/another-board' });
+  assert.equal(renderedNeeds.at(-1), '', 'another board never inherits prior compact calls');
 });

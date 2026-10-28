@@ -83,8 +83,10 @@ function render() {
   // What needs the person, first, and only the person's calls (B26): the decisions passed up to them,
   // questions in the spec, held lanes, then draft rows. Work waiting for a verdict or sent back shows
   // on the board with who holds it; it is the agents' to move.
-  const personalNeeds = personNeeds(p);
+  const needsTab = ['home', 'items', 'dashboard'].includes(view.tab);
+  const personalNeeds = needsTab || ['spec', 'doctrine'].includes(view.tab) ? personNeeds(p) : [];
   const agentApprovals = personalNeeds.filter(row => row.kind === 'agent-approved');
+  if (needsTab) {
   const person = !snapshot && (!readOnly || requests);
   const expandedNeeds = [...document.querySelectorAll('details[data-needs-key][open]')].filter(entry => !entry.closest('[hidden]')).map(entry => entry.dataset.needsKey);
   /** Actions retain the existing person/request handlers and advertised row identities. */
@@ -101,15 +103,20 @@ function render() {
   const needsFeedback = row => view.specFeedback?.root===view.root && view.specFeedback.kind==='spec' && view.specFeedback.id===row.id ? specFeedback(view.specFeedback) : '';
   const needsOptions = { person, expanded: expandedNeeds, controls: needsControls, feedback: needsFeedback, rich: text => rich(text,titles,!readOnly), age };
   const needsPanel = ${needsPanelHtml.toString()};
-  const needsHtml = needsPanel(personalNeeds,p,needsOptions);
-  $('needs').hidden = !personalNeeds.length || view.state !== 'active' || Boolean(view.lane);
-  $('needs').tabIndex = -1;
-  $('needs').innerHTML = needsHtml;
-  if (view.tab === 'home') $('home-rules').innerHTML = homeRules(p.spec);
-  $('home-needs').innerHTML = needsHtml;
-  $('home-calm').hidden = Boolean(needsHtml);
   if (view.tab === 'dashboard') dashboardView.draw(p,needsPanel(personalNeeds,p,{...needsOptions,compact:true}));
-
+  else {
+    const needsHtml = needsPanel(personalNeeds,p,needsOptions);
+    if (view.tab === 'items') {
+      $('needs').hidden = !personalNeeds.length || view.state !== 'active' || Boolean(view.lane);
+      $('needs').tabIndex = -1;
+      $('needs').innerHTML = needsHtml;
+    } else {
+      $('home-rules').innerHTML = homeRules(p.spec);
+      $('home-needs').innerHTML = needsHtml;
+      $('home-calm').hidden = Boolean(needsHtml);
+    }
+  }
+  }
 
   if (view.tab === 'items') {
   // New work goes first to a lane that owns folders, where builders work, then to the coordinator; a

@@ -314,7 +314,7 @@ ${pageScriptPart3(pageScope)}async function refresh(fresh = null, attempt = 1) {
     data = next;
     showFlowAges();
     tickAges();
-    if (view.tab === 'dashboard' && data.project) dashboardView.draw(data.project, $('home-needs').innerHTML);
+    if (view.tab === 'dashboard' && data.project) dashboardView.draw(data.project);
   }
   if (changed) {
     address(false);

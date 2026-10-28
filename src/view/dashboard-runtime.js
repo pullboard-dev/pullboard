@@ -1,6 +1,7 @@
 /** Keep complete Dashboard history per board, bounded by each displayed state prefix, using the ordinary read API. */
 export function dashboardRuntime({ model, html, api, boardPath, current, redraw, summary }) {
   const histories = new Map();
+  let lastNeeds = { root: null, html: '' };
   /** Read missing history once per prefix; never draw one board's history over another board. */
   function read(root, prefix) {
     const key = root + '|' + boardPath(root);
@@ -28,6 +29,8 @@ export function dashboardRuntime({ model, html, api, boardPath, current, redraw,
   }
   /** Draw immediately from live claims, then enrich only with the complete ordered prefix when available. */
   function draw(project, needs) {
+    if (needs !== undefined) lastNeeds = { root: project.root, html: needs };
+    else needs = lastNeeds.root === project.root ? lastNeeds.html : '';
     const region = document.getElementById('dashboard');
     if (!region) return;
     const prefix = project.sequence ?? Math.max(0, ...(project.events ?? []).map(event => event.event_id));
