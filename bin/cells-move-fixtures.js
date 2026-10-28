@@ -1,6 +1,6 @@
 /** Recognize fixture source reads without editing destinations, oracles or unevaluated fixture programs [C7]. */
 import { posix } from 'node:path';
-import { lex } from '../src/js-lex.js';
+import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../src/cell-binding-uses.js';
 
 const ID = '[A-Za-z_$][\\w$]*';
