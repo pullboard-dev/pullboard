@@ -22,6 +22,7 @@ import {
   setGateRunnersFirst,
   setGateRunnerWaitMs,
   setLandingPool,
+  parseWorkerBudget,
   setWorkerBudget,
   workerBudget,
 } from '../settings.js';
@@ -63,7 +64,8 @@ export function settingsCommand(io, { first, second, rest, values }) {
     io.say(`gate.shortSlots: ${shortSlots}${shortSlots ? '' : ' (off; runs that name their test files wait for a gate slot)'}`);
     io.say(`gate.runnersFirst: ${runnersFirst} (registered runners are preferred before local slots when on)`);
     io.say(`gate.runnerWaitMs: ${gateRunnerWaitMs()} (then ordinary local admission; no disabled capacity is created)`);
-    io.say(`workers.budget: ${workerBudget()}${workerBudget() ? ' (pullboard run --scale runs at most this many workers at once)' : ' (off; pullboard run --scale launches no workers)'}`);
+    const budget = workerBudget();
+    io.say(`workers.budget: ${budget?.seatHours ? `${budget.seatHours}/${budget.window} (seat-hours pullboard run --scale may spend across every live seat on this machine)` : 'off (pullboard run --scale launches no workers)'}`);
     return 0;
   }
   if (!SETTING_FORMS.includes(first) || !second || rest.length) {
@@ -77,10 +79,9 @@ export function settingsCommand(io, { first, second, rest, values }) {
     return 0;
   }
   if (first === 'workers.budget') {
-    if (!/^(?:0|[1-9]\d*)$/u.test(second) || !Number.isSafeInteger(Number(second))) throw new Refused('BAD_MACHINE_SETTINGS', 'workers.budget must be a whole number of workers, 0 or more; run pullboard settings workers.budget <n>');
-    const settings = setWorkerBudget(Number(second));
+    const settings = setWorkerBudget(parseWorkerBudget(second));
     io.result?.({ settings });
-    io.say(`workers.budget set to ${settings.workers.budget}`);
+    io.say(`workers.budget set to ${settings.workers.budget.seatHours} seat-hours per ${settings.workers.budget.window}`);
     return 0;
   }
   if (first === 'gate.runnerWaitMs') {

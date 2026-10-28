@@ -30,7 +30,7 @@ export const workHelp = `Work
                 [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier
   pullboard run --scale --lane <lane> --model "<model name>" --agent "<command>" [--every 60] [--cycles N]
                                         from the main checkout: run as many worker seats as are worth running,
-                                        never above pullboard settings workers.budget; idle seats stop first
+                                        within pullboard settings workers.budget seat-hours; idle seats stop first
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
   pullboard queue                       the work queue in pull order: releases, then route, lane, holder, waits,
                                         and each item's unblock count, effort and why it sits there

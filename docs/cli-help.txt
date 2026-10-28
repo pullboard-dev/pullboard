@@ -36,7 +36,7 @@ Set up
                                         signed person moves are opt-in: pullboard settings person.signed on makes each wait for your passkey; only the passkey turns it off
                                         runner-first dispatch is opt-in: pullboard settings gate.runnersFirst on|off (default off)
                                         runner admission deadline: pullboard settings gate.runnerWaitMs <n> (default 300000ms)
-                                        worker budget: pullboard settings workers.budget <n>, the most agents run --scale runs at once (default 0, off)
+                                        worker budget: pullboard settings workers.budget 40/day (or /week), seat-hours run --scale may spend (default off)
   pullboard runner add <ssh-host> --slots <n> --browser <n> [--node <remote-path>] [--root <remote-path>]
                                         register SSH test capacity; no runner sign-in; root defaults to ~/.pullboard-runner
   pullboard runner list                 each runner's registered slots and browsers, which it runs at
@@ -104,7 +104,7 @@ Work
                 [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier
   pullboard run --scale --lane <lane> --model "<model name>" --agent "<command>" [--every 60] [--cycles N]
                                         from the main checkout: run as many worker seats as are worth running,
-                                        never above pullboard settings workers.budget; idle seats stop first
+                                        within pullboard settings workers.budget seat-hours; idle seats stop first
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
   pullboard queue                       the work queue in pull order: releases, then route, lane, holder, waits,
                                         and each item's unblock count, effort and why it sits there

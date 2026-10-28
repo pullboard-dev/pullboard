@@ -206,8 +206,8 @@ export const SETTING_FORMS = Object.freeze(['gateSlots', 'browserSlots', 'gate.s
 /** Help for each settings form the printed usage did not already name, so each form is covered (N2). */
 function settingFormHelp(commands) {
   return Object.fromEntries(SETTING_FORMS.filter((form) => !commands[`settings ${form}`]).map((form) => [`settings ${form}`, Object.freeze({
-    usages: [`pullboard settings ${form} ${form === 'landing.pool' ? 'on|off' : '<n>'}`], flags: [],
-    example: `pullboard settings ${form} ${form === 'landing.pool' ? 'on' : '2'}`, notes: [],
+    usages: [`pullboard settings ${form} ${form === 'landing.pool' ? 'on|off' : form === 'workers.budget' ? '<seat-hours>/day|week' : '<n>'}`], flags: [],
+    example: `pullboard settings ${form} ${form === 'landing.pool' ? 'on' : form === 'workers.budget' ? '40/day' : '2'}`, notes: [],
   })]));
 }
 
