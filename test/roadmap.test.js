@@ -262,7 +262,7 @@ test('[N26] each milestone sums its items by state with an estimate', async t =>
   assert.ok(direct.items.every(entry => entry.status !== 'withdrawn'));
   assert.equal(direct.done, 1);
   assert.deepEqual(direct.items.map(entry => entry.id),
-    [review, building, held, waiting, landings.at(-1), landing], 'the roadmap keeps work to ship first and omits withdrawn work');
+    [review, building, waiting, held, landings.at(-1), landing], 'the roadmap lists work in queue order (a held item last), then verified work, and omits withdrawn work');
   assert.equal(['landed', 'landing', 'review', 'building', 'held', 'waiting'].reduce((sum, key) => sum + direct.summary[key], 0), direct.summary.total);
   store.shout(box.board, { from: store.PERSON, to: 'coordinator', lanes: ['web'], answers: ask, text: 'Choose it' });
   assert.deepEqual((await box.run()).milestones[0].summary.needsYou, [], 'answered questions no longer need the person');
