@@ -69,7 +69,7 @@ import {
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, agent, item = '', kind = 'submit', onWait, onBrowserFallback, onFailure, proofContext, sourceAdvance = false }) {
+export async function runSubmitGate(root, config, { base, trunk, changed, check, agent, item = '', kind = 'submit', onWait, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root }) {
   if (!config.gate.trim()) throw missingGate(root);
   await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback });
   const advancePlan = sourceAdvance ? sourceAdvancePlan(root, config, { base, changed, check }) : null;
@@ -109,7 +109,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       ...(!hasFinalProof && proofContext.admission?.id ? { submitAdmission: proofContext.admission.id } : {}) };
     pinRunMain(lease, onFailure);
     const startedAt = Date.now();
-    const log = gitPath(root, 'pullboard-submit.log');
+    const log = gitPath(outputRoot, 'pullboard-submit.log');
     const checkLog = `${log}.check.log`;
     const proofLog = `${log}.proof.log`;
     const criterion = check ? runProfiledShell(root, check, {

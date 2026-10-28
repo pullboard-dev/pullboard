@@ -181,6 +181,9 @@ const VERDICT_PATCH_REFUSALS = [{ code: 'ITEM_PATCH', rule: 'native companion in
 
 /** @type {Move[]} */
 export const MOVES = [
+  { verb: 'patch-claimed', from: ['claimed'], to: 'claimed', by: ['coordinator'], refuse: 'ITEM_PATCH_STATE',
+    guards: ['joined', 'itemExists', IN_STATE, 'coordinatorOnly', 'notMerged'],
+    sets: [], command: 'pullboard patch attach|remove <id>' },
   { verb: 'patch', from: ['submitted', 'verified'], to: 'submitted', by: ['coordinator'], refuse: 'ITEM_PATCH_STATE',
     guards: ['joined', 'itemExists', IN_STATE, 'coordinatorOnly', 'notMerged'],
     sets: ['item_built_by', 'item_frozen_digest', 'item_verdict', 'item_verified_by', 'item_review_by', 'item_review_until'], command: 'pullboard patch attach|remove <id>' },

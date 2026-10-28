@@ -74,7 +74,8 @@ export function composeItemPatches(root, item, patches, { trunk, baseCommit = it
     const applied = [];
     let previous = git(root, isolated, ['write-tree']).trim();
     for (const record of patches) {
-      git(root, isolated, ['apply', '--cached', '--3way', '--binary', '--whitespace=nowarn', '-'], record.patch);
+      try { git(root, isolated, ['apply', '--cached', '--3way', '--binary', '--whitespace=nowarn', '-'], record.patch); }
+      catch { refuse(`companion ${record.key} no longer applies; replace it against the exact source`); }
       const next = git(root, isolated, ['write-tree']).trim();
       const changed = git(root, isolated, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', '--no-renames', previous, next]).split('\0').filter(Boolean);
       if (changed.some(path => !safePath(path) || !itemPatchPaths(record.patch).has(path))) refuse('patch changes an undeclared or unsafe path');
