@@ -1,12 +1,10 @@
 /** A late worker cannot reopen a new submission, bar, patch set or review episode [C7,V4,H16]. */
-import { sourceAdvanceCASProblem } from './source-advance.js';
-import { receiptFields } from './gate-run-receipt.js';
 import { Refused } from './refused.js';
 
 /** Preserve ordinary reopen authority while additionally binding its autonomous measured cause. */
 export function sourceAdvanceReturnProblem(board, item, request) {
   const proof = request.sourceAdvanceReturn;
-  const stale = sourceAdvanceCASProblem(board, item, proof);
+  const stale = board.nativePorts.sourceAdvanceCASProblem(board, item, proof);
   if (stale) return stale;
   const validFiles = Array.isArray(proof.files) && proof.files.length > 0 && proof.files.length <= 4096
     && proof.files.every(path => typeof path === 'string' && path && !path.startsWith('/') && !/[\\\r\n\0]/u.test(path)
@@ -19,7 +17,7 @@ export function sourceAdvanceReturnProblem(board, item, request) {
   if (proof.outcome === 'conflict' && JSON.stringify(proof.action.conflict) === JSON.stringify({ files: proof.files, trunk: proof.trunk })
     && Array.isArray(proof.phases) && proof.phases.length === 0) return null;
   if (proof.outcome === 'red' && Array.isArray(proof.phases) && proof.phases.length === 1) {
-    const receipt = receiptFields(proof.phases[0]?.receipt);
+    const receipt = board.runtimePorts.sourceAdvanceReceipts.receiptFields(proof.phases[0]?.receipt);
     if (receipt?.version === 2 && receipt.kind === 'submit' && receipt.head === proof.head && receipt.tree === proof.tree && receipt.main === proof.trunk
       && receipt.proof.item === item.item_id && receipt.proof.seat === 'coordinator' && receipt.proof.frozenDigest === proof.bar
       && receipt.proof.sourceClean && receipt.green === false && receipt.proof.exitCode !== null && receipt.proof.exitCode !== 0

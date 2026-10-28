@@ -190,7 +190,7 @@ test('source advance receipt capabilities are frozen and refuse missing members 
   const file = join(directory, 'never-created', 'board.sqlite');
   const ports = native.nativeBoardPorts();
   assert.equal(Object.isFrozen(ports.sourceAdvanceReceipts), true);
-  for (const key of ['boardReceiptStore', 'readGateReceipt', 'receiptBody']) {
+  for (const key of ['boardReceiptStore', 'readGateReceipt', 'receiptBody', 'receiptFields']) {
     const sourceAdvanceReceipts = { ...ports.sourceAdvanceReceipts };
     delete sourceAdvanceReceipts[key];
     assert.throws(() => {
@@ -215,6 +215,24 @@ test('every verification capability is required before storage exists [C7,B1,B2]
       const board = native.openBoard(file, undefined, { ports: { ...ports, verification } });
       native.closeBoard(board);
     }, error => error.code === 'NO_POLICY' && error.message.includes(`verification.${key}`));
+    assert.equal(existsSync(join(directory, 'never-created')), false);
+  }
+});
+
+/** Native origin and restore capabilities must exist before the first SQLite side effect. */
+test('store origin and restore capabilities refuse missing providers before storage exists [C7,H16]', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-store-providers-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'never-created', 'board.sqlite');
+  const ports = native.nativeBoardPorts();
+  for (const key of ['sourceAdvanceCASProblem', 'beginCommandPhase', 'exportedMeta', 'guardRestore']) {
+    const nativePorts = { ...ports.nativePorts };
+    delete nativePorts[key];
+    assert.throws(() => {
+      // @pullboard-board-file persistence: missing authority refuses before creating the database or its directory.
+      const board = native.openBoard(file, undefined, { ports: { ...ports, nativePorts } });
+      native.closeBoard(board);
+    }, error => error.code === 'NO_POLICY' && error.message.includes(`nativePorts.${key}`));
     assert.equal(existsSync(join(directory, 'never-created')), false);
   }
 });

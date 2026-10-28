@@ -1,5 +1,11 @@
 /** One native board composition root supplies connection-local runtime providers [C7]. */
 import * as store from './board.js';
+import { sourceAdvanceCASProblem } from './source-advance.js';
+import { beginCommandPhase } from './command-phase.js';
+import { exportedMeta } from './person-signing.js';
+import { guardRestore } from './person-signing.js';
+import { receiptFields } from './gate-run-receipt.js';
+
 import { boardReceiptStore } from './gate-run-receipt.js';
 import { readGateReceipt } from './gate-run-receipt.js';
 import { receiptBody } from './gate-run-receipt.js';
@@ -107,6 +113,7 @@ export { closeBoard } from './board-read-open.js';
 /** Build immutable native capabilities once per connection, without a registry or cross-connection defaults. */
 export function nativeBoardPorts() {
   const nativePorts = Object.freeze({
+    sourceAdvanceCASProblem, beginCommandPhase, exportedMeta, guardRestore,
     atomic, logEvent, rowDrafts: store.rowDrafts, rowDecisions: store.rowDecisions, PERSON: store.PERSON,
     recordRowDecisions: store.recordRowDecisions, now,
     committedItemAuthors, twoTierReviews, strictReviewProblem,
@@ -121,7 +128,7 @@ export function nativeBoardPorts() {
   const enginePorts = boardEnginePorts();
   return Object.freeze({
     nativePorts, enginePorts, operations: enginePorts.operations, logEvent,
-    sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody }),
+    sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody, receiptFields }),
     verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters }),
     guards: Object.freeze({ guardStore, refreshStoreDeclarations, storeTriggers }),
     lifecycle: Object.freeze({ atomic, ensureProofCounters, ensureHotIndexes, missingAdditiveIndexes,
