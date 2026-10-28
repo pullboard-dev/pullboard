@@ -1,13 +1,16 @@
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
-import { nextTake } from '../next-take.js';
+import {
+  mainRedBuildOffer,
+  nextTake,
+} from '../next-take.js';
 import {
   sayCheckBaseline,
 } from '../check-baseline.js';
 import {
   refuseNextIdle,
-  reviewQueueLine,
 } from '../next-steps.js';
+import { reviewQueueLine } from '../review-queue-line.js';
 import {
   Refused,
 } from '../refused.js';
@@ -66,7 +69,8 @@ export async function nextHere(io, values) {
   const deadline = Date.now() + minutes * 60_000;
   const origin = ctx.info.root;
   for (;;) {
-    const found = values.take ? await nextTake(ctx, values) : await nextOnce(ctx, values);
+    const takeMainRed = !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values);
+    const found = values.take || takeMainRed ? await nextTake(ctx, values) : await nextOnce(ctx, values);
     if (found.context) ctx = found.context;
     if (found.specMerged) {
       io.say(`merged main before claiming #${found.specMerged.item}: added spec rows ${found.specMerged.rows.join(', ')}`);
@@ -75,6 +79,13 @@ export async function nextHere(io, values) {
     }
     if (found.item) {
       found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
+      if (found.buildOffer || found.releaseRequest) {
+        io.result?.({ item: found.item, review: false, held: false,
+          ...(found.buildOffer ? { buildOffer: found.buildOffer } : { releaseRequest: found.releaseRequest }) });
+        if (found.buildOffer) io.say(`main-red build #${found.item.item_id} offered to free seat ${found.buildOffer.seat}: ${cdTo(found.buildOffer.path)} pullboard next --take`);
+        else io.say(`main-red build #${found.item.item_id} needs ${found.releaseRequest.seat} to release newest build #${found.releaseRequest.item}: ${cdTo(found.releaseRequest.path)} pullboard release ${found.releaseRequest.item}, then pullboard next --take`);
+        return 0;
+      }
       if (found.offer) {
         for (const reason of found.reasons ?? []) io.say(reason);
         sayReviewOffer(ctx, found); return 0;

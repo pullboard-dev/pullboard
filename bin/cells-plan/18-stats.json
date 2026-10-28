@@ -1,0 +1,59 @@
+{
+ "order": 18,
+ "name": "stats",
+ "kind": "package",
+ "root": "packages/stats",
+ "frontDoor": "packages/stats/index.js",
+ "placedBy": {
+  "seed": 10,
+  "rule": 0,
+  "imports": 0
+ },
+ "paths": [
+  ["src/flow-replay-history.js","packages/stats/src/core/flow-replay-history.js","seed"],
+  ["src/flow-replay.js","packages/stats/src/core/flow-replay.js","seed"],
+  ["src/flow-report-counter.js","packages/stats/src/core/flow-report-counter.js","seed"],
+  ["src/stats-flow-report.js","packages/stats/src/core/stats-flow-report.js","seed"],
+  ["src/stats-flow-window.js","packages/stats/src/core/stats-flow-window.js","seed"],
+  ["src/stats-flow.js","packages/stats/src/core/stats-flow.js","seed"],
+  ["src/stats.js","packages/stats/src/shell/stats.js","seed"],
+  ["test/flow-report.test.js","packages/stats/tests/flow-report.test.js","seed"],
+  ["test/stats-actors.test.js","packages/stats/tests/stats-actors.test.js","seed"],
+  ["test/stats-flow.test.js","packages/stats/tests/stats-flow.test.js","seed"]
+ ],
+ "reexports": [
+  "src/flow-replay.js",
+  "src/flow-report-counter.js",
+  "src/stats-flow-report.js",
+  "src/stats-flow-window.js",
+  "src/stats-flow.js",
+  "src/stats.js"
+ ],
+ "imports": [
+  {"cell":"kernel","imports":4,"before":true},
+  {"cell":"seats","imports":1,"before":true},
+  {"cell":"items","imports":1,"before":true},
+  {"cell":"verify","imports":4,"before":false},
+  {"cell":"store","imports":1,"before":false}
+ ],
+ "cuts": [
+  {"cell":"seats","imports":1,"edges":["src/line-capacity.js->src/stats-flow-window.js"]}
+ ],
+ "ratchets": {
+  "legacySource": -1,
+  "shims": 6,
+  "boundaries": -4,
+  "strays": -3,
+  "documents": 0,
+  "cyclesIfUncut": 4,
+  "assetReads": 0
+ },
+ "item": {
+  "lane": "core",
+  "title": "Cells move 18/43: stats moves into packages/stats behind shims",
+  "criterion": "Cells move 18 of 43 (RFC 0006; plan entry 18 in bin/cells-plan.json): the 10 paths the entry lists for package stats move with git mv to their planned targets under packages/stats, and packages/stats/index.js is the front door, re-exporting the 6 modules other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. First the import from earlier cells into it that the entry lists as cuts is gone, each cut by an item in the importing cell, so no cycle between cells forms. The cell lint counts change as the entry states (legacySource -1, shims +6, boundaries -4) and none rises; node bin/cells-plan.js --moved stats passes, and the full suite passes on Node 22.13 and 24.",
+  "specs": ["C7","doctrine:CD60","doctrine:CD64"],
+  "check": "node bin/cells-plan.js --moved stats",
+  "after": ["kernel","seats","items"]
+ }
+}

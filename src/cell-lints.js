@@ -66,5 +66,9 @@ export function cellLintReport(root) {
   unknown.push(...exports.unknown);
   for (const row of unknown) add('unknown', `${row.file}:${row.specifier ?? ''}:${row.reason}`, 1, row.reason);
   for (const value of Object.values(metrics)) value.findings.sort((a, b) => a.key.localeCompare(b.key));
-  return { version: 1, metrics, unknown, rootMode: rootInfo.mode, roots: rootInfo.roots, pathMap: files.has('path-map.json') ? Object.fromEntries(readPathMap(root)) : {}, qualification: 'Known production file and individual export reach from declared transitional entrypoints or real app front doors; tests never seed reach. Opaque bindings/loaders remain named debt, not proven reachable.' };
+  const pathMap = files.has('path-map.json') ? Object.fromEntries(readPathMap(root)) : {};
+  // Coordinator 38290: the first committed package migration ends #1527 without a runtime setting or board lookup.
+  const witness = Object.entries(pathMap).find(([, target]) => target.startsWith('packages/')) ?? null;
+  const transition = { item: 1527, until: 1395, active: witness === null, witness };
+  return { version: 1, metrics, unknown, transition, rootMode: rootInfo.mode, roots: rootInfo.roots, pathMap, qualification: 'Known production file and individual export reach from declared transitional entrypoints or real app front doors; tests never seed reach. Opaque bindings/loaders remain named debt, not proven reachable.' };
 }

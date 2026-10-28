@@ -17,7 +17,7 @@ export function shellQuote(value) {
  * `stderrLog` also copies the worker's stderr, so a test can read its result receipt, and `nodeOptions` reaches the
  * worker's own Node process, so a test can force an ordering inside it.
  */
-export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', invalidSpec = false }) {
+export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false }) {
   const ssh = join(bin, 'ssh');
   const source = `#!/usr/bin/env node
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -27,19 +27,21 @@ const argv = process.argv.slice(2);
 const divider = argv.indexOf('--');
 const host = divider >= 0 ? argv[divider + 1] : '';
 const remoteCommand = divider >= 0 ? argv[divider + 2] : '';
-const requests = ${JSON.stringify(requests)};
-const starts = ${JSON.stringify(starts ?? '')};
+const registrationGuiProbe = remoteCommand.includes('/* pullboard registration GUI probe */');
+// Registration observations are real transports, recorded separately from job/dispatch statistics.
+const requests = ${JSON.stringify(requests)} + (registrationGuiProbe ? '.gui-probes' : '');
+const starts = registrationGuiProbe ? '' : ${JSON.stringify(starts ?? '')};
 const worker = ${JSON.stringify(worker)};
 const home = ${JSON.stringify(home)};
 const machineHome = ${JSON.stringify(machineHome)};
 const configuredNode = ${JSON.stringify(`${shellQuote(nodeCommand)} --input-type=module -e `)};
-const dropAfterMarker = ${JSON.stringify(dropAfterMarker ?? '')};
+const dropAfterMarker = registrationGuiProbe ? '' : ${JSON.stringify(dropAfterMarker ?? '')};
 const secret = ${JSON.stringify(SECRET)};
 const call = existsSync(requests) ? readFileSync(requests, 'utf8').split('\\n').filter(Boolean).length + 1 : 1;
 const stdinHash = createHash('sha256');
 let stdinBytes = 0;
 process.stdin.on('data', part => { stdinBytes += part.length; stdinHash.update(part); });
-const record = extra => appendFileSync(requests, JSON.stringify({ call, host,
+const record = extra => appendFileSync(requests, JSON.stringify({ call, host, ...(registrationGuiProbe ? { registrationGuiProbe: true } : {}),
   options: divider < 0 ? [] : argv.slice(0, divider), remoteHasSecret: remoteCommand.includes(secret),
   framed: divider >= 0 && argv[divider] === '--', remoteCommandPresent: Boolean(remoteCommand),
   remoteStartsWithConfiguredNode: remoteCommand.startsWith(configuredNode),
@@ -75,12 +77,12 @@ if (${JSON.stringify(healthDown)} && !remoteCommand.startsWith(configuredNode)) 
 }
 if (starts) appendFileSync(starts, JSON.stringify({ call, host }) + '\\n');
 const phases = requests + '.phases';
-const hold = ${JSON.stringify(hold)};
+const hold = registrationGuiProbe ? '' : ${JSON.stringify(hold)};
 const holdHere = () => new Promise(() => { setInterval(() => {}, 60_000); });
 if (hold === 'dispatch') await holdHere();
 appendFileSync(phases, 'dispatched\\n');
 if (hold === 'run') await holdHere();
-${dropFirst ? `if (host.endsWith('-drop') && call === 1) {
+${dropFirst ? `if (!registrationGuiProbe && host.endsWith('-drop') && call === 1) {
   process.stdin.once('data', () => {
     record({ dropped: true, stdinBytes, stdinSha256: stdinHash.digest('hex') }); process.exit(255);
   });
@@ -88,14 +90,17 @@ ${dropFirst ? `if (host.endsWith('-drop') && call === 1) {
 } else` : ''} {
   const env = { PATH: process.env.PATH, HOME: home, TMPDIR: process.env.TMPDIR,
     PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, LANG: 'C', LC_ALL: 'C', TZ: 'UTC',
-    ...(${JSON.stringify(nodeOptions)} ? { NODE_OPTIONS: ${JSON.stringify(nodeOptions)} } : {}) };
+    ...((registrationGuiProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)})
+      ? { NODE_OPTIONS: registrationGuiProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)} } : {}) };
   // Replace the marker-driven shell so the injected HUP reaches the actual worker process.
   const child = spawn('/bin/sh', ['-c', remoteCommand], { cwd: worker, env,
     stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdout.pipe(process.stdout);
   child.stderr.pipe(process.stderr);
-${stderrLog ? `  child.stderr.on('data', part => appendFileSync(${JSON.stringify(stderrLog)}, part));\n` : ''}${invalidSpec ? `  child.stdin.write('2\\n{}'); // Keep this owned pipe open: a refused worker must close it itself.
-  process.stdin.resume();` : '  process.stdin.pipe(child.stdin);'}
+${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe) appendFileSync(${JSON.stringify(stderrLog)}, part); });\n` : ''}${invalidSpec ? `  if (!registrationGuiProbe) {
+    child.stdin.write('2\\n{}'); // Keep this owned pipe open: a refused worker must close it itself.
+    process.stdin.resume();
+  } else child.stdin.end();` : '  process.stdin.pipe(child.stdin);'}
   let droppedAfterSetup = false;
   if (dropAfterMarker) {
     const waiting = waitForMarker(dropAfterMarker);
@@ -126,4 +131,27 @@ ${invalidSpec ? '    process.stdin.destroy(); child.stdin.destroy();' : ''}
   writeFileSync(ssh, source, { mode: 0o700 });
   chmodSync(ssh, 0o700);
   return ssh;
+}
+
+/** Install a registration-only private SSH transport for settings/placement tests that never dispatch a job. */
+export function installRegistrationProbeStandIn({ bin, observations = join(bin, 'registration-probes.jsonl') }) {
+  const source = `#!/usr/bin/env node
+import {appendFileSync} from 'node:fs';
+import {spawn} from 'node:child_process';
+const args=process.argv.slice(2),divider=args.indexOf('--');
+const host=divider<0?'':args[divider+1],command=divider<0?'':args[divider+2];
+if(!command.includes('/* pullboard registration GUI probe */'))process.exit(255);
+const env={...process.env};delete env.NODE_OPTIONS;delete env.NODE_TEST_CONTEXT;
+const child=spawn('/bin/sh',['-c',command],{env,stdio:['ignore','pipe','pipe']});
+child.stdout.pipe(process.stdout);child.stderr.pipe(process.stderr);
+child.on('error',()=>{process.exitCode=255;});
+child.on('close',(code,signal)=>{
+  appendFileSync(${JSON.stringify(observations)},JSON.stringify({host,registrationGuiProbe:true,code,signal})+'\\n');
+  process.exitCode=signal?128:code??255;
+});
+`;
+  const file = join(bin, 'ssh');
+  writeFileSync(file, source);
+  chmodSync(file, 0o755);
+  return file;
 }

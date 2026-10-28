@@ -1,4 +1,3 @@
-/** @pullboard-test-input test-tree */
 /** @pullboard-test-input source-tree */
 /**
  * Submit proves its frozen item check and the import closure its change can reach; only a full
@@ -1029,7 +1028,7 @@ test('a changed test file selects the scanners that read test files [C7,B3]', (t
     ['test/cockpit/demo.test.js'], 'the real-source fixture changes only the cockpit test');
   const actualSelection = selectAffectedTests(actual.root, { base: actualBase, commit: actualCommit });
   assert.equal(actualSelection.full, false, 'a cockpit-only input keeps affected selection');
-  for (const scanner of ['test/wall-clock-budgets.test.js', 'test/submit-gate.test.js']) {
+  for (const scanner of ['test/board-file-guard.test.js', 'test/shared-wait-guard.test.js', 'test/wall-clock-budgets.test.js']) {
     assert.ok(actualSelection.files.includes(scanner), 'actual test-tree reader selected: ' + scanner);
   }
 });

@@ -16,7 +16,8 @@ const ROADMAP_FACTS = `JSON.stringify({ tab: typeof view === 'undefined' ? null 
   ids: [...document.querySelectorAll('#roadmap .milestone-item .id')].slice(0, 12).map((node) => node.textContent),
   expanded: [...document.querySelectorAll('#roadmap .milestone-item')].slice(0, 12).map((row) => row.getAttribute('aria-expanded')),
   dots: document.querySelectorAll('#roadmap .dot').length,
-  detail: (document.querySelector('#detail h2')?.textContent || '').trim().slice(0, 80) })`;
+  detail: (document.querySelector('#detail h2')?.textContent || '').trim().slice(0, 80),
+  pressed: window.__pressed ?? null, jump: window.__roadmapJump ?? null })`;
 
 /**
  * Name the step a roadmap wait was waiting on and the roadmap state it last saw, so a timeout reads as a diagnosis
@@ -244,9 +245,10 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
       phase('tabs-read-' + width);
       for (const layout of bar.layouts) {
         const place = `${width} with ${layout.on} picked`;
-        assert.equal(layout.tabs.length, 7, `${place}: seven tabs including Home`);
+        assert.equal(layout.tabs.length, 8, `${place}: Dashboard and seven retained tabs`);
         for (const tab of layout.tabs) assert.ok(tab.labelLeft >= tab.left + 2 && tab.labelRight <= tab.right - 2, `${place}: ${tab.tab}'s label sits inside its highlight: ${JSON.stringify(tab)}`);
-        layout.tabs.forEach((tab, n) => { if (n) assert.ok(tab.left >= layout.tabs[n - 1].right - 0.5, `${place}: ${tab.tab} starts after the tab before it ends`); });
+        assert.equal(new Set(layout.tabs.map(tab => Math.round(tab.top))).size, width < 480 ? 2 : 1, `${place}: phone tabs use two rows, desktop one`);
+        layout.tabs.forEach((tab, n) => { if (n) assert.ok(tab.top >= layout.tabs[n - 1].bottom - 0.5 || tab.left >= layout.tabs[n - 1].right - 0.5, `${place}: ${tab.tab} starts after the tab before it ends or on the next row`); });
         assert.ok(layout.tabs[0].left >= layout.bar[0] - 0.5 && layout.tabs.at(-1).right <= layout.bar[1] + 0.5 && layout.bar[1] <= bar.client, `${place}: the tab bar fits on screen: ${JSON.stringify(layout)}`);
       }
       await proofShot(chrome, 'roadmap', width);
@@ -306,8 +308,7 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
     await press(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'roadmap-demo' && !!${roadmapRow('#1')}`);
 
-    // A reload keeps the Roadmap. The board's own address shows the tab last picked there, never the
-    // Roadmap, even when the Roadmap was picked last.
+    // A reload keeps the explicit Roadmap address. A fresh board address opens Dashboard.
     await chrome.send('Page.reload');
     await settled(chrome, `!!data?.project && ${showing('roadmap', roadmapPath)} && !!${roadmapRow('#1')}`);
     await press(chrome, `document.querySelector('[data-tab="shouts"]')`);
@@ -315,7 +316,7 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
     await press(chrome, `document.querySelector('[data-tab="roadmap"]')`);
     await chrome.waitFor(showing('roadmap', roadmapPath));
     await chrome.send('Page.navigate', { url: view.link.href });
-    await settled(chrome, `!!data?.project && ${showing('shouts', '/roadmap-demo/shouts')} && document.querySelector('.tab.on')?.dataset.tab === 'shouts'`);
+    await settled(chrome, `!!data?.project && ${showing('dashboard', '/roadmap-demo/dashboard')} && document.querySelector('.tab.on')?.dataset.tab === 'dashboard'`);
     assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught page exceptions');
     assert.deepEqual(consoleErrors, [], 'Chrome reports no console errors');
   } finally {
@@ -1227,8 +1228,20 @@ test('a release jump on a phone leaves its heading below the top bar [N26]', { t
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: false });
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+    await chrome.stable(`(() => {
+      window.__roadmapJump = [];
+      const observer = new MutationObserver(records => {
+        const target = document.querySelector('#roadmap-list [data-key="m:0.9.1"]');
+        window.__roadmapJump.push({ arrival: target?.classList.contains('roadmap-arrival') ?? null,
+          replaced: records.some(record => record.type === 'childList'), scrollY, pressed: window.__pressed });
+        window.__roadmapJump = window.__roadmapJump.slice(-12);
+      });
+      observer.observe(document.querySelector('#roadmap'), { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+    })()`);
     await press(chrome, `document.querySelector('#roadmap-panel [data-roadmap-jump="m:0.9.1"]')`);
     await chrome.waitFor(`document.querySelector('#roadmap-list [data-key="m:0.9.1"]')?.classList.contains('roadmap-arrival')`);
+    await chrome.stable('render()');
+    assert.equal(await chrome.stable(`document.querySelector('#roadmap-list [data-key="m:0.9.1"]')?.classList.contains('roadmap-arrival')`), true, 'a redraw keeps the actual release-jump mark');
     const position = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const bar = document.querySelector('.top').getBoundingClientRect();
       const target = document.querySelector('#roadmap-list [data-key="m:0.9.1"]').getBoundingClientRect();

@@ -14,6 +14,7 @@ import { configProblems, defaults } from '../src/config.js';
 import { landingShardCount } from '../src/gate.js';
 import { landingBalance, landingFloor, landingSource, planLandingShards, shardFileTimes } from '../src/landing-shards.js';
 import { runFixtureChild } from './fixture-child.js';
+import { installRegistrationProbeStandIn } from './runner-ssh-fixture.js';
 
 const SOURCE = resolve(import.meta.dirname, '..');
 const BIN = join(SOURCE, 'bin', 'pullboard.js');
@@ -30,15 +31,13 @@ test('GUI-marked landing files use only a runner with a GUI session [C7,V4]', (t
     assert.equal(added.status, 0, added.context);
   }
   // These are seeded capability reports, not a claim about this test machine's desktop session.
-  const settingsPath = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
-  const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
-  settings.runners = settings.runners.map(runner => ({ ...runner, gui: runner.host === 'fixture-gui' }));
-  writeFileSync(settingsPath, JSON.stringify(settings));
   const selected = join(box.repo, 'test/a.test.js');
   writeFileSync(selected, '/** @pullboard-test-gui */\n' + readFileSync(selected, 'utf8'));
   git(box.repo, box.env, 'add', '.');
   git(box.repo, box.env, 'commit', '-q', '-m', 'test: GUI-marked private fixture');
-  const script = `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
+  const script = `import {recordRunnerGui} from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/resources.js')).href)};
+for(const host of ${JSON.stringify(hosts)}) recordRunnerGui(host,host==='fixture-gui');
+import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 const calls = [];
@@ -275,6 +274,7 @@ function fixture({ runner = true, repoNames = ['repo'] } = {}) {
     git(path, env, 'add', '.');
     git(path, env, 'commit', '-q', '-m', 'test: landing shards fixture');
   }
+  installRegistrationProbeStandIn({ bin });
   if (runner) {
     const added = runFixtureChild(process.execPath, [BIN, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json'], { cwd: repo, env, encoding: 'utf8' });
     assert.equal(added.status, 0, added.context);

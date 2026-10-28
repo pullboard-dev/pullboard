@@ -269,11 +269,22 @@ export function mainRedMessage(root, board, profile, comparison) {
 
 /** Current-main red files that uniquely identify one approved row and one open rework item. */
 export function mainRedReworkItems(root, board) {
-  const main = mainCheckout(root);
-  if (!main?.commit) return [];
+  return currentMainRedItems(root, board, ['open']);
+}
+
+/** Prioritize submitted repairs using the same exact-main failed-row evidence as build dispatch. */
+export function mainRedReviewItems(root, board) {
+  return currentMainRedItems(root, board, ['submitted']);
+}
+
+/** Local evidence is captured by the controller; ordered reservation carries only the resulting item identities. */
+function currentMainRedItems(root, board, statuses) {
+  let main;
   let cache;
   let policy;
   try {
+    main = mainCheckout(root);
+    if (!main?.commit) return [];
     cache = readCache(cacheFile(root));
     policy = mainPolicy(root);
   } catch { return []; }
@@ -287,8 +298,9 @@ export function mainRedReworkItems(root, board) {
     spec = parseSpec(result.stdout, { strictGrammarVersion: false });
   } catch { return []; }
   const redFiles = Object.entries(current).filter(([, result]) => result.result === 'red').map(([path]) => path);
-  const matches = matchingReworks(root, board, main.commit, redFiles, { policy, spec, items: listItems(board, { all: true }) });
-  return matches.length === 1 ? [matches[0].item.item_id] : [];
+  const matches = matchingReworks(root, board, main.commit, redFiles, { policy, spec, items: listItems(board, { all: true }), statuses });
+  return statuses.includes('submitted') ? [...new Set(matches.map(match => match.item.item_id))]
+    : matches.length === 1 ? [matches[0].item.item_id] : [];
 }
 
 /** Resolve exact-main approved rows and open items without using the candidate's spec text. */
@@ -305,7 +317,7 @@ function matchingReworks(root, board, commit, files, loaded = null) {
     }
     items ??= listItems(board, { all: true });
   } catch { return []; }
-  const open = items.filter(item => item.item_status === 'open');
+  const open = items.filter(item => (loaded?.statuses ?? ['open']).includes(item.item_status));
   const matches = [];
   for (const file of files) {
     const rows = spec.rows.filter(row => row.status === 'approved' && row.gate === file);
