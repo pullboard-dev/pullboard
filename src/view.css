@@ -368,7 +368,8 @@ a.ghost { color: var(--ink); }
 .upgrade-note button { flex: none; min-height: var(--tap); }
 /* On a phone the link invitation above can wrap a line taller with Linux fonts (199px, not 179px), so the card keeps
    20px less and scrolls inside; it says the same and the first item stays above the fold (#871). */
-@media (width < 600px) { .upgrade-note { max-height: min(21vh, 170px); } }
+/* Keep the phone notice secondary to the first work item; complete notes remain scrollable. */
+@media (width < 600px) { .upgrade-note { max-height: min(17vh, calc(var(--space-9) * 3)); } }
 .release-note { padding: 0 var(--space-0) var(--space-4); }
 .release-note p { margin: 0; font-size: var(--text-sm); line-height: var(--leading-body); color: var(--ink-muted); overflow-wrap: anywhere; }
 .release-note code { font: var(--text-xs) var(--mono); color: var(--ink); white-space: nowrap; }
