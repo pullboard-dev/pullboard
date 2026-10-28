@@ -275,6 +275,7 @@ for (const [name, body] of [
   ['native JSON journal keys', "readFileSync(join(directory, key + '.json'), 'utf8');"],
   ['session and receipt path helpers', "readFileSync(checkoutSessionFile(repoInfo(root)), 'utf8'); readFileSync(join(receiptStore(root), receiptId + '.json'));"],
   ['scanned credentials and recursive copies', "for (const file of filesUnder(directory)) readFileSync(file); cpSync(join(box.root, '.git', 'pullboard'), target, { recursive: true });"],
+  ['credential-store audit logs', "const keychainLog = setup.keychainLog; readFileSync(keychainLog, 'utf8');"],
 ]) test(`${name} remain named conservative obligations rather than successful artifact proofs [C7]`, () => {
   const source = "import { readFileSync, cpSync } from 'node:fs'; import { join } from 'node:path';\n" + body;
   const result = fixtureSourceEdits(source, { file: 'test/conservative-obligations.js',
