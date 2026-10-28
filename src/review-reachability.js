@@ -1,6 +1,7 @@
 /** A strict item no active seat could review is named at submit and by the sentinel, from the one native eligibility rule [C7,V4]. */
 import { reviewEligibility } from './review-eligibility.js';
-import { familyName, familyAliasesOf } from './review-policy.js';
+import { familyName } from './review-policy.js';
+import { familyAliasesOf } from './review-policy.js';
 import { itemPatchAuthors } from './item-patch-state.js';
 import { Refused } from './refused.js';
 import { listAgents } from './board-query.js';
