@@ -398,7 +398,8 @@ function snapshot(db, name, order = ARRIVAL_ORDER, now = Date.now()) {
     });
   // With reviews first on, an older pullboard in the line means everyone admits in arrival order until it leaves.
   const timingDrain = sourceName === 'gate' ? timingDrainSnapshot(db) : null;
-  return { holders, line, ...(timingDrain ? { timingDrain } : {}), ...((order.reviewsFirst || order.currentReleaseFirst) && !classOrderInEffect(queued, order) && queued.some((waiter) => waiter.release_aware !== 1 || (!order.currentReleaseFirst && waiter.classed !== 1)) ? { order: 'arrival' } : {}) };
+  const timingEvents = sourceName === 'gate' ? timingDrainEvents(db) : [];
+  return { holders, line, ...(timingDrain ? { timingDrain } : {}), ...(timingEvents.length ? { timingEvents } : {}), ...((order.reviewsFirst || order.currentReleaseFirst) && !classOrderInEffect(queued, order) && queued.some((waiter) => waiter.release_aware !== 1 || (!order.currentReleaseFirst && waiter.classed !== 1)) ? { order: 'arrival' } : {}) };
 }
 
 /** Count reported or admissible queue position separately so blocked work cannot distort the visible line. */
@@ -631,8 +632,12 @@ function timingDrainSnapshot(db) {
   const owner = db.prepare('SELECT agent,item FROM waiter WHERE token=? UNION ALL SELECT agent,item FROM holder WHERE token=? LIMIT 1').get(drain.token, drain.token);
   if (!owner) return null;
   const { token, ...visible } = drain;
-  const events = db.prepare('SELECT at,kind,host,agent,item,wait_ms AS waitMs,reason FROM runner_timing_event ORDER BY id DESC LIMIT 8').all().reverse();
-  return { ...visible, ...owner, events };
+  return { ...visible, ...owner };
+}
+
+/** Keep completed drain evidence readable after its live reservation disappears, without exposing tokens. */
+function timingDrainEvents(db) {
+  return db.prepare('SELECT at,kind,host,agent,item,wait_ms AS waitMs,reason FROM runner_timing_event ORDER BY id DESC LIMIT 8').all().reverse();
 }
 
 /** Start due health work on its own connection so a free executor never waits for another host's probe. */

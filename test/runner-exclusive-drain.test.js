@@ -76,6 +76,9 @@ assert.equal(await ordinary('after-exclusive'),'drain-a','the drained host reope
 assert.equal(db.prepare('SELECT count(*) AS n FROM runner_timing_drain').get().n,0);
 const events=db.prepare('SELECT kind,host,agent,item,wait_ms FROM runner_timing_event ORDER BY id').all();
 assert.deepEqual(events.map(row=>row.kind),['drain-start','exclusive-admitted','exclusive-finished']);
+const readable=listResources({root}).find(row=>row.name==='gate').timingEvents;
+assert.deepEqual(readable.map(row=>row.kind),events.map(row=>row.kind),'completed drain evidence remains readable in status after reopening');
+assert.ok(readable.every(row=>row.host==='drain-a' && row.waitMs>=120000));
 assert.ok(events.every(row=>row.host==='drain-a' && row.agent==='exclusive' && row.item==='private-exclusive' && row.wait_ms>=120000));
 `);
 });
