@@ -12,7 +12,7 @@ import {
   join,
 } from 'node:path';
 import { loadDoctrine } from './doctrine.js';
-import { answerFromText } from './blueprints.js';
+import { answerFromText } from './spec.js';
 import {
   loadSpec,
   parseSpec,

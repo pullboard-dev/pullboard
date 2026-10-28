@@ -16,9 +16,7 @@ import {
   fitSummary,
   readFitBatch,
 } from '../blueprint-fit.js';
-import {
-  answerQuestion,
-} from '../blueprints.js';
+import { answerQuestion } from '../spec.js';
 import * as store from '../board.js';
 import {
   hookRead,

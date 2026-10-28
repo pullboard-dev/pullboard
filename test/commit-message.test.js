@@ -7,10 +7,10 @@ import {
   HEADER_LIMIT,
   buildCommitMessage,
   commitMessageProblems,
-  headerRows,
   parseCommitMessage,
   specOrder,
 } from '../src/commit-message.js';
+import { headerRows } from '../src/spec.js';
 import { landingRows } from '../packages/commits/src/core/landing-rows.js';
 import { checkLandingMessages, itemCommitType, landingMessage } from '../src/land.js';
 import { citedIds, parseSpec } from '../src/spec.js';

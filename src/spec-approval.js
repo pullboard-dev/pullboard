@@ -6,7 +6,7 @@ import {
   gitReadSignature,
   tryGit,
 } from './git.js';
-import { personNeeds } from './needs.js';
+import { personNeeds } from './row-decision-text.js';
 import { Refused } from './refused.js';
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import {

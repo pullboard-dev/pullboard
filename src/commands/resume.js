@@ -45,9 +45,7 @@ import {
 import {
   resumeNeeds,
 } from '../resume-needs.js';
-import {
-  personNeeds,
-} from '../needs.js';
+import { personNeeds } from '../row-decision-text.js';
 import {
   Refused,
 } from '../refused.js';

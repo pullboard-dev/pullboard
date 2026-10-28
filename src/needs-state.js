@@ -14,7 +14,7 @@ import { loadConfig } from './config.js';
 import { loadSpec } from './spec.js';
 import { loadDoctrine } from './doctrine.js';
 import { rigorDraftNeeds } from './rigor-notices.js';
-import { personNeeds } from './needs.js';
+import { personNeeds } from './row-decision-text.js';
 import { recentBlocks } from './needs-summary.js';
 export { personNeedsSummary, recentBlocks } from './needs-summary.js';
 import {

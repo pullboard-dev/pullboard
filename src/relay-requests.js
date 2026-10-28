@@ -4,7 +4,7 @@ import * as store from './board.js';
 import { createHash } from 'node:crypto';
 import { recordedRefusal } from './recorded-refusal.js';
 import { Refused } from './refused.js';
-import { answerQuestion } from './blueprints.js';
+import { answerQuestion } from './spec.js';
 import { personSigning } from './person-signing.js';
 import { signedRowDecisionsMatch } from './person-row-proof.js';
 import { parseImplies } from './implies.js';

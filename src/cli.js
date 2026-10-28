@@ -243,7 +243,7 @@ import {
   setupDecisionRows,
   withStarterWork,
 } from './setup-rows.js';
-import { personNeeds } from './needs.js';
+import { personNeeds } from './row-decision-text.js';
 import { personNeedsState } from './needs-state.js';
 import { startServeSentinel } from './serve-sentinel.js';
 import {
@@ -268,7 +268,6 @@ import {
   initialSpecApprovalBaseline,
 } from './spec-approval-bootstrap.js';
 import {
-  answerQuestion,
   landBlueprint,
   planBlueprint,
   starterCheck,

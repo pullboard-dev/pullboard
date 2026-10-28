@@ -1,4 +1,4 @@
-import { rulingOwner } from '../ruling-owner.js';
+import { rulingOwner } from '../ruling-owner-context.js';
 import { rulingRowReader } from '../ruling-owner-context.js';
 import { Refused } from '../refused.js';
 import { addressedSeat } from '../seat-address.js';

@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { parseSpec } from './spec.js';
-import { answerQuestion } from './blueprints.js';
+import { answerQuestion } from './spec.js';
 import {
   presenceSigned,
   validPresence,
