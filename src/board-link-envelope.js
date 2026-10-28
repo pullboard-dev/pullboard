@@ -3,11 +3,11 @@ import { createHash } from 'node:crypto';
 import { Refused } from './refused.js';
 import { seal } from './seal.js';
 import { unseal } from './seal.js';
-import { boardReferenceId } from './board-reference.js';
-import { boardLinkBody } from './board-link-format.js';
-import { boardLinkName } from './board-link-format.js';
-import { boardLinkFormat } from './board-link-format.js';
-import { discloseBoardState } from './board-link-format.js';
+import { boardReferenceId } from '../packages/kernel/src/core/registry-guards.js';
+import { boardLinkBody } from '../packages/kernel/src/core/registry-guards.js';
+import { boardLinkName } from '../packages/kernel/src/core/registry-guards.js';
+import { boardLinkFormat } from '../packages/kernel/src/core/registry-guards.js';
+import { discloseBoardState } from '../packages/kernel/src/core/registry-guards.js';
 
 const LIMIT = 65536;
 

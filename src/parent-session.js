@@ -9,7 +9,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Refused } from './refused.js';
 import { createHash } from 'node:crypto';
-import { AGENT_SESSION_IDS } from './person.js';
+import { AGENT_SESSION_IDS } from '../packages/kernel/src/core/discovery.js';
 import { PARENT_SESSION_ENGINE } from './parent-session-engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import {

@@ -130,11 +130,11 @@ test('a new worktree is created inside the repository [I1,I2]', () => {
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main', '--separate-git-dir', gitDir);
   assert.equal(box.run(repo, 'init').code, 0);
-  const configPath = join(repo, 'pullboard.json');
-  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  const separateConfigPath = join(repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(separateConfigPath, 'utf8'));
   config.lanes = { web: { owns: ['web/'], specs: [] }, api: { owns: ['api/'], specs: [] } };
   config.worktrees = 'inside';
-  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+  writeFileSync(separateConfigPath, `${JSON.stringify(config, null, 2)}\n`);
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: configure separate git dir fixture');
   box.env.PULLBOARD_MODEL = 'Separate Git Dir Model';

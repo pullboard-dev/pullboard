@@ -2,6 +2,8 @@ import { releaseBlockingItems } from '../stale-state-blockers.js';
 import { staleStateSnapshot } from '../stale-state-query.js';
 import { staleStateLine } from '../stale-state-policy.js';
 import { routingCapacity } from '../routing-capacity.js';
+import { foreignBlockers } from '../cross-repo-dependencies.js';
+import { readReceivedBoardState } from '../board-link-state.js';
 import { existsSync } from 'node:fs';
 import { relayMachineDirectory } from '../local-state.js';
 import { withBoardRead } from '../cli-board-read.js';
@@ -39,6 +41,11 @@ import {
   span,
 } from '../cli-read-context.js';
 
+/** Bind authenticated foreign state to the status reader's existing read-only board. */
+function statusForeignBlockers(board, item) {
+  return foreignBlockers(board, item, { readReceivedBoardState });
+}
+
 /** Run `pullboard status` and return its exit code. */
 export async function run(io, { values }) {
   const ctx = context(io);
@@ -62,7 +69,7 @@ export async function run(io, { values }) {
     const approvalState = personNeedsSummary(ctx.info.root, { board, config: ctx.config, agents, doctrine: ctx.doctrine });
     const person = board.db.prepare("SELECT 1 FROM event WHERE event_kind='person_signing' LIMIT 1").get()
       ? { signed: (await import('../person-signing.js')).personSigning(board).signed } : { signed: false };
-    return { me, mine, person, agents, presenceCounts, capacity: routingCapacity(board, agents), staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root) : unlinkedRelayStatus(),
+    return { me, mine, person, agents, presenceCounts, capacity: routingCapacity(board, agents, statusForeignBlockers), staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
   if (!summary.relay.linked && existsSync(relayMachineDirectory())) {

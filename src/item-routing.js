@@ -4,7 +4,7 @@ import {
   briefFiles,
   briefSections,
 } from './brief.js';
-import { refuseMaskedExit } from './check-mask.js';
+import { refuseMaskedExit } from '../packages/kernel/src/core/literal-shell-words.js';
 import { REFERENCE_ENGINE } from './reference-engine.js';
 import { Refused } from './refused.js';
 

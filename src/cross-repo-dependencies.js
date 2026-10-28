@@ -1,10 +1,9 @@
 /** Foreign prerequisites use only the authenticated receiving board's canonical E32 state [B24,E32,H16]. */
-import { boardLinkRecord } from './board-link-format.js';
-import { readReceivedBoardState } from './board-link-state.js';
+import { boardLinkRecord } from '../packages/kernel/src/core/registry-guards.js';
 import { foreignDependencies } from './item-dependencies.js';
 
 /** Resolve one repository against current signed links, never local paths or a submitter status. */
-function stateFor(board, ref) {
+function stateFor(board, ref, readReceivedBoardState) {
   const own = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='board_id'").get()?.meta_value;
   const rows = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key>=? AND meta_key<? ORDER BY meta_key')
     .all('board_link:', 'board_link;');
@@ -29,14 +28,14 @@ function stateFor(board, ref) {
 }
 
 /** Missing, ambiguous, stale-generation or undisclosed foreign state stays an explicit blocker. */
-export function foreignDependencyStates(board, item) {
+export function foreignDependencyStates(board, item, { readReceivedBoardState }) {
   return foreignDependencies(item).map(ref => {
-    const state = stateFor(board, ref);
+    const state = stateFor(board, ref, readReceivedBoardState);
     return { ...ref, ...state, status: state?.status ?? 'unavailable' };
   });
 }
 
 /** Every foreign prerequisite must be verified on its owning board's current authenticated announcement. */
-export function foreignBlockers(board, item) {
-  return foreignDependencyStates(board, item).filter(ref => ref.status !== 'verified');
+export function foreignBlockers(board, item, ports) {
+  return foreignDependencyStates(board, item, ports).filter(ref => ref.status !== 'verified');
 }

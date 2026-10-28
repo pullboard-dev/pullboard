@@ -1,3 +1,5 @@
+import { committedItemAuthors } from './review-independence.js';
+import { agentSessionDigest } from './person.js';
 import { effectiveItemHead } from './source-advance-state.js';
 import { itemReviewPolicy } from './review-independence.js';
 import { twoTierReviews } from './review-independence.js';
@@ -8,7 +10,7 @@ import { twoTierReviews } from './review-independence.js';
 import { Refused } from './refused.js';
 import { refuseSelfSession } from './item-sessions.js';
 import { itemAuthors } from './item-authors.js';
-import { shownPath } from './trunk-conflict.js';
+import { shownPath } from '../packages/kernel/src/core/registry-guards.js';
 
 /**
  * Return each submitted head that conflicts with the trunk to its builder, recorded as a conflict reopen (#807).
@@ -51,9 +53,9 @@ export async function returnUnmergeable(root, board, me, { ordered, trunkMerge, 
  * @param {{listItems: Function}} services
  * @returns {number[]}
  */
-export function ownSessionReviews(info, board, digest, { listItems }) {
+export function ownSessionReviews(info, board, digest = agentSessionDigest(), { listItems }) {
   return listItems(board).filter((item) => item.item_status === 'submitted').flatMap((item) => {
-    try { refuseSelfSession(info, item, digest, itemAuthors(board, item), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard' }); return []; }
+    try { refuseSelfSession(info, item, digest, itemAuthors(board, item, { committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard' }); return []; }
     catch (error) { if (error instanceof Refused && error.code === 'SELF_SESSION_VERIFY') return [item.item_id]; throw error; }
   });
 }
@@ -77,7 +79,7 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
   if (values.verifyId !== undefined) {
     const id = idArg(values.verifyId, 'an item id after --verify');
     const item = getItem(board, id);
-    refuseSelfSession(ctx.info, item, undefined, itemAuthors(board, item), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard' });
+    refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard' });
     return { item: await ordered('reserveReview', [id, reservation]), reasons: [] };
   }
   return await ordered('reserveNextReview', [{ agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy,

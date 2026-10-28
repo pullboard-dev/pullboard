@@ -32,6 +32,10 @@ export function bridgeProject(t, mode = 'release') {
   const scratch = helpers.sandbox();
   const gate = join(scratch.dir, 'bridge-gate.mjs');
   const gateCalls = join(scratch.dir, 'gate-calls.jsonl');
+  /** Read the same immutable gate log without changing its raw bytes or missing-file behavior. */
+  function readGateCalls() {
+    return readFileSync(gateCalls, 'utf8');
+  }
   writeFileSync(gate, [
     "import { readFileSync, appendFileSync } from 'node:fs';",
     "import { execFileSync } from 'node:child_process';",
@@ -50,7 +54,7 @@ export function bridgeProject(t, mode = 'release') {
   // while every real Git transfer goes only to the owned local bare repository.
   box.git(box.repo, 'remote', 'set-url', 'origin', 'https://github.com/fixture/repository.git');
   box.git(box.repo, 'config', `url.${remote}.insteadOf`, 'https://github.com/fixture/repository.git');
-  return { ...box, ...helpers, remote, published, gateCalls, mode };
+  return { ...box, ...helpers, remote, published, gateCalls, readGateCalls, mode };
 }
 
 /** Opt in through a real coordinator commit, or the new item merge before its landing receipt. */

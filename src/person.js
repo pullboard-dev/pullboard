@@ -1,3 +1,4 @@
+import { AGENT_SESSION_IDS } from '../packages/kernel/src/core/discovery.js';
 /** Person actions use the view when a terminal is remote or belongs to an agent [B26]. */
 import { createHash } from 'node:crypto';
 import { COORDINATOR } from './config.js';
@@ -20,8 +21,6 @@ export function remoteShell(environment = process.env) {
   return SSH_SHELL_MARKERS.some((name) => Boolean(environment[name]));
 }
 
-/** Session identifiers belong beside the shell markers; only their digest reaches the local checkout binding. */
-export const AGENT_SESSION_IDS = Object.freeze(['CLAUDE_CODE_SESSION_ID', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID']);
 
 /** Distinguish agent sessions, including one stable session for an agent shell with no identifier. */
 export function agentSessionDigest(environment = process.env) {

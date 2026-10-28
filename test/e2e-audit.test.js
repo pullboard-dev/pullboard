@@ -188,7 +188,7 @@ test('production audit runs a CLI journey, reuses an unchanged unit and files a 
   const first = JSON.parse(readFileSync(join(box.directory, box.key + '.json')));
   assert.equal(first.state, 'complete', JSON.stringify(first));
   assert.equal(first.green, true);
-  assert.equal(readFileSync(box.unitMarker, 'utf8'), 'ran');
+  assert.equal(box.readUnitMarker(), 'ran');
   const firstReceipt = box.readGateReceipt(box.receiptStore(box.repo), first.receiptId);
   assert.equal(firstReceipt.collection.full, true);
   const placement = readPlacementReport(box.repo);
@@ -203,7 +203,7 @@ test('production audit runs a CLI journey, reuses an unchanged unit and files a 
   assert.equal(second.green, true);
   assert.ok(second.plan.reused.some(row => row.file === 'test/b.test.js'));
   assert.ok(!second.plan.run.includes('test/b.test.js'));
-  assert.equal(readFileSync(box.unitMarker, 'utf8'), 'ran', 'unchanged body was not executed again');
+  assert.equal(box.readUnitMarker(), 'ran', 'unchanged body was not executed again');
   assert.equal(box.readGateReceipt(box.receiptStore(box.repo), second.receiptId).collection.full, false, 'selected native proof is labeled selected');
   const failedBatch = box.appendBatch({ fail: true });
   await box.runWorker();
