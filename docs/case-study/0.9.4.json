@@ -1,0 +1,338 @@
+{
+  "version": 1,
+  "release": "0.9.4",
+  "phase": "in-progress",
+  "baseline": {
+    "version": 1,
+    "source": {
+      "head": "0d914785c6d9dfa25dbb883ff108bf7ad723df61",
+      "tree": "40c298d7ec3505c1bd3cb3b23b4e52f53c6a29a5",
+      "clean": true
+    },
+    "planCommit": "0d914785c6d9dfa25dbb883ff108bf7ad723df61",
+    "declaredCutImports": 338,
+    "window": {
+      "from": "2026-10-27T22:23:49.000Z",
+      "to": "2026-10-28T00:23:49.000Z",
+      "boundary": "(from,to]"
+    },
+    "structure": {
+      "source": {
+        "head": "0d914785c6d9dfa25dbb883ff108bf7ad723df61",
+        "tree": "40c298d7ec3505c1bd3cb3b23b4e52f53c6a29a5",
+        "clean": true
+      },
+      "importCutsLeft": 338,
+      "plannedCutImports": 338,
+      "planBase": "9773142fae6366b8c6fd95c3284058365a8799e8",
+      "cells": {
+        "total": 43,
+        "completed": 0,
+        "remainingPaths": 1034
+      },
+      "lints": {
+        "boundaries": 6582,
+        "cycles": 0,
+        "shims": 1,
+        "legacySource": 870,
+        "fileSize": 66662,
+        "strays": 805,
+        "documents": 0,
+        "unreachable": 273,
+        "unreachablePackages": 0,
+        "unreachableExports": 1079,
+        "unknown": 160
+      },
+      "unresolvedImports": 109,
+      "unownedProductionModules": 0,
+      "qualification": "Import occurrences use physical non-test imports and committed plan ownership/order, including new files in cell roots. Unresolved loaders and unowned modules are reported, not proven absent. Lint cycles count physical package/app cycles; a flat source tree can have zero physical cycles while planned cuts remain."
+    },
+    "events": {
+      "window": {
+        "from": "2026-10-27T22:23:49.000Z",
+        "to": "2026-10-28T00:23:49.000Z",
+        "bounds": "(from,to]",
+        "hours": 2,
+        "events": 1131
+      },
+      "population": "native event records; receipt durations describe recorded runs, not fresh coverage",
+      "landings": {
+        "n": 5,
+        "distinctItems": 5,
+        "perHour": 2.5,
+        "deduplication": "first item+commit globally in native event order"
+      },
+      "claimToLand": {
+        "n": 5,
+        "population": 5,
+        "unknown": 0,
+        "meanMs": 4250019.8,
+        "medianMs": 4142761,
+        "p95Ms": 8528340
+      },
+      "acceptToLand": {
+        "n": 5,
+        "population": 5,
+        "unknown": 0,
+        "meanMs": 146576.8,
+        "medianMs": 75808,
+        "p95Ms": 419586,
+        "scope": "latest acceptance of latest submitted source head before landing; submit/reject/reopen/withdraw/patch/edit invalidate prior acceptance"
+      },
+      "submits": {
+        "n": 13,
+        "distinctItems": 12,
+        "perSubmittedItem": 1.0833333333333333
+      },
+      "landedCohortSubmits": {
+        "items": 5,
+        "n": 6,
+        "perItem": 1.2,
+        "scope": "recorded timestamped submits through each item's latest landing in window"
+      },
+      "conflictReopens": {
+        "n": 2,
+        "landingDenominator": 5,
+        "perLanding": 0.4,
+        "scope": "window reopen events with typed conflict cause/metadata only"
+      },
+      "proofReceipts": {
+        "n": 75,
+        "deduplication": "native receipt id globally; conflicting ids excluded",
+        "windowTimestamp": "receipt.at only; absent/invalid timestamps excluded, never inferred from event recording time",
+        "submitReceiptDuration": {
+          "n": 68,
+          "population": 68,
+          "unknown": 0,
+          "meanMs": 191289.8088235294,
+          "medianMs": 126644.5,
+          "p95Ms": 426833,
+          "phaseMeaning": "unknown; recorded receipt.durationMs only"
+        },
+        "fullSuite": {
+          "n": 0,
+          "population": 0,
+          "unknown": 0,
+          "meanMs": null,
+          "medianMs": null,
+          "p95Ms": null,
+          "evidence": "missing explicit full-suite receipts"
+        },
+        "reuse": {
+          "explicitReused": 0,
+          "unknown": 75
+        },
+        "runtimeNodes": [
+          "22.22.2"
+        ],
+        "qualification": "recorded receipt duration phase meaning is unknown; neither total-run nor frozen-check duration is inferred; recorded runtime is executor metadata, deeper runtimes unknown"
+      },
+      "unknown": {
+        "timestamps": 0,
+        "details": 0,
+        "landingIdentity": 0,
+        "receiptIdentity": 0,
+        "conflictingReceiptIds": 0,
+        "receiptTimestamps": 0,
+        "scope": "invalid history anchors/deduplication inputs across the full recorded event table"
+      }
+    },
+    "durations": {
+      "frozenCheck": {
+        "n": 33,
+        "medianMs": 105128,
+        "p95Ms": 538779,
+        "candidates": 68,
+        "unknown": 35,
+        "population": "unique submit receipt IDs in (from,to] that also bind a canonical v2 receipt, source head/tree, current retained frozen digest and exact frozen command SHA256",
+        "qualification": "Recorded frozen-command durationMs, not controller wall time or inherited timing receipt runMs. Historical criteria replaced by refreezes are unknown. Includes green and red attempts; canonical receipt files are required and no total/full-suite duration is inferred."
+      },
+      "historicalSuiteLogs": {
+        "n": 104,
+        "medianMs": 735813.2617500001,
+        "p95Ms": 2739608.032041,
+        "sourceSHA256": "91abcac02d2bc6a9942257903f4ca92c3c95547935cd95c2981affa69e6c22bb",
+        "window": {
+          "from": "2026-10-14T23:14:00.000Z",
+          "to": "2026-10-18T00:01:00.000Z",
+          "basis": "source file modification timestamps"
+        },
+        "zeroFailureSummaries": 76,
+        "failingSummaries": 28,
+        "population": "one extracted TAP duration per unique coordinator-supplied historical full-suite-labelled log file",
+        "qualification": "Historical log observations, including failed or possibly incomplete collections; filenames and zero failures do not prove full coverage, source identity, or a current green suite. This separate population is not the board-event observation window."
+      }
+    },
+    "qualification": "Original committed 338-cut plan source measured with the current tool. Later regenerated 364-cut plan and current progress remain separate. Historical suite-labelled TAP log observations have their own 14–18 October population, not this board-event window.",
+    "capture": {
+      "toolHead": "39f5eb6b333f447810de4e007b739016827e40bc",
+      "toolTree": "52d6d1385768938ea266e0a8d49d1d7adff39766",
+      "nodeController": "22.13.1",
+      "completedAt": "2026-10-28T08:35:13.600366+00:00",
+      "method": "Current read-only event/lint generator against original committed plan checkout, with live board opened readOnly; temporary source worktree removed immediately. Metrics are immutable captured data, not a mutable lint allowance."
+    },
+    "sha256": "dead8667dd87029295fbc7ec76ca590ea0205bc0ab0f8a148bea08416cefe50c"
+  },
+  "observation": {
+    "window": {
+      "from": "2026-10-28T06:43:22.000Z",
+      "to": "2026-10-28T08:43:22.000Z",
+      "boundary": "(from,to]"
+    },
+    "structure": {
+      "source": {
+        "head": "9717767160956ae714aedb7ebd6146f509e9acb8",
+        "tree": "be17829d33a67e9f45f6c91c4ef899d9009be539",
+        "clean": true
+      },
+      "planSource": {
+        "head": "9717767160956ae714aedb7ebd6146f509e9acb8",
+        "tree": "be17829d33a67e9f45f6c91c4ef899d9009be539",
+        "clean": true,
+        "contentSHA256": "db4f4c6052a35cd7f25e37cca52fd2bce120f1048babfdaf5aea5df486f9eccb"
+      },
+      "importCutsLeft": 342,
+      "plannedCutImports": 364,
+      "planBase": "b068c560b665790d78507a0db598cf9d130e9232",
+      "cells": {
+        "total": 43,
+        "completed": 1,
+        "remainingPaths": 1083
+      },
+      "lints": {
+        "boundaries": 7194,
+        "cycles": 0,
+        "shims": 4,
+        "legacySource": 1041,
+        "fileSize": 66930,
+        "strays": 885,
+        "documents": 0,
+        "unreachable": 375,
+        "unreachablePackages": 1,
+        "unreachableExports": 1141,
+        "unknown": 163
+      },
+      "unresolvedImports": 113,
+      "unownedProductionModules": 48,
+      "qualification": "Import occurrences use physical non-test imports and committed plan ownership/order, including new files in cell roots. A body moved behind a transparent shim counts as a completed move; shim removal remains separate measured debt. Unresolved loaders and unowned modules are reported, not proven absent. Lint cycles count physical package/app cycles; a flat source tree can have zero physical cycles while planned cuts remain."
+    },
+    "events": {
+      "window": {
+        "from": "2026-10-28T06:43:22.000Z",
+        "to": "2026-10-28T08:43:22.000Z",
+        "bounds": "(from,to]",
+        "hours": 2,
+        "events": 1947
+      },
+      "population": "native event records; receipt durations describe recorded runs, not fresh coverage",
+      "landings": {
+        "n": 19,
+        "distinctItems": 19,
+        "perHour": 9.5,
+        "deduplication": "first item+commit globally in native event order"
+      },
+      "claimToLand": {
+        "n": 19,
+        "population": 19,
+        "unknown": 0,
+        "meanMs": 2932945.5789473685,
+        "medianMs": 2609672,
+        "p95Ms": 8780768
+      },
+      "acceptToLand": {
+        "n": 19,
+        "population": 19,
+        "unknown": 0,
+        "meanMs": 114959.94736842105,
+        "medianMs": 121456,
+        "p95Ms": 238788,
+        "scope": "latest acceptance of latest submitted source head before landing; submit/reject/reopen/withdraw/patch/edit invalidate prior acceptance"
+      },
+      "submits": {
+        "n": 27,
+        "distinctItems": 27,
+        "perSubmittedItem": 1
+      },
+      "landedCohortSubmits": {
+        "items": 19,
+        "n": 25,
+        "perItem": 1.3157894736842106,
+        "scope": "recorded timestamped submits through each item's latest landing in window"
+      },
+      "conflictReopens": {
+        "n": 2,
+        "landingDenominator": 19,
+        "perLanding": 0.10526315789473684,
+        "scope": "window reopen events with typed conflict cause/metadata only"
+      },
+      "proofReceipts": {
+        "n": 116,
+        "deduplication": "native receipt id globally; conflicting ids excluded",
+        "windowTimestamp": "receipt.at only; absent/invalid timestamps excluded, never inferred from event recording time",
+        "submitReceiptDuration": {
+          "n": 86,
+          "population": 86,
+          "unknown": 0,
+          "meanMs": 73241.27906976744,
+          "medianMs": 43460,
+          "p95Ms": 128437,
+          "phaseMeaning": "unknown; recorded receipt.durationMs only"
+        },
+        "fullSuite": {
+          "n": 0,
+          "population": 0,
+          "unknown": 0,
+          "meanMs": null,
+          "medianMs": null,
+          "p95Ms": null,
+          "evidence": "missing explicit full-suite receipts"
+        },
+        "reuse": {
+          "explicitReused": 0,
+          "unknown": 116
+        },
+        "runtimeNodes": [
+          "22.22.2"
+        ],
+        "qualification": "recorded receipt duration phase meaning is unknown; neither total-run nor frozen-check duration is inferred; recorded runtime is executor metadata, deeper runtimes unknown"
+      },
+      "unknown": {
+        "timestamps": 0,
+        "details": 0,
+        "landingIdentity": 0,
+        "receiptIdentity": 0,
+        "conflictingReceiptIds": 0,
+        "receiptTimestamps": 0,
+        "scope": "invalid history anchors/deduplication inputs across the full recorded event table"
+      }
+    },
+    "durations": {
+      "frozenCheck": {
+        "n": 44,
+        "medianMs": 31123.5,
+        "p95Ms": 146908,
+        "candidates": 86,
+        "unknown": 42,
+        "conflictingIds": 0,
+        "population": "globally consistent unique submit receipt IDs in (from,to] that also bind a canonical v2 receipt, source head/tree, current retained frozen digest and exact frozen command SHA256",
+        "qualification": "Recorded frozen-command durationMs, not controller wall time or inherited timing receipt runMs. Historical criteria replaced by refreezes are unknown. Includes green and red attempts; canonical receipt files are required and no total/full-suite duration is inferred."
+      },
+      "historicalSuiteLogs": {
+        "n": 104,
+        "medianMs": 735813.2617500001,
+        "p95Ms": 2739608.032041,
+        "sourceSHA256": "91abcac02d2bc6a9942257903f4ca92c3c95547935cd95c2981affa69e6c22bb",
+        "window": {
+          "from": "2026-10-14T23:14:00.000Z",
+          "to": "2026-10-18T00:01:00.000Z",
+          "basis": "source file modification timestamps"
+        },
+        "zeroFailureSummaries": 76,
+        "failingSummaries": 28,
+        "population": "one extracted TAP duration per unique coordinator-supplied historical full-suite-labelled log file",
+        "qualification": "Historical log observations, including failed or possibly incomplete collections; filenames and zero failures do not prove full coverage, source identity, or a current green suite. This separate population is not the board-event observation window."
+      }
+    }
+  },
+  "qualification": "Windows contain different workloads, plans and agent populations; these observations do not establish a causal speedup. This aggregate report does not authorize a release. A structure-finished label does not prove a full suite passed. Missing duration evidence remains unknown; no test count is used to infer a full run. The final release still requires the person's approval."
+}

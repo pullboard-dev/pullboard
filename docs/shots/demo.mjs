@@ -180,7 +180,7 @@ async function buildBoard(base, env) {
   setDemoMinutes(env, 3);
   pb(review, 'next', '--verify');
   setDemoMinutes(env, 4);
-  pb(review, 'verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--note', 'The example skipped an edge; revise it before merging.');
+  pb(review, 'verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'The demo item is accepted after review.', '--note', 'The example skipped an edge; revise it before merging.');
   setDemoMinutes(env, 5);
   pb(app, 'claim', '1');
   await writeFile(join(app, 'src', 'demo.js'), 'export const reviewed = true;\n');
