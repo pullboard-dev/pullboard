@@ -1,3 +1,5 @@
+import { constrainedLandingHost } from './landing-host.js';
+import { captureReleaseQueue } from './release-queue.js';
 import { RELEASE_EXECUTORS_ENV } from './gate-run-receipt.js';
 import { RELEASE_PARTICIPATION_PREFIX } from './gate-run-receipt.js';
 import { fileTimesPath } from './test-value-timing.js';
@@ -631,4 +633,9 @@ export function printShardFileTimes(path, write = text => process.stdout.write(t
     } catch { /* A torn last line from a killed file process carries no time. */ }
   }
   for (const [file, ms] of Object.entries(times)) write(`${FILE_TIME_LINE}${Math.round(ms)} ${file}\n`);
+}
+
+/** Supply canonical landing policy readers without moving their authority into the lower gate. */
+export function landingExecutionServices() {
+  return Object.freeze({ constrainedLandingHost, captureReleaseQueue, releaseExecutors });
 }

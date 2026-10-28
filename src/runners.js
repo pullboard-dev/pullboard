@@ -1,3 +1,7 @@
+import { sampleRunnerLoad } from './runner-load.js';
+import { localRunnerDescriptor } from './runner-load.js';
+import { carriedRunnerTrunk } from './runner-policy.js';
+import { probeRunnerTransport } from './runner-transport.js';
 import { installRunnerPackage } from './runner-package-install.js';
 import {
   captureRunnerTooling,
@@ -888,3 +892,9 @@ function isRunnerControllerEntry() {
 }
 
 if (isRunnerControllerEntry()) serveRunnerController().catch(error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
+
+/** Supply canonical late-bound runner operations to an actual higher gate composition root. */
+export function runnerExecutionServices() {
+  return Object.freeze({ runOnRunner, runOnRunnerAsync, sampleRunnerLoad, localRunnerDescriptor,
+    carriedRunnerTrunk, probeRunnerTransport });
+}

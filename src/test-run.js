@@ -35,7 +35,7 @@ import {
   withMainCheckout,
 } from './main-red.js';
 import { Refused } from './refused.js';
-import { runnerSource } from './runners.js';
+import { runnerSource } from './gate-policy-load.js';
 import {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
