@@ -95,6 +95,17 @@ test('every overlapping file is named: an item file, a file a checked test impor
   });
 });
 
+test('a checked dependency changed and reverted by main still refuses the proof [C7]', async t => {
+  const p = project(t);
+  p.land({ 'web/shared.js': "export const shared = 'changed-';\n" }, 'feat: change a checked dependency');
+  p.land({ 'web/shared.js': "export const shared = 'shared-';\n" }, 'fix: restore the checked dependency');
+  const head = p.git(p.work, 'rev-parse', 'HEAD');
+  await assert.rejects(composeAfterProof(p.work, p.proof(), SERVICES),
+    error => error.code === 'MAIN_NOT_COMPOSED' && /web\/shared\.js/u.test(error.message),
+    'each main commit counts even when their endpoint diff cancels out');
+  assert.equal(p.git(p.work, 'rev-parse', 'HEAD'), head, 'the refused range is not merged');
+});
+
 test('an unrelated source file read only by an unselected test keeps the proof [C7]', async t => {
   const p = project(t);
   p.land({ 'web/other.js': "export const other = 'moved';\n" });
