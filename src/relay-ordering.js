@@ -129,7 +129,10 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
     for (let tries = 0; tries < 100; tries += 1) {
       const actor = credentialActor(pending.move);
       try {
-        const transport = await conflictRecords.transport(root, pending.move, localRecords, () => actorTransport(root, file, state, actor, io));
+        const transport = await conflictRecords.transport(root, pending.move,
+          (checkout, move) => localRecords(checkout, board => board.enginePorts.requirePreparedComputedConflict(
+            board, move.args[0], move.args[1].agentId, move.args[1].computedConflict)),
+          () => actorTransport(root, file, state, actor, io));
         const reply = await request(transport, '/api/v1/boards/' + state.board + '/moves', { method: 'POST',
           body: { sequence: pending.sequence, sealed: pending.sealed, ...(pending.registration ? { registration: pending.registration } : {}) } }, io);
         if (reply.event?.event_id !== pending.sequence || reply.event.sealed !== pending.sealed) throw new Refused('RELAY_RESPONSE', 'the relay acknowledgement differs from this executable send; fetch the configured relay');

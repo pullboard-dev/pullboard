@@ -139,7 +139,6 @@ import {
 } from './doctrine-checks.js';
 
 import { signedMoveProblem } from './person-signing.js';
-import { personAuthority } from './relay-sender.js';
 import {
   bindLocalSession,
   HOOK_CHECKOUT_WAIT_MS,
@@ -589,7 +588,7 @@ export function relayOutboxSetting(root) {
 
 export async function ordered(ctx, board, operation, args) {
   // With signed person moves on, a person-only move counts only as a passkey-confirmed request [E22].
-  const unsigned = signedMoveProblem(board, personAuthority({ operation, args }), ctx.io.personRequest, { strict: true });
+  const unsigned = signedMoveProblem(board, board.enginePorts.personAuthority({ operation, args }), ctx.io.personRequest, { strict: true });
   if (unsigned) throw unsigned;
   const initialBaseline = initialSpecApprovalBaseline(ctx, board, operation);
   // Only a reject or a reopen can open a builder's first-refusal window (#954), so an accept never reads the coordinator's policy.
