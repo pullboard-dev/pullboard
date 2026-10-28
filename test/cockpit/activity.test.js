@@ -407,6 +407,7 @@ test('times say which day they were [N26]', async () => {
     const bare = (list) => list.length > 0 && list.every((time) => /^\d\d:\d\d$/.test(time));
 
     const now = await openPage(view);
+    await now.click({ tab: 'items' });
     assert.deepEqual([days(now.show('feed')), days(now.show('activity'))], [[], ['Today']], 'shouts from today need no rule above them');
     assert.deepEqual(ages(now.show('feed')).map(([age, clock]) => [age, /^\d\d:\d\d$/.test(clock)]), [['now', true]], 'a shout from today says now, its clock time on hover');
     assert.ok(bare(times(now.show('detail'))), 'a history from today shows bare times');
@@ -417,6 +418,7 @@ test('times say which day they were [N26]', async () => {
     const weekday = new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
     const date = new Date().toLocaleDateString([], { month: 'short', day: 'numeric' });
     const later = await openPage(view, { later: 2 });
+    await later.click({ tab: 'items' });
     assert.deepEqual([days(later.show('feed')), days(later.show('activity'))], [[weekday], [weekday]], 'two days on, the feeds name the day');
     assert.ok(bare(times(later.show('activity'))), 'activity rows keep the clock time');
     assert.deepEqual(ages(later.show('feed')).map(([age, clock]) => [age, new RegExp(`^${date} \\d\\d:\\d\\d$`).test(clock)]), [['2d ago', true]], 'a shout says how long ago, with its date and time on hover');

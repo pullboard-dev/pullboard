@@ -23,7 +23,7 @@ import { test } from 'node:test';
 
 const ROOT = resolve(import.meta.dirname, '..');
 /** The files that hold these patterns to test them; every other tracked file is scanned. */
-const PATTERN_HOLDERS = new Set(['test/privacy-words.test.js', 'docs/privacy.test.js', 'test/cockpit/privacy-scan.test.js']);
+const PATTERN_HOLDERS = new Set(['test/privacy-words.test.js', 'docs/privacy.test.js', 'test/privacy-scan-guard.test.js']);
 /** Placeholder home folders that tests plant on purpose to prove redaction. */
 const PLACEHOLDER_HOMES = new Set(['private', 'example', 'person', 'user', 'me', 'you', 'name']);
 /** The one exact container-home declaration that is not a host user's home path. */
