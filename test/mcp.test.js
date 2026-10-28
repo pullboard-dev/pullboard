@@ -233,7 +233,7 @@ test('[A9,P5] an MCP client reads the board and shouts as its agent', async (t) 
   assert.match(hello.result.instructions, new RegExp(`agent ${box.agent} in the web lane`));
 
   const listed = await client.request('tools/list');
-  assert.deepEqual(listed.result.tools.map((tool) => tool.name), ['board_status', 'show_item', 'item_slice', 'shout', 'capture_idea', 'next', 'claim', 'submit', 'verify', 'resume']);
+  assert.deepEqual(listed.result.tools.map((tool) => tool.name), ['board_status', 'show_item', 'item_slice', 'usages', 'impact', 'cell', 'shout', 'capture_idea', 'next', 'claim', 'submit', 'verify', 'resume']);
   for (const tool of listed.result.tools) {
     assert.equal(tool.inputSchema.type, 'object', tool.name);
     assert.equal(tool.inputSchema.additionalProperties, false, `${tool.name} refuses unknown arguments`);
@@ -496,4 +496,71 @@ test('MCP rejects require and preserve caller-supplied frozen wording [A9,V6,H16
   const shown = cli(box, box.repo, ['show', String(id)]);
   assert.equal(shown.document.verdicts[0].clause, clause);
   assertProtocolOnly((await reviewer.close()).lines);
+});
+
+
+test('MCP code-map tools pin usages, impact and cell answers and refuse escaping paths [A9,C7,D3]', async t => {
+  const box = project(t);
+  const files = {
+    'package.json': JSON.stringify({ type: 'module' }),
+    'src/leaf.js': 'export function leaf() { return 1; }\n',
+    'src/caller.js': "import { leaf as chosen } from './leaf.js';\nexport function caller() { return chosen(); }\n",
+    'test/leaf.test.js': "import { caller } from '../src/caller.js';\ncaller();\n",
+    'test/other.test.js': 'export const unrelated = true;\n',
+    'bin/cells-plan.json': JSON.stringify({ cells: [{ file: 'bin/cells-plan/01-leaf.json' }, { file: 'bin/cells-plan/02-callers.json' }], stays: [] }),
+    'bin/cells-plan/01-leaf.json': JSON.stringify({ order: 1, name: 'leaf', frontDoor: 'src/leaf.js', paths: [['src/leaf.js', 'packages/leaf/index.js']] }),
+    'bin/cells-plan/02-callers.json': JSON.stringify({ order: 2, name: 'callers', frontDoor: 'src/caller.js', paths: [['src/caller.js', 'packages/callers/index.js']] }),
+    'bin/cells-plan/temporary-edges.json': JSON.stringify({ version: 1, edges: [] }),
+  };
+  for (const [file, source] of Object.entries(files)) {
+    mkdirSync(resolve(box.repo, file, '..'), { recursive: true });
+    writeFileSync(join(box.repo, file), source);
+  }
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: commit code-map fixture');
+  box.git(box.web, 'merge', '--ff-only', 'main');
+  const commit = box.git(box.web, 'rev-parse', 'HEAD');
+  const client = mcpClient(t, box, box.web, box.sessionA);
+  await initialize(client);
+  const requests = [['usages', { target: 'src/leaf.js#leaf' }], ['impact', { files: ['src/leaf.js'] }], ['cell', { path: 'src/caller.js' }]];
+  const answers = [];
+  for (const [name, args] of requests) {
+    const first = await client.call(name, args);
+    assert.equal(first.isError, false, JSON.stringify(first));
+    assert.deepEqual(await client.call(name, args), first, `${name} is deterministic at the same commit`);
+    assert.equal(first.structuredContent.commit, commit);
+    answers.push(first.structuredContent);
+  }
+  assert.deepEqual(answers[0].importers, ['src/caller.js']);
+  assert.deepEqual(answers[0].callers, [{ file: 'src/caller.js', function: 'caller', line: 2 }]);
+  assert.equal(answers[0].complete, false, 'static observations never claim a complete dynamic call graph');
+  assert.deepEqual(answers[1].dependentModules, ['src/caller.js', 'test/leaf.test.js']);
+  assert.deepEqual(answers[1].tests.files, ['test/leaf.test.js']);
+  assert.equal(answers[1].tests.full, false);
+  assert.equal(answers[2].cell, 'callers');
+  assert.equal(answers[2].frontDoor, 'src/caller.js');
+  assert.deepEqual(answers[2].allowedImports, ['leaf']);
+  writeFileSync(join(box.web, 'src/caller.js'), 'export function caller() {}\n');
+  assert.deepEqual((await client.call('usages', requests[0][1])).structuredContent, answers[0], 'dirty working bytes do not replace committed source');
+  for (const [name, args] of [['usages', { target: '../outside.js#leaf' }], ['impact', { files: ['/outside.js'] }], ['cell', { path: 'src/../../outside.js' }]]) {
+    const refused = await client.call(name, args);
+    assert.equal(refused.isError, true, name);
+    assert.equal(refused.structuredContent.error.code, 'BAD_REQUEST');
+    assert.match(refused.structuredContent.error.message, /outside the repository/u);
+  }
+  const wrong = await client.call('impact', { files: 'src/leaf.js' });
+  assert.equal(wrong.isError, true, 'the array schema is enforced before graph reads');
+  box.git(box.web, 'restore', 'src/caller.js');
+  writeFileSync(join(box.repo, 'src/opaque.js'), "export const load = name => import(name);\n");
+  writeFileSync(join(box.repo, 'test/opaque.test.js'), "import { load } from '../src/opaque.js';\nexport { load };\n");
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: add an opaque import control');
+  box.git(box.web, 'merge', '--ff-only', 'main');
+  const opaque = await client.call('impact', { files: ['src/leaf.js'] });
+  assert.equal(opaque.isError, false);
+  assert.equal(opaque.structuredContent.tests.full, false, 'the native selector retains the opaque root without dropping known dependent tests');
+  assert.match(opaque.structuredContent.tests.reason, /unresolved root closures retained/u);
+  assert.ok(opaque.structuredContent.unknown.some(row => row.file === 'src/opaque.js'));
+  assert.deepEqual(opaque.structuredContent.tests.files, ['test/leaf.test.js', 'test/opaque.test.js']);
+  assert.equal((await client.close()).code, 0);
 });

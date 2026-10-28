@@ -84,11 +84,12 @@ export function writePlan(root, plan) {
 }
 
 /** Read the committed plan back as one object, refusing an index whose shard is missing. */
-export function readPlan(root) {
-  const index = JSON.parse(readFileSync(join(root, PLAN_FILE), 'utf8'));
+export function readPlan(root, read = file => readFileSync(join(root, file), 'utf8')) {
+  const index = JSON.parse(read(PLAN_FILE));
   const cells = index.cells.map(row => {
-    if (!existsSync(join(root, row.file))) throw new Refused('CELLS_PLAN_SHARD', `${row.file} is missing; regenerate with node bin/cells-plan.js --write`);
-    return JSON.parse(readFileSync(join(root, row.file), 'utf8'));
+    let source;
+    try { source = read(row.file); } catch { throw new Refused('CELLS_PLAN_SHARD', `${row.file} is missing; regenerate with node bin/cells-plan.js --write`); }
+    return JSON.parse(source);
   });
   return { ...index, cells };
 }
