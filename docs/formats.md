@@ -504,7 +504,7 @@ The computed-grant engine adds `grantEngine` to new join, claim and renewal even
 | `row_apply` | coordinator | `events`, atomic cited-spec corrections `refreezes`, explicit draft omissions `skippedDrafts` |
 | `person_signing` | enabling agent, or person | engine-76 `signed`, `request`, `presence`, `intent` |
 | `person_proposal` | proposing agent | engine-76 `request`, `verb` |
-| `source_advanced` | coordinator | Exact-source proof: `version`, `board`, immutable `submitted`, `status`, `previous`, `inputHead`, `trunk`, `bar`, `patchDigest`, source/review episodes and reservation, prior `verdict`, checked `head`, `tree`, `mergeTree`, reviewed `paths`, regenerated paths, `selectionDigest`, and genuine criterion/affected `phases` receipts. |
+| `source_advanced` | coordinator | Exact checked source and native receipt custody: `version`, `board`, `submitted`, `status`, `previous`, `inputHead`, `trunk`, `bar`, `patchDigest`, `episode`, `reviewEpisode`, `reviewBy`, `reviewUntil`, `verdict`, `head`, `tree`, `mergeTree`, `paths`, `generated`, `selectionDigest`, `phases`. |
 <!-- events:end -->
 
 A CLI `accept` event includes `check: "none"` when no frozen item check ran or `check: "green"` when it passed. Older accept events and records without this field read as `unknown`; the result stays in event detail and does not change the board schema or event-log version.
