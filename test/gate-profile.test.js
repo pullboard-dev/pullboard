@@ -495,7 +495,8 @@ test('a submit timing profile records both phases and one queue wait for selecte
     ].join('\n') + '\n');
     writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: gateCommand, ...(scenario.full ? {} : { affectedTests: 'node bin/run-tests.js' }) }, null, 2));
     box.git(box.repo, 'add', '-A');
-    box.git(box.repo, 'commit', '-q', '-m', 'test: build isolated submit profile fixture');
+    // The copied shipped package is 11MB, past the 8MB staged-diff secret-scan buffer; this synthetic fixture repo skips that hook.
+    box.git(box.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: build isolated submit profile fixture');
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
     const added = box.run(box.repo, 'add', 'web', `Profile ${scenario.name}`, '--specs', 'G1',
       '--criterion', 'submit profiles both check and proof', '--check', checkCommand, '--wait');
