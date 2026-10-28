@@ -163,7 +163,7 @@ test('a real worker runs beyond 1024 legacy refs while another live job keeps it
   for (const directory of [repo, home, bin, worker, machine]) mkdirSync(directory, { recursive: true });
   git(repo, ['init', '-q', '-b', 'main']);
   const commits = history(repo, 1030);
-  git(repo, ['checkout', '-q', '--detach', commits[0], '--force']);
+  git(repo, ['checkout', '-q', 'main', '--', '.']);
   const requests = join(box.dir, 'requests'), stderr = join(box.dir, 'worker.stderr');
   installSshStandIn({ bin, worker, home, machineHome: machine, requests, stderrLog: stderr });
   const started = join(box.dir, 'started'), release = join(box.dir, 'release');
@@ -180,6 +180,9 @@ test('a real worker runs beyond 1024 legacy refs while another live job keeps it
     assert.ok(parsed.output.includes('SOURCE_HEAD:' + expected), parsed.output);
     return parsed;
   }
+  const showHead = "node -e \"console.log('SOURCE_HEAD:'+require('node:child_process').execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim())\"";
+  await execute(showHead, commits.at(-1));
+  git(repo, ['checkout', '-q', '--detach', commits[0]]);
   const held = execute(command, commits[0]);
   try {
     await marker(started, held);
@@ -188,12 +191,11 @@ test('a real worker runs beyond 1024 legacy refs while another live job keeps it
     const repoId = createHash('sha256').update(git(repo, ['rev-parse', '--path-format=absolute', '--git-common-dir'])).digest('hex');
     const cache = join(runnerRoot, 'repos', `${repoId}.git`), lease = await cacheLease(runnerRoot, repoId);
     try {
-      git(cache, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', repo, 'refs/heads/main']);
       git(cache, ['update-ref', '--stdin'], commits.map(head => `update refs/pullboard/candidates/${head} ${head}`).join('\n') + '\n');
       assert.equal(git(cache, ['for-each-ref', '--format=%(refname)', 'refs/pullboard/candidates']).split('\n').length, 1030);
     } finally { lease.release(); }
     git(repo, ['checkout', '-q', '--detach', commits.at(-1)]);
-    await execute("node -e \"console.log('SOURCE_HEAD:'+require('node:child_process').execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim())\"", commits.at(-1));
+    await execute(showHead, commits.at(-1));
     const retained = git(cache, ['for-each-ref', '--format=%(objectname)', 'refs/pullboard/candidates']).split('\n');
     assert.ok(retained.length <= 300);
     assert.ok(retained.includes(commits[0]), 'the distinct old running job source ref survives');
