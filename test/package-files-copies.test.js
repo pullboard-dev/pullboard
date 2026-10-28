@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/runner-tooling-snapshot.js src/runner-module-parser.js src/runners.js */
+/** @pullboard-test-loads src/runner-tooling-snapshot.js src/runner-module-parser.js src/runner-module-parser-worker.js src/runners.js */
 /** Private shipped-source fixtures; these tests do not claim execution on a physical runner [C7,P3]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -540,5 +540,8 @@ test('private compiler missing duplicate and spurious hints retain atomic reques
   request(2,["import './second.js';"]);worker.send(2);worker.send(2);
   assert.deepEqual(await reply(2),{version:1,id:2,results:[{compiles:true,imports:['./second.js']}]});
   assert.equal(existsSync(marker),false);
-  assert.deepEqual(readdirSync(protocol).filter(name=>name.startsWith('reply-')),['reply-2.json']);
+  rmSync(join(protocol,'request-2.json'));rmSync(join(protocol,'reply-2.json'));
+  request(3,["import './watcher-fallback.js';"]); // No IPC hint after startup or previous replies.
+  assert.deepEqual(await reply(3),{version:1,id:3,results:[{compiles:true,imports:['./watcher-fallback.js']}]});
+  assert.deepEqual(readdirSync(protocol).filter(name=>name.startsWith('reply-')),['reply-3.json']);
 });
