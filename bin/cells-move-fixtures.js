@@ -3,6 +3,7 @@ import { posix } from 'node:path';
 import { createHash } from 'node:crypto';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../src/cell-binding-uses.js';
+import { localFunctionCallSets } from '../src/cell-binding-uses.js';
 import { stringSuffixDisjoint } from '../src/path-map-operands.js';
 import { repositoryImport } from '../src/import-map.js';
 
@@ -313,11 +314,19 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
       else if ('([{'.includes(code[end])) { const finish = close(end); if (finish < 0) break; end = finish + 1; }
       else end++;
     }
-    const nameAt = match.index + match[0].indexOf(match[1], 'const'.length);
-    const entries = declarations.get(match[1]) ?? [];
-    entries.push({ range: trim(code, start, end), at: nameAt });
-    declarations.set(match[1], entries);
-    if (!imported.bindings.has(match[1]) && match[1] !== 'URL') probeBody = blank(probeBody, nameAt, nameAt + match[1].length);
+    const declared = parts(start, end);
+    if (!declared || declared.length > 128) continue;
+    for (const [index, entry] of declared.entries()) {
+      const next = index ? new RegExp(`^(${ID})\\s*=`, 'u').exec(code.slice(entry.start, entry.end)) : null;
+      if (index && !next) continue;
+      const name = index ? next[1] : match[1];
+      const nameAt = index ? entry.start : match.index + match[0].indexOf(name, 'const'.length);
+      const range = index ? trim(code, entry.start + next[0].length, entry.end) : entry;
+      const entries = declarations.get(name) ?? [];
+      entries.push({ range, at: nameAt });
+      declarations.set(name, entries);
+      if (!imported.bindings.has(name) && name !== 'URL') probeBody = blank(probeBody, nameAt, nameAt + name.length);
+    }
   }
   for (const match of imported.body.matchAll(new RegExp(`\\bfor\\s*\\(\\s*const\\s+(${ID})\\s+of\\b\\s*`, 'gu'))) {
     const open = code.indexOf('(', match.index), end = close(open);
@@ -683,8 +692,126 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
     return leaf;
   }
 
+  let functions;
+  const parameterProofs = new Map();
+  /** Load complete compiler-proven caller sets once; unsupported syntax grants no parameter authority. */
+  function localFunctions() {
+    if (functions === undefined) {
+      try { functions = localFunctionCallSets(source, { file }); }
+      catch { functions = []; }
+    }
+    return functions;
+  }
+
+  /** A helper's path value may be observed only as a direct operand of a proven native path or filesystem call. */
+  function nativePathOperand(at, length, fn) {
+    for (let open = at - 1; open >= fn.bodyStart; open--) {
+      if (code[open] !== '(') continue;
+      const end = close(open);
+      if (end < at + length) continue;
+      const callee = new RegExp(`(${ID})(?:\\s*\\.\\s*(${ID}))?\\s*$`, 'u').exec(code.slice(fn.bodyStart, open));
+      if (!callee) return false;
+      const parsed = call({ start: fn.bodyStart + callee.index, end: end + 1 });
+      return Boolean(parsed?.args.some(arg => arg.start === at && arg.end === at + length)
+        && (operation(parsed, 'fs', ['readFileSync', 'copyFileSync', 'cpSync', 'existsSync', 'statSync', 'lstatSync'])
+          || operation(parsed, 'path', ['join', 'resolve', 'dirname']) || operation(parsed, 'url', ['fileURLToPath'])));
+    }
+    return false;
+  }
+
+  /** Substitute only a complete direct caller set for one immutable, unshadowed scalar parameter read. */
+  function helperArguments(range) {
+    const name = code.slice(range.start, range.end);
+    if (!new RegExp(`^${ID}$`, 'u').test(name)) return null;
+    const fn = localFunctions().filter(row => range.start >= row.bodyStart && range.end <= row.bodyEnd)
+      .sort((left, right) => right.bodyStart - left.bodyStart)[0];
+    if (!fn?.calls.length) return null;
+    const parameters = parts(fn.parameterStart, fn.parameterEnd);
+    const index = parameters?.findIndex(parameter => code.slice(parameter.start, parameter.end) === name);
+    if (index === undefined || index < 0 || parameters.some(parameter => !new RegExp(`^${ID}$`, 'u').test(code.slice(parameter.start, parameter.end)))) return null;
+    const key = `${fn.nameAt}:${name}`;
+    if (!parameterProofs.has(key)) {
+      const body = blank(blank(code, 0, fn.bodyStart), fn.bodyEnd, code.length);
+      let row;
+      try { row = bindingReadsForModules([{ file, source, body, scopeBraces: true, bindings: [{ local: name }] }]).get(file).get(name); }
+      catch { row = null; }
+      parameterProofs.set(key, row && !row.opaque && !row.potentialShadow
+        && row.reads.every(at => nativePathOperand(at, name.length, fn)) ? row : null);
+    }
+    const proof = parameterProofs.get(key);
+    return proof?.reads.includes(range.start) && fn.calls.every(site => site.args[index]) ? fn.calls.map(site => site.args[index]) : null;
+  }
+
+  /** Select an explicit own return field; later spreads, computed keys and prototype setters cannot establish it. */
+  function objectField(range, name) {
+    if (code[range.start] !== '{' || close(range.start) !== range.end - 1) return null;
+    const entries = parts(range.start + 1, range.end - 1);
+    if (!entries || entries.length > 128) return null;
+    let selected = null;
+    for (const entry of entries) {
+      const text = code.slice(entry.start, entry.end);
+      const field = new RegExp(`^(${ID})(?:\\s*:\\s*|$)`, 'u').exec(text);
+      if (!field) { selected = null; continue; }
+      if (field[1] === '__proto__') return null;
+      if (field[1] === name) selected = field[0].includes(':')
+        ? trim(code, entry.start + field[0].length, entry.end) : { start: entry.start, end: entry.start + name.length };
+    }
+    return selected;
+  }
+
+  /** Reject receiver escapes, writes and arbitrary methods instead of trusting a repeated property spelling. */
+  function immutableReceiver(name, at, declared) {
+    const entry = (declarations.get(name) ?? []).find(row => row.range === declared);
+    const scope = entry && declarationScope(entry);
+    if (!scope) return false;
+    const row = scopedReads.get(`${name}:${entry.at}:${scope.start}:${scope.end}`);
+    if (!row || row.opaque || row.potentialShadow || !row.reads.includes(at)) return false;
+    return row.reads.every(read => {
+      const member = new RegExp(`^\\s*(?:\\.\\s*${ID}\\s*)+`, 'u').exec(code.slice(read + name.length));
+      if (!member || /\bdelete\s*$/u.test(code.slice(0, read))) return false;
+      return !/^\s*(?:\(|\[|=(?!=)|\+\+|--|(?:\?\?|\|\||&&|[+*/%&|^\-])=)/u.test(code.slice(read + name.length + member[0].length));
+    });
+  }
+
+  /** Follow one actual local factory call to a generated own field, never granting source-returning factories authority. */
+  function factoryField(range) {
+    const member = new RegExp(`^(${ID})\\s*\\.\\s*(${ID})$`, 'u').exec(code.slice(range.start, range.end));
+    if (!member) return null;
+    const declared = constant(member[1], range.start);
+    if (!declared || !immutableReceiver(member[1], range.start, declared)) return null;
+    const invoked = call(declared);
+    if (!invoked || invoked.member) return null;
+    const fn = localFunctions().find(row => row.name === invoked.name && row.calls.some(site => site.at === invoked.at));
+    if (!fn || /\bthis\b/u.test(code.slice(fn.bodyStart, fn.bodyEnd))) return null;
+    const returns = [...code.slice(fn.bodyStart, fn.bodyEnd).matchAll(/\breturn\b/gu)];
+    if (returns.length !== 1) return null;
+    const returned = trim(code, fn.bodyStart + returns[0].index + returns[0][0].length, fn.bodyEnd);
+    const end = close(returned.start);
+    if (end < 0 || code.slice(end + 1, fn.bodyEnd).trim() !== ';') return null;
+    const field = objectField({ start: returned.start, end: end + 1 }, member[2]);
+    if (!field) return null;
+    const resolved = path(field);
+    if (resolved?.path) return null;
+    if (resolved?.fixture) return { fixture: true };
+    const leaf = leafName(field);
+    return leaf && !leaf.split('/').some(part => part === '.' || part === '..')
+      && ![...moved.keys()].some(from => posix.basename(from) === posix.basename(leaf)) ? { fixture: true } : null;
+  }
+
   /** Edit only the fs source argument; unsupported source construction never masquerades as success. */
-  function sourceArgument(range, reader, regularFile) {
+  function sourceArgument(range, reader, regularFile, flowing = new Set()) {
+    const argumentsAt = helperArguments(range);
+    if (argumentsAt) {
+      const key = `${range.start}:${range.end}`;
+      if (flowing.has(key) || flowing.size >= 8) { unsupported(range.start, 'recursive local source flow'); return; }
+      const before = { edits: edits.length, problems: problems.length, excluded: excluded.length };
+      for (const argument of argumentsAt) sourceArgument(argument, reader, regularFile, new Set([...flowing, key]));
+      if (problems.length > before.problems) {
+        edits.length = before.edits; problems.length = before.problems; excluded.length = before.excluded;
+        unsupported(range.start, 'mixed or unproven local helper arguments');
+      }
+      return;
+    }
     if (regularFile && (disjointSuffix(range) || disjointPathTail(range))) return;
     const dynamic = [...code.slice(range.start, range.end).matchAll(new RegExp(`\\b(${ID})\\b`, 'gu'))]
       .map(match => ({ name: match[1], at: range.start + match.index })).filter(row => loops.some(loop => loop.name === row.name && row.at > loop.body && row.at < loop.end));
@@ -709,6 +836,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
       && proven(code.slice(range.start, range.end), range.start)) return;
     const resolved = path(range);
     if (resolved?.fixture) return;
+    if (regularFile && factoryField(range)) return;
     if (!resolved?.path) {
       const leaf = leafName(range);
       if (regularFile && leaf && !leaf.split('/').some(part => part === '.' || part === '..')
