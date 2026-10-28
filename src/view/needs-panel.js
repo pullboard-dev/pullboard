@@ -57,7 +57,10 @@ export function needsPanelHtml(model, presentation = new Map()) {
       detailsAttributes: { 'data-needs-key': row.key, 'data-dashboard-disclosure': 'needs:' + row.key },
       open: model.expanded.includes(row.key), detailHtml });
   };
-  const draftRow = model.drafts ? '<li class="needs-call needs-drafts"><button type="button" data-go="tab:spec">' + icon('draft') + '<span class="needs-copy"><b>' + model.drafts + ' draft spec rows to approve or drop</b><small>In the Spec tab, one by one or a section at a time</small></span><span class="needs-action">Review</span></button></li>' : '';
+  const draftCopy = icon('draft') + '<span class="needs-copy"><b>' + model.drafts + ' draft spec rows to approve or drop</b><small>In the Spec tab, one by one or a section at a time</small></span><span class="needs-action">Review</span>';
+  const draftRow = model.drafts ? '<li class="needs-call needs-drafts">' + (model.person
+    ? '<button type="button" data-go="tab:spec">' + draftCopy + '</button>'
+    : '<span>' + draftCopy + '</span>') + '</li>' : '';
   if (model.compact) {
     const shown = [...model.questions, ...model.approvals].slice(0, 3), more = model.sortedCount - shown.length;
     return shown.map(rowHtml).join('') + (more || model.drafts ? '<li class="needs-more"><button type="button" data-needs-list>' + more + ' more' + (model.drafts ? ' and ' + model.drafts + ' draft rows' : '') + ' in Needs you</button></li>' : '');
