@@ -2,6 +2,7 @@
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { dirname, join, posix } from 'node:path';
+import { runnerPackage } from '../src/runner-package.js';
 import { importsIn } from '../src/module-imports.js';
 import { createRunnerModuleParser } from '../src/runner-module-parser.js';
 import { runtimeUrls } from '../src/runner-runtime-urls.js';
@@ -9,13 +10,14 @@ import { runtimeUrls } from '../src/runner-runtime-urls.js';
 /** Retain unchanged production code and discovered move/engine declarations used by its eager imports.
  * This is a private fixture copier, not a runtime attestation or a general computed-import closure proof.
  * Computed runner imports select the fixture's own tests; the move registry and engine scan need their
- * actual declarations. Command metadata validates its unchanged implementation paths without executing them.
+ * actual declarations. The real worker uses the existing bounded production package closure.
+ * Command metadata validates its unchanged implementation paths without executing them.
  * Every copied executable module otherwise follows its literal imports and runtime-file URLs.
  */
 export function copyFixtureRunner(source, destination) {
   const sourceRoot = realpathSync(source);
   const parser = createRunnerModuleParser();
-  const files = new Set(['package.json',
+  const files = new Set(['package.json', ...Object.keys(runnerPackage(source).files),
     ...readdirSync(join(source, 'src/command-docs')).filter(file => file.endsWith('.json')).map(file => `src/command-docs/${file}`),
     ...readdirSync(join(source, 'src/commands')).filter(file => file.endsWith('.js')).map(file => `src/commands/${file}`)]);
   let pending = ['bin/run-tests.js',
