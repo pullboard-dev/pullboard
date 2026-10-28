@@ -1,4 +1,5 @@
 import { itemCheckBaseline } from './board-query.js';
+import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import { laneSeatContext } from './seat-checkout.js';
 import { nextSessionSeats } from './seat-checkout.js';
 import { mainRedReviewItems } from './main-red.js';
@@ -243,7 +244,7 @@ import {
   setupDecisionRows,
   withStarterWork,
 } from './setup-rows.js';
-import { personNeeds } from './needs.js';
+import { personNeeds } from './row-decision-text.js';
 import { personNeedsState } from './needs-state.js';
 import { startServeSentinel } from './serve-sentinel.js';
 import {
@@ -268,7 +269,6 @@ import {
   initialSpecApprovalBaseline,
 } from './spec-approval-bootstrap.js';
 import {
-  answerQuestion,
   landBlueprint,
   planBlueprint,
   starterCheck,
@@ -590,7 +590,7 @@ export async function ordered(ctx, board, operation, args) {
   // With signed person moves on, a person-only move counts only as a passkey-confirmed request [E22].
   const unsigned = signedMoveProblem(board, board.enginePorts.personAuthority({ operation, args }), ctx.io.personRequest, { strict: true });
   if (unsigned) throw unsigned;
-  const initialBaseline = initialSpecApprovalBaseline(ctx, board, operation);
+  const initialBaseline = initialSpecApprovalBaseline(ctx, board, operation, { relayRecovered, specApprovalBaselineExists: store.specApprovalBaselineExists });
   // Only a reject or a reopen can open a builder's first-refusal window (#954), so an accept never reads the coordinator's policy.
   if (operation === 'reopen' || operation === 'verify' && args[1]?.decision === 'REJECT') args = firstRefusalArgs(operation, args, configFromSource(coordinatorFile(ctx.info.root, CONFIG_FILE).stdout));
   ctx.io.relayOutbox ??= () => relayOutboxSetting(ctx.info.root);
@@ -619,7 +619,7 @@ export async function ordered(ctx, board, operation, args) {
     };
     const actor = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id;
     requireHandoffActive(board, actor, operation, args);
-    ensureSpecApprovalCoordinator(ctx, board, initialBaseline);
+    ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered, gitSyncLinked, ensureCoordinator: store.ensureCoordinator });
     const write = () => store.atomic(board, () => {
       requireHandoffActive(board, actor, operation, args);
       requireAgentGrant(board, { operation, args, engine: NATIVE_ENGINE }); // A native write applies current semantics.
@@ -786,7 +786,7 @@ export function freezer(ctx, { captureVerifyPolicy = false, board } = {}) {
       config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
     }
     const doctrine = board ? agentDoctrine(ctx, board) : loadDoctrine(ctx.info.root, config);
-    if (board) refuseAgentApprovedRows(ctx.info.root, { board, config, item });
+    if (board) refuseAgentApprovedRows(ctx.info.root, { board, config, item }, { store, verifiedPasskeyRowDecision });
     const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item, doctrine);
     if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
     const signed = board && barReadinessRequired(board, item) ? barReadiness(board, item, {}, { itemCheckBaseline }).signed : null;

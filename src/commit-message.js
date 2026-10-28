@@ -1,6 +1,7 @@
 /** The one builder and parser for generated commit messages: header, ids that fit, then +N, and the Pullboard trailers (RFC 0005) [C7]. */
 
 /** A commit header's length limit, which the commit hook also enforces by default. */
+import { headerRows } from './spec.js';
 export const HEADER_LIMIT = 72;
 
 /** Trailer keys this format writes, in the order they appear. */
@@ -8,7 +9,6 @@ export const ITEM_TRAILER = 'Pullboard-Item';
 export const ROWS_TRAILER = 'Pullboard-Rows';
 
 const HEADER_RE = /^([a-z]+)(?:\(([a-z0-9._/-]+)\))?(!)?: (.*)$/u;
-const MORE_RE = /^\+([1-9]\d*)$/u;
 const TRAILER_RE = /^([A-Za-z][A-Za-z0-9-]*): (.*)$/u;
 
 /**
@@ -74,23 +74,6 @@ export function buildCommitMessage({ type, scope = '', title, item = null, rows 
   ].join('\n');
   const text = String(body ?? '').trim();
   return { header, body: text, trailers, message: [header, text, trailers].filter(Boolean).join('\n\n') };
-}
-
-/**
- * The ids a header's closing brackets show, and how many more its `+N` stands for. A header with no
- * brackets shows none. Both the strict landing form `[A1,A2,+3]` and a hand-written `[A1, A2]` read.
- *
- * @param {string} header
- * @returns {{ shown: string[], more: number, rest: string }} rest is the header without its brackets.
- */
-export function headerRows(header) {
-  const match = /\s*\[([A-Za-z0-9:.,\s+]+)\]\s*$/u.exec(header);
-  if (!match) return { shown: [], more: 0, rest: header };
-  const parts = match[1].split(',').map((id) => id.trim()).filter(Boolean);
-  const plus = parts.length && MORE_RE.exec(parts.at(-1));
-  const shown = plus ? parts.slice(0, -1) : parts;
-  if (shown.some((id) => id.startsWith('+'))) return { shown: [], more: 0, rest: header };
-  return { shown, more: plus ? Number(plus[1]) : 0, rest: header.slice(0, match.index) };
 }
 
 /**

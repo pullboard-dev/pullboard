@@ -1,4 +1,5 @@
 /** Real device-flow CLI ordering through the opaque relay [H1,H7,H15]. */
+import { relayRecovered } from '../src/relay.js';
 import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync, cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';
 import { createServer } from 'node:http';
@@ -1475,9 +1476,9 @@ test('an accepted legacy approval baseline keeps its exact source through resume
       assert.equal(storedBaseline.rows.some(row => row.id === 'G99'), false, 'a later spec row is not added to the stored baseline');
       const config = { spec: 'SPEC.md' };
       assert.ok(captureSpecApprovalBaseline(clones[0], config).rows.some(row => row.id === 'G99'));
-      const selected = initialSpecApprovalBaseline({ info: { root: clones[0], isMain: true } }, local, 'recordHealthFindings');
+      const selected = initialSpecApprovalBaseline({ info: { root: clones[0], isMain: true } }, local, 'recordHealthFindings', { relayRecovered, specApprovalBaselineExists: store.specApprovalBaselineExists });
       assert.equal(selected, null, 'an existing accepted baseline is not replaced by the current spec');
-      assert.equal(initialSpecApprovalBaseline({ info: { root: clones[0], isMain: false } }, local, 'recordHealthFindings'), null, 'a lane never seeds or consumes setup');
+      assert.equal(initialSpecApprovalBaseline({ info: { root: clones[0], isMain: false } }, local, 'recordHealthFindings', { relayRecovered, specApprovalBaselineExists: store.specApprovalBaselineExists }), null, 'a lane never seeds or consumes setup');
     } finally { store.closeBoard(local); }
     relay.failReads(false);
     const resumed = await cli(clones[0], envs[0], 'resume');

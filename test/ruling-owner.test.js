@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Refused } from '../src/refused.js';
-import { rulingOwner } from '../src/ruling-owner.js';
-import { RULING_EFFECT_OPERATIONS } from '../src/ruling-owner.js';
+import { rulingOwner } from '../src/ruling-owner-context.js';
+import { RULING_EFFECT_OPERATIONS } from '../src/ruling-owner-context.js';
 
 /** Supply trusted native-like row records; input declarations never supply their status. */
 function context() {
