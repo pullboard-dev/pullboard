@@ -445,6 +445,37 @@ function traceEvidence(result) {
     trace: result.snapshotTrace.map(({ sequence, ciphertext, callers, status, abort }) => ({ sequence, ciphertext, callers, status, abort })) };
 }
 
+test('checkpoint fingerprints retain hidden-seat heartbeats without treating clock movement as a write [B3,H16]', async t => {
+  const { createE2eHelpers } = await import('./e2e-helpers.js');
+  const { heartbeatSeat } = await import('../src/seat-presence.js');
+  const { exportBoard } = await import('../src/exchange.js');
+  const { relayPresentation, presentationDigest } = await import('../src/relay-presentation.js');
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  let at = Date.now();
+  // @pullboard-board-file journey: real checkpoint inputs include this private board's presence sidecar.
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(at) });
+  t.after(() => store.closeBoard(board));
+  heartbeatSeat(board, 'coordinator');
+  const before = relayPresentation(box.repo, { board, observedAt: at });
+  const heartbeat = store.agentById(board, 'coordinator').heartbeatAt;
+  const history = exportBoard(board);
+  const laterAt = at + 5 * 3_600_000; // budget: fixture clock crosses the four-hour activity window; no elapsed-time performance assertion.
+  const later = relayPresentation(box.repo, { board, observedAt: laterAt });
+  assert.ok(before.state.agents.some(seat => seat.agent_id === 'coordinator'), 'the native seat is initially visible');
+  assert.ok(!later.state.agents.some(seat => seat.agent_id === 'coordinator'), 'the unchanged seat leaves the activity window');
+  assert.notEqual(before.state.observedAt, later.state.observedAt);
+  assert.equal(presentationDigest(later), presentationDigest(before), 'clock-only visibility and presence changes do not publish');
+  at += 60_000; // budget: one production heartbeat refresh interval, advanced only on the fixture clock.
+  heartbeatSeat(board, 'coordinator');
+  assert.notEqual(store.agentById(board, 'coordinator').heartbeatAt, heartbeat, 'the native heartbeat really changes');
+  assert.deepEqual(exportBoard(board), history, 'the private heartbeat does not mutate native business history');
+  const changed = relayPresentation(box.repo, { board, observedAt: laterAt });
+  assert.ok(!changed.state.agents.some(seat => seat.agent_id === 'coordinator'), 'the heartbeat remains outside the displayed activity window');
+  assert.notEqual(presentationDigest(changed), presentationDigest(later), 'a real heartbeat invalidates the sealed checkpoint even for a hidden seat');
+});
+
 test('a write after a heartbeat uploads once [B3,H16]', {
   timeout: relayWorkBudgetMs(), // budget: unchanged six-attempt relay fixture allowance, not a speed target.
 }, async t => {
