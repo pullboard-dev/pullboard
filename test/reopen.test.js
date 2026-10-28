@@ -740,7 +740,7 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
   const unchangedBar = box.run(box.web, 'submit', '1', '--json');
   assert.equal(unchangedBar.code, 1);
   assert.equal(JSON.parse(unchangedBar.out).error.code, 'HEAD_NOT_NEW', 'a no-verdict reopen alone does not make the old bar a new submission');
-  const released = box.run(box.web, 'release', '1');
+  const released = box.run(box.web, 'release', '1', '--reason', 'BLOCKED');
   assert.equal(released.code, 0, released.err);
   const explicitRefreeze = box.run(box.repo, 'refreeze', '1');
   assert.equal(explicitRefreeze.code, 0, explicitRefreeze.err);
@@ -877,7 +877,7 @@ test('retained main controls builder first refusal during detached review [B13,B
   assert.equal(window.builder, 'web-1');
   assert.equal(Date.parse(window.until) - Date.parse(returned.event_at), 30 * 60_000);
   assert.equal(store.recentShouts(board).filter(row => row.shout_to === 'web-1' && row.shout_text.includes('waits for you')).length, 1);
-  const released = box.run(box.web, 'release', '1');
+  const released = box.run(box.web, 'release', '1', '--reason', 'BLOCKED');
   assert.equal(released.code, 0, released.err);
   const claimed = box.run(other, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err);

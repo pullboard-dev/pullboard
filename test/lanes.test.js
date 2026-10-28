@@ -189,7 +189,7 @@ test('a claimed item keeps its policy until refreeze [V2,L3]', () => {
   const { box, before, trunkPolicy } = reassignedPathFixture();
   const renewed = box.run(box.web, 'claim', '1');
   assert.equal(renewed.code, 0, renewed.err);
-  assert.equal(box.run(box.web, 'release', '1').code, 0);
+  assert.equal(box.run(box.web, 'release', '1', '--reason', 'BLOCKED').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   const reclaimed = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
   assert.equal(reclaimed.item_frozen, before.item_frozen,

@@ -279,7 +279,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const claimObserved = lastSequence(box);
   await watch.line((line) => JSON.parse(line).sequence === claimObserved && JSON.parse(line).kind === 'check_accept',
     5_000, 'event after the claim work check'); // budget: hang ceiling for an exact event, not a latency claim.
-  box.cli(builder.path, 'release', String(waiting.item_id), '--no-next');
+  box.cli(builder.path, 'release', String(waiting.item_id), '--reason', 'BLOCKED', '--no-next');
   const releaseSequence = lastSequence(box);
   await watch.line((line) => JSON.parse(line).kind === 'release' && JSON.parse(line).sequence === releaseSequence,
     5_000, 'release event'); // budget: hang ceiling for an exact event, not a latency claim.

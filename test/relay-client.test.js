@@ -856,7 +856,7 @@ async function competingReplicaClaims(fixture, timing) {
     }
 
     const winner = actors.get(id).indexOf(winningActor);
-    const released = await timing.wait(`release item #${id} from its replayed winner`, () => cliResult(worktrees[winner], envs[winner], 'release', String(id)));
+    const released = await timing.wait(`release item #${id} from its replayed winner`, () => cliResult(worktrees[winner], envs[winner], 'release', String(id), '--reason', 'BLOCKED'));
     userDiagnosticsByClone[winner].push(...(released.document.diagnostics ?? []));
     assert.equal(released.status, 0, `the ordered winner releases #${id}`);
     const winnerRelease = await timing.wait(`replay clone ${winner + 1}'s release for #${id}`, () => syncReplica(worktrees[winner], envs[winner]));
@@ -1089,7 +1089,7 @@ async function recoverReplicaReplies(fixture, timing) {
     cli(worktrees[0], envs[0], 'status'));
   assert.equal(ackSetup.relay.linked, true);
   assert.deepEqual(ackSetup.relay.outbox ?? [], [], 'legacy ACK probes start with no queued setup moves');
-  await timing.wait('release item 1 after its durable refusal is checked', () => cli(worktrees[0], envs[0], 'release', '1'));
+  await timing.wait('release item 1 after its durable refusal is checked', () => cli(worktrees[0], envs[0], 'release', '1', '--reason', 'BLOCKED'));
   await timing.wait('claim item 2 before its lost submission reply', () => cli(worktrees[0], envs[0], 'claim', '2'));
   const beforeLostSubmit = await timing.wait('confirm release and claim were acknowledged before the submit fault', () =>
     cli(worktrees[0], envs[0], 'status'));

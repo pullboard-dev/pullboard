@@ -444,7 +444,7 @@ test('two agents racing for one item: exactly one wins, every time [B2]', async 
     const losers = results.filter((result) => result.code !== 0);
     assert.equal(winners.length, 1, `round ${round}: ${JSON.stringify(results)}`);
     assert.match(losers[0].err, /HELD/);
-    assert.equal(box.run(winners[0].cwd, 'release', String(round)).code, 0);
+    assert.equal(box.run(winners[0].cwd, 'release', String(round), '--reason', 'BLOCKED').code, 0);
   }
 });
 

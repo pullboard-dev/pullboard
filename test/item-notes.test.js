@@ -65,7 +65,7 @@ test('typed notes on an item reach its agents and stay off the board-wide feed [
   }
   assert.equal(onBoard(box, board => store.openDecisions(board).length), 0,
     'an observational question and answer do not become an approval decision');
-  command(box, box.web, 'release', String(id));
+  command(box, box.web, 'release', String(id), '--reason', 'BLOCKED');
   const captured = join(box.dir, 'actual-context-pack.md');
   const script = join(box.dir, 'read-pack.cjs');
   writeFileSync(script, [

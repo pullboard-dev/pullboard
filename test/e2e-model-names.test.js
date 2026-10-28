@@ -369,7 +369,7 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     assert.ok(resume.out.includes(`from ${builderName} (`), resume.out);
     assert.ok(resume.out.includes('Keep web-1 literal in question'), resume.out);
 
-    assert.equal(box.run(repo.web, 'release', String(id)).code, 0);
+    assert.equal(box.run(repo.web, 'release', String(id), '--reason', 'BLOCKED').code, 0);
     assert.equal(box.run(repo.repo, 'hold', String(id), 'Keep web-1 literal in item reason').code, 0);
     for (const command of [['list', 'web'], ['show', String(id)]]) {
       const heldText = box.run(repo.web, ...command);
@@ -390,7 +390,7 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     assert.equal(selected.code, 0, selected.err || selected.out);
     assert.ok(selected.out.includes(`#${id} is held by ${coordinatorName}: Keep web-1 literal in item reason`), selected.out);
     const freeId = JSON.parse(available.out).item.item_id;
-    assert.equal(box.run(second.path, 'release', String(freeId)).code, 0);
+    assert.equal(box.run(second.path, 'release', String(freeId), '--reason', 'BLOCKED').code, 0);
     const selectedJson = box.run(second.path, 'next', '--build', '--json');
     assert.ok(JSON.parse(selectedJson.out).reasons.includes(`#${id} is held by coordinator: Keep web-1 literal in item reason`));
 

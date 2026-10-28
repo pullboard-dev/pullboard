@@ -164,7 +164,7 @@ test('local doctrine edits flag their frozen row without hiding shared approved 
     '--criterion', 'A changed local row remains visible to diagnostics.', '--check', 'true').item;
   for (const item of [shared, edited]) {
     json(box.web, 'claim', String(item.item_id));
-    json(box.web, 'release', String(item.item_id));
+    json(box.web, 'release', String(item.item_id), '--reason', 'BLOCKED');
   }
   const frozen = [shared, edited].map(item => json(box.web, 'show', String(item.item_id)).item_frozen);
   const baseline = json(box.web, 'resume', '--diagnostics');

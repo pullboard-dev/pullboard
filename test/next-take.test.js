@@ -65,7 +65,7 @@ test('ordinary next prefers its own lane, then claims foreign work in that laneâ
   const first = box.json(box.runAs(box.session, web.root, 'next', '--build', '--json'));
   assert.equal(first.item.item_id, own);
   assert.equal(first.item.item_owner, web.agent);
-  box.json(box.runAs(box.session, web.root, 'release', String(own), '--no-next', '--json'));
+  box.json(box.runAs(box.session, web.root, 'release', String(own), '--reason', 'BLOCKED', '--no-next', '--json'));
   box.json(box.run(box.repo, 'hold', String(own), '--reason', 'Blocked own-lane fixture', '--json'));
   const next = box.json(box.runAs(box.session, web.root, 'next', '--build', '--json'));
   assert.equal(next.item.item_id, foreign);

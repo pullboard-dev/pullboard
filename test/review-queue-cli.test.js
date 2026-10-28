@@ -127,7 +127,7 @@ test('[Q1,V15,A1] below the configured ratio next claims normally and status rep
   assert.equal(claimed.data.item.item_id, id);
   assert.equal(claimed.data.offer, undefined);
   assert.equal(JSON.parse(store.events(box.board, { itemId: id }).at(-1).event_detail).reviewSkipped, undefined);
-  const released = await run(box, box.builder, ['release', String(id), '--note', 'check aged review routing', '--json']);
+  const released = await run(box, box.builder, ['release', String(id), '--reason', 'BLOCKED', '--note', 'check aged review routing', '--json']);
   assert.equal(released.code, 0, released.stderr);
   assert.equal(store.getItem(box.board, id).item_status, 'open');
   box.clock.advance(2 * HOUR);
@@ -154,17 +154,17 @@ test('[V1,R1] a review released without a verdict waits an hour for the same rev
   assert.equal(initial.data.item.item_id, released);
 
   const beforeMissingNote = store.events(box.board, { itemId: released }).length;
-  const missingNote = await run(box, box.reviewer, ['release', String(released), '--json']);
+  const missingNote = await run(box, box.reviewer, ['release', String(released), '--reason', 'BLOCKED', '--json']);
   assert.equal(missingNote.code, 1);
   assert.equal(missingNote.data.error.code, 'NOTE_REQUIRED');
   assert.match(missingNote.data.error.message, /one-line reason with --note/u);
   assert.equal(store.getItem(box.board, released).item_review_by, box.reviewerId, 'a refused release keeps its reservation');
   assert.equal(store.events(box.board, { itemId: released }).length, beforeMissingNote, 'a refusal appends no release event');
 
-  const multiline = await run(box, box.reviewer, ['release', String(released), '--note', 'first line\nsecond line', '--json']);
+  const multiline = await run(box, box.reviewer, ['release', String(released), '--reason', 'BLOCKED', '--note', 'first line\nsecond line', '--json']);
   assert.equal(multiline.code, 1);
   assert.equal(multiline.data.error.code, 'NOTE_REQUIRED', 'the recorded reason must be one line');
-  const releasedResult = await run(box, box.reviewer, ['release', String(released), '--note', 'checked the wrong tree', '--json']);
+  const releasedResult = await run(box, box.reviewer, ['release', String(released), '--reason', 'BLOCKED', '--note', 'checked the wrong tree', '--json']);
   assert.equal(releasedResult.code, 0, releasedResult.stderr);
   const releaseEvent = store.events(box.board, { itemId: released }).at(-1);
   assert.equal(releaseEvent.event_kind, 'release');
@@ -172,7 +172,7 @@ test('[V1,R1] a review released without a verdict waits an hour for the same rev
   const secondReservation = await run(box, box.builder, ['next', '--verify', String(released), '--json']);
   assert.equal(secondReservation.code, 0, secondReservation.stderr);
   assert.equal(secondReservation.data.item.item_id, released);
-  const secondRelease = await run(box, box.builder, ['release', String(released), '--note', 'confirmed the wrong tree was reviewed']);
+  const secondRelease = await run(box, box.builder, ['release', String(released), '--reason', 'BLOCKED', '--note', 'confirmed the wrong tree was reviewed']);
   assert.equal(secondRelease.code, 0, secondRelease.stderr);
 
   const status = await run(box, box.reviewer, ['status', '--json']);
@@ -212,7 +212,7 @@ test('[V1,R1] a review released without a verdict waits an hour for the same rev
   const hourBoundary = submitted(box);
   const reserveBoundary = await run(box, box.reviewer, ['next', '--verify', String(hourBoundary), '--json']);
   assert.equal(reserveBoundary.code, 0, reserveBoundary.stderr);
-  const releaseBoundary = await run(box, box.reviewer, ['release', String(hourBoundary), '--note', 'checking the submission again']);
+  const releaseBoundary = await run(box, box.reviewer, ['release', String(hourBoundary), '--reason', 'BLOCKED', '--note', 'checking the submission again']);
   assert.equal(releaseBoundary.code, 0, releaseBoundary.stderr);
   box.clock.advance(HOUR - 1);
   const tooSoon = await run(box, box.reviewer, ['next', '--verify', String(hourBoundary), '--json']);

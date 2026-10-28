@@ -144,7 +144,7 @@ test('two live claims in one checkout refuse typed selection until one is releas
     assert.doesNotMatch(ambiguous.err, /explicit Pullboard-Item/u);
     assert.equal(ambiguous.message, input, 'refusal preserves the message');
   }
-  assert.equal(box.run(box.web, 'release', String(box.other)).code, 0);
+  assert.equal(box.run(box.web, 'release', String(box.other), '--reason', 'BLOCKED').code, 0);
   const remaining = hook(box, 'test: unambiguous work\n');
   assert.equal(remaining.code, 0, remaining.err);
   assert.equal(remaining.message, `test: unambiguous work\n\nPullboard-Item: #${box.id}\nPullboard-Rows: G1\n`);

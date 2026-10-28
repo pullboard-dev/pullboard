@@ -81,7 +81,7 @@ test('the actual submitted value is repaired', () => assert.equal(readFileSync(n
     const first = box.add('Explicitly finish without another assignment');
     const next = box.add('Leave this eligible work untouched');
     box.claim(first, seat);
-    const result = await cli(box, seat.path, ['release', String(first), '--no-next', '--note', 'Deliberate handoff opt-out']);
+    const result = await cli(box, seat.path, ['release', String(first), '--reason', 'BLOCKED', '--no-next', '--note', 'Deliberate handoff opt-out']);
     assert.equal(result.code, 0, result.out + result.err);
     assert.equal(store.getItem(box.board, first).item_status, 'open');
     assert.equal(store.getItem(box.board, next).item_status, 'open');
@@ -96,7 +96,7 @@ test('the actual submitted value is repaired', () => assert.equal(readFileSync(n
     const first = box.add('Let another builder take the released task');
     const next = box.add('Take different ready work');
     box.claim(first, seat);
-    const result = await cli(box, seat.path, ['release', String(first), '--note', 'Leave the original task available']);
+    const result = await cli(box, seat.path, ['release', String(first), '--reason', 'BLOCKED', '--note', 'Leave the original task available']);
     assert.equal(result.code, 0, result.out + result.err);
     assert.equal(store.getItem(box.board, first).item_status, 'open', 'handoff does not undo the release');
     assert.equal(store.getItem(box.board, next).item_owner, seat.id);
@@ -112,7 +112,7 @@ test('the actual submitted value is repaired', () => assert.equal(readFileSync(n
     const saved = directory + '-handoff-saved';
     let injected = false, result;
     try {
-      result = await cli(box, seat.path, ['release', String(first), '--note', 'Record before the failing next read'], {
+      result = await cli(box, seat.path, ['release', String(first), '--reason', 'BLOCKED', '--note', 'Record before the failing next read'], {
         /** Corrupt only this private path after the native receipt, not the release or its SQLite transaction. */
         onOrderedMove(receipt) {
           if (receipt.operation !== 'release' || injected) return;
@@ -139,7 +139,7 @@ test('the actual submitted value is repaired', () => assert.equal(readFileSync(n
     const first = box.add('Only task is now coordinator-held');
     box.claim(first, seat);
     store.holdItem(box.board, first, { agentId: 'coordinator', reason: 'Do not immediately take it again' });
-    const result = await cli(box, seat.path, ['release', String(first), '--note', 'Return the held task']);
+    const result = await cli(box, seat.path, ['release', String(first), '--reason', 'BLOCKED', '--note', 'Return the held task']);
     assert.equal(result.code, 0, result.out + result.err);
     assert.equal(store.getItem(box.board, first).item_status, 'open');
     assert.equal(result.document.id, first);

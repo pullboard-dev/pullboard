@@ -202,7 +202,7 @@ test('a fresh board accepts a first commit that cites its item [I1,N26]', () => 
     assert.notEqual(refused.status, 0, citation + ' cannot replace an owned live claim');
     assert.match(refused.stderr, /pullboard commit-msg/iu, 'the actual installed message hook refuses the citation');
   }
-  moved(box, own, 'release', '1');
+  moved(box, own, 'release', '1', '--reason', 'BLOCKED');
   const released = box.tryGit(own, 'commit', '-q', '-m', 'feat(app): build the first feature #1');
   assert.notEqual(released.status, 0, 'a released claim cannot authorize a citation');
   moved(box, own, 'claim', '1');

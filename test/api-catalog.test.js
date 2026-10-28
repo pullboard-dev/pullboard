@@ -366,7 +366,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await json(box, repo, 'next');
   await json(box, repo, 'claim', ['1']);
   await json(box, repo, 'check', ['1']);
-  await json(box, repo, 'release', ['1', '--no-next']);
+  await json(box, repo, 'release', ['1', '--reason', 'BLOCKED', '--no-next']);
   await json(box, repo, 'claim', ['1']);
   const submitted = await json(box, repo, 'submit', ['1', '--no-next']);
   await exercisePatchCommands({ box, json, submitted });
