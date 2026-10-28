@@ -481,7 +481,7 @@ export function frozenCriterion(spec, item, doctrine = null) {
     return { id, text: row.text, gate: row.gate };
   });
   const check = item.item_check ? { check: item.item_check } : {};
-  const text = JSON.stringify({ title: item.item_title, criterion: item.item_criterion, ...check, rows });
+  const text = JSON.stringify({ title: item.item_title, criterion: item.item_criterion, ...check, ...(item.item_check_timing === true ? { checkTiming: true } : {}), rows });
   return { text, digest: createHash('sha256').update(text).digest('hex') };
 }
 

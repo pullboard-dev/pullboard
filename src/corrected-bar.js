@@ -20,7 +20,8 @@ export function correctedBar(board, item, next, { correction, freeze }) {
   try { value = JSON.parse(frozen.text); }
   catch { throw new Refused('RELAY_MOVE', 'the corrected frozen bar must be JSON; retry the edit'); }
   if (!value || typeof value !== 'object' || Array.isArray(value) || value.criterion !== next.item_criterion
-    || (value.sourceCheck ?? value.check ?? '') !== next.item_check) {
+    || (value.sourceCheck ?? value.check ?? '') !== next.item_check
+    || (value.checkTiming === true) !== (next.item_check_timing === true)) {
     throw new Refused('RELAY_MOVE', 'the frozen correction must match the edited criterion and check; retry the edit');
   }
   return frozen;
