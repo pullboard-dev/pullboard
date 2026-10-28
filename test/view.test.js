@@ -18,7 +18,7 @@ import { fetchFresh } from './http-fixture.js';
 import { parseSpec } from '../src/spec.js';
 import { standardDoctrine } from '../src/doctrine.js';
 import { esc, renderSpecView } from '../src/view.js';
-import { viewHere } from '../src/commands/view.js';
+import { assertPublicExportSupported } from '../src/public-export-guard.js';
 
 const SPEC = `# Bakery spec
 
@@ -163,11 +163,13 @@ test('public export refuses an exporter without declared filter support [N26]', 
   let called = false;
   /** Model the pre-public exporter, which ignores any extra option. */
   async function legacyExporter() { called = true; return { path: '/unused' }; }
-  await assert.rejects(viewHere({ cwd: '/tmp', exportView: legacyExporter }, { export: './site', public: true }), (error) => {
+  assert.throws(() => assertPublicExportSupported(legacyExporter), (error) => {
     assert.equal(error.code, 'PUBLIC_EXPORT_UNAVAILABLE');
     return true;
   });
   assert.equal(called, false);
+  const supported = Object.assign(async () => ({ path: '/unused' }), { supportsPublicExport: true });
+  assert.doesNotThrow(() => assertPublicExportSupported(supported));
 });
 
 /**
