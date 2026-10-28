@@ -147,6 +147,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: lease,
     }) : { isGreen: true, output: '', seconds: 0 };
     if (check) writeFileSync(checkLog, safeLog(criterion.output), { mode: 0o600 });
+    await recordRun(onFailure, criterion);
     const receipt = { command: check, green: criterion.isGreen, seconds: criterion.seconds, checked: Boolean(check),
       ...(check ? { log: checkLog, profilePath: criterion.profilePath, profile: criterion.profile } : {}) };
     /** Persist the whole submission's wall time and queue wait once, alongside its combined raw log. */

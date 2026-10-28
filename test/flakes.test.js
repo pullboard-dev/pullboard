@@ -1,3 +1,4 @@
+import './quarantine-core-cases.js';
 import { landingPorts } from './landing-ports-fixture.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 /** @pullboard-test-input source-tree */
@@ -33,7 +34,6 @@ import { landingLeaseState } from '../src/landing-lease.js';
 import { executionServices } from './gate-execution-fixture.js';
 import { flakeLedger } from '../src/flakes.js';
 import { eventCauses } from '../src/rigor.js';
-
 const workerServices = Object.freeze({ executionServices, context, ordered, withBoard, runSubmitGate, withFileLock,
   readMainAudit, saveMainAudit, landingLeaseState, selectors: { selectAffectedTests, selectTestTreeGuards },
   testValue: { flakeLedger, eventCauses } });
