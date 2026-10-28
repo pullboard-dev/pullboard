@@ -32,6 +32,7 @@ import { lex } from '../packages/kernel/index.js';
 import {
   bindingReadsForModules,
   localFunctionCallSets,
+  readOnlyMemberRanges,
 } from '../src/cell-binding-uses.js';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
 import { mainAuditKey } from '../src/main-audit-state.js';
@@ -777,5 +778,54 @@ test('local call set complexity bounds never authorize partial call inventories 
   const excessiveArgs = declaration + 'read(' + Array.from({ length: 65 }, () => 'input').join(',') + ');';
   for (const source of [excessiveCalls, excessiveArgs, declaration + ' '.repeat(1024 * 1024)]) {
     assert.ok(!localFunctionCallSets(source, { file: 'test/callsets.js' }).some(row => row.name === 'read'));
+  }
+});
+
+
+test('whole member substitution proves rvalue grammar without evaluating candidate effects [C7]', () => {
+  const source = "throw new Error('candidate must never execute'); const first = box.marker; consume(box.other);";
+  const ranges = ['box.marker', 'box.other'].map(text => ({ start: source.indexOf(text), end: source.indexOf(text) + text.length }));
+  assert.deepEqual([...readOnlyMemberRanges(source, ranges)], ranges.map(range => range.start));
+});
+
+test('whole member writes and destructuring or loop targets cannot accept a constant expression [C7]', () => {
+  for (const body of [
+    'box.marker = input;',
+    'box.marker += input;',
+    'box.marker ??= input;',
+    '++box.marker;',
+    '--box.marker;',
+    'box.marker++;',
+    'box.marker--;',
+    '({ value: box.marker } = input);',
+    '[box.marker] = input;',
+    'for (box.marker of input) {}',
+    'for (box.marker in input) {}',
+  ]) {
+    const start = body.indexOf('box.marker');
+    assert.deepEqual([...readOnlyMemberRanges(body, [{ start, end: start + 'box.marker'.length }])], [], body);
+  }
+});
+
+test('member grammar proof fails closed on invalid modules and bounded or ambiguous ranges [C7]', () => {
+  const source = 'consume(box.marker);', start = source.indexOf('box.marker'), range = { start, end: start + 'box.marker'.length };
+  for (const [text, ranges] of [
+    ['const = ; ' + source, [{ start: start + 10, end: range.end + 10 }]],
+    [source, [{ start: -1, end: range.end }]],
+    [source, [{ start, end: source.length + 1 }]],
+    [source, [{ start, end: start }]],
+    [source, [{ start: 0.5, end: range.end }]],
+    [source, [range, { start, end: range.end - 1 }]],
+    [source, Array.from({ length: 129 }, () => range)],
+    [source + ' '.repeat(1024 * 1024), [range]],
+    [source + '\n//' + 'é'.repeat(600_000), [range]],
+  ]) assert.deepEqual([...readOnlyMemberRanges(text, ranges)], []);
+});
+
+test('member substitution alone is not delete or call authority [C7]', () => {
+  for (const source of ['delete box.marker;', 'box.marker();']) {
+    const start = source.indexOf('box.marker');
+    assert.deepEqual([...readOnlyMemberRanges(source, [{ start, end: start + 'box.marker'.length }])], [start],
+      'callers must retain their independent delete and method-call guards even though expression substitution compiles');
   }
 });

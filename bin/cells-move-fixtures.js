@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../src/cell-binding-uses.js';
 import { localFunctionCallSets } from '../src/cell-binding-uses.js';
+import { readOnlyMemberRanges } from '../src/cell-binding-uses.js';
 import { stringSuffixDisjoint } from '../src/path-map-operands.js';
 import { repositoryImport } from '../src/import-map.js';
 
@@ -693,7 +694,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
   }
 
   let functions;
-  const parameterProofs = new Map();
+  const parameterProofs = new Map(), receiverProofs = new Map();
   /** Load complete compiler-proven caller sets once; unsupported syntax grants no parameter authority. */
   function localFunctions() {
     if (functions === undefined) {
@@ -766,11 +767,20 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
     if (!scope) return false;
     const row = scopedReads.get(`${name}:${entry.at}:${scope.start}:${scope.end}`);
     if (!row || row.opaque || row.potentialShadow || !row.reads.includes(at)) return false;
-    return row.reads.every(read => {
+    const ranges = [];
+    if (!row.reads.every(read => {
       const member = new RegExp(`^\\s*(?:\\.\\s*${ID}\\s*)+`, 'u').exec(code.slice(read + name.length));
-      if (!member || /\bdelete\s*$/u.test(code.slice(0, read))) return false;
-      return !/^\s*(?:\(|\[|=(?!=)|\+\+|--|(?:\?\?|\|\||&&|[+*/%&|^\-])=)/u.test(code.slice(read + name.length + member[0].length));
-    });
+      if (!member || /\bdelete\s*(?:\(\s*)*$/u.test(code.slice(0, read))) return false;
+      if (/^\s*(?:\(|\[|=(?!=)|\+\+|--|(?:\?\?|\|\||&&|[+*/%&|^\-])=)/u.test(code.slice(read + name.length + member[0].length))) return false;
+      ranges.push({ start: read, end: read + name.length + member[0].trimEnd().length });
+      return true;
+    })) return false;
+    const key = `${name}:${entry.at}:${scope.start}:${scope.end}`;
+    if (!receiverProofs.has(key)) {
+      try { receiverProofs.set(key, readOnlyMemberRanges(source, ranges)); }
+      catch { receiverProofs.set(key, new Set()); } // Unavailable compiler evidence never authorizes a receiver.
+    }
+    return ranges.every(range => receiverProofs.get(key).has(range.start));
   }
 
   /** Follow one actual local factory call to a generated own field, never granting source-returning factories authority. */

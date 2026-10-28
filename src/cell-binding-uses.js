@@ -235,3 +235,34 @@ export function localFunctionCallSets(source, { file } = {}) {
   }
   return result;
 }
+
+
+/** Prove grammar substitution only: callers must separately reject delete, calls, escapes, shadowing and other mutations. */
+export function readOnlyMemberRanges(source, ranges) {
+  const accepted = new Set();
+  if (typeof source !== 'string' || source.length > 1024 * 1024 || Buffer.byteLength(source, 'utf8') > 1024 * 1024
+    || !Array.isArray(ranges) || ranges.length > 128) return accepted;
+  const starts = new Set();
+  for (const range of ranges) {
+    if (!range || !Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end)
+      || range.start < 0 || range.end <= range.start || range.end > source.length || starts.has(range.start)) return accepted;
+    starts.add(range.start);
+  }
+  if (!ranges.length || compiles([source])[0] !== true) return accepted;
+  let chunk = [], offsets = [], bytes = 0;
+  /** Compile bounded independent replacements; a successful parse is never module linking or evaluation. */
+  function flush() {
+    if (!chunk.length) return;
+    const valid = compiles(chunk);
+    for (let index = 0; index < offsets.length; index++) if (valid[index] === true) accepted.add(offsets[index]);
+    chunk = []; offsets = []; bytes = 0;
+  }
+  for (const range of ranges) {
+    const variant = source.slice(0, range.start) + '(0)' + source.slice(range.end);
+    const size = Buffer.byteLength(variant, 'utf8');
+    if (chunk.length + 1 > 256 || bytes + size > 8 * 1024 * 1024) flush();
+    chunk.push(variant); offsets.push(range.start); bytes += size;
+  }
+  flush();
+  return accepted;
+}

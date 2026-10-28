@@ -108,6 +108,7 @@ function makeBox() {
   return { marker };
 }
 const box = makeBox();
+const snapshot = { marker: box.marker };
 const observed = readFileSync(box.marker, 'utf8');
 `;
   const result = fixtureSourceEdits(source, options);
@@ -145,6 +146,18 @@ const box = makeBox();
 `;
   for (const body of [
     factory + "box.marker = mystery; readFileSync(box.marker, 'utf8');",
+    factory + "({ marker: box.marker } = incoming); readFileSync(box.marker, 'utf8');",
+    factory + "({ nested: { marker: box.marker } } = incoming); readFileSync(box.marker, 'utf8');",
+    factory + "({ marker: box.marker = mystery } = incoming); readFileSync(box.marker, 'utf8');",
+    factory + "([box.marker] = incoming); readFileSync(box.marker, 'utf8');",
+    factory + "([...box.marker] = incoming); readFileSync(box.marker, 'utf8');",
+    factory + "({...box.marker} = incoming); readFileSync(box.marker, 'utf8');",
+    factory + "++box.marker; readFileSync(box.marker, 'utf8');",
+    factory + "for (box.marker of incoming) {} readFileSync(box.marker, 'utf8');",
+    factory + "for (box.marker in incoming) {} readFileSync(box.marker, 'utf8');",
+    factory + "delete box.marker; readFileSync(box.marker, 'utf8');",
+    factory + "delete (box.marker); readFileSync(box.marker, 'utf8');",
+    factory + "delete (((box.marker))); readFileSync(box.marker, 'utf8');",
     factory + "Object.setPrototypeOf(box, unknownPrototype); readFileSync(box.marker, 'utf8');",
     factory + "box.__proto__ = unknownPrototype; readFileSync(box.marker, 'utf8');",
     factory + "function inspect(box) { return readFileSync(box.marker, 'utf8'); } inspect(unknownBox());",
