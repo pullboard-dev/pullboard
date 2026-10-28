@@ -76,3 +76,12 @@ export function barStatsLines(bars, name = (id) => id) {
   const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
   return Object.entries(bars).map(([agent, counts]) => `bars: ${name(agent)}: ${plural(counts.corrections, 'correction')}, ${plural(counts.barRejects, 'reject')} caused by a bar, ${plural(counts.buildRejects, 'reject')} caused by the build`);
 }
+
+/** Read a deterministic value kept by ordered moves; the event history retains its provenance. */
+export function readBarState(board, key) {
+  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key);
+  return row ? JSON.parse(row.meta_value) : null;
+}
+
+/** Read the default-off board setting without consulting a replica's local configuration. */
+export function barReadySetting(board) { return readBarState(board, 'bar_ready_setting') ?? { enabled: false, since: 0 }; }

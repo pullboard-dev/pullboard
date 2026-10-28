@@ -1,3 +1,4 @@
+import { trunkRef } from '../trusted-policy-read.js';
 import { counterProofStats } from '../proof-counter-read.js';
 import { foreignBlockers } from '../cross-repo-dependencies.js';
 import { localDependencyIds } from '../item-dependencies.js';
@@ -172,7 +173,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       worktreeConfig = mainRoot ? (isMain ? ctx.config : loadConfig(mainRoot)) : null;
     }
     const me = whoAmI(ctx, board);
-    const projector = diagnostics ? verdictProjector(root, board) : null;
+    const projector = diagnostics ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }) : null;
     const all = store.listItems(board, { all: true }).map(item => projector ? projector.project(item) : item);
     foreignBlocked = new Set(all.filter(item => foreignBlockers(board, item).length).map(item => item.item_id));
     const pendingMerges = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit)

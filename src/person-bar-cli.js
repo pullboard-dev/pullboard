@@ -1,3 +1,4 @@
+import { itemCheckBaseline } from './board-query.js';
 /** Native signed bar commands reuse sealed normalized values and recheck their displayed revision [E22,V1]. */
 import { personMode } from './cli.js';
 import { getItem } from './board.js';
@@ -18,7 +19,7 @@ import { Refused } from './refused.js';
 /** Capture the current author revision even for boards whose bar-ready setting is off. */
 function beforeBar(board, id) {
   const item = getItem(board, id);
-  return { revision: barReadiness(board, item, { signature: false }).revision?.revision ?? 0, digest: barDigest(item) };
+  return { revision: barReadiness(board, item, { signature: false }, { itemCheckBaseline }).revision?.revision ?? 0, digest: barDigest(item) };
 }
 /** Read only the exact current execution document; never accept caller-provided flags as signed provenance. */
 export function executingBarEffect(ctx, board, verb, id) {

@@ -35,7 +35,7 @@ function selected(ctx, board, values) {
   }
   return dispatchWork(board, store.agentById(board, me.id), {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
-    skipIds: ownSessionReviews(ctx.info, board), priority: mainRedReviewItems(ctx.info.root, board),
+    skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board),
   });
 }
 
@@ -59,6 +59,7 @@ export async function nextTake(ctx, values = {}) {
       const reviewed = await nextReview(ctx, board, me, values, {
         ordered: (operation, args) => ordered(ctx, board, operation,
           operation === 'reopen' ? computedReturnArgs(board, args) : args), idArg, trunkMerge,
+        listItems: store.listItems, itemById: store.itemById, getItem: store.getItem, mainRedReviewItems,
       });
       // Conflict preflight may have returned the selected review; re-read eligibility before building.
       return reviewed.item ? { ...reviewed, review: true } : { ...reviewed, retry: true };
