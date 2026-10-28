@@ -6,13 +6,14 @@
  "frontDoor": "packages/flakes/index.js",
  "placedBy": {
   "seed": 5,
-  "rule": 0,
+  "rule": 1,
   "imports": 0
  },
  "paths": [
   ["src/flake-command.js","packages/flakes/src/shell/flake-command.js","seed"],
   ["src/flakes.js","packages/flakes/src/shell/flakes.js","seed"],
   ["src/native-flake-cli.js","packages/flakes/src/shell/native-flake-cli.js","seed"],
+  ["src/native-flake-receipts.js","packages/flakes/src/shell/native-flake-receipts.js","rule"],
   ["src/native-flakes.js","packages/flakes/src/shell/native-flakes.js","seed"],
   ["src/quarantine.js","packages/flakes/src/shell/quarantine.js","seed"]
  ],
