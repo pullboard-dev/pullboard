@@ -1,16 +1,6 @@
 /** Board-only proposed changes to approved requirements [P6,B23,N39]. */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  atomic,
-  logEvent,
-  PERSON,
-  recordRowDecisions,
-} from './board.js';
-import {
-  rowDecisions,
-  rowDrafts,
-} from './board-query.js';
 import { Refused } from './refused.js';
 import {
   defaultPrincipal,
@@ -34,7 +24,7 @@ function approvedSource(root, config, id) {
 }
 
 /** Plan a new proposal without writing either the approved row or a draft row into SPEC.md. */
-export function planSpecRevision(root, config, { revises, text, gate, status, reason, taken }) {
+export function planSpecRevision(root, config, { revises, text, gate, status, reason, taken }, { loadDoctrine }) {
   if (typeof reason !== 'string' || !reason.trim() || /[\r\n|]/u.test(reason)) throw new Refused('SPEC_REVISION', 'give the reason for changing the approved row: --reason "why"');
   const { row, source } = approvedSource(root, config, revises);
   const wanted = status ?? row.status;
@@ -48,7 +38,7 @@ export function planSpecRevision(root, config, { revises, text, gate, status, re
     (_, start, old) => `${start}${nextText}${old.match(/\s*$/u)?.[0] ?? ''}`);
   if (nextGate !== row.gate) replacement = replaceRowGate(replacement, nextGate);
   const prefix = /^([A-Z][A-Z0-9]*?)\d+(?:\.\d+)*$/u.exec(revises)?.[1];
-  const plan = draftRow(root, config, { target: 'spec', text: nextText, gate: nextGate, tier: row.tier, section: prefix, taken, write: false });
+  const plan = draftRow(root, config, { target: 'spec', text: nextText, gate: nextGate, tier: row.tier, section: prefix, taken, write: false }, { loadDoctrine });
   return { ...plan.row, target: 'spec', revises, file: config.spec, source, replacement, status: wanted, reason: reason.trim() };
 }
 
@@ -74,7 +64,7 @@ export function validSpecRevision(row) {
 }
 
 /** Accept only the exact approved effect of a still-pending board proposal. */
-export function validRevisionApproval(board, record) {
+export function validRevisionApproval(board, record, { rowDrafts, rowDecisions }) {
   const draft = rowDrafts(board).find(entry => entry.id === record.revision?.proposal);
   return Boolean(draft && !draft.decision && !draft.applied && validSpecRevision(draft) && record.decision === 'approve'
     && record.kind === 'spec' && record.id === draft.revises && record.file === draft.file
@@ -104,7 +94,7 @@ export function prepareSpecRevisionDecisions(root, config, drafts, { ids, decisi
 }
 
 /** Person-only atomic proposal disposition; a decline never replaces its target's approval. */
-export function decideSpecRevisions(board, { agentId, channel, decisions }) {
+export function decideSpecRevisions(board, { agentId, channel, decisions }, { PERSON, atomic, rowDrafts, rowDecisions, recordRowDecisions, logEvent }) {
   if (agentId !== PERSON || !['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_APPROVAL', 'only the person decides revisions through their terminal or view');
   if (!Array.isArray(decisions) || !decisions.length) throw new Refused('SPEC_REVISION', 'name a pending revision proposal');
   return atomic(board, () => {
@@ -144,7 +134,7 @@ export function decideSpecRevisions(board, { agentId, channel, decisions }) {
 }
 
 /** Keep completed proposal history closed even after a newer target decision replaces its index entry. */
-export function markAppliedRevisions(board, records, at) {
+export function markAppliedRevisions(board, records, at, { rowDrafts }) {
   const ids = new Set(records.map(record => record.revision?.proposal).filter(Boolean));
   if (!ids.size) return;
   const drafts = rowDrafts(board).map(draft => ids.has(draft.id) ? { ...draft, applied: true, appliedAt: at } : draft);

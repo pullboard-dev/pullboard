@@ -7,19 +7,15 @@
  * A draft counts as applied once SPEC.md has its id, so applying needs no second move. Every other
  * writer reserves its new id here too, so no two proposals share an id.
  */
-import { PERSON } from './board.js';
 import { Refused } from './refused.js';
 import { spawnSync } from 'node:child_process';
-import { loadDoctrine } from './doctrine.js';
 import {
   loadSpec,
   parseSpec,
 } from './spec.js';
 import { cleanGitEnvironment } from './git.js';
-import { trunkRef } from './trusted-policy-read.js';
 import { recordRowDraft } from './row-draft-store.js';
 import { validSpecRevision } from './spec-revisions.js';
-export { rowDrafts } from './board-query.js';
 
 /**
  * Reserve one new row's id on the board, and for a lane, record the drafted row itself. Every writer
@@ -32,7 +28,8 @@ export { rowDrafts } from './board-query.js';
  * @param {any} board
  * @param {{ agentId: string, row: { id: string, text: string, gate?: string, tier?: string, section?: string, target?: string }, written?: boolean }} move
  */
-export function draftSpecRow(board, { agentId, row, written = false }) {
+export function draftSpecRow(board, { agentId, row, written = false }, ports) {
+  const { PERSON } = ports;
   if (!agentId || agentId === PERSON) throw new Refused('ROW_DRAFT', 'an agent drafts a row and the person approves it; run pullboard spec draft "<text>" from an agent seat');
   const needed = written ? ['text'] : row?.revises !== undefined ? ['text', 'section'] : ['text', 'gate', 'tier', 'section'];
   if (!row || !/^[A-Z][A-Z0-9]*\d+$/u.test(String(row.id)) || !['spec', 'doctrine', undefined].includes(row.target)
@@ -40,7 +37,7 @@ export function draftSpecRow(board, { agentId, row, written = false }) {
     throw new Refused('ROW_DRAFT', 'a drafted row needs its id and a one-line text, gate, tier and section; run pullboard spec draft "<text>"');
   }
   if (row.revises !== undefined && (written || !validSpecRevision(row))) throw new Refused('SPEC_REVISION', 'a revision needs its exact approved source, proposed replacement and reason');
-  return recordRowDraft(board, { agentId, row, written });
+  return recordRowDraft(board, { agentId, row, written }, ports);
 }
 
 /**
@@ -53,7 +50,7 @@ export function draftSpecRow(board, { agentId, row, written = false }) {
  * @param {string | null} mainRoot the primary checkout on this computer, if any
  * @param {any} config
  */
-export function trunkRowIds(root, mainRoot, config) {
+export function trunkRowIds(root, mainRoot, config, { loadDoctrine, trunkRef }) {
   const ids = [];
   if (mainRoot) ids.push(...loadSpec(mainRoot, config).rows, ...loadDoctrine(mainRoot, config).repo.rows);
   const shown = spawnSync('git', ['show', `${trunkRef(root) ?? 'main'}:${config.spec}`], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });

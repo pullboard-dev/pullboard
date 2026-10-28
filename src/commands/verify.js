@@ -7,6 +7,7 @@ import { committedItemAuthors } from '../review-independence.js';
 import { verifyOutsideSandbox } from '../sandbox-verify.js';
 import { effectiveItemHead } from '../source-advance-state.js';
 import { agentSessionDigest } from '../person.js';
+import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
 import { completeMoveHandoff } from '../post-move-handoff.js';
 import { itemReviewPolicy } from '../review-independence.js';
 import { twoTierReviews } from '../review-independence.js';
@@ -218,7 +219,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       }
     }
     review ??= captureVerdictReview(root, board, item, verdictTrunk(root, { trunkRef }), undefined, { events: store.events });
-    if (decision === 'ACCEPT') approvalRows = itemAgentApprovals(item, specApprovalState(root, { board, config: ctx.config }));
+    if (decision === 'ACCEPT') approvalRows = itemAgentApprovals(item, specApprovalState(root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }));
     const approvalNote = agentApprovalLine(approvalRows);
     if (decision === 'ACCEPT') git(root, ['update-ref', `refs/pullboard/items/${id}/${review.head.slice(0, 12)}`, review.head]);
     return await ordered(ctx, board, 'verify', [id, {

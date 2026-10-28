@@ -1,14 +1,12 @@
 /** Approval provenance: a status word is not a person's decision [S1,B26,P6]. */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from './board-query.js';
 import {
   gitReadSignature,
   tryGit,
 } from './git.js';
-import { personNeeds } from './needs.js';
+import { personNeeds } from './row-decision-text.js';
 import { Refused } from './refused.js';
-import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import {
   loadSpec,
   readSignoffs,
@@ -73,7 +71,7 @@ function approvalEvidence(root, evidenceErrors) {
 }
 
 /** Check a board decision against local trust without making invalid proof block flag-mode work. */
-function confirmedDecision(root, board, decision, evidenceErrors) {
+function confirmedDecision(root, board, decision, evidenceErrors, verifiedPasskeyRowDecision) {
   if (verifiedPasskeyRowDecision(board, decision)) return true;
   try { verifyRowDecision(root, decision); return true; }
   catch (error) {
@@ -93,7 +91,7 @@ export function captureSpecApprovalBaseline(root, config) {
 }
 
 /** Load one provenance view for a command; no observation here manufactures an approval event. */
-export function specApprovalState(root, { board, config, spec = loadSpec(root, config) }) {
+export function specApprovalState(root, { board, config, spec = loadSpec(root, config) }, { store, verifiedPasskeyRowDecision }) {
   const mode = config.specAgentApproval ?? 'flag';
   let baseline;
   let baselineInvalid = false;
@@ -115,7 +113,7 @@ export function specApprovalState(root, { board, config, spec = loadSpec(root, c
     const decision = decisions.findLast(record => record.id === row.id);
     if (decision) {
       if (!matchesApproval(decision, current)) return true;
-      return !confirmedDecision(root, board, decision, evidenceErrors);
+      return !confirmedDecision(root, board, decision, evidenceErrors, verifiedPasskeyRowDecision);
     }
     return !matchesApproval(signed.findLast(record => record.kind === 'spec' && record.file === config.spec && record.id === row.id), current);
   });
@@ -150,8 +148,8 @@ export function projectSpecApprovals(state, approval) {
 }
 
 /** An explicit refuse setting blocks unconfirmed citations; flag and allow always keep work moving. */
-export function refuseAgentApprovedRows(root, { board, config, item }) {
+export function refuseAgentApprovedRows(root, { board, config, item }, ports) {
   if (config.specAgentApproval !== 'refuse') return;
-  const rows = itemAgentApprovals(item, specApprovalState(root, { board, config }));
+  const rows = itemAgentApprovals(item, specApprovalState(root, { board, config }, ports));
   if (rows.length) throw new Refused('AGENT_APPROVAL_REQUIRED', `${rows.map(row => row.id).join(', ')} is agent-approved and spec.agentApproval is refuse; ask the coordinator to arrange confirmation or decline in the Spec view`);
 }

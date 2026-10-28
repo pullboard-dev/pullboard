@@ -1,3 +1,4 @@
+import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import { resumeRigorCounters } from './rigor-counters.js';
 /** Read the existing shared board projection with current unapplied person decisions [N26,A9]. */
 import { join } from 'node:path';
@@ -14,7 +15,7 @@ import { loadConfig } from './config.js';
 import { loadSpec } from './spec.js';
 import { loadDoctrine } from './doctrine.js';
 import { rigorDraftNeeds } from './rigor-notices.js';
-import { personNeeds } from './needs.js';
+import { personNeeds } from './row-decision-text.js';
 import { recentBlocks } from './needs-summary.js';
 export { personNeedsSummary, recentBlocks } from './needs-summary.js';
 import {
@@ -34,7 +35,7 @@ export function personNeedsState(root, { board: providedBoard = null, includeRig
   try {
     const decisions = store.rowDecisions(board);
     const config = loadConfig(root);
-    const state = projectSpecApprovals(projectFit(pendingFit(info.commonDir), projectRowDecisions(decisions, projectState(root, { board }))), specApprovalState(root, { board, config }));
+    const state = projectSpecApprovals(projectFit(pendingFit(info.commonDir), projectRowDecisions(decisions, projectState(root, { board }))), specApprovalState(root, { board, config }, { store, verifiedPasskeyRowDecision }));
     const rows = projectRowDecisions(decisions, { root, spec: loadSpec(root, config).rows, practice: loadDoctrine(root, config).rows });
     const drafts = store.rowDrafts(board);
     const rigorDrafts = rigorDraftNeeds(rows, drafts, decisions);

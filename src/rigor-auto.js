@@ -1,4 +1,5 @@
 /** A failure move creates a durable, unproved proposal without writing a repository file [D1,H16]. */
+import { atomic } from './board-event-log.js';
 import {
   events,
   logEvent,
@@ -97,7 +98,7 @@ export function recordAutomaticRigorDrafts(board, trigger, shout) {
       const advice = cause.split ? splitProposal(cause.split).text
         : `Review how to prevent repeated ${JSON.stringify(cause.key).replaceAll('|', '\\u007c')} (${cause.items.map(item => `#${item.id}`).join(', ') || 'person-marked never again'}). No remedy or red/green proof has been established.`;
       const entry = recordRowDraft(board, { agentId: 'rigor', row: { id: `RG${trigger.event_id}1`, target,
-        text: `${advice} Source: ${source}`, gate: 'review', tier: 'aim', section: 'RG' } });
+        text: `${advice} Source: ${source}`, gate: 'review', tier: 'aim', section: 'RG' } }, { atomic, logEvent, rowDrafts });
       logEvent(board, 'rigor', 'rigor-draft', null, { engine: RIGOR_AUTO_ENGINE, id: entry.id, target, cause: cause.key,
         source, unproved: true, items: cause.items, occurrences: cause.occurrences });
       created.push({ id: entry.id, target });

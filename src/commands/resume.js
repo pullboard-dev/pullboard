@@ -4,6 +4,8 @@ import { appliedDoctrine } from '../doctrine.js';
 import { doctrineFromSource } from '../doctrine.js';
 import { loadDoctrine } from '../doctrine.js';
 import { primaryCheckoutRoot } from '../cli.js';
+import { relayRecovered } from '../relay.js';
+import { proposeLanes } from '../init.js';
 import { counterProofStats } from '../proof-counter-read.js';
 import { localDependencyIds } from '../item-dependencies.js';
 /** The pullboard resume command, in its own module so an item adding another command never edits these lines. */
@@ -45,9 +47,7 @@ import {
 import {
   resumeNeeds,
 } from '../resume-needs.js';
-import {
-  personNeeds,
-} from '../needs.js';
+import { personNeeds } from '../row-decision-text.js';
 import {
   Refused,
 } from '../refused.js';
@@ -148,7 +148,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   const initialBaseline = withBoardRead(ctx, board => {
     whoAmI(ctx, board);
     requireBoardWriteAccess(ctx.file);
-    return initialSpecApprovalBaseline(ctx, board, 'recordHealthFindings');
+    return initialSpecApprovalBaseline(ctx, board, 'recordHealthFindings', { relayRecovered, specApprovalBaselineExists: store.specApprovalBaselineExists });
   });
   if (initialBaseline) {
     const baselineIo = ctx.io.personRequest || ctx.io.personRequestMoveId
@@ -264,7 +264,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   if (view.state !== 'running' && backgroundViewLine(view)) say(backgroundViewLine(view));
   if (diagnostics) {
     say(`New agent worktrees: ${card.newWorktreeLocation}`);
-    card.setup = withBoardRead(ctx, board => withStarterWork(boardSetup(ctx, card, setupScope, { decisions: setupDecisions }), { board, me, main: isMain, config: ctx.config, root, seat: ctx.io.callerRole() === 'seat' }));
+    card.setup = withBoardRead(ctx, board => withStarterWork(boardSetup(ctx, card, setupScope, { decisions: setupDecisions }), { board, me, main: isMain, config: ctx.config, root, seat: ctx.io.callerRole() === 'seat', nextFor: store.nextFor, proposeLanes }));
   } else say('Setup, hook and stale-work diagnostics: pullboard resume --diagnostics.');
   if (!loadSpec(root, ctx.config).rows.length && card.all.length) say('Spec rows are optional; add a requirement later: pullboard spec draft "<text>".');
   if (card.setup) {

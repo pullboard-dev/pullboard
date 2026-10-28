@@ -8,7 +8,6 @@ import {
   join,
   resolve,
 } from 'node:path';
-import * as store from './board.js';
 import { loadConfig } from './config.js';
 import { repoInfo } from './git.js';
 import { listApiProjects } from './projects.js';
@@ -78,7 +77,7 @@ export function resolveRepo(repo, self, siblings) {
  * @param {(root: string) => any} [configFor] reads a sibling's config; tests may replace it
  * @returns {{ decisions: any[], unreadable: string[] }}
  */
-export function projectPersonDecisions(root, repo, board, siblings, configFor = loadConfig) {
+export function projectPersonDecisions(root, repo, board, siblings, configFor = loadConfig, store) {
   const decisions = store.openDecisions(board, store.PERSON).map((ask) => ({ ask: { ...ask, repo }, repo, root, agents: store.listAgents(board), config: null }));
   const unreadable = [];
   for (const sibling of siblings) {
