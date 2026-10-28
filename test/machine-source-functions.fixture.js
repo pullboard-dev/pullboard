@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { posix } from 'node:path';
 /** A top-level function, or a top-level arrow function bound to a const. */
 const START = /^(?:export )?(?:(?:async )?function (\w+)\(|const (\w+) = (?:async )?(?:\([^)]*\)|\w+) =>)/;
@@ -54,4 +55,25 @@ export function sourceFacts(read, file) {
   const stars = facade ? [...source.matchAll(/export\s*\*\s*from\s*(['"])(\.{1,2}\/[^'"]+\.js)\1/g)]
     .map(([, , specifier]) => under(specifier)) : [];
   return { bodies: functionsIn(source), named, spaces, source, stars };
+}
+
+/** Consume only the exact working-source capability; unknown identities never cause another file read. */
+export function sourceReader(rows) {
+  const sources = new Map(rows.map(({ file, body }) => [file, Buffer.from(body)]));
+  return (file) => {
+    const identity = posix.normalize(posix.join('src', file));
+    const source = sources.get(identity);
+    if (!source) throw new Error(`source identity is outside the closed inventory: ${file}`);
+    return source.toString('utf8');
+  };
+}
+
+/** Keep actual shim/body reachability and unknown-path failures beside the source parser's fixture helpers. */
+export function assertSyncFacadeAudit(codeWalk, fromDisk, editedSource) {
+  assert.throws(() => fromDisk('../../outside.js'), /outside the closed inventory/u);
+  assert.throws(() => fromDisk('unknown-source-file.js'), /outside the closed inventory/u);
+  assert.ok(codeWalk(fromDisk).refusalsOf('commands/sync.js#run').has('GIT_REPLACE_REFS'));
+  const planted = editedSource('../packages/sync/src/shell/sync.js', /^export async function syncGitBoard\(root, board, io, \{ settlePending = false \} = \{\}\) \{$/m,
+    "$&\n  throw new Refused('SYNC_PACKAGE_PROBE', 'planted sync body refusal');");
+  assert.ok(codeWalk(planted).refusalsOf('commands/sync.js#run').has('SYNC_PACKAGE_PROBE'));
 }

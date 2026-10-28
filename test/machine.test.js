@@ -5,6 +5,10 @@
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
  */
 import { sourceFacts } from './machine-source-functions.fixture.js';
+import { sourceReader } from './machine-source-functions.fixture.js';
+import { assertSyncFacadeAudit } from './machine-source-functions.fixture.js';
+import { workingSourceInventory } from '../bin/checks/scan.js';
+import { fileURLToPath } from 'node:url';
 import { functionsIn } from './machine-source-functions.fixture.js';
 import { assertMachineWalkMemo } from './machine-walk-memo.fixture.js';
 import * as fs from 'node:fs';
@@ -249,7 +253,7 @@ function codeWalk(read, { caught = false } = {}) {
  * @param {string} file
  * @returns {string}
  */
-const fromDisk = (file) => fs.readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
+const fromDisk = sourceReader(workingSourceInventory(fileURLToPath(new URL('..', import.meta.url)), ['src', 'bin']));
 
 /**
  * The refusal codes the named moves declare, or the whole declaration's when none is named: their
@@ -1489,8 +1493,5 @@ test('lifecycle audit follows extracted package guards and catches a new refusal
 });
 
 test('lifecycle source walks follow sync shims and catch a planted body refusal [M1,M4,H16]', () => {
-  assert.ok(codeWalk(fromDisk).refusalsOf('commands/sync.js#run').has('GIT_REPLACE_REFS'));
-  const planted = editedSource('../packages/sync/src/shell/sync.js', /^export async function syncGitBoard\(root, board, io, \{ settlePending = false \} = \{\}\) \{$/m,
-    "$&\n  throw new Refused('SYNC_PACKAGE_PROBE', 'planted sync body refusal');");
-  assert.ok(codeWalk(planted).refusalsOf('commands/sync.js#run').has('SYNC_PACKAGE_PROBE'));
+  assertSyncFacadeAudit(codeWalk, fromDisk, editedSource);
 });
