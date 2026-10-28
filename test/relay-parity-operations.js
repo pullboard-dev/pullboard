@@ -53,7 +53,9 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
     }
     await seedStudyState(context);
     await seedItemPatches(context);
+    process.stderr.write('parity phase seedSourceAdvance begin\n');
     await seedSourceAdvance(context);
+    process.stderr.write('parity phase seedSourceAdvance complete\n');
     await seedOutside(context);
     await seedLandingObservations(context);
     await seedMembership(context);
@@ -61,7 +63,9 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
     await seedTypedRequests(context);
     await seedStaleState(context);
     await seedBatch(context);
+    process.stderr.write('parity phase seedNativeTrain begin\n');
     await seedNativeTrain(context);
+    process.stderr.write('parity phase seedNativeTrain complete\n');
     await seedSpecOutcomes(context);
     await seedCurrentOperations(context);
     await seedBarSignature(context);
