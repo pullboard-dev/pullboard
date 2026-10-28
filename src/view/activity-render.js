@@ -1,3 +1,5 @@
+import { sharedRowHtml } from './row-component.js';
+
 /** The approved Activity sentences, rendered once for live and exported views [N26].
  * Standalone because the page embeds this function's source text.
  */
@@ -45,7 +47,8 @@ export function activityHtml(model, { filter = 'all', words, itemHref = id => '#
       content = '<p>' + who(entry.by, entry.agent) + ' ' + sentence + (entry.kind === 'shout' ? ' ' + esc(entry.to === 'coordinator' ? 'the coordinator' : entry.to === 'person' ? 'the person' : entry.to || 'the board') : '') + '</p>'
         + (entry.item ? item(entry.item) : '') + (entry.kind === 'shout' && entry.words ? '<blockquote class="activity-quote">' + (quote ? quote(localTimes(entry.words)) : esc(localTimes(entry.words))) + '</blockquote>' : '');
     }
-    return '<li class="activity-event" data-activity-kind="' + esc(entry.kind) + '"><time>' + esc(clock(entry.at)) + '</time><span class="activity-verb ' + tone + '">' + icon(glyph) + '</span><div class="activity-say">' + content + '</div></li>';
+    return sharedRowHtml({ variant: 'activity', state: tone, time: clock(entry.at), iconHtml: icon(glyph), mainHtml: content,
+      attributes: { 'data-activity-kind': entry.kind } });
   };
   const filters = '<div class="activity-bar"><div class="seg" role="group" aria-label="Activity filter">' + [['all', 'All'], ['work', 'Work'], ['sentinels', 'Sentinels'], ['shouts', 'Shouts']].map(([key, label]) =>
     '<button type="button" data-activity-filter="' + key + '" aria-pressed="' + (filter === key) + '" class="' + (filter === key ? 'on' : '') + '">' + label + '<b>' + model.counts[key] + '</b></button>').join('') + '</div></div>';

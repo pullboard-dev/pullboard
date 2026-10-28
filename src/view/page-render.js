@@ -198,10 +198,10 @@ function render() {
     const tag = s === 'building' && holder ? '<span class="chip busy" title="building, held by ' + esc(agentName(holder)) + '">' + esc(agentName(holder)) + '</span>'
       : s === 'verify' && reviewer ? '<span class="chip warn" title="reviewing until ' + esc(when(i.claim?.until ?? i.reviewUntil)) + '">' + esc(agentName(reviewer)) + ' reviewing</span>'
       : s === 'open' ? openChip(i) : chip(s);
-    return recordRow({ classes: (view.item === i.id ? 'on ' : '') + (gated ? 'gated ' : ''), attributes: 'data-item="' + i.id + '"', title: i.title, state: s,
-      primary: '<span>#' + i.id + '</span>' + rich(i.title, titles), rightTop: age(i.updatedAt), rightBottom: tag,
+    return sharedRowHtml({ className: (view.item === i.id ? 'on ' : '') + (gated ? 'gated ' : ''), attributes: { 'data-item': i.id }, title: i.title, state: s,
+      primaryHtml: '<span>#' + i.id + '</span>' + rich(i.title, titles), timeHtml: age(i.updatedAt), chipHtml: tag,
       // A rejected row's second line is its verdict; any other row's is its lane and the spec ids it serves.
-      secondary: (rejected(i) ? '<span class="why"><b>' + esc(i.verdict.reason) + '</b> ' + linked(firstLine(visibleVerdictNote(i.verdict.reason, i.verdict.note)), titles) + '</span>'
+      metaHtml: (rejected(i) ? '<span class="why"><b>' + esc(i.verdict.reason) + '</b> ' + linked(firstLine(visibleVerdictNote(i.verdict.reason, i.verdict.note)), titles) + '</span>'
         : '<span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span class="specs" title="' + esc(i.specs.join(', ')) + '">' + esc(i.specs.slice(0, 3).join(', ') + (i.specs.length > 3 ? ' +' + (i.specs.length - 3) : '')) + '</span>' : '')) + pills + staleChip(i) });
   }).join('') : '<li class="empty">' + (finishedUnderAll
     ? 'Finished work is under All. <button class="link" data-filter-choice="state:all" data-filter-kind="state" data-filter-value="all" type="button">Show all</button>'

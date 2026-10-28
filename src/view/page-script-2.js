@@ -12,10 +12,11 @@ import { agentFloorHtml } from './agent-floor-render.js';
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart2(scope) {
-  const { activityWords, activityModel, activityHtml, dashboardModel, dashboardHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
+  const { sharedRowHtml, activityWords, activityModel, activityHtml, dashboardModel, dashboardHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
 return `let detailRead = null;
 const addressedShouts = new Map();
 const $ = (id) => document.getElementById(id);
+const sharedRowHtml = (${sharedRowHtml.toString()});
 const activityWords = (${activityWords.toString()});
 const activityModel = (${activityModel.toString()});
 const activityHtml = (${activityHtml.toString()});
@@ -446,7 +447,8 @@ const ruleSource = (row) => row.standardVersion != null ? 'Pullboard v' + row.st
 const ruleSourceTitle = (row) => ruleSource(row);
 /** Render the two-line record shared by Items, Spec and Doctrine, with one grid and type hierarchy. */
 function recordRow({ tag = 'li', classes = '', attributes, title, state, primary, secondary, rightTop = '', rightBottom = '' }) {
-  return '<' + tag + ' class="' + (tag === 'div' ? 'srow ' : '') + 'row s-' + state + (classes ? ' ' + classes.trim() : '') + '" ' + attributes + ' title="' + esc(title) + '"><span class="dot ' + state + '"></span><div><div class="t srow-text">' + primary + '</div>' + (rightTop ? '<span class="row-age">' + rightTop + '</span>' : '') + '<div class="meta">' + secondary + '</div></div>' + rightBottom + '</' + tag + '>';
+  return sharedRowHtml({ variant: 'record', tag, className: classes, attributesHtml: attributes, title, state,
+    primaryHtml: primary, metaHtml: secondary, timeHtml: rightTop, chipHtml: rightBottom });
 }
 const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
 // What needs the person in a project, as its Needs-you list counts it: only the person's calls (B26),
