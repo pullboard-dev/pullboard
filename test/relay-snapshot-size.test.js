@@ -143,6 +143,13 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
   });
   const encodedKey = readFileSync(box.keyFile, 'utf8').trim();
   await chrome.navigate(box.origin + '/#board=' + sourceState.board + '&key=' + encodedKey);
+  await chrome.waitFor('location.origin === ' + JSON.stringify(box.origin) + ' && document.readyState === "complete"');
+  assert.deepEqual(await chrome.evaluate(`(async () => {
+    const { Refused } = await import('/relay/refused.js');
+    const refusal = new Refused('BROWSER_CONTROL', 'module loaded', 'recover here');
+    return { name: refusal.name, code: refusal.code, message: refusal.message, next: refusal.next };
+  })()`), { name: 'Refused', code: 'BROWSER_CONTROL', message: '[BROWSER_CONTROL] module loaded', next: 'recover here' },
+  'the actual served refusal module loads its complete browser dependency graph and retains its constructor contract');
   try {
     await chrome.waitFor("document.querySelector('#chain')?.textContent.includes('legacy snapshot cursor')");
   } catch (error) {
