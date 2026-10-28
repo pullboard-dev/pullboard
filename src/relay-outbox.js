@@ -203,7 +203,7 @@ export const ITEM_SLOTS = Object.freeze({
   // Patch author metadata names no other item; both operations target their first argument.
   attachItemPatch: [[0]], removeItemPatch: [[0]], followItemPatches: [[0]],
   recordFlakeObservation: [], recordGateRun: [], recordProofRun: [[0, 'itemId'], [0, 'receipt', 'proof', 'item']], declareJob: [], recordJobRun: [], takeCoordinator: [], openHandoff: [], landingLeaseMove: [], setPersonSigning: [], proposePersonMove: [],
-  recordActivityDelivery: [], actOnActivity: [], recordRowVerification: [], setBoardMembers: [],
+  recordNextIdle: [], recordActivityDelivery: [], actOnActivity: [], recordRowVerification: [], setBoardMembers: [],
   // Re-home IDs are acknowledged-only; foreign board/source IDs are never locally rewritten.
   reserveRehomeItemId: [], rehomeItem: [[0]], applyRehomeItem: [[0, 'destinationItemId']],
   ...Object.fromEntries(FIRST_ITEM.map((operation) => [operation, [[0]]])),
