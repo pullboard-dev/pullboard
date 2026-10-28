@@ -3,6 +3,7 @@ import { copyFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { gitExecFileSync } from './git-adapter.js';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,7 +20,7 @@ import { withSourceComposition } from './source-advance-compose.js';
 
 /** Read immutable Git facts with a bounded child; never execute repository hooks. */
 function git(root, args) {
-  return execFileSync('git', args, { cwd: root, env: gitChildEnv(root), encoding: 'utf8', timeout: 30000 }).trim();
+  return gitExecFileSync(args, { cwd: root, env: gitChildEnv(root), encoding: 'utf8', timeout: 30000 }).trim();
 }
 
 /** The private advisory folder is repository-owned and contains no new board authority. */
@@ -123,13 +124,13 @@ async function advance(root, directory, job, write, services) {
       const config = policy.config;
       custody.started();
       const gate = await runSubmitGate(composition.directory, config, { base: composition.inputHead, changed: composition.changed,
-        check: frozenCheck(job.item), agent: 'coordinator', item: String(job.item.item_id), sourceAdvance: true,
+        executionServices: services.executionServices, check: frozenCheck(job.item), agent: 'coordinator', item: String(job.item.item_id), sourceAdvance: true,
         proofContext: { item: job.item.item_id, frozenDigest: job.basis.bar, seat: 'coordinator', kind: 'submit' } });
       if (!gate.cleanupUnverified && !(gate.profile?.landingShards?.unverified?.length > 0)) custody.terminal();
       const artifacts = retainArtifacts(directory, job, gate, composition, services);
       const result = await write(async (board, order) => {
-        const request = gate.isGreen ? prepareSourceAdvance(root, board, job.item, composition, gate, job.basis)
-          : prepareSourceAdvanceReturn(root, board, job.item, job.basis, { composition, gate });
+        const request = gate.isGreen ? prepareSourceAdvance(root, board, job.item, composition, gate, job.basis, services.selectors)
+          : prepareSourceAdvanceReturn(root, board, job.item, job.basis, { composition, gate }, services.selectors);
         for (const receiptId of gate.proofReceiptIds.filter(Boolean)) await order('recordProofRun', [{ agentId: 'coordinator', itemId: job.item.item_id, receiptId }]);
         git(root, ['update-ref', `refs/pullboard/items/${job.item.item_id}/${composition.head.slice(0,12)}`, composition.head]);
         return gate.isGreen ? order('advanceItemSource', [job.item.item_id, request]) : order('reopen', [job.item.item_id, request]);
@@ -154,6 +155,9 @@ async function advance(root, directory, job, write, services) {
 export async function runSourceAdvances(root, token, services) {
   const info = repoInfo(root);
   if (!info.isMain || !codeIsFromMain() || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
+  if (typeof services?.selectors?.selectAffectedTests !== 'function' || typeof services?.selectors?.selectTestTreeGuards !== 'function') throw new TypeError('source advance worker needs explicit test selector operations');
+  const selectors = Object.freeze({ selectAffectedTests: services.selectors.selectAffectedTests, selectTestTreeGuards: services.selectors.selectTestTreeGuards });
+  services = { ...services, selectors };
   const { withFileLock, readMainAudit, saveMainAudit } = services;
   const directory = sourceAdvanceDirectory(info); mkdirSync(directory, { recursive: true, mode: 0o700 });
   const ownerFile = join(directory,'owner.json'), wakeFile = join(directory,'wake.json'), lock = join(directory,'owner.guard.sqlite');

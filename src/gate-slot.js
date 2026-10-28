@@ -1,6 +1,4 @@
-import { carriedRunnerTrunk } from './runner-policy.js';
 import { mainCheckout } from './git.js';
-import { probeRunnerTransport } from './runner-transport.js';
 /** Machine admission and receipts without eagerly loading board or full proof execution [Q1,Q2,Q3,C7]. */
 import { Refused } from './refused.js';
 import {
@@ -20,10 +18,6 @@ import {
   memoryFloorMB,
 } from './settings.js';
 import {
-  localRunnerDescriptor,
-  sampleRunnerLoad,
-} from './runner-load.js';
-import {
   recordReceipt,
   receiptOf,
   slotOf,
@@ -34,9 +28,22 @@ import {
   runnerSource,
 } from './gate-policy-load.js';
 
+/** Snapshot required canonical operations before admission; functions remain private process-local lease state. */
+export function requireGateExecutionServices(value) {
+  const runners = ['sampleRunnerLoad', 'localRunnerDescriptor', 'carriedRunnerTrunk', 'probeRunnerTransport', 'probeRunnerHealth', 'runOnRunner', 'runOnRunnerAsync'];
+  const landing = ['captureReleaseQueue', 'constrainedLandingHost', 'releaseExecutors'];
+  if (!runners.every(name => typeof value?.runners?.[name] === 'function')
+    || !landing.every(name => typeof value?.landing?.[name] === 'function')) {
+    throw new TypeError('gate execution needs explicit canonical runner and landing services');
+  }
+  return Object.freeze({ runners: Object.freeze(Object.fromEntries(runners.map(name => [name, value.runners[name]]))),
+    landing: Object.freeze(Object.fromEntries(landing.map(name => [name, value.landing[name]]))) });
+}
+
 /** Close a gated run's receipt (#836) as its evidence is written; the slot's release records this same receipt. */
 export function settleReceipt(lease) {
   if (!lease?.tracker) return undefined;
+  const { localRunnerDescriptor, sampleRunnerLoad } = lease.executionServices.runners;
   const executor = lease.executionAdmission;
   const local = !lease.runner;
   const descriptor = local ? lease.localDescriptor ?? localRunnerDescriptor(lease.capacity ?? null, null)
@@ -68,6 +75,7 @@ export function settleReceipt(lease) {
  * @returns {Promise<any>} The action's result after releasing its lease.
  */
 export async function withGateSlot(root, action, options = {}) {
+  options = { ...options, executionServices: requireGateExecutionServices(options.executionServices) };
   try { return await withOneGateSlot(root, action, options); }
   catch (error) {
     if (!['RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED'].includes(error?.code) || options.remote === false || options.runnerOnly || options.requiredExecutor?.kind === 'ssh') throw error;
@@ -82,15 +90,19 @@ export async function withGateSlot(root, action, options = {}) {
 }
 
 /** One gate admission and its action; withGateSlot may call it again for a local rerun. */
-async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, readMemory = readMachineMemory } = {}) {
+async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, readMemory = readMachineMemory, executionServices } = {}) {
+  const { localRunnerDescriptor, sampleRunnerLoad, carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth } = executionServices.runners;
   const restriction = requiredExecutorOf(requiredExecutor);
   const tracker = startReceipt();
   const receiptKind = kind || (landing ? 'landing' : 'gate');
   /** Hand the run its receipt tracker and slot, then record its receipt once the slot is released (#836). */
-  const timed = lease => Object.assign(lease, { tracker, receiptKind,
+  const timed = lease => {
+    Object.defineProperty(lease, 'executionServices', { value: executionServices });
+    return Object.assign(lease, { tracker, receiptKind,
     ...(!lease.runner ? { startLoad: lease.startLoad ?? sampleRunnerLoad(),
       localDescriptor: localRunnerDescriptor(lease.capacity ?? null, loadMachineSettings().browserSlots > 0) } : {}),
     slot: slotOf(lease, { browserFree: browserFreeChecksEnabled() }) });
+  };
   const record = lease => {
     const timing = lease.receipt ?? receiptOf(tracker, { kind: receiptKind, slot: lease.slot });
     const receipt = { ...timing, ...(lease.proofReceiptIds?.length ? { proofReceiptIds: [...lease.proofReceiptIds] } : {}) };
@@ -118,7 +130,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   if (runnerOnly && (!remote || !source)) throw new Refused('RUNNER_SOURCE', 'CPU-load tests need a clean committed checkout for runner execution; commit the source and retry, with no local fallback');
   // Read the board once before queueing, never inside the machine admission transaction.
   const releaseContext = gateQueueSettings().currentReleaseFirst
-    ? (await import('./release-queue.js')).captureReleaseQueue(root, item) : undefined;
+    ? executionServices.landing.captureReleaseQueue(root, item) : undefined;
   tracker.mark('queuedAt');
   let lease = await takeResource({
     name: 'gate',
@@ -144,6 +156,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     runnerOnly,
     ...(restriction ? { requiredExecutor: restriction } : {}),
     runnerProvider: () => loadMachineSettings().runners ?? [],
+    runnerHealthProbe: probeRunnerHealth,
     runnersFirstProvider: gateRunnersFirstEnabled,
     runnerWaitMs: gateRunnerWaitMs(),
     releaseContext,
@@ -178,8 +191,8 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         const runnerUnavailable = { host: lease.runner.host,
           reason: cleanup ? error.message : admissionDeadline ? 'worker did not become ready before its admission deadline'
             : health.healthy ? 'transient failure; confirming SSH and Node observation succeeded' : 'failed call and confirming transport observation failed',
-          diagnostic, until: cleanup ? 'cleanup is verified and the host is re-registered'
-            : admissionDeadline ? 'worker readiness is checked and the host is re-registered'
+          diagnostic, until: cleanup ? 'the pinned worker verifies exact-job cleanup on its next health probe'
+            : admissionDeadline ? 'the pinned worker proves readiness and exact-job cleanup on its next health probe'
               : health.healthy ? 'the original ticket is readmitted' : 'the next successful automatic health observation' };
         if (onWait) await onWait({ holders: [], line: [], position: 0, runnerUnavailable });
         else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly && restriction?.kind !== 'ssh' ? 'rerunning it locally' : 'requeueing the run'}\n`);

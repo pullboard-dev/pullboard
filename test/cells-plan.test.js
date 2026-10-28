@@ -1,5 +1,10 @@
 /** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** The committed cells move plan places each path once and orders cells leaf-first by real imports [D3,CD60,CD64]. */
+import { sourceAdvancePlan } from '../src/source-advance-plan.js';
+import { selectAffectedTests } from '../src/affected-tests.js';
+import { selectTestTreeGuards } from '../src/affected-tests.js';
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -58,7 +63,7 @@ test('the plan places every tracked module and asset under src/, bin/ and relay/
 });
 
 test('no cell is ordered ahead of a cell it imports, computed from the real source, except the cuts it names [D3,CD64]', () => {
-  const { edges } = cellInventory(ROOT);
+  const { edges } = cellInventory(ROOT, { importsIn, commonJsIn });
   const index = cellIndex(PLAN, readPathMap(ROOT));
   const position = new Map(PLAN.cells.map(cell => [cell.name, cell.order]));
   const cuts = new Set(PLAN.cells.flatMap(cell => cell.cuts.map(row => `${row.cell}->${cell.name}`)));
@@ -124,3 +129,73 @@ test('a move item\'s frozen check passes only when the cell moved behind shims [
 
 
 installCutCases({ PLAN, BIN, fixture, git });
+
+
+test('a bounded single-entry write derives index and shard counts from the same paths [C7,D3,CD60]', t => {
+  const { root, put } = fixture(t);
+  writePlan(root, computePlan(root));
+  const before = readPlan(root);
+  const bounded = readPlan(root);
+  const cell = bounded.cells.find(row => row.name === 'app:cli');
+  const path = 'src/added-command.js';
+  put(path, 'export const bounded = true;\n');
+  cell.paths.push([path, 'apps/cli/src/core/added-command.js', 'seed']);
+  // Deliberately leave both cached summaries unchanged, as the real #1632 bounded caller did.
+  assert.equal(bounded.totals.movedPaths, before.totals.movedPaths);
+  assert.deepEqual(cell.placedBy, before.cells.find(row => row.name === cell.name).placedBy);
+  writePlan(root, bounded);
+  const after = readPlan(root);
+  assert.equal(after.totals.movedPaths, before.totals.movedPaths + 1);
+  assert.equal(after.totals.movedPaths, after.cells.reduce((sum, row) => sum + row.paths.length, 0));
+  assert.equal(after.totals.placedBy.seed, before.totals.placedBy.seed + 1);
+  assert.equal(after.cells.find(row => row.name === cell.name).placedBy.seed, cell.placedBy.seed + 1);
+  assert.deepEqual(after.cells.find(row => row.name === cell.name).paths, cell.paths, 'path order and exact targets survive');
+  for (const row of after.cells) {
+    const original = before.cells.find(previous => previous.name === row.name);
+    const { paths, placedBy, ...semantics } = row;
+    const { paths: oldPaths, placedBy: oldPlacement, ...oldSemantics } = original;
+    assert.deepEqual(semantics, oldSemantics, 'cuts, ratchets, item contracts and ordering are not regenerated');
+    if (row.name !== cell.name) assert.deepEqual(row, original, 'unrelated shards remain unchanged');
+  }
+  for (const field of ['base', 'seed', 'names', 'stays']) assert.deepEqual(after[field], before[field], `${field} provenance is retained`);
+  writePlan(root, after);
+  assert.deepEqual(readPlan(root), after, 'the normalized writer is idempotent');
+});
+
+test('an asset a placed reader lists joins that reader cell, and an asset nothing reads is still refused by name [D3,CD60]', t => {
+  const { root, put } = fixture(t);
+  put('src/stats-docs/heartbeat.json', '{}\n');
+  put('src/stats-docs-reader.js', "import { readdirSync, readFileSync } from 'node:fs';\nimport { join } from 'node:path';\nexport const docs = (root = '.') => [readdirSync(join(root, 'src', 'stats-docs')), readFileSync];\n");
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'directory reader');
+  const plan = computePlan(root);
+  const row = plan.cells.find(cell => cell.name === 'stats').paths.find(([from]) => from === 'src/stats-docs/heartbeat.json');
+  assert.equal(row?.[2], 'rule', 'the asset joins the stats cell that lists its directory');
+  put('src/orphan/unread.json', '{}\n');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'unread asset');
+  assert.throws(() => computePlan(root), error => error.code === 'CELLS_UNPLACED' && error.message.includes('src/orphan/unread.json'));
+});
+
+/** Real Git graph selection remains explicit, while missing parsers/selectors refuse before repository reads. */
+test('codemap providers are required and source advance retains its real raw closure [C7,D3,CD64]', t => {
+  for (const parsers of [undefined, { importsIn }, { commonJsIn }]) {
+    assert.throws(() => cellInventory('/missing-codemap-provider', parsers), /explicit module parser operations/u);
+  }
+  const config = { affectedTests: 'node --test --test-reporter=tap', gate: 'npm run gate', registryGuards: [], submitInvariants: [] };
+  for (const selectors of [undefined, { selectAffectedTests }, { selectTestTreeGuards }]) {
+    assert.throws(() => sourceAdvancePlan('/missing-codemap-provider', config, { base: 'HEAD', changed: [] }, selectors), /explicit test selector operations/u);
+  }
+  const { root, put } = fixture(t);
+  put('test/selected.test.js', "import { stats } from '../src/stats.js';\nimport { test } from 'node:test';\ntest('selected real graph', () => stats());\n");
+  put('test/unrelated.test.js', "import { test } from 'node:test';\ntest('unrelated actual test', () => {});\n");
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'fixture: actual test importer');
+  const base = git(root, 'rev-parse', 'HEAD').trim();
+  const plan = sourceAdvancePlan(root, config, { base, changed: ['src/stats.js'], check: 'node --test test/selected.test.js' }, { selectAffectedTests, selectTestTreeGuards });
+  assert.equal(plan.selection.full, false);
+  assert.deepEqual(plan.proofFiles, ['test/selected.test.js']);
+  assert.equal(plan.criterion, 'node --test test/selected.test.js');
+  assert.equal(plan.affected, "node --test --test-reporter=tap './test/selected.test.js'");
+  assert.match(plan.selectionDigest, /^[a-f0-9]{64}$/u);
+});

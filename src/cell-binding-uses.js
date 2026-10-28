@@ -75,6 +75,8 @@ function prepare(source, body, bindings, scopeBraces = false) {
       const escaped = local.replaceAll('$', '\\$');
       const matches = [...body.matchAll(new RegExp(`(?<![\\p{ID_Continue}$])${escaped}(?![\\p{ID_Continue}$])`, 'gu'))];
       const remaining = matches.filter(match => {
+        // A qualified property cannot read or declare this identifier; spread still reads its binding.
+        if (qualifiedMember(code, match.index)) return false;
         if (!expressionCall(code, lines, match.index, local.length)) return true;
         row.reads.push(match.index); return false;
       });

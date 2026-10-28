@@ -1,4 +1,5 @@
 /** Real Git ranges and native gate receipts for receipt-based pre-push decisions [C7]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { configFromSource } from '../src/config.js';
@@ -20,6 +21,7 @@ import {
 } from '../src/pre-push-receipts.js';
 import {
   readGateReceipt,
+  receiptBody,
   receiptStore,
 } from '../src/gate-run-receipt.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -73,8 +75,9 @@ test('push ranges check first parents, direct commits, new refs and all ref reco
 function nativeReceipt(box, { landing = false, red = false, unparsed = false } = {}) {
   const module = new URL('../src/gate.js', import.meta.url).href;
   const source = `import {readFileSync} from 'node:fs'; import {runGate} from ${JSON.stringify(module)};
+${executionServicesSource(module)}
 const config=JSON.parse(readFileSync('pullboard.json','utf8'));
-const result=await runGate(process.cwd(),config,{trustStamp:false,landing:${landing},agent:'coordinator'});
+const result=await runGate(process.cwd(),config,{ executionServices,trustStamp:false,landing:${landing},agent:'coordinator'});
 console.log(JSON.stringify({receiptId:result.receiptId,green:result.isGreen,output:result.output}));`;
   const ran = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
     cwd: box.repo, env: { ...box.env, PULLBOARD_FIXTURE_AUDIT_RED: unparsed ? '2' : red ? '1' : '0' }, encoding: 'utf8',
@@ -106,7 +109,8 @@ test('push evidence refuses missing landings and unfiled newest audit failures w
   assert.equal(redAudit.failures.length, 1, 'a real failing committed test has an exact identity');
   const input = { commits: [head], landingReceipts: [{ commit: head, receiptId: landing.id }],
     audits: [{ receiptId: greenAudit.id }], filings: [], items: [], landingCommand: command, auditCommand: command };
-  const receiptBytes = readFileSync(join(receiptStore(box.repo), `${landing.id}.json`), 'utf8');
+  const receiptBytes = receiptBody(readGateReceipt(receiptStore(box.repo), landing.id));
+  assert.equal(typeof receiptBytes, 'string', 'the native receipt exists with its exact canonical disk bytes');
   assert.deepEqual(pushReceiptProblems(box.repo, input), []);
   assert.match(pushReceiptProblems(box.repo, { ...input, landingReceipts: [] }).join('\n'), /lacks its exact green landing receipt/u);
   assert.match(pushReceiptProblems(box.repo, { ...input, landingReceipts: [{ commit: head, receiptId: greenAudit.id }] }).join('\n'), /lacks its exact green landing receipt/u);
@@ -120,7 +124,7 @@ test('push evidence refuses missing landings and unfiled newest audit failures w
   assert.match(pushReceiptProblems(box.repo, { ...input, audits: [...input.audits, { receiptId: 'missing' }] }).join('\n'), /latest full audit has no bound receipt/u);
   assert.match(pushReceiptProblems(box.repo, { ...input, audits: [{ receiptId: unparsedAudit.id }] }).join('\n'), /red without identified failures/u);
   assert.match(pushReceiptProblems(box.repo, { ...input, landingCommand: 'another gate' }).join('\n'), /lacks its exact green landing receipt/u);
-  assert.equal(readFileSync(join(receiptStore(box.repo), `${landing.id}.json`), 'utf8'), receiptBytes, 'read-only evaluation cannot create a replacement green stamp');
+  assert.equal(receiptBody(readGateReceipt(receiptStore(box.repo), landing.id)), receiptBytes, 'read-only evaluation cannot create a replacement green stamp');
 });
 
 /** Invoke the real additive smoke helper using the fixture's accepted policy and ordinary inherited admission. */
@@ -130,7 +134,8 @@ function nativeSmoke(box) {
 import {checkNeedsBrowser} from ${JSON.stringify(new URL('../src/browser-admission.js', import.meta.url).href)};
 import {checkNeedsGui} from ${JSON.stringify(new URL('../src/gui-admission.js', import.meta.url).href)};
 import {runProfiledShellAsync,withGateSlot} from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};
-try { const run=await runPushReceiptSmoke(process.cwd(),{agent:'coordinator'},
+${executionServicesSource(new URL('../src/gate.js', import.meta.url).href)}
+try { const run=await runPushReceiptSmoke(process.cwd(),{executionServices,agent:'coordinator'},
 {checkNeedsBrowser,checkNeedsGui,runProfiledShellAsync,withGateSlot});
 console.log(JSON.stringify({green:run.isGreen,policy:run.policyCommit,output:run.output})); }
 catch(error) { console.log(JSON.stringify({code:error.code,message:error.message})); process.exitCode=1; }`;

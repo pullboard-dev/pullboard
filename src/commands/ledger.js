@@ -1,4 +1,5 @@
 /** The pullboard ledger command, in its own module so an item adding another command never edits these lines. */
+import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
 import * as store from '../board.js';
 import {
   agentApprovalLine,
@@ -21,7 +22,7 @@ export function run(io) {
     })),
     stats: store.stats(board),
     agents: store.listAgents(board),
-    approval: specApprovalState(ctx.info.root, { board, config: ctx.config }),
+    approval: specApprovalState(ctx.info.root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }),
   }));
   const built = items.filter((item) => item.item_built_by && item.item_status !== 'withdrawn').reverse()
     .map(item => ({ ...item, agentApproved: itemAgentApprovals(item, approval), approvalQualification: agentApprovalLine(itemAgentApprovals(item, approval)) }));

@@ -10,7 +10,7 @@ import { COORDINATOR } from "../../../../src/config.js";
 import { VERSION } from "../../../../src/help.js";
 import { refusalDocument } from "../../../../src/next-step-words.js";
 import { Refused } from "../../../../src/refused.js";
-import { personNeeds } from "../../../../src/needs.js";
+import { personNeeds } from "../../../../src/row-decision-text.js";
 import { personNeedsState } from "../../../../src/needs-state.js";
 
 /** MCP revisions this server speaks; the first is offered when a client asks for one it does not know. */

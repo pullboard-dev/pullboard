@@ -29,9 +29,7 @@ import {
   receiptBinds,
   receiptStore,
 } from './gate-run-receipt.js';
-import {
-  releaseExecutors,
-} from './landing-shards.js';
+import { requireGateExecutionServices } from './gate-slot.js';
 import {
   releaseReceiptBody,
   releaseReceiptFields,
@@ -51,10 +49,11 @@ export function releaseSource(root) {
 }
 
 /** Verify only this repository's privately recorded execution and its native gate bytes, never an imported file. */
-export function verifyNativeReleaseReceipt(root, id) {
+export function verifyNativeReleaseReceipt(root, id, executionServices) {
   if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/u.test(id)) return null;
   try {
     const source = releaseSource(root);
+    const { releaseExecutors } = requireGateExecutionServices(executionServices).landing;
     const file = join(repoInfo(root).commonDir, 'pullboard', 'release-receipts', `${id}.json`);
     // Current registration is independently observed; a caller cannot shrink the required machine set.
     const expected = { head: source.head, tree: source.tree, command: source.command,
@@ -65,13 +64,14 @@ export function verifyNativeReleaseReceipt(root, id) {
 }
 
 /** Execute the actual accepted full gate with mandatory native placement before privately writing an envelope. */
-export async function runReleaseGate(root, { agent = 'release', onWait } = {}) {
+export async function runReleaseGate(root, { agent = 'release', onWait, executionServices } = {}) {
   const source = releaseSource(root);
-  const executors = releaseExecutors();
+  executionServices = requireGateExecutionServices(executionServices);
+  const executors = executionServices.landing.releaseExecutors();
   const request = { version: 1, id: randomUUID(), executors };
   const startedAt = new Date().toISOString();
   const run = await runGate(root, source.policy.config, { trustStamp: false, landing: true, collectAll: true,
-    releaseRequest: request, agent, onWait });
+    releaseRequest: request, executionServices, agent, onWait });
   const after = releaseSource(root);
   if (after.head !== source.head || after.tree !== source.tree || after.command !== source.command) {
     throw new Refused('GATE_RUN_EVIDENCE', 'the accepted release source changed during execution; keep its logs and run again on the accepted head');

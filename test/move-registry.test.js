@@ -37,6 +37,10 @@ import { minimumMoveEngine } from '../src/move-registry.js';
 import { SPEC_REVISION_ENGINE } from '../src/spec-revision-engine.js';
 import { PRIVATE_REHOME_ENGINE } from '../src/private-rehome-engine.js';
 import { registryProblems } from './move-registry-invariants.js';
+import {
+  mappedWorkingSources,
+} from '../bin/checks/scan.js';
+import { readPathMap } from '../src/path-map.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
 import { historyProblems } from './move-registry-history.js';
 import { installRegistryMergeCase } from './move-registry-merge-cases.js';
@@ -54,7 +58,10 @@ const REHOME_OPERATIONS = ['reserveRehomeItemId', 'rehomeItem', 'applyRehomeItem
 
 /** Hash the real consumer bytes so seed declarations cannot quietly edit a central list. */
 function consumerHashes(root) {
-  return Object.fromEntries(CONSUMERS.map(file => [file, createHash('sha256').update(readFileSync(join(root, file))).digest('hex')]));
+  return Object.fromEntries(mappedWorkingSources(root, CONSUMERS).map(input => [input.identity, {
+    body: createHash('sha256').update(input.body).digest('hex'),
+    shim: input.shimBody === null ? null : createHash('sha256').update(input.shimBody).digest('hex'),
+  }]));
 }
 
 /** Run one fixture child, preserving both streams whenever setup or discovery fails. */
@@ -79,8 +86,11 @@ export default { operation: ${JSON.stringify(name)}, order: ${engine + 1000}, en
 test('live registry invariants and historical actors, order and SQLite replay hold [C7,V4,H3,H16]', t => {
   assert.deepEqual(ENGINE_OPERATIONS.filter(operation => SNAPSHOT.operations.includes(operation)), SNAPSHOT.operations, 'historical operation order is retained while new declarations append independently');
   const root = fileURLToPath(new URL('../src/', import.meta.url));
-  const sources = readdirSync(root, { recursive: true }).filter(file => file.endsWith('.js'))
-    .map(file => readFileSync(join(root, file), 'utf8'));
+  const repository = fileURLToPath(new URL('../', import.meta.url));
+  const identities = new Set(readdirSync(root, { recursive: true }).filter(file => file.endsWith('.js')).map(file => 'src/' + file));
+  for (const [identity] of readPathMap(repository)) if (identity.startsWith('src/') && identity.endsWith('.js')) identities.add(identity);
+  const sources = mappedWorkingSources(repository, [...identities])
+    .flatMap(input => [input.body, ...(input.shimBody === null ? [] : [input.shimBody])]).map(bytes => bytes.toString('utf8'));
   assert.deepEqual(registryProblems({ registry: MOVE_REGISTRY, leaves: readEngineLeaves(root), sources, nextSteps: NEXT_STEPS }), []);
   assert.deepEqual(ENGINE_OPERATIONS, Object.keys(MOVE_REGISTRY), 'engine routing derives every operation from its declaration');
   for (const [code, step] of Object.entries(CLAUSE_STEPS)) assert.equal(NEXT_STEPS[code], step, `${code} retains exact clause recovery`);
@@ -138,6 +148,8 @@ test('two new board moves declared in two files need no edit to engine.js, board
   mkdirSync(root);
   unpackRelease('HEAD', root);
   run(root, 'git', ['init', '-b', 'main']);
+  run(root, 'git', ['add', '.']);
+  run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'commit', '-m', 'fixture: exact installed source map']);
   const before = consumerHashes(root);
   mkdirSync(join(root, 'src/moves'), { recursive: true });
   writeFileSync(join(root, 'src/moves/seedAlpha.js'), seedDeclaration('seedAlpha', 9, true, 'repair the first seeded move'));
@@ -238,6 +250,7 @@ test('move import closure stays process-free on a seeded revision board [C7,V4,H
   assert.equal(minimumMoveEngine('applyRowDecisions', [{ events: [7] }], board), SPEC_REVISION_ENGINE);
   const root = fileURLToPath(new URL('../', import.meta.url));
   const forbidden = new Set(['src/board.js', 'src/engine.js', 'src/board-engine-ports.js', 'src/next-step-words.js', 'src/move-registry.js', 'src/git.js']);
+  for (const [identity, path] of readPathMap(root)) if (forbidden.has(identity)) forbidden.add(path);
   const seen = new Set();
   let pending = readdirSync(join(root, 'src/moves')).filter(file => file.endsWith('.js'))
     .map(file => pathToFileURL(join(root, 'src/moves', file)).href);
@@ -248,12 +261,18 @@ test('move import closure stays process-free on a seeded revision board [C7,V4,H
       assert.ok(!forbidden.has(fileURLToPath(file).slice(root.length)), 'move declarations load no writer/consumer');
       seen.add(file);
     }
-    const edges = importsIn(level.map(file => readFileSync(fileURLToPath(file), 'utf8')));
+    const inputs = mappedWorkingSources(root, level.map(file => fileURLToPath(file).slice(root.length)));
+    const bodies = inputs.flatMap(input => [
+      { path: input.implementationPath, body: input.body },
+      ...(input.shimBody === null ? [] : [{ path: input.shimPath, body: input.shimBody }]),
+    ]);
+    for (const input of bodies) assert.ok(!forbidden.has(input.path), 'mapped move declarations load no writer/consumer');
+    const edges = importsIn(bodies.map(input => input.body.toString('utf8')));
     for (const [index, imports] of edges.entries()) for (const specifier of imports) {
       assert.notEqual(specifier, 'node:child_process', 'move declarations load no process launcher');
       if (specifier.startsWith('node:')) continue;
       assert.ok(specifier.startsWith('.'), 'move imports are native or relative');
-      pending.push(new URL(specifier, level[index]).href);
+      pending.push(new URL(specifier, pathToFileURL(join(root, bodies[index].path))).href);
     }
   }
 });

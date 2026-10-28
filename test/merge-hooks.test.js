@@ -1,4 +1,10 @@
 /** Real merge hooks prove main integration without weakening lane ownership [L3,H16,B26]. */
+import { boardBusyError } from '../src/board-access.js';
+import { openBoardReadOnly } from '../src/board-read-open.js';
+import { rowDecisions } from '../src/row-decisions-query.js';
+import { checkLoosening } from '../src/doctrine-checks.js';
+
+const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import assert from 'node:assert/strict';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -140,11 +146,11 @@ function diverge(box, { conflict = false } = {}) {
 test('accepted-main merges preserve exact foreign objects on a primary branch named trunk [L3]', (t) => {
   const box = fixture(t, 'trunk');
   diverge(box);
-  assert.deepEqual(preCommitProblems(box.context), []);
+  assert.deepEqual(preCommitProblems({ ...box.context, approvedRowPorts }), []);
   git(box.lane, 'commit', '-q', '-m', 'test: merge accepted main');
   writeFileSync(join(box.lane, 'view', 'file'), 'outside a merge\n');
   git(box.lane, 'add', '-A');
-  assert.ok(preCommitProblems(box.context).some((problem) => problem.includes('outside the core lane: view/file')),
+  assert.ok(preCommitProblems({ ...box.context, approvedRowPorts }).some((problem) => problem.includes('outside the core lane: view/file')),
     'the exception ends when the merge ends');
 });
 
@@ -153,13 +159,13 @@ test('owned conflict resolutions commit while foreign edits and mode changes rem
   diverge(box, { conflict: true });
   writeFileSync(join(box.lane, 'core', 'file'), 'resolved owned core\n');
   git(box.lane, 'add', 'core/file');
-  assert.deepEqual(preCommitProblems(box.context), []);
+  assert.deepEqual(preCommitProblems({ ...box.context, approvedRowPorts }), []);
   writeFileSync(join(box.lane, 'view', 'file'), 'sneaked foreign edit\n');
   git(box.lane, 'add', 'view/file');
-  assert.ok(preCommitProblems(box.context).some((problem) => problem.includes('view/file')));
+  assert.ok(preCommitProblems({ ...box.context, approvedRowPorts }).some((problem) => problem.includes('view/file')));
   git(box.lane, 'restore', '--source=MERGE_HEAD', '--staged', '--worktree', '--', 'view/file');
   git(box.lane, 'update-index', '--chmod=+x', 'view/file');
-  assert.ok(preCommitProblems(box.context).some((problem) => problem.includes('view/file')),
+  assert.ok(preCommitProblems({ ...box.context, approvedRowPorts }).some((problem) => problem.includes('view/file')),
     'an unchanged blob does not authorize a different executable mode');
 });
 
@@ -178,13 +184,13 @@ test('an accepted-main conflict permits a foreign resolution, including literal 
   git(box.main, 'commit', '-q', '-m', 'test: alternate accepted parent');
   const result = runFixtureChild('git', ['merge', '--no-commit', '--no-ff', 'main'], { cwd: box.lane, encoding: 'utf8' });
   assert.equal(result.status, 1, result.failure ?? 'foreign parents conflict');
-  assert.ok(preCommitProblems(box.context).some((problem) => problem.includes('literal')),
+  assert.ok(preCommitProblems({ ...box.context, approvedRowPorts }).some((problem) => problem.includes('literal')),
     'unresolved stages are never treated as an absent path');
   git(box.lane, 'restore', '--source=HEAD', '--staged', '--worktree', '--', path);
-  assert.deepEqual(preCommitProblems(box.context), []);
+  assert.deepEqual(preCommitProblems({ ...box.context, approvedRowPorts }), []);
   writeFileSync(join(box.lane, path), 'neither parent\n');
   git(box.lane, 'add', '--', path);
-  assert.deepEqual(preCommitProblems(box.context), [],
+  assert.deepEqual(preCommitProblems({ ...box.context, approvedRowPorts }), [],
     'a resolved accepted-main conflict may choose new content at its coordinator-owned path');
 });
 
@@ -200,7 +206,7 @@ test('merging an unaccepted branch never authorizes foreign changes [L3]', (t) =
   git(other, 'add', '-A');
   git(other, 'commit', '-q', '-m', 'test: unaccepted branch');
   git(box.lane, 'merge', '--no-commit', '--no-ff', 'unaccepted');
-  assert.ok(preCommitProblems(box.context).some((problem) => problem.includes('view/file')));
+  assert.ok(preCommitProblems({ ...box.context, approvedRowPorts }).some((problem) => problem.includes('view/file')));
 });
 
 test('installed pre-commit refuses tag-based foreign revert and deletion shortcuts [L3]', (t) => {

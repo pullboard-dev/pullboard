@@ -1,3 +1,4 @@
+import { startRunnerPhases } from './timing.js';
 /** SSH runner entry point in a pinned capsule with a static trusted resource graph. */
 import {
   spawn,
@@ -26,7 +27,6 @@ import {
 } from './execution-environment.js';
 import { sampleRunnerLoad } from './runner-load.js';
 import {
-  startRunnerPhases,
   validateCacheTips,
   tagObjectBodies,
 } from './runner-overhead.js';
@@ -35,6 +35,7 @@ import { loadavg } from 'node:os';
 import { userInfo } from 'node:os';
 import {
   delimiter,
+  basename,
   dirname,
   isAbsolute,
   join,
@@ -45,6 +46,12 @@ import { createDescendantTracker } from './runner-custody.js';
 import { pinSourceCacheJob } from './runner-source-cache.js';
 import { pruneSourceCache } from './runner-source-cache.js';
 import { Refused } from './refused.js';
+import {
+  recordRunnerCompletion,
+  recoveryIdentity,
+  runnerLaunchAllowed,
+  runnerHealthReply,
+} from './runner-transport.js';
 import { guiSession } from './gui-session.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
 import { RUNNER_POLICY_FILE } from './runner-policy.js';
@@ -221,6 +228,7 @@ async function readSpec() {
     || (value.browserByLaunch !== undefined && typeof value.browserByLaunch !== 'boolean')
     || !value.runtime || typeof value.runtime !== 'object' || !value.runtime.files || typeof value.runtime.files !== 'object'
     || typeof value.runtime.sha256 !== 'string') throw new Error('invalid work specification');
+  if (value.recovery !== undefined && (!recoveryIdentity(value.recovery) || value.recovery.request !== value.id || value.recovery.tooling !== value.tooling?.sha256)) throw new Error('invalid recovery identity');
   if (value.trustedMode !== undefined) {
     const mode = privateCheckEnvelope(value.trustedMode);
     if (mode.policyCommit.length !== value.commit.length || value.command !== mode.check || value.landing === true || value.stageMarker !== undefined) throw new Error('invalid trusted private-check source');
@@ -286,6 +294,10 @@ async function readSpec() {
     || !/^[a-z][a-z0-9-]{0,63}$/u.test(value.testResults.stage)
     || typeof value.testResults.origin !== 'string' || /[\r\n\0]/u.test(value.testResults.origin))) throw new Error('invalid test-result exchange');
   if (value.root !== undefined && (typeof value.root !== 'string' || !isAbsolute(value.root))) throw new Error('invalid work specification');
+  if (value.recovery?.launchFence === 1) {
+    const root = value.root ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard-runner');
+    if (!runnerLaunchAllowed(root, value.recovery)) throw new Error('runner launch was fenced or unclaimed');
+  }
   return value;
 }
 
@@ -979,12 +991,14 @@ async function main() {
   let tracker = null;
   let runtimeCapture = null;
   let runDirectory;
+  let recoveryRoot;
   let setupStep = 'runner directories';
   let gui = null;
   let final = { code: 1, signal: null, root: '' };
   try {
     const runnerHome = isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir;
     const runnerRoot = spec.root ?? join(runnerHome, '.pullboard-runner');
+    recoveryRoot = runnerRoot;
     setupPrivatePaths.add(runnerRoot);
     mkdirSync(runnerRoot, { recursive: true, mode: 0o700 });
     setupPrivatePaths.add(realpathSync(runnerRoot));
@@ -1092,8 +1106,15 @@ async function main() {
       } finally { await releaseDrainedLease(lease); }
     }
     final.testRuntimes = runtimeCapture?.finish() ?? null;
+    const custody = tracker?.cleanupState();
+    const drained = ownedChildren.size === 0 && (!custody || !custody.uncertain && !custody.censusFailure && !custody.pending.length && !custody.live.length);
+    if (recoveryRoot && runDirectory && drained) {
+      try { recordRunnerCompletion(recoveryRoot, spec.recovery, basename(runDirectory)); }
+      catch { /* Missing durable custody keeps recovery unavailable. */ }
+    }
     cleanupStage = 'job files';
-    if (runDirectory && !cleanupTimedOut) { try { rmSync(runDirectory, { recursive: true, force: true }); } catch {} }
+    // No filesystem writes follow final removal; health separately requires this exact directory to be absent.
+    if (runDirectory && (!cleanupTimedOut || drained)) { try { rmSync(runDirectory, { recursive: true, force: true }); } catch {} }
   }
   if (transportLost || cleanupTimedOut) { clearTimeout(cleanupTimer); clearTimeout(phaseCleanupTimer); process.exitCode = 1; stopReading(); return; }
   cleanupStage = 'result receipt';
@@ -1118,4 +1139,11 @@ function failedWorker() {
   stopReading();
 }
 
-main().catch(failedWorker);
+if (process.argv[2] === '--health') {
+  try {
+    const request = JSON.parse(Buffer.from(process.argv[3] ?? '', 'base64').toString('utf8'));
+    if (!/^[a-f0-9-]{36}$/u.test(request.nonce ?? '') || request.root !== undefined && !isAbsolute(request.root)) throw new Error('invalid health request');
+    const root = request.root ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard-runner');
+    process.stdout.write(JSON.stringify(runnerHealthReply(root, request)) + '\n');
+  } catch { process.exitCode = 1; }
+} else main().catch(failedWorker);

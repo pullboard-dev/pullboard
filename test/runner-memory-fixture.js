@@ -1,4 +1,6 @@
+/** @pullboard-test-input source-tree */
 /** Real private runner dispatch and public status under controlled memory readings [C7]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
@@ -41,17 +43,30 @@ export async function assertRunnerMemoryAdmission() {
     const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
     const cli = join(import.meta.dirname, '../bin/pullboard.js');
     const source = [
-      `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};`,
+      `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
+${executionServicesSource(gate)}`,
       "import {execFileSync} from 'node:child_process';",
       "import {DatabaseSync} from 'node:sqlite';",
+      `import {runOnRunnerAsync,probeRunnerHealth} from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href)};`,
+      `import {listResources} from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/resources.js')).href)};`,
+      `import {recordRunnerFailure,recoverUnavailableRunners} from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href)};`,
+      "import {readdirSync,readFileSync} from 'node:fs';",
       'const root=process.cwd(); const output={};',
+      `const runner=${JSON.stringify(settings.runners[0])};`,
+      'const completed=await runOnRunnerAsync(root,"true",{runner});if(!completed.isGreen)throw new Error("preparatory worker did not complete");',
+      `const recoveryDirectory=${JSON.stringify(join(home, '.pullboard-runner', 'recovery'))};`,
+      'const completion=JSON.parse(readFileSync(recoveryDirectory+"/"+readdirSync(recoveryDirectory)[0],"utf8"));',
+      'listResources();const recoveredQueue=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+"/resources.sqlite");',
+      'recordRunnerFailure(recoveredQueue,runner.host,"transport-lost",{recovery:completion});',
+      'output.prepared=await recoverUnavailableRunners(recoveredQueue,[runner],{probe:probeRunnerHealth,now:Date.now()+2000});recoveredQueue.close();',
+      'if(!output.prepared)throw new Error("preparatory exact-worker recovery did not complete");',
       '/** Keep the refusal path bounded: release only the private simulated pressure after observing it. */',
       'async function exercise(remote, agent, releaseOccupied){',
       'let recovered=false; const held=[]; let status=null; let runnerStatus=null; let waited=0;',
       'const readMemory=async()=>({checked:true,platform:process.platform,pressure:recovered?"normal":"critical",',
       'availableBytes:(recovered?8192:64)*1024**2,totalBytes:16*1024**3,processes:[]});',
       'const result=await withGateSlot(root,lease=>runProfiledShellAsync(root,"node memory-probe.cjs",{gateLease:lease,waitMs:lease.waitMs}),',
-      '{remote,agent,kind:"focused",readMemory,onWait(state){waited+=1;',
+      '{executionServices,remote,agent,kind:"focused",readMemory,onWait(state){waited+=1;',
       `status=JSON.parse(execFileSync(process.execPath,[${JSON.stringify(cli)},"status","--json"],{cwd:root,encoding:"utf8"}));`,
       `runnerStatus=JSON.parse(execFileSync(process.execPath,[${JSON.stringify(cli)},"resources","--json"],{cwd:root,encoding:"utf8"})).runners.find(row=>row.host===${JSON.stringify(HOST)});`,
       'if(state.memory?.held){held.push(state.memory);recovered=true;} releaseOccupied?.();}});',
@@ -60,12 +75,9 @@ export async function assertRunnerMemoryAdmission() {
       'const ready=new Promise(resolve=>{markOccupied=resolve;});',
       'const release=new Promise(resolve=>{releaseOccupied=resolve;});',
       'const occupied=withGateSlot(root,async lease=>{if(!lease.runner)throw new Error("occupying run did not reserve a runner");markOccupied();await release;},',
-      '{agent:"occupied-runner",kind:"focused",readMemory:async()=>({checked:true,pressure:"normal",availableBytes:8*1024**3,totalBytes:16*1024**3,processes:[]})});',
+      '{executionServices,agent:"occupied-runner",kind:"focused",readMemory:async()=>({checked:true,pressure:"normal",availableBytes:8*1024**3,totalBytes:16*1024**3,processes:[]})});',
       'await Promise.race([ready,occupied.then(()=>{throw new Error("occupying run ended before the queue control");})]);',
-      '// A past transport hold is retry-eligible under the accepted runner policy, even while its slot is busy.',
-      'const queue=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+"/resources.sqlite");',
-      `queue.prepare("INSERT INTO runner_unavailable(host,since,detail) VALUES(?,?,?)").run(${JSON.stringify(HOST)},new Date(Date.now()-300_001).toISOString(),"TRANSPORT_LOST");`,
-      'queue.close();',
+      '// The actually recovered host remains compatible while its real slot is occupied.',
       'try{output.remote=await exercise(true,"remote-memory-control",releaseOccupied);}finally{releaseOccupied();await occupied;}',
       'output.local=await exercise(false,"local-memory-control");',
       'console.log(JSON.stringify(output));',
@@ -73,11 +85,12 @@ export async function assertRunnerMemoryAdmission() {
     const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 90_000 });
     assert.equal(run.status, 0, run.failure || run.stderr || run.stdout);
     const result = JSON.parse(run.stdout);
+    assert.equal(result.prepared, true, 'the host was actually recovered using exact completed-worker custody');
     assert.equal(result.remote.green, true, result.remote.output);
     assert.equal(result.remote.runner, HOST, 'the actual stand-in worker executed this run');
     assert.match(result.remote.output, /REAL_RUNNER_MEMORY_PROBE/u);
     assert.deepEqual(result.remote.held, [], 'a runner-bound run is never held for local memory');
-    assert.equal(result.remote.runnerStatus.unavailable, false, 'public resources agrees the expired transport hold is retry-eligible');
+    assert.equal(result.remote.runnerStatus.unavailable, false, 'public resources agrees the actually recovered host is available');
     assert.ok(result.remote.waited > 0, 'the compatible runner was genuinely occupied before the real dispatch');
     assert.ok(!result.remote.status.memoryHeld.some(entry => entry.agent === 'remote-memory-control'), 'a capacity-blocked remote run is not listed as memory-held');
     assert.equal(result.local.green, true, result.local.output);

@@ -1,4 +1,5 @@
 /** Prove concurrent landing gates against actual private Git, SQLite and gate subprocesses [B3,V4]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -48,13 +49,14 @@ function runBatch(box, enabled) {
     `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/board.js')).href)};`,
     `import { loadConfig } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/config.js')).href)};`,
     `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/land.js')).href)};`,
+    `import { landingPorts } from ${JSON.stringify(new URL('./landing-ports-fixture.js', import.meta.url).href)};`,
     `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/runner-private-check.js')).href)};`,
     `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../bin/landing-candidate.js'))};`,
     "import { join } from 'node:path';",
     'const root = process.argv[1]; const enabled = process.argv[2] === "true";',
     'const board = store.openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
     'try { const config = loadConfig(root); config.landing = { ...config.landing, parallel: enabled };',
-    'const result = await runLandingBatch({ checkAtCommit, candidateWorkerFile, root, board, config, owner: "coordinator", maximum: 3, write: async (operation, args) => store[operation](board, ...args), say: () => {}, checkLease: async () => {}, checkLeaseNow: () => {} });',
+    'const result = await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config, owner: "coordinator", maximum: 3, write: async (operation, args) => store[operation](board, ...args), say: () => {}, checkLease: async () => {}, checkLeaseNow: () => {} });',
     'console.log(JSON.stringify(result)); } finally { store.closeBoard(board); }',
   ].join('\n');
   const env = { ...box.env };
@@ -232,16 +234,18 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
   const direct = [
     `import * as store from ${JSON.stringify(url('board.js'))};`,
     `import { runLandingBatch } from ${JSON.stringify(url('land.js'))};`,
+    `import { landingPorts } from ${JSON.stringify(new URL('./landing-ports-fixture.js', import.meta.url).href)};`,
     `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/runner-private-check.js')).href)};`,
     `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../bin/landing-candidate.js'))};`,
     "import { join } from 'node:path';",
     'const root = process.argv[1]; const board = store.openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
-    'try { await runLandingBatch({ checkAtCommit, candidateWorkerFile, root, board, owner: "private-nested-api", write: async (operation, args) => store[operation](board, ...args), say: () => {} }); console.log(JSON.stringify({ code: null })); }',
+    'try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, owner: "private-nested-api", write: async (operation, args) => store[operation](board, ...args), say: () => {} }); console.log(JSON.stringify({ code: null })); }',
     'catch (error) { console.log(JSON.stringify({ code: error.code, message: error.message })); } finally { store.closeBoard(board); }',
   ].join('\n');
   const controller = [
     "import assert from 'node:assert/strict';",
-    `import { withGateSlot } from ${JSON.stringify(url('gate.js'))};`,
+    `import { withGateSlot } from ${JSON.stringify(url('gate.js'))};
+${executionServicesSource(url('gate.js'))}`,
     `import { gateSlotEnvironment, holdsLease } from ${JSON.stringify(url('resources.js'))};`,
     `import { runFixtureChild } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'fixture-child.js')).href)};`,
     'const [root, bin] = process.argv.slice(1); let owned;',
@@ -253,7 +257,7 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
     `const api = runFixtureChild(process.execPath, ["--input-type=module", "-e", ${JSON.stringify(direct)}, root], { cwd: root, env, encoding: "utf8" });`,
     'assert.equal(api.status, 0, api.stderr); assert.equal(JSON.parse(api.stdout).code, "LAND_PARALLEL_NESTED_GATE");',
     'assert.equal(holdsLease(lease), true, "the API refusal cannot release its caller grant");',
-    '}, { browser: false, remote: false, agent: "coordinator", kind: "check" });',
+    '}, { executionServices, browser: false, remote: false, agent: "coordinator", kind: "check" });',
     'assert.equal(holdsLease(owned), false, "only the actual owner releases the grant when its action ends");',
     'console.log(JSON.stringify({ cli: "LAND_PARALLEL_NESTED_GATE", api: "LAND_PARALLEL_NESTED_GATE", ownerReleased: true }));',
   ].join('\n');

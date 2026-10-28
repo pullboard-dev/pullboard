@@ -1,5 +1,12 @@
 #!/usr/bin/env node
+import { runnerExecutionServices } from '../src/runners.js';
+import { landingExecutionServices } from '../src/landing-shards.js';
+import { flakeLedger } from '../src/flakes.js';
+import { eventCauses } from '../src/rigor.js';
 /** Independent scheduled/manual main audit; no foreground lease or identity is borrowed [C7]. */
+import { context } from '../src/cli.js';
+import { ordered } from '../src/cli.js';
+import { withBoard } from '../src/cli.js';
 import { runMainAudits } from '../src/main-audit-worker.js';
 import { mainAuditDirectory } from '../src/main-audit-state.js';
 import { waitMainAudit } from '../src/main-audit-scheduler.js';
@@ -15,5 +22,5 @@ if ((args.length && !(args.length === 1 && (scheduled || forceFull)) && !wakeAt)
   throw new Error('main-audit requires an explicit root and native UUID token, optionally --scheduled or --release');
 }
 if (!wakeAt || await waitMainAudit(mainAuditDirectory(repoInfo(root)), token, wakeAt)) {
-  await runMainAudits(root, token, { scheduled, forceFull });
+  await runMainAudits(root, token, { scheduled, forceFull }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, testValue: { flakeLedger, eventCauses } });
 }

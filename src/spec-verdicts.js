@@ -2,12 +2,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  atomic,
-  logEvent,
-} from './board.js';
-import { rowDrafts } from './board-query.js';
-import { rowDecisions } from './board-query.js';
-import {
   lintSpec,
   parseSpec,
 } from './spec.js';
@@ -30,7 +24,7 @@ export function rowVerifications(board) {
 }
 
 /** Resolve the original exact draft, retaining its author after coordinator materialization. */
-function rowAuthor(board, row) {
+function rowAuthor(board, row, { rowDrafts }) {
   const drafts = rowDrafts(board).filter(draft => draft.id === row.id && (draft.target ?? 'spec') === 'spec'
     && !draft.revises && ['text', 'gate', 'tier'].every(key => (draft[key] ?? '') === (row[key] ?? '')));
   const authors = new Set(drafts.map(draft => draft.by));
@@ -47,7 +41,7 @@ function outsideParent(board, author, verifier) {
 }
 
 /** Record an exact-row receipt under the authenticated operation actor, without writing a file. */
-export function recordRowVerification(board, { agentId, source, decision, reason }) {
+export function recordRowVerification(board, { agentId, source, decision, reason }, { atomic, logEvent, rowDrafts, rowDecisions }) {
   if (typeof source !== 'string' || /[\r\n]/u.test(source) || !['accepted', 'rejected'].includes(decision)
     || typeof reason !== 'string' || !reason.trim() || /[\r\n|]/u.test(reason)) {
     throw new Refused('ROW_VERIFY', 'name one row, accepted or rejected and a one-line reason: pullboard spec verify <id> accepted --reason "why"');
@@ -62,7 +56,7 @@ export function recordRowVerification(board, { agentId, source, decision, reason
     if (rowDecisions(board).some(record => record.kind === 'spec' && record.id === row.id && !record.applied)) {
       throw new Refused('ROW_VERIFY_PENDING', `${row.id} has a pending person decision; run pullboard spec apply before recording a verifier verdict`);
     }
-    const author = rowAuthor(board, row);
+    const author = rowAuthor(board, row, { rowDrafts });
     outsideParent(board, author, agentId);
     const record = { id: row.id, source: base, decision, reason: reason.trim(), by: agentId, author };
     logEvent(board, agentId, 'row_verification', null, { record });
@@ -75,7 +69,7 @@ export function recordRowVerification(board, { agentId, source, decision, reason
 }
 
 /** Reject fabricated, stale or same-parent file annotations against the current exact receipt. */
-export function rowVerificationFindings(board, parsed, source) {
+export function rowVerificationFindings(board, parsed, source, { rowDrafts }) {
   const lines = source.split(/\r?\n/u);
   const records = board ? rowVerifications(board) : [];
   return parsed.rows.filter(row => row.verify !== undefined).flatMap(row => {
@@ -83,7 +77,7 @@ export function rowVerificationFindings(board, parsed, source) {
     let message;
     if (!record || lines[row.line - 1] !== verifiedRowSource(record)) message = 'ROW_VERIFY_RECEIPT: no matching exact-row verifier receipt; run pullboard spec verify before applying its verdict';
     else {
-      try { outsideParent(board, rowAuthor(board, row), record.by); }
+      try { outsideParent(board, rowAuthor(board, row, { rowDrafts }), record.by); }
       catch (error) { if (!(error instanceof Refused) || !['ROW_VERIFY_PROVENANCE', 'ROW_VERIFY_SELF'].includes(error.code)) throw error; message = `${error.code}: ${error.message}`; }
     }
     return message ? [{ level: 'error', line: row.line, id: row.id, message }] : [];

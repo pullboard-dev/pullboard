@@ -2,15 +2,204 @@
 /** Bounded compile-only binding proof never executes candidate source or weakens shadow uncertainty [C7,CD62]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import {
+  readGateReceipt,
+  receiptBody,
+} from '../src/gate-run-receipt.js';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { runFixtureGit } from './fixture-child.js';
+import {
+  privateFixtureFiles,
+  runFixtureChild,
+  runFixtureGit,
+} from './fixture-child.js';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../src/cell-binding-uses.js';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
+import { mainAuditKey } from '../src/main-audit-state.js';
+import { readAuditJob } from './main-audit-project.js';
+import { relayClientFixture } from './relay-client-fixture.js';
+import { mappedWorkingSource } from '../bin/checks/scan.js';
+import { importsIn } from '../src/module-imports.js';
 
 const IMPORT = "import { join } from 'node:path';\n";
+
+test('named metadata leaves and complete moved-body tails keep their exact input boundary [C7]', () => {
+  const prefix = "import { readFileSync } from 'node:fs'; import { join } from 'node:path';\n";
+  const options = { file: 'test/input-boundaries.js', moves: [
+    ['src/git.js', 'packages/git/src/shell/git.js'],
+    ['src/git-launch-baseline.json', 'packages/git/src/shell/git-launch-baseline.json'],
+  ] };
+  for (const body of [
+    "const FILE = 'bin/cells-plan/transition.json'; readFileSync(join(root, FILE));",
+    "readFileSync(join(box.repo, 'packages', 'git', 'src', 'shell', 'git.js'));",
+  ]) assert.deepEqual(fixtureSourceEdits(prefix + body, options), { edits: [], problems: [] });
+  for (const body of [
+    "const FILE = 'src/git-launch-baseline.json'; readFileSync(join(root, FILE));",
+    "readFileSync(join(root, 'src', 'git.js'));",
+    "readFileSync(join(root, 'packages', '..', 'src', 'git.js'));",
+    "const FILE = 'transition.json'; function read(FILE) { readFileSync(join(root, FILE)); }",
+    "let FILE = 'transition.json'; FILE = unknown; readFileSync(join(root, FILE));",
+  ]) assert.ok(fixtureSourceEdits(prefix + body, options).problems.length, body);
+});
+
+test('recursive fixture copies remain explicit inputs even with apparently private path tails [C7]', () => {
+  const prefix = "import { cpSync } from 'node:fs'; import { join } from 'node:path';\n";
+  const options = { file: 'test/private-copy.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']] };
+  for (const body of [
+    "cpSync(join(box.root, '.git', 'pullboard'), target, {recursive:true});",
+    "cpSync(join(root, 'src'), target, {recursive:true});",
+    "cpSync(join(root, 'src', 'git.js'), target, {recursive:true});",
+    "cpSync(join(root, 'git.js'), target, {recursive:true});",
+    "cpSync(join(root, '.git', '..', 'src'), target, {recursive:true});",
+    "cpSync(box.input, target, {recursive:true});",
+  ]) assert.ok(fixtureSourceEdits(prefix + body, options).problems.length, body);
+});
+
+test('native receipt input retains exact bytes and rejects missing or changed format [C7]', (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'pb-receipt-format-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const value = { version: 1, id: '11111111-1111-4111-8111-111111111111', kind: 'gate',
+    tree: 'a'.repeat(40), head: 'b'.repeat(40), main: null, command: 'c'.repeat(64), green: true, failures: [],
+    load: { average: [0, 0, 0], cpus: 1, freeMB: 1 }, at: '2026-10-28T12:00:00.000Z' };
+  const bytes = receiptBody(value);
+  assert.equal(typeof bytes, 'string', 'synthetic format input is valid, without claiming native execution');
+  const file = join(directory, `${value.id}.json`);
+  writeFileSync(file, bytes);
+  assert.equal(receiptBody(readGateReceipt(directory, value.id)), bytes);
+  assert.equal(readGateReceipt(directory, '22222222-2222-4222-8222-222222222222'), null);
+  assert.equal(readGateReceipt(directory, '../untrusted'), null);
+  for (const changed of ['{malformed', bytes + '\n', bytes.replace('"green":true', '"green": true')]) {
+    writeFileSync(file, changed);
+    assert.equal(readGateReceipt(directory, value.id), null, 'same JSON value with altered bytes is not a bound receipt');
+  }
+});
+
+test('native audit journal input refuses missing, malformed and mismatched identities [C7]', (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'pb-audit-format-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const job = { version: 1, board: 'format-only-board', batchId: 'format-only-batch',
+    tip: 'a'.repeat(40), tree: 'b'.repeat(40), state: 'running' };
+  const key = mainAuditKey(job);
+  const file = join(directory, `${key}.json`);
+  assert.throws(() => readAuditJob(directory, key), /actual native audit journal exists/u);
+  assert.throws(() => readAuditJob(directory, '../untrusted'), /audit journal identity/u);
+  writeFileSync(file, JSON.stringify(job));
+  assert.deepEqual(readAuditJob(directory, key), job, 'synthetic schema control makes no runtime-proof claim');
+  writeFileSync(file, '{malformed');
+  assert.throws(() => readAuditJob(directory, key), SyntaxError);
+  writeFileSync(file, JSON.stringify({ ...job, tree: 'c'.repeat(40) }));
+  assert.throws(() => readAuditJob(directory, key), /journal binds/u);
+  writeFileSync(file, JSON.stringify({ ...job, version: 2 }));
+  assert.throws(() => readAuditJob(directory, key), /journal schema/u);
+});
+
+test('mapped working source preserves implementation, shim and exact Buffer obligations [C7]', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'pb-mapped-source-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, 'src'));
+  mkdirSync(join(root, 'packages', 'git'), { recursive: true });
+  const oldPath = 'src/git.js', bodyPath = 'packages/git/core.js';
+  const shim = "export * from '../packages/git/core.js';\n";
+  const original = Buffer.from([0x2f, 0x2f, 0xff, 0x0a]);
+  writeFileSync(join(root, oldPath), shim);
+  writeFileSync(join(root, bodyPath), original);
+  writeFileSync(join(root, 'path-map.json'), JSON.stringify({ [oldPath]: bodyPath }));
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
+    GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
+  /** Commit only the private fixture's source identity. */
+  function git(...args) { return runFixtureGit(args, { cwd: root, env }); }
+  git('init', '-q', '-b', 'main'); git('add', '-A'); git('commit', '-q', '-m', 'chore: mapped source format');
+  const first = mappedWorkingSource(root, oldPath);
+  assert.equal(first.implementationPath, bodyPath);
+  assert.deepEqual(first.body, original, 'invalid UTF-8 bytes are not decoded and re-encoded');
+  assert.deepEqual(first.shimBody, Buffer.from(shim));
+  writeFileSync(join(root, bodyPath), "import 'node:child_process';\n");
+  const changed = mappedWorkingSource(root, oldPath);
+  assert.notDeepEqual(changed.body, first.body, 'changed implementation is visible even with an unchanged shim');
+  assert.deepEqual(changed.shimBody, first.shimBody);
+  const edges = importsIn([changed.body.toString('utf8')])[0];
+  assert.ok(edges.includes('node:child_process'), 'the actual graph parser sees the changed implementation');
+  assert.throws(() => assert.ok(!edges.includes('node:child_process')), 'the unchanged process-free invariant refuses that body');
+  writeFileSync(join(root, oldPath), shim + '// changed shim\n');
+  assert.notDeepEqual(mappedWorkingSource(root, oldPath).shimBody, first.shimBody, 'copy equality still observes changed shim bytes');
+  assert.throws(() => mappedWorkingSource(root, '../escape'), /identity/u);
+  writeFileSync(join(root, 'path-map.json'), '{}');
+  assert.throws(() => mappedWorkingSource(root, oldPath), /stale or uncommitted/u);
+  git('checkout', '--', 'path-map.json');
+  rmSync(join(root, bodyPath));
+  assert.throws(() => mappedWorkingSource(root, oldPath), { code: 'ENOENT' });
+  symlinkSync(join(root, oldPath), join(root, bodyPath));
+  assert.throws(() => mappedWorkingSource(root, oldPath), /contained regular file/u);
+  mkdirSync(join(root, 'bin', 'cells-plan', 'path-map'), { recursive: true });
+  writeFileSync(join(root, 'bin', 'cells-plan', 'path-map', 'duplicate.json'), JSON.stringify({ [oldPath]: bodyPath }));
+  git('add', '-A'); git('commit', '-q', '-m', 'chore: ambiguous map format control');
+  assert.throws(() => mappedWorkingSource(root, oldPath), { code: 'NO_POLICY' });
+});
+
+test('mechanical fixture input owns its origin and reads actual post-component bytes [C7]', (t) => {
+  const inputs = privateFixtureFiles('pb-private-input-');
+  t.after(() => rmSync(inputs.root, { recursive: true, force: true }));
+  const original = Buffer.from([0xff, 0x00, 0x41]);
+  inputs.write('src/actual.js', original);
+  assert.deepEqual(inputs.read('src/actual.js'), original);
+  const changed = Buffer.from("throw new Error('actual component output');\n");
+  writeFileSync(join(inputs.root, 'src/actual.js'), changed);
+  assert.deepEqual(inputs.read('src/actual.js'), changed, 'the port reads working bytes rather than its own seed or Git/index');
+  assert.throws(() => inputs.read('src/unknown.js'), /not owned/u);
+  writeFileSync(join(inputs.root, 'unowned.txt'), 'existing unowned input');
+  assert.throws(() => inputs.write('unowned.txt', 'replacement'), /not owned/u);
+  assert.throws(() => inputs.write('../escape', 'no'), /invalid private fixture file/u);
+  assert.throws(() => privateFixtureFiles(inputs.root), /invalid private fixture prefix/u);
+  rmSync(join(inputs.root, 'src/actual.js'));
+  symlinkSync(join(inputs.root, 'unowned.txt'), join(inputs.root, 'src/actual.js'));
+  assert.throws(() => inputs.read('src/actual.js'), /not regular/u);
+  assert.throws(() => inputs.write('src/actual.js', 'no'), /not owned/u);
+  symlinkSync(join(inputs.root, 'src'), join(inputs.root, 'linked'));
+  assert.throws(() => inputs.write('linked/new.txt', 'no'), /ancestor/u);
+});
+
+test('relay fixture inputs retain every metadata/source byte and reject foreign roots and keys [C7]', async (t) => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  const boardId = box.before.tables.board_meta.find(row => row.meta_key === 'board_id').meta_value;
+  const destination = join(box.root, '..', 'input-copy');
+  mkdirSync(join(destination, '.git'), { recursive: true });
+  const metadata = join(box.root, '.git', 'pullboard');
+  const metadataSecret = 'ps_' + 'M'.repeat(43), sourceSecret = 'pg_' + 'S'.repeat(43);
+  writeFileSync(join(metadata, 'planted-credential.txt'), metadataSecret);
+  writeFileSync(join(metadata, 'excluded.lock'), 'the original copy excludes lock files');
+  box.copyOwnBoardMetadata(destination);
+  mkdirSync(join(destination, 'copied-source', 'nested'), { recursive: true });
+  writeFileSync(join(destination, 'copied-source', 'nested', 'body.js'), sourceSecret);
+  const bytes = box.privateTreeBytes(destination);
+  assert.ok(bytes.some(value => value.equals(Buffer.from(metadataSecret))), 'metadata credentials remain covered');
+  assert.ok(bytes.some(value => value.equals(Buffer.from(sourceSecret))), 'copied source subtree credentials remain covered');
+  assert.ok(!bytes.some(value => value.equals(Buffer.from('the original copy excludes lock files'))), 'copy retains exactly its original lock exclusion');
+  const home = join(box.root, '..', 'input-copy-home');
+  mkdirSync(join(home, 'relay-keys'), { recursive: true });
+  box.copyOwnKey(home, boardId);
+  const keyHash = createHash('sha256').update(box.readKey()).digest('hex');
+  assert.ok(box.privateTreeBytes(home).some(value => createHash('sha256').update(value).digest('hex') === keyHash), 'key copy retains exact actual bytes without printing the secret');
+  assert.throws(() => box.copyOwnKey(home, (boardId[0] === 'f' ? 'e' : 'f') + boardId.slice(1)), /exactly this fixture board/u);
+  assert.throws(() => box.copyOwnKey(home, '../unknown'), /canonical board/u);
+  assert.throws(() => box.copyOwnBoardMetadata(tmpdir()), /fixture origin/u);
+  assert.throws(() => box.copyOwnKey(tmpdir(), boardId), /fixture origin/u);
+  assert.throws(() => box.privateTreeBytes(tmpdir()), /fixture origin/u);
+  symlinkSync(tmpdir(), join(destination, 'escaping-link'));
+  assert.throws(() => box.privateTreeBytes(destination), /escaping symlink/u);
+});
 
 /** Hide only this actual import declaration, just as the production callers do; every other spelling stays visible. */
 function proof(body) {
@@ -19,6 +208,38 @@ function proof(body) {
   const probeBody = ' '.repeat(IMPORT.length - 1) + '\n' + scanned.slice(IMPORT.length);
   return bindingReadsForModules([{ file: 'fixture.js', source, body: probeBody, bindings: [{ local: 'join' }] }]).get('fixture.js').get('join');
 }
+
+test('qualified property spellings do not consume binding probes or conceal actual shadow and spread [C7]', () => {
+  const properties = Array.from({ length: 240 }, () => "const object = { value: [] }; object.value.join(',');").map(line => `{ ${line} }`).join('\n');
+  const body = properties + "\nconst result = join(root, 'actual.json');";
+  const row = proof(body);
+  assert.equal(row.opaque, null);
+  assert.equal(row.potentialShadow, false);
+  assert.equal(row.reads.length, 1, 'only the actual imported identifier contributes a read');
+  const spread = proof(properties + '\nconst values = [...join];');
+  assert.ok(spread.reads.length, 'spread remains an actual binding read');
+  const shadow = proof(properties + "\nfunction nested(join) { return join(root, 'unknown'); }");
+  assert.equal(shadow.potentialShadow, true);
+  const write = proof(properties + '\njoin = replacement;');
+  assert.ok(write.potentialShadow || write.opaque, 'an actual write cannot acquire immutable import authority');
+});
+
+test('qualified property skipping retains optional namespace receivers and shorthand bindings [C7]', () => {
+  const prefix = "import * as path from 'node:path'; import * as fs from 'node:fs'; import {join} from 'node:path';\n";
+  const body = "const names = [path?.join(root, 'actual.json'), fs?.readFileSync(input)]; const shorthand = {join};";
+  const source = prefix + body;
+  const scanned = lex(source).code;
+  const probeBody = ' '.repeat(prefix.length - 1) + '\n' + scanned.slice(prefix.length);
+  const rows = bindingReadsForModules([{ file: 'namespace.js', source, body: probeBody,
+    bindings: [{ local: 'path' }, { local: 'fs' }, { local: 'join' }] }]).get('namespace.js');
+  assert.equal(rows.get('path').reads.length, 1, 'optional path receiver is a real capability read');
+  assert.equal(rows.get('fs').reads.length, 1, 'optional filesystem receiver is a real capability read');
+  assert.equal(rows.get('join').reads.length, 1, 'shorthand retains the actual imported binding');
+  const unknown = fixtureSourceEdits(prefix + "fs?.readFileSync(input);", {
+    file: 'test/optional-reader.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']],
+  });
+  assert.ok(unknown.problems.length, 'an optional unknown filesystem read never becomes a success');
+});
 
 /** Produce enough real expression calls to exceed the old full-source variant budget without any candidate evaluation. */
 function manyCalls() {
@@ -131,6 +352,82 @@ function blob(source) {
   return { source, object: createHash('sha1').update(`blob ${Buffer.byteLength(source)}\0`).update(source).digest('hex') };
 }
 
+test('lazy API imports require exact declared origins and never authorize returned filesystem capabilities [C7]', () => {
+  const consumer = "import {readFileSync} from 'node:fs'; const api = await import('../src/api.js'); api.health(); readFileSync('config.json');";
+  const options = { file: 'test/lazy-api.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']] };
+  const body = "throw new Error('analysis must never execute this');\nexport function health() { return {ok:true}; }\n";
+  const sources = { 'src/api.js': "export {health} from './body.js';\n", 'src/body.js': body };
+  const inspect = (source = consumer, values = sources) => fixtureSourceEdits(source, { ...options,
+    readSource: file => typeof values[file] === 'string' ? blob(values[file]) : null });
+  assert.deepEqual(inspect(), { edits: [], problems: [] });
+  assert.deepEqual(inspect(consumer, { ...sources, 'src/api.js': "export * from './body.js';\n" }), { edits: [], problems: [] });
+  for (const provider of [
+    "export {readFileSync as health} from 'node:fs';\n",
+    "export * as health from 'node:fs';\n",
+    "export const health = unknown;\n",
+    "import {readFileSync} from 'node:fs';\nexport function health(file) { return readFileSync(file); }\n",
+    "export {health} from './missing.js';\n",
+    "export {health} from './cycle.js';\n",
+  ]) assert.ok(inspect(consumer, { ...sources, 'src/api.js': provider,
+    'src/cycle.js': "export {health} from './api.js';\n" }).problems.length, provider);
+  const returned = "export function health() { return unknownCapability; }\n";
+  for (const use of [
+    "api.health().readFileSync(input);",
+    "const fs = api.health(); fs?.readFileSync(input);",
+    "api.health()['readFileSync'](input);",
+    "const {readFileSync: read} = api.health(); read(input);",
+    "api.health().copyFileSync(input, output);",
+    "const key = unknown; api.health()[key](input);",
+    "Reflect.get(api.health(), unknown)(input);",
+    "const {[unknown]: read} = api.health(); read(input);",
+  ]) assert.ok(inspect(consumer + use, { 'src/api.js': returned }).problems.length, use);
+  const forged = fixtureSourceEdits(consumer, { ...options, readSource: () => ({ source: body, object: '0'.repeat(40) }) });
+  assert.ok(forged.problems.length);
+  assert.ok(inspect(consumer, { 'src/api.js': 'export function health( {' }).problems.length, 'malformed exact blobs remain refused');
+  const common = fixtureSourceEdits("const api = require('../src/api.js'); api.health();", { ...options, readSource: file => blob(body) });
+  assert.ok(common.problems.length, 'CommonJS never acquires ESM source-origin authority');
+});
+
+test('fixed-leaf producers follow canonical named shims but refuse unresolved or ambiguous star origins [C7]', () => {
+  const consumer = "import {readFileSync} from 'node:fs'; import {locate} from '../src/shim.js'; readFileSync(locate(info));";
+  const sources = { 'src/shim.js': "export {leaf as locate} from '../packages/git/index.js';\n",
+    'packages/git/index.js': "export * from './body.js';\n",
+    'packages/git/body.js': "import {join} from 'node:path';\nexport function leaf(info) { return join(info.commonDir, 'settings.json'); }\n" };
+  const options = { file: 'test/shim-producer.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']] };
+  const inspect = values => fixtureSourceEdits(consumer, { ...options, readSource: file => values[file] ? blob(values[file]) : null });
+  assert.deepEqual(inspect(sources), { edits: [], problems: [] });
+  assert.ok(inspect({ ...sources, 'packages/git/index.js': "export * from './body.js';\nexport * from './missing.js';\n" }).problems.length);
+  assert.ok(inspect({ ...sources, 'packages/git/index.js': "export * from './body.js';\nexport * from './other.js';\n",
+    'packages/git/other.js': sources['packages/git/body.js'] }).problems.length);
+});
+
+test('all original git-move fixture groups retain their actual source input obligations [C7]', () => {
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const head = runFixtureGit(['rev-parse', 'HEAD'], { cwd: root });
+  const plan = JSON.parse(readFileSync(new URL('../bin/cells-plan/02-git.json', import.meta.url), 'utf8'));
+  const captured = new Map();
+  /** Capture exact regular committed producer bytes, without executing or normalizing their source. */
+  function readSource(file) {
+    if (captured.has(file)) return captured.get(file);
+    if (!/^[\w./-]+$/u.test(file) || file.split('/').some(part => !part || part === '.' || part === '..')) return null;
+    const listed = runFixtureGit(['ls-tree', '-z', head, '--', file], { cwd: root });
+    const object = /^100(?:644|755) blob ([a-f0-9]+)\t/u.exec(listed)?.[1];
+    if (!object) return null;
+    const result = runFixtureChild('git', ['show', `${head}:${file}`], { cwd: root, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.failure);
+    const value = { source: result.stdout, object };
+    captured.set(file, value);
+    return value;
+  }
+  for (const file of ['test/board-busy.test.js', 'test/cell-lints.test.js', 'test/e2e-audit.test.js',
+    'test/landing-queue-fixture.js', 'test/mechanical-merge.test.js', 'test/move-registry.test.js',
+    'test/pre-push-receipts.test.js', 'test/push-native-evidence-fixture.js', 'test/relay-canary.test.js',
+    'test/runner-policy.test.js', 'test/team.test.js']) {
+    const source = mappedWorkingSource(root, file).body.toString('utf8');
+    assert.deepEqual(fixtureSourceEdits(source, { file, moves: plan.paths, readSource }).problems, [], file);
+  }
+});
+
 test('imported producers need exact source identity and a proven native join return leaf [C7]', () => {
   const consumer = "import { readFileSync } from 'node:fs';\nimport { locate as local } from '../src/producer.js';\nreadFileSync(local());";
   const valid = "import { join } from 'node:path';\nexport function locate() { return join(unknownRoot, 'config.json'); }\n";
@@ -155,6 +452,42 @@ test('imported producers need exact source identity and a proven native join ret
   }
   let calls = 0;
   assert.ok(inspect(() => blob(calls++ ? changed : valid)).problems.length, 'source mutation during analysis is refused');
+});
+
+test('session path producers prove a fixed leaf without granting authority to their argument [C7]', () => {
+  const consumer = "import { readFileSync } from 'node:fs'; import { locate } from '../src/producer.js'; readFileSync(locate(info));";
+  const options = { file: 'test/session-path.js', moves: [['src/git-launch-baseline.json', 'packages/git/src/shell/git-launch-baseline.json']] };
+  const valid = "import { join } from 'node:path'; export function locate(info) { return join(info.gitDir, 'pullboard-checkout-session.json'); }";
+  assert.deepEqual(fixtureSourceEdits(consumer, { ...options, readSource: () => blob(valid) }), { edits: [], problems: [] });
+  for (const source of [valid.replace('pullboard-checkout-session.json', 'git-launch-baseline.json'),
+    valid.replace("'pullboard-checkout-session.json'", 'info.file'),
+    valid.replace('locate(info)', 'locate(...info)'),
+    valid.replace('return join', "if (info) return info.file; return join"),
+  ]) assert.ok(fixtureSourceEdits(consumer, { ...options, readSource: () => blob(source) }).problems.length, source);
+  const actual = readFileSync(new URL('../src/agent-session.js', import.meta.url), 'utf8');
+  const direct = "import { readFileSync } from 'node:fs'; import { checkoutSessionFile } from '../src/agent-session.js'; readFileSync(checkoutSessionFile(repoInfo(worker)), 'utf8');";
+  assert.deepEqual(fixtureSourceEdits(direct, { ...options, readSource: file => {
+    assert.equal(file, 'src/agent-session.js');
+    return blob(actual);
+  } }), { edits: [], problems: [] });
+});
+
+test('named metadata constants follow exact bounded reexports and retain collision refusal [C7]', () => {
+  const consumer = "import { readFileSync } from 'node:fs'; import { join } from 'node:path'; import { FILE } from '../src/facade.js'; readFileSync(join(root, FILE));";
+  const options = { file: 'test/metadata.js', moves: [['src/git-launch-baseline.json', 'packages/git/src/shell/git-launch-baseline.json']] };
+  const facade = "export { INPUT as FILE } from './value.js';";
+  const sources = { 'src/facade.js': facade, 'src/value.js': "export const INPUT = 'pullboard-runner-policy.json';" };
+  const inspect = (replacement, readSource = file => blob({ ...sources, ...replacement }[file])) => fixtureSourceEdits(consumer, { ...options, readSource });
+  assert.deepEqual(inspect({}), { edits: [], problems: [] });
+  for (const replacement of [
+    { 'src/value.js': "export const INPUT = 'git-launch-baseline.json';" },
+    { 'src/value.js': 'export const INPUT = unknown;' },
+    { 'src/value.js': "export { FILE as INPUT } from './facade.js';" },
+    { 'src/value.js': "export let INPUT = 'safe.json'; INPUT = unknown;" },
+  ]) assert.ok(inspect(replacement).problems.length, JSON.stringify(replacement));
+  assert.ok(inspect({}, () => ({ source: sources['src/facade.js'], object: '0'.repeat(40) })).problems.length);
+  const shadowed = consumer.replace('readFileSync(join', 'function read(FILE) { readFileSync(join') + '}';
+  assert.ok(fixtureSourceEdits(shadowed, { ...options, readSource: file => blob(sources[file]) }).problems.length);
 });
 
 

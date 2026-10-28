@@ -12,10 +12,11 @@ import { agentFloorHtml } from './agent-floor-render.js';
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart2(scope) {
-  const { activityWords, activityModel, activityHtml, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
+  const { sharedRowHtml, activityWords, activityModel, activityHtml, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, lifecycleEvent, lifecycleMove, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
 return `let detailRead = null;
 const addressedShouts = new Map();
 const $ = (id) => document.getElementById(id);
+const sharedRowHtml = (${sharedRowHtml.toString()});
 const activityWords = (${activityWords.toString()});
 const activityModel = (${activityModel.toString()});
 const segmentedToggle = (${segmentedToggle.toString()});
@@ -448,7 +449,8 @@ const ruleSource = (row) => row.standardVersion != null ? 'Pullboard v' + row.st
 const ruleSourceTitle = (row) => ruleSource(row);
 /** Render the two-line record shared by Items, Spec and Doctrine, with one grid and type hierarchy. */
 function recordRow({ tag = 'li', classes = '', attributes, title, state, primary, secondary, rightTop = '', rightBottom = '' }) {
-  return '<' + tag + ' class="' + (tag === 'div' ? 'srow ' : '') + 'row s-' + state + (classes ? ' ' + classes.trim() : '') + '" ' + attributes + ' title="' + esc(title) + '"><span class="dot ' + state + '"></span><div><div class="t srow-text">' + primary + '</div>' + (rightTop ? '<span class="row-age">' + rightTop + '</span>' : '') + '<div class="meta">' + secondary + '</div></div>' + rightBottom + '</' + tag + '>';
+  return sharedRowHtml({ variant: 'record', tag, className: classes, attributesHtml: attributes, title, state,
+    primaryHtml: primary, metaHtml: secondary, timeHtml: rightTop, chipHtml: rightBottom });
 }
 const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
 // What needs the person in a project, as its Needs-you list counts it: only the person's calls (B26),
@@ -465,6 +467,9 @@ function projectNeeds(p) {
 }
 // The item lifecycle as pullboard declares it in src/machine.js, embedded when the page is served.
 const FLOW = ${JSON.stringify(lifecycle()).replaceAll('<', '\\u003c')};
+// These standalone native helpers retain one matcher in live timelines and snapshot replay.
+const lifecycleEvent = (${lifecycleEvent.toString()});
+const lifecycleMove = (${lifecycleMove.toString()});
 
 /**
  * An item's history replayed through the lifecycle: each event with the state it found the item in
@@ -482,9 +487,8 @@ function replay(item) {
     if (move) at = move.to;
   };
   for (const e of item.history) {
-    const verb = e.kind === 'renew' ? 'claim' : e.kind;
-    // A renew is the claim that stays claimed; a claim logged as such is the one that arrives.
-    const fits = (s) => FLOW.moves.find((m) => m.verb === verb && m.from.includes(s) && (verb !== 'claim' || (e.kind === 'renew') === (m.to === s)));
+    // The native matcher distinguishes retained refreezes, renewals and state-specific aliases.
+    const fits = s => lifecycleMove(FLOW, s, e);
     const lapse = fits(at) ? null : clock.find((m) => m.from.includes(at) && fits(m.to));
     if (lapse) step(lapse, null);
     step(fits(at) || null, e);

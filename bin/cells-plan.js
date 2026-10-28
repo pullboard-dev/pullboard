@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /** Write, check or file the cells move plan, or check one cell's move against it [D3,CD60,CD64]. */
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -64,12 +66,22 @@ export function shardFile(cell) {
 
 /** Write the plan as an index plus one shard per cell, removing shards a regenerated plan no longer names. */
 export function writePlan(root, plan) {
+  // Bounded read/modify/write callers carry old summaries; the exact paths being written own these counts.
+  const cells = plan.cells.map(cell => {
+    if (cell.paths.some(row => !['seed', 'rule', 'imports'].includes(row[2]))) throw new Refused('CELLS_UNPLACED', `${cell.name} has a path without a known placement source; resolve that path before writing the plan`);
+    return { ...cell, placedBy: Object.fromEntries(['seed', 'rule', 'imports'].map(via => [via, cell.paths.filter(row => row[2] === via).length])) };
+  });
+  const totals = { ...plan.totals, cells: cells.length, movedPaths: cells.reduce((sum, cell) => sum + cell.paths.length, 0), stays: plan.stays.length,
+    placedBy: Object.fromEntries(['seed', 'rule', 'imports'].map(via => [via, cells.reduce((sum, cell) => sum + cell.placedBy[via], 0)])),
+    shims: cells.reduce((sum, cell) => sum + cell.reexports.length, 0),
+    cutImports: cells.reduce((sum, cell) => sum + cell.cuts.reduce((sum, row) => sum + row.imports, 0), 0),
+    cutEdges: cells.reduce((sum, cell) => sum + cell.cuts.length, 0) };
   mkdirSync(join(root, PLAN_DIR), { recursive: true });
-  const shards = plan.cells.map(cell => [shardFile(cell), cell]);
+  const shards = cells.map(cell => [shardFile(cell), cell]);
   const keep = new Set([SEED_FILE, `${PLAN_DIR}/temporary-edges.json`, `${PLAN_DIR}/transition.json`, ...shards.map(([file]) => file)]);
   for (const name of readdirSync(join(root, PLAN_DIR))) if (name.endsWith('.json') && !keep.has(`${PLAN_DIR}/${name}`)) rmSync(join(root, PLAN_DIR, name));
   for (const [file, cell] of shards) writeFileSync(join(root, file), formatJson(cell) + '\n');
-  const index = { ...plan, cells: plan.cells.map(cell => ({ order: cell.order, name: cell.name, file: shardFile(cell) })) };
+  const index = { ...plan, totals, cells: cells.map(cell => ({ order: cell.order, name: cell.name, file: shardFile(cell) })) };
   writeFileSync(join(root, PLAN_FILE), formatJson(index) + '\n');
 }
 
@@ -85,7 +97,7 @@ export function readPlan(root) {
 
 /** Compute the plan from a checkout's tracked files and real import edges, at its HEAD. */
 export function computePlan(root) {
-  const { files, edges } = cellInventory(root);
+  const { files, edges } = cellInventory(root, { importsIn, commonJsIn });
   const seed = readSeed(root);
   const head = tryGit(root, ['rev-parse', 'HEAD']);
   const paths = [...files.keys()].filter(inPlanScope).sort();
@@ -152,7 +164,7 @@ export function checkMoved(root, plan, name) {
     }
   }
   if (existsSync(join(root, CELL_BASELINE_DESCRIPTOR))) {
-    for (const row of cellLintGrowth(cellLintReport(root), readCellLintBaseline(root), { enforcedOnly: true })) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
+    for (const row of cellLintGrowth(cellLintReport(root, { importsIn, commonJsIn }), readCellLintBaseline(root), { enforcedOnly: true })) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
   }
   return problems;
 }

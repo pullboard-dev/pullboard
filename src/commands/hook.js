@@ -1,4 +1,13 @@
+import { quarantineWaivers } from '../quarantine.js';
 /** The pullboard hook command, in its own module so an item adding another command never edits these lines. */
+import { boardBusyError } from '../board-access.js';
+import { openBoardReadOnly } from '../board-read-open.js';
+import { rowDecisions } from '../row-decisions-query.js';
+import { checkLoosening } from '../doctrine-checks.js';
+import { runnerExecutionServices } from '../runners.js';
+import { landingExecutionServices } from '../landing-shards.js';
+
+const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import { gitBoardDataPush } from '../../packages/commits/src/core/board-format.js';
 import * as store from '../board.js';
 import { pendingCommitSignoffProblem } from '../commit-signoff.js';
@@ -78,7 +87,7 @@ export async function hookCommand(io, { first, second }) {
     const landing = hookRead(ctx, (board) => store.landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root)));
     if (landing) io.caller('coordinator', info.root);
     else if (agent) io.caller('seat', info.root);
-    problems = preCommitProblems({ root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) });
+    problems = preCommitProblems({ approvedRowPorts, root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) });
   } else if (first === 'commit-msg') {
     const originalMessage = readFileSync(second ?? '', 'utf8');
     const metadataContext = hookRead(ctx, board => {
@@ -117,12 +126,12 @@ export async function hookCommand(io, { first, second }) {
     problems = prePushProblems(info.root, refsText);
     if (!problems.length) {
       const landing = pushesTrunk(refsText, trunkRef(info.root));
-      const waived = landing && withBoard(ctx, (board) => store.waivedLandingProof(board, headTree(info.root)));
+      const waived = landing && withBoard(ctx, (board) => store.waivedLandingProof(board, headTree(info.root), { quarantineWaivers }));
       const recordedException = landing && withBoard(ctx, (board) => store.landingBatches(board).some((batch) => batch.proof?.tree === headTree(info.root) && batch.proof.failures?.length));
       if (waived && isClean(info.root) && !untracked(info.root).length) io.say(`pre-push: exact landing tree covered by live person waivers in batch ${waived.id}; no ordinary green stamp`);
       else if (recordedException) problems = ['the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver'];
       else {
-        const gate = await runGate(info.root, ctx.config, { landing, agent: resourceAgent(ctx), onWait: gateWaitReporter(io) });
+        const gate = await runGate(info.root, ctx.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing, agent: resourceAgent(ctx), onWait: gateWaitReporter(io) });
         if (gate.isCached) io.say('pre-push: the gate passed on this exact tree; not running it twice');
         if (!gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
       }

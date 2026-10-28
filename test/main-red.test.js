@@ -1,4 +1,5 @@
 /** A red item check remains mandatory and compares its failed files with main for recovery guidance [V1,V4]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import '../src/main-red.js'; // The private driver below invokes this production entry point.
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -163,7 +164,8 @@ test('main comparisons use the free CPU slot while browser work keeps its browse
   const queue = join(box.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite');
   const driver = join(box.directory, 'cpu-browser-driver.mjs');
   writeFileSync(driver, [
-    `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href)};`,
+    `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href)};
+${executionServicesSource(pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href)}`,
     `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/main-red.js')).href)};`,
     "import { existsSync, writeFileSync } from 'node:fs';",
     "import { join } from 'node:path';",
@@ -173,7 +175,7 @@ test('main comparisons use the free CPU slot while browser work keeps its browse
     "    if (!lease.browser) throw new Error('the fixture requires a real browser lease');",
     "    writeFileSync(join(control,'browser.ready'),'ready');",
     "    while (!existsSync(join(control,'browser.release'))) await new Promise(done => setTimeout(done,10));",
-    "  }, {browser:true,remote:false,agent:'fixture-browser-holder'});",
+    "  }, {executionServices,browser:true,remote:false,agent:'fixture-browser-holder'});",
     '} else {',
     "  const file = mode === 'cpu' ? 'test/inherited.test.js' : 'test/browser.test.js';",
     '  const result = await compareMainFailures(root,{tests:[{file,passed:false}]});',

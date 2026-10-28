@@ -1,6 +1,9 @@
+import { lifecycleEvent } from './item-list.js';
+import { lifecycleMove } from './item-list.js';
 import { revealSegmentedChoices } from './view/seg-toggle.js';
 import { segmentedToggle } from './view/seg-toggle.js';
 import { activityWords } from './view/activity-words.js';
+import { sharedRowHtml } from './view/row-component.js';
 import { activityModel } from './view/activity-model.js';
 import { activityHtml } from './view/activity-render.js';
 import { dashboardModel } from './view/dashboard-model.js';
@@ -109,7 +112,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   const releaseInfo = hostedReleaseInfo(hostedReleaseVersion, hostedReleaseVersions, releaseHosted);
   const css = stylesheet ?? (snapshot ? 'view.css' : transportModule ? '/view.css' : '/view.css?k=' + encodeURIComponent(key));
   const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-  const pageScope = { activityWords, activityModel, activityHtml, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, closePageDialog, connection, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeRules, hostedState, lifecycle, moduleOption, openPageDialog, pageStartup, paths, personNeeds, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
+  const pageScope = { sharedRowHtml, activityWords, activityModel, activityHtml, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, closePageDialog, connection, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeRules, hostedState, lifecycle, lifecycleEvent, lifecycleMove, moduleOption, openPageDialog, pageStartup, paths, personNeeds, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -559,9 +562,10 @@ function replayProject(index) {
     item.merged = null;
     let verdicts = 0;
     for (const event of history) {
+      const projectedEvent = lifecycleEvent(event);
       const verb = event.event_kind === 'renew' ? 'claim' : event.event_kind;
       /** Find a declared move, distinguishing a renewed claim from a new one. */
-      const fits = (at) => FLOW.moves.find((move) => move.verb === verb && move.from.includes(at) && (verb !== 'claim' || (event.event_kind === 'renew') === (move.to === at)));
+      const fits = at => lifecycleMove(FLOW, at, projectedEvent);
       const lapse = fits(state) ? null : FLOW.moves.find((move) => move.by.includes('clock') && move.from.includes(state) && fits(move.to));
       if (lapse) state = lapse.to;
       const move = fits(state);
@@ -577,7 +581,7 @@ function replayProject(index) {
       if (verb === 'merged') item.merged = detail.commit;
     }
     item.status = state;
-    item.history = history.map((event) => ({ kind: event.event_kind, by: event.event_by, at: event.event_at }));
+    item.history = history.map(lifecycleEvent);
     item.updatedAt = history.at(-1).event_at;
     item.verdicts = item.verdicts.slice(0, verdicts);
     item.verdict = item.verdicts.at(-1) ?? null;

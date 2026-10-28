@@ -2,6 +2,8 @@
  * The gate's digest (V10): what an agent reads of a red run. And submit's own run of the gate (V16):
  * no stamp stands in for it, and the tree must hold still while it runs.
  */
+import { landingPorts } from './landing-ports-fixture.js';
+import { executionServices } from './gate-execution-fixture.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit, startFixtureChild as spawn } from './fixture-child.js';
@@ -689,27 +691,27 @@ test('the same tree red and green proves a flake and files it once [C7,D1]', asy
   await box.gate(false);
   board = box.open();
   assert.equal(store.listItems(board, { all: true }).length, 1, 'a green run of another tree proves nothing new');
-  assert.equal(waivedFailures(board, [FLAKY]), null, 'with quarantine off by default, the proven flake still blocks a landing');
-  assert.deepEqual(liveWaiverProjection(board), []);
+  assert.equal(waivedFailures(board, [FLAKY], landingPorts), null, 'with quarantine off by default, the proven flake still blocks a landing');
+  assert.deepEqual(liveWaiverProjection(board, landingPorts), []);
 });
 
 test('a quarantined test reports but does not block [C7,D1]', async (t) => {
   const box = flakeRepo(t, { flakes: { quarantine: true } });
   box.commit('one');
-  assert.equal(waivedFailures(box.open(), [FLAKY]), null, 'a red test blocks before it is proven flaky');
+  assert.equal(waivedFailures(box.open(), [FLAKY], landingPorts), null, 'a red test blocks before it is proven flaky');
   await box.gate(true);
   await box.gate(false);
   let board = box.open();
-  const covered = waivedFailures(board, [FLAKY]);
+  const covered = waivedFailures(board, [FLAKY], landingPorts);
   assert.equal(covered?.length, 1, 'the proven flake no longer blocks');
   const [item] = store.listItems(board, { all: true });
   assert.equal(waiverLine(covered[0]), `quarantined: flaky target (test/flaky.test.js) is a proven flake, reported but not blocking until repair #${item.item_id} is verified`, 'it still reports by name');
-  assert.deepEqual(liveWaiverProjection(board), [{ kind: 'name', test: 'flaky target' }], 'the landing run keeps going past it and still reports it');
-  assert.equal(waivedFailures(board, [FLAKY, { file: 'test/other.test.js', name: 'another failure' }]), null, 'a quarantine never hides a different red');
-  assert.equal(waivedFailures(board, [{ file: 'test/other.test.js', name: FLAKY.name }]), null, 'the same name in another file is not covered');
+  assert.deepEqual(liveWaiverProjection(board, landingPorts), [{ kind: 'name', test: 'flaky target' }], 'the landing run keeps going past it and still reports it');
+  assert.equal(waivedFailures(board, [FLAKY, { file: 'test/other.test.js', name: 'another failure' }], landingPorts), null, 'a quarantine never hides a different red');
+  assert.equal(waivedFailures(board, [{ file: 'test/other.test.js', name: FLAKY.name }], landingPorts), null, 'the same name in another file is not covered');
   // A proof this machine's gate did not run, such as one replayed from another machine, waives nothing here.
   renameSync(box.receipts, `${box.receipts}.elsewhere`);
-  assert.equal(waivedFailures(board, [FLAKY]), null, 'a quarantine waives only runs whose receipts are on the landing machine');
+  assert.equal(waivedFailures(board, [FLAKY], landingPorts), null, 'a quarantine waives only runs whose receipts are on the landing machine');
   renameSync(`${box.receipts}.elsewhere`, box.receipts);
   const landing = await box.gate(true, { landing: true, code: 0 });
   assert.match(landing, /^landing gate waived, not green: 1 failure\(s\)/mu, 'a landing run goes past the quarantined red without calling it green');
@@ -720,19 +722,19 @@ test('a quarantined test reports but does not block [C7,D1]', async (t) => {
   const reviewer = store.register(board, { lane: 'app', path: join(box.root, '..', 'review'), route: 'strong' });
   store.claim(board, item.item_id, { agentId: builder, lane: 'app', leaseMs: 3600000, freeze: () => ({ text: 'repair', digest: 'd'.repeat(64) }) });
   submitFixture(board, item.item_id, { agentId: builder, commit: 'e'.repeat(40), tree: 'f'.repeat(40) });
-  assert.equal(waivedFailures(board, [FLAKY])?.length, 1, 'a submitted repair does not lift the quarantine');
+  assert.equal(waivedFailures(board, [FLAKY], landingPorts)?.length, 1, 'a submitted repair does not lift the quarantine');
   store.verify(board, item.item_id, { agentId: reviewer, decision: 'ACCEPT', head: 'e'.repeat(40), digest: 'd'.repeat(64), policy: 'any', note: 'synthetic board-state fixture' });
-  assert.equal(waivedFailures(board, [FLAKY]), null, 'the verified repair makes the test block again');
+  assert.equal(waivedFailures(board, [FLAKY], landingPorts), null, 'the verified repair makes the test block again');
   // It fails again after its fix landed: it blocks, and only a new red-and-green proof files a new item.
   box.commit('three');
   await box.gate(true);
   board = box.open();
-  assert.equal(waivedFailures(board, [FLAKY]), null, 'a failure after its fix blocks');
+  assert.equal(waivedFailures(board, [FLAKY], landingPorts), null, 'a failure after its fix blocks');
   assert.equal(store.listItems(board, { all: true }).length, 1);
   await box.gate(false);
   board = box.open();
   assert.equal(store.listItems(board, { all: true }).length, 2, 'a second proof after the fix files a new item');
-  assert.equal(waivedFailures(board, [FLAKY])?.length, 1);
+  assert.equal(waivedFailures(board, [FLAKY], landingPorts)?.length, 1);
 });
 
 test('a hand-recorded run never quarantines a test [C7,D1]', async (t) => {
@@ -763,7 +765,7 @@ test('a hand-recorded run never quarantines a test [C7,D1]', async (t) => {
   const fake = `printf 'TAP version 13\\nnot ok 1 - flaky target\\n  ---\\n  location: ${join(box.root, FLAKY.file)}:4:1\\n  ...\\n1..1\\n'; exit 1`;
   const observed = [];
   const observer = Object.assign(async () => {}, { recordRun: async (id) => observed.push(id) });
-  for (const _ of [1, 2]) await runGate(box.root, { ...mainPolicy(box.root).config, gate: fake }, { trustStamp: false, onFailure: observer });
+  for (const _ of [1, 2]) await runGate(box.root, { ...mainPolicy(box.root).config, gate: fake }, { executionServices, trustStamp: false, onFailure: observer });
   assert.deepEqual(observed, [], 'a command other than the accepted gate leaves no receipt to record');
   assert.equal(existsSync(box.receipts), false, 'and nothing in the receipt store');
   // A real receipt cannot be reused to say something else: each altered field breaks the binding.
@@ -776,7 +778,7 @@ test('a hand-recorded run never quarantines a test [C7,D1]', async (t) => {
     assert.throws(() => store.recordGateRun(reopened, { agentId: 'coordinator', receipt: lie, lane: 'app' }), (error) => ['GATE_RUN_UNBOUND', 'GATE_RUN_CHANGED'].includes(error.code));
   }
   assert.equal(store.listItems(reopened, { all: true }).length, 0, 'one real red and no green proves nothing');
-  assert.equal(waivedFailures(reopened, [FLAKY]), null, 'no landing block is removed');
+  assert.equal(waivedFailures(reopened, [FLAKY], landingPorts), null, 'no landing block is removed');
 });
 
 /** A web project whose one source file is imported by thirty test files, each recording its own run. */

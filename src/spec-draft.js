@@ -3,7 +3,6 @@
  * (spec draft, rigor draft) [S1,D1]. A draft is never approved here: only the person approves.
  */
 import { readFileSync } from 'node:fs';
-import { loadDoctrine } from './doctrine.js';
 import { Refused } from './refused.js';
 import { writeRowApply } from './row-decisions.js';
 import {
@@ -34,7 +33,7 @@ function prefixedSections(parsed) {
  * @param {{ target: 'spec' | 'doctrine', text: string, gate: string, tier?: string, section?: string, fields?: string[], id?: string, taken?: string[], write?: boolean }} draft
  * @returns {{ id: string, file: string, line: string, row: { id: string, status: string, tier: string, text: string, gate: string, section: string } }}
  */
-export function draftRow(root, config, { target, text, gate, tier = 'must', section: requested, fields = [], id: fixed, taken = [], write = true }) {
+export function draftRow(root, config, { target, text, gate, tier = 'must', section: requested, fields = [], id: fixed, taken = [], write = true }, { loadDoctrine }) {
   const spec = loadSpec(root, config);
   const practice = loadDoctrine(root, config);
   const parsed = target === 'doctrine' ? practice.repo : spec;

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { briefSections } from '../src/brief.js';
+import { briefSections } from '../src/reference-lines.js';
 import * as store from '../src/board.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import { REFERENCE_ENGINE } from '../src/reference-engine.js';

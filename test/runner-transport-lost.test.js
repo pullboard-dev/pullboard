@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Actual SSH protocol failures retain evidence and recover through the shared queue [C7]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync } from 'node:fs';
@@ -7,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { copyPackageFiles } from '../src/package-files.js';
@@ -49,6 +51,9 @@ function child(box, source) {
   return JSON.parse(result.stdout);
 }
 
+/** Synthetic queue identities exercise generation guards, never certify an actual worker. */
+function recoveryIdentity() { return { version: 1, request: randomUUID(), nonce: randomUUID(), tooling: 'a'.repeat(64) }; }
+
 /** A real SQLite queue containing only this test's health generations. */
 function queue(t) {
   const db = new DatabaseSync(':memory:');
@@ -77,9 +82,10 @@ test('one transient SSH failure is confirmed before a healthy runner is readmitt
   const url = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
   const command = `node -e 'console.log("RECOVERED_EXECUTION")'`;
   const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(url)};
+${executionServicesSource(url)}
     import {DatabaseSync} from 'node:sqlite';
     const run=await withGateSlot(process.cwd(),lease=>runProfiledShellAsync(process.cwd(),
-      ${JSON.stringify(command)},{gateLease:lease}),{remote:true,onWait(){}});
+      ${JSON.stringify(command)},{gateLease:lease}),{ executionServices,remote:true,onWait(){}});
     const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite',{readOnly:true});
     const unavailable=db.prepare('SELECT * FROM runner_unavailable').all();
     const failures=db.prepare('SELECT * FROM runner_transport_error').all();db.close();
@@ -111,11 +117,12 @@ test('an SSH-healthy host whose worker misses READY stays held after the admissi
   const transport = pathToFileURL(join(import.meta.dirname, '../src/runner-transport.js')).href;
   const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
   const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
+${executionServicesSource(gate)}
     import {probeRunnerTransport} from ${JSON.stringify(transport)};
     import {recoverUnavailableRunners} from ${JSON.stringify(recovery)};
     import {DatabaseSync} from 'node:sqlite';import {readFileSync} from 'node:fs';
     let code;try{await withGateSlot(process.cwd(),lease=>runProfiledShellAsync(process.cwd(),'true',{gateLease:lease}),
-      {remote:true,onWait(){}});}catch(error){code=error.code;if(code!=='RUNNER_WAIT_DEADLINE')throw error;}
+      { executionServices,remote:true,onWait(){}});}catch(error){code=error.code;if(code!=='RUNNER_WAIT_DEADLINE')throw error;}
     const attempts=readFileSync(${JSON.stringify(box.starts)},'utf8').trim().split('\\n').length;
     const health=await probeRunnerTransport(${JSON.stringify(box.runner)});
     const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite');
@@ -140,7 +147,7 @@ test('an SSH-healthy host whose worker misses READY stays held after the admissi
 
 test('a recovered runner is cleared on its first successful probe instead of a five minute expiry [C7]', async t => {
   const db = queue(t), runner = { host: 'private-recovery-host', slots: 1, browser: 0 };
-  const original = { command: ['ssh', runner.host, '[worker]'], exitCode: 255, stderr: 'controlled connection failure' };
+  const original = { command: ['ssh', runner.host, '[worker]'], exitCode: 255, stderr: 'controlled connection failure', recovery: recoveryIdentity() };
   recordRunnerFailure(db, runner.host, 'transport-lost', original);
   db.prepare('UPDATE runner_unavailable SET probe_after=0').run();
   assert.equal(await recoverUnavailableRunners(db, [runner], { probe: async () => ({ healthy: false, reason: 'still down' }) }), false);
@@ -152,7 +159,7 @@ test('a recovered runner is cleared on its first successful probe instead of a f
   assert.equal(db.prepare('SELECT COUNT(*) n FROM runner_unavailable').get().n, 0);
 });
 
-test('real configured Node recovery clears the transport row within seconds [C7]', t => {
+test('real pinned worker recovery clears the transport row within seconds [C7]', t => {
   const box = fixture(t);
   const runner = { ...box.runner, host: HOST };
   const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
@@ -160,13 +167,18 @@ test('real configured Node recovery clears the transport row within seconds [C7]
   const result = child(box, `import {DatabaseSync} from 'node:sqlite';
     import {initializeRunnerRecovery,recordRunnerFailure,recoverUnavailableRunners} from ${JSON.stringify(recovery)};
     import {probeRunnerTransport} from ${JSON.stringify(transport)};
+    import {runOnRunnerAsync,probeRunnerHealth} from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href)};
+    import {readdirSync,readFileSync} from 'node:fs';
     const runner=${JSON.stringify(runner)},db=new DatabaseSync(':memory:');
     db.exec("CREATE TABLE runner_unavailable(host TEXT PRIMARY KEY,since TEXT NOT NULL,detail TEXT NOT NULL);CREATE TABLE runner_draining(host TEXT PRIMARY KEY,runner TEXT NOT NULL)");
     initializeRunnerRecovery(db);
+    const completed=await runOnRunnerAsync(process.cwd(),'true',{runner});if(!completed.isGreen)throw new Error('real cleanup control failed');
+    const directory=${JSON.stringify(join(box.dir, 'worker-home', '.pullboard-runner', 'recovery'))};
+    const completion=JSON.parse(readFileSync(directory+'/'+readdirSync(directory)[0],'utf8'));
     const bad=await probeRunnerTransport({...runner,node:${JSON.stringify(join(box.dir, 'missing-configured-node'))}});
-    recordRunnerFailure(db,runner.host,'transport-lost',{command:bad.command,exitCode:bad.code,reason:bad.reason});
+    recordRunnerFailure(db,runner.host,'transport-lost',{command:bad.command,exitCode:bad.code,reason:bad.reason,recovery:completion});
     db.prepare('UPDATE runner_unavailable SET probe_after=0').run();
-    const started=Date.now(),recovered=await recoverUnavailableRunners(db,[runner]);
+    const started=Date.now(),recovered=await recoverUnavailableRunners(db,[runner],{probe:probeRunnerHealth});
     console.log(JSON.stringify({bad,recovered,elapsed:Date.now()-started,remaining:db.prepare('SELECT COUNT(*) n FROM runner_unavailable').get().n}));db.close();`);
   assert.equal(result.bad.healthy, false);
   assert.equal(result.bad.code, 127);
@@ -177,13 +189,13 @@ test('real configured Node recovery clears the transport row within seconds [C7]
 
 test('concurrent recovery probes cannot clear a newer transport failure or cleanup hold [C7]', async t => {
   const db = queue(t), runner = { host: 'private-generation-host', slots: 1, browser: 0 };
-  recordRunnerFailure(db, runner.host, 'transport-lost', { reason: 'first' });
+  recordRunnerFailure(db, runner.host, 'transport-lost', { reason: 'first', recovery: recoveryIdentity() });
   db.prepare('UPDATE runner_unavailable SET probe_after=0').run();
   let finish, called = 0;
   const pending = recoverUnavailableRunners(db, [runner], { probe: () => { called++; return new Promise(resolve => { finish = resolve; }); } });
   assert.equal(await recoverUnavailableRunners(db, [runner], { probe: async () => { called++; return { healthy: true }; } }), false);
   assert.equal(called, 1, 'the shared row admits one observing client');
-  recordRunnerFailure(db, runner.host, 'cleanup-unverified', { reason: 'new cleanup uncertainty' });
+  recordRunnerFailure(db, runner.host, 'cleanup-unverified', { reason: 'new cleanup uncertainty', recovery: recoveryIdentity() });
   finish({ healthy: true });
   assert.equal(await pending, false);
   assert.equal(db.prepare('SELECT detail FROM runner_unavailable').get().detail, 'CLEANUP_UNVERIFIED');

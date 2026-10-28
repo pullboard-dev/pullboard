@@ -10,6 +10,7 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
+import { mappedWorkingSource } from '../bin/checks/scan.js';
 import { boardWriteHolderText } from '../src/board-write-lock.js';
 import { exportBoard } from '../src/exchange.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -274,8 +275,10 @@ test('opening an older board names and logs its genuine index-building write [C7
   assert.equal(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-dir'),
     box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'));
   assert.equal(readFileSync(privateBin, 'utf8'), readFileSync(BIN, 'utf8'));
-  assert.equal(readFileSync(join(box.repo, 'packages', 'git', 'src', 'shell', 'git.js'), 'utf8'),
-    readFileSync(resolve(import.meta.dirname, '../packages/git/src/shell/git.js'), 'utf8'));
+  const installedGit = mappedWorkingSource(box.repo, 'src/git.js');
+  const sourceGit = mappedWorkingSource(resolve(import.meta.dirname, '..'), 'src/git.js');
+  assert.deepEqual(installedGit.body, sourceGit.body, 'the installed implementation retains exact source Buffer bytes');
+  assert.deepEqual(installedGit.shimBody, sourceGit.shimBody, 'the installed compatibility shim retains exact source bytes');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const added = box.run(box.repo, 'add', 'web', 'private maintenance item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
   assert.equal(added.code, 0, added.err);
