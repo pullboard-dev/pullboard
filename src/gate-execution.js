@@ -236,7 +236,7 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
     && (!executionSource || sameTimingSource(timingSourceBefore, executionSource))
     ? timingSourceBefore : null;
   const result = { ...profiledRun, profile, profilePath, logPath,
-    ...(stages ? { stages: timingAccountingStages(run.stages, id, accountingSource) } : {}),
+    ...(stages ? { stages: timingAccountingStages(run.stages, id, accountingSource, { collectionId: collectionId ?? id }) } : {}),
     suiteTiming: suiteTimingFromOutput(run.output, id, run.executionSource
       ? { head: run.executionSource.commit, tree: run.executionSource.tree } : timingSourceForReceipt(root)),
     ...(releaseRequest ? { releaseParticipation: releaseParticipation(run.output, releaseRequest.id) } : {}),

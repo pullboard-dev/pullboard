@@ -14,6 +14,8 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { fixtureBoard } from './board-fixture.js';
 import { eventMetrics } from '../bin/case-study/events.js';
 import { commitFixtureFiles } from './package-copy-fixture.js';
+import { COLLECTION_REPORT_PREFIX } from '../src/gate-run-receipt.js';
+import { formatCollectionReport } from '../src/gate-run-receipt.js';
 import { randomUUID } from 'node:crypto';
 import * as store from '../src/board.js';
 
@@ -151,6 +153,52 @@ console.log(run.output); console.log(JSON.stringify({receiptId:run.receiptId}));
   } finally { store.closeBoard(board); }
 });
 
+test('a selected real landing failure remains accounted under its native private waiver [C7,H16]', async t => {
+  const box = timingProject(t);
+  const configPath = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  writeFileSync(configPath, JSON.stringify({ ...config, landingShards: 1,
+    gate: 'node bin/run-tests.js --test-concurrency=1 test/one.test.js' }) + '\n');
+  commitFixtureFiles(box, ['pullboard.json']);
+  const source = `import {readFileSync,existsSync} from 'node:fs';
+import {runGate} from './src/gate.js'; import * as store from './src/board.js';
+import {accountedFailures,waivedFailures,liveWaiverProjection} from './src/land.js';
+import {runnerExecutionServices} from './src/runners.js';
+import {landingExecutionServices} from './src/landing-shards.js';
+const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
+import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js';
+const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));
+// @pullboard-board-file persistence: install and read a live native waiver in this private fixture's actual board.
+const board=store.openBoard('.git/pullboard/board.sqlite');
+try {
+const waiver=store.recordLandingWaiver(board,{agentId:'person',channel:'terminal',id:'timing-selected-native-waiver',
+ test:'test/one.test.js',until:'2099-01-01',reason:'private selected landing accounting regression'});
+const run=await runGate(root,config,{executionServices,landing:true,stages:true,trustStamp:false,agent:'coordinator',waivers:liveWaiverProjection(board)});
+const accounted=accountedFailures(run,root),covered=waivedFailures(board,accounted);
+const receipt=readGateReceipt(receiptStore(root),run.receiptId);
+console.log(JSON.stringify({raw:run.output,stages:run.stages,source:{commit:receipt.head,tree:receipt.tree},
+ green:run.isGreen,waiver,accounted,covered,stamp:existsSync('.git/pullboard-gate-green')}));
+} finally {store.closeBoard(board);}`;
+  const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source],
+    { cwd: box.repo, env: { ...box.env, PULLBOARD_TIMING_FIXTURE_RED: '1' }, encoding: 'utf8' });
+  t.diagnostic(JSON.stringify({ stage: 'actual selected landing capture', status: result.status,
+    stdout: result.stdout, stderr: result.stderr }));
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  const capture = JSON.parse(result.stdout.trim());
+  assert.equal(capture.green, false, 'the real assertion failure remains red');
+  assert.match(capture.raw, /first actual timing case/u);
+  assert.match(capture.raw, /^# tests 1$/mu);
+  assert.match(capture.raw, /^# fail 1$/mu);
+  assert.ok(Array.isArray(capture.stages) && capture.stages.length > 0, 'actual execution stages are captured');
+  assert.equal(capture.source?.commit, box.git(box.repo, 'rev-parse', 'HEAD'));
+  assert.equal(capture.source?.tree, box.git(box.repo, 'rev-parse', 'HEAD^{tree}'));
+  assert.equal(capture.accounted?.length, 1, 'the complete real TAP account names exactly one failure');
+  assert.equal(capture.covered?.length, 1, 'the native private waiver covers that actual failure');
+  assert.equal(capture.covered[0].file, 'test/one.test.js');
+  assert.equal(capture.covered[0].waiver.id, capture.waiver.id);
+  assert.equal(capture.stamp, false, 'a waived red run never leaves an ordinary green stamp');
+});
+
 test('an all-reused direct invocation preserves a receipt without inventing a fresh full suite [C7,H16]', async t => {
   const box = timingProject(t);
   const env = { ...box.env, PULLBOARD_TEST_REUSE: '1' };
@@ -255,4 +303,45 @@ test('missing, duplicate and wrong-source suite observations never invent phase 
     if (invalid.endsWith('# unexplained failure\n')) assert.equal(view, '# unexplained failure\n');
     else assert.equal(view, invalid, 'unproven diagnostics remain visible to strict failure accounting');
   }
+});
+
+
+test('collection accounting projects only canonical own diagnostics per component [C7,H16]', () => {
+  const id = randomUUID(), source = { head: 'a'.repeat(40), tree: 'b'.repeat(40) };
+  const timing = formatSuiteTiming({ version: 1, id, ...source, full: false, node: '22.13.1', wallMs: 1,
+    selectionMs: 0, setupMs: 0, shards: [], compareMs: null });
+  const report = { id, scope: 'suite', shard: null, full: false,
+    plannedFiles: ['test/b.test.js', 'test/a.test.js'], completedFiles: ['test/b.test.js', 'test/a.test.js'],
+    complete: true, cleanupVerified: true };
+  const collection = formatCollectionReport(report), account = 'original failure account\n';
+  /** Project one component, preserving every unexplained byte for the strict TAP consumer. */
+  const project = (output, options) => timingAccountingStages([{ status: 1, output }], id, source, options)[0].output;
+  assert.equal(project(account + collection + timing), account, 'real producer order need not be sorted');
+  assert.equal(project(account + collection), account + collection, 'collection alone supplies no source authentication');
+  const incomplete = formatCollectionReport({ ...report, completedFiles: [], complete: false });
+  assert.equal(project(account + incomplete + timing), account, 'diagnostic projection grants no completion authority');
+  const otherId = randomUUID(), separate = formatCollectionReport({ ...report, id: otherId });
+  assert.equal(project(account + separate + timing), account + separate, 'foreign collection nonce stays visible');
+  assert.equal(project(account + separate + timing, { collectionId: otherId }), account,
+    'collect-all supplies its distinct native nonce explicitly');
+  for (const invalid of [collection + collection, COLLECTION_REPORT_PREFIX + '{broken}\n',
+    COLLECTION_REPORT_PREFIX + JSON.stringify({ version: 1, ...report, extra: true }) + '\n',
+    collection.replace('{', '{ '), formatCollectionReport({ ...report, shard: '1/1' }),
+    formatCollectionReport({ ...report, plannedFiles: ['../outside.test.js'] }),
+    formatCollectionReport({ ...report, completedFiles: [], complete: true })]) {
+    assert.equal(project(account + invalid + timing), account + invalid,
+      'malformed, duplicate and noncanonical collection bytes remain unexplained');
+  }
+  assert.equal(project(account + collection + separate + timing), account + separate,
+    'another valid report is never silently erased');
+  assert.equal(timingAccountingStages([{ status: 1, output: account + collection + timing }], id,
+    { ...source, head: 'c'.repeat(40) })[0].output, account + collection + timing);
+  const raw = [{ status: 1, output: account + collection + timing, pipeline: [
+    { status: 1, output: account + collection }, { status: 0, output: collection + timing }] }];
+  const original = structuredClone(raw), projected = timingAccountingStages(raw, id, source);
+  assert.equal(projected[0].output, account);
+  assert.equal(projected[0].pipeline[0].output, account + collection,
+    'a different component cannot borrow the stage timing frame');
+  assert.equal(projected[0].pipeline[1].output, '');
+  assert.deepEqual(raw, original, 'raw stage and component evidence remains immutable');
 });

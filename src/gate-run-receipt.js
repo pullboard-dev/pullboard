@@ -85,7 +85,7 @@ export function receiptBinds(store, receipt) {
 
 /** Exact native collection reports bind completion to one gate invocation [C7,V4]. */
 export const COLLECTION_ID_ENV = 'PULLBOARD_LANDING_COLLECTION_ID';
-const COLLECTION_REPORT_PREFIX = '# pullboard-landing-collection ';
+export const COLLECTION_REPORT_PREFIX = '# pullboard-landing-collection ';
 /** Canonical report keys are relative source paths, never basename-only identities. */
 function files(values, empty = false) {
   if (!Array.isArray(values) || (!empty && !values.length) || values.some(value => typeof value !== 'string' || !value || value.startsWith('/') || value.includes('\\') || value.split('/').includes('..'))) return null;
