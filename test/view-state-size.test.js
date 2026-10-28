@@ -74,7 +74,7 @@ test('[N26,A2] 1600 items, 1150 seats and 40000 shouts yield a sub-600KB authent
   const ordinary = await box.request(box.path + '/state');
   const wire = await box.request(box.path + '/state?items=compact');
   assert.equal(wire.status, 200);
-  assert.ok(wire.bytes < 1_000_000, `authenticated state is ${wire.bytes} bytes`);
+  assert.ok(wire.bytes < 600_000, `authenticated state is ${wire.bytes} bytes`);
   const first = { ...wire, document: { ...wire.document, state: expandItemSummaries(wire.document.state) } };
   assert.deepEqual(first.document.state, ordinary.document.state, 'compact decoding preserves every original state and summary field');
   assert.equal(Object.hasOwn(ordinary.document.state, 'itemEncoding'), false, 'ordinary API response stays unchanged');
@@ -104,7 +104,7 @@ test('[N26,A2] 1600 items, 1150 seats and 40000 shouts yield a sub-600KB authent
   assert.deepEqual(detail.document.proof, box.fullStats.flow.report.items.find(item => item.id === 1));
   box.advance(1);
   const cached = await box.request(box.path + '/state?items=compact');
-  assert.ok(cached.bytes < 1_000_000, 'a clock-only cache hit cannot restore detailed proof records');
+  assert.ok(cached.bytes < 600_000, 'a clock-only cache hit cannot restore detailed proof records');
   assert.equal(Object.hasOwn(cached.document.state.proofStats.flow.report, 'items'), false);
   assert.equal(box.builds(), 1, 'summary shaping survives the existing dynamic flow cache path');
   t.diagnostic(`state=${first.bytes} bytes; fullProofStats=${Buffer.byteLength(JSON.stringify(box.fullStats))} bytes`);
