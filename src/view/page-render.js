@@ -4,7 +4,9 @@ import { renderNeedsRow } from './needs-list.js';
 
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
 export function pageRenderScript() {
-  return `function render() {
+  return `let drawnRoadmap = null;
+
+function render() {
   renderIndexes = new WeakMap();
   // A refresh that moved the page to another board closes a confirmation opened on the last one.
   closeIfLeft();
@@ -64,11 +66,15 @@ export function pageRenderScript() {
   // and the panel back to its top under a person mid-scroll, so both keep where they were.
   const chipsAt = $('roadmap-releases')?.scrollLeft ?? 0, panelAt = $('roadmap-panel')?.scrollTop ?? 0;
   roadmapAhead.clear();
-  $('roadmap').innerHTML = roadmapCards(p, titles);
+  const roadmapHtml = roadmapCards(p, titles);
+  const roadmapBoard = p.board ?? data.projects.find(project => project.root === view.root)?.id ?? null;
+  if (drawnRoadmap?.root !== view.root || drawnRoadmap.board !== roadmapBoard || drawnRoadmap.html !== roadmapHtml) {
+    $('roadmap').innerHTML = roadmapHtml;
+    drawnRoadmap = { root: view.root, board: roadmapBoard, html: roadmapHtml };
+  }
   restoreRoadmapArrival();
   // The mark sets its chip in bold, which widens it, and the fresh row has no mark yet. Restored first, the scroll
   // would clamp to a row narrower by that bold and leave the chips short of where they were (#452).
-  updateRoadmapPanel();
   if ($('roadmap-releases')) $('roadmap-releases').scrollLeft = chipsAt;
   if ($('roadmap-panel')) $('roadmap-panel').scrollTop = panelAt;
 
