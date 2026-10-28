@@ -252,7 +252,7 @@ test('[N26,A2] compact summaries roundtrip differing values, explicit nulls, Uni
   ] };
   const before = JSON.stringify(state);
   const encoded = compactItemSummaries(state);
-  assert.equal(encoded.itemEncoding.version, 1);
+  assert.ok([1, 2].includes(encoded.itemEncoding.version), 'the encoder selects a supported lossless wire format');
   const expanded = expandItemSummaries(JSON.parse(JSON.stringify(encoded)));
   assert.deepEqual(expanded, JSON.parse(before));
   assert.equal(JSON.stringify(state), before, 'packing does not mutate its source');
@@ -262,9 +262,9 @@ test('[N26,A2] compact summaries roundtrip differing values, explicit nulls, Uni
   assert.equal(expanded.items[1].counts.facts, 0, 'decoded rows do not share mutable defaults');
   assert.equal(expandItemSummaries(state), state, 'the default API and full snapshots need no decoding');
   assert.equal(compactItemSummaries({ items: [] }).items.length, 0);
-  assert.throws(() => expandItemSummaries({ items: [], itemEncoding: { version: 2, defaults: {} } }), /unsupported compact/u);
+  assert.throws(() => expandItemSummaries({ items: [], itemEncoding: { version: 99, defaults: {} } }), /invalid compact/u);
   assert.throws(() => expandItemSummaries({ items: [{ title: 'Missing id' }], itemEncoding: { version: 1, defaults: {} } }), /invalid compact/u);
-  assert.throws(() => expandItemSummaries({ items: [], itemEncoding: { version: 1, defaults: { id: 1 } } }), /unsupported compact/u);
+  assert.throws(() => expandItemSummaries({ items: [], itemEncoding: { version: 1, defaults: { id: 1 } } }), /invalid compact/u);
 });
 
 test('[N26,A2] compact state preserves ordinary delta bases and rejects incompatible formats', async t => {
@@ -285,4 +285,51 @@ test('[N26,A2] compact state preserves ordinary delta bases and rejects incompat
   for (const suffix of ['items=unknown', 'items=compact&detail=full', 'items=compact&since=0']) {
     assert.equal((await box.request(box.path + '/state?' + suffix)).status, 400, suffix);
   }
+});
+
+/** Retain old wire compatibility while refusing malformed columns and preserving JSON ownership. */
+test('[N26,A2] V1 compatibility and V2 columns preserve fresh nested values and refuse malformed metadata', () => {
+  const old = { items: [{ id: 1, title: 'Old', counts: { facts: 3 } }, { id: 2, title: 'Older' }],
+    itemEncoding: { version: 1, defaults: { specs: ['N26'], counts: { facts: 0 } } } };
+  const restored = expandItemSummaries(old);
+  restored.items[0].counts.facts = 99;
+  restored.items[0].specs.push('A2');
+  assert.equal(old.items[0].counts.facts, 3, 'old row-owned values are cloned too');
+  assert.equal(restored.items[1].counts.facts, 0);
+  assert.deepEqual(restored.items[1].specs, ['N26']);
+  const columns = [
+    ['id', 'r', [1, 2], []], ['title', 'r', ['First', 'Second'], []],
+    ['counts', 'd', [0, 0], [{ facts: 2, verdicts: 1 }]],
+    ['optional', 'd', [-1, 0], [null]],
+    ['updatedAt', 't', [0, null], [1704067200000, []]],
+    ['absentTime', 't', [null, 1], [1704067200000, [0]]],
+    ['__proto__', 'd', [0, 0], [{ safe: true }]],
+  ];
+  const wire = { sequence: 8, items: columns, itemEncoding: { version: 2, count: 2 } };
+  const before = JSON.stringify(wire), plain = expandItemSummaries(wire);
+  assert.equal(Object.hasOwn(plain.items[0], 'optional'), false);
+  assert.equal(plain.items[1].optional, null);
+  assert.equal(Object.hasOwn(plain.items[0], 'absentTime'), false);
+  assert.equal(plain.items[1].absentTime, '2024-01-01T00:00:00.001Z');
+  assert.equal(plain.items[0].updatedAt, '2024-01-01T00:00:00.000Z');
+  assert.equal(plain.items[1].updatedAt, null);
+  assert.equal(Object.getPrototypeOf(plain.items[0]), Object.prototype);
+  assert.deepEqual(plain.items[0].__proto__, { safe: true }, 'special JSON keys remain own values');
+  plain.items[0].counts.facts = 88;
+  plain.items[0].__proto__.safe = false;
+  assert.equal(plain.items[1].counts.facts, 2);
+  assert.equal(plain.items[1].__proto__.safe, true);
+  assert.equal(JSON.stringify(wire), before, 'decoding leaves every nested wire value untouched');
+  const bad = [
+    { ...wire, itemEncoding: { version: 2, count: Number.MAX_SAFE_INTEGER } },
+    { ...wire, itemEncoding: { version: 2, count: 2, defaults: {} } },
+    { ...wire, items: columns.concat([columns[0]]) },
+    { ...wire, items: [columns[0], ['title', 'r', ['First'], []]] },
+    { ...wire, items: [columns[0], ['title', 'd', [0, 1], ['Only']]] },
+    { ...wire, items: [columns[0], columns[1], ['x', 'r', [null, null], [1, 0]]] },
+    { ...wire, items: [columns[0], columns[1], ['x', 't', [0, 1], [8640000000000000, []]]] },
+    { ...wire, items: [columns[0], columns[1], ['x', 'unknown', [0, 1], []]] },
+    { ...wire, items: [columns[1], ['id', 'd', [-1, 0], [2]]] },
+  ];
+  for (const broken of bad) assert.throws(() => expandItemSummaries(broken), /invalid compact/u);
 });

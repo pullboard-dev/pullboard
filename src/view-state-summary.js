@@ -22,20 +22,12 @@ export function activeViewAgents(agents, now) {
 }
 
 
-/**
- * Factor repeated, explicitly observed summary values into a versioned dictionary. IDs and titles
- * stay on each row. A field with any missing value is never factored, so absence is not a default.
- * The ordinary JSON shape and the source state stay unchanged.
- */
-export function compactItemSummaries(state) {
-  if (!Array.isArray(state.items) || state.items.length < 2 || Object.hasOwn(state, 'itemEncoding')) return state;
-  const items = state.items, defaults = Object.create(null);
-  const encoder = new TextEncoder();
-  /** Measure the complete UTF-8 representation, including the shared dictionary. */
-  const bytes = value => encoder.encode(JSON.stringify(value)).length;
+/** Build the existing V1 observed-default candidate from normalized JSON rows. */
+function defaultItemCandidate(items) {
+  const defaults = Object.create(null);
   for (const key of Object.keys(items[0])) {
     if (['id', 'title', '__proto__', 'prototype', 'constructor'].includes(key)
-      || items.some(item => !Object.hasOwn(item, key) || item[key] === undefined)) continue;
+      || items.some(item => !Object.hasOwn(item, key))) continue;
     const observed = new Map();
     for (const item of items) {
       const value = JSON.stringify(item[key]);
@@ -45,34 +37,123 @@ export function compactItemSummaries(state) {
     if (count < 2) continue;
     Object.defineProperty(defaults, key, { value: JSON.parse(value), enumerable: true });
   }
-  if (!Object.keys(defaults).length) return state;
+  if (!Object.keys(defaults).length) return null;
   const rows = items.map(item => Object.fromEntries(Object.entries(item).filter(([key, value]) =>
     !Object.hasOwn(defaults, key) || JSON.stringify(value) !== JSON.stringify(defaults[key]))));
-  const itemEncoding = { version: 1, defaults };
-  if (bytes({ itemEncoding, items: rows }) >= bytes(items)) return state;
-  return { ...state, itemEncoding, items: rows };
+  return { itemEncoding: { version: 1, defaults }, items: rows };
 }
 
-/**
- * Restore the exact JSON summary values before rendering or applying ordinary state deltas.
- * This function is self-contained so the view embeds this one decoder, without a second protocol.
- */
+/** Choose the cheapest complete V1/V2 representation using exact serialized UTF-8 cost. */
+export function compactItemSummaries(state) {
+  if (!Array.isArray(state.items) || state.items.length < 2 || Object.hasOwn(state, 'itemEncoding')) return state;
+  // Normalize once exactly as the ordinary JSON wire omits optional properties and normalizes arrays.
+  const items = JSON.parse(JSON.stringify(state.items)), encoder = new TextEncoder();
+  /** Include every byte of a candidate representation. */
+  const cost = value => encoder.encode(JSON.stringify(value)).length;
+  if (items.some(row => !row || typeof row !== 'object' || Array.isArray(row)
+    || !Object.hasOwn(row, 'id') || !Number.isSafeInteger(row.id) || row.id < 1
+    || !Object.hasOwn(row, 'title') || typeof row.title !== 'string')) return state;
+  const keys = [...new Set(items.flatMap(row => Object.keys(row)))];
+  const columns = [];
+  for (const key of keys) {
+    const absent = [], values = items.map((row, index) => {
+      if (!Object.hasOwn(row, key)) { absent.push(index); return null; }
+      return row[key];
+    });
+    let best = [key, 'r', values, absent];
+    const missingIndices = new Set(absent);
+    const dictionary = [], positions = new Map();
+    const indices = values.map((value, index) => {
+      if (missingIndices.has(index)) return -1;
+      const text = JSON.stringify(value);
+      if (text === undefined) return -2;
+      if (!positions.has(text)) { positions.set(text, dictionary.length); dictionary.push(value); }
+      return positions.get(text);
+    });
+    if (indices.includes(-2)) return state;
+    const dict = [key, 'd', indices, dictionary];
+    if (cost(dict) < cost(best)) best = dict;
+    const times = values.map(value => typeof value === 'string' ? Date.parse(value) : null);
+    if (values.every((value, index) => value === null || (Number.isSafeInteger(times[index])
+      && new Date(times[index]).toISOString() === value))) {
+      const base = times.find(value => value !== null) ?? 0;
+      const timed = [key, 't', times.map(value => value === null ? null : value - base), [base, absent]];
+      if (timed[2].every(value => value === null || Number.isSafeInteger(value))
+        && cost(timed) < cost(best)) best = timed;
+    }
+    columns.push(best);
+  }
+  const candidates = [defaultItemCandidate(items),
+    { itemEncoding: { version: 2, count: items.length }, items: columns }].filter(Boolean);
+  let best = state, bestCost = cost(state);
+  const ordinaryItemsCost = cost({ items });
+  for (const candidate of candidates) {
+    const packed = { ...state, ...candidate }, packedCost = cost(packed);
+    if (cost(candidate) < ordinaryItemsCost && packedCost < bestCost) {
+      best = packed;
+      bestCost = packedCost;
+    }
+  }
+  return best;
+}
+
+/** Restore ordinary, V1 defaults, or V2 columns; self-contained for browser toString embedding. */
 export function expandItemSummaries(state) {
   if (!Object.hasOwn(state, 'itemEncoding')) return state;
   const encoding = state.itemEncoding;
-  if (!encoding || encoding.version !== 1 || !encoding.defaults || typeof encoding.defaults !== 'object'
-    || Array.isArray(encoding.defaults) || !Array.isArray(state.items)
-    || Object.keys(encoding.defaults).some(key => ['id', 'title', '__proto__', 'prototype', 'constructor'].includes(key))) {
-    throw new TypeError('unsupported compact item encoding; request a fresh ordinary board state');
-  }
-  const defaults = JSON.stringify(encoding.defaults);
-  const items = state.items.map(row => {
-    if (!row || typeof row !== 'object' || Array.isArray(row) || !Object.hasOwn(row, 'id')
-      || !Number.isSafeInteger(row.id) || row.id < 1 || !Object.hasOwn(row, 'title') || typeof row.title !== 'string') {
-      throw new TypeError('invalid compact item row; request a fresh ordinary board state');
+  /** Refuse malformed wire data rather than inventing item values. */
+  function invalid() { throw new TypeError('invalid compact item encoding; request a fresh ordinary board state'); }
+  /** Clone every JSON value so rows never share mutable arrays or objects. */
+  function clone(value) { return JSON.parse(JSON.stringify(value)); }
+  /** Define even special JSON keys without invoking prototype setters. */
+  function put(row, key, value) { Object.defineProperty(row, key, { value, enumerable: true, writable: true, configurable: true }); }
+  if (!encoding || !Array.isArray(state.items)) invalid();
+  let items;
+  if (encoding.version === 1) {
+    if (!encoding.defaults || typeof encoding.defaults !== 'object' || Array.isArray(encoding.defaults)
+      || Object.keys(encoding.defaults).some(key => ['id', 'title', '__proto__', 'prototype', 'constructor'].includes(key))) invalid();
+    items = state.items.map(row => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) invalid();
+      return { ...clone(encoding.defaults), ...clone(row) };
+    });
+  } else if (encoding.version === 2) {
+    if (!Number.isSafeInteger(encoding.count) || encoding.count < 2
+      || Object.keys(encoding).some(key => !['version', 'count'].includes(key))
+      || state.items.length < 2 || state.items.some(column => !Array.isArray(column)
+        || column.length !== 4 || !Array.isArray(column[2]) || column[2].length !== encoding.count)) invalid();
+    items = Array.from({ length: encoding.count }, () => ({}));
+    const keys = new Set();
+    for (const column of state.items) {
+      if (!Array.isArray(column) || column.length !== 4) invalid();
+      const [key, mode, data, extra] = column;
+      if (typeof key !== 'string' || keys.has(key) || !Array.isArray(data) || data.length !== items.length) invalid();
+      keys.add(key);
+      if (!['r', 'd', 't'].includes(mode) || !Array.isArray(extra)) invalid();
+      const absent = mode === 'r' ? extra : mode === 't' ? extra[1] : [];
+      if (!Array.isArray(absent) || absent.some((index, position) => !Number.isSafeInteger(index)
+        || index < 0 || index >= items.length || (position > 0 && index <= absent[position - 1]))) invalid();
+      if (mode === 't' && (extra.length !== 2 || !Number.isSafeInteger(extra[0]))) invalid();
+      const missing = new Set(absent);
+      data.forEach((value, index) => {
+        if (missing.has(index)) { if (value !== null) invalid(); return; }
+        if (mode === 'd') {
+          if (!Number.isSafeInteger(value) || value < -1 || value >= extra.length) invalid();
+          if (value !== -1) put(items[index], key, clone(extra[value]));
+        } else if (mode === 't') {
+          if (value === null) put(items[index], key, null);
+          else {
+            if (!Number.isSafeInteger(value) || !Number.isSafeInteger(extra[0] + value)
+              || Math.abs(extra[0] + value) > 8640000000000000) invalid();
+            put(items[index], key, new Date(extra[0] + value).toISOString());
+          }
+        } else put(items[index], key, clone(value));
+      });
     }
-    return { ...JSON.parse(defaults), ...row };
-  });
+  } else invalid();
+  for (const row of items) {
+    if (!Object.hasOwn(row, 'id') || !Number.isSafeInteger(row.id) || row.id < 1
+      || !Object.hasOwn(row, 'title') || typeof row.title !== 'string') invalid();
+  }
   const { itemEncoding: _encoding, ...plain } = state;
   return { ...plain, items };
 }
