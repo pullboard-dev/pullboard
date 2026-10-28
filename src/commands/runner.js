@@ -11,7 +11,7 @@ import {
   recordRunnerGui,
   runnerResourceStatus,
 } from '../resources.js';
-import { validateRunner } from '../runner-registration.js';
+import { validateRunner } from '../settings-read.js';
 import { probeRunnerTransport } from '../runner-transport.js';
 
 /** List, add or remove machine-level SSH capacity without requiring a board identity or runner account. */

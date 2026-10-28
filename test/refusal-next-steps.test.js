@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { Refused } from '../src/refused.js';
 import { recordedRefusal, refusalFromReceipt, RECORDED_GENERIC_NEXT } from '../src/recorded-refusal.js';
-import { refusalDocument } from '../src/json.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { commandOutput as lightCommandOutput } from '../src/json-output.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
@@ -148,7 +148,8 @@ test('the light collector preserves prepared JSON refusal documents and a single
   ];
   for (const error of cases) {
     let text = '';
-    const io = lightCommandOutput(['show', '1', '--json'], { stdout: { write(value) { text += value; } }, stderr: { write() {} } });
+    const io = lightCommandOutput(['show', '1', '--json'], { stdout: { write(value) { text += value; } }, stderr: { write() {} } },
+      { loadRefusal: async () => (await import('../src/next-step-words.js')).refusalDocument });
     io.caller('seat', '/fixture');
     io.refusal(error);
     await io.prepareRefusal();

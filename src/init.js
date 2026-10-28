@@ -58,17 +58,8 @@ import {
   remoteShell,
 } from './person.js';
 import { installSkills } from './skills.js';
-import {
-  AGENTS_END,
-  AGENTS_START,
-  agentsBlock,
-  claudeLoopRules,
-  codexLoopRules,
-  configTemplate,
-  plainGateWords,
-  practiceTemplate,
-  specTemplate,
-} from './templates.js';
+import { AGENTS_END, AGENTS_START, claudeLoopRules, codexLoopRules, configTemplate, plainGateWords, practiceTemplate, specTemplate } from './templates.js';
+import { agentsBlock } from './doctrine.js';
 
 /** Resolve a directory through symlinks, retaining a missing suffix for a not-yet-created private home. */
 function canonicalDirectoryPath(candidate) {

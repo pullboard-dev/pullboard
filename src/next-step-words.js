@@ -1,3 +1,5 @@
+import { JSON_SHAPES } from './json.js';
+import { commandOutput as collectCommandOutput } from './json-output.js';
 import { withMoveNextSteps } from './move-registry.js';
 import { DEFAULT_NEXT_STEPS } from './next-step-defaults.js';
 /** Pure refusal guidance shared by JSON and CLI output without loading ledger or Git [P4,W4,C7]. */
@@ -52,3 +54,15 @@ export function nextStepFor(error, message, options = {}) {
     ?? `ask the service owner about refusal code ${code || '(unknown)'}, including the displayed refusal`, options);
 }
 
+
+/** A refusal shared by the CLI and API, presenting guidance for a known caller without changing its receipt (A1, A2, B26). */
+export function refusalDocument(error, options = {}) {
+  const message = String(error.message).replace(/^\[[A-Z][A-Z0-9_]*\] /, '');
+  const code = error.code ?? 'INTERNAL';
+  return { version: JSON_SHAPES.version, error: { code, message: personRequestGuidance(message, options), next: nextStepFor({ code, next: error.next }, message, options) } };
+}
+
+/** Collect output with the already-loaded synchronous public refusal renderer [A1]. */
+export function commandOutput(argv, streams) {
+  return collectCommandOutput(argv, streams, { version: JSON_SHAPES.version, refusalDocument });
+}

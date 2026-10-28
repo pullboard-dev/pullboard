@@ -11,15 +11,12 @@ import {
   setResourceCapacity,
   updateRunnerSettings,
 } from './resources.js';
-import { validateRunner } from './runner-registration.js';
+import { validateRunner } from './settings-read.js';
 import { loadMachineSettings } from './settings-read.js';
 export { loadMachineSettings };
 import { Refused } from './refused.js';
-import { relayCanaryConfig } from './relay-canary-config.js';
-import {
-  DEFAULT_RUNNER_WAIT_MS,
-  validateRunnerWaitMs,
-} from './runner-wait.js';
+import { relayCanaryConfig } from './settings-read.js';
+import { DEFAULT_RUNNER_WAIT_MS, validateRunnerWaitMs } from './settings-read.js';
 import {
   carriedBrowserByLaunch,
   readGateQueueSettings,

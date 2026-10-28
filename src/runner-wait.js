@@ -5,16 +5,6 @@ import { DatabaseSync } from 'node:sqlite';
 import { machineHome } from './machine-home.js';
 import { Refused } from './refused.js';
 
-export const DEFAULT_RUNNER_WAIT_MS = 300_000;
-
-/** Validate a machine's finite runner wait without allowing Node timer overflow. */
-export function validateRunnerWaitMs(value) {
-  if (!Number.isSafeInteger(value) || value < 1 || value > 2_147_483_647) {
-    throw new Refused('BAD_MACHINE_SETTINGS', 'gate.runnerWaitMs must be a positive whole number of milliseconds, at most 2147483647; run pullboard settings gate.runnerWaitMs <n>');
-  }
-  return value;
-}
-
 /** Explain each registered runner from the same local facts used by admission; no network probe. */
 export function runnerWaitReasons(db, runners, waiter, unavailable) {
   return runners.map(runner => {
