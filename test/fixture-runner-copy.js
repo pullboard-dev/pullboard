@@ -1,7 +1,8 @@
 /** Copy only the exercised canonical runner modules, not the complete shipped application [C7,V4]. */
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
-import { dirname, join, posix } from 'node:path';
+import { join, posix } from 'node:path';
+import { copyPackageFiles } from '../src/package-files.js';
 import { runnerPackage } from '../src/runner-package.js';
 import { importsIn } from '../src/module-imports.js';
 import { createRunnerModuleParser } from '../src/runner-module-parser.js';
@@ -49,9 +50,6 @@ export function copyFixtureRunner(source, destination) {
   for (const file of files) {
     if (!lstatSync(join(source, file)).isFile() || lstatSync(join(source, file)).isSymbolicLink()
       || !realpathSync(join(source, file)).startsWith(sourceRoot + '/')) throw new Error(`unsafe fixture runtime: ${file}`);
-    const target = join(destination, file);
-    mkdirSync(dirname(target), { recursive: true });
-    copyFileSync(join(source, file), target);
   }
-  return [...files].sort();
+  return copyPackageFiles(source, destination, { files: [...files].sort() });
 }
