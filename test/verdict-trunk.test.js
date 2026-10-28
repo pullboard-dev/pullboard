@@ -17,6 +17,8 @@ function reviewWithLanding(t, { setting, landing }) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  // The private gate uses Node's native runner, not this outer test file's child context.
+  delete box.env.NODE_TEST_CONTEXT;
   const armed = join(box.dir, 'landing-armed');
   const landed = join(box.dir, 'landing-done');
   for (const folder of ['test', 'web', 'api']) mkdirSync(join(box.repo, folder), { recursive: true });
