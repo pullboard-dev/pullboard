@@ -1,6 +1,6 @@
 /** Compose only clean main merges or the explicitly generated lifecycle conflict [C7,V4]. */
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { gitExecFileSync } from './git-adapter.js';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -14,7 +14,7 @@ const PREPARED = new WeakSet();
 /** Use immutable objects and fixed built-in merge rules; never run repository hooks or merge drivers. */
 function git(root, args, options = {}) {
   const { allowed = [0], ...execution } = options;
-  try { return execFileSync('git', ['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgSign=false',
+  try { return gitExecFileSync(['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgSign=false',
     '-c', 'merge.conflictStyle=merge', '-c', 'merge.renormalize=false', '-c', 'core.attributesFile=/dev/null', ...args],
   { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', timeout: 30000, maxBuffer: 16 * 1024 * 1024, ...execution }); }
   catch (error) { if (allowed.includes(error.status)) return String(error.stdout ?? ''); throw error; }
