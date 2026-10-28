@@ -5,8 +5,6 @@
  * files its check and affected tests read; anything else, or anything the selection cannot see, refuses as before.
  */
 import { execFileSync } from 'node:child_process';
-import { selectAffectedTests } from './affected-tests.js';
-import { explicitCheckFiles } from './browser-admission.js';
 
 /** Run git in the reviewer's checkout and return its trimmed output. */
 function git(root, args) {
@@ -24,9 +22,10 @@ function changedBetween(root, from, to) {
  *
  * @param {string} root
  * @param {{ from: string, to: string, item: { item_claim_head?: string|null }, checkedCommit: string, check: string|null }} review
+ * @param {{ selectAffectedTests: Function, explicitCheckFiles: Function }} services canonical caller-owned graph readers
  * @returns {Promise<{ moved: string[], overlap: string|null }>}
  */
-export async function judgeTrunkMove(root, { from, to, item, checkedCommit, check }) {
+export async function judgeTrunkMove(root, { from, to, item, checkedCommit, check }, { selectAffectedTests, explicitCheckFiles }) {
   const moved = git(root, ['rev-list', '--reverse', `${from}..${to}`]).split('\n').filter(Boolean);
   const movedFiles = changedBetween(root, from, to);
   const base = git(root, ['merge-base', from, checkedCommit]);

@@ -279,6 +279,7 @@ async function readSpec() {
   for (const field of ['item', 'kind']) {
     if (value[field] !== undefined && typeof value[field] !== 'string') throw new Error('invalid work specification');
   }
+  if (value.timingRunId !== undefined && !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(value.timingRunId)) throw new Error('invalid timing invocation');
   if (value.testResults !== undefined && (!Array.isArray(value.testResults.inputKeys)
     || value.testResults.inputKeys.some(key => typeof key !== 'string' || !/^[0-9a-f]{64}$/u.test(key))
     || !(value.testResults.packet === null || typeof value.testResults.packet === 'string')
@@ -557,7 +558,8 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     const roots = [...new Set([spec.commit, ...(spec.trunk ? [spec.trunk.commit] : []), ...(spec.trustedMode ? [spec.trustedMode.policyCommit, spec.trustedMode.trunk.commit] : [])])];
     /** Log exact ref deletions without reporting candidate source or credentials. */
     const logPrune = result => process.stderr.write(`PULLBOARD_RUNNER_CACHE_PRUNE ${spec.id} ${JSON.stringify(result)}\n`);
-    await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune });
+    const proven = new Set();
+    await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune, proven });
     const refLines = await git(cache, ['for-each-ref', '--format=%(refname) %(objectname)', 'refs/pullboard/candidates', 'refs/pullboard/published'], env);
     const tips = [];
     if (refLines) for (const line of refLines.split(/\r?\n/u)) {
@@ -572,8 +574,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     }
     const uniqueTips = [...new Set(tips)];
     if (uniqueTips.length > 1_024) throw new Error('source history cache needs maintenance');
-    if (uniqueTips.length) validateCacheTips(uniqueTips,
-      await git(cache, ['cat-file', '--batch-check'], env, `${uniqueTips.join('\n')}\n`));
+    if (uniqueTips.some(tip => !proven.has(tip))) throw new Error('source history cache contains a missing or non-commit tip');
     const requestedTagObjects = [...new Set(spec.tags.flatMap(tag => tag.chain))];
     const knownTagObjects = [];
     if (requestedTagObjects.length) {
@@ -605,6 +606,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     if (spec.originBase) await git(cache, ['merge-base', '--is-ancestor', spec.originBase, spec.commit], env);
     for (const commit of roots) {
       if (await git(cache, ['cat-file', '-t', commit], env) !== 'commit') throw new Error('trusted policy history is incomplete');
+      proven.add(commit);
     }
     const closure = new Set((await git(cache, ['rev-list', '--objects', ...roots], env)).split(/\r?\n/u)
       .map(line => line.match(/^([a-f0-9]{40,64})(?:\s|$)/u)?.[1]).filter(Boolean));
@@ -654,7 +656,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
       if (!candidateHistory.has(tag.peeledCommit)) throw new Error('source tag is not an ancestor of the candidate');
     }
     for (const commit of roots) await git(cache, ['update-ref', `refs/pullboard/candidates/${commit}`, commit], env);
-    await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune });
+    await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune, proven });
     await git(root, ['init', '-q', `--object-format=${spec.commit.length === 64 ? 'sha256' : 'sha1'}`], env);
     await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, `refs/pullboard/candidates/${spec.commit}`], env);
     await git(root, ['checkout', '--detach', 'FETCH_HEAD'], env);
@@ -1052,6 +1054,7 @@ async function main() {
       // An audit-coverage run always executes every file, whatever the exchange holds.
       ...(spec.auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('./audit-coverage-reporter.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
       PULLBOARD_TEST_CACHE_TOOLING: spec.tooling.sha256,
+      ...(spec.timingRunId ? { PULLBOARD_TIMING_RUN_ID: spec.timingRunId } : {}),
       PULLBOARD_LANDING_RUN: spec.landing === true ? '1' : '0', [api.BROWSER_REFUSAL_FILE_ENV]: browserRefusal, ...(typeof spec.browserByLaunch === 'boolean' ? { PULLBOARD_TEST_BROWSER_BY_LAUNCH: spec.browserByLaunch ? '1' : '0' } : {}), PULLBOARD_LANDING_WAIVERS: JSON.stringify(spec.landing === true ? spec.waivers ?? [] : []) };
     process.stderr.write(`PULLBOARD_RUNNER_READY ${spec.id}\n`);
     phases.mark('commandMs');

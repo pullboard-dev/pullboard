@@ -1,9 +1,10 @@
+import { ITEM_PATCH_SUBMIT_ENGINE } from '../item-patch-submit-engine.js';
 /** Native proof receipt routing is pure; origin binding belongs to the engine adapter [C7,H16]. */
 import { PROOF_RUN_ENGINE } from '../proof-run-engine.js';
 import { SUBMIT_ADMISSION_ENGINE } from '../submit-admission-engine.js';
 
 /** Proof provenance always requires its own replay floor, regardless of optional metadata. */
-function minimumEngine(args) { return args[0]?.receipt?.proof?.submitAdmission ? SUBMIT_ADMISSION_ENGINE : PROOF_RUN_ENGINE; }
+function minimumEngine(args) { return args[0]?.receipt?.proof?.submitPhase ? ITEM_PATCH_SUBMIT_ENGINE : args[0]?.receipt?.proof?.submitAdmission ? SUBMIT_ADMISSION_ENGINE : PROOF_RUN_ENGINE; }
 
 /** Attribute a recorded proof to its declared native seat. */
 function actor(move) { return move.args[0]?.agentId ?? null; }

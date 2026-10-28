@@ -65,6 +65,28 @@ test('a native key holder verifies a pinned person root before delivering each g
     assert.equal((await box.cli('relay', 'status')).code, 0);
     assert.deepEqual((await call(base + '/' + signed.nonce)).wraps, [], 'a different pinned root cannot verify the request');
     await pin(root.publicKey);
+    const raced = await box.script(`
+      const {readFileSync} = await import('node:fs');
+      const {deliverPersonEnrollments} = await import(${JSON.stringify(new URL('../src/relay-person-enrollment.js', import.meta.url).href)});
+      const {relayDeviceRequest} = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
+      const {relayPersonRoot,updateRelayMachine} = await import(${JSON.stringify(new URL('../src/relay-machine.js', import.meta.url).href)});
+      const state = JSON.parse(readFileSync(${JSON.stringify(box.linkFile)}, 'utf8'));
+      let reads = 0;
+      const errors = [];
+      /** Revoke the real saved pin at the second read, after authentication and wrapping. */
+      function currentRoot(owner) {
+        if (++reads === 2) updateRelayMachine(machine => { machine.personRoots = []; });
+        return relayPersonRoot(owner);
+      }
+      await deliverPersonEnrollments(state, {err(message){errors.push(message);}}, relayDeviceRequest,
+        {relayPersonRoot:currentRoot});
+      process.stdout.write(JSON.stringify({reads,errors}));
+    `);
+    assert.equal(raced.code, 0, raced.stderr);
+    assert.equal(raced.document.reads, 2, 'the injected caller port reads the actual pin again after wrapping');
+    assert.equal(raced.document.errors.some(message => message.includes('PERSON_ENROLL_AUTH')), true);
+    assert.deepEqual((await call(base + '/' + signed.nonce)).wraps, [], 'a pin revoked during wrapping releases no board key');
+    await pin(root.publicKey);
     assert.equal((await box.cli('relay', 'status')).code, 0);
     const first = await call(base + '/' + signed.nonce);
     assert.deepEqual(first.wraps.map(row => row.board), [link.board], 'the first machine token releases only its board');

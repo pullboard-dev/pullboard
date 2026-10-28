@@ -1,5 +1,6 @@
 /** @pullboard-test-gui */
 /** Cockpit items checks, using the shared real-board fixtures [N26]. */
+import './upgrade-geometry.test.js';
 import { submitFixture } from '../board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -361,7 +362,7 @@ test('the list shows active, verified or all [N26]', async () => {
     assert.deepEqual(rows(), [1]);
     await page.click({ state: 'all' });
     assert.deepEqual(rows(), [1, 2]);
-    assert.match(page.html, /<div class="card-panel toolbar" id="items-toolbar">\s*<div class="items-view-switch seg" id="items-view-switch" role="group" aria-label="Items view"><\/div>\s*<div class="filter-control"><button class="filter-toggle" id="filter-toggle"/, 'the view toggle and filter are together in the toolbar');
+    assert.match(page.html, /<div class="card-panel toolbar" id="items-toolbar">\s*<div class="items-view-switch" id="items-view-switch"><\/div>\s*<div class="filter-control"><button class="filter-toggle" id="filter-toggle"/, 'the view toggle and filter are together in the toolbar');
     assert.doesNotMatch(page.html, /id="lane-pick"|id="state-chips"/, 'the old second-row controls are gone');
     assert.match(page.html, /<header class="top">[^]*<div class="top-find"><input id="q" type="search"[^]*<\/header>/, 'and the search is in the top bar');
     assert.doesNotMatch(page.html, /id="lane-filter"|class="chips" id="state-chips"/, 'no lane menu and no row of chips');
@@ -399,7 +400,7 @@ test('the items toolbar is one row: view, filter and new [N26]', async () => {
         await chrome.waitFor("!document.querySelector('#filter-menu').hidden");
         const layout = JSON.parse(await chrome.stable(`JSON.stringify((() => {
           const toolbar = document.querySelector('.toolbar'), nodes = [...toolbar.children];
-          const rect = node => { const r = node.getBoundingClientRect(); return { top:r.top, bottom:r.bottom, height:r.height, left:r.left, right:r.right }; };
+          const rect = node => { const r = node.getBoundingClientRect(), edges = node.matches('.seg button') ? [...node.querySelectorAll('.seg-hit')].map(edge => edge.getBoundingClientRect()) : []; const top = Math.min(r.top, ...edges.map(edge => edge.top)), bottom = Math.max(r.bottom, ...edges.map(edge => edge.bottom)); return { top, bottom, height:bottom-top, left:r.left, right:r.right }; };
           const menu = rect(document.querySelector('#filter-menu'));
           return { children:nodes.map(node => node.id || node.className), rows:nodes.map(rect), scroll:toolbar.scrollWidth,
             client:toolbar.clientWidth, page:document.documentElement.scrollWidth, width:innerWidth,
@@ -408,7 +409,7 @@ test('the items toolbar is one row: view, filter and new [N26]', async () => {
             groups:[...document.querySelectorAll('#filter-menu .filter-group')].map(group => group.getAttribute('aria-label')) };
         })())`));
         assert.deepEqual(layout.children, ['items-view-switch', 'filter-control', 'new-item'], `${width}/${scheme}: exactly the three toolbar controls appear in order`);
-        // One row: the controls share a centre line (List | Pipeline is a 48px group around 44px buttons, so tops differ).
+        // One row: the controls share a centre line (the segmented options retain their 44px hitboxes within the 44px track).
         const centres = layout.rows.map(row => (row.top + row.bottom) / 2);
         assert.ok(Math.max(...centres) - Math.min(...centres) <= 2, `${width}/${scheme}: controls share one row: ${JSON.stringify(layout)}`);
         assert.ok(layout.scroll <= layout.client && layout.page <= width, `${width}/${scheme}: no horizontal toolbar or page scroll: ${JSON.stringify(layout)}`);
@@ -1409,92 +1410,4 @@ test('Pipeline view dates an expired claim from its recorded deadline [N26,N38]'
     assert.match(open(), /data-go="item:1"/);
     assert.match(open(), new RegExp(new Date(base+40*60_000).toISOString()), 'expired claim age starts at its native lease deadline');
   } finally { await view.stop(); }
-});
-
-test('the view shows what is new once after an upgrade [N26]', async () => {
-  const executable = chromeExecutable();
-  assert.ok(executable, 'real Chrome is required for the upgrade journey');
-  for (const [width, height] of [[375, 812], [1280, 800]]) for (const scheme of ['light', 'dark']) {
-    const box = machine();
-    const alpha = project(box, 'upgrade-alpha');
-    const beta = project(box, 'upgrade-beta');
-    for (const board of [alpha, beta]) box.run(board.repo, 'add', 'web', 'First visible item', '--specs', 'G1');
-    const cli = join(box.dir, 'upgrade-cli');
-    mkdirSync(cli);
-    for (const entry of ['bin', 'src', 'skills', 'package.json']) cpSync(resolve(import.meta.dirname, '../..', entry), join(cli, entry), { recursive: true });
-    const packagePath = join(cli, 'package.json');
-    const packageData = JSON.parse(readFileSync(packagePath, 'utf8'));
-    const releases = ['0.8.10', '0.8.9', '0.8.8', '0.8.7', '0.8.4'];
-    const paragraph = 'These release details explain what changed for the person using the board. '.repeat(8).trim();
-    writeFileSync(join(cli, 'CHANGELOG.md'), '# Changelog\n\n' + releases.map(version => `## [${version}] - 2026-10-11\n\n### Release ${version}\n\n${paragraph}\n\n### Added\n\n- Detailed changes stay in the full notes.\n`).join('\n'));
-    writeFileSync(packagePath, JSON.stringify({ ...packageData, version: '0.8.4' }));
-    let server = await startView(box, { bin: join(cli, 'bin/pullboard.js') });
-    let chrome;
-    try {
-      chrome = await openSnapshotChrome(executable, server.link.href, join(box.dir, 'upgrade-chrome'));
-      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
-      await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
-      /** Wait for this document's actual board state and script, including after a server restart. */
-      const ready = async (version, root) => chrome.waitFor(`!window.__oldUpgradeDocument && typeof data === 'object' && data?.project?.releaseNotes?.version === ${JSON.stringify(version)} && data.project.root === ${JSON.stringify(root)} && document.querySelector('#chain .row')`);
-      await ready('0.8.4', alpha.repo);
-      assert.equal(await chrome.stable("document.querySelector('#upgrade-note').hidden"), true, 'a fresh browser records the version quietly');
-      assert.equal(await chrome.stable(`localStorage.getItem('pb.release.' + ${JSON.stringify(alpha.repo)})`), '0.8.4', 'the first board records its initial version');
-      await pickProject(chrome, `document.querySelector('[data-root="${beta.repo}"]')`);
-      await ready('0.8.4', beta.repo);
-      assert.equal(await chrome.stable("document.querySelector('#upgrade-note').hidden"), true, 'a second fresh board also records quietly');
-      await pickProject(chrome, `document.querySelector('[data-root="${alpha.repo}"]')`);
-      await ready('0.8.4', alpha.repo);
-      const previousOrigin = server.link.origin;
-      await server.stop();
-      writeFileSync(packagePath, JSON.stringify({ ...packageData, version: '0.8.10' }));
-      server = await startView(box, { bin: join(cli, 'bin/pullboard.js') });
-      assert.equal(server.link.origin, previousOrigin, 'a CLI restart keeps the browser storage origin');
-      await chrome.stable('window.__oldUpgradeDocument = true');
-      await chrome.send('Page.navigate', { url: server.link.href });
-      await ready('0.8.10', alpha.repo);
-      await chrome.waitFor("!document.querySelector('#upgrade-note').hidden");
-      const shown = JSON.parse(await chrome.stable(`JSON.stringify({
-        title: document.querySelector('#upgrade-note h2').textContent,
-        headings: [...document.querySelectorAll('#upgrade-note article h3')].map(node => node.textContent),
-        paragraphs: [...document.querySelectorAll('#upgrade-note article p')].map(node => node.textContent),
-        more: document.querySelector('#upgrade-note footer').textContent,
-        notes: document.querySelector('#upgrade-note a').href,
-        cardBottom: document.querySelector('#upgrade-note').getBoundingClientRect().bottom,
-        itemTop: document.querySelector('#chain .row').getBoundingClientRect().top,
-        itemBottom: document.querySelector('#chain .row').getBoundingClientRect().bottom,
-        viewport: innerHeight, width: innerWidth, pageWidth: document.documentElement.scrollWidth,
-        scheme: matchMedia('(prefers-color-scheme: ${scheme})').matches,
-      })`));
-      assert.equal(shown.title, 'New in 0.8.10', 'the current CLI version names the card');
-      assert.deepEqual(shown.headings, ['0.8.10 · Release 0.8.10', '0.8.9 · Release 0.8.9', '0.8.8 · Release 0.8.8'], 'at most three newer headlines appear in numeric newest-first order');
-      assert.deepEqual(shown.paragraphs, [paragraph, paragraph, paragraph], 'each complete headline paragraph comes through the real board API');
-      assert.match(shown.more, /^\+1 more/, 'remaining releases are counted');
-      assert.equal(shown.notes, 'https://github.com/pullboard-dev/pullboard/blob/main/CHANGELOG.md', 'the card links to the full notes');
-      assert.ok(shown.cardBottom <= shown.itemTop && shown.itemBottom <= shown.viewport, `${width}/${scheme}: the card leaves the complete first item above the fold`);
-      assert.ok(shown.pageWidth <= shown.width, `${width}/${scheme}: the page never scrolls sideways`);
-      assert.equal(shown.scheme, true, 'the actual browser uses the requested color scheme');
-      if (process.env.PULLBOARD_UPGRADE_PROOF) {
-        mkdirSync(process.env.PULLBOARD_UPGRADE_PROOF, { recursive: true });
-        const shot = await chrome.send('Page.captureScreenshot', { format: 'png' });
-        writeFileSync(join(process.env.PULLBOARD_UPGRADE_PROOF, `upgrade-${width}-${scheme}.png`), Buffer.from(shot.data, 'base64'));
-      }
-      await chrome.stable('window.__oldUpgradeDocument = true');
-      await chrome.send('Page.reload');
-      await ready('0.8.10', alpha.repo);
-      assert.equal(await chrome.stable("document.querySelector('#upgrade-note').hidden"), true, 'a same-version reload does not show the note again');
-      await pickProject(chrome, `document.querySelector('[data-root="${beta.repo}"]')`);
-      await ready('0.8.10', beta.repo);
-      assert.equal(await chrome.stable("document.querySelector('#upgrade-note').hidden"), false, 'a different board has its own unseen upgrade');
-      await press(chrome, "document.querySelector('[data-upgrade-dismiss]')");
-      assert.equal(await chrome.stable("document.querySelector('#upgrade-note').hidden"), true, 'dismissing removes the card');
-      await chrome.stable('window.__oldUpgradeDocument = true');
-      await chrome.send('Page.reload');
-      await ready('0.8.10', beta.repo);
-      assert.equal(await chrome.stable("document.querySelector('#upgrade-note').hidden"), true, 'a dismissed note stays dismissed on reload');
-      assert.deepEqual(chrome.exceptions, [], 'the upgrade journey has no page exceptions');
-    } finally {
-      if (chrome) await closeSnapshotChrome(chrome);
-      await server.stop();
-    }
-  }
 });

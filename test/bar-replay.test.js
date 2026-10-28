@@ -40,7 +40,7 @@ function item(person=false) {
 }
 /** Sign exact captured words, not a receiver's current checkout or evidence paths. */
 function signature(board,id,agent='core-2') {
-  const current=store.getItem(board,id);const status=barReadiness(board,current);
+  const current=store.getItem(board,id);const status=barReadiness(board,current, {}, board.runtimePorts.verification);
   return {agentId:agent,barActor:ACTORS[agent],revision:status.revision.revision,digest:status.revision.digest,note:'The synthetic protocol bar has explicit evidence and edges.',
     coverage:{version:1,sourceMain:SHA,sourceCheck:current.item_check,policyKey:'d'.repeat(64),timeoutMs:300000,runner:'node --test',required:[],files:[]}};
 }
@@ -55,14 +55,37 @@ test('[B4,V1,H16] readiness activation, authored revision, signature and claim r
   const text=JSON.stringify({title:'Replayable bar',criterion:'the named witness passes',check:store.getItem(boards[0],id).item_check,rows:[]});
   dispatch(boards,'claim',[id,{agentId:'core-1',lane:'core',leaseMs:7200000,freeze:()=>({text,digest:createHash('sha256').update(text).digest('hex')})}],'core-1');
   assert.equal(store.getItem(boards[1],id).item_owner,'core-1');
-  assert.equal(barReadiness(boards[1],store.getItem(boards[1],id)).missing.length,0);
+  assert.equal(barReadiness(boards[1],store.getItem(boards[1],id), {}, boards[1].runtimePorts.verification).missing.length,0);
 });
 
 test('[B26,V1,H16] a person-authority revision and agent signature replay without manufacturing a parent',t=>{
   const boards=copies(t);dispatch(boards,'setBarReady',[{agentId:'coordinator',enabled:true}]);
   const id=dispatch(boards,'addItem',[item(true)],'coordinator',true);
   dispatch(boards,'signBar',[id,signature(boards[0],id,'core-1')],'core-1');
-  const status=barReadiness(boards[1],store.getItem(boards[1],id));
+  const status=barReadiness(boards[1],store.getItem(boards[1],id), {}, boards[1].runtimePorts.verification);
   assert.equal(status.missing.length,0);
   assert.ok(Object.values(status.revision.authors).every(author=>author.authority==='person' && author.parent===null && author.session===null));
+});
+
+test('bar readiness reads a real SQLite query view without native capabilities [C7,B4,V1]', t => {
+  const [board] = copies(t);
+  store.setBarReady(board, { agentId: 'coordinator', enabled: true });
+  const id = store.addItem(board, item());
+  const row = store.getItem(board, id);
+  const before = exportBoard(board).tables;
+  const raw = { db: board.db };
+  let calls = 0;
+  const services = {
+    /** Forward the exact supplied query view to the canonical baseline reader. */
+    itemCheckBaseline(current, item) {
+      assert.equal(current, raw);
+      calls++;
+      return board.runtimePorts.verification.itemCheckBaseline(current, item);
+    },
+  };
+  assert.deepEqual(barReadiness(raw, row, {}, services), barReadiness(board, row, {}, board.runtimePorts.verification));
+  assert.equal(calls, 1);
+  assert.equal('nativePorts' in raw, false);
+  assert.equal('runtimePorts' in raw, false);
+  assert.deepEqual(exportBoard(board).tables, before, 'query presentation changes no recorded state');
 });

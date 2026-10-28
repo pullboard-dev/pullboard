@@ -17,7 +17,7 @@ import { performanceCores } from '../src/gate.js';
 import {
   defaultViewPort,
   DEFAULT_VIEW_PORT,
-} from '../src/view-port.js';
+} from '../src/config.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { LAND_COLLISION_ENGINE } from '../src/landing-collision-engine.js';
 import { BAR_CHECK_ENGINE } from '../src/bar-check-engine.js';

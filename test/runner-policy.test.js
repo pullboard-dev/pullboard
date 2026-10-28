@@ -16,6 +16,7 @@ import { pathToFileURL } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { mainPolicy } from '../src/trusted-policy-read.js';
+import { copyPackageFiles } from '../src/package-files.js';
 import { runnerPolicyRecord } from '../src/runner-policy.js';
 import { RUNNER_POLICY_FILE } from '../src/runner-policy.js';
 import { gitPath } from '../src/git.js';
@@ -43,13 +44,15 @@ function fixture(t) {
   const remoteHome = join(dir, 'remote');
   const worker = join(dir, 'worker');
   const bin = join(dir, 'bin');
-  for (const folder of [repo, home, machineHome, remoteHome, worker, bin]) mkdirSync(folder, { recursive: true });
+  const remoteMachine = join(remoteHome, '.pullboard');
+  for (const folder of [repo, home, machineHome, remoteHome, remoteMachine, worker, bin]) mkdirSync(folder, { recursive: true });
   const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Policy Fixture', GIT_AUTHOR_EMAIL: 'policy@example.invalid',
     GIT_COMMITTER_NAME: 'Policy Fixture', GIT_COMMITTER_EMAIL: 'policy@example.invalid' };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_') && !['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'].includes(key)) delete env[key];
   writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { runnersFirst: true } }));
+  writeFileSync(join(remoteMachine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
   copyPackageFiles(resolve(import.meta.dirname, '..'), repo);
   mkdirSync(join(repo, 'test'));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'candidate gate', landingShards: 2, protect: { allowed: ['*.example'] } }));
@@ -80,7 +83,7 @@ test('nested shard uses carried admitted policy [C7,V4]', () => {
   const requests = join(dir, 'requests.jsonl');
   const stderrLog = join(dir, 'worker.stderr');
   installSshStandIn({ bin, worker, home: remoteHome,
-    machineHome: join(remoteHome, '.pullboard'), requests, stderrLog });
+    machineHome: remoteMachine, requests, stderrLog });
   return { dir, repo, source, candidate, trunk, env, requests, stderrLog };
 }
 
@@ -88,7 +91,7 @@ test('ordinary fake-SSH source carries its actual trunk policy into a detached n
   const box = fixture(t);
   const registered = cli(box.source, box.env, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json');
   assert.equal(registered.status, 0, registered.context);
-  const result = await runThroughGate(box.source, box.env, 'node bin/run-tests.js', { landing: true, requests: box.requests });
+  const result = await runThroughGate(box.source, box.env, 'node bin/run-tests.js test/nested.test.js', { landing: true, requests: box.requests });
   assert.equal(result.status, 0, fixtureResultContext(result) + (existsSync(box.stderrLog) ? readFileSync(box.stderrLog, 'utf8') : ''));
   assert.equal(gateResult(result.stdout).runner, HOST, 'the positive policy proof must execute remotely, never pass by local fallback');
   assert.match(result.stdout, /nested shard uses carried admitted policy/u);
@@ -112,7 +115,7 @@ console.log(JSON.stringify(result.privateCheck)); process.exitCode = result.isGr
   const missing = join(box.dir, 'missing-policy');
   git(box.repo, box.env, 'clone', '--no-local', '--no-checkout', box.repo, missing);
   git(missing, box.env, 'checkout', '--detach', box.candidate);
-  const refused = await runThroughGate(missing, box.env, 'node bin/run-tests.js', { landing: true, requests: box.requests });
+  const refused = await runThroughGate(missing, box.env, 'node bin/run-tests.js test/nested.test.js', { landing: true, requests: box.requests });
   assert.equal(refused.status, 1, fixtureResultContext(refused));
   assert.match(refused.stdout, /NO_POLICY/u, 'a real nested job without carried provenance refuses loudly');
   const requestsBeforeProtection = readFileSync(box.requests, 'utf8');

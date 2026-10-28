@@ -1,3 +1,4 @@
+import { headCommit } from '../git.js';
 /** Attach, inspect, or remove an immutable source-bound patch for a submitted item [V4,H16]. */
 import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
@@ -77,10 +78,16 @@ export async function run(io, { first, second, rest, values }) {
       if (me.id !== 'coordinator') throw new Refused('COORDINATOR_ONLY', 'only the coordinator attaches item patches');
       const patch = patchText(ctx.info.root, rest[0]);
       validateItemPatchInput(board, ctx.config, values.author, patch);
+      const builderPath = item.item_status === 'claimed' ? store.listAgents(board).find(agent => agent.agent_id === item.item_owner)?.agent_path : null;
+      const builderHead = builderPath ? headCommit(builderPath) : null;
+      const source = values.source ?? (item.item_status === 'claimed' ? builderHead : item.item_commit);
+      if (item.item_status === 'claimed' && (!source || builderHead && builderHead !== source)) {
+        throw new Refused('ITEM_PATCH_SOURCE', 'attach against the current builder head; name --source when its checkout is unavailable');
+      }
       result = await ordered(ctx, board, 'attachItemPatch', [id, {
         agentId: me.id,
         key: values.key,
-        commit: values.source ?? item.item_commit,
+        commit: source,
         patch,
         author: values.author,
       }]);

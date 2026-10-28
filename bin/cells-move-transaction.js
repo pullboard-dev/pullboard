@@ -92,7 +92,11 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
       if (!source.includes(posix.basename(from))) continue;
       requireThat(Buffer.from(source).equals(bytes), `${row[3]} is not exact UTF-8`);
       filePath(row[3]); parents(root, row[3]);
-      const { edits, problems } = fixtureSourceEdits(source, { file: row[3], moves: [[from, to]] });
+      const { edits, problems } = fixtureSourceEdits(source, { file: row[3], moves: [[from, to]], readSource: file => {
+        filePath(file); tracked(root, head, file);
+        const record = git(root, ['ls-tree', '-z', head, '--', file]);
+        return { source: git(root, ['show', `${head}:${file}`]), object: /^100(?:644|755) blob ([a-f0-9]+)\t/u.exec(record)[1] };
+      } });
       requireThat(!problems.length, problems.join('\n'));
       if (!edits.length) continue;
       let next = source, boundary = source.length;

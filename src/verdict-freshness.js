@@ -1,12 +1,10 @@
 /** Acceptance stays append-only; freshness is derived from the known Git trunk [E8,V8]. */
 import { mergeOnlyLandingProblem } from './merge-only-verdict.js';
 import { spawnSync } from 'node:child_process';
-import * as store from './board-query.js';
 import {
   cleanGitEnvironment,
   mainCheckout,
 } from './git.js';
-import { trunkRef } from './trusted-policy-read.js';
 import { Refused } from './refused.js';
 import { trunkRevisionReader } from './trunk-revision.js';
 
@@ -20,7 +18,7 @@ function readGit(root, args) {
 }
 
 /** Read the actual retained trunk tip, rather than a cached checkout HEAD used during review. */
-export function verdictTrunk(root) {
+export function verdictTrunk(root, { trunkRef }) {
   try {
     const ref = mainCheckout(root)?.branch ?? trunkRef(root);
     if (!ref?.startsWith('refs/heads/')) throw new Error('The retained trunk is unavailable');
@@ -31,8 +29,10 @@ export function verdictTrunk(root) {
 }
 
 /** Capture the exact checked commit, review trunk and candidate delta against its submitted coordinator snapshot. */
-export function captureVerdictReview(root, board, item, trunk = verdictTrunk(root), head = item.item_commit) {
-  const receipt = store.events(board, { itemId: item.item_id }).findLast(event => {
+export function captureVerdictReview(root, board, item, trunk = undefined, head = undefined, { events, trunkRef }) {
+  if (trunk === undefined) trunk = verdictTrunk(root, { trunkRef });
+  if (head === undefined) head = item.item_commit;
+  const receipt = events(board, { itemId: item.item_id }).findLast(event => {
     if (event.event_kind !== 'submit') return false;
     return JSON.parse(event.event_detail).commit === item.item_commit;
   });
@@ -65,7 +65,7 @@ export function staleVerdictRefusal(item, state) {
 }
 
 /** Create one read's projector, sharing Git history lookups across its unlanded acceptances. */
-export function verdictProjector(root, board, { main } = {}) {
+export function verdictProjector(root, board, { main } = {}, { events, acceptedVerdict, verdictReviewProblem, trunkRef }) {
   let tip = main;
   let resolved = main !== undefined;
   const histories = new Map();
@@ -96,10 +96,10 @@ export function verdictProjector(root, board, { main } = {}) {
   const state = item => {
     if (item.item_status !== 'verified') return null;
     if (item.item_rehome_import?.sourceStatus === 'verified') return null;
-    const accepted = store.acceptedVerdict(board, item);
-    const carryProblem = !item.item_merged_commit && mergeOnlyLandingProblem(root, board, item, { acceptedVerdict: store.acceptedVerdict });
+    const accepted = acceptedVerdict(board, item);
+    const carryProblem = !item.item_merged_commit && mergeOnlyLandingProblem(root, board, item, { acceptedVerdict: acceptedVerdict });
     if (carryProblem) return { code: 'STALE_VERDICT', reason: carryProblem.message, main: tip ?? null };
-    const mismatch = item.item_merged_commit && store.events(board, { itemId: item.item_id }).findLast(event => {
+    const mismatch = item.item_merged_commit && events(board, { itemId: item.item_id }).findLast(event => {
       if (event.event_kind !== 'landing-review-moved') return false;
       const detail = JSON.parse(event.event_detail);
       return detail.verdict === accepted?.verdict_id && detail.landed === item.item_merged_commit;
@@ -109,11 +109,11 @@ export function verdictProjector(root, board, { main } = {}) {
     try {
       if (!resolved) {
         resolved = true;
-        tip = verdictTrunk(root);
+        tip = verdictTrunk(root, { trunkRef });
       }
       if (!tip) throw new Error('The known trunk is unavailable');
       review = accepted?.review;
-      if (review && store.verdictReviewProblem(review, item.item_commit)) throw new Error('The sealed review is invalid');
+      if (review && verdictReviewProblem(review, item.item_commit)) throw new Error('The sealed review is invalid');
       const checked = review?.head ?? item.item_commit;
       // A physical landing is final only when it includes the checked composition.
       const landed = spawnSync('git', ['--no-replace-objects', 'merge-base', '--is-ancestor', checked, tip],
@@ -136,7 +136,7 @@ export function verdictProjector(root, board, { main } = {}) {
         review = { trunk: baseline,
           paths: readGit(root, ['diff', '--no-renames', '--name-only', '-z', baseline, item.item_commit, '--']).split('\0').filter(Boolean), legacy: true };
       }
-      if (!review.legacy && store.verdictReviewProblem(review, item.item_commit)) throw new Error('The sealed review is invalid');
+      if (!review.legacy && verdictReviewProblem(review, item.item_commit)) throw new Error('The sealed review is invalid');
       const paths = new Set(review.paths);
       for (const commit of history(review.trunk, paths)) {
         const file = changedFiles(commit).find(path => paths.has(path));
@@ -163,10 +163,10 @@ export function verdictProjector(root, board, { main } = {}) {
 const PRESENTATION_VERDICTS = new Map();
 
 /** Reuse derived presentation values, never a closed board connection or mutable native row. */
-export function cachedVerdictStates(root, board, info) {
+export function cachedVerdictStates(root, board, info, { events, acceptedVerdict, verdictReviewProblem, boardId }) {
   const tip = trunkRevisionReader(info)();
   const event = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
-  const key = JSON.stringify([info.commonDir, store.boardId(board)]);
+  const key = JSON.stringify([info.commonDir, boardId(board)]);
   const revision = JSON.stringify([tip, event]);
   let cached = PRESENTATION_VERDICTS.get(key);
   if (cached?.revision !== revision) {
@@ -175,7 +175,7 @@ export function cachedVerdictStates(root, board, info) {
     PRESENTATION_VERDICTS.set(key, cached);
     while (PRESENTATION_VERDICTS.size > 32) PRESENTATION_VERDICTS.delete(PRESENTATION_VERDICTS.keys().next().value);
   }
-  const projector = verdictProjector(root, board, { main: tip });
+  const projector = verdictProjector(root, board, { main: tip }, { events, acceptedVerdict, verdictReviewProblem });
   /** Refresh only a changed item; unchanged sealed presentations start no new Git process. */
   return item => {
     const raw = JSON.stringify(item);
