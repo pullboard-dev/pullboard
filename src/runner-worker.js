@@ -44,7 +44,12 @@ import { fileURLToPath } from 'node:url';
 import * as resourceApi from './resources.js';
 import { createDescendantTracker } from './runner-custody.js';
 import { pinSourceCacheJob } from './runner-source-cache.js';
-import { pruneSourceCache } from './runner-source-cache.js';
+import {
+  pruneSourceCache,
+  restoreSourceTree,
+  rememberSourceTree,
+  checkSourceTagNames,
+} from './runner-source-cache.js';
 import { Refused } from './refused.js';
 import {
   recordRunnerCompletion,
@@ -511,7 +516,7 @@ async function gitBytes(root, args, env, input) {
   await drainOwned(owned);
   if (overflow || inputError || result.error || result.code !== 0 || result.signal) throw gitSetupFailure(root, args, env, result, stderr.toString('utf8'), overflow, inputError);
   if (sourcePreparation) {
-    const operation = args.find(arg => new Set(['init', 'fetch', 'checkout', 'index-pack', 'cat-file', 'rev-parse', 'rev-list', 'for-each-ref', 'update-ref', 'merge-base', 'verify-pack', 'check-ref-format', 'config']).has(arg)) ?? 'unknown';
+    const operation = args.find(arg => new Set(['init', 'fetch', 'checkout', 'index-pack', 'cat-file', 'rev-parse', 'rev-list', 'for-each-ref', 'update-ref', 'merge-base', 'verify-pack', 'check-ref-format', 'config', 'status']).has(arg)) ?? 'unknown';
     const row = sourcePreparation.git[operation] ??= { calls: 0, ms: 0 };
     row.calls++;
     row.ms += Math.round(performance.now() - started);
@@ -664,8 +669,8 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     const lightweight = [...new Set(spec.tags.filter(tag => !tag.chain.length).map(tag => tag.object))];
     if (lightweight.length) validateCacheTips(lightweight,
       await git(cache, ['cat-file', '--batch-check'], env, `${lightweight.join('\n')}\n`));
+    await checkSourceTagNames({ cache, tags: spec.tags, id: spec.id, lease: cacheLease, git, env, objectLength: spec.commit.length });
     for (const tag of spec.tags) {
-      await git(cache, ['check-ref-format', tag.name], env);
       if (tag.chain.length) {
         let target = tag.object;
         for (let index = 0; index < tag.chain.length; index++) {
@@ -692,12 +697,19 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     for (const commit of roots) await git(cache, ['update-ref', `refs/pullboard/candidates/${commit}`, commit], env);
     await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune, proven });
     mark('validateMs');
-    await git(root, ['init', '-q', `--object-format=${spec.commit.length === 64 ? 'sha256' : 'sha1'}`], env);
-    await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, `refs/pullboard/candidates/${spec.commit}`], env);
-    await git(root, ['checkout', '--detach', 'FETCH_HEAD'], env);
+    const sourceTree = join(repositories, `${spec.repoId}.checkout`);
+    measured.reusedCommit = await restoreSourceTree({ directory: sourceTree, root, commit: spec.commit,
+      history: candidateHistory, lease: cacheLease, git, env });
+    if (!measured.reusedCommit) await git(root, ['init', '-q', `--object-format=${spec.commit.length === 64 ? 'sha256' : 'sha1'}`], env);
+    if (measured.reusedCommit !== spec.commit) {
+      await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, `refs/pullboard/candidates/${spec.commit}`], env);
+      await git(root, ['checkout', '--detach', 'FETCH_HEAD'], env);
+      rememberSourceTree({ directory: sourceTree, root, commit: spec.commit, tree: spec.tree, lease: cacheLease });
+    }
     if (spec.trunk) {
       await git(root, ['check-ref-format', spec.trunk.ref], env);
-      await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache,
+      if (candidateHistory.has(spec.trunk.commit)) await git(root, ['update-ref', spec.trunk.ref, spec.trunk.commit], env);
+      else await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache,
         `refs/pullboard/candidates/${spec.trunk.commit}:${spec.trunk.ref}`], env);
       await git(root, ['config', '--local', '--replace-all', 'pullboard.trunk', spec.trunk.ref], env);
       writeFileSync(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(runnerPolicyRecord(spec)), { mode: 0o600 });
@@ -705,7 +717,9 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     if (spec.trustedMode) {
       const mode = spec.trustedMode;
       await git(root, ['check-ref-format', mode.trunk.ref], env);
-      await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache,
+      if (candidateHistory.has(mode.policyCommit) && candidateHistory.has(mode.trunk.commit)) {
+        await git(root, ['update-ref', '--stdin'], env, `update refs/pullboard/trusted-policy ${mode.policyCommit}\nupdate ${mode.trunk.ref} ${mode.trunk.commit}\n`);
+      } else await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache,
         `refs/pullboard/candidates/${mode.policyCommit}:refs/pullboard/trusted-policy`,
         `refs/pullboard/candidates/${mode.trunk.commit}:${mode.trunk.ref}`], env);
       await git(root, ['config', '--local', '--replace-all', 'pullboard.trunk', mode.trunk.ref], env);
@@ -817,7 +831,7 @@ async function stopOwnedGroup(pid, closed, tracker) {
       await new Promise(resolvePause => setTimeout(resolvePause, 250));
     }
   };
-  await signal('SIGTERM');
+  if (await signal('SIGTERM') === false) { await closed; return; }
   // Give the whole owned group two seconds to handle TERM, even if its leader exits first.
   const graceUntil = Date.now() + 2_000;
   while (Date.now() < graceUntil) {

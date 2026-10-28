@@ -39,3 +39,22 @@ export function tagObjectBodies(objects, outputBuffer) {
   if (offset !== outputBuffer.length) throw new Error('source tag batch contains unexpected trailing bytes');
   return bodies;
 }
+
+/** Accept only bounded worker-owned source measurements, never arbitrary receipt objects or paths. */
+export function sourcePreparationFields(value) {
+  const stages = ['cacheWaitMs', 'inventoryMs', 'transferMs', 'validateMs', 'materializeMs'];
+  const operations = new Set(['init', 'fetch', 'checkout', 'index-pack', 'cat-file', 'rev-parse', 'rev-list',
+    'for-each-ref', 'update-ref', 'merge-base', 'verify-pack', 'check-ref-format', 'config', 'status', 'unknown']);
+  /** Preserve integer monotonic-clock durations and byte counts without coercing missing values. */
+  const count = number => Number.isSafeInteger(number) && number >= 0;
+  if (!value || value.version !== 1 || !count(value.packBytes) || !count(value.totalMs)
+    || !value.stages || Object.keys(value.stages).length !== stages.length || stages.some(name => !count(value.stages[name]))
+    || !value.git || typeof value.git !== 'object' || Array.isArray(value.git)
+    || Object.entries(value.git).some(([operation, row]) => !operations.has(operation) || !row
+      || !count(row.calls) || row.calls < 1 || !count(row.ms))
+    || value.reusedCommit != null && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.reusedCommit)) return null;
+  return { version: 1, packBytes: value.packBytes, totalMs: value.totalMs,
+    stages: Object.fromEntries(stages.map(name => [name, value.stages[name]])),
+    git: Object.fromEntries(Object.entries(value.git).map(([name, row]) => [name, { calls: row.calls, ms: row.ms }])),
+    ...(Object.hasOwn(value, 'reusedCommit') ? { reusedCommit: value.reusedCommit } : {}) };
+}

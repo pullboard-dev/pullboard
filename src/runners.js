@@ -1,3 +1,4 @@
+import { sourcePreparationFields } from './runner-overhead.js';
 import { sampleRunnerLoad } from './runner-load.js';
 import { localRunnerDescriptor } from './runner-load.js';
 import { carriedRunnerTrunk } from './runner-policy.js';
@@ -649,6 +650,7 @@ function resultFrom(request, result, { privateCheckPhases }) {
   const text = staged?.output ?? output.toString('utf8');
   if (receipt.environment !== undefined && environmentProblem(receipt.environment)) throw runnerFailure(request, result, 'environment-metadata');
   if (receipt.executionPhases !== undefined && !runnerPhaseFields(receipt.executionPhases)) throw runnerFailure(request, result, 'phase-metadata');
+  if (receipt.sourcePreparation !== undefined && !sourcePreparationFields(receipt.sourcePreparation)) throw runnerFailure(request, result, 'source-preparation-metadata');
   if (receipt.testRuntimes != null && !testRuntimeRows(receipt.testRuntimes)) throw runnerFailure(request, result, 'test-runtime-metadata');
   if (receipt.browserRefused !== undefined && (receipt.browserRefused !== true || receipt.code === 0 || request.spec.browserRequired)) throw runnerFailure(request, result, 'browser-metadata');
   const admission = remoteAdmission(receipt.executionAdmission);
@@ -670,7 +672,7 @@ function resultFrom(request, result, { privateCheckPhases }) {
     seconds: Math.round(receipt.wallMs / 1000), exitCode: receipt.code,
     executionRunner: request.runner.host, executionRoot: receipt.root, remoteWallMs: receipt.wallMs,
     ...(receipt.executionPhases ? { executionPhases: runnerPhaseFields(receipt.executionPhases) } : {}),
-    ...(receipt.sourcePreparation ? { sourcePreparation: receipt.sourcePreparation } : {}),
+    ...(receipt.sourcePreparation ? { sourcePreparation: sourcePreparationFields(receipt.sourcePreparation) } : {}),
     executionSource: { commit: receipt.commit, tree: receipt.tree, tooling: request.spec.tooling },
     ...(privateResult ? { privateCheck: { ...privateResult, receipt: receipt.trustedMode }, rawOutputPath: result.rawOutputPath, rawOutputSha256: result.rawSha256 } : {}),
     executionMain: request.spec.main && receipt.main === request.spec.main ? receipt.main : null, executionLoad: remoteLoad(receipt.load), executionAdmission: admission };
