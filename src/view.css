@@ -1191,7 +1191,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .dash-chips [data-dashboard-icon=back] { color: var(--reject); }
 .dash-chart { position: relative; }
 .dash-chart > svg { width: 100%; height: 136px; display: block; fill: var(--accent); }
-.dash-pace-tag { position: absolute; right: 0; transform: translateY(-120%); padding: 0 var(--space-1); background: var(--surface); font-size: var(--text-2xs); font-weight: 600; }
+.dash-pace-tag { display: block; text-align: right; font-size: var(--text-2xs); font-weight: 600; }
 .dash-chart-caption { color: var(--ink-faint); font: var(--text-2xs) var(--mono); text-align: right; }
 .dash-card > svg.dash-split { display: block; width: 100%; max-width: none; }
 .dash-agent-legend { display: flex; justify-content: flex-end; gap: var(--space-5); flex-wrap: wrap; color: var(--ink-muted); font-size: var(--text-2xs); margin: calc(var(--space-7) * -1) 0 var(--space-5); }
@@ -1306,7 +1306,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .floor-chip.review { background: var(--blue-soft); color: var(--blue); }
 .floor-nothing { color: var(--ink-faint); font-size: 12px; }
 .floor-n { text-align: right; font: 12px var(--mono); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
-.floor-axis { min-height: 26px; border-bottom-color: var(--line-strong); font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); }
+.floor-axis { min-height: 26px; border-bottom: 1px solid var(--line); font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); }
 .floor-axis > span:nth-child(n+4) { text-align: right; }
 .floor h3.floor-group { margin: 0 -16px; padding: 5px 16px; background: var(--surface-2); border-bottom: 1px solid var(--line); font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .07em; color: var(--ink-muted); }
 .floor-queues { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; align-items: start; }
