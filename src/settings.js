@@ -16,7 +16,10 @@ import { loadMachineSettings } from './settings-read.js';
 export { loadMachineSettings };
 import { Refused } from './refused.js';
 import { relayCanaryConfig } from './settings-read.js';
-import { DEFAULT_RUNNER_WAIT_MS, validateRunnerWaitMs } from './settings-read.js';
+import {
+  DEFAULT_RUNNER_WAIT_MS,
+  validateRunnerWaitMs,
+} from './settings-read.js';
 import {
   carriedBrowserByLaunch,
   readGateQueueSettings,
