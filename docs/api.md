@@ -151,6 +151,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `skills` | `version:number`, `updated:array`, `current:array`, `customized:array` |
 | `inbox` | `version:number`, `shouts:array` |
 | `request` | `version:number`, `requests:array` |
+| `rule` | `version:number`, `rules:array` |
 | `decisions` | `version:number`, `decisions:array` |
 | `ledger` | `version:number`, `items:array`, `stats:object` |
 | `log` | `version:number`, `events:array` |

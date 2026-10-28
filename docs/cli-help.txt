@@ -173,7 +173,9 @@ Work
                                         coverage rows retain whole-file observations; slow files require named checks and explicit landing coverage
   pullboard bar <id>                    show missing prerequisites and the current revision
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
-  pullboard release <id> [--no-next] [--stale --note "why"]  hand it back; coordinator --stale requires measured inactivity and a note
+  pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|OTHER [--note "why"] [--no-next]
+                                        hand it back, naming why; OTHER needs the note; the reason is recorded on the release
+  pullboard release <id> --stale --note "why"  coordinator only; requires measured inactivity and a note
   pullboard submit <id> [--wait] [--no-next]        needs a clean tree, item check and affected tests green at HEAD (alias: done)
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
   pullboard verify <id> accept [--no-next] --note "what you broke or which edge you tried, and what happened"
@@ -217,6 +219,9 @@ Work
   pullboard request answer <ids> done|declined [--note "why"] [--acted-on <event-ids>]
                                         coordinator answers a comma-separated batch atomically; declined needs a note
                                         done needs matching native move event IDs in request order; it never executes a move
+  pullboard rule add review|build|any <only-seat|bar-seat|require-family|bar-family|bar-pool> <value> (--item <id> | --tier strict) --source <shout-id> [--note "why"]
+                                        coordinator records a routing rule; next never offers a seat work a rule bars it from
+  pullboard rule list | revoke <id> | migrate   read the rules, withdraw one, or record the standing rulings as rules
   pullboard decisions [--as person]               shouts waiting for you; main checkout defaults to coordinator
                                         as the person, a project's repos list together as repo#id
   pullboard watch [--to <agent|lane|all>] [--kinds <kinds>] [--item <id>] [--since <sequence>] [--json]
