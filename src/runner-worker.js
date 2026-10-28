@@ -614,7 +614,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
       throw new Error('source history pack contains missing or unrelated objects');
     }
     const tagBodies = requestedTagObjects.length
-      ? tagObjectBodies(requestedTagObjects, await gitBytes(cache, ['cat-file', '--batch'], env, `${requestedTagObjects.join('\n')}\n`))
+      ? new Map(await Promise.all(requestedTagObjects.map(async object => [object, (await gitBytes(cache, ['cat-file', '-p', object], env)).toString('utf8')])))
       : new Map();
     const lightweight = [...new Set(spec.tags.filter(tag => !tag.chain.length).map(tag => tag.object))];
     if (lightweight.length) validateCacheTips(lightweight,
@@ -672,8 +672,8 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
       });
       await git(cache, ['update-ref', '--stdin'], env, `${updates.join('\n')}\n`);
       // Bound argv while delivering all already-validated tag refs in a few owned Git invocations.
-      for (let index = 0; index < spec.tags.length; index += 1) {
-        const tags = spec.tags.slice(index, index + 1);
+      for (let index = 0; index < spec.tags.length; index += 32) {
+        const tags = spec.tags.slice(index, index + 32);
         const refspecs = tags.map((tag, offset) => `${deliveryRefs[index + offset]}:${tag.name}`);
         await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, ...refspecs], env);
         const peeled = (await git(root, ['rev-parse', '--revs-only', '--end-of-options', ...tags.map(tag => `${tag.name}^{}`)], env)).split(/\r?\n/u);
