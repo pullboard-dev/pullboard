@@ -288,7 +288,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const submissionObserved = lastSequence(box);
   await watch.line((line) => JSON.parse(line).sequence === submissionObserved && JSON.parse(line).kind === 'reserve',
     5_000, 'event after the submit work check'); // budget: hang ceiling for an exact event, not a latency claim.
-  box.cli(reviewer, 'verify', String(waiting.item_id), 'reject', '--reason', 'TEST_FAILURE', '--note', 'the fixture sends it back');
+  box.cli(reviewer, 'verify', String(waiting.item_id), 'reject', '--reason', 'TEST_FAILURE', '--clause', 'waits', '--note', 'the fixture sends it back');
   const rejectSequence = lastSequence(box);
   await watch.line((line) => JSON.parse(line).kind === 'reject' && JSON.parse(line).sequence === rejectSequence, 5_000, 'reject line'); // budget: hang ceiling for one line, not a latency claim.
   const again = await watch.line((line) => JSON.parse(line).kind === 'claimable' && JSON.parse(line).item === waiting.item_id

@@ -118,10 +118,10 @@ function repeatedCause(box) {
   const freeze = (item) => frozenCriterion(loadSpec(box.root, config), item, loadDoctrine(box.root, config));
   const items = [];
   for (const title of ['Staging first', 'Staging second']) {
-    const id = store.addItem(box.board, { by: 'coordinator', lane: 'core', title });
+    const id = store.addItem(box.board, { by: 'coordinator', lane: 'core', title, criterion: 'Watch the board.', specIds: ['A6'] });
     store.claim(box.board, id, { agentId: box.agent, lane: 'core', leaseMs: 3_600_000, freeze });
     submitFixture(box.board, id, { agentId: box.agent, commit: red, tree: `tree-${red}` });
-    store.verify(box.board, id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'staging check failed', cause: 'row:A6',
+    store.verify(box.board, id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'staging check failed', clause: 'Watch the board.', cause: 'row:A6',
       head: store.getItem(box.board, id).item_commit, digest: store.getItem(box.board, id).item_frozen_digest, policy: 'any' });
     items.push(id);
   }

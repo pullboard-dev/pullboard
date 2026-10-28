@@ -57,7 +57,7 @@ function populatedBoard(file) {
   const rejected = add('rejected then reopened');
   store.claim(board, rejected, { agentId: 'web-5', lane: 'web', leaseMs: 3_600_000, freeze: FREEZE });
   submitFixture(board, rejected, { agentId: 'web-5', commit: SHA, tree: 'tree:rejected' });
-  store.verify(board, rejected, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', note: 'the check fails', head: SHA, digest: `digest:rejected then reopened`, policy: 'any' });
+  store.verify(board, rejected, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', note: 'the check fails', clause: 'rejected then reopened', head: SHA, digest: `digest:rejected then reopened`, policy: 'any' });
   const withdrawn = add('withdrawn');
   store.withdraw(board, withdrawn, { agentId: 'coordinator', reason: 'no longer needed' });
   store.shout(board, { from: 'coordinator', to: 'web', text: 'Should this ship?', lanes: ['web'], decision: true });

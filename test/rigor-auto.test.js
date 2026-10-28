@@ -76,7 +76,7 @@ function fixture() {
         artifact: `flake-evidence/fixture-${serial}/original.log`, profileSha256: null } } });
   /** Reject with an optional explicit key, never deriving evidence from the prose note. */
   const reject = (id, options = {}) => store.verify(board, id, { agentId: reviewer, decision: 'REJECT',
-    reason: 'TEST_FAILURE', note: 'synthetic failure receipt', head: store.getItem(board, id).item_commit,
+    reason: 'TEST_FAILURE', note: 'synthetic failure receipt', clause: store.getItem(board, id).item_title, head: store.getItem(board, id).item_commit,
     digest: store.getItem(board, id).item_frozen_digest, policy: 'any', ...options });
   return { root, file, board, git, run, submit, failure, reject,
     advance: ms => { now = new Date(now.getTime() + ms); }, close: () => store.closeBoard(board) };

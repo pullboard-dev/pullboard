@@ -143,7 +143,7 @@ test('[B29,B31] verdicts and facts carry --implies; a later verdict or a superse
   assert.equal(JSON.parse(refused.out).error.code, 'NO_ITEM');
   assert.match(JSON.parse(refused.out).error.message, /#99/, 'the refusal names the unknown id');
   assert.equal(box.json(box.repo, 'show', '1').item_status, 'submitted', 'a refused --implies records no verdict');
-  box.json(review, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note', 'the fixture fails\nsecond line', '--implies', '2');
+  box.json(review, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'The feature works.', '--note', 'the fixture fails\nsecond line', '--implies', '2');
   const fromVerdict = facts(box, 2).filter((fact) => fact.decision);
   assert.equal(fromVerdict.length, 1);
   assert.equal(fromVerdict[0].decision.source, 'verdict');
