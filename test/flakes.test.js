@@ -1,3 +1,4 @@
+import { landingPorts } from './landing-ports-fixture.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 /** @pullboard-test-input source-tree */
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
@@ -423,7 +424,7 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
     delete process.env.NODE_TEST_CONTEXT;
     let completed;
     try {
-      await assert.rejects(land({ root: box.root, board, config, owner: 'private-interrupted-owner', say: () => {}, landingWorkerFile: resolve(import.meta.dirname, '../bin/landing-worker.js'),
+      await assert.rejects(land({ landingPorts, root: box.root, board, config, owner: 'private-interrupted-owner', say: () => {}, landingWorkerFile: resolve(import.meta.dirname, '../bin/landing-worker.js'),
         write: async (operation, args) => {
           if (operation === 'recordLandingBatch' && args[0].batch.state === 'blocked') throw new Error('controlled interruption after retained diagnostic');
           return store[operation](board, ...args);
