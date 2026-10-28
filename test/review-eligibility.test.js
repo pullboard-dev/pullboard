@@ -548,6 +548,23 @@ test('a declared seat rejoining from the SAME session cannot change vendor, and 
   assert.doesNotThrow(() => store.register(f.board, { ...seat, family: 'Claude' }), 'below the engine a same-session rejoin keeps its old update');
 });
 
+test('declared, then cleared with null or blank, then redeclared as another vendor ends refused and still declared [V4,B26,H16]', t => {
+  const f = fixture(t);
+  const seat = { id: 'core-11', lane: 'core', path: '/fixture/core-11', model: 'Synthetic fixture model', parentDigest: '6'.repeat(64) };
+  const family = () => f.board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get('core-11').agent_family;
+  store.register(f.board, { ...seat, family: 'OpenAI' });
+  for (const cleared of [null, '', '  ']) {
+    assert.equal(store.register(f.board, { ...seat, family: cleared }), 'core-11', 'clearing is not an error');
+    assert.equal(family(), 'OpenAI', `a ${JSON.stringify(cleared)} family clears nothing`);
+    for (const parentDigest of [seat.parentDigest, '7'.repeat(64)]) {
+      assert.throws(() => store.register(f.board, { ...seat, family: 'Claude', parentDigest }), error => error.code === 'FAMILY_DECLARED', 'the other vendor is refused after the clearing, in the same or a new session');
+      assert.equal(family(), 'OpenAI', 'the refused redeclaration changes nothing');
+    }
+  }
+  const changes = f.board.db.prepare("SELECT event_detail FROM event WHERE event_kind='family' AND event_by='core-11'").all();
+  assert.deepEqual(changes, [], 'no family change was recorded after the declaration');
+});
+
 test('the one-time family declaration applies only from its engine; an older engine keeps the session refusal [C7,V4,B26,H16]', t => {
   const f = fixture(t);
   f.board.executionEngineVersion = FAMILY_DECLARE_ENGINE - 1;

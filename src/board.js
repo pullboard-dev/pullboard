@@ -445,8 +445,8 @@ export function register(board, who) {
           `this worktree is ${existing.agent_id} in the ${existing.agent_lane} lane, routed ${existing.agent_route}; use another worktree for ${lane} routed ${route}`,
         );
       }
-      saveJoinedSession(board, existing.agent_id, who);
-      if (family !== undefined && family !== existing.agent_family) {
+      const locked = saveJoinedSession(board, existing.agent_id, who);
+      if (family !== undefined && family !== existing.agent_family && !locked) {
         board.db.prepare('UPDATE agent SET agent_family = ? WHERE agent_id = ?').run(family, existing.agent_id);
         logEvent(board, existing.agent_id, 'family', null, { family });
       }

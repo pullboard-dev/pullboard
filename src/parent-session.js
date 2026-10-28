@@ -39,15 +39,15 @@ export function canonicalSessionDigest(value) {
   return value;
 }
 
-/** Save canonical ordered identities, or normalize direct API declarations, under their feature engine. */
+/** Save canonical ordered identities, or normalize direct API declarations, under their feature engine; true when the seat's family is already declared and final. */
 export function saveJoinedSession(board, id, { parent, session, parentDigest, sessionDigest, family }) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < PARENT_SESSION_ENGINE) return;
   const recordedParent = parentDigest != null ? canonicalSessionDigest(parentDigest) : parent != null ? parentSessionDigest(parent) : null;
   const recordedSession = sessionDigest != null ? canonicalSessionDigest(sessionDigest) : session != null ? parentSessionDigest(session) : null;
   const naming = typeof family === 'string' && family.trim() !== '' && (board.executionEngineVersion ?? ENGINE_VERSION) >= FAMILY_DECLARE_ENGINE;
-  const declared = naming ? board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(id)?.agent_family : null;
-  // A declared family is final in every session: another vendor is refused, another spelling of the same vendor is the same declaration.
-  if (declared && familyName(family, familyAliasesOf(board)) !== familyName(declared, familyAliasesOf(board))) {
+  const declared = (board.executionEngineVersion ?? ENGINE_VERSION) >= FAMILY_DECLARE_ENGINE ? board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(id)?.agent_family : null;
+  // A declared family is final in every session: another vendor is refused, another spelling of the same vendor is the same declaration, and a cleared (null) family changes nothing.
+  if (naming && declared && familyName(family, familyAliasesOf(board)) !== familyName(declared, familyAliasesOf(board))) {
     throw new Refused('FAMILY_DECLARED', `${id} already declared vendor family ${declared}; a declared family is never changed`);
   }
   const first = naming && !declared;
@@ -63,10 +63,11 @@ export function saveJoinedSession(board, id, { parent, session, parentDigest, se
       board.db.exec('RELEASE declare_family');
       if (error.code !== 'PARENT_SESSION_CHANGED') throw error;
     }
-    return;
+    return false;
   }
   if (recordedParent) saveAgentParent(board, id, recordedParent);
   if (recordedSession) saveAgentSession(board, id, recordedSession);
+  return Boolean(declared);
 }
 
 /** Read only the bounded first record; conversation history and other sessions' contents are never opened. */
