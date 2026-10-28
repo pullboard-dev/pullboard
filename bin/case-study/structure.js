@@ -1,0 +1,59 @@
+/** Measure physical migration debt using the real inventory and committed plan [C7,D3]. */
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { cellInventory, testFile } from '../../src/cell-lint-inventory.js';
+import { cellLintReport } from '../../src/cell-lints.js';
+import { readPathMap, mappedPath } from '../../src/path-map.js';
+import { Refused } from '../../src/refused.js';
+import { tryGit } from '../../src/git.js';
+
+/** Read the indexed plan without regenerating it or changing any ratchet. */
+function planAt(root) {
+  const index = JSON.parse(readFileSync(join(root, 'bin/cells-plan.json'), 'utf8'));
+  return { ...index, cells: index.cells.map(row => JSON.parse(readFileSync(join(root, row.file), 'utf8'))) };
+}
+
+/** Count actual later-cell imports; an unmapped file remains visible instead of earning a zero. */
+export function structureMetrics(root, { planRoot = root } = {}) {
+  const plan = planAt(planRoot), map = readPathMap(root), owners = new Map();
+  for (const cell of plan.cells) {
+    owners.set(cell.frontDoor, cell);
+    for (const [from, to] of cell.paths) for (const path of [from, to, mappedPath(map, from)]) owners.set(path, cell);
+  }
+  /** New definitions under an owning package have the same identity before the rest of its move. */
+  function owner(path) { return plan.cells.find(cell => path.startsWith(`${cell.root}/`)) ?? owners.get(path); }
+  const { files, edges, unknown } = cellInventory(root), cuts = [], unowned = new Set();
+  for (const [file, imports] of edges) {
+    if (testFile(file)) continue;
+    const from = owner(file);
+    if (!from && /^(?:src|packages|apps)\//u.test(file)) unowned.add(file);
+    for (const { target } of imports) {
+      if (testFile(target)) continue;
+      const to = owner(target);
+      if (from && to && from.order < to.order) cuts.push({ from: file, to: target, cell: from.name, target: to.name });
+    }
+  }
+  const lints = cellLintReport(root);
+  const counts = Object.fromEntries(Object.entries(lints.metrics).map(([name, metric]) => [name, metric.count]));
+  const cells = plan.cells.map(cell => ({ name: cell.name, paths: cell.paths.length,
+    remaining: cell.paths.filter(([from, to]) => existsSync(join(root, from)) || !existsSync(join(root, to))).length,
+    frontDoor: existsSync(join(root, cell.frontDoor)) }));
+  const head = tryGit(root, ['rev-parse', 'HEAD']), tree = tryGit(root, ['rev-parse', 'HEAD^{tree}']);
+  const status = tryGit(root, ['status', '--porcelain']);
+  return { source: { head: head.status === 0 ? head.stdout.trim() : null,
+    tree: tree.status === 0 ? tree.stdout.trim() : null, clean: status.status === 0 && !status.stdout.trim() },
+    importCutsLeft: cuts.length, plannedCutImports: plan.totals.cutImports, planBase: plan.base,
+    cells: { total: cells.length, completed: cells.filter(cell => !cell.remaining && cell.frontDoor).length,
+      remainingPaths: cells.reduce((sum, cell) => sum + cell.remaining, 0) },
+    lints: counts, unresolvedImports: unknown.length, unownedProductionModules: unowned.size,
+    qualification: 'Import occurrences use physical non-test imports and committed plan ownership/order, including new files in cell roots. Unresolved loaders and unowned modules are reported, not proven absent. Lint cycles count physical package/app cycles; a flat source tree can have zero physical cycles while planned cuts remain.' };
+}
+
+/** A finished structure requires every planned move and actual debt to be gone, not a phase label. */
+export function requireFinishedStructure(structure) {
+  if (structure.cells.completed !== structure.cells.total || structure.cells.remainingPaths
+    || structure.importCutsLeft || structure.lints.shims || structure.lints.cycles || structure.lints.legacySource
+    || structure.unresolvedImports || structure.unownedProductionModules) {
+    throw new Refused('CASE_STUDY_INCOMPLETE', 'the restructure still has measured debt; retain an in-progress report and finish the moves before recording a finished result');
+  }
+}
