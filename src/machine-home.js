@@ -16,6 +16,11 @@ export function machineHome() {
   return join(resolve(process.env.PULLBOARD_ACCOUNT_HOME || userInfo().homedir), '.pullboard');
 }
 
+/** Resolve the separate machine settings file; lower cells receive it from their caller rather than importing it. */
+export function machineSettingsFile() {
+  return join(machineHome(), 'settings.json');
+}
+
 /** Name inaccessible machine storage without disguising corruption or other database failures. */
 export function withMachineHomeWrite(directory, work) {
   try { return work(); }

@@ -83,6 +83,7 @@ import {
   carriedBrowserByLaunch,
   readMachineSettingsFile,
 } from './queue-settings.js';
+import { machineSettingsFile } from './machine-home.js';
 
 // Budget: 64 MiB bounds worst-case JSON bridge escaping below Node string limits.
 const MAX_OUTPUT_BYTES = 64 * 1024 ** 2;
@@ -550,7 +551,7 @@ async function requestFor(root, command, { runner, source, browser = false, byLa
       browser: runner.browser, browserRequired: browser, guiRequired: metadata.gui === true, landing: metadata.landing === true, auditCoverage: metadata.auditCoverage === true,
       ...(metadata.landing === true && metadata.timeoutMs ? { timeoutMs: metadata.timeoutMs } : {}),
       // The classification this controller used, so the runner never reclassifies by its own settings (#1043).
-      browserByLaunch: byLaunch ?? carriedBrowserByLaunch() ?? readMachineSettingsFile()?.gate?.browserByLaunch === true,
+      browserByLaunch: byLaunch ?? carriedBrowserByLaunch() ?? readMachineSettingsFile(machineSettingsFile())?.gate?.browserByLaunch === true,
       ...(stages ? { stageMarker: `PULLBOARD_STAGE_${randomUUID().replaceAll('-', '')}` } : {}), waivers: projection,
       itemCheck: metadata.itemCheck === true, diagnostic: metadata.diagnostic === true, timing: metadata.timing === true,
       item: String(metadata.item ?? ''), kind: String(metadata.kind ?? ''), ...(runner.root ? { root: runner.root } : {}),
