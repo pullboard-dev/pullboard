@@ -67,3 +67,39 @@ export function cycleEdges(graph) {
   for (const [from, targets] of graph) for (const target of targets) if (reaches(target, from)) result.push(`${from}->${target}`);
   return result.sort();
 }
+
+/** Validate explicit, time-bounded migration edges without evaluating code or consulting a live board. */
+export function temporaryCellEdges(files, now = Date.now()) {
+  const file = 'bin/cells-plan/temporary-edges.json';
+  if (!files.has(file)) return { edges: [], problems: [] };
+  let document;
+  try { document = JSON.parse(files.get(file).toString('utf8')); }
+  catch { return { edges: [], problems: [`${file}: invalid JSON`] }; }
+  if (document?.version !== 1 || !Array.isArray(document.edges)) {
+    return { edges: [], problems: [`${file}: expected version 1 and an edges array`] };
+  }
+  const edges = [], problems = [], seen = new Set();
+  for (const [index, row] of document.edges.entries()) {
+    const name = `${file}[${index}]: ${row?.importer ?? '?'} -> ${row?.target ?? '?'}`;
+    /** Accept canonical relative module names, never traversal or filesystem locations. */
+    const path = value => typeof value === 'string' && /^(?:[A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+\.[cm]?js$/u.test(value)
+      && !value.split('/').some(part => part === '.' || part === '..');
+    if (!row || !path(row.importer) || !path(row.target)) {
+      problems.push(`${name}: importer and target must name repository module paths`); continue;
+    }
+    if (!Number.isSafeInteger(row.contractItem) || row.contractItem < 1) {
+      problems.push(`${name}: a positive contract item is required`); continue;
+    }
+    const expiry = typeof row.expires === 'string' && /^\d{4}-\d{2}-\d{2}$/u.test(row.expires)
+      ? Date.parse(row.expires + 'T00:00:00.000Z') : NaN;
+    if (!Number.isFinite(expiry) || new Date(expiry).toISOString().slice(0, 10) !== row.expires) {
+      problems.push(`${name}: expires must be a real UTC date (YYYY-MM-DD)`); continue;
+    }
+    const key = `${row.importer}->${row.target}`;
+    if (seen.has(key)) { problems.push(`${name}: duplicate temporary edge`); continue; }
+    seen.add(key);
+    edges.push({ importer: row.importer, target: row.target, contractItem: row.contractItem, expires: row.expires });
+    if (expiry <= now) problems.push(`${name}: expired ${row.expires}; remove it through contract #${row.contractItem}`);
+  }
+  return { edges, problems };
+}
