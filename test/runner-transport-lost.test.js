@@ -115,7 +115,7 @@ test('an SSH-healthy host whose worker misses READY stays held after the admissi
     import {recoverUnavailableRunners} from ${JSON.stringify(recovery)};
     import {DatabaseSync} from 'node:sqlite';import {readFileSync} from 'node:fs';
     let code;try{await withGateSlot(process.cwd(),lease=>runProfiledShellAsync(process.cwd(),'true',{gateLease:lease}),
-      {remote:true,onWait(){}});}catch(error){code=error.code;}
+      {remote:true,onWait(){}});}catch(error){code=error.code;if(code!=='RUNNER_WAIT_DEADLINE')throw error;}
     const attempts=readFileSync(${JSON.stringify(box.starts)},'utf8').trim().split('\\n').length;
     const health=await probeRunnerTransport(${JSON.stringify(box.runner)});
     const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite');

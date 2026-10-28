@@ -1,4 +1,8 @@
 /** Registered SSH runner execution stays inside a committed, secret-free worker checkout [C7]. */
+import { copyPackageFiles } from '../src/package-files.js';
+import { copyCommittedPackageFiles } from './package-copy-fixture.js';
+import { runnerPackage } from '../src/runner-package.js';
+import { packageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -125,23 +129,16 @@ test('a review check runs on a runner at the exact commit with trusted policy an
 
 test('private runner install, deadline and guard edges preserve public review behavior [C7,V4]', (t) => privateReviewRunnerEdges(t, e2e));
 
-test("the runner's trusted runtime list is closed under its relative imports [C7,O5]", () => {
-  const src = resolve(import.meta.dirname, '../src');
-  /** Read a runtime list literal from its source file, so the test sees exactly what ships. */
-  const listIn = (file, pattern) => {
-    const found = pattern.exec(readFileSync(join(src, file), 'utf8'));
-    assert.ok(found, `${file} declares the runner runtime list`);
-    return JSON.parse(found[1].replaceAll("'", '"'));
-  };
-  const controller = listIn('runners.js', /const RUNTIME_NAMES = (\[[^\]]*\]);/u);
-  const worker = listIn('runner-worker.js', /const runtimeNames = (\[[^\]]*\]);/u);
-  assert.deepEqual([...worker].sort(), [...controller].sort(), 'the controller ships the files the worker expects');
-  // Every relative import of a shipped file (and of the worker itself) must ship too, or it fails on the runner.
-  for (const file of [...controller, 'runner-worker.js']) {
-    const text = readFileSync(join(src, file), 'utf8');
-    const imports = [...text.matchAll(/(?:\bfrom\s+|\bimport\s*\(\s*|^import\s+)'(\.\/[^']+)'/gmu)].map(([, path]) => basename(path));
-    for (const name of imports) {
-      assert.ok(controller.includes(name), `${file} imports ./${name}, which the runner runtime list does not ship`);
+test("the runner's computed capsule is closed under its relative imports [C7,O5]", () => {
+  const root = resolve(import.meta.dirname, '..');
+  const capsule = runnerPackage(root);
+  const allowed = new Set(packageFiles(root));
+  assert.equal(capsule.entry, 'src/runner-worker.js');
+  for (const [file, text] of Object.entries(capsule.files)) {
+    assert.ok(allowed.has(file), `${file} belongs to the shipped manifest`);
+    for (const [, target] of text.matchAll(/(?:\bfrom\s+|\bimport\s*\(\s*|^import\s+)'(\.\.?\/[^']+)'/gmu)) {
+      const dependency = relative(root, resolve(root, dirname(file), target)).split(sep).join('/');
+      assert.ok(Object.hasOwn(capsule.files, dependency), `${file} imports ${target}, which must reach the capsule`);
     }
   }
 });
@@ -188,11 +185,9 @@ test('a queued run executes on a registered runner and its result comes back (ho
   git(repo, env, 'commit', '-q', '-m', 'test: prepare host checkout isolation fixture');
 
   const suiteRoot = resolve(import.meta.dirname, '..');
-  copyFileSync(join(suiteRoot, 'package.json'), join(toolingRoot, 'package.json'));
-  cpSync(join(suiteRoot, 'src'), join(toolingRoot, 'src'), { recursive: true });
-  cpSync(join(suiteRoot, 'bin'), join(toolingRoot, 'bin'), { recursive: true });
+  copyPackageFiles(suiteRoot, toolingRoot);
   git(toolingRoot, env, 'init', '-q', '-b', 'main');
-  git(toolingRoot, env, 'add', 'package.json', 'src', 'bin');
+  git(toolingRoot, env, 'add', '.');
   git(toolingRoot, env, 'commit', '-q', '-m', 'test: commit current tooling bytes');
   const ownedCommit = git(toolingRoot, env, 'rev-parse', 'HEAD');
   writeFileSync(join(toolingRoot, 'LOCAL-NOTE.txt'), 'unrelated local note\n');
@@ -1349,14 +1344,13 @@ test('review655 a registered runner honors the same live person waiver at landin
   for (const folder of [fixtureBin, remoteHome, remoteMachineHome, worker, join(repo, 'bin'), join(repo, 'test')]) mkdirSync(folder, { recursive: true });
   const env = { ...box.env, PATH: fixtureBin + ':' + box.env.PATH };
   writeFileSync(join(repo, 'package.json'), JSON.stringify({ private: true, type: 'module' }) + '\n');
-  cpSync(resolve(import.meta.dirname, '../src'), join(repo, 'src'), { recursive: true });
-  cpSync(resolve(import.meta.dirname, '../bin'), join(repo, 'bin'), { recursive: true });
+  copyCommittedPackageFiles(box, resolve(import.meta.dirname, '..'));
   const failing = 'test/review655-waived-red.test.js';
   writeFileSync(join(repo, failing), "import { test } from 'node:test'; test('review655 known waived runner flake', () => { throw new Error('known private flaky failure'); });\n");
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   writeFileSync(configPath, JSON.stringify({ ...config, gate: 'node bin/run-tests.js --test-concurrency=1 ' + failing }) + '\n');
-  box.git(repo, 'add', 'package.json', 'pullboard.json', 'src', 'bin', failing);
+  box.git(repo, 'add', '.');
   box.git(repo, 'commit', '-q', '-m', 'test: commit private registered-runner waiver fixture');
   const store = await import('../src/board.js');
   const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));

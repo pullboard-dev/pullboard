@@ -1,4 +1,5 @@
 /** Main owns declaration upgrades; valid old stamps and manual drift remain distinct [M3,A5,A6,C7,H16]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { cpSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -6,7 +7,7 @@ import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after } from 'node:test';
 import { test } from 'node:test';
@@ -155,9 +156,7 @@ test('a stamped pre-carry board upgrades on main open and completes a native mer
   // repository's shared DDL. Copy the actual candidate into a genuine private main source checkout.
   const application = join(box.dir, 'main-application');
   mkdirSync(application);
-  for (const name of ['bin', 'src', 'skills', 'package.json', 'CHANGELOG.md']) {
-    cpSync(new URL(`../${name}`, import.meta.url), join(application, name), { recursive: true });
-  }
+  copyPackageFiles(resolve(import.meta.dirname, '..'), application);
   box.git(application, 'init', '-q', '-b', 'main');
   box.git(application, 'add', '-A');
   box.git(application, 'commit', '-q', '-m', 'chore: candidate main source');

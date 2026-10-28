@@ -2,6 +2,7 @@
  * The gate's digest (V10): what an agent reads of a red run. And submit's own run of the gate (V16):
  * no stamp stands in for it, and the tree must hold still while it runs.
  */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit, startFixtureChild as spawn } from './fixture-child.js';
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -61,9 +62,7 @@ function fileOverlap(file) {
 test('the landing gate bounds its own concurrency [C7]', () => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-file-caps-')));
   dirs.push(root);
-  cpSync(resolve(import.meta.dirname, '../src'), join(root, 'src'), { recursive: true });
-  mkdirSync(join(root, 'bin'));
-  cpSync(resolve(import.meta.dirname, '../bin/run-tests.js'), join(root, 'bin/run-tests.js'));
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   const config = join(root, 'pullboard.json');
   assert.deepEqual(testConcurrency(root, 7), { files: 7, browser: 2 }, 'the default file budget is the detected core budget');

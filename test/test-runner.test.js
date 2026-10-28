@@ -1,4 +1,5 @@
 /** Test the CI-like test runner against real Git and PATH behavior [C7, S13]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync } from './fixture-child.js';
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -217,7 +218,7 @@ test('discovery follows a new runner src import and its transitive dependency [C
   const source = mkdtempSync(join(tmpdir(), 'pullboard-discovery-source-'));
   t.after(() => rmSync(source, { recursive: true, force: true }));
   mkdirSync(join(source, 'bin'));
-  cpSync(fileURLToPath(new URL('../src', import.meta.url)), join(source, 'src'), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), source);
   const runner = readFileSync(fileURLToPath(new URL('../bin/run-tests.js', import.meta.url)), 'utf8');
   writeFileSync(join(source, 'bin/run-tests.js'), runner.replace('\n', "\nimport '../src/discovery-extra.js';\n"));
   writeFileSync(join(source, 'src/discovery-extra.js'), "import { value } from './discovery-nested.js';\nif (value !== 'closure') throw new Error('transitive import failed');\n");

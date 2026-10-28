@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/browser-admission.js */
 /** Browser admission follows current test dependencies without executing them [C7]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -77,8 +78,7 @@ test("the repo's own static checks never take a browser slot [C7]", async t => {
     'DOCTRINE.md': doctrine,
     'bin/browser-rule.js': "import { writeFileSync } from 'node:fs'; writeFileSync(new URL('../rule-executed', import.meta.url), 'bad');\n",
   });
-  cpSync(join(root, 'src'), join(foreign, 'src'), { recursive: true });
-  cpSync(join(root, 'bin'), join(foreign, 'bin'), { recursive: true });
+  copyPackageFiles(root, foreign);
   const good = commitSourceFixture(foreign);
   for (const command of [configured, ...commands]) {
     assert.equal(await checkNeedsBrowser(foreign, command, { env }), true, `a foreign project cannot borrow the command name: ${command}`);
@@ -217,8 +217,7 @@ test('frozen checks classify only explicit source-backed test commands [C7]', as
   });
   mkdirSync(join(root, 'bin'), { recursive: true });
   mkdirSync(join(root, 'test'), { recursive: true });
-  cpSync(resolve(import.meta.dirname, '../src'), join(root, 'src'), { recursive: true });
-  copyFileSync(TEST_RUNNER, join(root, 'bin/run-tests.js'));
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(root, 'test/resources.test.js'), "import { test } from 'node:test'; test('a non-browser check does not wait for the browser slot', () => {});\n");
   const command = 'out=$(node bin/run-tests.js --test-name-pattern "a non-browser check does not wait for the browser slot" test/resources.test.js 2>&1); printf "%s\\n" "$out"; printf "%s\\n" "$out" | grep -Eq "^[[:space:]]*ok [0-9]+ - .*a non-browser check does not wait for the browser slot" && printf "%s\\n" "$out" | grep -Eq "^# fail 0$"';
@@ -365,8 +364,7 @@ function runnerFixture(t, tests) {
   mkdirSync(join(root, 'test'));
   mkdirSync(join(root, 'machine'));
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
-  copyFileSync(TEST_RUNNER, join(root, 'bin/run-tests.js'));
-  cpSync(resolve(import.meta.dirname, '../src'), join(root, 'src'), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
   for (const helper of ['chrome-fixture.js', 'chrome-launch-args.js', 'fixture-child.js']) copyFileSync(resolve(import.meta.dirname, helper), join(root, 'test', helper));
   for (const [path, source] of Object.entries(tests)) writeFileSync(join(root, path), source);
   const chrome = join(root, 'stand-in-browser');
@@ -539,7 +537,7 @@ test('reviewed executor imports stay browser-free only at their exact call sites
     ['test/git-calls.test.js', 'advanceHead', 'execFileSync(box.env.PULLBOARD_REAL_GIT,'],
   ];
   const root = sourceFixture(t, {});
-  cpSync(join(repository, 'src'), join(root, 'src'), { recursive: true });
+  copyPackageFiles(repository, root);
   cpSync(join(repository, 'test'), join(root, 'test'), { recursive: true });
   copyFileSync(join(repository, 'package.json'), join(root, 'package.json'));
   for (const [index, [file, name, call]] of entries.entries()) {
@@ -757,9 +755,7 @@ test('the actual runner preload stays browser-free while real direct launches st
     'test/plain.test.js': "import '../bin/run-tests.js';\n",
     'test/direct.test.js': "import { spawnSync } from 'node:child_process'; spawnSync(process.env.PULLBOARD_CHROME, ['--version']);\n",
   });
-  cpSync(resolve(import.meta.dirname, '../src'), join(root, 'src'), { recursive: true });
-  mkdirSync(join(root, 'bin'));
-  copyFileSync(TEST_RUNNER, join(root, 'bin/run-tests.js'));
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
   commitSourceFixture(root);
   assert.equal(await testsNeedBrowser(root, ['test/plain.test.js'], { byLaunch: true }), false,
     'importing the actual runner and its refusal-only guard must not claim a browser slot');

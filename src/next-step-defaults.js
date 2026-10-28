@@ -419,6 +419,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "RUNNER_SECRET": "remove the flagged secret or private path from the selected source, history, metadata or command before remote execution",
   "RUNNER_SOURCE": "restore readable committed Git source and history, then retry; keep unsupported source objects local",
   "RUNNER_SOURCE_CHANGED": "restore the committed source selected for the queued run, then retry it",
+  "RUNNER_TOOLING_FILES": "repair package.json files or the named worker import, keeping the runner transfer bound unchanged",
   "RUNNER_TOOLING_CHANGED": "restore or commit the selected Pullboard tooling revision before remote execution",
   "RUNNER_TOOLING_IDENTITY": "reinstall Pullboard from a named Pullboard installation before remote execution",
   "RUNNER_TOOLING_SECRET": "restore a trusted Pullboard installation before transferring runner tooling",
