@@ -572,3 +572,94 @@ test('the one-time family declaration applies only from its engine; an older eng
   store.register(f.board, { ...seat, parentDigest: '8'.repeat(64) });
   assert.throws(() => store.register(f.board, { ...seat, family: 'Anthropic', parentDigest: '9'.repeat(64) }), error => error.code === 'PARENT_SESSION_CHANGED');
 });
+
+/** Read the seat's family column directly: the value review eligibility reads. */
+const familyOf = (board, id) => board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(id)?.agent_family;
+
+test('counterexample: after a modern declaration, a fresh older-engine registration cannot clear the family for a later redeclaration [V4,B26,H16]', t => {
+  const f = fixture(t);
+  const seat = { id: 'core-7', lane: 'core', path: '/fixture/core-7', model: 'Synthetic fixture model', parentDigest: 'a'.repeat(64), sessionDigest: 'b'.repeat(64) };
+  const declare = applyEngineMove(f.board, prepareEngineMove(f.board, 'register', [{ ...seat, family: 'OpenAI' }], { id: 'modern-declare' }), { sequence: 1, at: '2026-10-28T19:00:00.000Z' });
+  assert.equal(declare.error, undefined);
+  assert.equal(familyOf(f.board, 'core-7'), 'OpenAI');
+  for (const engine of [FAMILY_DECLARE_ENGINE - 1, 148, 1]) {
+    const old = { ...prepareEngineMove(f.board, 'register', [{ ...seat, family: null }], { id: `fresh-old-clear-${engine}` }), engine };
+    const before = exportBoard(f.board);
+    assert.throws(() => applyEngineMove(f.board, old, { sequence: 2, at: '2026-10-28T19:01:00.000Z' }), { code: 'RELAY_MOVE' }, `a fresh engine ${engine} registration after the modern prefix is refused`);
+    assert.deepEqual(exportBoard(f.board), before, 'the refused older move changes no seat, receipt or cursor');
+  }
+  const redeclare = applyEngineMove(f.board, prepareEngineMove(f.board, 'register', [{ ...seat, family: 'Claude' }], { id: 'modern-redeclare' }), { sequence: 2, at: '2026-10-28T19:02:00.000Z' });
+  assert.equal(redeclare.error?.code, 'FAMILY_DECLARED', 'the modern redeclaration as another vendor is refused');
+  assert.equal(familyOf(f.board, 'core-7'), 'OpenAI', 'the seat ends still OpenAI');
+});
+
+test('a genuine older-engine registration recorded before the modern prefix still replays byte for byte [V4,B26,H16]', t => {
+  const f = fixture(t);
+  const seat = { id: 'core-12', lane: 'core', path: '/fixture/core-12', model: 'Synthetic fixture model', parentDigest: 'c'.repeat(64) };
+  const old = { ...prepareEngineMove(f.board, 'register', [{ ...seat, family: 'OpenAI' }], { id: 'genuine-old-register' }), engine: FAMILY_DECLARE_ENGINE - 1 };
+  const first = applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-28T18:00:00.000Z' });
+  assert.equal(first.error, undefined, 'before any modern move an older registration is accepted under its own rules');
+  const receipt = f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value;
+  applyEngineMove(f.board, prepareEngineMove(f.board, 'register', [{ ...seat, family: 'openai' }], { id: 'modern-same-vendor' }), { sequence: 2, at: '2026-10-28T18:01:00.000Z' });
+  const before = exportBoard(f.board);
+  assert.deepEqual(applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-28T18:00:00.000Z' }), first, 'the recorded receipt replays its original outcome after activation');
+  assert.equal(f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value, receipt);
+  assert.deepEqual(exportBoard(f.board), before, 'replaying the genuine receipt changes nothing');
+});
+
+test('a family cleared below the engine is still declared: a later modern redeclaration as another vendor is refused [V4,B26,H16]', t => {
+  const f = fixture(t);
+  const seat = { id: 'core-13', lane: 'core', path: '/fixture/core-13', model: 'Synthetic fixture model', parentDigest: 'd'.repeat(64) };
+  store.register(f.board, { ...seat, family: 'OpenAI' });
+  f.board.executionEngineVersion = FAMILY_DECLARE_ENGINE - 1;
+  store.register(f.board, { ...seat, family: null }); // The pre-engine rule applies directly; ordered fresh moves are fenced above.
+  assert.equal(familyOf(f.board, 'core-13'), null);
+  delete f.board.executionEngineVersion;
+  for (const parentDigest of [seat.parentDigest, '9'.repeat(64)]) {
+    assert.throws(() => store.register(f.board, { ...seat, family: 'Claude', parentDigest }), error => error.code === 'FAMILY_DECLARED',
+      'the recorded first declaration outlives a cleared column, in the same or another session');
+  }
+  // A seat declared only under an older engine is still declared: its recorded family event is the evidence.
+  const legacy = { id: 'core-14', lane: 'core', path: '/fixture/core-14', model: 'Synthetic fixture model', parentDigest: 'e'.repeat(64) };
+  f.board.executionEngineVersion = FAMILY_DECLARE_ENGINE - 1;
+  store.register(f.board, legacy);
+  store.register(f.board, { ...legacy, family: 'OpenAI' });
+  store.register(f.board, { ...legacy, family: null });
+  delete f.board.executionEngineVersion;
+  assert.throws(() => store.register(f.board, { ...legacy, family: 'Claude' }), error => error.code === 'FAMILY_DECLARED', 'a legacy OpenAI-null-Claude path is refused');
+});
+
+test('spelling, blank and session variants never change a declared vendor [V4,B26,H16]', t => {
+  const f = fixture(t);
+  const seat = { id: 'core-15', lane: 'core', path: '/fixture/core-15', model: 'Synthetic fixture model', parentDigest: 'f'.repeat(64) };
+  store.register(f.board, { ...seat, family: 'OpenAI' });
+  for (const same of ['openai', 'OPENAI', ' OpenAI ', '\tOpenAI\n']) {
+    assert.equal(store.register(f.board, { ...seat, family: same }), 'core-15', `${JSON.stringify(same)} is the same declaration`);
+    assert.equal(familyOf(f.board, 'core-15'), 'OpenAI', 'and does not rewrite it');
+  }
+  for (const blank of [null, '', ' ', '\t\n', undefined]) {
+    store.register(f.board, { ...seat, family: blank });
+    assert.equal(familyOf(f.board, 'core-15'), 'OpenAI', `${JSON.stringify(blank)} clears nothing`);
+  }
+  for (const other of ['Claude', 'claude', 'OpenAI2', 'Open AI', 'OpenAΙ', 'anthropic']) {
+    for (const digests of [{}, { parentDigest: '1'.repeat(64) }, { sessionDigest: '2'.repeat(64) }]) {
+      assert.throws(() => store.register(f.board, { ...seat, ...digests, family: other }), error => error.code === 'FAMILY_DECLARED', `${JSON.stringify(other)} is another vendor`);
+    }
+  }
+  assert.equal(familyOf(f.board, 'core-15'), 'OpenAI');
+  assert.deepEqual(f.board.db.prepare("SELECT event_detail FROM event WHERE event_kind='family' AND event_by='core-15'").all(), [], 'no change was recorded');
+});
+
+test('fresh modern registrations under new move ids cannot walk a declared seat through null to another vendor [V4,B26,H16]', t => {
+  const f = fixture(t);
+  const seat = { id: 'core-16', lane: 'core', path: '/fixture/core-16', model: 'Synthetic fixture model', parentDigest: '3'.repeat(64) };
+  let sequence = 0;
+  const send = (family, extra = {}) => applyEngineMove(f.board, prepareEngineMove(f.board, 'register', [{ ...seat, ...extra, family }], { id: `walk-${sequence}` }),
+    { sequence: ++sequence, at: new Date(Date.parse('2026-10-28T20:00:00Z') + sequence * 1000).toISOString() });
+  assert.equal(send('OpenAI').error, undefined);
+  for (const step of [null, '', 'Claude', null, 'claude', ' ', 'Anthropic']) {
+    const outcome = send(step, { parentDigest: sequence % 2 ? '4'.repeat(64) : seat.parentDigest });
+    if (typeof step === 'string' && step.trim()) assert.equal(outcome.error?.code, 'FAMILY_DECLARED', `step ${JSON.stringify(step)} is refused`);
+    assert.equal(familyOf(f.board, 'core-16'), 'OpenAI', `after ${JSON.stringify(step)} the seat is still OpenAI`);
+  }
+});

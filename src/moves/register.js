@@ -3,13 +3,15 @@ import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 import { VERIFIER_STANDING_ENGINE } from '../engine-metadata.js';
 import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
+import { familyDeclareFloor } from '../family-declaration.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function minimumEngine(args, board, at) {
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;
   if (args[0]?.landingFence !== undefined) return LANDING_LEASE_ENGINE;
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('sentinel:')) return BOARD_SENTINEL_ENGINE;
-  return 1;
+  // After a modern prefix, a fresh older-engine rejoin of a declared seat would skip the declared-family rule.
+  return familyDeclareFloor(board, args[0]);
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */
