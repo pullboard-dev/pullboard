@@ -1,5 +1,5 @@
-/** Bounded compile-only binding proof never executes candidate source or weakens shadow uncertainty [C7,CD62]. */
 /** @pullboard-test-input source-tree */
+/** Bounded compile-only binding proof never executes candidate source or weakens shadow uncertainty [C7,CD62]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -27,11 +27,13 @@ function manyCalls() {
 
 /** Read exact regular committed producer bytes from this source-only test checkout, never machine state. */
 function sourceSnapshot(file) {
-  return { source: readFileSync(new URL('../' + file, import.meta.url), 'utf8'),
-    object: runFixtureGit(['rev-parse', `HEAD:${file}`], { cwd: fileURLToPath(new URL('../', import.meta.url)) }) };
+  assert.equal(file, 'src/projects.js', 'this fixture supplies exactly its actual imported producer source');
+  return { source: readFileSync(new URL('../src/projects.js', import.meta.url), 'utf8'),
+    object: runFixtureGit(['rev-parse', 'HEAD:src/projects.js'], { cwd: fileURLToPath(new URL('../', import.meta.url)) }) };
 }
 
 test('actual api-http fixture config reads resolve without changing their source or move proof [C7]', () => {
+  assert.throws(() => sourceSnapshot('src/git.js'), /exactly its actual imported producer source/);
   const source = readFileSync(new URL('./api-http.test.js', import.meta.url), 'utf8');
   const result = fixtureSourceEdits(source, { file: 'test/api-http.test.js',
     moves: [['src/git.js', 'packages/git/src/shell/git.js']], readSource: sourceSnapshot });
@@ -153,4 +155,133 @@ test('imported producers need exact source identity and a proven native join ret
   }
   let calls = 0;
   assert.ok(inspect(() => blob(calls++ ? changed : valid)).problems.length, 'source mutation during analysis is refused');
+});
+
+
+/** Recognize one explicit imported scalar input through the existing compiler identity proof. */
+function binaryRead(source) {
+  return fixtureSourceEdits("import { readFileSync } from 'node:fs';\n" + source,
+    { file: 'test/binary.test.js', moves: [['src/leaf.js', 'packages/git/src/shell/leaf.js']] });
+}
+
+test('an explicit native executable scalar is disjoint while unknown and shadowed inputs refuse [C7]', () => {
+  const imported = "import { execPath as binary } from 'node:process';\n";
+  assert.deepEqual(binaryRead(imported + 'readFileSync(binary);'), { edits: [], problems: [] });
+  for (const source of [imported + "function nested(binary) { readFileSync(binary); }",
+    imported + "binary = 'src/leaf.js'; readFileSync(binary);",
+    "import { argv as binary } from 'node:process'; readFileSync(binary);",
+    "import { cwd as binary } from 'node:process'; readFileSync(binary());",
+    "import process from 'node:process'; readFileSync(process.execPath);",
+    "const process = { execPath: 'src/leaf.js' }; readFileSync(process.execPath);"]) {
+    assert.ok(binaryRead(source).problems.length, 'unsupported native exports and uncertain binding identity stay unsupported');
+  }
+});
+
+/** Analyze an actual native filesystem string argument with no candidate prefix evaluation. */
+function suffixRead(expression, before = '') {
+  return binaryRead("import { join, resolve } from 'node:path';\nimport { fileURLToPath } from 'node:url';\n"
+    + before + `\nreadFileSync(${expression});`);
+}
+
+test('only whole fixed string tails disjoint from every moved basename prove a source read [C7]', () => {
+  for (const expression of ["prefix + '_unrelated.trace'", '`web/queue-${entry.id}.trace`',
+    "join(root, prefix + '_unrelated.trace')", "(unknown()) + '_unrelated.trace'"]) {
+    assert.deepEqual(suffixRead(expression), { edits: [], problems: [] });
+  }
+  for (const expression of ["prefix || other + '_unrelated.trace'", "prefix && other + '_unrelated.trace'",
+    "prefix ?? other + '_unrelated.trace'", "prefix ? other : other + '_unrelated.trace'",
+    "(prefix, other + '_unrelated.trace')", "selected = prefix + '_unrelated.trace'",
+    "() => prefix + '_unrelated.trace'", "prefix + '_unrelated.trace' || other",
+    "prefix + ''", "prefix + '.js'", "prefix + 'leaf.js'", "prefix + '.JS'",
+    "prefix + '/unrelated.trace'", "prefix + '\\\\unrelated.trace'", "prefix + '\\ntrace'",
+    '`web/${entry.id}.trace#x`', '`web/${entry.id}.trace?x`', '`web/${entry.id}.trace%20`',
+    "new URL('../src/leaf.js#_unrelated.trace', import.meta.url)",
+    "fileURLToPath(new URL('../src/leaf.js#_unrelated.trace', import.meta.url))",
+    "new URL(`${entry.id}.trace`, import.meta.url)", "new URL(`${entry.id}.trace#x`, import.meta.url)",
+    "fileURLToPath(new URL(`${entry.id}.trace`, import.meta.url))", "decodeURIComponent(prefix + '_unrelated.trace')",
+    "resolve(root, prefix + '_unrelated.trace')", "join(root, prefix + '.js')", "prefix + 'unterminated"]) {
+    assert.ok(suffixRead(expression).problems.length, 'branches, overlap, decoding and uncertain grammar stay unsupported: ' + expression);
+  }
+  assert.ok(fixtureSourceEdits("import { readFileSync } from 'node:fs'; readFileSync(prefix + '_unrelated.trace');",
+    { file: 'test/suffix-overlap.js', moves: [['src/leaf.js', 'packages/git/src/shell/leaf.js'],
+      ['src/other_unrelated.trace', 'packages/git/src/shell/other_unrelated.trace']] }).problems.length,
+  'every moved basename participates in the disjointness proof');
+  for (const [from, suffix] of [['src/café.js', '\u0301.js'], ['src/s.js', 'ſ.js'], ['src/ſ.js', 's.js'],
+    ['src/café.js', '_unrelated.trace']]) {
+    assert.ok(fixtureSourceEdits("import { readFileSync } from 'node:fs'; readFileSync(prefix + " + JSON.stringify(suffix) + ');',
+      { file: 'test/suffix-unicode.js', moves: [[from, 'packages/git/src/shell/leaf.js']] }).problems.length,
+    'Unicode normalization across the unknown prefix and full casefold uncertainty stay unsupported');
+  }
+  assert.ok(suffixRead("join(root, prefix + '_unrelated.trace')", 'function nested(join) {}').problems.length,
+    'native callee shadowing still refuses the path operation');
+  assert.ok(fixtureSourceEdits("import { cpSync } from 'node:fs'; cpSync(prefix + '_unrelated.trace', target, {recursive:true});",
+    { file: 'test/suffix-directory.js', moves: [['src/leaf.js', 'packages/git/src/shell/leaf.js']] }).problems.length,
+  'regular-file suffix proof never blesses a recursive directory copy');
+});
+
+/** Keep each real reader at its native source construction instead of trusting a returned object's mutable fields. */
+function localPortSource(link, key) {
+  return "import { readFileSync } from 'node:fs'; import { join } from 'node:path';\n"
+    + `async function fixture() { const linkFile = ${link}; const keyFile = ${key};
+      return { readLink() { return readFileSync(linkFile, 'utf8'); },
+        readKey() { return readFileSync(keyFile, 'utf8'); } }; }`;
+}
+
+test('local fixture reader ports retain direct immutable source proof without async object trust [C7]', () => {
+  const options = { file: 'test/local-readers.js', moves: [['src/leaf.js', 'packages/git/src/shell/leaf.js']] };
+  assert.deepEqual(fixtureSourceEdits(localPortSource("join(root, '.git', 'pullboard', 'relay.json')",
+    "join(home, 'keys', id + '.key')"), options), { edits: [], problems: [] });
+  assert.ok(fixtureSourceEdits(localPortSource("join(root, '.git', 'pullboard', 'relay.json')",
+    "join(home, 'keys', id + '.js')"), options).problems.length, 'a reader closure cannot hide a suffix overlapping moved source');
+  for (const body of ["readFileSync(box.linkFile, 'utf8');",
+    "async function read() { const box = await unknownConstructor(); return readFileSync(box.linkFile, 'utf8'); }"]) {
+    assert.ok(fixtureSourceEdits("import { readFileSync } from 'node:fs'; " + body, options).problems.length,
+      'unknown and asynchronous constructor fields never gain implicit source authority');
+  }
+});
+
+test('copied source remains a move obligation while generated journals and recursive inventories stay explicit [C7]', () => {
+  const options = { file: 'test/source-obligations.js', moves: [['src/leaf.js', 'packages/git/src/shell/leaf.js'],
+    ['src/baseline.json', 'packages/git/src/shell/baseline.json']] };
+  const source = "import { readFileSync, copyFileSync } from 'node:fs';\n"
+    + "const original = readFileSync(new URL('../src/leaf.js', import.meta.url), 'utf8');\n"
+    + "copyFileSync(new URL('../src/leaf.js', import.meta.url), new URL('../fixture/leaf.js', import.meta.url));";
+  const result = fixtureSourceEdits(source, options);
+  assert.deepEqual(result.problems, []);
+  assert.equal(result.edits.length, 2, 'a copied source body remains an actual dependency, even in a private fixture');
+  let rewritten = source;
+  for (const edit of [...result.edits].sort((a, b) => b.start - a.start)) {
+    rewritten = rewritten.slice(0, edit.start) + edit.text + rewritten.slice(edit.end);
+  }
+  assert.equal(rewritten.includes("new URL('../src/leaf.js', import.meta.url)"), false);
+  assert.ok(rewritten.includes("new URL('../fixture/leaf.js', import.meta.url)"), 'the fixture destination is unchanged');
+  const listed = fixtureSourceEdits("import { readFileSync } from 'node:fs';\n"
+    + "for (const file of ['leaf.js']) readFileSync(new URL(`../src/${file}`, import.meta.url));", options);
+  assert.deepEqual(listed.problems, []);
+  assert.equal(listed.edits.length, 1, 'a finite declared source inventory carries its moved source operand');
+  for (const body of ["readFileSync(join(directory, key + '.json'), 'utf8');",
+    "readFileSync(join(root, failure.file));", "readFileSync(box.healthFile);",
+    "const module = await import('../src/leaf.js'); readFileSync(module.input);",
+    "for (const file of readdirSync(root, { recursive: true })) readFileSync(join(root, file));",
+    "cpSync(box.keyFile, target);", "cpSync(join(box.root, '.git'), target, { recursive: true });"]) {
+    const unresolved = fixtureSourceEdits("import { readFileSync, cpSync, readdirSync } from 'node:fs';\n"
+      + "import { join } from 'node:path';\n" + body, options);
+    assert.ok(unresolved.problems.length, 'an artifact name or private-root assumption cannot erase a possible source dependency: ' + body);
+    assert.deepEqual(unresolved.edits, [], 'unknown source identity never creates a guessed rewrite');
+  }
+});
+
+for (const [name, body] of [
+  ['native JSON journal keys', "readFileSync(join(directory, key + '.json'), 'utf8');"],
+  ['session and receipt path helpers', "readFileSync(checkoutSessionFile(repoInfo(root)), 'utf8'); readFileSync(join(receiptStore(root), receiptId + '.json'));"],
+  ['scanned credentials and recursive copies', "for (const file of filesUnder(directory)) readFileSync(file); cpSync(join(box.root, '.git', 'pullboard'), target, { recursive: true });"],
+  ['credential-store audit logs', "const keychainLog = setup.keychainLog; readFileSync(keychainLog, 'utf8');"],
+]) test(`${name} remain named conservative obligations rather than successful artifact proofs [C7]`, () => {
+  const source = "import { readFileSync, cpSync } from 'node:fs'; import { join } from 'node:path';\n" + body;
+  const result = fixtureSourceEdits(source, { file: 'test/conservative-obligations.js',
+    moves: [['src/leaf.js', 'packages/git/src/shell/leaf.js'], ['src/baseline.json', 'packages/git/src/shell/baseline.json']] });
+  assert.ok(result.problems.length, 'unproved artifact provenance must remain visible');
+  assert.ok(result.problems.every(problem => problem.startsWith('test/conservative-obligations.js:')
+    && problem.includes('unsupported fixture source:')), 'every retained obligation names its actual source site');
+  assert.deepEqual(result.edits, [], 'an unknown path never gains a guessed move or passing artifact classification');
 });
