@@ -18,15 +18,12 @@ import {
 export { WITHDRAW_MILESTONE_ENGINE };
 import { Refused } from './refused.js';
 import { WORK_ORDER_ENGINE } from './work-order-engine.js';
-import {
-  atomic,
-  itemById,
-  listItems,
-  logEvent,
-  milestones,
-  PERSON,
-} from './board.js';
 
+/** Require real store operations before a roadmap operation can read or mutate its board. */
+function milestonePorts(ports, names) {
+  if (!names.every(name => name === 'PERSON' ? typeof ports?.PERSON === 'string' : typeof ports?.[name] === 'function')) throw new TypeError('milestone operation needs explicit store ports');
+  return ports;
+}
 
 /** The engine a move runs under: its recorded one during replay, else this client's. */
 function engineOf(board) {
@@ -54,12 +51,14 @@ export function shippingOrder(entries) {
 }
 
 /** Return local milestones that list an item, in stored roadmap order including shipped milestones. */
-export function milestonesListing(board, id) {
+export function milestonesListing(board, id, ports) {
+  const { milestones } = milestonePorts(ports, ["milestones"]);
   return milestones(board).filter((milestone) => milestone.items.includes(id)).map((milestone) => milestone.name);
 }
 
 /** Return each milestone and its matching references, preserving milestone and item order. */
-export function milestoneReferencesToRemove(board, references) {
+export function milestoneReferencesToRemove(board, references, ports) {
+  const { milestones } = milestonePorts(ports, ["milestones"]);
   const wanted = new Set(references);
   return milestones(board).flatMap((milestone) => {
     const remove = milestone.items.filter((reference) => wanted.has(reference));
@@ -75,7 +74,8 @@ export function milestoneReferencesToRemove(board, references) {
  * @param {((reference: string) => any) | null} [resolveExternal]
  * @returns {any[]}
  */
-export function roadmap(board, resolveExternal = null) {
+export function roadmap(board, resolveExternal = null, ports) {
+  const { listItems, milestones } = milestonePorts(ports, ["listItems", "milestones"]);
   const items = new Map(listItems(board, { all: true }).map((item) => [item.item_id, item]));
   const at = board.clock.now().getTime();
   return milestones(board).map((milestone) => {
@@ -133,7 +133,7 @@ function normalizeMilestoneItems(items) {
 }
 
 /** Refuse local item ids that do not exist while leaving repo-qualified ids for board lookup. */
-function validateLocalMilestoneItems(board, items) {
+function validateLocalMilestoneItems(board, items, itemById) {
   for (const id of items) if (typeof id === 'number') itemById(board, id);
 }
 
@@ -174,11 +174,12 @@ function shippedRefusal(entry) {
 }
 
 /** Add an ordered milestone without changing any referenced board items. */
-export function addMilestone(board, { agentId, name, note = null, items = [] }) {
+export function addMilestone(board, { agentId, name, note = null, items = [] }, ports) {
+  const { atomic, itemById, logEvent, milestones } = milestonePorts(ports, ["atomic", "itemById", "logEvent", "milestones"]);
   requireCoordinator(agentId);
   const text = normalizeMilestoneText(name, note);
   const normalized = normalizeMilestoneItems(items);
-  validateLocalMilestoneItems(board, normalized);
+  validateLocalMilestoneItems(board, normalized, itemById);
   return atomic(board, () => {
     const entries = milestones(board);
     if (entries.some((entry) => entry.name === text.name)) throw new Refused('MILESTONE_EXISTS', `milestone ${text.name} already exists; edit it or choose another name`);
@@ -197,7 +198,7 @@ function normalizeMilestoneLimit(limit) {
 }
 
 /** Enforce the receiver's cap on new moves, leaving older recorded moves unchanged [H16,N26]. */
-function enforceMilestoneLimit(board, milestone, items) {
+function enforceMilestoneLimit(board, milestone, items, itemById) {
   if (engineOf(board) < MILESTONE_LIMIT_ENGINE || milestone.limit == null || items.length <= milestone.limit) return;
   const unstarted = milestone.items.filter(id => typeof id === 'number' && itemById(board, id)?.item_status === 'open');
   const candidates = unstarted.length ? unstarted.map(id => `#${id}`).join(', ') : 'none';
@@ -208,13 +209,14 @@ function enforceMilestoneLimit(board, milestone, items) {
  * Edit membership atomically. A swap removes and adds in one receiver transaction, checked against
  * the final count; historical add/remove moves retain their recorded meaning [N26,H16].
  */
-export function editMilestoneItems(board, name, { agentId, add = [], remove = [], swap = [] }) {
+export function editMilestoneItems(board, name, { agentId, add = [], remove = [], swap = [] }, ports) {
+  const { atomic, itemById, logEvent, milestones } = milestonePorts(ports, ["atomic", "itemById", "logEvent", "milestones"]);
   requireCoordinator(agentId);
   const additions = normalizeMilestoneItems(add);
   const removals = normalizeMilestoneItems(remove);
   const swaps = normalizeMilestoneItems(swap);
   if (swaps.length && engineOf(board) < MILESTONE_LIMIT_ENGINE) throw new Refused('ENGINE_VERSION', `milestone swap requires engine ${MILESTONE_LIMIT_ENGINE}; upgrade Pullboard before using --swap`);
-  validateLocalMilestoneItems(board, additions);
+  validateLocalMilestoneItems(board, additions, itemById);
   if (additions.length && removals.length) throw new Refused('MILESTONE_ITEMS', 'add or remove milestone items in separate commands');
   if (swaps.length && (!additions.length || removals.length || swaps.length !== 1 || additions.length !== 1)) throw new Refused('MILESTONE_ITEMS', 'swap one item out with --add <id> --swap <id>; use --remove separately');
   if (!additions.length && !removals.length) throw new Refused('MILESTONE_ITEMS', 'name ids with --add or --remove');
@@ -230,7 +232,7 @@ export function editMilestoneItems(board, name, { agentId, add = [], remove = []
     const nextItems = swaps.length
       ? current.items.map(id => id === swaps[0] ? additions[0] : id)
       : [...current.items.filter(id => !removed.includes(id)), ...additions];
-    if (additions.length) enforceMilestoneLimit(board, current, nextItems);
+    if (additions.length) enforceMilestoneLimit(board, current, nextItems, itemById);
     entries[index] = { ...current, items: nextItems,
       ...((board.executionEngineVersion ?? ENGINE_VERSION) >= MILESTONE_RANK_ENGINE && current.order
         ? { order: current.order.map(id => swaps.includes(id) ? additions[0] : id).filter(id => nextItems.includes(id)) } : {}) };
@@ -247,9 +249,10 @@ export function editMilestoneItems(board, name, { agentId, add = [], remove = []
  * Replace this milestone's explicit ranks; omitted items retain the ordinary queue order [N2,B13]. With `place`,
  * the coordinator pins, sinks or lifts items instead (#1017).
  */
-export function orderMilestoneItems(board, name, { agentId, items, place, reason }) {
+export function orderMilestoneItems(board, name, { agentId, items, place, reason }, ports) {
+  const { atomic, logEvent, milestones, PERSON } = milestonePorts(ports, ["atomic", "logEvent", "milestones", "PERSON"]);
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < MILESTONE_RANK_ENGINE) throw new Refused('ENGINE_VERSION', 'milestone order requires engine 34; upgrade Pullboard before ranking work');
-  if (place !== undefined) return overrideMilestoneItems(board, name, { agentId, items, place, reason });
+  if (place !== undefined) return overrideMilestoneItems(board, name, { agentId, items, place, reason }, ports);
   if (agentId !== COORDINATOR && (agentId === PERSON || !board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(agentId))) {
     throw new Refused('NO_AGENT', 'milestone order is an agent or coordinator move; join an agent worktree or ask the coordinator');
   }
@@ -291,7 +294,8 @@ function withOverrides(entry, order, sunk) {
  * @param {{ agentId: string, items: unknown[], place: unknown, reason?: unknown }} change
  * @returns {{ order: (number | string)[], sunk: (number | string)[] }}
  */
-function overrideMilestoneItems(board, name, { agentId, items, place, reason }) {
+function overrideMilestoneItems(board, name, { agentId, items, place, reason }, ports) {
+  const { atomic, logEvent, milestones } = milestonePorts(ports, ["atomic", "logEvent", "milestones"]);
   if (engineOf(board) < WORK_ORDER_ENGINE) throw new Refused('ENGINE_VERSION', 'pinning and sinking queue items needs a newer engine; upgrade Pullboard before overriding the queue');
   requireCoordinator(agentId);
   if (!['pin', 'sink', 'lift'].includes(place)) throw new Refused('MILESTONE_PLACE', 'an override is pin, sink or lift: pullboard milestone pin <name> <ids> --reason "<why>"');
@@ -317,7 +321,8 @@ function overrideMilestoneItems(board, name, { agentId, items, place, reason }) 
 }
 
 /** Move a milestone before another while retaining all item and note data. */
-export function moveMilestone(board, name, { agentId, before }) {
+export function moveMilestone(board, name, { agentId, before }, ports) {
+  const { atomic, logEvent, milestones } = milestonePorts(ports, ["atomic", "logEvent", "milestones"]);
   requireCoordinator(agentId);
   return atomic(board, () => {
     const entries = milestones(board);
@@ -337,7 +342,8 @@ export function moveMilestone(board, name, { agentId, before }) {
  * Rename a milestone, update its note, or set its target without touching its items. A target is
  * an engine-45 meaning, so an older engine's edit replays exactly as it did.
  */
-export function editMilestone(board, name, { agentId, newName, note, target, limit }) {
+export function editMilestone(board, name, { agentId, newName, note, target, limit }, ports) {
+  const { atomic, itemById, logEvent, milestones } = milestonePorts(ports, ["atomic", "itemById", "logEvent", "milestones"]);
   requireCoordinator(agentId);
   const engine = engineOf(board);
   if (limit !== undefined && engine < MILESTONE_LIMIT_ENGINE) throw new Refused('ENGINE_VERSION', `milestone limit requires engine ${MILESTONE_LIMIT_ENGINE}; upgrade Pullboard before using --limit`);
@@ -358,7 +364,7 @@ export function editMilestone(board, name, { agentId, newName, note, target, lim
     entries[index] = { ...entries[index], name: renamed, ...(note === undefined ? {} : { note: normalizeMilestoneText(renamed, note).note }) };
     if (targetValue !== undefined) entries[index].target = targetValue;
     if (limitValue !== undefined) {
-      enforceMilestoneLimit(board, { ...entries[index], limit: limitValue }, entries[index].items);
+      enforceMilestoneLimit(board, { ...entries[index], limit: limitValue }, entries[index].items, itemById);
       entries[index].limit = limitValue;
     }
     saveMilestones(board, entries);
@@ -369,7 +375,8 @@ export function editMilestone(board, name, { agentId, newName, note, target, lim
 }
 
 /** Remove one milestone only; its referenced work items remain on their boards. */
-export function removeMilestone(board, name, { agentId }) {
+export function removeMilestone(board, name, { agentId }, ports) {
+  const { atomic, logEvent, milestones } = milestonePorts(ports, ["atomic", "logEvent", "milestones"]);
   requireCoordinator(agentId);
   return atomic(board, () => {
     const entries = milestones(board);
@@ -392,7 +399,8 @@ export function removeMilestone(board, name, { agentId }) {
  * @param {{ agentId: string, commit: string | null, next?: string }} options
  * @returns {{ milestone: any, into: string | null, moved: number[], notMoved: string[] }}
  */
-export function shipMilestone(board, name, { agentId, commit, next }) {
+export function shipMilestone(board, name, { agentId, commit, next }, ports) {
+  const { atomic, itemById, listItems, logEvent, milestones } = milestonePorts(ports, ["atomic", "itemById", "listItems", "logEvent", "milestones"]);
   requireCoordinator(agentId);
   if (typeof commit !== 'string' || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commit)) {
     throw new Refused('MILESTONE_COMMIT', "shipping records main's commit and main has none here; commit to main, then ship from the main checkout");
@@ -424,7 +432,7 @@ export function shipMilestone(board, name, { agentId, commit, next }) {
     const at = board.clock.now().toISOString();
     if (into !== null) {
       const nextItems = [...entries[into].items, ...moved.filter(id => !entries[into].items.includes(id))];
-      enforceMilestoneLimit(board, entries[into], nextItems);
+      enforceMilestoneLimit(board, entries[into], nextItems, itemById);
       entries[into] = { ...entries[into], items: nextItems };
     }
     entries[index] = { ...current, items: current.items.filter(stays), shipped: { commit, at, by: agentId } };

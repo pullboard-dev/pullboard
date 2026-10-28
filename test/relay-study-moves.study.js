@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import * as milestones from '../src/milestones.js';
+import * as milestones from '../src/board.js';
 import { MOVE_OPERATIONS } from '../src/move-registry.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
 import { relayClientFixture } from './relay-client-fixture.js';
