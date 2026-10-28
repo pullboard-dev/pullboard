@@ -1,16 +1,35 @@
+/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** @pullboard-test-loads src/seal.js */
 /** Device-side sealing is the same bytes and WebCrypto code in Node and Chrome (H15, H17). */
 import assert from 'node:assert/strict';
-import { runFixtureChild as spawnSync } from './fixture-child.js';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { runFixtureChild as spawnSync } from '../../../test/fixture-child.js';
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import {
+  join,
+  resolve,
+} from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { decodeBoardKey, encodeBoardKey, generateBoardKey, seal, SEAL_VERSION, unseal } from '../src/seal.js';
-import { findChromeExecutable, startChrome } from './chrome-fixture.js';
+import {
+  decodeBoardKey,
+  encodeBoardKey,
+  generateBoardKey,
+  seal,
+  SEAL_VERSION,
+  unseal,
+} from '../../../src/seal.js';
+import {
+  findChromeExecutable,
+  startChrome,
+} from '../../../test/chrome-fixture.js';
 
 const BOARD = '0123456789abcdef0123456789abcdef';
 const TEXT = new TextEncoder().encode('A private board payload: \u03bb \ud83d\udd12');
@@ -89,11 +108,11 @@ test('adjacent board-id and sequence fields cannot collide at their boundary [H1
 test('the header byte remains authenticated when the version refusal guard is removed [H15,H17]', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-seal-version-mutant-'));
   try {
-    const source = readFileSync(new URL('../src/seal.js', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../src/seal.js', import.meta.url), 'utf8');
     const guard = "  if (version !== SEAL_VERSION) throw new Refused('SEAL_VERSION', 'This sealed format is unsupported. Upgrade this device.');";
     assert.equal(source.split(guard).length - 1, 1, 'the private mutant removes exactly the version guard');
     writeFileSync(join(dir, 'seal.mjs'), source.replace(guard, ''));
-    writeFileSync(join(dir, 'refused.js'), readFileSync(new URL('../src/refused.js', import.meta.url)));
+    writeFileSync(join(dir, 'refused.js'), readFileSync(new URL('../src/core/refused.js', import.meta.url)));
     const mutant = await import(pathToFileURL(join(dir, 'seal.mjs')).href);
     const key = await generateBoardKey();
     const bindingA = binding({ boardId: 'a1', sequence: 0, kind: 'move' });
@@ -108,7 +127,7 @@ test('the header byte remains authenticated when the version refusal guard is re
 });
 
 test('generate, encode, decode, seal and unseal never write to console or output streams [H15,H17]', () => {
-  const moduleUrl = process.env.PULLBOARD_SEAL_MODULE ?? pathToFileURL(resolve(import.meta.dirname, '../src/seal.js')).href;
+  const moduleUrl = process.env.PULLBOARD_SEAL_MODULE ?? pathToFileURL(resolve(import.meta.dirname, '../../../src/seal.js')).href;
   const harness = `
     import { generateBoardKey, encodeBoardKey, decodeBoardKey, seal, unseal } from ${JSON.stringify(moduleUrl)};
     const methods = ['log','info','warn','error','debug','dir','dirxml','table','trace','group','groupCollapsed','groupEnd','assert','count','countReset','time','timeEnd','timeLog','clear','profile','profileEnd','timeStamp'];
@@ -198,7 +217,7 @@ test('headless Chrome loads the unchanged module and exchanges sealed bytes with
     }
     if (['/seal.js', '/refused.js'].includes(req.url) && req.method === 'GET') {
       res.setHeader('Content-Type', 'text/javascript; charset=utf-8');
-      return res.end(readFileSync(new URL('../src' + req.url, import.meta.url)));
+      return res.end(readFileSync(new URL(req.url === '/refused.js' ? '../src/core/refused.js' : '../../../src/seal.js', import.meta.url)));
     }
     if (req.url === '/fixture' && req.method === 'GET') {
       res.setHeader('Content-Type', 'application/json');

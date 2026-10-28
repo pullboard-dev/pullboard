@@ -1171,7 +1171,9 @@ test('an item whose detail read is dropped once loads on its own [N26]', { timeo
     };
     chrome.socket.addEventListener('message', listener);
     await chrome.send('Fetch.enable', { patterns: [{ urlPattern: view.base + '/api/v1/boards/*/items/1*', requestStage: 'Request' }] });
-    await chrome.send('Page.navigate', { url: view.link.href + '#/items/1' });
+    const target = new URL('/items/1', view.link);
+    target.search = view.link.search;
+    await chrome.send('Page.navigate', { url: target.href });
     await chrome.waitFor("document.querySelector('#detail')?.textContent.includes('Could not load #1')", 30_000); // budget: hang ceiling for the first, dropped read.
     await chrome.waitFor("document.querySelectorAll('#detail button[data-shout], #detail button[data-new]').length === 2", 30_000); // budget: hang ceiling for the page's own retry 3 s later.
     assert.ok(reads.length >= 2, 'the page read the item again after the dropped read');
