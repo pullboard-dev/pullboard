@@ -20,7 +20,7 @@ import {
   personRequestRecords,
   requestIntentDigest,
 } from './relay-requests.js';
-import { validPresence } from './relay-sender.js';
+import { validPresence } from './person-presence.js';
 import { presenceSigned } from './person-presence.js';
 import {
   attestedAuthority,

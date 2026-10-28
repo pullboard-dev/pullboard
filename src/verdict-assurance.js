@@ -1,3 +1,5 @@
+import { committedItemAuthors } from './review-independence.js';
+import { twoTierReviews } from './review-independence.js';
 /** Immutable verdict assurance distinguishes recorded parent independence from procedural review [V1,B3]. */
 import { ENGINE_VERSION } from './machine.js';
 import { PARENT_SESSION_ENGINE } from './parent-session-engine.js';
@@ -7,7 +9,7 @@ import { agentParent } from './seats.js';
 /** Unknown parentage for any historical author limits assurance, even when review is procedurally allowed. */
 export function reviewAssurance(board, item, reviewer) {
   const parent = agentParent(board, reviewer);
-  const authors = itemAuthors(board, item);
+  const authors = itemAuthors(board, item, { committedItemAuthors, twoTierReviews });
   return parent && authors.length && authors.every(author => {
     const built = agentParent(board, author);
     return built && built !== parent;

@@ -1,6 +1,10 @@
 import { checkAtCommit } from '../runner-private-check.js';
 import { trunkRef } from '../trusted-policy-read.js';
 import { selectAffectedTests } from '../affected-tests.js';
+import { committedItemAuthors } from '../review-independence.js';
+import { verifyOutsideSandbox } from '../sandbox-verify.js';
+import { effectiveItemHead } from '../source-advance-state.js';
+import { agentSessionDigest } from '../person.js';
 import { completeMoveHandoff } from '../post-move-handoff.js';
 import { itemReviewPolicy } from '../review-independence.js';
 import { twoTierReviews } from '../review-independence.js';
@@ -131,13 +135,13 @@ export async function verifyHere(ctx, id, { second, values }) {
       return await ordered(ctx, board, 'verify', recovered.args);
     }
     const item = store.getItem(board, id);
-    itemSessions.refuseSelfSession(ctx.info, item, undefined, itemAuthors(board, item), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard' });
+    itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard' });
     const reReview = item.item_status === 'verified' && !item.item_merged_commit;
     const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).state(item) : null;
     if (item.item_status !== 'submitted' && !stale) {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
     }
-    if (item.outside) return outsideVerdict(ctx, board, item, me, decision, values);
+    if (item.outside) return outsideVerdict(ctx, board, item, me, decision, values, { checkNeedsBrowser, freezer, ordered, resourceAgent, textArg, withGateSlot, verifyOutsideSandbox, itemPolicy, requireTrunkMerge });
     // Name an unknown implied item before the frozen check runs, not after it.
     if (implies) checkImplies(board, implies);
     const policy = itemPolicy(root, item);
@@ -160,7 +164,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
-      let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item).commit : reReview ? head : commit;
+      let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item, { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem }).commit : reReview ? head : commit;
       let checkedLabel = reReview ? 'reviewed composition' : 'submitted commit';
       const composeNow = () => composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge, events: store.events });
       const admitted = companionDigest === null && !item.item_effective_head && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
