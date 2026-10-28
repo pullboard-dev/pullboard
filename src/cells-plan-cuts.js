@@ -1,4 +1,6 @@
 /** Plan startable import-cut work per importing cell without changing the accepted move order [C7,D3]. */
+/** The board refuses a brief longer than this (item-routing.js); this cell sits below it, so it cannot import it. */
+const BRIEF_LIMIT = 8000;
 
 /** Stable identity for a cut item, independent of move numbering and board allocation. */
 export function cutTitle(cell) { return `Cells import cuts: ${cell} removes imports into later cells`; }
@@ -30,15 +32,31 @@ export function importCuts(plan) {
   }));
 }
 
+/**
+ * The brief for one cell's cuts, under the board's brief limit: every edge with its strategy when that fits, else
+ * every edge with each strategy stated once, else a pointer to the full list that the item's own check prints.
+ */
+export function cutBrief(group, check) {
+  const head = `Import-cut plan for ${group.cell}, from committed bin/cells-plan.json and its shards (#1593).`;
+  const files = `Files potentially touched (importer plus provider endpoints; retain ownership coordination):\n${group.files.map(file => `- ${file}`).join('\n')}`;
+  const tail = `Check: ${check}. Add focused behavior regressions for changed ports or extracted definitions; the full suite remains mandatory.`;
+  const full = `Imports to remove and implementation strategy (each recorded occurrence appears once):\n${group.edges.map(edge => `- [${edge.id}] ${edge.from} -> ${edge.to}: ${edge.how}`).join('\n')}`;
+  const strategies = [...new Set(group.edges.map(edge => edge.how))];
+  const compact = `Imports to remove (each recorded occurrence appears once; strategy by letter):\n${strategies.map((how, index) => `${String.fromCharCode(65 + index)}: ${how}`).join('\n')}\n${group.edges.map(edge => `- [${edge.id}] ${edge.from} -> ${edge.to} (${String.fromCharCode(65 + strategies.indexOf(edge.how))})`).join('\n')}`;
+  const pointer = `Imports to remove: all ${group.edges.length} occurrences, each with its strategy, are printed by node bin/cells-plan.js --cuts ${group.cell}.`;
+  for (const body of [[head, files, full, tail], [head, files, compact, tail], [head, files, pointer, tail], [head, pointer, tail]]) {
+    const brief = body.join('\n\n');
+    if (brief.length <= BRIEF_LIMIT) return brief;
+  }
+  throw new Error(`the ${group.cell} cut brief cannot fit the brief limit`);
+}
+
 /** Build independent add commands; no move-tooling dependency or implicit chain prevents disjoint cuts starting now. */
 export function cutItemCommands(plan, ids = new Map()) {
   return importCuts(plan).filter(group => !ids.has(group.cell)).map(group => {
     const check = `node bin/cells-plan.js --cuts ${group.cell} && npm run gate`;
     const criterion = `Remove all ${group.edges.length} import occurrences listed below from ${group.cell} into its later cells. Apply each named lower-layer extraction or explicit port inversion without hiding the dependency in a shim or computed loader. The cut check and full suite pass on Node 22.13 and 24; preserve behavior, historical engine numbers and recorded events. No dependency on #1395 or any cell move is required. Coordinate any overlapping files before editing; items with disjoint file sets may run in parallel.`;
-    const brief = [`Import-cut plan for ${group.cell}, from committed bin/cells-plan.json and its shards (#1593).`,
-      `Files potentially touched (importer plus provider endpoints; retain ownership coordination):\n${group.files.map(file => `- ${file}`).join('\n')}`,
-      `Imports to remove and implementation strategy (each recorded occurrence appears once):\n${group.edges.map(edge => `- [${edge.id}] ${edge.from} -> ${edge.to}: ${edge.how}`).join('\n')}`,
-      `Check: ${check}. Add focused behavior regressions for changed ports or extracted definitions; the full suite remains mandatory.`].join('\n\n');
+    const brief = cutBrief(group, check);
     return { group, args: ['add', 'core', cutTitle(group.cell), '--criterion', criterion,
       '--specs', 'C7,D3,doctrine:CD64', '--check', check, '--brief', brief, '--json'] };
   });
