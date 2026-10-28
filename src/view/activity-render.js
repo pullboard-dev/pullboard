@@ -1,3 +1,4 @@
+import { sharedRowHtml } from './row-component.js';
 import { segmentedToggle } from './seg-toggle.js';
 /** The approved Activity sentences, rendered once for live and exported views [N26].
  * Standalone because the page embeds this function's source text.
@@ -46,7 +47,8 @@ export function activityHtml(model, { filter = 'all', words, itemHref = id => '#
       content = '<p>' + who(entry.by, entry.agent) + ' ' + sentence + (entry.kind === 'shout' ? ' ' + esc(entry.to === 'coordinator' ? 'the coordinator' : entry.to === 'person' ? 'the person' : entry.to || 'the board') : '') + '</p>'
         + (entry.item ? item(entry.item) : '') + (entry.kind === 'shout' && entry.words ? '<blockquote class="activity-quote">' + (quote ? quote(localTimes(entry.words)) : esc(localTimes(entry.words))) + '</blockquote>' : '');
     }
-    return '<li class="activity-event" data-activity-kind="' + esc(entry.kind) + '"><time>' + esc(clock(entry.at)) + '</time><span class="activity-verb ' + tone + '">' + icon(glyph) + '</span><div class="activity-say">' + content + '</div></li>';
+    return sharedRowHtml({ variant: 'activity', state: tone, time: clock(entry.at), iconHtml: icon(glyph), mainHtml: content,
+      attributes: { 'data-activity-kind': entry.kind } });
   };
   const filters = '<div class="activity-bar">' + segmentedToggle({ label: 'Activity filter', attribute: 'data-activity-filter', value: filter, options: [['all', 'All'], ['work', 'Work'], ['sentinels', 'Sentinels'], ['shouts', 'Shouts']].map(([value, label]) => ({ value, label, count: model.counts[value] })) }) + '</div>';
   const rows = model.rows.filter(entry => filter === 'all' || entry.category === filter);

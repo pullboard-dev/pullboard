@@ -389,10 +389,11 @@ async function runProfileSubmission(box, queue) {
   const holderExited = holder
     ? (holder.exitCode === null ? once(holder, 'exit') : Promise.resolve())
     : null;
+  // The enclosing clock starts before the child, so it bounds the child's own recorded work and wait.
+  const startedAt = Date.now();
   const submit = startProfiledSubmit(box, box.web);
   const priorHome = process.env.PULLBOARD_HOME;
   const priorMachineHome = process.env.PULLBOARD_MACHINE_HOME;
-  const startedAt = Date.now();
   let queued = false;
   let released = false;
   let result;
@@ -400,7 +401,8 @@ async function runProfileSubmission(box, queue) {
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
   try {
     if (holder) {
-      for (let attempt = 0; attempt < 120; attempt += 1) {
+      // Wait for the child to join the real queue, bounded by the same ceiling as the submission itself, not a fixed poll count.
+      while (Date.now() - startedAt < 60_000) {
         queued = listResources({ scope: 'machine', root: box.repo })
           .find(resource => resource.name === 'gate')?.line.some(waiter => waiter.agent !== 'profile-test-holder') ?? false;
         if (queued || submit.child.exitCode !== null) break;
@@ -494,7 +496,8 @@ test('a submit timing profile records both phases and one queue wait for selecte
     ].join('\n') + '\n');
     writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: gateCommand, ...(scenario.full ? {} : { affectedTests: 'node bin/run-tests.js' }) }, null, 2));
     box.git(box.repo, 'add', '-A');
-    box.git(box.repo, 'commit', '-q', '-m', 'test: build isolated submit profile fixture');
+    // The copied shipped package is 11MB, past the 8MB staged-diff secret-scan buffer; this synthetic fixture repo skips that hook.
+    box.git(box.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: build isolated submit profile fixture');
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
     const added = box.run(box.repo, 'add', 'web', `Profile ${scenario.name}`, '--specs', 'G1',
       '--criterion', 'submit profiles both check and proof', '--check', checkCommand, '--wait');

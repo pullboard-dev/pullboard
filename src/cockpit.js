@@ -3,6 +3,7 @@ import { lifecycleMove } from './item-list.js';
 import { revealSegmentedChoices } from './view/seg-toggle.js';
 import { segmentedToggle } from './view/seg-toggle.js';
 import { activityWords } from './view/activity-words.js';
+import { sharedRowHtml } from './view/row-component.js';
 import { activityModel } from './view/activity-model.js';
 import { activityHtml } from './view/activity-render.js';
 import { dashboardModel } from './view/dashboard-model.js';
@@ -111,7 +112,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   const releaseInfo = hostedReleaseInfo(hostedReleaseVersion, hostedReleaseVersions, releaseHosted);
   const css = stylesheet ?? (snapshot ? 'view.css' : transportModule ? '/view.css' : '/view.css?k=' + encodeURIComponent(key));
   const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-  const pageScope = { activityWords, activityModel, activityHtml, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, closePageDialog, connection, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeRules, hostedState, lifecycle, lifecycleEvent, lifecycleMove, moduleOption, openPageDialog, pageStartup, paths, personNeeds, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
+  const pageScope = { sharedRowHtml, activityWords, activityModel, activityHtml, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, closePageDialog, connection, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeRules, hostedState, lifecycle, lifecycleEvent, lifecycleMove, moduleOption, openPageDialog, pageStartup, paths, personNeeds, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
   return `<!doctype html>
 <html lang="en">
 <head>
