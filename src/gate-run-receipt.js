@@ -13,7 +13,7 @@ import {
 } from 'node:path';
 import { tryGit } from './git.js';
 import { proofFields } from './proof-provenance.js';
-import { environmentProblem } from './execution-environment.js';
+import { environmentProblem } from './config.js';
 
 /** The folder beside the board that holds gate run receipts. */
 export const RECEIPT_FOLDER = 'gate-receipts';

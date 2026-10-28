@@ -7,7 +7,7 @@ import {
 } from './git.js';
 
 /** Preserve the canonical pure registration validator without loading the full runner. */
-export { validateRunner } from './runner-registration.js';
+export { validateRunner } from './settings-read.js';
 
 /** Dirty or non-repository commands cannot claim to execute an exact committed source remotely. */
 export function runnerSource(root) {

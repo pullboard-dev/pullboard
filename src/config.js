@@ -8,9 +8,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from './refused.js';
-import { environmentProblem } from './execution-environment.js';
 import { registryGuardsProblem } from './registry-guards.js';
-import { cadenceProblem } from './landing-cadence.js';
 
 export const CONFIG_FILE = 'pullboard.json';
 export const COORDINATOR = 'coordinator';
@@ -396,4 +394,32 @@ export function configFromSource(source) {
     leaseMs: durationMs(config.lease),
     reviewLeaseMs: durationMs(config.reviewLease, 'reviewLease'),
   };
+}
+
+/** Validate bounded identity without substituting this host for an unknown old receipt. */
+export function environmentProblem(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || Object.keys(value).length !== 3 || !['platform', 'arch', 'node'].every(key => Object.hasOwn(value, key))) return 'needs platform, arch and node';
+  if (!['platform', 'arch'].every(key => typeof value[key] === 'string' && /^[a-z0-9_]{1,32}$/u.test(value[key]))) return 'platform and arch are bounded system identifiers';
+  if (typeof value.node !== 'string' || value.node.length > 80 || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(value.node)) return 'node names one exact Node version';
+  return '';
+}
+
+const DURATION = /^(\d+)(ms|s|m|h|d)$/u;
+const UNITS = { ms: 1, s: 1_000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+
+/** Parse the existing bounded duration syntax without changing its timeout-compatible range. */
+export function cadenceMilliseconds(value) {
+  const match = typeof value === 'string' && DURATION.exec(value);
+  const ms = match ? Number(match[1]) * UNITS[match[2]] : NaN;
+  return Number.isFinite(ms) && ms > 0 && ms <= 2_147_483_647 ? ms : null;
+}
+
+/** Validate only the new object form; unknown keys cannot silently create a scheduling policy. */
+function cadenceProblem(value) {
+  if (value === undefined || cadenceMilliseconds(value) !== null) return null;
+  if (value && typeof value === 'object' && !Array.isArray(value)
+    && Object.keys(value).every(key => ['every', 'accepted'].includes(key))
+    && cadenceMilliseconds(value.every) !== null && Number.isSafeInteger(value.accepted) && value.accepted > 0) return null;
+  return '"landing.cadence" is a positive duration, or {every: "10m", accepted: 5} with a positive whole accepted count';
 }
