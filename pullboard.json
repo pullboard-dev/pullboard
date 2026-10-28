@@ -85,6 +85,7 @@
         "src/",
         "bin/",
         "test/",
+        "packages/",
         "package.json",
         ".github/workflows/",
         "relay/",
