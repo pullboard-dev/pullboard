@@ -137,14 +137,15 @@ function dynamicLiteralAt(source, at) {
  * or object, still reads as a call: the scan errs toward a false alarm, never a miss.
  *
  * @param {string[]} sources - Each one a module that compiles.
+ * @param {(sources: string[]) => Array<{compiles: boolean, imports: string[]}>} [parse] - Private compile-only batches; ordinary callers retain the isolated parser.
  * @returns {string[][]}
  */
-export function importsIn(sources) {
+export function importsIn(sources, parse = look) {
   const calls = sources.map((source) => [...source.matchAll(IMPORT)].map((match) => match.index).filter((at) => pastGap(source, at + 'import'.length)[0] === '('));
   const variants = sources.flatMap((source, index) =>
     calls[index].flatMap((at) => [`${source.slice(0, at)}\u0000${source.slice(at)}`, `${source.slice(0, at)}1${source.slice(at + 'import'.length)}`]),
   );
-  const looks = look([...sources, ...variants]);
+  const looks = parse([...sources, ...variants]);
   let next = sources.length;
   const edges = sources.map((source, index) => {
     if (!looks[index].compiles) throw new Error('source does not compile as an ES module');
@@ -157,7 +158,7 @@ export function importsIn(sources) {
     return { imports: looks[index].imports, literals: dynamic.map(at => dynamicLiteralAt(source, at)) };
   });
   const literals = [...new Set(edges.flatMap(edge => edge.literals.filter(Boolean)))];
-  const decoded = literals.length ? look(literals.map(literal => `import ${literal};`)) : [];
+  const decoded = literals.length ? parse(literals.map(literal => `import ${literal};`)) : [];
   const values = new Map(literals.map((literal, index) => [literal, decoded[index].imports[0] ?? COMPUTED]));
   return edges.map(edge => [...edge.imports, ...edge.literals.map(literal => values.get(literal) ?? COMPUTED)]);
 }
@@ -165,9 +166,10 @@ export function importsIn(sources) {
 /** Detect actual CommonJS loader words without executing source; invalid modules are conservatively unknown.
  *
  * @param {string[]} sources
+ * @param {(sources: string[]) => Array<{compiles: boolean, imports: string[]}>} [parse] - Private compile-only batches; ordinary callers retain the isolated parser.
  * @returns {boolean[]}
  */
-export function commonJsIn(sources) {
+export function commonJsIn(sources, parse = look) {
   const occurrences = sources.map((source) => [...new Set([
     ...[...source.matchAll(COMMON_JS)].map((match) => match.index),
     ...[...source.matchAll(UNICODE_ESCAPE)].map((match) => match.index),
@@ -180,7 +182,7 @@ export function commonJsIn(sources) {
       return `${source.slice(0, cut)}\u0000${source.slice(cut)}`;
     }),
   );
-  const looks = look([...sources, ...variants]);
+  const looks = parse([...sources, ...variants]);
   let next = sources.length;
   return sources.map((source, index) => {
     if (!looks[index].compiles) return true;
@@ -214,7 +216,7 @@ function opaqueLoadingIn(sources) {
 }
 
 /** Decode bounded quoted keys by compiling static imports; repository expressions are never evaluated. */
-function quotedProperties(source) {
+function quotedPropertyCandidates(source) {
   const candidates = [];
   // Examine each quote independently: a quote in a regex or comment must not hide a later real key.
   for (const quote of source.matchAll(/["']/gu)) {
@@ -228,9 +230,18 @@ function quotedProperties(source) {
     const disabled = /^false\b/u.test(value) && /^[,}]/u.test(pastGap(value, 5));
     candidates.push({ quote: quote.index, literal, at, disabled });
   }
-  const parsed = candidates.length ? look(candidates.map(({ literal }) => `import ${literal};`)) : [];
-  return new Map(candidates.map((candidate, index) => [candidate.quote,
-    { ...candidate, key: parsed[index].compiles ? parsed[index].imports[0] : undefined }]));
+  return candidates;
+}
+
+/** Decode apparent property keys through the analysis's exact compile-only literal cache. */
+function quotedProperties(source, literalCache) {
+  const candidates = quotedPropertyCandidates(source);
+  const missing = [...new Set(candidates.map(candidate => candidate.literal).filter(text => !literalCache.has(text)))];
+  const parsed = missing.length ? look(missing.map(text => `import ${text};`)) : [];
+  const values = new Map(missing.map((text, index) => [text, parsed[index].imports[0] ?? null]));
+  for (const [text, value] of values) if (literalCache.size < 1024) literalCache.set(text, value);
+  return new Map(candidates.map(candidate => [candidate.quote, { ...candidate,
+    key: (literalCache.has(candidate.literal) ? literalCache.get(candidate.literal) : values.get(candidate.literal)) ?? undefined }]));
 }
 
 /** Split an executable argument/property list using balanced delimiters, never executing expressions. */
@@ -259,6 +270,27 @@ function cpuLiteral(text, cache) {
   // to this caller's analysis, never retaining repository source in a process-global cache.
   if (cache && cache.size < 1024) cache.set(text, value);
   return value;
+}
+
+/** Decode module literals once; property decoding is needed only at actual registration calls. */
+export function cpuLiteralCache(sources) {
+  const literals = new Set();
+  for (const source of sources) {
+    for (const match of source.matchAll(/(?:\bfrom\s*|\b(?:import|require)\s*\(\s*)/gu)) {
+      const literal = /^(?:"(?:[^"\\]|\\[\s\S])*"|'(?:[^'\\]|\\[\s\S])*')/u.exec(source.slice(match.index + match[0].length))?.[0];
+      if (literal) literals.add(literal);
+      if (literals.size >= 512) break;
+    }
+    if (literals.size >= 512) break;
+  }
+  const cache = new Map();
+  if (!literals.size) return cache;
+  try {
+    const texts = [...literals];
+    const parsed = look(texts.map(text => `import ${text};`));
+    for (const [index, text] of texts.entries()) cache.set(text, parsed[index].imports[0] ?? null);
+  } catch { /* Optional batching cannot replace the existing exact per-literal compilation. */ }
+  return cache;
 }
 
 /** Read one module's registration bindings; ordinary imported helpers acquire no test authority. */
@@ -355,12 +387,12 @@ function cpuBindings(source, moduleExports, callable = false, literalCache) {
         }
       }
     }
+    const parameters = [...code.matchAll(/(?:function(?:\s+[\w$]+)?\s*|catch\s*)\(([^)]*)\)|\(([^)]*)\)\s*=>|\b([A-Za-z_$][\w$]*)\s*=>/gu)];
     for (const name of names) {
       const pattern = name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
       const writes = [...code.matchAll(new RegExp(`(?<![\\w$])${pattern}\\s*(?:[+*/%&|^?-]*=(?!=|>)|<<=|>>>=|>>=|\\+\\+|--)`, 'gu'))];
       const initialized = new RegExp(`\\bconst\\s+${pattern}\\s*=`, 'u').test(code);
       const declarations = [...code.matchAll(new RegExp(`\\b(?:const|let|var|function|class)\\s+${pattern}\\b`, 'gu'))];
-      const parameters = [...code.matchAll(/(?:function(?:\s+[\w$]+)?\s*|catch\s*)\(([^)]*)\)|\(([^)]*)\)\s*=>|\b([A-Za-z_$][\w$]*)\s*=>/gu)];
       const shadowed = parameters.some(match => new RegExp(`\\b${pattern}\\b`, 'u').test(match[1] ?? match[2] ?? match[3] ?? ''));
       if (writes.length > (initialized ? 1 : 0) || declarations.length > 1 || shadowed || destructured.has(name)) names.delete(name);
     }
@@ -489,22 +521,24 @@ function stringConcatenation(bindings, from, to) {
 }
 
 /** Return registration exports for bounded static module-graph propagation, not execution. */
-export function cpuRegistrationExportsIn(sources, moduleExports = () => new Set(), literalCache = new Map()) {
+export function cpuRegistrationExportsIn(sources, moduleExports = () => new Set(), literalCache = cpuLiteralCache(sources)) {
   return sources.map((source, index) => cpuBindings(source, name => moduleExports(index, name), false, literalCache).exports);
 }
 
 /** Proven callable exports for the same bounded graph; these never confer registration authority. */
-export function cpuCallableExportsIn(sources, moduleExports = () => new Set(), literalCache = new Map()) {
+export function cpuCallableExportsIn(sources, moduleExports = () => new Set(), literalCache = cpuLiteralCache(sources)) {
   return sources.map((source, index) => cpuBindings(source, name => moduleExports(index, name), true, literalCache).exports);
 }
 
 /** Infer CPU load only from options of provenance-recognized test registrations [C7]. */
-export function cpuLoadOptionsIn(sources, moduleExports = () => new Set(), callableExports = () => new Set(), literalCache = new Map()) {
+export function cpuLoadOptionsIn(sources, moduleExports = () => new Set(), callableExports = () => new Set(), literalCache = cpuLiteralCache(sources)) {
   return sources.map((source, index) => {
     const bindings = cpuBindings(source, name => moduleExports(index, name), false, literalCache);
-    const quoted = quotedProperties(source);
+    const calls = cpuCalls(source, bindings);
+    if (!calls.length) return false;
+    const quoted = quotedProperties(source, literalCache);
     const callables = cpuBindings(source, name => callableExports(index, name), true, literalCache).names;
-    return cpuCalls(source, bindings).some(args => {
+    return calls.some(args => {
       if (!args.length) return false;
       const last = lex(source.slice(...args.at(-1))).code.trim();
       const callback = callables.has(last) || /^(?:async\s+)?(?:function\b|(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>)/u.test(last);

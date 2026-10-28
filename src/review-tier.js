@@ -1,6 +1,6 @@
 /** Deterministic classification uses native submitted paths, never prose or receiver files [V4,B26,H16]. */
 import { REVIEW_TIER_ENGINE } from './review-tier-engine.js';
-import { ENGINE_VERSION } from './machine.js';
+import { ENGINE_VERSION } from './engine-metadata.js';
 import { itemPatches } from './item-patch-state.js';
 import { itemPatchPaths } from './item-patch-paths.js';
 

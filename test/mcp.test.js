@@ -191,6 +191,16 @@ function shoutRow(file, id) {
   try { return db.prepare('SELECT * FROM shout WHERE shout_id = ?').get(id); } finally { db.close(); }
 }
 
+/** Read the declared kind recorded by the shout event. */
+function shoutKind(file, id) {
+  const db = new DatabaseSync(file, { readOnly: true });
+  try {
+    const event = db.prepare('SELECT event_detail FROM event WHERE event_kind = ? ORDER BY event_id DESC').all('shout')
+      .find(row => JSON.parse(row.event_detail).shout === id);
+    return event && JSON.parse(event.event_detail).messageKind;
+  } finally { db.close(); }
+}
+
 /** Every line on stdout is one JSON-RPC 2.0 message; nothing else may reach it. */
 function assertProtocolOnly(lines) {
   for (const line of lines) {
@@ -201,7 +211,7 @@ function assertProtocolOnly(lines) {
 
 /** The person's decision fixture: the agent asks its coordinator, and the coordinator passes it up. */
 function personDecision(box) {
-  const asked = cli(box, box.web, ['shout', 'coordinator', 'Ship the MCP patch?', '--decision'], box.sessionA);
+  const asked = cli(box, box.web, ['shout', 'coordinator', 'Ship the MCP patch?', '--kind', 'question', '--decision'], box.sessionA);
   assert.equal(asked.status, 0, JSON.stringify(asked.document));
   const passed = cli(box, box.repo, ['pass', String(asked.document.id), 'The person should decide.']);
   assert.equal(passed.status, 0, JSON.stringify(passed.document));
@@ -223,7 +233,7 @@ test('[A9,P5] an MCP client reads the board and shouts as its agent', async (t) 
   assert.match(hello.result.instructions, new RegExp(`agent ${box.agent} in the web lane`));
 
   const listed = await client.request('tools/list');
-  assert.deepEqual(listed.result.tools.map((tool) => tool.name), ['board_status', 'show_item', 'shout', 'capture_idea', 'next', 'claim', 'submit', 'verify', 'resume']);
+  assert.deepEqual(listed.result.tools.map((tool) => tool.name), ['board_status', 'show_item', 'item_slice', 'shout', 'capture_idea', 'next', 'claim', 'submit', 'verify', 'resume']);
   for (const tool of listed.result.tools) {
     assert.equal(tool.inputSchema.type, 'object', tool.name);
     assert.equal(tool.inputSchema.additionalProperties, false, `${tool.name} refuses unknown arguments`);
@@ -247,13 +257,14 @@ test('[A9,P5] an MCP client reads the board and shouts as its agent', async (t) 
   assert.deepEqual(shown.structuredContent, cliShown.document, 'show_item returns pullboard show --json');
 
   const before = counts(box.database);
-  const shouted = await client.call('shout', { to: 'coordinator', text: 'hello from MCP' });
+  const shouted = await client.call('shout', { to: 'coordinator', text: 'Hello from MCP; is this inbox visible?', kind: 'question' });
   assert.equal(shouted.isError, false, JSON.stringify(shouted));
   assert.deepEqual(Object.keys(shouted.structuredContent).sort(), ['decision', 'id', 'version']);
   const row = shoutRow(box.database, shouted.structuredContent.id);
   assert.equal(row.shout_from, box.agent, 'the shout\'s author is the seat\'s agent');
   assert.equal(row.shout_to, 'coordinator');
-  assert.equal(row.shout_text, 'hello from MCP');
+  assert.equal(row.shout_text, 'Hello from MCP; is this inbox visible?');
+  assert.equal(shoutKind(box.database, shouted.structuredContent.id), 'question');
   const inbox = cli(box, box.repo, ['inbox']);
   assert.ok(inbox.document.shouts.some((shout) => shout.shout_id === row.shout_id && shout.shout_from === box.agent), 'the coordinator reads it from the agent');
 
@@ -265,6 +276,7 @@ test('[A9,P5] an MCP client reads the board and shouts as its agent', async (t) 
   assert.equal(idea.isError, false, JSON.stringify(idea));
   const ideaRow = shoutRow(box.database, idea.structuredContent.id);
   assert.deepEqual([ideaRow.shout_from, ideaRow.shout_to, ideaRow.shout_text], [box.agent, 'coordinator', 'idea: ideas could become their own kind of item']);
+  assert.equal(shoutKind(box.database, idea.structuredContent.id), 'idea', 'capture_idea declares its coordinator kind');
   assert.equal(counts(box.database).shouts, before.shouts + 3);
 
   // The same engine: a refusal reaches the client with the CLI's own code, message and next step.
@@ -452,4 +464,36 @@ test('an agent claims, submits, verifies and resumes through MCP with the CLI\'s
   const again = box.run(other, ['init', '--model', 'coordinator-model']);
   assert.equal(readFileSync(join(other, '.codex', 'config.toml'), 'utf8'), toml, 'a second init adds nothing');
   assert.ok(again.status === 0 || again.status === 1, 'a second init leaves the registration alone');
+});
+
+test('MCP rejects require and preserve caller-supplied frozen wording [A9,V6,H16]', async t => {
+  const box = project(t);
+  const clause = 'web/mcp.txt contains a heading.';
+  const added = cli(box, box.repo, ['add', 'web', 'A quoted MCP rejection', '--specs', 'G1', '--criterion', clause]);
+  assert.equal(added.status, 0, JSON.stringify(added.document));
+  const id = added.document.item.item_id;
+  assert.equal(cli(box, box.web, ['claim', String(id)], box.sessionA).status, 0);
+  mkdirSync(join(box.web, 'web'), { recursive: true });
+  writeFileSync(join(box.web, 'web', 'mcp.txt'), '<p>The heading is absent.</p>\n');
+  box.git(box.web, 'add', 'web/mcp.txt');
+  box.git(box.web, 'commit', '-q', '-m', 'feat(web): write the rejected MCP fixture [G1]');
+  const submitted = cli(box, box.web, ['submit', String(id)], box.sessionA);
+  assert.equal(submitted.status, 0, JSON.stringify(submitted.document));
+  const review = join(box.dir, 'clause-review');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD').trim());
+  const session = { CODEX_SESSION_ID: 'mcp-clause-reviewer' };
+  assert.equal(cli(box, review, ['join', 'web', '--model', 'reviewer-model'], session).status, 0);
+  const reviewer = mcpClient(t, box, review, session);
+  await initialize(reviewer);
+  const input = { id, decision: 'reject', reason: 'TEST_FAILURE', note: 'The required heading is absent.' };
+  const missing = await reviewer.call('verify', input);
+  assert.equal(missing.isError, true);
+  assert.equal(missing.structuredContent.error.code, 'BAR_CLAUSE_REQUIRED');
+  assert.equal((await reviewer.call('verify', { ...input, clause: true })).isError, true);
+  const rejected = await reviewer.call('verify', { ...input, clause });
+  assert.equal(rejected.isError, false, JSON.stringify(rejected.structuredContent));
+  assert.equal(rejected.structuredContent.clause, clause);
+  const shown = cli(box, box.repo, ['show', String(id)]);
+  assert.equal(shown.document.verdicts[0].clause, clause);
+  assertProtocolOnly((await reviewer.close()).lines);
 });

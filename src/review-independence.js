@@ -1,14 +1,14 @@
 /** Native review policy and explanations replace prose lineage screening [V4,B26,H16]. */
 import { REVIEW_TIER_ENGINE } from './review-tier-engine.js';
-import { ENGINE_VERSION } from './machine.js';
+import { ENGINE_VERSION } from './engine-metadata.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from './review-independence-engine.js';
-import { effectiveAgentParent } from './seats.js';
+import { effectiveAgentParent } from './seat-review-read.js';
 import { saveReviewFamily } from './required-review-family.js';
 import { validateReviewFamily } from './required-review-family.js';
 import { Refused } from './refused.js';
 import { familyName } from './review-policy.js';
 import { itemReviewPolicy } from './review-policy.js';
-import { lineSettings } from './line-settings.js';
+import { lineSettings } from './line-settings-read.js';
 export { itemReviewPolicy } from './review-policy.js';
 
 /** Old sealed moves keep their recorded authorship and family semantics. */

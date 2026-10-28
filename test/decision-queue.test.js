@@ -43,7 +43,7 @@ test('a decision asked on an item is answered from the queue and recorded on the
   assert.equal(pending.item_status, 'claimed');
   assert.equal(pending.item_owner, before.item_owner);
   assert.equal(pending.item_lease_until, before.item_lease_until, 'asking neither releases nor renews the claim');
-  const ordinary = document(box, box.web, 'shout', 'coordinator', 'Implementation continues while the answer is pending.');
+  const ordinary = document(box, box.web, 'shout', 'all', 'Implementation continues while the answer is pending.');
   const queue = document(box, box.repo, 'decisions');
   const queued = queue.decisions.find(row => row.shout_id === ask.id);
   assert.ok(queued, 'the coordinator has a separate open decision queue');

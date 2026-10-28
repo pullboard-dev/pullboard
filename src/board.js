@@ -1,3 +1,4 @@
+import * as rejectClause from './reject-clause.js';
 import { requireSourceAdvanceReview } from './source-advance-state.js';
 import { SOURCE_ADVANCE_ENGINE } from './source-advance-engine.js';
 import { sourceAdvanceReturnProblem } from './source-advance-return.js';
@@ -9,6 +10,10 @@ import { reviewPolicyChange } from './review-independence.js';
 import { saveItemReviewPolicy } from './review-independence.js';
 import { twoTierReviews } from './review-independence.js';
 import { setItem } from './item-fields.js';
+import {
+  idleReason,
+  liveRouteProblem,
+} from './routing-presence.js';
 import { releaseClaim } from './release-claim.js';
 import { REFERENCE_ENGINE } from './reference-engine.js';
 import { validateReferences } from './reference-authors.js';
@@ -47,6 +52,7 @@ import { companionPlan } from './companion.js';
 import { itemPatchReviewProblem } from './item-patches.js';
 import { applyItemPatchAttachment } from './item-patches.js';
 import { applyItemPatchRemoval } from './item-patches.js';
+import { itemPatchResetFields } from './item-patches.js';
 export { itemPatches, itemPatchDigest } from './item-patches.js';
 import { applyCompanionRequest } from './companion.js';
 export { readBoardMembers, setBoardMembers } from './board-members.js';
@@ -256,6 +262,7 @@ import {
   reportDrift,
 } from './board-migrate.js';
 export { schemaMissing, writeRefused } from './board-migrate.js';
+import { checkRoute } from './item-routing.js';
 import { checkRouted } from './item-routing.js';
 import {
   itemFiles,
@@ -288,7 +295,6 @@ import {
   storeTriggers,
 } from './machine.js';
 import { LOCAL_LANDING_ENGINE } from './land-engine.js';
-import { SPEC_APPROVAL_ENGINE } from './spec-approval-engine.js';
 import { SPEC_REVISION_ENGINE } from './spec-revision-engine.js';
 import {
   validRevisionApproval,
@@ -639,17 +645,6 @@ export function ensureCoordinator(board, path) {
 }
 
 /**
- * Refuse a route that is not one of ROUTES.
- *
- * @param {string} route
- */
-function checkRoute(route) {
-  if (!ROUTES.includes(route)) {
-    throw new Refused('BAD_ROUTE', `route "${route}" is light (a small or local model can build it from the brief), mid (a capable model) or strong (a frontier model)`);
-  }
-}
-
-/**
  * Add an item to a lane, optionally under a parent in the same lane, with a brief for whoever
  * builds it and a route saying who can (B10, B11). The caller has checked the lane and the spec
  * ids (B6).
@@ -944,8 +939,7 @@ function invalidateItemPatch(board, id, agentId) {
       coordinatorOnly: () => onlyCoordinator(agentId, 'changes companion inputs'),
       notMerged: found => found.item_merged_commit ? new Refused('ALREADY_MERGED', 'file a follow-up for landed work') : null,
     },
-    set: found => ({ item_built_by: found.item_built_by, item_frozen_digest: found.item_frozen_digest,
-      item_verdict: null, item_verified_by: null, item_review_by: null, item_review_until: null }),
+    set: found => itemPatchResetFields(board, found),
   });
 }
 
@@ -1392,10 +1386,10 @@ function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'of
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
+ * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, clause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
  * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', cause, head, digest, policy, familyPolicy = 'off', check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead }) {
+export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
@@ -1405,6 +1399,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
   landingEnvironment.requireVerdict(board, environment);
   const declaration = MOVES.find(move => move.verb === verb);
   const newReview = engine >= VERDICT_REVIEW_ENGINE && review !== undefined;
+  let clauseDetail = {};
   // Without the new sealed metadata, old moves keep their exact submitted-only semantics.
   const transition = newReview ? declaration : { ...declaration, from: ['submitted'],
     guards: declaration.guards.filter(guard => !['notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent'].includes(guard)) };
@@ -1438,28 +1433,22 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
         reasonCoded: () => (reason && REJECT_REASONS.includes(reason) ? null : new Refused('BAD_REASON', `a reject names one of: ${REJECT_REASONS.join(', ')}`)),
         noteGiven: () => (note.trim() ? null : new Refused('NOTE_REQUIRED', 'a reject says what failed: --note "..."')),
         causeWellFormed: () => causeProblem(cause),
+        clauseWellFormed: found => isAccept ? null : rejectClause.rejectionClauseProblem(found, clause, engine),
       },
-      before: (found) => recordVerdict(board, found, { agentId, decision, reason: code, note, digest, head }),
+      before: (found) => {
+        if (!isAccept) clauseDetail = rejectClause.rejectionClauseDetail(found, clause, engine);
+        recordVerdict(board, found, { agentId, decision, reason: code, note, digest, head });
+      },
       set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
     });
     if (isAccept && sandbox && outsideSource(board, id)) saveOutsideSource(board, id, { ...outsideSource(board, id), sandbox });
-    const returnedAt = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE && reopenFirstRefusalMinutes > 0 && item.item_built_by ? board.clock.now() : undefined;
-    const reservation = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalDetail(board, item, reopenFirstRefusalMinutes, returnedAt) : {};
-    const derivedCause = !isAccept && engine >= RIGOR_AUTO_ENGINE
-      ? deriveRigorCause(board, item, { cause, reason: code, agentId }) : !isAccept && cause != null ? { cause } : {};
-    const detail = { ...reservation, reason: code, commit: item.item_commit, ...derivedCause,
-      ...(companionDigest ? { companionDigest } : {}) };
-    if (isAccept && engine >= SPEC_APPROVAL_ENGINE) detail.note = note.trim();
-    if (isAccept && check !== undefined) detail.check = check;
-    if (environment !== undefined) detail.environment = environment;
-    if (sandbox !== undefined) detail.sandbox = sandbox;
-    if (newReview) detail.review = { commit: review.commit, ...(Object.hasOwn(review, 'head') ? { head: review.head } : {}), trunk: review.trunk, paths: [...review.paths] };
-    const trigger = logEvent(board, agentId, verb, id, implies?.length ? { ...detail, implies } : detail, returnedAt);
-    tellFirstRefusal(board, item, reservation, persistShout);
-    if (!isAccept) recordRejectedItemRoute(board, id, engine, item, { escalate, shout, logEvent });
-    tellVerdictImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), id, { seed: impliesId, implies });
+    const trigger = rejectClause.finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
+      agentId, code, cause, clauseDetail, companionDigest, note, check, environment, sandbox, newReview,
+      review, implies, impliesId, decision, verb }, { firstRefusalDetail, deriveRigorCause, logEvent, holdItem,
+      shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications });
     if (!isAccept) postRigorNotices(board, trigger);
-    return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}) };
+    return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}),
+      ...(clauseDetail.clause ? { clause: clauseDetail.clause, held: Boolean(itemHold(board, id)) } : {}) };
   });
 }
 
@@ -1706,7 +1695,7 @@ function insertShout(board, { from, to, text, lanes, item, decision = false, ans
     throw new Refused('NO_READER', `nobody reads "${to}": name a lane, an agent or all`);
   }
   if (to === PERSON && decision && from !== COORDINATOR) {
-    throw new Refused('B26_PERSON_DECISION', `only the coordinator can ask the person for a decision; ask your coordinator: pullboard shout coordinator "${text.trim()}" --decision`);
+    throw new Refused('B26_PERSON_DECISION', `only the coordinator can ask the person for a decision; ask your coordinator: pullboard shout coordinator --kind question "${text.trim()}" --decision`);
   }
   let outcome = '';
   if (ask?.shout_request) {
@@ -1969,6 +1958,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     }));
     const heldByMe = candidates.find((candidate) => candidate.holder === agentId)?.entry;
     if (heldByMe) return { item: heldByMe, reasons: [] };
+    const presenceProblem = liveRouteProblem(board, agentId);
+    if (presenceProblem) return { item: null, reasons: [presenceProblem] };
     const milestonePriority = milestonePriorities(board);
     const rank = milestoneRanks(board, milestonePriority);
     const scarcity = lineOrderEnabled(board) ? reviewerScarcity(board, candidates.map(candidate => candidate.entry), (entry, reviewer) =>
@@ -1995,6 +1986,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
   const plannedRelease = held && held.item_id === afterRelease ? held.item_id : null;
   if (held && plannedRelease === null) return { item: held, reasons: [] };
+  const presenceProblem = liveRouteProblem(board, agentId);
+  if (presenceProblem) return { item: null, reasons: [presenceProblem] };
   const selectedLanes = new Set(lanes ?? [lane]);
   const reasons = allItems.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane) && entry.item_hold_reason)
     .map((entry) => `#${entry.item_id} is held by coordinator: ${entry.item_hold_reason}`);
@@ -2067,23 +2060,6 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
 function waitingOn(item) {
   const rejected = item.item_status === 'open' && item.item_verdict === 'REJECT' ? ', rejected' : '';
   return `#${item.item_id} (${item.item_status}${rejected}, ${item.item_lane} lane)`;
-}
-
-/**
- * Why a lane has nothing to claim (N13): a lane whose items still await verdicts is not done, since
- * a rejected item comes back to it; the coordinator builds only its own lane's items.
- *
- * @param {any[]} items - Items not yet verified or withdrawn, as the agent may see them.
- * @param {string} lane
- * @param {string} routed
- * @returns {string}
- */
-function idleReason(items, lane, routed) {
-  const reason = `no open ${routed}items in the ${lane} lane`;
-  if (lane === COORDINATOR) return `${reason}; lane items are built from each lane's own worktree`;
-  const awaiting = items.filter((entry) => entry.item_lane === lane && entry.item_status === 'submitted').map((entry) => `#${entry.item_id}`);
-  if (!awaiting.length) return reason;
-  return `${reason}; ${awaiting.join(', ')} still await${awaiting.length === 1 ? 's' : ''} a verdict, and a rejected item comes back to this lane. A lane is done when its items are verified`;
 }
 
 export { relatedItems } from './board-query.js';

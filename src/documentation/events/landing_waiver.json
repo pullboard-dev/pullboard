@@ -1,0 +1,10 @@
+{
+  "kind": "landing_waiver",
+  "entries": [
+    {
+      "order": 24,
+      "actor": "person",
+      "detail": "`waiver`"
+    }
+  ]
+}

@@ -88,6 +88,7 @@ export function gateQueueSettings() {
 
 /** Board-owned controller inputs; false means off, independently of machine gate settings. */
 export const LINE_SETTING_DEFINITIONS = Object.freeze({
+  'route.liveOnly': Object.freeze({ type: 'boolean' }),
   order: Object.freeze({ type: 'boolean' }),
   focusMilestone: Object.freeze({ type: 'milestone' }),
   reviewsFirst: Object.freeze({ type: 'boolean' }),
@@ -95,6 +96,7 @@ export const LINE_SETTING_DEFINITIONS = Object.freeze({
   wipPerReviewer: Object.freeze({ type: 'number', min: 1.5, max: 3, integer: false }),
   barReady: Object.freeze({ type: 'boolean' }),
   'bar.check': Object.freeze({ type: 'boolean' }),
+  'bar.sharpenToPerson': Object.freeze({ type: 'boolean' }),
   takeoverMinutes: Object.freeze({ type: 'number', min: 15, max: 60, integer: true }),
   collisionFreeBatch: Object.freeze({ type: 'boolean' }),
   landingBatchSize: Object.freeze({ type: 'number', min: 1, max: 8, integer: true }),

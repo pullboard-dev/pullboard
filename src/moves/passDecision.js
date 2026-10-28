@@ -21,7 +21,7 @@ export default Object.freeze({ operation: "passDecision", order: 24, engine: 1,
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
   "ALREADY_ANSWERED": "read the answer with pullboard inbox; ask again with a new pullboard shout <to> \"<text>\" --decision",
-  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator \"<what you need>\"",
+  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator --kind question \"<what you need>\"",
   "EMPTY_NOTE": "say why: pullboard pass <id> --note \"<reason>\"",
   "NOT_COORDINATOR_DECISION": "list open decisions with pullboard decisions and answer one of those"
 }) });

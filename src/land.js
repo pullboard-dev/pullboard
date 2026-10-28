@@ -1,3 +1,4 @@
+import { requirePublishGreen } from './publish-pause.js';
 import { runDeferredGuards } from './landing-deferred-run.js';
 import { refreshLandedCodeMap } from './landing-main-notices.js';
 import { cadenceDeferral } from './landing-cadence.js';
@@ -19,6 +20,7 @@ import {
   mechanicalConflictFiles,
 } from './mechanical-merge.js';
 import { writeFormatTable } from './format-registry.js';
+import { refreshLandingDocs } from './landing-docs.js';
 import {
   createHash,
   randomUUID,
@@ -308,6 +310,7 @@ async function mergeGroup(state, items) {
     const engines = assignEngineNumbers(batch.root);
     if (existsSync(join(batch.root, 'src', 'formats')) && existsSync(join(batch.root, 'docs', 'formats.md'))
       && writeFormatTable(batch.root) && !engines.files.includes('docs/formats.md')) engines.files.push('docs/formats.md');
+    for (const file of refreshLandingDocs(batch.root)) if (!engines.files.includes(file)) engines.files.push(file);
     if (engines.files.length) {
       git(batch.root, ['add', '--', ...engines.files]);
       git(batch.root, ['commit', '--amend', '--no-edit']);
@@ -1265,7 +1268,11 @@ export async function land(options) {
   const trunk = mainCheckout(options.root);
   const branch = trunk?.branch;
   if (!branch) throw new Refused('LAND_TRUNK', 'landing needs the coordinator’s primary branch; return its checkout to the trunk');
-  if (trunk.commit) requireParallelGateAdmission(options.root, policyAt(options.root, trunk.commit).config);
+  if (trunk.commit) {
+    const policy = policyAt(options.root, trunk.commit).config;
+    requireParallelGateAdmission(options.root, policy);
+    requirePublishGreen(options.root, options.board, policy);
+  }
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);
     if (!options.due || idleLanding(options.board, trunk.commit)) {
@@ -1331,6 +1338,7 @@ export async function land(options) {
 export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, due = false, onWait, checkLease, checkLeaseNow, fence }) {
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
+  if (!dryRun && trunk?.commit) requirePublishGreen(root, board, policyAt(root, trunk.commit).config);
   const unfinished = store.landingBatches(board).findLast((batch) => batch.state !== 'landed' && batch.state !== 'blocked');
   if (fence && unfinished && unfinished.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the interrupted batch belongs to another trunk branch; restore that branch and start a fresh land --adopt');
   if (!dryRun && unfinished) for (const entry of unfinished.items ?? []) requireOutsideOwner(board, store.getItem(board, entry.id));

@@ -1,0 +1,10 @@
+{
+  "kind": "health-scan",
+  "entries": [
+    {
+      "order": 43,
+      "actor": "observing agent",
+      "detail": "`active`, optional `pendingCpu`, `engine`"
+    }
+  ]
+}

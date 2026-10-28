@@ -1,4 +1,5 @@
 /** Real HTTP calls against an isolated Git repo and the actual board engine (A2). */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
@@ -444,11 +445,9 @@ test('a detail read after a cache miss on a linked board spawns no git process [
   const codePrimary = join(box.dir, 'code-primary');
   const codeLinked = join(box.dir, 'code-linked');
   mkdirSync(codePrimary);
-  cpSync(resolve(import.meta.dirname, '../src'), join(codePrimary, 'src'), { recursive: true });
-  cpSync(resolve(import.meta.dirname, '../package.json'), join(codePrimary, 'package.json'));
-  cpSync(resolve(import.meta.dirname, '../CHANGELOG.md'), join(codePrimary, 'CHANGELOG.md'));
+  copyPackageFiles(resolve(import.meta.dirname, '..'), codePrimary);
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: codePrimary, env: box.env, stdio: 'pipe' });
-  runFixtureGit(['add', 'src', 'package.json', 'CHANGELOG.md'], { cwd: codePrimary, env: box.env, stdio: 'pipe' });
+  runFixtureGit(['add', '.'], { cwd: codePrimary, env: box.env, stdio: 'pipe' });
   runFixtureGit(['commit', '-q', '-m', 'chore: private copied product source'], { cwd: codePrimary, env: box.env, stdio: 'pipe' });
   runFixtureGit(['worktree', 'add', '-q', '--detach', codeLinked], { cwd: codePrimary, env: box.env, stdio: 'pipe' });
   const privateCommonDir = realpathSync.native(join(codePrimary, '.git'));
@@ -823,7 +822,7 @@ test("[A2, N26] a sent-back item's summary carries its reject note's first line"
   }
   const note = 'The page shows no greeting.\nThe second line stays in the detail.';
   const rejected = await submitted('Rejected item');
-  await move({ verb: 'verify', item: rejected, agent: verifier.agent, args: { decision: 'reject', reason: 'BEHAVIOR_MISMATCH', note } });
+  await move({ verb: 'verify', item: rejected, agent: verifier.agent, args: { decision: 'reject', reason: 'BEHAVIOR_MISMATCH', note, clause: 'shows a greeting' } });
   const accepted = await submitted('Accepted item');
   await move({ verb: 'verify', item: accepted, agent: verifier.agent, args: { decision: 'accept', reason: 'CRITERION_MET', note: 'The page greets by name.\nChecked twice.' } });
 
@@ -907,7 +906,7 @@ test('[A2, N26] a delta brings a snapshot up to date', async (t) => {
   const verdict = await catchUp('verdict');
   assert.deepEqual(changed(verdict, 'items').sort((a, b) => a - b), [item, waiting], 'the accept also unblocks the item waiting on it');
 
-  const asked = await move({ verb: 'shout', agent: builder.agent, args: { to: 'coordinator', text: 'May the delta skip the order?', decision: true } });
+  const asked = await move({ verb: 'shout', agent: builder.agent, args: { to: 'coordinator', text: 'May the delta skip the order?', kind: 'question', decision: true } });
   const shouted = await catchUp('shout');
   assert.ok(changed(shouted, 'shouts').includes(asked.id), 'the new shout travels');
   assert.ok(changed(shouted, 'asked').includes(asked.id), 'and so does the open question');

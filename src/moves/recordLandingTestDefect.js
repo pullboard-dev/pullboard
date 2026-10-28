@@ -18,7 +18,7 @@ function actor(move) { return move.args[0]?.agentId ?? null; }
 export default Object.freeze({ operation: "recordLandingTestDefect", order: 45, engine: 1,
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
-  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator \"<what you need>\"",
+  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator --kind question \"<what you need>\"",
   "ENGINE_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "LAND_TEST_DEFECT": "commit a correction to the test named by the held defect, or ask the person for an expiring test waiver; then run pullboard land again"
 }) });

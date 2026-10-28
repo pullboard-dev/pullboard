@@ -31,7 +31,7 @@ export default Object.freeze({ operation: "answerDecision", order: 25, engine: 1
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
   "ALREADY_ANSWERED": "read the answer with pullboard inbox; ask again with a new pullboard shout <to> \"<text>\" --decision",
-  "B26_PERSON_ANSWER": "ask your coordinator to answer or pass the decision: pullboard shout coordinator \"<question>\" --decision",
+  "B26_PERSON_ANSWER": "ask your coordinator to answer or pass the decision: pullboard shout coordinator --kind question \"<question>\" --decision",
   "NOT_A_DECISION": "reply with a shout: pullboard shout <to> \"<text>\"",
   "BAD_ORIGIN": "name where the decision came from with --origin person-relayed, agent or inherited, or leave --origin out",
   "NOT_YOUR_DECISION": "answer only decisions addressed to you; see pullboard inbox"

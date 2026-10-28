@@ -29,7 +29,7 @@ function fixture(t) {
 /** Claim the item with a frozen bar and a bounded lease. */
 function claim(f, id, agentId) {
   return store.claim(f.board, id, { agentId, lane: 'core', leaseMs: 7_200_000,
-    freeze: () => ({ text: JSON.stringify({ policy: { version: 1, commit: COMMIT, verify: { policy: 'any', family: 'off' } } }), digest: 'digest:bar' }) });
+    freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion, policy: { version: 1, commit: COMMIT, verify: { policy: 'any', family: 'off' } } }), digest: 'digest:bar' }) });
 }
 /** Submit and return an item through the real rejection, landing-failure or conflict path. */
 function returned(f, cause, minutes, causeKey) {
@@ -37,7 +37,7 @@ function returned(f, cause, minutes, causeKey) {
   claim(f, id, f.builder);
   submitFixture(f.board, id, { agentId: f.builder, commit: COMMIT, tree: COMMIT });
   const verdict = { agentId: f.other, head: COMMIT, digest: 'digest:bar', policy: 'any', note: 'proof', ...(causeKey ? { cause: causeKey } : {}) };
-  if (cause === 'reject') store.verify(f.board, id, { ...verdict, decision: 'REJECT', reason: 'OTHER', reopenFirstRefusalMinutes: minutes });
+  if (cause === 'reject') store.verify(f.board, id, { ...verdict, decision: 'REJECT', reason: 'OTHER', clause: 'prove', reopenFirstRefusalMinutes: minutes });
   else {
     store.verify(f.board, id, { ...verdict, decision: 'ACCEPT' });
     store.reopen(f.board, id, { agentId: 'coordinator', reopenFirstRefusalMinutes: minutes, ...(causeKey ? { cause: causeKey } : {}),
@@ -152,12 +152,18 @@ test('[B13,B5,H16] a sealed return persists one window and notice across replay 
   claim(f, id, f.builder);
   submitFixture(f.board, id, { agentId: f.builder, commit: COMMIT, tree: COMMIT });
   const args = firstRefusalArgs('verify', [id, { agentId: f.other, decision: 'REJECT', reason: 'OTHER',
-    note: 'proof', head: COMMIT, digest: 'digest:bar', policy: 'any' }], configFromSource('{"claim":{"reopenFirstRefusalMinutes":30}}'));
+    note: 'proof', clause: 'prove', head: COMMIT, digest: 'digest:bar', policy: 'any' }], configFromSource('{"claim":{"reopenFirstRefusalMinutes":30}}'));
   const move = prepareEngineMove(f.board, 'verify', args);
   assert.equal(move.engine, ENGINE_VERSION);
-  assert.throws(() => applyEngineMove(f.board, { ...move, engine: REOPEN_FIRST_REFUSAL_ENGINE - 1 },
+  const historical = { ...move, engine: REOPEN_FIRST_REFUSAL_ENGINE, args: [id, { ...move.args[1] }] };
+  delete historical.args[1].clause;
+  assert.throws(() => applyEngineMove(f.board, { ...historical, engine: REOPEN_FIRST_REFUSAL_ENGINE - 1 },
     { sequence: 1, at: '2026-01-01T00:00:00Z' }), /engine/);
   const receipt = { sequence: 1, at: '2026-01-01T00:00:00Z' };
+  const legacy = store.openBoard(':memory:');
+  t.after(() => store.closeBoard(legacy));
+  importBoard(legacy, exportBoard(f.board));
+  assert.equal(applyEngineMove(legacy, historical, receipt).error, undefined, 'the clause-free historical return keeps its original floor');
   applyEngineMove(f.board, move, receipt);
   applyEngineMove(f.board, move, receipt);
   assert.equal(store.recentShouts(f.board).filter(row => row.shout_text.includes('waits for you')).length, 1);

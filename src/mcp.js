@@ -43,13 +43,24 @@ export const MCP_TOOLS = Object.freeze([
     },
   },
   {
+    name: 'item_slice',
+    description: 'The code map slice for one item: its named files and functions, one hop out, and the tests that import them, stamped with main. Mirrors pullboard map --for <id>. Observations, not a complete call graph.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'integer', description: 'The item id, as on the board.' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'shout',
-    description: 'Shout to a lane, an agent or all, as this seat\'s agent. Mirrors pullboard shout <to> <text>.',
+    description: 'Shout to a lane, an agent or all, as this seat\'s agent. Coordinator shouts require kind question, blocker, decision, exception or idea.',
     inputSchema: {
       type: 'object',
       properties: {
         to: { type: 'string', description: 'A lane, an agent id, or all.' },
         text: { type: 'string', description: 'What to say.' },
+        kind: { type: 'string', enum: ['question', 'blocker', 'decision', 'exception', 'idea'], description: 'Required when to is coordinator.' },
       },
       required: ['to', 'text'],
       additionalProperties: false,
@@ -57,7 +68,7 @@ export const MCP_TOOLS = Object.freeze([
   },
   {
     name: 'capture_idea',
-    description: 'Capture an idea for the coordinator: it goes as a shout to the coordinator, marked as an idea. Mirrors pullboard shout coordinator "idea: <text>".',
+    description: 'Capture an idea for the coordinator as a shout with --kind idea. Mirrors pullboard shout coordinator "idea: <text>" --kind idea.',
     inputSchema: {
       type: 'object',
       properties: { text: { type: 'string', description: 'The idea, in a sentence or two.' } },
@@ -99,7 +110,7 @@ export const MCP_TOOLS = Object.freeze([
   },
   {
     name: 'verify',
-    description: 'Give a verdict on another agent\'s submitted item from its checked-out commit. Mirrors pullboard verify <id> accept --note "<how>" or reject --reason <CODE> --note "<what failed>".',
+    description: 'Give a verdict on another agent\'s submitted item from its checked-out commit. Mirrors pullboard verify <id> accept --note "<how>" or reject --reason <CODE> --clause "<frozen wording>" --note "<what failed>".',
     inputSchema: {
       type: 'object',
       properties: {
@@ -108,6 +119,7 @@ export const MCP_TOOLS = Object.freeze([
         note: { type: 'string', description: 'How it was proved, or what failed.' },
         reason: { type: 'string', description: 'For a reject: the reason code, such as TEST_FAILURE.' },
         cause: { type: 'string', description: 'For a reject: the cause key, when one is known.' },
+        clause: { type: 'string', description: 'For a reject: exact wording from the frozen criterion or spec row.' },
       },
       required: ['id', 'decision', 'note'],
       additionalProperties: false,
@@ -168,7 +180,7 @@ function normalizedToolName(name) {
  */
 export function refusePersonMove(name) {
   if (!PERSON_MOVE.test(normalizedToolName(name))) return;
-  throw new Refused('HUMAN_REQUIRED', `${name} is a person's move; approving or declining rows, answering decisions, accepting checks and signing off come only from the person, never through MCP; ask your coordinator to bring it to the person, with the shout tool or pullboard shout coordinator --decision`);
+  throw new Refused('HUMAN_REQUIRED', `${name} is a person's move; approving or declining rows, answering decisions, accepting checks and signing off come only from the person, never through MCP; ask your coordinator to bring it to the person, with the shout tool or pullboard shout coordinator --kind question --decision`);
 }
 
 /**
@@ -198,7 +210,8 @@ function loopArgv(name, input) {
   if (name === 'submit') return ['submit', '--json', ...(input.infra === undefined ? [] : [`--infra=${input.infra}`]), '--', String(input.id)];
   if (name === 'verify') {
     return ['verify', '--json', `--note=${input.note}`, ...(input.reason === undefined ? [] : [`--reason=${input.reason}`]),
-      ...(input.cause === undefined ? [] : [`--cause=${input.cause}`]), '--', String(input.id), input.decision];
+      ...(input.cause === undefined ? [] : [`--cause=${input.cause}`]),
+      ...(input.clause === undefined ? [] : [`--clause=${input.clause}`]), '--', String(input.id), input.decision];
   }
   if (name === 'resume') return ['resume', '--json'];
   return null;
@@ -233,6 +246,10 @@ async function callTool(runCommand, cwd, name, args) {
       needsYou,
     }, false);
   }
+  if (name === 'item_slice') {
+    const slice = await runCli(runCommand, cwd, ['map', '--json', `--for=${input.id}`]);
+    return toolResult(slice.document, Boolean(slice.status));
+  }
   if (name === 'show_item') {
     const shown = await runCli(runCommand, cwd, ['show', '--json', '--', String(input.id)]);
     return toolResult(shown.document, Boolean(shown.status));
@@ -247,8 +264,8 @@ async function callTool(runCommand, cwd, name, args) {
   // The CLI's own shout argv, positionals after --, as moveArgs builds it. moveArgs refuses blank text
   // before the engine runs, so the text goes straight to the CLI, whose shout refuses it as EMPTY_SHOUT.
   const argv = name === 'shout'
-    ? ['shout', '--json', '--', input.to, input.text]
-    : ['shout', '--json', '--', COORDINATOR, input.text.trim() ? `${IDEA_PREFIX}${input.text}` : input.text];
+    ? ['shout', ...(input.kind === undefined ? [] : [`--kind=${input.kind}`]), '--json', '--', input.to, input.text]
+    : ['shout', '--kind=idea', '--json', '--', COORDINATOR, input.text.trim() ? `${IDEA_PREFIX}${input.text}` : input.text];
   const moved = await runCli(runCommand, cwd, argv);
   return toolResult(moved.document, Boolean(moved.status));
 }

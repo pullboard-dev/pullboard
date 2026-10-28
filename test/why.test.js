@@ -55,19 +55,19 @@ test('a decision records its origin and pullboard why names the decisions behind
   const box = fixture();
   const web = box.web;
 
-  const ask = box.json(web, 'shout', 'coordinator', 'Keep line two upper case?', '--decision').id;
+  const ask = box.json(web, 'shout', 'coordinator', 'Keep line two upper case?', '--kind', 'question', '--decision').id;
   const answer = box.json(box.repo, 'answer', String(ask), 'Keep it upper case', '--implies', '1',
     '--origin', 'person-relayed', '--rationale', 'the person wants it to read as a heading').id;
-  const askOther = box.json(web, 'shout', 'coordinator', 'Change the other file?', '--decision').id;
+  const askOther = box.json(web, 'shout', 'coordinator', 'Change the other file?', '--kind', 'question', '--decision').id;
   const answerOther = box.json(box.repo, 'answer', String(askOther), 'Change it', '--implies', '2').id;
 
-  const inheritedAsk = box.json(web, 'shout', 'coordinator', 'Keep the inherited convention?', '--decision').id;
+  const inheritedAsk = box.json(web, 'shout', 'coordinator', 'Keep the inherited convention?', '--kind', 'question', '--decision').id;
   const inherited = box.json(box.repo, 'answer', String(inheritedAsk), 'Keep the convention', '--implies', '2',
     '--origin', 'inherited', '--rationale', 'the earlier design supplies no named decider').id;
   const personAsk = box.json(box.repo, 'shout', 'person', 'Approve the other change?', '--decision').id;
   const person = box.json(box.repo, 'answer', String(personAsk), 'I approve this change', '--as', 'person', '--implies', '2').id;
 
-  const third = box.json(web, 'shout', 'coordinator', 'One more?', '--decision').id;
+  const third = box.json(web, 'shout', 'coordinator', 'One more?', '--kind', 'question', '--decision').id;
   const forged = box.run(box.repo, 'answer', String(third), 'x', '--origin', 'person');
   assert.notEqual(forged.code, 0, 'an agent cannot name the person as the origin');
   assert.match(forged.err, /BAD_ORIGIN/u);

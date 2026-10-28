@@ -1,10 +1,9 @@
+import { REJECT_CLAUSE_ENGINE } from './reject-clause-engine.js';
 /** Recorded controller inputs, not machine capacity or active queue enforcement [R1,R2,H16]. */
 import { atomic } from './board.js';
 import { logEvent } from './board-event-log.js';
 import {
-  LINE_SETTING_DEFINITIONS,
   validateLineSetting,
-  validateKnownLineSetting,
 } from './queue-settings.js';
 import { FOCUS_MILESTONE_ENGINE } from './focus-milestone-engine.js';
 import { LINE_ORDER_ENGINE } from './line-order-engine.js';
@@ -12,23 +11,11 @@ import { LINE_SETTINGS_ENGINE } from './line-settings-engine.js';
 import { LAND_COLLISION_ENGINE } from './landing-collision-engine.js';
 import { Refused } from './refused.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from './review-independence-engine.js';
+import { LIVE_ROUTE_ENGINE } from './live-route-engine.js';
 
 const PREFIX = 'line_setting:';
 
-/** Read the latest recorded values, with every absent control explicitly off. */
-export function lineSettings(board) {
-  const values = Object.fromEntries(Object.keys(LINE_SETTING_DEFINITIONS).map(key => [key, false]));
-  for (const row of board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key GLOB 'line_setting:*'").all()) {
-    const key = row.meta_key.slice(PREFIX.length);
-    if (!Object.hasOwn(values, key)) continue; // A future engine may have a control this reader does not know.
-    let value;
-    try { value = JSON.parse(row.meta_value); }
-    catch { throw new Refused('LINE_SETTING_RANGE', 'a stored line setting is malformed; restore its recorded board value before changing policy'); }
-    validateKnownLineSetting(key, value);
-    values[key] = value;
-  }
-  return values;
-}
+export { lineSettings } from './line-settings-read.js';
 
 /** Keep the triggering window as finite numeric observations; null retains an explicitly unknown measurement. */
 function windowNumbers(value) {
@@ -43,7 +30,7 @@ function windowNumbers(value) {
 /** Change one board input atomically with its reason and measured window, so ordered replay makes the same event. */
 export function setLineSetting(board, { agentId, key, value, reason, window } = {}) {
   if (agentId !== 'coordinator') throw new Refused('COORDINATOR_ONLY', 'ask the coordinator to record a line setting with its reason and window numbers');
-  const required = key === 'requireReviewFamilies' ? REVIEW_INDEPENDENCE_ENGINE : key === 'focusMilestone' ? FOCUS_MILESTONE_ENGINE : key === 'collisionFreeBatch' ? LAND_COLLISION_ENGINE : key === 'order' ? LINE_ORDER_ENGINE : LINE_SETTINGS_ENGINE;
+  const required = key === 'bar.sharpenToPerson' ? REJECT_CLAUSE_ENGINE : key === 'requireReviewFamilies' ? REVIEW_INDEPENDENCE_ENGINE : key === 'route.liveOnly' ? LIVE_ROUTE_ENGINE : key === 'focusMilestone' ? FOCUS_MILESTONE_ENGINE : key === 'collisionFreeBatch' ? LAND_COLLISION_ENGINE : key === 'order' ? LINE_ORDER_ENGINE : LINE_SETTINGS_ENGINE;
   if ((board.executionEngineVersion ?? required) < required) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before recording or replaying board line settings');
   validateLineSetting(key, value);
   if (typeof reason !== 'string' || !reason.trim()) throw new Refused('LINE_SETTING_REASON', 'give the reason for this change with --reason "what the measured window shows"');

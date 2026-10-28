@@ -19,7 +19,7 @@ export function setupDecisionRows(root, config, records, rows) {
 export function withStarterWork(setup, { board, me, main, config, root, seat }) {
   if (setup?.waitingOn !== 'person-approval') return setup;
   const meanwhile = seat
-    ? 'While waiting, review independent approved work or send questions to the coordinator with pullboard shout coordinator "<what is needed>" --decision.'
+    ? 'While waiting, review independent approved work or send questions to the coordinator with pullboard shout coordinator --kind question "<what is needed>" --decision.'
     : 'While waiting, the agent may review independent approved work or prepare questions for the person.';
   const waiting = { ...setup, meanwhile };
   const proposed = main ? proposeLanes(root, config) : [];
@@ -62,7 +62,7 @@ export function applyStep(rowIds, seat) {
   return { waitingOn: 'coordinator-apply', rowIds,
     question: seat ? `The person approved ${names}; the coordinator applies them.` : `The person approved ${names}; apply them: pullboard spec apply.`, command: 'pullboard spec apply',
     afterAnswer: 'spec apply writes the person’s decisions into SPEC.md; then commit SPEC.md so every worktree reads them.',
-    agentNext: seat ? `ask the coordinator to apply ${names}: pullboard shout coordinator "the person approved ${names}; please run pullboard spec apply"` : 'pullboard spec apply, then commit SPEC.md' };
+    agentNext: seat ? `ask the coordinator to apply ${names}: pullboard shout coordinator --kind question "the person approved ${names}; please run pullboard spec apply"` : 'pullboard spec apply, then commit SPEC.md' };
 }
 
 /**
@@ -81,5 +81,5 @@ export function personAsk(rows) {
   const request = verb === 'approve' ? `bring approval of ${names} to the person` : `ask the person to ${verb} ${names}`;
   return { personCommand, verb,
     seatQuestion: `Waiting for the coordinator to ${request}.`,
-    seatNext: `ask the coordinator to ${request}: pullboard shout coordinator "${verb} ${names}" --decision; meanwhile pullboard spec show ${rows[0].id}` };
+    seatNext: `ask the coordinator to ${request}: pullboard shout coordinator --kind question "${verb} ${names}" --decision; meanwhile pullboard spec show ${rows[0].id}` };
 }

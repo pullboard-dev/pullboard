@@ -1,0 +1,10 @@
+{
+  "kind": "landing_flake",
+  "entries": [
+    {
+      "order": 25,
+      "actor": "coordinator",
+      "detail": "`flake`"
+    }
+  ]
+}

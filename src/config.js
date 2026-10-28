@@ -58,6 +58,8 @@ export function defaults() {
     reviewLease: '30m',
     worktrees: 'beside',
     verify: { policy: 'any', family: 'off', reviewRatio: 3 },
+    // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
+    map: { slice: false },
     agents: { names: 'suffix' },
     check: { install: '', timeout: '5m' },
     claim: { reopenFirstRefusalMinutes: 0, barTestFiles: ['**/*.test.js', '**/*.test.mjs', '**/*.test.cjs', '**/*.spec.js', '**/*.spec.mjs', '**/*.spec.cjs'] },
@@ -117,6 +119,7 @@ function merge(base, raw) {
     specAgentApproval: spec?.agentApproval === undefined ? 'flag' : spec.agentApproval,
     commits: { ...base.commits, ...(raw.commits ?? {}) },
     protect: { ...base.protect, ...(raw.protect ?? {}) },
+    map: raw.map && typeof raw.map === 'object' && !Array.isArray(raw.map) ? { ...base.map, ...raw.map } : base.map,
     verify: typeof raw.verify === 'string'
       ? { ...base.verify, policy: raw.verify }
       : { ...base.verify, ...(raw.verify ?? {}) },
@@ -235,12 +238,13 @@ export function configProblems(config) {
   }
   if (typeof config.staticChecks !== 'string') problems.push('"staticChecks" is an optional project static-check command');
   if (config.landing !== undefined && (typeof config.landing !== 'object' || config.landing === null || Array.isArray(config.landing)
-    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'cadence', 'parallel'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
+    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'cadence', 'parallel', 'pauseOnRed'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
     problems.push('"landing" has optional environment: { platform, arch, node }, "timeout" and "cadence" durations, "parallel": true for concurrent candidate gates, and "publish": "separate" to land locally and push through pullboard publish');
   } else if (config.landing?.environment !== undefined && environmentProblem(config.landing.environment)) {
     problems.push(`"landing.environment" ${environmentProblem(config.landing.environment)}`);
   }
   if (config.landing?.parallel !== undefined && typeof config.landing.parallel !== 'boolean') problems.push('"landing.parallel" is a boolean; omit it or use false to keep serial landing');
+  if (config.landing?.pauseOnRed !== undefined && typeof config.landing.pauseOnRed !== 'boolean') problems.push('"landing.pauseOnRed" is a boolean, off by default; true pauses landing after an unproven red publish full suite');
   const cadenceError = cadenceProblem(config.landing?.cadence);
   if (cadenceError) problems.push(cadenceError);
   for (const key of ['timeout']) {
@@ -301,6 +305,9 @@ export function configProblems(config) {
   }
   if (config.verify?.unrelatedTrunkMoves !== undefined && typeof config.verify.unrelatedTrunkMoves !== 'boolean') {
     problems.push('"verify.unrelatedTrunkMoves" is true or false');
+  }
+  if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
+    problems.push('"map.slice" is true or false');
   }
   if (!Number.isFinite(config.verify?.reviewRatio) || config.verify.reviewRatio <= 0) {
     problems.push('"verify.reviewRatio" is a positive number, such as 3');

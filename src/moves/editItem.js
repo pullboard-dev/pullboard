@@ -45,6 +45,6 @@ export default Object.freeze({ operation: "editItem", order: 9, engine: 1,
   "BAD_REVIEW_FAMILY": "use --review-family with a nonempty declared reviewer family of at most 100 characters",
   "BAD_CHECK": "ask your coordinator to set the check: pullboard edit <id> --check \"<command>\"",
   "BAR_REASON": "say what the old bar got wrong: pullboard edit <id> --reason \"...\"",
-  "COORDINATOR_CHECK": "ask your coordinator to set the check: pullboard shout coordinator \"please set a check on #<id>\"",
+  "COORDINATOR_CHECK": "ask your coordinator to set the check: pullboard shout coordinator --kind question \"please set a check on #<id>\"",
   "USAGE": "run pullboard help"
 }) });

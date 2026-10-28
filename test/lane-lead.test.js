@@ -44,24 +44,24 @@ test('a lane question reaches its lead and only the decision reaches the coordin
   const leadId = document(box, lead, 'join', 'web').agent;
   document(box, other, 'join', 'api');
   const item = document(box, box.repo, 'add', 'web', 'Keep working during lane coordination',
-    '--criterion', 'The page renders.', '--specs', 'G1').item.item_id;
+    '--criterion', 'The page renders.', '--specs', 'G1', '--check', 'test -f web/page.html', '--wait').item.item_id;
   document(box, box.web, 'claim', String(item));
   const claimed = document(box, box.web, 'show', String(item));
-  const legacy = document(box, box.web, 'shout', 'coordinator', 'Default-off question', '--decision');
+  const legacy = document(box, box.web, 'shout', 'coordinator', 'Default-off question', '--kind', 'question', '--decision');
   assert.equal(message(box, legacy.id).shout_to, 'coordinator', 'no named lead leaves legacy delivery unchanged');
   document(box, box.repo, 'lanes', 'lead', 'web', leadId);
   assert.equal(document(box, box.repo, 'lanes').leads?.web, leadId, 'the coordinator durably names the existing lane seat');
   const denied = box.run(box.web, 'lanes', 'lead', 'web', 'off', '--json');
   assert.equal(JSON.parse(denied.out).error?.code, 'COORDINATOR_ONLY');
   assert.equal(document(box, box.repo, 'lanes').leads.web, leadId);
-  const question = document(box, box.web, 'shout', 'coordinator', 'Which interface?', '--decision');
+  const question = document(box, box.web, 'shout', 'coordinator', 'Which interface?', '--kind', 'question', '--decision');
   assert.equal(message(box, question.id).shout_to, leadId);
   assert.ok(document(box, lead, 'inbox').shouts.some(row => row.shout_id === question.id));
   assert.equal(document(box, box.repo, 'inbox').shouts.some(row => row.shout_id === question.id), false);
   const blocked = document(box, box.web, 'shout', 'coordinator', 'Need an API answer', '--kind', 'blocker', '--decision');
   assert.equal(message(box, blocked.id).shout_to, leadId);
   const status = box.run(box.web, 'shout', 'coordinator', 'Still implementing', '--kind', 'status', '--json');
-  assert.equal(JSON.parse(status.out).error?.code, 'STATUS_IS_ACTIVITY');
+  assert.equal(JSON.parse(status.out).error?.code, 'COORDINATOR_STATUS_FACT');
   const beforeDeniedDecision = document(box, box.repo, 'export');
   const decision = box.run(box.web, 'shout', 'coordinator', 'Worker cannot decide for the lane', '--kind', 'decision', '--json');
   assert.equal(JSON.parse(decision.out).error?.code, 'NOT_LANE_LEAD');
