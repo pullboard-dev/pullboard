@@ -32,7 +32,11 @@ import {
   tryGit,
 } from './git.js';
 import { Refused } from './refused.js';
-import { mainPolicy, policyAt, trunkRef } from './trusted-policy-read.js';
+import {
+  mainPolicy,
+  policyAt,
+  trunkRef,
+} from './trusted-policy-read.js';
 import { familyIndex } from './review-policy.js';
 import { MAIN_MERGE_LABEL } from './trunk-conflict.js';
 
