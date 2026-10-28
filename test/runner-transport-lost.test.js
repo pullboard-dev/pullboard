@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Actual SSH protocol failures retain evidence and recover through the shared queue [C7]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync } from 'node:fs';
@@ -77,9 +78,10 @@ test('one transient SSH failure is confirmed before a healthy runner is readmitt
   const url = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
   const command = `node -e 'console.log("RECOVERED_EXECUTION")'`;
   const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(url)};
+${executionServicesSource(url)}
     import {DatabaseSync} from 'node:sqlite';
     const run=await withGateSlot(process.cwd(),lease=>runProfiledShellAsync(process.cwd(),
-      ${JSON.stringify(command)},{gateLease:lease}),{remote:true,onWait(){}});
+      ${JSON.stringify(command)},{gateLease:lease}),{ executionServices,remote:true,onWait(){}});
     const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite',{readOnly:true});
     const unavailable=db.prepare('SELECT * FROM runner_unavailable').all();
     const failures=db.prepare('SELECT * FROM runner_transport_error').all();db.close();
@@ -111,11 +113,12 @@ test('an SSH-healthy host whose worker misses READY stays held after the admissi
   const transport = pathToFileURL(join(import.meta.dirname, '../src/runner-transport.js')).href;
   const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
   const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
+${executionServicesSource(gate)}
     import {probeRunnerTransport} from ${JSON.stringify(transport)};
     import {recoverUnavailableRunners} from ${JSON.stringify(recovery)};
     import {DatabaseSync} from 'node:sqlite';import {readFileSync} from 'node:fs';
     let code;try{await withGateSlot(process.cwd(),lease=>runProfiledShellAsync(process.cwd(),'true',{gateLease:lease}),
-      {remote:true,onWait(){}});}catch(error){code=error.code;if(code!=='RUNNER_WAIT_DEADLINE')throw error;}
+      { executionServices,remote:true,onWait(){}});}catch(error){code=error.code;if(code!=='RUNNER_WAIT_DEADLINE')throw error;}
     const attempts=readFileSync(${JSON.stringify(box.starts)},'utf8').trim().split('\\n').length;
     const health=await probeRunnerTransport(${JSON.stringify(box.runner)});
     const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite');

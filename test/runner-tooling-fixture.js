@@ -1,5 +1,6 @@
 import { copyPackageFiles } from '../src/package-files.js';
 /** Shared registered-runner test tooling and bounded round-trip helpers. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import { awaitNestedRun } from '../src/test-file-pool.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
@@ -165,8 +166,9 @@ export async function runThroughGate(repo, env, command, { browser = true, timin
   const snapshot = TOOLING_SNAPSHOTS.get(sourceRoot);
   snapshot.active++;
   const script = `const { runProfiledShell, withGateSlot } = await import(${JSON.stringify(gateUrl)});
+${executionServicesSource(gateUrl)}
 const result = await withGateSlot(${JSON.stringify(repo)}, lease => runProfiledShell(${JSON.stringify(repo)}, ${JSON.stringify(command)}, { gateLease: lease, landing: ${landing} }),
-  { browser: ${browser}, timing: ${timing}, item: ${JSON.stringify(item)}, kind: ${JSON.stringify(kind)}, landing: ${landing}, agent: 'runner-fixture' });
+  { executionServices, browser: ${browser}, timing: ${timing}, item: ${JSON.stringify(item)}, kind: ${JSON.stringify(kind)}, landing: ${landing}, agent: 'runner-fixture' });
 process.stdout.write(result.output);
 process.stdout.write('PULLBOARD_RUN_RESULT ' + JSON.stringify({ isGreen: result.isGreen, runner: result.profile.executionRunner, sandboxBlocked: result.sandboxBlocked, profile: result.profile }) + '\\n');
 process.exitCode = result.isGreen ? 0 : 1;

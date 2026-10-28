@@ -1,3 +1,7 @@
+import { sampleRunnerLoad } from './runner-load.js';
+import { localRunnerDescriptor } from './runner-load.js';
+import { carriedRunnerTrunk } from './runner-policy.js';
+import { probeRunnerTransport } from './runner-transport.js';
 import { installRunnerPackage } from './runner-package-install.js';
 import {
   captureRunnerTooling,
@@ -67,7 +71,7 @@ import {
 } from './git.js';
 import { Refused } from './refused.js';
 import { recordRunnerGui } from './resources.js';
-import { runnerPhaseFields } from './runner-overhead.js';
+import { runnerPhaseFields } from './timing.js';
 import {
   gateStages,
   readStages,
@@ -888,3 +892,9 @@ function refuseLegacyControllerEntry() {
   process.exitCode = 1;
 }
 refuseLegacyControllerEntry();
+
+/** Supply canonical late-bound runner operations to an actual higher gate composition root. */
+export function runnerExecutionServices() {
+  return Object.freeze({ runOnRunner, runOnRunnerAsync, sampleRunnerLoad, localRunnerDescriptor,
+    carriedRunnerTrunk, probeRunnerTransport });
+}

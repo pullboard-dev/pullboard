@@ -3,6 +3,8 @@ import { boardBusyError } from '../board-access.js';
 import { openBoardReadOnly } from '../board-read-open.js';
 import { rowDecisions } from '../row-decisions-query.js';
 import { checkLoosening } from '../doctrine-checks.js';
+import { runnerExecutionServices } from '../runners.js';
+import { landingExecutionServices } from '../landing-shards.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import { gitBoardDataPush } from '../../packages/commits/src/core/board-format.js';
@@ -128,7 +130,7 @@ export async function hookCommand(io, { first, second }) {
       if (waived && isClean(info.root) && !untracked(info.root).length) io.say(`pre-push: exact landing tree covered by live person waivers in batch ${waived.id}; no ordinary green stamp`);
       else if (recordedException) problems = ['the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver'];
       else {
-        const gate = await runGate(info.root, ctx.config, { landing, agent: resourceAgent(ctx), onWait: gateWaitReporter(io) });
+        const gate = await runGate(info.root, ctx.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing, agent: resourceAgent(ctx), onWait: gateWaitReporter(io) });
         if (gate.isCached) io.say('pre-push: the gate passed on this exact tree; not running it twice');
         if (!gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
       }

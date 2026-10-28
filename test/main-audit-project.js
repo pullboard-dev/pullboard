@@ -1,6 +1,7 @@
 /** @pullboard-module-loads src/board.js src/main-audit-state.js src/gate-run-receipt.js */
 /** Shared real main-audit fixture; synthetic acceptance is setup, never runtime proof [C7]. */
 /** @pullboard-test-input source-tree */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { startFixtureChild as spawn, runFixtureChild as spawnSync } from './fixture-child.js';
@@ -83,7 +84,8 @@ export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   /** Hold both private production gate slots, releasing only this owned child's actions by IPC. */
   async function holdBoth(){
     const module=pathToFileURL(join(installed,'src/gate.js')).href;
-    const code=`import {withGateSlot} from ${JSON.stringify(module)};await Promise.all([0,1].map(i=>withGateSlot(${JSON.stringify(repo)},async()=>{process.send({held:i});await new Promise(r=>process.once('message',r));},{remote:false,browser:false,agent:'fixture-slot-'+i})));process.disconnect();`;
+    const code=`import {withGateSlot} from ${JSON.stringify(module)};
+${executionServicesSource(module)}await Promise.all([0,1].map(i=>withGateSlot(${JSON.stringify(repo)},async()=>{process.send({held:i});await new Promise(r=>process.once('message',r));},{ executionServices,remote:false,browser:false,agent:'fixture-slot-'+i})));process.disconnect();`;
     const child=spawn(process.execPath,['--input-type=module','-e',code],{cwd:repo,env,detached:true,stdio:['ignore','pipe','pipe','ipc']});children.push(child);child.stdout.resume();child.stderr.resume();const closed=once(child,'close');const held=new Set();child.on('message',m=>held.add(m.held));
     await observed(()=>held.size===2,'both production gate slots held');
     return async()=>{child.send('release');assert.equal((await closed)[0],0);};

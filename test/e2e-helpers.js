@@ -135,7 +135,7 @@ function holdingGate(box) {
     "fs.appendFileSync(events, 'end\\n');",
   ].join('\n'));
   const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
-  return { command: `node ${quote(script)} ${quote(mode)} ${quote(release)} ${quote(events)}`, mode, release, events };
+  return { command: `${quote(process.execPath)} ${quote(script)} ${quote(mode)} ${quote(release)} ${quote(events)}`, mode, release, events };
 }
 
 /** Launch a CLI or Git process while preserving its output for the gate-lock assertion. */

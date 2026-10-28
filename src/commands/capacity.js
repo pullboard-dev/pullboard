@@ -1,3 +1,6 @@
+import { gateRuns } from '../quarantine.js';
+import { flakeLedger } from '../flakes.js';
+import { eventCauses } from '../rigor.js';
 /** Observed test-work cost and explicit boundary inventory, without changing admission [C7]. */
 import { context } from '../cli.js';
 import { withBoardRead } from '../cli.js';
@@ -15,7 +18,7 @@ export function run(io, { first, second, rest, values }) {
   const ctx = context(io);
   const report = withBoardRead(ctx, board => {
     board.db.exec('SAVEPOINT capacity_read');
-    try { return testCapacityReport(board, { root: ctx.info.root, costs: ctx.config.testEconomics, now: ctx.clock.now().getTime() }); }
+    try { return testCapacityReport(board, { root: ctx.info.root, costs: ctx.config.testEconomics, now: ctx.clock.now().getTime() }, { flakeLedger, eventCauses, gateRuns }); }
     finally { board.db.exec('RELEASE capacity_read'); }
   });
   io.result?.({ report });
