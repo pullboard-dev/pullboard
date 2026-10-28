@@ -1,3 +1,5 @@
+import { readCapacity } from '../capacity-read.js';
+import { capacityLines } from '../capacity-model.js';
 import { releaseBlockingItems } from '../stale-state-blockers.js';
 import { staleStateSnapshot } from '../stale-state-query.js';
 import { staleStateLine } from '../stale-state-policy.js';
@@ -69,7 +71,7 @@ export async function run(io, { values }) {
     const approvalState = personNeedsSummary(ctx.info.root, { board, config: ctx.config, agents, doctrine: ctx.doctrine });
     const person = board.db.prepare("SELECT 1 FROM event WHERE event_kind='person_signing' LIMIT 1").get()
       ? { signed: (await import('../person-signing.js')).personSigning(board).signed } : { signed: false };
-    return { me, mine, person, agents, presenceCounts, capacity: routingCapacity(board, agents, statusForeignBlockers), staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root) : unlinkedRelayStatus(),
+    return { me, mine, person, agents, presenceCounts, capacity: routingCapacity(board, agents, statusForeignBlockers), capacityForecast: readCapacity(board), staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
   if (!summary.relay.linked && existsSync(relayMachineDirectory())) {
@@ -91,6 +93,7 @@ export async function run(io, { values }) {
   if (summary.specApprovalBaseline?.pending) io.say('approval baseline pending: the next coordinator or person command in the main checkout records the existing approved rows; lane work may continue and none are flagged until then');
   if (summary.specApprovalBaseline?.invalid) io.say('approval baseline unreadable: existing rows need approval evidence; restore a known-good board export to recover the original baseline');
   io.say(reviewQueueLine(ctx, summary.reviewQueue, span));
+  for (const line of capacityLines(summary.capacityForecast)) io.say(line);
   io.say(signingLine(summary.person));
   for (const entry of [...summary.staleState.holds, ...summary.staleState.claims, ...summary.staleState.reviews]) {
     const incomplete = entry.evidence?.complete !== true;
