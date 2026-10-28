@@ -19,6 +19,8 @@ test('every current operation selects its native actor credential without a seco
   const box = await relayClientFixture(t);
   await box.link();
   const actor = 'coordinator';
+  assert.equal(box.before.tables.item[0].item_status, 'open', 'the first follow control starts with a genuinely unclaimed row');
+  assert.ok(ENGINE_OPERATIONS.indexOf('claim') < ENGINE_OPERATIONS.indexOf('followItemPatches'), 'the later source-fence control follows the actual claim operation');
   const options = { agentId: actor, lane: box.lane, leaseMs: 3600000, reason: 'credential fixture', note: 'credential fixture', text: 'fixture', kind: 'observation', head: 'a'.repeat(40), frozen: { text: '{"rows":[]}', digest: 'f'.repeat(64) } };
   const cases = ENGINE_OPERATIONS.map(operation => {
     let args = [999999, options];
@@ -89,16 +91,22 @@ test('every current operation selects its native actor credential without a seco
     // A gate run with no receipt from this machine's own gate is refused before it reaches transport.
     // An automatic source advance, like a gate receipt, requires private native origin custody before transport.
     if (operation === 'advanceItemSource') return { operation, args, kind, sent: false, expected: 'SOURCE_ADVANCE_STALE' };
-    if (operation === 'followItemPatches') return { operation, args, kind, sent: false, expected: 'NOT_YOURS' }; // This real fixture row is unclaimed; origin custody stops before transport.
+    // The earlier claim case now owns this row; a non-HEAD source must stop at native origin sealing.
+    if (operation === 'followItemPatches') return { operation, args: [box.before.tables.item[0].item_id, { agentId: actor, commit: '0'.repeat(40) }],
+      kind, sent: false, expected: 'ITEM_PATCH_SOURCE', label: 'followItemPatches claimed row with invalid head' };
     if (operation === 'recordTrainLanding') return { operation, args: [{ agentId: 'coordinator',
       batch: { root: box.root, items: [{ id: 999999 }], tip: 'a'.repeat(40) } }], kind, sent: false, expected: 'LAND_RECEIPT_REQUIRED' };
     if (operation === 'recordProofRun') return { operation, args, kind, sent: false, expected: 'PROOF_RUN_UNBOUND' };
     if (operation === 'recordGateRun') return { operation, args, kind, sent: false, expected: 'GATE_RUN_UNBOUND' };
     return { operation, args, kind, ...(kind === 'person' ? { sent: false } : {}) };
   });
+  cases.unshift({ operation: 'followItemPatches', args: [box.before.tables.item[0].item_id, { agentId: actor, commit: '0'.repeat(40) }],
+    kind: 'agent', sent: false, expected: 'NOT_YOURS', label: 'followItemPatches initial unclaimed row' });
   cases.push(
     { operation: 'recordTrainLanding', args: [{}, { agentId: actor }], kind: 'agent', sent: false, expected: 'COORDINATOR_ONLY' },
-    { operation: 'followItemPatches', args: [box.before.tables.item[0].item_id, {}], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
+    // Native preparation checks claim authority before actorTransport; no implicit actor is supplied.
+    { operation: 'followItemPatches', args: [box.before.tables.item[0].item_id, { commit: '0'.repeat(40) }],
+      kind: 'agent', sent: false, expected: 'NOT_YOURS', label: 'followItemPatches missing actor' },
     { operation: 'fileTypedRequest', args: [{ verb: 'hold', itemId: 999999, cause: 'routing-assignment' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'answerTypedRequests', args: [{ answers: [{ requestId: 999999, outcome: 'declined', note: 'missing actor' }] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'requestCompanion', args: [{ parentId: 999999, lane: box.lane, key: 'missing-actor', title: 'Missing actor' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
@@ -151,7 +159,7 @@ test('every current operation selects its native actor credential without a seco
   let recordIndex = 0;
   for (const [index, entry] of cases.entries()) {
     if (entry.sent === false) {
-      assert.equal(results[index], entry.expected ?? 'HUMAN_REQUIRED', `${entry.operation} retains its exact refusal before transport`);
+      assert.equal(results[index], entry.expected ?? 'HUMAN_REQUIRED', `${entry.label ?? entry.operation} retains its exact refusal before transport`);
       continue;
     }
     const record = records[recordIndex++];
