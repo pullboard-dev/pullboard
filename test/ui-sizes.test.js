@@ -10,7 +10,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { uiSizeProblems } from '../bin/checks/ui-sizes.js';
+import { uiSizeCounts, uiSizeProblems } from '../bin/checks/ui-sizes.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-ui-sizes-')));
@@ -27,8 +27,8 @@ function tree(name, files) {
 }
 
 /** Run the check as a doctrine row runs it. */
-function run(root) {
-  const result = spawnSync(process.execPath, [join(ROOT, 'bin/checks/ui-sizes.js'), root], { encoding: 'utf8' });
+function run(root, ...args) {
+  const result = spawnSync(process.execPath, [join(ROOT, 'bin/checks/ui-sizes.js'), root, ...args], { encoding: 'utf8' });
   return { status: result.status, lines: result.stdout.split('\n').filter(Boolean) };
 }
 
@@ -59,6 +59,20 @@ test('each size typed by hand is one problem at its line, and the check exits 1 
 test('the live stylesheet defines the scale the check points to [C12,N26]', () => {
   const view = readFileSync(join(ROOT, 'src/view.css'), 'utf8');
   for (const token of ['--text-sm', '--space-3', '--radius-card', '--round']) assert.match(view, new RegExp(`${token}:`), `src/view.css defines ${token}`);
-  // The count itself is C12's: the doctrine row holds it, and it can only fall.
+  // View debt belongs to #1668; this core item reports it without approving a doctrine threshold.
+  assert.equal(uiSizeCounts(ROOT)['relay/browser-screens.css'], 0, 'the actual relay stylesheet uses the shared scale');
   assert.ok(uiSizeProblems(ROOT).every((problem) => /^(src|relay)\//u.test(problem.path)), 'only stylesheets under src/ and relay/ are read');
+});
+
+test('the counts report retains clean relay files and excludes generated documentation [N26]', () => {
+  const root = tree('counts', {
+    'src/view.css': ':root { --text-sm: 13px; }\n.a { font-size: 11px; padding: 4px; }\n',
+    'relay/browser-screens.css': '.relay { font-size: var(--text-sm); margin: 0 1px; }\n',
+    'docs/demo/view.css': '.generated { padding: 99px; }\n',
+  });
+  const expected = { 'relay/browser-screens.css': 0, 'src/view.css': 2 };
+  assert.deepEqual(uiSizeCounts(root), expected, 'counts come from the real scanner, including explicit zero');
+  const reported = run(root, '--counts');
+  assert.equal(reported.status, 0, 'count reporting is available even when raw sizes remain');
+  assert.deepEqual(JSON.parse(reported.lines.join('\n')), expected, 'the actual executable reports counts per file');
 });

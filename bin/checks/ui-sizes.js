@@ -9,6 +9,10 @@
  * defined, so they never count, and neither does a comment. Every .css file under src/ and relay/ is
  * read; docs/demo/view.css is a generated copy and is not. One problem per size, at its line.
  */
+import { realpathSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 import { lineAt, readText, runCheck, walk } from './scan.js';
 
 const DECLARATION = /([{;]\s*)([a-z-]+)(\s*:)([^;{}]+)/gu;
@@ -55,4 +59,17 @@ export function uiSizeProblems(root) {
   return problems;
 }
 
-runCheck(import.meta, uiSizeProblems);
+/** Count the same raw sizes per actual stylesheet, retaining files with no problems [N26]. */
+export function uiSizeCounts(root) {
+  const counts = Object.fromEntries(walk(root, /^(src|relay)\/.*\.css$/u).map(path => [path, 0]));
+  for (const problem of uiSizeProblems(root)) counts[problem.path] += 1;
+  return counts;
+}
+
+// Parse only this executable entrypoint; importing the scanner never consumes a caller's flags.
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+  const { values, positionals } = parseArgs({ options: { counts: { type: 'boolean' } }, allowPositionals: true });
+  if (positionals.length > 1) throw new Error('usage: ui-sizes.js [root] [--counts]');
+  if (values.counts) process.stdout.write(`${JSON.stringify(uiSizeCounts(resolve(positionals[0] ?? process.cwd())))}\n`);
+  else runCheck(import.meta, uiSizeProblems);
+}
