@@ -104,12 +104,13 @@ test('a roadmap external-board open refuses unmerged event-log source [A5,A6]', 
   const box = fixture(t); const before = box.versions(); box.bump('EVENT_LOG_VERSION', 1, 2);
   const result = box.probe(`
     import { openBoard, closeBoard, addMilestone } from './src/board.js';
+    import * as store from './src/board.js';
     import { registerProject } from './src/projects.js';
     import { milestoneRoadmap } from './src/roadmap.js';
     registerProject(${JSON.stringify(box.root)}, new Date(), {name:'external'});
     const board = openBoard(':memory:');
     addMilestone(board, {agentId:'coordinator',name:'External',items:['repo#1']});
-    try { console.log(JSON.stringify(milestoneRoadmap(${JSON.stringify(box.lane)}, board))); } finally {closeBoard(board);}
+    try { console.log(JSON.stringify(milestoneRoadmap(${JSON.stringify(box.lane)}, board, { ports: store }))); } finally {closeBoard(board);}
   `);
   assert.equal(result[0].items[0].status, 'unavailable'); assert.deepEqual(box.versions(), before);
 });

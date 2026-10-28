@@ -5,23 +5,17 @@ import {
   join,
 } from 'node:path';
 import {
-  closeBoard,
-  getItem,
-  eventsOfKinds,
-  laneHolds,
-  listItems,
-  milestones,
-  openDecisions,
-  PERSON,
-  openBoard,
-  roadmap,
-} from './board.js';
-import {
   codeIsFromMain,
   repoInfo,
 } from './git.js';
 import { listApiProjects } from './projects.js';
 import { milestoneReferencesToRemove } from './milestones.js';
+
+/** Require explicit board readers before resolving local or foreign roadmap state. */
+function roadmapPorts(ports, names) {
+  if (!names.every(name => name === 'PERSON' ? typeof ports?.PERSON === 'string' : typeof ports?.[name] === 'function')) throw new TypeError('roadmap needs explicit store ports');
+  return ports;
+}
 
 /** Parse a registered-project reference and resolve only an unambiguous project name or basename. */
 export function resolveMilestoneProjectReference(reference, projects) {
@@ -33,7 +27,8 @@ export function resolveMilestoneProjectReference(reference, projects) {
 }
 
 /** Collect unambiguous registered aliases for one local item before milestone cleanup. */
-export function localMilestoneAliases(root, board, id) {
+export function localMilestoneAliases(root, board, id, ports) {
+  const { milestones } = roadmapPorts(ports, ["milestones"]);
   const projects = listApiProjects();
   const localRoot = resolve(root);
   const aliases = new Set();
@@ -49,9 +44,10 @@ export function localMilestoneAliases(root, board, id) {
 }
 
 /** Withdraw through ordered moves, then remove every local milestone alias and report the result. */
-export async function withdrawWithMilestones(ctx, board, me, id, reason, ordered) {
+export async function withdrawWithMilestones(ctx, board, me, id, reason, ordered, ports) {
+  roadmapPorts(ports, ["milestones"]);
   await ordered(ctx, board, 'withdraw', [id, { agentId: me.id, reason }]);
-  const removals = milestoneReferencesToRemove(board, [id, ...localMilestoneAliases(ctx.info.root, board, id)]);
+  const removals = milestoneReferencesToRemove(board, [id, ...localMilestoneAliases(ctx.info.root, board, id, ports)], ports);
   const left = removals.map(({ name }) => name);
   for (const { name, remove } of removals) {
     await ordered(ctx, board, 'editMilestoneItems', [name, { agentId: me.id, remove }]);
@@ -68,6 +64,8 @@ export async function withdrawWithMilestones(ctx, board, me, id, reason, ordered
  * @returns {any[]}
  */
 export function milestoneRoadmap(root, board, options = {}) {
+  const ports = roadmapPorts(options.ports, ["closeBoard", "getItem", "laneHolds", "listItems", "openBoard", "roadmap", "eventsOfKinds", "openDecisions", "PERSON"]);
+  const { closeBoard, getItem, laneHolds, listItems, openBoard, roadmap } = ports;
   const projects = (options.projects ?? listApiProjects)();
   let hiddenExternal = 0;
   const externalItems = new Map();
@@ -98,8 +96,8 @@ export function milestoneRoadmap(root, board, options = {}) {
   const items = new Map(listItems(board, { all: true }).map(item => [item.item_id, item]));
   const holds = new Set(laneHolds(board).map(hold => hold.hold_lane));
   const now = board.clock.now().getTime();
-  const pace = landingPace(board, items, now);
-  const needsYou = personDecisionItems(board);
+  const pace = landingPace(board, items, now, ports);
+  const needsYou = personDecisionItems(board, ports);
   return milestones.map(milestone => {
     const active = milestone.items.filter(entry => entry.status !== 'withdrawn');
     const summary = { total: active.length, left: active.length - milestone.landed,
@@ -137,7 +135,8 @@ export function qualifyingLandingTimes(history, items) {
 }
 
 /** Count distinct currently landed local items at their first recording of the current merge. */
-export function landingPace(board, items, now) {
+export function landingPace(board, items, now, ports) {
+  const { eventsOfKinds } = roadmapPorts(ports, ["eventsOfKinds"]);
   const times = qualifyingLandingTimes(eventsOfKinds(board, ['merged']), items).filter(at => at <= now);
   return { last6h: times.filter(at => at > now - 6 * 3_600_000).length,
     last2h: times.filter(at => at > now - 2 * 3_600_000).length,
@@ -145,7 +144,8 @@ export function landingPace(board, items, now) {
 }
 
 /** Associate open person questions with typed item evidence and explicit local item references. */
-function personDecisionItems(board) {
+function personDecisionItems(board, ports) {
+  const { openDecisions, PERSON } = ports;
   const ids = new Set();
   for (const question of openDecisions(board, PERSON)) {
     if (question.shout_evidence_item) ids.add(question.shout_evidence_item);

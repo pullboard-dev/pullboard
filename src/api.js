@@ -143,8 +143,8 @@ function boardStateRevision(root, id, isMain, { projects = listApiProjects, scop
     const hasExternalMilestones = inputs.milestones.some((milestone) => milestone.items.some((item) => typeof item !== 'number'));
     return { ...inputs, externalMilestones: hasExternalMilestones
       ? scopeCommonDir === null
-        ? milestoneRoadmap(info.root, board)
-        : milestoneRoadmap(info.root, board, { projects, hideOutOfScope: true })
+        ? milestoneRoadmap(info.root, board, { ports: store })
+        : milestoneRoadmap(info.root, board, { projects, hideOutOfScope: true, ports: store })
       : null };
   }, isMain);
   const inputs = {

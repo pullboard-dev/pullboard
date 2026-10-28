@@ -13,7 +13,7 @@ import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { main } from '../src/cli.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
-import { addMilestone } from '../src/milestones.js';
+import { addMilestone } from '../src/board.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../src/exchange.js';

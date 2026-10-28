@@ -329,7 +329,7 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       asked: store.openDecisions(board).filter((ask) => ask.shout_to !== store.PERSON),
       events: log,
       dashboardNext: [...all].filter(item => item.item_status === 'open').sort(store.buildOrder(board)).map(item => item.item_id),
-      dashboardPace: landingPace(board, new Map(all.map(item => [item.item_id, item])), board.clock.now().getTime()),
+      dashboardPace: landingPace(board, new Map(all.map(item => [item.item_id, item])), board.clock.now().getTime(), store),
       dashboardLanded: all.filter(item => item.item_status === 'verified' && item.item_merged_commit)
         .map(item => ({ id: item.item_id, commit: item.item_merged_commit, reviewer: item.item_verified_by })),
       agents: store.listAgents(board).map((agent) => ({ ...agent, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
