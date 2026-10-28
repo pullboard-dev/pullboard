@@ -188,6 +188,7 @@ test('codemap providers are required and source advance retains its real raw clo
   }
   const { root, put } = fixture(t);
   put('test/selected.test.js', "import { stats } from '../src/stats.js';\nimport { test } from 'node:test';\ntest('selected real graph', () => stats());\n");
+  put('test/unrelated.test.js', "import { test } from 'node:test';\ntest('unrelated actual test', () => {});\n");
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'fixture: actual test importer');
   const base = git(root, 'rev-parse', 'HEAD').trim();
