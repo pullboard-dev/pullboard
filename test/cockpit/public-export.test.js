@@ -75,6 +75,40 @@ test('the declared public filter blocks every ruled kind without echoing its val
   'diagnostics expose only allowlisted schema names and a category');
 });
 
+test('native Dashboard landing commits keep their exact public identity shape [N26]', () => {
+  const native = { state: { state: { dashboardLanded: [{ id: 1, commit: 'a'.repeat(40) }] } } };
+  assert.deepEqual(publicSnapshot(native), native);
+  for (const changed of [
+    { state: { state: { dashboardLanded: [{ id: 1, commit: 'a'.repeat(64) }] } } },
+    { dashboardLanded: [{ id: 1, commit: 'a'.repeat(40) }] },
+    { state: { state: { dashboardLanded: [{ id: 1, note: 'a'.repeat(40) }] } } },
+  ]) assert.throws(() => publicSnapshot(changed), /secret-shaped string/u);
+});
+
+test('retained object keys undergo the same public scan as their values [N26]', () => {
+  for (const [kind, key] of [['pricing term', 'pricing.md'], ['email', 'fixture@example.invalid'],
+    ['secret-shaped string', 'sk-fixtureonly12345678']]) {
+    assert.throws(() => publicSnapshot({ state: { state: { rowAgesAt: { [key]: 'a'.repeat(40) } } } }), error =>
+      error.code === 'PUBLIC_EXPORT_BLOCKED' && error.message.includes(kind)
+      && !error.message.includes(key) && !error.next.includes(key));
+  }
+  const safe = { state: { state: { rowAgesAt: { 'SPEC.md': 'a'.repeat(40) } } } };
+  assert.deepEqual(publicSnapshot(safe), safe);
+});
+
+test('home paths and chat session identifiers never survive public prose or keys [N26]', () => {
+  const session = '018fc314-57c9-7318-a11f-55a08a28a101';
+  for (const [kind, text] of [['home path', '/Users/fixture-person/Code/project'],
+    ['home path', '/home/fixture-person/project'], ['chat or agent session id', session]]) {
+    for (const input of [{ note: text }, { state: { state: { items: [{ thread: [{ kind: 'fact', detail: { note: text } }] }] } } },
+      { state: { state: { rowAgesAt: { [text]: 'a'.repeat(40) } } } }]) {
+      assert.throws(() => publicSnapshot(input), error => error.code === 'PUBLIC_EXPORT_BLOCKED'
+        && error.message.includes(kind) && !error.message.includes(text) && !error.next.includes(text));
+    }
+  }
+  assert.deepEqual(publicSnapshot({ note: 'Open docs/guide.md on the public site.' }), { note: 'Open docs/guide.md on the public site.' });
+});
+
 test('internal messages disappear from rows, historical JSON and derived decisions [N26]', () => {
   const internal = { shout_from: 'coordinator', shout_to: 'all', shout_text: 'Internal notice' };
   const external = { shout_from: 'web-1', shout_to: 'web', shout_text: 'Public progress' };
