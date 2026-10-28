@@ -1,6 +1,11 @@
-/** Keep complete Dashboard history per board, bounded by each displayed state prefix, using the ordinary read API. */
-export function dashboardRuntime({ model, html, api, boardPath, current, redraw, summary }) {
+/**
+ * Keep complete Dashboard history per board, bounded by each displayed state prefix, using the ordinary read API.
+ * `floor`, when given, draws the agent floor in the Dashboard's place at #dashboard/floor from the same model and
+ * history, so both pages read one board read and refresh on the same live redraw [N26,N38].
+ */
+export function dashboardRuntime({ model, html, api, boardPath, current, redraw, summary, floor = null }) {
   const histories = new Map();
+  let drawnFloor = null;
   /** Read missing history once per prefix; never draw one board's history over another board. */
   function read(root, prefix) {
     const key = root + '|' + boardPath(root);
@@ -39,7 +44,13 @@ export function dashboardRuntime({ model, html, api, boardPath, current, redraw,
     const progress = state.milestone ? summary(state.milestone)?.detail ?? '' : '';
     // Native details keep each Show-more/quiet disclosure open across live refreshes.
     const expanded = [...region.querySelectorAll('details[open]')].map(entry=>entry.dataset.dashboardDisclosure);
-    region.innerHTML = html(state, { needs, progress })+(held.error?'<p class="muted" role="status">Dashboard history is unavailable; live work remains visible.</p>':'');
+    const onFloor = Boolean(floor?.open());
+    const note = held.error?'<p class="muted" role="status">Dashboard history is unavailable; live work remains visible.</p>':'';
+    region.innerHTML = (onFloor ? floor.html(floor.model(state, held.events.filter(event=>event.event_id<=prefix)), { back: floor.href(null) }) : html(state, { needs, progress, floorHref: floor?.href('floor') }))+note;
+    region.classList?.toggle('floor-page', onFloor);
+    // Opening or leaving the floor starts at its top; a live redraw of the same page keeps the reader's place.
+    if (drawnFloor !== null && drawnFloor !== onFloor) globalThis.scrollTo?.(0, 0);
+    drawnFloor = onFloor;
     for (const disclosure of region.querySelectorAll('details')) if (expanded.includes(disclosure.dataset.dashboardDisclosure)) disclosure.open = true;
   }
   return { draw };
