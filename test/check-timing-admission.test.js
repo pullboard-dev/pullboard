@@ -87,7 +87,7 @@ test('timing is coordinator-only boolean bar data, corrected atomically and abse
     assert.deepEqual(exportBoard(board), before, 'refused declaration changes no event or state');
   }
   store.editItem(board, id, { agentId: 'coordinator', checkTiming: true });
-  store.claim(board, id, { agentId: builder, head: 'a'.repeat(40), freeze });
+  store.claim(board, id, { agentId: builder, leaseMs: 3_600_000, head: 'a'.repeat(40), freeze });
   const flagged = store.getItem(board, id);
   assert.equal(frozenCheckTiming(flagged), true);
   const before = exportBoard(board);
