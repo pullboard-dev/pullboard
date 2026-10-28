@@ -1,5 +1,6 @@
 /** Exact conflict classification without changing original events or granting workflow authority [C7,D1]. */
-import { conflictNote, shownPath } from '../packages/kernel/src/core/registry-guards.js';
+import { conflictNote } from '../packages/kernel/src/core/registry-guards.js';
+import { shownPath } from '../packages/kernel/src/core/registry-guards.js';
 
 /** Read only the complete canonical machine-note syntax; this is not authenticated Git evidence. */
 export function conflictNoteFiles(note) {

@@ -13,7 +13,8 @@ import {
   SUBMITTED_CONFLICT_ENGINE,
 } from './engine-metadata.js';
 import { Refused } from './refused.js';
-import { conflictNote, shownPaths } from '../packages/kernel/src/core/registry-guards.js';
+import { conflictNote } from '../packages/kernel/src/core/registry-guards.js';
+import { shownPaths } from '../packages/kernel/src/core/registry-guards.js';
 
 import { CONFLICT_ENGINE } from './trunk-conflict-engine.js';
 export { CONFLICT_ENGINE };
