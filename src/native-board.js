@@ -109,7 +109,7 @@ import {
 } from './review-policy.js';
 
 export * as board from './board.js';
-export { openBoardReadOnly, closeBoard, systemClock } from './board-read-open.js';
+export { closeBoard } from './board-read-open.js';
 
 /** Build immutable native capabilities once per connection, without a registry or cross-connection defaults. */
 export function nativeBoardPorts() {
@@ -157,9 +157,9 @@ export function openBoardForRead(file, clock = systemClock, { ports = nativeBoar
 }
 
 /** Supply native providers once when a writable board is opened; only values enter sealed moves. */
-function boardEnginePorts(store) {
-  if (!store || typeof store.openBoard !== 'function') throw new TypeError('The native root must supply its canonical board API.');
-  return Object.freeze({ store, withSeatPresence, registry: MOVE_REGISTRY, operations: MOVE_OPERATIONS,
+function boardEnginePorts(boardApi) {
+  if (!boardApi || typeof boardApi.openBoard !== 'function') throw new TypeError('The native root must supply its canonical board API.');
+  return Object.freeze({ store: boardApi, withSeatPresence, registry: MOVE_REGISTRY, operations: MOVE_OPERATIONS,
     minimumOperationEngine: minimumMoveEngine, sealSourceAdvanceReturn, sealSourceAdvance,
     computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict, boundProofReceipt,
     requireOutsideReceipt, signedMoveProblem, requireCoordinatorHold, requireBound,

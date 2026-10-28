@@ -37,6 +37,16 @@ export function requireRuntimePorts(ports) {
   for (const name of ['atomic', 'logEvent', 'rowDrafts', 'rowDecisions', 'recordRowDecisions', 'now']) {
     if (typeof ports.nativePorts[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply nativePorts.${name}.`);
   }
+  if (typeof ports.nativePorts.PERSON !== 'string' || !ports.nativePorts.PERSON.trim()) throw new Refused('NO_POLICY', 'The native board root must supply nativePorts.PERSON.');
+  if (!ports.enginePorts.store || typeof ports.enginePorts.store.openBoard !== 'function') throw new Refused('NO_POLICY', 'The native board root must supply enginePorts.store.');
+  if (!ports.enginePorts.registry || typeof ports.enginePorts.registry !== 'object' || Array.isArray(ports.enginePorts.registry)) throw new Refused('NO_POLICY', 'The native board root must supply enginePorts.registry.');
+  for (const name of ['withSeatPresence', 'minimumOperationEngine', 'sealSourceAdvanceReturn', 'sealSourceAdvance',
+    'computedReturnArgs', 'requirePreparedComputedConflict', 'preflightComputedConflict', 'boundProofReceipt',
+    'requireOutsideReceipt', 'signedMoveProblem', 'requireCoordinatorHold', 'requireBound',
+    'requestMoveProblem', 'recordRequestMove', 'relayPerson', 'requestPerson',
+    'personAuthority', 'relayMoveActor', 'relaySenderProblem', 'validRelaySender']) {
+    if (typeof ports.enginePorts[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply enginePorts.${name}.`);
+  }
   if (ports.nativePorts.atomic !== ports.lifecycle.atomic || ports.nativePorts.logEvent !== ports.logEvent
     || ports.enginePorts.operations !== ports.operations) throw new Refused('NO_POLICY', 'Use one canonical set of native and engine providers.');
   return ports;
