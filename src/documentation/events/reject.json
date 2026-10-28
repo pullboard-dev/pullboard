@@ -4,7 +4,7 @@
     {
       "order": 18,
       "actor": "reviewer",
-      "detail": "`reason`, `commit`, engine-20 `implies`, engine-30 `cause`, engine-33 `review`, automatic-Rigor `causeDerivation`"
+      "detail": "`reason`, `commit`, engine-20 `implies`, engine-30 `cause`, engine-33 `review`, automatic-Rigor `causeDerivation`, clause-bound rejection `clause`, `clauseText`, `barKey`"
     }
   ]
 }
