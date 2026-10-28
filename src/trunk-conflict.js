@@ -13,6 +13,8 @@ import {
   SUBMITTED_CONFLICT_ENGINE,
 } from './engine-metadata.js';
 import { Refused } from './refused.js';
+import { conflictNote } from '../packages/kernel/src/core/registry-guards.js';
+import { shownPaths } from '../packages/kernel/src/core/registry-guards.js';
 
 import { CONFLICT_ENGINE } from './trunk-conflict-engine.js';
 export { CONFLICT_ENGINE };
@@ -42,20 +44,6 @@ export function carriesConflict(operation, args) {
 export function conflictFiles(values) {
   return [...new Set([values ?? []].flat())];
 }
-
-/**
- * A path as a reader sees it in a message or line: plain when it holds only ordinary path
- * characters, otherwise JSON-quoted, so a space or comma inside a name never reads as two names.
- *
- * @param {string} path
- * @returns {string}
- */
-export function shownPath(path) {
-  return /^[\w./@+-]+$/u.test(path) ? path : JSON.stringify(path);
-}
-
-/** Paths for a message or line, each shown unambiguously, separated by commas. */
-const shownPaths = (paths) => paths.map(shownPath).join(', ');
 
 /**
  * Check the trunk for the conflict the coordinator names, so --conflict cannot stand in for a
@@ -136,11 +124,6 @@ export const TRUNK_CONFLICT_CAUSE = 'refusal:MERGE_CONFLICT';
  */
 export function conflictDetail({ files, trunk }) {
   return { conflict: { files, trunk }, cause: TRUNK_CONFLICT_CAUSE };
-}
-
-/** The note a conflict reopen records when the coordinator gives none. */
-export function conflictNote({ files, trunk }) {
-  return `conflicts with the trunk at ${trunk.slice(0, 12)} in ${shownPaths(files)}; merge main and resubmit`;
 }
 
 /**

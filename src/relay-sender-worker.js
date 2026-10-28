@@ -4,7 +4,7 @@
  * moves under that board's relay lock, then runs the person's waiting requests. Commands never wait on it. It exits
  * once no board has been nudged for a while and no move waits; a failure backs off and is kept in its short log.
  *
- * Usage (spawned by nudgeRelaySender): node relay-sender-worker.js
+ * The CLI-owned entry supplies its board service to runRelaySender.
  */
 import {
   appendFileSync,
@@ -101,20 +101,6 @@ async function release() {
   });
 }
 
-/** Send and pull one board under its relay lock, then run the person's waiting requests. True when nothing waits. */
-async function serve(root, file) {
-  const { syncRelay } = await import('./relay.js');
-  const { relayOutboxSetting } = await import('./cli.js');
-  const boardIo = { ...io, relayOutbox: () => relayOutboxSetting(root) };
-  await syncRelay(root, boardIo);
-  try {
-    const { executePersonRequests } = await import('./relay-request-execution.js');
-    const { main } = await import('./cli-main.js');
-    await executePersonRequests(root, boardIo, main);
-  } catch (error) { io.err(`person requests not run: ${error.message}`); }
-  return !outboxWaiting(file);
-}
-
 /** Per board: when it was last served, and when a failing board may be tried again. */
 const boards = new Map();
 
@@ -122,7 +108,7 @@ const boards = new Map();
  * Serve boards until none has been nudged for the idle period and no move waits; returns the newest nudge seen.
  * A board is served when a command nudged it since its last pass, or once the pull period has passed.
  */
-async function serveUntilIdle() {
+async function serveUntilIdle(serve) {
   let newest = 0;
   for (;;) {
     const now = Date.now();
@@ -138,7 +124,7 @@ async function serveUntilIdle() {
       board.served = Date.now();
       let settled = false;
       io.say(`serving ${note.root}`);
-      try { settled = await serve(note.root, note.file); }
+      try { settled = await serve(note.root, note.file, io); }
       catch (error) { io.err(`${note.root}: ${error.message}`); }
       io.say(`served in ${Date.now() - board.served} ms${settled ? '' : '; moves still wait'}`);
       if (settled) { board.failures = 0; board.retryAt = 0; }
@@ -153,12 +139,16 @@ async function serveUntilIdle() {
   }
 }
 
-// A nudge after the last look, but before the claim was released, saw a live sender and started none: look once
-// more after releasing, and go again if a newer one came.
-for (let newest = -1; await claim();) {
-  const stopHeartbeat = startHeartbeat();
-  try { newest = await serveUntilIdle(); }
-  catch (error) { io.err(`sender stopped: ${error.message}`); newest = Infinity; }
-  finally { await stopHeartbeat(); await release(); }
-  if (!notes().some((note) => note.due > newest)) break;
+/** Run the durable sender loop with its caller's actual board/CLI service [H21,H16]. */
+export async function runRelaySender({ serve }) {
+  if (typeof serve !== 'function') throw new TypeError('runRelaySender requires the board service');
+  // A nudge after the last look, but before the claim was released, saw a live sender and started none: look once
+  // more after releasing, and go again if a newer one came.
+  for (let newest = -1; await claim();) {
+    const stopHeartbeat = startHeartbeat();
+    try { newest = await serveUntilIdle(serve); }
+    catch (error) { io.err(`sender stopped: ${error.message}`); newest = Infinity; }
+    finally { await stopHeartbeat(); await release(); }
+    if (!notes().some((note) => note.due > newest)) break;
+  }
 }

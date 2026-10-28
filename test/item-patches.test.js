@@ -1,3 +1,5 @@
+import { committedItemAuthors } from '../src/review-independence.js';
+import { twoTierReviews } from '../src/review-independence.js';
 /** Source-bound patches retain author independence and exact replay without manufacturing proof [V4,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -45,8 +47,8 @@ test('patches bind exact bytes, source and native identity; immutable retries re
   assert.deepEqual(record.author, { agentId: builder, parentSession: parentSessionDigest('patch-parent'), session: parentSessionDigest('patch-builder') });
   assert.equal(record.source.commit, COMMIT);
   assert.equal(first.digest, itemPatchSetDigest(COMMIT, [record]));
-  assert.equal(itemPatchReviewProblem(board, store.getItem(board, id), first.digest), null);
-  assert.equal(itemPatchReviewProblem(board, store.getItem(board, id), undefined).code, 'ITEM_PATCH_CHANGED');
+  assert.equal(itemPatchReviewProblem(board, store.getItem(board, id), first.digest, { getItem: store.getItem }), null);
+  assert.equal(itemPatchReviewProblem(board, store.getItem(board, id), undefined, { getItem: store.getItem }).code, 'ITEM_PATCH_CHANGED');
   const before = exportBoard(board);
   assert.equal(store.attachItemPatch(board, id, options).changed, false);
   assert.deepEqual(exportBoard(board), before, 'exact attach retry appends nothing');
@@ -57,7 +59,7 @@ test('patches bind exact bytes, source and native identity; immutable retries re
   assert.deepEqual(itemPatches(board, id), []);
   assert.notEqual(itemPatchDigest(board, id), null, 'removed history still participates in review contract');
   assert.deepEqual(itemPatchAuthors(board, id), [record.author]);
-  assert.equal(itemPatchReviewProblem(board, store.getItem(board, id), first.digest).code, 'ITEM_PATCH_CHANGED');
+  assert.equal(itemPatchReviewProblem(board, store.getItem(board, id), first.digest, { getItem: store.getItem }).code, 'ITEM_PATCH_CHANGED');
   board.executionEngineVersion = ITEM_PATCH_ENGINE - 1;
   assert.equal(itemPatchDigest(board, id), null, 'historical replay does not acquire patch semantics');
   assert.deepEqual(itemPatches(board, id), []);
@@ -193,7 +195,7 @@ test('a companion author without session metadata cannot review active or remove
     assert.throws(() => store.verify(board, id, { agentId: author, decision: 'ACCEPT', head: COMMIT,
       digest: 'patch-frozen', policy: 'any', companionDigest: itemPatchDigest(board, id),
       note: 'Synthetic native author control; no runtime proof claimed.' }), { code: 'SELF_VERIFY' });
-    assert.equal(retainedVerifierIdentityProblem(board, store.getItem(board, id), author).code, 'SELF_VERIFY');
+    assert.equal(retainedVerifierIdentityProblem(board, store.getItem(board, id), author, { committedItemAuthors, twoTierReviews }).code, 'SELF_VERIFY');
     assert.deepEqual(exportBoard(board), before, 'direct-author refusals preserve the item and history');
   }
   store.reserveReview(board, id, { agentId: reviewer, leaseMs: 60_000, policy: 'any' });

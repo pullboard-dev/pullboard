@@ -14,7 +14,6 @@ import {
   signedMoveProblem,
   signedRefusal,
 } from './person-signing.js';
-import { personAuthority } from './relay-sender.js';
 import { preparePersonRequest } from './person-request.js';
 import { personRequestRecords } from './relay-requests.js';
 import { Refused } from './refused.js';
@@ -149,7 +148,7 @@ export async function requireSignedPerson(ctx, board, me, intent, rows, effect) 
  * @param {any} personRequest - the request the command carries out, if any
  */
 export function refuseUnsignedMove(board, operation, args, personRequest) {
-  const unsigned = signedMoveProblem(board, personAuthority({ operation, args }), personRequest, { strict: true });
+  const unsigned = signedMoveProblem(board, board.enginePorts.personAuthority({ operation, args }), personRequest, { strict: true });
   if (unsigned) throw unsigned;
 }
 

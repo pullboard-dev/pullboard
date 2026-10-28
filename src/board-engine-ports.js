@@ -19,17 +19,18 @@ import { requestMoveProblem } from './relay-requests.js';
 import { recordRequestMove } from './relay-requests.js';
 import { relayPerson } from './relay-requests.js';
 import { requestPerson } from './relay-requests.js';
-import { personAuthority } from './relay-sender.js';
-import { relayMoveActor } from './relay-sender.js';
-import { relaySenderProblem } from './relay-sender.js';
-import { validRelaySender } from './relay-sender.js';
+import { relaySenderPolicy } from '../packages/state/src/core/relay-sender-policy.js';
+import { declaredMoveActor } from './move-registry.js';
+import { validPresence } from './person-presence.js';
 
 /** Supply native providers once when a writable board is opened; only values enter sealed moves. */
 export function boardEnginePorts() {
+  const { personAuthority, relayMoveActor, relaySenderProblem, validRelaySender, credentialActor } =
+    relaySenderPolicy({ declaredMoveActor, validPresence });
   return Object.freeze({ store, withSeatPresence, registry: MOVE_REGISTRY, operations: MOVE_OPERATIONS,
     minimumOperationEngine: minimumMoveEngine, sealItemPatchSubmit, sealSourceAdvanceReturn, sealSourceAdvance,
     computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict, boundProofReceipt,
     requireOutsideReceipt, signedMoveProblem, requireCoordinatorHold, requireBound,
     requestMoveProblem, recordRequestMove, relayPerson, requestPerson,
-    personAuthority, relayMoveActor, relaySenderProblem, validRelaySender });
+    personAuthority, relayMoveActor, relaySenderProblem, validRelaySender, credentialActor });
 }

@@ -4,13 +4,13 @@
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
-  cpSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import {
@@ -18,6 +18,8 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { copyPackageSubset } from './package-copy-fixture.js';
+import { packageFiles } from '../src/package-files.js';
 import { json } from './land-board-fixture.js';
 import {
   mergeMechanicalSources,
@@ -168,9 +170,9 @@ test('new format declarations and move files are discovered without a shared reg
   const root = mkdtempSync(join(tmpdir(), 'pullboard-format-discovery-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, 'src'));
-  cpSync(new URL('../src/formats/', import.meta.url), join(root, 'src', 'formats'), { recursive: true });
-  for (const file of ['json.js', 'spec.js', 'board-schema-source.js'])
-    cpSync(new URL('../src/' + file, import.meta.url), join(root, 'src', file));
+  copyPackageSubset(resolve(import.meta.dirname, '..'), root,
+    [...packageFiles(resolve(import.meta.dirname, '..')).filter(file => file.startsWith('src/formats/')),
+      'src/json.js', 'src/spec.js', 'src/board-schema-source.js'].map(path => ({ path, as: path })));
   writeFileSync(join(root, 'src', 'fixture-engine.js'), 'export const FIXTURE_ENGINE = 110;\n');
   const original = discoverFormats(root);
   assert.equal(original.length, 5);

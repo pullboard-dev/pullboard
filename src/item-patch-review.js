@@ -1,4 +1,3 @@
-import { effectiveItemHead } from './source-advance-state.js';
 /** Compose native companion inputs without granting their author another lane's authority [V4,H16]. */
 import { composeItemPatches } from './item-patch-compose.js';
 import { itemPatchPaths } from './item-patch-compose.js';
@@ -7,9 +6,6 @@ import { itemPatchDigest } from './item-patches.js';
 import { itemPatchReviewProblem } from './item-patches.js';
 import { outOfLane } from './lanes.js';
 import { contains } from './git.js';
-import { itemPolicy } from './trusted-policy.js';
-import { requireTrunkMerge } from './trusted-policy.js';
-import { retryReviewCommit } from './verdict-retry.js';
 import { Refused } from './refused.js';
 
 /** Enforce the native source author's lane for every actual patch path. */
@@ -26,9 +22,10 @@ export function validateItemPatchInput(board, config, author, patch) {
 }
 
 /** Bind the admitted main, submitted source and exact native patch set into the checked commit. */
-export function prepareItemPatchReview(root, board, item, { mergeMain = true } = {}) {
+export function prepareItemPatchReview(root, board, item, ports, { mergeMain = true } = {}) {
+  const { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit } = ports;
   const digest = itemPatchDigest(board, item.item_id);
-  const problem = itemPatchReviewProblem(board, item, digest);
+  const problem = itemPatchReviewProblem(board, item, digest, ports);
   if (problem) throw problem;
   const effective = effectiveItemHead(board, item);
   if (effective) {
