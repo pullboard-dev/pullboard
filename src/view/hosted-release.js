@@ -4,7 +4,7 @@
  * so the page module stays under its line cap; the page embeds hostedReleaseDistance as source.
  */
 import { readFileSync } from 'node:fs';
-import { VERSION } from '../help.js';
+import { VERSION } from '../release-version.js';
 
 /** The release this hosted page was built from: the package's own version, so learning it fetches nothing. */
 export const HOSTED_RELEASE = VERSION;

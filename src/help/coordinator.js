@@ -6,7 +6,7 @@ export const coordinatorHelp = `Coordinator
   pullboard land --due [--dry-run]       coordinator: use configured age/count; no --max or --adopt; explain when not due
   pullboard land --waive <test> --until <date> --reason \"why\"  the person records an expiring test waiver
   pullboard publish                     coordinator: run the whole suite on the trunk head; push it only when every test passes
-  pullboard merged <id> <commit>        record where verified work landed
+  pullboard merged <id> <commit> [--gate-receipt <id>] [--items 1,2,3]  record verified work with its native batch receipt
   pullboard withdraw <id> <reason>      drop an item nobody should build
   pullboard refreeze <id>               adopt a corrected criterion or changed spec rows
   pullboard reopen <id> [--withdraw-verdict] --note "why" [--cause <key>]
