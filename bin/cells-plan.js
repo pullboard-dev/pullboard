@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /** Write, check or file the cells move plan, or check one cell's move against it [D3,CD60,CD64]. */
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -95,7 +97,7 @@ export function readPlan(root) {
 
 /** Compute the plan from a checkout's tracked files and real import edges, at its HEAD. */
 export function computePlan(root) {
-  const { files, edges } = cellInventory(root);
+  const { files, edges } = cellInventory(root, { importsIn, commonJsIn });
   const seed = readSeed(root);
   const head = tryGit(root, ['rev-parse', 'HEAD']);
   const paths = [...files.keys()].filter(inPlanScope).sort();
@@ -162,7 +164,7 @@ export function checkMoved(root, plan, name) {
     }
   }
   if (existsSync(join(root, CELL_BASELINE_DESCRIPTOR))) {
-    for (const row of cellLintGrowth(cellLintReport(root), readCellLintBaseline(root), { enforcedOnly: true })) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
+    for (const row of cellLintGrowth(cellLintReport(root, { importsIn, commonJsIn }), readCellLintBaseline(root), { enforcedOnly: true })) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
   }
   return problems;
 }

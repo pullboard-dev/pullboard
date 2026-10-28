@@ -201,3 +201,45 @@ test('a claimed item keeps its policy until refreeze [V2,L3]', () => {
   assert.equal(JSON.parse(refused.out).error.code, 'OUTSIDE_LANE',
     'submission still enforces the old ownership until an explicit coordinator refreeze');
 });
+
+
+test('submit and patch attach share frozen ownership and move together on refreeze [L2,L3,V2,V4]', () => {
+  const { box, before, trunkPolicy } = reassignedPathFixture();
+  const previous = JSON.parse(before.item_frozen).policy.commit;
+  const author = JSON.parse(box.run(box.web, 'whoami', '--json').out).id;
+  const patchFile = join(box.dir, 'ownership.patch');
+  writeFileSync(patchFile, [
+    'diff --git a/api/shared.js b/api/shared.js',
+    '--- a/api/shared.js',
+    '+++ b/api/shared.js',
+    '@@ -1 +1 @@',
+    '-changed',
+    '+patched',
+    '',
+  ].join('\n'));
+  const deniedSubmit = box.run(box.web, 'submit', '1', '--json');
+  const deniedAttach = box.run(box.repo, 'patch', 'attach', '1', patchFile,
+    '--key', 'ownership', '--author', author, '--json');
+  for (const result of [deniedSubmit, deniedAttach]) {
+    assert.equal(result.code, 1, result.err + result.out);
+    const error = JSON.parse(result.out).error;
+    assert.equal(error.code, 'OUTSIDE_LANE');
+    assert.ok(error.message.includes(previous), 'the refusal names the frozen ownership commit');
+    assert.ok(error.message.includes("api/shared.js (api's)"), 'the old policy owns the exact path');
+  }
+  const unchanged = JSON.parse(box.run(box.repo, 'patch', 'list', '1', '--json').out);
+  assert.deepEqual(unchanged.patches, [], 'rejected ownership writes no companion');
+  const refrozen = box.run(box.repo, 'refreeze', '1', '--json');
+  assert.equal(refrozen.code, 0, refrozen.err + refrozen.out);
+  const reclaimed = box.run(box.web, 'claim', '1', '--json');
+  assert.equal(reclaimed.code, 0, reclaimed.err + reclaimed.out);
+  const submitted = box.run(box.web, 'submit', '1', '--json');
+  assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  const item = JSON.parse(box.run(box.repo, 'show', '1', '--json').out);
+  assert.equal(item.item_status, 'submitted');
+  assert.equal(JSON.parse(item.item_frozen).policy.commit, trunkPolicy);
+  const attached = box.run(box.repo, 'patch', 'attach', '1', patchFile,
+    '--key', 'ownership', '--author', author, '--json');
+  assert.equal(attached.code, 0, attached.err + attached.out);
+  assert.equal(JSON.parse(attached.out).changed, true, 'the same author now owns this path under the refrozen policy');
+});

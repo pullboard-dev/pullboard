@@ -69,7 +69,7 @@ export function submissionPaths(root, item, commit, { config, mainCommit, depend
       && !outOfLane(ownership, dependency.lane, [path]).length
       && object === pathObject(root, dependency.commit, path));
   });
-  if (denied.length) throw new Refused('OUTSIDE_LANE', 'outside the ' + item.item_lane + ' lane: ' + outOfLane(ownership, item.item_lane, denied).join(', ') + '; shout the owner and restore these paths before submitting');
+  if (denied.length) throw new Refused('OUTSIDE_LANE', 'outside the ' + item.item_lane + ' lane: ' + outOfLane(ownership, item.item_lane, denied).join(', ') + ` under frozen policy ${policy.commit}; shout the owner and restore these paths before submitting, or ask the coordinator to refreeze if ownership changed`);
   return paths;
 }
 

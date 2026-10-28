@@ -9,16 +9,17 @@ import { contains } from './git.js';
 import { Refused } from './refused.js';
 
 /** Enforce the native source author's lane for every actual patch path. */
-function authorPaths(board, config, author, paths) {
+function authorPaths(board, config, author, paths, policyCommit) {
   const lane = board.db.prepare('SELECT agent_lane FROM agent WHERE agent_id=?').get(author)?.agent_lane;
   if (!lane) throw new Refused('ITEM_PATCH_AUTHOR', 'restore the registered source author before reviewing its patch');
   const denied = outOfLane(config, lane, paths);
-  if (denied.length) throw new Refused('OUTSIDE_LANE', `patch author ${author} cannot change ${denied.join(', ')}; obtain a patch from the owning lane`);
+  const policy = policyCommit ? ` under frozen policy ${policyCommit}` : '';
+  if (denied.length) throw new Refused('OUTSIDE_LANE', `patch author ${author} cannot change ${denied.join(', ')}${policy}; obtain a patch from the owning lane, or ask the coordinator to refreeze if ownership changed`);
 }
 
 /** Validate declared paths before adoption; actual paths are checked again after isolated composition. */
-export function validateItemPatchInput(board, config, author, patch) {
-  authorPaths(board, config, author, [...itemPatchPaths(patch)]);
+export function validateItemPatchInput(board, config, author, patch, policyCommit) {
+  authorPaths(board, config, author, [...itemPatchPaths(patch)], policyCommit);
 }
 
 /** Bind the admitted main, submitted source and exact native patch set into the checked commit. */
@@ -39,10 +40,10 @@ export function prepareItemPatchReview(root, board, item, ports, { mergeMain = t
     : retryReviewCommit(root, item.item_commit, trunk);
   const patches = itemPatches(board, item.item_id);
   const composed = composeItemPatches(root, item, patches, { ...(trunk ? { trunk: trunk.commit } : {}), baseCommit });
-  const config = itemPolicy(root, item).config;
+  const policy = itemPolicy(root, item);
   for (const applied of composed.applied) {
     const record = patches.find(patch => patch.key === applied.key);
-    authorPaths(board, config, record.author.agentId, applied.paths);
+    authorPaths(board, policy.config, record.author.agentId, applied.paths, policy.commit);
   }
   if (digest && composed.digest !== digest) throw new Refused('ITEM_PATCH_CHANGED', 'read the current patch set and restart review');
   return { ...composed, companionDigest: digest };

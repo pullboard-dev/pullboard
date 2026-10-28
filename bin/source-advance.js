@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /** Private finite worker: no actor argument, credentials, host override or inherited admission [C7,V4]. */
+import { selectAffectedTests } from '../src/affected-tests.js';
+import { selectTestTreeGuards } from '../src/affected-tests.js';
 import { runnerExecutionServices } from '../src/runners.js';
 import { landingExecutionServices } from '../src/landing-shards.js';
 import { isAbsolute } from 'node:path';
@@ -18,5 +20,6 @@ if (extra.length || typeof root !== 'string' || !isAbsolute(root)
 // These source changes require real reruns; a reused result cannot become fresh source-advance evidence.
 process.env.PULLBOARD_TEST_REUSE = '0';
 await runSourceAdvances(root, token, {
+  selectors: { selectAffectedTests, selectTestTreeGuards },
   executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, runSubmitGate, withFileLock, readMainAudit, saveMainAudit, landingLeaseState,
 });

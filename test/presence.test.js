@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { gunzipSync } from 'node:zlib';
 import { decodeBoardKey, unseal } from '../packages/kernel/src/core/seal.js';
@@ -14,6 +14,57 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import { legacyRelayClientFixture } from './relay-client-fixture.js';
 import { relayWorkBudgetMs } from './relay-budget.js';
 import { runCliInProcess } from './cli-in-process-fixture.js';
+
+test('a locked presence sidecar retains cached timestamps and next reports its bounded fallback [B3,N2,C7]', async t => {
+  const { createE2eHelpers } = await import('./e2e-helpers.js');
+  const { importSeatObservations, withLocalSeatPresence } = await import('../src/seat-presence.js');
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const added = box.run(box.repo, 'add', 'web', 'Presence lock control', '--criterion', 'Offer real work despite a busy display cache', '--check', 'true', '--wait', '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const item = JSON.parse(added.out).item.item_id;
+  const observedAt = Date.now();
+  let at = observedAt - 2_400_000;
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  // @pullboard-board-file journey: both connections belong to this private native fixture.
+  const board = store.openBoard(file, { now: () => new Date(at) });
+  const imported = store.register(board, { lane: 'web', path: join(box.dir, 'display-only') });
+  at = observedAt;
+  const local = store.agentById(board, 'web-1');
+  importSeatObservations(board, [{ agent_id: imported, heartbeatAt: new Date(at).toISOString() }]);
+  const display = store.agentById(board, imported);
+  const writer = new DatabaseSync(`${file}.presence.sqlite`);
+  t.after(() => { writer.close(); store.closeBoard(board); });
+  writer.exec('BEGIN EXCLUSIVE');
+  try {
+    at += 600_000;
+    const cached = store.agentById(board, 'web-1');
+    assert.equal(cached.heartbeatAt, local.heartbeatAt, 'contention cannot fabricate a new heartbeat');
+    assert.equal(cached.presence, 'idle', 'cached timestamps still age across the real boundary');
+    assert.equal(store.agentById(board, imported).heartbeatAt, display.heartbeatAt);
+    assert.equal(withLocalSeatPresence(board, [{ agent_id: imported }])[0].presence, 'gone', 'imported display activity never becomes local authority');
+    const started = Date.now();
+    const next = box.run(box.web, 'next', '--build', '--json');
+    assert.equal(next.code, 0, next.err + next.out);
+    assert.equal(JSON.parse(next.out).item.item_id, item, 'actual next reaches its native work result');
+    assert.match(next.err, /PRESENCE_BUSY.*presence sidecar remained locked/su);
+    assert.ok(Date.now() - started < 15_000, 'the busy sidecar cannot hang next'); // budget: generous private CLI hang ceiling, not a latency target.
+  } finally { writer.exec('ROLLBACK'); }
+  assert.equal(store.agentById(board, 'web-1').heartbeatAt, local.heartbeatAt, 'fallback never persisted its cached projection');
+});
+
+test('presence fallback does not hide a corrupt private sidecar [B3,C7]', t => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-presence-corrupt-'));
+  // @pullboard-board-file persistence: only this disposable board and its own sidecar are changed.
+  const board = store.openBoard(join(root, 'board.sqlite'));
+  t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
+  const id = store.register(board, { lane: 'core', path: join(root, 'seat') });
+  assert.equal(store.agentById(board, id).presence, 'live');
+  writeFileSync(join(root, 'board.sqlite.presence.sqlite'), 'not a SQLite database');
+  assert.throws(() => store.agentById(board, id), error => error.code === 'ERR_SQLITE_ERROR' && (error.errcode & 0xff) !== 5,
+    'only genuine lock contention may use the cached snapshot');
+});
 
 test('next and status count only live seats as capacity [B3,N2,C7]', async t => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');

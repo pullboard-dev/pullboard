@@ -8,7 +8,14 @@
  * node_modules, work and every directory whose name starts with a dot (.git among them). Paths are
  * repo-relative with forward slashes, and nothing depends on the order the file system lists them.
  */
-import { readdirSync, readFileSync, realpathSync } from 'node:fs';
+import {
+  lstatSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+} from 'node:fs';
+import { readPathMap } from '../../src/path-map.js';
+import { tryGit } from '../../src/git.js';
 import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -54,6 +61,53 @@ function byText(left, right) {
  */
 export function readText(root, path) {
   return readFileSync(join(root, path), 'utf8');
+}
+
+/** Read exact working implementation and compatibility bytes through one committed canonical move identity. */
+export function mappedWorkingSources(root, identities) {
+  if (!Array.isArray(identities)) throw new Error('working source identities must be explicit');
+  for (const identity of identities) if (typeof identity !== 'string' || !identity || /[\\:\x00-\x1f\x7f]/u.test(identity)
+    || identity.split('/').some(part => !part || part === '.' || part === '..')) throw new Error('invalid working source identity');
+  const head = tryGit(root, ['rev-parse', '--verify', 'HEAD^{commit}']);
+  if (head.status !== 0) throw new Error('working source needs an exact committed map');
+  const commit = head.stdout.trim();
+  const mapPaths = ['path-map.json', 'bin/cells-plan/path-map'];
+  /** A dirty or untracked mapping cannot silently describe another working implementation. */
+  function cleanMap() {
+    const status = tryGit(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--', ...mapPaths]);
+    if (status.status !== 0 || status.stdout) throw new Error('working source map is stale or uncommitted');
+  }
+  cleanMap();
+  const map = readPathMap(root, { commit });
+  const canonicalRoot = realpathSync(root);
+  /** Preserve actual Buffer bytes and reject missing, symbolic or escaping implementation paths. */
+  function bytes(file, optional = false) {
+    const path = join(canonicalRoot, file);
+    let stat;
+    try { stat = lstatSync(path); }
+    catch (error) { if (optional && error.code === 'ENOENT') return null; throw error; }
+    const canonical = realpathSync(path);
+    if (!stat.isFile() || stat.isSymbolicLink() || !canonical.startsWith(canonicalRoot + sep)) {
+      throw new Error('working source must be a contained regular file');
+    }
+    return readFileSync(path);
+  }
+  const result = identities.map(identity => {
+    const implementationPath = map.get(identity) ?? identity;
+    const body = bytes(implementationPath);
+    const shimPath = implementationPath === identity ? null : identity;
+    const shimBody = shimPath ? bytes(shimPath, true) : null;
+    return Object.freeze({ commit, identity, implementationPath, body, shimPath, shimBody });
+  });
+  cleanMap();
+  const after = tryGit(root, ['rev-parse', '--verify', 'HEAD^{commit}']);
+  if (after.status !== 0 || after.stdout.trim() !== commit) throw new Error('working source map changed during its read');
+  return result;
+}
+
+/** Read one explicit mapped identity with the same exact byte and containment checks. */
+export function mappedWorkingSource(root, identity) {
+  return mappedWorkingSources(root, [identity])[0];
 }
 
 /** The root a check scans: its first argument, else the working directory. */

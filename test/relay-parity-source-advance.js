@@ -1,4 +1,6 @@
 /** A genuinely checked main merge passes the complete native/relay reader oracle [C7,V4,H16]. */
+import { selectAffectedTests } from '../src/affected-tests.js';
+import { selectTestTreeGuards } from '../src/affected-tests.js';
 import { executionServices } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -72,7 +74,7 @@ export async function seedSourceAdvance({ board, box, store, exercise, agent, cl
       assert.deepEqual(receipt?.proof.counts, { passed: 1, failed: 0, skipped: 0 }, 'empty recursive --test is never genuine parity evidence');
     }
     assert.match(gate.check.profile.tests[0]?.name ?? '', /both independently committed source branches survive composition/u);
-    const request = prepareSourceAdvance(root, board, item, composition, gate, basis);
+    const request = prepareSourceAdvance(root, board, item, composition, gate, basis, { selectAffectedTests, selectTestTreeGuards });
     const advanced = await exercise('advanceItemSource', () => board.enginePorts.store.advanceItemSource(board, id, request));
     assert.ok(advanced, 'only the actual source-advance mutation counts as parity coverage');
     assert.equal(store.getItem(board, id).item_effective_head, composition.head);

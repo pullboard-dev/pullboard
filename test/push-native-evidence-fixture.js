@@ -1,4 +1,5 @@
 /** Real receipt-writer/component integration, not a CLI landing or lease assurance claim [C7]. */
+import { mappedWorkingSource } from '../bin/checks/scan.js';
 import { executionServices } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -69,7 +70,7 @@ export async function assertNativePushEvidence(root) {
   assert.equal(red.failures.length, 1);
   assert.match(board(root, db => nativePushReceiptProblems(root, db, [tip])).join('\n'), /lacks a native open repair link/u);
   const failure = red.failures[0];
-  const bytes = readFileSync(join(root, failure.file));
+  const bytes = mappedWorkingSource(root, failure.file).body;
   const defect = board(root, db => recordLandingTestDefect(db, { agentId: 'coordinator', test: failure.file,
     hash: createHash('sha256').update(bytes).digest('hex'), blob: git(root, ['rev-parse', `${tip}:${failure.file}`]),
     trunkBlob: null, names: [failure.name], lane: 'web', batchId, branch: 'refs/heads/main', requireOpen: true }));
