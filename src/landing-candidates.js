@@ -2,9 +2,7 @@
 import { spawn } from 'node:child_process';
 import {
   join,
-  resolve,
 } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import * as store from './board.js';
 import {
   invalidateGitFacts,
@@ -14,7 +12,6 @@ import {
 import { assertLandingLease } from './landing-lease.js';
 import { Refused } from './refused.js';
 
-const FILE = fileURLToPath(import.meta.url);
 
 /** Recognize only the exact worktrees registered by an active canonical landing batch. */
 export function landingBatchOwnsRoot(batch, root) {
@@ -24,8 +21,8 @@ export function landingBatchOwnsRoot(batch, root) {
 }
 
 /** Run one exact prefix in the existing guardian's process group, never publishing it. */
-export async function runLandingCandidateWorker(options, { write, checkLease, say, onWait, onStart }) {
-  const child = spawn(process.execPath, [FILE, 'candidate'], {
+export async function runLandingCandidateWorker(options, { write, checkLease, say, onWait, onStart, workerFile }) {
+  const child = spawn(process.execPath, [workerFile, 'candidate'], {
     cwd: options.root, env: process.env, stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
   });
   let value;
@@ -82,7 +79,7 @@ export async function runLandingCandidateWorker(options, { write, checkLease, sa
 }
 
 /** Execute only through an owned IPC channel; a candidate can ask its parent, never publish. */
-function candidateMain(options) {
+function candidateMain(options, { checkAtCommit }) {
   let next = 0;
   const pending = new Map();
   /** Ask the current landing owner to fence and acknowledge one operation. */
@@ -116,7 +113,7 @@ function candidateMain(options) {
     if (!board) throw new Refused('LAND_CANDIDATE', 'the candidate cannot read its landing board; restore it before adopting');
     try {
       const { runLandingCandidate } = await import('./land.js');
-      return await runLandingCandidate({ ...options, board,
+      return await runLandingCandidate({ ...options, board, checkAtCommit,
         write: (operation, args) => call(operation, args),
         claimGate: (tree, plan) => call('claimGate', [tree, plan]),
         finishGate: (tree, gate) => call('finishGate', [tree, gate]),
@@ -133,12 +130,14 @@ function candidateMain(options) {
   });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === FILE && process.argv[2] === 'candidate' && process.send) {
+/** Enter only from the literal bin composition under the original candidate IPC guard. */
+export function landingCandidateEntry({ checkAtCommit }) {
+  if (!process.send || process.argv[2] !== 'candidate') return;
   let started = false;
   process.on('disconnect', () => { if (!started) process.exitCode = 1; });
   process.once('message', message => {
     if (message.type !== 'start') { process.disconnect(); return; }
     started = true;
-    candidateMain(message.options);
+    candidateMain(message.options, { checkAtCommit });
   });
 }
