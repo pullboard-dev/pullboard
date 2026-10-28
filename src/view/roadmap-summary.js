@@ -19,7 +19,7 @@ export function roadmapSummary(milestone, context = {}) {
   // The held count opens the held items alone, and a second press shows every item again (#1256).
   const heldLink = key => key === 'held' && summary.held > 0;
   const legend = '<div class="roadmap-summary-legend">'+states.map(([key,label]) => (heldLink(key) ? '<button type="button" class="link roadmap-held-link" data-roadmap-held="'+escape(milestone.name)+'" aria-pressed="'+(context.held === milestone.name)+'" data-summary-state="'+key+'">' : '<span data-summary-state="'+key+'">')+'<i class="roadmap-summary-swatch '+key+'" aria-hidden="true"></i><b>'+escape(summary[key])+'</b> '+label+(heldLink(key) ? '</button>' : '</span>')).join('')+'</div>';
-  const target = milestone.target ? '<span class="roadmap-target">Target <time datetime="'+escape(milestone.target)+'">'+escape(context.time ? context.time(milestone.target) : milestone.target)+'</time>'+(milestone.pastTarget?' <span class="chip warn">past target</span>':'')+'</span>' : '';
+  const target = milestone.target ? '<span class="roadmap-target">Target <time datetime="'+escape(milestone.target)+'">'+escape(context.targetLabel !== undefined ? context.targetLabel : milestone.target)+'</time>'+(milestone.pastTarget?' <span class="chip warn">past target</span>':'')+'</span>' : '';
   const estimate = summary.estimate, pace = summary.pace;
   // The time line reads the summary's estimate, window and reason as given (#853): today's pace for the 6 h
   // window, the last day's for the 24 h window, and plain words when too few items have landed to estimate.
@@ -31,7 +31,7 @@ export function roadmapSummary(milestone, context = {}) {
   const forecast = when ? '<span class="roadmap-estimate">'+when+'</span>'+(paced ? '<span class="roadmap-pace">'+escape(pace.last6h)+' landed in the last 6 h, '+escape(pace.last2h)+' in the last 2 h</span>' : '') : '';
   const meta = target || forecast ? '<div class="roadmap-summary-meta">'+target+forecast+'</div>' : '';
   const needs = Array.isArray(summary.needsYou) ? summary.needsYou.map(id => {
-    const item = context.lookup ? context.lookup(id) : null;
+    const item = context.needs?.get(id);
     const text = escape(item?.label || '#'+id)+(item?.title?' '+escape(item.title):'');
     return item?.address ? '<a class="ref" href="'+escape(item.address)+'" data-go="item:'+escape(item.id)+'"'+(item.board?' data-board="'+escape(item.board)+'"':'')+'>'+text+'</a>' : '<span>'+text+'</span>';
   }).join(', ') : '';
@@ -42,18 +42,21 @@ export function roadmapSummary(milestone, context = {}) {
  * The header for each milestone read, made once and reused across its header, body and companion panel [N26]. Why here:
  * the page embeds this source, so it keeps src/cockpit.js inside its line cap; the page hands in what it reads by.
  *
- * @param {(milestone: object, context: object) => object|null} summarize - roadmapSummary.
- * @param {{time: (iso: string) => string, address: (id: number, root: string) => string, root: string, held?: string|null}} page
+ * @param {{targetLabels: Map, addresses: Map, root: string, held?: string|null}} page - Prepared display observations.
  * @returns {(read: {milestone: object, rows: object[]}|null) => object|null}
  */
-export function roadmapHeaders(summarize, page) {
+export function roadmapHeaders(page) {
   const made = new Map();
   return (read) => {
     if (!read) return null;
-    if (!made.has(read)) made.set(read, summarize(read.milestone, { time: page.time, held: page.held, lookup: (id) => {
-      const label = typeof id === 'number' ? '#' + id : String(id), row = read.rows.find((row) => row.label === label);
-      return row ? { label, title: row.title, id: row.open?.id, address: row.open ? page.address(row.open.id, row.open.root) : null, board: row.open?.root !== page.root ? row.open?.root : null } : null;
-    } }));
+    if (!made.has(read)) {
+      const needs = new Map((Array.isArray(read.milestone.summary?.needsYou) ? read.milestone.summary.needsYou : []).map(id => {
+        const label = typeof id === 'number' ? '#' + id : String(id), row = read.rows.find(row => row.label === label);
+        return [id, row ? { label, title: row.title, id: row.open?.id, address: row.open ? page.addresses.get(row) : null,
+          board: row.open?.root !== page.root ? row.open?.root : null } : null];
+      }));
+      made.set(read, roadmapSummary(read.milestone, { targetLabel: page.targetLabels.get(read), held: page.held, needs }));
+    }
     return made.get(read);
   };
 }
