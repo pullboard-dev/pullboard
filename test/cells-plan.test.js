@@ -221,6 +221,13 @@ test('cut metadata refresh preserves frozen moves and records only current real 
   const cut = refreshed.cells.find(cell => cell.name === later.name).cuts.find(row => row.cell === early.name);
   assert.deepEqual(cut, { cell: early.name, imports: 1, edges: ['src/refused.js->src/stats.js'] });
   assert.ok(refreshed.cells.every(cell => cell.cuts.every(row => row.edges.every(edge => !edge.includes('test/probe')))), 'test imports do not create source cuts');
+  put('src/refused.js', 'await import(globalThis.destination);\nexport class Refused extends Error {}\n');
+  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'unresolved source dependency');
+  const uncertain = cellInventory(root, { importsIn, commonJsIn });
+  assert.ok(uncertain.unknown.some(row => row.file === 'src/refused.js'));
+  const retained = refreshPlanCuts(refreshed, uncertain.edges, readPathMap(root), uncertain.unknown);
+  assert.deepEqual(retained.cells.find(cell => cell.name === later.name).cuts.find(row => row.cell === early.name), cut,
+    'an unresolved loader cannot erase a previously recorded cut');
   put('src/refused.js', 'export class Refused extends Error {}\n');
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'remove actual edge');
   const removed = refreshPlanCuts(refreshed, cellInventory(root, { importsIn, commonJsIn }).edges, readPathMap(root));

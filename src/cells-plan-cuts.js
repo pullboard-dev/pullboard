@@ -65,7 +65,7 @@ export function cutItemCommands(plan, ids = new Map()) {
 }
 
 /** Refresh real import-cut occurrences without changing any frozen move identity, path or ordering. */
-export function refreshPlanCuts(plan, edges, map) {
+export function refreshPlanCuts(plan, edges, map, unknown = []) {
   const owners = new Map();
   for (const cell of plan.cells) for (const [from, to] of cell.paths) {
     for (const path of [from, to, mappedPath(map, from)]) {
@@ -83,6 +83,15 @@ export function refreshPlanCuts(plan, edges, map) {
     const groups = cuts.get(to.cell), occurrences = groups.get(from.cell) ?? [];
     occurrences.push(`${from.from}->${to.from}`);
     groups.set(from.cell, occurrences);
+  }
+  // An unresolved loader cannot prove that an earlier recorded dependency disappeared.
+  const uncertain = new Set(unknown.map(row => owners.get(row.file)?.from).filter(Boolean));
+  for (const cell of plan.cells) for (const prior of cell.cuts) {
+    const groups = cuts.get(cell.name), occurrences = groups.get(prior.cell) ?? [];
+    const counts = new Map();
+    for (const edge of prior.edges) if (uncertain.has(edge.split('->')[0])) counts.set(edge, (counts.get(edge) ?? 0) + 1);
+    for (const [edge, count] of counts) for (let n = occurrences.filter(value => value === edge).length; n < count; n++) occurrences.push(edge);
+    if (occurrences.length) groups.set(prior.cell, occurrences);
   }
   const cells = plan.cells.map(cell => ({ ...cell, cuts: [...cuts.get(cell.name)]
     .sort(([a], [b]) => positions.get(a) - positions.get(b))

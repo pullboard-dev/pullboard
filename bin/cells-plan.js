@@ -229,10 +229,11 @@ function main(argv) {
   const [mode = '--check', ...rest] = argv;
   const root = resolve('.');
   if (mode === '--refresh-cuts') {
-    const plan = readPlan(root), missing = unplanned(root, plan);
+    const plan = readPlan(root), { edges, unknown } = cellInventory(root, { importsIn, commonJsIn });
+    const endpoints = new Set([...edges.keys(), ...[...edges.values()].flatMap(rows => rows.map(row => row.target))]);
+    const missing = unplanned(root, plan).filter(file => endpoints.has(file));
     if (missing.length) throw new Refused('CELLS_PLAN_UNPLANNED', `cannot refresh cuts for unplanned tracked sources: ${missing.join(', ')}; place them through the plan generator first`);
-    const { edges } = cellInventory(root, { importsIn, commonJsIn });
-    writePlan(root, refreshPlanCuts(plan, edges, readPathMap(root)));
+    writePlan(root, refreshPlanCuts(plan, edges, readPathMap(root), unknown));
     return 0;
   }
   if (mode === '--write') {
