@@ -15,7 +15,7 @@ import {
 export { validateRunner, runnerSource, RunnerDropped };
 import { validRunnerTrunk } from './runner-policy.js';
 /** Exact committed source and bounded, credential-free SSH execution for machine runners [C7]. */
-export { placeRunner, runnerStage } from './runner-stage.js';
+export { placeRunner, runnerStage } from './runner-stage-model.js';
 import { importTestResults } from './test-result-store.js';
 import {
   spawn,
@@ -72,10 +72,6 @@ import {
 import { Refused } from './refused.js';
 import { recordRunnerGui } from './resources.js';
 import { runnerPhaseFields } from './runner-overhead.js';
-import {
-  privateCheckEnvelope,
-  privateCheckPhases,
-} from './runner-private-mode.js';
 import {
   gateStages,
   readStages,
@@ -505,7 +501,7 @@ function anonymousOrigin(root) {
 }
 
 /** Prepare the pinned request before negotiating history; cleanup owns only its scratch directory. */
-async function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath }) {
+async function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath }, { privateCheckEnvelope }) {
   runner = validateRunner(runner);
   const current = runnerSource(root);
   if (!current || (source && (current.commit !== source.commit || current.tree !== source.tree))) {
@@ -585,7 +581,7 @@ async function requestFor(root, command, { runner, source, browser = false, byLa
 }
 
 /** Verify exact source and complete raw output before accepting any remote status. */
-function resultFrom(request, result) {
+function resultFrom(request, result, { privateCheckPhases }) {
   const output = result.stdout ?? Buffer.alloc(0);
   const lines = String(result.stderr ?? '').split(/\r?\n/u);
   const prefix = `PULLBOARD_RUNNER_RESULT ${request.spec.id} `;
@@ -723,7 +719,7 @@ function bridgeResult(request, result, phase) {
 /** Keep synchronous callers on the same fresh controller entry without a second bridge. */
 export function runOnRunner(root, command, options) {
   const request = { root, command, options, parentPid: process.pid };
-  const child = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--pullboard-runner-controller'], {
+  const child = spawnSync(process.execPath, [fileURLToPath(new URL('../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller'], {
     cwd: root, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -738,7 +734,7 @@ export async function runOnRunnerAsync(root, command, options) {
   const { signal, ...plainOptions } = options;
   const request = { root, command, options: plainOptions, parentPid: process.pid };
   const input = JSON.stringify(request);
-  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), '--pullboard-runner-controller'], {
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller'], {
     cwd: root, stdio: ['pipe', 'pipe', 'pipe'],
   });
   const output = [], diagnostics = [];
@@ -769,7 +765,8 @@ export async function runOnRunnerAsync(root, command, options) {
 }
 
 /** Serve only a directly launched controller, whose dependency cache starts in this process. */
-async function serveRunnerController() {
+export async function serveRunnerController(ports) {
+  if (typeof ports?.privateCheckEnvelope !== 'function' || typeof ports?.privateCheckPhases !== 'function') throw new TypeError('runner controller needs native private-check policy ports');
   let input = '';
   for await (const chunk of process.stdin) input += chunk;
   const request = JSON.parse(input);
@@ -780,7 +777,7 @@ async function serveRunnerController() {
   // Budget: notice loss of the exact originating controller once per second while SSH is active.
   const parentWatch = setInterval(() => { if (process.ppid !== request.parentPid) abort(); }, 1000);
   if (process.ppid !== request.parentPid) abort();
-  try { process.stdout.write(JSON.stringify({ result: await runInController(request.root, request.command, { ...request.options, signal: canceled.signal }) })); }
+  try { process.stdout.write(JSON.stringify({ result: await runInController(request.root, request.command, { ...request.options, signal: canceled.signal }, ports) })); }
   catch (error) {
     process.stdout.write(JSON.stringify({ error: { name: error.name, code: error.code, message: error.message, host: error.host, runnerAttempt: error.runnerAttempt, diagnostic: error.diagnostic } }));
     process.exitCode = 1;
@@ -788,9 +785,9 @@ async function serveRunnerController() {
 }
 
 /** Negotiate missing history objects while the remote cache lease stays held in one SSH session. */
-async function runInController(root, command, options) {
+async function runInController(root, command, options, ports) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
-  const request = await requestFor(root, command, options);
+  const request = await requestFor(root, command, options, ports);
   let removeAbort = () => {};
   let runnerWaitTimer;
   let runnerWaitKill;
@@ -884,18 +881,20 @@ async function runInController(root, command, options) {
     if (rawFd !== null) { closeSync(rawFd); rawFd = null; }
     const bounded = request.rawOutputPath ? Buffer.concat([head, ...(rawBytes > half * 2 ? [Buffer.from('\n[output capped at 8 MiB; middle omitted]\n')] : []), tail]) : Buffer.concat(output);
     return resultFrom(request, { status, signal, error, stdout: bounded, stderr: Buffer.concat(diagnostics),
-      ...(request.rawOutputPath ? { rawOutputPath: request.rawOutputPath, rawBytes, rawSha256: rawHash.digest('hex') } : {}) });
+      ...(request.rawOutputPath ? { rawOutputPath: request.rawOutputPath, rawBytes, rawSha256: rawHash.digest('hex') } : {}) }, ports);
   } finally { clearTimeout(runnerWaitTimer); clearTimeout(runnerWaitKill); if (rawFd !== null) closeSync(rawFd); removeAbort(); request.cleanup(); }
 }
 
-/** A direct file entry is private bridge transport, never an option that callers can use to bypass isolation. */
-function isRunnerControllerEntry() {
-  if (process.argv[2] !== '--pullboard-runner-controller' || !process.argv[1]) return false;
-  try { return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url); }
-  catch { return false; }
+/** Give a pre-upgrade cached self-spawn caller a typed restart without reading input or starting transport. */
+function refuseLegacyControllerEntry() {
+  if (process.argv[2] !== '--pullboard-runner-controller' || !process.argv[1]) return;
+  try { if (realpathSync(process.argv[1]) !== fileURLToPath(import.meta.url)) return; }
+  catch { return; }
+  process.stdout.write(JSON.stringify({ error: { name: 'Refused', code: 'RUNNER_TOOLING_CHANGED',
+    message: 'runner controller entry changed; restart the command from the current committed CLI before retrying' } }));
+  process.exitCode = 1;
 }
-
-if (isRunnerControllerEntry()) serveRunnerController().catch(error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
+refuseLegacyControllerEntry();
 
 /** Ask the pinned real worker to prove readiness plus the exact failed job's completed cleanup. */
 export async function probeRunnerHealth(runner, previous) {
