@@ -1087,8 +1087,14 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       return { ...watcher, revision: () => withGitReadFacts(() => watcher.revision()) };
     },
     delta: (board, who, seen, options) => withGitReadFacts(() => localDelta(board, seen, options)),
-    proof: (board, id) => withGitReadFacts(() => withReadBoard(board.root, current =>
-      proofStats(current, { now: now() }).flow.report?.items?.find(item => item.id === id) ?? null, codeIsMain)),
+    proof: (board, id) => withGitReadFacts(() => withReadBoard(board.root, current => {
+      try { store.itemById(current, id); }
+      catch (error) { if (error.code === 'NO_ITEM') return null; throw error; }
+      const report = proofStats(current, { now: now() }).flow.report;
+      const proof = report?.items?.find(item => item.id === id);
+      if (!proof) throw new Refused('ITEM_NOT_AVAILABLE', 'this item exists, but its proof report is unavailable; run a normal writable board command to rebuild the derived report, then retry');
+      return proof;
+    }, codeIsMain)),
     item: (board, id) => withGitReadFacts(() => localItem(board, id)),
     search: (board, text) => withGitReadFacts(() => localSearch(board, text)),
     shout: (board, id) => withGitReadFacts(() => relayLinked(board.root)

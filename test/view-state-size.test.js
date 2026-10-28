@@ -7,6 +7,7 @@ import { atomic } from '../src/board-event-log.js';
 import { serveApi } from '../src/api.js';
 import { main } from '../src/cli.js';
 import { proofStats } from '../src/stats.js';
+import { ensureProofCounters } from '../src/proof-counters.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fetchFresh } from './http-fixture.js';
 
@@ -36,6 +37,11 @@ async function fixture(t, { items = 1, seats = 1, shouts = 0, recentAge = 0 } = 
   at = now - recentAge;
   store.shout(board, { from: agents[0], to: 'coordinator', text: 'Recently active seat', lanes: ['web', 'api'] });
   const fullStats = proofStats(board, { now });
+  /** Emulate loss of one private derived shard, matching the accepted old-counter cache fixture. */
+  function forgetReport() { board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run('local:proof-stats:v2:report-summary'); }
+  /** Rebuild only derived counters through the normal writer helper, preserving native history. */
+  function rebuildReport() { ensureProofCounters(board); }
+
   let builds = 0;
   const api = await serveApi({ runCommand: main, projects: () => [{ root: box.repo, name: 'State scale fixture' }],
     now: () => now, onStateBuild: () => { builds += 1; } });
@@ -51,7 +57,7 @@ async function fixture(t, { items = 1, seats = 1, shouts = 0, recentAge = 0 } = 
   const listing = await request('/api/v1/boards');
   assert.equal(listing.status, 200);
   const path = '/api/v1/boards/' + encodeURIComponent(listing.document.boards[0].id);
-  return { request, path, agents, fullStats, builds: () => builds, advance: ms => { now += ms; } };
+  return { request, path, agents, fullStats, forgetReport, rebuildReport, builds: () => builds, advance: ms => { now += ms; } };
 }
 
 test('[N26,A2] 1600 items, 1150 seats and 40000 shouts yield a sub-600KB authenticated state with complete summaries', async t => {
@@ -107,4 +113,18 @@ test('[N26,A2] detailed proof reads retain board authentication and reject missi
   assert.equal((await box.request(box.path + '/proofs/0')).status, 400);
   assert.equal((await box.request(box.path + '/proofs/1', true, 'POST')).status, 400);
   assert.equal((await box.request(box.path + '/proofs/1')).status, 200);
+});
+
+test('[N26,A2] missing derived proof data is unavailable for a known item rather than a false unknown item', async t => {
+  const box = await fixture(t);
+  box.forgetReport();
+  const unavailable = await box.request(box.path + '/proofs/1');
+  assert.equal(unavailable.status, 400);
+  assert.equal(unavailable.document.error.code, 'ITEM_NOT_AVAILABLE');
+  assert.match(unavailable.document.error.message, /normal writable board command.*rebuild/u);
+  assert.equal((await box.request(box.path + '/proofs/999')).status, 404, 'a truly absent item remains unknown even when reports are unavailable');
+  box.rebuildReport();
+  const restored = await box.request(box.path + '/proofs/1');
+  assert.equal(restored.status, 200);
+  assert.deepEqual(restored.document.proof, box.fullStats.flow.report.items.find(item => item.id === 1));
 });
