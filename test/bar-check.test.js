@@ -141,7 +141,7 @@ test('[B29,B30,B31,V4,H16] a sent-back light item starts a required check when i
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submittedCommit);
   const reviewerJoin = box.run(reviewer, 'join', 'web');
   assert.equal(reviewerJoin.code, 0, reviewerJoin.err);
-  const rejected = box.run(reviewer, 'verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--note', 'the heading is not specified');
+  const rejected = box.run(reviewer, 'verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'the page renders', '--note', 'the heading is not specified');
   assert.equal(rejected.code, 0, rejected.err);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
 

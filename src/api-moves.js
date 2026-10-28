@@ -19,7 +19,7 @@ const MOVES = {
   release: { item: true, flags: ['note'] },
   submit: { item: true },
   done: { item: true },
-  verify: { item: true, positions: ['decision'], flags: ['reason', 'note', 'cause', 'as', 'implies'] },
+  verify: { item: true, positions: ['decision'], flags: ['reason', 'note', 'cause', 'clause', 'as', 'implies'] },
   merged: { item: true, positions: ['commit'] },
   withdraw: { item: true, positions: ['reason'] },
   refreeze: { item: true },
