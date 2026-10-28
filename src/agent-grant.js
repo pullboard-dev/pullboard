@@ -2,20 +2,19 @@
 import { AGENT_GRANT_ENGINE } from './agent-grant-engine.js';
 import { REVIEW_GRANT_ENGINE } from './review-grant-engine.js';
 import { BAR_SIGN_GRANT_ENGINE } from './bar-sign-grant-engine.js';
-import { MOVE_REGISTRY } from './move-registry.js';
 import { Refused } from './refused.js';
-import { recordedGrantActivation } from './relay-activation.js';
-import { completesAdmittedSubmit } from './submit-admission.js';
+import { recordedGrantActivation } from '../packages/state/index.js';
+import { completesAdmittedSubmit } from '../packages/state/index.js';
 
 // Attributed append-only findings never confer authority over item state.
 const ADMINISTRATIVE = new Set(['shout', 'claim', 'release', 'reserveReview', 'appendFact', 'recordAttempt']);
 
 /** Bind only item mutations declared by the public operation, including item creation. */
-function target(move) {
+function target(move, registry) {
   if (move.operation === 'addItem') return { lane: move.args?.[0]?.lane, creating: true };
   if (move.operation === 'applyRehomeItem') return { item: move.args?.[0]?.destinationItemId,
     lane: move.args?.[0]?.item?.item_lane, creating: true };
-  if (MOVE_REGISTRY[move.operation]?.itemIdFirstArgument) return { item: move.args?.[0] };
+  if (registry[move.operation]?.itemIdFirstArgument) return { item: move.args?.[0] };
   return null;
 }
 
@@ -26,17 +25,17 @@ function existingItem(board, id) {
 }
 
 /** A version marker is not a grant: it only prevents an older engine bypassing a new seat or claim. */
-export function agentGrantMinimum(board, move) {
+export function agentGrantMinimum(board, move, { registry } = board.enginePorts) {
   // Communication and review administration neither widen nor replace a claim. An old claim could erase its version marker.
-  if (move.operation !== 'claim' && (ADMINISTRATIVE.has(move.operation) || !target(move))) return 1;
-  const actor = MOVE_REGISTRY[move.operation]?.actor(move);
+  if (move.operation !== 'claim' && (ADMINISTRATIVE.has(move.operation) || !target(move, registry))) return 1;
+  const actor = registry[move.operation]?.actor(move);
   // Person, coordinator and machine moves are never grant-checked, so activation cannot wedge an in-flight one.
   if (typeof actor !== 'string' || ['person', 'coordinator', 'machine'].includes(actor)) return 1;
   // The newest engine never grant-checks a verdict, so an older verdict bypasses nothing and replays under its own rules.
   if (move.operation === 'verify') return 1;
   if (recordedGrantActivation(board)) return AGENT_GRANT_ENGINE;
   const event = board.db.prepare("SELECT event_detail FROM event WHERE event_by=? AND event_kind IN ('join','claim','renew') ORDER BY event_id DESC LIMIT 1").get(actor);
-  const item = existingItem(board, target(move)?.item ?? (move.operation === 'claim' ? move.args?.[0] : null));
+  const item = existingItem(board, target(move, registry)?.item ?? (move.operation === 'claim' ? move.args?.[0] : null));
   const claimed = item ? board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind IN ('claim','renew') ORDER BY event_id DESC LIMIT 1").get(item.item_id) : null;
   return [event, claimed].some(row => {
     const version = row && JSON.parse(row.event_detail).grantEngine;
@@ -45,15 +44,15 @@ export function agentGrantMinimum(board, move) {
 }
 
 /** Refuse out-of-grant item changes at the same ordered instant on every replica. */
-export function requireAgentGrant(board, move, at = board.clock.now()) {
+export function requireAgentGrant(board, move, at = board.clock.now(), { registry } = board.enginePorts) {
   if (move.engine < AGENT_GRANT_ENGINE || ADMINISTRATIVE.has(move.operation)) return;
   // Reopen owns coordinator/reviewer authority; agentGrantMinimum retains the marked-seat/target floor.
   if (move.operation === 'reopen') return;
-  const actor = MOVE_REGISTRY[move.operation]?.actor(move);
+  const actor = registry[move.operation]?.actor(move);
   if (typeof actor !== 'string' || ['person', 'coordinator', 'machine'].includes(actor)) return;
   const seat = board.db.prepare('SELECT agent_lane FROM agent WHERE agent_id=?').get(actor);
   if (!seat) return; // Existing operation validation owns unknown-seat refusals.
-  const scope = target(move);
+  const scope = target(move, registry);
   if (!scope) return;
   const item = existingItem(board, scope.item);
   if (!scope.creating && !item) return; // Preserve the operation's own malformed/missing-item refusal.

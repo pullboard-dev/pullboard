@@ -1,14 +1,10 @@
-import {
-  IMPLYING_OPERATIONS,
-  carriesImplies,
-} from './move-implies.js';
+import { IMPLYING_OPERATIONS } from '../packages/state/index.js';
+import { carriesImplies } from '../packages/state/index.js';
 export { IMPLYING_OPERATIONS, carriesImplies };
 import { IMPLIES_ENGINE } from './move-engine-constants.js';
 export { IMPLIES_ENGINE };
-import {
-  decisionFields,
-  factFromEvent,
-} from './board-query.js';
+import { decisionFields } from '../packages/state/index.js';
+import { factFromEvent } from '../packages/state/index.js';
 /**
  * A decision names the items it changes, and each named item carries it [B29,B30,B31,N29,P6].
  *
@@ -21,20 +17,14 @@ import {
  * caller can mint a person-origin citation (P6). The only route to `by: "person"` is a real
  * person answer, which keeps its own person-channel rules.
  */
-import {
-  createHash,
-  randomUUID,
-} from 'node:crypto';
-import {
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from 'node:fs';
-import {
-  dirname,
-  join,
-} from 'node:path';
+import { createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { COORDINATOR } from './config.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { Refused } from './refused.js';
@@ -297,7 +287,7 @@ export function requestAnswerRefusal(id, { asPerson }) {
     : new Refused('NOT_A_DECISION', `request #${id} is not a decision, so it implies and supersedes nothing; answer it with pullboard answer ${id} done or declined <reason>`);
 }
 
-export { decisionFields } from './board-query.js';
+export { decisionFields } from '../packages/state/index.js';
 
 /** The most fact ids one checkout remembers as shown; older ones age out first. */
 const SEEN_LIMIT = 2000;
@@ -329,4 +319,4 @@ export function takeDecisionNotices(gitDir, held) {
   return notices;
 }
 
-export { factFromEvent } from './board-query.js';
+export { factFromEvent } from '../packages/state/index.js';

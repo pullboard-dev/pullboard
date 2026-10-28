@@ -1,3 +1,4 @@
+import { boardEnginePorts } from './board-engine-ports.js';
 import * as rejectClause from './reject-clause.js';
 import { requireSourceAdvanceReview } from './source-advance-state.js';
 import { SOURCE_ADVANCE_ENGINE } from './source-advance-engine.js';
@@ -458,7 +459,7 @@ export function openBoard(file, clock = systemClock, { isMain, onDiagnostic, wri
     db = new DatabaseSync(file);
     db.exec(`PRAGMA busy_timeout = ${BOARD_BUSY_TIMEOUT_MS}`);
     if (file !== ':memory:' && isMain !== false) configureBoardJournal(db, writeContext);
-    const board = { db, clock, writeContext, gitRoot, onDiagnostic };
+    const board = { db, clock, writeContext, gitRoot, onDiagnostic, enginePorts: boardEnginePorts() };
     let warmCounters = true;
     if (isMain !== false || file === ':memory:') {
       // Migrate and audit only a board whose version is behind; a drifted shape is reported and left alone (#1047).
