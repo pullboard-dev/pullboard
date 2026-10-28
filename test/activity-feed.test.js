@@ -659,6 +659,7 @@ test('an inbox check over its budget summarizes the rest and names what it left 
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   config.inbox = { tokenBudget: 1024 };
   writeFileSync(configPath, JSON.stringify(config));
+  // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   for (let index = 0; index < 12; index++) store.shout(board, { from: 'coordinator', to: 'web-1',
     text: `Private budget message ${index}: ${'界'.repeat(350)}`, lanes: ['web', 'api'] });
@@ -678,6 +679,7 @@ test('an inbox check over its budget summarizes the rest and names what it left 
   assert.equal(again.code, 0, again.err);
   const continued = JSON.parse(again.out);
   assert.equal(continued.shouts.length, 0, 'summarized messages are acknowledged rather than repeated forever');
+  // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
   const unchanged = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   assert.deepEqual(exportBoard(unchanged).tables.event.filter(event => event.event_kind !== 'activity-delivered'),
     before.tables.event, 'budgeting preserves original immutable events while allowing canonical delivery receipts');
@@ -691,6 +693,7 @@ test('inbox budgets retain small deliveries and bound text without clipping mess
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   config.inbox = { tokenBudget: 1024 };
   writeFileSync(configPath, JSON.stringify(config));
+  // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   store.shout(board, { from: 'coordinator', to: 'web-1', text: 'An oversized message: ' + '界'.repeat(350), lanes: ['web'] });
   store.closeBoard(board);
@@ -701,6 +704,7 @@ test('inbox budgets retain small deliveries and bound text without clipping mess
   assert.doesNotMatch(text.out, /An oversized message/u);
   config.inbox.tokenBudget = 2048;
   writeFileSync(configPath, JSON.stringify(config));
+  // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
   const reopened = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   store.shout(reopened, { from: 'coordinator', to: 'web-1', text: 'Ready.', lanes: ['web'] });
   store.closeBoard(reopened);
@@ -721,6 +725,7 @@ test('inbox budgets withhold interrupt receipts until the whole interrupt is ren
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   config.inbox = { tokenBudget: 1024 };
   writeFileSync(configPath, JSON.stringify(config));
+  // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const question = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'Which bounded path?',
     decision: true, lanes: ['web', 'api'] });
@@ -736,6 +741,7 @@ test('inbox budgets withhold interrupt receipts until the whole interrupt is ren
   assert.deepEqual(withheld.activity.interrupts, []);
   assert.equal(withheld.budget.omitted.interrupt, 1);
   assert.match(withheld.budget.summary, /1 interrupt/u);
+  // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
   const recorded = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   assert.ok(store.events(recorded).filter(event => event.event_kind === 'activity-delivered')
     .every(event => !JSON.parse(event.event_detail).interrupts.includes(id)), 'a summary is not an interrupt delivery receipt');
