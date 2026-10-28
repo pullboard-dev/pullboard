@@ -12,6 +12,7 @@ import {
 import {
   execFileSync,
 } from 'node:child_process';
+import { gitExecFileSync } from './git-adapter.js';
 import {
   createHash,
 } from 'node:crypto';
@@ -85,7 +86,7 @@ import {
 
 /** Run Git with the same sanitized repository environment as ordinary native code. */
 function git(root, args, encoding = 'utf8') {
-  return execFileSync('git', args, { cwd: root, env: gitChildEnv(root), encoding, stdio: ['ignore', 'pipe', 'pipe'] });
+  return gitExecFileSync(args, { cwd: root, env: gitChildEnv(root), encoding, stdio: ['ignore', 'pipe', 'pipe'] });
 }
 /** Read native history without retaining an open board across locks, admission or execution. */
 function readBoard(info, action) {

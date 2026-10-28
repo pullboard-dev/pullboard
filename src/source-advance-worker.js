@@ -3,6 +3,7 @@ import { copyFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { gitExecFileSync } from './git-adapter.js';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,7 +20,7 @@ import { withSourceComposition } from './source-advance-compose.js';
 
 /** Read immutable Git facts with a bounded child; never execute repository hooks. */
 function git(root, args) {
-  return execFileSync('git', args, { cwd: root, env: gitChildEnv(root), encoding: 'utf8', timeout: 30000 }).trim();
+  return gitExecFileSync(args, { cwd: root, env: gitChildEnv(root), encoding: 'utf8', timeout: 30000 }).trim();
 }
 
 /** The private advisory folder is repository-owned and contains no new board authority. */

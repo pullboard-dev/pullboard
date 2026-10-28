@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from './git-adapter.js';
 import { counterProofStats } from './proof-counter-read.js';
 import { viewFlowSummary } from './view-state-summary.js';
 import { proofStats } from './stats.js';
@@ -1213,15 +1213,15 @@ export function codeAt(root, { path, from, to, commit, before = '' }) {
   const full = resolveCommit(root, commit);
   if (!full) throw new Refused('NO_COMMIT', `no commit ${commit} in this repo`);
   const object = `${full}:${path}`;
-  const type = spawnSync('git', ['cat-file', '-t', object], { cwd: root, encoding: 'utf8' });
+  const type = gitSpawnSync(['cat-file', '-t', object], { cwd: root, encoding: 'utf8' });
   if (type.status !== 0 || type.stdout.trim() !== 'blob') throw new Refused('NO_FILE', `no file ${path} at ${commit}`);
   const written = `${before}${path}`;
-  const names = spawnSync('git', ['ls-tree', '-r', '-z', '--name-only', full], { cwd: root, encoding: 'utf8', maxBuffer: 64_000_000 }).stdout.split('\0');
+  const names = gitSpawnSync(['ls-tree', '-r', '-z', '--name-only', full], { cwd: root, encoding: 'utf8', maxBuffer: 64_000_000 }).stdout.split('\0');
   const longer = names.find((name) => name.length > path.length && name.endsWith(path) && written.endsWith(name));
   if (longer) throw new Refused('AMBIGUOUS', `the text before it may make it "${longer}", which a reference cannot name`);
-  const size = Number(spawnSync('git', ['cat-file', '-s', object], { cwd: root, encoding: 'utf8' }).stdout);
+  const size = Number(gitSpawnSync(['cat-file', '-s', object], { cwd: root, encoding: 'utf8' }).stdout);
   if (!(size <= CODE_BYTES)) throw new Refused('TOO_LARGE', `${path} is over ${CODE_BYTES / 1_000_000} MB, too large to show`);
-  const lines = spawnSync('git', ['cat-file', 'blob', object], { cwd: root, encoding: 'utf8', maxBuffer: CODE_BYTES + 1 }).stdout.split('\n');
+  const lines = gitSpawnSync(['cat-file', 'blob', object], { cwd: root, encoding: 'utf8', maxBuffer: CODE_BYTES + 1 }).stdout.split('\n');
   if (lines.at(-1) === '') lines.pop();
   if (to > lines.length) throw new Refused('NO_LINES', `${path} has ${lines.length} lines at ${commit}`);
   const last = Math.min(to, from + CODE_LINES - 1);
