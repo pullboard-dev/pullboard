@@ -13,10 +13,10 @@ export function viewProofSummary(stats) {
   return { ...summary, flow: viewFlowSummary(stats.flow) };
 }
 
-/** Match the existing flow activity window, retaining every field of each recently active seat. */
+/** Match the existing four-hour Dashboard activity window, retaining every field of each recently active seat. */
 export function activeViewAgents(agents, now) {
   return agents.filter(agent => {
     const at = Date.parse(agent.lastMoveAt);
-    return Number.isFinite(at) && at <= now && at >= now - 3_600_000;
+    return Number.isFinite(at) && at <= now && at >= now - 4 * 3_600_000;
   });
 }

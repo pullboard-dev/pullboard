@@ -12,9 +12,9 @@ export function nativeStateClockWindow(state, history, items, observedAt) {
   }
   for (const agent of state.agents ?? []) {
     const at = Date.parse(agent.lastMoveAt);
-    // The activity window includes the exact one-hour boundary.
+    // The activity window includes the exact four-hour boundary.
     consider(at);
-    consider(at + HOUR + 1);
+    consider(at + 4 * HOUR + 1);
   }
   for (const block of state.blocks ?? []) {
     // readBlocks includes an entry at exactly its twenty-four-hour boundary.

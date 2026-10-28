@@ -11,12 +11,12 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { fetchFresh } from './http-fixture.js';
 
 /** Initialize an actual Git/SQLite project and expose a controlled observation clock over HTTP. */
-async function fixture(t, { items = 1, seats = 1, shouts = 0 } = {}) {
+async function fixture(t, { items = 1, seats = 1, shouts = 0, recentAge = 0 } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
-  let now = Date.now() + 2 * 3_600_000;
-  let at = now - 2 * 3_600_000;
+  let now = Date.now() + 8 * 3_600_000;
+  let at = now - 8 * 3_600_000;
   // @pullboard-board-file journey: the API and actual moves share the private CLI-initialized board.
   const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'), { now: () => new Date(at) });
   t.after(() => store.closeBoard(board));
@@ -33,7 +33,7 @@ async function fixture(t, { items = 1, seats = 1, shouts = 0 } = {}) {
       from: agents[index % agents.length], to: 'coordinator', text: `Recorded activity ${index}`, lanes: ['web', 'api'],
     });
   });
-  at = now;
+  at = now - recentAge;
   store.shout(board, { from: agents[0], to: 'coordinator', text: 'Recently active seat', lanes: ['web', 'api'] });
   const fullStats = proofStats(board, { now });
   let builds = 0;
@@ -88,8 +88,8 @@ test('[N26,A2] 1600 items, 1150 seats and 40000 shouts yield a sub-600KB authent
   t.diagnostic(`state=${first.bytes} bytes; fullProofStats=${Buffer.byteLength(JSON.stringify(box.fullStats))} bytes`);
 });
 
-test('[N26,A2] active-seat expiry rebuilds the cached state at the inclusive one-hour boundary', async t => {
-  const box = await fixture(t);
+test('[N26,A2] active-seat expiry rebuilds the cached state at the inclusive four-hour boundary and retains a three-hour-old seat', async t => {
+  const box = await fixture(t, { recentAge: 3 * 3_600_000 });
   assert.equal((await box.request(box.path + '/state')).document.state.agents.length, 1);
   box.advance(3_600_000);
   assert.equal((await box.request(box.path + '/state')).document.state.agents.length, 1);
