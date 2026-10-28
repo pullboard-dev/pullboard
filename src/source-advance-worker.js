@@ -90,15 +90,10 @@ function snapshot(root, info) {
 export function hasSourceAdvanceJobs(root, info = repoInfo(root)) {
   if (snapshot(root, info).length > 0) return true;
   const directory = sourceAdvanceDirectory(info);
-  if (!existsSync(directory)) return false;
-  const ownerFile = join(directory, 'owner.json'), wakeFile = join(directory, 'wake.json');
-  // An empty current snapshot does not erase an already-issued wake. Let the
-  // serialized owner settle that generation before treating the repository as idle.
-  if (existsSync(ownerFile)) return true;
-  if (!existsSync(wakeFile)) return false;
-  const wake = readMainAudit(wakeFile), settled = readMainAudit(join(directory, 'settled.json'));
-  if (!Number.isSafeInteger(wake?.generation) || wake.generation < 0) return true;
-  return !Number.isSafeInteger(settled?.generation) || settled.generation < wake.generation;
+  // Once this repository has advisory state, a foreground wake must enter the
+  // serialized drain even when the current snapshot is empty. It may be the
+  // next generation after an earlier real job, and only the owner can settle it.
+  return existsSync(directory);
 }
 
 /** Signal incomplete work once through the ordinary item thread without a self-shout or fabricated authority. */

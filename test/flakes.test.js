@@ -90,6 +90,11 @@ test('empty automatic wakes leave no advisory state in a private repository [C7,
     'the worker drains the preexisting generation and its own wake before returning');
   assert.equal(existsSync(join(sourceAdvances, 'owner.json')), false,
     'settled generations release their exact private owner');
+  assert.equal(hasSourceAdvanceJobs(box.root), true,
+    'an existing advisory directory keeps later explicit wakes on the serialized drain path');
+  await runSourceAdvances(box.root, randomUUID());
+  assert.deepEqual(JSON.parse(readFileSync(join(sourceAdvances, 'settled.json'), 'utf8')).generation, 3,
+    'an explicit later wake settles even after all source obligations are complete');
 });
 
 /** Keep the exact same test identity on main and a candidate, with independently controlled behavior. */
