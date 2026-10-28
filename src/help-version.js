@@ -1,3 +1,2 @@
-/** Keep the displayed version sourced from package metadata without a help cycle. */
-import packageData from '../package.json' with { type: 'json' };
-export const VERSION = packageData.version;
+/** Retain the existing release-facts front door while both callers use the lower definition [N26,C7]. */
+export { VERSION } from './release-version.js';
