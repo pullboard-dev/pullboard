@@ -3,7 +3,6 @@ import { readPathMap } from './path-map.js';
 import { exportReachability } from './cell-lint-exports.js';
 /** Report migration debt from accepted RFC 0006; report reads never initialize or rewrite ratchets [C7,CD64]. */
 import { cellInventory } from './cell-lint-inventory.js';
-import { temporaryCellEdges } from './cell-lint-inventory.js';
 import { cellOf } from './cell-lint-inventory.js';
 import { cycleEdges } from './cell-lint-inventory.js';
 import { testFile } from './cell-lint-inventory.js';
@@ -21,9 +20,6 @@ export function cellLintReport(root) {
     metrics[metric].count += count;
     metrics[metric].findings.push({ key, count, detail });
   }
-  const temporary = temporaryCellEdges(files);
-  for (const row of temporary.edges) add('shims', `temporary:${row.importer}->${row.target}`, 1, `contract #${row.contractItem}; expires ${row.expires} UTC`);
-  for (const reason of temporary.problems) unknown.push({ file: 'bin/cells-plan/temporary-edges.json', reason });
   const rootInfo = cellRoots(files);
   unknown.push(...rootInfo.unknown);
   const graph = new Map(), reachable = new Set(), pending = [...rootInfo.roots];
