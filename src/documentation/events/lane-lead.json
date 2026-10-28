@@ -1,0 +1,10 @@
+{
+  "kind": "lane-lead",
+  "entries": [
+    {
+      "order": 29,
+      "actor": "coordinator",
+      "detail": "`lane`, `seat`"
+    }
+  ]
+}

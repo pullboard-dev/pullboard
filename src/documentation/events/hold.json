@@ -1,0 +1,10 @@
+{
+  "kind": "hold",
+  "entries": [
+    {
+      "order": 30,
+      "actor": "coordinator",
+      "detail": "`lane`, `reason`"
+    }
+  ]
+}
