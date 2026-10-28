@@ -378,6 +378,9 @@ export function doctrineFile(root, name = DOCTRINE_FILE) {
   return current ? DOCTRINE_FILE : legacy ? LEGACY_DOCTRINE_FILE : name;
 }
 
+/** The ceiling for a frozen check: a configured landing.timeout when set, else check.timeout (#1760). */
+export function frozenCheckCeilingMs(config) { return config.landing?.timeoutMs ?? config.check.timeoutMs; }
+
 /** Parse committed coordinator settings with the same defaults and validation as local settings. */
 export function configFromSource(source) {
   let raw;

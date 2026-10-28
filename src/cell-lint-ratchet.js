@@ -18,11 +18,15 @@ export function validateCellLintBaseline(value) {
   }
 }
 
-/** Snapshot the actual measured finding identities only when explicitly initializing or lowering a baseline. */
+/** Snapshot measured identities after resolving accepted renames, so same-generation snapshots remain stable. */
 export function cellLintBaseline(report) {
+  const map = new Map(Object.entries(report.pathMap ?? {}));
   return { version: 1, metrics: Object.fromEntries(CELL_METRICS.map(metric => {
     const allowances = Object.create(null);
-    for (const finding of report.metrics[metric].findings) allowances[finding.key] = (allowances[finding.key] ?? 0) + finding.count;
+    for (const finding of report.metrics[metric].findings) {
+      const key = translatedAllowance(metric, finding.key, map);
+      allowances[key] = (allowances[key] ?? 0) + finding.count;
+    }
     return [metric, { count: report.metrics[metric].count, allowances }];
   })) };
 }
