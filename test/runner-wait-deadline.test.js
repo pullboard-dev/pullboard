@@ -31,7 +31,7 @@ cp.spawnSync=function(command,...args){ if(command!=='/bin/launchctl') return or
   return {status:113,signal:null,stderr:'Could not find domain for fixture\\n'}; };
 require('node:module').syncBuiltinESMExports();\n`);
   installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths.remoteHome,
-    machineHome: paths.remoteMachine, requests, starts, hold, dropFirst, healthDown, stderrLog,
+    machineHome: paths.remoteMachine, requests, starts, hold, dropFirst, healthDown, workerHealthDown: healthDown, stderrLog,
     registrationNodeOptions: `--require=${noDesktop}` });
   box.env.PATH = paths.bin + ':' + box.env.PATH;
   const added = cli(box.repo, box.env, 'runner', 'add', HOST + '-drop', '--slots', '1', '--browser', '1');

@@ -14,6 +14,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   CELLS_PLAN_FILE: 'run pullboard list core --all to see which move items exist, fix the reported problem, then rerun node bin/cells-plan.js --file, which skips filed items',
   CELLS_PLAN_GIT: 'run node bin/cells-plan.js inside a Git checkout of this repository',
   CELLS_PLAN_MODE: 'run node bin/cells-plan.js --write, --check, --moved <cell> or --file [--yes]',
+  NO_CELLS_PLAN: 'restore a readable bin/cells-plan.json and its shards on the trusted main branch, then submit again; outside intake does not classify without the sensitive list',
+  SENSITIVE_CELL_MISSING: 'restore the gate, landing, merge, verify, keys and person cells in bin/cells-plan.json on the trusted main branch, or move their code into a named cell, then submit again',
   PUBLIC_EXPORT_BLOCKED: 'remove the blocked public text the refusal names, or run pullboard view --export <dir> without --public for a private snapshot; never publish the refused snapshot',
   PUBLIC_EXPORT_UNAVAILABLE: 'upgrade Pullboard to a build whose view export declares the checked public filter, or run pullboard view --export <dir> without --public for a private snapshot',
   SUBMISSION_CHANGED: 'run pullboard show <id> to inspect its current submission attempt and verdict; do not resubmit an acknowledged attempt',
