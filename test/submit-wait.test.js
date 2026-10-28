@@ -1,3 +1,5 @@
+import { withBoardRead } from '../src/board-read.js';
+import { retrySync } from '../src/cli-sync.js';
 /** Submission verdict delivery and deterministic rejected-work return [V2,V4,B5,B13,A6]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
@@ -15,6 +17,7 @@ import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { firstRefusal } from '../src/first-refusal-window.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
+const waitPorts = { withBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem };
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
@@ -118,7 +121,7 @@ test('a withdrawn verdict does not finish a submission wait successfully [V2,V6]
   onBoard(box, board => store.reopen(board, 1, { agentId: 'coordinator', withdrawVerdict: true,
     note: 'The reviewer withdrew this acceptance after a concrete gap was found.' }));
   const io = { cwd: box.repo, say: () => {}, err: () => {} };
-  await assert.rejects(waitForSubmissionVerdict(context(io), id, { id, commit }, receipt),
+  await assert.rejects(waitForSubmissionVerdict(context(io), id, { id, commit }, receipt, waitPorts),
     error => error.code === 'SUBMISSION_CHANGED');
 });
 
@@ -146,7 +149,7 @@ test('a wait keeps its original receipt across a same-SHA refrozen resubmission 
     digest: store.getItem(board, 1).item_frozen_digest, head: submission.commit }));
   const io = { cwd: box.repo, say: () => {}, err: () => {} };
   let superseded;
-  const originalWait = waitForSubmissionVerdict(context(io), submission.id, submission, receipt)
+  const originalWait = waitForSubmissionVerdict(context(io), submission.id, submission, receipt, waitPorts)
     .catch(error => { superseded = error; });
   t.after(async () => {
     if (!superseded) rejectLaterAttempt();
@@ -155,7 +158,7 @@ test('a wait keeps its original receipt across a same-SHA refrozen resubmission 
   await helpers.waitFor(() => superseded, 'the original wait to refuse a later pending same-SHA submission');
   assert.equal(superseded.code, 'SUBMISSION_CHANGED', 'a later pending attempt cannot keep the old wait attached');
   rejectLaterAttempt();
-  await assert.rejects(waitForSubmissionVerdict(context(io), submission.id, submission, receipt),
+  await assert.rejects(waitForSubmissionVerdict(context(io), submission.id, submission, receipt, waitPorts),
     error => error.code === 'SUBMISSION_CHANGED');
 });
 

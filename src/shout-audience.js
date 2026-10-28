@@ -1,5 +1,6 @@
 /** Shared item-message addressing for the board's inbox, resume and live watch [B7,N19,A2]. */
 import { Refused } from './refused.js';
+import { shoutItemId } from '../packages/kernel/src/core/registry-guards.js';
 
 /** Reserved engine-93 address: '+' is forbidden in lane names and their derived seat ids. */
 export const COORDINATION_SHOUT = 'coordinator+person';
@@ -9,13 +10,6 @@ export function itemShoutTarget(db, value) {
   if (!Number.isSafeInteger(value) || value < 1) throw new Refused('BAD_SHOUT_ITEM', 'an item message needs an existing positive item id; run pullboard shout --item <id> "text"');
   if (!db.prepare('SELECT 1 FROM item WHERE item_id = ?').get(value)) throw new Refused('NO_ITEM', `no item #${value}; run pullboard list, then address an existing item`);
   return `item:${value}`;
-}
-
-/** Decode only the canonical item address; ordinary seats and lanes keep their old names. */
-export function shoutItemId(to) {
-  const match = /^item:([1-9]\d*)$/u.exec(String(to));
-  const id = match ? Number(match[1]) : null;
-  return Number.isSafeInteger(id) ? id : null;
 }
 
 /** Whether a seat currently builds or reviews this item, or coordinates its work. */

@@ -137,7 +137,7 @@ test('ready capacity reads current items and lane holds once per projection [C7,
   box.addFree('Dependency blocked', { after: [ids[0]] });
   store.holdItem(box.board, ids[1], { agentId: 'coordinator', reason: 'Wait for a decision' });
   const before = store.listItems(box.board, { all: true });
-  const expected = before.filter(item => item.item_status === 'open' && !itemWaits(box.board, item, before).length);
+  const expected = before.filter(item => item.item_status === 'open' && !itemWaits(box.board, item, before, store.foreignBlockers).length);
   const reads = { items: 0, holds: 0, families: 0 };
   const observed = { ...box.board, db: {
     /** Count actual production SQLite reads while forwarding exact parameters and native results. */
@@ -155,15 +155,15 @@ test('ready capacity reads current items and lane holds once per projection [C7,
       };
     },
   } };
-  assert.deepEqual(readyItems(observed), expected, 'ordinary hold and dependency blockers retain exact rows and order');
+  assert.deepEqual(readyItems(observed, store.foreignBlockers), expected, 'ordinary hold and dependency blockers retain exact rows and order');
   assert.deepEqual(reads, { items: 1, holds: 1, families: 0 }, 'capacity does not reread full items or prepare a hold query per open item');
   store.editItem(box.board, ids[2], { agentId: 'coordinator', reviewFamily: 'Sol' });
-  assert.equal(readyItems(observed).find(item => item.item_id === ids[2]).item_review_family, 'Sol',
+  assert.equal(readyItems(observed, store.foreignBlockers).find(item => item.item_id === ids[2]).item_review_family, 'Sol',
     'the next projection reads an intervening native reviewer-family change');
   store.holdLane(box.board, 'core', { agentId: 'coordinator', reason: 'Pause this lane' });
   reads.items = 0;
   reads.holds = 0;
   reads.families = 0;
-  assert.deepEqual(readyItems(observed), [], 'the next projection observes an intervening native lane hold');
+  assert.deepEqual(readyItems(observed, store.foreignBlockers), [], 'the next projection observes an intervening native lane hold');
   assert.deepEqual(reads, { items: 1, holds: 1, families: 0 });
 });

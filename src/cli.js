@@ -1,5 +1,6 @@
 import { itemCheckBaseline } from './board-query.js';
 import { laneSeatContext } from './seat-checkout.js';
+import { nextSessionSeats } from './seat-checkout.js';
 import { mainRedReviewItems } from './main-red.js';
 import { createQueuedItemLease } from './queued-item-lease.js';
 export { resourceRunLabel } from './cli-resource-display.js';
@@ -144,7 +145,6 @@ import {
   bindLocalSession,
   HOOK_CHECKOUT_WAIT_MS,
   localSessionMatches,
-  localSessionSeats,
 } from './agent-session.js';
 import {
   decisionAnswer,
@@ -578,7 +578,7 @@ export async function reserveRow(ctx, row, written) {
 }
 
 /** Note the session behind a claim or submit (#921): its ledger must be writable before the move, and record after it. */
-async function withItemSession(info, operation, args, move) { const noted = operation === 'claim' || operation === 'submit'; if (noted) itemSessions.requireLedger(info); const result = await move(); if (noted) itemSessions.recordItemSession(info, args[0], operation); return result; }
+async function withItemSession(info, operation, args, move) { const noted = operation === 'claim' || operation === 'submit'; if (noted) itemSessions.requireLedger(info, personIdentity.agentSessionDigest()); const result = await move(); if (noted) itemSessions.recordItemSession(info, args[0], operation, personIdentity.agentSessionDigest()); return result; }
 
 /**
  * Whether the board's committed relay.outbox setting queues moves while the relay is down (#922, H21).
@@ -1522,13 +1522,6 @@ export function primaryCheckoutRoot(info) {
   return found.length === 1 ? found[0] : null;
 }
 
-/** A real runtime session may route across its own local seats; marker-only shells stay isolated. */
-function nextSessionSeats(ctx, board) {
-  if (ctx.info.isMain || ctx.io.personChannel === 'view' || ctx.io.personRequest
-    || !personIdentity.AGENT_SESSION_IDS.some((name) => Boolean(process.env[name]))) return null;
-  const digest = personIdentity.agentSessionDigest();
-  return digest ? localSessionSeats(ctx.info, { agents: store.listAgents(board), digest }) : null;
-}
 
 /** Enrich the ordinary lane refusal with a clean destination owned by this session; never widen claim authority. */
 export async function wrongLaneGuidance(ctx, board, me, id, error) {

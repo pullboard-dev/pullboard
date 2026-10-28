@@ -1,3 +1,5 @@
+import { committedItemAuthors } from './review-independence.js';
+import { strictReviewProblem as strictAuthorProblem } from './review-independence.js';
 /** The show command and review queue use the native rules rather than an agent's lineage notes [V4,B26]. */
 import { strictReviewProblem } from './review-routing.js';
 import { itemAuthorProblem } from './item-authors.js';
@@ -10,7 +12,7 @@ import { Refused } from './refused.js';
 
 /** Return the first rule failing in the same order as the native review guards. */
 export function eligibilityProblem(board, item, agent, { policy = 'any', familyPolicy = 'off' } = {}) {
-  const identity = itemAuthorProblem(board, item, agent.agent_id);
+  const identity = itemAuthorProblem(board, item, agent.agent_id, { committedItemAuthors, twoTierReviews, strictReviewProblem: strictAuthorProblem });
   if (identity) return identity;
   if (!canTake(agent.agent_route ?? 'strong', item.item_route)) return new Refused('ROUTE', 'this seat route does not cover the item');
   if (policy === 'coordinator' && item.item_lane !== 'coordinator' && agent.agent_id !== 'coordinator') return new Refused('COORDINATOR_VERIFIES', 'this board has the coordinator verify lane work');

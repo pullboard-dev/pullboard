@@ -1,3 +1,4 @@
+import { eligibilityProblem } from './review-eligibility.js';
 import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
 import { withLocalSeatPresence } from './seat-presence.js';
 import { mechanicalConflictFiles } from './mechanical-merge.js';
@@ -26,6 +27,9 @@ import { gateControlFindings } from './gate-control.js';
 import {
   boardBusyError,
   buildOrder,
+  foreignBlockers,
+  milestonePriorities,
+  milestones,
   canTake,
   listItems,
   listAgents,
@@ -310,7 +314,7 @@ const QUEUE_ACTIVE_MS = 30 * 60_000;
  * @returns {Finding[]}
  */
 function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
-  const queue = workQueue(board);
+  const queue = workQueue(board, { buildOrder, canTake, listItems, milestonePriorities, milestones, roadmap, ROUTES, foreignBlockers, eligibilityProblem });
   const current = (queue.releases.find((release) => release.landed < release.total)?.items ?? queue.unreleased)
     .filter((entry) => entry.status === 'open' && !entry.waits.length);
   const waiting = [...queue.releases.flatMap((release) => release.items), ...queue.unreleased]

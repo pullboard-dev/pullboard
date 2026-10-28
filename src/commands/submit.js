@@ -1,3 +1,5 @@
+import { withBoardRead } from '../board-read.js';
+import { retrySync } from '../cli-sync.js';
 import { boundedProofReason } from '../../packages/state/src/core/submission-proof.js';
 import { completeMoveHandoff } from '../post-move-handoff.js';
 import {
@@ -195,7 +197,7 @@ export async function submitHere(ctx, id, infra) {
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   // A trunk checkout can have advanced since the claim; comparing it with itself would bless its own new red test.
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : acceptedMain.commit;
-  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }));
+  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }, { atomic: store.atomic, submit: store.submit }));
   const trunk = requireTrunkMerge(root, commit);
   if (requireComposition) requireSubmitComposition(root, commit, trunk, acceptedMain.commit);
   withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
@@ -304,6 +306,6 @@ export async function run(io, { first, values }) {
   try { code = await submitHere(ctx, id, values.infra); }
   finally { io.onOrderedMove = previous; }
   if (code !== 0 || !values.wait) return code;
-  return waitForSubmissionVerdict(ctx, id, submissionResult.value, submissionResult.event);
+  return waitForSubmissionVerdict(ctx, id, submissionResult.value, submissionResult.event, { withBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem });
 }
 import { SUBMISSION_SIZE_METHOD } from '../../packages/state/src/core/submission-size.js';

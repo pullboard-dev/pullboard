@@ -1,7 +1,6 @@
 /** Explain owner-sensitive outside changes from trusted main policy and exact Git objects, never execution. */
 import { git } from './git.js';
 import { Refused } from './refused.js';
-import { mainPolicy } from './trusted-policy.js';
 
 /** Fixed trust boundaries cannot be removed by a project's extensions or the contributed configuration. */
 export const OUTSIDE_SENSITIVE_PATHS = Object.freeze([
@@ -25,7 +24,7 @@ function declared(path, pattern) {
 }
 
 /** Record a reason for every rule/path match; a display can explain the hold without rerunning the classifier. */
-export function outsideSensitivity(root, base, commit, paths) {
+export function outsideSensitivity(root, base, commit, paths, { mainPolicy }) {
   const configured = mainPolicy(root).config.intake?.sensitivePaths ?? [];
   if (!Array.isArray(configured) || configured.some(path => typeof path !== 'string' || !path || path.startsWith('/') || path.split('/').includes('..') || /[\r\n\0]/u.test(path))) {
     throw new Refused('BAD_CONFIG', 'intake.sensitivePaths in trusted main is a list of relative exact files or trailing-slash prefixes; correct it before intake');

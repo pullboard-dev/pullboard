@@ -18,7 +18,7 @@ export function prepareMergeOnlySubmit(board, id, options, reads) {
   const basis = held ? mergeOnlyBasis(board, held, {}, reads) : null;
   if (!basis) return null;
   const item = reads.getItem(board, id);
-  return !retainedVerifierIdentityProblem(board, item, basis.by)
+  return !retainedVerifierIdentityProblem(board, item, basis.by, reads.identity)
     && mergeOnlySourceValid(board.gitRoot, board, item, {}, reads)
     ? deriveMergeOnly(board.gitRoot, basis, options) : null;
 }

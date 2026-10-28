@@ -6,16 +6,11 @@ import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from './board.js';
 import { CONFIG_FILE } from './config.js';
 import { DOCTRINE_FILE } from './config.js';
 import { LEGACY_DOCTRINE_FILE } from './config.js';
 import { configFromSource } from './config.js';
 import { withCommittedFiles } from './committed-file-reader.js';
-import { appliedDoctrine } from './doctrine.js';
-import { doctrineFromSource } from './doctrine.js';
-import { loadDoctrine } from './doctrine.js';
-import { agentDoctrine } from './doctrine-rulings.js';
 import { cleanGitEnvironment } from './git.js';
 import { headCommit } from './git.js';
 import { mainSourceBlobs } from './git.js';
@@ -43,13 +38,12 @@ function worktrees(root) {
 }
 
 /** Validate the primary's normal .git directory; separate metadata retains the established registry/Git fallback. */
-async function primaryPath(info, listed) {
+async function primaryPath(info, listed, primaryCheckoutRoot) {
   const primary = listed[0]?.path;
   const marker = primary && join(primary, '.git');
   try {
     if (marker && statSync(marker).isDirectory() && samePath(marker, info.commonDir)) return primary;
   } catch { /* A missing or nonstandard primary must use the existing fail-closed resolver. */ }
-  const { primaryCheckoutRoot } = await import('./cli.js');
   return primaryCheckoutRoot(info);
 }
 
@@ -65,7 +59,7 @@ async function doctrineSourceAt(read, commit, name) {
 }
 
 /** Use working bytes only after their exact Git blob identities match this command's committed snapshot. */
-function matchedDoctrine(ctx, primary, main, validatedPrimary) {
+function matchedDoctrine(ctx, primary, main, validatedPrimary, doctrineFromSource) {
   const blobs = mainSourceBlobs(ctx.info.root);
   if (!blobs || blobs.commit !== main?.commit || !samePath(primary, validatedPrimary)) return null;
   try {
@@ -81,9 +75,10 @@ function matchedDoctrine(ctx, primary, main, validatedPrimary) {
 }
 
 /** Read shared committed guidance and optional stale-overlay HEAD through one fresh Git child. */
-async function sharedDoctrine(ctx, board, primary, main, includeHeadDoctrine, validatedPrimary) {
+async function sharedDoctrine(ctx, board, primary, main, includeHeadDoctrine, validatedPrimary, ports) {
+  const { agentDoctrine, appliedDoctrine, doctrineFromSource, loadDoctrine, rowDecisions } = ports;
   if (!main?.commit) return { doctrine: agentDoctrine(ctx, board) };
-  const matched = !includeHeadDoctrine && matchedDoctrine(ctx, primary, main, validatedPrimary);
+  const matched = !includeHeadDoctrine && matchedDoctrine(ctx, primary, main, validatedPrimary, doctrineFromSource);
   const snapshot = matched || await withCommittedFiles(ctx.info.root, async read => {
     const config = await read(main.commit, CONFIG_FILE);
     let shared = ctx.doctrine;
@@ -105,15 +100,15 @@ async function sharedDoctrine(ctx, board, primary, main, includeHeadDoctrine, va
   });
   const file = primary && join(primary, snapshot.shared.name);
   const current = file && existsSync(file) ? readFileSync(file, 'utf8') : null;
-  return { doctrine: appliedDoctrine(snapshot.shared, store.rowDecisions(board), current), headDoctrine: snapshot.headDoctrine };
+  return { doctrine: appliedDoctrine(snapshot.shared, rowDecisions(board), current), headDoctrine: snapshot.headDoctrine };
 }
 
 /** Keep the command's verified trunk/HEAD snapshot, current branch and complete shared doctrine together. */
-export async function readResumeSources(ctx, board, { compareBranch = true, includeHeadDoctrine = false } = {}) {
+export async function readResumeSources(ctx, board, ports, { compareBranch = true, includeHeadDoctrine = false } = {}) {
   const root = ctx.info.root;
   const main = mainCheckout(root);
   const listed = worktrees(root);
-  const primary = await primaryPath(ctx.info, listed);
+  const primary = await primaryPath(ctx.info, listed, ports.primaryCheckoutRoot);
   const current = listed.find(entry => samePath(entry.path, root));
   const branch = current ? current.branch?.replace(/^refs\/heads\//u, '') ?? 'HEAD'
     : tryGit(root, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout || 'HEAD';
@@ -128,5 +123,5 @@ export async function readResumeSources(ctx, board, { compareBranch = true, incl
   }
   // Guidance follows Git's listed primary exactly as agentDoctrine does, even when placement cannot be proven.
   const guidanceRoot = listed[0]?.path;
-  return { ...await sharedDoctrine(ctx, board, guidanceRoot, main, includeHeadDoctrine, primary), primary, branch, mainRef: main?.branch, ahead, behind };
+  return { ...await sharedDoctrine(ctx, board, guidanceRoot, main, includeHeadDoctrine, primary, ports), primary, branch, mainRef: main?.branch, ahead, behind };
 }
