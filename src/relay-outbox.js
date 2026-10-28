@@ -42,7 +42,7 @@ import {
 import {
   seal,
   unseal,
-} from './seal.js';
+} from '../packages/kernel/src/core/seal.js';
 import { captureBoardChanges } from './board-capture.js';
 import { undoQueued } from './relay-outbox-undo.js';
 import { stampCoordinatorHolder } from './coordinator-hold.js';

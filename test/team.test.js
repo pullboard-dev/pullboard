@@ -1,4 +1,5 @@
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
+import { request as boardLinkRequest } from '../src/relay.js';
 import { personSigningCase } from './person-signing-case.js';
 import { submitFixture as submitBoardStateFixture } from './board-submit-fixture.js';
 /** Two independent Git/SQLite replicas derive verdict freshness without rewriting proof [E8]. */
@@ -88,7 +89,7 @@ import { unpackRelease } from './release-archive.js';
 import {
   decodeBoardKey,
   seal,
-} from '../src/seal.js';
+} from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION as PEOPLE_VERSION } from '../src/machine.js';
 import { relayWorkBudgetMs } from './relay-budget.js';
 import { hostname, tmpdir } from 'node:os';
@@ -1255,14 +1256,14 @@ test('an item waits across repos [B24,H16]', async t => {
   const transportApi = await import('../src/board-link-relay.js');
   const { createSshBoardLinkAuthority } = await import('../src/board-link-ssh.js');
   const { createBoardLinkCapability } = await import('../src/board-link-envelope.js');
-  const { generateBoardKey } = await import('../src/seal.js');
+  const { generateBoardKey } = await import('../packages/kernel/src/core/seal.js');
   const authority = createSshBoardLinkAuthority([parent, child]);
   const record = await consent(api, authority, parent, child, 'dependency');
   await api.applyBoardLink(local, record, authority);
   await api.applyBoardLink(foreign, record, authority);
   const relay = await linkRelay(t, [parent, child], authority);
-  const sender = transportApi.createBoardLinkRelayTransport(relay.states.get(child.reference.boardId));
-  const receiver = transportApi.createBoardLinkRelayTransport(relay.states.get(parent.reference.boardId));
+  const sender = transportApi.createBoardLinkRelayTransport(relay.states.get(child.reference.boardId), { request: boardLinkRequest });
+  const receiver = transportApi.createBoardLinkRelayTransport(relay.states.get(parent.reference.boardId), { request: boardLinkRequest });
   await sender.publish(record);
   const capability = createBoardLinkCapability(record, await generateBoardKey());
   /** Send only actual child item states through the established authenticated E32 transport. */

@@ -9,7 +9,7 @@ import { openBoard, closeBoard } from '../src/board.js';
 import { prepareEngineMove, applyRelayMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
-import { decodeBoardKey, generateBoardKey, seal } from '../src/seal.js';
+import { decodeBoardKey, generateBoardKey, seal } from '../packages/kernel/src/core/seal.js';
 import { legacyRelayClientFixture as relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
 

@@ -114,7 +114,7 @@ import {
   generateBoardKey,
   seal,
   unseal,
-} from './seal.js';
+} from '../packages/kernel/src/core/seal.js';
 import { terminalQr } from './qr.js';
 import { environmentLink } from './relay-environment.js';
 import { locked } from './relay-lock.js';

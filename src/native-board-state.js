@@ -1,13 +1,11 @@
 /** @pullboard-test-input src/standard-doctrine.md */
 /** One complete native state builder for local HTTP and sealed relay projections [A2,H5,H16]. */
-import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import { counterProofStats } from './proof-counter-read.js';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONFIG_FILE } from './config.js';
-import { fitFile } from './blueprint-fit.js';
 import { BLOCKS_FILE } from './blocks.js';
 import * as store from './board.js';
 import { displayAgentName } from './agent-names.js';
@@ -26,21 +24,18 @@ import { withListFields } from './item-list.js';
 import { projectRowDecisions } from './row-decisions.js';
 import { projectSpecApprovals } from './spec-approval.js';
 import { specApprovalState } from './spec-approval.js';
-import { pendingFit } from './blueprint-fit.js';
-import { projectFit } from './blueprint-fit.js';
 import { personBlockWords } from './blocks.js';
 import { verdictProjector } from './verdict-freshness.js';
 import { trunkRevisionReader } from './trunk-revision.js';
-import { projectState } from './serve.js';
-import { personRequestStatuses } from './relay-requests.js';
-import { personSigningPresentation } from './person-signing-presentation.js';
 import {
   dependencyValues,
   hasForeignDependencies,
 } from './item-dependencies.js';
 
 /** Build the complete local API state, including fields that the shared project snapshot omits. */
-export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, fullItemRebuild = true, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null } = {}) {
+export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, fullItemRebuild = true, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null } = {}, ports) {
+  if (!ports || typeof ports.verifiedPasskeyRowDecision !== 'function' || typeof ports.pendingFit !== 'function' || typeof ports.projectFit !== 'function' || typeof ports.projectState !== 'function' || typeof ports.personRequestStatuses !== 'function' || typeof ports.personSigningPresentation !== 'function') throw new TypeError('native state needs the explicit upper presentation ports');
+  const { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation } = ports;
   if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new TypeError('native projection needs an observation timestamp');
   board = Object.assign(Object.create(board), { clock: { ...board.clock, now: () => new Date(observedAt) } });
   board.db.exec('BEGIN');
@@ -150,7 +145,7 @@ export function dependencyIds(item) {
 
 
 /** Name project and built-in files separately, even when their basenames collide. */
-export function stateFileInputs(root, config) {
+export function stateFileInputs(root, config, { fitFile }) {
   return [
     { name: `config:${CONFIG_FILE}`, path: join(root, CONFIG_FILE) },
     { name: `spec:${config.spec}`, path: join(root, config.spec) },

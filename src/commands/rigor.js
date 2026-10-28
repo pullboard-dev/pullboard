@@ -1,6 +1,6 @@
 /** The pullboard rigor command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
-import { parseProcessCensus } from '../process-census.js';
+import { parseProcessCensus } from '../../packages/kernel/src/core/process-census.js';
 import {
   COORDINATOR,
 } from '../config.js';

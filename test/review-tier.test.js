@@ -47,7 +47,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
     'src/review-eligibility.js', 'src/verdict-admission.js', 'src/landing-test-policy.js', 'src/runner-worker.js',
     'src/train-mechanical-merge.js', 'src/pre-push-receipts.js', 'src/gate-run-receipt.js',
     'src/moves/reserveReview.js', 'src/commands/submit.js', 'src/commands/verify.js',
-    'src/relay-key.js', 'src/check-mask.js', 'src/person-presence.js', 'src/person-signing.js', 'src/discovery.js', 'src/machine.js',
+    'src/relay-key.js', 'packages/kernel/src/core/seal.js', 'src/check-mask.js', 'src/person-presence.js', 'src/person-signing.js', 'src/discovery.js', 'src/machine.js',
     'test/person.test.js', 'test/check.test.js', 'test/flakes-ledger.test.js', 'test/review-tier.test.js', 'test/selection-fallbacks.test.js',
     'test/relay-auth-expired.test.js', 'test/engine.test.js', 'test/landing-shards.test.js',
     'packages/gate/src/core/test-selection.js', 'bin/run-tests.js', 'bin/checks/test-names.js',

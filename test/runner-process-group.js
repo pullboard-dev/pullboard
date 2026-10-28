@@ -1,6 +1,6 @@
 /** Bounded cleanup of the round-trip fixture's owned process group [C7]. */
 import assert from 'node:assert/strict';
-import { parseProcessCensus } from '../src/process-census.js';
+import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
 import { runFixtureChild } from './fixture-child.js';
 
 /** Read a complete census; failed or malformed output never proves a group empty. */

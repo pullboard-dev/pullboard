@@ -76,7 +76,7 @@ import * as itemSessions from './item-sessions.js';
 import * as seatCheckout from './seat-checkout.js';
 import { submitPreflight } from './submit-preflight.js';
 import * as store from './board.js';
-import { withBoardRead } from './board-read.js';
+import { withBoardRead } from './cli-context.js';
 export { withBoardRead };
 import * as nativeFlakes from './native-flake-cli.js';
 import {

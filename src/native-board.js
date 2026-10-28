@@ -184,3 +184,12 @@ export function decideSpecRevisions(board, options) { return applySpecRevisionDe
 
 /** Record a row verdict through the same native query, transaction and event capabilities. */
 export function recordRowVerification(board, options) { return applyRowVerification(board, options, board.nativePorts); }
+
+/** Actual public operations remain owned by their providers; the raw board bridge expires with #1776. */
+export { advanceItemSource } from './source-advance.js';
+export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } from './sentinels.js';
+export { flakeLedger, recordFlakeObservation } from './flakes.js';
+export { flakeQuarantines, gateRuns, recordGateRun } from './quarantine.js';
+export { personProposals, personSigning, proposePersonMove, setPersonSigning } from './person-signing.js';
+export { recordPublishFinding } from './pr-findings.js';
+export { landingWaivers, landingWaiverFor, waivedLandingProof } from './landing-waivers.js';

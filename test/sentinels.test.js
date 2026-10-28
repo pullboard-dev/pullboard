@@ -50,7 +50,7 @@ import { loadConfig } from '../src/config.js';
 import { loadDoctrine } from '../src/doctrine.js';
 import { frozenCriterion } from '../src/spec.js';
 import { loadSpec } from '../src/spec.js';
-import { parseProcessCensus } from '../src/process-census.js';
+import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
 import { requireSupportedEngine as requirePublished55Engine } from './fixtures/engine-55-reader.js';
 
 /** Isolate actual SQLite, Git, settings and subprocess files; due time is explicitly injected. */

@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
-import { decodeBoardKey } from '../src/seal.js';
+import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import { relayPresentation } from '../src/relay-presentation.js';
 import { presentationDigest } from '../src/relay-presentation.js';
 import { observeRelayHealth } from '../src/relay-canary-health.js';

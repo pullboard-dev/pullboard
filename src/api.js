@@ -1,3 +1,8 @@
+import { personSigningPresentation } from './person-signing-presentation.js';
+import { projectState } from './serve.js';
+import { projectFit } from './blueprint-fit.js';
+import { pendingFit } from './blueprint-fit.js';
+import { fitFile } from './blueprint-fit.js';
 import { lifecycleEvent } from './item-list.js';
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import { gitSpawnSync } from './git-adapter.js';
@@ -138,7 +143,7 @@ function visibleMilestoneInputs(milestones, scoped) {
 function boardStateRevision(root, id, isMain, { projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now() } = {}) {
   const info = repoInfo(root);
   const config = loadConfig(info.root);
-  const files = stateFileInputs(info.root, config).map(fileRevision);
+  const files = stateFileInputs(info.root, config, { fitFile }).map(fileRevision);
   const local = withBoard(info.root, (board) => {
     const inputs = localRevisionInputs(board, new Date(observedAt).toISOString());
     const hasExternalMilestones = inputs.milestones.some((milestone) => milestone.items.some((item) => typeof item !== 'number'));
@@ -308,7 +313,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   const info = repoInfo(board.root);
   const readTrunk = trunkRevisionReader(info);
   const config = loadConfig(info.root);
-  let files = stateFileInputs(info.root, config);
+  let files = stateFileInputs(info.root, config, { fitFile });
   const dbPath = join(info.commonDir, 'pullboard', 'board.sqlite');
   let db = store.openBoardReadOnly(dbPath);
   let closed = false;
@@ -389,7 +394,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
     const currentMarkers = files.map(fileMarker);
     if (JSON.stringify(currentMarkers) !== JSON.stringify(fileMarkers)) {
       const latestConfig = loadConfig(info.root);
-      files = stateFileInputs(info.root, latestConfig);
+      files = stateFileInputs(info.root, latestConfig, { fitFile });
       fileMarkers = files.map(fileMarker);
       fileContent = files.map(fileRevision);
     }
@@ -902,7 +907,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       scopeCommonDir,
       observedAt,
       localRelayHealth: relayCanaryNeeds(board.root),
-    }), codeIsMain);
+    }, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation }), codeIsMain);
     const state = { ...built.state, sequence: built.sequence };
     const entry = snapshotEntry(before.revision, state, prepareFlowHistory(built.history), {
       inputs: before.inputs,
@@ -972,7 +977,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
   function approvalFor(root, currentBoard, info) {
     const config = loadConfig(root);
     const meta = currentBoard.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key IN ('row_decisions', 'spec_approval_baseline') ORDER BY meta_key").all();
-    const key = JSON.stringify([stateFileInputs(info.root, config).map(fileMarker), fileMarkerForPath(join(info.root, '.mailmap')), resolveCommit(info.root, 'HEAD'), meta]);
+    const key = JSON.stringify([stateFileInputs(info.root, config, { fitFile }).map(fileMarker), fileMarkerForPath(join(info.root, '.mailmap')), resolveCommit(info.root, 'HEAD'), meta]);
     const cacheId = JSON.stringify([info.commonDir, root]);
     const cached = approvalCache.get(cacheId);
     if (cached?.key === key) return cached.approval;

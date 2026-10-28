@@ -672,7 +672,7 @@ test('a repeated cause becomes a draft row with its proof [D1,D3,S1,P6]', async 
 
 test('a timed-out proof drains only its captured process group before removing its worktree [D1,D3,S1]', async () => {
   const { runCheckAt } = await import('../src/rigor-proof.js');
-  const { parseProcessCensus } = await import('../src/process-census.js');
+  const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
   const box = freshBoard();
   const helper = join(box.repo, 'hold-proof.mjs');
   let resolveMarker;

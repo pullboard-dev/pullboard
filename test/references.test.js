@@ -11,7 +11,7 @@ import { REFERENCE_ENGINE } from '../src/reference-engine.js';
 import { prepareEngineMove } from '../src/engine.js';
 import { boardEnginePorts } from '../src/board-engine-ports.js';
 const { relaySenderProblem } = boardEnginePorts();
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { referenceLines, referenceAcknowledged } from '../src/reference-lines.js';
 import { bridgeProject, bridgeProvider, landBridgeItems, runBridgeCLI, runBridgeCLIAs } from './pr-bridge-fixture.js';

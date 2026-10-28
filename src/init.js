@@ -53,10 +53,8 @@ import {
 import { machineHome } from './machine-home.js';
 import { Refused } from './refused.js';
 import { reviewerStartup } from './next-steps.js';
-import {
-  AGENT_SHELL_MARKERS,
-  remoteShell,
-} from './person.js';
+import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
+import { remoteShell } from './person.js';
 import { installSkills } from './skills.js';
 import {
   AGENTS_END,

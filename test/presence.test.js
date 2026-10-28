@@ -9,7 +9,7 @@ import { fixtureBoard } from './board-fixture.js';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { gunzipSync } from 'node:zlib';
-import { decodeBoardKey, unseal } from '../src/seal.js';
+import { decodeBoardKey, unseal } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { legacyRelayClientFixture } from './relay-client-fixture.js';
 import { relayWorkBudgetMs } from './relay-budget.js';

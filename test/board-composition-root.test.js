@@ -12,6 +12,9 @@ import { board as library } from '../src/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { openBoardStore } from '../src/board-store.js';
 import { recordRowDraft } from '../src/row-draft-store.js';
+import { setPersonSigning } from '../src/person-signing.js';
+import { recordGateRun } from '../src/quarantine.js';
+import { advanceItemSource } from '../src/source-advance.js';
 
 test('native spec operations retain their public identity and explicit draft providers fail before mutation [C7,S1,D1]', t => {
   for (const name of ['draftSpecRow', 'decideSpecRevisions', 'recordRowVerification']) {
@@ -264,4 +267,21 @@ test('store origin and restore capabilities refuse missing providers before stor
     }, error => error.code === 'NO_POLICY' && error.message.includes(`nativePorts.${key}`));
     assert.equal(existsSync(join(directory, 'never-created')), false);
   }
+});
+
+/** Public compatibility and replay use the same actual operation, including its person-auth refusal. */
+test('the native operation bag and counted public bridge retain actual authority [C7,H16,B2]', t => {
+  const board = fixtureBoard(t);
+  for (const [name, operation] of Object.entries({ setPersonSigning, recordGateRun, advanceItemSource })) {
+    assert.equal(board.enginePorts.store[name], operation, name);
+    assert.equal(legacy[name], operation, 'the #1776 bridge retains the existing public function identity');
+    assert.equal(library[name], operation, 'the unchanged library namespace retains its public operation');
+  }
+  assert.equal(Object.isFrozen(board.enginePorts.store), true);
+  board.enginePorts.store.setPersonSigning(board, { agentId: 'person', signed: true });
+  assert.equal(legacy.events(board).at(-1).event_kind, 'person_signing');
+  const before = legacy.events(board);
+  assert.throws(() => board.enginePorts.store.setPersonSigning(board, { agentId: 'person', signed: false }), { code: 'PERSON_SIGNED' });
+  assert.throws(() => library.setPersonSigning(board, { agentId: 'person', signed: false }), { code: 'PERSON_SIGNED' });
+  assert.deepEqual(legacy.events(board), before, 'neither operation path bypasses the actual passkey guard');
 });

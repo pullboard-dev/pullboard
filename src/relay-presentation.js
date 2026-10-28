@@ -1,3 +1,10 @@
+import { personSigningPresentation } from './person-signing-presentation.js';
+import { personRequestStatuses } from './relay-requests.js';
+import { projectState } from './serve.js';
+import { projectFit } from './blueprint-fit.js';
+import { pendingFit } from './blueprint-fit.js';
+import { fitFile } from './blueprint-fit.js';
+import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 /** Device-sealed presentation uses the same API state as the local view [A4,H5,H15]. */
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -38,7 +45,7 @@ function readRelayPresentation(root, providedBoard, observedAt) {
     const freshnessReader = providedBoard ? null : cachedVerdictStates(root, board, info, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, boardId: store.boardId });
     /** Preserve a single authorized board, including existing unavailable external milestone entries. */
     const project = (clock) => {
-      const built = buildLocalBoardState(root, boardId, board, isMain, { projects, scopeCommonDir: info.commonDir, observedAt: clock, freshnessReader });
+      const built = buildLocalBoardState(root, boardId, board, isMain, { projects, scopeCommonDir: info.commonDir, observedAt: clock, freshnessReader }, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation });
       return { ...built.state, sequence: built.sequence };
     };
     const state = project(observedAt);
@@ -46,7 +53,7 @@ function readRelayPresentation(root, providedBoard, observedAt) {
     // exportBoard omits only derived proof counters and machine-local landing lease cache rows.
     // Exact source bytes also retain expired/hidden business inputs that a fixed-clock view may omit.
     // The comparison projects every person-visible block. Private agent recovery lines are not sealed inputs.
-    const files = stateFileInputs(root, config).filter(file => file.name !== 'blocks:blocks.jsonl').map(fileRevision);
+    const files = stateFileInputs(root, config, { fitFile }).filter(file => file.name !== 'blocks:blocks.jsonl').map(fileRevision);
     // Heartbeats are sealed observations even when the fixed-clock view hides their seats.
     // Keep their exact values, excluding clock-derived presence and activity-window membership.
     const heartbeats = store.listAgents(board).map(({ agent_id, heartbeatAt }) => ({ agent_id, heartbeatAt }));

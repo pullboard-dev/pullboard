@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { fixtureChildMessage, runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { personNeeds } from '../src/row-decision-text.js';
 import { personNeedsState } from '../src/needs-state.js';
 

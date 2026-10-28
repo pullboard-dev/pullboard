@@ -14,7 +14,7 @@ import { rigorReport } from '../src/board-rigor.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
 import { coChangedPaths, historicalPaths, mappedCheck, readPathMap } from '../src/path-map.js';
 import { prepareCauseProof, runCheckAt } from '../src/rigor-proof.js';
-import { parseProcessCensus } from '../src/process-census.js';
+import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
 import { proveCauseCheck } from '../src/rigor-proof.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';

@@ -5,7 +5,7 @@ import { Refused } from './refused.js';
 /** Fixed trust boundaries cannot be removed by a project's extensions or the contributed configuration. */
 export const OUTSIDE_SENSITIVE_PATHS = Object.freeze([
   'relay/', '.githooks/', '.husky/', '.github/workflows/', 'bin/',
-  'src/seal.js', 'src/sealed-pages.js', 'src/signature.js', 'src/relay-key.js', 'src/relay-device-keys.js',
+  'src/seal.js', 'packages/kernel/src/core/seal.js', 'src/sealed-pages.js', 'src/signature.js', 'src/relay-key.js', 'src/relay-device-keys.js',
   'src/person.js', 'src/person-request.js', 'src/relay-requests.js', 'src/relay-request-execution.js', 'src/relay-sender.js',
   'packages/state/src/core/relay-sender-policy.js', 'src/board-engine-ports.js',
   'src/row-decisions.js', 'src/row-decision-state.js', 'src/spec-approval.js', 'src/spec-approval-baseline.js',

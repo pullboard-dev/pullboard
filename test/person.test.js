@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
 import { test } from 'node:test';
-import { SSH_SHELL_MARKERS } from '../src/person.js';
+import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');

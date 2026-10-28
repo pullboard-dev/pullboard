@@ -31,7 +31,7 @@ import { presentationShout, relayPresentation } from '../src/relay-presentation.
 import { JSON_SHAPES } from '../src/json.js';
 import { projectState, serveView } from '../src/serve.js';
 import { registerProject } from '../src/projects.js';
-import { SSH_SHELL_MARKERS } from '../src/person.js';
+import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import {
   apiError,
   apiFetch,

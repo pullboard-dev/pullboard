@@ -1,5 +1,5 @@
 import { quarantineWaivers } from '../quarantine.js';
-import { withBoardRead as waitBoardRead } from '../board-read.js';
+import { withBoardRead as waitBoardRead } from '../cli-context.js';
 import { retrySync } from '../cli-sync.js';
 import { checkAtCommit } from '../runner-private-check.js';
 import { runnerExecutionServices } from '../runners.js';

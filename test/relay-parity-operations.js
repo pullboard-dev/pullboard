@@ -9,7 +9,7 @@ import { MOVE_OPERATIONS } from '../src/move-registry.js';
 import { publishLatestCheckpoint } from '../src/relay.js';
 import { captureSpecApprovalBaseline } from '../src/spec-approval.js';
 import { loadConfig } from '../src/config.js';
-import { decodeBoardKey } from '../src/seal.js';
+import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import { createParityReader, assertReaderParity } from './relay-parity-reader.js';
 import { createStudyExercise, seedStudyState, seedRehome, seedHandoff } from './relay-parity-seeds.js';
 import { submitFixture } from './board-submit-fixture.js';

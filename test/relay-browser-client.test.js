@@ -15,7 +15,7 @@ import { closeBoard, openBoard } from '../src/board.js';
 import { prepareEngineMove, applyRelayMove } from '../src/engine.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
 import { ENGINE_VERSION } from '../src/machine.js';
-import { decodeBoardKey, seal } from '../src/seal.js';
+import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
 

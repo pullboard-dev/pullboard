@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { gunzipSync } from 'node:zlib';
 import { snapshotState, presentationState } from '../relay/browser-model.js';
-import { decodeBoardKey, seal, unseal } from '../src/seal.js';
+import { decodeBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { openPagedSnapshot } from '../src/relay-page-layout.js';

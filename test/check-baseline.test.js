@@ -12,7 +12,7 @@ import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { CHECK_ACCEPT_ENGINE, acceptCheck, checkDigest } from '../src/check-accept.js';
 import { refusePersonMove } from '../src/mcp.js';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { boardEnginePorts } from '../src/board-engine-ports.js';
 const { relaySenderProblem } = boardEnginePorts();
 

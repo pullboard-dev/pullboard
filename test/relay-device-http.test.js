@@ -30,7 +30,7 @@ import { excludedInventoryId } from '../relay/excluded-store.js';
 import {
   seal,
   unseal,
-} from '../src/seal.js';
+} from '../packages/kernel/src/core/seal.js';
 
 test('excluded inventories keep names sealed, isolate accounts and refuse revoked devices [H5,H15,H17]', async t => {
   const box = await relayDeviceFixture(t);
