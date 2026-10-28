@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** Actual pinned-worker recovery controls, included by the frozen runner suite [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -78,6 +79,32 @@ console.log(JSON.stringify({wrong,actual:actual.isGreen,first,beforeBackoff,firs
       assert.equal(probes.length, failures === 1 ? 3 : 2, 'backoff prevents another SSH call before its due time');
     });
   }
+  test('a free alternate runner admits while another host health probe is pending [C7]', t => {
+    const e2e = createE2eHelpers(); t.after(e2e.cleanup);
+    const box = e2e.project('true');
+    const resources = pathToFileURL(join(import.meta.dirname, '../src/resources.js')).href;
+    const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
+    const source = `import {listResources,takeResource} from ${JSON.stringify(resources)};
+import {recordRunnerFailure} from ${JSON.stringify(recovery)};import {DatabaseSync} from 'node:sqlite';
+listResources();const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite');
+const runners=[{host:'free-alternate',slots:1,browser:0},{host:'failed-alternate',slots:1,browser:0}];
+recordRunnerFailure(db,runners[1].host,'worker-unresponsive',{recovery:${JSON.stringify(identity())}});
+db.prepare('UPDATE runner_unavailable SET probe_after=0').run();
+let finish,probes=0;const pending=new Promise(resolve=>{finish=resolve;});
+const lease=await takeResource({name:'gate',capacity:0,scope:'machine',remote:true,allowIdleCapacityUpdate:true,
+runnerProvider:()=>runners,runnerHealthProbe:async()=>{probes++;return pending;}});
+const admitted=lease.runner.host,probesAtAdmission=probes;lease.release();finish({healthy:true});
+const deadline=Date.now()+2000;while(db.prepare('SELECT COUNT(*) n FROM runner_unavailable').get().n){if(Date.now()>deadline)throw new Error('background health did not finish');await new Promise(resolve=>setTimeout(resolve,20));}
+console.log(JSON.stringify({admitted,probesAtAdmission,probes,events:db.prepare('SELECT kind FROM runner_recovery_event ORDER BY rowid').all()}));db.close();`;
+    const env = { ...box.env }; delete env.NODE_TEST_CONTEXT;
+    const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env, encoding: 'utf8', timeout: 10_000 });
+    assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
+    const actual = JSON.parse(result.stdout);
+    assert.equal(actual.admitted, 'free-alternate');
+    assert.equal(actual.probesAtAdmission, 1, 'the due recovery started without blocking admission');
+    assert.equal(actual.probes, 1);
+    assert.deepEqual(actual.events.map(event => event.kind), ['unavailable', 'available']);
+  });
   test('legacy cleanup holds never infer recovery from a healthy callback [C7]', async t => {
     const db = queue(t), runner = { host: 'private-legacy', slots: 1, browser: 0 };
     recordRunnerFailure(db, runner.host, 'cleanup-unverified', { reason: 'old failure without job custody' });
