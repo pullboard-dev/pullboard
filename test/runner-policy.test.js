@@ -30,7 +30,6 @@ import { gateResult } from './runner-tooling-fixture.js';
 import { runThroughGate } from './runner-tooling-fixture.js';
 import { committedToolingSnapshot } from './runner-tooling-fixture.js';
 import { runFixtureChildAsync } from './fixture-child.js';
-import { copyPackageFiles } from '../src/package-files.js';
 
 after(cleanupToolingSnapshots);
 
