@@ -1,3 +1,4 @@
+import { routingRulesEngine } from '../routing-rules-floor.js';
 import { checkTimingEngine } from '../check-timing.js';
 import { CROSS_REPO_DEPENDENCY_ENGINE } from '../cross-repo-dependency-engine.js';
 import { SUBMIT_ADMISSION_ENGINE } from '../submit-admission-engine.js';
@@ -32,7 +33,7 @@ function minimumEngine(args, board, at) {
   const validId = ['number', 'string'].includes(typeof id) && Number.isSafeInteger(Number(id)) && Number(id) > 0;
   const item = board && validId ? board.db.prepare('SELECT item_after FROM item WHERE item_id=?').get(id) : null;
   const foreign = item && hasForeignDependencies(item);
-  return Math.max(checkTimingEngine(board, args[0]), args[1]?.adoptCorrection === true ? AUTOMATIC_DISPATCH_ENGINE : 1, args[1]?.submitAdmission != null ? SUBMIT_ADMISSION_ENGINE : 1,
+  return Math.max(routingRulesEngine(board), checkTimingEngine(board, args[0]), args[1]?.adoptCorrection === true ? AUTOMATIC_DISPATCH_ENGINE : 1, args[1]?.submitAdmission != null ? SUBMIT_ADMISSION_ENGINE : 1,
     foreign ? CROSS_REPO_DEPENDENCY_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, capacity ? LINE_CAPACITY_ENGINE : 1, existingEngine(args, board, at));
 }
 

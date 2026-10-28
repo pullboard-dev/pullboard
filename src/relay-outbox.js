@@ -186,6 +186,8 @@ export const ITEM_SLOTS = Object.freeze({
   setBarReady: [], setLineSetting: [], setLaneLead: [],
   requestCompanion: [[0, 'parentId']],
   fileTypedRequest: [[0, 'itemId']],
+  // A rule scope names a board item, but the rule itself is the coordinator's record, not a delegated item reference.
+  setRoutingRule: [],
   // Request and acted-on event IDs are native event identities, never item references.
   answerTypedRequests: [],
   recordPublishFinding: [[0, 'item']],

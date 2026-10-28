@@ -4,6 +4,8 @@ import { familyName } from './review-policy.js';
 import { familyAliasesOf } from './review-policy.js';
 import { aliasEngineOn } from './review-policy.js';
 import { Refused } from './refused.js';
+import { routingRuleProblem } from './routing-rules.js';
+import { routingRulesEngine } from './routing-rules-floor.js';
 
 /** Validate only explicitly supplied metadata; omission preserves legacy move bytes. */
 export function validateReviewFamily(value) {
@@ -33,6 +35,11 @@ export function projectReviewFamily(board, item) {
 
 /** One shared refusal for selection, reservation and verdicts; old recorded moves retain their meaning. */
 export function requiredReviewFamilyProblem(board, item, agentId) {
+  return itemFamilyProblem(board, item, agentId) ?? routingRuleProblem(board, item, agentId, 'review');
+}
+
+/** The item's own review-family requirement, before any recorded routing rule. */
+function itemFamilyProblem(board, item, agentId) {
   if (board.executionEngineVersion !== undefined && board.executionEngineVersion < AUTOMATIC_DISPATCH_ENGINE) return null;
   const required = requiredReviewFamily(board, item.item_id);
   if (!required) return null;
@@ -46,11 +53,11 @@ export function requiredReviewFamilyProblem(board, item, agentId) {
 
 /** New moves touching a constrained item need the engine that preserves that constraint. */
 export function requiredReviewFamilyEngine(board, id) {
-  return board && requiredReviewFamily(board, id) ? AUTOMATIC_DISPATCH_ENGINE : 1;
+  return Math.max(board && requiredReviewFamily(board, id) ? AUTOMATIC_DISPATCH_ENGINE : 1, routingRulesEngine(board));
 }
 
 /** Any queued selection must understand item requirements before choosing among boards' items. */
 export function anyRequiredReviewFamilyEngine(board) {
-  return board?.db.prepare("SELECT 1 FROM board_meta WHERE meta_key LIKE 'item_review_family:%' LIMIT 1").get()
-    ? AUTOMATIC_DISPATCH_ENGINE : 1;
+  return Math.max(board?.db.prepare("SELECT 1 FROM board_meta WHERE meta_key LIKE 'item_review_family:%' LIMIT 1").get()
+    ? AUTOMATIC_DISPATCH_ENGINE : 1, routingRulesEngine(board));
 }

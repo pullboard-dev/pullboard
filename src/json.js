@@ -65,6 +65,7 @@ export const JSON_SHAPES = {
     skills: shape({ updated: 'array', current: 'array', customized: 'array' }),
     inbox: shape({ shouts: 'array' }),
     request: shape({ requests: 'array' }),
+    rule: shape({ rules: 'array' }),
     decisions: shape({ decisions: 'array' }),
     ledger: shape({ items: 'array', stats: 'object' }),
     log: shape({ events: 'array' }),
