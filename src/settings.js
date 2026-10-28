@@ -52,6 +52,27 @@ export function gateRunnersFirstEnabled() {
   return loadMachineSettings().gate?.runnersFirst === true;
 }
 
+/** Capture one submit/review's opt-in and cutoff; retries and later phases share this exact policy. */
+export function gateRunnerAdmission() {
+  const settings = loadMachineSettings();
+  if (settings.gate?.runnersOnly !== true) return {};
+  const runnerWaitMs = settings.gate?.runnerWaitMs ?? DEFAULT_RUNNER_WAIT_MS;
+  return { runnerOnly: true, remote: true, runnerWaitMs, runnerDeadlineAt: Date.now() + runnerWaitMs };
+}
+
+/** Set only the opt-in submit/review policy, preserving unrelated machine settings. */
+export function setGateRunnersOnly(enabled) {
+  if (typeof enabled !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'gate.runnersOnly must be true or false; run pullboard settings gate.runnersOnly on|off');
+  const current = loadMachineSettings();
+  let next;
+  setResourceCapacity({ name: 'gate', capacity: current.gateSlots, scope: 'machine', allowZero: current.gateSlots === 0, persist: () => {
+    const latest = loadMachineSettings();
+    next = { ...latest, gate: { ...latest.gate, runnersOnly: enabled } };
+    writeMachineSettings(next);
+  } });
+  return next;
+}
+
 /** Capture the runner wait deadline for a new run; later requeues retain that deadline. */
 export function gateRunnerWaitMs() {
   return loadMachineSettings().gate?.runnerWaitMs ?? DEFAULT_RUNNER_WAIT_MS;

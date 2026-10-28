@@ -1,3 +1,4 @@
+import { installRunnerOnlyCases } from './resources-runner-only-fixture.js';
 /** Private real-board setup for resource-admission verification checks [C7,V4]. */
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
@@ -64,3 +65,5 @@ export function verificationProject(t, { checked = false } = {}) {
   return { project, item, reviewer, marker,
     box: { first: project.repo, home: project.env.PULLBOARD_MACHINE_HOME, env: project.env } };
 }
+
+installRunnerOnlyCases({ verificationProject });

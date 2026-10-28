@@ -27,7 +27,7 @@ export function commandWord(value) {
 }
 
 /** Run the project's declared static guard before proof, retaining normal queue classification. */
-export async function runStaticChecks(root, config, { agent, item = '', onWait, onBrowserFallback } = {}) {
+export async function runStaticChecks(root, config, { agent, item = '', onWait, onBrowserFallback, runnerAdmission = {} } = {}) {
   const command = config.staticChecks?.trim();
   if (!command) return null;
   const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(root, command, { onFallback: onBrowserFallback });
@@ -36,6 +36,6 @@ export async function runStaticChecks(root, config, { agent, item = '', onWait, 
     refuseSandboxBlocked(run);
     if (!run.isGreen) throw new Refused('GATE_RED', `static checks are red; fix the named source before running proof:\n${digestOf(run.output)}`);
     return run;
-  }, { browser, gui: await checkNeedsGui(root, command), agent, item, kind: 'static', itemCheck: true, shortEligible: true, onWait });
+  }, { browser, gui: await checkNeedsGui(root, command), agent, item, kind: 'static', itemCheck: true, shortEligible: true, onWait, ...runnerAdmission });
 }
 
