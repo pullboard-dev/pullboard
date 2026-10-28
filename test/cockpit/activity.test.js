@@ -373,6 +373,8 @@ test('ages stay true while the board is quiet [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    await page.click({ tab: 'items' });
+    await page.click({ tab: 'shouts' });
     const ages = () => ({
       row: /<time data-ago="[^"]+">([^<]*)<\/time>/.exec(itemRow(page.show('chain'), 1))?.[1],
       needs: /<span class="needs-age"><time data-ago="[^"]+">([^<]*)<\/time>/.exec(page.show('needs'))?.[1],
@@ -407,18 +409,24 @@ test('times say which day they were [N26]', async () => {
     const bare = (list) => list.length > 0 && list.every((time) => /^\d\d:\d\d$/.test(time));
 
     const now = await openPage(view);
+    await now.click({ tab: 'shouts' });
     await now.click({ tab: 'items' });
+    await now.click({ tab: 'activity' });
     assert.deepEqual([days(now.show('feed')), days(now.show('activity'))], [[], ['Today']], 'shouts from today need no rule above them');
     assert.deepEqual(ages(now.show('feed')).map(([age, clock]) => [age, /^\d\d:\d\d$/.test(clock)]), [['now', true]], 'a shout from today says now, its clock time on hover');
     assert.ok(bare(times(now.show('detail'))), 'a history from today shows bare times');
 
     const tomorrow = await openPage(view, { later: 1 });
+    await tomorrow.click({ tab: 'shouts' });
+    await tomorrow.click({ tab: 'activity' });
     assert.deepEqual([days(tomorrow.show('feed')), days(tomorrow.show('activity'))], [['Yesterday'], ['Yesterday']]);
 
     const weekday = new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
     const date = new Date().toLocaleDateString([], { month: 'short', day: 'numeric' });
     const later = await openPage(view, { later: 2 });
+    await later.click({ tab: 'shouts' });
     await later.click({ tab: 'items' });
+    await later.click({ tab: 'activity' });
     assert.deepEqual([days(later.show('feed')), days(later.show('activity'))], [[weekday], [weekday]], 'two days on, the feeds name the day');
     assert.ok(times(later.show('activity')).length > 0 && times(later.show('activity')).every(time => /^\d{1,2}:\d\d [AP]M$/.test(time)), 'Activity uses the approved person-clock format');
     assert.deepEqual(ages(later.show('feed')).map(([age, clock]) => [age, new RegExp(`^${date} \\d\\d:\\d\\d$`).test(clock)]), [['2d ago', true]], 'a shout says how long ago, with its date and time on hover');
@@ -521,6 +529,7 @@ test('activity names the item each event moved [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    await page.click({ tab: 'activity' });
     const rows = page.show('activity').split('<li class="activity-event"').slice(1);
     const about = rows.filter(row => row.includes('data-go="item:1"'));
     assert.equal(about.length, 2, 'the add and the claim');

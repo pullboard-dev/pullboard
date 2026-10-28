@@ -125,7 +125,9 @@ function build(box, p, id, file) {
  */
 function sendBack(box, p, id, note) {
   box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
-  box.run(p.repo, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--note', note, '--as', 'coordinator');
+  const item = JSON.parse(box.run(p.repo, 'show', String(id), '--json'));
+  const clause = JSON.parse(item.item_frozen).criterion;
+  box.run(p.repo, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', clause, '--note', note, '--as', 'coordinator');
   box.git(p.repo, 'switch', '-q', 'main');
 }
 

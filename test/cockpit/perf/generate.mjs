@@ -9,7 +9,7 @@ import { loadDoctrine } from '../../../src/doctrine.js';
 import { STATUSES, frozenCriterion, loadSpec } from '../../../src/spec.js';
 import {
   ACCEPT_REASON, addItem, addMilestone, allShouts, appendFact, atomic, claim, closeBoard,
-  ensureCoordinator, events, listAgents, listItems, milestones, openBoard, recordAttempt,
+  ensureCoordinator, events, getItem, listAgents, listItems, milestones, openBoard, recordAttempt,
   register, reopen, shout, verify, withdraw,
 } from '../../../src/board.js';
 import { submitFixture } from '../../board-submit-fixture.js';
@@ -166,7 +166,7 @@ function exerciseReopen(board, id, seed, lane, builder, reviewer, freezer) {
   reopen(board, id, { agentId: 'coordinator', note: 'Exercise the reopened submission path in the generated board.' });
   const second = submitItem(board, id, seed, lane, builder, 2, freezer);
   verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH',
-    note: 'Exercise a reject before the final generated acceptance.', head: second.commit, digest: second.digest,
+    note: 'Exercise a reject before the final generated acceptance.', clause: JSON.parse(getItem(board, id).item_frozen).criterion, head: second.commit, digest: second.digest,
     policy: 'any', familyPolicy: 'off' });
   const final = submitItem(board, id, seed, lane, builder, 3, freezer);
   verify(board, id, { agentId: reviewer, decision: 'ACCEPT', reason: ACCEPT_REASON,
