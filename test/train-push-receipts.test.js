@@ -31,6 +31,7 @@ import { safeFixtureDiagnostic } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { mainAuditKey } from '../src/main-audit-state.js';
+import { readMainAudit } from '../src/main-audit-state.js';
 import { prepareCommitMetadata } from '../src/commit-metadata.js';
 
 /** Exercise the production evaluator with its genuine native store, policy and receipt providers. */
@@ -46,7 +47,7 @@ function completedAudit(box, activation, batch, token) {
   const key = `${mainAuditKey(identity)}-release-${token}`;
   const path = join(directory, `${key}.json`);
   assert.ok(existsSync(path), 'the explicit release worker produced its own job');
-  const job = JSON.parse(readFileSync(path, 'utf8'));
+  const job = readMainAudit(path);
   for (const [name, value] of Object.entries(identity)) assert.equal(job[name], value);
   assert.equal(job.state, 'complete', JSON.stringify(job));
   assert.equal(job.green, true);
