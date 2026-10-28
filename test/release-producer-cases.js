@@ -109,7 +109,20 @@ import {releaseReceiptBody,releaseParticipationDigest} from './src/release-gate-
 import {openBoard,closeBoard} from './src/board.js';
 const root=process.cwd();
 const board=openBoard(join(root,'.git','pullboard','board.sqlite'));closeBoard(board);
+try {
 ${checks}
+} catch (error) {
+  const receipts=[];
+  try { for (const file of readdirSync(join(root,'.git','pullboard','gate-receipts')).filter(file=>file.endsWith('.json')).slice(-20)) {
+    receipts.push(JSON.parse(readFileSync(join(root,'.git','pullboard','gate-receipts',file),'utf8')));
+  } } catch { /* A missing receipt is itself evidence; preserve the original failure. */ }
+  console.error('PRIVATE_RELEASE_DIAGNOSTIC '+JSON.stringify({
+    head:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
+    tree:execFileSync('git',['rev-parse','HEAD^{tree}'],{encoding:'utf8'}).trim(),
+    status:execFileSync('git',['status','--porcelain'],{encoding:'utf8'}),receipts,
+  }));
+  throw error;
+}
 `;
   return await awaitNestedRun(runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script],
     { cwd: box.repo, env: box.env, encoding: 'utf8' }));
