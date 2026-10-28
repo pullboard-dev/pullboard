@@ -77,7 +77,7 @@ function writeUses(cache, index) {
 }
 
 /** Validate every retained candidate/published object before any ref deletion or inventory announcement. */
-async function cacheRefs(cache, git, env) {
+async function cacheRefs(cache, git, env, proven) {
   const text = await git(cache, ['for-each-ref', '--format=%(refname) %(objectname) %(committerdate:unix)',
     'refs/pullboard/candidates', 'refs/pullboard/published'], env);
   const refs = text ? text.split(/\r?\n/u).map(line => {
@@ -87,22 +87,24 @@ async function cacheRefs(cache, git, env) {
     }
     return { name: match[1], kind: match[2], head: match[3], date: Number(match[4]) };
   }) : [];
-  const tips = [...new Set(refs.map(ref => ref.head))];
+  const tips = [...new Set(refs.map(ref => ref.head))].filter(tip => !proven.has(tip));
   if (tips.length) {
     const checked = (await git(cache, ['cat-file', '--batch-check'], env, `${tips.join('\n')}\n`)).split(/\r?\n/u);
     if (checked.length !== tips.length || checked.some((line, index) => !new RegExp(`^${tips[index]} commit \\d+$`, 'u').test(line))) {
       throw new Error('source history cache contains an invalid candidate object');
     }
+    for (const tip of tips) proven.add(tip);
   }
   return refs;
 }
 
-/** Prune only unprotected candidate refs under the caller's actual exclusive repository-cache lease. */
-export async function pruneSourceCache({ cache, runnerRoot, repoId, roots, lease, git, env, limit = SOURCE_CACHE_CANDIDATES, log = () => {} }) {
+/** Prune only unprotected candidate refs under the caller's actual exclusive repository-cache lease. `proven` is the
+ * set of object ids this checkout already verified as commits; object types never change, so each id is checked once. */
+export async function pruneSourceCache({ cache, runnerRoot, repoId, roots, lease, git, env, limit = SOURCE_CACHE_CANDIDATES, log = () => {}, proven = new Set() }) {
   if (typeof lease?.release !== 'function' || !Number.isSafeInteger(limit) || limit < 1 || roots.some(root => !SHA.test(root))) {
     throw new Error('source cache pruning requires its owned lease and valid candidate bound');
   }
-  const refs = await cacheRefs(cache, git, env), index = readUses(cache), uses = new Map(index.uses);
+  const refs = await cacheRefs(cache, git, env, proven), index = readUses(cache), uses = new Map(index.uses);
   const pins = jobPins(runnerRoot, repoId), protectedRoots = new Set([...roots, ...pins.roots]);
   for (const ref of refs) if (ref.kind === 'published') protectedRoots.add(ref.head);
   for (const root of roots) {
