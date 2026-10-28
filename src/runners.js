@@ -670,6 +670,7 @@ function resultFrom(request, result, { privateCheckPhases }) {
     seconds: Math.round(receipt.wallMs / 1000), exitCode: receipt.code,
     executionRunner: request.runner.host, executionRoot: receipt.root, remoteWallMs: receipt.wallMs,
     ...(receipt.executionPhases ? { executionPhases: runnerPhaseFields(receipt.executionPhases) } : {}),
+    ...(receipt.sourcePreparation ? { sourcePreparation: receipt.sourcePreparation } : {}),
     executionSource: { commit: receipt.commit, tree: receipt.tree, tooling: request.spec.tooling },
     ...(privateResult ? { privateCheck: { ...privateResult, receipt: receipt.trustedMode }, rawOutputPath: result.rawOutputPath, rawOutputSha256: result.rawSha256 } : {}),
     executionMain: request.spec.main && receipt.main === request.spec.main ? receipt.main : null, executionLoad: remoteLoad(receipt.load), executionAdmission: admission };

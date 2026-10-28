@@ -87,6 +87,7 @@ let workerId = 'starting';
 let workSpecAccepted = false;
 let rejectPendingFrame = null;
 let activeDescendantTracker = null;
+let sourcePreparation = null;
 // Budget: report a named failure within 30 seconds after command exit or transport cancellation.
 const CLEANUP_BUDGET_MS = 30_000;
 let cleanupDeadline = Infinity;
@@ -485,6 +486,7 @@ function gitSetupFailure(root, args, env, result, stderr, overflow, inputError) 
 
 /** Invoke bounded Git in an owned group, retaining stderr if it fails instead of erasing the cause. */
 async function gitBytes(root, args, env, input) {
+  const started = performance.now();
   const owned = spawnOwned('git', args, { cwd: root, env, stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
   const output = [];
   let stderr = Buffer.alloc(0);
@@ -508,6 +510,12 @@ async function gitBytes(root, args, env, input) {
   await inputDone;
   await drainOwned(owned);
   if (overflow || inputError || result.error || result.code !== 0 || result.signal) throw gitSetupFailure(root, args, env, result, stderr.toString('utf8'), overflow, inputError);
+  if (sourcePreparation) {
+    const operation = args.find(arg => new Set(['init', 'fetch', 'checkout', 'index-pack', 'cat-file', 'rev-parse', 'rev-list', 'for-each-ref', 'update-ref', 'merge-base', 'verify-pack', 'check-ref-format', 'config']).has(arg)) ?? 'unknown';
+    const row = sourcePreparation.git[operation] ??= { calls: 0, ms: 0 };
+    row.calls++;
+    row.ms += Math.round(performance.now() - started);
+  }
   return Buffer.concat(output);
 }
 
@@ -523,6 +531,16 @@ async function receivePack(packFile) {
 
 /** Receive only missing ancestry, validate the full graph, then copy the exact commit into a clean job repository. */
 async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
+  const started = performance.now();
+  const measured = { version: 1, git: {}, stages: {} };
+  sourcePreparation = measured;
+  let boundary = started;
+  /** Record disjoint source phases from the worker's monotonic clock. */
+  const mark = name => {
+    const now = performance.now();
+    measured.stages[name] = Math.round(now - boundary);
+    boundary = now;
+  };
   const repositories = join(runnerRoot, 'repos');
   mkdirSync(repositories, { recursive: true, mode: 0o700 });
   chmodSync(repositories, 0o700);
@@ -535,6 +553,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     if (error && typeof error === 'object') error.runnerSetupStep = 'source cache admission';
     throw error;
   });
+  mark('cacheWaitMs');
   const deliveryRefs = [];
   try {
     if (!existsSync(cache)) {
@@ -601,10 +620,13 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
         }
       }
     }
+    mark('inventoryMs');
     await new Promise((resolveWrite, rejectWrite) => process.stderr.write(
       `PULLBOARD_RUNNER_NEED ${spec.id} ${Buffer.from(JSON.stringify({ tips: uniqueTips, tagObjects: knownTagObjects })).toString('base64')}\n`,
       error => error ? rejectWrite(error) : resolveWrite()));
     await receivePack(packFile);
+    measured.packBytes = statSync(packFile).size;
+    mark('transferMs');
 
     const priorIndexes = new Set(readdirSync(join(cache, 'objects', 'pack')).filter(name => name.endsWith('.idx')));
     if (statSync(packFile).size < 12 + spec.commit.length / 2) throw new Error('source history pack is incomplete');
@@ -669,6 +691,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     }
     for (const commit of roots) await git(cache, ['update-ref', `refs/pullboard/candidates/${commit}`, commit], env);
     await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune, proven });
+    mark('validateMs');
     await git(root, ['init', '-q', `--object-format=${spec.commit.length === 64 ? 'sha256' : 'sha1'}`], env);
     await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, `refs/pullboard/candidates/${spec.commit}`], env);
     await git(root, ['checkout', '--detach', 'FETCH_HEAD'], env);
@@ -717,9 +740,13 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
       try { await git(cache, ['update-ref', '--stdin'], env, `${deliveryRefs.map(ref => `delete ${ref}`).join('\n')}\n`); }
       catch { /* Leave cache refs only if Git refuses safe removal. */ }
     }
+    mark('materializeMs');
+    measured.totalMs = Math.round(performance.now() - started);
+    sourcePreparation = null;
     try { cacheLease.release(); } catch { /* Retaining the lease on cleanup error is safer than speculative deletion. */ }
   }
   rmSync(packFile, { force: true });
+  return measured;
 }
 
 /** Install committed npm dependencies through an isolated content-addressed cache, refusing unknown lock managers. */
@@ -937,6 +964,7 @@ async function receipt(spec, fields, sink) {
   const body = { id: spec.id, commit: spec.commit, tree: spec.tree, code: fields.code, signal: fields.signal,
     environment: executionEnvironment(), testRuntimes: fields.testRuntimes ?? null, gui: fields.gui ?? null, timing: spec.timing === true, executionAdmission: fields.executionAdmission ?? null,
     executionPhases: fields.executionPhases,
+    ...(fields.sourcePreparation ? { sourcePreparation: fields.sourcePreparation } : {}),
     runtimeSha256: spec.runtime.sha256, toolingSha256: spec.tooling.sha256, root: fields.root ?? '', outputSha256: sink.hash.digest('hex'), wallMs: Math.max(0, Date.now() - sink.wallStart),
     // The execution host's load and the pinned main this run used, so a paired rerun here can be judged (#925).
     main: typeof spec.main === 'string' ? spec.main : null, load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) },
@@ -990,6 +1018,7 @@ async function main() {
   let lease = null;
   let tracker = null;
   let runtimeCapture = null;
+  let sourceMetrics = null;
   let runDirectory;
   let recoveryRoot;
   let setupStep = 'runner directories';
@@ -1052,7 +1081,7 @@ async function main() {
     const env = runtimeCapture.env;
     setupStep = 'source history checkout';
     phases.mark('sourceMs');
-    await checkoutHistory(api, runnerRoot, root, packFile, spec, env);
+    sourceMetrics = await checkoutHistory(api, runnerRoot, root, packFile, spec, env);
     phases.mark('dependenciesMs');
     if (!spec.trustedMode) {
       setupStep = 'committed dependencies';
@@ -1119,6 +1148,7 @@ async function main() {
   if (transportLost || cleanupTimedOut) { clearTimeout(cleanupTimer); clearTimeout(phaseCleanupTimer); process.exitCode = 1; stopReading(); return; }
   cleanupStage = 'result receipt';
   final.executionPhases = phases.finish();
+  final.sourcePreparation = sourceMetrics;
   await receipt(spec, { ...final, gui }, sink);
   clearTimeout(cleanupTimer);
   clearTimeout(phaseCleanupTimer);
