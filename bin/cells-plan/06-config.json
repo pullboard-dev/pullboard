@@ -6,7 +6,7 @@
  "frontDoor": "packages/config/index.js",
  "placedBy": {
   "seed": 14,
-  "rule": 1,
+  "rule": 3,
   "imports": 0
  },
  "paths": [
@@ -24,7 +24,9 @@
   ["test/submit-infra.test.js","packages/config/tests/submit-infra.test.js","seed"],
   ["test/submit-registry-guards.test.js","packages/config/tests/submit-registry-guards.test.js","seed"],
   ["test/submit-size.test.js","packages/config/tests/submit-size.test.js","seed"],
-  ["test/watch.test.js","packages/config/tests/watch.test.js","seed"]
+  ["test/watch.test.js","packages/config/tests/watch.test.js","seed"],
+  ["src/release-headlines.js","packages/config/src/shell/release-headlines.js","rule"],
+  ["src/release-version.js","packages/config/src/core/release-version.js","rule"]
  ],
  "reexports": [
   "src/config.js",
@@ -34,7 +36,9 @@
   "src/settings-inventory.js",
   "src/settings-read.js",
   "src/settings.js",
-  "src/templates.js"
+  "src/templates.js",
+  "src/release-headlines.js",
+  "src/release-version.js"
  ],
  "imports": [
   {"cell":"kernel","imports":6,"before":true},
