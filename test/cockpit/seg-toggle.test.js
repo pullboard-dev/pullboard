@@ -35,7 +35,7 @@ async function measureControl(chrome, selector) {
     probe.style.color = 'var(--ink-faint)'; expected.countColor = getComputedStyle(probe).color;
     probe.style.borderRadius = 'var(--radius-sm)'; expected.optionRadius = getComputedStyle(probe).borderRadius;
     probe.remove();
-    return { label:track.getAttribute('aria-label'), component:track.dataset.segmentedControl,
+    return { label:track.getAttribute('aria-label'), component:track.dataset.segmentedControl, pageWidth:document.documentElement.scrollWidth, viewport:innerWidth,
       height:rect.height, padding:[style.paddingTop,style.paddingRight,style.paddingBottom,style.paddingLeft], gap:style.gap,
       radius:style.borderRadius, background:style.backgroundColor, tap:Number.parseFloat(root.getPropertyValue('--tap')), expected,
       options:[...track.querySelectorAll('button')].map(button => {
@@ -78,7 +78,11 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
         await press(chrome, 'document.querySelector("[data-tab=' + pane + ']")');
         await chrome.waitFor('!document.querySelector("[data-pane=' + pane + ']").hidden && !!document.querySelector(' + JSON.stringify(selector + ' [' + attribute + ']') + ')');
         await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + selected + '"]') + ')');
+        await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: width - 1, y: 899 });
+        await chrome.stable('new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))');
         const actual = await measureControl(chrome, selector);
+        console.log('PULLBOARD_SEG_MEASURE ' + JSON.stringify({ width, pane, actual }));
+        assert.equal(actual.pageWidth, actual.viewport, 'the shared track scrolls within its pane without widening the page');
         assert.equal(actual.component, attribute, width + '/' + pane + ': the shared renderer owns the control');
         assert.equal(actual.height, actual.tap, width + '/' + pane + ': track height uses the target token');
         assert.equal(actual.tap, width === 1440 ? 32 : 44, 'existing desktop and phone target tokens remain in force');
@@ -94,7 +98,7 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
           assert.equal(option.radius, actual.expected.optionRadius);
           assert.deepEqual(option.padding, ['0px', '12px', '0px', '12px']);
           assert.equal(option.border, '0px');
-          assert.equal(option.color, option.pressed === 'true' ? actual.expected.pressedColor : actual.expected.color);
+          assert.equal(option.color, option.pressed === 'true' ? actual.expected.pressedColor : actual.expected.color, width + '/' + pane + '/' + option.text + ': resting option color');
           if (option.pressed === 'true') {
             assert.equal(option.weight, '600');
             assert.equal(option.background, actual.expected.pressedBackground);
