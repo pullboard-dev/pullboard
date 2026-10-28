@@ -136,7 +136,8 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
     [from, to, frontDoor].forEach(filePath);
     requireThat(/^packages\/[a-z][a-z0-9-]*\/index\.js$/u.test(frontDoor), 'front door must be one package index');
     requireThat(to.startsWith(posix.dirname(frontDoor) + '/src/') && /\.(?:m?js)$/u.test(to), 'body must live under the package src tree');
-    requireThat(new Set([from, to, frontDoor, 'path-map.json']).size === 4, 'transaction paths overlap');
+    const mapFile = `bin/cells-plan/path-map/${frontDoor.split('/')[1]}.json`;
+    requireThat(new Set([from, to, frontDoor, mapFile]).size === 4, 'transaction paths overlap');
     requireThat(typeof purpose === 'string' && purpose.trim() && !/[\r\n]|\*\//u.test(purpose), 'give one plain front-door purpose sentence');
     if (recordedHead === null) requireThat(git(root, ['status', '--porcelain=v1', '-z']) === '', 'start from a clean checkout');
     const head = recordedHead ?? git(root, ['rev-parse', '--verify', 'HEAD^{commit}']).trim();
@@ -144,7 +145,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
     const policy = JSON.parse(git(root, ['show', `${head}:package.json`]));
     requireThat(policy.type === 'module', 'one root ESM package is required');
     requireThat(/^src\/[^/]+\.(?:m?js)$/u.test(from), 'this bounded first-leaf tool accepts one top-level legacy source file');
-    [from, to, frontDoor, 'path-map.json'].forEach(file => {
+    [from, to, frontDoor, mapFile].forEach(file => {
       parents(root, file);
       let scope = posix.dirname(file);
       while (scope !== '.') {
@@ -153,7 +154,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
       }
     });
     tracked(root, head, from);
-    const before = Object.fromEntries([from, to, frontDoor, 'path-map.json'].map(file => {
+    const before = Object.fromEntries([from, to, frontDoor, mapFile].map(file => {
       if (recordedHead === null) return [file, image(root, file)];
       const row = git(root, ['ls-tree', '-z', head, '--', file]);
       if (!row) return [file, null];
@@ -168,7 +169,9 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
     const acceptedMap = readPathMap(root, { commit: head });
     requireThat(!acceptedMap.has(from) && !acceptedMap.has(to)
       && ![...acceptedMap.values()].some(path => path === from || path === to), 'existing rename chains need explicit owner handling');
-    const mapping = before['path-map.json'] ? JSON.parse(Buffer.from(before['path-map.json'].bytes, 'base64')) : {};
+    const mapping = before[mapFile] ? JSON.parse(Buffer.from(before[mapFile].bytes, 'base64')) : {};
+    requireThat(mapping && typeof mapping === 'object' && !Array.isArray(mapping), 'map shard must be an old-to-new object');
+    for (const [oldPath, newPath] of Object.entries(mapping)) { filePath(oldPath); filePath(newPath); }
     requireThat(!Object.hasOwn(mapping, from), 'do not overwrite an existing move');
     mapping[from] = to; // The history identity targets the body, never the index or shim.
     const body = relocate(root, head, from, to, source, keepExports);
@@ -181,14 +184,14 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
       [from]: textImage(`export * from ${JSON.stringify(shimTarget)};\n`, before[from].mode),
       [to]: textImage(body, before[from].mode),
       [frontDoor]: textImage(`/** ${purpose.trim()} */\nexport * from ${JSON.stringify(bodyTarget)};\n`),
-      'path-map.json': textImage(JSON.stringify(mapping, null, 2) + '\n', before['path-map.json']?.mode),
+      [mapFile]: textImage(JSON.stringify(mapping, null, 2) + '\n', before[mapFile]?.mode),
     };
-    const directories = [...new Set([to, frontDoor].flatMap(file => {
+    const directories = [...new Set([to, frontDoor, mapFile].flatMap(file => {
       const result = []; let directory = posix.dirname(file);
       while (directory !== '.' && !existsSync(join(root, directory))) { result.unshift(directory); directory = posix.dirname(directory); }
       return result;
     }))].sort((a, b) => a.split('/').length - b.split('/').length);
-    const value = { version: 1, directories, root, head, from, to, frontDoor, purpose, keepExports, before, after };
+    const value = { version: 2, directories, root, head, from, to, frontDoor, mapFile, purpose, keepExports, before, after };
     return Object.freeze({ ...value, digest: digest(value) });
   }
   /** Plan only from a clean current checkout; inverse validation derives from immutable Git instead. */
@@ -196,18 +199,19 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
   /** Validate a serialized envelope's digest; this is custody, not executable or board authority. */
   function validate(value) {
     const { digest: claimed, ...payload } = value;
-    requireThat(payload.version === 1 && digest(payload) === claimed, 'transaction custody digest changed');
+    requireThat(payload.version === 2 && digest(payload) === claimed, 'transaction custody digest changed');
     requireThat(realpathSync(payload.root) === payload.root
       && git(payload.root, ['rev-parse', '--show-toplevel']).trim() === payload.root, 'custody root must be the actual Git root');
     [payload.from, payload.to, payload.frontDoor].forEach(filePath);
     requireThat(/^src\/[^/]+\.(?:m?js)$/u.test(payload.from)
       && /^packages\/[a-z][a-z0-9-]*\/index\.js$/u.test(payload.frontDoor)
       && payload.to.startsWith(posix.dirname(payload.frontDoor) + '/src/'), 'custody paths leave the supported one-leaf shape');
+    requireThat(payload.mapFile === `bin/cells-plan/path-map/${payload.frontDoor.split('/')[1]}.json`, 'map shard must match its cell');
     requireThat(Array.isArray(payload.directories) && payload.directories.every(directory => {
       filePath(directory);
-      return [payload.to, payload.frontDoor].some(file => file.startsWith(directory + '/'));
+      return [payload.to, payload.frontDoor, payload.mapFile].some(file => file.startsWith(directory + '/'));
     }), 'invalid directory custody');
-    const expected = [payload.from, payload.to, payload.frontDoor, 'path-map.json'].sort();
+    const expected = [payload.from, payload.to, payload.frontDoor, payload.mapFile].sort();
     requireThat(new Set(expected).size === 4 && JSON.stringify(Object.keys(payload.before).sort()) === JSON.stringify(expected)
       && JSON.stringify(Object.keys(payload.after).sort()) === JSON.stringify(expected), 'custody scope changed');
     requireThat(payload.before[payload.from] && !payload.before[payload.to] && !payload.before[payload.frontDoor], 'invalid source preimage');

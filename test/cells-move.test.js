@@ -54,13 +54,14 @@ test('leaf move and independent journal inverse restore exact tree and modes [C7
   assert.equal(value(root, input.frontDoor), '42\n');
   assert.equal(value(root, input.from), '42\n');
   assert.equal(statSync(join(root, input.to)).mode & 0o777, 0o755);
-  assert.deepEqual(JSON.parse(readFileSync(join(root, 'path-map.json'))), { 'src/leaf.js': input.to });
+  assert.deepEqual(JSON.parse(readFileSync(join(root, 'bin/cells-plan/path-map/leaf.json'))), { 'src/leaf.js': input.to });
   assert.match(readFileSync(join(root, input.to), 'utf8'), /\.\.\/\.\.\/\.\.\/\.\.\/src\/number\.js/u);
   cellsMove.undo(result.record);
   assert.equal(git(root, 'write-tree'), before);
   assert.equal(git(root, 'status', '--porcelain'), '');
   assert.deepEqual(readFileSync(join(root, input.from)), original);
   assert.equal(existsSync(join(root, 'packages')), false);
+  assert.equal(existsSync(join(root, 'bin')), false);
 });
 
 for (const [label, source] of [
@@ -129,7 +130,8 @@ test('rehashed forged inverse cannot bless a concurrent edit as its postimage [C
 
 test('failed apply preserves a concurrently deleted preexisting path map [C7]', t => {
   const { root, custody, input } = fixture(t);
-  writeFileSync(join(root, 'path-map.json'), '{}\n');
+  mkdirSync(join(root, 'bin/cells-plan/path-map'), { recursive: true });
+  writeFileSync(join(root, 'bin/cells-plan/path-map/leaf.json'), '{}\n');
   git(root, 'add', '.'); git(root, 'commit', '-qm', 'existing path map');
   const plan = cellsMove.plan(input);
   const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim();
@@ -139,7 +141,7 @@ test('failed apply preserves a concurrently deleted preexisting path map [C7]', 
     `const fs = require('node:fs'); const cp = require('node:child_process');\n` +
     `const args = process.argv.slice(2);\n` +
     `if (args[2] === 'add' && !fs.existsSync(${JSON.stringify(marker)})) {\n` +
-    ` fs.writeFileSync(${JSON.stringify(marker)}, 'yes'); fs.unlinkSync(${JSON.stringify(join(root, 'path-map.json'))}); process.exit(1); }\n` +
+    ` fs.writeFileSync(${JSON.stringify(marker)}, 'yes'); fs.unlinkSync(${JSON.stringify(join(root, 'bin/cells-plan/path-map/leaf.json'))}); process.exit(1); }\n` +
     `const result = cp.spawnSync(${JSON.stringify(realGit)}, args, { stdio: 'inherit' }); process.exit(result.status ?? 1);\n`);
   chmodSync(shim, 0o755);
   const previous = process.env.PATH;
@@ -147,7 +149,7 @@ test('failed apply preserves a concurrently deleted preexisting path map [C7]', 
   try {
     assert.throws(() => cellsMove.apply(plan, custody), /retain exact custody/u);
   } finally { process.env.PATH = previous; }
-  assert.equal(existsSync(join(root, 'path-map.json')), false);
+  assert.equal(existsSync(join(root, 'bin/cells-plan/path-map/leaf.json')), false);
   assert.ok(existsSync(join(custody, plan.digest + '.json')));
   assert.match(readFileSync(join(root, input.from), 'utf8'), /^export \*/u);
 });
