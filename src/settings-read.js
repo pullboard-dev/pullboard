@@ -40,6 +40,9 @@ export function loadMachineSettings() {
   }
   const canaryProblem = relayCanaryProblem(value.relay?.canary);
   if (canaryProblem) throw new Refused('BAD_MACHINE_SETTINGS', `relay.canary in ${file} is invalid: ${canaryProblem}`);
+  if (value.workers?.budget !== undefined && (!Number.isSafeInteger(value.workers.budget) || value.workers.budget < 0)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `workers.budget in ${file} must be a whole number of workers, 0 or more; run pullboard settings workers.budget <n>`);
+  }
   if (value.gate?.memoryFloorMB !== undefined && (!Number.isSafeInteger(value.gate.memoryFloorMB) || value.gate.memoryFloorMB < 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.memoryFloorMB in ${file} must be a whole number of megabytes, 0 or more; fix it before running Pullboard`);
   }

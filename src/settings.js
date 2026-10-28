@@ -57,6 +57,20 @@ export function gateRunnerWaitMs() {
   return loadMachineSettings().gate?.runnerWaitMs ?? DEFAULT_RUNNER_WAIT_MS;
 }
 
+/** The most agent workers pullboard run --scale may run at once on this machine; 0 (the default) launches none. */
+export function workerBudget() {
+  return loadMachineSettings().workers?.budget ?? 0;
+}
+
+/** Set the worker budget; a lower budget stops only idle workers, so it never interrupts a claim or a review. */
+export function setWorkerBudget(count) {
+  if (!Number.isSafeInteger(count) || count < 0) throw new Refused('BAD_MACHINE_SETTINGS', 'workers.budget must be a whole number of workers, 0 or more; run pullboard settings workers.budget <n>');
+  const current = loadMachineSettings();
+  const next = { ...current, workers: { ...current.workers, budget: count } };
+  writeMachineSettings(next);
+  return next;
+}
+
 /** Set the runner deadline for new work without changing any admitted or queued run. */
 export function setGateRunnerWaitMs(milliseconds) {
   validateRunnerWaitMs(milliseconds);

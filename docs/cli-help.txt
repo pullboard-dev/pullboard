@@ -36,6 +36,7 @@ Set up
                                         signed person moves are opt-in: pullboard settings person.signed on makes each wait for your passkey; only the passkey turns it off
                                         runner-first dispatch is opt-in: pullboard settings gate.runnersFirst on|off (default off)
                                         runner admission deadline: pullboard settings gate.runnerWaitMs <n> (default 300000ms)
+                                        worker budget: pullboard settings workers.budget <n>, the most agents run --scale runs at once (default 0, off)
   pullboard runner add <ssh-host> --slots <n> --browser <n> [--node <remote-path>] [--root <remote-path>]
                                         register SSH test capacity; no runner sign-in; root defaults to ~/.pullboard-runner
   pullboard runner list                 each runner's registered slots and browsers, which it runs at
@@ -90,6 +91,7 @@ Work
                                         with --criterion and a brief, --check is needed below strong
   pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."]
                 [--review-family <family>]   require the declared reviewer family
+                [--review-tier strict --reason "<risk>"]   coordinator marks additional Strict work; no downgrade
                 [--wait]                wait for a new check's baseline; otherwise it runs in the background
                 [--reason "what the old bar got wrong"]   needed to change the criterion or check of an item
                                         that was ever claimed; show and stats list each correction
@@ -99,6 +101,9 @@ Work
                                         the context pack at $PULLBOARD_PACK (and $PULLBOARD_CHECK, $PULLBOARD_ITEM,
                                         $PULLBOARD_ATTEMPT, $PULLBOARD_TIER); green work is submitted, red escalated
                 [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier
+  pullboard run --scale --lane <lane> --model "<model name>" --agent "<command>" [--every 60] [--cycles N]
+                                        from the main checkout: run as many worker seats as are worth running,
+                                        never above pullboard settings workers.budget; idle seats stop first
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
   pullboard queue                       the work queue in pull order: releases, then route, lane, holder, waits,
                                         and each item's unblock count, effort and why it sits there
@@ -349,7 +354,7 @@ Gate and hooks
 Lifecycle, read from src/machine.js
   pullboard lifecycle         the states, moves, guards and refusals as a markdown page, with a diagram
   agent         rehomeImport, intake, claim, release, submit, reserve, accept, reject, reopen, escalate, submit-merge (when only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created), refreeze (when a live claim has a pending coordinator correction or a validated cited-spec correction)
-  coordinator   patch, intake, claim, release, submit, reserve, accept, reject, reopen, escalate, refreeze, withdraw, submit-merge (when only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created)
+  coordinator   patch-claimed, patch, intake, claim, release, submit, reserve, accept, reject, reopen, escalate, refreeze, withdraw, submit-merge (when only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created)
   clock         lapse (when its lease runs out)
 
 
