@@ -280,6 +280,7 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
           : run.profile?.receipt?.runner?.id ?? lease?.receipt?.runner?.id ?? lease?.localDescriptor?.id ?? null), exitCode: run.exitCode,
         counts: run.proofCounts ?? proofCounts(run.outputPath ? logLines(run.outputPath) : run.output ?? ''),
         durationMs: Math.max(0, Math.round(run.remoteWallMs ?? run.profile?.wallMs ?? run.seconds * 1000)), sourceClean,
+        ...(context.submitPhase ? { submitPhase: context.submitPhase } : {}),
         ...(context.submitAdmission ? { submitAdmission: context.submitAdmission } : {}) } });
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });
