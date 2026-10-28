@@ -1,4 +1,6 @@
 /** Hand-computed flow reporting uses real Git/SQLite and immutable native history [R1,R2]. */
+import { events as readStatsEvents } from '../src/board.js';
+import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -10,6 +12,10 @@ import { exportBoard } from '../src/exchange.js';
 import { importBoard } from '../src/exchange.js';
 import { proofStats } from '../src/stats.js';
 import { runFixtureGit } from './fixture-child.js';
+
+/** Native read operations explicitly supplied to the statistics under test. */
+const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
+
 
 const BASE = Date.parse('2026-10-10T00:00:00Z');
 
@@ -104,7 +110,7 @@ test('the flow report splits time into waiting for an agent, building, review, l
     [100, 'coordinator', 'merged', 8],
   ]);
   const history = store.events(board);
-  const report = proofStats(board, { now: BASE + 130 * 60_000 }).flow.report;
+  const report = proofStats(board, { now: BASE + 130 * 60_000 }, statsReadPorts).flow.report;
   assert.ok(report, 'the canonical observer exposes the requested report');
   const item = report.items.find(row => row.id === 1);
   assert.equal(item.lane, 'core');

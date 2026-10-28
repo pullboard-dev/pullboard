@@ -1,4 +1,6 @@
 /** Event-derived proof numbers have the same data in text and versioned JSON [R1,R2,A1]. */
+import { events as readStatsEvents } from '../src/board.js';
+import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { runFixtureGit } from './fixture-child.js';
@@ -12,6 +14,10 @@ import { main } from '../src/cli.js';
 import { proofStats } from '../src/stats.js';
 import { serveApi } from '../src/api.js';
 import { fetchFresh } from './http-fixture.js';
+
+/** Native read operations explicitly supplied to the statistics under test. */
+const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
+
 
 /** Capture the real CLI without spawning a second model or changing the machine's registry. */
 async function run(root, args, clock) {
@@ -85,7 +91,7 @@ test('[R1,R2,A1] stats JSON is versioned, text states the same proof numbers and
   assert.equal(json.stderr, '');
   const observed = Date.parse(json.data.stats.flow.asOf);
   assert.ok(observed >= observationBefore && observed <= Date.now(), 'the CLI records its own observation clock');
-  const expected = proofStats(board, { now: observed });
+  const expected = proofStats(board, { now: observed }, statsReadPorts);
   assert.deepEqual(json.data, { version: 1, stats: expected, gateWaits: [] }, 'a board with no gated runs reports no gate waits (#836)');
   assert.deepEqual([expected.submissions, expected.rejections, expected.rejectionShare, expected.merged, expected.mergedWithoutAccept], [2, 1, 0.5, 1, 0]);
   const text = await run(root, ['stats']);
@@ -107,7 +113,7 @@ test('[R2,A1] stats forwards the inclusive date window and returns an actionable
   const { root, board } = fixture(t);
   const json = await run(root, ['stats', '--since', '2026-10-09', '--json']);
   assert.equal(json.code, 0, json.stderr);
-  assert.deepEqual(json.data.stats, proofStats(board, { since: '2026-10-09', now: Date.parse(json.data.stats.flow.asOf) }));
+  assert.deepEqual(json.data.stats, proofStats(board, { since: '2026-10-09', now: Date.parse(json.data.stats.flow.asOf) }, statsReadPorts));
   assert.equal(json.data.stats.submissions, 0);
   assert.equal(json.data.stats.firstEventAt, null);
   const bad = await run(root, ['stats', '--since', '2026-02-30', '--json']);
@@ -140,10 +146,10 @@ test('[R1,R2,A2] local HTTP state exposes exactly the command statistics', async
     const { items: _items, ...report } = summary.flow.report;
     return { ...summary, flow: { ...summary.flow, report } };
   };
-  assert.deepEqual(document.state.proofStats, publicSummary(proofStats(board, { now: observed })));
+  assert.deepEqual(document.state.proofStats, publicSummary(proofStats(board, { now: observed }, statsReadPorts)));
   for (const key of ['agents', 'bars', 'caught']) assert.equal(Object.hasOwn(document.state.proofStats, key), false);
   assert.equal(Object.hasOwn(document.state.proofStats.flow.report, 'items'), false);
-  assert.deepEqual(command.data.stats, proofStats(board, { now: Date.parse(command.data.stats.flow.asOf) }));
+  assert.deepEqual(command.data.stats, proofStats(board, { now: Date.parse(command.data.stats.flow.asOf) }, statsReadPorts));
   assert.deepEqual({ ...document.state.proofStats, flow: { ...document.state.proofStats.flow, asOf: command.data.stats.flow.asOf } },
     publicSummary(command.data.stats), 'the public projection retains every exposed command invariant exactly');
 });
@@ -244,7 +250,7 @@ test('[R1,R2,A1] stats window exposes measured tails in text and JSON without re
   assert.equal(json.data.window.stages.build.count, 1);
   assert.equal(json.data.window.stages.build.medianMinutes, 0, 'recorded instantaneous work is a measured zero');
   assert.equal(json.data.window.stages.review.medianMinutes, null, 'the fixture has no reservation evidence');
-  assert.deepEqual(json.data.stats, proofStats(board, { now: clock.now().getTime() }));
+  assert.deepEqual(json.data.stats, proofStats(board, { now: clock.now().getTime() }, statsReadPorts));
   const text = await run(root, ['stats', '--window', '6h'], clock);
   assert.equal(text.code, 0, text.stderr);
   assert.match(text.stdout, /flow window:.*1 landed/u);

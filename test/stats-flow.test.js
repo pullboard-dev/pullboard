@@ -1,4 +1,6 @@
 /** Hand-computed synthetic histories exercise real Git/SQLite statistics and each recommendation [R1,R2]. */
+import { events as readStatsEvents } from '../src/board.js';
+import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -9,6 +11,10 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { proofStats } from '../src/stats.js';
 import { flowLines, flowStats, prepareFlowHistory, projectFlowStats } from '../src/stats-flow.js';
 import { runFixtureGit } from './fixture-child.js';
+
+/** Native read operations explicitly supplied to the statistics under test. */
+const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
+
 
 const BASE = Date.parse('2026-10-10T00:00:00Z');
 
@@ -40,7 +46,7 @@ function fixture(t, entries, now = 200) {
   importBoard(board, document);
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
   /** Read the real board at its deterministic observation time. */
-  function stats(options = {}) { return proofStats(board, { now: BASE + now * 60_000, ...options }); }
+  function stats(options = {}) { return proofStats(board, { now: BASE + now * 60_000, ...options }, statsReadPorts); }
   return { board, stats };
 }
 

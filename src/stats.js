@@ -1,10 +1,8 @@
-import { counterProofStats } from './proof-counter-read.js';
-import { proofEventDetail } from './proof-event-detail.js';
+import { proofEventDetail } from '../packages/kernel/src/core/event-detail.js';
 /** Public proof numbers derived from the append-only event log [R1,R2]. */
-import { events } from './board.js';
 import { Refused } from './refused.js';
 import { flowStats } from './stats-flow.js';
-import { barStats } from './bar-corrections.js';
+import { barStats } from '../packages/stats/src/core/bar-stats.js';
 import { caughtFrom } from './caught.js';
 
 /** Parse an inclusive UTC date boundary, refusing malformed or impossible dates. */
@@ -58,9 +56,11 @@ function countsFrom(history, boundary) {
   };
 }
 
-/** Count lifecycle moves from one immutable read of the event history. */
-export function eventCounts(board, { since } = {}) {
-  return countsFrom(events(board), sinceDate(since));
+/** Count lifecycle moves through the caller's explicit native history reader. */
+export function eventCounts(board, { since } = {}, reads) {
+  const boundary = sinceDate(since);
+  if (typeof reads?.events !== 'function') throw new TypeError('eventCounts requires an explicit events read port');
+  return countsFrom(reads.events(board), boundary);
 }
 
 /** Attribute only recorded actor families, retaining earlier declarations across date windows. */
@@ -97,22 +97,25 @@ function actorsFrom(history, boundary) {
   return { agentCount: agents.length, familyCount: groups.length, agents, families: groups };
 }
 
-/** Assemble the public statistics shared by the CLI and local board state from one event snapshot. */
-export function proofStats(board, { since, now = Date.now(), onFallback } = {}) {
+/** Assemble statistics in one snapshot using the caller's history and counter read operations. */
+export function proofStats(board, { since, now = Date.now(), onFallback } = {}, reads) {
   const boundary = sinceDate(since);
+  if (typeof reads?.events !== 'function' || typeof reads?.counterProofStats !== 'function') {
+    throw new TypeError('proofStats requires explicit events and counterProofStats read ports');
+  }
   // A SAVEPOINT is read-only until a write occurs, and nests inside callers' transactions.
   // Hold one snapshot across the cursor, projection shards, and verdicts while other seats append.
   board.db.exec('SAVEPOINT proof_stats_read');
-  try { return proofStatsSnapshot(board, boundary, now, onFallback); }
+  try { return proofStatsSnapshot(board, boundary, now, onFallback, reads); }
   finally { board.db.exec('RELEASE proof_stats_read'); }
 }
 
 /** Assemble cached or legacy statistics within the caller's already established read snapshot. */
-function proofStatsSnapshot(board, boundary, now, onFallback) {
-  const counted = counterProofStats(board, boundary, now);
+function proofStatsSnapshot(board, boundary, now, onFallback, reads) {
+  const counted = reads.counterProofStats(board, boundary, now);
   if (counted) return counted;
   onFallback?.();
-  const history = events(board);
+  const history = reads.events(board);
   const counts = countsFrom(history, boundary);
   const verdicts = board.db.prepare('SELECT * FROM verdict ORDER BY verdict_id').all();
   return { ...counts, ...actorsFrom(history, boundary), bars: barStats(history, verdicts, boundary), caught: caughtFrom(history, verdicts, boundary), flow: flowStats(history, boundary, now, counts) };

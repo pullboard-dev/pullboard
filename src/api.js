@@ -1,3 +1,4 @@
+import { counterProofStats } from './proof-counter-read.js';
 import { viewFlowSummary } from './view-state-summary.js';
 import { proofStats } from './stats.js';
 import { buildLocalBoardState } from './native-board-state.js';
@@ -1090,7 +1091,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     proof: (board, id) => withGitReadFacts(() => withReadBoard(board.root, current => {
       try { store.itemById(current, id); }
       catch (error) { if (error.code === 'NO_ITEM') return null; throw error; }
-      const report = proofStats(current, { now: now() }).flow.report;
+      const report = proofStats(current, { now: now() }, { events: store.events, counterProofStats }).flow.report;
       const proof = report?.items?.find(item => item.id === id);
       if (!proof) throw new Refused('ITEM_NOT_AVAILABLE', 'this item exists, but its proof report is unavailable; run a normal writable board command to rebuild the derived report, then retry');
       return proof;
