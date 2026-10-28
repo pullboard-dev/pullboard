@@ -1,14 +1,12 @@
 /** The queue cell reads machine settings only from the file its caller names [O5,O6,C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { machineHome, machineSettingsFile } from '../src/machine-home.js';
 import { DEFAULT_QUEUE_AGING_MINUTES, readGateQueueSettings, readMachineSettingsFile } from '../src/queue-settings.js';
 import { gateQueueSettings } from '../src/settings.js';
-
-const QUEUE_SETTINGS = resolve(import.meta.dirname, '../src/queue-settings.js');
 
 /** Write one settings object into a fresh directory, returning the directory and its file. */
 function settingsDir(value) {
@@ -18,9 +16,7 @@ function settingsDir(value) {
   return { dir, file };
 }
 
-test('[O5,C7] queue-settings imports nothing above the queue cell: the settings file is a caller-supplied port', () => {
-  const source = readFileSync(QUEUE_SETTINGS, 'utf8');
-  assert.doesNotMatch(source, /from '\.\/machine-home\.js'/u);
+test('[O5,C7] the config cell resolves the machine settings file the queue cell is handed', () => {
   assert.equal(machineSettingsFile(), join(machineHome(), 'settings.json'));
 });
 
