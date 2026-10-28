@@ -352,7 +352,7 @@ function safeStartupDiagnostic(stderr) {
 }
 
 /** Start the generated board's foreground view server without exposing its local key in diagnostics. */
-async function startView(board) {
+export async function startView(board) {
   const env = { ...board.env, PULLBOARD_VIEW_FOREGROUND: '1' };
   const child = spawn(process.execPath, [BIN, 'view', '--no-open', '--port', '0'], {
     cwd: board.root, env, stdio: ['ignore', 'pipe', 'pipe'],
@@ -380,7 +380,7 @@ async function startView(board) {
 }
 
 /** Stop the one view process started by this harness and wait for its direct child to close. */
-async function stopView(view) {
+export async function stopView(view) {
   if (view.child.exitCode === null && view.child.signalCode === null) {
     try { view.child.kill('SIGTERM'); } catch { /* The owned CLI process may have exited between the check and signal. */ }
   }

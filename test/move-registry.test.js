@@ -34,6 +34,13 @@ import { installRegistryMergeCase } from './move-registry-merge-cases.js';
 
 const SNAPSHOT = JSON.parse(readFileSync(new URL('./move-registry-baseline.json', import.meta.url), 'utf8'));
 const CONSUMERS = ['src/engine.js', 'src/relay-sender.js', 'src/next-step-words.js'];
+const CLAUSE_STEPS = Object.freeze({
+  BAR_CLAUSE_REQUIRED: 'add --clause "exact wording from the frozen criterion or spec row"',
+  BAR_CLAUSE_UNKNOWN: 'read pullboard show <id>, then quote the failing requirement with --clause',
+  BAD_DECISION: 'choose accept or reject with a supported reason: pullboard verify <id> reject --reason TEST_FAILURE --clause "<frozen wording>" --note "<what failed>"',
+  CHECK_RED: 'reject with what failed: pullboard verify <id> reject --reason TEST_FAILURE --clause "<frozen wording>" --note "<what failed>"',
+  GUARD_CANNOT_FAIL: 'reject: the check does not test the guard; ask for one that fails with the guard reverted: pullboard verify <id> reject --reason TEST_FAILURE --clause "<frozen wording>" --note "<what the check missed>"',
+});
 const REHOME_OPERATIONS = ['reserveRehomeItemId', 'rehomeItem', 'applyRehomeItem'];
 
 /** Hash the real consumer bytes so seed declarations cannot quietly edit a central list. */
@@ -67,6 +74,7 @@ test('live registry invariants and historical actors, order and SQLite replay ho
     .map(file => readFileSync(join(root, file), 'utf8'));
   assert.deepEqual(registryProblems({ registry: MOVE_REGISTRY, leaves: readEngineLeaves(root), sources, nextSteps: NEXT_STEPS }), []);
   assert.deepEqual(ENGINE_OPERATIONS, Object.keys(MOVE_REGISTRY), 'engine routing derives every operation from its declaration');
+  for (const [code, step] of Object.entries(CLAUSE_STEPS)) assert.equal(NEXT_STEPS[code], step, `${code} retains exact clause recovery`);
   assert.equal(minimumMoveEngine('recordProofRun', [{ landingFence: {}, receipt: { environment: {} } }, { cause: 'conflict:new' }]), PROOF_RUN_ENGINE);
   assert.equal(MOVE_REGISTRY.recordProofRun.engine, PROOF_RUN_ENGINE);
   assert.equal(MOVE_REGISTRY.recordProofRun.itemIdFirstArgument, false);

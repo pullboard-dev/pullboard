@@ -7,7 +7,7 @@ export function dashboardModel(project, history, { now = Date.now(), complete = 
   const byId = new Map(items.map(item => [item.id, item]));
   const merged = new Map((project.dashboardLanded ?? []).map(entry => [entry.id, entry]));
   const prefix = project.sequence ?? Infinity;
-  const events = [...history].filter(event => event.event_id <= prefix && Date.parse(event.event_at) <= now)
+  const events = history.filter(event => event.event_id <= prefix && Date.parse(event.event_at) <= now)
     .sort((a, b) => a.event_id - b.event_id);
   /** Parse only native event JSON; malformed history cannot create activity. */
   const detail = event => { try { return JSON.parse(event.event_detail || '{}'); } catch { return {}; } };
@@ -30,10 +30,17 @@ export function dashboardModel(project, history, { now = Date.now(), complete = 
     if (actor && at > start && held.start < now) actor.segments.push({ ...held, start: Math.max(start, held.start), end: Math.min(now, at) });
     work.delete(key);
   };
+  let passed = 0, sentBack = 0, personShouts = 0;
   for (const event of events) {
     const at = Date.parse(event.event_at), d = detail(event), id = event.item_id, actor = row(event.event_by);
     if (!Number.isFinite(at)) continue;
-    for (const [key, held] of [...work]) if (held.until <= at) close(key, held.until);
+    // Count the same bounded native prefix while its date and payload are already decoded.
+    if (at > start) {
+      if (event.event_kind === 'accept') passed++;
+      if (['reject', 'reopen'].includes(event.event_kind)) sentBack++;
+      if (event.event_kind === 'shout' && d.to === 'person') personShouts++;
+    }
+    for (const [key, held] of work) if (held.until <= at) close(key, held.until);
     if (actor && ['reject', 'reopen'].includes(event.event_kind) && at > start) actor.sentBack.push({ at, item: id });
     if (actor) { actor.last = Math.max(actor.last, at); if (event.event_kind === 'shout' && at > start) actor.shouts++; }
     latest.set(event.event_kind + ':' + id, event);
@@ -105,8 +112,8 @@ export function dashboardModel(project, history, { now = Date.now(), complete = 
       allTime: merged.size,
       day: pace?.last24h ?? (complete ? times.filter(at => at > now-24*hour).length : null),
       recent: complete ? times.filter(at => at > start).length : null,
-      passed: complete ? events.filter(event => event.event_kind === 'accept' && Date.parse(event.event_at) > start).length : null,
-      sentBack: complete ? events.filter(event => ['reject','reopen'].includes(event.event_kind) && Date.parse(event.event_at) > start).length : null,
-      shouts: complete ? events.filter(event => event.event_kind === 'shout' && Date.parse(event.event_at) > start && detail(event).to === 'person').length : null },
+      passed: complete ? passed : null,
+      sentBack: complete ? sentBack : null,
+      shouts: complete ? personShouts : null },
   };
 }

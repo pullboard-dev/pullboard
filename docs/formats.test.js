@@ -414,12 +414,33 @@ function recordEventContract() {
   const olderFinish = { ...prepareEngineMove(board, 'finishLandingBatch', [{ agentId: coordinator, id: batch.id, tip: batch.tip }]), engine: 12 };
   assert.equal(applyEngineMove(board, olderFinish, { sequence: 3, at: '2026-10-17T20:00:00.000Z' }).error, undefined);
 
-  const rejected = addItem(board, { by: coordinator, lane: 'docs', title: 'Rejected example' });
-  claim(board, rejected, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('rejected') });
+  const rejected = addItem(board, { by: coordinator, lane: 'docs', title: 'Rejected example', criterion: 'The fixture passes.' });
+  /** This rejection quotes the exact criterion frozen for this example. */
+  const rejectedFreeze = () => ({ text: JSON.stringify({ criterion: 'The fixture passes.', rows: [] }), digest: 'rejected' });
+  claim(board, rejected, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: rejectedFreeze });
   const rejectedCommit = 'd'.repeat(40);
   submitFixture(board, rejected, { agentId: builder, commit: rejectedCommit, tree: 'e'.repeat(40) });
-  verify(board, rejected, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'the fixture failed', head: rejectedCommit, digest: 'rejected', policy: 'agents', implies: [dependency],
+  verify(board, rejected, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'the fixture failed', clause: 'The fixture passes.', head: rejectedCommit, digest: 'rejected', policy: 'agents', implies: [dependency],
     review: { commit: rejectedCommit, head: rejectedCommit, trunk: 'a'.repeat(40), paths: ['docs/formats.md'] } });
+  claim(board, rejected, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: rejectedFreeze });
+  const repeatedCommit = '9'.repeat(40);
+  submitFixture(board, rejected, { agentId: builder, commit: repeatedCommit, tree: '8'.repeat(40) });
+  verify(board, rejected, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
+    note: 'the same fixture still fails', clause: 'The fixture passes.', head: repeatedCommit, digest: 'rejected', policy: 'agents' });
+
+  const ceiling = addItem(board, { by: coordinator, lane: 'docs', title: 'Strong route notice example', route: 'strong',
+    criterion: 'The title renders. The footer renders.' });
+  /** Different clauses exercise the existing strong-route notice without a repeated-clause hold. */
+  const ceilingFreeze = () => ({ text: JSON.stringify({ criterion: 'The title renders. The footer renders.', rows: [] }), digest: 'strong-notice' });
+  for (const [head, clause] of [['6'.repeat(40), 'The title renders.'], ['7'.repeat(40), 'The footer renders.']]) {
+    claim(board, ceiling, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: ceilingFreeze });
+    submitFixture(board, ceiling, { agentId: builder, commit: head, tree: '8'.repeat(40) });
+    verify(board, ceiling, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
+      note: 'the named rendered part is missing', clause, head, digest: 'strong-notice', policy: 'agents' });
+  }
+
+  assert.ok(events(board).some(row => row.item_id === ceiling && row.event_kind === 'strong-rejection-notice'),
+    'distinct-clause rejects retain the existing strong-route notice');
 
   const corrected = addItem(board, { by: coordinator, lane: 'docs', title: 'Corrected live claim' });
   claim(board, corrected, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('before-correction') });

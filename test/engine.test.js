@@ -637,9 +637,9 @@ test('return-window engine admission uses the receipt time rather than replica c
     board.clock = { now: () => new Date('2026-10-07T16:00:00.000Z') };
     const id = store.listItems(board)[0].item_id;
     store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 2 * HOUR,
-      freeze: () => ({ text: '{"rows":[]}', digest: 'f'.repeat(64) }) });
+      freeze: () => ({ text: '{"criterion":"Engine fixture","rows":[]}', digest: 'f'.repeat(64) }) });
     submitFixture(board, id, { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'a'.repeat(40) });
-    store.verify(board, id, { agentId: 'web-2', decision: 'REJECT', reason: 'OTHER', note: 'proof',
+    store.verify(board, id, { agentId: 'web-2', decision: 'REJECT', reason: 'OTHER', note: 'proof', clause: 'Engine fixture',
       head: 'a'.repeat(40), digest: 'f'.repeat(64), policy: 'any', reopenFirstRefusalMinutes: 30 });
   }, 66);
   const before = boardRows(expiredClock, item);
