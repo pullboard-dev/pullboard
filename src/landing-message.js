@@ -85,7 +85,7 @@ export function checkLandingMessages(items, { spec, typeOf = () => null }) {
     const built = landingMessage(item, { spec, type: typeOf(item) });
     const problems = commitMessageProblems(built.message, { item: item.item_id, rows: built.rows });
     if (problems.length) {
-      throw new Refused('LAND_HEADER', `the landing message for #${item.item_id} fails its own check (${problems.join('; ')}); nothing merged; shout the coordinator: pullboard shout coordinator "#${item.item_id} landing message fails its check"`);
+      throw new Refused('LAND_HEADER', `the landing message for #${item.item_id} fails its own check (${problems.join('; ')}); nothing merged; shout the coordinator: pullboard shout coordinator --kind exception "#${item.item_id} landing message fails its check"`);
     }
     messages.set(item.item_id, built);
   }

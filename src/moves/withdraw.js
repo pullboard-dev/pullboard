@@ -18,7 +18,7 @@ export default Object.freeze({ operation: "withdraw", order: 20, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
   "CLOSED": "read its state with pullboard show <id>, then take open work: pullboard next",
-  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator \"<what you need>\"",
+  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator --kind question \"<what you need>\"",
   "NOTE_REQUIRED": "add --note \"<what happened>\"",
   "NOT_JOINED": "join a lane from this worktree: pullboard join <lane> --model \"<model name>\" (see: pullboard lanes)",
   "NO_ITEM": "find the item id: pullboard list --all",

@@ -1262,7 +1262,7 @@ test('a linked device without its key reads locally and refuses moves with both 
       return { code, document: JSON.parse(output) };
     }
     const joined = await command(${JSON.stringify(agentRoot)}, ['join', ${JSON.stringify(box.lane)}, '--route', 'mid']);
-    const asked = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'Should this fixture continue?', '--decision']);
+    const asked = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'Should this fixture continue?', '--kind', 'question', '--decision']);
     process.stdout.write(JSON.stringify({ joined, asked }));
   `);
   assert.equal(prepare.document.joined.code, 0, 'the real agent worktree joins its lane');
@@ -1315,7 +1315,7 @@ test('a linked device without its key reads locally and refuses moves with both 
       return { code, document: JSON.parse(output) };
     }
     const claim = await command(${JSON.stringify(agentRoot)}, ['claim', '1']);
-    const shout = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'must not be sent']);
+    const shout = await command(${JSON.stringify(agentRoot)}, ['shout', 'all', 'must not be sent']);
     const answer = await command(${JSON.stringify(box.root)}, ['answer', ${JSON.stringify(String(decision))}, 'yes']);
     process.stdout.write(JSON.stringify({ claim, shout, answer }));
   `);
@@ -1352,7 +1352,7 @@ test('a linked device with an unreadable key reads locally and refuses moves wit
       return { code, document: JSON.parse(output) };
     }
     const joined = await command(${JSON.stringify(agentRoot)}, ['join', ${JSON.stringify(box.lane)}, '--route', 'mid']);
-    const asked = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'Should this fixture continue?', '--decision']);
+    const asked = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'Should this fixture continue?', '--kind', 'question', '--decision']);
     process.stdout.write(JSON.stringify({ joined, asked }));
   `);
   assert.equal(prepare.document.joined.code, 0, 'the real agent worktree joins its lane');
@@ -1414,7 +1414,7 @@ test('a linked device with an unreadable key reads locally and refuses moves wit
       }
     }
     const claim = await command(${JSON.stringify(agentRoot)}, ['claim', '1']);
-    const shout = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'must not be sent']);
+    const shout = await command(${JSON.stringify(agentRoot)}, ['shout', 'all', 'must not be sent']);
     const answer = await command(${JSON.stringify(box.root)}, ['answer', ${JSON.stringify(String(decision))}, 'yes']);
     process.stdout.write(JSON.stringify({ claim, shout, answer }));
   `);

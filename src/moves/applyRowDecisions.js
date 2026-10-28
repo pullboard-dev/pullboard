@@ -30,7 +30,7 @@ export default Object.freeze({ operation: "applyRowDecisions", order: 38, engine
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
   "ENGINE_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
-  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator \"<what you need>\"",
+  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator --kind question \"<what you need>\"",
   "ROW_DECISION": "pullboard spec approve <ids>, or pullboard spec decline <ids>",
   "STALE_ROW_DECISION": "ask the person to approve the current row again in pullboard view"
 }) });

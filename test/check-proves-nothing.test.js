@@ -30,7 +30,7 @@ test('a held item leaves the agent one step it can take itself [V2,C7]', (t) => 
   assert.throws(() => refuseProvesNothing(() => ({ checks: { provesNothing: 'hold' } }), board, provesNothing()), (error) => {
     assert.equal(error.code, 'CRITERION_PROVES_NOTHING');
     assert.match(error.message, /#4 is held/u);
-    assert.match(error.next, /pullboard shout coordinator --decision "#4 is held because its check passes on main; please set: pullboard edit 4 --check 'node --test test\/show-the-cart-total\.test\.js'"/u,
+    assert.match(error.next, /pullboard shout coordinator --kind question --decision "#4 is held because its check passes on main; please set: pullboard edit 4 --check 'node --test test\/show-the-cart-total\.test\.js'"/u,
       'the agent can ask for the concrete check without the person');
     return true;
   });

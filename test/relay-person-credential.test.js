@@ -114,7 +114,7 @@ test('same-user agents never act as their person while the phone approves native
   git(agentRoot, agentEnv, 'commit', '-q', '-m', 'feat(fixture): prove scoped agent submit [G1]');
   const submitted = await command(agentRoot, agentEnv, ['submit', String(itemId)]).done;
   assert.equal(submitted.code, 0, 'the SSH agent submits a clean native commit with its gate green');
-  assert.equal((await command(agentRoot, agentEnv, ['shout', 'coordinator', 'scoped agent completed its work']).done).code, 0);
+  assert.equal((await command(agentRoot, agentEnv, ['shout', 'all', 'scoped agent completed its work']).done).code, 0);
   assert.equal(box.calls.filter(call => call.path.endsWith('/authorize')).length, approvedBefore, 'agent enroll/claim/submit/shout asks for no phone approval');
   assertNoPersonPower(box.root); assertNoPersonPower(box.env.HOME);
   const state = JSON.parse(readFileSync(box.linkFile));

@@ -95,7 +95,7 @@ export function refuseProvesNothing(mainConfig, board, item) {
   if (mainConfig()?.checks?.provesNothing !== PROVES_NOTHING_HOLD) return;
   throw new Refused('CRITERION_PROVES_NOTHING',
     `#${item.item_id} is held: its check already passes on main ${String(base.main).slice(0, 12)}, so it proves nothing: ${base.command}`,
-    `ask the coordinator for a check that fails before the work, ready to paste: pullboard shout coordinator --decision "#${item.item_id} is held because its check passes on main; please set: pullboard edit ${item.item_id} --check '${provingCheck(item)}'"; or the person accepts this one: pullboard check accept ${item.item_id}`);
+    `ask the coordinator for a check that fails before the work, ready to paste: pullboard shout coordinator --kind question --decision "#${item.item_id} is held because its check passes on main; please set: pullboard edit ${item.item_id} --check '${provingCheck(item)}'"; or the person accepts this one: pullboard check accept ${item.item_id}`);
 }
 
 /**

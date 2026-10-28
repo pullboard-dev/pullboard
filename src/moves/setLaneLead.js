@@ -6,5 +6,5 @@ function minimumEngine() { return LANE_LEAD_ENGINE; }
 function actor(move) { return move.args[0]?.agentId ?? null; }
 export default Object.freeze({ operation: 'setLaneLead', order: 1000, engine: LANE_LEAD_ENGINE,
   itemIdFirstArgument: false, minimumEngine, actor,
-  nextSteps: Object.freeze({ COORDINATOR_ONLY: 'ask the coordinator to do it: pullboard shout coordinator \"<what you need>\"',
+  nextSteps: Object.freeze({ COORDINATOR_ONLY: 'ask the coordinator to do it: pullboard shout coordinator --kind question \"<what you need>\"',
     BAD_LANE_LEAD: 'name a configured lane and an existing seat in that lane, or off' }) });
