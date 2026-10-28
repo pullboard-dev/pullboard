@@ -29,7 +29,10 @@ import {
   runFixtureGit,
 } from './fixture-child.js';
 import { lex } from '../packages/kernel/index.js';
-import { bindingReadsForModules } from '../src/cell-binding-uses.js';
+import {
+  bindingReadsForModules,
+  localFunctionCallSets,
+} from '../src/cell-binding-uses.js';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
 import { mainAuditKey } from '../src/main-audit-state.js';
 import { readAuditJob } from './main-audit-project.js';
@@ -721,4 +724,58 @@ for (const [name, body] of [
   assert.ok(result.problems.every(problem => problem.startsWith('test/conservative-obligations.js:')
     && problem.includes('unsupported fixture source:')), 'every retained obligation names its actual source site');
   assert.deepEqual(result.edits, [], 'an unknown path never gains a guessed move or passing artifact classification');
+});
+
+
+test('local function call sets preserve literal-aware offsets and raw parameter grammar [C7]', () => {
+  const source = `function read(path = { value: ')' }, { mode } = {}) {
+    return path;
+  }
+  read(new URL('../a.yml', import.meta.url), { mode: ',' });
+  const value = read(\`value, \${other({ nested: true })}\`, /[,)]/u);
+  `;
+  const rows = localFunctionCallSets(source, { file: 'test/callsets.js' });
+  assert.equal(rows.length, 1);
+  const row = rows[0];
+  assert.equal(row.name, 'read');
+  assert.equal(source.slice(row.nameAt, row.nameAt + 4), 'read');
+  assert.equal(source.slice(row.parameterStart, row.parameterEnd), "path = { value: ')' }, { mode } = {}");
+  assert.equal(source.slice(row.bodyStart, row.bodyEnd).trim(), 'return path;');
+  assert.equal(row.calls.length, 2);
+  assert.deepEqual(row.calls.map(call => call.args.map(arg => source.slice(arg.start, arg.end))), [
+    ["new URL('../a.yml', import.meta.url)", "{ mode: ',' }"],
+    ['`value, ${other({ nested: true })}`', '/[,)]/u'],
+  ]);
+  assert.ok(row.calls.every(call => source.slice(call.at, call.at + 4) === 'read'));
+});
+
+test('local function authority rejects escapes, shadowing, writes and nonordinary calls [C7]', () => {
+  const declaration = 'function read(path) { return path; }\n';
+  for (const tail of [
+    'const alias = read; alias(input);',
+    'consume(read);',
+    'read.call(null, input);',
+    'new read(input);',
+    'read?.(input);',
+    'read(...inputs);',
+    'read = other; read(input);',
+    'function inner(read) { return read(input); }',
+    'export { read };',
+    'eval(code); read(input);',
+    "Function('return 1')(); read(input);",
+  ]) assert.ok(!localFunctionCallSets(declaration + tail, { file: 'test/callsets.js' }).some(row => row.name === 'read'), tail);
+  for (const source of [
+    'export function read(path) { return path; } read(input);',
+    'const outer = function read(path) { return path; };',
+    'function read(path) {} { function read(path) {} read(input); }',
+  ]) assert.ok(!localFunctionCallSets(source, { file: 'test/callsets.js' }).some(row => row.name === 'read'), source);
+});
+
+test('local call set complexity bounds never authorize partial call inventories [C7]', () => {
+  const declaration = 'function read(path) { return path; }\n';
+  const excessiveCalls = declaration + Array.from({ length: 129 }, () => 'read(input);').join('\n');
+  const excessiveArgs = declaration + 'read(' + Array.from({ length: 65 }, () => 'input').join(',') + ');';
+  for (const source of [excessiveCalls, excessiveArgs, declaration + ' '.repeat(1024 * 1024)]) {
+    assert.ok(!localFunctionCallSets(source, { file: 'test/callsets.js' }).some(row => row.name === 'read'));
+  }
 });
