@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { machineHome } from './machine-home.js';
 import { loadMachineSettings } from './settings-read.js';
-import { validateRunner } from './runner-registration.js';
+import { validateRunner } from './settings-read.js';
 import { localRunnerDescriptor } from './runner-load.js';
 
 /** Missing optional tables are historical absence, never an instruction to migrate a read. */

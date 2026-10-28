@@ -44,10 +44,8 @@ import {
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pipeline } from 'node:stream/promises';
-import {
-  environmentProblem,
-  testRuntimeRows,
-} from './execution-environment.js';
+import { testRuntimeRows } from './execution-environment.js';
+import { environmentProblem } from './config.js';
 import {
   gzipSync,
 } from 'node:zlib';

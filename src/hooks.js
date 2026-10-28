@@ -1,4 +1,4 @@
-import { BOARD_PROOF_GUIDANCE } from './agent-proof-guidance.js';
+import { BOARD_PROOF_GUIDANCE } from './templates.js';
 /**
  * The checks git runs (C1–C3, L3, L4): the commit message cites the spec, a lane's worktree stays in
  * its folders, no secret or env file is committed, and a push sends exactly what the gate checked.

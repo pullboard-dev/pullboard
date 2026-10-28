@@ -9,7 +9,7 @@ import * as store from '../src/board.js';
 import { buildCodeMap, renderItemSlice } from '../src/code-map.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { agentsBlock } from '../src/templates.js';
+import { agentsBlock } from '../src/doctrine.js';
 
 const e2e = createE2eHelpers();
 const sliceMap = {
