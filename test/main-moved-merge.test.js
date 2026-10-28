@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/engine.js src/source-advance-engine.js */
+/** @pullboard-test-loads src/engine.js src/source-advance-engine.js src/landing-resource.js */
 /** Actual automatic main movement retains assurance only after real nondeferred checks [C7,V4,H16]. */
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';

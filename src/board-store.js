@@ -19,7 +19,7 @@ export function requireRuntimePorts(ports) {
   for (const group of ['guards', 'query', 'auth', 'lifecycle', 'nativePorts', 'enginePorts', 'sourceAdvanceReceipts', 'verification']) {
     if (!ports[group] || typeof ports[group] !== 'object' || Array.isArray(ports[group])) throw new Refused('NO_POLICY', `The native board root must supply its ${group} port group.`);
   }
-  for (const name of ['boardReceiptStore', 'readGateReceipt', 'receiptBody']) {
+  for (const name of ['boardReceiptStore', 'readGateReceipt', 'receiptBody', 'guardLandingWrite']) {
     if (typeof ports.sourceAdvanceReceipts[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply sourceAdvanceReceipts.${name}.`);
   }
   if (!Array.isArray(ports.operations) || ports.operations.some(name => typeof name !== 'string')) throw new Refused('NO_POLICY', 'Supply the native operation names from the move registry.');

@@ -1,4 +1,3 @@
-import { guardLandingWrite } from './landing-lease.js';
 import { effectiveItemHead } from './source-advance-state.js';
 import { itemPolicy } from './trusted-policy.js';
 import { requireTrunkMerge } from './trusted-policy.js';
@@ -99,6 +98,8 @@ export function prepareSourceAdvance(root, board, item, composition, gate, basis
 
 /** Convert private, exact origin custody into deterministic replay bytes immediately before native ordering. */
 export function sealSourceAdvance(board, id, request) {
+  const guardLandingWrite = board.runtimePorts?.sourceAdvanceReceipts?.guardLandingWrite;
+  if (typeof guardLandingWrite !== 'function') throw new Refused('NO_POLICY', 'the native board root must supply source-advance landing protection');
   guardLandingWrite(board, request?.landingFence);
   const prepared = request?.agentId === 'coordinator' && PREPARED.get(request.token);
   if (!prepared || prepared.board !== identity(board) || prepared.id !== id
