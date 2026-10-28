@@ -7,7 +7,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { SPEC, machine, project, build, sendBack, fetchLive, fetchPage, startView, styleOf, element, settle, storage, openPage, accept, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, tabBar } from './fixture.js';
+import { SPEC, machine, project, build, fetchLive, fetchPage, startView, styleOf, element, settle, storage, openPage, accept, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, tabBar } from './fixture.js';
+
+
+/** Send a fixture back using the exact frozen clause, keeping native rejection guards active. */
+function sendBackWithClause(box, project, id, note, clause) {
+  box.git(project.repo, 'switch', '-q', '--detach', project.itemBranches.get(`${project.baseBranch}:${id}`) ?? project.branch);
+  box.run(project.repo, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--note', note, '--clause', clause, '--as', 'coordinator');
+  box.git(project.repo, 'switch', '-q', 'main');
+}
 
 
 test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, async (t) => {
@@ -19,7 +27,7 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
   box.run(demo.repo, 'add', 'web', 'A title long enough to need every bit of a narrow phone row, and then some more words', '--specs', 'G1', '--criterion', 'fits');
   box.run(demo.repo, 'add', 'web', 'Built, then sent back', '--specs', 'G1', '--criterion', 'back');
   build(box, demo, 2, 'two.txt');
-  sendBack(box, demo, 2, 'It misses the edge the criterion names, a reason long enough to wrap on a phone.');
+  sendBackWithClause(box, demo, 2, 'It misses the edge the criterion names, a reason long enough to wrap on a phone.', 'back');
   const sha = box.git(demo.repo, 'rev-parse', 'HEAD').trim();
   box.run(demo.repo, 'shout', 'web', `Run \`pullboard next --verify\` and read SPEC.md:1-2@${sha} before you take #1.`);
   const view = await startView(box);
@@ -27,6 +35,7 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.click("document.querySelector('[data-tab=\"items\"]')");
     await chrome.waitFor('document.querySelectorAll("#chain .row").length === 2');
     // This machine's fonts first, then a wide one (Verdana here, DejaVu Sans on Linux) at 320 and at 305,
     // the room a 320px screen leaves beside a classic 15px scrollbar: Linux CI measured 324px of tabs there.
@@ -113,7 +122,7 @@ test('no box carries a coloured edge [N26]', async () => {
   const alpha = project(box, 'alpha');
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
-  sendBack(box, alpha, 1, 'no greeting yet');
+  sendBackWithClause(box, alpha, 1, 'no greeting yet', 'greets');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -157,6 +166,7 @@ test("the view's styles live in their own file [N26]", async () => {
 
     // Nothing the script draws carries a style either: products, the list, a picked item, a spec row.
     await page.click({ go: 'item:1' });
+    await page.click({ tab: 'spec' });
     await page.click({ rows: 'spec:all' });
     await page.click({ row: 'spec:G1' });
     assert.match(page.show('prod-list'), /<svg class="bar" viewBox="0 0 100 1" preserveAspectRatio="none" aria-hidden="true"><rect width="50" height="1"\/><\/svg>/, 'a product bar is drawn, half full');
@@ -246,7 +256,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
   build(box, alpha, 5, 'shipped.html');
   build(box, alpha, 6, 'bounced.html');
   build(box, alpha, 7, 'done.html');
-  sendBack(box, alpha, 6, 'the footer is missing\nand more on the next line');
+  sendBackWithClause(box, alpha, 6, 'the footer is missing\nand more on the next line', 'renders');
   accept(box, alpha, 7);
   box.run(alpha.web, 'claim', '2');
   box.run(alpha.repo, 'hold', 'api', '--reason', 'API freeze');
