@@ -176,3 +176,45 @@ test('an explicit native executable scalar is disjoint while unknown and shadowe
     assert.ok(binaryRead(source).problems.length, 'unsupported native exports and uncertain binding identity stay unsupported');
   }
 });
+
+/** Analyze an actual native filesystem string argument with no candidate prefix evaluation. */
+function suffixRead(expression, before = '') {
+  return binaryRead("import { join, resolve } from 'node:path';\nimport { fileURLToPath } from 'node:url';\n"
+    + before + `\nreadFileSync(${expression});`);
+}
+
+test('only whole fixed string tails disjoint from every moved basename prove a source read [C7]', () => {
+  for (const expression of ["prefix + '_unrelated.trace'", '`web/queue-${entry.id}.trace`',
+    "join(root, prefix + '_unrelated.trace')", "(unknown()) + '_unrelated.trace'"]) {
+    assert.deepEqual(suffixRead(expression), { edits: [], problems: [] });
+  }
+  for (const expression of ["prefix || other + '_unrelated.trace'", "prefix && other + '_unrelated.trace'",
+    "prefix ?? other + '_unrelated.trace'", "prefix ? other : other + '_unrelated.trace'",
+    "(prefix, other + '_unrelated.trace')", "selected = prefix + '_unrelated.trace'",
+    "() => prefix + '_unrelated.trace'", "prefix + '_unrelated.trace' || other",
+    "prefix + ''", "prefix + '.js'", "prefix + 'leaf.js'", "prefix + '.JS'",
+    "prefix + '/unrelated.trace'", "prefix + '\\\\unrelated.trace'", "prefix + '\\ntrace'",
+    '`web/${entry.id}.trace#x`', '`web/${entry.id}.trace?x`', '`web/${entry.id}.trace%20`',
+    "new URL('../src/leaf.js#_unrelated.trace', import.meta.url)",
+    "fileURLToPath(new URL('../src/leaf.js#_unrelated.trace', import.meta.url))",
+    "new URL(`${entry.id}.trace`, import.meta.url)", "new URL(`${entry.id}.trace#x`, import.meta.url)",
+    "fileURLToPath(new URL(`${entry.id}.trace`, import.meta.url))", "decodeURIComponent(prefix + '_unrelated.trace')",
+    "resolve(root, prefix + '_unrelated.trace')", "join(root, prefix + '.js')", "prefix + 'unterminated"]) {
+    assert.ok(suffixRead(expression).problems.length, 'branches, overlap, decoding and uncertain grammar stay unsupported: ' + expression);
+  }
+  assert.ok(fixtureSourceEdits("import { readFileSync } from 'node:fs'; readFileSync(prefix + '_unrelated.trace');",
+    { file: 'test/suffix-overlap.js', moves: [['src/leaf.js', 'packages/git/src/shell/leaf.js'],
+      ['src/other_unrelated.trace', 'packages/git/src/shell/other_unrelated.trace']] }).problems.length,
+  'every moved basename participates in the disjointness proof');
+  for (const [from, suffix] of [['src/café.js', '\u0301.js'], ['src/s.js', 'ſ.js'], ['src/ſ.js', 's.js'],
+    ['src/café.js', '_unrelated.trace']]) {
+    assert.ok(fixtureSourceEdits("import { readFileSync } from 'node:fs'; readFileSync(prefix + " + JSON.stringify(suffix) + ');',
+      { file: 'test/suffix-unicode.js', moves: [[from, 'packages/git/src/shell/leaf.js']] }).problems.length,
+    'Unicode normalization across the unknown prefix and full casefold uncertainty stay unsupported');
+  }
+  assert.ok(suffixRead("join(root, prefix + '_unrelated.trace')", 'function nested(join) {}').problems.length,
+    'native callee shadowing still refuses the path operation');
+  assert.ok(fixtureSourceEdits("import { cpSync } from 'node:fs'; cpSync(prefix + '_unrelated.trace', target, {recursive:true});",
+    { file: 'test/suffix-directory.js', moves: [['src/leaf.js', 'packages/git/src/shell/leaf.js']] }).problems.length,
+  'regular-file suffix proof never blesses a recursive directory copy');
+});

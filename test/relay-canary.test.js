@@ -123,7 +123,7 @@ test('a failed round trip alerts within two minutes and names the failed step [H
   assert.equal(read.status, 'degraded');
   assert.equal(read.lastAt, new Date(now).toISOString());
   assert.ok(displayText(read).includes(second.step), 'the persisted health projection retains the failed step');
-  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const link = JSON.parse(box.readLink());
   assert.equal(JSON.stringify(read).includes(link.token), false, 'health projection never exposes the relay credential');
 
   now += 1_000;
@@ -238,7 +238,7 @@ test('two paired host configurations independently alert and recover through rea
     assert.notEqual(left.commonDir, right.commonDir, 'health is not shared through a sibling-worktree common directory');
     assert.notEqual(left.settingsFile, right.settingsFile, 'machine opt-ins are stored separately');
     assert.notEqual(left.config.agentId, right.config.agentId, 'each configured probe uses its own ordinary registered seat');
-    const leftLink = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+    const leftLink = JSON.parse(box.readLink());
     const rightLink = JSON.parse(readFileSync(join(paired.root, '.git', 'pullboard', 'relay.json'), 'utf8'));
     assert.equal(leftLink.board, rightLink.board, 'both independent hosts use the same real fixture relay board');
     assert.equal(leftLink.url, rightLink.url);

@@ -3,6 +3,7 @@ import { posix } from 'node:path';
 import { createHash } from 'node:crypto';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../src/cell-binding-uses.js';
+import { stringSuffixDisjoint } from './cells-move-fixture-suffix.js';
 
 const ID = '[A-Za-z_$][\\w$]*';
 const READS = new Set(['readFileSync', 'cpSync', 'copyFileSync']);
@@ -412,8 +413,21 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
     return method && parsed.args.length > 1 ? literal(parsed.args.at(-1)) : parsed ? producerLeaf(parsed) : null;
   }
 
+  /** A proven whole string tail cannot name any moved basename, regardless of its unevaluated prefix. */
+  function disjointSuffix(range, seen = new Set()) {
+    const name = code.slice(range.start, range.end);
+    if (new RegExp(`^${ID}$`, 'u').test(name)) {
+      const declared = !seen.has(name) && constant(name, range.start);
+      return declared ? disjointSuffix(declared, new Set([...seen, name])) : false;
+    }
+    const parsed = call(range);
+    if (parsed && operation(parsed, 'path', ['join']) && parsed.args.length > 1) range = parsed.args.at(-1);
+    return stringSuffixDisjoint({ source, code, strings, range, close }, [...moved.keys()].map(from => posix.basename(from)));
+  }
+
   /** Edit only the fs source argument; unsupported source construction never masquerades as success. */
   function sourceArgument(range, reader, regularFile) {
+    if (regularFile && disjointSuffix(range)) return;
     const dynamic = [...code.slice(range.start, range.end).matchAll(new RegExp(`\\b(${ID})\\b`, 'gu'))]
       .map(match => ({ name: match[1], at: range.start + match.index })).filter(row => loops.some(loop => loop.name === row.name && row.at > loop.body && row.at < loop.end));
     const variables = [...new Set(dynamic.map(row => row.name))];

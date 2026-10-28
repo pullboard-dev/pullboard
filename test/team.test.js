@@ -677,7 +677,7 @@ async function relayCall(box, token, method, path, body) {
 
 /** Seal one phone request the way the paired view does and send it with this person's session. */
 async function phoneRequest(box, session, move) {
-  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const link = JSON.parse(box.readLink());
   const head = await relayCall(box, session, 'GET', '/api/v2/boards/' + link.board + '/state');
   assert.equal(head.status, 200, `this person reads the board: ${JSON.stringify(head.document)}`);
   const events = await relayCall(box, session, 'GET', `/api/v1/boards/${link.board}/events?after=${head.document.state.sequence}`);
@@ -713,7 +713,7 @@ async function teamBoard(t, approvers) {
 
 test('the board knows its people: events name them, approvers decide [E3,E4,E20]', { timeout: 180_000 }, async (t) => { // budget: hang ceiling for two people's real CLI runs and relay calls; not a speed target.
   const box = await teamBoard(t, ['alice']);
-  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const link = JSON.parse(box.readLink());
   const alice = await personSession(box, 'alice');
   const bob = await personSession(box, 'bob');
   assert.deepEqual((await relayCall(box, alice, 'GET', `/api/v1/boards/${link.board}/approvers`)).document.approvers, ['alice'], 'relay on gave the relay the approvers pullboard.json names');
@@ -806,7 +806,7 @@ test('the board knows its people: a phone move names the phone’s person, refus
 
 test('a board that names no approvers takes person moves as before [E4]', { timeout: 120_000 }, async (t) => { // budget: hang ceiling for real CLI runs and relay calls; not a speed target.
   const box = await teamBoard(t, null);
-  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const link = JSON.parse(box.readLink());
   const bob = await personSession(box, 'bob');
   assert.equal((await relayCall(box, bob, 'GET', `/api/v1/boards/${link.board}/approvers`)).document.approvers, null, 'the relay holds no approvers for this board');
   const asked = await box.cli('shout', 'person', 'Plain text or JSON?', '--decision');
@@ -873,7 +873,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
   box.env.PULLBOARD_SSH_KEY = aliceKey;
   const alicePublic = readFileSync(aliceKey + '.pub', 'utf8').trim().split(' ').slice(0, 2).join(' ');
   box.providerState.sshKeys = { alice: [alicePublic] };
-  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const link = JSON.parse(box.readLink());
   const config = join(box.root, 'pullboard.json');
   assert.equal(JSON.parse(readFileSync(config, 'utf8')).relay?.board, link.board, 'relay on writes the board’s id into pullboard.json');
   assert.equal((await box.cli('add', box.lane, 'Health endpoint')).code, 0);
@@ -944,7 +944,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
 
 test('a relink turns the old link off with its receipt, so a repository keeps one active board [E12]', { timeout: 120_000 }, async (t) => { // budget: hang ceiling for real relay calls; not a speed target.
   const box = await teamBoard(t, null);
-  const old = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;
+  const old = JSON.parse(box.readLink()).board;
   const alice = await personSession(box, 'alice');
   const next = randomBytes(16).toString('hex');
   await assert.rejects(box.auth.linkBoard(alice, next, 'fixture/repository'), { code: 'BOARD_REPO_LINKED' }, 'a second board without replaces is refused');
@@ -1012,7 +1012,7 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
   assert.equal(joined.code, 0, `the person gives CI its own seat: ${JSON.stringify(joined.document?.error ?? null)}`);
   const seat = (await box.cliAt(seatRoot, 'whoami')).document;
   assert.equal((await box.cliAt(seatRoot, 'shout', 'all', 'the CI seat is ready')).code, 0, 'the seat moves once, which mints its token');
-  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const link = JSON.parse(box.readLink());
   const token = link.agentTokens?.[seat.id]?.token;
   assert.match(token ?? '', /^pa_/u, 'the seat holds its own agent token');
   const ciRoot = join(box.root, '..', 'ci-clone');
@@ -1097,7 +1097,7 @@ test('one coordinator per board across machines [E19]', { timeout: relayWorkBudg
   const second = await other.cli('add', box.lane, 'Planned on the second machine');
   assert.notEqual(second.code, 0, 'a second coordinator is refused');
   assert.equal(refusal(second).code, 'COORDINATOR_HELD');
-  const firstName = `computer ${JSON.parse(readFileSync(box.linkFile, 'utf8')).machine.slice(-8)}`;
+  const firstName = `computer ${JSON.parse(box.readLink()).machine.slice(-8)}`;
   const secondName = `computer ${other.machine.slice(-8)}`;
   assert.notEqual(firstName, secondName, 'the two linked computers have different names');
   assert.ok(refusal(second).message.includes(firstName), `the refusal names the holding computer: ${refusal(second).message}`);
@@ -1172,7 +1172,7 @@ test('a landing lease renewal or waiter poll writes no board event [Q1,Q2,Q3]', 
 
 /** Send one sealed person request with its passkey presence, returning the relay's answer. */
 async function passkeyRequest(box, session, document, presence) {
-  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const link = JSON.parse(box.readLink());
   const head = await relayCall(box, session, 'GET', '/api/v2/boards/' + link.board + '/state');
   const events = await relayCall(box, session, 'GET', `/api/v1/boards/${link.board}/events?after=${head.document.state.sequence}`);
   const sequence = Math.max(head.document.state.sequence, ...(events.document.events ?? []).map((event) => event.event_id)) + 1;
