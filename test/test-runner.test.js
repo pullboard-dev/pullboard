@@ -119,6 +119,7 @@ function copyRunnerImports(sourceRoot, root) {
       pending.push(...declaredRunnerModules(sources[index], sourceRoot));
     }
   }
+  return copied;
 }
 
 /** Expand leading module-load declarations for runtime-discovered runner modules, while excluding optional reporters. */
@@ -187,8 +188,15 @@ function discoveryFixture(t, sourceRoot = fileURLToPath(new URL('../', import.me
   const tests = join(root, 'test');
   mkdirSync(bin);
   mkdirSync(tests);
+  // Keep shipped runtime data, including assets read by imported modules at initialization.
+  const shipped = copyPackageFiles(sourceRoot, root);
+  const copied = copyRunnerImports(sourceRoot, root);
+  // JavaScript stays limited to the actual import closure: pre-copying an undiscovered
+  // dependency must never make the transitive-import test pass, or add real shipped tests.
+  for (const file of shipped) {
+    if (/\.[cm]?js$/u.test(file) && !copied.has(file)) rmSync(join(root, file));
+  }
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
-  copyRunnerImports(sourceRoot, root);
   const marker = join(root, 'ran-once');
   writeFileSync(join(tests, 'one.test.js'), `import { test } from 'node:test';
 import { appendFileSync } from 'node:fs';
@@ -223,6 +231,8 @@ test('discovery follows a new runner src import and its transitive dependency [C
   writeFileSync(join(source, 'bin/run-tests.js'), runner.replace('\n', "\nimport '../src/discovery-extra.js';\n"));
   writeFileSync(join(source, 'src/discovery-extra.js'), "import { value } from './discovery-nested.js';\nif (value !== 'closure') throw new Error('transitive import failed');\n");
   writeFileSync(join(source, 'src/discovery-nested.js'), "export const value = 'closure';\n");
+  writeFileSync(join(source, 'src/unreferenced.test.js'),
+    "throw new Error('an unreferenced shipped test must stay outside the discovery fixture');\n");
   runDiscovery(discoveryFixture(t, source));
 });
 
