@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/board.js */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
@@ -266,10 +267,8 @@ test('a real CLI writer labels its long transaction without changing JSON or nat
 test('opening an older board names and logs its genuine index-building write [C7,P4,B2]', async (t) => {
   const box = e2e.project();
   // Both the running source and the command need a genuine primary checkout to migrate.
-  for (const name of ['bin', 'src', 'skills', 'package.json', 'CHANGELOG.md']) {
-    cpSync(resolve(import.meta.dirname, '..', name), join(box.repo, name), { recursive: true });
-  }
-  box.git(box.repo, 'add', 'bin', 'src', 'skills', 'package.json', 'CHANGELOG.md');
+  copyPackageFiles(resolve(import.meta.dirname, '..'), box.repo);
+  box.git(box.repo, 'add', '.');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: install private primary source [G1]');
   const privateBin = join(box.repo, 'bin', 'pullboard.js');
   assert.equal(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-dir'),
@@ -502,10 +501,8 @@ test('journal conversion reports total wait-plus-hold separately and preserves i
 
 test('a failed owning migration rolls back schema, index and stamp work together [A5,A6,C7]', () => {
   const box = e2e.project();
-  for (const name of ['bin', 'src', 'skills', 'package.json', 'CHANGELOG.md']) {
-    cpSync(resolve(import.meta.dirname, '..', name), join(box.repo, name), { recursive: true });
-  }
-  box.git(box.repo, 'add', 'bin', 'src', 'skills', 'package.json', 'CHANGELOG.md');
+  copyPackageFiles(resolve(import.meta.dirname, '..'), box.repo);
+  box.git(box.repo, 'add', '.');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: install private rollback source [G1]');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const before = snapshot(file);

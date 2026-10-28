@@ -134,10 +134,18 @@ test('[R1,R2,A2] local HTTP state exposes exactly the command statistics', async
   assert.equal(command.code, 0, command.stderr);
   assert.equal(document.version, 1);
   const observed = Date.parse(document.state.proofStats.flow.asOf);
-  assert.deepEqual(document.state.proofStats, proofStats(board, { now: observed }));
+  /** The public view keeps totals and grouped flow, while detailed CLI collections remain on demand. */
+  const publicSummary = stats => {
+    const { agents: _agents, bars: _bars, caught: _caught, ...summary } = stats;
+    const { items: _items, ...report } = summary.flow.report;
+    return { ...summary, flow: { ...summary.flow, report } };
+  };
+  assert.deepEqual(document.state.proofStats, publicSummary(proofStats(board, { now: observed })));
+  for (const key of ['agents', 'bars', 'caught']) assert.equal(Object.hasOwn(document.state.proofStats, key), false);
+  assert.equal(Object.hasOwn(document.state.proofStats.flow.report, 'items'), false);
   assert.deepEqual(command.data.stats, proofStats(board, { now: Date.parse(command.data.stats.flow.asOf) }));
   assert.deepEqual({ ...document.state.proofStats, flow: { ...document.state.proofStats.flow, asOf: command.data.stats.flow.asOf } },
-    command.data.stats, 'the two observations retain every invariant field exactly');
+    publicSummary(command.data.stats), 'the public projection retains every exposed command invariant exactly');
 });
 
 /** Add one catch of every other kind to the fixture board, through the events the board already records. */

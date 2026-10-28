@@ -1,3 +1,8 @@
+import { installRunnerPackage } from './runner-package-install.js';
+import {
+  captureRunnerTooling,
+  currentRunnerTooling,
+} from './runner-tooling-snapshot.js';
 import {
   validateRunner,
   runnerSource,
@@ -17,7 +22,6 @@ import {
   randomUUID,
 } from 'node:crypto';
 import {
-  chmodSync,
   closeSync,
   createReadStream,
   existsSync,
@@ -27,7 +31,6 @@ import {
   readFileSync,
   readSync,
   realpathSync,
-  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -46,7 +49,6 @@ import {
   testRuntimeRows,
 } from './execution-environment.js';
 import {
-  gunzipSync,
   gzipSync,
 } from 'node:zlib';
 import {
@@ -89,15 +91,12 @@ const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 const MAX_HISTORY_TAGS = 1_024;
 const MAX_TAG_CHAIN = 8;
 const TOOL_ROOT = fileURLToPath(new URL('../', import.meta.url));
-const RUNTIME_NAMES = ['audit-coverage-reporter.js', 'runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'git-adapter.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js', 'runner-policy.js', 'runner-recovery.js', 'runner-transport.js', 'test-result-store.js'];
 const LOADED_TOOLING = loadedTooling();
 
-/** Pin the module generation this controller loaded; later disk upgrades require a fresh controller process. */
+/** Pin the actual derived runtime and controller generation before any later dispatch. */
 function loadedTooling() {
-  try {
-    return Object.fromEntries([...RUNTIME_NAMES, 'runner-worker.js', 'runners.js'].map(name =>
-      [name, readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8')]));
-  } catch { return null; }
+  try { return captureRunnerTooling(TOOL_ROOT); }
+  catch (problem) { return problem?.code === 'RUNNER_TOOLING_FILES' ? { problem } : null; }
 }
 
 
@@ -406,20 +405,47 @@ function sshEnvironment() {
   return { ...env, LC_ALL: 'C', LANG: 'C', TZ: 'UTC' };
 }
 
-/** Refuse changed controller bytes before dispatch, without running cached dependency callbacks. */
-function loadedToolingFiles() {
-  const files = Object.fromEntries([...RUNTIME_NAMES, 'runner-worker.js']
-    .map(name => [name, readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8')]));
-  if (!LOADED_TOOLING || readFileSync(fileURLToPath(import.meta.url), 'utf8') !== LOADED_TOOLING['runners.js']
-    || Object.entries(files).some(([name, source]) => source !== LOADED_TOOLING[name])) {
-    throw new Refused('RUNNER_TOOLING_CHANGED', 'runner tooling changed since this controller loaded; restart the command from the current committed CLI before retrying');
+/** Share the loaded generation guard; async callers leave the closure scan to their fresh controller. */
+function loadedToolingFiles({ rescan = true } = {}) {
+  return currentRunnerTooling(TOOL_ROOT, LOADED_TOOLING, { rescan });
+}
+
+/** Compare every shipped runtime byte with its immutable Git blob, using bounded literal path batches. */
+function committedToolingMatches(root, commit, files) {
+  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(commit)) return false;
+  const names = Object.keys(files), objects = new Map();
+  let offset = 0;
+  while (offset < names.length) {
+    const batch = [];
+    let bytes = 0;
+    while (offset < names.length) {
+      const size = Buffer.byteLength(names[offset]) + 1;
+      if (size > 32_768) return false;
+      if (bytes + size > 32_768) break;
+      batch.push(names[offset++]);
+      bytes += size;
+    }
+    const wanted = new Set(batch);
+    const records = sourceGit(root, ['--literal-pathspecs', 'ls-tree', '-r', '-z', '--full-tree', commit, '--', ...batch]);
+    if (records && !records.endsWith('\0')) return false;
+    for (const record of records.split('\0').filter(Boolean)) {
+      const tab = record.indexOf('\t'), name = record.slice(tab + 1);
+      const fields = /^(?:100644|100755) blob ([a-f0-9]+)$/u.exec(record.slice(0, tab));
+      if (tab < 0 || !fields || fields[1].length !== commit.length || !wanted.has(name) || objects.has(name)) return false;
+      objects.set(name, fields[1]);
+    }
   }
-  return files;
+  return objects.size === names.length && names.every(name => {
+    const body = Buffer.from(files[name], 'utf8');
+    const object = createHash(commit.length === 64 ? 'sha256' : 'sha1')
+      .update(`blob ${body.length}\0`).update(body).digest('hex');
+    return objects.get(name) === object;
+  });
 }
 
 /** Snapshot, scan and pin the actual tooling bytes independently of the project being tested. */
 function trustedTooling() {
-  const files = loadedToolingFiles();
+  const { entry, files } = loadedToolingFiles();
   for (const [name, source] of Object.entries(files)) {
     if (Buffer.byteLength(source) > MAX_BLOB_BYTES
       || secretsIn(source.split(/\r?\n/u).map((text, index) => ({ path: `tooling/${name}`, line: index + 1, text }))).length) {
@@ -433,53 +459,27 @@ function trustedTooling() {
   let provenance = { kind: 'installed-package', name: manifest.name, version: manifest.version };
   if (existsSync(join(TOOL_ROOT, '.git'))) {
     const selected = runnerSource(TOOL_ROOT);
-    if (!selected || Object.entries(files).some(([name, source]) => sourceGit(TOOL_ROOT, ['show', `${selected.commit}:src/${name}`]) !== source)) {
+    if (!selected || !committedToolingMatches(TOOL_ROOT, selected.commit, files)) {
       throw new Refused('RUNNER_TOOLING_CHANGED', 'runner tooling differs from its selected committed revision; restore or commit the tooling before remote execution');
     }
     provenance = { ...provenance, kind: 'git-checkout', ...selected };
   }
   const tooling = { ...provenance, sha256: createHash('sha256').update(JSON.stringify(files)).digest('hex') };
-  const runtimeFiles = Object.fromEntries(RUNTIME_NAMES.map(name => [name, files[name]]));
-  return { worker: files['runner-worker.js'], tooling,
-    runtime: { files: runtimeFiles, sha256: createHash('sha256').update(JSON.stringify(runtimeFiles)).digest('hex') } };
-}
-
-/** Install a complete immutable module capsule without reading the job's stdin stream. */
-function installRuntime(payload, expected, configuredRoot) {
-  const bytes = gunzipSync(Buffer.from(payload, 'base64'), { maxOutputLength: 1_048_576 });
-  if (createHash('sha256').update(bytes).digest('hex') !== expected) throw new Error('invalid capsule identity');
-  const files = JSON.parse(bytes);
-  const home = process.env.HOME;
-  if (!configuredRoot && (!home || !isAbsolute(home))) throw new Error('runner home must be absolute');
-  const root = configuredRoot || join(home, '.pullboard-runner');
-  const directory = join(root, 'runtime', expected);
-  mkdirSync(root, { recursive: true, mode: 0o700 });
-  chmodSync(root, 0o700);
-  mkdirSync(dirname(directory), { recursive: true, mode: 0o700 });
-  const build = mkdtempSync(join(dirname(directory), `${expected}.build-`));
-  try {
-    mkdirSync(join(build, 'src'), { mode: 0o700 });
-    writeFileSync(join(build, 'package.json'), '{"type":"module"}\n', { mode: 0o600 });
-    for (const [name, source] of Object.entries(files)) writeFileSync(join(build, 'src', name), source, { mode: 0o600 });
-    try { renameSync(build, directory); }
-    catch (error) { if (!['EEXIST', 'ENOTEMPTY'].includes(error.code)) throw error; }
-    if (readFileSync(join(directory, 'package.json'), 'utf8') !== '{"type":"module"}\n'
-      || Object.entries(files).some(([name, source]) => readFileSync(join(directory, 'src', name), 'utf8') !== source)) {
-      throw new Error('trusted capsule does not match the request');
-    }
-  } finally { rmSync(build, { recursive: true, force: true }); }
+  const runtimeFiles = Object.fromEntries(Object.entries(files).filter(([name]) => name !== entry));
+  return { worker: files[entry], tooling,
+    runtime: { entry, files: runtimeFiles, sha256: createHash('sha256').update(JSON.stringify(runtimeFiles)).digest('hex') } };
 }
 
 /** Install pinned bytes first, then replace the SSH shell with the file-based worker. */
 function remoteWorkerCommand(runner, worker, tooling, runtime) {
-  const files = { ...runtime.files, 'runner-worker.js': worker };
+  const files = Object.fromEntries(Object.entries({ ...runtime.files, [runtime.entry]: worker }).sort(([a], [b]) => a.localeCompare(b)));
   const payload = gzipSync(Buffer.from(JSON.stringify(files))).toString('base64');
   const installer = `import { chmodSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
-${installRuntime.toString()}
-installRuntime(${JSON.stringify(payload)}, ${JSON.stringify(tooling.sha256)}, ${JSON.stringify(runner.root ?? '')});`;
+${installRunnerPackage.toString()}
+installRunnerPackage(${JSON.stringify(payload)}, ${JSON.stringify(tooling.sha256)}, ${JSON.stringify(runner.root ?? '')});`;
   const node = shellWord(runner.node ?? 'node');
   const suffix = `/runtime/${tooling.sha256}/src/runner-worker.js`;
   const entry = runner.root ? shellWord(runner.root + suffix) : `"$HOME"${shellWord('/.pullboard-runner' + suffix)}`;
@@ -729,7 +729,7 @@ export function runOnRunner(root, command, options) {
 export async function runOnRunnerAsync(root, command, options) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
   // Preserve the stale-controller refusal; full provenance and transfer scans run once in the fresh process.
-  loadedToolingFiles();
+  loadedToolingFiles({ rescan: false });
   const { signal, ...plainOptions } = options;
   const request = { root, command, options: plainOptions, parentPid: process.pid };
   const input = JSON.stringify(request);

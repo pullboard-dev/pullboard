@@ -1,7 +1,8 @@
+import { copyPackageFiles } from '../src/package-files.js';
 /** Shared registered-runner test tooling and bounded round-trip helpers. */
 import { awaitNestedRun } from '../src/test-file-pool.js';
 import assert from 'node:assert/strict';
-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -30,9 +31,7 @@ export function committedToolingSnapshot(sourceRoot, env) {
   mkdirSync(root, { recursive: true });
   mkdirSync(home, { recursive: true });
   try {
-    copyFileSync(join(key, 'package.json'), join(root, 'package.json'));
-    cpSync(join(key, 'src'), join(root, 'src'), { recursive: true });
-    cpSync(join(key, 'bin'), join(root, 'bin'), { recursive: true });
+    copyPackageFiles(key, root);
     const gitEnv = { ...env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'),
       PULLBOARD_MACHINE_HOME: join(home, '.pullboard'), GIT_CONFIG_GLOBAL: '/dev/null',
       GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_COUNT: '0',
@@ -40,7 +39,7 @@ export function committedToolingSnapshot(sourceRoot, env) {
       GIT_COMMITTER_NAME: 'Runner Tooling Fixture', GIT_COMMITTER_EMAIL: 'runner-tooling@example.invalid' };
     for (const key of ['GIT_CONFIG_PARAMETERS', 'GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR']) delete gitEnv[key];
     git(root, gitEnv, 'init', '-q', '-b', 'main');
-    git(root, gitEnv, 'add', 'package.json', 'src', 'bin');
+    git(root, gitEnv, 'add', '.');
     git(root, gitEnv, 'commit', '-q', '-m', 'test: snapshot current runner tooling');
   } catch (error) {
     process.stderr.write(`retained incomplete runner tooling snapshot at ${directory}: ${error.message}\n`);

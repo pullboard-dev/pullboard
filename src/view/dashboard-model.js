@@ -12,10 +12,22 @@ export function dashboardModel(project, history, { now = Date.now(), complete = 
   /** Parse only native event JSON; malformed history cannot create activity. */
   const detail = event => { try { return JSON.parse(event.event_detail || '{}'); } catch { return {}; } };
   const latest = new Map(), landed = new Map(), work = new Map(), rows = new Map();
-  /** One row per registered agent, also retaining actors present in this historical prefix. */
+  const seats = new Set((project.agents ?? []).map(agent => agent.agent_id));
+  const joined = new Map();
+  // The API's recent-seat list can omit a real seat whose latest move is outside its clock.
+  // Native joins in this same bounded history establish membership without promoting automation.
+  for (const event of events) if (event.event_kind === 'join') {
+    const lane = detail(event).lane;
+    if (typeof lane === 'string' && lane && lane !== 'coordinator' && event.event_by) {
+      seats.add(event.event_by);
+      if (!joined.has(event.event_by)) joined.set(event.event_by, Date.parse(event.event_at));
+    }
+  }
+  /** Attribute history only to registered seats; board automation is not an agent. */
   const row = id => {
-    if (!id || id === 'coordinator' || id === 'person' || id === 'clock' || id === 'sentinel') return null;
-    if (!rows.has(id)) rows.set(id, { id, name: id, segments: [], build: 0, review: 0, idle: 0, shouts: 0, last: 0, current: [], sentBack: [] });
+    if (!seats.has(id) || id === 'coordinator') return null;
+    if (!rows.has(id)) rows.set(id, { id, name: id, segments: [], build: 0, review: 0, idle: 0, shouts: 0, last: 0, current: [], sentBack: [],
+      ...(joined.has(id) ? { start: Math.max(start, joined.get(id)) } : {}) });
     return rows.get(id);
   };
   for (const agent of project.agents ?? []) {

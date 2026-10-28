@@ -1,3 +1,4 @@
+import { boundedProofReason } from '../submit-invariants.js';
 import { completeMoveHandoff } from '../post-move-handoff.js';
 import {
   barReadySetting,
@@ -263,7 +264,7 @@ export async function submitHere(ctx, id, infra) {
     return await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...(infraRecord ? { infra: infraRecord } : {}),
       gateGreen: gate.isGreen && !waived,
       ...(size ? { submissionSize: size } : {}),
-      submissionProof: { version: 1, files: gate.files, full: gate.full, deferred: gate.deferred, reason: gate.reason, ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), ...(knownMainFailures ? { knownMainFailures } : {}) },
+      submissionProof: { version: 1, files: gate.files, full: gate.full, deferred: gate.deferred, reason: boundedProofReason(gate.reason), ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), ...(knownMainFailures ? { knownMainFailures } : {}) },
       ...(gate.deferred ? { note: gate.deferredFiles ? deferredSelectionNote(gate.deferredFiles) : 'full suite deferred to the landing gate' } : {}) }]);
   });
   // A large submit still goes through; the note only suggests a chain of smaller items (#1162).
