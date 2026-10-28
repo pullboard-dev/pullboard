@@ -683,7 +683,7 @@ async function phoneRequest(box, session, move) {
   const events = await relayCall(box, session, 'GET', `/api/v1/boards/${link.board}/events?after=${head.document.state.sequence}`);
   const sequence = Math.max(head.document.state.sequence, ...(events.document.events ?? []).map((event) => event.event_id)) + 1;
   const document = { version: 1, type: 'person-request', id: randomUUID(), move };
-  const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
+  const key = decodeBoardKey(box.readKey().trim());
   const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(document)), { boardId: link.board, kind: 'request', sequence })).toString('base64url');
   const sent = await relayCall(box, session, 'POST', `/api/v1/boards/${link.board}/requests`, { sequence, sealed });
   assert.equal(sent.status, 200, `the relay stores the sealed request: ${JSON.stringify(sent.document)}`);
@@ -1020,7 +1020,7 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
   sessionGit(['remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git'], { cwd: ciRoot, env: box.env });
   const ciHome = join(box.root, '..', 'ci-home');
   mkdirSync(ciHome, { mode: 0o700 });
-  const key = readFileSync(box.keyFile, 'utf8').trim();
+  const key = box.readKey().trim();
   // The CI machine also has a keychain holding a legacy copy of the key; the session must not move it into a file.
   const ciKeychainBin = join(ciHome, 'keychain-bin');
   mkdirSync(ciKeychainBin, { mode: 0o700 });
@@ -1176,7 +1176,7 @@ async function passkeyRequest(box, session, document, presence) {
   const head = await relayCall(box, session, 'GET', '/api/v2/boards/' + link.board + '/state');
   const events = await relayCall(box, session, 'GET', `/api/v1/boards/${link.board}/events?after=${head.document.state.sequence}`);
   const sequence = Math.max(head.document.state.sequence, ...(events.document.events ?? []).map((event) => event.event_id)) + 1;
-  const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
+  const key = decodeBoardKey(box.readKey().trim());
   const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(document)), { boardId: link.board, kind: 'request', sequence })).toString('base64url');
   return relayCall(box, session, 'POST', `/api/v1/boards/${link.board}/requests`, { sequence, sealed, ...(presence ? { presence } : {}) });
 }

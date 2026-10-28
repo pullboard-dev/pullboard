@@ -218,3 +218,24 @@ test('only whole fixed string tails disjoint from every moved basename prove a s
     { file: 'test/suffix-directory.js', moves: [['src/leaf.js', 'packages/git/src/shell/leaf.js']] }).problems.length,
   'regular-file suffix proof never blesses a recursive directory copy');
 });
+
+/** Keep each real reader at its native source construction instead of trusting a returned object's mutable fields. */
+function localPortSource(link, key) {
+  return "import { readFileSync } from 'node:fs'; import { join } from 'node:path';\n"
+    + `async function fixture() { const linkFile = ${link}; const keyFile = ${key};
+      return { readLink() { return readFileSync(linkFile, 'utf8'); },
+        readKey() { return readFileSync(keyFile, 'utf8'); } }; }`;
+}
+
+test('local fixture reader ports retain direct immutable source proof without async object trust [C7]', () => {
+  const options = { file: 'test/local-readers.js', moves: [['src/leaf.js', 'packages/git/src/shell/leaf.js']] };
+  assert.deepEqual(fixtureSourceEdits(localPortSource("join(root, '.git', 'pullboard', 'relay.json')",
+    "join(home, 'keys', id + '.key')"), options), { edits: [], problems: [] });
+  assert.ok(fixtureSourceEdits(localPortSource("join(root, '.git', 'pullboard', 'relay.json')",
+    "join(home, 'keys', id + '.js')"), options).problems.length, 'a reader closure cannot hide a suffix overlapping moved source');
+  for (const body of ["readFileSync(box.linkFile, 'utf8');",
+    "async function read() { const box = await unknownConstructor(); return readFileSync(box.linkFile, 'utf8'); }"]) {
+    assert.ok(fixtureSourceEdits("import { readFileSync } from 'node:fs'; " + body, options).problems.length,
+      'unknown and asynchronous constructor fields never gain implicit source authority');
+  }
+});

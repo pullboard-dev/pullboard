@@ -733,11 +733,16 @@ globalThis.fetch = function tracedFetch(input, init) {
     return readFileSync(linkFile, 'utf8');
   }
 
+  /** Read this fixture's same immutable key path; callers retain their original decoding and missing-file failures. */
+  function readKey() {
+    return readFileSync(keyFile, 'utf8');
+  }
+
   /** Start a saved real relay link without exposing the pairing fragment. */
   async function link(name) {
     const result = await cli('relay', 'on', '--url', origin, ...(name === undefined ? [] : ['--name', name]));
     assert.equal(result.code, 0, 'real device sign-in links the board');
-    privateKeys.add(readFileSync(keyFile, 'utf8').trim());
+    privateKeys.add(readKey().trim());
     return result;
   }
   /** Raise this fixture board's durable minimum to the current engine before compatibility checks. */
@@ -830,7 +835,7 @@ globalThis.fetch = function tracedFetch(input, init) {
   }
   return {
     transit, providerState: provider.state, providerCalls: provider.calls, providerOrigin: provider.origin, relayDirectory: join(scratch, 'relay'), authDatabase, auth, otherDeviceJoin,
-    root, env, origin, lane, before, linkFile, readLink, keyFile, calls, moveAcks, cli, cliAt, cliWithSnapshotUploads, cliWithSnapshotTrace, startCli, waitForResponse, holdNextConfirmationStatus, link, phoneSession, requireEngineThree, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
+    root, env, origin, lane, before, linkFile, readLink, keyFile, readKey, calls, moveAcks, cli, cliAt, cliWithSnapshotUploads, cliWithSnapshotTrace, startCli, waitForResponse, holdNextConfirmationStatus, link, phoneSession, requireEngineThree, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
     /** Assert the test consumed every declared child budget, with no hidden CLI calls. */
     assertCliChildrenComplete() {
       if (cliChildren) assert.equal(cliChildIndex, cliChildren.length, 'every planned private CLI child ran exactly once');
