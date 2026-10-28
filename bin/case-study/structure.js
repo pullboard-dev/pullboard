@@ -1,4 +1,6 @@
 /** Measure physical migration debt using the real inventory and committed plan [C7,D3]. */
+import { importsIn } from '../../src/module-imports.js';
+import { commonJsIn } from '../../src/module-imports.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cellInventory, testFile } from '../../src/cell-lint-inventory.js';
@@ -38,7 +40,7 @@ export function structureMetrics(root, { planRoot = root } = {}) {
   }
   /** New definitions under an owning package have the same identity before the rest of its move. */
   function owner(path) { return plan.cells.find(cell => path.startsWith(`${cell.root}/`)) ?? owners.get(path); }
-  const { files, edges, unknown } = cellInventory(root), cuts = [], unowned = new Set();
+  const { files, edges, unknown } = cellInventory(root, { importsIn, commonJsIn }), cuts = [], unowned = new Set();
   for (const [file, imports] of edges) {
     if (testFile(file)) continue;
     const from = owner(file);
@@ -49,7 +51,7 @@ export function structureMetrics(root, { planRoot = root } = {}) {
       if (from && to && from.order < to.order) cuts.push({ from: file, to: target, cell: from.name, target: to.name });
     }
   }
-  const lints = cellLintReport(root);
+  const lints = cellLintReport(root, { importsIn, commonJsIn });
   /** A move behind a transparent shim is complete even though removing that shim is still separate debt. */
   function remainingBody(from, to) {
     if (!existsSync(join(root, to))) return true;
