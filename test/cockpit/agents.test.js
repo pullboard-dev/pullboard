@@ -452,7 +452,20 @@ test('local agents panel inventories and phone-revokes a scoped credential [H2,H
   stage('device confirmation');
   await phoneChrome.navigate(`${box.origin}/#device=${pending.locator}.${pending.secret}`);
   stage('device navigation returned');
-  await phoneChrome.waitFor("document.querySelector('#phone-approvals') !== null");
+  try { await phoneChrome.waitFor("document.querySelector('#phone-approvals') !== null"); }
+  catch (error) {
+    const observed = JSON.parse(await phoneChrome.stable(`JSON.stringify({
+      heading: document.querySelector('#relay-notice h1, #relay-notice h2')?.textContent || '',
+      codes: [...(document.querySelector('#relay-notice')?.textContent || '').matchAll(/\\b[A-Z]+(?:_[A-Z0-9]+)+\\b/g)].map(match => match[0]),
+      signedIn: Boolean(document.querySelector('[data-relay-session]')),
+      approvals: Boolean(document.querySelector('#phone-approvals')),
+    })`));
+    t.diagnostic(JSON.stringify({ phoneSetup: observed,
+      enrollReads: box.calls.filter(call => call.method === 'GET' && call.path.includes('/devices/enrollments/')).length,
+      enrollWrites: box.calls.filter(call => call.method === 'PUT' && call.path.includes('/devices/enrollments/')).length,
+      childExited: setup.exitCode !== null }));
+    throw error;
+  }
   stage('phone enrollment page ready');
   assert.equal((await setupDone).code, 0, 'the real phone session pairs the machine');
 
