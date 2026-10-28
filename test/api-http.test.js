@@ -176,11 +176,11 @@ try {
     rounds: 2, elapsedMs: Number(elapsedMs.toFixed(2)), processes: { ...counters, methods: { ...counters.methods } } };
   const provenanceChecks = [];
   if (codeMetadataMarker) {
-    const { apiBoards } = await import(new URL('./api.js', pathToFileURL(serveFile)));
-    const { withGitReadFacts } = await import(new URL('./git.js', pathToFileURL(serveFile)));
+    const { apiBoards } = await import(new URL('../api.js', pathToFileURL(serveFile)));
+    const { withGitReadFacts } = await import(new URL('../git.js', pathToFileURL(serveFile)));
     // A deliberately stale board stamp forces a write-open below. Warm its one-time own-PID
     // diagnostic before measuring provenance; ordinary warmed reads still require zero children.
-    const { prepareBoardWriteIdentity } = await import(new URL('./board-write-lock.js', pathToFileURL(serveFile)));
+    const { prepareBoardWriteIdentity } = await import(new URL('../board-write-lock.js', pathToFileURL(serveFile)));
     prepareBoardWriteIdentity();
     for (const status of [undefined, true]) {
       // A current board opens read-only with no authority to decide; a cleared stamp makes each need a write open (#1047).
