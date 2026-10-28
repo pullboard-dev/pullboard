@@ -1153,7 +1153,7 @@ test('[A2,B25,B26,B27] HTTP decisions preserve routing, passing and explicit per
     body: JSON.stringify({ verb, args, ...(item === undefined ? {} : { item }), agent }),
   });
 
-  const askResponse = await move('shout', { text: 'May this ship?', decision: true }, undefined, 'app-1');
+  const askResponse = await move('shout', { text: 'May this ship?', kind: 'question', decision: true }, undefined, 'app-1');
   assert.equal(askResponse.status, 200);
   const ask = await askResponse.json();
   assert.equal(ask.version, 1);
