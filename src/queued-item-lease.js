@@ -1,14 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import * as store from './board.js';
 import { headCommit } from './git.js';
-import { gateWaitReporter } from './gate-wait.js';
+import { gateWaitReporter } from './git-wait-reporter.js';
 import { Refused } from './refused.js';
-import { withBoard } from './cli-context.js';
-import { ordered } from './cli.js';
-import { claimFreezer } from './cli.js';
 
 /** Keep only this queued command's live item lease, using ordinary ordered board moves. */
-export function createQueuedItemLease(ctx, initial, agentId, kind, admission) {
+export function createQueuedItemLease(ctx, initial, agentId, kind, admission, { getItem, withBoard, ordered, claimFreezer }) {
   const report = gateWaitReporter(ctx.io);
   // Naming somebody else's check remains read-only; it never extends their build claim.
   if (kind === 'build' && (initial.item_status !== 'claimed' || initial.item_owner !== agentId)) return report;
@@ -29,7 +25,7 @@ export function createQueuedItemLease(ctx, initial, agentId, kind, admission) {
       return { leaseUntil: confirmedLeaseUntil };
     }
     return await withBoard(ctx, async (board) => {
-      const current = store.getItem(board, initial.item_id);
+      const current = getItem(board, initial.item_id);
       const expires = Date.parse(current[field]);
       if (current.item_status !== status || current[owner] !== agentId || !Number.isFinite(expires) || expires <= now
         || current.item_frozen_digest !== expected.digest || current.item_commit !== expected.commit) {

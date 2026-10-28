@@ -4,10 +4,6 @@ import {
   git,
   refuseGrafts,
 } from './git.js';
-import {
-  readGateReceipt,
-  receiptStore,
-} from './gate-run-receipt.js';
 import { Refused } from './refused.js';
 
 const OBJECT = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
@@ -47,7 +43,7 @@ export function pushCommandDigest(command) {
 }
 
 /** A receipt proves only its exact committed source and accepted command, never a descendant. */
-function exactReceipt(root, id, command, commit, kind) {
+function exactReceipt(root, id, command, commit, kind, { readGateReceipt, receiptStore }) {
   const receipt = readGateReceipt(receiptStore(root), id);
   if (!receipt || receipt.version !== 1 || receipt.kind !== kind || receipt.command !== pushCommandDigest(command)
     || commit !== undefined && receipt.head !== commit) return null;
@@ -62,15 +58,15 @@ function exactReceipt(root, id, command, commit, kind) {
  * authoritative, append-ordered audit identities and explicit failure-to-item links; diagnostics are not evidence.
  * This evaluator deliberately cannot activate the replacement pre-push gate or stamp a smoke run as a full gate.
  */
-export function pushReceiptProblems(root, { commits, landingReceipts, audits, filings, items, landingCommand, auditCommand }) {
+export function pushReceiptProblems(root, { commits, landingReceipts, audits, filings, items, landingCommand, auditCommand }, receiptPorts) {
   const problems = [];
   for (const commit of commits) {
     const covered = landingReceipts.some(entry => entry.commit === commit
-      && exactReceipt(root, entry.receiptId, landingCommand, commit, 'land')?.green === true);
+      && exactReceipt(root, entry.receiptId, landingCommand, commit, 'land', receiptPorts)?.green === true);
     if (!covered) problems.push(`commit ${commit} lacks its exact green landing receipt; land and record its gate before pushing`);
   }
   const latest = audits.at(-1);
-  const audit = latest && exactReceipt(root, latest.receiptId, auditCommand, undefined, latest.kind ?? 'gate');
+  const audit = latest && exactReceipt(root, latest.receiptId, auditCommand, undefined, latest.kind ?? 'gate', receiptPorts);
   if (!audit) {
     problems.push('the latest full audit has no bound receipt; restore its evidence before pushing');
   } else if (!audit.green) {

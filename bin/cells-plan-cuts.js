@@ -5,6 +5,7 @@ import { testFile } from '../src/cell-lint-inventory.js';
 import { cutItemCommands } from '../src/cells-plan-cuts.js';
 import { cutTitle } from '../src/cells-plan-cuts.js';
 import { importCuts } from '../src/cells-plan-cuts.js';
+import { lex } from '../src/js-lex.js';
 import { readPathMap } from '../src/path-map.js';
 import { mappedPath } from '../src/path-map.js';
 import { Refused } from '../src/refused.js';
@@ -19,11 +20,20 @@ function ownerFor(plan, map) {
   return file => plan.cells.find(cell => file.startsWith(`${cell.root}/`))?.name ?? paths.get(file) ?? null;
 }
 
-/** Follow actual production reachability across cells so moving a forwarding module cannot conceal a cut. */
+/** Recognize a module that only passes imports onward, including an unresolved computed loader. */
+function onlyForwards(source, computed) {
+  const chars = source.split('');
+  for (const { start, end } of lex(source).comments) chars.fill(' ', start, end);
+  const code = chars.join('').replace(/\s/gu, '');
+  return /^(?:export(?:\*(?:as\w+)?|\{[^}]*\})from(?:'[^']*'|"[^"]*");?)+$/u.test(code)
+    || computed && /^(?:await)?import\([^;]*\);?$/u.test(code);
+}
+
+/** Follow this cell's imports and forwarding modules, leaving another cell's own imports to its cut. */
 export function checkCuts(root, plan, name) {
   const group = importCuts(plan).find(row => row.cell === name);
   if (!group) throw new Refused('CELLS_PLAN_CELL', `no import-cut group ${name}; use an importing cell from node bin/cells-plan.js --file-cuts`);
-  const { edges, unknown } = cellInventory(root);
+  const { files, edges, unknown } = cellInventory(root);
   const owner = ownerFor(plan, readPathMap(root));
   const forbidden = new Set(group.targets), problems = new Set(), seen = new Set();
   const pending = [...edges.keys()].filter(file => !testFile(file) && owner(file) === name);
@@ -31,7 +41,11 @@ export function checkCuts(root, plan, name) {
     const file = pending.pop();
     if (seen.has(file)) continue;
     seen.add(file);
-    for (const row of unknown.filter(row => row.file === file)) problems.add(`cannot prove cut through ${file}: ${row.reason}`);
+    const unresolved = unknown.filter(row => row.file === file);
+    const cell = owner(file);
+    if (cell !== name && !onlyForwards(files.get(file)?.toString('utf8') ?? '',
+      unresolved.some(row => row.reason.includes('computed loader')))) continue;
+    for (const row of unresolved) problems.add(`cannot prove cut through ${file}: ${row.reason}`);
     for (const { target } of edges.get(file) ?? []) {
       if (testFile(target)) continue;
       const cell = owner(target);
