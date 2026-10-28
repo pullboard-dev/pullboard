@@ -109,20 +109,81 @@ test('held seats and seats started elsewhere are never chosen to stop, and revie
   assert.throws(() => parseWorkerBudget('4'), /seat-hours per day or week/u, 'a bare seat count is not a budget');
 });
 
-test('the machine ledger draws down every live seat per window and refuses an unreadable record [B26,C7]', t => {
+/** A private ledger file per case, so each adversarial history starts from a known record. */
+function ledgerFixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-worker-ledger-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'workers-usage.json');
-  const ledger = workerLedger(file);
-  const start = windowStart('day', Date.parse('2026-10-28T15:00:00Z'));
-  assert.equal(start, Date.parse('2026-10-28T00:00:00Z'));
-  assert.equal(windowStart('week', Date.parse('2026-10-28T15:00:00Z')), Date.parse('2026-10-26T00:00:00Z'), 'a week starts on Monday UTC');
-  ledger.record('day', start + 10 * HOUR, 3, 0.5);
-  assert.equal(ledger.record('day', start + 10.5 * HOUR, 3, 0.5).usedHours, 1.5, 'three live seats for half an hour spend 1.5 seat-hours');
-  assert.equal(ledger.record('day', start + 15 * HOUR, 3, 0.5).usedHours, 4.5, 'an unobserved gap counts at most two cycles');
-  assert.equal(ledger.read('day', start + 25 * HOUR).usedHours, 0, 'the next day starts a fresh window');
+  return { file, ledger: workerLedger(file), write: value => writeFileSync(file, JSON.stringify(value)) };
+}
+const DAY = Date.parse('2026-10-28T00:00:00Z');
+const at = hours => DAY + hours * HOUR;
+
+test('counterexample: an unobserved hour with one held seat spends a 1/day budget and launches nothing [B26,C7]', t => {
+  const { ledger, write } = ledgerFixture(t);
+  // The ledger's last sample was 12:00 with one live seat holding a claim; the next record comes at 13:00.
+  write({ window: 'day', start: DAY, usedHours: 0, sampledAt: at(12), seats: ['held'], spent: null });
+  const used = ledger.record('day', at(13), ['held']);
+  assert.equal(used.usedHours, 1, 'the full unobserved hour is charged for the seat live at both ends, never capped at two cycles');
+  const plan = planWorkerScale({ budget: parseWorkerBudget('1/day'), usedHours: used.usedHours, cycleHours: 1 / 60, worth: null,
+    reviews: 1, builds: 2, workers: [{ id: 'held', busy: true, managed: false }] });
+  assert.equal(plan.leftHours, 0);
+  assert.equal(plan.launch, 0, 'a spent budget launches no new seat');
+  assert.deepEqual(plan.stop, [], 'and the held seat keeps running');
+});
+
+test('the ledger charges every seat seen at either end of a gap, in full, and survives a supervisor restart [B26,C7]', t => {
+  const { file, ledger, write } = ledgerFixture(t);
+  write({ window: 'day', start: DAY, usedHours: 2, sampledAt: at(9), seats: ['a', 'b'], spent: null });
+  // b stopped somewhere in the gap and c started somewhere in it; neither moment was observed.
+  assert.equal(ledger.record('day', at(12), ['a', 'c']).usedHours, 2 + 3 * 3, 'a, b and c are each charged the whole three hours');
+  const restarted = workerLedger(file); // A new supervisor process reads the same machine ledger.
+  assert.equal(restarted.read('day', at(12)).usedHours, 11, 'a restart keeps the window\'s use');
+  assert.equal(restarted.record('day', at(12.5), ['a']).usedHours, 11 + 2 * 0.5, 'a and c, live at the ends of the half hour, are charged');
+  assert.equal(restarted.record('day', at(12.5), ['a']).usedHours, 12, 'an immediate repeat sample adds nothing');
+});
+
+test('a missing ledger charges the seats live now from the window start [B26,C7]', t => {
+  const { ledger } = ledgerFixture(t);
+  assert.equal(ledger.record('day', at(18), ['a', 'b']).usedHours, 36, 'nothing proves when two seats live at 18:00 began, so both are charged from midnight');
+  assert.equal(ledgerFixture(t).ledger.record('day', at(18), []).usedHours, 0, 'with no live seat there is nothing to charge');
+});
+
+test('a day or week rollover charges only the new window, from its start [B26,C7]', t => {
+  const { ledger, write } = ledgerFixture(t);
+  write({ window: 'day', start: DAY - 24 * HOUR, usedHours: 30, sampledAt: at(-0.5), seats: ['a', 'b'], spent: null });
+  assert.equal(ledger.record('day', at(0.5), ['a']).usedHours, 1, 'a and b may have run since midnight: half an hour each in the new day');
+  assert.equal(windowStart('week', at(15)), Date.parse('2026-10-26T00:00:00Z'), 'a week starts on Monday UTC');
+  assert.equal(windowStart('week', Date.parse('2026-10-26T00:00:00Z')), Date.parse('2026-10-26T00:00:00Z'), 'Monday midnight starts its own week');
+  assert.equal(windowStart('week', Date.parse('2026-10-25T23:59:59Z')), Date.parse('2026-10-19T00:00:00Z'), 'Sunday belongs to the week before');
+});
+
+test('a clock that moves backwards treats the budget as spent for the window and names why [B26,C7]', t => {
+  const { ledger, write } = ledgerFixture(t);
+  write({ window: 'day', start: DAY, usedHours: 1, sampledAt: at(14), seats: ['a'], spent: null });
+  const back = ledger.record('day', at(13), ['a']);
+  assert.equal(back.usedHours, Infinity);
+  assert.match(back.spent, /clock moved backwards/u);
+  assert.equal(ledger.record('day', at(15), ['a']).usedHours, Infinity, 'the window stays spent after the clock recovers');
+  const plan = planWorkerScale({ budget: parseWorkerBudget('100/day'), usedHours: back.usedHours, spent: back.spent, cycleHours: 1, worth: 5, reviews: 3, builds: 3, workers: [] });
+  assert.equal(plan.launch, 0, 'nothing launches in a spent window');
+  assert.equal(ledger.record('day', at(25), ['a']).spent, null, 'the next day starts clean');
+  const across = ledgerFixture(t);
+  across.write({ window: 'day', start: DAY + 24 * HOUR, usedHours: 0, sampledAt: at(25), seats: [], spent: null });
+  assert.match(across.ledger.record('day', at(23), []).spent, /clock moved backwards/u, 'a clock behind the ledger\'s window is spent too');
+  assert.equal(across.ledger.read('day', at(23)).usedHours, Infinity);
+});
+
+test('an unreadable or malformed ledger refuses instead of granting a fresh budget [B26,C7]', t => {
+  const { file, ledger, write } = ledgerFixture(t);
   writeFileSync(file, '{broken');
-  assert.throws(() => ledger.read('day', start + 11 * HOUR), /unreadable/u, 'a damaged ledger never hands out a fresh budget');
+  assert.throws(() => ledger.record('day', at(11), []), /unreadable/u);
+  for (const value of [{ window: 'day', start: DAY, usedHours: -1, sampledAt: at(1), seats: [], spent: null },
+    { window: 'day', start: DAY, usedHours: 1, sampledAt: at(1), seats: 'a', spent: null },
+    { window: 'month', start: DAY, usedHours: 1, sampledAt: at(1), seats: [], spent: null }, null]) {
+    write(value);
+    assert.throws(() => ledger.read('day', at(2)), /not a valid record/u, `refuses ${JSON.stringify(value)}`);
+  }
 });
 
 test('the board observation counts every live local seat and held claims and reviews as busy [B26,C7]', t => {
