@@ -2,7 +2,10 @@ import { landingPorts } from './landing-ports-fixture.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 /** @pullboard-test-input source-tree */
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
-import { copyFixtureRunner } from './fixture-runner-copy.js';
+import { copyPackageFiles } from '../src/package-files.js';
+import { commitFixtureFiles } from './package-copy-fixture.js';
+import { selectAffectedTests } from '../src/affected-tests.js';
+import { selectTestTreeGuards } from '../src/affected-tests.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
@@ -32,7 +35,8 @@ import { flakeLedger } from '../src/flakes.js';
 import { eventCauses } from '../src/rigor.js';
 
 const workerServices = Object.freeze({ executionServices, context, ordered, withBoard, runSubmitGate, withFileLock,
-  readMainAudit, saveMainAudit, landingLeaseState, testValue: { flakeLedger, eventCauses } });
+  readMainAudit, saveMainAudit, landingLeaseState, selectors: { selectAffectedTests, selectTestTreeGuards },
+  testValue: { flakeLedger, eventCauses } });
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TITLE = 'a controlled intermittent assertion [C7]';
@@ -243,7 +247,10 @@ test('an unsupported Node reporter stays unclassified rather than guessing a sel
 test('the pinned bundled runner selects one target and skips unrelated bodies [C7,H16]', t => {
   const box = flakyProject(t);
   const unrelated = join(box.scratch, 'bundled-unrelated-runs');
-  copyFixtureRunner(resolve(import.meta.dirname, '..'), box.root);
+  const copied = copyPackageFiles(resolve(import.meta.dirname, '..'), box.root);
+  /** Commit every copied manifest path through the fixture's real Git child and normal hooks. */
+  const git = (_repo, ...args) => box.git(...args);
+  commitFixtureFiles({ repo: box.root, git }, copied);
   writeFileSync(join(box.root, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(box.root, 'test/unrelated.test.mjs'), `import { test } from 'node:test';
 import { appendFileSync } from 'node:fs';

@@ -24,6 +24,9 @@ export function loadMachineSettings() {
   if (value.gate?.browserFreeChecks !== undefined && typeof value.gate.browserFreeChecks !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.browserFreeChecks in ${file} must be true or false`);
   }
+  if (value.gate?.runnersOnly !== undefined && typeof value.gate.runnersOnly !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnersOnly in ${file} must be true or false`);
+  }
   if (value.gate?.runnersFirst !== undefined && typeof value.gate.runnersFirst !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnersFirst in ${file} must be true or false`);
   }

@@ -1,19 +1,16 @@
 import { sharedRowHtml } from './row-component.js';
-import { segmentedToggle } from './seg-toggle.js';
+import { segmentedToggle } from './segmented-control.js';
 /** The approved Activity sentences, rendered once for live and exported views [N26].
  * Standalone because the page embeds this function's source text.
  */
-export function activityHtml(model, { filter = 'all', words, itemHref = id => '#item/' + id, open = [], dayLabel = value => new Date(value).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }), quote = null, controls = true } = {}) {
+export function activityHtml(model, { filter = 'all', open = [], controls = true } = {}) {
   const esc = value => String(value ?? '').replace(/[&<>"']/gu, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-  const clock = value => new Date(value).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  const localTimes = text => String(text ?? '').replace(/\b\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)\b/gu,
-    value => Number.isFinite(Date.parse(value)) ? clock(value) : value);
   /** Missing model metadata is not a model name; retain real models only as hover titles. */
   const who = (id, agent) => {
     const model = [agent?.model, agent?.agent_model].find(value => typeof value === 'string' && value.trim() && value.trim().toLowerCase() !== 'unknown');
     return '<span class="activity-who"' + (model ? ' title="' + esc(model) + '"' : '') + '>' + esc(id === 'coordinator' ? 'The coordinator' : id === 'person' ? 'The person' : id) + '</span>';
   };
-  const item = entry => '<span class="activity-item" title="' + esc(entry.title) + '"><a class="ref" href="' + esc(itemHref(entry.id)) + '" data-go="item:' + entry.id + '">#' + entry.id + '</a>' + esc(entry.title) + '</span>';
+  const item = (entry, href) => '<span class="activity-item" title="' + esc(entry.title) + '"><a class="ref" href="' + esc(href) + '" data-go="item:' + entry.id + '">#' + entry.id + '</a>' + esc(entry.title) + '</span>';
   const paths = {
     build: '<path d="m9.5 2.5 4 4-1.5 1.5-4-4zM8 4 2.5 9.5l4 4L12 8"/>',
     release: '<path d="M4 8h8M9 5l3 3-3 3"/>', back: '<path d="m6 4-3.5 3.5L6 11M2.5 7.5H10a3.5 3.5 0 0 1 0 7H8"/>',
@@ -29,7 +26,7 @@ export function activityHtml(model, { filter = 'all', words, itemHref = id => '#
     if (entry.kind === 'sentinels') {
       tone = 'sentinel'; glyph = 'sentinel';
       const line = (finding, still = false) => {
-        const text = words(finding, { now: Date.parse(entry.at), clock });
+        const text = finding.words;
         return '<li class="' + (finding.resolved ? 'resolved' : still ? 'stuck' : 'failing') + '"><i aria-hidden="true"></i><span>'
           + esc(text.text) + (finding.resolved ? ' · resolved' : '') + (text.since ? ', since ' + esc(text.since) : '')
           + (text.next && !finding.resolved ? ' <span class="activity-next">· Next: ' + esc(text.next) + '</span>' : '') + '</span></li>';
@@ -45,17 +42,17 @@ export function activityHtml(model, { filter = 'all', words, itemHref = id => '#
       else if (['reject', 'reopen'].includes(entry.kind)) { tone = 'back'; glyph = 'back'; }
       const sentence = entry.released ? 'let go of <b>#' + entry.released.id + '</b> and started building <b>#' + entry.item.id + '</b>' : esc(entry.verb);
       content = '<p>' + who(entry.by, entry.agent) + ' ' + sentence + (entry.kind === 'shout' ? ' ' + esc(entry.to === 'coordinator' ? 'the coordinator' : entry.to === 'person' ? 'the person' : entry.to || 'the board') : '') + '</p>'
-        + (entry.item ? item(entry.item) : '') + (entry.kind === 'shout' && entry.words ? '<blockquote class="activity-quote">' + (quote ? quote(localTimes(entry.words)) : esc(localTimes(entry.words))) + '</blockquote>' : '');
+        + (entry.item ? item(entry.item, entry.itemHref) : '') + (entry.kind === 'shout' && entry.words ? '<blockquote class="activity-quote">' + entry.quoteHtml + '</blockquote>' : '');
     }
-    return sharedRowHtml({ variant: 'activity', state: tone, time: clock(entry.at), iconHtml: icon(glyph), mainHtml: content,
+    return sharedRowHtml({ variant: 'activity', state: tone, time: entry.timeLabel, iconHtml: icon(glyph), mainHtml: content,
       attributes: { 'data-activity-kind': entry.kind } });
   };
 
   const rows = model.rows.filter(entry => filter === 'all' || entry.category === filter);
   let day = '';
   const days = rows.map(entry => {
-    const key = new Date(entry.at).toDateString();
-    const heading = key === day ? '' : '<li class="activity-day"><h4 class="day">' + esc(dayLabel(entry.at)) + '</h4></li>';
+    const key = entry.dayKey;
+    const heading = key === day ? '' : '<li class="activity-day"><h4 class="day">' + esc(entry.dayLabel) + '</h4></li>';
     day = key; return heading + row(entry);
   }).join('');
   return (controls ? activityFilters(model, filter) : '') + (rows.length ? '<ol class="activity-events">' + days + '</ol>' : '<p class="empty">No activity matches.</p>');

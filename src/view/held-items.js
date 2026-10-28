@@ -6,11 +6,13 @@
  * @param {object} item - An item summary from the board state.
  * @param {{itemHolds?: object[], holds?: object[], laneHolds?: object[]}} source - The board the item belongs to.
  * @param {{state?: string}} [entry] - The item's roadmap entry, when it has one.
+ * @param {number} now - The adapter's explicit observation clock, in milliseconds.
  * @returns {string|null}
  */
-export function heldNote(item, source, entry) {
+export function heldNote(item, source, entry, now) {
+  if (!Number.isFinite(now)) throw new TypeError('heldNote requires an explicit observation clock');
   if (!item || entry && ['landed', 'accepted'].includes(entry.state)) return null;
-  const live = item.status === 'claimed' && Date.parse(item.claim?.until) > Date.now();
+  const live = item.status === 'claimed' && Date.parse(item.claim?.until) > now;
   if (!(item.status === 'open' || item.status === 'claimed' && !live)) return null;
   // Another board's summary may name its holds differently, or count them, so only a list is read.
   const own = (Array.isArray(source?.itemHolds) ? source.itemHolds : []).find(hold => hold.item === item.id);

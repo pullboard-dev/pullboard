@@ -42,6 +42,7 @@ const SOURCE_CHECKS = [
   { args: ['bin/checks/empty-catch.js'], file: 'bin/checks/empty-catch.js' },
   { args: ['bin/checks/test-names.js'], file: 'bin/checks/test-names.js' },
   { args: ['bin/checks/test-inputs.js'], file: 'bin/checks/test-inputs.js' },
+  { args: ['bin/checks/view-pure.js'], file: 'bin/checks/view-pure.js' },
 ];
 const DOCTRINE_CHECKS = new Set(['bin/checks/file-size.js', 'bin/checks/empty-catch.js', 'bin/checks/test-names.js', 'bin/checks/test-inputs.js']);
 /**
