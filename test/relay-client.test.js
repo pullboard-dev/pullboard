@@ -16,11 +16,10 @@ import { decodeBoardKey, encodeBoardKey, generateBoardKey, seal, unseal } from '
 import { githubFixture } from './relay-fixture.js';
 import * as store from '../src/board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
-import { checkpointSequence } from '../src/engine.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from '../src/cli.js';
-import { appliedSequence, engineReceipt, prepareEngineMove } from '../src/engine.js';
+import { appliedSequence, checkpointSequence, engineReceipt, prepareEngineMove } from '../src/engine.js';
 import { storeBoardKey } from '../src/relay-key.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { presentationShout } from '../src/relay-presentation.js';
