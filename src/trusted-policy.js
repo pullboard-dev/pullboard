@@ -13,7 +13,8 @@ import {
 export { mainPolicy, policyAt, trunkRef } from './trusted-policy-read.js';
 /** Coordinator policy and immutable submission checks cannot come from a builder's candidate [V4,V16,L3,M3]. */
 import { randomUUID } from 'node:crypto';
-import { environmentProblem, frozenCheckCeilingMs } from './config.js';
+import { environmentProblem } from './config.js';
+import { frozenCheckCeilingMs } from './config.js';
 import { spawnSync } from 'node:child_process';
 import {
   digestOf,
@@ -236,7 +237,7 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
       if (run.status !== 0) return finish('unverified', 'install failed');
     }
     const remaining = deadline - Date.now();
-    if (remaining <= 0) return finish('unverified', `check timed out before it started against its ${timeout}ms ceiling: ${frozenCommand}`);
+    if (remaining <= 0) return finish('unverified', `check timed out before it started against its ${(timeout / 1000).toFixed(1)} second ceiling: ${frozenCommand}`);
     checkLogPath = join(scratch, 'check.log');
     const checkRunStartedAt = Date.now();
     const run = runPrivateCommand(copy, env, command, remaining, checkLogPath);
@@ -245,7 +246,7 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
     environment = environmentProblem(run.environment) ? null : run.environment;
     testRuntimes = run.testRuntimes ?? null;
     checkOutput = run.output;
-    if (run.error?.code === 'ETIMEDOUT') return finish('unverified', `check timed out after ${Date.now() - checkRunStartedAt}ms against its ${timeout}ms ceiling: ${frozenCommand}`);
+    if (run.error?.code === 'ETIMEDOUT') return finish('unverified', `check timed out after ${((Date.now() - checkRunStartedAt) / 1000).toFixed(1)} seconds against its ${(timeout / 1000).toFixed(1)} second ceiling: ${frozenCommand}`);
     if (run.error) return finish('unverified', `check could not start (${run.error.code})`);
     if (run.logError) return finish('unverified', `check output could not be saved (${run.logError.code})`);
     if (run.status === null) return finish('unverified', 'check could not start (CHECK_RUNNER)');
