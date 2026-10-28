@@ -9,6 +9,7 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 - On Linux, landing cleanup sees each process's working directory, so it removes only clean landed worktrees and never one in use (#1462).
 - `pullboard status` stays light when offline and reads runner use without writing (#1462).
 - Opening the decision queue no longer loads choices meant for other readers (#1462).
+- A read-only Needs panel shows its draft summary as text instead of a navigation button it cannot use (#1541).
 
 ## [0.9.3] - 2026-10-26
 

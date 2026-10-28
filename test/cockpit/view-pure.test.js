@@ -277,6 +277,8 @@ test('Needs HTML keeps grouped calls, exact confirmation identities and compact 
   assert.equal((compact.match(/<li class="needs-call /gu) || []).length, 3);
   assert.match(compact, /3 more and 2 draft rows in Needs you/u);
   assert.doesNotMatch(needsPanelHtml(needsPanelModel(calls, project)), /data-needs-confirm=/u, 'read-only presentation advertises no bulk confirmation');
+  assert.doesNotMatch(needsPanelHtml(needsPanelModel(calls, project)), /<button|data-go=/u, 'read-only draft summaries contain text without navigation controls');
+  assert.match(html, /needs-drafts"><button type="button" data-go="tab:spec">/u, 'normal draft summaries retain their Spec navigation');
   const invalidAction = structuredClone(calls);
   invalidAction.find(row => row.id === 'G4').actions[0].args.ids = 'G1';
   const invalidModel = needsPanelModel(invalidAction, project, options);
