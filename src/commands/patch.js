@@ -1,3 +1,4 @@
+import { itemPolicy } from '../trusted-policy.js';
 import { headCommit } from '../git.js';
 /** Attach, inspect, or remove an immutable source-bound patch for a submitted item [V4,H16]. */
 import { readFileSync } from 'node:fs';
@@ -77,7 +78,8 @@ export async function run(io, { first, second, rest, values }) {
       const item = store.getItem(board, id);
       if (me.id !== 'coordinator') throw new Refused('COORDINATOR_ONLY', 'only the coordinator attaches item patches');
       const patch = patchText(ctx.info.root, rest[0]);
-      validateItemPatchInput(board, ctx.config, values.author, patch);
+      const policy = itemPolicy(ctx.info.root, item);
+      validateItemPatchInput(board, policy.config, values.author, patch, policy.commit);
       const builderPath = item.item_status === 'claimed' ? store.listAgents(board).find(agent => agent.agent_id === item.item_owner)?.agent_path : null;
       const builderHead = builderPath ? headCommit(builderPath) : null;
       const source = values.source ?? (item.item_status === 'claimed' ? builderHead : item.item_commit);
