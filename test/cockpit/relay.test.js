@@ -10,6 +10,8 @@ import { after, test } from 'node:test';
 import { performance } from 'node:perf_hooks';
 import { press, stableChrome } from './stable.js';
 import { createJourneyDeadline, drainJourneyTasks } from './journey-deadline.js';
+import { readPathMap } from '../../src/path-map.js';
+import { mappedPath } from '../../src/path-map.js';
 import { cockpitPage } from '../../src/cockpit.js';
 import { createRelayBrowserHandler } from '../../relay/browser-page.js';
 import { relayClientFixture } from '../relay-client-fixture.js';
@@ -2067,7 +2069,8 @@ test('the star line shows once to a signed-in person and stays dismissed [N26]',
     assert.equal(star.requests.get('/api/v1/boards'), undefined, 'a signed-out page never asks for the linked list');
     await chrome.send('Page.navigate', { url: star.live.link.href }).then(() => chrome.waitFor('!!data?.project'));
     assert.equal(await chrome.stable("document.querySelector('#star-line') === null && !document.body.textContent.includes('GitHub star')"), true, 'the local view never carries the star line');
-    for (const file of ['src/cli.js', 'src/mcp.js', 'src/help.js']) assert.ok(!readFileSync(new URL('../../' + file, import.meta.url), 'utf8').includes('GitHub star'), file + ' never prints the star line');
+    const sourceMap = readPathMap(resolve(import.meta.dirname, '../..'));
+    for (const file of ['src/cli.js', 'src/mcp.js', 'src/help.js']) assert.ok(!readFileSync(new URL('../../' + mappedPath(sourceMap, file), import.meta.url), 'utf8').includes('GitHub star'), file + ' never prints the star line');
     // The account read is refused while this machine's view still answers: the refusal answers the line too, "not
     // linked", and the line never asks again on its own (#817).
     star.state.refused = true;

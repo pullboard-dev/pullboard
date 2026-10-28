@@ -1,4 +1,5 @@
 /** @pullboard-test-gui */
+/** @pullboard-test-input source-tree */
 /** Cockpit fixture checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -15,16 +16,15 @@ import { addItem, closeBoard, openBoard } from '../../src/board.js';
 import { exportBoard, importBoard } from '../../src/exchange.js';
 import { projectState } from '../../src/serve.js';
 import { testsNeedBrowser } from '../../src/browser-admission.js';
+import { copyPackageFiles } from '../../src/package-files.js';
 import { scratch, machine, project, build, fetchView, fetchLive, startView, styleOf, openPage, boardId, boardOf, assertObservationsEqual, chromeExecutable, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome } from './fixture.js';
 
 test('the view fixture refuses to launch Chrome outside a browser slot [C7,O5]', async t => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-view-browser-slot-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const name of ['bin', 'machine']) mkdirSync(join(root, name));
-  cpSync(resolve(import.meta.dirname, '../../src'), join(root, 'src'), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '../..'), root);
   cpSync(resolve(import.meta.dirname, '..'), join(root, 'test'), { recursive: true });
-  cpSync(resolve(import.meta.dirname, '../../bin/run-tests.js'), join(root, 'bin/run-tests.js'));
-  writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(root, 'machine/settings.json'), JSON.stringify({ gate: { browserByLaunch: true } }));
 
   /** Exercise the actual view launcher and always stop any stand-in it owns, including a failing baseline. */

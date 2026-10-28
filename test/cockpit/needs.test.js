@@ -147,7 +147,7 @@ test("the page's Needs-you comes from the shared builder [N26]", { timeout: 180_
   const box = machine();
   const alpha = project(box, 'shared needs', `${SPEC}- G3 [pending] Choose the greeting. | gate: review\n- G4 [draft, must] Keep the footer. | gate: review\n- G5 [draft, aim] Keep the header. | gate: review\n`);
   box.run(alpha.repo, 'shout', 'person', 'Ship the greeting?', '--decision');
-  box.run(alpha.web, 'shout', 'coordinator', 'An agent-only question?', '--decision');
+  box.run(alpha.web, 'shout', 'coordinator', 'An agent-only question?', '--decision', '--kind', 'question');
   box.run(alpha.repo, 'hold', 'web', '--reason', 'Wait for the greeting decision');
   const view = await startView(box);
   let snapshotHost, relayServer, chrome;
@@ -269,12 +269,12 @@ globalThis.fetch = async function controlledStateFetch(path, init) {
 test('a decision waits in needs-you until the view answers it [B21, B26, N27]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.web, 'shout', 'coordinator', 'Greet in <b>French</b> first?', '--decision');
+  box.run(alpha.web, 'shout', 'coordinator', 'Greet in <b>French</b> first?', '--decision', '--kind', 'question');
   // Forty shouts after it: the ask is older than every shout the feed loads, and still waits.
   for (let n = 0; n < 40; n += 1) box.run(alpha.web, 'shout', 'all', `note ${n}`);
   // Another project's board numbers its shouts from 1 too.
   const beta = project(box, 'beta');
-  box.run(beta.web, 'shout', 'coordinator', 'Beta asks too?', '--decision');
+  box.run(beta.web, 'shout', 'coordinator', 'Beta asks too?', '--decision', '--kind', 'question');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -336,7 +336,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     page.run("openTab('shouts'); render();");
     assert.equal(page.element('decisions').hidden, true, 'and the banner');
 
-    box.run(alpha.web, 'shout', 'coordinator', 'Ship today?', '--decision');
+    box.run(alpha.web, 'shout', 'coordinator', 'Ship today?', '--decision', '--kind', 'question');
     box.run(alpha.repo, 'pass', '45', 'yours');
     await page.run('refresh()');
     const feed = shoutNameText(page.show('feed'));
@@ -383,7 +383,7 @@ test("needs-you holds only the person's calls; the rest show on the board with w
   build(box, alpha, 1, 'greeting.html');
   build(box, alpha, 2, 'farewell.html');
   sendBack(box, alpha, 2, 'no farewell yet');
-  box.run(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision');
+  box.run(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision', '--kind', 'question');
   box.run(alpha.repo, 'shout', 'person', 'Launch on Friday?', '--decision');
   box.run(alpha.repo, 'hold', 'web', '--reason', 'G3 is open');
   const view = await startView(box);
@@ -452,9 +452,9 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
   box.run(second, 'join', 'web');
   // The person's calls: a decision passed up to them, the spec's open question, a held lane and two draft rows. And an
   // agent's ask that waits on its coordinator, not on the person.
-  box.run(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision');
+  box.run(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision', '--kind', 'question');
   box.run(alpha.repo, 'pass', '1', 'over to you');
-  box.run(second, 'shout', 'coordinator', 'Ship the footer first?', '--decision');
+  box.run(second, 'shout', 'coordinator', 'Ship the footer first?', '--decision', '--kind', 'question');
   box.run(alpha.repo, 'hold', 'web', '--reason', 'Freeze for the demo');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-asks-chrome-'));
@@ -558,7 +558,7 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
       `ten calls, ten rows, each with its kind in the warning colour: ${JSON.stringify(r.needs)}`);
     assert.equal(await chrome.stable("document.querySelector('#needs').textContent.includes('more need you')"), false, 'no call is folded into a count');
     // Narrowed to the unread shouts from the status bar, the feed carries its bar with show all; show all clears it.
-    box.run(alpha.web, 'shout', 'coordinator', 'Greeting is half done.');
+    box.run(alpha.web, 'shout', 'all', 'Greeting is half done.');
     await chrome.waitFor("!document.querySelector('#status-unread')?.hidden", 15_000); // budget: hang ceiling for the unread badge after a new shout; no throughput claim.
     await click('#status-unread');
     await chrome.waitFor("view.tab === 'shouts' && !!document.querySelector('#feed .feed-bar')");
