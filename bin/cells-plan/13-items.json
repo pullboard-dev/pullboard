@@ -7,7 +7,7 @@
  "placedBy": {
   "seed": 41,
   "rule": 13,
-  "imports": 3
+  "imports": 4
  },
  "paths": [
   ["src/blocks.js","packages/items/src/shell/blocks.js","seed"],
@@ -66,7 +66,8 @@
   ["src/item-edit-bar.js","packages/items/src/core/item-edit-bar.js","rule"],
   ["src/item-patch-paths.js","packages/items/src/core/item-patch-paths.js","rule"],
   ["src/item-patch-submit.js","packages/items/src/shell/item-patch-submit.js","rule"],
-  ["src/lifecycle-move.js","packages/items/src/core/lifecycle-move.js","imports"]
+  ["src/lifecycle-move.js","packages/items/src/core/lifecycle-move.js","imports"],
+  ["src/family-declaration.js","packages/items/src/shell/family-declaration.js","imports"]
  ],
  "reexports": [
   "src/blocks.js",
