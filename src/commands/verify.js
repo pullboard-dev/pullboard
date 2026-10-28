@@ -71,6 +71,8 @@ import {
   judgeTrunkMove,
 } from '../verdict-trunk.js';
 import {
+  nextOnce,
+  withBoardRead,
   browserAdmissionReporter,
   cdTo,
   checkMainVerifier,
@@ -257,6 +259,6 @@ export async function run(io, args) {
   const verdictResult = {};
   const ctx = { ...context(io), verdictResult };
   const code = await verifyHere(ctx, id, args);
-  if (code === 0 && verdictResult.value) await completeMoveHandoff(ctx, id, values, verdictResult.value);
+  if (code === 0 && verdictResult.value) await completeMoveHandoff(ctx, id, values, verdictResult.value, { nextOnce, withBoardRead });
   return code;
 }

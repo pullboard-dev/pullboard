@@ -1,8 +1,4 @@
 /** Successful native commands hand the same seat its next work without a second process [N2,V1,V4]. */
-import {
-  nextOnce,
-  withBoardRead,
-} from './cli.js';
 import { ownSessionReviews } from './next-review.js';
 import { Refused } from './refused.js';
 
@@ -12,8 +8,8 @@ function idle(reasons, error) {
     ...(error ? { error: { code: error.code, message: error.message } } : {}) };
 }
 
-/** Reuse native review thresholds, priority, authority and ordered claim/reservation guards. */
-async function takeFollowing(ctx, completedId) {
+/** Reuse explicit native next/read ports with unchanged review priority and ordered reservation guards. */
+async function takeFollowing(ctx, completedId, { nextOnce, withBoardRead }) {
   const omitIds = withBoardRead(ctx, board => [completedId, ...ownSessionReviews(ctx.info, board)]);
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
@@ -38,11 +34,11 @@ async function takeFollowing(ctx, completedId) {
   return idle(['the queue changed during dispatch; run pullboard next']);
 }
 
-/** Extend, never replace, the acknowledged command result; opt-out performs no next lookup or move. */
-export async function completeMoveHandoff(ctx, completedId, values, primary) {
+/** Extend the acknowledged result through supplied native next/read operations; opt-out performs neither. */
+export async function completeMoveHandoff(ctx, completedId, values, primary, services) {
   if (values['no-next']) return primary;
   let next;
-  try { next = await takeFollowing(ctx, completedId); }
+  try { next = await takeFollowing(ctx, completedId, services); }
   catch (error) {
     // The primary native move is already acknowledged; never turn a later read failure into its loss.
     const code = typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]*$/u.test(error.code)
