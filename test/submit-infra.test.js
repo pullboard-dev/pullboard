@@ -1,4 +1,3 @@
-/** @pullboard-test-input test-tree */
 /** @pullboard-test-input source-tree */
 /**
  * Submit asks why when a change edits an existing test or gate file, and a new test file needs no reason [C7,V4].

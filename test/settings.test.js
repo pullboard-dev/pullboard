@@ -100,7 +100,7 @@ test('a line setting change is a recorded move with its reason and its range [R1
     '--window', JSON.stringify(numbers), '--json');
   assert.equal(changed.code, 0, `a board setting change succeeds: ${changed.err}${changed.out}`);
   assert.equal(initial.code, 0, initial.err);
-  const defaults = { order: false, focusMilestone: false, collisionFreeBatch: false, reviewsFirst: false, wipPerReviewer: false, barReady: false,
+  const defaults = { order: false, focusMilestone: false, collisionFreeBatch: false, reviewsFirst: false, requireReviewFamilies: false, wipPerReviewer: false, barReady: false,
     'bar.check': false, takeoverMinutes: false,
     landingBatchSize: false, landingCadenceMinutes: false };
   assert.deepEqual(JSON.parse(initial.out).lineSettings, defaults, 'all line controls start off, not silently enabled by a machine file');
