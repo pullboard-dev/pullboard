@@ -1,3 +1,5 @@
+import * as queueStore from '../src/board.js';
+import { eligibilityProblem as queueEligibility } from '../src/review-eligibility.js';
 /** Private board-state fixtures exercise independence; synthetic commits and events are not gate proof [V4,B26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -107,7 +109,7 @@ test('next offers a review only to an eligible seat [V4,B26]', t => {
   f.submit(eligible, 'core-1');
   const offered = store.reserveNextReview(f.board, { agentId: 'core-5', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'require' });
   assert.equal(offered.item.item_id, eligible, 'the older same-vendor item is never offered');
-  const queue = workQueue(f.board, 'core-5', { familyPolicy: 'require' });
+  const queue = workQueue(f.board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }, 'core-5', { familyPolicy: 'require' });
   const ids = [...queue.releases.flatMap(r => r.items), ...queue.unreleased].map(item => item.id);
   assert.equal(ids.includes(same), false, 'the work queue uses the same vendor rule');
   assert.equal(ids.includes(eligible), true);

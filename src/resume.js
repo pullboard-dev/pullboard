@@ -7,7 +7,6 @@
  * and its next step reads them first. Resume only looks: `pullboard inbox` is what marks shouts
  * read, so a session that starts and stops never swallows a message nobody read.
  */
-import * as store from './board.js';
 import { differFromHead } from './git.js';
 import { SIGNOFFS_FILE } from './spec.js';
 
@@ -27,9 +26,9 @@ const READ_ALL = 'pullboard inbox';
  * @param {{ id: number }[]} openDecisions the open decisions addressed to this seat
  * @returns {{ unread: number, decisions: number, newest: { id: number, from: string, at: string, text: string }[], more: number, read: string }}
  */
-export function coordinatorInbox(board, agentId, openDecisions) {
-  const unread = store.unreadCount(board, agentId);
-  const newest = store.peekShouts(board, agentId, INBOX_NEWEST).map((shout) => ({
+export function coordinatorInbox(board, agentId, openDecisions, { unreadCount, peekShouts }) {
+  const unread = unreadCount(board, agentId);
+  const newest = peekShouts(board, agentId, INBOX_NEWEST).map((shout) => ({
     id: shout.shout_id, from: shout.shout_from, at: shout.shout_at, text: shout.shout_text,
   }));
   return { unread, decisions: openDecisions.length, newest, more: Math.max(0, unread - newest.length), read: READ_ALL };

@@ -1,4 +1,3 @@
-import { foreignBlockers } from './cross-repo-dependencies.js';
 import { localDependencyIds } from './item-dependencies.js';
 /**
  * The queue orders itself (#1017) [N22,B13]. Within each release, an item's unblock count (unfinished items that
@@ -16,15 +15,13 @@ import {
   MILESTONE_RANK_ENGINE,
 } from './machine.js';
 import { WORK_ORDER_ENGINE } from './work-order-engine.js';
-import { milestones } from './board-read-auxiliary.js';
-import { listItems } from './board-query.js';
 import { ROUTES } from './route-escalation.js';
 
 /** Effort per route: what one item of that route costs to build. */
 export const EFFORT = Object.freeze({ light: 1, mid: 2, strong: 3 });
 
 /** Explicit item ranks belong to the same first unfinished milestone as its priority [N2,B13]. */
-export function milestoneRanks(board, priority) {
+export function milestoneRanks(board, priority, { milestones }) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < MILESTONE_RANK_ENGINE) return () => 0;
   const ranks = new Map();
   for (const [index, milestone] of milestones(board).entries()) {
@@ -53,7 +50,7 @@ function afterIds(item) {
  * @param {(entry: any) => number} priority
  * @returns {{ sunk: Set<number>, reasons: Map<number, string> }}
  */
-export function milestoneOverrides(board, priority) {
+export function milestoneOverrides(board, priority, { milestones }) {
   const sunk = new Set();
   const reasons = new Map();
   for (const [index, milestone] of milestones(board).entries()) {
@@ -95,7 +92,7 @@ export function unblockCounts(unfinished) {
  * @param {Set<number>} withdrawn
  * @returns {(item: any) => number}
  */
-function blockerDepth(board, open, withdrawn) {
+function blockerDepth(board, open, withdrawn, foreignBlockers) {
   const depths = new Map();
   const depth = (item, visiting = new Set()) => {
     if (depths.has(item.item_id)) return depths.get(item.item_id);
@@ -148,12 +145,12 @@ function whyOf(entry) {
  * @param {{ priority: (entry: any) => number, shared?: (entry: any) => number, tieBreak?: (first: any, second: any) => number }} options
  * @returns {Map<number, { position: number, unblocks: number, effort: number, score: number, why: string }>}
  */
-export function computedOrder(board, { priority, shared = () => 0, tieBreak = () => 0 }) {
+export function computedOrder(board, { priority, shared = () => 0, tieBreak = () => 0 }, { listItems, foreignBlockers }) {
   // Only unfinished items and withdrawn ids matter, so a large board's finished history is never read.
   const unfinished = listItems(board);
   const withdrawn = new Set(board.db.prepare("SELECT item_id FROM item WHERE item_status = 'withdrawn'").all().map((row) => row.item_id));
   const counts = unblockCounts(unfinished);
-  const depthOf = blockerDepth(board, new Map(unfinished.map((item) => [item.item_id, item])), withdrawn);
+  const depthOf = blockerDepth(board, new Map(unfinished.map((item) => [item.item_id, item])), withdrawn, foreignBlockers);
   const entries = unfinished.map((item) => {
     const unblocks = counts.get(item.item_id) ?? 0;
     const effort = EFFORT[item.item_route] ?? EFFORT.strong;
@@ -183,10 +180,10 @@ export function computedOrder(board, { priority, shared = () => 0, tieBreak = ()
  * @param {{ priority: (entry: any) => number, rank: (entry: any) => number, shared: (entry: any) => number, tierFirst?: boolean, tieBreak?: (first: any, second: any) => number }} options
  * @returns {((first: any, second: any) => number) | null}
  */
-export function workOrderCompare(board, { priority, rank, shared, tierFirst = false, tieBreak = () => 0 }) {
+export function workOrderCompare(board, { priority, rank, shared, tierFirst = false, tieBreak = () => 0 }, ports) {
   if (!workOrderActive(board)) return null;
-  const order = computedOrder(board, { priority, shared, tieBreak });
-  const { sunk } = milestoneOverrides(board, priority);
+  const order = computedOrder(board, { priority, shared, tieBreak }, ports);
+  const { sunk } = milestoneOverrides(board, priority, ports);
   const position = (entry) => order.get(entry.item_id)?.position ?? Number.MAX_SAFE_INTEGER;
   return (first, second) => priority(first) - priority(second)
     || rank(first) - rank(second)
@@ -203,9 +200,9 @@ export function workOrderCompare(board, { priority, rank, shared, tierFirst = fa
  * @param {{ priority: (entry: any) => number, rank: (entry: any) => number }} options
  * @returns {(item: any) => { unblocks: number, effort: number, why: string }}
  */
-export function queueReasons(board, { priority, rank }) {
-  const order = computedOrder(board, { priority });
-  const { sunk, reasons } = milestoneOverrides(board, priority);
+export function queueReasons(board, { priority, rank }, ports) {
+  const order = computedOrder(board, { priority }, ports);
+  const { sunk, reasons } = milestoneOverrides(board, priority, ports);
   return (item) => {
     const computed = order.get(item.item_id) ?? { unblocks: 0, effort: EFFORT[item.item_route] ?? EFFORT.strong, why: 'finished' };
     const reason = reasons.get(item.item_id);

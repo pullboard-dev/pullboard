@@ -1,3 +1,5 @@
+import * as queueStore from '../src/board.js';
+import { eligibilityProblem as queueEligibility } from '../src/review-eligibility.js';
 /** Parent discovery reads the invoking runtime record and preserves unknown identity [V1,B3]. */
 import assert from 'node:assert/strict';
 import {
@@ -88,8 +90,8 @@ test('[V1,B3] an unknown-parent primary session and its child cannot review each
     submitFixture(board, id, { agentId: author, commit: String(id).padStart(40, 'a'), tree: String(id).padStart(40, 'b') });
     assert.equal(store.nextFor(board, { agentId: reviewer, lane: 'web', verify: true }).item, null);
     assert.throws(() => store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', policy: 'any' }), { code: 'SELF_SESSION_VERIFY' });
-    assert.equal(workQueue(board, reviewer).unreleased.some(item => item.id === id), false);
-    assert.equal(workQueue(board, outside).unreleased.some(item => item.id === id), true);
+    assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }, reviewer).unreleased.some(item => item.id === id), false);
+    assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }, outside).unreleased.some(item => item.id === id), true);
   }
   assert.throws(() => store.register(board, { lane: 'web', path: join(root, 'child'), parent: 'changed-parent' }), { code: 'PARENT_SESSION_CHANGED' });
 });

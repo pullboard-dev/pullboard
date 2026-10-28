@@ -2,16 +2,15 @@ import { takeoverReady } from './line-capacity.js';
 /** Durable first-refusal windows for reopened work [B13,B5]. */
 import { Refused } from './refused.js';
 
-import { firstRefusal } from './board-item-read.js';
 
 /** Give the original builder first refusal while preserving every ordinary claim guard. */
-export function firstRefusalProblem(board, id, agentId) {
-  const reason = firstRefusalReason(board, id, agentId);
+export function firstRefusalProblem(board, id, agentId, ports) {
+  const reason = firstRefusalReason(board, id, agentId, ports);
   return reason ? new Refused('REOPEN_HELD_FOR_BUILDER', reason) : null;
 }
 
 /** Explain ineligible build work without raising an item refusal from review selection. */
-export function firstRefusalReason(board, id, agentId) {
+export function firstRefusalReason(board, id, agentId, { firstRefusal }) {
   const window = firstRefusal(board, id);
   return window && window.builder !== agentId && !takeoverReady(board, id)
     ? `item #${id} waits for ${window.builder} until ${window.until}; claim it after that time, or ask its builder to release it`
@@ -43,7 +42,7 @@ export function firstRefusalArgs(operation, args, config) {
   return [args[0], { ...args[1], reopenFirstRefusalMinutes: minutes }, ...args.slice(2)];
 }
 
-export { manualLandingFailureQuoted } from '../packages/state/src/core/manual-landing-failure-quoted.js';
+
 
 /** Read a quoted test name and its end offset, refusing malformed escapes or multiline text. */
 function quotedLandingTestName(text, start) {

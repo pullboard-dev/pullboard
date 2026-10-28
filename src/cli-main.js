@@ -372,7 +372,7 @@ async function runMain(argv, streams) {
     }
     if (code === 0) await (await syncWork())?.retrySync(io);
     const status = io.exitCode(code);
-    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('./blocks.js')).clearCompletedBlocks(io);
+    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('./blocks.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('./person.js')).requirePersonChannel });
     if (status !== 0) await io.prepareRefusal();
     io.flush(status);
     return status;

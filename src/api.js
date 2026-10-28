@@ -7,7 +7,6 @@ import { stateFileInputs } from './native-board-state.js';
 import { fileRevision } from './native-board-state.js';
 import { WHOLE_STATE_DELTA_FIELDS } from './api-delta-fields.js';
 import { nativeStateClockMatches } from './native-state-clock.js';
-import { foreignDependencyStates } from './cross-repo-dependencies.js';
 import {
   dependencyValues,
   localDependencyIds,
@@ -1011,7 +1010,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       const dependent = db.prepare('SELECT item_status FROM item WHERE item_id = ?').get(dependency);
       if (dependent) status.set(dependency, dependent.item_status);
     }
-    for (const ref of foreignDependencyStates(currentBoard, row)) status.set(`${ref.repo}#${ref.id}`, ref.status);
+    for (const ref of store.foreignDependencyStates(currentBoard, row)) status.set(`${ref.repo}#${ref.id}`, ref.status);
     // Detail reads need no new Git process while the trunk holds.
     const tip = trunkRevisionReader(info)();
     const approval = approvalFor(board.root, currentBoard, info);
@@ -1161,7 +1160,7 @@ function verdictOf(row) {
 export function projectItemState(board, item, status) {
   const verdicts = store.verdictsFor(board, item.item_id).map(verdictOf);
   const after = dependencyValues(item);
-  const foreign = new Map(foreignDependencyStates(board, item).map(ref => [`${ref.repo}#${ref.id}`, ref.status]));
+  const foreign = new Map(store.foreignDependencyStates(board, item).map(ref => [`${ref.repo}#${ref.id}`, ref.status]));
   return {
     id: item.item_id,
     title: item.item_title,
