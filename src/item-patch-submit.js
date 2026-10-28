@@ -37,11 +37,12 @@ function git(root, args) {
 export function prepareItemPatchSubmit(root, board, item, source) {
   const patches = itemPatches(board, item.item_id);
   if (!patches.length) return null;
+  const policy = itemPolicy(root, item);
   for (const patch of patches) {
     if (patch.commit !== source || patch.source?.commit !== source) {
       throw new Refused('ITEM_PATCH_SOURCE', `stale companion ${patch.key} belongs to ${patch.commit}; remove it and attach against current builder head ${source}`);
     }
-    validateItemPatchInput(board, itemPolicy(root, item).config, patch.author.agentId, patch.patch);
+    validateItemPatchInput(board, policy.config, patch.author.agentId, patch.patch, policy.commit);
   }
   const digest = itemPatchDigest(board, item.item_id, source);
   const composed = composeItemPatches(root, { ...item, item_commit: source }, patches);
