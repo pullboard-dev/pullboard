@@ -8,6 +8,10 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { selectAffectedTests } from '../src/affected-tests.js';
+import { browserBoundFiles } from '../src/browser-admission.js';
+import { testsNeedGui } from '../src/gui-admission.js';
+import { importsIn } from '../src/module-imports.js';
+import { lex } from '../src/js-lex.js';
 import * as affectedTests from '../src/affected-tests.js';
 import { installSubmitTestTreeCases } from './submit-test-tree-cases.js';
 
@@ -405,4 +409,39 @@ test('repo-wide test guards survive declaration removal and use committed leadin
   assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }), []);
   box.put('test/text.test.js', header + 'export const dirty = true;\n');
   assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'], 'dirty declarations have no authority');
+});
+
+
+/** Keep only source-text scanners in the mandatory test-edit guard set. */
+test('the repository test-tree guards list only source scanners and launch no browser [C7]', async () => {
+  const root = join(import.meta.dirname, '..');
+  const expected = [
+    'test/board-file-guard.test.js',
+    'test/gui-marker-guard.test.js',
+    'test/privacy-scan-guard.test.js',
+    'test/shared-wait-guard.test.js',
+    'test/wall-clock-budgets.test.js',
+  ];
+  const guards = affectedTests.selectTestTreeGuards(root, { commit: 'HEAD', changed: ['test/changed-input.test.js'] });
+  assert.deepEqual(guards, expected, 'the committed repository guard census names every selected file');
+  assert.equal(testsNeedGui(root, guards), false, 'the test-edit guard set needs no GUI session');
+  assert.deepEqual(await browserBoundFiles(root, guards, { byLaunch: true }), [], 'no guard path or import graph launches a browser');
+  const forbiddenImports = new Set(['../src/board.js', '../src/serve.js', '../src/gate.js', './board-fixture.js',
+    './e2e-helpers.js', './cockpit/fixture.js', './chrome-fixture.js']);
+  for (const file of guards) {
+    const source = readFileSync(join(root, file), 'utf8');
+    const imports = importsIn([source])[0];
+    assert.deepEqual(imports.filter(path => forbiddenImports.has(path)), [], `${file} imports no board, server or browser fixture`);
+    const code = lex(source).code;
+    assert.doesNotMatch(code, /\b(?:openBoard|startView|serveView|createServer|launchChromeProcess|startChrome|runFixtureChild|runProfiledShell|withGateSlot)\s*\(/u,
+      `${file} only scans source text`);
+  }
+});
+
+test('gate source changes still select the static failure regression [C7]', () => {
+  const root = join(import.meta.dirname, '..');
+  const selection = selectAffectedTests(root, { base: 'HEAD', commit: 'HEAD', changed: ['src/gate.js'] });
+  assert.equal(selection.full, false, selection.reason);
+  assert.ok(selection.files.includes('test/submit-gate.test.js'),
+    'the test that imports refuseSandboxBlocked stays selected for gate changes');
 });

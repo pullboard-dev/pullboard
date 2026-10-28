@@ -602,6 +602,8 @@ export function permanenceProblems(spec, { committed, cited }) {
       message: `was committed in ${commit.slice(0, 12)} and is gone; ids are permanent: restore the row and mark it wont or retired`,
     }));
   for (const [id, where] of cited) {
+    // A doctrine:<id> citation names a DOCTRINE.md row, which idProblems checks; it is not a spec id.
+    if (id.startsWith('doctrine:')) continue;
     if (!present.has(id) && !committed.has(id)) {
       problems.push({ id, message: `${where} cites it, but it was never committed to the spec; add it as a retired row saying what it meant` });
     }

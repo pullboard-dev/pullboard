@@ -1,3 +1,4 @@
+import { mainRedReviewItems } from './main-red.js';
 import { mainRedReworkItems } from './main-red.js';
 import { mainRedBuildRouting } from './main-red-build-routing.js';
 /** Current-seat dispatch shares board eligibility with the heartbeat warning [N2,V1,B3]. */
@@ -34,7 +35,7 @@ function selected(ctx, board, values) {
   }
   return dispatchWork(board, store.agentById(board, me.id), {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
-    skipIds: ownSessionReviews(ctx.info, board),
+    skipIds: ownSessionReviews(ctx.info, board), priority: mainRedReviewItems(ctx.info.root, board),
   });
 }
 

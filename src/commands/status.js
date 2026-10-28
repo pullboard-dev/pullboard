@@ -17,9 +17,7 @@ import {
   runnerDeadlineLine,
   runnerDeadlineRuns,
 } from '../runner-wait.js';
-import {
-  reviewQueueLine,
-} from '../next-steps.js';
+import { reviewQueueLine } from '../review-queue-line.js';
 import {
   productLine,
   productSummaries,

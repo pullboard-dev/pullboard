@@ -1,4 +1,5 @@
 import * as rejectClause from './reject-clause.js';
+import * as reviewRouting from './review-routing.js';
 import { reviewFamilyProblem } from './review-independence.js';
 import { reviewPolicyChange } from './review-independence.js';
 import { saveItemReviewPolicy } from './review-independence.js';
@@ -349,6 +350,8 @@ import {
   landingWaiverKind,
 } from './landing-exceptions.js';
 import { parseSpec } from './spec.js';
+import { KNOWN_MAIN_REWORKS_ENGINE } from './known-main-reworks-engine.js';
+import { requireKnownMainReworks } from './known-main-reworks.js';
 import {
   invariantEvidence,
   preserveInvariantEvidence,
@@ -509,7 +512,6 @@ function guardMoves(board) {
 export { SCHEMA_VERSION } from './board-schema-source.js';
 
 export { readEventLogVersion } from './board-read-open.js';
-
 
 export { boardId } from './board-query.js';
 
@@ -1202,6 +1204,9 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         } : {}),
         submissionProofValid: () => {
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= SUBMISSION_PROOF_ENGINE) recordedProof = submissionProof(proof, board.executionEngineVersion ?? ENGINE_VERSION);
+          if ((board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_REWORKS_ENGINE && recordedProof?.knownMainFailures) {
+            requireKnownMainReworks(recordedProof.knownMainFailures, listItems(board, { all: true }), id);
+          }
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= FLOW_SIZE_ENGINE) recordedSize = submissionSize(size, commit);
           return null;
         },
@@ -1296,9 +1301,9 @@ function reviewerChecks(board, { agentId, policy, familyPolicy = 'off' }) {
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
     requiredReviewFamily: found => reviewFamilies.requiredReviewFamilyProblem(board, found, agentId),
-    familyAllows: (found) => twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
+    familyAllows: (found) => reviewRouting.strictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
-      : null,
+      : null),
     reviewFree: (found) => {
       const holder = reviewHolder(board, found);
       return holder && holder !== agentId
@@ -1329,9 +1334,9 @@ export function reserveReview(board, id, who) {
  * @param {{ agentId: string, lane: string, leaseMs: number, policy: string, familyPolicy?: string, runnable?: boolean, routes?: string[], skipIds?: number[] }} who - skipIds: items the caller's own session built, never offered (verify refuses them too)
  * @returns {{ item: any | null, reasons: string[] }}
  */
-export function reserveNextReview(board, { agentId, lane, leaseMs, policy, familyPolicy = 'off', runnable, routes, skipIds = [] }) {
+export function reserveNextReview(board, { agentId, lane, leaseMs, policy, familyPolicy = 'off', runnable, routes, skipIds = [], priority = [] }) {
   return atomic(board, () => {
-    const { item, reasons } = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, skipIds });
+    const { item, reasons } = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, skipIds, priority });
     return item ? { item: reserveWithin(board, item.item_id, { agentId, leaseMs, policy, familyPolicy }), reasons } : { item: null, reasons };
   });
 }
@@ -1656,12 +1661,9 @@ export function refreeze(board, id, { agentId, freeze, [SPEC_REFREEZE]: specCorr
   });
 }
 
-
-
 export { listItems } from './board-query.js';
 
 export { itemsInStatus } from './board-query.js';
-
 
 export { getItem } from './board-query.js';
 
@@ -1840,11 +1842,7 @@ function checkEvidence(board, { kind, outcome, item, commit }) {
   if (!/^[0-9a-f]{40}$/.test(commit ?? '')) throw new Refused('BAD_EVIDENCE', `evidence names a commit by its full SHA (saw "${commit ?? ''}")`);
 }
 
-
-
-
 export { openDecisions } from './board-query.js';
-
 
 export { inbox } from './inbox-store.js';
 
@@ -1857,7 +1855,6 @@ const FACT_JUDGEMENTS = new Set(['decision', 'rejection', 'supersession', 'root-
 export { factReference };
 
 export { itemThread } from './board-query.js';
-
 
 /** Append a typed fact atomically; a correction never edits the original event [B29,B30,B31,B32].
  * The internal factId is set from a sealed move's identity during replay, rather than replica-local sequence ids; a never-again with its cause is the person's alone, and rigor lists it at once (#713) [D1].
@@ -1901,7 +1898,6 @@ function postRigorNotices(board, trigger) {
       occurrences: cause.occurrences, neverAgain: cause.neverAgain, engine: RIGOR_NOTICE_ENGINE });
   }
 }
-
 
 /** Share milestone policy, primary computed order and equal-score path ties across queue and health. */
 export function buildOrder(board, { warm = [], agentId, readiness = barReadyForOrder, releasedClaims = [], tierFirst = false, priority } = {}) {
@@ -1954,7 +1950,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
     const standingRefusal = unrelated.map((entry) => itemAuthorProblem(board, entry, agentId) ?? reviewFamilyProblem(board, entry, agentId, familyPolicy)).find(Boolean);
     const requiredRefusals = unrelated.map(entry => reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId)).filter(Boolean);
-    let reviewable = unrelated.filter((entry) => !itemAuthorProblem(board, entry, agentId) && !reviewFamilyProblem(board, entry, agentId, familyPolicy) && !reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId));
+    let reviewable = unrelated.filter((entry) => !itemAuthorProblem(board, entry, agentId) && !reviewFamilyProblem(board, entry, agentId, familyPolicy) && !reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId) && !reviewRouting.strictReviewProblem(board, entry, agentId));
     if (policy === COORDINATOR && agentId !== COORDINATOR) reviewable = reviewable.filter((entry) => entry.item_lane === COORDINATOR);
     if (familyPolicy === 'require') reviewable = reviewable.filter(hasDifferentFamily);
     if (familyPolicy === 'prefer') reviewable.sort((first, second) => Number(hasDifferentFamily(second)) - Number(hasDifferentFamily(first)));
@@ -1977,7 +1973,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const group = item => focus?.ids.has(item.item_id) ? -1 : milestonePriority(item);
     const order = criticalPathEnabled(board) ? criticalPathOrder({ items: listItems(board, { all: true }), group, fallback: previousOrder }) : previousOrder;
     candidates.sort((first, second) => order(first.entry, second.entry));
-    candidates.sort((a, b) => focusCompare(a.entry, b.entry));
+    reviewRouting.prioritizeReviews(board, candidates, priority, focusCompare);
     const item = candidates.find((candidate) => !candidate.holder && !candidate.cooldown)?.entry;
     if (item) return { item, reasons: focusReasons(board, item) };
     const held = candidates.filter((candidate) => candidate.holder && candidate.holder !== agentId)
@@ -2201,7 +2197,6 @@ export function recordRowDecisions(board, { agentId, channel, decisions }) {
 export function applyRowDecisions(board, options) {
   return applySpecRowDecisions(board, options, { refreeze, writeRowDecisions, notice: message => insertShout(board, message) });
 }
-
 
 export { recentShouts, eventsOfKinds, recentEvents, lastMoves, decisionAndEvidenceShouts, submitInvariantEvents } from './board-hot.js';
 
