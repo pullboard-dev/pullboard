@@ -1,3 +1,5 @@
+import { trailer } from './test-outcomes.js';
+import { notify } from './test-outcomes.js';
 /** Parent-controlled file admission and one structured result stream [C7]. */
 /** @pullboard-module-loads ** */
 // Native test files are caller-selected, just as in bin/run-tests.js.
@@ -18,17 +20,12 @@ import { pathToFileURL } from 'node:url';
 import { testsNeedBrowser } from './browser-admission.js';
 import { takeResource } from './resources.js';
 import { reserveTestFileToken } from './test-file-pool.js';
+import { testOutcomeCollector } from './test-outcomes.js';
 import { TEST_FILE_POOL_ENV } from './test-file-pool.js';
 import {
   bindTestRuntime,
   testRuntimeImport,
 } from './execution-environment.js';
-
-/** Counter trailers are identified by their structured root-plan boundary, never by parsing test stdout/TAP. */
-function trailer(event, afterPlan) {
-  return afterPlan && event.type === 'test:diagnostic' && event.data.nesting === 0
-    && /^(?:tests|suites|pass|fail|cancelled|skipped|todo|duration_ms) [0-9]/u.test(event.data.message);
-}
 
 /** One parent FIFO reservation at a time; transferred actual workers may remain live concurrently. */
 function acquisitionQueue() {
@@ -40,11 +37,6 @@ function acquisitionQueue() {
     await prior;
     return release;
   };
-}
-
-/** Feed one event to named live listeners, while ordered reporter data is published separately. */
-function notify(stream, event) {
-  stream.emit(event.type, event.data);
 }
 
 /** Set only this actual worker's legitimately reserved admission before its ordinary runner preload. */
@@ -88,6 +80,7 @@ function fileExitObserver(bootstrap, file) {
  */
 export function dispatchTestFiles(options, env) {
   const stream = new PassThrough({ objectMode: true });
+  const testOutcomes = testOutcomeCollector(process.cwd());
   const controller = new AbortController();
   const abort = () => controller.abort(options.signal?.reason);
   if (options.signal?.aborted) abort();
@@ -160,6 +153,7 @@ export function dispatchTestFiles(options, env) {
           if (event.type === 'test:plan' && event.data.nesting === 0) { afterPlan = true; continue; }
           if (event.type === 'test:summary' && !event.data.file) { summary = event.data; continue; }
           if (trailer(event, afterPlan)) continue;
+          testOutcomes.observe(event);
           notify(stream, event);
           events.push(event);
         }
@@ -208,6 +202,8 @@ export function dispatchTestFiles(options, env) {
       for (const summary of summaries) for (const key of Object.keys(counts)) counts[key] += summary.counts[key] ?? 0;
       const duration = performance.now() - started;
       const summary = { counts, duration_ms: duration, success: !signal.aborted && summaries.every(value => value.success) };
+      stream.testOutcomes = testOutcomes.finish(!signal.aborted && summaries.length === files.length
+        && counts.cancelled === 0, counts.tests);
       const final = [{ type: 'test:plan', data: { nesting: 0, count: counts.topLevel } }];
       for (const [name, key] of [['tests', 'tests'], ['suites', 'suites'], ['pass', 'passed'], ['fail', 'failed'],
         ['cancelled', 'cancelled'], ['skipped', 'skipped'], ['todo', 'todo']]) {
@@ -231,6 +227,7 @@ export async function reportDispatchedTests(options, env, loadCustomReporter) {
   const ends = [];
   let reporterError;
   let successful = false;
+  let testOutcomes = null;
   const completedFiles = new Set();
   const originalEnv = { ...process.env };
   /** Reporter failures stop new dispatch while existing actual workers drain through their normal signal path. */
@@ -267,6 +264,7 @@ export async function reportDispatchedTests(options, env, loadCustomReporter) {
       } }, env);
     try {
       for await (const event of source) for (const input of inputs) input.write(event);
+      testOutcomes = source.testOutcomes;
     } catch (error) { failed(error); }
   } finally {
     for (const input of inputs) input.end();
@@ -275,7 +273,7 @@ export async function reportDispatchedTests(options, env, loadCustomReporter) {
     Object.assign(process.env, originalEnv);
   }
   if (reporterError) throw reporterError;
-  return { status: successful ? 0 : 1, signal: null, completedFiles: [...completedFiles],
+  return { status: successful ? 0 : 1, signal: null, testOutcomes, completedFiles: [...completedFiles],
     collectionComplete: !controller.signal.aborted && options.files?.length > 0 && options.files.every(file => completedFiles.has(file)) };
 }
 
