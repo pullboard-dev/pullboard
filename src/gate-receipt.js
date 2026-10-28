@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { repoInfo } from './git.js';
-import { runnerPhaseLine } from './runner-overhead.js';
+import { runnerPhaseLine } from './timing.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

@@ -67,7 +67,7 @@ import {
 } from './git.js';
 import { Refused } from './refused.js';
 import { recordRunnerGui } from './resources.js';
-import { runnerPhaseFields } from './runner-overhead.js';
+import { runnerPhaseFields } from './timing.js';
 import {
   privateCheckEnvelope,
   privateCheckPhases,

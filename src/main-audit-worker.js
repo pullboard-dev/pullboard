@@ -35,15 +35,6 @@ import {
 } from 'node:path';
 import * as store from './board.js';
 import {
-  context,
-} from './cli.js';
-import {
-  ordered,
-} from './cli.js';
-import {
-  withBoard,
-} from './cli.js';
-import {
   codeIsFromMain,
 } from './git.js';
 import {
@@ -94,7 +85,7 @@ function readBoard(info, action) {
   try { return action(board); } finally { store.closeBoard(board); }
 }
 /** Bound ordinary native/relay writes retain exact session and origin receipt validation. */
-function writer(root) {
+function writer(root, { context, ordered, withBoard }) {
   const io = { cwd: root, say() {}, err() {}, stderr: { write() {} } };
   const ctx = context(io);
   return (operation, args) => withBoard(ctx, board => ordered(ctx, board, operation, args));
@@ -268,7 +259,7 @@ async function audit(root, directory, job, write, options) {
   }
 }
 /** Drain finite snapshots until all wakes observed by this owner have been serviced. */
-export async function runMainAudits(root, token, { scheduled = false, forceFull = false } = {}) {
+export async function runMainAudits(root, token, { scheduled = false, forceFull = false } = {}, services) {
   const info = repoInfo(root);
   if (!info.isMain || !codeIsFromMain() || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
   const directory = mainAuditDirectory(info); mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -299,7 +290,8 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
   let generation = acquired;
   const visited = new Set(); // Never hot-retry an incomplete obligation in a wake-draining invocation.
   try {
-    const write = writer(root);
+    if (!['context', 'ordered', 'withBoard'].every(name => typeof services?.[name] === 'function')) throw new TypeError('main audit needs explicit native writer services');
+    const write = writer(root, services);
     for (;;) {
       const jobs = snapshot(root, info, activation);
       for (const job of scheduled || forceFull ? jobs.slice(-1) : jobs) {

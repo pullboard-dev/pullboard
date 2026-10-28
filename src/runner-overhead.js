@@ -1,5 +1,5 @@
 /** Executor phase accounting and bounded cache-tip validation without additional profiling runs [C7]. */
-const PHASES = ['prepareMs', 'capacityWaitMs', 'sourceMs', 'dependenciesMs', 'commandMs', 'cleanupMs'];
+import { PHASES } from './timing.js';
 
 /** Preserve exact cache-tip type checks while replacing one Git launch per tip with one batch. */
 export function validateCacheTips(tips, output) {
@@ -38,20 +38,6 @@ export function startRunnerPhases(clock = () => performance.now()) {
     return { ...finished };
   }
   return { mark, finish };
-}
-
-/** Reject contradictory phase arithmetic; absence from an older worker remains unmeasured. */
-export function runnerPhaseFields(value) {
-  if (!value || value.version !== 1 || ![...PHASES, 'totalMs'].every(name => Number.isSafeInteger(value[name]) && value[name] >= 0)
-    || PHASES.reduce((sum, name) => sum + value[name], 0) !== value.totalMs) return null;
-  return { version: 1, ...Object.fromEntries(PHASES.map(name => [name, value[name]])), totalMs: value.totalMs };
-}
-
-/** Print actual executor intervals separately from controller admission and transport time. */
-export function runnerPhaseLine(value) {
-  const phases = runnerPhaseFields(value);
-  if (!phases) return '';
-  return `executor: ${PHASES.map(name => `${name.slice(0, -2)} ${(phases[name] / 1000).toFixed(2)}s`).join(', ')}; total ${(phases.totalMs / 1000).toFixed(2)}s`;
 }
 
 /** Decode exact bounded cat-file frames before converting annotation bytes to UTF-8. */

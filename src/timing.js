@@ -144,3 +144,21 @@ export function* logLines(path) {
 export function timingFromLog(path, runner) {
   return timingFromOutput(logLines(path), runner);
 }
+
+/** The disjoint executor intervals used by worker measurement and controller receipts [C7]. */
+export const PHASES = ['prepareMs', 'capacityWaitMs', 'sourceMs', 'dependenciesMs', 'commandMs', 'cleanupMs'];
+
+/** Reject contradictory phase arithmetic; absence from an older worker remains unmeasured. */
+export function runnerPhaseFields(value) {
+  if (!value || value.version !== 1 || ![...PHASES, 'totalMs'].every(name => Number.isSafeInteger(value[name]) && value[name] >= 0)
+    || PHASES.reduce((sum, name) => sum + value[name], 0) !== value.totalMs) return null;
+  return { version: 1, ...Object.fromEntries(PHASES.map(name => [name, value[name]])), totalMs: value.totalMs };
+}
+
+/** Print actual executor intervals separately from controller admission and transport time. */
+export function runnerPhaseLine(value) {
+  const phases = runnerPhaseFields(value);
+  if (!phases) return '';
+  return `executor: ${PHASES.map(name => `${name.slice(0, -2)} ${(phases[name] / 1000).toFixed(2)}s`).join(', ')}; total ${(phases.totalMs / 1000).toFixed(2)}s`;
+}
+

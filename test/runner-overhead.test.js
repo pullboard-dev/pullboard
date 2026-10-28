@@ -12,11 +12,11 @@ import {
   test,
 } from 'node:test';
 import {
-  runnerPhaseFields,
-  runnerPhaseLine,
   startRunnerPhases,
   validateCacheTips,
 } from '../src/runner-overhead.js';
+import { runnerPhaseFields } from '../src/timing.js';
+import { runnerPhaseLine } from '../src/timing.js';
 import { runnerUtilization } from '../src/runner-utilization.js';
 import {
   receiptLine,
