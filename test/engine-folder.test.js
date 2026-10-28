@@ -34,7 +34,10 @@ function fixture(t) {
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(root, 'src', 'sample-engine.js'), '/** The sample move engine. */\nexport const SAMPLE_ENGINE = 17;\n');
   writeFileSync(join(root, 'src', 'move.js'), "import { SAMPLE_ENGINE } from './sample-engine.js';\nexport function move() { return { operation: 'sample', engine: SAMPLE_ENGINE }; }\n");
-  for (const file of ['engine-numbers.js', 'engine-next.js', 'discovery.js']) cpSync(new URL(`../src/${file}`, import.meta.url), join(root, 'src', file));
+  for (const file of ['engine-numbers.js', 'engine-next.js', 'discovery.js']) {
+    const source = file === 'discovery.js' ? '../packages/kernel/src/core/discovery.js' : `../src/${file}`;
+    cpSync(new URL(source, import.meta.url), join(root, 'src', file));
+  }
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
   runFixtureGit(['add', '.'], { cwd: root });
   return root;
