@@ -12,6 +12,25 @@ import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
 
 const IMPORT = "import { join } from 'node:path';\n";
 
+test('named metadata leaves and complete moved-body tails keep their exact input boundary [C7]', () => {
+  const prefix = "import { readFileSync } from 'node:fs'; import { join } from 'node:path';\n";
+  const options = { file: 'test/input-boundaries.js', moves: [
+    ['src/git.js', 'packages/git/src/shell/git.js'],
+    ['src/git-launch-baseline.json', 'packages/git/src/shell/git-launch-baseline.json'],
+  ] };
+  for (const body of [
+    "const FILE = 'bin/cells-plan/transition.json'; readFileSync(join(root, FILE));",
+    "readFileSync(join(box.repo, 'packages', 'git', 'src', 'shell', 'git.js'));",
+  ]) assert.deepEqual(fixtureSourceEdits(prefix + body, options), { edits: [], problems: [] });
+  for (const body of [
+    "const FILE = 'src/git-launch-baseline.json'; readFileSync(join(root, FILE));",
+    "readFileSync(join(root, 'src', 'git.js'));",
+    "readFileSync(join(root, 'packages', '..', 'src', 'git.js'));",
+    "const FILE = 'transition.json'; function read(FILE) { readFileSync(join(root, FILE)); }",
+    "let FILE = 'transition.json'; FILE = unknown; readFileSync(join(root, FILE));",
+  ]) assert.ok(fixtureSourceEdits(prefix + body, options).problems.length, body);
+});
+
 /** Hide only this actual import declaration, just as the production callers do; every other spelling stays visible. */
 function proof(body) {
   const source = IMPORT + body;

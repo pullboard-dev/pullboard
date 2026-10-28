@@ -410,7 +410,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
       return declared ? leafName(declared, new Set([...seen, name])) : null;
     }
     const parsed = call(range), method = parsed && operation(parsed, 'path', ['join', 'resolve']);
-    return method && parsed.args.length > 1 ? literal(parsed.args.at(-1)) : parsed ? producerLeaf(parsed) : null;
+    return method && parsed.args.length > 1 ? leafName(parsed.args.at(-1), seen) : parsed ? producerLeaf(parsed) : null;
   }
 
   /** A proven whole string tail cannot name any moved basename, regardless of its unevaluated prefix. */
@@ -421,13 +421,39 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
       return declared ? disjointSuffix(declared, new Set([...seen, name])) : false;
     }
     const parsed = call(range);
-    if (parsed && operation(parsed, 'path', ['join']) && parsed.args.length > 1) range = parsed.args.at(-1);
+    if (parsed && operation(parsed, 'path', ['join']) && parsed.args.length > 1) return disjointSuffix(parsed.args.at(-1), seen);
     return stringSuffixDisjoint({ source, code, strings, range, close }, [...moved.keys()].map(from => posix.basename(from)));
+  }
+
+  /** Resolve an immutable string operand without evaluating a caller or a computed property. */
+  function closedString(range, seen = new Set()) {
+    const value = literal(range);
+    if (value !== null) return value;
+    const name = code.slice(range.start, range.end);
+    if (!new RegExp(`^${ID}$`, 'u').test(name) || seen.has(name)) return null;
+    const declared = constant(name, range.start);
+    return declared ? closedString(declared, new Set([...seen, name])) : null;
+  }
+
+  /** A closed trailing path cannot name an old source when even its complete suffix is disjoint. */
+  function disjointPathTail(range) {
+    const parsed = call(range);
+    if (!parsed || !operation(parsed, 'path', ['join', 'resolve']) || parsed.args.length < 2) return false;
+    const tail = [];
+    for (let index = parsed.args.length - 1; index > 0; index--) {
+      const value = closedString(parsed.args[index]);
+      if (value === null) break;
+      if (!value || posix.isAbsolute(value) || value.split('/').some(part => !part || part === '.' || part === '..')) return false;
+      tail.unshift(...value.split('/'));
+    }
+    if (!tail.length) return false;
+    const suffix = tail.join('/');
+    return ![...moved.keys()].some(from => from === suffix || from.endsWith('/' + suffix));
   }
 
   /** Edit only the fs source argument; unsupported source construction never masquerades as success. */
   function sourceArgument(range, reader, regularFile) {
-    if (regularFile && disjointSuffix(range)) return;
+    if (regularFile && (disjointSuffix(range) || disjointPathTail(range))) return;
     const dynamic = [...code.slice(range.start, range.end).matchAll(new RegExp(`\\b(${ID})\\b`, 'gu'))]
       .map(match => ({ name: match[1], at: range.start + match.index })).filter(row => loops.some(loop => loop.name === row.name && row.at > loop.body && row.at < loop.end));
     const variables = [...new Set(dynamic.map(row => row.name))];
