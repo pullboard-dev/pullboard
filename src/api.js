@@ -1,3 +1,5 @@
+import { viewFlowSummary } from './view-state-summary.js';
+import { proofStats } from './stats.js';
 import { buildLocalBoardState } from './native-board-state.js';
 import { stateFileInputs } from './native-board-state.js';
 import { fileRevision } from './native-board-state.js';
@@ -519,7 +521,7 @@ function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, o
   if (refreshFlow && preparedFlow) {
     projection.proofStats = {
       ...state.proofStats,
-      flow: projectFlowStats(preparedFlow, null, observedAt, state.proofStats),
+      flow: viewFlowSummary(projectFlowStats(preparedFlow, null, observedAt, state.proofStats)),
     };
   }
   return { ...state, ...projection, observedAt: new Date(observedAt).toISOString() };
@@ -1085,6 +1087,8 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       return { ...watcher, revision: () => withGitReadFacts(() => watcher.revision()) };
     },
     delta: (board, who, seen, options) => withGitReadFacts(() => localDelta(board, seen, options)),
+    proof: (board, id) => withGitReadFacts(() => withReadBoard(board.root, current =>
+      proofStats(current, { now: now() }).flow.report?.items?.find(item => item.id === id) ?? null, codeIsMain)),
     item: (board, id) => withGitReadFacts(() => localItem(board, id)),
     search: (board, text) => withGitReadFacts(() => localSearch(board, text)),
     shout: (board, id) => withGitReadFacts(() => relayLinked(board.root)

@@ -16,6 +16,8 @@ import { listApiProjects } from './projects.js';
 import { nativeStateClockWindow } from './native-state-clock.js';
 import { milestoneRoadmap } from './roadmap.js';
 import { proofStats } from './stats.js';
+import { activeViewAgents } from './view-state-summary.js';
+import { viewProofSummary } from './view-state-summary.js';
 import { ruleProofCounts } from './rule-proof-counts.js';
 import { milestoneNamesByItem } from './item-list.js';
 import { withListFields } from './item-list.js';
@@ -82,7 +84,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       }
       return previous.items.get(item.item_id);
     } });
-    state.agents = state.agents.map((agent) => ({ ...agent, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names) }));
+    const allAgents = state.agents;
+    state.agents = activeViewAgents(state.agents, observedAt).map((agent) => ({ ...agent, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names) }));
     state.board = boardId;
     state.observedAt = new Date(observedAt).toISOString();
     state.decisionQueue = store.openDecisions(board, COORDINATOR);
@@ -93,7 +96,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
         ? milestoneRoadmap(root, board)
         : milestoneRoadmap(root, board, { projects, hideOutOfScope: true }),
       rowDecisions: store.rowDecisions(board),
-      proofStats: proofStats(board, { now: observedAt }),
+      proofStats: viewProofSummary(proofStats(board, { now: observedAt })),
     };
     state.proofStats = projectData.proofStats;
     state.requests = projectData.requests;
@@ -129,7 +132,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       milestone: milestoneNames.get(item.item_id) ?? null,
     }]));
     const history = store.events(board);
-    const clockWindow = nativeStateClockWindow(listFields.state, history, currentItems, observedAt);
+    const clockWindow = nativeStateClockWindow({ ...listFields.state, agents: allAgents }, history, currentItems, observedAt);
     board.db.exec('COMMIT');
     return { state: listFields.state, itemMeta, itemMoveCounts: listFields.itemMoveCounts, sequence, history, clockWindow };
   } catch (error) {
