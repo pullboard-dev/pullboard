@@ -1,5 +1,9 @@
 /** Tell a fixture's module references to a moved source from the reads and copies a move must repoint [C7]. */
 
+import { posix } from 'node:path';
+
+const CANONICAL_COPIER = 'src/package-files.js';
+
 /** Escape one file name for a literal match inside a regular expression. */
 function escaped(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
@@ -43,13 +47,16 @@ function enclosingCalls(code, at) {
  * @param {string} source - The fixture module text.
  * @param {{code: string, strings: Array<{start: number, end: number, text: string}>}} scanned - Its lexed form.
  * @param {string[]} basenames - File names of the moved sources.
+ * @param {string} file - The fixture's repository path, which resolves its relative import specifiers.
  * @param {(name: string, at: number) => boolean} provenCopier - True only when the callee at an offset is the imported, unshadowed binding.
  * @returns {Array<{start: number, end: number, text: string}>} The operational mentions.
  */
-export function operationalMentions(source, scanned, basenames, provenCopier = () => false) {
+export function operationalMentions(source, scanned, basenames, provenCopier = () => false, file = '') {
   const { code, strings } = scanned;
   const copierNames = new Set();
-  for (const match of source.matchAll(/\bimport\s*\{([^}]*)\}\s*from\s*['"][^'"]*\/package-files\.js['"]/gu)) {
+  for (const match of source.matchAll(/\bimport\s*\{([^}]*)\}\s*from\s*['"](\.\.?\/[^'"]*)['"]/gu)) {
+    // Only the repository's canonical copier counts: the specifier must resolve from this file to src/package-files.js.
+    if (posix.normalize(posix.join(posix.dirname(file), match[2])) !== CANONICAL_COPIER) continue;
     for (const entry of match[1].split(',')) {
       const named = /^\s*toolSourcePath(?:\s+as\s+([\w$]+))?\s*$/u.exec(entry);
       if (named) copierNames.add(named[1] ?? 'toolSourcePath');
