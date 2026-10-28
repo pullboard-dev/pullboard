@@ -114,6 +114,36 @@ test('raw storage refuses absent providers before filesystem effects and closes 
 });
 
 
+test('incomplete engine capabilities refuse before storage exists [C7,B1]', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-engine-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'never-created', 'board.sqlite');
+  const ports = native.nativeBoardPorts();
+  for (const key of ['store', 'registry', 'sealSourceAdvance']) {
+    const enginePorts = { ...ports.enginePorts };
+    delete enginePorts[key];
+    assert.throws(() => {
+      const board = native.openBoard(file, undefined, { ports: { ...ports, enginePorts } });
+      native.closeBoard(board);
+    }, error => error.code === 'NO_POLICY' && error.message.includes(`enginePorts.${key}`));
+    assert.equal(existsSync(join(directory, 'never-created')), false);
+  }
+});
+
+test('missing native person identity refuses before storage exists [C7,B1]', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-person-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'never-created', 'board.sqlite');
+  const ports = native.nativeBoardPorts();
+  const nativePorts = { ...ports.nativePorts };
+  delete nativePorts.PERSON;
+  assert.throws(() => {
+    const board = native.openBoard(file, undefined, { ports: { ...ports, nativePorts } });
+    native.closeBoard(board);
+  }, error => error.code === 'NO_POLICY' && error.message.includes('nativePorts.PERSON'));
+  assert.equal(existsSync(join(directory, 'never-created')), false);
+});
+
 test('native read wrappers carry explicit capabilities while SQLite remains read-only and schema-preserving [C7,A5,A6]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-native-read-'));
   const file = join(directory, 'board.sqlite');
