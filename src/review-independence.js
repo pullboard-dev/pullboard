@@ -7,7 +7,9 @@ import { saveReviewFamily } from './required-review-family.js';
 import { validateReviewFamily } from './required-review-family.js';
 import { Refused } from './refused.js';
 import { familyName } from './review-policy.js';
+import { familyAliasesOf } from './review-policy.js';
 import { itemReviewPolicy } from './review-policy.js';
+import { FAMILY_ALIAS_ENGINE } from './family-alias-engine.js';
 import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
 export { itemReviewPolicy } from './review-policy.js';
 
@@ -76,9 +78,9 @@ export function strictReviewProblem(board, item, reviewer) {
 
 /** A strict item's builder must declare a vendor family, or no other vendor can review it; the fix is to join with one [#1762]. */
 export function strictBuilderFamilyProblem(board, item, builderId) {
-  if (!twoTierReviews(board) || itemReviewPolicy(board, item.item_id).tier !== 'strict') return null;
+  if (!twoTierReviews(board) || (board.executionEngineVersion ?? ENGINE_VERSION) < FAMILY_ALIAS_ENGINE || itemReviewPolicy(board, item.item_id).tier !== 'strict') return null;
   const declared = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(builderId)?.agent_family;
-  return familyName(declared, board.familyAliases) ? null
+  return familyName(declared, familyAliasesOf(board)) ? null
     : new Refused('UNDECLARED_BUILDER_FAMILY', `#${item.item_id} is strict and ${builderId} declared no vendor family; rejoin with: pullboard join <lane> --family <vendor>, then resubmit`);
 }
 
@@ -87,8 +89,8 @@ export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off')
   if (!twoTierReviews(board)) return null;
   const policy = itemReviewPolicy(board, item.item_id);
   const declared = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(reviewer)?.agent_family;
-  const family = familyName(declared, board.familyAliases);
-  const builder = familyName(item.item_builder_family, board.familyAliases);
+  const family = familyName(declared, familyAliasesOf(board));
+  const builder = familyName(item.item_builder_family, familyAliasesOf(board));
   if (lineSettings(board).requireReviewFamilies === true && (!family || !builder)) {
     return new Refused('O2_FAMILY_MATCH', 'this board requires declared vendor families for fresh reviews; declare --family when starting each seat, then resubmit if the submitted builder family was unknown');
   }
@@ -96,7 +98,7 @@ export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off')
   if (familyPolicy === 'require' && (!family || !builder || family === builder)) {
     return new Refused('O2_FAMILY_MATCH', `#${item.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`);
   }
-  if (policy.reviewFamily && family !== familyName(policy.reviewFamily, board.familyAliases)) {
+  if (policy.reviewFamily && family !== familyName(policy.reviewFamily, familyAliasesOf(board))) {
     return new Refused('O2_FAMILY_MATCH', `Strict review requires declared vendor family ${policy.reviewFamily}; ask a reviewer from that family`);
   }
   return null;

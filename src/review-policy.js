@@ -2,6 +2,8 @@ import { classifiedStrict } from './review-tier.js';
 import { reviewTierFloor } from './review-tier.js';
 import { REVIEW_ROUTING_ENGINE } from './review-routing-engine.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from './review-independence-engine.js';
+import { ENGINE_VERSION } from './engine-metadata.js';
+import { FAMILY_ALIAS_ENGINE } from './family-alias-engine.js';
 import { Refused } from './refused.js';
 
 /** Index the explicit alias list once: each declared spelling, lowercased, names its canonical family [#1762]. */
@@ -11,6 +13,11 @@ export function familyIndex(families) {
     for (const name of [canonical, ...aliases]) index.set(name.trim().toLowerCase(), canonical.trim().toLowerCase());
   }
   return index;
+}
+
+/** The alias index applies only at or above its engine, so sealed older moves keep the comparison they were recorded under [#1762]. */
+export function familyAliasesOf(board) {
+  return (board.executionEngineVersion ?? ENGINE_VERSION) >= FAMILY_ALIAS_ENGINE ? board.familyAliases ?? null : null;
 }
 
 /** A declared vendor label is compared as text, never inferred from a model or diagnostic; only the explicit alias index maps spellings to one family. */

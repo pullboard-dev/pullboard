@@ -17,6 +17,11 @@ import { prepareEngineMove } from '../src/engine.js';
 import { applyEngineMove } from '../src/engine.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import { familyIndex } from '../src/review-policy.js';
+import { FAMILY_ALIAS_ENGINE } from '../src/family-alias-engine.js';
+import { withOpenedBoard } from '../src/cli-read-context.js';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const LEASE = 3_600_000;
 const freeze = () => ({ text: '{}', digest: 'synthetic-review-bar' });
@@ -405,4 +410,71 @@ test('aliases installed by the production accessor reach the review projection, 
   const projected = reviewEligibility(f.board, item, { familyPolicy: 'require' });
   assert.equal(projected.eligible.includes('core-6'), false, 'an OpenAI reviewer of a codex builder is the same vendor on the production path');
   assert.ok(projected.ineligible.some(row => row.agent === 'core-6' && row.code === 'O2_FAMILY_MATCH'));
+});
+
+/** Register one extra seat with a declared vendor family and its own persisted parent session. */
+function joinSeat(board, id, family, parent) {
+  store.register(board, { id, lane: 'core', path: `/fixture/${id}`, family, parentDigest: parent.repeat(64), model: 'Synthetic fixture model' });
+}
+
+test('a companion patch author of another spelling blocks that vendor from reviewing a strict item [V4,B26,H16]', t => {
+  const f = fixture(t), id = f.add({ sensitive: true });
+  joinSeat(f.board, 'core-6', 'OpenAI', '6');
+  joinSeat(f.board, 'core-7', 'gemini', '7');
+  const item = f.submit(id, 'core-2');
+  const author = { agentId: 'core-1', parentSession: null, session: null };
+  f.board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(`item_patches:${id}`,
+    JSON.stringify({ version: 1, patches: [{ key: 'companion', commit: 'c'.repeat(40), digest: 'd'.repeat(64), active: true, author }] }));
+  assert.ok(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-6'), 'without an alias, OpenAI is not the codex companion family');
+  f.board.familyAliases = familyIndex({ openai: ['codex'] });
+  const projected = reviewEligibility(f.board, item, { familyPolicy: 'require' });
+  assert.equal(projected.eligible.includes('core-6'), false, 'the companion author is codex, which the alias list says is OpenAI');
+  assert.ok(projected.ineligible.some(row => row.agent === 'core-6' && row.code === 'O2_FAMILY_MATCH'));
+  assert.ok(projected.ineligible.some(row => row.agent === 'core-1'), 'the companion author is itself excluded');
+  assert.ok(projected.eligible.includes('core-7'), 'a third vendor remains eligible');
+  assert.throws(() => f.reserve(id, 'core-6'), { code: 'O2_FAMILY_MATCH' });
+});
+
+test('the real withOpenedBoard installs the alias list from accepted main and the projection keeps it [V4,B26]', t => {
+  const e2e = createE2eHelpers(); t.after(e2e.cleanup);
+  const box = e2e.project('true');
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, families: { openai: ['codex'] } }, null, 2));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: declare vendor aliases');
+  const f = fixture(t), id = f.add();
+  joinSeat(f.board, 'core-6', 'OpenAI', '6');
+  const item = f.submit(id);
+  assert.ok(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-6'), 'before opening, no alias index exists');
+  const eligible = withOpenedBoard({ info: { root: box.repo, isMain: true }, io: {} }, board => reviewEligibility(board, item, { familyPolicy: 'require' }), f.board);
+  assert.equal(eligible.eligible.includes('core-6'), false, 'an alias committed on main reaches the review projection through the production opener');
+  assert.ok(eligible.eligible.includes('core-2'));
+});
+
+test('aliases and the strict builder rule apply only from their engine; an older sealed move replays unchanged [C7,V4,B26,H16]', t => {
+  const f = fixture(t, { requireFamilies: false });
+  f.board.clock = { now: () => new Date('2026-10-28T00:02:00.000Z') };
+  joinSeat(f.board, 'core-6', 'OpenAI', '6');
+  const id = f.add({ sensitive: true, reviewFamily: null }), item = f.submit(id);
+  assert.ok(item, 'the strict item is submitted by a codex builder');
+  f.board.familyAliases = familyIndex({ openai: ['codex'] });
+  const options = { agentId: 'core-6', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'off' };
+  const old = { ...prepareEngineMove(f.board, 'reserveReview', [id, options], { id: 'genuine-pre-alias-reservation' }), engine: FAMILY_ALIAS_ENGINE - 1 };
+  const first = applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-28T00:01:00.000Z' });
+  assert.equal(first.error, undefined, 'recorded before aliases existed, OpenAI and codex were two vendors');
+  const receipt = f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value;
+  store.release(f.board, id, 'core-6', 'Release the historical review before the alias engine applies.');
+  f.board.clock = { now: () => new Date('2026-10-28T01:03:00.000Z') };
+  const fresh = prepareEngineMove(f.board, 'reserveReview', [id, options]);
+  assert.equal(applyEngineMove(f.board, fresh, { sequence: 2, at: '2026-10-28T01:04:00.000Z' }).error?.code, 'O2_FAMILY_MATCH', 'the current engine applies the alias');
+  const after = exportBoard(f.board);
+  assert.deepEqual(applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-28T00:01:00.000Z' }), first);
+  assert.equal(f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value, receipt);
+  assert.deepEqual(exportBoard(f.board), after, 'the older receipt keeps its exact outcome and bytes');
+  // The undeclared-builder refusal is equally fenced: a strict submit under an older engine still records.
+  const older = fixture(t), strictId = older.add({ sensitive: true });
+  older.board.executionEngineVersion = FAMILY_ALIAS_ENGINE - 1;
+  joinSeat(older.board, 'core-8', null, '8');
+  store.claim(older.board, strictId, { agentId: 'core-8', lane: 'core', leaseMs: LEASE, freeze });
+  assert.doesNotThrow(() => store.submit(older.board, strictId, { agentId: 'core-8', commit: 'c'.repeat(40), tree: 'd'.repeat(40), files: [] }));
 });

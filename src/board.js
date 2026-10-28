@@ -13,6 +13,7 @@ import { saveItemReviewPolicy } from './review-independence.js';
 import { twoTierReviews } from './review-independence.js';
 import { strictBuilderFamilyProblem } from './review-independence.js';
 import { familyName } from './review-policy.js';
+import { familyAliasesOf } from './review-policy.js';
 import { setItem } from './item-fields.js';
 import {
   idleReason,
@@ -1793,8 +1794,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;
   if (verify) {
-    const family = familyName(board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family, board.familyAliases);
-    const hasDifferentFamily = (entry) => Boolean(family && entry.item_builder_family && family !== familyName(entry.item_builder_family, board.familyAliases));
+    const family = familyName(board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family, familyAliasesOf(board));
+    const hasDifferentFamily = (entry) => Boolean(family && entry.item_builder_family && family !== familyName(entry.item_builder_family, familyAliasesOf(board)));
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
     const standingRefusal = unrelated.map((entry) => itemAuthorProblem(board, entry, agentId) ?? reviewFamilyProblem(board, entry, agentId, familyPolicy)).find(Boolean);
     const requiredRefusals = unrelated.map(entry => reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId)).filter(Boolean);
