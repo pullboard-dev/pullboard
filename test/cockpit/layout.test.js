@@ -35,6 +35,7 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.click("document.querySelector('[data-tab=\"items\"]')");
     await chrome.waitFor('document.querySelectorAll("#chain .row").length === 2');
     // This machine's fonts first, then a wide one (Verdana here, DejaVu Sans on Linux) at 320 and at 305,
     // the room a 320px screen leaves beside a classic 15px scrollbar: Linux CI measured 324px of tabs there.
