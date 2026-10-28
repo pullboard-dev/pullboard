@@ -229,8 +229,10 @@ function main(argv) {
   const [mode = '--check', ...rest] = argv;
   const root = resolve('.');
   if (mode === '--refresh-cuts') {
+    const plan = readPlan(root), missing = unplanned(root, plan);
+    if (missing.length) throw new Refused('CELLS_PLAN_UNPLANNED', `cannot refresh cuts for unplanned tracked sources: ${missing.join(', ')}; place them through the plan generator first`);
     const { edges } = cellInventory(root, { importsIn, commonJsIn });
-    writePlan(root, refreshPlanCuts(readPlan(root), edges, readPathMap(root)));
+    writePlan(root, refreshPlanCuts(plan, edges, readPathMap(root)));
     return 0;
   }
   if (mode === '--write') {

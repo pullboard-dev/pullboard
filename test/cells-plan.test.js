@@ -226,3 +226,18 @@ test('cut metadata refresh preserves frozen moves and records only current real 
   const removed = refreshPlanCuts(refreshed, cellInventory(root, { importsIn, commonJsIn }).edges, readPathMap(root));
   assert.ok(!removed.cells.find(cell => cell.name === later.name).cuts.some(row => row.cell === early.name), 'removed source edges cannot remain authorized cuts');
 });
+
+
+test('cut refresh refuses a newly tracked unplanned endpoint without changing any plan bytes [C7,D3,CD64]', t => {
+  const { root, put } = fixture(t), plan = computePlan(root);
+  writePlan(root, plan);
+  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'frozen fixture plan');
+  put('src/unplanned-provider.js', 'export const provider = 1;\n');
+  put('src/refused.js', "import { provider } from './unplanned-provider.js';\nexport class Refused extends Error {}\n");
+  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'unplanned real endpoint');
+  const run = runFixtureChild(process.execPath, [BIN, '--refresh-cuts'], { cwd: root, encoding: 'utf8' });
+  assert.notEqual(run.status, 0, 'an unowned endpoint cannot silently disappear from refreshed cuts');
+  assert.match(run.stderr, /CELLS_PLAN_UNPLANNED.*src\/unplanned-provider\.js/su);
+  assert.deepEqual(readPlan(root), plan, 'refusal preserves the exact prior plan');
+  assert.equal(git(root, 'diff', '--', 'bin/cells-plan.json', 'bin/cells-plan').stdout, '', 'no partial generated writes survive refusal');
+});
