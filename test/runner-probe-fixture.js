@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { writeFileSync } from 'node:fs';
 /** Build one committed probe that observes the actual checkout and remote process environment. */
 export function writeProbe(repo, { remoteStateRoot, remoteMachineHome, sourceHome, sourceMachineHome, callerPool, callerToken,
-  historyBaseCommit, annotatedTagObject, lightweightTagObject }) {
+  historyBaseCommit, annotatedTagObject, lightweightTagObject, batchTagObjects = [] }) {
   const probe = `import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -34,6 +34,14 @@ test('runner executed the committed source in its private checkout', () => {
     ${JSON.stringify(annotatedTagObject)}, 'the annotated tag ref keeps its original object identity');
   assert.equal(execFileSync('git', ['rev-parse', 'refs/tags/runner-lightweight'], { encoding: 'utf8' }).trim(),
     ${JSON.stringify(lightweightTagObject)}, 'the lightweight tag ref points to its original commit');
+  const batchTagObjects = ${JSON.stringify(batchTagObjects)};
+  const actualTagObjects = new Map(execFileSync('git', ['for-each-ref', '--format=%(refname) %(objectname)', 'refs/tags'],
+    { encoding: 'utf8' }).trim().split('\\n').map(line => line.split(' ')));
+  for (const [name, object] of batchTagObjects) assert.equal(actualTagObjects.get(name), object, 'every delivered tag keeps its exact object across fetch batches');
+  if (batchTagObjects.length) {
+    const peeled = execFileSync('git', ['rev-parse', '--revs-only', '--end-of-options', ...batchTagObjects.map(([name]) => name + '^{}')], { encoding: 'utf8' }).trim().split('\\n');
+    assert.deepEqual(peeled, batchTagObjects.map(() => ${JSON.stringify(historyBaseCommit)}), 'nested annotations and lightweight aliases all peel to their exact candidate ancestor');
+  }
   const annotation = execFileSync('git', ['cat-file', '-p', 'refs/tags/runner-release'], { encoding: 'utf8' });
   assert.match(annotation, /runner release annotation witness/u);
   const annotatedArchive = execFileSync('git', ['archive', '--format=tar', 'refs/tags/runner-release', 'history-original.txt']);

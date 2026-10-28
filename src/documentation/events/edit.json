@@ -1,0 +1,10 @@
+{
+  "kind": "edit",
+  "entries": [
+    {
+      "order": 6,
+      "actor": "editor",
+      "detail": "`brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `reviewFamily`, optional `reviewPolicy`"
+    }
+  ]
+}

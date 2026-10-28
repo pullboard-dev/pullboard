@@ -1,0 +1,10 @@
+{
+  "kind": "fact",
+  "entries": [
+    {
+      "order": 11,
+      "actor": "author",
+      "detail": "`id`, `kind`, `text`, `ref`, `supersedes`, engine-20 `implies`, `decision`, `supersededBy`, engine-30 `cause`, `neverAgain`, `channel`"
+    }
+  ]
+}

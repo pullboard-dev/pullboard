@@ -1,0 +1,10 @@
+{
+  "kind": "sentinel-start",
+  "entries": [
+    {
+      "order": 48,
+      "actor": "running agent",
+      "detail": "`name`, `digest`, `run`, `until`, `engine`"
+    }
+  ]
+}

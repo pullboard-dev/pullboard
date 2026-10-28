@@ -1,0 +1,10 @@
+{
+  "kind": "health-resolved",
+  "entries": [
+    {
+      "order": 45,
+      "actor": "sentinel",
+      "detail": "`key`, `cause`, `since`, `subject`, `owner`, `commit`, `engine`"
+    }
+  ]
+}

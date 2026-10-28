@@ -1,5 +1,7 @@
 /** Registered SSH runner execution stays inside a committed, secret-free worker checkout [C7]. */
 import assert from 'node:assert/strict';
+import { installWorkerGitWitness } from './worker-git-witness.fixture.js';
+import { assertWorkerTagBatches } from './worker-git-count-assertions.js';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
@@ -381,6 +383,15 @@ test('a queued run executes on a registered runner and its result comes back [C7
   const historyBaseCommit = git(repo, env, 'rev-parse', 'HEAD');
   git(repo, env, 'tag', '-a', 'runner-release', '-m', 'runner release annotation witness', historyBaseCommit);
   git(repo, env, 'tag', 'runner-lightweight', historyBaseCommit);
+  const batchTagObjects = [];
+  for (let index = 0; index < 65; index++) {
+    const name = `runner-batch/${String(index).padStart(2, '0')}/${'long-name-'.repeat(8)}`;
+    if (index % 2) git(repo, env, 'tag', name, historyBaseCommit);
+    else git(repo, env, 'tag', '-a', name, '-m', `batch annotation ${index} with UTF-8 🧭`, historyBaseCommit);
+    batchTagObjects.push([`refs/tags/${name}`, git(repo, env, 'rev-parse', `refs/tags/${name}`)]);
+  }
+  git(repo, env, 'tag', '-a', 'runner-nested', '-m', 'nested annotation witness', 'refs/tags/runner-release');
+  batchTagObjects.push(['refs/tags/runner-nested', git(repo, env, 'rev-parse', 'refs/tags/runner-nested')]);
   const annotatedTagObject = git(repo, env, 'rev-parse', 'refs/tags/runner-release');
   const lightweightTagObject = git(repo, env, 'rev-parse', 'refs/tags/runner-lightweight');
   const unrelatedCommit = git(repo, env, 'commit-tree', `${historyBaseCommit}^{tree}`, '-m', 'unrelated tag target');
@@ -392,10 +403,11 @@ test('a queued run executes on a registered runner and its result comes back [C7
   const tree = git(repo, env, 'rev-parse', 'HEAD^{tree}');
   assert.equal(git(repo, env, 'status', '--porcelain'), '', 'the ignored secret is not a dirty tracked change');
 
-  const ssh = installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests });
+  const gitWitness = installWorkerGitWitness(dir);
+  const ssh = installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests, nodeOptions: gitWitness.nodeOptions });
   assert.ok(existsSync(ssh));
   writeProbe(repo, { remoteStateRoot, remoteMachineHome, sourceHome: home, sourceMachineHome: machineHome, historyBaseCommit,
-    annotatedTagObject, lightweightTagObject,
+    annotatedTagObject, lightweightTagObject, batchTagObjects,
     callerPool: 'caller-pool-marker', callerToken: 'caller-token-marker' });
   git(repo, env, 'add', 'runner-probe.test.js');
   git(repo, env, 'commit', '-q', '-m', 'test: add remote source probe [C7]');
@@ -438,6 +450,8 @@ test('a queued run executes on a registered runner and its result comes back [C7
   assert.equal(result.isGreen, true);
   assert.equal(result.runner, HOST);
   assert.equal(result.profile.executionRunner, HOST);
+  assertWorkerTagBatches(gitWitness.rows(), ['refs/tags/runner-release', 'refs/tags/runner-lightweight', ...batchTagObjects.map(([ref]) => ref)],
+    counts => t.diagnostic(JSON.stringify({ actualWorkerGitCounts: counts })));
   assert.equal(result.profile.tests.length, 1, 'TAP results are retained in the ordinary profile');
   const source = result.profile.executionSource;
   assert.equal(source.commit, selectedCommit);

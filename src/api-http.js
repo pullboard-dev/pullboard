@@ -245,8 +245,9 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); } catch { throw new Refused('BAD_REQUEST', 'use a valid path under /api/v1/boards'); }
       const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests|code|tokens|items)$/.exec(url.pathname);
       const shoutRoute = /^\/api\/v1\/boards\/([^/]+)\/shouts\/([^/]+)$/.exec(url.pathname);
+      const proofRoute = /^\/api\/v1\/boards\/([^/]+)\/proofs\/([^/]+)$/.exec(url.pathname);
       const itemRoute = /^\/api\/v1\/boards\/([^/]+)\/items\/([^/]+)$/.exec(url.pathname);
-      const boardId = route?.[1] ?? shoutRoute?.[1] ?? itemRoute?.[1] ?? null;
+      const boardId = route?.[1] ?? shoutRoute?.[1] ?? itemRoute?.[1] ?? proofRoute?.[1] ?? null;
       const who = await adapter.authenticate(req, { board: boardId, write: req.method === 'POST' });
       if (url.pathname === '/api/v1/settings') {
         if (req.method !== 'GET') throw new Refused('READ_ONLY', 'settings are read-only here; use the supported settings commands');
@@ -284,8 +285,17 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
           throw error;
         }
       }
-      if (!route && !shoutRoute && !itemRoute) return json(res, 404, refusal(new Refused('NO_ENDPOINT', 'no API v1 endpoint here; use /api/v1/boards and a board state, item, shout, code, events, moves or requests path')));
+      if (!route && !shoutRoute && !itemRoute && !proofRoute) return json(res, 404, refusal(new Refused('NO_ENDPOINT', 'no API v1 endpoint here; use /api/v1/boards and a board state, item, shout, code, events, moves or requests path')));
       const board = await adapter.board(boardId, who);
+      if (proofRoute) {
+        if (req.method !== 'GET') throw new Refused('BAD_REQUEST', 'read a proof record with GET');
+        const rawId = proofRoute[2];
+        if (!/^[1-9]\d*$/.test(rawId) || !Number.isSafeInteger(Number(rawId))) throw new Refused('BAD_REQUEST', 'proof needs a positive item id from the board state');
+        if (typeof adapter.proof !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'this adapter does not provide detailed proof records; read them from the local API');
+        const proof = await adapter.proof(board, Number(rawId), who);
+        if (!proof) return json(res, 404, refusal(new Refused('NO_ITEM', `no proof record for item #${rawId} on this board`)));
+        return json(res, 200, { proof });
+      }
       if (itemRoute) {
         if (req.method !== 'GET') throw new Refused('BAD_REQUEST', 'read an item with GET; use a board move to change it');
         const rawId = itemRoute[2];

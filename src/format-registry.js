@@ -13,7 +13,7 @@ function versionAt(root, source) {
     const values = readdirSync(join(root, 'src')).filter(file => /^[a-z][a-z0-9-]*-engine\.js$/u.test(file))
       .flatMap(file => [...readFileSync(join(root, 'src', file), 'utf8').matchAll(/^export const [A-Z][A-Z0-9_]*_ENGINE = (\d+|unassignedEngine\(\));$/gmu)].map(match => match[1]));
     const highest = Math.max(1, ...values.filter(value => /^\d+$/u.test(value)).map(Number));
-    return highest + (values.includes('unassignedEngine()') ? 1 : 0);
+    return highest;
   }
   if (!/^src\/[a-z][a-z0-9-]*\.js$/u.test(source?.file ?? '')) throw new Error('format version source must name its source module');
   const text = readFileSync(join(root, source.file), 'utf8');

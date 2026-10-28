@@ -1,0 +1,10 @@
+{
+  "kind": "submit",
+  "entries": [
+    {
+      "order": 15,
+      "actor": "builder",
+      "detail": "`commit`, `tree`, `policyCommit`, engine-9 `criterionDigest`, engine-38 `submissionProof`, optional `submissionSize`"
+    }
+  ]
+}

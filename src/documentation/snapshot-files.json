@@ -1,0 +1,22 @@
+[
+  [
+    "`index.html`",
+    "Snapshot page; reads the JSON files below and drives event replay."
+  ],
+  [
+    "`view.css`",
+    "Stylesheet linked by `index.html`."
+  ],
+  [
+    "`api/v1/boards.json`",
+    "API v1 board listing; the page selects the board to show."
+  ],
+  [
+    "`api/v1/boards/<board-id>/state.json`",
+    "API v1 state for that board; the page uses it as the final snapshot."
+  ],
+  [
+    "`api/v1/boards/<board-id>/events.json`",
+    "API v1 event list; the page replays it from the selected board state."
+  ]
+]
