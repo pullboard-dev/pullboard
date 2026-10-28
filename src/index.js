@@ -2,7 +2,7 @@
  * The library surface, for tools that drive pullboard without the CLI: the board, the spec, the
  * lanes and the hooks, each usable on its own.
  */
-export * as board from './board.js';
+export * as board from './native-board.js';
 export { loadConfig, defaults as defaultConfig } from './config.js';
 export { laneOf, outOfLane, laneNames } from './lanes.js';
 export { parseSpec, lintSpec, frozenCriterion, citedIds } from './spec.js';
