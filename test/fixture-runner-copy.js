@@ -9,12 +9,15 @@ import { runtimeUrls } from '../src/runner-runtime-urls.js';
 /** Retain unchanged production code and discovered move/engine declarations used by its eager imports.
  * This is a private fixture copier, not a runtime attestation or a general computed-import closure proof.
  * Computed runner imports select the fixture's own tests; the move registry and engine scan need their
- * actual declarations. Every copied module otherwise follows its literal imports and runtime-file URLs.
+ * actual declarations. Command metadata validates its unchanged implementation paths without executing them.
+ * Every copied executable module otherwise follows its literal imports and runtime-file URLs.
  */
 export function copyFixtureRunner(source, destination) {
   const sourceRoot = realpathSync(source);
   const parser = createRunnerModuleParser();
-  const files = new Set(['package.json']);
+  const files = new Set(['package.json',
+    ...readdirSync(join(source, 'src/command-docs')).filter(file => file.endsWith('.json')).map(file => `src/command-docs/${file}`),
+    ...readdirSync(join(source, 'src/commands')).filter(file => file.endsWith('.js')).map(file => `src/commands/${file}`)]);
   let pending = ['bin/run-tests.js',
     ...readdirSync(join(source, 'src/moves')).filter(file => file.endsWith('.js')).map(file => `src/moves/${file}`),
     ...readdirSync(join(source, 'src')).filter(file => file.endsWith('-engine.js')).map(file => `src/${file}`)];
