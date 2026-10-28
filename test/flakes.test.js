@@ -1,3 +1,5 @@
+import { flakyProject, writeTarget, TITLE } from './flakes-fixture.js';
+import { repoInfo } from '../src/git.js';
 import { landingPorts } from './landing-ports-fixture.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 /** @pullboard-test-input source-tree */
@@ -6,11 +8,11 @@ import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
-import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureChild } from './fixture-child.js';
 import { flakeSource, observeNativeFailure } from '../src/native-flakes.js';
 import * as store from '../src/board.js';
 import { land } from '../src/land.js';
@@ -34,55 +36,10 @@ import { eventCauses } from '../src/rigor.js';
 const workerServices = Object.freeze({ executionServices, context, ordered, withBoard, runSubmitGate, withFileLock,
   readMainAudit, saveMainAudit, landingLeaseState, testValue: { flakeLedger, eventCauses } });
 
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
-const TITLE = 'a controlled intermittent assertion [C7]';
 const CI_ROOT = join(tmpdir(), 'pullboard-ci-runner', 'repo');
-
-/** Initialize a real private board and Git history; all gate commands use only this synthetic project. */
-function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = false } = {}) {
-  const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-native-flake-')));
-  t.after(() => rmSync(scratch, { recursive: true, force: true }));
-  const root = join(scratch, 'repo'); mkdirSync(root);
-  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'Fixture Agent', GIT_AUTHOR_EMAIL: 'fixture@example.com',
-    GIT_COMMITTER_NAME: 'Fixture Agent', GIT_COMMITTER_EMAIL: 'fixture@example.com',
-    PULLBOARD_HOME: join(scratch, 'home'), PULLBOARD_MACHINE_HOME: join(scratch, 'machine'), PULLBOARD_VIEW_BACKGROUND: '0' };
-  delete env.PULLBOARD_RELAY_TOKEN; delete env.NODE_TEST_CONTEXT;
-  /** Run Git only within this fixture with a private deterministic identity. */
-  const git = (...args) => runFixtureGit(args, { cwd: root, env });
-  /** Exercise the real CLI, retaining only its structured receipt for assertions. */
-  const cliAt = (cwd, ...args) => {
-    const result = runFixtureChild(process.execPath, [BIN, ...args, '--json'], { cwd, env, encoding: 'utf8' });
-    return { code: result.status, document: result.stdout?.trim() ? JSON.parse(result.stdout) : null, failure: result.failure };
-  };
-  /** Keep the coordinator's normal command path separate from its actual joined worktrees. */
-  const cli = (...args) => cliAt(root, ...args);
-  git('init', '-q', '-b', 'main');
-  assert.equal(cli('init').code, 0);
-  mkdirSync(join(root, 'node_modules/.bin'), { recursive: true });
-  symlinkSync(BIN, join(root, 'node_modules/.bin/pullboard'));
-  appendFileSync(join(root, '.git/info/exclude'), '\nnode_modules/\n');
-  const file = join(root, 'pullboard.json');
-  const config = JSON.parse(readFileSync(file, 'utf8'));
-  config.gate = `node --test --test-reporter=${reporter} test/alternating.test.mjs`;
-  config.flakes = rerun === null ? undefined : { rerun };
-  // These fixtures test coupled gate-before-push, independently of init's no-remote default.
-  delete config.landing;
-  // These synthetic checks intentionally match the already-configured gate; a private warning policy permits the controlled failure to be armed after submission.
-  config.checks = { ...config.checks, provesNothing: 'warn' };
-  config.lanes = { build: { owns: ['src/', 'test/'], specs: [] } };
-  writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
-  mkdirSync(join(root, 'test'));
-  const counter = join(scratch, 'observed-target-runs');
-  if (alwaysPass === 'controlled') writeFileSync(counter + '.mode', 'pass');
-  writeTarget(root, counter, alwaysPass);
-  git('add', '-A'); git('commit', '-q', '-m', 'chore: prepare private flake fixture');
-  return { root, scratch, env, git, cli, cliAt, counter, lane: 'build' };
-}
 
 test('empty automatic wakes leave no advisory state in a private repository [C7,H16]', async t => {
   const box = flakyProject(t);
-  const { repoInfo } = await import('../src/git.js');
   const pullboard = join(repoInfo(box.root).commonDir, 'pullboard');
   assert.equal(await nudgeSourceAdvances(box.root, { workerUrl: new URL('../bin/source-advance.js', import.meta.url), eligible: false }), null,
     'the foreground skips spawning a source worker when its exact native snapshot has no work');
@@ -118,32 +75,17 @@ test('empty automatic wakes leave no advisory state in a private repository [C7,
     'an explicit later wake settles even after all source obligations are complete');
 });
 
-/** Keep the exact same test identity on main and a candidate, with independently controlled behavior. */
-function writeTarget(root, counter, alwaysPass = false, mutate = false) {
-  const assertion = "assert.equal(readFileSync(marker, 'utf8').trim().split('\\n').length % 2, 0);";
-  writeFileSync(join(root, 'test/alternating.test.mjs'), `import assert from 'node:assert/strict';
-import { appendFileSync, readFileSync } from 'node:fs';
-import { test } from 'node:test';
-/** Record real executions; the fixture controls whether the assertion is passing or intermittent. */
-test(${JSON.stringify(TITLE)}, () => {
-  const marker = ${JSON.stringify(counter)};
-  appendFileSync(marker, 'run\\n');
-  ${mutate ? (mutate === 'controlled' ? "if (readFileSync(marker + '.mode', 'utf8') !== 'pass') " : '') + 'appendFileSync(new URL(import.meta.url), ' + JSON.stringify('\n// fixture source changed\n') + ');' : ''}
-  ${alwaysPass === 'controlled' ? "if (readFileSync(marker + '.mode', 'utf8') !== 'pass') " + assertion : alwaysPass ? 'assert.ok(true);' : assertion}
-});\n`);
-}
-
 /** Count the target's actual executions independently of any agent's reported verdict. */
-function targetRuns(box) { return readFileSync(box.counter, 'utf8').trim().split('\n').length; }
+function targetRuns(box) { return box.readData(box.counter, 'utf8').trim().split('\n').length; }
 
 /** Verify the whole immutable evidence, including profiles, before the private fixture is removed. */
 function assertReceipts(box, observation) {
   for (const value of [observation.original, observation.paired, observation.mainReceipt].filter(Boolean)) {
     const file = join(box.root, '.git/pullboard', value.artifact);
-    const bytes = readFileSync(file);
+    const bytes = box.readData(file);
     assert.equal(bytes.length, value.bytes);
     assert.equal(createHash('sha256').update(bytes).digest('hex'), value.sha256);
-    if (value.profileSha256 !== null) assert.equal(createHash('sha256').update(readFileSync(file.replace(/\.log$/u, '.profile.json'))).digest('hex'), value.profileSha256);
+    if (value.profileSha256 !== null) assert.equal(createHash('sha256').update(box.readData(file.replace(/\.log$/u, '.profile.json'))).digest('hex'), value.profileSha256);
   }
 }
 
@@ -182,7 +124,7 @@ test('a red gate records one paired pass and drafts repair work on a second sigh
     const diagnostic = box.cli('flakes').document;
     const observation = diagnostic?.unclassified?.[0]?.observations?.[0];
     console.log(JSON.stringify({ flakeDiagnostic: diagnostic, originalBody: observation
-      ? readFileSync(join(box.root, '.git/pullboard', observation.original.artifact), 'utf8') : first.document.report }));
+      ? box.readData(join(box.root, '.git/pullboard', observation.original.artifact), 'utf8') : first.document.report }));
   }
   assert.equal(targetRuns(box), 2, 'the configured target executes once and gets exactly one paired rerun');
   const listed = box.cli('flakes');
@@ -490,7 +432,7 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
     } catch (error) {
       const saved = store.landingBatches(board).at(-1);
       t.diagnostic(JSON.stringify({ unexpectedCompletion: completed?.batch?.state ?? null, targetRuns: targetRuns(box), savedState: saved?.state }));
-      for (const gate of saved?.gateResults ?? []) if (gate.logPath) t.diagnostic(readFileSync(gate.logPath, 'utf8'));
+      for (const gate of saved?.gateResults ?? []) if (gate.logPath) t.diagnostic(box.readData(gate.logPath, 'utf8'));
       throw error;
     } finally {
       if (context === undefined) delete process.env.NODE_TEST_CONTEXT;
@@ -549,7 +491,7 @@ test('a ledger recording failure cannot replace the original red or discard its 
   const retained = JSON.parse(readFileSync(join(directory, 'observation.json'), 'utf8'));
   assertReceipts(box, retained);
   const manifest = JSON.parse(readFileSync(join(directory, 'manifest.json'), 'utf8'));
-  for (const [file, digest] of Object.entries(manifest)) assert.equal(createHash('sha256').update(readFileSync(join(directory, file))).digest('hex'), digest);
+  for (const [file, digest] of Object.entries(manifest)) assert.equal(createHash('sha256').update(box.readData(join(directory, file))).digest('hex'), digest);
   assert.equal(Object.hasOwn(manifest, 'recording-error.addendum.json'), false, 'the original manifest remains immutable');
   assert.equal(JSON.parse(readFileSync(join(directory, 'recording-error.addendum.json'), 'utf8')).code, 'SYNTHETIC_LEDGER_UNAVAILABLE');
 });
@@ -614,13 +556,13 @@ test('a CI rerun that names its passing test without a location still pairs, and
   const flake = box.cli('flakes').document.flakes[0]?.observations[0];
   assert.equal(flake?.classification, 'flake', 'the rerun row matches by its name when it carries no location');
   const kept = join(box.root, '.git/pullboard', flake.original.artifact);
-  const before = readFileSync(kept);
+  const before = box.readData(kept);
   // The downloaded red report changes by one comment line; the ledger refuses it, and the kept original is untouched.
   writeFileSync(join(ci, 'run-444-1', 'run.tap'), red + '# re-downloaded\n');
   const changed = box.cli('flakes', 'import', ci);
   assert.equal(changed.code, 1);
   assert.equal(changed.document.error.code, 'FLAKE_OBSERVATION_CHANGED');
-  assert.deepEqual(readFileSync(kept), before, 'the original red evidence keeps its recorded bytes');
+  assert.deepEqual(box.readData(kept), before, 'the original red evidence keeps its recorded bytes');
   assertReceipts(box, flake);
 });
 
