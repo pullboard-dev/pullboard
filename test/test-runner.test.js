@@ -8,6 +8,7 @@ import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'no
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { importsIn } from '../src/module-imports.js';
+import { commandDocs } from '../src/command-docs.js';
 
 test('tests run without inherited Git identity or config and refuse ambient pullboard [C7, S13]', (t) => {
   assert.equal(process.env.GIT_CONFIG_GLOBAL, '/dev/null');
@@ -97,7 +98,8 @@ test('reports its sandbox and person-terminal markers', () => writeFileSync(${JS
 /** Copy the runner and its transitive local imports without evaluating their code. */
 function copyRunnerImports(sourceRoot, root) {
   const copied = new Set();
-  let pending = ['bin/run-tests.js'];
+  // The source-owned catalog validates its actual command files without importing them.
+  let pending = ['bin/run-tests.js', ...commandDocs(sourceRoot).map(entry => `src/commands/${entry.name.split(' ')[0]}.js`)];
   while (pending.length) {
     const files = [...new Set(pending)].filter((file) => !copied.has(file));
     pending = [];
