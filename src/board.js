@@ -52,6 +52,7 @@ import { companionPlan } from './companion.js';
 import { itemPatchReviewProblem } from './item-patches.js';
 import { applyItemPatchAttachment } from './item-patches.js';
 import { applyItemPatchRemoval } from './item-patches.js';
+import { itemPatchResetFields } from './item-patches.js';
 export { itemPatches, itemPatchDigest } from './item-patches.js';
 import { applyCompanionRequest } from './companion.js';
 export { readBoardMembers, setBoardMembers } from './board-members.js';
@@ -934,8 +935,7 @@ function invalidateItemPatch(board, id, agentId) {
       coordinatorOnly: () => onlyCoordinator(agentId, 'changes companion inputs'),
       notMerged: found => found.item_merged_commit ? new Refused('ALREADY_MERGED', 'file a follow-up for landed work') : null,
     },
-    set: found => ({ item_built_by: found.item_built_by, item_frozen_digest: found.item_frozen_digest,
-      item_verdict: null, item_verified_by: null, item_review_by: null, item_review_until: null }),
+    set: found => itemPatchResetFields(board, found),
   });
 }
 
