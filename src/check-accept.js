@@ -14,7 +14,6 @@ import {
   logEvent,
 } from './board.js';
 import { COORDINATOR } from './config.js';
-import { requirePersonChannel } from './person.js';
 import { Refused } from './refused.js';
 import { mainPolicy } from './trusted-policy-read.js';
 
@@ -121,10 +120,10 @@ export function refuseClaimProvesNothing(root, board, id) {
  * @param {any} io
  * @param {string | undefined} first - the item id
  * @param {string[]} rest
- * @param {{ context: Function, withBoard: Function, whoAmI: Function, ordered: Function, idArg: Function }} cli
+ * @param {{ context: Function, withBoard: Function, whoAmI: Function, ordered: Function, idArg: Function, requirePersonChannel: Function }} cli
  * @returns {Promise<number>}
  */
-export async function checkAcceptCommand(io, first, rest, { context, withBoard, whoAmI, ordered, idArg }) {
+export async function checkAcceptCommand(io, first, rest, { context, withBoard, whoAmI, ordered, idArg, requirePersonChannel }) {
   requirePersonChannel(io.personChannel);
   if (!/^#?\d+$/u.test(first ?? '') || rest.length) throw new Refused('USAGE', 'pullboard check accept <id>');
   const ctx = context(io);
