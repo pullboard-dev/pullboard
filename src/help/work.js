@@ -113,6 +113,8 @@ export const workHelp = `Work
   pullboard lanes lead <lane> <seat|off>          coordinator names or removes the existing lane seat
   pullboard shout all <text> --news              coordinator/person release or focus news, digested at session start
   Inbox combines direct coordination with item/dependency, file and cited-row activity; other lane activity is summarized.
+  inbox.tokenBudget limits each delivery (8192 by default, minimum 1024 UTF-8 bytes, a conservative token bound).
+  Omitted content is summarized by count and kind; withheld interrupts remain available until delivered and acted on.
   pullboard shout [<to>] <text> --decision       ask for a decision; defaults to your coordinator or the person
   pullboard shout coordinator <question> --item <id> --decision --options <json>
   pullboard shout coordinator --kind question <question> --decision --effects <json>
