@@ -1587,7 +1587,7 @@ function nextPick(ctx, board, values) {
     familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
     omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   const offer = held ? null : relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
-  if (offer && !values.build && (offer.urgent || focusReviewFirst(board, offer.item, item))) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item) };
+  if (offer && !values.build && (offer.urgent || focusReviewFirst(board, offer.item, item, { milestones: store.milestones }))) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item, [], { milestones: store.milestones }) };
   if (!item) return { reasons, laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
