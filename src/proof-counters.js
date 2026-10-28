@@ -2,8 +2,6 @@ import { appendReportCounter } from './flow-report-counter.js';
 import { emptyReportCounter } from './flow-report-counter.js';
 import { reportEvent } from './stats-flow-report.js';
 import { newReportPolicy } from './stats-flow-report.js';
-import { appendRigorCounter } from './rigor-counters.js';
-import { ensureRigorCounters } from './rigor-counters.js';
 import { NATIVE_FLAKE_ENGINE } from './flake-engine.js';
 /** Rebuildable, local proof projections maintained with the event that produced them [R1,R2]. */
 import { moveFlowItem } from './stats-flow.js';
@@ -112,6 +110,7 @@ function keepCatch(event, detail) {
 
 /** Fold exactly this event into affected item/actor shards and the small aggregate. */
 export function appendProofCounter(board, event) {
+  const { appendRigorCounter } = board.runtimePorts.verification;
   appendRigorCounter(board, event);
   const summary = proofCounter(board, 'summary') ?? emptySummary();
   ensureReportCounters(board, summary.last);
@@ -200,6 +199,7 @@ function ensureReportCounters(board, until) {
 
 /** Rebuild from authoritative history inside the caller's existing write transaction. */
 export function rebuildProofCounters(board) {
+  const { ensureRigorCounters } = board.runtimePorts.verification;
   clearProofCounters(board);
   ensureRigorCounters(board);
   put(board, 'summary', emptySummary());
@@ -209,6 +209,7 @@ export function rebuildProofCounters(board) {
 
 /** Catch up an older writer once; ordinary current-writer appends then decode only their new event. */
 export function ensureProofCounters(board) {
+  const { ensureRigorCounters } = board.runtimePorts.verification;
   ensureRigorCounters(board);
   const summary = proofCounter(board, 'summary');
   if (!summary) { rebuildProofCounters(board); return; }

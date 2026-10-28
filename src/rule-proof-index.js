@@ -2,7 +2,7 @@
 import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from './git.js';
-import { receiptFields } from './gate-run-receipt.js';
+import { receiptFields } from './proof-provenance.js';
 import {
   committedRuleCoverage,
   proofCoverageFingerprint,

@@ -125,6 +125,12 @@ const NON_MOVE_ENTRY_POINTS = [
 ];
 /** Board functions handed a function to call, and the one the CLI and the runner hand them. */
 const CALLBACKS = {
+  // Native verification ports retain these exact receipt and projection guards.
+  'proof-cli.js': { proofRunReceipt: 'proof-receipts.js#proofRunReceipt' },
+  'proof-counters.js': {
+    appendRigorCounter: 'rigor-counters.js#appendRigorCounter',
+    ensureRigorCounters: 'rigor-counters.js#ensureRigorCounters',
+  },
   // The native root supplies these setup guards through the physical store's explicit ports.
   'board-store.js': {
     readEventLogVersion: 'board-read-open.js#readEventLogVersion',
