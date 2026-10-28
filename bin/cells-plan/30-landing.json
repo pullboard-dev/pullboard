@@ -6,7 +6,7 @@
  "frontDoor": "packages/landing/index.js",
  "placedBy": {
   "seed": 29,
-  "rule": 10,
+  "rule": 19,
   "imports": 5
  },
  "paths": [
@@ -53,7 +53,16 @@
   ["src/publish-pause.js","packages/landing/src/shell/publish-pause.js","imports"],
   ["src/record-train-landing.js","packages/landing/src/shell/record-train-landing.js","imports"],
   ["src/train-landing-receipt.js","packages/landing/src/shell/train-landing-receipt.js","imports"],
-  ["src/train-landing.js","packages/landing/src/shell/train-landing.js","imports"]
+  ["src/train-landing.js","packages/landing/src/shell/train-landing.js","imports"],
+  ["src/landing-step-selection.js","packages/landing/src/shell/landing-step-selection.js","rule"],
+  ["src/landing-step-merge.js","packages/landing/src/shell/landing-step-merge.js","rule"],
+  ["src/landing-step-failures.js","packages/landing/src/shell/landing-step-failures.js","rule"],
+  ["src/landing-step-gate.js","packages/landing/src/shell/landing-step-gate.js","rule"],
+  ["src/landing-step-diagnose.js","packages/landing/src/shell/landing-step-diagnose.js","rule"],
+  ["src/landing-step-publish.js","packages/landing/src/shell/landing-step-publish.js","rule"],
+  ["src/landing-step-trunk.js","packages/landing/src/shell/landing-step-trunk.js","rule"],
+  ["src/landing-step-parallel.js","packages/landing/src/shell/landing-step-parallel.js","rule"],
+  ["src/landing-step-batch.js","packages/landing/src/shell/landing-step-batch.js","rule"]
  ],
  "reexports": [
   "src/computed-conflict-receipt.js",
