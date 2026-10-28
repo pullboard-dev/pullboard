@@ -26,11 +26,13 @@ import {
   codeIsFromMain,
   differFromHead,
   headCommit,
+  mainCheckout,
   repoInfo,
+  resolveCommit,
   tryGit,
 } from './git.js';
 import { Refused } from './refused.js';
-import { mainPolicy } from './trusted-policy-read.js';
+import { mainPolicy, policyAt, trunkRef } from './trusted-policy-read.js';
 import { familyIndex } from './review-policy.js';
 import { MAIN_MERGE_LABEL } from './trunk-conflict.js';
 
@@ -226,6 +228,24 @@ export function span(ctx, iso) {
   return `${Math.round(minutes / 1440)}d`;
 }
 
+/**
+ * The coordinator's declared vendor families from accepted main. While the primary checkout is detached for review
+ * (every verify there), the main policy read refuses, so the retained trunk branch's tip is read instead [#1794].
+ *
+ * @param {string} root
+ * @returns {Record<string, string[]> | undefined}
+ */
+function declaredFamilies(root) {
+  try { return mainPolicy(root).config.families; }
+  catch (error) {
+    if (!(error instanceof Refused) || error.code !== 'NO_POLICY' || mainCheckout(root)) throw error;
+    const retained = trunkRef(root);
+    const commit = retained ? resolveCommit(root, retained) : null;
+    if (!commit) throw error;
+    return policyAt(root, commit).config.families;
+  }
+}
+
 /** Run work on an opened board with the same caller, quarantine, event and close lifecycle. */
 export function withOpenedBoard(ctx, work, board) {
   // Whether a proven flake stops blocking a landing is the coordinator's setting, read from accepted main on first use.
@@ -233,7 +253,7 @@ export function withOpenedBoard(ctx, work, board) {
   board.quarantineEnabled = () => quarantine ??= mainPolicy(ctx.info.root).config.flakes?.quarantine === true;
   // The explicit vendor alias list comes from accepted main, as quarantine does; it is read on first family comparison [#1762].
   let aliases;
-  Object.defineProperty(board, 'familyAliases', { configurable: true, enumerable: true, get: () => aliases ??= familyIndex(mainPolicy(ctx.info.root).config.families) });
+  Object.defineProperty(board, 'familyAliases', { configurable: true, enumerable: true, get: () => aliases ??= familyIndex(declaredFamilies(ctx.info.root)) });
   const firstEvent = board.emittedEvents?.length ?? 0;
   /** Forward committed events before releasing either synchronous or asynchronous work. */
   const finish = () => {
