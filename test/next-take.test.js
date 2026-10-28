@@ -1,3 +1,4 @@
+import { installPostMoveHandoffCases } from './post-move-handoff-cases.js';
 import './next-take-review-cases.js';
 import { cli } from './next-take-fixture.js';
 import { fixture } from './next-take-fixture.js';
@@ -63,7 +64,7 @@ test('ordinary next prefers its own lane, then claims foreign work in that laneâ
   const first = box.json(box.runAs(box.session, web.root, 'next', '--build', '--json'));
   assert.equal(first.item.item_id, own);
   assert.equal(first.item.item_owner, web.agent);
-  box.json(box.runAs(box.session, web.root, 'release', String(own), '--json'));
+  box.json(box.runAs(box.session, web.root, 'release', String(own), '--no-next', '--json'));
   box.json(box.run(box.repo, 'hold', String(own), '--reason', 'Blocked own-lane fixture', '--json'));
   const next = box.json(box.runAs(box.session, web.root, 'next', '--build', '--json'));
   assert.equal(next.item.item_id, foreign);
@@ -404,3 +405,5 @@ test('default next offers actual main red to another free seat and only that sea
   const { assertMainRedCLI } = await import('./main-red-build-routing-fixture.js');
   await assertMainRedCLI(t, { fixture, cli });
 });
+
+installPostMoveHandoffCases({ fixture, cli });
