@@ -161,8 +161,7 @@ const CALLBACKS = {
  * reads committed doctrine rules leniently: a doctrine it cannot parse carries no check [D1].
  */
 const CAUGHT = {
-  // The reachability check reads the native eligibility rules as data; only its own refusal escapes.
-  'review-reachability.js#unreviewableStrict': ['review-eligibility.js#reviewEligibility'],
+  'review-reachability.js#unreviewableStrict': ['review-eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
@@ -185,8 +184,7 @@ const CAUGHT = {
   'rigor-source.js#readRigorSource': ['rigor.js#causeProblem'],
   'rigor-auto-source.js#readAutomaticRigorSource': ['rigor.js#causeProblem'],
   // Only an unsupported historical grammar is ignored; new caller refusals remain audited below.
-  'rigor-auto-source.js#automaticDecisionSource': ['spec.js#parseSpec'],
-  'rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec'],
+  'rigor-auto-source.js#automaticDecisionSource': ['spec.js#parseSpec'], 'rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec'],
   'person-row-proof.js#signedRowDecisionsMatch': ['spec.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
 };
 /**
