@@ -8,6 +8,8 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runGate } from '../src/gate.js';
+import { runnerExecutionServices } from '../src/runners.js';
+import { landingExecutionServices } from '../src/landing-shards.js';
 import { readGateReceipt } from '../src/gate-run-receipt.js';
 import { receiptStore } from '../src/gate-run-receipt.js';
 import { prepareTrainLanding } from '../src/train-landing.js';
@@ -50,7 +52,8 @@ export async function seedNativeTrain(context) {
   store.verify(board, item, { agentId: reviewer, decision: 'ACCEPT', head, digest: frozen.digest,
     policy: 'any', familyPolicy: 'off', note: 'Synthetic acceptance only; gate bytes below are native.',
     review: { commit: head, head, trunk: head, paths: [] } });
-  const run = await runGate(box.root, config, { trustStamp: false, landing: true, agent: 'coordinator' });
+  const run = await runGate(box.root, config, { trustStamp: false, landing: true, agent: 'coordinator',
+    executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() } });
   assert.equal(run.isGreen, true, run.output);
   const receipt = readGateReceipt(receiptStore(box.root), run.receiptId);
   assert.ok(receipt, 'the actual native producer stored a receipt');
