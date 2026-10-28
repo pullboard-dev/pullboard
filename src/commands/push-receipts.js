@@ -1,3 +1,10 @@
+import { boardReceiptStore } from '../gate-run-receipt.js';
+import { readGateReceipt } from '../gate-run-receipt.js';
+import { receiptBinds } from '../gate-run-receipt.js';
+import { gateRuns } from '../quarantine.js';
+import { getItem } from '../board.js';
+import { COORDINATOR } from '../config.js';
+import { policyAt } from '../trusted-policy-read.js';
 import { checkNeedsBrowser } from '../browser-admission.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../landing-shards.js';
@@ -33,7 +40,8 @@ export async function run(io) {
   if (!isClean(root)) throw new Refused('PUSH_SOURCE_CHANGED', 'commit or restore local changes before checking push receipts');
   const head = headCommit(root);
   const tree = headTree(root);
-  const problems = await withBoardRead(ctx, board => nativePushReceiptProblems(root, board, commits));
+  const evidencePorts = { boardReceiptStore, readGateReceipt, receiptBinds, gateRuns, getItem, coordinator: COORDINATOR, policyAt };
+  const problems = await withBoardRead(ctx, board => nativePushReceiptProblems(root, board, commits, evidencePorts));
   if (problems.length) {
     io.result?.({ green: false, commits, problems, activated: false });
     for (const problem of problems) io.err(problem);
@@ -46,7 +54,7 @@ export async function run(io) {
     throw new Refused('PUSH_SOURCE_CHANGED', 'source or accepted policy changed during the smoke; inspect it and check the push again');
   }
   // Re-read ordered evidence after admission/execution; a newly red audit must not be skipped.
-  const current = await withBoardRead(ctx, board => nativePushReceiptProblems(root, board, commits));
+  const current = await withBoardRead(ctx, board => nativePushReceiptProblems(root, board, commits, evidencePorts));
   const green = smoke.isGreen && current.length === 0;
   io.result?.({ green, commits, problems: current, smoke, activated: false });
   if (smoke.output) io.say(smoke.output.trimEnd());

@@ -1,3 +1,7 @@
+import { receiptBinds } from '../src/gate-run-receipt.js';
+import { gateRuns } from '../src/quarantine.js';
+import { COORDINATOR } from '../src/config.js';
+import { policyAt } from '../src/trusted-policy-read.js';
 import { copyCommittedPackageFiles } from './package-copy-fixture.js';
 /** @pullboard-test-input source-tree */
 /** Exercise the native train producer, ordered landing writer and additive push check [C7]. */
@@ -20,7 +24,7 @@ import { applyEngineMove } from '../src/engine.js';
 import { prepareEngineMove } from '../src/engine.js';
 import { prepareTrainLanding } from '../src/train-landing.js';
 import { TRAIN_LANDING_ENGINE } from '../src/train-landing-engine.js';
-import { nativePushReceiptProblems } from '../src/push-native-evidence.js';
+import { nativePushReceiptProblems as evaluateNativePushReceipts } from '../src/push-native-evidence.js';
 import { pushedFirstParentCommits } from '../src/pre-push-receipts.js';
 import { runFixtureChild } from './fixture-child.js';
 import { safeFixtureDiagnostic } from './fixture-child.js';
@@ -28,6 +32,12 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { mainAuditKey } from '../src/main-audit-state.js';
 import { prepareCommitMetadata } from '../src/commit-metadata.js';
+
+/** Exercise the production evaluator with its genuine native store, policy and receipt providers. */
+function nativePushReceiptProblems(root, board, commits) {
+  return evaluateNativePushReceipts(root, board, commits, { boardReceiptStore, readGateReceipt, receiptBinds,
+    gateRuns, getItem: store.getItem, coordinator: COORDINATOR, policyAt });
+}
 
 /** Require the exact native release job and its source-bound full collection receipt. */
 function completedAudit(box, activation, batch, token) {
