@@ -26,7 +26,7 @@ test('publish contract', () => assert.equal(existsSync(process.env.PUBLISH_PAUSE
   config.landing = { publish: 'separate', ...(enabled ? { pauseOnRed: true } : {}) };
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(config));
   box.git(repo, 'add', '-A');
-  box.git(repo, 'commit', '-qm', 'test: add publish contract [C7,V4]');
+  box.git(repo, 'commit', '-qm', 'test: add publish contract');
   const remote = join(box.dir, 'remote.git');
   box.git(box.dir, 'init', '--bare', '-q', remote);
   box.git(repo, 'remote', 'add', 'origin', remote);
@@ -54,14 +54,14 @@ test('a red full-suite run pauses landing until a green head or a proven flake [
   // A later committed tree starts with a new red; the old tree's green cannot clear it.
   writeFileSync(join(box.repo, 'fix.txt'), 'new head');
   box.git(box.repo, 'add', 'fix.txt');
-  box.git(box.repo, 'commit', '-qm', 'test: advance publish head [C7,V4]');
+  box.git(box.repo, 'commit', '-qm', 'test: advance publish head');
   writeFileSync(box.input, 'red again');
   assert.equal(box.run(box.repo, 'publish').code, 1);
   assert.match(box.run(box.repo, 'land').err, /PUBLISH_RED/);
   rmSync(box.input);
   writeFileSync(join(box.repo, 'fix.txt'), 'corrected head');
   box.git(box.repo, 'add', 'fix.txt');
-  box.git(box.repo, 'commit', '-qm', 'test: correct publish head [C7,V4]');
+  box.git(box.repo, 'commit', '-qm', 'test: correct publish head');
   const published = box.run(box.repo, 'publish');
   assert.equal(published.code, 0, published.out + published.err);
   assert.doesNotMatch(box.run(box.repo, 'land').err, /PUBLISH_RED/);
