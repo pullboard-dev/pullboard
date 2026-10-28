@@ -22,6 +22,7 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
     await chrome.waitFor('document.querySelectorAll("#dashboard .needs-call").length === 3');
     /** Preserve actual seeded browser views in bounded native-log chunks for visual review. */
     const capture = async (surface, width) => {
+      await chrome.stable('window.scrollTo(0, 0); true');
       const height = await chrome.stable('Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)');
       const shot = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height: Math.ceil(height), scale: 1 } });
       const size = 32_000, chunks = Math.ceil(shot.data.length / size);
@@ -58,6 +59,7 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
       await chrome.stable('render(); true');
       assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(selector + ' details')}).open`), false, 'a hidden duplicate surface cannot reopen the collapsed row on refresh');
       assert.equal(await chrome.stable('document.documentElement.scrollWidth <= innerWidth + 1'), true, 'the full list fits both viewports');
+      assert.equal(await chrome.stable(`getComputedStyle(document.querySelector(${JSON.stringify(selector + ' .needs-detail dl')})).gridTemplateColumns.split(' ').length`), 2, 'expanded metadata retains two columns even on a phone');
     }
     await press(chrome, 'document.querySelector("#needs [data-needs-confirm]")');
     await chrome.waitFor('!document.querySelector("#spec-approve-dialog").hidden');

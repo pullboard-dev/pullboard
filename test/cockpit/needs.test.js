@@ -18,10 +18,10 @@ import { personNeeds } from '../../src/needs.js';
 function needEntries(html) {
   return [...html.matchAll(/<li class="needs-call [^"]*"[^>]*>([\s\S]*?)<\/li>/gu)].map(([, row]) => {
     const title = row.match(/<span class="needs-copy"><b>([\s\S]*?)<\/b><small>([\s\S]*?)<\/small>/u);
-    const ref = title?.[1].match(/^<span class="needs-id">([\s\S]*?)<\/span>/u);
+    const ref = title?.[1].match(/^<span class="needs-id"(?: title="[^"]*")?>([\s\S]*?)<\/span>/u);
     const target = row.match(/data-go="([^"]*)"/u)?.[1] ?? null;
     const action = row.match(/<span class="needs-action[^"]*">([^<]*)<\/span>/u)?.[1];
-    return [target, ref?.[1] ?? null, (title?.[1] ?? '').replace(/^<span class="needs-id">[\s\S]*?<\/span>/u, ''), title?.[2] ?? '', action];
+    return [target, ref?.[1] ?? null, (title?.[1] ?? '').replace(/^<span class="needs-id"(?: title="[^"]*")?>[\s\S]*?<\/span>/u, ''), title?.[2] ?? '', action];
   });
 }
 
@@ -290,7 +290,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     page.run(`Date.now = () => ${passedAt + 61_000}; render();`);
     const passed = `Passed up from web-1: ${question}\nCoordinator note: over to you`;
     assert.deepEqual(needEntries(page.show('needs')), [['decide:42', '#42', 'Passed up from web-1: Greet in &lt;b&gt;French&lt;/b&gt; first?', 'Asked by coordinator (unknown)', 'Decide']], "the person's call identifies its source, question and action");
-    assert.ok(page.show('needs').includes('Passed up from web-1: Greet in &lt;b&gt;French&lt;/b&gt; first?<br>Coordinator note: over to you')), 'expanded details preserve the entire passed question and coordinator note');
+    assert.ok(page.show('needs').includes('Passed up from web-1: Greet in &lt;b&gt;French&lt;/b&gt; first?<br>Coordinator note: over to you'), 'expanded details preserve the entire passed question and coordinator note');
     assert.match(page.show('needs'), /<span class="needs-age"><time data-ago="[^"]+">1m<\/time><\/span>/u, 'the call retains its actual one-minute age');
     assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<div class="head"><i></i>Decision needed</div><article class="shout h\\d lead" data-shout-id="42"><span class="avatar"><svg [\\s\\S]*?</svg></span><div class="shout-main"><header><b class="who">coordinator \\(unknown\\)</b><span class="to">→ person</span><span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">1m ago</time></header><div class="text">${passed.replace('\n', '<br>')}</div><button class="more" data-more type="button">more</button><button class="ghost answer" data-go="decide:42" type="button">Answer</button></div></article>$`), 'and above the shouts as the coordinator\'s card, with an Answer button');
 
@@ -384,7 +384,7 @@ test("needs-you holds only the person's calls; the rest show on the board with w
     ], "the person's calls, and only those: the decision asked of them, the spec's question, the held lane, the draft row");
     assert.equal(needEntries(needs).find(entry => entry[0]?.startsWith('decide:'))[3], 'Asked by coordinator (unknown)', 'a decision says below who asked it');
     assert.doesNotMatch(needs, /Which colour|Greeting|Farewell/, "an agent's ask, work waiting for a verdict and work sent back are not the person's");
-    assert.match(needs, /<span class="needs-id">web<\/span>G3 is open<\/b><small>lane held by coordinator \(unknown\)<\/small>[\s\S]*?<span class="needs-age"><time data-ago="[^"]+">(?:now|\d+[mhd])<\/time>/u, 'a held lane says who set it and shows the API-provided hold age');
+    assert.match(needs, /<span class="needs-id"(?: title="[^"]*")?>web<\/span>G3 is open<\/b><small>lane held by coordinator \(unknown\)<\/small>[\s\S]*?<span class="needs-age"><time data-ago="[^"]+">(?:now|\d+[mhd])<\/time>/u, 'a held lane says who set it and shows the API-provided hold age');
 
     // Each of the rest is on the board, with who holds it.
     page.run('view.open.waiting = true; render();');

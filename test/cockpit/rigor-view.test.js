@@ -118,7 +118,7 @@ test('a materialized automatic Rigor draft shows in Needs you, marked unproved, 
       const read = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const needs = document.querySelector('#needs');
         const rows = [...needs.querySelectorAll('.needs-call')].map((row) => ({ words: row.querySelector('.needs-copy b').textContent,
-          kind: row.querySelector('.needs-copy small').textContent, chip: row.querySelector('.needs-action').textContent, go: row.querySelector('[data-go]')?.dataset.go ?? null,
+          kind: row.querySelector('.needs-copy small').textContent, chip: row.querySelector('.needs-action').textContent, go: row.querySelector('.actions [data-go]')?.dataset.go ?? null,
           right: row.getBoundingClientRect().right }));
         return { shown: !needs.hidden && needs.getBoundingClientRect().height > 0, rows,
           page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth } };

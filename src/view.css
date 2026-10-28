@@ -1145,7 +1145,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .needs-copy { min-width: 0; }
 .needs-copy b, .needs-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .needs-copy b { font-size: 14px; font-weight: 600; }
-.needs-id { margin-right: 8px; color: var(--ink-faint); font: 12px var(--mono); }
+.needs-id { display: inline-block; max-width: 9em; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; margin-right: 8px; color: var(--ink-faint); font: 12px var(--mono); }
 .needs-copy small { margin-top: 3px; color: var(--ink-muted); font-size: 12px; }
 .needs-side { display: flex; align-items: center; gap: 12px; }
 .needs-age { font: 12px var(--mono); color: var(--ink-faint); }
@@ -1162,13 +1162,13 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .needs-confirm-all { min-height: 28px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font-size: 12px; cursor: pointer; }
 .needs-more button { border: 0; background: none; color: var(--accent-strong); padding: 12px 10px; text-align: left; cursor: pointer; }
 @media (max-width: 640px) {
-  .needs-age { display: none; }
+  .needs-age { font-size: 10px; }
+  .needs-id { max-width: 4.5em; margin-right: 5px; }
   .needs-call summary, .needs-drafts > button { gap: 8px; padding-inline: 6px; }
   .needs-side { gap: 6px; }
   .needs-copy b { font-size: 13px; }
   .needs-detail { padding-left: 14px; }
-  .needs-detail dl { grid-template-columns: minmax(0, 1fr); gap: 3px; }
-  .needs-detail dt:not(:first-child) { margin-top: 6px; }
+  .needs-detail dl { grid-template-columns: minmax(0, 95px) minmax(0, 1fr); gap: 5px 12px; }
 }
 
 /* Dashboard details follow the approved desktop and phone mockup. */
