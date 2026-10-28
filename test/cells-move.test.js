@@ -4,8 +4,9 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, chmodSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
+import { copyPackageFiles } from '../src/package-files.js';
 import { readPathMap } from '../src/path-map.js';
 import { cellsMove } from '../bin/cells-move-tool.js';
 
@@ -201,4 +202,17 @@ test('cycles spanning cell shards fail closed [C7]', t => {
   writeFileSync(join(root, 'bin/cells-plan/path-map/b.json'), JSON.stringify({ 'src/b.js': 'src/a.js' }));
   git(root, 'add', '.'); git(root, 'commit', '-qm', 'cyclic shards');
   assert.throws(() => readPathMap(root), /NO_POLICY/u);
+});
+
+
+test('the shipped installation includes the first real package and runs its CLI [C7,P3]', t => {
+  const outer = mkdtempSync(join(tmpdir(), 'pb-cell-shipped-'));
+  t.after(() => rmSync(outer, { recursive: true, force: true }));
+  const installed = join(outer, 'installed');
+  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
+  const env = { ...process.env, HOME: join(outer, 'home'), PULLBOARD_HOME: join(outer, 'home/pullboard'), PULLBOARD_MACHINE_HOME: join(outer, 'machine') };
+  delete env.NODE_OPTIONS; delete env.NODE_TEST_CONTEXT;
+  const child = spawnSync(process.execPath, [join(installed, 'bin/pullboard.js'), '--help'], { cwd: installed, env, encoding: 'utf8' });
+  assert.equal(child.status, 0, child.stderr);
+  assert.match(child.stdout, /pullboard/u);
 });
