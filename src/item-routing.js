@@ -1,3 +1,4 @@
+import { ROUTES } from './route-escalation.js';
 /** Validate the brief and check required for an item's declared route [B10,B14]. */
 import {
   briefFiles,
@@ -32,6 +33,18 @@ export function checkRouted({ brief, route, criterion, check }, engine) {
   ];
   if (missing.length) {
     throw new Refused('NO_BRIEF', `an item routed ${route} must be buildable cold; it needs ${missing.join(', ')}`);
+  }
+}
+
+
+/**
+ * Refuse a route that is not one of ROUTES.
+ *
+ * @param {string} route
+ */
+export function checkRoute(route) {
+  if (!ROUTES.includes(route)) {
+    throw new Refused('BAD_ROUTE', `route "${route}" is light (a small or local model can build it from the brief), mid (a capable model) or strong (a frontier model)`);
   }
 }
 

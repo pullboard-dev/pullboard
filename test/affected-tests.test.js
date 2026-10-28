@@ -406,17 +406,40 @@ test('repo-wide test guards survive declaration removal and use committed leadin
   box.put('test/new.test.js', 'export const added = true;\n');
   const commit = box.commit();
   assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js']);
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }), []);
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }), ['test/scanner.test.js'], 'source changes retain the old explicit repo-guard obligation');
   box.put('test/text.test.js', header + 'export const dirty = true;\n');
   assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'], 'dirty declarations have no authority');
 });
 
+
+test('explicit pure repo guards cover source and test changes while behavior readers stay affected-only [C7]', t => {
+  const box = graph(t), guardHeader = '/** @pullboard-test-input test-tree */\n';
+  box.put('src/api.js', 'export const value = 1;\n');
+  box.put('test/repo-scanner.test.js', guardHeader + 'export const scan = true;\n');
+  box.put('test/behavior.test.js', '/** @pullboard-test-input source-tree */\nexport const scan = true;\n');
+  box.put('test/text.test.js', 'const text = ' + JSON.stringify(guardHeader) + ';\n');
+  const base = box.commit();
+  box.put('src/api.js', 'export const value = 2;\n');
+  const sourceCommit = box.commit();
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit: sourceCommit }), ['test/repo-scanner.test.js']);
+  assert.ok(selectAffectedTests(box.root, { base, commit: sourceCommit }).files.includes('test/behavior.test.js'), 'real source-tree behavior remains selected by ordinary affected policy');
+  box.put('test/new.test.js', 'export const added = true;\n');
+  const testCommit = box.commit();
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base: sourceCommit, commit: testCommit }), ['test/repo-scanner.test.js']);
+  box.put('test/repo-scanner.test.js', 'export const scan = false;\n');
+  box.put('src/api.js', 'export const value = 3;\n');
+  const removed = box.commit();
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base: testCommit, commit: removed, changed: ['src/api.js'] }), ['test/repo-scanner.test.js'], 'the old committed guard obligation survives removal');
+  box.put('test/text.test.js', guardHeader + 'export const dirty = true;\n');
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base: testCommit, commit: removed, changed: ['src/api.js'] }), ['test/repo-scanner.test.js'], 'dirty and string-only headers never create native obligations');
+});
 
 /** Keep only source-text scanners in the mandatory test-edit guard set. */
 test('the repository test-tree guards list only source scanners and launch no browser [C7]', async () => {
   const root = join(import.meta.dirname, '..');
   const expected = [
     'test/board-file-guard.test.js',
+    'test/cell-lint-guard.test.js',
     'test/gui-marker-guard.test.js',
     'test/privacy-scan-guard.test.js',
     'test/shared-wait-guard.test.js',
