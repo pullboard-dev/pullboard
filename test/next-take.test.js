@@ -2,6 +2,7 @@ import { installPostMoveHandoffCases } from './post-move-handoff-cases.js';
 import './next-take-review-cases.js';
 import { cli } from './next-take-fixture.js';
 import { fixture } from './next-take-fixture.js';
+import { assertFreeMainRedRouting, assertNewestMainRedRouting, assertMainRedCLI } from './main-red-build-routing-fixture.js';
 /** Real Git, ordered board work and deterministic dispatch boundaries [N2,V1,B3,A6,V2]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -392,17 +393,14 @@ test('automatic review reservation retains coordinator-only policy when a higher
 
 // Main-red build routing is separate from review-priority selection.
 test('a main red offers a free idle seat before interrupting a build [C7,N2]', async t => {
-  const { assertFreeMainRedRouting } = await import('./main-red-build-routing-fixture.js');
   assertFreeMainRedRouting(t);
 });
 
 test('a main red asks the newest build only when no seat is free and preserves native claim guards [C7,N2]', async t => {
-  const { assertNewestMainRedRouting } = await import('./main-red-build-routing-fixture.js');
   assertNewestMainRedRouting(t);
 });
 
 test('default next offers actual main red to another free seat and only that seat claims it [C7,N2,H16]', async t => {
-  const { assertMainRedCLI } = await import('./main-red-build-routing-fixture.js');
   await assertMainRedCLI(t, { fixture, cli });
 });
 
