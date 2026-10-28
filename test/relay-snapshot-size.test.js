@@ -191,6 +191,9 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
   // The actual Chrome client reads that same compressed checkpoint and renders the full shout text.
   sourceState = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   await chrome.navigate(box.origin);
+  // The feed renders when its native tab is selected, rather than while Items is open.
+  await chrome.waitFor("!!document.querySelector('[data-tab=shouts]')");
+  await chrome.evaluate("document.querySelector('[data-tab=shouts]').click(); true");
   try {
     await chrome.waitFor("document.querySelector('#feed')?.textContent.includes(" + JSON.stringify(marker) + ") || document.querySelector('#relay-notice')?.textContent.includes('Could not open this board with its saved key')");
   } catch (error) {
