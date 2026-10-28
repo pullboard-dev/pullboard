@@ -8,6 +8,7 @@ import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync } from
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -97,4 +98,33 @@ test('the real entrypoint versions old-Node refusals and honors JSON flag positi
       assert.match(document.help, /^New here\? pullboard tour, then pullboard init\.\nPullboard is a local-first work board/);
     }
   }
+});
+
+test('old-Node JSON guidance works when SQLite cannot be imported [A1,P3,P4]', () => {
+  const loader = join(dir, 'unavailable-sqlite.mjs');
+  writeFileSync(loader, `/** Model the unavailable builtin of an unsupported runtime, without changing the entrypoint. */
+export async function resolve(specifier, context, nextResolve) {
+  if (specifier === 'node:sqlite') throw new Error('SQLITE_UNAVAILABLE_ON_OLD_NODE');
+  return nextResolve(specifier, context);
+}
+`);
+  const preload = join(dir, 'old-without-sqlite.mjs');
+  writeFileSync(preload, `import { register } from 'node:module';
+Object.defineProperty(process.versions, 'node', { value: '20.11.1' });
+register(${JSON.stringify(pathToFileURL(loader).href)}, import.meta.url);
+`);
+  const blocked = spawnSync(process.execPath, ['--import', preload, '--input-type=module', '-e', "await import('node:sqlite')"], { encoding: 'utf8' });
+  assert.notEqual(blocked.status, 0, 'the same loader really removes SQLite from this process');
+  assert.match(blocked.stderr, /SQLITE_UNAVAILABLE_ON_OLD_NODE/u);
+  const result = spawnSync(process.execPath, ['--import', preload, BIN, '--help', '--json'], { encoding: 'utf8' });
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, '');
+  assert.deepEqual(JSON.parse(result.stdout), {
+    version: 1,
+    error: {
+      code: 'NODE_TOO_OLD',
+      message: refusal('20.11.1').replace(/^pullboard: \[NODE_TOO_OLD\] /, '').trimEnd(),
+      next: 'install it (for example nvm install 22), then run the command again',
+    },
+  });
 });
