@@ -1,6 +1,6 @@
-import { requireFixtureReviewFamilies } from './review-family-fixture.js';
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/machine.js */
 /** Lifecycle activity retains its evidence without turning routine status into messages [B3,R2,N26,H16]. */
+import { requireFixtureReviewFamilies } from './review-family-fixture.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -644,3 +644,65 @@ function timedInbox(box, board, seat) {
   assert.deepEqual(shoutIds, expected, 'the CLI delivers the same shouts as the inbox API');
   return { shoutIds, ms };
 }
+
+test('an inbox check over its budget summarizes the rest and names what it left out [R2,N26,H16]', () => {
+  const box = e2e.project();
+  const configPath = join(box.web, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.inbox = { tokenBudget: 1024 };
+  writeFileSync(configPath, JSON.stringify(config));
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  for (let index = 0; index < 12; index++) store.shout(board, { from: 'coordinator', to: 'web-1',
+    text: `Private budget message ${index}: ${'界'.repeat(350)}`, lanes: ['web', 'api'] });
+  const before = exportBoard(board);
+  store.closeBoard(board);
+  const result = box.run(box.web, 'inbox', '--json');
+  assert.equal(result.code, 0, result.err);
+  assert.ok(Buffer.byteLength(result.out, 'utf8') <= 1024,
+    'the complete JSON delivery fits the configured conservative UTF-8 byte token budget');
+  const delivered = JSON.parse(result.out);
+  assert.equal(delivered.budget.counting, 'utf8-bytes', 'the public response declares its conservative accounting method');
+  assert.equal(delivered.budget.limit, 1024);
+  assert.equal(delivered.budget.omitted.shout, 12, 'every omitted message is counted once, not again as activity');
+  assert.match(delivered.budget.summary, /12 shout/u, 'the summary names the omitted count and kind');
+  assert.doesNotMatch(result.out, /Private budget message/u, 'oversized messages are summarized rather than partly leaked');
+  const again = box.run(box.web, 'inbox', '--json');
+  assert.equal(again.code, 0, again.err);
+  const continued = JSON.parse(again.out);
+  assert.equal(continued.shouts.length, 0, 'summarized messages are acknowledged rather than repeated forever');
+  const unchanged = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  assert.deepEqual(exportBoard(unchanged).tables.event.filter(event => event.event_kind !== 'activity-delivered'),
+    before.tables.event, 'budgeting preserves original immutable events while allowing canonical delivery receipts');
+  assert.deepEqual(exportBoard(unchanged).tables.shout, before.tables.shout, 'budgeting preserves original message bodies');
+  store.closeBoard(unchanged);
+});
+
+test('inbox budgets retain small deliveries and bound text without clipping messages [R2,N26]', () => {
+  const box = e2e.project();
+  const configPath = join(box.web, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.inbox = { tokenBudget: 1024 };
+  writeFileSync(configPath, JSON.stringify(config));
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  store.shout(board, { from: 'coordinator', to: 'web-1', text: 'An oversized message: ' + '界'.repeat(350), lanes: ['web'] });
+  store.closeBoard(board);
+  const text = box.run(box.web, 'inbox');
+  assert.equal(text.code, 0, text.err);
+  assert.ok(Buffer.byteLength(text.out) <= 1024);
+  assert.match(text.out, /1 shout/u);
+  assert.doesNotMatch(text.out, /An oversized message/u);
+  config.inbox.tokenBudget = 2048;
+  writeFileSync(configPath, JSON.stringify(config));
+  const reopened = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  store.shout(reopened, { from: 'coordinator', to: 'web-1', text: 'Ready.', lanes: ['web'] });
+  store.closeBoard(reopened);
+  const small = box.run(box.web, 'inbox', '--json');
+  assert.equal(small.code, 0, small.err);
+  assert.ok(Buffer.byteLength(small.out) <= 2048);
+  assert.equal(JSON.parse(small.out).shouts[0]?.shout_text, 'Ready.');
+  config.inbox.tokenBudget = 1;
+  writeFileSync(configPath, JSON.stringify(config));
+  const invalid = box.run(box.web, 'inbox', '--json');
+  assert.equal(invalid.code, 1);
+  assert.equal(JSON.parse(invalid.out).error.code, 'BAD_CONFIG');
+});
