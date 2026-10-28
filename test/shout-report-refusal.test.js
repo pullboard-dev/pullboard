@@ -42,7 +42,7 @@ test('[C7] a report shout right after the same agent verdict is refused naming t
   assert.equal(viaItem.code, 1, 'naming the item with --item is the same report');
   assert.equal(shouts(box), before, 'refusals record no shout');
 
-  for (const args of [['Should #1 land now?', '--kind', 'question'], ['#1 blocked on the runner', '--kind', 'blocker'], ['Pick for #1', '--kind', 'decision', '--decision']]) {
+  for (const args of [['Should #1 land now?', '--kind', 'question'], ['#1 blocked on the runner', '--kind', 'blocker'], ['Pick for #1', '--kind', 'decision']]) {
     const sent = box.run(box.web, 'shout', 'coordinator', ...args, '--json');
     assert.equal(sent.code, 0, `${args.join(' ')}: ${sent.out}`);
   }
