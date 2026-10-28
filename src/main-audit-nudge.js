@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { codeIsFromMain } from './git.js';
 import { gitChildEnv } from './git.js';
 import { repoInfo } from './git.js';
-import { mainAuditDirectory, readMainAudit } from './main-audit-state.js';
+import { mainAuditDirectory } from './main-audit-state.js';
+import { readMainAudit } from './main-audit-state.js';
 
 /** Call only after foreground checkout/landing leases release; never await an audit or gate admission. */
 export async function nudgeMainAudit(root) {
