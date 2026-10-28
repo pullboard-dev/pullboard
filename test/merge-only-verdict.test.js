@@ -258,7 +258,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
       '-p', trunk, '-m', 'private next trunk');
     const nextHead = box.git(box.repo, 'commit-tree', extraTree, '-p', extraHead, '-p', nextTrunk, '-m', 'private clean merge');
     const nextOptions = { ...options, commit: nextHead, tree: extraTree, policyCommit: nextTrunk };
-    const nextProof = captureMergeOnly(box.web, mergeOnlyBasis(forged, store.getItem(forged, id)),
+    const nextProof = captureMergeOnly(box.web, mergeOnlyBasis(forged, store.getItem(forged, id), {}, { acceptedVerdict: store.acceptedVerdict }),
       { commit: nextHead, tree: extraTree, trunk: nextTrunk });
     assert.ok(nextProof, 'the newest merge alone is clean, but its inherited acceptance was forged');
     const chained = prepareEngineMove(forged, 'submit', [id, nextOptions]);
