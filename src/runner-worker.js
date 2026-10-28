@@ -672,8 +672,8 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
       });
       await git(cache, ['update-ref', '--stdin'], env, `${updates.join('\n')}\n`);
       // Bound argv while delivering all already-validated tag refs in a few owned Git invocations.
-      for (let index = 0; index < spec.tags.length; index += 32) {
-        const tags = spec.tags.slice(index, index + 32);
+      for (let index = 0; index < spec.tags.length; index += 1) {
+        const tags = spec.tags.slice(index, index + 1);
         const refspecs = tags.map((tag, offset) => `${deliveryRefs[index + offset]}:${tag.name}`);
         await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, ...refspecs], env);
         const peeled = (await git(root, ['rev-parse', '--revs-only', '--end-of-options', ...tags.map(tag => `${tag.name}^{}`)], env)).split(/\r?\n/u);
