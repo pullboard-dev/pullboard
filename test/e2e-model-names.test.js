@@ -362,7 +362,7 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     const thread = box.run(repo.web, 'show', String(id));
     assert.equal(thread.code, 0, thread.err || thread.out);
     assert.ok(thread.out.includes(`  ${builderName}  claim`), thread.out);
-    const decision = box.run(repo.web, 'shout', 'coordinator', 'Keep web-1 literal in question', '--decision');
+    const decision = box.run(repo.web, 'shout', 'coordinator', 'Keep web-1 literal in question', '--kind', 'question', '--decision');
     assert.equal(decision.code, 0, decision.err || decision.out);
     const resume = box.run(repo.repo, 'resume');
     assert.equal(resume.code, 0, resume.err || resume.out);

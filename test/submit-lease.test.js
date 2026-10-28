@@ -86,7 +86,7 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, 
     assert.equal(submit.exitCode, null, 'submit remains active inside the gate');
 
     const beforeBoardOnly = boardState(database);
-    const shout = launchAs(project, project.web, process.execPath, [helpers.BIN, 'shout', 'coordinator', 'still responsive during submit'], owner);
+    const shout = launchAs(project, project.web, process.execPath, [helpers.BIN, 'shout', 'all', 'still responsive during submit'], owner);
     children.push(shout);
     const shoutResult = await within(shout.closed, 5_000, 'same-session shout');
     assert.equal(shoutResult.code, 0, shout.failure ?? shout.stderrText);
@@ -110,7 +110,7 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, 
 
     const currentBinding = readFileSync(bindingFile, 'utf8');
     writeFileSync(bindingFile, '{ damaged binding\n');
-    const corrupt = launchAs(project, project.web, process.execPath, [helpers.BIN, 'shout', 'coordinator', 'corrupt binding must fail closed', '--json'], owner);
+    const corrupt = launchAs(project, project.web, process.execPath, [helpers.BIN, 'shout', 'all', 'corrupt binding must fail closed', '--json'], owner);
     children.push(corrupt);
     const corruptResult = await within(corrupt.closed, 5_000, 'corrupt-binding refusal');
     assert.equal(corruptResult.code, 1);
@@ -120,7 +120,7 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, 
 
     rmSync(bindingFile, { force: true });
     missingBindingSession = launchAs(project, project.web, process.execPath,
-      [helpers.BIN, 'shout', 'coordinator', 'missing binding must queue', '--json'], owner);
+      [helpers.BIN, 'shout', 'all', 'missing binding must queue', '--json'], owner);
     children.push(missingBindingSession);
     await waitFor(() => {
       const resource = listResources({ scope: 'repo', root: project.repo }).find((entry) => entry.name.startsWith('checkout-session:'));
@@ -129,7 +129,7 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, 
     assert.equal(missingBindingSession.exitCode, null, 'a missing binding takes the normal checkout lease path');
     writeFileSync(bindingFile, currentBinding);
 
-    wrongSession = launchAs(project, project.web, process.execPath, [helpers.BIN, 'shout', 'coordinator', 'wrong session must not write', '--json'], intruder);
+    wrongSession = launchAs(project, project.web, process.execPath, [helpers.BIN, 'shout', 'all', 'wrong session must not write', '--json'], intruder);
     children.push(wrongSession);
     await waitFor(() => {
       const resource = listResources({ scope: 'repo', root: project.repo }).find((entry) => entry.name.startsWith('checkout-session:'));
@@ -165,7 +165,7 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, 
 
     const beforeOldOwner = boardState(database);
     const oldOwner = launchAs(project, project.web, process.execPath,
-      [helpers.BIN, 'shout', 'coordinator', 'old owner cannot write after takeover', '--json'], owner);
+      [helpers.BIN, 'shout', 'all', 'old owner cannot write after takeover', '--json'], owner);
     children.push(oldOwner);
     const oldOwnerResult = await oldOwner.closed;
     assert.equal(oldOwnerResult.code, 1);

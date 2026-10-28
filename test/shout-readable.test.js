@@ -14,7 +14,7 @@ test('a run-together shout is refused with the next step and a readable one is s
   try {
     const before = store.events(board);
     const shouts = store.allShouts(board);
-    const refused = box.run(box.web, 'shout', 'coordinator', 'exactimmutableproducerpacket+SHA', '--json');
+    const refused = box.run(box.web, 'shout', 'all', 'exactimmutableproducerpacket+SHA', '--json');
     assert.notEqual(refused.code, 0, refused.out || refused.err);
     const error = JSON.parse(refused.out).error;
     assert.equal(error.code, 'SHOUT_SPACES');
@@ -28,12 +28,12 @@ test('a run-together shout is refused with the next step and a readable one is s
       `The commit is ${'a'.repeat(40)}.`,
       'abcdefghijklmnopqrstuvwx',
     ]) {
-      const sent = box.run(box.web, 'shout', 'coordinator', text, '--json');
+      const sent = box.run(box.web, 'shout', 'all', text, '--json');
       assert.equal(sent.code, 0, sent.out || sent.err);
       assert.equal(store.getShout(board, JSON.parse(sent.out).id).shout_text, text);
     }
     for (const text of ['abcdefghijklmnopqrstuvwxy', '`exactimmutableproducerpacket+SHA`']) {
-      const denied = box.run(box.web, 'shout', 'coordinator', text, '--json');
+      const denied = box.run(box.web, 'shout', 'all', text, '--json');
       assert.notEqual(denied.code, 0, denied.out || denied.err);
       assert.equal(JSON.parse(denied.out).error.code, 'SHOUT_SPACES');
     }

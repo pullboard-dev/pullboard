@@ -25,12 +25,12 @@ export default Object.freeze({ operation: "refreeze", order: 21, engine: 1,
   "BAD_CONFIG": "fix pullboard.json as the message says, then commit it: git commit -m \"chore: fix pullboard config\" pullboard.json",
   "BAR_NOT_READY": "read pullboard bar <id>; ask its author to complete the named red baseline and measurement/edge notes, then have an outside parent session sign the current bar",
   "CLOSED": "read its state with pullboard show <id>, then take open work: pullboard next",
-  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator \"<what you need>\"",
+  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator --kind question \"<what you need>\"",
   "NOT_JOINED": "join a lane from this worktree: pullboard join <lane> --model \"<model name>\" (see: pullboard lanes)",
-  "NOT_YOURS": "shout its holder or the coordinator: pullboard shout coordinator \"<what you need>\"",
+  "NOT_YOURS": "shout its holder or the coordinator: pullboard shout coordinator --kind question \"<what you need>\"",
   "NO_ITEM": "find the item id: pullboard list --all",
   "NO_POLICY": "restore and commit pullboard.json, then run the command again",
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again",
   "SPEC_BEHIND_MAIN": "git merge main",
-  "UNKNOWN_SPEC": "ask the coordinator to restore the named spec rows or withdraw the item: pullboard shout coordinator \"please fix the rows cited by #<id>\""
+  "UNKNOWN_SPEC": "ask the coordinator to restore the named spec rows or withdraw the item: pullboard shout coordinator --kind question \"please fix the rows cited by #<id>\""
 }) });

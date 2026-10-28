@@ -1,6 +1,6 @@
 /** Pure person guidance and a lightweight CLI output collector [A1,B26,C7]. */
 /** The coordinator carries every seat's request for a person decision [B26]. */
-export const COORDINATOR_PERSON_REQUEST = 'ask the coordinator to bring it to the person: pullboard shout coordinator "<what is needed>" --decision';
+export const COORDINATOR_PERSON_REQUEST = 'ask the coordinator to bring it to the person: pullboard shout coordinator --kind question "<what is needed>" --decision';
 
 /**
  * Route presentation-only person requests for a known seat; unknown callers retain existing text.

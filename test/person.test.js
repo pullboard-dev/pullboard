@@ -126,7 +126,7 @@ test('[B26] person answers refuse agent environments without writes and record t
     for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
   });
   const box = project();
-  const asked = box.run(box.web, ['shout', 'coordinator', 'Ship the patch?', '--decision']);
+  const asked = box.run(box.web, ['shout', 'coordinator', 'Ship the patch?', '--kind', 'question', '--decision']);
   assert.equal(asked.status, 0, asked.stderr);
   const askedId = /as #(\d+)/u.exec(asked.stdout)?.[1];
   assert.ok(askedId, asked.stdout);
@@ -221,7 +221,7 @@ test('[B26,B3] person actions over SSH refuse terminals while the authenticated 
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
   /** Create a real person decision by passing a worktree agent's request. */
   const createPersonDecision = (text) => {
-    const asked = box.run(box.web, ['shout', 'coordinator', text, '--decision', '--json']);
+    const asked = box.run(box.web, ['shout', 'coordinator', text, '--kind', 'question', '--decision', '--json']);
     assert.equal(asked.status, 0, asked.stderr);
     const passed = box.run(box.repo, ['pass', String(JSON.parse(asked.stdout).id), 'The person should decide.', '--json']);
     assert.equal(passed.status, 0, passed.stderr);
@@ -264,7 +264,7 @@ test('[B26,B3] person actions over SSH refuse terminals while the authenticated 
 test('[B26,B27] a view launched by an agent records view on both person answer receipts', async (t) => {
   const box = project();
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
-  const asked = box.run(box.web, ['shout', 'coordinator', 'Ship from the view?', '--decision', '--json']);
+  const asked = box.run(box.web, ['shout', 'coordinator', 'Ship from the view?', '--kind', 'question', '--decision', '--json']);
   assert.equal(asked.status, 0, asked.stderr);
   const original = JSON.parse(asked.stdout).id;
   const passed = box.run(box.repo, ['pass', String(original), 'The person should decide.', '--json']);

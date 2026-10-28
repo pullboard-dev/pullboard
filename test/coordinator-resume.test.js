@@ -157,7 +157,7 @@ test("the coordinator's handoff brief orders current work and leaves agent resum
   const plainId = addAndClaim(box, plainBuilder, 'Plain text only', 'G2');
   const plainHead = submitFile(box, plainBuilder, plainId, 'G2', 'web/plain.txt', 'plain\n', 'prepare plain evidence');
   acceptAt(box, plainId, plainHead);
-  const plain = box.run(plainBuilder, 'shout', 'coordinator', `#${plainId} integrated at ${plainHead}`);
+  const plain = box.run(plainBuilder, 'shout', 'coordinator', `#${plainId} integrated at ${plainHead}; does this need a follow-up?`, '--kind', 'question');
   assert.equal(plain.code, 0, plain.err || plain.out);
 
   const factBuilder = addBuilder(box, 'fact-builder');
@@ -199,7 +199,7 @@ test("the coordinator's handoff brief orders current work and leaves agent resum
   const reviewId = addAndClaim(box, reviewBuilder, 'Review item', 'G2');
   submitFile(box, reviewBuilder, reviewId, 'G2', 'web/review.txt', 'review\n', 'submit review item');
 
-  const open = box.run(cleanBuilder, 'shout', 'coordinator', 'Need a decision on the next build.', '--decision');
+  const open = box.run(cleanBuilder, 'shout', 'coordinator', 'Need a decision on the next build.', '--kind', 'question', '--decision');
   assert.equal(open.code, 0, open.err || open.out);
   const openId = Number(/#(\d+)/u.exec(open.out)?.[1]);
   const personQuestion = box.run(box.repo, 'shout', 'person', 'Should the release wait?', '--decision');
@@ -218,7 +218,7 @@ test("the coordinator's handoff brief orders current work and leaves agent resum
   assert.equal(oldAnswer.code, 0, oldAnswer.err || oldAnswer.out);
   const oldAnswerId = JSON.parse(oldAnswer.out).id;
   for (let index = 0; index < 4; index += 1) {
-    const ask = box.run(cleanBuilder, 'shout', 'coordinator', `Additional decision ${index}: ${'detail '.repeat(50)}`, '--decision');
+    const ask = box.run(cleanBuilder, 'shout', 'coordinator', `Additional decision ${index}: ${'detail '.repeat(50)}`, '--kind', 'question', '--decision');
     assert.equal(ask.code, 0, ask.err || ask.out);
   }
 

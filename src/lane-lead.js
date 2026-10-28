@@ -1,6 +1,7 @@
 /** Explicit lane coordination never grants coordinator or person authority [B21,B26]. */
 import { Refused } from './refused.js';
 import { LANE_LEAD_ENGINE } from './lane-lead-engine.js';
+import { COORDINATOR_SHOUT_KINDS_ENGINE } from './coordinator-shout-kinds-engine.js';
 
 /** Read only valid current lane seats; stale policy never grants a different lane authority. */
 export function laneLeads(board) {
@@ -17,7 +18,11 @@ export function routeLaneMessage(board, message, engine) {
     && to === 'coordinator' && item === undefined ? 'question' : undefined);
   if (kind === undefined) return message;
   if (engine < LANE_LEAD_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade every linked device before sending typed lane coordination');
-  if (!['question', 'blocker', 'decision', 'status'].includes(kind)) throw new Refused('BAD_MESSAGE_KIND', 'use question, blocker or decision for lane coordination');
+  const extended = engine >= COORDINATOR_SHOUT_KINDS_ENGINE;
+  const kinds = extended ? ['question', 'blocker', 'decision', 'exception', 'idea', 'status'] : ['question', 'blocker', 'decision', 'status'];
+  if (!kinds.includes(kind)) throw new Refused('BAD_MESSAGE_KIND', extended
+    ? 'use question, blocker, decision, exception or idea for lane coordination'
+    : 'use question, blocker or decision for lane coordination');
   if (kind === 'status') throw new Refused('STATUS_IS_ACTIVITY', 'status belongs in board activity, not a shout; keep working on your item');
   if (item !== undefined) throw new Refused('LANE_MESSAGE_ITEM', 'keep item notes separate from lane coordination; omit --kind for an item message');
   const lane = board.db.prepare('SELECT agent_lane FROM agent WHERE agent_id=?').get(from)?.agent_lane;
@@ -49,6 +54,7 @@ export function laneAnswerFloor(board, args) {
 
 /** Existing explicit decision questions opt in only when a lane has a named lead. */
 export function laneMessageFloor(board, message) {
+  if (['exception', 'idea'].includes(message?.kind)) return COORDINATOR_SHOUT_KINDS_ENGINE;
   if (message?.kind !== undefined) return LANE_LEAD_ENGINE;
   if (!board?.db || !message?.decision || message.answers != null || message.to !== 'coordinator' || message.item !== undefined) return 1;
   if (typeof message.from !== 'string') return 1;

@@ -19,5 +19,5 @@ export default Object.freeze({ operation: "recordJobRun", order: 57, engine: 1,
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
   "NOT_JOINED": "join a lane from this worktree: pullboard join <lane> --model \"<model name>\" (see: pullboard lanes)",
-  "UNKNOWN_JOB": "ask the coordinator to declare it: pullboard shout coordinator \"declare job <name>\"; read the declared jobs with pullboard loop"
+  "UNKNOWN_JOB": "ask the coordinator to declare it: pullboard shout coordinator --kind question \"declare job <name>\"; read the declared jobs with pullboard loop"
 }) });
