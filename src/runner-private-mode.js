@@ -71,6 +71,6 @@ export function privateCheckPhases(mode, receipt, totalBytes) {
   if (mode.guard && !receipt.guard.applied) return { state: 'unverified', stage: 'guard could not be reverted' };
   if (install && (install.code !== 0 || install.signal || install.timedOut)) return { state: 'unverified', stage: install.timedOut ? 'install timed out' : 'install failed' };
   if (!check) throw new Error('missing private-check completion');
-  if (check.timedOut || check.signal) return { state: 'unverified', stage: check.timedOut ? 'check timed out' : 'check could not complete' };
+  if (check.timedOut || check.signal) return { state: 'unverified', stage: check.timedOut ? `check timed out after ${(mode.timeoutMs / 1000).toFixed(1)} seconds against its ${(mode.timeoutMs / 1000).toFixed(1)} second ceiling` : 'check could not complete' };
   return { state: check.code === 0 ? 'pass' : 'red', stage: check.code === 0 ? 'check' : `check failed (exit ${check.code})` };
 }

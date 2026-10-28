@@ -356,7 +356,7 @@ test('private check timeout kills a TERM-resistant shell and its tracked child [
     });
     assert.equal(outer.error, undefined, outer.error?.message);
     assert.equal(outer.status, 0, outer.stderr);
-    assert.equal(JSON.parse(outer.stdout).stage, 'check timed out');
+    assert.match(JSON.parse(outer.stdout).stage, /^check timed out after \d+\.\d seconds against its \d+\.\d second ceiling/);
     if (!existsSync(pidFile)) {
       assert.fail(existsSync(shellPidFile)
         ? `the check was killed before it forked its tracked child: its shell started, but ${pidFile} never appeared within the ${budget} check budget`
