@@ -1,4 +1,4 @@
-// @pullboard-test-loads src/relay.js src/cli.js src/relay-sender-worker.js
+// @pullboard-test-loads src/relay.js src/cli.js src/relay-sender-worker.js src/relay-sender-main.js
 /** A slow real multi-board pass must not make a live sender look abandoned [H21,H5,H16]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -9,7 +9,8 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { SENDER_CLAIM_STALE_MS, SENDER_WORKER } from '../src/relay-local-first.js';
+import { SENDER_CLAIM_STALE_MS } from '../src/relay-local-first.js';
+import { SENDER_WORKER } from '../src/relay-sender-main.js';
 import { outboxFile } from '../src/relay-outbox.js';
 import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
@@ -137,7 +138,8 @@ async function nudge(root, file, env, workers) {
     };
     syncBuiltinESMExports();
     const { nudgeRelaySender } = await import(${JSON.stringify(LOCAL_FIRST)});
-    nudgeRelaySender(process.cwd(), ${JSON.stringify(file)});
+    const { launchRelaySender } = await import(${JSON.stringify(new URL('../src/relay-sender-main.js', import.meta.url).href)});
+    nudgeRelaySender(process.cwd(), ${JSON.stringify(file)}, launchRelaySender);
     process.stdout.write(JSON.stringify({ spawned, home: process.env.PULLBOARD_HOME }));
   `;
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: root, env });

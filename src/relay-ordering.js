@@ -29,10 +29,6 @@ import {
   nameNextSeat,
   seatReceipt,
 } from './relay-seats.js';
-import {
-  credentialActor,
-  relaySenderProblem,
-} from './relay-sender.js';
 
 /**
  * Build catch-up and send over relay.js's helpers.
@@ -53,11 +49,11 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
   }
 
   /** Read and authenticate the relay's checkpoint without touching the board; the caller restores it. */
-  async function fetchCheckpoint(state, io, key) {
+  async function fetchCheckpoint(state, io, key, senderPolicy) {
     const document = await request(state, '/api/v1/boards/' + state.board + '/state', {}, io);
     const snapshot = document.state;
     if (!snapshot || !Number.isSafeInteger(snapshot.sequence) || snapshot.sequence < 0) throw new Refused('RELAY_RESPONSE', 'the relay snapshot has no valid coverage sequence; fetch it again');
-    const senderProblem = relaySenderProblem(null, snapshot.sender, 'snapshot');
+    const senderProblem = senderPolicy.relaySenderProblem(null, snapshot.sender, 'snapshot');
     if (senderProblem) throw senderProblem;
     return { native: await decoded(key, snapshot, state, 'snapshot', snapshot.sequence), sequence: snapshot.sequence };
   }
@@ -66,25 +62,25 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
   const CATCH_UP_PASSES = 10;
 
   /** Apply a validated relay prefix with durable, transaction-bound receipts on this replica. */
-  async function catchUp(root, file, state, io, pass = 0) {
+  async function catchUp(root, file, state, io, senderPolicy, pass = 0) {
     if (pass >= CATCH_UP_PASSES) throw new Refused('RELAY_BUSY', 'moves kept queuing on this machine while it caught up; they stay queued for the next send');
     // Queued moves sit on top of this board: the outbox rebuilds it from the relay's order with them on top (#1013).
-    if (outboxAhead(state) || outboxWaiting(file)) await flush(root, file, state, io);
+    if (outboxAhead(state) || outboxWaiting(file)) await flush(root, file, state, io, senderPolicy);
     const key = readBoardKey(state.board);
     const after = localRecords(root, appliedSequence);
     let remote;
     try { remote = await request(state, '/api/v1/boards/' + state.board + '/events?after=' + after, {}, io); }
     catch (error) {
       if (error.code !== 'SNAPSHOT_REQUIRED') throw error;
-      const checkpoint = await fetchCheckpoint(state, io, key);
+      const checkpoint = await fetchCheckpoint(state, io, key, senderPolicy);
       const restored = await withOutboxGuard(file, () => {
         if (outboxWaiting(file)) return false;
         localRecords(root, (board) => restoreRelaySnapshot(board, checkpoint.native, checkpoint.sequence));
         return true;
       });
-      if (!restored) return catchUp(root, file, state, io, pass + 1);
+      if (!restored) return catchUp(root, file, state, io, senderPolicy, pass + 1);
       if (localRecords(root, appliedSequence) <= after) throw new Refused('RELAY_RESPONSE', 'the relay checkpoint did not advance the missing prefix; fetch a consistent newer snapshot');
-      return catchUp(root, file, state, io, pass);
+      return catchUp(root, file, state, io, senderPolicy, pass);
     }
     if ([remote.warning, ...(remote.warnings ?? [])].some((warning) => warning?.code === 'KEY_REQUESTS')) io.keyRequestsWaiting = true;
     if (!Array.isArray(remote.events) || remote.events.some((record, index) => !record || record.event_id !== after + index + 1 || !['move', 'request'].includes(record.kind) || typeof record.sealed !== 'string')) {
@@ -95,7 +91,7 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
       if (outboxWaiting(file) || localRecords(root, appliedSequence) !== after) return null;
       return applyRecords(root, key, state, remote.events);
     });
-    if (!outcomes) return catchUp(root, file, state, io, pass + 1);
+    if (!outcomes) return catchUp(root, file, state, io, senderPolicy, pass + 1);
     let pendingRefusal;
     remote.events.forEach((record, index) => {
       const outcome = outcomes[index];
@@ -124,10 +120,10 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
    * name for a registration the relay already gave out. Network only: it applies nothing, so the outbox can send a
    * move while this machine's board still shows its queued moves on top (#1013).
    */
-  async function postPending(root, file, state, pending, io) {
+  async function postPending(root, file, state, pending, io, senderPolicy) {
     let renewedAgentToken = false;
     for (let tries = 0; tries < 100; tries += 1) {
-      const actor = credentialActor(pending.move);
+      const actor = senderPolicy.credentialActor(pending.move);
       try {
         const transport = await conflictRecords.transport(root, pending.move,
           (checkout, move) => localRecords(checkout, board => board.enginePorts.requirePreparedComputedConflict(
@@ -174,12 +170,12 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
   }
 
   /** Finish a durable executable send; a collision reseals its unchanged id after applying the winner. */
-  async function sendPending(root, file, state, io) {
+  async function sendPending(root, file, state, io, senderPolicy) {
     for (let tries = 0; state.pending && tries < 100; tries += 1) {
-      try { await postPending(root, file, state, state.pending, io); }
+      try { await postPending(root, file, state, state.pending, io, senderPolicy); }
       catch (error) {
         if (!['SEQUENCE_REPEAT', 'SEQUENCE_GAP'].includes(error.code)) throw error;
-        await catchUp(root, file, state, io);
+        await catchUp(root, file, state, io, senderPolicy);
         if (state.pending) {
           state.pending.sequence = state.sequence + 1;
           if (state.pending.registration) nameNextSeat(root, state.pending.move, 0);
@@ -189,7 +185,7 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
         }
         continue;
       }
-      await catchUp(root, file, state, io);
+      await catchUp(root, file, state, io, senderPolicy);
     }
     if (state.pending) throw new Refused('RELAY_BUSY', 'the relay order stayed busy; retry this command after other clients finish');
   }

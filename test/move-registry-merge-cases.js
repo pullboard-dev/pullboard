@@ -106,7 +106,7 @@ export function installRegistryMergeCase() {
     commit(root, 'second independent move');
     run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'merge', '--no-edit', 'alpha']);
     assert.equal(run(root, 'git', ['diff', '--name-only', '--diff-filter=U']), '', 'the two feature contracts merge without hand editing');
-    const shared = ['src/engine.js', 'src/relay-sender.js', 'src/next-step-words.js', 'test/move-registry-baseline.json', 'src/move-history'];
+    const shared = ['src/engine.js', 'src/board-engine-ports.js', 'src/next-step-words.js', 'test/move-registry-baseline.json', 'src/move-history'];
     assert.equal(run(root, 'git', ['diff', 'main', '--', ...shared]), '', 'neither move edits a consumer or the legacy golden');
     const output = run(root, process.execPath, ['--test', '--test-reporter=tap', 'test/move-registry.test.js'], { PULLBOARD_REGISTRY_MERGE_CHILD: '1' });
     assert.match(output, /# fail 0\b/u, 'the merged tree passes every nonrecursive registry oracle');
