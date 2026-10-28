@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 import * as queueStore from '../src/board.js';
 import { eligibilityProblem as queueEligibility } from '../src/review-eligibility.js';
 /** Private board-state fixtures exercise independence; synthetic commits and events are not gate proof [V4,B26]. */
