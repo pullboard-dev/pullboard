@@ -58,6 +58,8 @@ export function defaults() {
     reviewLease: '30m',
     worktrees: 'beside',
     verify: { policy: 'any', family: 'off', reviewRatio: 3 },
+    // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
+    map: { slice: false },
     agents: { names: 'suffix' },
     check: { install: '', timeout: '5m' },
     claim: { reopenFirstRefusalMinutes: 0, barTestFiles: ['**/*.test.js', '**/*.test.mjs', '**/*.test.cjs', '**/*.spec.js', '**/*.spec.mjs', '**/*.spec.cjs'] },
@@ -117,6 +119,7 @@ function merge(base, raw) {
     specAgentApproval: spec?.agentApproval === undefined ? 'flag' : spec.agentApproval,
     commits: { ...base.commits, ...(raw.commits ?? {}) },
     protect: { ...base.protect, ...(raw.protect ?? {}) },
+    map: raw.map && typeof raw.map === 'object' && !Array.isArray(raw.map) ? { ...base.map, ...raw.map } : base.map,
     verify: typeof raw.verify === 'string'
       ? { ...base.verify, policy: raw.verify }
       : { ...base.verify, ...(raw.verify ?? {}) },
@@ -301,6 +304,9 @@ export function configProblems(config) {
   }
   if (config.verify?.unrelatedTrunkMoves !== undefined && typeof config.verify.unrelatedTrunkMoves !== 'boolean') {
     problems.push('"verify.unrelatedTrunkMoves" is true or false');
+  }
+  if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
+    problems.push('"map.slice" is true or false');
   }
   if (!Number.isFinite(config.verify?.reviewRatio) || config.verify.reviewRatio <= 0) {
     problems.push('"verify.reviewRatio" is a positive number, such as 3');
