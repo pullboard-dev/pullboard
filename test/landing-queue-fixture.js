@@ -20,7 +20,19 @@ import { assertLandingLease } from '../src/landing-lease.js';
 /** Run an ordinary fixture command and retain its full refusal on failure. */
 function run(box, root, ...args) {
   const result = box.run(root, ...args);
-  assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}\n${result.out}`);
+  const observation = result.code !== 0 && result.err.includes('[LAND_ITEM_MOVED]')
+    ? readBoard(box, board => store.landingBatches(board).map(batch => ({
+      id: batch.id, state: batch.state,
+      items: batch.items.map(entry => {
+        const item = store.getItem(board, entry.id);
+        return { entry, status: item.item_status, commit: item.item_commit,
+          checked: store.checkedLandingCommit(board, item),
+          accepted: store.acceptedVerdict(board, item),
+          sourceAdvance: board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?')
+            .get(`item_source_advance:${entry.id}`)?.meta_value ?? null };
+      }),
+    }))) : null;
+  assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}\n${result.out}${observation ? '\npublication observation: ' + JSON.stringify(observation) : ''}`);
   return result.out;
 }
 
