@@ -1335,8 +1335,9 @@ async function main(args) {
     const scopedMarker = process.env[GATE_SLOT_POOL_ENV] || process.env[GATE_SLOT_TOKEN_ENV];
     const legacyHeld = process.env[GATE_SLOT_HELD_ENV] === '1';
     // Shard payloads carry files only; filtered discovery keeps the existing admitted run and its name filter.
+    // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787).
     const filteredByName = testSelectionPatterns(actions.args, optionTakesValue).length > 0;
-    if ((fullSuite || process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) && process.env[LANDING_RUN_ENV] === '1' && !shardLabel && !filteredByName) {
+    if (process.env[LANDING_RUN_ENV] === '1' && !shardLabel && !filteredByName) {
       const { landingShardCount } = await import('../src/test-concurrency.js');
       const count = landingShardCount(process.cwd());
       if (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS) {
