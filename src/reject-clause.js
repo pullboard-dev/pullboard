@@ -84,8 +84,7 @@ export function sharpenRepeatedClause(board, item, detail, { holdItem, shout, lo
 export function finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
   agentId, code, cause, clauseDetail, companionDigest, note, check, environment, sandbox, newReview,
   review, implies, impliesId, decision, verb }, { firstRefusalDetail, deriveRigorCause, logEvent, holdItem,
-  shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications,
-  postRigorNotices, itemHold }) {
+  shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications }) {
   const returnedAt = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE && reopenFirstRefusalMinutes > 0 && item.item_built_by ? board.clock.now() : undefined;
   const reservation = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalDetail(board, item, reopenFirstRefusalMinutes, returnedAt) : {};
   const derivedCause = !isAccept && engine >= RIGOR_AUTO_ENGINE
@@ -102,7 +101,5 @@ export function finishVerdict(board, item, { id, isAccept, engine, reopenFirstRe
   tellFirstRefusal(board, item, reservation, persistShout);
   if (!isAccept) recordRejectedItemRoute(board, id, engine, item, { escalate, shout, logEvent });
   tellVerdictImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), id, { seed: impliesId, implies });
-  if (!isAccept) postRigorNotices(board, trigger);
-  return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}),
-    ...(clauseDetail.clause ? { clause: clauseDetail.clause, held: Boolean(itemHold(board, id)) } : {}) };
+  return trigger;
 }

@@ -1438,11 +1438,13 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
     });
     if (isAccept && sandbox && outsideSource(board, id)) saveOutsideSource(board, id, { ...outsideSource(board, id), sandbox });
-    return rejectClause.finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
+    const trigger = rejectClause.finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
       agentId, code, cause, clauseDetail, companionDigest, note, check, environment, sandbox, newReview,
       review, implies, impliesId, decision, verb }, { firstRefusalDetail, deriveRigorCause, logEvent, holdItem,
-      shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications,
-      postRigorNotices, itemHold });
+      shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications });
+    if (!isAccept) postRigorNotices(board, trigger);
+    return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}),
+      ...(clauseDetail.clause ? { clause: clauseDetail.clause, held: Boolean(itemHold(board, id)) } : {}) };
   });
 }
 
