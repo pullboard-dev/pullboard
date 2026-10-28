@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 const memory = new WeakMap();
 const HEARTBEAT_INTERVAL_MS = 60_000;
+const PRESENCE_BUSY_TIMEOUT_MS = 250;
 const LOCAL_TABLE = 'heartbeat';
 const IMPORTED_TABLE = 'imported_heartbeat';
 
@@ -11,7 +12,7 @@ const IMPORTED_TABLE = 'imported_heartbeat';
 function observationMemory(db) {
   let rows = memory.get(db);
   if (!rows) {
-    rows = { local: new Map(), imported: new Map() };
+    rows = { local: new Map(), imported: new Map(), warned: new Set() };
     memory.set(db, rows);
   }
   return rows;
@@ -78,18 +79,31 @@ export function heartbeatSeat(board, id) {
   } finally { db.close(); }
 }
 
-/** Read one private observation class without inferring liveness from shared history. */
+/** Read one private observation class, retaining its last successful snapshot during bounded contention. */
 function observationRows(board, table, kind) {
+  const cached = observationMemory(board.db);
   const file = observationFile(board);
-  if (!file) return observationMemory(board.db)[kind];
-  if (!existsSync(file)) return new Map();
-  const db = new DatabaseSync(file, { readOnly: true });
+  if (!file) return cached[kind];
+  if (!existsSync(file)) { cached[kind] = new Map(); return cached[kind]; }
+  let db;
   try {
-    if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table)) return new Map();
-    return new Map(db.prepare(`SELECT seat,at FROM ${table}`).all()
-      .filter(row => validHeartbeatAt(row.at)).map(row => [row.seat, row.at]));
-  }
-  finally { db.close(); }
+    db = new DatabaseSync(file, { readOnly: true });
+    db.exec(`PRAGMA busy_timeout=${PRESENCE_BUSY_TIMEOUT_MS}`);
+    const rows = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table)
+      ? new Map(db.prepare(`SELECT seat,at FROM ${table}`).all()
+        .filter(row => validHeartbeatAt(row.at)).map(row => [row.seat, row.at])) : new Map();
+    cached[kind] = rows;
+    cached.warned.delete(kind);
+    return rows;
+  } catch (error) {
+    const sqliteCode = Number.isInteger(error.errcode) ? error.errcode & 0xff : null;
+    if (sqliteCode !== 5 && error.code !== 'SQLITE_BUSY') throw error;
+    if (!cached.warned.has(kind)) {
+      cached.warned.add(kind);
+      process.emitWarning(`presence sidecar remained locked after ${PRESENCE_BUSY_TIMEOUT_MS}ms; using last known ${kind} observations without refreshing their timestamps`, { code: 'PRESENCE_BUSY' });
+    }
+    return cached[kind];
+  } finally { db?.close(); }
 }
 
 /** Read only the machine-local heartbeat rows used for local activity and throttling. */

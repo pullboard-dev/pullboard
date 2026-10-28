@@ -13,10 +13,13 @@ import { createServer } from 'node:http';
 import { Readable, Transform } from 'node:stream';
 import { once } from 'node:events';
 import {
+  cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   rmSync,
   symlinkSync,
@@ -26,6 +29,8 @@ import {
   delimiter,
   join,
   resolve,
+  relative,
+  sep,
 } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -738,6 +743,59 @@ globalThis.fetch = function tracedFetch(input, init) {
     return readFileSync(keyFile, 'utf8');
   }
 
+  /** Require the actual constructor-owned scratch origin, including every existing ancestor. */
+  function privateDirectory(directory, missing = false) {
+    const path = resolve(directory);
+    assert.ok(path.startsWith(scratch + sep), 'private input stays inside this fixture origin');
+    let cursor = scratch;
+    for (const part of relative(scratch, path).split(sep)) {
+      cursor = join(cursor, part);
+      let stat;
+      try { stat = lstatSync(cursor); }
+      catch (error) { if (missing && error.code === 'ENOENT') return null; throw error; }
+      assert.ok(stat.isDirectory() && !stat.isSymbolicLink(), 'private input ancestors are actual directories');
+    }
+    return path;
+  }
+
+  /** Copy this actual private board metadata, preserving the original lock exclusion and every other byte. */
+  function copyOwnBoardMetadata(destinationRoot) {
+    privateDirectory(join(root, '.git', 'pullboard'));
+    privateDirectory(join(destinationRoot, '.git'));
+    privateDirectory(join(destinationRoot, '.git', 'pullboard'), true);
+    cpSync(join(root, '.git', 'pullboard'), join(destinationRoot, '.git', 'pullboard'),
+      { recursive: true, filter: path => !path.endsWith('.lock') });
+  }
+
+  /** Copy only this board's actual key to another private home; an unknown board cannot borrow the capability. */
+  function copyOwnKey(destinationHome, boardId) {
+    assert.match(boardId, /^[a-f0-9]{32}$/u, 'private key destination names a canonical board');
+    assert.equal(boardId, id, 'private key belongs to exactly this fixture board');
+    privateDirectory(join(destinationHome, 'relay-keys'));
+    const source = lstatSync(keyFile);
+    assert.ok(source.isFile() && !source.isSymbolicLink() && realpathSync(keyFile).startsWith(scratch + sep), 'private key source is its actual contained regular file');
+    const target = join(destinationHome, 'relay-keys', boardId + '.key');
+    try { const stat = lstatSync(target); assert.ok(stat.isFile() && !stat.isSymbolicLink(), 'private key destination is a regular file'); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    cpSync(keyFile, target);
+  }
+
+  /** Audit every recursive file Buffer under a private origin, without filtering source or metadata subtrees. */
+  function privateTreeBytes(directory) {
+    const path = privateDirectory(directory, true);
+    if (path === null) return [];
+    /** Keep the original all-file traversal; an escaping link fails rather than disappearing from coverage. */
+    function readAll(current) {
+      return readdirSync(current, { withFileTypes: true }).flatMap(entry => {
+        const file = join(current, entry.name);
+        if (entry.isDirectory()) return readAll(file);
+        assert.ok(realpathSync(file).startsWith(scratch + sep), 'private audit cannot read an escaping symlink');
+        return [readFileSync(file)];
+      });
+    }
+    return readAll(path);
+  }
+
   /** Start a saved real relay link without exposing the pairing fragment. */
   async function link(name) {
     const result = await cli('relay', 'on', '--url', origin, ...(name === undefined ? [] : ['--name', name]));
@@ -835,7 +893,7 @@ globalThis.fetch = function tracedFetch(input, init) {
   }
   return {
     transit, providerState: provider.state, providerCalls: provider.calls, providerOrigin: provider.origin, relayDirectory: join(scratch, 'relay'), authDatabase, auth, otherDeviceJoin,
-    root, env, origin, lane, before, linkFile, readLink, keyFile, readKey, calls, moveAcks, cli, cliAt, cliWithSnapshotUploads, cliWithSnapshotTrace, startCli, waitForResponse, holdNextConfirmationStatus, link, phoneSession, requireEngineThree, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
+    root, env, origin, lane, before, linkFile, readLink, keyFile, readKey, copyOwnBoardMetadata, copyOwnKey, privateTreeBytes, calls, moveAcks, cli, cliAt, cliWithSnapshotUploads, cliWithSnapshotTrace, startCli, waitForResponse, holdNextConfirmationStatus, link, phoneSession, requireEngineThree, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
     /** Assert the test consumed every declared child budget, with no hidden CLI calls. */
     assertCliChildrenComplete() {
       if (cliChildren) assert.equal(cliChildIndex, cliChildren.length, 'every planned private CLI child ran exactly once');

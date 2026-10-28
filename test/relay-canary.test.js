@@ -7,6 +7,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
+import { repoInfo } from '../src/git.js';
 
 /** Load the new surface dynamically so the test-only baseline reports a focused missing-feature failure. */
 async function canaryApi() {
@@ -205,7 +206,6 @@ async function independentCanaryHost(host, lane, name) {
   const enabled = await host.cliAt(root, 'relay', 'canary', 'on', '--timeout', '5000');
   assert.equal(enabled.code, 0, enabled.failure);
   const { loadMachineSettings, machineSettingsFile } = await import('../src/settings.js');
-  const { repoInfo } = await import('../src/git.js');
   const saved = await withFixtureEnvironment(host.env, () => ({
     config: loadMachineSettings().relay?.canary,
     settingsFile: machineSettingsFile(),

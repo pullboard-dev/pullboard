@@ -13,6 +13,19 @@ import { copyPackageFiles, packageFiles } from '../src/package-files.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import {
+  mainAuditKey,
+  readMainAudit,
+} from '../src/main-audit-state.js';
+/** Read only the exact native audit identity; malformed or mismatched journals fail the owning fixture. */
+export function readAuditJob(directory, key) {
+  assert.match(key, /^[a-f0-9]{64}$/u, 'audit journal identity is the exact native digest');
+  const job = readMainAudit(join(directory, `${key}.json`));
+  assert.ok(job, 'the actual native audit journal exists');
+  assert.equal(job.version, 1, 'the native journal schema is explicit');
+  assert.equal(mainAuditKey(job), key, 'the journal binds the requested board, batch and source identity');
+  return job;
+}
 const SOURCE=new URL('../',import.meta.url);
 /** Run actual Git in the private fixture and retain failures. */
 function git(root,env,...args){const ran=spawnSync('git',args,{cwd:root,env,encoding:'utf8'});assert.equal(ran.status,0,ran.stderr);return ran.stdout.trim();}

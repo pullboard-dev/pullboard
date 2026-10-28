@@ -74,7 +74,7 @@ export async function personSigningCase(t, { CLI, TRUSTED_CLI, helpers, passkeyR
 
   // Linked, a terminal person move goes to the passkey as an action-bound request and says where to confirm.
   renameSync(`${box.linkFile}.unpaired`, box.linkFile);
-  assert.ok(holdsNoPersonCredential(box.root) && holdsNoPersonCredential(box.env.HOME), 'no file holds a person session or grant');
+  assert.ok(holdsNoPersonCredential(box, box.root) && holdsNoPersonCredential(box, box.env.HOME), 'no file holds a person session or grant');
   const terminal = helpers.launch({ ...box, env: { ...cleared, SSH_CONNECTION: '127.0.0.1 40000 127.0.0.1 22' } },
     box.root, process.execPath, [...trusted, 'answer', String(ask), 'Signed on the passkey', '--as', 'person', '--json']);
   t.after(async () => { if (terminal.exitCode === null && terminal.signalCode === null) terminal.kill('SIGTERM'); await terminal.closed; });
@@ -144,7 +144,7 @@ export async function personSigningCase(t, { CLI, TRUSTED_CLI, helpers, passkeyR
   assert.deepEqual(answers.map((row) => [row.shout_from, row.shout_text]), [['person', 'Signed on the passkey']]);
   const replay = await passkeyRequest(box, phone, { ...document, id: randomUUID() }, presence);
   assert.equal(replay.document.error?.code, 'PHONE_APPROVAL_USED', 'the grant is single-use');
-  assert.ok(holdsNoPersonCredential(box.root) && holdsNoPersonCredential(box.env.HOME), 'the grant was never stored');
+  assert.ok(holdsNoPersonCredential(box, box.root) && holdsNoPersonCredential(box, box.env.HOME), 'the grant was never stored');
 
   // A hand edit to the board file cannot forge a passkey request, turn signing off or swap the relay key.
   const raw = new DatabaseSync(join(box.root, '.git', 'pullboard', 'board.sqlite'));

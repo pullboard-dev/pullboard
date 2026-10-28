@@ -1,7 +1,5 @@
 /** A source advance executes the real raw affected closure, never placement deferral [C7,V4]. */
 import { createHash } from 'node:crypto';
-import { selectAffectedTests } from './affected-tests.js';
-import { selectTestTreeGuards } from './affected-tests.js';
 import { selectRegistryGuards } from './registry-guards.js';
 import { mappedCheck } from './path-map.js';
 import { git } from './git.js';
@@ -13,7 +11,9 @@ function word(value) { return "'" + String(value).replaceAll("'", "'\\''") + "'"
 export function sourceAdvanceHash(value) { return createHash('sha256').update(value).digest('hex'); }
 
 /** Compute the same nondeferred commands at origin and immediately before actual execution. */
-export function sourceAdvancePlan(root, config, { base, changed, check }) {
+export function sourceAdvancePlan(root, config, { base, changed, check }, selectors) {
+  if (typeof selectors?.selectAffectedTests !== 'function' || typeof selectors?.selectTestTreeGuards !== 'function') throw new TypeError('source advance planning needs explicit test selector operations');
+  const { selectAffectedTests, selectTestTreeGuards } = selectors;
   let selection = config.affectedTests ? selectAffectedTests(root, { base, changed })
     : { full: true, reason: 'affected-test selection is not enabled', files: [] };
   if (!selection.full && !selection.files.length) selection = { ...selection, full: true, reason: 'an empty affected closure requires the full gate for source advance' };
