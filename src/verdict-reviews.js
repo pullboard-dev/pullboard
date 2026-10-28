@@ -1,3 +1,4 @@
+import { advancedVerdict } from './source-advance-state.js';
 /** Sealed review validation and immutable acceptance projections [E8,H16]. */
 import { verdictWithdrawals } from './verdict-withdrawal.js';
 import { Refused } from './refused.js';
@@ -42,7 +43,7 @@ export function acceptedVerdict(board, item) {
   const verdicts = verdictsFor(board, item.item_id);
   const latest = verdicts.findLast(verdict =>
     verdict.verdict_decision === 'ACCEPT' && verdict.verdict_commit === item.item_commit);
-  if (latest) return latest.withdrawn ? undefined : latest;
+  if (latest) return latest.withdrawn ? undefined : advancedVerdict(board, item, latest);
   if (item.item_status === 'verified') {
     const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`rehome_import:${item.item_id}`);
     if (row) {
@@ -67,8 +68,8 @@ export function acceptedVerdict(board, item) {
   const original = verdicts.find(verdict => verdict.verdict_id === carry.verdict && verdict.verdict_decision === 'ACCEPT'
     && verdict.verdict_digest === item.item_frozen_digest && verdict.verdict_by === carry.by);
   if (!original || original.withdrawn) return undefined;
-  return { ...original, carried: carry, review: { commit: carry.commit, head: carry.commit,
-    trunk: carry.trunk, paths: carry.paths } };
+  return advancedVerdict(board, item, { ...original, carried: carry, review: { commit: carry.commit, head: carry.commit,
+    trunk: carry.trunk, paths: carry.paths } });
 }
 
 /** The exact checked composition for a new acceptance, or the historical submitted candidate. */

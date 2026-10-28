@@ -94,6 +94,7 @@ export function installRegistryMergeCase() {
     mkdirSync(root);
     unpackRelease('HEAD', root);
     run(root, 'git', ['init', '-b', 'main']);
+    // The base is a landed snapshot: seal its existing placeholders before the two independent feature moves.
     run(root, process.execPath, ['--input-type=module', '-e',
       "import {assignEngineNumbers} from './src/engine-numbers.js'; assignEngineNumbers(process.cwd());"]);
     commit(root, 'fixture base');
