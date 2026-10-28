@@ -1,3 +1,4 @@
+import { CHECK_TIMING_ENGINE } from './check-timing-engine.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { REJECTED_WORK_RETURN_ENGINE } from './rejected-work-return-engine.js';
 /** Pure per-item reads without loading the query facade [C7,H16,B13]. */
@@ -15,9 +16,11 @@ export function itemById(board, id) {
     const target = JSON.parse(redirect.meta_value);
     throw new Refused('NO_ITEM', `item #${id} moved to ${target.destinationHandle ?? target.destinationBoardId}#${target.destinationItemId}; use that destination reference`);
   }
-  const item = board.db.prepare('SELECT * FROM item WHERE item_id = ?').get(id);
-  if (!item) throw new Refused('NO_ITEM', `no item #${id}; see: pullboard list`);
-  return item;
+  const row = board.db.prepare("SELECT item.*, timing.meta_value AS check_timing FROM item LEFT JOIN board_meta timing ON timing.meta_key='item_check_timing:' || item.item_id WHERE item_id = ?").get(id);
+  if (!row) throw new Refused('NO_ITEM', `no item #${id}; see: pullboard list`);
+  const { check_timing, ...item } = row;
+  return (board.executionEngineVersion ?? ENGINE_VERSION) >= CHECK_TIMING_ENGINE && check_timing !== null
+    ? { ...item, item_check_timing: JSON.parse(check_timing) } : item;
 }
 
 /** Read the latest return's window, ignoring review releases and earlier submissions. */
