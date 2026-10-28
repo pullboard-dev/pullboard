@@ -135,8 +135,12 @@ test('imported producers need exact source identity and a proven native join ret
   const options = { file: 'test/producer.test.js', moves: [['src/moved.js', 'packages/git/src/shell/moved.js']] };
   const inspect = readSource => fixtureSourceEdits(consumer, { ...options, readSource });
   assert.deepEqual(inspect(file => { assert.equal(file, 'src/producer.js'); return blob(valid); }), { edits: [], problems: [] });
+  const unrelated = valid + "export async function configure() { return await import('./setup.js'); }\n";
+  assert.deepEqual(inspect(() => blob(unrelated)), { edits: [], problems: [] }, 'unrelated dynamic source loading cannot change the proven producer return');
   const changed = valid.replace('config.json', 'moved.js');
-  const uncertain = [undefined, () => null, () => ({ source: valid, object: '0'.repeat(40) }),
+  const uncertain = [undefined, () => null,
+    () => blob(valid.replace('return join', "return import('./setup.js') || join")),
+    () => blob(valid + "export function configure() { return require('./setup.js'); }\n"), () => ({ source: valid, object: '0'.repeat(40) }),
     () => blob(changed), () => blob(valid + "locate = () => 'src/moved.js';\n"),
     () => blob(valid.replace('return join', 'return untrusted')),
     () => blob(valid.replace("'config.json'", '`' + '${unknown}' + '`')),

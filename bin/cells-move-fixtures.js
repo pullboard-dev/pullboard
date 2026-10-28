@@ -68,7 +68,7 @@ function slashLine(source, code, at) {
 }
 
 /** Recognize imported module identities and exclude their declarations from binding-read probes. */
-function imports(source, scanned, problems, file) {
+function imports(source, scanned, problems, file, { producer = false } = {}) {
   const bindings = new Map();
   let body = scanned.code;
   for (const literal of scanned.strings) {
@@ -78,7 +78,10 @@ function imports(source, scanned, problems, file) {
     const before = scanned.code.slice(0, literal.start);
     const match = /\bimport\s*([^;]*?)\bfrom\s*$/u.exec(before);
     if (!match) {
-      if (/\b(?:require|import)\s*\(\s*$/u.test(before)) problems.push(`${file}: unsupported dynamic/CommonJS fixture filesystem binding`);
+      if (/\b(?:require|import)\s*\(\s*$/u.test(before)
+        && !(producer && target && /\bimport\s*\(\s*$/u.test(before))) {
+        problems.push(`${file}: unsupported dynamic/CommonJS fixture filesystem binding`);
+      }
       continue;
     }
     if (slashLine(source, scanned.code, match.index)) { problems.push(`${file}: uncertain fixture import declaration`); continue; }
@@ -359,7 +362,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
       || createHash(snapshot.object.length === 64 ? 'sha256' : 'sha1')
         .update(`blob ${Buffer.byteLength(snapshot.source)}\0`).update(snapshot.source).digest('hex') !== snapshot.object) return null;
     if (producers.has(key)) return producers.get(key).object === snapshot.object ? producers.get(key).leaf : null;
-    const scanned = lex(snapshot.source), issues = [], identity = imports(snapshot.source, scanned, issues, binding.target);
+    const scanned = lex(snapshot.source), issues = [], identity = imports(snapshot.source, scanned, issues, binding.target, { producer: true });
     const definitions = [...scanned.code.matchAll(new RegExp(`\\bexport\\s+function\\s+${binding.imported}\\s*\\(\\s*\\)\\s*\\{`, 'gu'))];
     if (issues.length || definitions.length !== 1) return null;
     const definition = definitions[0], open = definition.index + definition[0].lastIndexOf('{');
