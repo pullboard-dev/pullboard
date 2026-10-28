@@ -106,3 +106,21 @@ test('a moved source named as a path to read stays reported [C7]', () => {
     assert.ok(result.edits.length + result.problems.length > 0, body);
   }
 });
+
+test('only the imported, unshadowed copier exempts a mention; shadows and lookalikes stay reported [C7]', () => {
+  const unrelated = 'const other = readFileSync(somewhere);\n';
+  const proven = "const a = readFileSync(toolSourcePath(dir, 'src/foo.js'));\n";
+  assert.deepEqual(analyze(proven + unrelated), { edits: [], problems: [] });
+  const shadows = [
+    "function read(toolSourcePath, root) { return readFileSync(toolSourcePath(root, 'src/foo.js'), 'utf8'); }\nread((root, name) => join(root, name), dir);\n",
+    "let toolSourcePath = (root, name) => join(root, name);\nreadFileSync(toolSourcePath(dir, 'src/foo.js'));\n",
+    "function read(options) { const { copy: toolSourcePath } = options; return readFileSync(toolSourcePath(dir, 'src/foo.js')); }\n",
+    "function read(options) { const { toolSourcePath } = options; return readFileSync(toolSourcePath(dir, 'src/foo.js')); }\n",
+    "const other = { toolSourcePath: (root, name) => join(root, name) };\nreadFileSync(other.toolSourcePath(dir, 'src/foo.js'));\n",
+    "const read = toolSourcePath => readFileSync(toolSourcePath(dir, 'src/foo.js'));\nread((root, name) => join(root, name));\n",
+  ];
+  for (const body of shadows) {
+    const result = analyze(body);
+    assert.ok(result.edits.length + result.problems.length > 0, body);
+  }
+});

@@ -30,7 +30,7 @@ function enclosingCalls(code, at) {
       if (depth) { depth--; continue; }
       if (char !== '(') break;
       const callee = /(new\s+)?([\w$.]+)\s*$/u.exec(code.slice(0, index));
-      calls.push(callee ? { name: callee[2].split('.').at(-1), constructs: Boolean(callee[1]), open: index } : { name: '', constructs: false, open: index });
+      calls.push(callee ? { name: callee[2].split('.').at(-1), member: callee[2].includes('.'), at: callee.index + callee[0].lastIndexOf(callee[2]), constructs: Boolean(callee[1]), open: index } : { name: '', member: false, at: -1, constructs: false, open: index });
     } else if (char === ';' && !depth) break;
   }
   return calls;
@@ -43,9 +43,10 @@ function enclosingCalls(code, at) {
  * @param {string} source - The fixture module text.
  * @param {{code: string, strings: Array<{start: number, end: number, text: string}>}} scanned - Its lexed form.
  * @param {string[]} basenames - File names of the moved sources.
+ * @param {(name: string, at: number) => boolean} provenCopier - True only when the callee at an offset is the imported, unshadowed binding.
  * @returns {Array<{start: number, end: number, text: string}>} The operational mentions.
  */
-export function operationalMentions(source, scanned, basenames) {
+export function operationalMentions(source, scanned, basenames, provenCopier = () => false) {
   const { code, strings } = scanned;
   const copierNames = new Set();
   for (const match of source.matchAll(/\bimport\s*\{([^}]*)\}\s*from\s*['"][^'"]*\/package-files\.js['"]/gu)) {
@@ -59,7 +60,7 @@ export function operationalMentions(source, scanned, basenames) {
   return strings.filter(row => ending.test(row.text)).filter(row => {
     if (MODULE_BEFORE.test(code.slice(0, row.start))) return false;
     const calls = enclosingCalls(code, row.start);
-    if (calls.some(row => copierNames.has(row.name))) return false;
+    if (calls.some(call => !call.member && copierNames.has(call.name) && provenCopier(call.name, call.at))) return false;
     const toPath = calls.some(call => call.name === 'fileURLToPath');
     // A file URL is module addressing only once it is a string; the URL object itself is a valid filesystem operand.
     if (!toPath && calls.some(call => (call.name === 'pathToFileURL' || call.constructs && call.name === 'URL')

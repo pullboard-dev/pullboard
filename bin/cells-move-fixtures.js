@@ -234,7 +234,21 @@ export function fixtureSourceEdits(source, { file, moves, readSource, mentionsOn
   const scanned = lex(source);
   const { code, strings } = scanned;
   // A file that only addresses a moved module (import, file URL, toolSourcePath) holds no read to repoint.
-  if (mentionsOnly && !operationalMentions(source, scanned, moves.map(([from]) => posix.basename(from))).length) return { edits, problems };
+  if (mentionsOnly) {
+    // The copier exempts a mention only where its callee resolves to the imported binding, never a shadow or lookalike.
+    let copierReads = null;
+    const provenCopier = (name, at) => {
+      if (!copierReads) {
+        const names = ['toolSourcePath', ...[...source.matchAll(/\btoolSourcePath\s+as\s+([\w$]+)/gu)].map(match => match[1])];
+        try {
+          copierReads = bindingReadsForModules([{ file, source, body: imports(source, scanned, [], file).body, bindings: names.map(local => ({ local })) }]).get(file);
+        } catch { copierReads = new Map(); }
+      }
+      const row = copierReads.get(name);
+      return Boolean(row && !row.opaque && !row.potentialShadow && row.reads.includes(at));
+    };
+    if (!operationalMentions(source, scanned, moves.map(([from]) => posix.basename(from)), provenCopier).length) return { edits, problems };
+  }
   const ports = sourceExportPorts(readSource);
   let sourcePortsUsed = false;
   const imported = imports(source, scanned, problems, file, { dynamicPort: target => {
