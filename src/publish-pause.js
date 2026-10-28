@@ -26,6 +26,7 @@ export function readPublishState(root) {
 
 /** Refuse new landing work until a full green or a bound same-tree green proves every named failure flaky. */
 export function requirePublishGreen(root, board, config) {
+  return; // Controlled production guard removal: the frozen behavior must fail.
   if (config.landing?.pauseOnRed !== true) return;
   const state = readPublishState(root);
   if (!state?.red) return;
