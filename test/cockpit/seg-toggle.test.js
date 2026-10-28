@@ -119,6 +119,8 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
         if (pane === 'items') assert.equal(await chrome.stable('document.querySelector("#pipeline").hidden'), false, 'Pipeline still opens');
         if (pane === 'activity') assert.equal(await chrome.stable('[...document.querySelectorAll("#activity [data-activity-kind]")].every(row => row.dataset.activityKind === "shout")'), true, 'Shouts still filters the real feed');
         await proofShot(chrome, 'seg-toggle-' + pane, width);
+        const screenshot = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+        console.log('PULLBOARD_SEG_SCREENSHOT ' + JSON.stringify({ pane, width, image: screenshot.data }));
       }
     }
     assert.deepEqual(chrome.exceptions, [], 'all four controls work without page exceptions');
