@@ -21,6 +21,8 @@ import { readPathMap } from '../src/path-map.js';
 import { mappedPath } from '../src/path-map.js';
 import { tryGit } from '../src/git.js';
 import { Refused } from '../src/refused.js';
+import { checkCuts } from './cells-plan-cuts.js';
+import { fileCuts } from './cells-plan-cuts.js';
 
 export const PLAN_FILE = 'bin/cells-plan.json';
 export const PLAN_DIR = 'bin/cells-plan';
@@ -195,8 +197,14 @@ function main(argv) {
     for (const problem of problems) console.error(problem);
     return problems.length ? 1 : 0;
   }
+  if (mode === '--file-cuts') { fileCuts(root, plan, rest.includes('--yes')); return 0; }
+  if (mode === '--cuts') {
+    const problems = checkCuts(root, plan, rest[0]);
+    for (const problem of problems) console.error(problem);
+    return problems.length ? 1 : 0;
+  }
   if (mode === '--file') { fileItems(root, plan, rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --write | --check | --moved <cell> | --file [--yes]');
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --write | --check | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));

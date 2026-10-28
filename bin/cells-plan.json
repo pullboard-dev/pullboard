@@ -2,7 +2,7 @@
  "version": 1,
  "item": 1473,
  "rfc": "docs/rfcs/0006-cells.md",
- "base": "4869a2ea1335ada80c263f40b0093ad9984322eb",
+ "base": "613e0cee8fd2da8897780cfcdcfb813dd321b6eb",
  "seed": {
   "source": "pullboard-research/2026-10-26-cells/dryrun/raw/map.json",
   "sha256": "cfd97ccc7a130179d9166536653ffb96301bbb21f0c50d248b8aca4e4d53cb7e",
@@ -19,16 +19,16 @@
  },
  "totals": {
   "cells": 43,
-  "movedPaths": 1040,
-  "stays": 20,
+  "movedPaths": 1065,
+  "stays": 21,
   "placedBy": {
    "seed": 893,
-   "rule": 124,
-   "imports": 23
+   "rule": 135,
+   "imports": 37
   },
-  "shims": 632,
-  "cutImports": 339,
-  "cutEdges": 138
+  "shims": 640,
+  "cutImports": 343,
+  "cutEdges": 139
  },
  "cells": [
   {"order":1,"name":"kernel","file":"bin/cells-plan/01-kernel.json"},
@@ -77,6 +77,7 @@
  ],
  "stays": [
   {"path":"bin/cell-lints.js","reason":"bin/ stays in place during the move (dry run section 1)"},
+  {"path":"bin/cells-plan-cuts.js","reason":"bin/ stays in place during the move (dry run section 1)"},
   {"path":"bin/cells-plan.js","reason":"bin/ stays in place during the move (dry run section 1)"},
   {"path":"bin/check-baseline.js","reason":"bin/ stays in place during the move (dry run section 1)"},
   {"path":"bin/check-perf-budgets.js","reason":"bin/ stays in place during the move (dry run section 1)"},
