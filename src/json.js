@@ -149,6 +149,3 @@ export const JSON_SHAPES = {
   error: shape({ error: 'object' }),
   errorFields: { code: 'string', message: 'string', next: 'string' },
 };
-
-// Temporary compatibility for the approved serve.js importer companion; remove when that companion composes.
-export { refusalDocument } from './next-step-words.js';
