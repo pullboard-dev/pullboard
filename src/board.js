@@ -74,7 +74,7 @@ import { itemPatchReviewProblem } from './item-patches.js';
 import { applyItemPatchAttachment } from './item-patches.js';
 import { applyItemPatchRemoval } from './item-patches.js';
 import { invalidateItemPatch as applyItemPatchInvalidation } from './item-patches.js';
-export { itemPatches, itemPatchDigest } from './item-patches.js';
+export { itemPatches, itemPatchDigest, followItemPatches } from './item-patches.js';
 import { applyCompanionRequest } from './companion.js';
 export { readBoardMembers, setBoardMembers } from './board-members.js';
 import { heartbeatSeat } from './seat-presence.js';
