@@ -2,6 +2,8 @@
 /** The committed cells move plan places each path once and orders cells leaf-first by real imports [D3,CD60,CD64]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -154,6 +156,21 @@ test('a move item\'s frozen check passes only when the cell moved behind shims [
   const unknown = runFixtureChild(process.execPath, [BIN, '--moved', 'nowhere'], { cwd: root, encoding: 'utf8' });
   assert.notEqual(unknown.status, 0);
   assert.match(unknown.stderr, /CELLS_PLAN_CELL/u);
+});
+
+
+test('plan --write preserves exact temporary edge contracts while removing stale plan shards [C7,D3,CD64]', t => {
+  const { root, put } = fixture(t);
+  const file = 'bin/cells-plan/temporary-edges.json';
+  const contracts = JSON.stringify({ version: 1, edges: [{ importer: 'src/board.js', target: 'src/claims.js', contractItem: 1624, expires: '2099-01-01' }] }, null, 2) + '\n';
+  put(file, contracts);
+  put('bin/cells-plan/99-obsolete.json', '{}\n');
+  const run = runFixtureChild(process.execPath, [BIN, '--write'], { cwd: root, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(existsSync(join(root, file)), true, 'regeneration retains the live migration contract file');
+  assert.equal(readFileSync(join(root, file), 'utf8'), contracts, 'regeneration neither drops nor rewrites contract bytes');
+  assert.equal(existsSync(join(root, 'bin/cells-plan/99-obsolete.json')), false, 'obsolete generated shards are still pruned');
+  assert.deepEqual(readPlan(root), JSON.parse(JSON.stringify(computePlan(root))), 'the generated plan remains complete');
 });
 
 installCutCases({ PLAN, BIN, fixture, git });
