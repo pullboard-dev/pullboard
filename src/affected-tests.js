@@ -394,7 +394,8 @@ function graphAt(root, commit, changedDocs = []) {
     if (!reverse.has(module)) reverse.set(module, new Set());
     reverse.get(module).add(reader);
   }
-  return { paths, reverse, unknown, undeclared, testTreeReaders, sourceTreeReaders, docInputs, modules, blobs };
+  return { paths, reverse, unknown, undeclared, testTreeReaders, sourceTreeReaders, docInputs, modules, blobs,
+    imports: new Map(paths.map((path, index) => [path, imports[index]])), importMap };
 }
 
 /**
@@ -409,6 +410,11 @@ function graphAt(root, commit, changedDocs = []) {
  */
 export function testClosures(root, commit = 'HEAD') {
   return closuresInGraph(graphAt(root, commit));
+}
+
+/** Expose the same commit-pinned import graph for read-only code-map observations, never a new selector. */
+export function codeMapGraph(root, commit = 'HEAD') {
+  return graphAt(root, commit);
 }
 
 /** Compute the same complete-or-unknown root closures from an already-pinned selection graph. */
