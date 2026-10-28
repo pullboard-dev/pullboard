@@ -53,10 +53,19 @@ function expressionCall(code, lines, at, length) {
   return code[before] === '>' && code[before - 1] === '=' && !/[=<>!+*/%&|^?\-]/u.test(code[before - 2] ?? '');
 }
 
+/** A qualified member spelling is not the imported identifier; spread operands still read their binding. */
+function qualifiedMember(code, at) {
+  let before = at - 1;
+  while (before >= 0 && /\s/u.test(code[before])) before--;
+  return code[before] === '.' && code.slice(before - 2, before + 1) !== '...';
+}
+
 /** Prepare bounded per-module probes; each unsupported binding keeps its own explicit uncertainty. */
-function prepare(source, body, bindings) {
+function prepare(source, body, bindings, scopeBraces = false) {
   const result = new Map();
   const code = lex(source).code, lines = codeLines(source, code);
+  const braces = scopeBraces ? lines.filter(line => line.slash).flatMap(line =>
+    [...code.slice(line.start, line.end).matchAll(/[{}]/gu)].map(match => line.start + match.index)) : [];
   /** Yield one bounded source mutation group at a time; no repository-wide variant array exists. */
   function* probes() {
     for (const { local } of bindings) {
@@ -70,13 +79,15 @@ function prepare(source, body, bindings) {
         row.reads.push(match.index); return false;
       });
       // The original bounds apply to every remaining shadow, write or ambiguous spelling.
-      if (remaining.length > 192 || remaining.length * source.length * 4 > 8 * 1024 * 1024) {
+      if (remaining.length + braces.length > 192 || (remaining.length + braces.length) * source.length * 4 > 8 * 1024 * 1024) {
         row.opaque = 'binding analysis complexity budget exceeded';
         continue;
       }
+      // A real code brace accepts a line break; an exposed regex brace cannot accept any raw LineTerminator.
+      for (const at of braces) yield { row, at, syntax: true, variants: [source.slice(0, at + 1) + '\n' + source.slice(at + 1)] };
       for (const match of remaining) {
         const prefix = source.slice(0, match.index), suffix = source.slice(match.index + local.length);
-        yield { row, at: match.index, variants: [prefix + '(\n0\n)' + suffix, prefix + local + ':(\n0\n)' + suffix,
+        yield { row, at: match.index, qualified: qualifiedMember(code, match.index), variants: [prefix + '(\n0\n)' + suffix, prefix + local + ':(\n0\n)' + suffix,
           prefix + 'null' + suffix, prefix + '(0)' + suffix] };
       }
     }
@@ -85,8 +96,8 @@ function prepare(source, body, bindings) {
 }
 
 /** Read only V8-accepted constant/shorthand expressions; declarations, writes and lexical ambiguities stay opaque. */
-function apply(row, at, valid) {
-  if (valid[0] || valid[1]) row.reads.push(at);
+function apply(row, at, valid, qualified) {
+  if (!qualified && (valid[0] || valid[1])) row.reads.push(at);
   if (!valid[0] && valid[3]) row.opaque = 'ambiguous lexical spelling is not a proven binding read';
   // Possible nested bindings prevent attributing their references to the outer import.
   if (!valid[0] && !valid[1] && !valid[2]) row.potentialShadow = true;
@@ -100,14 +111,15 @@ export function bindingReadsForModules(modules) {
   function flush() {
     if (!chunk.length) return;
     const valid = compiles(chunk);
-    for (const { row, at, offset, original } of recipients) {
+    for (const { row, at, offset, original, qualified, syntax } of recipients) {
       if (original) original.originalValid = valid[offset] === true;
-      else apply(row, at, valid.slice(offset, offset + 4));
+      else if (syntax) { if (valid[offset] !== true) row.opaque = 'uncertain lexical brace scope'; }
+      else apply(row, at, valid.slice(offset, offset + 4), qualified);
     }
     chunk = []; recipients = []; bytes = 0;
   }
-  for (const { file, source, body, bindings } of modules) {
-    const prepared = prepare(source, body, bindings);
+  for (const { file, source, body, bindings, scopeBraces } of modules) {
+    const prepared = prepare(source, body, bindings, scopeBraces);
     results.set(file, prepared.result);
     preparedModules.push(prepared);
     // Compile the actual original once, including modules whose reads all take the lexical path.
@@ -116,10 +128,10 @@ export function bindingReadsForModules(modules) {
       recipients.push({ original: prepared, offset: chunk.length });
       chunk.push(source); bytes += source.length;
     }
-    for (const { row, at, variants } of prepared.probes) {
+    for (const { row, at, variants, qualified, syntax } of prepared.probes) {
       const size = variants.reduce((sum, value) => sum + value.length, 0);
-      if (chunk.length + 4 > 256 || bytes + size > 8 * 1024 * 1024) flush();
-      recipients.push({ row, at, offset: chunk.length });
+      if (chunk.length + variants.length > 256 || bytes + size > 8 * 1024 * 1024) flush();
+      recipients.push({ row, at, qualified, syntax, offset: chunk.length });
       chunk.push(...variants); bytes += size;
     }
   }
