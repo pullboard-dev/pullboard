@@ -6,12 +6,19 @@ import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 import { familyDeclareFloor } from '../family-declaration.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
-function minimumEngine(args, board, at) {
+function historicalMinimum(args) {
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;
   if (args[0]?.landingFence !== undefined) return LANDING_LEASE_ENGINE;
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('sentinel:')) return BOARD_SENTINEL_ENGINE;
-  // After a modern prefix, a fresh older-engine rejoin of a declared seat would skip the declared-family rule.
-  return familyDeclareFloor(board, args[0]);
+  return 1;
+}
+
+/**
+ * The historical floor, raised on every branch by the activated family floor: after a modern prefix, a fresh
+ * older-engine rejoin of a declared seat would skip the declared-family rule whatever cause or fence it carries.
+ */
+function minimumEngine(args, board, at) {
+  return Math.max(historicalMinimum(args), familyDeclareFloor(board, args[0]));
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

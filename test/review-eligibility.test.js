@@ -663,3 +663,43 @@ test('fresh modern registrations under new move ids cannot walk a declared seat 
     assert.equal(familyOf(f.board, 'core-16'), 'OpenAI', `after ${JSON.stringify(step)} the seat is still OpenAI`);
   }
 });
+
+test('counterexample: a cause or landing fence on a fresh older-engine registration cannot skip the activated family floor [V4,B26,H16]', t => {
+  const f = fixture(t);
+  const seat = { id: 'core-17', lane: 'core', path: '/fixture/core-17', model: 'Synthetic fixture model', parentDigest: '8'.repeat(64) };
+  let sequence = 0;
+  const at = () => new Date(Date.parse('2026-10-28T21:00:00Z') + sequence * 1000).toISOString();
+  assert.equal(applyEngineMove(f.board, prepareEngineMove(f.board, 'register', [{ ...seat, family: 'OpenAI' }], { id: 'cause-modern-declare' }), { sequence: ++sequence, at: at() }).error, undefined);
+  // The exact rejected path: the supported second argument names a conflict cause.
+  const exact = { ...prepareEngineMove(f.board, 'register', [{ ...seat, family: 'Claude' }, { cause: 'conflict:family-floor-control' }], { id: 'cause-exact' }), engine: FAMILY_DECLARE_ENGINE - 1 };
+  const before = exportBoard(f.board);
+  assert.throws(() => applyEngineMove(f.board, exact, { sequence: sequence + 1, at: at() }), { code: 'RELAY_MOVE' });
+  assert.deepEqual(exportBoard(f.board), before, 'the caused older move changes nothing');
+  assert.equal(familyOf(f.board, 'core-17'), 'OpenAI');
+  // Every branch the floor reads: each cause family, other strings, non-strings and the landing fence, at every older engine.
+  const causes = [undefined, 'conflict:family-floor-control', 'conflict:', 'sentinel:family-floor-control', 'sentinel:', 'other:cause', '', ' conflict:x', 'CONFLICT:x', 42, null, {}, ['conflict:x']];
+  const shapes = causes.flatMap(cause => [[{ ...seat, family: 'Claude' }, cause === undefined ? undefined : { cause }],
+    [{ ...seat, family: null }, { cause }], [{ ...seat, family: 'Claude', landingFence: 1 }, { cause }]]);
+  let index = 0;
+  for (const engine of [FAMILY_DECLARE_ENGINE - 1, 148, 1]) {
+    for (const args of shapes) {
+      const move = { ...prepareEngineMove(f.board, 'register', args.filter(value => value !== undefined), { id: `cause-sweep-${index++}` }), engine };
+      const snapshot = exportBoard(f.board);
+      assert.throws(() => applyEngineMove(f.board, move, { sequence: sequence + 1, at: at() }), { code: 'RELAY_MOVE' }, `${JSON.stringify(args[1])} at engine ${engine}`);
+      assert.deepEqual(exportBoard(f.board), snapshot);
+    }
+  }
+  assert.equal(familyOf(f.board, 'core-17'), 'OpenAI', 'after the whole sweep the seat is still OpenAI');
+});
+
+test('a caused older-engine registration recorded before the modern prefix still replays byte for byte [V4,B26,H16]', t => {
+  const f = fixture(t);
+  const seat = { id: 'core-18', lane: 'core', path: '/fixture/core-18', model: 'Synthetic fixture model', parentDigest: '9'.repeat(64) };
+  const old = { ...prepareEngineMove(f.board, 'register', [{ ...seat, family: 'OpenAI' }, { cause: 'conflict:historical' }], { id: 'genuine-caused-register' }), engine: FAMILY_DECLARE_ENGINE - 1 };
+  const first = applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-28T18:00:00.000Z' });
+  assert.equal(first.error, undefined, 'before activation the caused older registration follows its own rules');
+  applyEngineMove(f.board, prepareEngineMove(f.board, 'register', [{ ...seat, family: 'openai' }], { id: 'caused-modern-same' }), { sequence: 2, at: '2026-10-28T18:01:00.000Z' });
+  const before = exportBoard(f.board);
+  assert.deepEqual(applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-28T18:00:00.000Z' }), first);
+  assert.deepEqual(exportBoard(f.board), before);
+});
