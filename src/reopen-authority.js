@@ -1,13 +1,10 @@
 /** Versioned coordinator, computed-conflict and exact-reviewer reopen authority [V2,H16]. */
 import { AGENT_GRANT_ENGINE } from './agent-grant-engine.js';
 import { SUBMITTED_CONFLICT_ENGINE } from './engine-metadata.js';
-import { listAgents } from './board-query.js';
-import { verdictWithdrawalTarget } from './verdict-withdrawal.js';
-import { computedConflictProblem } from './computed-conflict-receipt.js';
 import { Refused } from './refused.js';
 
 /** Preserve historical authority and refusal order without granting a caller assertion new authority. */
-export function reopenAuthority(board, found, actor, options, withdrawn) {
+export function reopenAuthority(board, found, actor, options, withdrawn, { listAgents, verdictWithdrawalTarget, computedConflictProblem }) {
   const { forWithdrawal, forMerge, currentEngine, computedConflict, assertedConflict } = options;
   if (computedConflict !== undefined) return currentEngine >= AGENT_GRANT_ENGINE && assertedConflict === undefined
     ? computedConflictProblem(board, found, actor, computedConflict) : new Refused('COORDINATOR_ONLY', 'only the coordinator reopens submissions');

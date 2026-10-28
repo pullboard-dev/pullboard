@@ -1,10 +1,5 @@
 /** Shared offer contracts; orchestration supplies canonical board resolution and authority [B2,H3,H16]. */
 import { createHash } from 'node:crypto';
-import {
-  atomic,
-  itemById,
-  boardId,
-} from './board.js';
 import { Refused } from './refused.js';
 import {
   exactOfferFields,
@@ -49,7 +44,7 @@ export function itemOfferAnnouncement(value) {
 }
 /** Resolve both boards and require the consumer's authenticated authority for this exact action. */
 function authorize(board, value, ports, action, local) {
-  if (ports?.boardId !== value[local] || boardId(board) !== ports.boardId) refuse('OFFER_AUTHORITY');
+  if (ports?.boardId !== value[local] || ports.readBoardId(board) !== ports.boardId) refuse('OFFER_AUTHORITY');
   resolveOfferBoard(value.sourceBoardId, ports.resolveBoardRef);
   resolveOfferBoard(value.destinationBoardId, ports.resolveBoardRef);
   if (typeof ports.authorize !== 'function' || ports.authorize({ action, boardId: ports.boardId, document: structuredClone(value) }) !== true) refuse('OFFER_AUTHORITY');
@@ -69,7 +64,7 @@ function save(board, offer, binding, result) {
 function decide(board, input, ports, disposition, reason = null) {
   const offer = validate(input);
   if (offer.disposition !== 'pending') refuse();
-  return atomic(board, () => {
+  return ports.atomic(board, () => {
     authorize(board, offer, ports, disposition, 'destinationBoardId');
     const binding = digest(offer), row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key(offer.sourceBoardId, offer.offerId));
     if (row) {
@@ -81,7 +76,7 @@ function decide(board, input, ports, disposition, reason = null) {
     if (disposition === 'accepted') {
       if (typeof ports.createChild !== 'function') refuse();
       const item = ports.createChild(structuredClone(offer.proposedContent));
-      if (!offerItemId(item) || !itemById(board, item)) refuse();
+      if (!offerItemId(item) || !ports.itemById(board, item)) refuse();
       childRef = { boardId: ports.boardId, item };
     }
     const result = validate({ ...offer, disposition, reason, childRef });
@@ -97,7 +92,7 @@ export function declineItemOffer(board, offer, reason, ports) { return decide(bo
 export function recordItemOfferResult(board, input, ports) {
   const result = validate(input, true);
   if (result.disposition === 'pending') refuse();
-  return atomic(board, () => {
+  return ports.atomic(board, () => {
     authorize(board, result, ports, 'receive-result', 'sourceBoardId');
     const saved = readItemOffer(board, result.sourceBoardId, result.offerId);
     if (saved && offerBytes(saved) !== offerBytes(result)) refuse('OFFER_CONFLICT');
