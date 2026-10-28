@@ -624,7 +624,7 @@ export function runnerResourceStatus(runners) {
   } finally { db.close(); }
 }
 
-/** Persist only an authenticated worker's fresh GUI observation; unknown replaces stale positive capability. */
+/** Persist a configured host's authenticated GUI observation; unknown replaces stale positive capability. */
 export function recordRunnerGui(host, gui) {
   if (typeof host !== 'string' || !host.trim() || ![true, false, null].includes(gui)) throw new Refused('BAD_RUNNER_POOL', 'runner GUI observations require a host and true, false, or unknown');
   const db = open(machineResourceFile());

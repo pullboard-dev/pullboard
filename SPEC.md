@@ -135,6 +135,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - R1 [approved, must] The ledger lists built items: lane, spec, builder, verifier, verdict, commit. | gate: test/board.test.js
 - R2 [approved, must] Every move lands in an append-only event log. | gate: test/board.test.js
 - R3 [draft, must] merged records only a trunk commit that contains the item's commit or carries its patch; anything else needs a note. | gate: test/merged.test.js | serves: R1
+- R4 [draft, must] Pullboard supports the current release and the one before it. Every release ships a migration from the release before, so pullboard upgrade walks a board of any older version up the chain to a verified, fingerprinted checkpoint; a board outside the window is refused with that one upgrade step named. | gate: test/upgrade-chain.test.js
 
 ## I · Init
 - I1 [approved, must] One command sets up config, spec, agent instructions, hooks and board. | gate: test/e2e.test.js
