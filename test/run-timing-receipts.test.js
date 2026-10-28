@@ -13,6 +13,7 @@ import { prepareEngineMove, applyEngineMove, appliedSequence } from '../src/engi
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { fixtureBoard } from './board-fixture.js';
 import { eventMetrics } from '../bin/case-study/events.js';
+import { commitFixtureFiles } from './package-copy-fixture.js';
 import { randomUUID } from 'node:crypto';
 import * as store from '../src/board.js';
 
@@ -33,8 +34,8 @@ function timingProject(t) {
   writeFileSync(join(box.repo, 'SPEC.md'), spec);
   writeFileSync(join(box.repo, 'test', 'one.test.js'), "import {test} from 'node:test'; import assert from 'node:assert/strict'; test('first actual timing case [C7]',t=>{t.diagnostic('timing-leaf-node '+process.versions.node);assert.equal(process.env.PULLBOARD_TIMING_FIXTURE_RED,'0');});\n");
   writeFileSync(join(box.repo, 'test', 'two.test.js'), "import {test} from 'node:test'; test('second actual timing case [C7]',()=>{});\n");
-  box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'test: seed timing runtime and two-file universe');
+  commitFixtureFiles(box, box.git(box.repo, 'ls-files', '-z', '--modified', '--deleted', '--others', '--exclude-standard')
+    .split('\0').filter(Boolean));
   const env = { ...box.env, PULLBOARD_TEST_REUSE: '0', PULLBOARD_TIMING_FIXTURE_RED: '0' };
   for (const key of ['NODE_TEST_CONTEXT', 'PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN',
     'PULLBOARD_LANDING_RUN', 'PULLBOARD_LANDING_SHARD', 'PULLBOARD_LANDING_COLLECTION_ID', 'PULLBOARD_TIMING_RUN_ID']) delete env[key];
@@ -101,6 +102,9 @@ test('a direct full suite records one durable source-bound run, including a comp
 
 test('a sharded landing retains each actual attempt and immutable board-bound timing [C7,H16]', async t => {
   const box = timingProject(t);
+  const replica = fixtureBoard(t);
+  const initial = store.openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  try { importBoard(replica, exportBoard(initial)); } finally { store.closeBoard(initial); }
   const source = `import {runGate} from './src/gate.js'; import * as store from './src/board.js';
 import {readFileSync} from 'node:fs'; import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js';
 const run=await runGate(process.cwd(),JSON.parse(readFileSync('pullboard.json','utf8')),{trustStamp:false,landing:true,agent:'coordinator'});
@@ -126,8 +130,6 @@ console.log(run.output); console.log(JSON.stringify({receiptId:run.receiptId}));
   assert.equal(normalized.full ?? null, null, 'legacy full coverage remains unknown');
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
-    const replica = fixtureBoard(t);
-    importBoard(replica, exportBoard(board));
     const receipt = readGateReceipt(receiptStore(box.repo), rows[0].id);
     const move = prepareEngineMove(board, 'recordGateRun', [{ agentId: 'coordinator', receipt, lane: 'web' }]);
     const sequence = appliedSequence(replica) + 1;
