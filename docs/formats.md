@@ -448,9 +448,9 @@ The computed-grant engine adds `grantEngine` to new join, claim and renewal even
 | `family` | agent | `family` |
 | `model` | agent | — |
 | `moved` | coordinator | `path` |
-| `add` | item creator | `lane`, `specIds`, `after`, `route`, optional `reviewFamily`, optional `reviewPolicy` |
+| `add` | item creator | `lane`, `specIds`, `after`, `route`, optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` |
 | `companion` | requesting agent | `item`, `lane`, `key` (event item id names the parent) |
-| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `reviewFamily`, optional `reviewPolicy` |
+| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` |
 | `escalate` | builder | `from`, `to`, `note`, `attempt` |
 | `attempt` | reporting agent | `n`, `seconds`, `result` |
 | `relay_exclusion` | person | `action` (exclude, the durable opt-out intent), `path` (relayOff), `reason`, `channel`; event time and actor identify the request before machine settings persist it |
@@ -836,3 +836,5 @@ Only a finite trusted-main worker wakes after a landing/merged command or health
 The review-routing engine, numbered at landing, orders eligible reviews by current-main repair evidence and then current submission age. `reserveNextReview` carries captured local repair item IDs in `priority`; the ordered relay replays those IDs without inspecting a replica's filesystem, and offline item renumbering remaps them alongside `skipIds`. Presence of `priority`, including an empty array, requires this engine; historical envelopes without it keep their recorded engine's selection rules. Ordinary `next` also offers an eligible normal submission waiting more than ten minutes for its first reservation below the review ratio. Facts do not reset submission age, and another submit starts a new interval. Strict reviews retain different-session eligibility and additionally require different declared vendor families regardless of the ordinary family setting.
 
 A newly recorded move at the review-routing engine stores `review_routing:active` atomically, including a recorded refusal. After activation, fresh direct reservations, queued reservations and verdict envelopes require this engine so an older engine cannot bypass Strict vendor independence. Already recorded historical receipts retain their exact bytes and outcomes; aborted transactions do not activate the policy.
+
+Coordinator-authored check timing is stored at additive `board_meta` key `item_check_timing:<id>`. Add and edit events carry an optional boolean `checkTiming`. A true declaration freezes `checkTiming: true` with the criterion; absence retains historical bytes and ordinary admission. Submit, verify, explicit check execution and same-bar source advancement consume the frozen declaration and record actual exclusive timing admission in their gate receipts. A timing-only edit is a bar correction, requiring the same reason and refreeze rules as the command. Older moves cannot edit, freeze or execute a timing-sensitive bar; an already recorded older receipt still replays unchanged. Re-home preserves the source declaration and frozen bar.

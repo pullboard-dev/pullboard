@@ -123,6 +123,7 @@ test('older ordered edits cannot strip timing from a modern bar while historical
   assert.throws(() => applyEngineMove(board, next, { sequence: 2, at: '2026-10-28T00:02:00.000Z' }), { code: 'RELAY_MOVE' });
   assert.deepEqual(exportBoard(board), before, 'refused old client changes neither cursor, state nor events');
   assert.equal(minimumMoveEngine('rehomeItem', [id, { agentId: 'coordinator' }], board), CHECK_TIMING_ENGINE);
+  assert.equal(minimumMoveEngine('advanceItemSource', [id, { agentId: 'coordinator' }], board), CHECK_TIMING_ENGINE, 'automatic same-bar source advancement must understand timing admission');
   assert.equal(minimumMoveEngine('applyRehomeItem', [{ item: { item_frozen: JSON.stringify({ checkTiming: true }) } }, {}], board), CHECK_TIMING_ENGINE, 'preserved source frozen flag alone fences the destination');
   assert.deepEqual(applyEngineMove(board, historical, { sequence: 1, at: '2026-10-28T00:01:00.000Z' }), first);
   assert.equal(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${historical.id}`).meta_value, receipt);
