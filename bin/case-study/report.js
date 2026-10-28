@@ -45,6 +45,7 @@ export function caseStudyMarkdown(report) {
     ['Acceptance to landing, median', duration(earlier?.acceptToLand), duration(current.acceptToLand)],
     ['Submits per submitted item', earlier?.submits.perSubmittedItem ?? 'unknown', current.submits.perSubmittedItem ?? 'unknown'],
     ['Conflict reopens per landing', earlier?.conflictReopens.perLanding ?? 'unknown', current.conflictReopens.perLanding ?? 'unknown'],
+    ['Frozen check, median', duration(report.baseline?.durations?.frozenCheck), duration(observation.durations.frozenCheck)],
   ];
   return `# Pullboard 0.9.4 case study\n\nStatus: ${report.phase}.\n\n`
     + `Observation: ${observation.window.from} to ${observation.window.to}, start excluded and end included.\n\n`
@@ -53,6 +54,7 @@ export function caseStudyMarkdown(report) {
     + '\n\n| Event metric | Starting window | Observation window |\n| --- | ---: | ---: |\n'
     + flow.map(([name, before, after]) => `| ${name} | ${before} | ${after} |`).join('\n')
     + `\n\nStarting event window: ${report.baseline?.window?.from ?? 'unknown'} to ${report.baseline?.window?.to ?? 'unknown'}. Starting source: ${report.baseline?.source?.head ?? 'unknown'}. Observation source: ${structure.source?.head ?? 'unknown'}.\n`
+    + `\nOriginal plan commit: ${report.baseline?.planCommit ?? 'unknown'}. Observation plan commit: ${structure.planSource?.head ?? 'unknown'}; index and shard SHA256: ${structure.planSource?.contentSHA256 ?? 'unknown'}.\n`
     + `\n\nThe starting plan and later regenerated plan retain their own source commits; planned cut totals are not substituted for measured imports left.\n\n`
     + 'Event measurements, including their populations and missing evidence:\n\n```json\n'
     + JSON.stringify({ ...observation.events, durationEvidence: observation.durations }, null, 2) + '\n```\n\n'

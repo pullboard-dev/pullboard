@@ -42,8 +42,8 @@ export function suiteLogMetrics(file) {
 export function frozenCheckMetrics(boardPath, { from, to }) {
   const start = Date.parse(from), end = Date.parse(to);
   if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) throw new TypeError('frozen duration metrics require valid from < to timestamps');
-  const db = new DatabaseSync(boardPath, { readOnly: true }), values = [], seen = new Set();
-  let candidates = 0, unknown = 0;
+  const db = new DatabaseSync(boardPath, { readOnly: true }), values = [], receipts = new Map();
+  let candidates = 0, unknown = 0, conflictingIds = 0;
   try {
     db.exec('BEGIN');
     const hasItems = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='item'").get();
@@ -51,17 +51,36 @@ export function frozenCheckMetrics(boardPath, { from, to }) {
     for (const event of eventRows(db, 'proof-run')) {
       let flat;
       try { flat = JSON.parse(event.event_detail).receipt; } catch { continue; }
-      const at = Date.parse(flat?.at);
-      if (flat?.kind !== 'submit' || !Number.isFinite(at) || at <= start || at > end || seen.has(flat.id)) continue;
-      seen.add(flat.id); candidates++;
-      const item = items.get(event.item_id), receipt = readGateReceipt(join(dirname(boardPath), 'gate-receipts'), flat.id);
+      if (typeof flat?.id !== 'string' || !flat.id) continue;
+      const signature = createHash('sha256').update(JSON.stringify(flat)).digest('hex');
+      const at = Date.parse(flat.at);
+      const candidate = flat.kind === 'submit' && Number.isFinite(at) && at > start && at <= end;
+      const previous = receipts.get(flat.id);
+      if (previous) {
+        previous.conflict ||= previous.signature !== signature || previous.itemId !== event.item_id;
+        if (candidate && !previous.candidate) {
+          previous.candidate = true;
+          previous.flat = durationBinding(flat);
+          previous.candidateItemId = event.item_id;
+        }
+      } else {
+        receipts.set(flat.id, { signature, itemId: event.item_id, conflict: false, candidate,
+          ...(candidate ? { flat: durationBinding(flat), candidateItemId: event.item_id } : {}) });
+      }
+    }
+    for (const [id, observed] of receipts) {
+      if (!observed.candidate) continue;
+      candidates++;
+      if (observed.conflict) { unknown++; conflictingIds++; continue; }
+      const flat = observed.flat, itemId = observed.candidateItemId;
+      const item = items.get(itemId), receipt = readGateReceipt(join(dirname(boardPath), 'gate-receipts'), id);
       let frozen;
       try { frozen = JSON.parse(item?.item_frozen); } catch { unknown++; continue; }
       const command = typeof frozen?.check === 'string' ? createHash('sha256').update(frozen.check).digest('hex') : null;
       const proof = receipt?.proof;
       if (!receipt || receipt.version !== 2 || receipt.kind !== 'submit' || receipt.command !== command
         || item.item_frozen_digest !== flat.frozenDigest || proof?.frozenDigest !== flat.frozenDigest
-        || proof?.item !== event.item_id || flat.item !== event.item_id
+        || proof?.item !== itemId || flat.item !== itemId
         || receipt.head !== flat.commit || receipt.tree !== flat.tree || receipt.at !== flat.at
         || proof?.sourceClean !== true || proof.durationMs !== flat.durationMs
         || !Number.isFinite(proof.durationMs) || proof.durationMs <= 0) { unknown++; continue; }
@@ -69,7 +88,13 @@ export function frozenCheckMetrics(boardPath, { from, to }) {
     }
     db.exec('ROLLBACK');
   } finally { db.close(); }
-  return { ...summary(values), candidates, unknown,
-    population: 'unique submit receipt IDs in (from,to] that also bind a canonical v2 receipt, source head/tree, current retained frozen digest and exact frozen command SHA256',
+  return { ...summary(values), candidates, unknown, conflictingIds,
+    population: 'globally consistent unique submit receipt IDs in (from,to] that also bind a canonical v2 receipt, source head/tree, current retained frozen digest and exact frozen command SHA256',
     qualification: 'Recorded frozen-command durationMs, not controller wall time or inherited timing receipt runMs. Historical criteria replaced by refreezes are unknown. Includes green and red attempts; canonical receipt files are required and no total/full-suite duration is inferred.' };
+}
+
+/** Retain only canonical binding fields after hashing the complete native receipt payload. */
+function durationBinding(flat) {
+  return { at: flat.at, frozenDigest: flat.frozenDigest, item: flat.item,
+    commit: flat.commit, tree: flat.tree, durationMs: flat.durationMs };
 }

@@ -7,11 +7,26 @@ import { readPathMap, mappedPath } from '../../src/path-map.js';
 import { Refused } from '../../src/refused.js';
 import { tryGit } from '../../src/git.js';
 import { lex } from '../../src/js-lex.js';
+import { createHash } from 'node:crypto';
 
 /** Read the indexed plan without regenerating it or changing any ratchet. */
 function planAt(root) {
-  const index = JSON.parse(readFileSync(join(root, 'bin/cells-plan.json'), 'utf8'));
-  return { ...index, cells: index.cells.map(row => JSON.parse(readFileSync(join(root, row.file), 'utf8'))) };
+  const bytes = readFileSync(join(root, 'bin/cells-plan.json')), index = JSON.parse(bytes);
+  const digest = createHash('sha256').update('bin/cells-plan.json\0').update(bytes);
+  const cells = index.cells.map(row => {
+    const shard = readFileSync(join(root, row.file));
+    digest.update(`\0${row.file}\0`).update(shard);
+    return JSON.parse(shard);
+  });
+  return { ...index, cells, contentSHA256: digest.digest('hex') };
+}
+
+/** Identify the actual selected checkout independently of the plan's earlier generation seed. */
+function sourceAt(root) {
+  const head = tryGit(root, ['rev-parse', 'HEAD']), tree = tryGit(root, ['rev-parse', 'HEAD^{tree}']);
+  const status = tryGit(root, ['status', '--porcelain']);
+  return { head: head.status === 0 ? head.stdout.trim() : null,
+    tree: tree.status === 0 ? tree.stdout.trim() : null, clean: status.status === 0 && !status.stdout.trim() };
 }
 
 /** Count actual later-cell imports; an unmapped file remains visible instead of earning a zero. */
@@ -47,10 +62,7 @@ export function structureMetrics(root, { planRoot = root } = {}) {
   const cells = plan.cells.map(cell => ({ name: cell.name, paths: cell.paths.length,
     remaining: cell.paths.filter(([from, to]) => remainingBody(from, to)).length,
     frontDoor: existsSync(join(root, cell.frontDoor)) }));
-  const head = tryGit(root, ['rev-parse', 'HEAD']), tree = tryGit(root, ['rev-parse', 'HEAD^{tree}']);
-  const status = tryGit(root, ['status', '--porcelain']);
-  return { source: { head: head.status === 0 ? head.stdout.trim() : null,
-    tree: tree.status === 0 ? tree.stdout.trim() : null, clean: status.status === 0 && !status.stdout.trim() },
+  return { source: sourceAt(root), planSource: { ...sourceAt(planRoot), contentSHA256: plan.contentSHA256 },
     importCutsLeft: cuts.length, plannedCutImports: plan.totals.cutImports, planBase: plan.base,
     cells: { total: cells.length, completed: cells.filter(cell => !cell.remaining && cell.frontDoor).length,
       remainingPaths: cells.reduce((sum, cell) => sum + cell.remaining, 0) },

@@ -177,6 +177,18 @@ test('case study frozen timings require canonical source and exact frozen-comman
   assert.equal(metrics.n, 1);
   assert.equal(metrics.medianMs, 1234);
   assert.equal(metrics.unknown, 0);
+  const replay = new DatabaseSync(boardPath);
+  try {
+    const insert = replay.prepare('INSERT INTO event VALUES (?,?,?,?,?)');
+    insert.run(2, 'proof-run', 1, at(11), JSON.stringify({ receipt: flat }));
+    assert.equal(frozenCheckMetrics(boardPath, { from: START, to: END }).n, 1, 'identical replay contributes once');
+    insert.run(3, 'proof-run', 1, at(12), JSON.stringify({ receipt: { ...flat, at: at(12), durationMs: 9000 } }));
+    const conflict = frozenCheckMetrics(boardPath, { from: START, to: END });
+    assert.equal(conflict.n, 0, 'a conflicting replay outside the window invalidates the same receipt ID');
+    assert.equal(conflict.unknown, 1);
+    assert.equal(conflict.conflictingIds, 1);
+    replay.prepare('DELETE FROM event WHERE event_id>1').run();
+  } finally { replay.close(); }
   receipt.command = createHash('sha256').update('node a-different-command.js').digest('hex');
   put(root, `.git/gate-receipts/${id}.json`, receiptBody(receipt));
   const mismatched = frozenCheckMetrics(boardPath, { from: START, to: END });
@@ -217,4 +229,25 @@ test('case study counts a moved body separately from its remaining forwarding sh
   assert.equal(structure.cells.completed, 1);
   assert.equal(structure.lints.shims, 1, 'completed move does not erase its shim debt');
   assert.throws(() => requireFinishedStructure(structure), { code: 'CASE_STUDY_INCOMPLETE' });
+});
+
+test('case study binds the selected plan revision separately from the inventoried source [C7,D3]', t => {
+  const source = fixture(t), plan = fixture(t);
+  const index = JSON.parse(readFileSync(join(plan.root, 'bin/cells-plan.json'), 'utf8'));
+  index.totals.cutImports = 7;
+  put(plan.root, 'bin/cells-plan.json', index);
+  runFixtureGit(['add', '.'], { cwd: plan.root });
+  runFixtureGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.com', 'commit', '-qm', 'different plan revision'], { cwd: plan.root });
+  const metrics = structureMetrics(source.root, { planRoot: plan.root });
+  assert.notEqual(metrics.source.head, metrics.planSource.head);
+  assert.equal(metrics.planSource.clean, true);
+  assert.equal(metrics.plannedCutImports, 7);
+  assert.equal(metrics.importCutsLeft, 1, 'different recorded totals do not change the real physical import');
+  const bound = metrics.planSource.contentSHA256;
+  index.totals.cutImports = 8;
+  put(plan.root, 'bin/cells-plan.json', index);
+  const changed = structureMetrics(source.root, { planRoot: plan.root });
+  assert.notEqual(changed.planSource.contentSHA256, bound);
+  assert.equal(changed.planSource.head, metrics.planSource.head);
+  assert.equal(changed.planSource.clean, false, 'an uncommitted plan edit is not concealed by its HEAD');
 });
