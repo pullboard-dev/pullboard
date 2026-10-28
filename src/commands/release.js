@@ -37,6 +37,6 @@ export async function run(io, args) {
   io.say(review ? `released the review of #${first}; the review is free again` : `released #${first}`);
   return 0;
 });
-  if (code === 0) await completeMoveHandoff(releasedContext, idArg(first), values, { id: idArg(first) }, { nextOnce, withBoardRead });
+  if (code === 0) await completeMoveHandoff(releasedContext, idArg(first), values, { id: idArg(first) }, { nextOnce, withBoardRead, listItems: store.listItems });
   return code;
 }

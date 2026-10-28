@@ -9,8 +9,8 @@ function idle(reasons, error) {
 }
 
 /** Reuse explicit native next/read ports with unchanged review priority and ordered reservation guards. */
-async function takeFollowing(ctx, completedId, { nextOnce, withBoardRead }) {
-  const omitIds = withBoardRead(ctx, board => [completedId, ...ownSessionReviews(ctx.info, board)]);
+async function takeFollowing(ctx, completedId, { nextOnce, withBoardRead, listItems }) {
+  const omitIds = withBoardRead(ctx, board => [completedId, ...ownSessionReviews(ctx.info, board, undefined, { listItems })]);
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       let found = await nextOnce(ctx, { omitIds });
