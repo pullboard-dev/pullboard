@@ -1,3 +1,4 @@
+import { completeMoveHandoff } from '../post-move-handoff.js';
 import { prepareStaleObservation } from '../stale-state-command.js';
 import { staleReleaseNote } from '../stale-state-policy.js';
 import { Refused } from '../refused.js';
@@ -15,7 +16,9 @@ import {
 export async function run(io, args) {
   const { first, values } = args;
   const act = (work) => actOn(io, work);
-  return act(async (ctx, board, me) => {
+  let releasedContext;
+  const code = await act(async (ctx, board, me) => {
+  releasedContext = ctx;
   const args = [idArg(first), me.id, textArg(io, values, 'note') ?? ''];
   if (values.stale) {
     if (me.id !== 'coordinator') throw new Refused('NOT_YOURS', 'only the coordinator releases another holder with --stale');
@@ -32,4 +35,6 @@ export async function run(io, args) {
   io.say(review ? `released the review of #${first}; the review is free again` : `released #${first}`);
   return 0;
 });
+  if (code === 0) await completeMoveHandoff(releasedContext, idArg(first), values, { id: idArg(first) });
+  return code;
 }

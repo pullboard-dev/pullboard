@@ -54,6 +54,7 @@ const OPTIONS = {
   export: { type: 'string' },
   public: { type: 'boolean' },
   'no-open': { type: 'boolean' },
+  'no-next': { type: 'boolean' },
   lan: { type: 'boolean' },
   'no-permissions': { type: 'boolean' },
   'no-hooks': { type: 'boolean' },
