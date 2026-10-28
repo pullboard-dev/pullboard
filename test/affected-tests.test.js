@@ -191,7 +191,7 @@ test('the browser launch guard keeps affected selection exact [C7,O5]', (t) => {
   const box = graph(t);
   const guard = readFileSync(new URL('../src/browser-slot-guard.js', import.meta.url), 'utf8');
   box.put('src/browser-slot-guard.js', guard);
-  box.put('src/refused.js', readFileSync(new URL('../src/refused.js', import.meta.url), 'utf8'));
+  box.put('src/refused.js', readFileSync(new URL('../packages/kernel/src/core/refused.js', import.meta.url), 'utf8'));
   box.put('test/browser-guard.test.js', "import '../src/browser-slot-guard.js';\n");
   box.put('test/guard-consumer.test.js', "import './browser-guard.test.js';\n");
   const base = box.commit();

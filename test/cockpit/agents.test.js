@@ -76,8 +76,8 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
   box.git(alpha.repo, 'worktree', 'add', '-q', gone, '-b', 'web/roster3');
   // web-3 joined three hours ago and has not moved since: not at work, so behind show all.
   earlier(alpha.repo, Date.now() - 3 * 36e5, (board) => assert.equal(register(board, { lane: 'web', path: gone }), 'web-3'));
-  box.run(alpha.web, 'shout', 'coordinator', 'Header is under way.');
-  box.run(second, 'shout', 'coordinator', 'Free when you need me.');
+  box.run(alpha.web, 'shout', 'all', 'Header is under way.');
+  box.run(second, 'shout', 'all', 'Free when you need me.');
 
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-roster-chrome-'));
@@ -134,13 +134,13 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
     await shoutsAt(chrome, 1280, 'light');
     await chrome.click(`document.querySelector('#agents .agent-row[data-agent="web-1"]')`);
     let p = await panel();
-    assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1 (Test Model)×', 'web-1', [['web-1 (Test Model)', 'coordinator (unknown)']]],
+    assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1 (Test Model)×', 'web-1', [['web-1 (Test Model)', 'coordinator and you']]],
       `the picked row opens to what it holds, the feed shows its shouts and the composer is addressed to it: ${JSON.stringify(p)}`);
     assert.ok(p.rows[0].work.every(([, height]) => height >= tapTarget(1280)), 'each thing it holds is a target');
     // A pill does the same.
     await chrome.click(`document.querySelector('#agents .agent-pill[data-agent="web-2"]')`);
     p = await panel();
-    assert.deepEqual([p.pills.find((pill) => pill.id === 'web-2').on, p.chip, p.cards], [true, 'to web-2 (Test Model)×', [['web-2 (Test Model)', 'coordinator (unknown)']]], 'a pill filters and addresses too');
+    assert.deepEqual([p.pills.find((pill) => pill.id === 'web-2').on, p.chip, p.cards], [true, 'to web-2 (Test Model)×', [['web-2 (Test Model)', 'coordinator and you']]], 'a pill filters and addresses too');
     // And a thing an agent holds opens its item.
     await chrome.click(`document.querySelector('#agents .agent-row[data-agent="web-1"]')`);
     await chrome.click(`document.querySelector('#agents .agent-work[data-item="2"]')`);
@@ -532,7 +532,7 @@ test('local agents panel inventories and phone-revokes a scoped credential [H2,H
     assert.equal(stale.status, 1);
     assert.equal(JSON.parse(stale.stdout).error.code, 'AUTH_REQUIRED', 'the old PA refuses its very next native move');
     assert.equal(box.calls.filter(call => call.method === 'POST' && call.path === '/auth/tokens').length, mintsBefore, 'the refused explicit credential is never silently replaced');
-    const unaffected = await runFixtureChildAsync(process.execPath, [BIN, 'shout', 'coordinator', 'the other credential still works', '--json'], {
+    const unaffected = await runFixtureChildAsync(process.execPath, [BIN, 'shout', 'all', 'the other credential still works', '--json'], {
       cwd: other.document.path, env: { ...personEnv, PULLBOARD_RELAY_TOKEN: otherPA.token, AI_AGENT: '1', CODEX_SHELL: '1', CODEX_THREAD_ID: 'private-credential-inventory-other' },
     });
     assert.equal(unaffected.status, 0, 'revoking one credential leaves the other agent able to move');

@@ -22,7 +22,8 @@ function registryRepo(t, files) {
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
   for (const file of files) {
     mkdirSync(join(root, 'src', ...file.split('/').slice(0, -1)), { recursive: true });
-    cpSync(new URL(file, SOURCE), join(root, 'src', file));
+    const source = file === 'discovery.js' ? new URL('../packages/kernel/src/core/discovery.js', import.meta.url) : new URL(file, SOURCE);
+    cpSync(source, join(root, 'src', file));
   }
   git('init', '-q', '-b', 'main');
   git('add', 'src');

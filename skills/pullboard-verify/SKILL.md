@@ -23,7 +23,7 @@ Work only in your own worktree, the one `pullboard worktree review` made. Your s
 4. Decide:
    - Every row the item cites must be met. If it cites a row it does not serve, reject with OTHER and name the row, so the coordinator fixes the citation; never accept around it.
    - `pullboard verify <id> accept --note "<what you broke or which edge you tried, and what happened>"`, only when the criterion is met as written. The note is required: passing tests alone are not proof.
-   - `pullboard verify <id> reject --reason <CODE> --note "<what failed, and the proof that would settle it>"`. The codes are TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD and OTHER.
+   - `pullboard verify <id> reject --reason <CODE> --clause "<exact failing wording from the frozen bar>" --note "<what failed, and the proof that would settle it>"`. The codes are TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD and OTHER. Quote the same frozen requirement consistently. Two rejects of the same frozen clause hold the item until the coordinator or person sharpens its bar.
 5. If the check could not run for reasons that are not the work's fault, such as a broken environment or a flaky run under load, do not reject. Shout the coordinator what happened.
 
 ## Pullboard commands for this review
