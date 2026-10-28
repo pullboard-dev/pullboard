@@ -28,7 +28,6 @@ import {
 } from './board.js';
 
 
-
 /** The engine a move runs under: its recorded one during replay, else this client's. */
 function engineOf(board) {
   return board.executionEngineVersion ?? ENGINE_VERSION;
@@ -145,7 +144,6 @@ function normalizeMilestoneText(name, note = null) {
   return { name: name.trim(), note: note?.trim() || null };
 }
 
-export { canonicalMilestoneTarget } from './state-milestone-target.js';
 
 /**
  * A target as ISO text, or null for `none`, which clears it. Applying a move accepts only a date or

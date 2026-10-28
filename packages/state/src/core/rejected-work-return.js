@@ -1,5 +1,5 @@
 /** Freeze coordinator observations into exact rejection episodes, never receiver-local liveness [B13,H16]. */
-import { Refused } from './refused.js';
+import { Refused } from '../../../../src/refused.js';
 
 /** Find still-open rejected episodes eligible for the coordinator's canonical queue return. */
 export function rejectedWorkReturns(board, findings, withSeatPresence) {

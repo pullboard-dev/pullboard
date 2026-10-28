@@ -5,7 +5,7 @@ import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { IMPLIES_ENGINE } from '../move-engine-constants.js';
 import { DECISION_ORIGIN_ENGINE } from '../decision-origin-engine.js';
 import { carriesOrigin } from '../decision-origin.js';
-import { carriesImplies } from '../move-implies.js';
+import { carriesImplies } from '../../packages/state/src/core/move-implies.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */

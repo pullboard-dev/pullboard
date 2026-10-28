@@ -12,7 +12,7 @@ import {
   focusReviewFirst,
   focusReasons,
 } from './focus-milestone.js';
-import { requireHandoffActive } from './handoff-state.js';
+import { requireHandoffActive } from '../packages/state/src/core/handoff-state.js';
 import { requestedCommandMove } from './recorded-move.js';
 export { barActorForCommand } from './bar-actor.js';
 import {

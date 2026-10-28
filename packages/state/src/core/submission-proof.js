@@ -1,9 +1,8 @@
 /** Shared wire-proof validation for preparation and ordered replay [C7,V4,H16]. */
-import { Refused } from './refused.js';
-import { KNOWN_MAIN_FAILURES_ENGINE } from './known-main-failures-engine.js';
-import { KNOWN_MAIN_REWORKS_ENGINE } from './known-main-reworks-engine.js';
+import { Refused } from '../../../../src/refused.js';
+import { KNOWN_MAIN_FAILURES_ENGINE } from '../../../../src/known-main-failures-engine.js';
+import { KNOWN_MAIN_REWORKS_ENGINE } from '../../../../src/known-main-reworks-engine.js';
 
-export { SUBMISSION_PROOF_ENGINE } from './move-engine-constants.js';
 const COMMIT = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
 /** Accept only literal project-relative paths that can be displayed and configured safely. */

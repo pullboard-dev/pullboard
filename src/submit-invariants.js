@@ -13,9 +13,7 @@ function projectFile(value) {
     && value.split('/').every(part => part && part !== '.' && part !== '..');
 }
 
-export { SUBMISSION_PROOF_ENGINE } from './move-engine-constants.js';
-export { boundedProofReason } from './state-submission-proof.js';
-export { submissionProof } from './state-submission-proof.js';
+
 import { SUBMISSION_PROOF_ENGINE } from './move-engine-constants.js';
 
 /** Accept only measured finite nonnegative durations; unavailable is always null. */

@@ -1,7 +1,7 @@
 /** Named milestone preference reads only recorded board policy and preserves each group's existing order [N2,B16,H16]. */
 import { ENGINE_VERSION } from './machine.js';
 import { FOCUS_MILESTONE_ENGINE } from './focus-milestone-engine.js';
-import { lineSettings } from './line-settings.js';
+import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
 import { milestones } from './board-read-auxiliary.js';
 
 /** Historical moves never gain a preference from policy written by a later engine. */

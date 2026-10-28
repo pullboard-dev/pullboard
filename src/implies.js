@@ -1,10 +1,5 @@
-import { IMPLYING_OPERATIONS } from './state-move-implies.js';
-import { carriesImplies } from './state-move-implies.js';
-export { IMPLYING_OPERATIONS, carriesImplies };
 import { IMPLIES_ENGINE } from './move-engine-constants.js';
 export { IMPLIES_ENGINE };
-import { decisionFields } from './state-fact-projection.js';
-import { factFromEvent } from './state-fact-projection.js';
 /**
  * A decision names the items it changes, and each named item carries it [B29,B30,B31,N29,P6].
  *
@@ -287,7 +282,7 @@ export function requestAnswerRefusal(id, { asPerson }) {
     : new Refused('NOT_A_DECISION', `request #${id} is not a decision, so it implies and supersedes nothing; answer it with pullboard answer ${id} done or declined <reason>`);
 }
 
-export { decisionFields } from './state-fact-projection.js';
+
 
 /** The most fact ids one checkout remembers as shown; older ones age out first. */
 const SEEN_LIMIT = 2000;
@@ -318,5 +313,3 @@ export function takeDecisionNotices(gitDir, held) {
   renameSync(temporary, record);
   return notices;
 }
-
-export { factFromEvent } from './state-fact-projection.js';

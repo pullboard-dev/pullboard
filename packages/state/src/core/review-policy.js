@@ -1,7 +1,7 @@
 /** Shared ordered activation witness, independent of review classification [C7,H16]. */
-import { REVIEW_TIER_ENGINE } from './review-tier-engine.js';
-import { REVIEW_ROUTING_ENGINE } from './review-routing-engine.js';
-import { REVIEW_INDEPENDENCE_ENGINE } from './review-independence-engine.js';
+import { REVIEW_TIER_ENGINE } from '../../../../src/review-tier-engine.js';
+import { REVIEW_ROUTING_ENGINE } from '../../../../src/review-routing-engine.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from '../../../../src/review-independence-engine.js';
 
 /** The first modern native prefix position activates new review rules without rewriting older receipts. */
 export function recordReviewPolicyActivation(board, engine) {

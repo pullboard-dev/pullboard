@@ -1,4 +1,4 @@
-import { lineSettings } from './line-settings-read.js';
+import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
 import { withLocalSeatPresence } from './seat-presence.js';
 import { mechanicalConflictFiles } from './mechanical-merge.js';
 import { localDependencyIds } from './item-dependencies.js';

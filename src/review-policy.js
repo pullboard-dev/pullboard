@@ -24,7 +24,6 @@ export function itemReviewPolicy(board, id) {
 }
 
 
-
 /** Modern recorded policy is an authority witness; old reviews cannot reinterpret its rules. */
 export function itemReviewPolicyEngine(board, id) {
   if (!board) return 1;
@@ -46,8 +45,6 @@ export function anyItemReviewPolicyEngine(board) {
     ? REVIEW_INDEPENDENCE_ENGINE : 1;
 }
 
-
-export { recordReviewPolicyActivation } from './state-review-policy.js';
 
 /** A committed routing prefix fences fresh envelopes without changing genuine old receipts. */
 function routingPolicyEngine(board) {
