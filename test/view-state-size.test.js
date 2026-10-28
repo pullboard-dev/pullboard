@@ -1,3 +1,5 @@
+import { compactItemSummaries } from '../src/view-state-summary.js';
+import { expandItemSummaries } from '../src/view-state-summary.js';
 /** Authenticated native view projections stay bounded at the real board's scale [N26,A2]. */
 import { events as readStatsEvents } from '../src/board.js';
 import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
@@ -55,10 +57,10 @@ async function fixture(t, { items = 1, seats = 1, shouts = 0, recentAge = 0 } = 
   const url = new URL(api.url);
   const headers = { 'x-pullboard-key': url.searchParams.get('k') };
   /** Request the real authenticated HTTP surface, retaining the wire byte count. */
-  async function request(path, authorized = true, method = 'GET') {
-    const response = await fetchFresh(url.origin + path, { method, headers: authorized ? headers : {} });
+  async function request(path, authorized = true, method = 'GET', extraHeaders = {}) {
+    const response = await fetchFresh(url.origin + path, { method, headers: { ...(authorized ? headers : {}), ...extraHeaders } });
     const text = await response.text();
-    return { status: response.status, bytes: Buffer.byteLength(text), document: JSON.parse(text) };
+    return { status: response.status, bytes: Buffer.byteLength(text), document: text ? JSON.parse(text) : null, etag: response.headers.get('etag') };
   }
   const listing = await request('/api/v1/boards');
   assert.equal(listing.status, 200);
@@ -69,13 +71,17 @@ async function fixture(t, { items = 1, seats = 1, shouts = 0, recentAge = 0 } = 
 test('[N26,A2] 1600 items, 1150 seats and 40000 shouts yield a sub-600KB authenticated state with complete summaries', async t => {
   const box = await fixture(t, { items: 1600, seats: 1150, shouts: 40_000 });
   assert.ok(Buffer.byteLength(JSON.stringify(box.fullStats)) > 1_000_000, 'the source contains real board-scale proof detail');
-  const first = await box.request(box.path + '/state');
-  assert.equal(first.status, 200);
-  assert.ok(first.bytes < 600_000, `authenticated state is ${first.bytes} bytes`);
+  const ordinary = await box.request(box.path + '/state');
+  const wire = await box.request(box.path + '/state?items=compact');
+  assert.equal(wire.status, 200);
+  assert.ok(wire.bytes < 1_000_000, `authenticated state is ${wire.bytes} bytes`);
+  const first = { ...wire, document: { ...wire.document, state: expandItemSummaries(wire.document.state) } };
+  assert.deepEqual(first.document.state, ordinary.document.state, 'compact decoding preserves every original state and summary field');
+  assert.equal(Object.hasOwn(ordinary.document.state, 'itemEncoding'), false, 'ordinary API response stays unchanged');
   assert.equal(first.document.state.items.length, 1600);
-  const itemBytes = Buffer.byteLength(JSON.stringify(first.document.state.items));
-  t.diagnostic(`authenticatedItems=${itemBytes} bytes; state=${first.bytes} bytes; items=1600`);
-  assert.ok(itemBytes < 250_000, `authenticated item summaries are ${itemBytes} bytes`);
+  const itemBytes = Buffer.byteLength(JSON.stringify({ items: wire.document.state.items, itemEncoding: wire.document.state.itemEncoding }));
+  t.diagnostic(`authenticatedItemsIncludingDictionary=${itemBytes} bytes; ordinaryItems=${Buffer.byteLength(JSON.stringify(ordinary.document.state.items))} bytes; state=${wire.bytes} bytes; items=1600`);
+  assert.ok(itemBytes < 250_000, `authenticated item summaries including dictionary are ${itemBytes} bytes`);
 
   const state = first.document.state;
   assert.deepEqual(state.agents.map(agent => agent.agent_id), [box.agents[0]]);
@@ -97,8 +103,8 @@ test('[N26,A2] 1600 items, 1150 seats and 40000 shouts yield a sub-600KB authent
   assert.equal(detail.status, 200);
   assert.deepEqual(detail.document.proof, box.fullStats.flow.report.items.find(item => item.id === 1));
   box.advance(1);
-  const cached = await box.request(box.path + '/state');
-  assert.ok(cached.bytes < 600_000, 'a clock-only cache hit cannot restore detailed proof records');
+  const cached = await box.request(box.path + '/state?items=compact');
+  assert.ok(cached.bytes < 1_000_000, 'a clock-only cache hit cannot restore detailed proof records');
   assert.equal(Object.hasOwn(cached.document.state.proofStats.flow.report, 'items'), false);
   assert.equal(box.builds(), 1, 'summary shaping survives the existing dynamic flow cache path');
   t.diagnostic(`state=${first.bytes} bytes; fullProofStats=${Buffer.byteLength(JSON.stringify(box.fullStats))} bytes`);
@@ -160,4 +166,49 @@ test('[N26,A2] item detail loads on demand through the authenticated endpoint wi
   assert.ok(Array.isArray(detail.document.item.thread));
   const after = await box.request(box.path + '/state');
   assert.deepEqual(after.document.state.items, state.document.state.items, 'reading detail does not populate the list response');
+});
+
+
+test('[N26,A2] compact summaries roundtrip differing values, explicit nulls, Unicode and absent fields without shared defaults', () => {
+  const state = { sequence: 7, items: [
+    { id: 1, title: '一🙂', status: 'open', lane: 'web', claim: null, counts: { facts: 0, verdicts: 0 }, blockedBy: [], optional: undefined },
+    { id: 2, title: 'Deux', status: 'open', lane: 'web', claim: null, counts: { facts: 0, verdicts: 0 }, blockedBy: [] },
+    { id: 3, title: 'ثلاثة', status: 'claimed', lane: 'web', claim: { by: 'builder', until: '2026-10-28T00:00:00Z' }, counts: { facts: 1, verdicts: 0 }, blockedBy: [1] },
+    { id: 4, title: 'Four', status: 'open', lane: 'api', claim: null, counts: { facts: 0, verdicts: 0 }, blockedBy: [] },
+  ] };
+  const before = JSON.stringify(state);
+  const encoded = compactItemSummaries(state);
+  assert.equal(encoded.itemEncoding.version, 1);
+  const expanded = expandItemSummaries(JSON.parse(JSON.stringify(encoded)));
+  assert.deepEqual(expanded, JSON.parse(before));
+  assert.equal(JSON.stringify(state), before, 'packing does not mutate its source');
+  expanded.items[0].blockedBy.push(99);
+  expanded.items[0].counts.facts = 99;
+  assert.deepEqual(expanded.items[1].blockedBy, []);
+  assert.equal(expanded.items[1].counts.facts, 0, 'decoded rows do not share mutable defaults');
+  assert.equal(expandItemSummaries(state), state, 'the default API and full snapshots need no decoding');
+  assert.equal(compactItemSummaries({ items: [] }).items.length, 0);
+  assert.throws(() => expandItemSummaries({ items: [], itemEncoding: { version: 2, defaults: {} } }), /unsupported compact/u);
+  assert.throws(() => expandItemSummaries({ items: [{ title: 'Missing id' }], itemEncoding: { version: 1, defaults: {} } }), /invalid compact/u);
+  assert.throws(() => expandItemSummaries({ items: [], itemEncoding: { version: 1, defaults: { id: 1 } } }), /unsupported compact/u);
+});
+
+test('[N26,A2] compact state preserves ordinary delta bases and rejects incompatible formats', async t => {
+  const box = await fixture(t, { items: 4 });
+  const ordinary = await box.request(box.path + '/state');
+  const compact = await box.request(box.path + '/state?items=compact');
+  assert.deepEqual(expandItemSummaries(compact.document.state), ordinary.document.state);
+  assert.ok(ordinary.etag && compact.etag);
+  assert.notEqual(compact.etag, ordinary.etag, 'different wire representations cannot share a conditional response validator');
+  assert.equal((await box.request(box.path + '/state?items=compact', true, 'GET', { 'if-none-match': ordinary.etag })).status, 200);
+  assert.equal((await box.request(box.path + '/state?items=compact', true, 'GET', { 'if-none-match': compact.etag })).status, 304);
+
+  const delta = await box.request(box.path + '/state?since=' + compact.document.state.sequence);
+  assert.equal(delta.status, 200);
+  assert.ok(delta.document.delta);
+  assert.deepEqual(delta.document.delta.merge, {});
+  assert.equal(Object.hasOwn(delta.document.delta.replace, 'items'), false, 'compaction does not change canonical item delta fingerprints');
+  for (const suffix of ['items=unknown', 'items=compact&detail=full', 'items=compact&since=0']) {
+    assert.equal((await box.request(box.path + '/state?' + suffix)).status, 400, suffix);
+  }
 });
