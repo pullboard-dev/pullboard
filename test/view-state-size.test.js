@@ -73,6 +73,10 @@ test('[N26,A2] 1600 items, 1150 seats and 40000 shouts yield a sub-600KB authent
   assert.equal(first.status, 200);
   assert.ok(first.bytes < 600_000, `authenticated state is ${first.bytes} bytes`);
   assert.equal(first.document.state.items.length, 1600);
+  const itemBytes = Buffer.byteLength(JSON.stringify(first.document.state.items));
+  t.diagnostic(`authenticatedItems=${itemBytes} bytes; state=${first.bytes} bytes; items=1600`);
+  assert.ok(itemBytes < 250_000, `authenticated item summaries are ${itemBytes} bytes`);
+
   const state = first.document.state;
   assert.deepEqual(state.agents.map(agent => agent.agent_id), [box.agents[0]]);
   assert.equal(state.agents[0].model, 'Fixture model');
@@ -133,4 +137,27 @@ test('[N26,A2] missing derived proof data is unavailable for a known item rather
   const restored = await box.request(box.path + '/proofs/1');
   assert.equal(restored.status, 200);
   assert.deepEqual(restored.document.proof, box.fullStats.flow.report.items.find(item => item.id === 1));
+});
+
+
+test('[N26,A2] item detail loads on demand through the authenticated endpoint without restoring detail to summaries', async t => {
+  const box = await fixture(t);
+  const state = await box.request(box.path + '/state');
+  const summary = state.document.state.items.find(item => item.id === 1);
+  assert.ok(summary);
+  for (const field of ['criterion', 'brief', 'history', 'thread', 'verdicts', 'commit', 'merged']) {
+    assert.equal(Object.hasOwn(summary, field), false, field + ' remains outside the list summary');
+  }
+  assert.equal((await box.request(box.path + '/items/1', false)).status, 401);
+  assert.equal((await box.request(box.path + '/items/999')).status, 404);
+  assert.equal((await box.request(box.path + '/items/0')).status, 400);
+  const detail = await box.request(box.path + '/items/1');
+  assert.equal(detail.status, 200);
+  assert.equal(detail.document.item.id, 1);
+  assert.equal(detail.document.item.criterion, 'The specified behavior is observable.');
+  assert.match(detail.document.item.brief, /web\/page\.js/u);
+  assert.ok(detail.document.item.history.some(event => event.kind === 'add'));
+  assert.ok(Array.isArray(detail.document.item.thread));
+  const after = await box.request(box.path + '/state');
+  assert.deepEqual(after.document.state.items, state.document.state.items, 'reading detail does not populate the list response');
 });
