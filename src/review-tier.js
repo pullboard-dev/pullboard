@@ -3,6 +3,7 @@ import { REVIEW_TIER_ENGINE } from './review-tier-engine.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { itemPatches } from './item-patch-state.js';
 import { itemPatchPaths } from './item-patch-paths.js';
+import { outsideSource } from './outside-source.js';
 
 // Rulings 39301/39401: source areas and named guard tests, never all test/board/review/person families.
 const SOURCE_DIRECTORIES = ['relay/', 'src/gate/', 'src/auth/', 'src/relay/', 'src/kernel/', 'src/landing/', 'src/runner/',
@@ -76,9 +77,16 @@ export function gateJudgmentItem(board, id) {
   return itemPatches(board, id).some(record => [...itemPatchPaths(record.patch)].some(gateJudgmentPath));
 }
 
-/** Genuine old ordered moves keep their old tier even after an upgrade. */
+/**
+ * Genuine old ordered moves keep their old tier even after an upgrade.
+ *
+ * An intaken outside pull request is never classified: its author has no declared vendor family, so the
+ * strict vendor comparison could never pass, and its path trust is the outside regime instead (the
+ * sandbox verdict plus the owner's approval of the exact commit for sensitive paths) [V3,B26].
+ */
 export function classifiedStrict(board, id) {
-  return (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_TIER_ENGINE && gateJudgmentItem(board, id);
+  return (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_TIER_ENGINE
+    && outsideSource(board, id)?.kind !== 'pull-request' && gateJudgmentItem(board, id);
 }
 
 /** Once a new native prefix exists, older envelopes cannot bypass the classification it activates. */
