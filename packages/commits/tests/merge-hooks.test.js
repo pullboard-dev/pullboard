@@ -1,20 +1,31 @@
 /** Real merge hooks prove main integration without weakening lane ownership [L3,H16,B26]. */
-import { boardBusyError } from '../src/board-access.js';
-import { openBoardReadOnly } from '../src/board-read-open.js';
-import { rowDecisions } from '../src/row-decisions-query.js';
-import { checkLoosening } from '../src/doctrine-checks.js';
+import { boardBusyError } from "../../../src/board-access.js";
+import { openBoardReadOnly } from "../../../src/board-read-open.js";
+import { rowDecisions } from "../../../src/row-decisions-query.js";
+import { checkLoosening } from "../../../src/doctrine-checks.js";
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import assert from 'node:assert/strict';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  runFixtureChild,
+  runFixtureGit,
+} from "../../../test/fixture-child.js";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { defaults } from '../src/config.js';
-import { preCommitProblems } from '../src/hooks.js';
+import { defaults } from "../../../src/config.js";
+import { preCommitProblems } from "../src/shell/hooks.js";
 
-const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
+const BIN = join(import.meta.dirname, '..', '..', '..', 'bin', 'pullboard.js');
 
 /** Run private Git with an explicit fixture identity, retaining only nonsensitive diagnostics. */
 function git(root, ...args) {
