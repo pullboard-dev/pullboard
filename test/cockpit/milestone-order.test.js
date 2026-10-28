@@ -71,10 +71,12 @@ test('Roadmap lifecycle groups outrank shuffled and pinned queue order while pre
   box.run(demo.web, 'claim', '5');
   box.run(demo.repo, 'hold', 'ops', '--reason', 'Waiting for the person to approve the operational change.');
   // IDs and creation order intentionally disagree with the milestone queue's same-state tie.
-  box.run(demo.repo, 'milestone', 'add', 'State order', '--items', '7,6,1,3,5,4,2,8');
+  box.run(demo.repo, 'milestone', 'add', 'State order', '--items', '7,8,1,3,5,6,4,2');
   box.run(demo.repo, 'milestone', 'pin', 'State order', '8', '--reason', 'Prioritize this unclaimed item within its group.');
   const before = nativeMilestone(box, demo);
-  assert.equal(before.items[0].id, 8, 'the real coordinator pin puts an unclaimed item first in the native queue');
+  const queue = JSON.parse(box.run(demo.repo, 'queue', '--json'));
+  const queueIds = queue.releases.find(row => row.name === 'State order').items.map(row => row.id);
+  assert.equal(queueIds[0], 8, 'the real coordinator pin puts an unclaimed item first in the native work queue');
   const head = box.git(demo.repo, 'rev-parse', 'HEAD');
   const worktree = box.git(demo.repo, 'status', '--porcelain');
   const expected = ['#2', '#4', '#5', '#3', '#8', '#6', '#7', '#1'];
@@ -107,7 +109,10 @@ test('Roadmap lifecycle groups outrank shuffled and pinned queue order while pre
       await proofShot(chrome, 'milestone-state-order', width);
     }
     assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught page exceptions');
-    assert.deepEqual(nativeMilestone(box, demo), before, 'rendering and expanding rows do not mutate native queue membership or pins');
+    assert.deepEqual(nativeMilestone(box, demo), before, 'rendering and expanding rows do not mutate native milestone membership');
+    const afterQueue = JSON.parse(box.run(demo.repo, 'queue', '--json'));
+    assert.deepEqual(afterQueue.releases.find(row => row.name === 'State order').items.map(row => row.id), queueIds,
+      'rendering and expanding rows do not change the native work queue or pin priority');
     assert.equal(box.git(demo.repo, 'rev-parse', 'HEAD'), head, 'Roadmap navigation does not change the source head');
     assert.equal(box.git(demo.repo, 'status', '--porcelain'), worktree, 'Roadmap navigation does not edit the source checkout');
   } finally {
