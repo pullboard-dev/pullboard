@@ -5,7 +5,7 @@ import { chmodSync, writeFileSync } from 'node:fs';
 import { createServer, request } from 'node:http';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { createJourneyDeadline, drainJourneyTasks } from './journey-deadline.js';
+import { createJourneyDeadline, drainJourneyTasks, journeyDeferred } from './journey-deadline.js';
 import { machine, startView, startSnapshotChrome } from './fixture.js';
 import { JOURNEY_HOSTED, interceptJourneyOrigins } from './relay-hosted-fixture.js';
 
@@ -140,11 +140,3 @@ test('the hosted journey names its phase and stops within its own deadline [N26,
       'an ordinary request failure retains its original error instead of becoming a timeout');
   } finally { ordinaryDeadline.dispose(); }
 });
-
-/** A fixture handshake and release, independent of elapsed-time guesses. */
-function journeyDeferred() {
-  let resolve;
-  let reject;
-  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
-  return { promise, resolve, reject };
-}

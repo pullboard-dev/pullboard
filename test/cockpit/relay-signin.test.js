@@ -183,11 +183,13 @@ process.stdout.write(JSON.stringify({other}));
 test('view sign-in keeps its key and intents inside the authenticated machine view [H5,N26]', { timeout: relayWorkBudgetMs() * 3 }, async (t) => {
   const box = await relayClientFixture(t);
   box.providerState.deviceAuthorized = false;
-  const serveModule = new URL('../../src/serve.js', import.meta.url).href;
+  const serveModule = new URL('../../src/commands/view.js', import.meta.url).href;
+  const viewModule = new URL('../../src/serve.js', import.meta.url).href;
   const machineModule = new URL('../../src/relay-machine.js', import.meta.url).href;
   const result = await box.script(`
 import { request } from 'node:http';
-import { serveView, HOSTED_ORIGIN } from ${JSON.stringify(serveModule)};
+import { serveView } from ${JSON.stringify(serveModule)};
+import { HOSTED_ORIGIN } from ${JSON.stringify(viewModule)};
 import { updateRelayMachine } from ${JSON.stringify(machineModule)};
 updateRelayMachine(state => { state.owner = {account:'7',url:${JSON.stringify(box.origin)}}; });
 const observations = [];

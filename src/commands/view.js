@@ -23,8 +23,8 @@ import {
   startServeSentinel,
 } from '../serve-sentinel.js';
 import {
-  exportView,
-  serveView,
+  exportView as exportProvidedView,
+  serveView as serveProvidedView,
 } from '../serve.js';
 import {
   defaultViewPort,
@@ -45,12 +45,27 @@ import {
   join,
   resolve,
 } from 'node:path';
+import { cockpitPage } from '../cockpit.js';
 import {
   context,
+  main,
   recordViewBind,
   recordViewReuse,
   withBoard,
 } from '../cli.js';
+
+/** Serve the local page with the CLI authority supplied by its higher-level caller [N26]. */
+export function serveView(options = {}) {
+  return serveProvidedView({ ...options, runCommand: main, renderPage: cockpitPage });
+}
+
+/** Export the page with the same command authority and renderer used by the live view [N26]. */
+export function exportView(root, directory, options = {}) {
+  return exportProvidedView(root, directory, { ...options, runCommand: main, renderPage: cockpitPage });
+}
+
+// The checked exporter owns this capability; the composition preserves its public-export guard.
+exportView.supportsPublicExport = exportProvidedView.supportsPublicExport;
 
 /**
  * \`pullboard view\` (N26): serve the micro site for every project on this machine until stopped,
