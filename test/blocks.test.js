@@ -185,7 +185,7 @@ test('a Pullboard block reaches whoever can clear it and repeats are counted [C6
     const held = box.run(box.web, 'hold', 'api', '--reason', 'the api lane waits');
     assert.equal(held.code, 1, held.err);
     assert.match(held.err, /\[COORDINATOR_ONLY\]/u);
-    assert.match(held.err, /^pullboard: only the coordinator can clear this; tell them: pullboard shout coordinator "blocked by COORDINATOR_ONLY on pullboard hold: only the coordinator holds a lane"$/mu);
+    assert.match(held.err, /^pullboard: only the coordinator can clear this; tell them: pullboard shout coordinator --kind blocker "blocked by COORDINATOR_ONLY on pullboard hold: only the coordinator holds a lane"$/mu);
   }
   // An agent's block is not the person's call.
   assert.equal(personNeedsState(box.repo).needs.filter(row => row.kind === 'block').length, 3);

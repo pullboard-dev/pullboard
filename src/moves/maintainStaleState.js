@@ -10,7 +10,7 @@ function actor(move) { return move.args[0]?.agentId ?? null; }
 export default Object.freeze({ operation: 'maintainStaleState', order: 1001, engine: 1,
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
-    COORDINATOR_ONLY: 'ask the coordinator to do it: pullboard shout coordinator \"<what you need>\"',
+    COORDINATOR_ONLY: 'ask the coordinator to do it: pullboard shout coordinator --kind question \"<what you need>\"',
     ENGINE_VERSION: 'upgrade Pullboard: npm install -g pullboard@latest',
     STALE_STATE_CHANGED: 'capture the current hold and reservation state again before releasing anything',
     BAD_STALE_STATE: 'capture a complete current stale-state observation with pullboard sentinel run',

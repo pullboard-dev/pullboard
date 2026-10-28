@@ -111,7 +111,7 @@ test('real board Activity has sentence rows, working filters, full quotes and an
   const box = machine(), alpha = project(box, 'sentences');
   box.run(alpha.repo, 'add', 'web', items[0].title, '--specs', 'G1', '--criterion', 'greets');
   box.run(alpha.web, 'claim', '1');
-  box.run(alpha.web, 'shout', 'coordinator', 'Keep [MY_CODE] and these words.\nSecond line at 2026-10-28T04:12:00Z');
+  box.run(alpha.web, 'shout', 'coordinator', 'Keep [MY_CODE] and these words.\nSecond line at 2026-10-28T04:12:00Z', '--kind', 'idea');
   const file = join(alpha.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: native health scans must reach this real view through its HTTP board snapshot.
   const board = store.openBoard(file);

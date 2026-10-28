@@ -106,13 +106,15 @@ export const workHelp = `Work
   pullboard inbox --acted-on <interrupt-ids>     acknowledge comma-separated ids only after acting; reading is not acting
   pullboard shout --item <id> <text>             message the item builder, reviewer and coordinator
   A seat shout to all reaches only coordinator and person; their broadcasts reach everyone.
-  pullboard shout coordinator <text> --kind question|blocker --decision  route through a named lane lead
+  pullboard shout coordinator <text> --kind question|blocker|decision|exception|idea  declare the coordinator message kind
+  Coordinator shouts without --kind, or with --kind status, refuse; record item updates with pullboard fact.
+  A named lane lead receives question and blocker kinds first; exception and idea reach the coordinator.
   pullboard lanes lead <lane> <seat|off>          coordinator names or removes the existing lane seat
   pullboard shout all <text> --news              coordinator/person release or focus news, digested at session start
   Inbox combines direct coordination with item/dependency, file and cited-row activity; other lane activity is summarized.
   pullboard shout [<to>] <text> --decision       ask for a decision; defaults to your coordinator or the person
   pullboard shout coordinator <question> --item <id> --decision --options <json>
-  pullboard shout coordinator <question> --decision --effects <json>
+  pullboard shout coordinator --kind question <question> --decision --effects <json>
     Concrete effects compute whose call it is from current rows; declarations grant no execution authority.
                                         ask an item decision with choices, as --options '["first","second"]'
   pullboard shout <to> <text> --evidence attempt|receipt --outcome <word> --item <id> --commit <rev>

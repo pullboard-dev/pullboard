@@ -19,7 +19,7 @@ export default Object.freeze({ operation: "acceptCheck", order: 47, engine: CHEC
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
   "B26_PERSON_CHANNEL": "record it as the person through pullboard view or the person's own terminal",
-  "CHECK_ACCEPT_PERSON_ONLY": "ask the coordinator to bring the check to the person: pullboard shout coordinator \"#<id> needs the person to accept its check\" --decision",
+  "CHECK_ACCEPT_PERSON_ONLY": "ask the coordinator to bring the check to the person: pullboard shout coordinator --kind question \"#<id> needs the person to accept its check\" --decision",
   "CHECK_ACCEPT_STALE": "read the current check with pullboard show <id>, then the person accepts it again: pullboard check accept <id>",
   "NO_CHECK": "run the project gate: pullboard gate"
 }) });

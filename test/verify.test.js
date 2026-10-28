@@ -32,7 +32,7 @@ test('a reviewer is refused for any item its session ever built [V1,B3,C7]', (t)
   const first = document(box.run(box.web, 'whoami', '--json')).id;
   // Bind an original seat without writing a claim digest. Native/legacy moves still name their agent in events.
   box.env.CODEX_THREAD_ID = 'historical-author-session-1085';
-  document(box.run(box.web, 'shout', 'coordinator', 'the original author is here', '--json'));
+  document(box.run(box.web, 'shout', 'all', 'the original author is here', '--json'));
   delete box.env.CODEX_THREAD_ID;
   const secondPath = join(box.dir, 'second-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', secondPath, 'main');

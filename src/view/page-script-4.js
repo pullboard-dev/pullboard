@@ -467,13 +467,18 @@ function moveMessage(move, result) {
  * One sentinel draft in Needs-you: a watch the person has not approved, with the proof Rigor drafted it from.
  * It says draft and waiting, never watching, so an unapproved check cannot pass for an approved one.
  */
+/** Keep sentinel controls identical on the full list and Dashboard, including the reviewed digest. */
+function sentinelDraftActions(row) {
+  const canDecide = !snapshot && (!readOnly || requests);
+  return canDecide ? '<div class="sentinel-decision-actions actions"><button class="approve-row" data-sentinel-decision="approve" data-sentinel-name="' + esc(row.ref) + '" data-sentinel-digest="' + esc(row.digest) + '" type="button">Approve</button><button class="decline-row" data-sentinel-decision="decline" data-sentinel-name="' + esc(row.ref) + '" data-sentinel-digest="' + esc(row.digest) + '" type="button">Decline</button></div>' : '';
+}
+
 function sentinelDraftRow(row) {
   const side = (label, proof) => label + ' commit ' + proof.commit.slice(0, 12) + ' exit ' + proof.exit;
   const evidence = row.evidence;
   const proof = evidence && evidence.proof ? 'Proof: ' + evidence.proof.check + ', ' + side('red', evidence.proof.red) + ', ' + side('green', evidence.proof.green) + '.' : '';
   const repeats = evidence ? 'Drafted from ' + evidence.occurrences + (evidence.occurrences === 1 ? ' repeat of ' : ' repeats of ') + evidence.key + (evidence.items.length ? ' on ' + evidence.items.map((item) => '#' + item.id).join(', ') : '') + '.' : 'Proposed by an agent with no repeat cited.';
-  const canDecide = !snapshot && (!readOnly || requests);
-  const actions = canDecide ? '<div class="sentinel-decision-actions"><button class="approve-row" data-sentinel-decision="approve" data-sentinel-name="' + esc(row.ref) + '" data-sentinel-digest="' + esc(row.digest) + '" type="button">Approve</button><button class="decline-row" data-sentinel-decision="decline" data-sentinel-name="' + esc(row.ref) + '" data-sentinel-digest="' + esc(row.digest) + '" type="button">Decline</button></div>' : '';
+  const actions = sentinelDraftActions(row);
   return '<li class="row ask" data-sentinel-draft="' + esc(row.ref) + '"><span class="dot ask"></span><div><div class="t"><span>' + esc(row.ref) + '</span>' + esc(row.text) + '</div>'
     + '<div class="muted sentinel-proof">' + esc(repeats + (proof ? ' ' + proof : '')) + '</div>'
     + '<div class="muted">Command: <code>' + esc(row.check) + '</code></div><div class="muted">Directory: ' + esc(row.directory) + '</div>'
@@ -524,6 +529,19 @@ function closeDecline(left = false) {
  * Ask in the page before one press approves every undecided row of a Spec section (B26, N26). The browser's own confirm
  * dialog can be dismissed or never shown, and then the press recorded nothing and said nothing; this one is the page's.
  */
+/** Confirm only the advertised approval rows captured by the clicked full-list control. */
+function askConfirmNeeds(value, anchor) {
+  if (snapshot || readOnly && !requests) return;
+  const ids = value.split(' ').filter(Boolean);
+  const allowed = new Set(personNeeds(data.project).filter(row => row.kind==='agent-approved' && row.actions?.some(action => action.verb==='spec-approve' && action.args?.ids===row.id)).map(row => row.id));
+  if (!ids.length || new Set(ids).size!==ids.length || !ids.every(id => allowed.has(id))) { render(); return; }
+  view.approvingAll = { root:view.root, ids, anchor, needs:true };
+  $('spec-approve-title').textContent = 'Confirm all '+ids.length+' rows approved in Git?';
+  $('spec-approve-rows').textContent = 'Rows: '+ids.join(', ');
+  $('spec-approve-submit').textContent = 'Confirm '+ids.length+(ids.length===1?' row':' rows');
+  openModal($('spec-approve-dialog'),$('spec-approve-submit'));
+}
+
 function askApproveAll(section) {
   const ids = data.project.spec.filter((row) => row.section === section && ['pending', 'draft'].includes(row.status) && !row.decision).map((row) => row.id);
   // Every row was decided after the last redraw; this one drops the stale control.
@@ -546,6 +564,7 @@ function closeApproveAll(approved = false, left = false) {
   view.approvingAll = null;
   closeModal($('spec-approve-dialog'));
   if (left) return asked;
+  if (asked?.needs) { (asked.anchor?.isConnected && !approved ? asked.anchor : $('needs')).focus({preventScroll:true}); return asked; }
   const control = !approved && asked && [...$('spec-list').querySelectorAll('[data-section-approve]')].find((button) => button.dataset.sectionApprove === asked.section);
   (control || $('spec-list')).focus({ preventScroll: true });
   return asked;
@@ -824,7 +843,7 @@ document.addEventListener('click', (event) => {
     view.lane = null; view.before = null; $('q').value = ''; openTab('items'); render(); return;
   }
   if (view.filterOpen && !event.target.closest('.filter-control')) { view.filterOpen = false; render(); }
-  const t = event.target.closest('[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],#proj-switch,#console');
+  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
   if (!t) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
@@ -880,6 +899,8 @@ document.addEventListener('click', (event) => {
     render();
     if (addressed) { view.addressDetail = view.row[kind]; address(); }
   }
+  else if (t.hasAttribute('data-needs-list')) { view.state='active'; view.lane=null; openTab('items'); render(); $('needs').scrollIntoView({block:'start'}); }
+  else if (t.dataset.needsConfirm) askConfirmNeeds(t.dataset.needsConfirm,t);
   else if (t.dataset.rowDecision) {
     const id = t.dataset.rowId, kind = t.dataset.rowKind;
     if (t.dataset.rowDecision === 'approve') decideRow(kind, 'spec-approve', { ids: id }, t);

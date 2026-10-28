@@ -30,7 +30,7 @@ export default Object.freeze({ operation: "release", order: 14, engine: 1,
   "BAD_CONFIG": "fix pullboard.json as the message says, then commit it: git commit -m \"chore: fix pullboard config\" pullboard.json",
   "NOTE_REQUIRED": "add --note \"<what happened>\"",
   "NOT_JOINED": "join a lane from this worktree: pullboard join <lane> --model \"<model name>\" (see: pullboard lanes)",
-  "NOT_YOURS": "shout its holder or the coordinator: pullboard shout coordinator \"<what you need>\"",
+  "NOT_YOURS": "shout its holder or the coordinator: pullboard shout coordinator --kind question \"<what you need>\"",
   "NO_ITEM": "find the item id: pullboard list --all",
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again"
 }) });

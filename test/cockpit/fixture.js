@@ -116,6 +116,7 @@ function build(box, p, id, file) {
   writeFileSync(join(p.web, 'web', file), `${file}\n`);
   box.git(p.web, 'add', '-A');
   box.git(p.web, 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
+  // Setup names its next item explicitly; the native handoff itself is tested by post-move-handoff cases.
   box.run(p.web, 'submit', String(id), '--no-next');
 }
 

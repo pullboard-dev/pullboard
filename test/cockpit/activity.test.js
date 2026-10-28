@@ -369,7 +369,7 @@ test('ages stay true while the board is quiet [N26]', async () => {
   const alpha = project(box, 'alpha');
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
-  box.run(alpha.repo, 'shout', 'person', 'Ship the greeting today?', '--decision');
+  box.run(alpha.repo, 'shout', 'person', 'Ship the greeting today?', '--kind', 'decision', '--decision');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -450,7 +450,7 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
   const long = 'Please take #1 next, run `pullboard next` in your worktree, and keep going until the greeting reads right on every width the view supports';
   box.run(demo.repo, 'shout', 'web', `${long}\nA second line the row leaves out.`);
   box.run(demo.repo, 'shout', 'all', 'The private news release is ready.', '--news');
-  box.run(demo.web, 'shout', 'coordinator', 'Ship the greeting today?', '--decision');
+  box.run(demo.web, 'shout', 'coordinator', 'Ship the greeting today?', '--kind', 'decision', '--decision');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-said-chrome-'));
   let chrome;
