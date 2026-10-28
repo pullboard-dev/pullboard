@@ -276,7 +276,7 @@ test('store origin and restore capabilities refuse missing providers before stor
 /** Public compatibility and replay use the same actual operation, including its person-auth refusal. */
 test('the native operation bag and counted public bridge retain actual authority [C7,H16,B2]', t => {
   const board = fixtureBoard(t);
-  for (const [name, operation] of Object.entries({ setPersonSigning, recordGateRun, advanceItemSource })) {
+  for (const [name, operation] of Object.entries({ setPersonSigning, recordGateRun, advanceItemSource, recordTrainLanding })) {
     assert.equal(board.enginePorts.store[name], operation, name);
     assert.equal(legacy[name], operation, 'the #1776 bridge retains the existing public function identity');
     assert.equal(library[name], operation, 'the unchanged library namespace retains its public operation');
@@ -295,6 +295,7 @@ test('native engine composition keeps supplied upper operations and refuses miss
   const original = native.nativeBoardPorts().enginePorts;
   assert.equal(original.store.recordTrainLanding, recordTrainLanding);
   assert.equal(native.recordTrainLanding, recordTrainLanding);
+  assert.equal(legacy.recordTrainLanding, native.recordTrainLanding, 'the existing board public name retains exact native identity');
   const before = legacy.events(board);
   const refusal = new Error('EXPLICIT_TRAIN_PROVIDER');
   let calls = 0;
