@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { COORDINATOR } from '../src/config.js';
 import { appliedSequence, applyEngineMove, engineReceipt, prepareEngineMove } from '../src/engine.js';
-import { refusalDocument } from '../src/json.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { preparePersonRequest } from '../src/person-request.js';
 import { Refused } from '../src/refused.js';

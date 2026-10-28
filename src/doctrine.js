@@ -1,3 +1,4 @@
+import { renderAgentsBlock } from './templates.js';
 /** @pullboard-test-input src/standard-doctrine.md */
 /** The shared house rules (D1–D4): one packaged standard and a repo's explicit changes to it. */
 import { readFileSync } from 'node:fs';
@@ -122,4 +123,9 @@ export function doctrineText(doctrine) {
     const origin = row.origin === 'standard' ? 'standard ' + row.version : row.origin;
     return '- ' + row.id + ' (' + origin + ') [' + state + '] ' + row.text + reason;
   }).join('\n');
+}
+
+/** Render managed agent guidance with this owner’s actual standard and doctrine formatter. */
+export function agentsBlock(doctrine = standardDoctrine()) {
+  return renderAgentsBlock(doctrine, doctrineText(doctrine));
 }

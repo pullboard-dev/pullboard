@@ -1,13 +1,10 @@
-import { BOARD_PROOF_GUIDANCE } from './agent-proof-guidance.js';
 /**
  * What `pullboard init` writes into a repo: the config, a starter spec, and the agent instructions
  * every coding agent reads (AGENTS.md, which CLAUDE.md points at).
  */
-import {
-  doctrineText,
-  standardDoctrine,
-} from './doctrine.js';
 import { DOCTRINE_FILE } from './config.js';
+// Temporary existing docs callers only; contract #1739 removes this edge.
+export { agentsBlock } from './doctrine.js';
 
 export const AGENTS_START = '<!-- pullboard:start -->';
 export const AGENTS_END = '<!-- pullboard:end -->';
@@ -97,7 +94,7 @@ Inherits Pullboard standard doctrine version 1.
  *
  * @returns {string}
  */
-export function agentsBlock(doctrine = standardDoctrine()) {
+export function renderAgentsBlock(doctrine, text) {
   return `${AGENTS_START}
 ## A new board
 
@@ -123,7 +120,7 @@ This repo runs on pullboard: a work board, lanes and a spec that live in git. No
 
 ### Current doctrine
 
-${doctrineText(doctrine)}
+${text}
 
 **Several blueprints.** \`pullboard init\` and \`pullboard blueprint add\` take \`--blueprint\` more than once, such as \`pullboard init --blueprint web-app --blueprint serverless\`: at most one product and one architecture blueprint, and any number of practice and beyond-code ones. They land in the order given, a rule two of them share is drafted once, and each starter item keeps the name of its blueprint.
 
@@ -240,3 +237,8 @@ export function codexLoopRules(gate = '') {
   if (words) patterns.push(words);
   return patterns.map(pattern => `prefix_rule(pattern=${JSON.stringify(pattern)}, decision="allow", justification="Run the Pullboard project loop.")`);
 }
+
+/** The board owns proof; generated agent instructions never prescribe a separate evidence system [I1,I3,V4]. */
+export const BOARD_PROOF_GUIDANCE = "The frozen check, the gate and the verifier's verdict are the proof. "
+  + 'Do not keep private evidence folders, packets, manifests or custody rules. '
+  + "Cite the board's receipts. If those runs cannot decide the item, ask the coordinator to sharpen its bar.";

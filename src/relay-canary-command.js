@@ -18,7 +18,7 @@ import {
   loadMachineSettings,
   setRelayCanary,
 } from './settings.js';
-import { relayCanaryConfig } from './relay-canary-config.js';
+import { relayCanaryConfig } from './settings-read.js';
 import { readRelayHealth } from './relay-canary-health.js';
 import {
   startRelayCanaryWatch,
