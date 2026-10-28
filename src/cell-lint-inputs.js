@@ -24,6 +24,10 @@ function importBindings(info) {
     if (literal && clause) for (const part of clause[1].split(',').map(value => value.trim()).filter(Boolean)) {
       if (/^[A-Za-z_$][\w$]*$/u.test(part)) names.set(part, literal.text);
     }
+    if (literal && /\bprocess\b/u.test(match[1])) {
+      const nativeProcess = literal.text === 'node:process' && /^(?:\s*process\s*|\s*\*\s+as\s+process\s*|\s*\{\s*default\s+as\s+process\s*\}\s*)$/u.test(match[1]);
+      names.set('process', nativeProcess ? 'node:process' : 'unproven process import');
+    }
     for (let at = match.index; at < match.index + match[0].length; at++) body[at] = ' ';
   }
   return { names, body: body.join('') };
@@ -65,12 +69,13 @@ function urlInputs(file, info, names) {
       if (read) { consumer = read[1]; module = names.get(consumer); }
     }
     const worker = thread && names.get('Worker') === 'node:worker_threads'
-      || process && names.get(process[1]) === 'node:child_process' && names.get('fileURLToPath') === 'node:url';
+      || process && names.get(process[1]) === 'node:child_process' && names.get('fileURLToPath') === 'node:url'
+        && (!names.has('process') || names.get('process') === 'node:process');
     if (worker) consumer = thread?.[1] ?? process[1];
     else if (!['node:fs', 'node:fs/promises'].includes(module)) continue;
     const target = relativeInput(file, literal.text);
     if (target) result.push({ target, specifier: literal.text, kind: worker ? 'worker' : 'data',
-      guards: ['URL', consumer, ...(assigned ? [assigned[1]] : []), ...(process || /fileURLToPath/u.test(before) ? ['fileURLToPath'] : [])],
+      guards: ['URL', consumer, ...(assigned ? [assigned[1]] : []), ...(process || /fileURLToPath/u.test(before) ? ['fileURLToPath'] : []), ...(process ? ['process'] : [])],
       declarations: assigned ? [{ name: assigned[1], at: match.index - before.length + assigned.index + assigned[0].indexOf(assigned[1]) }] : [] });
   }
   return result;
