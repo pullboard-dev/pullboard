@@ -168,6 +168,10 @@ test('a sealed follow replays without origin Git and duplicate delivery records 
   assert.deepEqual(applyEngineMove(replica, move, { sequence: 1, at: f.board.clock.now().toISOString() }), result);
   assert.equal(store.events(replica).filter(event => event.event_kind === 'item_patch_follow').length, 1);
   assert.equal(store.itemPatches(f.board, f.id)[0].commit, f.source, 'preparation alone never writes a binding');
+  const olderRemoval = { version: 1, engine: PATCH_FOLLOW_ENGINE - 1, id: 'older-follow-removal',
+    operation: 'removeItemPatch', args: [f.id, { agentId: 'coordinator', key: 'approved-view', presubmit: true }] };
+  assert.throws(() => applyEngineMove(replica, olderRemoval, { sequence: 2, at: f.board.clock.now().toISOString() }), { code: 'RELAY_MOVE' });
+  assert.equal(store.itemPatches(replica, f.id)[0].commit, moved, 'older writers cannot reinterpret a followed binding');
 });
 
 test('a companion author cannot follow the builder and tampered set metadata refuses atomically [C7,H16]', t => {
