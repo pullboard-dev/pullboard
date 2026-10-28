@@ -2,7 +2,6 @@
 /** Actual SSH protocol failures retain evidence and recover through the shared queue [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cpSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -10,6 +9,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { copyPackageFiles } from '../src/package-files.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
@@ -203,8 +203,7 @@ test('an automatic transport probe never clears a draining runner or guesses hea
 test('a controller and worker mixed across an upgrade are refused before SSH while a fresh controller works [C7]', t => {
   const box = fixture(t), installed = join(box.dir, 'installed-tooling');
   mkdirSync(installed);
-  cpSync(join(import.meta.dirname, '../src'), join(installed, 'src'), { recursive: true });
-  cpSync(join(import.meta.dirname, '../package.json'), join(installed, 'package.json'));
+  copyPackageFiles(join(import.meta.dirname, '..'), installed);
   const url = pathToFileURL(join(installed, 'src/runners.js')).href;
   const result = child(box, `import {runOnRunnerAsync} from ${JSON.stringify(url)};
     import {existsSync,readFileSync,writeFileSync} from 'node:fs';
@@ -229,8 +228,7 @@ test('a controller and worker mixed across an upgrade are refused before SSH whi
 test('an asynchronous runner dispatch never uses a preloaded resource generation [C7]', t => {
   const box = fixture(t, { dropFirst: false }), installed = join(box.dir, 'installed-preloaded-tooling');
   mkdirSync(installed);
-  cpSync(join(import.meta.dirname, '../src'), join(installed, 'src'), { recursive: true });
-  cpSync(join(import.meta.dirname, '../package.json'), join(installed, 'package.json'));
+  copyPackageFiles(join(import.meta.dirname, '..'), installed);
   const observations = join(box.dir, 'resource-generation.jsonl');
   const resources = join(installed, 'src/resources.js');
   const signature = 'export function recordRunnerGui(host, gui) {';

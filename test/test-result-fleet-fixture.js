@@ -41,7 +41,7 @@ test('fleet cache probe [C7]', () => { console.log('${EXECUTED}'); assert.ok(val
   /** Commit exact fixture inputs with real Git. */
   const git = (...args) => runFixtureGit(args, { cwd: repo, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
-  git('add', 'package.json', 'src', 'bin', 'lib', 'test');
+  git('add', '.');
   git('commit', '-q', '-m', 'test: commit cache fixture');
   const changedEnv = ['HOME', 'PATH', 'PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME',
     'PULLBOARD_TEST_RESULT_STORE', 'PULLBOARD_TEST_RESULT_ORIGIN', 'PULLBOARD_TEST_CACHE_TOOLING',
