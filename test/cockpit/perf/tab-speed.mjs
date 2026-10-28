@@ -41,14 +41,27 @@ function inputScript() {
       const sample = { ...evidence.next, tab: button.dataset.tab, start: performance.now(), end: null };
       evidence.next = null;
       evidence.actions.push(sample);
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        const pane = document.querySelector('[data-pane="' + sample.tab + '"]'), box = pane?.getBoundingClientRect();
+      const pane = document.querySelector('[data-pane="' + sample.tab + '"]');
+      let revision = 0, previous = null;
+      const observer = new MutationObserver(() => { revision++; });
+      if (pane) observer.observe(pane, { childList: true, subtree: true, characterData: true });
+      const timeout = setTimeout(() => { sample.ready = false; observer.disconnect(); }, 60000);
+      /** End after the actual target is visible and unchanged across two painted frames. */
+      function frame() {
+        if (sample.ready === false) return;
+        const box = pane?.getBoundingClientRect();
         const targets = { spec: '#spec-list .row', doctrine: '#doctrine-list .row', items: '#chain .row',
           roadmap: '#roadmap .milestone-head', dashboard: '#dashboard .dash-hero' };
         const content = pane?.querySelector(targets[sample.tab]);
-        sample.ready = Boolean(view.tab === sample.tab && pane && !pane.hidden && content && box.width > 0 && box.height > 0);
-        if (sample.ready) sample.end = performance.now();
-      }));
+        const ready = Boolean(view.tab === sample.tab && pane && !pane.hidden && content && box.width > 0 && box.height > 0);
+        const key = ready ? [revision, box.width, box.height].join(':') : null;
+        if (key && key === previous) {
+          sample.ready = true; sample.end = performance.now(); observer.disconnect(); clearTimeout(timeout); return;
+        }
+        previous = key;
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
     }, true);
   })()`;
 }
