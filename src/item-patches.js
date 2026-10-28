@@ -5,6 +5,7 @@ import { logEvent } from './board-event-log.js';
 import { getItem } from './board-query.js';
 import { reviewHolder } from './board-query.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
+import { ITEM_PATCH_SUBMIT_ENGINE } from './item-patch-submit-engine.js';
 import { ITEM_PATCH_ENGINE } from './item-patch-engine.js';
 import { PATCH_REVIEW_CUSTODY_ENGINE } from './patch-review-custody-engine.js';
 import { Refused } from './refused.js';
@@ -24,6 +25,20 @@ export function itemPatchResetFields(board, item) {
     item_verdict: null, item_verified_by: null,
     item_review_by: held ? item.item_review_by : null, item_review_until: held ? item.item_review_until : null };
 }
+/** Preserve native status guards through caller ports; claimed companions never release their owner or lease. */
+export function invalidateItemPatch(board, id, agentId, { moveItem, onlyCoordinator, inState }) {
+  const claimed = getItem(board, id).item_status === 'claimed' && (board.executionEngineVersion ?? ENGINE_VERSION) >= ITEM_PATCH_SUBMIT_ENGINE;
+  return moveItem(board, id, claimed ? 'patch-claimed' : 'patch', {
+    checks: {
+      joined: null,
+      [inState]: found => new Refused('ITEM_PATCH_STATE', `item #${id} is ${found.item_status}; attach only to claimed or submitted, unmerged work`),
+      coordinatorOnly: () => onlyCoordinator(agentId, 'changes companion inputs'),
+      notMerged: found => found.item_merged_commit ? new Refused('ALREADY_MERGED', 'file a follow-up for landed work') : null,
+    },
+    set: found => claimed ? {} : itemPatchResetFields(board, found),
+  });
+}
+
 /** Hash exact UTF8 data with one stable algorithm on all replicas. */
 function hash(value) { return createHash('sha256').update(value, 'utf8').digest('hex'); }
 /** Refuse unknown payload fields rather than accepting caller identity assertions. */
@@ -43,7 +58,8 @@ function target(board, id, options, allowed) {
   if (!board.db.prepare("SELECT 1 FROM agent WHERE agent_id='coordinator'").get()) throw new Refused('NOT_JOINED', 'join the coordinator before attaching patches');
   if (!KEY.test(options.key ?? '')) throw new Refused('ITEM_PATCH_KEY', 'use an immutable patch key of one to 80 letters, digits, dots, underscores or hyphens');
   const item = getItem(board, id);
-  if (!['submitted', 'verified'].includes(item.item_status) || item.item_merged_commit) throw new Refused('ITEM_PATCH_STATE', 'patches belong only to unmerged submitted or verified items');
+  if (!(item.item_status === 'claimed' && (board.executionEngineVersion ?? ENGINE_VERSION) >= ITEM_PATCH_SUBMIT_ENGINE
+    || ['submitted', 'verified'].includes(item.item_status)) || item.item_merged_commit) throw new Refused('ITEM_PATCH_STATE', 'patches belong to claimed or unmerged submitted or verified items');
   return item;
 }
 /** Capture registered author identity, never an identity object supplied by the caller. */
@@ -64,16 +80,17 @@ function patchBytes(patch) {
 /** Attach one immutable, source-bound patch; an exact retry never reactivates a removed key. */
 export function applyItemPatchAttachment(board, id, options, ports) {
   return atomic(board, () => {
-    const item = target(board, id, options, ['agentId', 'key', 'commit', 'patch', 'author']);
+    const item = target(board, id, options, ['agentId', 'key', 'commit', 'patch', 'author', 'presubmit']);
     if (outsideSource(board, id)) throw new Refused('ITEM_PATCH_OUTSIDE', 'outside PR changes remain with their source author; attach patches only to native items');
-    if (!COMMIT.test(options.commit ?? '') || options.commit !== item.item_commit) throw new Refused('ITEM_PATCH_SOURCE', 'attach against the exact submitted commit');
+    if (!COMMIT.test(options.commit ?? '') || item.item_status !== 'claimed' && options.commit !== item.item_commit) throw new Refused('ITEM_PATCH_SOURCE', 'attach against the exact builder head (or submitted commit)');
     const patch = patchBytes(options.patch), author = authorIdentity(board, options.author), digest = hash(patch);
     const patches = records(board, id), existing = patches.find(record => record.key === options.key);
     if (existing) {
       if (existing.commit !== options.commit || existing.patch !== patch || existing.author.agentId !== author.agentId) throw new Refused('ITEM_PATCH_CONFLICT', 'this immutable patch key already names different bytes, source or author');
       return { item: id, key: options.key, digest: itemPatchDigest(board, id), changed: false };
     }
-    const record = { key: options.key, commit: options.commit, source: { commit: options.commit }, patch, digest, author, active: true };
+    const record = { key: options.key, commit: options.commit, source: { commit: options.commit }, patch, digest, author, active: true,
+      ...(item.item_status === 'claimed' ? { presubmit: true } : {}) };
     patches.push(record); save(board, id, patches); ports.invalidate(id);
     logEvent(board, options.agentId, 'item_patch_attach', id, { key: record.key, commit: record.commit, digest, author });
     return { item: id, key: options.key, digest: itemPatchDigest(board, id), changed: true };
@@ -82,7 +99,7 @@ export function applyItemPatchAttachment(board, id, options, ports) {
 /** Remove only the active application, never its immutable key or authorship history. */
 export function applyItemPatchRemoval(board, id, options, ports) {
   return atomic(board, () => {
-    target(board, id, options, ['agentId', 'key']);
+    target(board, id, options, ['agentId', 'key', 'presubmit']);
     const patches = records(board, id), record = patches.find(entry => entry.key === options.key);
     if (!record) throw new Refused('NO_ITEM_PATCH', 'list the item patches and name an existing key');
     if (!record.active) return { item: id, key: options.key, digest: itemPatchDigest(board, id), changed: false };

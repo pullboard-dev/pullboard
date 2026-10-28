@@ -89,6 +89,10 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
     const receipt = ports.boundProofReceipt(board, args[0]);
     values[0] = { agentId: args[0].agentId, itemId: args[0].itemId, receipt };
   }
+  if (['attachItemPatch', 'removeItemPatch'].includes(operation) && store.getItem(board, values[0]).item_status === 'claimed') {
+    values[1] = { ...values[1], presubmit: true };
+  }
+  if (operation === 'submit') values[1] = ports.sealItemPatchSubmit(board, values[0], values[1]);
   if (operation === 'submit' && ENGINE_VERSION >= SUBMISSION_PROOF_ENGINE) submissionProof(values[1]?.submissionProof);
   // Derive once before sealing; replicas never re-decide a recorded carry from their local objects.
   if (operation === 'submit' && ENGINE_VERSION >= MERGE_ONLY_VERDICT_ENGINE && values[1]) {
