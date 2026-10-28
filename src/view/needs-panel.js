@@ -1,3 +1,5 @@
+import { sharedRowHtml } from './row-component.js';
+
 /** One presentation for the person's calls, shared by the full list and Dashboard [N26,B26]. */
 export function needsPanelHtml(calls, project, { compact = false, person = false, expanded = [], controls = () => '', feedback = () => '', rich = null, age = () => '' } = {}) {
   /** Board text is escaped independently of the page's trusted action renderers. */
@@ -7,8 +9,9 @@ export function needsPanelHtml(calls, project, { compact = false, person = false
     const date = new Date(value), hour = date.getHours();
     return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][date.getMonth()] + ' ' + date.getDate() + ', ' + (hour % 12 || 12) + ':' + String(date.getMinutes()).padStart(2, '0') + ' ' + (hour < 12 ? 'AM' : 'PM');
   };
+  const glyphs = { question: '?', sentinel: '◉', approval: '✓', draft: '≡' };
   /** Native summary elements supply keyboard, expanded-state and focus behavior without another listener. */
-  const icon = kind => '<span class="needs-kind needs-kind-' + kind + '" aria-hidden="true">' + ({ question: '?', sentinel: '◉', approval: '✓', draft: '≡' })[kind] + '</span>';
+  const icon = kind => '<span class="needs-kind needs-kind-' + kind + '" aria-hidden="true">' + glyphs[kind] + '</span>';
   const drafts = calls.find(row => row.kind === 'draft')?.count ?? 0;
   const sorted = calls.filter(row => row.kind !== 'draft').map(row => row.kind === 'hold' ? { ...row, at: row.at ?? project.holds?.find(hold => hold.hold_lane === row.id)?.hold_at } : row).toSorted((a, b) => (Date.parse(a.at ?? a.approvedAt) || 0) - (Date.parse(b.at ?? b.approvedAt) || 0));
   const approvals = sorted.filter(row => row.kind === 'agent-approved');
@@ -39,12 +42,13 @@ export function needsPanelHtml(calls, project, { compact = false, person = false
   const rowHtml = row => {
     // Blocks use only their public reference and timestamp; their internal id contains the refused command.
     const d = describe(row), key = row.kind + ':' + (row.kind === 'block' ? row.ref + ':' + row.at : row.id);
-    const attrs = row.kind === 'agent-approved' ? ' data-agent-approved="' + escape(row.id) + '"' : row.kind === 'sentinel-draft' ? ' data-sentinel-draft="' + escape(row.ref) + '"' : row.kind === 'spec-revision' ? ' data-spec-revision="' + escape(row.id) + '"' : '';
-    return '<li class="needs-call ' + (row.kind === 'agent-approved' ? 'agent-approval' : '') + '"' + attrs + '><details data-needs-key="' + escape(key) + '" data-dashboard-disclosure="needs:' + escape(key) + '"' + (expanded.includes(key) ? ' open' : '') + '><summary>' + icon(d.kind)
-      + '<span class="needs-copy"><b><span class="needs-id" title="'+escape(d.id)+'">' + escape(d.id) + '</span>' + escape(d.title) + '</b><small>' + escape(d.context) + '</small></span>'
-      + '<span class="needs-side"><span class="needs-age">' + (row.at || row.approvedAt ? age(row.at ?? row.approvedAt) : '') + '</span><span class="needs-action needs-action-' + d.kind + '">' + d.action + '</span><span class="needs-caret" aria-hidden="true">›</span></span></summary>'
-      + '<div class="needs-detail">' + (d.body ? '<p>' + (rich ?? escape)(d.body) + '</p>' : '') + (d.fields.length ? '<dl>' + d.fields.map(([label, value, code, meta]) => '<dt>' + escape(label) + '</dt><dd data-needs-field="' + escape(label.toLowerCase().replace(/ /g,'-')) + '">' + (code ? '<code'+(meta?.title?' title="'+escape(meta.title)+'"':'')+'>' + escape(value) + '</code>' : escape(value)) + (label==='Approved in Git' ? ' · '+(Number.isFinite(Date.parse(meta?.date))?'<time datetime="'+escape(meta.date)+'" title="'+escape(meta.date)+'">'+escape(approvalDate(meta.date))+'</time>':'Date unknown'):'') + '</dd>').join('') + '</dl>' : '')
-      + feedback(row) + controls(row) + '</div></details></li>';
+    const attributes = row.kind === 'agent-approved' ? { 'data-agent-approved': row.id } : row.kind === 'sentinel-draft' ? { 'data-sentinel-draft': row.ref } : row.kind === 'spec-revision' ? { 'data-spec-revision': row.id } : {};
+    const detailHtml = '<div class="needs-detail">' + (d.body ? '<p>' + (rich ?? escape)(d.body) + '</p>' : '') + (d.fields.length ? '<dl>' + d.fields.map(([label, value, code, meta]) => '<dt>' + escape(label) + '</dt><dd data-needs-field="' + escape(label.toLowerCase().replace(/ /g,'-')) + '">' + (code ? '<code'+(meta?.title?' title="'+escape(meta.title)+'"':'')+'>' + escape(value) + '</code>' : escape(value)) + (label==='Approved in Git' ? ' · '+(Number.isFinite(Date.parse(meta?.date))?'<time datetime="'+escape(meta.date)+'" title="'+escape(meta.date)+'">'+escape(approvalDate(meta.date))+'</time>':'Date unknown'):'') + '</dd>').join('') + '</dl>' : '')
+      + feedback(row) + controls(row) + '</div>';
+    return sharedRowHtml({ variant: 'needs', state: d.kind, id: d.id, title: d.title, meta: d.context, chip: d.action,
+      iconHtml: glyphs[d.kind], timeHtml: row.at || row.approvedAt ? age(row.at ?? row.approvedAt) : '',
+      className: row.kind === 'agent-approved' ? 'agent-approval' : '', attributes,
+      detailsAttributes: { 'data-needs-key': key, 'data-dashboard-disclosure': 'needs:' + key }, open: expanded.includes(key), detailHtml });
   };
   const draftRow = drafts ? '<li class="needs-call needs-drafts"><button type="button" data-go="tab:spec">' + icon('draft') + '<span class="needs-copy"><b>' + drafts + ' draft spec rows to approve or drop</b><small>In the Spec tab, one by one or a section at a time</small></span><span class="needs-action">Review</span></button></li>' : '';
   if (compact) {

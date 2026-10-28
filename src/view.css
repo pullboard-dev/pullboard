@@ -460,6 +460,11 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .row .meta > .gate, .row .meta > .why { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .row .meta > .why { flex-grow: 1; }
 .row > .chip { grid-area: chip; justify-self: end; max-width: 10rem; overflow: hidden; text-overflow: ellipsis; }
+.row.item-row { grid-template-columns: var(--space-6) minmax(0, 1fr) auto; }
+.row.item-row > .dot { width: var(--space-6); height: var(--space-6); display: grid; place-items: center; }
+.row-disclosure > summary { list-style: none; }
+.row-disclosure > summary::-webkit-details-marker { display: none; }
+.row-detail { padding: var(--space-3) var(--space-4); font-size: var(--text-sm); }
 .chip { font: 600 var(--text-2xs)/1 var(--mono); letter-spacing: var(--tracking-label); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--ink-muted); white-space: nowrap; }
 .chip.ok { background: var(--accent-soft); color: var(--accent-strong); }
 .chip.warn { background: var(--warn-soft); color: var(--warn); }

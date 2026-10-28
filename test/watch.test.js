@@ -1,12 +1,14 @@
 /** pullboard watch follows the board's live event stream, from a real CLI on a real board [A2,N26]. */
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { createServer } from 'node:http';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { hostname, loadavg, tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after, test } from 'node:test';
 import { openBoard, reserveReview } from '../src/board.js';
+import { followBoard } from '../src/watch.js';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -126,6 +128,41 @@ function startWatch(box, args, { cwd = box.root } = {}) {
     },
   };
 }
+
+test('watch uses its explicit view provider in global then scoped order before opening a direct API [A2,N26,C7]', async () => {
+  for (const scoped of [false, true]) {
+    const calls = [];
+    const notes = [];
+    const controller = new AbortController();
+    const server = createServer((request, response) => {
+      assert.equal(request.headers['x-pullboard-key'], 'fixture-session');
+      assert.equal(request.url, '/api/v1/boards/fixture-board/events');
+      response.writeHead(200, { 'content-type': 'text/event-stream' });
+      response.write(': ready\n\n');
+    });
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const port = server.address().port;
+    const options = { work: null, since: null, kinds: null, item: null, to: null };
+    const inputs = { commonDir: '/fixture/common', options, start: { id: 'fixture-board', sequence: 0 },
+      config: {}, write: () => assert.fail('no event was sent'), note: (text) => { notes.push(text); controller.abort(); },
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]), // budget: bound a broken private stream, not a latency claim.
+      serveApi: () => assert.fail('the explicit view must prevent direct API startup') };
+    try {
+      await assert.rejects(followBoard(inputs), /caller-owned runningView/u);
+      assert.equal(await followBoard({ ...inputs, runningView: async (requestedPort, scope) => {
+        calls.push([requestedPort, scope]);
+        return scoped && scope === null ? null : { port, url: `http://127.0.0.1:${port}/?k=fixture-session` };
+      } }), 0);
+      assert.deepEqual(calls, scoped ? [[0, null], [0, '/fixture/common']] : [[0, null]]);
+      assert.deepEqual(notes, [`watch: following the view on port ${port} after sequence 0`]);
+    } finally {
+      controller.abort();
+      server.closeAllConnections();
+      await new Promise((done) => server.close(done));
+    }
+  }
+});
 
 test('pullboard watch prints a move as it happens [A2,N26]', async (t) => {
   const box = project();
