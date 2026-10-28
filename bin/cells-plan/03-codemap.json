@@ -6,8 +6,8 @@
  "frontDoor": "packages/codemap/index.js",
  "placedBy": {
   "seed": 1,
-  "rule": 15,
-  "imports": 1
+  "rule": 16,
+  "imports": 2
  },
  "paths": [
   ["src/cell-binding-uses.js","packages/codemap/src/shell/cell-binding-uses.js","rule"],
@@ -26,7 +26,9 @@
   ["src/path-map-operands.js","packages/codemap/src/core/path-map-operands.js","rule"],
   ["src/path-map.js","packages/codemap/src/core/path-map.js","rule"],
   ["src/source-advance-plan.js","packages/codemap/src/shell/source-advance-plan.js","imports"],
-  ["src/source-inventory.js","packages/codemap/src/shell/source-inventory.js","rule"]
+  ["src/source-inventory.js","packages/codemap/src/shell/source-inventory.js","rule"],
+  ["src/cell-lint-cell-shards.js","packages/codemap/src/shell/cell-lint-cell-shards.js","rule"],
+  ["src/map-slice-say.js","packages/codemap/src/shell/map-slice-say.js","imports"]
  ],
  "reexports": [
   "src/cell-lint-baseline-plan.js",
