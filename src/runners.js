@@ -5,6 +5,7 @@ import { carriedRunnerTrunk } from './runner-policy.js';
 import { probeRunnerTransport } from './runner-transport.js';
 import { claimRunnerLaunch } from './runner-transport.js';
 import { recoveryIdentity } from './runner-transport.js';
+import { removeGitRepositorySelectors } from './git-child-selectors.js';
 import { installRunnerPackage } from './runner-package-install.js';
 import {
   captureRunnerTooling,
@@ -399,9 +400,11 @@ function shellWord(value) { return `'${String(value).replaceAll("'", "'\\''")}'`
 
 /** Give the SSH client connection necessities only; arbitrary caller secrets cannot be forwarded. */
 function sshEnvironment() {
+  const inherited = { ...process.env };
+  removeGitRepositorySelectors(inherited, process.stderr.write.bind(process.stderr));
   const env = {};
   for (const key of ['PATH', 'HOME', 'USER', 'LOGNAME', 'SSH_AUTH_SOCK', 'TMPDIR', 'SystemRoot', 'WINDIR']) {
-    if (process.env[key] !== undefined) env[key] = process.env[key];
+    if (inherited[key] !== undefined) env[key] = inherited[key];
   }
   return { ...env, LC_ALL: 'C', LANG: 'C', TZ: 'UTC' };
 }

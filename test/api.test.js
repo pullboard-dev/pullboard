@@ -29,7 +29,8 @@ import * as apiExports from '../src/api.js';
 import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, closeBoard, events as boardEvents, openBoard, verdictsFor } from '../src/board.js';
 import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
 import { JSON_SHAPES } from '../src/json.js';
-import { projectState, serveView } from '../src/serve.js';
+import { projectState } from '../src/serve.js';
+import { serveView } from '../src/commands/view.js';
 import { registerProject } from '../src/projects.js';
 import { SSH_SHELL_MARKERS } from '../src/person.js';
 import {
@@ -37,6 +38,7 @@ import {
   apiFetch,
   assertRequiredShape,
   nextSseEvent,
+  shellWord,
   timedMs,
 } from './api-fixture.js';
 
@@ -166,11 +168,6 @@ test('local API admits only configured literal IPv4 hosts at their own origin [H
     secret: randomUUID(), getPort: () => 1, runCommand: main, projects: () => [], allowedHosts: [invalid],
   }), TypeError, `invalid LAN host ${invalid} is rejected`);
 });
-
-/** Quote a literal executable path for the fixture hook's POSIX shim. */
-function shellWord(value) {
-  return "'" + value.replace(/'/g, "'\\''") + "'";
-}
 
 /** Make a disposable home and a real repo with isolated git settings. */
 function sandbox() {
