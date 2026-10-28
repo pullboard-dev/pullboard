@@ -12,6 +12,7 @@ import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
@@ -183,17 +184,17 @@ function codeWalk(read, { caught = false } = {}) {
     if (!files.has(file)) {
       const source = read(file);
       const named = new Map();
-      /** Resolve a relative import to its path under src/, from a file in src/ or src/commands/. */
-      const under = (dots, name) => (file.startsWith('commands/') ? (dots === '..' ? name : `commands/${name}`) : (dots === '.' ? name : null));
-      for (const [, names, dots, name] of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*'(\.\.?)\/([\w-]+\.js)'/g)) {
-        const from = under(dots, name);
+      /** Resolve literal relative imports with their repository layout, including extracted packages. */
+      const under = (specifier) => posix.normalize(posix.join(posix.dirname(file), specifier));
+      for (const [, names, specifier] of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*'(\.{1,2}\/[^']+\.js)'/g)) {
+        const from = under(specifier);
         if (!from) continue;
         for (const part of names.split(',').map((text) => text.trim()).filter(Boolean)) {
           const [original, local = original] = part.split(/\s+as\s+/);
           named.set(local, `${from}#${original}`);
         }
       }
-      const spaces = new Map([...source.matchAll(/import \* as (\w+) from '(\.\.?)\/([\w-]+\.js)'/g)].map(([, space, dots, name]) => [space, under(dots, name)]).filter(([, from]) => from));
+      const spaces = new Map([...source.matchAll(/import \* as (\w+) from '(\.{1,2}\/[^']+\.js)'/g)].map(([, space, specifier]) => [space, under(specifier)]));
       files.set(file, { bodies: functionsIn(source), named, spaces, source });
     }
     return files.get(file);
@@ -1424,12 +1425,17 @@ test('the board refuses a status written outside moveItem at run time, however i
 test('a helper added to the board that changes a status outside moveItem is refused when it runs [M1]', async () => {
   const dir = fs.mkdtempSync(join(tmpdir(), 'pullboard-planted-'));
   try {
-    for (const file of fs.readdirSync(new URL('../src/', import.meta.url), { recursive: true }).filter((name) => name.endsWith('.js'))) {
-      const source = fromDisk(file);
-      fs.mkdirSync(dirname(join(dir, file)), { recursive: true });
-      fs.writeFileSync(join(dir, file), file === 'board.js' ? `${source}\nexport function reopenByHand(board, id) {\n  board.db.prepare("update item set item_status = 'open', item_owner = null, item_lease_until = null where item_id = ?").run(id);\n}\n` : source);
+    for (const directory of ['src', 'packages']) {
+      const base = new URL(`../${directory}/`, import.meta.url);
+      if (!fs.existsSync(base)) continue;
+      for (const name of fs.readdirSync(base, { recursive: true }).filter((name) => name.endsWith('.js'))) {
+        const file = `${directory}/${name}`, source = fs.readFileSync(new URL(name, base), 'utf8');
+        fs.mkdirSync(dirname(join(dir, file)), { recursive: true });
+        fs.writeFileSync(join(dir, file), file === 'src/board.js' ? `${source}\nexport function reopenByHand(board, id) {\n  board.db.prepare("update item set item_status = 'open', item_owner = null, item_lease_until = null where item_id = ?").run(id);\n}\n` : source);
+      }
     }
-    const copy = await import(pathToFileURL(join(dir, 'board.js')).href);
+    fs.copyFileSync(new URL('../package.json', import.meta.url), join(dir, 'package.json'));
+    const copy = await import(pathToFileURL(join(dir, 'src/board.js')).href);
     const board = copy.openBoard(':memory:');
     copy.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
     copy.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
@@ -1463,4 +1469,14 @@ test('Rigor historical data boundaries do not hide a new projection refusal [M1,
 
 test('a source walk scans local facts once while retaining caller-specific refusal traversal [C7,M1]', () => {
   assertMachineWalkMemo(codeWalk);
+});
+
+
+test('lifecycle audit follows extracted package guards and catches a new refusal [M1,M4,H16]', () => {
+  const file = '../packages/state/src/core/handoff-state.js';
+  const walk = codeWalk(fromDisk);
+  assert.ok(walk.refusalsOf(`${file}#requireHandoffActive`).has('AGENT_REPLACED'));
+  const planted = editedSource(file, /^export function requireHandoffActive\(board, actor, operation, args\) \{$/m,
+    "$&\n  throw new Refused('STATE_PACKAGE_PROBE', 'planted package guard');");
+  assert.ok(codeProblems(machineRules.MACHINE, planted).includes('STATE_PACKAGE_PROBE is raised by submit but not declared there'));
 });
