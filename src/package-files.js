@@ -15,12 +15,14 @@ import {
   sep,
 } from 'node:path';
 
-/** Reject ambiguous or escaping package paths rather than widening a source copy. */
+/** Reject ambiguous or escaping package paths rather than widening a source copy; a leading ! excludes earlier matches, as npm does. */
 function packagePattern(value) {
-  if (typeof value !== 'string' || !value || value.startsWith('!') || isAbsolute(value)
-    || /[\\\u0000-\u001f\u007f{}[\]()]/u.test(value)) throw new Error('unsupported package files entry');
-  const path = value.replace(/^\.\//u, '').replace(/\/$/u, '');
-  if (!path || path.split('/').some(part => !part || part === '..' || part === '.')) throw new Error('unsafe package files entry');
+  const exclude = typeof value === 'string' && value.startsWith('!');
+  const body = exclude ? value.slice(1) : value;
+  if (typeof body !== 'string' || !body || body.startsWith('!') || isAbsolute(body)
+    || /[\\\u0000-\u001f\u007f{}[\]()]/u.test(body)) throw new Error(`unsupported package files entry: ${JSON.stringify(value)}`);
+  const path = body.replace(/^\.\//u, '').replace(/\/$/u, '');
+  if (!path || path.split('/').some(part => !part || part === '..' || part === '.')) throw new Error(`unsafe package files entry: ${JSON.stringify(value)}`);
   let pattern = '';
   for (let i = 0; i < path.length; i++) {
     const char = path[i];
@@ -34,7 +36,14 @@ function packagePattern(value) {
   }
   const firstWildcard = path.search(/[?*]/u);
   const prefix = firstWildcard < 0 ? path : path.slice(0, Math.max(0, path.lastIndexOf('/', firstWildcard)));
-  return { expression: new RegExp(`^${pattern}(?:/.*)?$`, 'u'), prefix: firstWildcard === 0 ? '' : prefix };
+  return { expression: new RegExp(`^${pattern}(?:/.*)?$`, 'u'), prefix: firstWildcard === 0 ? '' : prefix, exclude };
+}
+
+/** The last entry that matches a path decides it, so a later ! entry removes earlier matches and nothing else. */
+function selectedBy(patterns, path) {
+  let selected = false;
+  for (const { expression, exclude } of patterns) if (expression.test(path)) selected = !exclude;
+  return selected;
 }
 
 /** Return stable regular-file paths; package.json is the mandatory manifest needed to interpret shipped code. */
@@ -45,6 +54,7 @@ export function packageFiles(root) {
   const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
   if (!Array.isArray(manifest.files) || !manifest.files.length) throw new Error('package files must be an explicit nonempty list');
   const patterns = manifest.files.map(packagePattern);
+  if (!patterns.some(({ exclude }) => !exclude)) throw new Error('package files needs at least one inclusion entry before any ! exclusion');
   const files = ['package.json'];
   /** Enumerate declared bytes only, never following a symlink or copying repository/account state. */
   function visit(directory, prefix = '') {
@@ -57,7 +67,7 @@ export function packageFiles(root) {
         if (patterns.some(({ prefix }) => !prefix || path === prefix || path.startsWith(prefix + '/') || prefix.startsWith(path + '/'))) {
           visit(join(directory, name), path);
         }
-      } else if (patterns.some(({ expression }) => expression.test(path))) {
+      } else if (selectedBy(patterns, path)) {
         if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`package source is not a regular file: ${path}`);
         files.push(path);
         if (files.length > 100_000) throw new Error('package file list exceeds its copy bound');

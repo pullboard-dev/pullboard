@@ -2,8 +2,7 @@ import { takeoverReady } from './line-capacity.js';
 /** Durable first-refusal windows for reopened work [B13,B5]. */
 import { Refused } from './refused.js';
 
-import { firstRefusal } from './first-refusal-window.js';
-export { firstRefusal };
+import { firstRefusal } from './board-item-read.js';
 
 /** Give the original builder first refusal while preserving every ordinary claim guard. */
 export function firstRefusalProblem(board, id, agentId) {

@@ -25,14 +25,14 @@ import { rigorSentinelName } from './sentinels.js';
  * has not repeated (pullboard rigor does not list it), the rule text is not one line, or the proof
  * does not hold. Returns the drafts with their evidence and proof.
  *
- * @param {{ root: string, config: any, events: any[], person: string, reserve?: (row: any) => Promise<{ id: string }> }} board
+ * @param {{ root: string, config: any, events: any[], person: string, parseProcessCensus: (stdout: string) => Map<number, any> | null, reserve?: (row: any) => Promise<{ id: string }> }} board
  *   reserve: reserves a planned row's id on the board and returns the id to write (#878). It runs after the
  *   proof, right before each write, so a lane draft made while a slow proof runs, or at the same moment,
  *   keeps its own id.
  * @param {{ key: string, text: string, check?: string, red?: string, green?: string, section?: string }} request
  * @returns {Promise<{ key: string, reads: string, evidence: { items: { id: number, commits: string[] }[], occurrences: number, neverAgain: boolean }, proof: object, drafts: object[] }>}
  */
-export async function rigorDraft({ root, config, events, person, agent, reserve = async (row) => row, propose = null }, { key, text, check, red, green, section, sentinel = null }) {
+export async function rigorDraft({ root, config, events, person, agent, parseProcessCensus, reserve = async (row) => row, propose = null }, { key, text, check, red, green, section, sentinel = null }) {
   const malformed = causeProblem(key ?? '');
   if (malformed) throw malformed;
   key = mappedCause(historyPathMap(root), key);
@@ -41,7 +41,7 @@ export async function rigorDraft({ root, config, events, person, agent, reserve 
   if (sentinel && (text !== undefined && (!text.trim() || /[\r\n]/u.test(text)))) throw new Refused('USAGE', 'give the watch\'s next step as one line, or leave it out: pullboard rigor draft <key> --sentinel --check "<command>" --red <commit> --green <commit>');
   if (!sentinel && (!text?.trim() || /[\r\n|]/u.test(text))) throw new Refused('USAGE', 'give the rule as one nonempty line without a field separator: pullboard rigor draft <key> "<rule>" --check "<command>" --red <commit> --green <commit>');
   if (cause.reads !== 'work' && / \| /u.test(check ?? '')) throw new Refused('USAGE', 'a spec row gate cannot hold " | "; put the pipeline in a script and name the script in --check');
-  const proof = await proveCauseCheck(root, cause, { check, red, green }, { agent });
+  const proof = await proveCauseCheck(root, cause, { check, red, green }, { agent, parseProcessCensus });
   const evidence = { items: cause.items, occurrences: cause.occurrences, neverAgain: cause.neverAgain };
   if (sentinel) {
     // A cause a command can watch becomes a pending watch instead of a rule; it cites the repeats and its proof (#776).
@@ -73,16 +73,16 @@ export async function rigorDraft({ root, config, events, person, agent, reserve 
  *
  * @param {any} io
  * @param {{ second?: string, rest: string[], values: any }} args
- * @param {{ root: string, config: any, read: () => { events: any[], actor: string }, reserve: (row: any) => Promise<{ id: string }>, propose?: (row: any, evidence: any) => Promise<any> }} deps
+ * @param {{ root: string, config: any, parseProcessCensus: (stdout: string) => Map<number, any> | null, read: () => { events: any[], actor: string }, reserve: (row: any) => Promise<{ id: string }>, propose?: (row: any, evidence: any) => Promise<any> }} deps
  *   read: the board's events and the asking agent; reserve: the CLI's board reservation; propose: records a
  *   pending watch with its evidence, for --sentinel (#776).
  * @returns {Promise<number>}
  */
-export async function rigorDraftCommand(io, { second, rest, values }, { root, config, read, reserve, propose }) {
+export async function rigorDraftCommand(io, { second, rest, values }, { root, config, read, reserve, propose, parseProcessCensus }) {
   if (rest.length > 1) throw new Refused('USAGE', 'pullboard rigor draft <key> "<rule>" --check "<command>" --red <commit> --green <commit> [--section <letter>], or <key> --sentinel [--every hourly] [--owner <seat or lane>]');
   const { events, actor } = read();
   const sentinel = values.sentinel ? { every: values.every, owner: values.owner } : null;
-  const result = await rigorDraft({ root, config, events, person: PERSON, agent: actor, reserve, propose },
+  const result = await rigorDraft({ root, config, events, person: PERSON, agent: actor, reserve, propose, parseProcessCensus },
     { key: second, text: rest[0], check: values.check, red: values.red, green: values.green, section: values.section, sentinel });
   io.result?.(result);
   io.say(`proved ${result.key}: red at ${result.proof.red.commit.slice(0, 12)} (${result.proof.red.problems} problem lines, exit ${result.proof.red.exit}), green at ${result.proof.green.commit.slice(0, 12)} (exit ${result.proof.green.exit})`);

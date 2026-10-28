@@ -24,6 +24,7 @@
     "packages",
     "skills",
     "docs",
+    "!docs/**/*.test.js",
     "CHANGELOG.md",
     "README.md",
     "LICENSE"
