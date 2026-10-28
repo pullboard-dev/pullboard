@@ -62,6 +62,7 @@ export function acceptCheck(board, id, { agentId, channel, digest }) {
  */
 export function checkAcceptance(board, item) {
   if (!item?.item_check) return null;
+  const { PERSON } = board.nativePorts;
   const digest = checkDigest(item.item_check);
   const rows = board.db.prepare("SELECT event_id, event_by, event_kind, event_detail FROM event WHERE item_id = ? AND event_kind IN ('check_accept', 'edit') ORDER BY event_id").all(item.item_id);
   let accepted = null;
