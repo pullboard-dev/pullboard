@@ -1,10 +1,12 @@
 import { recordReviewPolicyActivation } from '../packages/state/index.js';
 import { agentGrantMinimum } from './agent-grant.js';
 import { requireAgentGrant } from './agent-grant.js';
+import { boundProofReceipt } from './proof-receipts.js';
+import { requireOutsideReceipt } from './outside-proof.js';
 import { rejectedWorkReturns } from '../packages/state/index.js';
 import { handoffMoveProblem } from '../packages/state/index.js';
 import { requireHandoffActive } from '../packages/state/index.js';
-import { manualLandingFailureQuoted } from '../packages/state/index.js';
+import { manualLandingFailureQuoted } from '../packages/state/src/core/manual-landing-failure-quoted.js';
 import { submissionSize } from '../packages/state/index.js';
 import { lineSettings } from '../packages/state/index.js';
 /** Versioned, deterministic replay through the CLI's existing board engine [H3,H16]. */
@@ -96,7 +98,7 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
   if (operation === 'submit' && ENGINE_VERSION >= SUBMISSION_PROOF_ENGINE) submissionProof(values[1]?.submissionProof);
   // Derive once before sealing; replicas never re-decide a recorded carry from their local objects.
   if (operation === 'submit' && ENGINE_VERSION >= MERGE_ONLY_VERDICT_ENGINE && values[1]) {
-    const carry = store.prepareMergeOnlySubmit(board, values[0], values[1], { getItem: store.getItem, acceptedVerdict: store.acceptedVerdict });
+    const carry = store.prepareMergeOnlySubmit(board, values[0], values[1], { getItem: store.getItem, acceptedVerdict: store.acceptedVerdict, identity: board.nativePorts });
     delete values[1].mergeOnly;
     if (carry) values[1].mergeOnly = carry;
   }

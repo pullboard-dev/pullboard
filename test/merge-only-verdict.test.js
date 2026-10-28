@@ -17,7 +17,7 @@ import { runFixtureGit, runFixtureChild } from './fixture-child.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { prepareEngineMove, applyEngineMove, applyRelayMove } from '../src/engine.js';
 import { MERGE_ONLY_VERDICT_ENGINE } from '../src/merge-only-verdict-engine.js';
-import { operationIntent } from '../src/relay-sender.js';
+import { operationIntent } from '../packages/state/src/core/relay-sender-policy.js';
 import { capturePrProof } from '../src/pr-proof-snapshot.js';
 
 const e2e = createE2eHelpers();

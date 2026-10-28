@@ -3,7 +3,6 @@
  * the relay is a mailbox. A move applies here and returns at once; a read never syncs or takes a lock. One
  * background sender per machine pushes the queued moves and pulls other machines' moves, for every board on it.
  */
-import { spawn } from 'node:child_process';
 import {
   createHash,
   randomUUID,
@@ -18,13 +17,10 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { pullboardHome } from './local-state.js';
 
 /** Set to 0 to send inside each command instead, as before #1013; the test runner sets it, like the view. */
 export const SENDER_BACKGROUND_ENV = 'PULLBOARD_RELAY_SENDER_BACKGROUND';
-/** The machine sender's entry file, which every sender process runs. */
-export const SENDER_WORKER = fileURLToPath(new URL('./relay-sender-worker.js', import.meta.url));
 
 /**
  * Whether this process leaves sending to the machine's background sender.
@@ -102,7 +98,7 @@ export function boardNote(file) {
  * @param {string} root - The board's checkout.
  * @param {string} file - The board's relay link file.
  */
-export function nudgeRelaySender(root, file) {
+export function nudgeRelaySender(root, file, launchSender) {
   if (!senderInBackground()) return;
   try {
     const note = boardNote(file);
@@ -115,8 +111,7 @@ export function nudgeRelaySender(root, file) {
     if (senderHolding() || !startingSender()) return;
     const env = { ...process.env };
     delete env.PULLBOARD_RELAY_TOKEN; // The sender works only with this machine's own saved credentials.
-    const child = spawn(process.execPath, [SENDER_WORKER], { cwd: root, detached: true, stdio: 'ignore', env });
-    child.unref();
+    launchSender(root, env);
   } catch { /* A board the sender misses now is served by the next command's nudge; the move is already saved. */ }
 }
 
@@ -135,4 +130,25 @@ export function localFirstBoard(file, outboxSetting) {
   if (!state || state.unlinking || state.recovery || state.mode !== 'ordered' || state.baselineAccepted !== true
     || state.baselineConflict || state.environment) return false;
   try { return outboxSetting() === true; } catch { return false; }
+}
+
+/**
+ * The link a move may queue on and return at once (#1013), or null when it must reach the relay first: the board's
+ * relay.outbox is on and the relay accepted its baseline, and the move needs no relay answer to exist (a
+ * registration mints its token there, a takeover needs the relay's sign-in lineage, a person's request is the
+ * phone's, and landing authority needs real order). Environment-token sessions always wait: ephemeral jobs
+ * cannot retain queued moves after they exit.
+ */
+export function localFirstLink(file, operation, args, io, { loadLink, acknowledgedOperations, senderPolicy }) {
+  let state;
+  try { state = loadLink(file); } catch { return null; }
+  if (!state || state.unlinking || state.recovery || state.mode !== 'ordered' || state.baselineAccepted !== true
+    || state.baselineConflict || state.baselinePause || state.baselineStale || state.environment) return null;
+  if (process.env.PULLBOARD_RELAY_TOKEN !== undefined || io?.relayCanary || io?.personRequest || io?.personRequestMoveId) return null;
+  // A takeover needs the relay's authenticated sign-in lineage, which only the relay's order carries.
+  if (acknowledgedOperations.includes(operation) || args?.[0]?.landingFence !== undefined) return null;
+  if (senderPolicy.credentialActor({ operation, args }) === 'person') return null;
+  try { if (io?.relayOutbox?.() !== true) return null; } catch { return null; }
+  if (senderInBackground() && typeof io.launchRelaySender !== 'function') throw new TypeError('local-first relay requires the sender launch port');
+  return state;
 }

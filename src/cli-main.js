@@ -302,6 +302,10 @@ async function runMain(argv, streams) {
   const io = commandOutput(argv, streams, {
     loadRefusal: async () => (await import('./next-step-words.js')).refusalDocument,
   });
+  // Background launch is a CLI operation; lower relay code receives it explicitly.
+  io.launchRelaySender = (root, env) => {
+    void import('./relay-sender-main.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});
+  };
   let sync = true;
   let needsRepo = true;
   let parsed;
@@ -372,7 +376,7 @@ async function runMain(argv, streams) {
     }
     if (code === 0) await (await syncWork())?.retrySync(io);
     const status = io.exitCode(code);
-    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('./blocks.js')).clearCompletedBlocks(io);
+    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('./blocks.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('./person.js')).requirePersonChannel });
     if (status !== 0) await io.prepareRefusal();
     io.flush(status);
     return status;

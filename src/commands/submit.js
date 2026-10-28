@@ -1,4 +1,6 @@
 import { gateRunnerAdmission } from '../settings.js';
+import { withBoardRead as waitBoardRead } from '../board-read.js';
+import { retrySync } from '../cli-sync.js';
 import { checkAtCommit } from '../runner-private-check.js';
 import { submitGateConfig } from '../gate-submit.js';
 import { createHash } from 'node:crypto';
@@ -203,7 +205,7 @@ export async function submitHere(ctx, id, infra) {
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   // A trunk checkout can have advanced since the claim; comparing it with itself would bless its own new red test.
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : acceptedMain.commit;
-  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }));
+  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }, { atomic: store.atomic, submit: store.submit }));
   const trunk = requireTrunkMerge(root, commit);
   const companion = withBoard(ctx, board => prepareItemPatchSubmit(root, board, held, commit));
   if (requireComposition) requireSubmitComposition(root, commit, trunk, acceptedMain.commit);
@@ -316,6 +318,6 @@ export async function run(io, { first, values }) {
   try { code = await submitHere(ctx, id, values.infra); }
   finally { io.onOrderedMove = previous; }
   if (code !== 0 || !values.wait) return code;
-  return waitForSubmissionVerdict(ctx, id, submissionResult.value, submissionResult.event);
+  return waitForSubmissionVerdict(ctx, id, submissionResult.value, submissionResult.event, { withBoardRead: waitBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem });
 }
 import { SUBMISSION_SIZE_METHOD } from '../../packages/state/src/core/submission-size.js';

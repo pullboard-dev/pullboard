@@ -15,15 +15,15 @@
 import { Refused } from './refused.js';
 import { atomic } from './board-event-log.js';
 import { logEvent } from './board-event-log.js';
-import { boardLinkBody } from './board-link-format.js';
-import { boardLinkRecord } from './board-link-format.js';
-import { boardLinkSigningText } from './board-link-format.js';
-import { boardLinkFormat } from './board-link-format.js';
-import { boardLinkName } from './board-link-format.js';
-import { discloseBoardState } from './board-link-format.js';
-export { discloseBoardState } from './board-link-format.js';
-export { resolveBoardReference } from './board-reference.js';
-export { boardItemReference } from './board-reference.js';
+import { boardLinkBody } from '../packages/kernel/src/core/registry-guards.js';
+import { boardLinkRecord } from '../packages/kernel/src/core/registry-guards.js';
+import { boardLinkSigningText } from '../packages/kernel/src/core/registry-guards.js';
+import { boardLinkFormat } from '../packages/kernel/src/core/registry-guards.js';
+import { boardLinkName } from '../packages/kernel/src/core/registry-guards.js';
+import { discloseBoardState } from '../packages/kernel/src/core/registry-guards.js';
+export { discloseBoardState } from '../packages/kernel/src/core/registry-guards.js';
+export { resolveBoardReference } from '../packages/kernel/src/core/registry-guards.js';
+export { boardItemReference } from '../packages/kernel/src/core/registry-guards.js';
 
 const PREFIX = 'board_link:';
 const VERIFIED_LINKS = new WeakSet();

@@ -1,5 +1,4 @@
 /** Shared read-only queue blockers keep routing capacity and the queue on one policy [N2,B24]. */
-import { foreignBlockers } from './cross-repo-dependencies.js';
 import {
   localDependencyIds,
   dependencyLabel,
@@ -20,12 +19,12 @@ import {
  * @param {any[]} inFlight
  * @returns {string[]}
  */
-export function itemWaits(board, item, inFlight) {
-  return waitsWithLane(board, item, inFlight, laneHold(board, item.item_lane));
+export function itemWaits(board, item, inFlight, foreignBlockers) {
+  return waitsWithLane(board, item, inFlight, laneHold(board, item.item_lane), foreignBlockers);
 }
 
 /** Apply the same blockers with a lane hold from the current read projection. */
-function waitsWithLane(board, item, inFlight, lane) {
+function waitsWithLane(board, item, inFlight, lane, foreignBlockers) {
   const after = localDependencyIds(item)
     .map((id) => itemById(board, id))
     .filter((before) => before && before.item_status !== 'verified')
@@ -35,9 +34,9 @@ function waitsWithLane(board, item, inFlight, lane) {
 }
 
 /** Read ready open items through the queue's exact dependency, collision and hold checks. */
-export function readyItems(board) {
+export function readyItems(board, foreignBlockers) {
   const inFlight = listItems(board, { all: true });
   const holds = new Map(laneHolds(board).map(hold => [hold.hold_lane, hold]));
   return inFlight.filter(item => item.item_status === 'open'
-    && !waitsWithLane(board, item, inFlight, holds.get(item.item_lane) ?? null).length);
+    && !waitsWithLane(board, item, inFlight, holds.get(item.item_lane) ?? null, foreignBlockers).length);
 }

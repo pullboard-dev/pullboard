@@ -38,3 +38,8 @@ export function discovered(names, candidate, strict, what) {
   if (refused.length) throw new Error(`${refused.join(', ')} cannot be a ${what}: use only letters, digits, underscores and hyphens in the file name`);
   return found;
 }
+
+
+/** Runtime session environment vocabulary, without authentication authority [V1,B3]. */
+/** Session identifiers belong beside the shell markers; only their digest reaches the local checkout binding. */
+export const AGENT_SESSION_IDS = Object.freeze(['CLAUDE_CODE_SESSION_ID', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID']);
