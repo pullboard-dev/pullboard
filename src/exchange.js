@@ -1,7 +1,7 @@
 import { suspendStoreGuards } from './board-store-guards.js';
 import { AGENT_GRANT_ENGINE } from './agent-grant-engine.js';
 import { beginCommandPhase } from './command-phase.js';
-import { LANDING_LOCAL_PREFIX } from './landing-local-lease.js';
+import { LANDING_LOCAL_PREFIX } from './board-landing-local-lease.js';
 import { PROOF_COUNTER_PREFIX } from './proof-counters.js';
 import { rebuildProofCounters } from './proof-counters.js';
 import { importSeatObservations } from './seat-presence.js';

@@ -17,8 +17,8 @@ import {
   itemShoutReader,
   shoutItemId,
   UNREAD_SHOUT_SQL,
-} from './shout-audience.js';
-import { workerInboxQuery } from './worker-inbox.js';
+} from './board-shout-audience.js';
+import { workerInboxQuery } from './board-worker-inbox.js';
 /** Canonical board queries shared by reads and the synchronous write store [C7]. */
 import { verdictWithdrawals } from './verdict-withdrawal.js';
 import { reopenCauseCorrection } from './reopen-cause.js';

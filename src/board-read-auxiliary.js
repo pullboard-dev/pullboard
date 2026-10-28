@@ -6,7 +6,7 @@ import {
   itemThread,
   listItems,
 } from './board-query.js';
-import { workerInboxQuery } from './worker-inbox.js';
+import { workerInboxQuery } from './board-worker-inbox.js';
 
 /**
  * One shout by its id.

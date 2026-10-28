@@ -3,7 +3,7 @@ import {
   COORDINATION_SHOUT,
   UNREAD_SHOUT_SQL,
   unreadShoutBindings,
-} from './shout-audience.js';
+} from './board-shout-audience.js';
 
 /** Resolve registered aliases once; missing or damaged session metadata never groups seats. */
 export function workerInboxSeats(board, agent) {

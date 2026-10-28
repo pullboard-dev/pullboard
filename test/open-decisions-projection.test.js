@@ -6,7 +6,7 @@ import {
   COORDINATION_SHOUT,
   itemShoutReader,
   shoutItemId,
-} from '../src/shout-audience.js';
+} from '../src/board-shout-audience.js';
 
 /** Compare the optimized query to the previous all-project-then-filter semantics. */
 function reference(board, recipient) {

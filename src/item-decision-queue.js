@@ -6,7 +6,7 @@ import { Refused } from './refused.js';
 import {
   itemShoutReader,
   shoutItemId,
-} from './shout-audience.js';
+} from './board-shout-audience.js';
 
 /** Validate new decision metadata before any message is persisted, without changing legacy shouts. */
 export function itemDecisionDetail(board, message, engine) {

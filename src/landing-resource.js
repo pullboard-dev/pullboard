@@ -12,7 +12,7 @@ import {
   localLandingEntry,
   rememberLocalLanding,
   forgetLocalLanding,
-} from './landing-local-lease.js';
+} from './board-landing-local-lease.js';
 
 /** A dead local owner can be released immediately on an unlinked board; never compare foreign PIDs. */
 function deadLocalOwner(holder, local) {

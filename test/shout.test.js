@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { shoutMatchesAudience } from '../src/shout-audience.js';
+import { shoutMatchesAudience } from '../src/board-shout-audience.js';
 
 /** Independent SQLite participants, including a helper whose parent is not its own session. */
 function participants(t) {

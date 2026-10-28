@@ -60,14 +60,14 @@ import { applyCompanionRequest } from './companion.js';
 export { readBoardMembers, setBoardMembers } from './board-members.js';
 import { heartbeatSeat } from './seat-presence.js';
 import * as itemDecisions from './item-decision-queue.js';
-import * as activityDeliveryStore from './activity-delivery-store.js';
+import * as activityDeliveryStore from './board-activity-delivery-store.js';
 import { requireFactKind } from './item-notes.js';
 import {
   criticalPathEnabled,
   criticalPathOrder,
   remainingPaths,
 } from './critical-path-order.js';
-import { activityNewsFlag } from './activity-news.js';
+import { activityNewsFlag } from './board-activity-news.js';
 import {
   focusOrder,
   focusReasons,
@@ -176,7 +176,7 @@ import {
   itemShoutReader,
   shoutItemId,
   unreadShoutBindings,
-} from './shout-audience.js';
+} from './board-shout-audience.js';
 import { recordVerdict } from './verdict-assurance.js';
 import {
   mergeOnlyBasis,
@@ -310,7 +310,7 @@ import {
   landingFlakes,
   landingWaiverCovers,
   landingWaiverKind,
-} from './landing-exceptions.js';
+} from './board-landing-exceptions.js';
 import { parseSpec } from './spec.js';
 import { KNOWN_MAIN_REWORKS_ENGINE } from './known-main-reworks-engine.js';
 import { requireKnownMainReworks } from './known-main-reworks.js';
