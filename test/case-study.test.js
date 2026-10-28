@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { eventMetrics } from '../bin/case-study/events.js';
@@ -192,4 +193,17 @@ test('case study executable regenerates the report from the selected real source
   assert.equal(report.observation.structure.importCutsLeft, 1);
   assert.equal(report.observation.events.landings.n, 0);
   assert.match(readFileSync(join(output, '0.9.4.md'), 'utf8'), /Starting capture/u);
+});
+
+test('case study reads every SQLite event across collection and multiple bounded pages [C7,D3]', t => {
+  const entries = Array.from({ length: 385 }, (_, index) => [1, 'claim', index + 1, {}]);
+  const { boardPath } = fixture(t, entries);
+  const module = pathToFileURL(join(import.meta.dirname, '..', 'bin', 'case-study', 'events.js')).href;
+  const program = `import {DatabaseSync} from 'node:sqlite';\nimport {eventRows} from ${JSON.stringify(module)};\n`
+    + `const db=new DatabaseSync(${JSON.stringify(boardPath)},{readOnly:true});let n=0;\n`
+    + 'try {for(const event of eventRows(db)){if(event.event_id!==++n)throw new Error("lost event order");if(n%64===0)globalThis.gc();}}finally{db.close();}\n'
+    + 'process.stdout.write(JSON.stringify({n}));\n';
+  const result = runFixtureChild(process.execPath, ['--expose-gc', '--input-type=module', '--eval', program], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
+  assert.deepEqual(JSON.parse(result.stdout), { n: entries.length });
 });

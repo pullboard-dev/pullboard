@@ -2,6 +2,18 @@
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
 
+/** Bound memory and statement lifetimes: SQLite iterators on the minimum Node can outlive their statement. */
+export function* eventRows(db, kind = null) {
+  const statement = db.prepare('SELECT event_id,event_kind,item_id,event_at,event_detail FROM event WHERE event_id>? AND (? IS NULL OR event_kind=?) ORDER BY event_id LIMIT 128');
+  let cursor = 0;
+  for (;;) {
+    const page = statement.all(cursor, kind, kind);
+    if (!page.length) return;
+    for (const row of page) yield row;
+    cursor = page.at(-1).event_id;
+  }
+}
+
 /** Parse a recorded timestamp, leaving absent or damaged observations unknown. */
 function timestamp(value) {
   return typeof value === 'string' && value.trim() && Number.isFinite(Date.parse(value)) ? Date.parse(value) : null;
@@ -60,7 +72,7 @@ export function eventMetrics(boardPath, { from, to }) {
   try {
     db = new DatabaseSync(boardPath, { readOnly: true });
     db.exec('BEGIN');
-    for (const event of db.prepare('SELECT event_id,event_kind,item_id,event_at,event_detail FROM event ORDER BY event_id').iterate()) {
+    for (const event of eventRows(db)) {
       const at = timestamp(event.event_at), detail = detailOf(event.event_detail);
       if (at === null) unknown.timestamps += 1;
       if (!detail) unknown.details += 1;

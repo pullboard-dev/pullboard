@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { readGateReceipt } from '../../src/gate-run-receipt.js';
+import { eventRows } from './events.js';
 
 /** Return an explicit sample summary, preserving a missing population as null. */
 function summary(values) {
@@ -47,7 +48,7 @@ export function frozenCheckMetrics(boardPath, { from, to }) {
     db.exec('BEGIN');
     const hasItems = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='item'").get();
     const items = hasItems ? new Map(db.prepare('SELECT item_id,item_frozen,item_frozen_digest FROM item').all().map(row => [row.item_id, row])) : new Map();
-    for (const event of db.prepare("SELECT item_id,event_detail FROM event WHERE event_kind='proof-run' ORDER BY event_id").iterate()) {
+    for (const event of eventRows(db, 'proof-run')) {
       let flat;
       try { flat = JSON.parse(event.event_detail).receipt; } catch { continue; }
       const at = Date.parse(flat?.at);
