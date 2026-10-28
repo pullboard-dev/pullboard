@@ -1,3 +1,4 @@
+import { quarantineWaivers } from '../quarantine.js';
 import { checkAtCommit } from '../runner-private-check.js';
 /** The pullboard gate command, in its own module so an item adding another command never edits these lines. */
 import { runnerExecutionServices } from '../runners.js';
@@ -72,12 +73,12 @@ export async function run(io, { first, second, rest, values }) {
     }
     throw error;
   }
-  const waivers = values.landing ? withBoard(ctx, (board) => liveWaiverProjection(board)) : [];
+  const waivers = values.landing ? withBoard(ctx, (board) => liveWaiverProjection(board, { quarantineWaivers })) : [];
   const needsReceipt = values.landing && (values.receipt || config.landing?.requireReceipts === true);
   const gate = await runGate(ctx.info.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: !needsReceipt, landing: values.landing, agent: resourceAgent(ctx), onWait: gateWaitReporter(io), stages: Boolean(values.landing), waivers,
     onFailure: nativeFlakes.observer(ctx, { kind: values.landing ? 'land' : 'gate', config }, { ordered, withBoard, resourceAgent, checkAtCommit }) });
   // A landing gate honours the person's live waivers exactly as land does; a red run never stamps, so it stays waived, not green [B3,R3].
-  const waived = values.landing && !gate.isGreen ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, ctx.info.root))) : null;
+  const waived = values.landing && !gate.isGreen ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, ctx.info.root), { quarantineWaivers })) : null;
   if (waived) {
     const lines = waived.map(waiverLine);
     const report = `landing gate waived, not green: ${waived.length} failure(s), each covered by a live person waiver; the whole output is in ${gate.log}\n${lines.join('\n')}`;
