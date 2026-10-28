@@ -51,7 +51,7 @@ export function barCorrectionFields(board, item, next, { reason }) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   if (engine < BAR_ENGINE) return {};
   if (reason !== undefined && typeof reason !== 'string') throw new Refused('USAGE', 'a reason is text: --reason "what the old bar got wrong"');
-  const fields = [...(next.item_criterion !== item.item_criterion ? ['criterion'] : []), ...(next.item_check !== item.item_check ? ['check'] : [])];
+  const fields = [...(next.item_criterion !== item.item_criterion ? ['criterion'] : []), ...(next.item_check !== item.item_check ? ['check'] : []), ...(next.item_check_timing !== item.item_check_timing ? ['checkTiming'] : [])];
   const text = reason?.trim() ?? '';
   if (!fields.length || !everClaimed(board, item.item_id)) return text ? { reason: text } : {};
   if (!text) {
