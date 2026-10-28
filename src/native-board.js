@@ -96,7 +96,7 @@ import {
 } from './computed-conflict-receipt.js';
 import {
   firstRefusal,
-} from './first-refusal-window.js';
+} from './board-item-read.js';
 import {
   itemReviewPolicy,
 } from './review-policy.js';

@@ -115,17 +115,17 @@ function section(title, entries, total, budget, empty) {
  * Read one consistent snapshot of the board at `file` and render the briefing.
  *
  * @param {string} file the board's SQLite file
- * @param {{ name?: string, now?: Date, root?: string, config?: any }} [options] root and config let
+ * @param {{ name?: string, now?: Date, root?: string, config?: any, healthReport?: Function }} [options] root and config let
  *   pullboard health's stuck findings join the briefing
  * @returns {{ markdown: string, sequence: number, sections: { title: string, shown: number, total: number }[], bytes: number }}
  */
-export function readDigest(file, { name = 'this project', now = new Date(), root, config } = {}, ports) {
+export function readDigest(file, { name = 'this project', now = new Date(), root, config, healthReport } = {}, ports) {
   const { openBoardReadOnly } = ports;
   if (!existsSync(file)) throw new Refused('NO_BOARD', 'this repository has no board yet; run pullboard init in the main checkout first');
   const db = openBoardReadOnly(file);
   try {
     db.exec('BEGIN DEFERRED');
-    const result = render(db, { name, now, root, config }, ports);
+    const result = render(db, { name, now, root, config, healthReport }, ports);
     db.exec('COMMIT');
     return result;
   } finally { db.close(); }
@@ -137,8 +137,8 @@ export function readDigest(file, { name = 'this project', now = new Date(), root
  * @param {any} db
  * @param {{ name: string, now: Date, root?: string, config?: any }} options
  */
-function render(db, { name, now, root, config }, ports) {
-  const { foreignBlockers, counterCaught, milestones, healthReport, rowDrafts, rowDecisions, automaticDecisionSource, automaticSourceFromText, rigorDecisionKey, readAutomaticRigorSource } = ports;
+function render(db, { name, now, root, config, healthReport }, ports) {
+  const { foreignBlockers, counterCaught, milestones, rowDrafts, rowDecisions, automaticDecisionSource, automaticSourceFromText, rigorDecisionKey, readAutomaticRigorSource } = ports;
   const cut = { count: 0 };
   const at = now.toISOString();
   /** One field of board text, bounded. */
@@ -345,9 +345,9 @@ export function writeDigest(path, markdown, commonDir) {
  *
  * @param {string} file
  * @param {string} path
- * @param {{ name: string, root?: string, config?: any, commonDir: string, signal: AbortSignal, interval?: number, onWrite?: (result: any) => void }} options
+ * @param {{ name: string, root?: string, config?: any, healthReport?: Function, commonDir: string, signal: AbortSignal, interval?: number, onWrite?: (result: any) => void }} options
  */
-export async function watchDigest(file, path, { name, root, config, commonDir, signal, interval = 250, onWrite = () => {} }, ports) {
+export async function watchDigest(file, path, { name, root, config, healthReport, commonDir, signal, interval = 250, onWrite = () => {} }, ports) {
   const { openBoardReadOnly } = ports;
   let db;
   let identity;
@@ -365,7 +365,7 @@ export async function watchDigest(file, path, { name, root, config, commonDir, s
       }
       const version = db.prepare('PRAGMA data_version').get().data_version;
       if (version !== seen) {
-        const result = readDigest(file, { name, root, config }, ports);
+        const result = readDigest(file, { name, root, config, healthReport }, ports);
         onWrite({ ...result, path: writeDigest(path, result.markdown, commonDir) });
         seen = version;
       }
@@ -381,9 +381,11 @@ export async function watchDigest(file, path, { name, root, config, commonDir, s
  * @param {any} io
  * @param {{ first?: string, second?: string, rest: string[], values: Record<string, any> }} args
  * @param {{ info: { root: string, commonDir: string }, config: { name?: string }, file: string }} ctx
+ * @param {{healthReport: Function}} services Actual upper-layer health observation bound to dispatch.
  * @returns {Promise<number>}
  */
 export async function digestCommand(io, { first, second, rest, values }, ctx, ports) {
+  const { healthReport } = ports;
   const usage = 'pullboard digest [--out <file>] [--watch]; --watch needs --out';
   if (first || second || rest.length || Object.keys(values).some((key) => !['out', 'watch', 'json'].includes(key))) throw new Refused('USAGE', usage);
   if (values.out === '' || (values.watch && (!values.out || values.json))) throw new Refused('USAGE', usage);
@@ -396,12 +398,12 @@ export async function digestCommand(io, { first, second, rest, values }, ctx, po
     process.once('SIGINT', stop);
     process.once('SIGTERM', stop);
     try {
-      await watchDigest(ctx.file, out, { name, root: ctx.info.root, config: ctx.config, commonDir: ctx.info.commonDir, signal: controller.signal,
+      await watchDigest(ctx.file, out, { name, root: ctx.info.root, config: ctx.config, healthReport, commonDir: ctx.info.commonDir, signal: controller.signal,
         onWrite: (result) => io.say(`wrote the briefing to ${result.path} (board move ${result.sequence}); Ctrl-C stops watching`) }, ports);
     } finally { process.off('SIGINT', stop); process.off('SIGTERM', stop); }
     return 0;
   }
-  const result = readDigest(ctx.file, { name, root: ctx.info.root, config: ctx.config }, ports);
+  const result = readDigest(ctx.file, { name, root: ctx.info.root, config: ctx.config, healthReport }, ports);
   const path = out === undefined ? undefined : writeDigest(out, result.markdown, ctx.info.commonDir);
   io.result?.({ markdown: result.markdown, bytes: result.bytes, sequence: result.sequence, sections: result.sections, ...(path ? { path } : {}) });
   io.say(path ? `wrote the briefing to ${path}; share that file with any chat assistant` : result.markdown.trimEnd());

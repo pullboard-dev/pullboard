@@ -1,7 +1,7 @@
 import { agentById } from './seats.js';
 import { committedItemAuthors } from './review-independence.js';
 import { strictReviewProblem } from './review-independence.js';
-import { firstRefusal } from './first-refusal-window.js';
+import { firstRefusal } from './board-item-read.js';
 import { verdictWithdrawalTarget } from './verdict-withdrawal.js';
 import { computedConflictProblem } from './computed-conflict-receipt.js';
 import {

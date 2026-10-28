@@ -7,7 +7,7 @@ import {
   IN_STATE,
   REOPEN_FIRST_REFUSAL_ENGINE,
 } from './machine.js';
-import { firstRefusal } from './first-refusal-window.js';
+import { firstRefusal } from './board-item-read.js';
 import { GONE_CLAIM_ENGINE } from './gone-claim-engine.js';
 
 /** Validate frozen maintenance evidence without reading a replica's private presence cache. */

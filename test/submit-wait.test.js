@@ -1,6 +1,7 @@
 import { withBoardRead } from '../src/board-read.js';
 import { retrySync } from '../src/cli-sync.js';
 /** Submission verdict delivery and deterministic rejected-work return [V2,V4,B5,B13,A6]. */
+import { dispatchHealth } from '../src/dispatch-health.js';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
@@ -14,7 +15,7 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { prepareEngineMove, applyRelayMove } from '../src/engine.js';
 import { REJECTED_WORK_RETURN_ENGINE } from '../src/rejected-work-return-engine.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
-import { firstRefusal } from '../src/first-refusal-window.js';
+import { firstRefusal } from '../src/board-item-read.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const waitPorts = { withBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem };
@@ -84,11 +85,11 @@ test('submit --wait prints the verdict, and an unclaimed reject returns to the q
   assert.throws(() => onBoard(box, board => store.claim(board, 1, { agentId: nextActor, lane: 'web', leaseMs: 60_000 }), clock),
     error => error.code === 'REOPEN_HELD_FOR_BUILDER', 'another builder cannot steal the original first refusal early');
   onBoard(box, board => heartbeatSeat(board, store.getItem(board, 1).item_built_by), clock);
-  const before = onBoard(box, board => healthReport({ db: board.db, root: box.repo, config, now }), clock);
+  const before = onBoard(box, board => healthReport({ dispatchHealth, db: board.db, root: box.repo, config, now }), clock);
   assert.ok(!before.stuck.some(finding => finding.item === 1 && finding.cause === 'REWORK_UNCLAIMED'),
     'the ten-minute boundary is not rounded down');
   now = new Date(start + 10 * 60_000);
-  const due = onBoard(box, board => healthReport({ db: board.db, root: box.repo, config, now }), clock);
+  const due = onBoard(box, board => healthReport({ dispatchHealth, db: board.db, root: box.repo, config, now }), clock);
   const finding = due.stuck.find(entry => entry.item === 1 && entry.cause === 'REWORK_UNCLAIMED');
   assert.ok(finding, 'an unreclaimed reject interrupts the coordinator at ten minutes');
   assert.equal(finding.owner.who, 'coordinator');
@@ -169,7 +170,7 @@ test('an inactive builder returns its rejected item before ten minutes [B13,A6,H
   const now = new Date(Date.parse(rejected.event_at) + 1000);
   const clock = { now: () => now };
   const config = loadConfig(box.repo);
-  const due = onBoard(box, board => healthReport({ db: board.db, root: box.repo, config, now }), clock);
+  const due = onBoard(box, board => healthReport({ dispatchHealth, db: board.db, root: box.repo, config, now }), clock);
   assert.ok(due.stuck.some(entry => entry.item === 1 && entry.detail.reason === 'inactive'));
   const nextPath = join(box.dir, 'replacement-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', nextPath, 'main');
