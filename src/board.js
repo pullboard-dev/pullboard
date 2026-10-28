@@ -312,7 +312,7 @@ import {
   requireNeverAgain,
 } from './rigor.js';
 import { barCorrectionFields } from './bar-corrections.js';
-import { editCheck, selfWidenedFiles } from './check-widen.js';
+import * as checkWiden from './check-widen.js';
 import {
   conflictDetail,
   conflictProblem,
@@ -560,7 +560,7 @@ export function requestCompanion(board, options) {
 export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming }, { sourceMove = null } = {}) {
   const command = sourceMove
     ? validateRehomeCheck(by, check, sourceMove)
-    : editCheck(by, check) ?? '';
+    : checkWiden.editCheck(by, check) ?? '';
   validateCheckTiming(board, by, checkTiming);
   reviewPolicyChange(board, null, { sensitive, reviewFamily });
   const cleanTitle = title.trim();
@@ -662,11 +662,11 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
     if (typeof reason !== 'string' || !reason.trim()) throw new Refused('BAR_REASON', 'marking strict review needs --reason explaining the gate judgment or independence risk');
   }
   let item = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8 ? current(board, itemById(board, id)) : null;
-  const widened = item && selfWidenedFiles(board, item, agentId, { brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming });
+  const widened = item && checkWiden.selfWidenedFiles(board, item, agentId, { brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming });
   if (item?.item_status === 'claimed' && agentId !== COORDINATOR && !widened) {
     throw new Refused('HELD', `item #${id} is claimed; only the coordinator may edit it while held; shout coordinator`);
   }
-  const command = editCheck(agentId, check, widened);
+  const command = checkWiden.editCheck(agentId, check, widened);
   if ([brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming].every((value) => value === undefined)) {
     throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>" or --after <ids|none>');
   }
