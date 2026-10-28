@@ -7,45 +7,45 @@
 #relay-screen { display: none; }
 #relay-screen [hidden] { display: none !important; }
 :root[data-relay-screen="removed"] body > :not(#relay-removed) { display: none !important; }
-:root[data-relay-screen="removed"] #relay-removed { display: block; margin: 32px auto; max-width: 440px; }
+:root[data-relay-screen="removed"] #relay-removed { display: block; margin: var(--space-8) auto; max-width: 440px; }
 :root[data-relay-screen]:not([data-relay-screen="removed"]) body > :not(#relay-screen) { display: none !important; }
 :root[data-relay-screen="sign-in"] #relay-screen, :root[data-relay-screen="share"] #relay-screen {
-  display: grid; place-items: center; min-height: 100vh; min-height: 100dvh; padding: 32px 20px; background: var(--ground);
+  display: grid; place-items: center; min-height: 100vh; min-height: 100dvh; padding: var(--space-8) var(--space-6); background: var(--ground);
 }
-.relay-panel { display: none; width: 100%; max-width: 440px; text-align: center; font-size: 16px; }
+.relay-panel { display: none; width: 100%; max-width: 440px; text-align: center; font-size: var(--text-lg); }
 :root[data-relay-screen="sign-in"] .relay-panel[data-screen="sign-in"],
 :root[data-relay-screen="share"] .relay-panel[data-screen="share"] { display: block; }
-.relay-mark { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
+.relay-mark { display: inline-flex; align-items: center; gap: var(--space-4); font-weight: 700; font-size: var(--text-xl); }
 .relay-mark svg { width: 28px; height: 28px; }
-.relay-panel h1 { margin: 22px 0 0; font-size: 28px; line-height: 1.15; letter-spacing: -.02em; text-wrap: balance; }
-.relay-say { margin: 12px auto 0; color: var(--ink-muted); font-size: 17px; text-wrap: balance; }
-.relay-small { margin: 12px auto 0; color: var(--ink-muted); font-size: 14.5px; text-wrap: balance; }
+.relay-panel h1 { margin: var(--space-7) 0 0; font-size: var(--text-3xl); line-height: var(--leading-tight); letter-spacing: var(--tracking-tight); text-wrap: balance; }
+.relay-say { margin: var(--space-4) auto 0; color: var(--ink-muted); font-size: var(--text-xl); text-wrap: balance; }
+.relay-small { margin: var(--space-4) auto 0; color: var(--ink-muted); font-size: var(--text-md); text-wrap: balance; }
 
 /* Every button is 60 px tall: the GitHub button is dark in either theme, and each box beside it is the same height. */
-.relay-big { display: flex; align-items: center; justify-content: center; gap: 12px; box-sizing: border-box; height: 60px; margin-top: 28px;
-  border-radius: 14px; background: #1f2328; color: #fff; font-weight: 600; font-size: 18px; text-decoration: none; }
+.relay-big { display: flex; align-items: center; justify-content: center; gap: var(--space-4); box-sizing: border-box; height: 60px; margin-top: var(--space-8);
+  border-radius: var(--radius-card); background: #1f2328; color: #fff; font-weight: 600; font-size: var(--text-xl); text-decoration: none; }
 :root[data-scheme="dark"] .relay-big { border: 1px solid var(--line-strong); }
 .relay-big svg { width: 22px; height: 22px; }
-.relay-box { display: flex; align-items: center; justify-content: space-between; gap: 8px; box-sizing: border-box; height: 60px;
-  padding: 0 0 0 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); text-align: left; }
-.relay-command { margin-top: 28px; }
-.relay-command code { overflow: hidden; font: 600 14px var(--mono); white-space: nowrap; text-overflow: ellipsis; }
+.relay-box { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); box-sizing: border-box; height: 60px;
+  padding: 0 0 0 var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); text-align: left; }
+.relay-command { margin-top: var(--space-8); }
+.relay-command code { overflow: hidden; font: 600 var(--text-md) var(--mono); white-space: nowrap; text-overflow: ellipsis; }
 .relay-command code span { color: var(--ink-faint); }
-.relay-agent > span, .relay-help > span { flex: 1; display: block; font-weight: 600; line-height: 1.3; }
-.relay-agent small, .relay-help small { display: block; color: var(--ink-muted); font-weight: 400; font-size: 13px; }
+.relay-agent > span, .relay-help > span { flex: 1; display: block; font-weight: 600; line-height: var(--leading-snug); }
+.relay-agent small, .relay-help small { display: block; color: var(--ink-muted); font-weight: 400; font-size: var(--text-sm); }
 .relay-agent svg, .relay-help svg { flex: none; width: 22px; height: 22px; color: var(--accent); }
-.relay-box button, .relay-help button { flex: none; box-sizing: border-box; height: 60px; padding: 0 18px; border: 1px solid var(--line);
-  border-radius: 14px; background: var(--surface-2); color: var(--ink); font-weight: 600; font-size: 15px; cursor: pointer; }
+.relay-box button, .relay-help button { flex: none; box-sizing: border-box; height: 60px; padding: 0 var(--space-6); border: 1px solid var(--line);
+  border-radius: var(--radius-card); background: var(--surface-2); color: var(--ink); font-weight: 600; font-size: var(--text-lg); cursor: pointer; }
 /* Inside a 60 px box the button takes the box's own right edge, so box and button are both 60 px. */
-.relay-box button { margin: -1px -1px -1px 0; border-radius: 0 14px 14px 0; }
-.relay-or { display: flex; align-items: center; gap: 12px; margin: 14px 0; color: var(--ink-faint); font-size: 13.5px; }
+.relay-box button { margin: -1px -1px -1px 0; border-radius: 0 var(--radius-card) var(--radius-card) 0; }
+.relay-or { display: flex; align-items: center; gap: var(--space-4); margin: var(--space-5) 0; color: var(--ink-faint); font-size: var(--text-sm); }
 .relay-or::before, .relay-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-.relay-help { display: flex; align-items: center; gap: 12px; margin-top: 26px; padding: 10px 10px 10px 14px; border: 1px dashed var(--line-strong);
-  border-radius: 14px; text-align: left; color: var(--ink-muted); font-size: 14.5px; }
+.relay-help { display: flex; align-items: center; gap: var(--space-4); margin-top: var(--space-7); padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5); border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-card); text-align: left; color: var(--ink-muted); font-size: var(--text-md); }
 .relay-help > span { color: var(--ink-muted); font-weight: 400; }
-.relay-help small { color: var(--ink); font-size: 15px; font-weight: 600; }
-.relay-live { display: inline-flex; align-items: center; gap: 10px; margin: 22px 0 0; padding: 8px 14px; border: 1px solid var(--line);
-  border-radius: 999px; background: var(--surface); color: var(--ink-muted); font-size: 14.5px; }
+.relay-help small { color: var(--ink); font-size: var(--text-lg); font-weight: 600; }
+.relay-live { display: inline-flex; align-items: center; gap: var(--space-4); margin: var(--space-7) 0 0; padding: var(--space-3) var(--space-5); border: 1px solid var(--line);
+  border-radius: var(--radius-pill); background: var(--surface); color: var(--ink-muted); font-size: var(--text-md); }
 .relay-live i { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); animation: relay-pulse 1.4s ease-in-out infinite; }
 @keyframes relay-pulse { 50% { opacity: .25; transform: scale(.8); } }
 @media (prefers-reduced-motion: reduce) { .relay-live i { animation: none; } }
@@ -54,9 +54,9 @@
 :root[data-relay-device="phone"] #local-note { display: none !important; }
 
 /* The Home Screen suggestion: one line under the board, gone for good once dismissed. */
-.relay-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 14px 0 0; padding: 6px 6px 6px 14px;
-  border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink-muted); white-space: nowrap; }
+.relay-line { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin: var(--space-5) 0 0; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
+  border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); color: var(--ink-muted); white-space: nowrap; }
 .relay-line span { overflow: hidden; text-overflow: ellipsis; }
-.relay-line button { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 8px; background: none;
+.relay-line button { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: var(--radius-lg); background: none;
   color: var(--ink-faint); cursor: pointer; }
 .relay-line button svg { width: 16px; height: 16px; }
