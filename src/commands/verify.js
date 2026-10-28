@@ -1,3 +1,4 @@
+import { selectAffectedTests } from '../affected-tests.js';
 import { completeMoveHandoff } from '../post-move-handoff.js';
 import { itemReviewPolicy } from '../review-independence.js';
 import { twoTierReviews } from '../review-independence.js';
@@ -160,7 +161,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
       let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item).commit : reReview ? head : commit;
       let checkedLabel = reReview ? 'reviewed composition' : 'submitted commit';
-      const composeNow = () => composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack });
+      const composeNow = () => composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge });
       const admitted = companionDigest === null && !item.item_effective_head && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
       let trunk = null;
       if (!admitted) ({ trunk, review } = composeNow());
@@ -190,7 +191,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         const currentTrunk = requireTrunkMerge(root, checkedCommit); // Re-read after the frozen check, before accepting.
         // With verify.unrelatedTrunkMoves on, a move through commits that touch nothing this review read keeps its verdict (#928).
         const judged = currentTrunk.commit === trunk.commit || ctx.config.verify.unrelatedTrunkMoves !== true ? null
-          : await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) });
+          : await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) }, { selectAffectedTests, explicitCheckFiles });
         if (headCommit(root) !== head || (reReview && (!isClean(root) || untracked(root).length))) {
           throw new Refused('NOT_AT_COMMIT', 'the reviewed checkout moved during its check; restore the clean reviewed HEAD and retry verification');
         }
