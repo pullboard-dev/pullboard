@@ -67,6 +67,13 @@ function proofReceiptPath(path, eventKind) {
 /** Exempt exact native paths and formats; free text and arbitrary *_id detail keys never qualify. */
 function structuredIdentity(path, value, eventKind) {
   const location = path.join('/');
+  const detailField = ['detail', 'event_detail'].includes(path.at(-2)) && EVENT_PATH.test(path.slice(0, -2).join('/'));
+  const factId = eventKind === 'fact' && ['id', 'supersedes', 'answers'].includes(path.at(-1))
+    && (detailField || /^state\/state\/items\/\*\/thread\/\*$/u.test(path.slice(0, -1).join('/')));
+  const batchId = eventKind === 'main-moved' && detailField && path.at(-1) === 'batch'
+    || eventKind === 'landing_batch' && path.slice(-2).join('/') === 'batch/id'
+      && ['detail', 'event_detail'].includes(path.at(-3)) && EVENT_PATH.test(path.slice(0, -3).join('/'));
+  if (factId || batchId) return /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/u.test(value);
   let width = 0;
   if (/^(?:listing\/boards\/\*\/id|state\/state\/board|state\/board|events\/board)$/u.test(location)) width = 32;
   if (path.length === 4 && path.slice(0, 3).join('/') === 'state/state/rowAgesAt') width = 40;
@@ -114,7 +121,7 @@ export function publicSnapshot(document, { privateBoard = false } = {}) {
       if (location === 'state/state/needs/*' && value.kind === 'decision') return undefined;
       if ((EVENT_PATH.test(location) || /^state\/state\/(?:shouts|asked|decisions|decisionQueue|requests)\/\*$/u.test(location)
         || /^state\/state\/items\/\*\/history\/\*$/u.test(location)) && internalShout(value)) return undefined;
-      const kind = EVENT_PATH.test(location) ? value.event_kind ?? value.kind : eventKind;
+      const kind = EVENT_PATH.test(location) ? value.type === 'fact' ? 'fact' : value.event_kind ?? value.kind : eventKind;
       const entries = location === 'state/state/agents/*'
         ? [['agent_id', value.agent_id], ['agent_lane', value.agent_lane], ['model', value.model ?? value.agent_model]]
         : Object.entries(value).filter(([key]) => !proofReceiptPath(path, kind) || !['parentSession', 'runner'].includes(key));

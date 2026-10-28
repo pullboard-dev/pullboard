@@ -88,6 +88,24 @@ test('native Dashboard landing commits keep their exact public identity shape [N
   ]) assert.throws(() => publicSnapshot(changed), /secret-shaped string/u);
 });
 
+test('native fact and landing batch UUIDs remain metadata without exempting prose [N26]', () => {
+  const id = '018fc314-57c9-7318-a11f-55a08a28a101';
+  const fact = { type: 'fact', id, kind: 'measurement', text: 'Public observation', supersedes: null };
+  const events = [
+    { event_kind: 'fact', event_detail: JSON.stringify({ id, kind: 'measurement', text: 'Public observation' }) },
+    { event_kind: 'landing_batch', event_detail: JSON.stringify({ batch: { id, state: 'gating' } }) },
+    { event_kind: 'main-moved', event_detail: JSON.stringify({ batch: id }) },
+  ];
+  const native = { state: { state: { items: [{ thread: [fact] }], events } }, events: { events } };
+  assert.deepEqual(publicSnapshot(native), native);
+  for (const forged of [{ id }, { batch: { id } }, { type: 'fact', id },
+    { state: { state: { items: [{ thread: [{ ...fact, text: id }] }] } } },
+    { events: { events: [{ event_kind: 'fact', event_detail: JSON.stringify({ batch: id }) }] } },
+    { events: { events: [{ event_kind: 'main-moved', event_detail: JSON.stringify({ batch: id + ' extra' }) }] } }]) {
+    assert.throws(() => publicSnapshot(forged), /chat or agent session id/u);
+  }
+});
+
 test('retained object keys undergo the same public scan as their values [N26]', () => {
   for (const [kind, key] of [['pricing term', 'pricing.md'], ['email', 'fixture@example.invalid'],
     ['secret-shaped string', 'sk-fixtureonly12345678']]) {
@@ -201,6 +219,7 @@ test('a clean public export renders offline with public work and no write path [
   box.run(alpha.repo, 'milestone', 'add', 'Public milestone', '--items', '1,2');
   box.run(alpha.web, 'shout', 'web', 'Public progress');
   box.run(alpha.repo, 'shout', 'all', 'Internal notice');
+  const fact = JSON.parse(box.run(alpha.repo, 'fact', '1', 'measurement', 'Public export fixture observation', '--json')).fact;
   const output = join(box.dir, 'clean-export');
   const result = command(box, alpha.repo, 'view', '--export', output, '--public');
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -208,6 +227,8 @@ test('a clean public export renders offline with public work and no write path [
   const state = JSON.parse(readFileSync(join(output, 'api/v1/boards', listing.boards[0].id, 'state.json'), 'utf8'));
   assert.equal(JSON.stringify(state).includes('Internal notice'), false);
   assert.ok(state.state.items.find(item => item.id === 2).merged);
+  assert.equal(state.state.items.find(item => item.id === 1).thread.find(entry => entry.type === 'fact' && entry.id === fact.id)?.text,
+    'Public export fixture observation', 'a real native fact keeps its public identity and prose');
   assert.ok(JSON.stringify(state.state.milestones).includes('Public milestone'));
   const staticView = await serveFolder(output, '/public/');
   let chrome;
