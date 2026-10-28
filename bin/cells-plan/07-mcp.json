@@ -1,5 +1,5 @@
 {
- "order": 8,
+ "order": 7,
  "name": "mcp",
  "kind": "package",
  "root": "packages/mcp",
@@ -29,8 +29,8 @@
  },
  "item": {
   "lane": "core",
-  "title": "Cells move 8/43: mcp moves into packages/mcp behind shims",
-  "criterion": "Cells move 8 of 43 (RFC 0006; plan entry 8 in bin/cells-plan.json): the path the entry lists for package mcp move with git mv to their planned targets under packages/mcp, and packages/mcp/index.js is the front door, re-exporting the module other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. The cell lint counts change as the entry states (legacySource 0, shims +1, boundaries +1) and none rises; node bin/cells-plan.js --moved mcp passes, and the full suite passes on Node 22.13 and 24.",
+  "title": "Cells move 7/43: mcp moves into packages/mcp behind shims",
+  "criterion": "Cells move 7 of 43 (RFC 0006; plan entry 7 in bin/cells-plan.json): the path the entry lists for package mcp move with git mv to their planned targets under packages/mcp, and packages/mcp/index.js is the front door, re-exporting the module other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. The cell lint counts change as the entry states (legacySource 0, shims +1, boundaries +1) and none rises; node bin/cells-plan.js --moved mcp passes, and the full suite passes on Node 22.13 and 24.",
   "specs": ["C7","doctrine:CD60","doctrine:CD64"],
   "check": "node bin/cells-plan.js --moved mcp",
   "after": ["kernel","config"],
