@@ -8,7 +8,7 @@ import { startView, stopView } from './run.mjs';
 /** Observe actual fetch/body/parse work before the page starts, without replacing its data. */
 function observationScript() {
   return `(() => {
-    const evidence = window.__tabSpeed = { fetch: [], parse: [], render: [], actions: [], tasks: [] };
+    const evidence = window.__tabSpeed = { fetch: [], parse: [], render: [], actions: [], isolation: [], tasks: [] };
     try {
       const observer = new PerformanceObserver(list => evidence.tasks.push(...list.getEntries().map(entry => ({ start: entry.startTime, durationMs: entry.duration }))));
       observer.observe({ type: 'longtask', buffered: true }); evidence.longTasksAvailable = true;
@@ -39,17 +39,18 @@ function inputScript() {
       try { return original.apply(this, args); }
       finally { evidence.render.push({ tab, start, end: performance.now(), durationMs: performance.now() - start }); }
     };
-    addEventListener('click', event => { const sample = evidence.actions.at(-1); if (sample && event.target.closest('[data-tab]')?.dataset.tab === sample.tab) sample.clickAt = performance.now(); }, true);
+    addEventListener('click', event => { const sample = evidence.current; if (sample && event.target.closest('[data-tab]')?.dataset.tab === sample.tab) sample.clickAt = performance.now(); }, true);
     addEventListener('mousedown', event => {
       const button = event.target.closest('[data-tab]');
       if (!button || !evidence.next) return;
       const sample = { ...evidence.next, tab: button.dataset.tab, start: performance.now(), end: null };
       evidence.next = null;
-      evidence.actions.push(sample);
+      evidence.current = sample;
+      (sample.isolation ? evidence.isolation : evidence.actions).push(sample);
       const pane = document.querySelector('[data-pane="' + sample.tab + '"]');
       let revision = 0, previous = null;
       sample.hiddenMutations = [];
-      const paneObservers = Object.entries({ spec: '#spec-list', doctrine: '#doctrine-list', items: '#chain',
+      const paneObservers = !sample.isolation ? [] : Object.entries({ spec: '#spec-list', doctrine: '#doctrine-list', items: '#chain',
         roadmap: '#roadmap', dashboard: '#dashboard', shouts: '#feed', activity: '#activity' }).map(([tab, selector]) => {
         const watched = document.querySelector(selector);
         const monitor = new MutationObserver(() => {
@@ -71,7 +72,7 @@ function inputScript() {
           roadmap: '#roadmap .milestone-head', dashboard: '#dashboard .dash-hero' };
         const content = pane?.querySelector(targets[sample.tab]);
         const ready = Boolean(view.tab === sample.tab && pane && !pane.hidden && content && box.width > 0 && box.height > 0);
-        const key = ready ? [revision, box.width, box.height].join(':') : null;
+        const key = ready ? [revision, box.x, box.y, box.width, box.height, content.getBoundingClientRect().x, content.getBoundingClientRect().y].join(':') : null;
         if (key && key === previous) {
           sample.ready = true; sample.end = performance.now(); finish(); clearTimeout(timeout); return;
         }
@@ -98,14 +99,16 @@ export async function measureTabSpeed(board) {
     await chrome.navigate(server.link.href);
     await chrome.waitFor("!!data?.project && !document.body.classList.contains('loading')");
     await chrome.stable(inputScript(), "document.querySelector('[data-tab=spec]')");
-    for (const repeat of [false, true]) {
+    for (const mode of [{ repeat: false }, { repeat: true }, { isolation: true }]) {
       for (const tab of ['spec', 'doctrine', 'items', 'roadmap', 'dashboard']) {
-        await chrome.stable(`window.__tabSpeed.next = { repeat: ${repeat} }`, `document.querySelector('[data-tab="${tab}"]')`);
+        await chrome.stable(`window.__tabSpeed.next = ${JSON.stringify(mode)}`, `document.querySelector('[data-tab="${tab}"]')`);
         await press(chrome, `document.querySelector('[data-tab="${tab}"]')`);
+        // Observe the unchanged 100 ms bar without any CDP/layout sampling inside that window.
+        await new Promise(resolve => setTimeout(resolve, 100));
         await chrome.stable(`(async () => {
           const deadline = performance.now() + 60000;
           while (performance.now() < deadline) {
-            const sample = window.__tabSpeed.actions.at(-1);
+            const sample = window.__tabSpeed.current;
             if (sample?.tab === '${tab}' && typeof sample.ready === 'boolean') return;
             await new Promise(requestAnimationFrame);
           }
@@ -113,7 +116,7 @@ export async function measureTabSpeed(board) {
         })()`, `document.querySelector('[data-tab="${tab}"]')`);
       }
     }
-    return await chrome.stable(`({ ...window.__tabSpeed, next: undefined,
+    return await chrome.stable(`({ ...window.__tabSpeed, next: undefined, current: undefined,
       items: data.project.items.length, agents: data.project.agents.length,
       visibleTab: view.tab, browser: navigator.userAgent })`);
   } finally {
