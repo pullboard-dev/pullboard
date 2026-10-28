@@ -66,7 +66,7 @@ export function shardFile(cell) {
 export function writePlan(root, plan) {
   mkdirSync(join(root, PLAN_DIR), { recursive: true });
   const shards = plan.cells.map(cell => [shardFile(cell), cell]);
-  const keep = new Set([SEED_FILE, `${PLAN_DIR}/temporary-edges.json`, ...shards.map(([file]) => file)]);
+  const keep = new Set([SEED_FILE, `${PLAN_DIR}/temporary-edges.json`, `${PLAN_DIR}/transition.json`, ...shards.map(([file]) => file)]);
   for (const name of readdirSync(join(root, PLAN_DIR))) if (name.endsWith('.json') && !keep.has(`${PLAN_DIR}/${name}`)) rmSync(join(root, PLAN_DIR, name));
   for (const [file, cell] of shards) writeFileSync(join(root, file), formatJson(cell) + '\n');
   const index = { ...plan, cells: plan.cells.map(cell => ({ order: cell.order, name: cell.name, file: shardFile(cell) })) };
