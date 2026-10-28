@@ -1,4 +1,5 @@
 /** The public, versioned JSON surface of every pullboard command (A1). */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync, reportFixtureChildFailure, runFixtureChild, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';
@@ -282,7 +283,7 @@ test('[A5] board opens upgrade older event logs and refuse future event logs bef
   setEventLogVersion(file, EVENT_LOG_VERSION - 1);
   const release = join(box.dir, 'installed-release');
   mkdirSync(release);
-  for (const name of ['bin', 'src', 'package.json']) cpSync(resolve(import.meta.dirname, '..', name), join(release, name), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), release);
   const older = spawnSync(process.execPath, [join(release, 'bin/pullboard.js'), 'shout', 'all', 'board upgrade', '--json'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(older.status, 0, older.stderr + older.stdout);
   assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION), 'an installed release opens an older event log and upgrades its marker in place');
@@ -384,8 +385,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   const repo = join(box.dir, 'repo');
   const sourceRoot = resolve(import.meta.dirname, '..');
   mkdirSync(repo);
-  for (const name of ['bin', 'src', 'skills']) cpSync(join(sourceRoot, name), join(repo, name), { recursive: true });
-  cpSync(join(sourceRoot, 'package.json'), join(repo, 'package.json'));
+  copyPackageFiles(sourceRoot, repo);
   writeFileSync(join(repo, 'pullboard.json'), `${JSON.stringify({
     gate: 'true', spec: 'SPEC.md', practice: 'PRACTICE.md',
     lanes: { app: { owns: ['src/'], specs: ['G1'] } }, shared: [],
@@ -409,8 +409,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
 
   const installed = join(box.dir, 'installed-pullboard');
   mkdirSync(installed);
-  for (const name of ['bin', 'src']) cpSync(join(sourceRoot, name), join(installed, name), { recursive: true });
-  cpSync(join(sourceRoot, 'package.json'), join(installed, 'package.json'));
+  copyPackageFiles(sourceRoot, installed);
   const olderInstalled = new DatabaseSync(dbFile);
   olderInstalled.exec('ALTER TABLE item DROP COLUMN item_files; PRAGMA user_version = 1');
   olderInstalled.close();
