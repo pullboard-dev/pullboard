@@ -777,3 +777,25 @@ test('inbox omission metadata stays bounded across many digest event kinds [R2,N
   assert.deepEqual(document.budget.omitted, { digest: 820 }, 'fixed delivery kinds preserve the exact omitted update count');
   assert.match(document.budget.summary, /820 digest/u);
 });
+
+/** Synthetic presentation input proves the supplied ports, not any native execution or receipt authority. */
+test('activity delivery uses its caller actor and evidence presentation ports [R2,N26,H16]', () => {
+  const document = { agents: [], shouts: [{ shout_id: 4, shout_at: '2026-10-28T10:00:00.000Z',
+    shout_from: 'web-1', shout_to: 'coordinator', shout_text: 'A concrete blocker.',
+    shout_evidence_kind: 'test', shout_evidence_outcome: 'red', shout_evidence_item: 3 }],
+  activity: { interrupts: [{ id: 'event:7', text: 'The actual obligation text.' }],
+    entries: [], digests: [{ text: 'Two routine updates.' }] }, budget: { summary: 'One group withheld.' } };
+  const before = structuredClone(document);
+  const ports = {
+    /** The caller owns how native actor identities are presented. */
+    agentDisplayName(_agents, _config, id) { return `caller(${id})`; },
+    /** The caller owns the existing evidence presentation contract. */
+    evidenceLine(row) { return `${row.shout_evidence_kind}:${row.shout_evidence_outcome}:#${row.shout_evidence_item}`; },
+  };
+  assert.deepEqual(activityDeliveryLines(document, {}, ports), [
+    '2026-10-28T10:00  caller(web-1) -> caller(coordinator): A concrete blocker.',
+    '  test:red:#3', 'interrupt event:7: The actual obligation text.',
+    'Two routine updates.', 'One group withheld.',
+  ]);
+  assert.deepEqual(document, before, 'presentation cannot rewrite canonical source groups');
+});
