@@ -374,6 +374,27 @@ test('Roadmap item HTML retains blockers, provenance and escaped detail from exp
   assert.deepEqual({ item, context }, before);
 });
 
+test('timeline references keep URLs and absolute paths as literal prose [N26,B23]', () => {
+  const sha = 'abcdef1234567890abcdef1234567890abcdef12';
+  const literals = [
+    ['https://example.test/src/example.js#958', 'https://example.test/src/example.js#958'],
+    ['https://example.test/' + sha + '?code=ONE_CLAIM&item=958', 'https://example.test/' + sha + '?code=ONE_CLAIM&amp;item=958'],
+    ['file:///Users/person/src/example.js#958', 'file:///Users/person/src/example.js#958'],
+    ['/Users/person/src/example.js:2@' + sha, '/Users/person/src/example.js:2@' + sha],
+    ['~/project/src/example.js', '~/project/src/example.js'],
+    ['C:/Users/person/src/example.js', 'C:/Users/person/src/example.js'],
+    ['C:\\Users\\person\\ONE_CLAIM#958', 'C:\\Users\\person\\ONE_CLAIM#958'],
+  ];
+  for (const [literal, escaped] of literals) {
+    const links = [];
+    const html = timelineBodyHtml('Before (' + literal + ') after', { commit: sha,
+      itemHref: id => { links.push(['item', id]); return '/items/' + id; },
+      codeLink: ref => { links.push(['code', ref]); return '<button>code</button>'; } });
+    assert.equal(html, 'Before (' + escaped + ') after', 'the complete external reference remains escaped literal text');
+    assert.deepEqual(links, [], 'neither URL fragments nor absolute paths invoke repository navigation');
+  }
+});
+
 test('timeline text keeps quoted words, escapes markup and binds only detected references [N26,B23]', () => {
   const sha = 'abcdef1234567890abcdef1234567890abcdef12';
   const text = `A <script>ONE_CLAIM</script> says #2; src/example.js:2@${sha}; README.md:1@${sha}; ${sha}; 2026-10-28T12:34:56Z. ../outside.js stays text.`;
