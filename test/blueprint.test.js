@@ -1270,7 +1270,6 @@ test('blueprint save reads back a question with three or more choices [S1]', () 
     'each question round-trips to its exact row text');
 });
 
-
 /** Hash the fields the person's blueprint-fit reading binds, without importing the feature under test. */
 function fitDigest(proposal) {
   const { id, blueprint, kind, key, target, source, current, decision, text, reason, by } = proposal;
@@ -1399,7 +1398,8 @@ test('a fit proposal waits for the person and keeps its reason [S1,E3]', () => {
   assert.match(thread.stdout, /blueprint fit drop: there is no home page to fit to a phone; recorded as web-\S+, unverified; blueprint source: web-app v1 starter 2: The home page works at phone width/u, 'the starter drop keeps its reason and source');
 
   // The coordinator applies the decisions to SPEC.md as usual.
-  assert.equal(box.run('spec', 'apply').status, 0);
+  const applyResult = box.run('spec', 'apply');
+  assert.equal(applyResult.status, 0, applyResult.stdout + applyResult.stderr);
   const applied = parseSpec(readFileSync(join(box.repo, 'SPEC.md'), 'utf8')).rows;
   assert.deepEqual([W1, W3].map((id) => applied.find((row) => row.id === id)).map((row) => [row.status, row.text]), [['approved', adapted], ['wont', `${PUBLISHED.rules[2].text} Why: ${PUBLISHED.rules[2].why}`]]);
 });

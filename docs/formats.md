@@ -123,7 +123,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `src/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `src/board.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `src/board.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `148` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `149` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
@@ -497,7 +497,7 @@ The computed-grant engine adds `grantEngine` to new join, claim and renewal even
 | `row_draft` | builder, or rigor | engine-55 `row`, `written` |
 | `flake-observation` | reporting agent | engine-59 `engine`, `observation` |
 | `flake-repair` | reporting agent | engine-59 `engine`, `key`, `item` |
-| `row_apply` | coordinator | `events`, atomic cited-spec corrections `refreezes` |
+| `row_apply` | coordinator | `events`, atomic cited-spec corrections `refreezes`, explicit draft omissions `skippedDrafts` |
 | `person_signing` | enabling agent, or person | engine-76 `signed`, `request`, `presence`, `intent` |
 | `person_proposal` | proposing agent | engine-76 `request`, `verb` |
 <!-- events:end -->
@@ -523,6 +523,8 @@ New CLI claims include a `policy` object (`version: 1`, `commit`, `verify: { pol
 Person answer events additionally record their `channel`, either `terminal` or `view`, including the forwarded answer to the original asker. Agent answers omit that field.
 
 Person row decisions use one `row_decision` event per row. Its `record` holds `kind` (`spec` or `doctrine`), file, id, exact source and replacement lines, target text, decision, reason and identity. SSH approvals additionally hold the canonical signature and trust anchors. The current index is additive `board_meta` key `row_decisions`; each entry includes its event id, timestamp and applied state. Coordinator `row_apply` events name the exact decision event ids applied locally. Atomic approved-spec corrections also record `refreezes`, containing each affected item id and its before/after frozen digests. The sealed move carries complete frozen bytes and before-state snapshots; an explicit empty array marks a changed row with no unlanded citations. Current corrections refuse an omitted payload; older recorded moves retain their original metadata-only meaning. Replay never writes checkout files.
+
+`SPEC_DRAFT_REFREEZE_ENGINE` adds optional `skippedDrafts`: the exact ordered ids of open items that have never been frozen and cite a draft or pending row explicitly declined by the person. The receiver derives that set from native decisions and freeze history, and refuses missing, extra, reordered or stale omissions. Frozen work and ordinary approved-row citations keep the correction protocol above. The CLI names omitted items in one line; omission does not grant a claim or erase their citations. Marker-free historical corrections retain their original expected item set; older engines refuse the new marker.
 
 An optional per-item required reviewer family is stored at additive `board_meta` key `item_review_family:<id>` and projected as `item_review_family` only when set. Engine-142 add and edit events retain the requested `reviewFamily` spelling. Modern add and edit events instead carry `reviewPolicy`, retaining the spelling within that policy and synchronizing the legacy projection key. Review selection, reservation and verdicts match the declared agent family case-insensitively; an undeclared or different family cannot satisfy it, and model names supply no inferred family. This requirement does not waive independent-parent or repository-wide reviewer policy.
 
