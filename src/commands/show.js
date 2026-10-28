@@ -41,16 +41,17 @@ import {
   sayBrief,
 } from '../cli-read-context.js';
 import { relayStateExists } from '../local-state.js';
+import { itemCost } from '../cost.js';
 
 /** Run `pullboard show` and return its exit code. */
 export async function run(io, { first, values }) {
   const ctx = context(io);
   const id = idArg(first);
-  const { item, verdicts, moves, thread, related, reviewer, agents, mainMerge, infra, approval, proofReceipts, independence } = await withBoardRead(ctx, (board) => {
+  const { item, verdicts, moves, thread, related, reviewer, agents, mainMerge, infra, approval, cost, proofReceipts, independence } = await withBoardRead(ctx, (board) => {
     const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
     const result = { item, independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
-      approval: specApprovalState(ctx.info.root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }) };
+      approval: specApprovalState(ctx.info.root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id) };
     // JSON retains every public detail field; text-only labels and related-item searches add nothing to it.
     if (values.json) return result;
     const history = store.events(board, { itemId: id });
@@ -68,7 +69,7 @@ export async function run(io, { first, values }) {
   const frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null;
   const checkText = frozen ? frozen.check ?? '' : item.item_check ?? '';
   if (values.json) {
-    io.result({ ...item, reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(relayPending.length ? { relayPending } : {}) });
+    io.result({ ...item, reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, cost, ...(relayPending.length ? { relayPending } : {}) });
     return 0;
   }
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
@@ -84,6 +85,7 @@ export async function run(io, { first, values }) {
   if (item.item_verdict_state) io.say(staleVerdictRefusal(item, item.item_verdict_state).message);
   io.say(`review tier: ${independence.tier}${independence.requiredFamily ? `; required family ${independence.requiredFamily}` : ''}`);
   io.say(`eligible reviewers: ${independence.ready ? independence.eligible.join(', ') || 'none' : 'not submitted'}`);
+  io.say(`usage: input ${cost.inputTokens ?? 'unknown'}, output ${cost.outputTokens ?? 'unknown'}, estimated USD ${cost.costUSD ?? 'unknown'}, ${cost.wallMs} ms${cost.shared ? '; shared-session item split unknown' : ''}; models ${cost.models.join(', ') || 'unknown'}`);
   if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
   if (checkText) {
     io.say(`check: ${checkText}`);

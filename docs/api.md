@@ -216,6 +216,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `hook pre-merge-commit` | `version:number`, `messages:array` |
 | `hook commit-msg` | `version:number`, `messages:array` |
 | `hook pre-push` | `version:number`, `messages:array` |
+| `cost` | `version:number`, `items:array`, `lanes:array`, `milestones:array`, `models:array`, `seats:array`, `sharedSessions:array` |
 | `heartbeat` | `version:number`, `seat:string\|null`, `presence:string`, `heartbeatAt:string\|null` |
 <!-- api-command-shapes:end -->
 

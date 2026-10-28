@@ -1,0 +1,10 @@
+{
+  "kind": "usage",
+  "entries": [
+    {
+      "order": 13,
+      "actor": "builder",
+      "detail": "`revision`, `observedAt`, `shared`, `records`, `estimate`"
+    }
+  ]
+}

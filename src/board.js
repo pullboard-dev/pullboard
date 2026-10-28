@@ -347,6 +347,7 @@ export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } 
 export { flakeLedger, recordFlakeObservation } from './flakes.js';
 export { flakeQuarantines, gateRuns, recordGateRun } from './quarantine.js';
 export { personProposals, personSigning, proposePersonMove, setPersonSigning } from './person-signing.js'; // Signed person moves [E22].
+export { recordUsage, recordSharedUsage } from './cost.js';
 export { proofReceipts, recordProofRun } from './proof-receipts.js';
 import { refuseLongShout } from './proof-receipts.js';
 import { PROOF_RUN_ENGINE } from './proof-run-engine.js';
