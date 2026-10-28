@@ -72,7 +72,7 @@
   {"cell":"git","imports":8,"before":true},
   {"cell":"sandbox","imports":1,"before":true},
   {"cell":"config","imports":6,"before":true},
-  {"cell":"state","imports":2,"before":true},
+  {"cell":"state","imports":3,"before":true},
   {"cell":"seats","imports":1,"before":true},
   {"cell":"doctrine","imports":4,"before":true},
   {"cell":"person","imports":2,"before":false},
