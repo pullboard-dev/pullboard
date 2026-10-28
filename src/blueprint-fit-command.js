@@ -1,4 +1,5 @@
 /** The blueprint fit verbs: blueprint fit, spec fit, spec fit edit and spec fit approve [S1,E3]. */
+import { loadDoctrine } from './doctrine.js';
 import { readFileSync } from 'node:fs';
 import * as store from './board.js';
 import {
@@ -76,7 +77,7 @@ export async function fitCommand(ctx, board, me, verb, args, values, { ordered, 
   const done = await approveFit({ commonDir: ctx.info.commonDir, spec, items, session: agentSessionDigest(), at, code: args[0] }, {
     decide: async (rows) => await ordered(ctx, board, 'recordRowDecisions', [{ agentId: store.PERSON, channel: io.personChannel ?? 'terminal',
       decisions: rows.flatMap(({ proposal, note }) => prepareRowDecisions(ctx.info.root, ctx.config, { ids: [proposal.target], decision: proposal.decision === 'drop' ? 'decline' : 'approve',
-        reason: proposal.reason, text: proposal.text ?? undefined, on: at, commit, note })) }]),
+        reason: proposal.reason, text: proposal.text ?? undefined, on: at, commit, note }, { loadDoctrine })) }]),
     fact: async (id, text) => await ordered(ctx, board, 'appendFact', [id, { agentId: person.id, kind: 'decision', text }]),
     criterion: async (id, text) => await ordered(ctx, board, 'editItem', [id, { agentId: person.id, criterion: text }]),
     withdraw: async (id, reason) => await ordered(ctx, board, 'withdraw', [id, { agentId: person.id, reason }]),

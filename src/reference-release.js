@@ -1,5 +1,4 @@
 /** Check release acknowledgements against committed changelog content before tagging [C7,N26]. */
-import * as store from './board.js';
 import {
   contains,
   tryGit,
@@ -25,7 +24,7 @@ function releaseLines(text, name) {
 }
 
 /** Name every missing handled reference from local items actually landed in this release's main. */
-export function checkReleaseReferences(root, board, name, commit) {
+export function checkReleaseReferences(root, board, name, commit, store) {
   const milestone = store.milestones(board).find(entry => entry.name === name);
   if (!milestone) return; // Preserve the milestone operation's own missing-name refusal.
   const references = new Map();

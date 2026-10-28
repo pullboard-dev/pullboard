@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
+import { headerRows } from '../src/spec.js';
 import {
   HEADER_LIMIT,
   buildCommitMessage,
   commitMessageProblems,
-  headerRows,
   parseCommitMessage,
   specOrder,
 } from '../src/commit-message.js';

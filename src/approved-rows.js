@@ -14,11 +14,6 @@ import {
   SIGNOFFS_FILE,
 } from './spec.js';
 import {
-  boardBusyError,
-  openBoardReadOnly,
-  rowDecisions,
-} from './board.js';
-import {
   hasSignerFile,
   verifySignedRecords,
 } from './signature.js';
@@ -27,7 +22,6 @@ import {
   CONFIG_FILE,
   configFromSource,
 } from './config.js';
-import { checkLoosening } from './doctrine-checks.js';
 
 const TRUST_FILES = ['.pullboard/signers', '.pullboard/first-commit', '.pullboard/signers.initial', SIGNOFFS_FILE];
 
@@ -55,7 +49,7 @@ function rowSourceAt(root, revision, file, kind) {
 }
 
 /** Read the shared decision index without opening the board's migrator or changing its evidence. */
-function boardApprovals(file) {
+function boardApprovals(file, { openBoardReadOnly, rowDecisions, boardBusyError }) {
   if (!file || !existsSync(file)) return [];
   const startedAt = Date.now();
   let db;
@@ -88,7 +82,8 @@ function stagedApprovals(root, decisions) {
 }
 
 /** Refuse each rewritten approved row unless its exact staged target has person authorization. */
-export function approvedRowProblems(root, config, boardFile) {
+export function approvedRowProblems(root, config, boardFile, ports) {
+  const { checkLoosening } = ports;
   const changes = [];
   const beforePolicy = rowPolicyAt(root, 'HEAD', config);
   const stagedPolicy = rowPolicyAt(root, '', beforePolicy);
@@ -109,7 +104,7 @@ export function approvedRowProblems(root, config, boardFile) {
   }
   if (!changes.length) return [];
   try {
-    const decisions = boardApprovals(boardFile);
+    const decisions = boardApprovals(boardFile, ports);
     const trust = stagedApprovals(root, decisions);
     return changes.filter(({ kind, files, row, target, ambiguous, loosened }) => {
       if (ambiguous) return true;

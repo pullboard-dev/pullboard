@@ -1,4 +1,5 @@
 /** Status obligations without loading the dashboard projection [N26,A9]. */
+import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import * as store from './board-query.js';
 import { repoInfo } from './git.js';
 import { projectRowDecisions } from './row-decisions.js';
@@ -25,7 +26,7 @@ export function personNeedsSummary(root, { board, config, agents, doctrine }) {
     decisions: store.openDecisions(board, store.PERSON), holds: store.laneHolds(board),
     agents: (agents ?? store.listAgents(board)).map(agent => ({ ...agent, displayName: displayAgentName(agent, config.agents.names) })),
     rigorDrafts: rigorDraftNeeds(rows, store.rowDrafts(board), store.rowDecisions(board)), sentinelDrafts: sentinelDraftNeeds(sentinels(board)), blocks: recentBlocks(repoInfo(root).commonDir, board),
-  }, specApprovalState(root, { board, config, spec }));
+  }, specApprovalState(root, { board, config, spec }, { store, verifiedPasskeyRowDecision }));
   const relayHealthAlerts = relayCanaryNeeds(root);
   return { ...projected, relayHealthAlerts, needs: [...projected.needs, ...relayHealthAlerts] };
 }

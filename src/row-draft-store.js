@@ -1,12 +1,7 @@
 /** Internal atomic persistence for validated public drafts and canonical automatic proposals [D1]. */
-import {
-  atomic,
-  logEvent,
-} from './board.js';
-import { rowDrafts } from './board-query.js';
 
 /** Reserve an id and record the exact proposal; callers establish their own input policy first. */
-export function recordRowDraft(board, { agentId, row, written = false }) {
+export function recordRowDraft(board, { agentId, row, written = false }, { atomic, logEvent, rowDrafts }) {
   return atomic(board, () => {
     const current = rowDrafts(board);
     // The same writer asking again for the same definition, as a resumed blueprint add does, keeps the id

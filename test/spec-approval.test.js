@@ -1,4 +1,5 @@
 /** Hand-written approval is visible without becoming a person's decision [S1,B26,P6]. */
+import { verifiedPasskeyRowDecision } from '../src/person-row-proof.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -535,7 +536,7 @@ test('an authenticated first baseline cannot grandfather an absent future row [H
     'a second replica refuses the same authenticated lane snapshot');
   assert.equal(store.specApprovalBaseline(board), null);
   assert.equal(store.specApprovalBaseline(replica), null);
-  assert.equal(specApprovalState(root, { board, config }).baselinePending, true);
+  assert.equal(specApprovalState(root, { board, config }, { store, verifiedPasskeyRowDecision }).baselinePending, true);
   const captured = captureSpecApprovalBaseline(root, config);
   const authorized = prepareEngineMove(board, 'recordSpecApprovalBaseline', [{ agentId: coordinator, baseline: captured }]);
   const authorizedReceipt = { ...receipt, sequence: 2, sender: { ...sender, agent: coordinator } };
@@ -546,7 +547,7 @@ test('an authenticated first baseline cannot grandfather an absent future row [H
 
   // The row was absent from the source at the time the baseline move was created.
   writeFileSync(join(root, 'SPEC.md'), initialSource + `${futureRow}\n`);
-  const projected = specApprovalState(root, { board, config });
+  const projected = specApprovalState(root, { board, config }, { store, verifiedPasskeyRowDecision });
   assert.ok(projected.rows.some(row => row.id === 'G99'),
     'a later approved row absent from the captured source must remain agent-approved until a person confirms it');
 });
@@ -562,7 +563,7 @@ test('cached origins follow dirty lines and changed history while person decisio
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const config = configFromSource(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  const read = (root = box.repo) => specApprovalState(root, { board, config }).rows.find(row => row.id === 'G1');
+  const read = (root = box.repo) => specApprovalState(root, { board, config }, { store, verifiedPasskeyRowDecision }).rows.find(row => row.id === 'G1');
   const original = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   const first = read();
   assert.equal(first.commit, box.git(box.repo, 'rev-parse', 'HEAD'));

@@ -1,4 +1,4 @@
-import { normalizeRulingEffects } from './ruling-owner.js';
+import { normalizeRulingEffects } from './ruling-owner-context.js';
 import { RULING_OWNER_ENGINE } from './ruling-owner-engine.js';
 /** Structured choices on the existing append-only decision/answer stream [B21,B27]. */
 import { DECISION_QUEUE_ENGINE } from './decision-queue-engine.js';

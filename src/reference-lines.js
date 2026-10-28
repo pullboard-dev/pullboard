@@ -1,5 +1,4 @@
 /** Read external brief references without treating their private text as work instructions [C7]. */
-import { briefSections } from './brief.js';
 import { Refused } from './refused.js';
 import { ID_RE } from './spec.js';
 import { tryGit } from './git.js';
@@ -45,4 +44,35 @@ export function validateReferenceTargets(brief) {
       throw new Refused('REFERENCE_IS_BOARD', `"${target}" names a board item; use --after ${target.replace(/^#/u, '')} for a dependency or --parent for a parent item.`);
     }
   }
+}
+
+const LABEL_RE = /^(files|change|test|out of scope)\s*:\s*(.*)$/i;
+const REFERENCE_LABEL_RE = /^(files|change|test|out of scope|reference)\s*:\s*(.*)$/i;
+
+/**
+ * The brief split into its labelled sections, each a list of non-empty lines without bullets.
+ *
+ * @param {string} brief
+ * @param {{ references?: boolean }} [options] Preserve the old section grammar during historical replay.
+ * @returns {Record<string, string[]>}
+ */
+export function briefSections(brief, { references = true } = {}) {
+  /** @type {Record<string, string[]>} */
+  const sections = {};
+  let current = '';
+  for (const raw of brief.split('\n')) {
+    const line = raw.trim();
+    const label = (references ? REFERENCE_LABEL_RE : LABEL_RE).exec(line);
+    if (label) {
+      current = label[1].toLowerCase();
+      if (current === 'reference') {
+        sections.reference ??= [];
+        if (label[2].trim()) sections.reference.push(label[2].trim());
+        current = ''; // Only explicit Reference: lines can opt private text into acknowledgement.
+      } else sections[current] = label[2].trim() ? [label[2].trim()] : [];
+    } else if (current && line) {
+      sections[current].push(line.replace(/^[-*]\s+/, ''));
+    }
+  }
+  return sections;
 }
