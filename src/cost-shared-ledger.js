@@ -1,7 +1,6 @@
 /** Private native-session overlap accounting; public aliases are unrelated to native identities [N2]. */
 import { randomUUID } from 'node:crypto';
 import { sessionSnapshot } from './cost-session.js';
-import { sameUsageAnchor } from './cost-session.js';
 
 /** Count one native delta while its previously established overlap is active. */
 export function sharedBefore(state, session, now, advance, changed) {
@@ -33,8 +32,7 @@ export function sharedAfter(state, session, now, advance, changed) {
   const source = active[0].source;
   const snapshot = sessionSnapshot(source, undefined, now);
   const entry = { sharedId: randomUUID(), allocations: active.map((value) => ({ seat: value.agent, item: value.item })), seats: [...new Set(active.map((value) => value.agent))], session,
-    source, snapshot, model: snapshot?.model ?? active[0].model, at: now,
-    dollars: sameUsageAnchor(state.hooks[session]?.snapshot, snapshot, source) ? state.hooks[session].costUSD : null, hookRevision: state.hooks[session]?.revision ?? 0 };
+    source, snapshot, model: snapshot?.model ?? active[0].model, at: now };
   state.sharedActive[session] = entry;
   advance(state, entry, now, changed);
 }

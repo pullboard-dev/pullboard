@@ -1,4 +1,5 @@
 /** Bridge private provider attribution to authenticated numeric board moves [N2]. */
+import { publicUsage } from './cost-read.js';
 import { usageCheckpoint } from './cost-ledger.js';
 import { sharedSessionTotals } from './cost-shared.js';
 import { storedSeatUsage } from './cost.js';
@@ -32,14 +33,14 @@ export async function publishUsage(ctx, board, { agent, item, operation }) {
     existing: storedSeatUsage(board, agent), existingShared: sharedSessionTotals(board), intervals: history.intervals,
     newClaim: operation === 'claim' && history.latest?.event_kind === 'claim' && history.latest.item_id === item });
   // A claim only opens its private anchor: its own zero-length interval publishes at submit, release or refresh.
-  for (const change of changes.items) if (operation !== 'claim' || change.item !== item) await ordered(ctx, board, 'recordUsage', [change]);
-  for (const change of changes.sharedSessions) await ordered(ctx, board, 'recordSharedUsage', [{ agentId: agent, ...change }]);
+  for (const change of changes.items) if (operation !== 'claim' || change.item !== item) await ordered(ctx, board, 'recordUsage', [{ ...change, records: publicUsage(change.records) }]);
+  for (const change of changes.sharedSessions) await ordered(ctx, board, 'recordSharedUsage', [{ agentId: agent, ...change, records: publicUsage(change.records) }]);
 }
 
 /** A secondary usage failure must never report a successfully ordered claim/submit/release as failed. */
 export async function checkpointAfterMove(ctx, board, request) {
   try { await publishUsage(ctx, board, request); }
   catch {
-    ctx.io.err('pullboard: USAGE_PENDING: the lifecycle move was recorded, but its usage checkpoint is pending; run pullboard cost refresh to retry. Missing native attribution stays unknown.');
+    ctx.io.err('pullboard: USAGE_PENDING: the lifecycle move was recorded, but its usage checkpoint is pending; the next native claim, submit or release will retry. Missing native attribution stays unknown.');
   }
 }

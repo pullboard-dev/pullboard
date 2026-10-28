@@ -300,8 +300,8 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   assert.equal(capacity.report.suite.minutes, null);
   assert.equal(capacity.report.files.lowerBound, true);
   assert.ok(Array.isArray(capacity.report.conversion.order));
-  const cost = await json(box, repo, 'cost');
-  assert.deepEqual(Object.keys(cost).sort(), ['version', 'items', 'lanes', 'milestones', 'models', 'seats', 'sharedSessions'].sort());
+  const cost = (await json(box, repo, 'stats')).usage;
+  assert.deepEqual(Object.keys(cost).sort(), ['items', 'lanes', 'milestones', 'models', 'seats', 'sharedSessions'].sort());
   for (const group of ['items', 'lanes', 'milestones', 'models', 'seats', 'sharedSessions']) {
     assert.deepEqual(cost[group], [], `a fresh board has no invented ${group} usage totals`);
   }

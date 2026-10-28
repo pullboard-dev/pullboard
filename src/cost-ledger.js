@@ -9,9 +9,7 @@ import { unlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { agentSessionDigest } from './person.js';
-import { claudeCostReport } from './cost-provider.js';
 import { sessionSnapshot } from './cost-session.js';
-import { sameUsageAnchor } from './cost-session.js';
 import { sessionSource } from './cost-session.js';
 import { usageDifference } from './cost-session.js';
 import { sharedBefore } from './cost-shared-ledger.js';
@@ -26,9 +24,9 @@ function change(info, work) {
   const lock = file + '.lock';
   let fd;
   try { fd = openSync(lock, 'wx', 0o600); }
-  catch { throw new Refused('USAGE_LEDGER', 'the private usage ledger is busy or unwritable; retry pullboard cost refresh after its current writer finishes'); }
+  catch { throw new Refused('USAGE_LEDGER', 'the private usage ledger is busy or unwritable; retry a native claim, submit or release after its current writer finishes'); }
   try {
-    const state = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : { active: [], totals: {}, hooks: {} };
+    const state = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : { active: [], totals: {} };
     const result = work(state);
     const temporary = file + `.${process.pid}.tmp`;
     writeFileSync(temporary, JSON.stringify(state), { mode: 0o600 });
@@ -39,15 +37,15 @@ function change(info, work) {
 
 /** A model's cumulative known partial values and visibly unknown totals. */
 function empty(model) {
-  return { model, inputTokens: 0, outputTokens: 0, costUSD: 0, knownInputTokens: 0, knownOutputTokens: 0, knownCostUSD: 0, wallMs: 0 };
+  return { model, inputTokens: 0, outputTokens: 0, knownInputTokens: 0, knownOutputTokens: 0, wallMs: 0, unknownReasons: [] };
 }
 
 /** Add counts without recovering an unknown total by pretending its missing portion was zero. */
 function add(row, name, delta) {
-  const known = { inputTokens: 'knownInputTokens', outputTokens: 'knownOutputTokens', costUSD: 'knownCostUSD' }[name];
+  const known = { inputTokens: 'knownInputTokens', outputTokens: 'knownOutputTokens' }[name];
   if (delta === null) { row[name] = null; return; }
   const value = row[known] + delta;
-  if (!Number.isFinite(value) || name !== 'costUSD' && !Number.isSafeInteger(value)) throw new Refused('USAGE_OVERFLOW', 'native usage exceeds safe numeric totals; keep this record unknown rather than rounding it');
+  if (!Number.isSafeInteger(value)) throw new Refused('USAGE_OVERFLOW', 'native usage exceeds safe numeric totals; keep this record unknown rather than rounding it');
   row[known] = value;
   if (row[name] !== null) row[name] += delta;
 }
@@ -73,25 +71,20 @@ function advance(state, entry, now, changed) {
     const row = modelRow(delta.model);
     add(row, 'inputTokens', delta.inputTokens);
     add(row, 'outputTokens', delta.outputTokens);
-    // A session-level dollar amount cannot be split across multiple native model deltas.
-    if (delta.model !== entry.model) add(row, 'costUSD', null);
+    if (delta.inputTokens === null || delta.outputTokens === null) {
+      const reason = entry.recovered ? 'missed-claim-anchor' : entry.ambiguous ? 'shared-session'
+        : !entry.source ? 'native-session-unavailable' : !entry.snapshot ? 'no-native-baseline'
+          : !current ? 'native-session-unreadable-or-reset' : 'native-counter-unreadable-or-decreased';
+      row.unknownReasons ??= [];
+      if (!row.unknownReasons.includes(reason)) row.unknownReasons.push(reason);
+    }
   }
   const row = modelRow(entry.model);
   const changedModels = deltas.filter((delta) => delta.inputTokens !== 0 || delta.outputTokens !== 0).map((delta) => delta.model);
   const timeRow = changedModels.some((value) => value !== entry.model) ? modelRow('unknown') : row;
   timeRow.wallMs += Math.max(0, now - entry.at);
   if (!Number.isSafeInteger(timeRow.wallMs)) throw new Refused('USAGE_OVERFLOW', 'elapsed usage time exceeds a safe integer');
-  const report = state.hooks[entry.session];
-  const hook = report?.costUSD;
-  const freshHook = (state.hooks[entry.session]?.revision ?? 0) > (entry.hookRevision ?? 0);
-  const dollars = !entry.ambiguous && entry.snapshot && deltas.every((delta) => delta.inputTokens !== null && delta.outputTokens !== null) && sameUsageAnchor(report?.snapshot, current, entry.source) && (freshHook || deltas.every((delta) => delta.inputTokens === 0 && delta.outputTokens === 0)) && deltas.every((delta) => delta.model === entry.model || delta.inputTokens === 0 && delta.outputTokens === 0) && typeof hook === 'number' && typeof entry.dollars === 'number' && hook >= entry.dollars ? hook - entry.dollars : null;
-  add(row, 'costUSD', dollars);
-  // Unverifiable or shared/model-changing intervals cannot be charged by a later report.
-  if (entry.ambiguous || !current || !entry.snapshot || deltas.some((delta) => delta.inputTokens === null || delta.outputTokens === null || delta.model !== entry.model && (delta.inputTokens !== 0 || delta.outputTokens !== 0))) entry.dollars = null;
-  // Keep a valid dollar anchor through a delayed report; never adopt a stale baseline.
-  if (sameUsageAnchor(report?.snapshot, current, entry.source)) entry.dollars = hook ?? null;
   entry.snapshot = current;
-  entry.hookRevision = state.hooks[entry.session]?.revision ?? 0;
   entry.at = now;
   total.observedAt = Math.max(total.observedAt ?? 0, now);
   total.revision++;
@@ -117,13 +110,11 @@ export function usageCheckpoint(info, { agent, item, operation, model, now = Dat
       state.seenClaims[interval.key] = true;
       if (end <= start) continue;
       const recovered = { agent, item: interval.item, claim: interval.key, model: interval.model ?? model ?? 'unknown', session,
-        source: null, snapshot: null, dollars: null, at: start, ambiguous: true };
+        source: null, snapshot: null, at: start, ambiguous: true, recovered: true };
       advance(state, recovered, end, changed);
       if (interval.end === null) {
         recovered.source = sessionSource(environment);
         recovered.snapshot = sessionSnapshot(recovered.source, undefined, now);
-        recovered.dollars = sameUsageAnchor(state.hooks[session]?.snapshot, recovered.snapshot, recovered.source) ? state.hooks[session].costUSD : null;
-        recovered.hookRevision = state.hooks[session]?.revision ?? 0;
         state.active.push(recovered);
       }
     }
@@ -144,7 +135,7 @@ export function usageCheckpoint(info, { agent, item, operation, model, now = Dat
         const interval = intervals.findLast((value) => value.item === item && value.end === null);
         const snapshot = sessionSnapshot(source, undefined, interval?.start ?? now);
         const entry = { agent, item, claim: interval?.key, model: snapshot?.model ?? model ?? 'unknown', session, source, snapshot,
-          dollars: sameUsageAnchor(state.hooks[session]?.snapshot, snapshot, source) ? state.hooks[session].costUSD : null, hookRevision: state.hooks[session]?.revision ?? 0, at: interval?.start ?? now, ambiguous: peers.length > 0 };
+          at: interval?.start ?? now, ambiguous: peers.length > 0 };
         state.active.push(entry);
         if (interval) state.seenClaims[interval.key] = true;
         advance(state, entry, now, changed);
@@ -157,12 +148,4 @@ export function usageCheckpoint(info, { agent, item, operation, model, now = Dat
     return { items: Object.values(state.totals).filter((value) => value.agentId === agent && value.revision > (existing.find((row) => row.item === value.item)?.revision ?? 0)).map((value) => structuredClone(value)),
       sharedSessions: Object.values(state.sharedTotals).filter((value) => value.seats.includes(agent) && value.revision > (existingShared.find((row) => row.id === value.id)?.revision ?? 0)).map((value) => structuredClone(value)) };
   });
-}
-
-/** Store only the documented native statusline cost, privately bound to the caller's session. */
-export function recordClaudeCost(info, payload, environment = process.env) {
-  if (!environment.CLAUDE_CODE_SESSION_ID || payload?.session_id !== environment.CLAUDE_CODE_SESSION_ID) throw new Refused('USAGE_SESSION', 'the Claude statusline report must belong to this native session');
-  const report = claudeCostReport(payload);
-  const snapshot = sessionSnapshot(sessionSource(environment));
-  return change(info, (state) => { state.hooks[agentSessionDigest(environment)] = { ...report, snapshot, revision: (state.hooks[agentSessionDigest(environment)]?.revision ?? 0) + 1 }; return report; });
 }

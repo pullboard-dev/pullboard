@@ -519,8 +519,8 @@ function recordEventContract() {
   finishSentinelRun(board, { agentId: coordinator, name: watch.name, digest: watch.digest, run: 'format-run',
     result: { green: false, code: 1, timedOut: false, durationMs: 0, output: 'synthetic format receipt' } });
   // Synthetic numeric summaries exercise the documented event shape, not provider attribution.
-  const usageRecords = [{ model: 'Fixture', inputTokens: null, outputTokens: null, costUSD: null,
-    knownInputTokens: 0, knownOutputTokens: 0, knownCostUSD: 0, wallMs: 1 }];
+  const usageRecords = [{ model: 'Fixture', inputTokens: null, outputTokens: null,
+    knownInputTokens: 0, knownOutputTokens: 0, wallMs: 1, unknownReasons: ['native-session-unavailable'] }];
   recordUsage(board, { agentId: builder, item: first, revision: 1, observedAt: 1, records: usageRecords });
   recordSharedUsage(board, { agentId: builder, id: '00000000-0000-0000-0000-000000000056',
     seats: [builder, returnedBuilder], allocations: [{ seat: builder, item: first }, { seat: returnedBuilder, item: returned }],

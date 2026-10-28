@@ -80,17 +80,3 @@ export function usageDifference(before, after, fallbackModel) {
     return { model, inputTokens: difference('inputTokens'), outputTokens: difference('outputTokens') };
   });
 }
-
-/** Retain a dollar report through metadata appends only while both native prefixes still match. */
-export function sameUsageAnchor(left, right, source) {
-  if (!left || !right || left.dev !== right.dev || left.ino !== right.ino || right.bytes < left.bytes
-      || JSON.stringify(left.totals) !== JSON.stringify(right.totals)) return false;
-  if (!source) return left.bytes === right.bytes && left.sha256 === right.sha256;
-  try {
-    const stat = lstatSync(source.file);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.dev !== right.dev || stat.ino !== right.ino) return false;
-    const bytes = readFileSync(source.file);
-    return bytes.length >= right.bytes && hash(bytes.subarray(0, left.bytes)) === left.sha256
-      && hash(bytes.subarray(0, right.bytes)) === right.sha256;
-  } catch { return false; }
-}

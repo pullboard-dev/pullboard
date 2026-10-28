@@ -29,7 +29,7 @@ function codex(rows) {
     const at = Date.parse(row.timestamp);
     if (!Number.isFinite(at)) return [];
     if (input === null || output === null) {
-      result.push({ at, inputTokens: null, outputTokens: null, costUSD: null, model: typeof model === 'string' && model.trim() ? model : null });
+      result.push({ at, inputTokens: null, outputTokens: null, model: typeof model === 'string' && model.trim() ? model : null });
       previous = undefined;
       continue;
     }
@@ -38,7 +38,7 @@ function codex(rows) {
     const deltaInput = !previous ? input : input >= previous.input ? input - previous.input : null;
     const deltaOutput = !previous ? output : output >= previous.output ? output - previous.output : null;
     previous = { input, output };
-    result.push({ at, inputTokens: deltaInput, outputTokens: deltaOutput, costUSD: null, model: typeof model === 'string' && model.trim() ? model : null });
+    result.push({ at, inputTokens: deltaInput, outputTokens: deltaOutput, model: typeof model === 'string' && model.trim() ? model : null });
   }
   return result;
 }
@@ -58,11 +58,11 @@ function claude(rows) {
     const earlier = messages.get(message.id);
     if ([raw, output, read, write].includes(null) || !Number.isFinite(at) || !Number.isSafeInteger(raw + read + write)) {
       // Keep a valid streamed version; a new unreadable usage message is unknown, never zero.
-      if (!earlier && Number.isFinite(at)) messages.set(message.id, { at, inputTokens: null, outputTokens: null, costUSD: null, model: typeof message.model === 'string' && message.model.trim() ? message.model : null });
+      if (!earlier && Number.isFinite(at)) messages.set(message.id, { at, inputTokens: null, outputTokens: null, model: typeof message.model === 'string' && message.model.trim() ? message.model : null });
       continue;
     }
     messages.set(message.id, { at: earlier?.at ?? at, inputTokens: raw + read + write, outputTokens: output,
-      costUSD: null, model: typeof message.model === 'string' && message.model.trim() ? message.model : null });
+      model: typeof message.model === 'string' && message.model.trim() ? message.model : null });
   }
   return [...messages.values()].sort((a, b) => a.at - b.at);
 }
@@ -74,11 +74,4 @@ export function nativeUsage(source, bytes, cutoff = Infinity) {
   if (!rows) return null;
   const events = source.provider === 'codex' ? codex(rows) : source.provider === 'claude' ? claude(rows) : [];
   return events.length ? events : null;
-}
-
-/** Sanitize the documented Claude statusline cost: provider estimate, never a computed bill. */
-export function claudeCostReport(payload) {
-  const dollars = payload?.cost?.total_cost_usd;
-  return typeof dollars === 'number' && Number.isFinite(dollars) && dollars >= 0
-    ? { costUSD: dollars, estimate: true } : { costUSD: null, estimate: true };
 }

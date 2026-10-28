@@ -181,11 +181,11 @@ export async function seedPersonSigning(context) {
 export async function seedUsage(context) {
   const { board, box, store, exercise, agent, reviewer, item, claim } = context;
   const peerItem = store.addItem(board, { by: 'coordinator', lane: 'tests', title: 'Usage projection peer',
-    criterion: 'Shared unknown counters retain their native allocations' });
+    criterion: 'Shared unknown counters retain their native allocations', check: 'node --test test/projection.test.js' });
   store.claim(board, peerItem, { ...claim, agentId: reviewer, lane: 'tests' });
   const observedAt = board.clock.now().getTime();
-  const records = [{ model: 'synthetic-unknown-projection', inputTokens: null, outputTokens: null, costUSD: null,
-    wallMs: 0, knownInputTokens: 0, knownOutputTokens: 0, knownCostUSD: 0 }];
+  const records = [{ model: 'synthetic-unknown-projection', inputTokens: null, outputTokens: null,
+    wallMs: 0, knownInputTokens: 0, knownOutputTokens: 0, unknownReasons: ['native-session-unavailable'] }];
   await exercise('recordUsage', () => store.recordUsage(board, { agentId: agent, item, revision: 1, observedAt, records }));
   await exercise('recordSharedUsage', () => store.recordSharedUsage(board, { agentId: agent, id: randomUUID(),
     seats: [agent, reviewer], allocations: [{ seat: agent, item }, { seat: reviewer, item: peerItem }],

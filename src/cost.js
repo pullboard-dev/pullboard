@@ -9,23 +9,29 @@ import { ENGINE_VERSION } from './machine.js';
 import { publicSharedSessions } from './cost-shared.js';
 import { Refused } from './refused.js';
 import { COUNTS } from './cost-read.js';
+import { UNKNOWN_USAGE_REASONS } from './cost-read.js';
 import { sumUsage } from './cost-read.js';
 
 /** Only documented numeric summary fields can be sealed, stored or replayed. */
 export function sanitizedUsage(rows) {
   if (!Array.isArray(rows) || rows.length > 100) throw new Refused('USAGE_RECORD', 'record at most 100 model summaries per seat and item');
   return rows.map((row) => {
-    if (!row || typeof row.model !== 'string' || row.model.length > 160 || /[\u0000-\u001f\u007f]/u.test(row.model) || Object.keys(row).some((key) => !['model', ...COUNTS].includes(key))) throw new Refused('USAGE_RECORD', 'usage carries a model and numeric totals only; keep session records private');
+    if (!row || typeof row.model !== 'string' || row.model.length > 160 || /[\u0000-\u001f\u007f]/u.test(row.model) || Object.keys(row).some((key) => !['model', 'unknownReasons', ...COUNTS].includes(key))) throw new Refused('USAGE_RECORD', 'usage carries a model and numeric totals only; keep session records private');
     const value = { model: row.model };
     for (const name of COUNTS) {
       const number = row[name];
-      const valid = number === null && ['inputTokens', 'outputTokens', 'costUSD'].includes(name) || typeof number === 'number' && Number.isFinite(number) && number >= 0 && (name.includes('Cost') || name === 'costUSD' || Number.isSafeInteger(number));
+      const valid = number === null && ['inputTokens', 'outputTokens'].includes(name) || typeof number === 'number' && Number.isFinite(number) && number >= 0 && Number.isSafeInteger(number);
       if (!valid) throw new Refused('USAGE_RECORD', `${name} is a nonnegative provider value, or explicit null when unknown`);
       value[name] = number;
     }
-    for (const [name, known] of [['inputTokens', 'knownInputTokens'], ['outputTokens', 'knownOutputTokens'], ['costUSD', 'knownCostUSD']]) {
+    for (const [name, known] of [['inputTokens', 'knownInputTokens'], ['outputTokens', 'knownOutputTokens']]) {
       if (value[name] !== null && value[name] !== value[known]) throw new Refused('USAGE_RECORD', 'a complete usage total must match its known subtotal');
     }
+    const reasons = row.unknownReasons ?? [];
+    if (!Array.isArray(reasons) || reasons.length > UNKNOWN_USAGE_REASONS.length || new Set(reasons).size !== reasons.length
+      || reasons.some(reason => !UNKNOWN_USAGE_REASONS.includes(reason))
+      || (value.inputTokens === null || value.outputTokens === null) && !reasons.length) throw new Refused('USAGE_RECORD', 'unknown native token usage must name its bounded attribution reason');
+    value.unknownReasons = [...reasons];
     return value;
   });
 }
@@ -60,7 +66,7 @@ export function costTotals(board) {
   const records = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key LIKE 'cost:%'").all().flatMap((row) => {
     const value = JSON.parse(row.meta_value);
     const item = getItem(board, value.item);
-    return value.records.map((record) => ({ ...record, ...(sharedItems.has(value.item) ? { inputTokens: null, outputTokens: null, costUSD: null } : {}), item: value.item, agent: value.agent, lane: item.item_lane, shared: Boolean(value.shared) || sharedItems.has(value.item) }));
+    return value.records.map((record) => ({ ...record, ...(sharedItems.has(value.item) ? { inputTokens: null, outputTokens: null, unknownReasons: [...new Set([...(record.unknownReasons ?? []), 'shared-session'])] } : {}), item: value.item, agent: value.agent, lane: item.item_lane, shared: Boolean(value.shared) || sharedItems.has(value.item) }));
   });
   const sharedSessions = publicSharedSessions(board);
   const sharedModels = sharedSessions.flatMap((group) => group.records.map((row) => ({ ...row, wallMs: 0 })));
