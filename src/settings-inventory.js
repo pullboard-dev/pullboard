@@ -12,14 +12,18 @@ import {
   loadConfig,
 } from './config.js';
 import { repoInfo } from './git.js';
-import { machineHome } from './machine-home.js';
 import {
+  machineHome,
   machineSettingsFile,
-  gateQueueSettings,
+} from './machine-home.js';
+import {
   LINE_SETTING_DEFINITIONS,
   validateLineSetting,
 } from './queue-settings.js';
-import { loadMachineSettings } from './settings.js';
+import {
+  gateQueueSettings,
+  loadMachineSettings,
+} from './settings.js';
 import { performanceCores } from './gate.js';
 import {
   defaultViewPort,

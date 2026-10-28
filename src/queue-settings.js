@@ -3,8 +3,6 @@ import {
   existsSync,
   readFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
-import { machineHome } from './machine-home.js';
 import { Refused } from './refused.js';
 
 /** A waiting run moves up one class after this many minutes, unless the machine sets agingMinutes. */
@@ -22,20 +20,16 @@ export function carriedBrowserByLaunch() {
   return carried === '1' ? true : carried === '0' ? false : null;
 }
 
-/** Resolve the separate machine settings file. */
-export function machineSettingsFile() {
-  return join(machineHome(), 'settings.json');
-}
-
 /**
  * Read the machine settings file as a plain object, or null when there is none. Why here and not
  * in settings.js: resources.js runs on remote runners, whose trusted runtime ships only a few
- * files, and settings.js imports runners.js and resources.js.
+ * files, and settings.js imports runners.js and resources.js. The caller names the file
+ * (machineSettingsFile() in machine-home.js), so the queue cell never reaches up into config.
  *
- * @param {string} [file]
+ * @param {string} file - The machine settings file the caller resolved.
  * @returns {object|null}
  */
-export function readMachineSettingsFile(file = machineSettingsFile()) {
+export function readMachineSettingsFile(file) {
   if (!existsSync(file)) return null;
   let value;
   try { value = JSON.parse(readFileSync(file, 'utf8')); }
@@ -74,12 +68,13 @@ export function validateGateQueue(value, file) {
 /**
  * The gate pool's admission order. Reviews-first class order is opt-in per machine because it
  * changes who waits for whom on every board sharing the pool; absent or false keeps landings
- * first, then arrival. agingMinutes only matters while class order is on.
+ * first, then arrival. agingMinutes only matters while class order is on. The caller supplies the
+ * settings file, the port that keeps the machine home in the config cell.
  *
+ * @param {string} file - The machine settings file the caller resolved.
  * @returns {{ reviewsFirst: boolean, currentReleaseFirst: boolean, agingMinutes: number }}
  */
-export function gateQueueSettings() {
-  const file = machineSettingsFile();
+export function readGateQueueSettings(file) {
   const value = readMachineSettingsFile(file) ?? {};
   validateGateQueue(value, file);
   const queue = value.gate?.queue;
