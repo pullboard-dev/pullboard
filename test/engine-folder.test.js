@@ -27,8 +27,7 @@ test('the repository keeps historical engine markers in its existing src folder 
 });
 
 /** Build a real private repository with a move and a separately owned engine declaration. */
-function fixture(t) {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-engine-folder-'));
+function fixture(t, root = mkdtempSync(join(tmpdir(), 'pullboard-engine-folder-'))) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, 'src'));
   mkdirSync(join(root, 'packages', 'sample', 'src'), { recursive: true });
@@ -68,7 +67,8 @@ test('moving a fixture package keeps its move engine number and marker in the on
 });
 
 test('a moved or duplicated engine leaf is refused while fixture strings and imports remain allowed [C7]', t => {
-  const root = fixture(t);
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-private-engine-copy-'));
+  fixture(t, root);
   const misplaced = join(root, 'packages', 'sample', 'src', 'sample-engine.js');
   cpSync(join(root, 'src', 'sample-engine.js'), misplaced);
   assert.match(engineFolderProblems(root)[0].text, /SAMPLE_ENGINE must stay in src\//u);

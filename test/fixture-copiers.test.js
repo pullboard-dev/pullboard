@@ -52,6 +52,9 @@ test('the guard names hand copies including imported aliases, finite lists and r
     "import { cpSync, mkdtempSync } from 'node:fs'; import {join} from 'node:path'; cpSync(flag ? join(ROOT,'src') : join(mkdtempSync('/tmp/x-'),'src'),target);",
     "import { cpSync } from 'node:fs'; import {join} from 'node:path'; function mkdtempSync(){return ROOT;} cpSync(join(mkdtempSync('/tmp/x-'),'src'),target);",
     "import { cpSync, mkdtempSync } from 'node:fs'; import {join} from 'node:path'; function copy(mkdtempSync){cpSync(join(mkdtempSync('/tmp/x-'),'src'),target);}",
+    "import {cpSync} from 'node:fs'; import {join} from 'node:path'; const root=getRoot(); cpSync(join(root,'src'),target);",
+    "import {readFileSync,writeFileSync} from 'node:fs'; import {join} from 'node:path'; writeFileSync(target,readFileSync(join(getRoot(),'src/a.js')));",
+    "import {cpSync} from 'node:fs'; function toolRoot(){return new URL('../',import.meta.url);} cpSync(new URL('src/',toolRoot()),target);",
   ]) assert.match(fixtureCopierProblems(source, 'planted.js').join('\n'), /planted\.js:1: hand/u);
   assert.match(fixtureCopierProblems("const fs = require('node:fs'); fs.cpSync('../src', target);", 'opaque.js').join('\n'), /opaque filesystem binding/u);
 });

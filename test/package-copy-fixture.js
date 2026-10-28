@@ -157,23 +157,6 @@ export function fixtureCopierProblems(source, file = 'fixture.js') {
       && returns.every(value => privatePath(body + value.index + value[0].indexOf(value[1]),
         body + value.index + value[0].indexOf(value[1]) + value[1].length, new Set([...seen, call[1]])));
   }
-  /** Distinguish original tooling roots from already-copied private fixtures before classifying bytes. */
-  function originalPath(start, finish, seen = new Set()) {
-    if (seen.size > 128 || privatePath(start, finish)) return false;
-    const text = code.slice(start, finish);
-    if (/\bimport\s*\.\s*meta\b/u.test(text)) return true;
-    const call = /^\s*([\w$]+)(?:\s*\.\s*[\w$]+)?\s*\(/u.exec(text);
-    if (call && operations.get(call[1])?.module !== 'path' && call[1] !== 'fileURLToPath') return false;
-    for (const match of text.matchAll(/\b[\w$]+\b/gu)) {
-      if (operations.get(match[0])?.imported === 'mkdtempSync' && !proven(match[0], start + match.index)) return true;
-      if (seen.has(match[0]) || operations.has(match[0]) || ['new', 'URL', 'fileURLToPath'].includes(match[0])) continue;
-      if (/[.]/u.test(text[match.index - 1] ?? '')) continue;
-      const rows = declaration(match[0], start + match.index);
-      if (rows.length && rows.some(row => originalPath(row.start, row.end, new Set([...seen, match[0]])))) return true;
-      if (!rows.length && !/^\s*\(/u.test(text.slice(match.index + match[0].length))) return true;
-    }
-    return false;
-  }
   /** Follow actual read bytes, not path mentions inside launchers or synthetic program strings. */
   function copiedBytes(start, finish, excludedPath = null, seen = new Set()) {
     if (seen.size > 128 || /^\s*JSON\s*\.\s*parse\s*\(/u.test(code.slice(start, finish))) return false;
@@ -183,7 +166,7 @@ export function fixtureCopierProblems(source, file = 'fixture.js') {
       if (binding?.module !== 'fs' || method !== 'readFileSync') continue;
       const open = start + match.index + match[0].lastIndexOf('('), stop = end(open + 1, ',');
       if (source.slice(open + 1, stop).replace(/\s/gu, '') !== excludedPath
-        && toolPath(open + 1, stop) && originalPath(open + 1, stop)) return true;
+        && toolPath(open + 1, stop) && !privatePath(open + 1, stop)) return true;
     }
     for (const match of code.slice(start, finish).matchAll(/\b[\w$]+\b/gu)) {
       if (seen.has(match[0])) continue;
@@ -202,7 +185,7 @@ export function fixtureCopierProblems(source, file = 'fixture.js') {
       const comma = end(start, ',');
       const from = operation === 'writeFileSync' ? comma + 1 : start;
       const to = operation === 'writeFileSync' ? finish : Math.min(comma, finish);
-      if ((operation === 'writeFileSync' ? copiedBytes(from, to, source.slice(start, comma).replace(/\s/gu, '')) : toolPath(from, to) && originalPath(from, to))) problems.push(`${file}:${source.slice(0, match.index).split('\n').length}: hand ${operation} of shipped tool source; use copyPackageFiles`);
+      if ((operation === 'writeFileSync' ? copiedBytes(from, to, source.slice(start, comma).replace(/\s/gu, '')) : toolPath(from, to) && !privatePath(from, to))) problems.push(`${file}:${source.slice(0, match.index).split('\n').length}: hand ${operation} of shipped tool source; use copyPackageFiles`);
     }
   }
   for (const match of code.matchAll(/\b[\w$]+\s*\.\s*put\s*\(/gu)) {

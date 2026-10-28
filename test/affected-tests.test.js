@@ -199,7 +199,7 @@ test('the browser launch guard keeps affected selection exact [C7,O5]', (t) => {
   box.put('test/browser-guard.test.js', "import '../src/browser-slot-guard.js';\n");
   box.put('test/guard-consumer.test.js', "import './browser-guard.test.js';\n");
   const base = box.commit();
-  box.put('src/browser-slot-guard.js', guard + '\n// A committed change to the actual guard.\n');
+  writeFileSync(join(box.root, 'src/browser-slot-guard.js'), guard + '\n// A committed change to the actual guard.\n');
   const commit = box.commit();
   const selected = selectAffectedTests(box.root, { base, commit });
   assert.equal(selected.full, false, selected.reason);
@@ -385,7 +385,7 @@ test('a src change selects only its importers despite run-tests.js [V4,C7]', (t)
   box.put('test/runner-reader.test.js', "import '../bin/run-tests.js';\n");
   box.put('test/unrelated.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
   const base = box.commit();
-  box.put('src/person.js', readFileSync(join(box.root, 'src/person.js'), 'utf8') + '\n// ordinary source change\n');
+  writeFileSync(join(box.root, 'src/person.js'), readFileSync(join(box.root, 'src/person.js'), 'utf8') + '\n// ordinary source change\n');
   const commit = box.commit();
   const selected = selectAffectedTests(box.root, { base, commit, changed: ['src/person.js'] });
   assert.equal(selected.full, false, selected.reason);
