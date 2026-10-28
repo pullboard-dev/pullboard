@@ -41,7 +41,7 @@ export function functionsIn(source) {
  * @param {string[]} [verbs]
  * @returns {Set<string>}
  */
-function declaredCodes(machine, verbs) {
+export function declaredCodes(machine, verbs) {
   const moves = verbs ? machine.moves.filter((move) => verbs.includes(move.verb)) : machine.moves;
   const used = new Set(moves.flatMap((move) => machineRules.effectiveGuards(move, machine)));
   return new Set([
