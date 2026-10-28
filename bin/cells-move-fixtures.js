@@ -109,7 +109,7 @@ function sourceExportPorts(readSource) {
     for (const match of code.matchAll(/\bexport\b/gu)) {
       if (/\.\s*$/u.test(code.slice(0, match.index))) continue;
       const line = code.slice(code.lastIndexOf('\n', match.index - 1) + 1, match.index);
-      if (line.trim() || slashLine(value.source, code, match.index)) return null;
+      if (line.trim() && !/;\s*$/u.test(line) || slashLine(value.source, code, match.index)) return null;
       const rest = code.slice(match.index);
       const declaration = new RegExp(`^export\\s+(?:async\\s+)?(function|class)\\s+(${ID})\\b`, 'u').exec(rest);
       if (declaration) {
@@ -249,8 +249,12 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
       const member = /\.\s*$/u.test(before);
       const receiver = /([A-Za-z_$][\w$]*)\s*(?:\?\.|\.)\s*$/u.exec(before);
       const binding = imported.bindings.get(member ? receiver?.[1] : match[0]);
+      if (/[{: ,]\s*$/u.test(before) && /^\s*[:,}]/u.test(after)) {
+        problems.push(`${file}: extracted filesystem property is not a proven fixture input port`);
+        continue;
+      }
       if (binding?.module === 'fs') continue; // The existing native binding/escape proof remains authoritative.
-      if (member || /^\s*(?:\?\.)?\(/u.test(after) || /[{: ,]\s*$/u.test(before) && /^\s*[:,}]/u.test(after)) {
+      if (member || /^\s*(?:\?\.)?\(/u.test(after)) {
         problems.push(`${file}: returned or extracted filesystem capability is not a proven fixture input port`);
       }
     }

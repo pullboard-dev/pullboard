@@ -20,6 +20,7 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
   privateFixtureFiles,
+  runFixtureChild,
   runFixtureGit,
 } from './fixture-child.js';
 import { lex } from '../packages/kernel/index.js';
@@ -398,6 +399,33 @@ test('fixed-leaf producers follow canonical named shims but refuse unresolved or
   assert.ok(inspect({ ...sources, 'packages/git/index.js': "export * from './body.js';\nexport * from './missing.js';\n" }).problems.length);
   assert.ok(inspect({ ...sources, 'packages/git/index.js': "export * from './body.js';\nexport * from './other.js';\n",
     'packages/git/other.js': sources['packages/git/body.js'] }).problems.length);
+});
+
+test('all original git-move fixture groups retain their actual source input obligations [C7]', () => {
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const head = runFixtureGit(['rev-parse', 'HEAD'], { cwd: root });
+  const plan = JSON.parse(readFileSync(new URL('../bin/cells-plan/02-git.json', import.meta.url), 'utf8'));
+  const captured = new Map();
+  /** Capture exact regular committed producer bytes, without executing or normalizing their source. */
+  function readSource(file) {
+    if (captured.has(file)) return captured.get(file);
+    if (!/^[\w./-]+$/u.test(file) || file.split('/').some(part => !part || part === '.' || part === '..')) return null;
+    const listed = runFixtureGit(['ls-tree', '-z', head, '--', file], { cwd: root });
+    const object = /^100(?:644|755) blob ([a-f0-9]+)\t/u.exec(listed)?.[1];
+    if (!object) return null;
+    const result = runFixtureChild('git', ['show', `${head}:${file}`], { cwd: root, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.failure);
+    const value = { source: result.stdout, object };
+    captured.set(file, value);
+    return value;
+  }
+  for (const file of ['test/board-busy.test.js', 'test/cell-lints.test.js', 'test/e2e-audit.test.js',
+    'test/landing-queue-fixture.js', 'test/mechanical-merge.test.js', 'test/move-registry.test.js',
+    'test/pre-push-receipts.test.js', 'test/push-native-evidence-fixture.js', 'test/relay-canary.test.js',
+    'test/runner-policy.test.js', 'test/team.test.js']) {
+    const source = mappedWorkingSource(root, file).body.toString('utf8');
+    assert.deepEqual(fixtureSourceEdits(source, { file, moves: plan.paths, readSource }).problems, [], file);
+  }
 });
 
 test('imported producers need exact source identity and a proven native join return leaf [C7]', () => {
