@@ -6,6 +6,7 @@ import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { selectRegistryGuards } from '../src/registry-guards.js';
 import { configFromSource } from '../src/config.js';
+import { git } from '../src/git.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -130,7 +131,45 @@ test('registry policy validates paths and selects deleted and renamed inputs con
   assert.deepEqual(selectRegistryGuards(box.web, rules, { base, changed: ['web/unrelated.js'] }), []);
   box.git(box.web, 'mv', 'src/moves/known.js', 'web/renamed.js');
   commit(box, box.web, 'chore: rename the fixture move out of its registry');
-  assert.deepEqual(selectRegistryGuards(box.web, rules, { base }), ['test/relay-credential.test.js']);
+  assert.deepEqual(selectRegistryGuards(box.web, rules, { base, git }), ['test/relay-credential.test.js']);
+  assert.deepEqual(selectRegistryGuards(box.web, rules, { trunk: 'main', changed: ['web/unrelated.js'], git }),
+    ['test/relay-credential.test.js'], 'the real trunk merge base overrides caller-supplied changes');
+  const renamedOut = box.git(box.web, 'rev-parse', 'HEAD').trim();
+  box.git(box.web, 'mv', 'web/renamed.js', 'src/moves/renamed.js');
+  commit(box, box.web, 'chore: rename the fixture move into its registry');
+  assert.deepEqual(selectRegistryGuards(box.web, rules, { base: renamedOut, git }), ['test/relay-credential.test.js']);
+  const beforeDelete = box.git(box.web, 'rev-parse', 'HEAD').trim();
+  box.git(box.web, 'rm', 'src/moves/renamed.js');
+  commit(box, box.web, 'chore: delete the fixture registry input');
+  assert.deepEqual(selectRegistryGuards(box.web, rules, { base: beforeDelete, git }), ['test/relay-credential.test.js']);
   assert.deepEqual(selectRegistryGuards(box.web, rules, { base, changed: ['src/moves/deleted.js'] }), ['test/relay-credential.test.js']);
   assert.deepEqual(selectRegistryGuards(box.web, rules), ['test/relay-credential.test.js'], 'an unknown base retains every obligation');
+});
+
+
+test('registry selection uses the explicit caller Git port and never queries for supplied changes or uncertainty [C7,D3]', () => {
+  const rules = [{ inputs: ['src/moves/**'], tests: ['test/registry.test.js'] }];
+  const calls = [];
+  const provider = (root, args) => {
+    calls.push({ root, args });
+    if (args[0] === 'merge-base') return 'base\n';
+    if (args[0] === 'rev-parse') return 'head\n';
+    assert.deepEqual(args, ['diff', '--no-renames', '--name-only', '-z', 'base', 'tip']);
+    return 'src/moves/deleted.js\0web/renamed.js\0';
+  };
+  assert.deepEqual(selectRegistryGuards('/fixture', rules, {
+    trunk: 'accepted', commit: 'tip', changed: ['web/irrelevant.js'], git: provider,
+  }), ['test/registry.test.js']);
+  assert.deepEqual(calls, [
+    { root: '/fixture', args: ['merge-base', 'accepted', 'tip'] },
+    { root: '/fixture', args: ['rev-parse', '--verify', 'tip^{commit}'] },
+    { root: '/fixture', args: ['diff', '--no-renames', '--name-only', '-z', 'base', 'tip'] },
+  ], 'trunk selection recomputes committed changes through the supplied provider');
+  const forbidden = () => { throw new Error('no Git query is needed'); };
+  assert.deepEqual(selectRegistryGuards('/fixture', rules, { base: 'base', changed: ['web/irrelevant.js'], git: forbidden }), []);
+  assert.deepEqual(selectRegistryGuards('/fixture', rules, { git: forbidden }), ['test/registry.test.js']);
+  assert.deepEqual(selectRegistryGuards('/fixture', [], { base: 'base', git: forbidden }), []);
+  const failure = new Error('the caller Git operation refused');
+  assert.throws(() => selectRegistryGuards('/fixture', rules, { base: 'base', git: () => { throw failure; } }),
+    error => error === failure, 'provider failures propagate unchanged');
 });
