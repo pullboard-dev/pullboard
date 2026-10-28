@@ -14,8 +14,8 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { fixtureBoard } from './board-fixture.js';
 import { eventMetrics } from '../bin/case-study/events.js';
 import { commitFixtureFiles } from './package-copy-fixture.js';
-import { COLLECTION_REPORT_PREFIX } from '../src/landing-collection-report.js';
-import { formatCollectionReport } from '../src/landing-collection-report.js';
+import { COLLECTION_REPORT_PREFIX } from '../src/gate-run-receipt.js';
+import { formatCollectionReport } from '../src/gate-run-receipt.js';
 import { randomUUID } from 'node:crypto';
 import * as store from '../src/board.js';
 
