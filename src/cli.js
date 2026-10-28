@@ -1306,9 +1306,9 @@ export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   if (ctx.submissionResult) ctx.submissionResult.value = submission;
   try {
     const { deliverActivity, activityDeliveryLines } = await import('./activity-delivery-cli.js');
-    const delivery = await deliverActivity(ctx, { afterSubmit: true, directShouts: false });
+    const delivery = await deliverActivity(ctx, { afterSubmit: true, directShouts: false }, { agentDisplayName, evidenceLine, ordered, whoAmI, withBoard });
     submission.activity = { ...delivery.activity, budget: delivery.budget };
-    for (const line of activityDeliveryLines(delivery, ctx.config)) ctx.io.say(line);
+    for (const line of activityDeliveryLines(delivery, ctx.config, { agentDisplayName, evidenceLine })) ctx.io.say(line);
   } catch (error) {
     submission.activity = { receipt: { recorded: false, code: error.code ?? 'ACTIVITY_DELIVERY_FAILED', message: error.message } };
     ctx.io.err(`submitted #${id}, but its activity delivery failed: ${error.message}; read pullboard inbox to retry delivery`);

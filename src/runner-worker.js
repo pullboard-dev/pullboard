@@ -42,6 +42,8 @@ import {
 import { fileURLToPath } from 'node:url';
 import * as resourceApi from './resources.js';
 import { createDescendantTracker } from './runner-custody.js';
+import { pinSourceCacheJob } from './runner-source-cache.js';
+import { pruneSourceCache } from './runner-source-cache.js';
 import { Refused } from './refused.js';
 import { guiSession } from './gui-session.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
@@ -552,6 +554,10 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
       || existsSync(join(cache, 'shallow')) || existsSync(join(cache, 'objects', 'info', 'alternates'))) {
       throw new Error('source history cache has an incompatible format');
     }
+    const roots = [...new Set([spec.commit, ...(spec.trunk ? [spec.trunk.commit] : []), ...(spec.trustedMode ? [spec.trustedMode.policyCommit, spec.trustedMode.trunk.commit] : [])])];
+    /** Log exact ref deletions without reporting candidate source or credentials. */
+    const logPrune = result => process.stderr.write(`PULLBOARD_RUNNER_CACHE_PRUNE ${spec.id} ${JSON.stringify(result)}\n`);
+    await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune });
     const refLines = await git(cache, ['for-each-ref', '--format=%(refname) %(objectname)', 'refs/pullboard/candidates', 'refs/pullboard/published'], env);
     const tips = [];
     if (refLines) for (const line of refLines.split(/\r?\n/u)) {
@@ -597,7 +603,6 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     const candidateHistory = new Set((await git(cache, ['rev-list', spec.commit], env)).split(/\r?\n/u).filter(Boolean));
     if (!candidateHistory.size) throw new Error('source history is incomplete');
     if (spec.originBase) await git(cache, ['merge-base', '--is-ancestor', spec.originBase, spec.commit], env);
-    const roots = [...new Set([spec.commit, ...(spec.trunk ? [spec.trunk.commit] : []), ...(spec.trustedMode ? [spec.trustedMode.policyCommit, spec.trustedMode.trunk.commit] : [])])];
     for (const commit of roots) {
       if (await git(cache, ['cat-file', '-t', commit], env) !== 'commit') throw new Error('trusted policy history is incomplete');
     }
@@ -649,6 +654,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
       if (!candidateHistory.has(tag.peeledCommit)) throw new Error('source tag is not an ancestor of the candidate');
     }
     for (const commit of roots) await git(cache, ['update-ref', `refs/pullboard/candidates/${commit}`, commit], env);
+    await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune });
     await git(root, ['init', '-q', `--object-format=${spec.commit.length === 64 ? 'sha256' : 'sha1'}`], env);
     await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, `refs/pullboard/candidates/${spec.commit}`], env);
     await git(root, ['checkout', '--detach', 'FETCH_HEAD'], env);
@@ -1001,6 +1007,7 @@ async function main() {
     mkdirSync(root, { mode: 0o700 }); mkdirSync(privateHome, { mode: 0o700 }); mkdirSync(temporary, { mode: 0o700 });
     writeFileSync(join(privateHome, 'npm-userconfig'), '', { mode: 0o600 });
     writeFileSync(join(privateHome, 'npm-globalconfig'), '', { mode: 0o600 });
+    pinSourceCacheJob(runDirectory, spec);
     const packFile = join(runDirectory, 'source.pack');
     setupStep = 'runner gate admission';
     phases.mark('capacityWaitMs');
