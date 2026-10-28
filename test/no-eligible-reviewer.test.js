@@ -96,3 +96,17 @@ test('the sentinel names an already-submitted strict item that became unreviewab
   assert.ok(found, 'crediting a claude companion leaves no reviewer');
   assert.ok(found.why.includes('builder core-1 (openai)') && found.why.includes('companion author core-2 (claude)'), found.why);
 });
+
+const PATCH = 'diff --git a/x.txt b/x.txt\nnew file mode 100644\n--- /dev/null\n+++ b/x.txt\n@@ -0,0 +1 @@\n+x\n';
+/** Attach a coordinator companion patch credited to one author, exactly as the native move receives it. */
+const attach = (f, id, key, author) => store.attachItemPatch(f.board, id, { agentId: 'coordinator', key, commit: 'c'.repeat(40), patch: PATCH, author, presubmit: true });
+
+test('attaching a Claude-credited companion to a claimed OpenAI-built strict item is refused and changes nothing [C7,V4]', t => {
+  const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b'], ['core-3', 'claude', 'c'], ['core-4', 'openai', 'd']]);
+  const id = f.claimed('core-1');
+  const before = store.events(f.board);
+  assert.throws(() => attach(f, id, 'companion', 'core-2'), error => error.code === 'NO_ELIGIBLE_REVIEWER'
+    && error.message.includes('builder core-1 (openai)') && error.message.includes('companion author core-2 (claude)'));
+  assert.deepEqual(store.events(f.board), before, 'the refused attach recorded nothing');
+  assert.equal(attach(f, id, 'companion', 'core-4').changed, true, 'an OpenAI-credited companion still attaches');
+});
