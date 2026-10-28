@@ -112,7 +112,6 @@ export function pageRenderScript() {
   if ($('add-lane').dataset.lanes !== filing.join()) {
     $('add-lane').dataset.lanes = filing.join();
     $('add-lane').innerHTML = filing.map((l) => '<option>' + esc(l) + '</option>').join('');
-    $('hold-lane').innerHTML = working.map((l) => '<option>' + esc(l) + '</option>').join('');
   }
   const approved = p.spec.filter((r) => r.status === 'approved');
   $('add-specs').placeholder = (approved.length ? approved : p.spec).slice(0, 2).map((r) => r.id).join(',') || 'none yet';
@@ -251,6 +250,10 @@ export function pageRenderScript() {
   }
 
   if (view.tab === 'shouts') {
+  if ($('hold-lane').dataset.lanes !== working.join()) {
+    $('hold-lane').dataset.lanes = working.join();
+    $('hold-lane').innerHTML = working.map(lane => '<option>' + esc(lane) + '</option>').join('');
+  }
   // Every #id in a shout that names an item opens it, whatever stands next to it. The ids are found in
   // the raw text and each piece is escaped on its own, so an apostrophe's &#39; is never read as one;
   // a number that names no item stays text. A path:lines@commit reference opens that code (B23). It
