@@ -1,6 +1,9 @@
 /** Real native companion mutations pass the complete HTTP/pinned API2 projection oracle [V4,H16,A2]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { git } from '../src/git.js';
 import { itemPatchAuthors } from '../src/item-patch-state.js';
 
@@ -49,4 +52,48 @@ export async function seedItemPatches({ board, box, store, exercise, agent, clai
   assert.ok(store.events(board, { itemId: item }).some(entry => entry.event_kind === 'item_patch_remove'));
   assert.equal(store.getItem(board, item).item_status, 'submitted');
   assert.equal(store.getItem(board, item).item_commit, commit, 'patch lifecycle never rewrites submitted source');
+  await seedPatchFollow({ board, box, store, exercise, claim, commit, tree, patch, digest });
+}
+
+/** Follow real ancestor-bound bytes from a clean registered private Git worktree, then compare every reader field. */
+async function seedPatchFollow({ board, box, store, exercise, claim, commit, tree, patch, digest }) {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-parity-follow-'));
+  const root = join(directory, 'builder');
+  // A real descendant object is private fixture input, like the existing source-advance recipe.
+  const moved = git(box.root, ['commit-tree', tree, '-p', commit, '-m', 'fixture: advance parity companion source']);
+  git(box.root, ['worktree', 'add', '--detach', root, moved]);
+  try {
+    const builder = store.register(board, { lane: box.lane, path: root, family: 'Fixture Parity Follow Builder Vendor' });
+    const item = store.addItem(board, { by: 'coordinator', lane: box.lane, title: 'Native companion follow parity',
+      criterion: 'A genuine claimed companion follows its clean registered builder head through the complete reader oracle.' });
+    store.claim(board, item, { ...claim, agentId: builder });
+    store.attachItemPatch(board, item, { agentId: 'coordinator', key: 'reader-parity-follow',
+      commit, patch, author: 'coordinator' });
+    const before = store.itemPatches(board, item)[0];
+    const authors = itemPatchAuthors(board, item);
+    const owned = store.getItem(board, item);
+    const followed = await exercise('followItemPatches', () => store.followItemPatches(board, item, { agentId: builder, commit: moved }));
+    assert.equal(followed?.changed, true, 'an actual binding mutation is required for follow parity');
+    const after = store.itemPatches(board, item)[0];
+    assert.equal(after.commit, moved);
+    assert.deepEqual(after.source, { commit: moved });
+    assert.equal(after.attachedCommit, commit);
+    assert.equal(after.patch, patch);
+    assert.equal(after.digest, digest);
+    assert.deepEqual(after.author, before.author);
+    assert.deepEqual(itemPatchAuthors(board, item), authors);
+    const event = store.events(board, { itemId: item }).findLast(entry => entry.event_kind === 'item_patch_follow');
+    assert.ok(event, 'follow has a genuine native event and complete reader comparison');
+    assert.deepEqual(JSON.parse(event.event_detail).patches, [{ key: before.key, oldHead: commit, newHead: moved, hash: digest }]);
+    const retained = store.getItem(board, item);
+    assert.equal(retained.item_status, 'claimed');
+    assert.equal(retained.item_owner, builder);
+    assert.equal(retained.item_lease_until, owned.item_lease_until);
+    assert.equal(retained.item_commit, owned.item_commit, 'following companion metadata never submits or rewrites item source');
+    assert.equal(git(root, ['rev-parse', 'HEAD']), moved);
+    assert.equal(git(root, ['status', '--porcelain']), '');
+  } finally {
+    try { git(box.root, ['worktree', 'remove', '--force', root]); }
+    finally { rmSync(directory, { recursive: true, force: true }); }
+  }
 }
