@@ -1,5 +1,7 @@
 import { proofSourceAt } from './gate-observation.js';
 import { testValueProfile } from './gate-observation.js';
+import { gitChildEnv } from './git.js';
+import { invalidateGitFacts } from './git.js';
 /** Concern-specific gate stage; public callers keep the gate facade. */
 import {
   TIMING_RUN_ID_ENV,
