@@ -10,12 +10,12 @@ const DIRECTORIES = ['relay/', 'bin/', '.githooks/', '.husky/', '.github/workflo
   'test/gate/', 'test/auth/', 'test/relay/', 'test/kernel/', 'test/landing/', 'test/runner/'];
 const FILES = new Set(['package.json', 'package-lock.json', 'pullboard.json', 'src/config.js', 'src/cli.js', 'src/cli-main.js',
   'test/lane-bypass.test.js', 'test/trunk.test.js', 'test/evidence.test.js', 'test/retention-prune.test.js',
-  'test/approved-row-changes.test.js', 'test/row-decisions.test.js', 'test/qr.test.js']);
+  'test/approved-row-changes.test.js', 'test/row-decisions.test.js', 'test/qr.test.js', 'test/selection-fallbacks.test.js']);
 const FAMILIES = [
   'gate', 'source-advance', 'flake', 'flakes', 'native-flake', 'native-flakes', 'ci-flake', 'ci-flakes', 'quarantine',
-  'test', 'tap-tests', 'perf-budgets', 'timing', 'timed-shell', 'runner', 'runners', 'remote', 'hook', 'hooks',
+  'test', 'tap-tests', 'perf-budgets', 'timing', 'timed-shell', 'runner', 'runners', 'run', 'remote', 'hook', 'hooks',
   'module-imports', 'static-import-style', 'affected-tests', 'audit-coverage', 'main-audit', 'main-red', 'main-failure-matches',
-  'known-main', 'review', 'next', 'queue', 'line-capacity', 'route-escalation', 'item-authors', 'item-patch',
+  'known-main', 'review', 'next', 'queue', 'line', 'route', 'item-authors', 'item-sessions', 'item-patch',
   'required-review-family', 'verdict', 'verify', 'merge-only', 'landing', 'land', 'train', 'mechanical-merge',
   'trunk-conflict', 'computed-conflict', 'receipt', 'proof', 'pre-push', 'push-receipt', 'push-native', 'release-gate',
   'submit', 'submission', 'browser', 'gui', 'cpu', 'resources', 'chrome', 'child-journal', 'shell-run',

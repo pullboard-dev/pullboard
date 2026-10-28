@@ -42,7 +42,7 @@ function fixture(t) {
 }
 
 test('every gate-judgment source family is Strict while docs and unrelated view code stay Standard [V4,B26]', () => {
-  for (const path of ['src/quarantine.js', 'test/lane-bypass.test.js', 'test/resources.test.js', 'src/source-advance.js', 'src/flakes.js', 'src/ci-flakes.js', 'src/native-flakes.js',
+  for (const path of ['src/quarantine.js', 'src/line-settings.js', 'test/run-tests.test.js', 'test/selection-fallbacks.test.js', 'test/lane-bypass.test.js', 'test/resources.test.js', 'src/source-advance.js', 'src/flakes.js', 'src/ci-flakes.js', 'src/native-flakes.js',
     'src/test-result-store.js', 'src/affected-tests.js', 'src/test-selection.js', 'src/submit-admission.js',
     'src/tap-tests.js', 'src/runner-work-spec.js', 'src/remote-gate.js', 'src/line-capacity.js',
     'src/known-main-reworks.js', 'src/review-eligibility.js', 'src/verdict-admission.js', 'src/landing-test-policy.js',
