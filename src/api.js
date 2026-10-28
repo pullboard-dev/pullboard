@@ -81,7 +81,7 @@ import { performanceCores } from './gate.js';
 import {
   defaultViewPort,
   DEFAULT_VIEW_PORT,
-} from './view-port.js';
+} from './config.js';
 import { moveArgs } from './api-moves.js';
 import { personRequestStatuses } from './relay-requests.js';
 import { relayCanaryNeeds } from './relay-canary-needs.js';

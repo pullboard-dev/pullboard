@@ -227,7 +227,7 @@ import {
   parseImplies,
   takeDecisionNotices,
 } from './implies.js';
-import { defaultViewPort } from './view-port.js';
+import { defaultViewPort } from './config.js';
 export { VERSION };
 import { productProblems } from './products.js';
 import {
