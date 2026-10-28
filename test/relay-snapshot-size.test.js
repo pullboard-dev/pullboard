@@ -143,6 +143,13 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
   });
   const encodedKey = readFileSync(box.keyFile, 'utf8').trim();
   await chrome.navigate(box.origin + '/#board=' + sourceState.board + '&key=' + encodedKey);
+  await chrome.waitFor('location.origin === ' + JSON.stringify(box.origin) + ' && document.readyState === "complete"');
+  assert.deepEqual(await chrome.evaluate(`(async () => {
+    const { Refused } = await import('/relay/refused.js');
+    const refusal = new Refused('BROWSER_CONTROL', 'module loaded', 'recover here');
+    return { name: refusal.name, code: refusal.code, message: refusal.message, next: refusal.next };
+  })()`), { name: 'Refused', code: 'BROWSER_CONTROL', message: '[BROWSER_CONTROL] module loaded', next: 'recover here' },
+  'the actual served refusal module loads its complete browser dependency graph and retains its constructor contract');
   try {
     await chrome.waitFor("document.querySelector('#chain')?.textContent.includes('legacy snapshot cursor')");
   } catch (error) {
@@ -190,11 +197,21 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
 
   // The actual Chrome client reads that same compressed checkpoint and renders the full shout text.
   sourceState = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const previousDocument = await chrome.evaluate('performance.timeOrigin');
   await chrome.navigate(box.origin);
+  // The feed renders when its native tab is selected, rather than while Items is open.
+  await chrome.waitFor('performance.timeOrigin !== ' + JSON.stringify(previousDocument)
+    + ' && document.readyState === "complete" && typeof data === "object" && !!data?.project && addressReady'
+    + ' && data.project.root === ' + JSON.stringify(sourceState.board)
+    + ' && data.root === view.root && view.root === ' + JSON.stringify(sourceState.board)
+    + ' && !document.body.classList.contains("loading")');
+  await chrome.evaluate("document.querySelector('[data-tab=shouts]').click(); true");
+  assert.equal(await chrome.evaluate("document.querySelector('[data-tab=shouts]').classList.contains('on') && !document.querySelector('[data-pane=shouts]').hidden"),
+    true, 'the native Shouts selection is active on the newly loaded board');
   try {
     await chrome.waitFor("document.querySelector('#feed')?.textContent.includes(" + JSON.stringify(marker) + ") || document.querySelector('#relay-notice')?.textContent.includes('Could not open this board with its saved key')");
   } catch (error) {
-    t.diagnostic('compressed browser read: ' + JSON.stringify(await chrome.evaluate("({ title: document.title, notice: document.querySelector('#relay-notice')?.textContent.slice(0, 800), signIn: document.body.textContent.includes('Sign in with GitHub'), hasMarker: document.body.textContent.includes('COMPRESSED_RELAY_SNAPSHOT_EXACT_340_') })")));
+    t.diagnostic('compressed browser read: ' + JSON.stringify(await chrome.evaluate("({ title: document.title, notice: document.querySelector('#relay-notice')?.textContent.slice(0, 800), signIn: document.body.textContent.includes('Sign in with GitHub'), hasMarker: document.body.textContent.includes('COMPRESSED_RELAY_SNAPSHOT_EXACT_340_'), selectedShouts: document.querySelector('[data-tab=shouts]')?.classList.contains('on') === true, paneVisible: document.querySelector('[data-pane=shouts]')?.hidden === false, addressReady: typeof addressReady !== 'undefined' && addressReady, boardReady: typeof data === 'object' && !!data?.project && data.root === view.root })")));
     throw error;
   }
   assert.equal(await chrome.evaluate("document.querySelector('#feed')?.textContent.includes(" + JSON.stringify(marker) + ') ?? false'), true, 'the production browser decoder reads the compressed checkpoint');
