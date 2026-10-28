@@ -97,12 +97,20 @@ export async function measureTabSpeed(board) {
     await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: observationScript() });
     await chrome.navigate(server.link.href);
     await chrome.waitFor("!!data?.project && !document.body.classList.contains('loading')");
-    await chrome.stable(inputScript());
+    await chrome.stable(inputScript(), "document.querySelector('[data-tab=spec]')");
     for (const repeat of [false, true]) {
       for (const tab of ['spec', 'doctrine', 'items', 'roadmap', 'dashboard']) {
-        await chrome.stable(`window.__tabSpeed.next = { repeat: ${repeat} }`);
+        await chrome.stable(`window.__tabSpeed.next = { repeat: ${repeat} }`, `document.querySelector('[data-tab="${tab}"]')`);
         await press(chrome, `document.querySelector('[data-tab="${tab}"]')`);
-        await chrome.waitFor(`window.__tabSpeed.actions.at(-1)?.tab === '${tab}' && typeof window.__tabSpeed.actions.at(-1)?.ready === 'boolean'`);
+        await chrome.stable(`(async () => {
+          const deadline = performance.now() + 60000;
+          while (performance.now() < deadline) {
+            const sample = window.__tabSpeed.actions.at(-1);
+            if (sample?.tab === '${tab}' && typeof sample.ready === 'boolean') return;
+            await new Promise(requestAnimationFrame);
+          }
+          throw new Error('the native tab measurement did not settle');
+        })()`, `document.querySelector('[data-tab="${tab}"]')`);
       }
     }
     return await chrome.stable(`({ ...window.__tabSpeed, next: undefined,
