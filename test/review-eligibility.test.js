@@ -481,3 +481,24 @@ test('aliases and the strict builder rule apply only from their engine; an older
   store.claim(older.board, strictId, { agentId: 'core-8', lane: 'core', leaseMs: LEASE, freeze });
   assert.doesNotThrow(() => submitFixture(older.board, strictId, { agentId: 'core-8', commit: 'c'.repeat(40), tree: 'd'.repeat(40) }));
 });
+
+test('at engine 148 a differently cased family is another vendor; only the alias engine folds case [C7,V4,B26,H16]', t => {
+  const f = fixture(t, { requireFamilies: false });
+  joinSeat(f.board, 'core-9', 'CODEX', '9');
+  const id = f.add(), item = f.submit(id);
+  const options = { agentId: 'core-9', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'require' };
+  f.board.executionEngineVersion = REVIEW_INDEPENDENCE_ENGINE;
+  assert.ok(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-9'), 'engine 148 compared the declared labels exactly: codex and CODEX differ');
+  delete f.board.executionEngineVersion;
+  const current = reviewEligibility(f.board, item, { familyPolicy: 'require' });
+  assert.equal(current.eligible.includes('core-9'), false, 'the current engine folds case into one family');
+  assert.ok(current.ineligible.some(row => row.agent === 'core-9' && row.code === 'O2_FAMILY_MATCH'));
+  assert.throws(() => store.reserveReview(f.board, id, options), { code: 'O2_FAMILY_MATCH' });
+  f.board.executionEngineVersion = REVIEW_INDEPENDENCE_ENGINE;
+  assert.equal(store.reserveReview(f.board, id, options).item_review_by, 'core-9', 'the same reservation still records under engine 148');
+  const waiting = fixture(t, { requireFamilies: false }), same = waiting.add();
+  joinSeat(waiting.board, 'core-9', 'CODEX', '9');
+  waiting.submit(same);
+  waiting.board.executionEngineVersion = REVIEW_INDEPENDENCE_ENGINE;
+  assert.equal(store.reserveNextReview(waiting.board, { ...options, familyPolicy: 'require' }).item?.item_id, same, 'selection at engine 148 offers the codex item to a CODEX seat');
+});

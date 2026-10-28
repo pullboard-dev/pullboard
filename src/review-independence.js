@@ -8,6 +8,7 @@ import { validateReviewFamily } from './required-review-family.js';
 import { Refused } from './refused.js';
 import { familyName } from './review-policy.js';
 import { familyAliasesOf } from './review-policy.js';
+import { familiesDiffer } from './review-policy.js';
 import { itemReviewPolicy } from './review-policy.js';
 import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
 export { itemReviewPolicy } from './review-policy.js';
@@ -86,7 +87,7 @@ export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off')
     return new Refused('O2_FAMILY_MATCH', 'this board requires declared vendor families for fresh reviews; declare --family when starting each seat, then resubmit if the submitted builder family was unknown');
   }
   // One canonical family per declared spelling [#1762]; the comparison stays case-insensitive.
-  if (familyPolicy === 'require' && (!family || !builder || family === builder)) {
+  if (familyPolicy === 'require' && !familiesDiffer(board, declared, item.item_builder_family)) {
     return new Refused('O2_FAMILY_MATCH', `#${item.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`);
   }
   if (policy.reviewFamily && family !== familyName(policy.reviewFamily, familyAliasesOf(board))) {

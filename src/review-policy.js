@@ -16,8 +16,20 @@ export function familyIndex(families) {
 }
 
 /** The alias index applies only at or above its engine, so sealed older moves keep the comparison they were recorded under [#1762]. */
+export function aliasEngineOn(board) {
+  return (board.executionEngineVersion ?? ENGINE_VERSION) >= FAMILY_ALIAS_ENGINE;
+}
+
+/** The explicit alias index, or null below its engine so older recorded moves compare as they did [#1762]. */
 export function familyAliasesOf(board) {
-  return (board.executionEngineVersion ?? ENGINE_VERSION) >= FAMILY_ALIAS_ENGINE ? board.familyAliases ?? null : null;
+  return aliasEngineOn(board) ? board.familyAliases ?? null : null;
+}
+
+/** Both families are declared and differ; below the alias engine this is the original raw-label comparison, byte for byte [#1762]. */
+export function familiesDiffer(board, first, second) {
+  if (!aliasEngineOn(board)) return Boolean(first && second && first !== second);
+  const left = familyName(first, board.familyAliases), right = familyName(second, board.familyAliases);
+  return Boolean(left && right && left !== right);
 }
 
 /** A declared vendor label is compared as text, never inferred from a model or diagnostic; only the explicit alias index maps spellings to one family. */
