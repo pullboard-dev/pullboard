@@ -1,5 +1,5 @@
-/** @pullboard-test-gui */
 /** @pullboard-test-input source-tree */
+/** @pullboard-test-gui */
 /** @pullboard-test-input src/view.css */
 /** Shared rows preserve accepted variants and provide native in-place expansion [N26]. */
 import assert from 'node:assert/strict';
