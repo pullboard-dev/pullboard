@@ -276,8 +276,11 @@ test('opening an older board names and logs its genuine index-building write [C7
   assert.equal(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-dir'),
     box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'));
   assert.equal(readFileSync(privateBin, 'utf8'), readFileSync(BIN, 'utf8'));
-  const installedGit = mappedWorkingSource(installed, 'src/git.js');
   const sourceGit = mappedWorkingSource(resolve(import.meta.dirname, '..'), 'src/git.js');
+  const installedGit = {
+    body: readFileSync(join(installed, sourceGit.implementationPath)),
+    shimBody: sourceGit.shimBody === null ? null : readFileSync(join(installed, sourceGit.shimPath)),
+  };
   assert.deepEqual(installedGit.body, sourceGit.body, 'the installed implementation retains exact source Buffer bytes');
   assert.deepEqual(installedGit.shimBody, sourceGit.shimBody, 'the installed compatibility shim retains exact source bytes');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
