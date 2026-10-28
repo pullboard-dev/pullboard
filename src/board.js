@@ -1,3 +1,8 @@
+import { requireSourceAdvanceReview } from './source-advance-state.js';
+import { SOURCE_ADVANCE_ENGINE } from './source-advance-engine.js';
+import { sourceAdvanceReturnProblem } from './source-advance-return.js';
+import { sealSourceAdvanceReturn } from './source-advance-origin.js';
+export { advanceItemSource } from './source-advance.js';
 import * as reviewRouting from './review-routing.js';
 import { reviewFamilyProblem } from './review-independence.js';
 import { reviewPolicyChange } from './review-independence.js';
@@ -1390,12 +1395,13 @@ function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'of
  * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
  * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', cause, head, digest, policy, familyPolicy = 'off', check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox }) {
+export function verify(board, id, { agentId, decision, reason, note = '', cause, head, digest, policy, familyPolicy = 'off', check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
   const code = isAccept ? ACCEPT_REASON : reason;
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  if (sourceAdvanceHead !== undefined && engine < SOURCE_ADVANCE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before binding a verdict to an automatically advanced source');
   landingEnvironment.requireVerdict(board, environment);
   const declaration = MOVES.find(move => move.verb === verb);
   const newReview = engine >= VERDICT_REVIEW_ENGINE && review !== undefined;
@@ -1403,6 +1409,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
   const transition = newReview ? declaration : { ...declaration, from: ['submitted'],
     guards: declaration.guards.filter(guard => !['notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent'].includes(guard)) };
   return atomic(board, () => {
+    if (engine >= SOURCE_ADVANCE_ENGINE) requireSourceAdvanceReview(board, getItem(board, id), sourceAdvanceHead);
     const item = moveItem(board, id, verb, {
       transition,
       checks: {
@@ -1464,8 +1471,13 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
  * @param {{ agentId: string, note: string, cause?: string, withdrawVerdict?: boolean }} request
  * @returns {{ id: number, commit: string, supersedes?: number, landingFailure?: object }}
  */
-export function reopen(board, id, { agentId, note = '', conflict, cause, reopenFirstRefusalMinutes, quotedLandingFailure, withdrawVerdict, computedConflict }) {
+export function reopen(board, id, { agentId, note = '', conflict, cause, reopenFirstRefusalMinutes, quotedLandingFailure, withdrawVerdict, computedConflict, sourceAdvanceReturn }) {
   return atomic(board, () => {
+    if (sourceAdvanceReturn !== undefined) {
+      if (board.executionEngineVersion === undefined) ({ note, conflict, quotedLandingFailure, sourceAdvanceReturn } = sealSourceAdvanceReturn(board, id, { agentId, sourceAdvanceReturn }));
+      const problem = sourceAdvanceReturnProblem(board, getItem(board, id), { agentId, note, conflict, quotedLandingFailure, sourceAdvanceReturn });
+      if (problem) throw problem;
+    }
     let submittedCommit = null;
     const assertedConflict = conflict;
     conflict = computedConflictEvidence.conflictValue(computedConflict, conflict);
@@ -1532,7 +1544,7 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
     const derivedCause = currentEngine >= RIGOR_AUTO_ENGINE
       ? deriveRigorCause(board, item, { cause, conflict, landingFailure, agentId }) : cause != null ? { cause } : {};
     const returnedWithCause = currentEngine >= RIGOR_AUTO_ENGINE ? { ...returned, ...derivedCause } : { ...derivedCause, ...returned };
-    const trigger = logEvent(board, agentId, 'reopen', id, { commit: submittedCommit, note: note.trim() || conflictNote(conflict), judgment: null, ...reservation,
+    const trigger = logEvent(board, agentId, 'reopen', id, { ...(sourceAdvanceReturn ? { sourceAdvanceReturn } : {}), commit: submittedCommit, note: note.trim() || conflictNote(conflict), judgment: null, ...reservation,
       ...returnedWithCause }, returnedAt);
     tellFirstRefusal(board, item, reservation, persistShout);
     if (!reservation.reopenFirstRefusal && forMerge && supersedes === undefined && item.item_built_by) persistShout(board, { from: agentId, to: item.item_built_by, text: returnedHeadNotice(id, submittedCommit, conflict) });

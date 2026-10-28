@@ -1,3 +1,4 @@
+import { effectiveItemHead } from './source-advance-state.js';
 /** Compose native companion inputs without granting their author another lane's authority [V4,H16]. */
 import { composeItemPatches } from './item-patch-compose.js';
 import { itemPatchPaths } from './item-patch-compose.js';
@@ -25,15 +26,22 @@ export function validateItemPatchInput(board, config, author, patch) {
 }
 
 /** Bind the admitted main, submitted source and exact native patch set into the checked commit. */
-export function prepareItemPatchReview(root, board, item) {
+export function prepareItemPatchReview(root, board, item, { mergeMain = true } = {}) {
   const digest = itemPatchDigest(board, item.item_id);
   const problem = itemPatchReviewProblem(board, item, digest);
   if (problem) throw problem;
-  const trunk = requireTrunkMerge(root, item.item_commit);
-  const baseCommit = contains(root, trunk.commit, item.item_commit) ? item.item_commit
+  const effective = effectiveItemHead(board, item);
+  if (effective) {
+    if (!mergeMain) return { commit: effective, paths: [], applied: [], digest, companionDigest: digest };
+    const trunk = requireTrunkMerge(root, effective);
+    const commit = contains(root, trunk.commit, effective) ? effective : retryReviewCommit(root, effective, trunk);
+    return { commit, paths: [], applied: [], digest, companionDigest: digest };
+  }
+  const trunk = mergeMain ? requireTrunkMerge(root, item.item_commit) : null;
+  const baseCommit = !trunk || contains(root, trunk.commit, item.item_commit) ? item.item_commit
     : retryReviewCommit(root, item.item_commit, trunk);
   const patches = itemPatches(board, item.item_id);
-  const composed = composeItemPatches(root, item, patches, { trunk: trunk.commit, baseCommit });
+  const composed = composeItemPatches(root, item, patches, { ...(trunk ? { trunk: trunk.commit } : {}), baseCommit });
   const config = itemPolicy(root, item).config;
   for (const applied of composed.applied) {
     const record = patches.find(patch => patch.key === applied.key);

@@ -1,3 +1,4 @@
+import { effectiveItemHead } from './source-advance-state.js';
 import { projectReviewFamily } from './required-review-family.js';
 import { withSeatPresence } from './seat-presence.js';
 import { projectItemDecisions } from './item-decision-queue.js';
@@ -113,10 +114,11 @@ export function getItem(board, id) {
     throw new Refused('ITEM_MOVED', `item #${id} moved to ${target.destinationHandle ?? target.destinationBoardId}#${target.destinationItemId}`);
   }
   const item = current(board, itemById(board, id));
+  const effectiveHead = effectiveItemHead(board, item);
   const baseline = itemCheckBaseline(board, item);
   const source = outsideSource(board, id);
   const rehome = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`rehome_import:${id}`);
-  return { ...item, ...(baseline ? { item_check_baseline: baseline } : {}), ...(source ? { outside: source } : {}),
+  return { ...item, ...(effectiveHead ? { item_effective_head: effectiveHead } : {}), ...(baseline ? { item_check_baseline: baseline } : {}), ...(source ? { outside: source } : {}),
     ...(rehome ? { item_rehome_import: JSON.parse(rehome.meta_value) } : {}) };
 }
 
