@@ -6,6 +6,7 @@ import { cellLintReport } from '../../src/cell-lints.js';
 import { readPathMap, mappedPath } from '../../src/path-map.js';
 import { Refused } from '../../src/refused.js';
 import { tryGit } from '../../src/git.js';
+import { lex } from '../../src/js-lex.js';
 
 /** Read the indexed plan without regenerating it or changing any ratchet. */
 function planAt(root) {
@@ -34,9 +35,17 @@ export function structureMetrics(root, { planRoot = root } = {}) {
     }
   }
   const lints = cellLintReport(root);
+  /** A move behind a transparent shim is complete even though removing that shim is still separate debt. */
+  function remainingBody(from, to) {
+    if (!existsSync(join(root, to))) return true;
+    if (!files.has(from)) return false;
+    if (!/\.[cm]?js$/u.test(from)) return true;
+    const code = lex(files.get(from).toString('utf8')).code.replace(/\s/gu, '');
+    return !/^(?:export(?:\*|\{[^}]*\})from(?:''|"");)+$/u.test(code);
+  }
   const counts = Object.fromEntries(Object.entries(lints.metrics).map(([name, metric]) => [name, metric.count]));
   const cells = plan.cells.map(cell => ({ name: cell.name, paths: cell.paths.length,
-    remaining: cell.paths.filter(([from, to]) => existsSync(join(root, from)) || !existsSync(join(root, to))).length,
+    remaining: cell.paths.filter(([from, to]) => remainingBody(from, to)).length,
     frontDoor: existsSync(join(root, cell.frontDoor)) }));
   const head = tryGit(root, ['rev-parse', 'HEAD']), tree = tryGit(root, ['rev-parse', 'HEAD^{tree}']);
   const status = tryGit(root, ['status', '--porcelain']);
@@ -46,7 +55,7 @@ export function structureMetrics(root, { planRoot = root } = {}) {
     cells: { total: cells.length, completed: cells.filter(cell => !cell.remaining && cell.frontDoor).length,
       remainingPaths: cells.reduce((sum, cell) => sum + cell.remaining, 0) },
     lints: counts, unresolvedImports: unknown.length, unownedProductionModules: unowned.size,
-    qualification: 'Import occurrences use physical non-test imports and committed plan ownership/order, including new files in cell roots. Unresolved loaders and unowned modules are reported, not proven absent. Lint cycles count physical package/app cycles; a flat source tree can have zero physical cycles while planned cuts remain.' };
+    qualification: 'Import occurrences use physical non-test imports and committed plan ownership/order, including new files in cell roots. A body moved behind a transparent shim counts as a completed move; shim removal remains separate measured debt. Unresolved loaders and unowned modules are reported, not proven absent. Lint cycles count physical package/app cycles; a flat source tree can have zero physical cycles while planned cuts remain.' };
 }
 
 /** A finished structure requires every planned move and actual debt to be gone, not a phase label. */

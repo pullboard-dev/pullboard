@@ -207,3 +207,14 @@ test('case study reads every SQLite event across collection and multiple bounded
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
   assert.deepEqual(JSON.parse(result.stdout), { n: entries.length });
 });
+
+test('case study counts a moved body separately from its remaining forwarding shim [C7,D3]', t => {
+  const { root } = fixture(t);
+  put(root, 'packages/a/src/core/a.js', 'export const a = 1;\n');
+  put(root, 'packages/a/index.js', 'export { a } from "./src/core/a.js";\n');
+  put(root, 'src/a.js', 'export * from "../packages/a/src/core/a.js";\n');
+  const structure = structureMetrics(root);
+  assert.equal(structure.cells.completed, 1);
+  assert.equal(structure.lints.shims, 1, 'completed move does not erase its shim debt');
+  assert.throws(() => requireFinishedStructure(structure), { code: 'CASE_STUDY_INCOMPLETE' });
+});
