@@ -2,7 +2,7 @@
  "version": 1,
  "item": 1473,
  "rfc": "docs/rfcs/0006-cells.md",
- "base": "9773142fae6366b8c6fd95c3284058365a8799e8",
+ "base": "103c952ea9bed6e8705ee1db27e187a69facdbaa",
  "seed": {
   "source": "pullboard-research/2026-10-26-cells/dryrun/raw/map.json",
   "sha256": "cfd97ccc7a130179d9166536653ffb96301bbb21f0c50d248b8aca4e4d53cb7e",
@@ -19,15 +19,15 @@
  },
  "totals": {
   "cells": 43,
-  "movedPaths": 1034,
+  "movedPaths": 1040,
   "stays": 20,
   "placedBy": {
    "seed": 893,
-   "rule": 119,
-   "imports": 22
+   "rule": 124,
+   "imports": 23
   },
-  "shims": 626,
-  "cutImports": 338,
+  "shims": 632,
+  "cutImports": 339,
   "cutEdges": 138
  },
  "cells": [

@@ -170,7 +170,7 @@
   {"cell":"person","imports":29,"before":true},
   {"cell":"commits","imports":14,"before":true},
   {"cell":"items","imports":36,"before":true},
-  {"cell":"merge","imports":6,"before":true},
+  {"cell":"merge","imports":7,"before":true},
   {"cell":"stats","imports":8,"before":true},
   {"cell":"verify","imports":31,"before":true},
   {"cell":"activity","imports":2,"before":true},
@@ -181,7 +181,7 @@
   {"cell":"api","imports":3,"before":true},
   {"cell":"outbox","imports":2,"before":true},
   {"cell":"gate","imports":36,"before":true},
-  {"cell":"runners","imports":4,"before":true},
+  {"cell":"runners","imports":6,"before":true},
   {"cell":"landing","imports":12,"before":true},
   {"cell":"sync","imports":4,"before":true},
   {"cell":"shouts","imports":2,"before":true},
@@ -191,7 +191,7 @@
   {"cell":"rigor","imports":7,"before":true},
   {"cell":"github","imports":5,"before":true},
   {"cell":"flakes","imports":7,"before":true},
-  {"cell":"app:view","imports":39,"before":true},
+  {"cell":"app:view","imports":43,"before":true},
   {"cell":"app:runner","imports":1,"before":true}
  ],
  "cuts": [
