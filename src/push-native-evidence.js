@@ -1,31 +1,22 @@
 /** Native, append-ordered push evidence; caller filing assertions are never authority [C7]. */
 import { createHash } from 'node:crypto';
 import { gitSpawnSync } from './git-adapter.js';
-import { getItem } from './board-query.js';
-import { COORDINATOR } from './config.js';
 import {
   git,
   gitChildEnv,
 } from './git.js';
-import {
-  boardReceiptStore,
-  readGateReceipt,
-  receiptBinds,
-} from './gate-run-receipt.js';
-import { landingBatches } from './landing-batch-history.js';
-import { gateRuns } from './quarantine.js';
+import { landingBatches } from './git-landing-batches.js';
 import { pushCommandDigest } from './pre-push-receipts.js';
-import { policyAt } from './trusted-policy-read.js';
 
 /**
  * Bind an ordered event to private bytes, source tree and its own pinned policy: ordinary landings name the
  * accepted main at execution; collection audits name the audited head. Today's command is not retroactive authority.
  */
-function boundRun(root, board, run) {
+function boundRun(root, board, run, { boardReceiptStore, readGateReceipt, receiptBinds, coordinator, policyAt }) {
   const store = boardReceiptStore(board);
   const receipt = readGateReceipt(store, run.id);
   if (!receipt || receipt.version !== 1 || receipt.kind !== 'land'
-    || run.by !== COORDINATOR || !receiptBinds(store, run)) return null;
+    || run.by !== coordinator || !receiptBinds(store, run)) return null;
   try {
     if (receipt.command !== pushCommandDigest(policyAt(root, receipt.main).config.gate)) return null;
     if (git(root, ['rev-parse', '--verify', `${receipt.head}^{tree}`]).trim() !== receipt.tree) return null;
@@ -34,7 +25,7 @@ function boundRun(root, board, run) {
 }
 
 /** Require an identified failure's native defect to bind the audited blob and a still-open repair item. */
-function filedFailure(root, board, audit, failure, defects) {
+function filedFailure(root, board, audit, failure, defects, getItem) {
   let bytes;
   let blob;
   try {
@@ -54,7 +45,7 @@ function filedFailure(root, board, audit, failure, defects) {
 }
 
 /** Read current native batches, runs and defect links; missing or incomplete evidence fails closed. */
-export function nativePushReceiptProblems(root, board, commits) {
+export function nativePushReceiptProblems(root, board, commits, ports) {
   const problems = [];
   const batches = landingBatches(board).filter(batch => batch.state === 'landed');
   const landedEvents = new Map();
@@ -62,10 +53,10 @@ export function nativePushReceiptProblems(root, board, commits) {
     const { batch } = JSON.parse(row.event_detail);
     if (batch.state === 'landed' && !landedEvents.has(batch.id)) landedEvents.set(batch.id, row.event_id);
   }
-  const runs = gateRuns(board);
+  const runs = ports.gateRuns(board);
   for (const commit of commits) {
     const covered = runs.some(run => {
-      const receipt = boundRun(root, board, run);
+      const receipt = boundRun(root, board, run, ports);
       return receipt?.green === true && receipt.head === commit
         && batches.some(batch => batch.tip === commit && batch.proof?.tree === receipt.tree
           && run.eventId < landedEvents.get(batch.id));
@@ -74,7 +65,7 @@ export function nativePushReceiptProblems(root, board, commits) {
   }
   // Choose the latest native collection event before validating it: never fall back to an older green audit.
   const latest = runs.filter(run => Object.hasOwn(run, 'collection')).at(-1);
-  const audit = latest && boundRun(root, board, latest);
+  const audit = latest && boundRun(root, board, latest, ports);
   const collection = audit?.collection;
   const batch = collection && batches.find(entry => entry.id === collection.batchId);
   if (!audit || !batch || batch.tip !== audit.head || batch.proof?.tree !== audit.tree
@@ -87,7 +78,7 @@ export function nativePushReceiptProblems(root, board, commits) {
     const defects = board.db.prepare("SELECT event_detail FROM event WHERE event_kind='landing-test-defect' ORDER BY event_id").all()
       .map(row => JSON.parse(row.event_detail).defect);
     for (const failure of audit.failures) {
-      if (!filedFailure(root, board, audit, failure, defects)) problems.push(`audit failure ${failure.file} :: ${failure.name} lacks a native open repair link`);
+      if (!filedFailure(root, board, audit, failure, defects, ports.getItem)) problems.push(`audit failure ${failure.file} :: ${failure.name} lacks a native open repair link`);
     }
   }
   return problems;

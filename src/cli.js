@@ -1673,7 +1673,7 @@ export function resourceAgent(ctx) {
 
 /** Keep the public queue adapter while its lease protocol lives in a bounded module. */
 export function queuedItemLease(ctx, initial, agentId, kind, admission = null) {
-  return createQueuedItemLease(ctx, initial, agentId, kind, admission);
+  return createQueuedItemLease(ctx, initial, agentId, kind, admission, { getItem: store.getItem, withBoard, ordered, claimFreezer });
 }
 
 /**
