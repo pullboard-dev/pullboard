@@ -1389,7 +1389,7 @@ export async function addBlueprint(ctx, board, me, blueprint, { report = true, r
   // Every bundled starter carries a check (#724), and only the coordinator sets one, so an agent's
   // add is refused with the step that works: add it from the coordinator's checkout.
   if (me.id !== COORDINATOR && starters.some(({ item }) => item.check !== undefined)) {
-    throw new Refused('COORDINATOR_CHECK', `the ${blueprint.name} blueprint's starter items carry checks, and only the coordinator sets an item check; run pullboard blueprint add from the main checkout, or ask your coordinator: pullboard shout coordinator "please add the ${blueprint.name} blueprint"`,
+    throw new Refused('COORDINATOR_CHECK', `the ${blueprint.name} blueprint's starter items carry checks, and only the coordinator sets an item check; run pullboard blueprint add from the main checkout, or ask your coordinator: pullboard shout coordinator --kind question "please add the ${blueprint.name} blueprint"`,
       'run the same pullboard blueprint add from the main checkout, where the coordinator works');
   }
   for (const { item } of starters) store.validateItemAddition(board, item);

@@ -95,7 +95,7 @@ test('the board stamps every proof receipt and show prints the chain [C7,H16]', 
   assert.equal(board.db.prepare('SELECT count(*) AS n FROM shout').get().n, before);
   const unspaced = box.run(box.web, 'shout', 'coordinator', 'x'.repeat(401), '--json');
   assert.equal(JSON.parse(unspaced.out).error.code, 'SHOUT_SPACES', 'the accepted readability rule remains enforced');
-  proofDocument(box.run(box.web, 'shout', 'coordinator', longText.slice(0, 400), '--json'));
+  proofDocument(box.run(box.web, 'shout', 'all', longText.slice(0, 400), '--json'));
 });
 
 /** A family emoji: five code points, eight UTF-16 units, one character to a reader. */

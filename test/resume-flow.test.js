@@ -463,12 +463,12 @@ test('resume shows the coordinator its unread shouts through the SessionStart ho
   const lane = Object.keys(JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')).lanes)[0];
   const joined = box.run(other, 'join', lane, '--model', 'Fixture');
   assert.equal(joined.status, 0, joined.failure || joined.stderr || joined.stdout);
-  const shouted = box.run(other, 'shout', 'coordinator', 'The hook shows this shout');
+  const shouted = box.run(other, 'shout', 'coordinator', 'Can the hook show this shout?', '--kind', 'question');
   assert.equal(shouted.status, 0, shouted.failure || shouted.stderr || shouted.stdout);
   const hook = runFixtureChild('sh', ['-c', RESUME_HOOK], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(hook.status, 0, hook.failure || hook.stderr || hook.stdout);
   assert.match(hook.stdout, /^inbox: 1 unread shout, 0 open decisions for you; read them with pullboard inbox$/mu, hook.stdout);
-  assert.match(hook.stdout, /^ {2}newest #\d+ from .+ \(\d+m ago\): The hook shows this shout$/mu, hook.stdout);
+  assert.match(hook.stdout, /^ {2}newest #\d+ from .+ \(\d+m ago\): Can the hook show this shout\?$/mu, hook.stdout);
 });
 
 test('spec draft adds draft rows and resume names them [N32]', t => {

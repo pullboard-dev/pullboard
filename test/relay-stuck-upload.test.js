@@ -70,7 +70,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
   const submitted = await box.cliAt(agentRoot, 'submit', String(item));
   assert.equal(submitted.code, 0, 'the linked agent submits locally while the baseline is refused');
   assertPaused(submitted.document);
-  const shouted = await box.cliAt(agentRoot, 'shout', 'coordinator', 'Relay pause fixture remains available');
+  const shouted = await box.cliAt(agentRoot, 'shout', 'all', 'Relay pause fixture remains available');
   assert.equal(shouted.code, 0, 'the linked agent shouts locally while the baseline is refused');
   assertPaused(shouted.document);
 
@@ -87,7 +87,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
     'the fresh baseline retains the local shout');
   assert.ok(baseline.document.tables.agent.some(row => row.agent_path === agentRoot),
     'the fresh baseline retains the locally enrolled agent');
-  const ordered = await box.cliAt(agentRoot, 'shout', 'coordinator', 'The relay baseline has resumed');
+  const ordered = await box.cliAt(agentRoot, 'shout', 'all', 'The relay baseline has resumed');
   assert.equal(ordered.code, 0);
   assert.doesNotMatch((ordered.document.diagnostics ?? []).join('\n'), /relay paused/u);
   assert.deepEqual(box.moveAcks.map(row => row.event_id), [1],
@@ -481,7 +481,7 @@ test('a refused later checkpoint names its repair once on every native agent com
   const submitted = await box.cliAt(agentRoot, 'submit', String(item));
   assert.equal(submitted.code, 0); diagnostic(submitted, 'submit');
   await seed();
-  const shouted = await box.cliAt(agentRoot, 'shout', 'coordinator', 'ordered agent with refused checkpoint');
+  const shouted = await box.cliAt(agentRoot, 'shout', 'all', 'ordered agent with refused checkpoint');
   assert.equal(shouted.code, 0); diagnostic(shouted, 'shout');
   for (const command of ['status', 'doctor']) {
     await seed();
@@ -519,7 +519,7 @@ test('a refused later checkpoint names its repair once on every native agent com
   assert.deepEqual(records.map(record => record.event_id), records.map((_, index) => baselineSequence + index + 1));
   assert.ok(records.some(record => record.sender.kind === 'agent'), 'agent effects stay in authenticated relay order');
   box.rejectSnapshots(null);
-  assert.equal((await box.cliAt(agentRoot, 'shout', 'coordinator', 'fresh checkpoint after repair')).code, 0);
+  assert.equal((await box.cliAt(agentRoot, 'shout', 'all', 'fresh checkpoint after repair')).code, 0);
   const recovered = await box.cliAt(agentRoot, 'status');
   assert.equal((recovered.document.diagnostics ?? []).length, 0, 'fresh accepted checkpoint clears the refusal');
   assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).checkpointRefusal, undefined);

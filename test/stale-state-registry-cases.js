@@ -7,7 +7,7 @@ import { STALE_STATE_ENGINE } from '../src/stale-state-engine.js';
 
 export const STALE_STATE_OPERATIONS = Object.freeze(['maintainStaleState']);
 export const STALE_STATE_STEPS = Object.freeze({
-  COORDINATOR_ONLY: 'ask the coordinator to do it: pullboard shout coordinator "<what you need>"',
+  COORDINATOR_ONLY: 'ask the coordinator to do it: pullboard shout coordinator --kind question "<what you need>"',
   ENGINE_VERSION: 'upgrade Pullboard: npm install -g pullboard@latest',
   STALE_STATE_CHANGED: 'capture the current hold and reservation state again before releasing anything',
   BAD_STALE_STATE: 'capture a complete current stale-state observation with pullboard sentinel run',
