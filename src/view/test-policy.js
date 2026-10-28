@@ -5,6 +5,7 @@ import { lineAt } from '../js-lex.js';
 
 /** Reviewed renderer coverage; a journey never substitutes for these data-in/HTML-out witnesses. */
 export const VIEW_RENDERER_COVERAGE = Object.freeze([
+  { module: 'src/view/verdict-render.js', names: ['verdictHtml', 'visibleVerdictNote'], tests: ['test/cockpit/verdict-pure.test.js'] },
   { module: 'src/view/pipeline-model.js', names: ['replayItem', 'pipelineStage', 'pipelineSince', 'itemListFields'], tests: ['test/cockpit/pipeline-pure.test.js'] },
   { module: 'src/view/group-render.js', names: ['groupActivityModel', 'groupNeedsHtml', 'groupEventHtml'], tests: ['test/cockpit/group-pure.test.js'] },
   { module: 'src/view/settings-render.js', names: ['settingsMarkup', 'settingsContentHtml'], tests: ['test/cockpit/auxiliary-pure.test.js'] },

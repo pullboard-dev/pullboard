@@ -5,6 +5,8 @@ import {
 import { agentFloorModel } from './agent-floor-model.js';
 import { agentFloorHtml } from './agent-floor-render.js';
 import { recordRowHtml } from './record-row.js';
+import { verdictHtml as verdictRenderer } from './verdict-render.js';
+import { visibleVerdictNote } from './verdict-render.js';
 import { replayItem } from './pipeline-model.js';
 import { pipelineStage } from './pipeline-model.js';
 import { pipelineSince } from './pipeline-model.js';
@@ -309,13 +311,8 @@ const dayRules = (rows, at, row) => { daysNamedAt = new Date(); return rows.map(
   return (day === before ? '' : '<div class="day-rule" role="separator"><span>' + dayName(at(x)) + '</span></div>') + row(x);
 }).join(''); };
 const firstLine = (text) => String(text ?? '').split('\\n').map((line) => line.trim()).find(Boolean) || '';
-/** Omit a duplicated leading verdict code from rendered copy while preserving the recorded note. */
-function visibleVerdictNote(reason, note) {
-  const text = String(note ?? '');
-  const code = String(reason ?? '');
-  const remainder = text.slice(code.length);
-  return code && text.startsWith(code) && (!remainder || /^\\s/u.test(remainder)) ? remainder.trimStart() : text;
-}
+const visibleVerdictNote = (${visibleVerdictNote.toString()});
+const verdictRenderer = (${verdictRenderer.toString()});
 // The latest verdict is a reject and no accept followed: open again, being reworked, resubmitted, or
 // withdrawn after it.
 const rejected = (i) => i.status !== 'verified' && !!i.verdict && i.verdict.decision === 'REJECT';
@@ -335,7 +332,7 @@ function shoutAgentName(id) {
   return '<span class="agent-label' + (prefix ? ' prefix' : '') + '" title="' + esc(name) + '" role="group" aria-label="' + esc(name) + '">' + (prefix ? label + address : address + label) + '</span>';
 }
 /** Render a review note with escaped text and references bound to the selected board. */
-const verdictHtml = (v, titles) => '<div class="verdict ' + (v.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(v.decision) + ' ' + esc(v.reason) + '</b><span class="by">' + esc(agentName(v.by)) + ' · ' + when(v.at) + ' · at ' + esc(String(v.commit || '').slice(0, 12)) + '</span><div class="note">' + inline(visibleVerdictNote(v.reason, v.note), titles) + '</div></div>';
+const verdictHtml = (v, titles) => verdictRenderer({ verdict: v, agentLabel: agentName(v.by), timeLabel: when(v.at), noteHtml: inline(visibleVerdictNote(v.reason, v.note), titles) });
 const homeRules = (${homeRules.toString()});
 const homeCapacity = (${homeCapacity.toString()});
 const roadmapSummary = (${roadmapSummary.toString()}), roadmapHeaders = (${roadmapHeaders.toString()});

@@ -1,5 +1,9 @@
 /** Explicit test roles are an inventory, not completion evidence or a browser-admission exemption [N26,C7]. */
 export const VIEW_TEST_ROLES = Object.freeze({
+  "test/cockpit/verdict-pure.test.js": {
+    "kind": "logic",
+    "reason": "Review notes and metadata render through the actual verdict functions with prepared links and explicit labels; no page or native review is fabricated."
+  },
   "test/cockpit/pipeline-pure.test.js": {
     "kind": "logic",
     "reason": "Full snapshot and summary stage projections use canonical event matching and explicit lifecycle data; native API and Chrome pipeline navigation remain journeys."
