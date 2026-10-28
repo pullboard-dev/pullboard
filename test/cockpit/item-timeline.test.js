@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { openBoard, closeBoard, events, recordHealthFindings } from '../../src/board.js';
-import { machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, sendBack } from './fixture.js';
+import { machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 
 test('the native item timeline reads as sentences with clamped notes and working references at desktop and phone widths [N26,B23]', { timeout: 240_000 }, async () => {
   const executable = chromeExecutable();
@@ -14,6 +14,7 @@ test('the native item timeline reads as sentences with clamped notes and working
   const box = machine(), demo = project(box, 'item-timeline');
   box.run(demo.repo, 'add', 'web', 'Timeline sentences', '--specs', 'G1', '--criterion', 'The real fixture module parses.', '--check', 'node --check web/timeline.js', '--wait');
   box.run(demo.repo, 'add', 'web', 'Reference target', '--specs', 'G1', '--criterion', 'The reference opens this actual item.');
+  const reviewer = JSON.parse(box.run(demo.repo, 'worktree', 'web', '--model', 'Timeline reviewer fixture', '--json'));
   box.run(demo.web, 'claim', '1');
   mkdirSync(join(demo.web, 'web'), { recursive: true });
   writeFileSync(join(demo.web, 'web/timeline.js'), 'export const timelineFixture = true;\n');
@@ -28,7 +29,9 @@ test('the native item timeline reads as sentences with clamped notes and working
     box.run(demo.web, 'fact', '1', kind, text);
   }
   box.run(demo.web, 'submit', '1', '--no-next');
-  sendBack(box, demo, 1, 'Exercise the actual sent-back timeline sentence.');
+  box.git(reviewer.path, 'switch', '--detach', head);
+  box.run(reviewer.path, 'next', '--verify', '1');
+  box.run(reviewer.path, 'verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'The real fixture module parses.', '--note', 'Exercise the actual sent-back timeline sentence.', '--no-next');
   box.run(demo.web, 'claim', '1');
   writeFileSync(join(demo.web, 'web/timeline.js'), 'export const timelineFixture = true;\n// Corrected after the real review.\n');
   box.git(demo.web, 'add', 'web/timeline.js');
@@ -42,8 +45,9 @@ test('the native item timeline reads as sentences with clamped notes and working
     recordHealthFindings(board, { agentId: 'coordinator', observedRevision: events(board).at(-1).event_id, findings: [finding] });
     recordHealthFindings(board, { agentId: 'coordinator', observedRevision: events(board).at(-1).event_id, findings: [] });
   } finally { closeBoard(board); }
-  box.git(demo.repo, 'switch', '--detach', correctedHead);
-  box.run(demo.repo, 'verify', '1', 'accept', '--note', 'The real fixture module parses.', '--as', 'coordinator', '--no-next');
+  box.git(reviewer.path, 'switch', '--detach', correctedHead);
+  box.run(reviewer.path, 'next', '--verify', '1');
+  box.run(reviewer.path, 'verify', '1', 'accept', '--note', 'The real fixture module parses.', '--no-next');
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-item-timeline-'));
   let chrome;
   try {
@@ -52,7 +56,7 @@ test('the native item timeline reads as sentences with clamped notes and working
     assert.ok(item.thread.some(row => row.kind === 'health-resolved'));
     const proofs = item.thread.filter(row => row.kind === 'proof-run');
     assert.ok(proofs.length >= 2, 'the pair comes from actual native checks');
-    const href = new URL(view.link.href); href.hash = 'items/1';
+    const href = new URL(view.link.href); href.pathname = '/items/1';
     chrome = await openSnapshotChrome(executable, href.href, profile);
     await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail .tl .tl-body")');
     for (const [width, mobile] of [[1440, false], [375, true]]) {
@@ -76,7 +80,7 @@ test('the native item timeline reads as sentences with clamped notes and working
       assert.ok(result.height <= result.lineHeight * 3 + 1, width + ': clamped geometry ' + JSON.stringify(result));
       assert.deepEqual(result.kinds, ['note', 'measurement', 'capture']);
       assert.ok(result.pair, JSON.stringify(result) + ': actual consecutive checks merge, retaining both event identities');
-      for (const sentence of ['web-1 claimed it', 'web-1 recorded a measurement', 'Sentinels found this item failing', 'Sentinels found this item passing again', 'coordinator started reviewing', 'coordinator passed it', 'coordinator sent it back']) assert.ok(result.sentences.includes(sentence), `${width}: ${sentence}`);
+      for (const sentence of ['web-1 claimed it', 'web-1 recorded a measurement', 'Sentinels found this item failing', 'Sentinels found this item passing again', reviewer.agent + ' started reviewing', reviewer.agent + ' passed it', reviewer.agent + ' sent it back']) assert.ok(result.sentences.includes(sentence), `${width}: ${sentence}`);
       assert.ok(result.models.some(row => row.text === 'web-1' && row.title === 'Test Model'));
       assert.ok(result.models.every(row => !row.text.includes('(')));
       assert.ok(result.refs.includes('web/timeline.js:1@' + head));

@@ -37,9 +37,9 @@ test('the timeline times a verified item that goes back to open [N26, M1]', asyn
     })()`));
     const [finalRows, nonFinalRows] = rendered.map(timelineRows);
     for (const rows of [finalRows, nonFinalRows]) {
-      assert.equal(rows.find((row) => row.event.startsWith('accept ')).stay, 'verified for 2m');
-      assert.equal(rows.find((row) => row.event.startsWith('merged ')).stay, '', 'a quiet event does not end the verified stay');
-      assert.equal(rows.find((row) => row.event.startsWith('reopen ')).dot, 'tl-open');
+      assert.equal(rows.find((row) => row.event === 'coordinator passed it').stay, 'verified for 2m');
+      assert.equal(rows.find((row) => row.event === 'coordinator landed it').stay, '', 'a quiet event does not end the verified stay');
+      assert.equal(rows.find((row) => row.event === 'coordinator sent it back').dot, 'tl-open');
     }
   } finally {
     await view.stop();
