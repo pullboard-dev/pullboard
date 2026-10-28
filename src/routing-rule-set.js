@@ -4,7 +4,9 @@ import { logEvent } from './board.js';
 import { ENGINE_VERSION } from './machine.js';
 import { ROUTING_RULES_ENGINE } from './routing-rules-engine.js';
 import { ROUTING_RULES_KEY as KEY } from './routing-rules-floor.js';
-import { routingRules, validRule, STANDING_RULINGS } from './routing-rules.js';
+import { routingRules } from './routing-rules.js';
+import { validRule } from './routing-rules.js';
+import { STANDING_RULINGS } from './routing-rules.js';
 import { Refused } from './refused.js';
 
 /** Older recorded moves keep their meaning: no rule binds under an engine that predates the record. */
