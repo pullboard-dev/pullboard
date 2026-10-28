@@ -28,6 +28,7 @@ export function activityWords(finding, { now = Date.now(), clock = value => new 
     const quoted = /^(rejected by \S+ \([A-Z][A-Z0-9_]+\): )([\s\S]*)$/u.exec(localized);
     const machine = quoted ? quoted[1] : localized;
     const described = machine.replace(/\[([A-Z][A-Z0-9_]+)\]/gu, (_, key) => words[key] ?? reasons[key] ?? key.toLowerCase().replaceAll('_', ' '))
+      .replace(/\(([A-Z][A-Z0-9_]+)\)/gu, (_, key) => '(' + (reasons[key] ?? words[key] ?? key.toLowerCase().replaceAll('_', ' ')) + ')')
       .replace(/\b(TEST_FAILURE|BEHAVIOR_MISMATCH|INSUFFICIENT_EVIDENCE|STALE_HEAD|OTHER)\b/gu, key => reasons[key]);
     return described + (quoted ? quoted[2] : '');
   };

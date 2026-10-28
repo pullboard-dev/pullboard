@@ -116,7 +116,7 @@ test('Activity omits absent and unknown model hover titles and retains a known m
 });
 
 test('sentinel rejection reasons become words while the reviewer note keeps its own code text [N26]', () => {
-  const reasons = { TEST_FAILURE: 'Tests failed', BEHAVIOR_MISMATCH: 'Behavior did not match', INSUFFICIENT_EVIDENCE: 'Not enough evidence', STALE_HEAD: 'Source changed', OTHER: 'Other reason' };
+  const reasons = { TEST_FAILURE: 'Tests failed', BEHAVIOR_MISMATCH: 'Behavior did not match', INSUFFICIENT_EVIDENCE: 'Not enough evidence', STALE_HEAD: 'Source changed', OTHER: 'Other reason', FUTURE_REASON: 'future reason' };
   const note = 'Keep [MY_CODE] and (TEST_FAILURE) exactly; quoted words are evidence.';
   for (const [reason, label] of Object.entries(reasons)) {
     const finding = { key: 'REWORK_UNCLAIMED:1', cause: 'refusal:REWORK_UNCLAIMED', subject: '#1', since: at(4),
