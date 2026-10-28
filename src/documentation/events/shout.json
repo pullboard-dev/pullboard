@@ -1,0 +1,10 @@
+{
+  "kind": "shout",
+  "entries": [
+    {
+      "order": 39,
+      "actor": "sender",
+      "detail": "`shout`, `to`, `decision`, `request`, `answers`, `messageKind`"
+    }
+  ]
+}
