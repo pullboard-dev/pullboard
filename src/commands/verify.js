@@ -1,3 +1,4 @@
+import { trunkRef } from '../trusted-policy-read.js';
 import { selectAffectedTests } from '../affected-tests.js';
 import { completeMoveHandoff } from '../post-move-handoff.js';
 import { itemReviewPolicy } from '../review-independence.js';
@@ -132,7 +133,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     const item = store.getItem(board, id);
     itemSessions.refuseSelfSession(ctx.info, item, undefined, itemAuthors(board, item), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard' });
     const reReview = item.item_status === 'verified' && !item.item_merged_commit;
-    const stale = reReview ? verdictProjector(root, board).state(item) : null;
+    const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).state(item) : null;
     if (item.item_status !== 'submitted' && !stale) {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
     }
@@ -161,7 +162,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
       let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item).commit : reReview ? head : commit;
       let checkedLabel = reReview ? 'reviewed composition' : 'submitted commit';
-      const composeNow = () => composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge });
+      const composeNow = () => composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge, events: store.events });
       const admitted = companionDigest === null && !item.item_effective_head && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
       let trunk = null;
       if (!admitted) ({ trunk, review } = composeNow());
@@ -200,7 +201,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           checkedCommit = retryReviewCommit(root, checkedCommit, currentTrunk);
           checkedLabel = `retry composition ${checkedCommit}`;
           trunk = currentTrunk;
-          review = captureVerdictReview(root, board, item, trunk.commit, checkedCommit);
+          review = captureVerdictReview(root, board, item, trunk.commit, checkedCommit, { events: store.events });
           refuseUnverifiedStack(root, board, item, checkedCommit, trunk);
           unaffectedMove += `\nmain moved during review; reran the frozen check once at clean composition ${checkedCommit} against main ${trunk.commit}`;
           continue;
@@ -210,7 +211,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         break;
       }
     }
-    review ??= captureVerdictReview(root, board, item, verdictTrunk(root));
+    review ??= captureVerdictReview(root, board, item, verdictTrunk(root, { trunkRef }), undefined, { events: store.events });
     if (decision === 'ACCEPT') approvalRows = itemAgentApprovals(item, specApprovalState(root, { board, config: ctx.config }));
     const approvalNote = agentApprovalLine(approvalRows);
     if (decision === 'ACCEPT') git(root, ['update-ref', `refs/pullboard/items/${id}/${review.head.slice(0, 12)}`, review.head]);

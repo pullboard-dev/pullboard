@@ -35,7 +35,7 @@ function readRelayPresentation(root, providedBoard, observedAt) {
     const config = loadConfig(root);
     const projects = () => [{ root: info.root, name: config.name, project: config.project }];
     // Staged caller boards retain fresh reads; only ordinary owned reads reuse committed verdict state.
-    const freshnessReader = providedBoard ? null : cachedVerdictStates(root, board, info);
+    const freshnessReader = providedBoard ? null : cachedVerdictStates(root, board, info, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, boardId: store.boardId });
     /** Preserve a single authorized board, including existing unavailable external milestone entries. */
     const project = (clock) => {
       const built = buildLocalBoardState(root, boardId, board, isMain, { projects, scopeCommonDir: info.commonDir, observedAt: clock, freshnessReader });
