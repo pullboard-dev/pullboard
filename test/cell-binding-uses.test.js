@@ -270,3 +270,17 @@ test('copied source remains a move obligation while generated journals and recur
     assert.deepEqual(unresolved.edits, [], 'unknown source identity never creates a guessed rewrite');
   }
 });
+
+for (const [name, body] of [
+  ['native JSON journal keys', "readFileSync(join(directory, key + '.json'), 'utf8');"],
+  ['session and receipt path helpers', "readFileSync(checkoutSessionFile(repoInfo(root)), 'utf8'); readFileSync(join(receiptStore(root), receiptId + '.json'));"],
+  ['scanned credentials and recursive copies', "for (const file of filesUnder(directory)) readFileSync(file); cpSync(join(box.root, '.git', 'pullboard'), target, { recursive: true });"],
+]) test(`${name} remain named conservative obligations rather than successful artifact proofs [C7]`, () => {
+  const source = "import { readFileSync, cpSync } from 'node:fs'; import { join } from 'node:path';\n" + body;
+  const result = fixtureSourceEdits(source, { file: 'test/conservative-obligations.js',
+    moves: [['src/leaf.js', 'packages/git/src/shell/leaf.js'], ['src/baseline.json', 'packages/git/src/shell/baseline.json']] });
+  assert.ok(result.problems.length, 'unproved artifact provenance must remain visible');
+  assert.ok(result.problems.every(problem => problem.startsWith('test/conservative-obligations.js:')
+    && problem.includes('unsupported fixture source:')), 'every retained obligation names its actual source site');
+  assert.deepEqual(result.edits, [], 'an unknown path never gains a guessed move or passing artifact classification');
+});

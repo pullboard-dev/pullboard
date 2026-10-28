@@ -4,7 +4,7 @@ import { submitFixture as submitBoardStateFixture } from './board-submit-fixture
 /** Two independent Git/SQLite replicas derive verdict freshness without rewriting proof [E8]. */
 import { memberHandoverCase } from './handover-membership-case.js';
 import { signedBoard, consent, linkRelay } from './board-link-fixture.js';
-import { submitFixture } from './board-submit-fixture.js';
+import { submitFixture, staleVerdictCheckFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
@@ -266,8 +266,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   const box = helpers.project();
   assert.equal(helpers.commitFile(box, box.repo, 'web/feature.js', 'feature = 0\nmain = 0\n', 'feat(web): baseline [G1]').status, 0);
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const checkedHeads = join(box.dir, 'checked-heads');
-  const check = `grep -q '^feature = 1$' web/feature.js && git rev-parse HEAD >> '${checkedHeads}'`;
+  const { check, readCheckedHeads } = staleVerdictCheckFixture(box.dir);
   run(box, box.repo, 'add', 'web', 'Feature', '--specs', 'G1', '--check', check, '--wait');
   run(box, box.web, 'claim', '1');
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'feature = 1\nmain = 0\n', 'feat(web): feature [G1]').status, 0);
@@ -415,10 +414,10 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   box.git(box.repo, 'revert', '-m', '1', '--no-edit', movingCommit);
   syncTrunk();
   assert.ok(items().every(item => item.item_verdict_state?.commit === movingCommit), 'a revert cannot turn an old review into a new review');
-  const priorChecks = readFileSync(checkedHeads, 'utf8');
+  const priorChecks = readCheckedHeads();
   const oldHead = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Trying the old candidate is insufficient.');
   assert.equal(oldHead.code, 1);
-  assert.equal(readFileSync(checkedHeads, 'utf8'), priorChecks, 'old candidate is refused before running its check');
+  assert.equal(readCheckedHeads(), priorChecks, 'old candidate is refused before running its check');
   box.git(reviewer, 'merge', '-q', '--no-edit', 'main');
   const composed = box.git(reviewer, 'rev-parse', 'HEAD');
   assert.notEqual(composed, submitted);
@@ -433,7 +432,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
     assert.equal(result.code, 0, holder.failure ?? holder.stderrText);
   }
   assert.ok(landingGuidance.includes('git merge --no-ff ' + composed), 'the new-main manual landing hint names the checked composition, not the original submission');
-  assert.equal(readFileSync(checkedHeads, 'utf8').trim().split('\n').at(-1), composed, 'the frozen check ran on the reviewed composition');
+  assert.equal(readCheckedHeads().trim().split('\n').at(-1), composed, 'the frozen check ran on the reviewed composition');
   const reviewed = withBoard(box.repo, board => store.verdictsFor(board, 1));
   assert.deepEqual(reviewed.slice(0, original.length), original);
   assert.equal(reviewed.length, original.length + 1, 're-review appends independent proof');
