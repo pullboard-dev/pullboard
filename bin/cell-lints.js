@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { readCellLintBaseline } from '../src/cell-lint-store.js';
 import { writeCellLintBaseline } from '../src/cell-lint-store.js';
 import { CELL_BASELINE_DESCRIPTOR } from '../src/cell-lint-store.js';
+import { cellLintCells } from '../src/cell-lint-cell-shards.js';
 import { storedCellLintFiles } from '../src/cell-lint-store.js';
 import { planCellLintBaseline } from '../src/cell-lint-baseline-plan.js';
 import { cellLintReport } from '../src/cell-lints.js';
@@ -29,7 +30,8 @@ else if (mode === '--init') {
   const baseline = readCellLintBaseline(root);
   if (mode === '--update') {
     lowerCellLintBaseline(report, baseline);
-    const plan = planCellLintBaseline(report, storedCellLintFiles(root));
+    const sharded = cellLintCells(root).length > 0;
+    const plan = sharded ? { baseline: cellLintBaseline(report), report } : planCellLintBaseline(report, storedCellLintFiles(root));
     lowerCellLintBaseline(plan.report, baseline);
     writeCellLintBaseline(root, plan.baseline, { previous: baseline, verify: () => JSON.stringify(cellLintBaseline(cellLintReport(root, { importsIn, commonJsIn }))) === JSON.stringify(plan.baseline) });
   }
