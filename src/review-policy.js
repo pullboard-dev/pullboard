@@ -4,9 +4,20 @@ import { REVIEW_ROUTING_ENGINE } from './review-routing-engine.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from './review-independence-engine.js';
 import { Refused } from './refused.js';
 
-/** A declared vendor label is compared as text, never inferred from a model or diagnostic. */
-export function familyName(value) {
-  return typeof value === 'string' && value.trim() ? value.trim().toLowerCase() : null;
+/** Index the explicit alias list once: each declared spelling, lowercased, names its canonical family [#1762]. */
+export function familyIndex(families) {
+  const index = new Map();
+  for (const [canonical, aliases] of Object.entries(families ?? {})) {
+    for (const name of [canonical, ...aliases]) index.set(name.trim().toLowerCase(), canonical.trim().toLowerCase());
+  }
+  return index;
+}
+
+/** A declared vendor label is compared as text, never inferred from a model or diagnostic; only the explicit alias index maps spellings to one family. */
+export function familyName(value, aliases = null) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const name = value.trim().toLowerCase();
+  return aliases?.get(name) ?? name;
 }
 
 /** Read policy from native snapshot metadata; damaged policy cannot silently downgrade a strict item. */
