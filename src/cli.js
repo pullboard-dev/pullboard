@@ -349,7 +349,6 @@ import {
   itemPolicy,
   submissionPaths,
   frozenCheck,
-  checkAtCommit,
   dependencySnapshots,
   requireTrunkMerge,
   trunkMerge,

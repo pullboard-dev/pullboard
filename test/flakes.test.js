@@ -1,3 +1,4 @@
+import { checkAtCommit } from '../src/runner-private-check.js';
 /** @pullboard-test-input source-tree */
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
 import { copyPackageFiles } from '../src/package-files.js';
@@ -475,7 +476,7 @@ test('a ledger recording failure cannot replace the original red or discard its 
   assert.equal(result.status, 1, 'the original assertion really failed before the forced recording error');
   const run = { isGreen: false, output: result.stdout + result.stderr };
   const notices = [];
-  await observeNativeFailure({ root: box.root, config, pin, run, command: config.gate, kind: 'check',
+  await observeNativeFailure({ root: box.root, config, pin, run, checkAtCommit, command: config.gate, kind: 'check',
     record: () => { throw Object.assign(new Error('private injected ledger failure'), { code: 'SYNTHETIC_LEDGER_UNAVAILABLE' }); },
     onError: notice => notices.push(notice),
   });
