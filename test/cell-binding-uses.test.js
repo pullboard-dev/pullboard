@@ -29,7 +29,10 @@ import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
 import { mainAuditKey } from '../src/main-audit-state.js';
 import { readAuditJob } from './main-audit-project.js';
 import { relayClientFixture } from './relay-client-fixture.js';
-import { mappedWorkingSource } from '../bin/checks/scan.js';
+import {
+  mappedWorkingSource,
+  workingSourceInventory,
+} from '../bin/checks/scan.js';
 import { importsIn } from '../src/module-imports.js';
 
 const IMPORT = "import { join } from 'node:path';\n";
@@ -146,6 +149,71 @@ test('mapped working source preserves implementation, shim and exact Buffer obli
   writeFileSync(join(root, 'bin', 'cells-plan', 'path-map', 'duplicate.json'), JSON.stringify({ [oldPath]: bodyPath }));
   git('add', '-A'); git('commit', '-q', '-m', 'chore: ambiguous map format control');
   assert.throws(() => mappedWorkingSource(root, oldPath), { code: 'NO_POLICY' });
+});
+
+test('native file URL composition retains the actual repository body and refuses unknown roots [C7]', () => {
+  const prefix = "import {readFileSync} from 'node:fs'; import {join} from 'node:path'; import {fileURLToPath} from 'node:url';\n";
+  const root = "const ROOT = fileURLToPath(new URL('..', import.meta.url));\n";
+  const read = "readFileSync(join(ROOT, 'src', 'local-fetch.js'), 'utf8');";
+  const options = { file: 'test/boundary.test.js', moves: [['src/local-fetch.js', 'packages/sync/src/shell/local-fetch.js']] };
+  const proved = fixtureSourceEdits(prefix + root + read, options);
+  assert.deepEqual(proved.problems, []);
+  assert.equal(proved.edits.length, 1);
+  assert.match(proved.edits[0].text, /packages\/sync\/src\/shell\/local-fetch\.js/u);
+  const moved = read.replace("'src', 'local-fetch.js'", "'packages', 'sync', 'src', 'shell', 'local-fetch.js'");
+  assert.deepEqual(fixtureSourceEdits(prefix + root + moved, options), { edits: [], problems: [] });
+  const alias = (prefix + root + read).replace('{fileURLToPath}', '{fileURLToPath as nativePath}').replace('= fileURLToPath(', '= nativePath(');
+  assert.deepEqual(fixtureSourceEdits(alias, options).problems, []);
+  for (const unknown of [
+    root.replace("new URL('..', import.meta.url)", 'unknown'),
+    root.replace("new URL('..', import.meta.url)", 'new URL(unknown, import.meta.url)'),
+    root.replace("'..'", "'https://outside.invalid/source'"),
+    root.replace("'..'", "'../%2e/source'"),
+    root.replace("'..'", "'../source?query'"),
+    root.replace("'..'", "'../source#fragment'"),
+    "const URL = unknown;\n" + root,
+    root.replace('fileURLToPath(', 'arbitraryPath('),
+  ]) assert.ok(fixtureSourceEdits(prefix + unknown + read, options).problems.length, unknown);
+});
+
+test('working source inventory retains shim, mapped and private body bytes without source filters [C7]', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'pb-source-inventory-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, 'src')); mkdirSync(join(root, 'bin'));
+  mkdirSync(join(root, 'packages', 'sample'), { recursive: true });
+  const bodyPath = 'packages/sample/body.js', privatePath = 'packages/sample/private.js';
+  const shim = "export * from '../packages/sample/body.js';\n";
+  const original = Buffer.from([0x2f, 0x2f, 0xff, 0x0a]);
+  writeFileSync(join(root, 'src/value.js'), shim);
+  writeFileSync(join(root, bodyPath), original);
+  writeFileSync(join(root, privatePath), 'export const privateValue = true;\n');
+  writeFileSync(join(root, 'bin/check.js'), 'void 0;\n');
+  writeFileSync(join(root, 'path-map.json'), JSON.stringify({ 'src/value.js': bodyPath, 'src/private.js': privatePath }));
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
+    GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
+  /** Commit only this real private source map; subsequent working bytes remain actual test inputs. */
+  function git(...args) { return runFixtureGit(args, { cwd: root, env }); }
+  git('init', '-q', '-b', 'main'); git('add', '-A'); git('commit', '-q', '-m', 'chore: working source inventory');
+  writeFileSync(join(root, 'src/untracked.js'), 'void 1;\n');
+  const rows = workingSourceInventory(root, ['src', 'bin']);
+  const byPath = new Map(rows.map(row => [row.file, row.body]));
+  assert.deepEqual(byPath.get(bodyPath), original, 'actual invalid UTF-8 bytes are never replaced by a seed or shim');
+  assert.deepEqual(byPath.get('src/value.js'), Buffer.from(shim));
+  assert.ok(byPath.has(privatePath), 'a mapped body with no surviving old shim remains scanned');
+  assert.ok(byPath.has('src/untracked.js'), 'the original working-directory enumeration is not narrowed to Git files');
+  const changedBody = "import 'node:https';\n";
+  writeFileSync(join(root, bodyPath), changedBody);
+  const changed = workingSourceInventory(root, ['src', 'bin']);
+  assert.throws(() => assert.deepEqual(changed.filter(row => row.body.includes(Buffer.from('node:https'))), []),
+    'the unchanged network guard catches changed implementation bytes even when the shim is unchanged');
+  writeFileSync(join(root, 'src/value.js'), "import 'node:net';\n" + shim);
+  assert.ok(workingSourceInventory(root, ['src', 'bin']).some(row => row.file === 'src/value.js' && row.body.includes(Buffer.from('node:net'))));
+  assert.throws(() => workingSourceInventory(root, ['../outside']), /invalid working source directory/u);
+  symlinkSync(tmpdir(), join(root, 'outside'));
+  assert.throws(() => workingSourceInventory(root, ['outside']), /contained and regular/u);
+  symlinkSync(join(root, 'bin/check.js'), join(root, 'src/linked.js'));
+  assert.throws(() => workingSourceInventory(root, ['src']), /contained regular file/u);
 });
 
 test('mechanical fixture input owns its origin and reads actual post-component bytes [C7]', (t) => {
