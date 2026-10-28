@@ -193,7 +193,7 @@ function landingEntry(item) {
 /** Select in verdict order; a read-only preflight may stop at its first eligible item [B3,R3]. */
 function candidates(board, root, base, maximum, { firstReady = false } = {}) {
   const all = store.listItems(board, { all: true });
-  const projector = verdictProjector(root, board, { main: base });
+  const projector = verdictProjector(root, board, { main: base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
   const pending = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit);
   const order = new Map();
   for (const event of store.events(board)) if (event.event_kind === 'accept') order.set(event.item_id, event.event_id);
@@ -277,7 +277,7 @@ async function mergeGroup(state, items) {
     if (item.item_status !== 'verified' || item.item_commit !== (entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} changed; rebuild the batch from current verified work`);
     const checked = store.checkedLandingCommit(state.board, item);
     if (checked !== (entry.reviewedCommit ?? entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} was re-reviewed; rebuild its landing from the checked commit`);
-    const stale = verdictProjector(state.root, state.board, { main: batch.base }).state(item);
+    const stale = verdictProjector(state.root, state.board, { main: batch.base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state(item);
     if (stale) throw staleVerdictRefusal(item, stale);
     // The body is the trailer paragraph alone: the header carries the title, and no lane branch is named [B3,R3].
     // merge.log is switched off on this call, so a local Git config cannot append a shortlog to the body.

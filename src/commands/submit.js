@@ -22,6 +22,7 @@ import {
 } from '../doctrine-checks.js';
 import * as gateReceipt from '../gate-receipt.js';
 import { recordNativeProof } from '../proof-cli.js';
+import { proofRunReceipt } from '../proof-receipts.js';
 import {
   gateWaitReporter,
 } from '../gate-wait.js';
@@ -75,6 +76,8 @@ import {
   submissionPaths,
 } from '../trusted-policy.js';
 import {
+  nextOnce,
+  withBoardRead,
   CHECKOUT_LEASES,
   browserAdmissionReporter,
   context,
@@ -217,7 +220,7 @@ export async function submitHere(ctx, id, infra) {
     proofContext: { item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission },
     onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) });
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
-    await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent });
+    await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt });
   }
   // Only fully accounted exact-main failures or live person waivers pass a red proof; the item check stays mandatory [B3].
   const waived = !gate.isGreen && gate.check?.green ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, root))) : null;
@@ -290,7 +293,7 @@ export async function run(io, { first, values }) {
   const ctx = { ...context(io), submissionResult };
   const id = idArg(first);
   /** Dispatch before optional verdict waiting, retaining this exact submission document. */
-  ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission);
+  ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems });
   const previous = io.onOrderedMove;
   io.onOrderedMove = receipt => {
     previous?.(receipt);

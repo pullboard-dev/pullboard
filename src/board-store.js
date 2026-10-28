@@ -16,7 +16,7 @@ import {
 /** Require connection-local dependencies before creating or touching any SQLite file; never infer a global root. */
 export function requireRuntimePorts(ports) {
   if (!ports || typeof ports !== 'object' || Array.isArray(ports)) throw new Refused('NO_POLICY', 'Open a native board through its composition root with explicit runtime ports.');
-  for (const group of ['guards', 'query', 'auth', 'lifecycle', 'nativePorts', 'enginePorts', 'sourceAdvanceReceipts']) {
+  for (const group of ['guards', 'query', 'auth', 'lifecycle', 'nativePorts', 'enginePorts', 'sourceAdvanceReceipts', 'verification']) {
     if (!ports[group] || typeof ports[group] !== 'object' || Array.isArray(ports[group])) throw new Refused('NO_POLICY', `The native board root must supply its ${group} port group.`);
   }
   for (const name of ['boardReceiptStore', 'readGateReceipt', 'receiptBody']) {
@@ -36,6 +36,9 @@ export function requireRuntimePorts(ports) {
   }
   for (const name of ['boardNotWritable', 'boardBusyError']) {
     if (typeof ports.auth[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply auth.${name}.`);
+  }
+  for (const name of ['agentAt', 'itemById', 'itemCheckBaseline', 'events', 'acceptedVerdict', 'verdictReviewProblem', 'boardId', 'appendRigorCounter', 'ensureRigorCounters']) {
+    if (typeof ports.verification[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply verification.${name}.`);
   }
   for (const name of ['atomic', 'logEvent', 'rowDrafts', 'rowDecisions', 'recordRowDecisions', 'now']) {
     if (typeof ports.nativePorts[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply nativePorts.${name}.`);

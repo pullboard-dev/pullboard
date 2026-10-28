@@ -46,8 +46,8 @@ export async function nextTake(ctx, values = {}, services) {
     if (picked.review) {
       const reviewed = await nextReview(ctx, board, me, values, {
         ordered: (operation, args) => ordered(ctx, board, operation,
-          operation === 'reopen' ? computedReturnArgs(board, args) : args), idArg, trunkMerge, mainRedReviewItems,
-        listItems: store.listItems, itemById: store.itemById, getItem: store.getItem,
+          operation === 'reopen' ? computedReturnArgs(board, args) : args), idArg, trunkMerge,
+        listItems: store.listItems, itemById: store.itemById, getItem: store.getItem, mainRedReviewItems,
       });
       // Conflict preflight may have returned the selected review; re-read eligibility before building.
       return reviewed.item ? { ...reviewed, review: true } : { ...reviewed, retry: true };

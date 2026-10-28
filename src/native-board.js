@@ -58,7 +58,18 @@ import {
 } from './board-access.js';
 import {
   now,
+  agentAt,
+  itemById,
+  itemCheckBaseline,
+  events,
+  acceptedVerdict,
+  verdictReviewProblem,
+  boardId,
 } from './board-query.js';
+import {
+  appendRigorCounter,
+  ensureRigorCounters,
+} from './rigor-counters.js';
 import {
   committedItemAuthors,
   twoTierReviews,
@@ -111,6 +122,7 @@ export function nativeBoardPorts() {
   return Object.freeze({
     nativePorts, enginePorts, operations: enginePorts.operations, logEvent,
     sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody }),
+    verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters }),
     guards: Object.freeze({ guardStore, refreshStoreDeclarations, storeTriggers }),
     lifecycle: Object.freeze({ atomic, ensureProofCounters, ensureHotIndexes, missingAdditiveIndexes,
       ensureAdditiveIndexes, configureBoardJournal, closeBoardWrites }),
@@ -123,7 +135,7 @@ export function nativeBoardPorts() {
 /** Freeze explicit provider bags without changing the function or canonical operation identities. */
 function freezeRuntimePorts(ports) {
   requireRuntimePorts(ports);
-  for (const name of ['nativePorts', 'enginePorts', 'guards', 'lifecycle', 'query', 'auth', 'sourceAdvanceReceipts']) Object.freeze(ports[name]);
+  for (const name of ['nativePorts', 'enginePorts', 'guards', 'lifecycle', 'query', 'auth', 'sourceAdvanceReceipts', 'verification']) Object.freeze(ports[name]);
   return Object.freeze(ports);
 }
 

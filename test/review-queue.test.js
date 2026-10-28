@@ -15,6 +15,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { nextReview } from '../src/next-review.js';
+import { mainRedReviewItems } from '../src/main-red.js';
 import { Refused } from '../src/refused.js';
 import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
 import {
@@ -242,7 +243,7 @@ async function refusedReturn(t, reopen) {
   const ctx = { info: { root: '/fixture' }, io: { err: () => {} }, config: { reviewLeaseMs: REVIEW_LEASE, verify: { policy: 'any' } } };
   const me = { id: agents.betaReviewer, lane: 'review' };
   const trunkMerge = () => ({ commit: 'a'.repeat(40), files: ['web/list.html'] });
-  const run = () => nextReview(ctx, board, me, {}, { ordered, idArg: Number, trunkMerge });
+  const run = () => nextReview(ctx, board, me, {}, { ordered, idArg: Number, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem, mainRedReviewItems });
   return { board, id, operations, run };
 }
 

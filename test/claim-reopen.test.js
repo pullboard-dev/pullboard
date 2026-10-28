@@ -210,7 +210,7 @@ function readyItem(f, result = 'red') {
 }
 /** Sign the currently read revision, keeping stale requests independently testable. */
 function signReady(f, id, agentId = f.other) {
-  const { revision } = barReadiness(f.board, store.getItem(f.board, id));
+  const { revision } = barReadiness(f.board, store.getItem(f.board, id), {}, f.board.runtimePorts.verification);
   return signBar(f.board, id, { agentId, barActor: f.actors?.[agentId], revision: revision.revision, digest: revision.digest,
     note: 'The builder can meet this bar; two reviewers can use the named witness and listed edges to grade it alike.',
     coverage: { version: 1, sourceMain: COMMIT, policyKey: 'd'.repeat(64), sourceCheck: store.getItem(f.board,id).item_check, timeoutMs: 300000, runner: 'node --test', required: [], files: [] } });
@@ -227,7 +227,7 @@ test('[B4,V2,V1,H16] a claim waits for a bar signed by another session', (t) => 
   signReady(f, id);
   claim(f, id, f.builder);
   assert.equal(store.getItem(f.board, id).item_owner, f.builder);
-  const before = barReadiness(f.board, store.getItem(f.board, id)).revision;
+  const before = barReadiness(f.board, store.getItem(f.board, id), {}, f.board.runtimePorts.verification).revision;
   store.editItem(f.board, id, { agentId: 'coordinator', brief: store.getItem(f.board, id).item_brief+'\nAlso try a restarted session.', barActor: f.actors.coordinator });
   assert.throws(() => claim(f, id, f.builder), error => error.code === 'BAR_NOT_READY');
   assert.throws(() => signBar(f.board, id, { agentId: f.other, revision: before.revision, digest: before.digest, note: 'stale' }), error => error.code === 'BAR_SIGN_STALE');
@@ -236,7 +236,7 @@ test('[B4,V2,V1,H16] a claim waits for a bar signed by another session', (t) => 
   const replica = store.openBoard(join(f.directory, 'ready-replica.sqlite'));
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(f.board));
-  assert.equal(barReadiness(replica, store.getItem(replica, id)).missing.length, 0);
+  assert.equal(barReadiness(replica, store.getItem(replica, id), {}, replica.runtimePorts.verification).missing.length, 0);
 });
 
 test('[B4,V2,H16] readiness is default off and activation preserves old frozen work', (t) => {
@@ -289,9 +289,9 @@ test('[B4,V1] unknown lineage and a changed baseline cannot masquerade as peer a
   const command = store.getItem(f.board, fresh).item_check;
   const request = '12345678-1234-1234-1234-123456789abc';
   store.editItem(f.board, fresh, { agentId: 'coordinator', check: command, checkBaseline: { command, main: COMMIT, result: 'pending', request } });
-  assert.ok(barReadiness(f.board, store.getItem(f.board, fresh)).missing.some(part => part.includes('red check baseline')));
+  assert.ok(barReadiness(f.board, store.getItem(f.board, fresh), {}, f.board.runtimePorts.verification).missing.some(part => part.includes('red check baseline')));
   store.completeCheckBaseline(f.board, fresh, { agentId: 'coordinator', expected: { command, main: COMMIT, request }, baseline: { command, main: COMMIT, result: 'red', request, testEvidence: { failed: ['named witness'], passed: [], noTestsMatched: false } } });
-  assert.ok(barReadiness(f.board, store.getItem(f.board, fresh)).missing.some(part => part.includes('sign-off')), 'new baseline observation needs a new sign-off');
+  assert.ok(barReadiness(f.board, store.getItem(f.board, fresh), {}, f.board.runtimePorts.verification).missing.some(part => part.includes('sign-off')), 'new baseline observation needs a new sign-off');
 });
 
 
@@ -304,7 +304,7 @@ test('[B4,V1] enabling readiness cannot relabel a retained criterion as the late
   const check = 'node --test --test-name-pattern "old witness" test/old.test.js';
   store.editItem(f.board, id, { agentId: 'coordinator', brief: brief+'\nAn additional edge.', check, barActor: f.actors.coordinator,
     checkBaseline: { command: check, main: COMMIT, result: 'red', testEvidence: { failed: ['old witness'], passed: [], noTestsMatched: false } } });
-  const status = barReadiness(f.board, store.getItem(f.board, id));
+  const status = barReadiness(f.board, store.getItem(f.board, id), {}, f.board.runtimePorts.verification);
   assert.equal(status.revision.authors.item_criterion.agent, f.other);
   assert.equal(status.revision.authors.item_brief.agent, 'coordinator');
   assert.throws(() => signReady(f, id, f.other), error => error.code === 'BAR_SELF_SIGN');
@@ -321,6 +321,6 @@ test('[B4,V1,H16] takeover authorship uses the captured current runtime, preserv
   f.actors[child]={session:'f'.repeat(64),parent:'e'.repeat(64)};
   setBarReady(f.board,{agentId:'coordinator',enabled:true});const id=readyItem(f);
   assert.equal(f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('agent_session:coordinator').meta_value,old);
-  assert.equal(barReadiness(f.board,store.getItem(f.board,id)).revision.authors.item_criterion.parent,current.parent);
+  assert.equal(barReadiness(f.board,store.getItem(f.board,id), {}, f.board.runtimePorts.verification).revision.authors.item_criterion.parent,current.parent);
   assert.throws(()=>signReady(f,id,child),error=>error.code==='BAR_SELF_SIGN');
 });
