@@ -1,3 +1,4 @@
+import { checkTimingEngine } from '../check-timing.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by refreeze, discovered without a shared registry edit [C7,V4,H16]. */
 import { BAR_READY_ENGINE } from '../bar-ready-engine.js';
@@ -6,12 +7,17 @@ import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
-function minimumEngine(args, board, at) {
+function existingEngine(args, board, at) {
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;
   if (board && barReadySetting(board).enabled) return BAR_READY_ENGINE;
   if (args[0]?.landingFence !== undefined) return LANDING_LEASE_ENGINE;
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('sentinel:')) return BOARD_SENTINEL_ENGINE;
   return 1;
+}
+
+/** Preserve prior replay floors while protecting a timing-sensitive frozen bar. */
+function minimumEngine(args, board, at) {
+  return Math.max(checkTimingEngine(board, args[0]), existingEngine(args, board, at));
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

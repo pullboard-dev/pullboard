@@ -1,3 +1,4 @@
+import { CHECK_TIMING_ENGINE } from '../check-timing-engine.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../review-independence-engine.js';
 import { REFERENCE_ENGINE } from '../reference-engine.js';
 import { CROSS_REPO_DEPENDENCY_ENGINE } from '../cross-repo-dependency-engine.js';
@@ -21,7 +22,7 @@ function existingEngine(args, board, at) {
 
 /** Preserve every historical floor while preventing older replicas from flattening foreign references. */
 function minimumEngine(args, board, at) {
-  return Math.max((args[0]?.sensitive !== undefined || (args[0]?.reviewFamily !== undefined && args[0]?.reviewFamily === null)) ? REVIEW_INDEPENDENCE_ENGINE : 1, (args[0]?.referenceAuthors !== undefined || args[0]?.referenceAuthority !== undefined) ? REFERENCE_ENGINE : 1,
+  return Math.max(args[0]?.checkTiming !== undefined ? CHECK_TIMING_ENGINE : 1, (args[0]?.sensitive !== undefined || (args[0]?.reviewFamily !== undefined && args[0]?.reviewFamily === null)) ? REVIEW_INDEPENDENCE_ENGINE : 1, (args[0]?.referenceAuthors !== undefined || args[0]?.referenceAuthority !== undefined) ? REFERENCE_ENGINE : 1,
     existingEngine(args, board, at), hasForeignDependencies(args[0]?.after) ? CROSS_REPO_DEPENDENCY_ENGINE : 1,
     args[0]?.reviewFamily !== undefined ? AUTOMATIC_DISPATCH_ENGINE : 1);
 }
