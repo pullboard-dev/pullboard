@@ -191,6 +191,23 @@ test('qualified property spellings do not consume binding probes or conceal actu
   assert.ok(write.potentialShadow || write.opaque, 'an actual write cannot acquire immutable import authority');
 });
 
+test('qualified property skipping retains optional namespace receivers and shorthand bindings [C7]', () => {
+  const prefix = "import * as path from 'node:path'; import * as fs from 'node:fs'; import {join} from 'node:path';\n";
+  const body = "const names = [path?.join(root, 'actual.json'), fs?.readFileSync(input)]; const shorthand = {join};";
+  const source = prefix + body;
+  const scanned = lex(source).code;
+  const probeBody = ' '.repeat(prefix.length - 1) + '\n' + scanned.slice(prefix.length);
+  const rows = bindingReadsForModules([{ file: 'namespace.js', source, body: probeBody,
+    bindings: [{ local: 'path' }, { local: 'fs' }, { local: 'join' }] }]).get('namespace.js');
+  assert.equal(rows.get('path').reads.length, 1, 'optional path receiver is a real capability read');
+  assert.equal(rows.get('fs').reads.length, 1, 'optional filesystem receiver is a real capability read');
+  assert.equal(rows.get('join').reads.length, 1, 'shorthand retains the actual imported binding');
+  const unknown = fixtureSourceEdits(prefix + "fs?.readFileSync(input);", {
+    file: 'test/optional-reader.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']],
+  });
+  assert.ok(unknown.problems.length, 'an optional unknown filesystem read never becomes a success');
+});
+
 /** Produce enough real expression calls to exceed the old full-source variant budget without any candidate evaluation. */
 function manyCalls() {
   return Array.from({ length: 300 }, (_, index) => `const output${index} = join(root, 'leaf-${index}');`).join('\n');
