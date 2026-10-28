@@ -63,13 +63,13 @@ export function captureSourceAdvanceBasis(root, board, item) {
 }
 
 /** Retain a checked composition in process; missing/crashed custody remains incomplete, never guessed green. */
-export function prepareSourceAdvance(root, board, item, composition, gate, basis) {
+export function prepareSourceAdvance(root, board, item, composition, gate, basis, selectors) {
   if (!BASES.has(basis) || basis.inputHead !== composition.inputHead || basis.trunk !== composition.trunk
     || sourceAdvanceCASProblem(board, itemById(board, item.item_id), basis)
     || !preparedSourceComposition(composition) || !gate?.isGreen || gate.deferred || gate.deferFullFallback || gate.deferredFiles
     || mainPolicy(root).commit !== composition.trunk) throw new Refused('SOURCE_ADVANCE_PROOF', 'the current main merge requires a genuine nondeferred green gate');
   const policy = mainPolicy(root);
-  const plan = sourceAdvancePlan(composition.directory, policy.config, { base: composition.inputHead, changed: composition.changed, check: frozenCheck(item) });
+  const plan = sourceAdvancePlan(composition.directory, policy.config, { base: composition.inputHead, changed: composition.changed, check: frozenCheck(item) }, selectors);
   const roles = [...(plan.criterion ? ['criterion'] : []), 'affected'];
   const ids = gate.proofReceiptIds.filter(Boolean);
   if (ids.length !== roles.length) throw new Refused('SOURCE_ADVANCE_PROOF', 'retain every actual frozen and affected phase receipt');
@@ -98,6 +98,9 @@ export function prepareSourceAdvance(root, board, item, composition, gate, basis
 
 /** Convert private, exact origin custody into deterministic replay bytes immediately before native ordering. */
 export function sealSourceAdvance(board, id, request) {
+  const guardLandingWrite = board.runtimePorts?.sourceAdvanceReceipts?.guardLandingWrite;
+  if (typeof guardLandingWrite !== 'function') throw new Refused('NO_POLICY', 'the native board root must supply source-advance landing protection');
+  guardLandingWrite(board, request?.landingFence);
   const prepared = request?.agentId === 'coordinator' && PREPARED.get(request.token);
   if (!prepared || prepared.board !== identity(board) || prepared.id !== id
     || mainPolicy(prepared.root).commit !== prepared.proof.trunk) {
@@ -113,7 +116,7 @@ export function sealSourceAdvance(board, id, request) {
 }
 
 /** Prepare a named return only from actual Git conflicts or the gate's own source-bound red receipt. */
-export function prepareSourceAdvanceReturn(root, board, item, basis, { composition = null, gate = null } = {}) {
+export function prepareSourceAdvanceReturn(root, board, item, basis, { composition = null, gate = null } = {}, selectors) {
   if (!BASES.has(basis) || sourceAdvanceCASProblem(board, itemById(board, item.item_id), basis)
     || mainPolicy(root).commit !== basis.trunk) throw new Refused('SOURCE_ADVANCE_STALE', 'the failed source-advance episode changed');
   let proof;
@@ -128,7 +131,7 @@ export function prepareSourceAdvanceReturn(root, board, item, basis, { compositi
       || gate?.isGreen !== false || gate.deferred || gate.deferFullFallback || gate.deferredFiles) {
       throw new Refused('SOURCE_ADVANCE_PROOF', 'an unavailable or deferred run is incomplete, not a red source advance');
     }
-    const plan = sourceAdvancePlan(composition.directory, mainPolicy(root).config, { base: basis.inputHead, changed: composition.changed, check: frozenCheck(item) });
+    const plan = sourceAdvancePlan(composition.directory, mainPolicy(root).config, { base: basis.inputHead, changed: composition.changed, check: frozenCheck(item) }, selectors);
     const commands = [plan.criterion, plan.affected].filter(Boolean).map(sourceAdvanceHash);
     const { boardReceiptStore, readGateReceipt } = board.runtimePorts.sourceAdvanceReceipts;
     const phases = (gate.proofReceiptIds ?? []).filter(Boolean).map(id => ({ receipt: readGateReceipt(boardReceiptStore(board), id) }));
@@ -153,7 +156,7 @@ export function prepareSourceAdvanceReturn(root, board, item, basis, { compositi
 
 /** Seal the exact ordinary reopen arguments together with their native episode and measured cause. */
 export function sealSourceAdvanceReturn(board, id, request) {
-  const sealed = sealSourceAdvance(board, id, { agentId: request?.agentId, token: request?.sourceAdvanceReturn });
+  const sealed = sealSourceAdvance(board, id, { agentId: request?.agentId, token: request?.sourceAdvanceReturn, landingFence: request?.landingFence });
   if (!['conflict','red'].includes(sealed.proof.outcome)) throw new Refused('SOURCE_ADVANCE_PROOF', 'the worker did not prepare a source return');
   return { agentId: 'coordinator', ...sealed.proof.action, sourceAdvanceReturn: sealed.proof };
 }

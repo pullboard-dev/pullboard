@@ -1,10 +1,12 @@
+import { landingPorts } from './landing-ports-fixture.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 /** @pullboard-test-input source-tree */
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -12,6 +14,25 @@ import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { flakeSource, observeNativeFailure } from '../src/native-flakes.js';
 import * as store from '../src/board.js';
 import { land } from '../src/land.js';
+import { nudgeMainAudit } from '../src/main-audit-nudge.js';
+import { nudgeSourceAdvances } from '../src/source-advance-nudge.js';
+import { runMainAudits } from '../src/main-audit-worker.js';
+import { hasSourceAdvanceJobs } from '../src/source-advance-worker.js';
+import { runSourceAdvances } from '../src/source-advance-worker.js';
+import { context } from '../src/cli.js';
+import { ordered } from '../src/cli.js';
+import { withBoard } from '../src/cli.js';
+import { runSubmitGate } from '../src/gate.js';
+import { withFileLock } from '../src/relay-outbox-guard.js';
+import { readMainAudit } from '../src/main-audit-state.js';
+import { saveMainAudit } from '../src/main-audit-state.js';
+import { landingLeaseState } from '../src/landing-lease.js';
+import { executionServices } from './gate-execution-fixture.js';
+import { flakeLedger } from '../src/flakes.js';
+import { eventCauses } from '../src/rigor.js';
+
+const workerServices = Object.freeze({ executionServices, context, ordered, withBoard, runSubmitGate, withFileLock,
+  readMainAudit, saveMainAudit, landingLeaseState, testValue: { flakeLedger, eventCauses } });
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TITLE = 'a controlled intermittent assertion [C7]';
@@ -58,6 +79,44 @@ function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = false } 
   git('add', '-A'); git('commit', '-q', '-m', 'chore: prepare private flake fixture');
   return { root, scratch, env, git, cli, cliAt, counter, lane: 'build' };
 }
+
+test('empty automatic wakes leave no advisory state in a private repository [C7,H16]', async t => {
+  const box = flakyProject(t);
+  const { repoInfo } = await import('../src/git.js');
+  const pullboard = join(repoInfo(box.root).commonDir, 'pullboard');
+  assert.equal(await nudgeSourceAdvances(box.root, { workerUrl: new URL('../bin/source-advance.js', import.meta.url), eligible: false }), null,
+    'the foreground skips spawning a source worker when its exact native snapshot has no work');
+  assert.equal(await nudgeMainAudit(box.root), null,
+    'the foreground skips spawning an audit worker before explicit activation');
+  assert.equal(box.cli('sentinel', 'run', '--health-only').code, 0,
+    'the real higher-layer CLI path completes a successful health-only command');
+  assert.equal(existsSync(join(pullboard, 'source-advances')), false,
+    "the real caller's explicit empty eligibility result avoids creating advisory state");
+  await Promise.all([
+    runSourceAdvances(box.root, randomUUID(), workerServices),
+    runMainAudits(box.root, randomUUID(), {}, workerServices),
+  ]);
+  assert.equal(existsSync(join(pullboard, 'source-advances')), false,
+    'a source worker with no eligible submissions leaves no lock or wake files');
+  assert.equal(existsSync(join(pullboard, 'main-audits')), false,
+    'an audit worker without the explicit activation leaves no directory');
+
+  const sourceAdvances = join(pullboard, 'source-advances');
+  mkdirSync(sourceAdvances, { recursive: true });
+  writeFileSync(join(sourceAdvances, 'wake.json'), JSON.stringify({ generation: 1 }) + '\n');
+  assert.equal(hasSourceAdvanceJobs(box.root, workerServices), true,
+    'an already-issued wake remains work even when its current item snapshot is empty');
+  await runSourceAdvances(box.root, randomUUID(), workerServices);
+  assert.deepEqual(JSON.parse(readFileSync(join(sourceAdvances, 'settled.json'), 'utf8')).generation, 2,
+    'the worker drains the preexisting generation and its own wake before returning');
+  assert.equal(existsSync(join(sourceAdvances, 'owner.json')), false,
+    'settled generations release their exact private owner');
+  assert.equal(hasSourceAdvanceJobs(box.root, workerServices), true,
+    'an existing advisory directory keeps later explicit wakes on the serialized drain path');
+  await runSourceAdvances(box.root, randomUUID(), workerServices);
+  assert.deepEqual(JSON.parse(readFileSync(join(sourceAdvances, 'settled.json'), 'utf8')).generation, 3,
+    'an explicit later wake settles even after all source obligations are complete');
+});
 
 /** Keep the exact same test identity on main and a candidate, with independently controlled behavior. */
 function writeTarget(root, counter, alwaysPass = false, mutate = false) {
@@ -423,7 +482,7 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
     delete process.env.NODE_TEST_CONTEXT;
     let completed;
     try {
-      await assert.rejects(land({ root: box.root, board, config, owner: 'private-interrupted-owner', say: () => {}, landingWorkerFile: resolve(import.meta.dirname, '../bin/landing-worker.js'),
+      await assert.rejects(land({ landingPorts, root: box.root, board, config, owner: 'private-interrupted-owner', say: () => {}, landingWorkerFile: resolve(import.meta.dirname, '../bin/landing-worker.js'),
         write: async (operation, args) => {
           if (operation === 'recordLandingBatch' && args[0].batch.state === 'blocked') throw new Error('controlled interruption after retained diagnostic');
           return store[operation](board, ...args);

@@ -74,6 +74,8 @@ const OPTIONS = {
   'coverage-file': { type: 'string' },
   text: { type: 'string' },
   gate: { type: 'string' },
+  'gate-receipt': { type: 'string' },
+  receipt: { type: 'boolean' },
   aim: { type: 'boolean' },
   doctrine: { type: 'boolean' },
   source: { type: 'string' },
@@ -161,6 +163,7 @@ const OPTIONS = {
   'withdraw-verdict': { type: 'boolean' },
   cause: { type: 'string' },
   clause: { type: 'string' },
+  'check-timing': { type: 'string' },
   'never-again': { type: 'boolean' },
   'draft-splits': { type: 'boolean' },
   implies: { type: 'string' },
@@ -367,8 +370,9 @@ async function runMain(argv, streams) {
     await (await syncWork())?.syncBefore(io, main);
     traceServeStartup('cli-command-preamble-ready');
     const code = await runCommand(argv, io);
-    auditAfterCommand = code === 0 && parsed?.positionals[0] === 'land'
-      && !parsed.values['dry-run'] && parsed.values.waive === undefined;
+    auditAfterCommand = code === 0 && ((parsed?.positionals[0] === 'land'
+      && !parsed.values['dry-run'] && parsed.values.waive === undefined)
+      || (parsed?.positionals[0] === 'merged' && parsed.values['gate-receipt'] !== undefined));
     advanceAfterCommand = code === 0 && !parsed.values['dry-run'] && (auditAfterCommand
       || parsed.positionals[0] === 'merged' || parsed.positionals[0] === 'sentinel' && parsed.positionals[1] === 'run');
     if (code === 0) {
@@ -385,7 +389,17 @@ async function runMain(argv, streams) {
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
     if (advanceAfterCommand) {
-      try { await (await import('./source-advance-nudge.js')).nudgeSourceAdvances(io.cwd, { workerUrl: new URL('../bin/source-advance.js', import.meta.url) }); }
+      try {
+        let eligible = true;
+        try {
+          const { landingLeaseState } = await import('./landing-lease.js');
+          eligible = (await import('./source-advance-worker.js')).hasSourceAdvanceJobs(io.cwd, { landingLeaseState });
+        }
+        catch { /* Unknown state keeps the normal worker path, which records incomplete work. */ }
+        await (await import('./source-advance-nudge.js')).nudgeSourceAdvances(io.cwd, {
+          workerUrl: new URL('../bin/source-advance.js', import.meta.url), eligible,
+        });
+      }
       catch { io.err('pullboard: the automatic main-merge worker could not start; run pullboard sentinel run --health-only to retry'); }
     }
     if (auditAfterCommand) {

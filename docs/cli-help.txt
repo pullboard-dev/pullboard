@@ -86,9 +86,10 @@ Work
                                         --private makes a bare item ID refer to this repo's device-local board
                                         move one open or verified item between this repo's team and private boards; old IDs forward
                                         private references start with ~; ambiguous bare handles require owner/handle
-                [--check "<command>"] [--wait]   the command that proves it; --wait waits for its main baseline
+                [--check "<command>"] [--check-timing true|false] [--wait]   the command that proves it; --wait waits for its main baseline
                                         with --criterion and a brief, --check is needed below strong
-  pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."]
+                                        only the coordinator sets --check-timing; it freezes exclusive timing admission
+  pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
                 [--review-family <family>]   require the declared reviewer family
                 [--review-tier strict --reason "<risk>"]   coordinator marks additional Strict work; no downgrade
                 [--wait]                wait for a new check's baseline; otherwise it runs in the background

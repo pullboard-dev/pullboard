@@ -1,3 +1,4 @@
+import { quarantineWaivers } from '../quarantine.js';
 import { checkAtCommit } from '../runner-private-check.js';
 /** The pullboard gate command, in its own module so an item adding another command never edits these lines. */
 import { runnerExecutionServices } from '../runners.js';
@@ -44,6 +45,7 @@ import {
 /** Run `pullboard gate` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
   if (first === 'set') return gateConfig.setHere(io, second, rest, values);
+  if (values.receipt && !values.landing) throw new Refused('USAGE', 'use gate --landing --receipt to produce an exact native landing receipt');
   if (first !== undefined || second !== undefined || rest.length > 0) {
     const words = [first, second, ...rest].filter((word) => word !== undefined);
     const next = 'use pullboard resources for status, or pullboard gate with no extra words to run the gate';
@@ -71,11 +73,12 @@ export async function run(io, { first, second, rest, values }) {
     }
     throw error;
   }
-  const waivers = values.landing ? withBoard(ctx, (board) => liveWaiverProjection(board)) : [];
-  const gate = await runGate(ctx.info.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: values.landing, agent: resourceAgent(ctx), onWait: gateWaitReporter(io), stages: Boolean(values.landing), waivers,
+  const waivers = values.landing ? withBoard(ctx, (board) => liveWaiverProjection(board, { quarantineWaivers })) : [];
+  const needsReceipt = values.landing && (values.receipt || config.landing?.requireReceipts === true);
+  const gate = await runGate(ctx.info.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: !needsReceipt, landing: values.landing, agent: resourceAgent(ctx), onWait: gateWaitReporter(io), stages: Boolean(values.landing), waivers,
     onFailure: nativeFlakes.observer(ctx, { kind: values.landing ? 'land' : 'gate', config }, { ordered, withBoard, resourceAgent, checkAtCommit }) });
   // A landing gate honours the person's live waivers exactly as land does; a red run never stamps, so it stays waived, not green [B3,R3].
-  const waived = values.landing && !gate.isGreen ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, ctx.info.root))) : null;
+  const waived = values.landing && !gate.isGreen ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, ctx.info.root), { quarantineWaivers })) : null;
   if (waived) {
     const lines = waived.map(waiverLine);
     const report = `landing gate waived, not green: ${waived.length} failure(s), each covered by a live person waiver; the whole output is in ${gate.log}\n${lines.join('\n')}`;
@@ -83,7 +86,8 @@ export async function run(io, { first, second, rest, values }) {
     io.say(report);
     return 0;
   }
-  io.result?.({ green: gate.isGreen, report: gateReport(gate) });
+  if (needsReceipt && gate.isGreen && !gate.receiptId) throw new Refused('LAND_RECEIPT_UNBOUND', 'the native gate could not bind its exact clean envelope; restore committed source and run gate --landing --receipt');
+  io.result?.({ green: gate.isGreen, report: gateReport(gate), ...(values.landing ? { receiptId: gate.receiptId ?? null } : {}) });
   io.say(gateReport(gate));
   return gate.isGreen ? 0 : 1;
 }

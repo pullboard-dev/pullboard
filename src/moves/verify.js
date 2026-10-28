@@ -1,3 +1,4 @@
+import { checkTimingEngine } from '../check-timing.js';
 import { REJECT_CLAUSE_ENGINE } from '../reject-clause-engine.js';
 import { SOURCE_ADVANCE_ENGINE } from '../source-advance-engine.js';
 import { itemReviewPolicyEngine } from '../review-policy.js';
@@ -35,7 +36,7 @@ function minimumEngine(args, board, at) {
   const sourceAdvance = args[1]?.sourceAdvanceHead !== undefined ? SOURCE_ADVANCE_ENGINE : 1;
   const outside = args[1]?.sandbox !== undefined || board && Boolean(outsideSource(board, args[0]));
   const patches = args[1]?.companionDigest !== undefined || board && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`item_patches:${args[0]}`);
-  return Math.max(sourceAdvance, itemReviewPolicyEngine(board, args[0]), requiredReviewFamilyEngine(board, args[0]), patches ? ITEM_PATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at),
+  return Math.max(checkTimingEngine(board, args[0]), sourceAdvance, itemReviewPolicyEngine(board, args[0]), requiredReviewFamilyEngine(board, args[0]), patches ? ITEM_PATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at),
     args[1] && Object.hasOwn(args[1], 'clause') ? REJECT_CLAUSE_ENGINE : 1);
 }
 

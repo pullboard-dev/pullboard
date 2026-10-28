@@ -348,11 +348,12 @@ export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlo
     [LANDING_RUN_ENV]: landing ? '1' : '0',
     PULLBOARD_TEST_STAGE: gateLease?.receiptKind ?? (landing ? 'land' : 'gate'),
   };
-  const runtimes = captureTestRuntimes({ ...gitChildEnv(root), ...inherited });
+  const diagnostics = [];
+  const runtimes = captureTestRuntimes({ ...gitChildEnv(root, { report: diagnostics.push.bind(diagnostics) }), ...inherited });
   const env = runtimes.env;
   const environment = executionEnvironment();
   const child = spawn(`(\n${command}\n) 2>&1`, { cwd: root, env, shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  const chunks = [];
+  const chunks = [...diagnostics];
   let bytes = 0;
   let overflow = false;
   let failure = null;
@@ -435,10 +436,10 @@ export function pinRunMain(lease, observer) {
  *
  * @param {string} root
  * @param {any} config
- * @param {{ trustStamp?: boolean, onWait?: (state: object) => void, landing?: boolean, collectAll?: boolean, auditBatchId?: string, agent?: string, item?: string|number }} [options]
+ * @param {{ trustStamp?: boolean, onWait?: (state: object) => void, landing?: boolean, runnerOnly?: boolean, collectAll?: boolean, auditBatchId?: string, agent?: string, item?: string|number }} [options]
  * @returns {Promise<{ isGreen: boolean, isCached: boolean, output: string, seconds: number, log: string, profile?: object, profilePath?: string }>}
  */
-export async function runGate(root, config, { trustStamp = true, onWait, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, agent, item = '', stages = false, waivers = [], onFailure, executionServices } = {}) {
+export async function runGate(root, config, { trustStamp = true, onWait, landing = false, runnerOnly = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, agent, item = '', stages = false, waivers = [], onFailure, executionServices } = {}) {
   const releaseStartedAt = releaseRequest ? new Date().toISOString() : null;
   if (releaseRequest && (!landing || !collectAll || trustStamp || auditBatchId !== undefined
     || releaseRequest.version !== 1 || !/^[a-f0-9-]{36}$/u.test(releaseRequest.id ?? '')
@@ -467,7 +468,7 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
     await recordRun(onFailure, run);
     return run;
   }, {
-    executionServices, landing, browser: true, gui: projectNeedsGui(root), agent, item, kind: landing ? 'landing' : 'gate', onWait,
+    executionServices, landing, runnerOnly, browser: true, gui: projectNeedsGui(root), agent, item, kind: landing ? 'landing' : 'gate', onWait,
     ...(releaseRequest ? { requiredExecutor: { kind: 'local' } } : {}),
   });
 }

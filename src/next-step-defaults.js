@@ -474,6 +474,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "SCHEMA_DRIFT": "run pullboard inbox from the main checkout; if drift remains, preserve the board and ask the coordinator to inspect its schema",
   "UNMERGED_SCHEMA": "merge this code into the main checkout first, or test it against its own board",
   "UNKNOWN_TOOL": "call tools/list and use a tool name returned by that MCP server",
+  "VIEW_SERVICE_REQUIRED": "use the configured view exports from src/commands/view.js, or supply the actual command and page-rendering services",
   "VIEW_START": "run pullboard view in the foreground to see why it stopped",
   "VIEW_PAIRING_CLEANUP": "run pullboard relay off, then pullboard relay on --all to finish pairing cleanup",
   "VIEW_STATE": "check that the Pullboard home folder is writable, then run pullboard view again",

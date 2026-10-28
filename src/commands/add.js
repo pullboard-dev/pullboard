@@ -1,3 +1,4 @@
+import { parseCheckTiming } from '../check-timing.js';
 import { requirePersonChannel } from '../person.js';
 import { githubPullClient } from '../pr-github.js';
 import {
@@ -82,6 +83,7 @@ export async function run(io, args) {
     ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
     ...(values['review-family'] === undefined ? {} : { reviewFamily: values['review-family'] }),
     check: values.check,
+    ...(values['check-timing'] === undefined ? {} : { checkTiming: parseCheckTiming(values['check-timing']) }),
   };
   const sealed = executingBarEffect(ctx, board, 'add');
   if (sealed) item = { ...sealed };

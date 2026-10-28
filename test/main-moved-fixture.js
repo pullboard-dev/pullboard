@@ -22,7 +22,7 @@ import { copyPackageFiles } from '../src/package-files.js';
 const SOURCE = new URL('../', import.meta.url);
 
 /** Copy actual installed code, create a real tracked project and seed one explicitly synthetic prior acceptance. */
-export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false, selective = false } = {}) {
+export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false, selective = false, blocked = false } = {}) {
   const scratch = mkdtempSync(join(tmpdir(),'pullboard-main-moved-'));
   const installed = join(scratch,'installed'), repo = join(scratch,'repo'), machine = join(scratch,'machine');
   for (const folder of [installed,repo,machine]) mkdirSync(folder);
@@ -49,6 +49,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
   /** Execute ordinary public CLI; no actor override or command-specific fake is provided. */
   function cli(...args) { return runFixtureChild(process.execPath,[join(installed,'bin/pullboard.js'),...args],{cwd:repo,env,encoding:'utf8'}); }
   const marker = join(scratch,'actual-check-bodies');
+  const gateEntered = join(scratch, 'advance-gate-entered'), gateRelease = join(scratch, 'advance-gate-release');
   for (const name of ['web','test','docs']) mkdirSync(join(repo,name),{recursive:true});
   writeFileSync(join(repo,'SPEC.md'),'# Private fixture specification\n');
   const check = 'node --test --test-reporter=tap test/check.test.js';
@@ -56,7 +57,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
     spec:'SPEC.md',verify:'any',lanes:{web:{owns:['web/'],specs:[]},review:{owns:['test/'],specs:[]}},shared:['docs/','src/','bin/','package.json','pullboard.json']}));
   writeFileSync(join(repo,'web/feature.js'),"export const feature = 'base';\n");
   writeFileSync(join(repo,'web/other.js'),"export const other = 'base';\n");
-  writeFileSync(join(repo,'test/check.test.js'),`import {test} from 'node:test';import assert from 'node:assert/strict';import {writeFileSync} from 'node:fs';import {execFileSync} from 'node:child_process';import {feature} from '../web/feature.js';import {other} from '../web/other.js';test('actual exact composed behavior',()=>{console.log('SOURCE_ADVANCE_BODY');assert.equal(feature,'accepted');assert.equal(other,'base');${dirty?"writeFileSync('web/other.js',\"export const other = 'dirty';\\n\");writeFileSync('untracked-after-check.txt','actual child output');execFileSync('git',['init','-q','nested-child-repo']);writeFileSync('nested-child-repo/body.txt','actual nested Git fixture');":''}});\n`);
+  writeFileSync(join(repo,'test/check.test.js'),`import {test} from 'node:test';import assert from 'node:assert/strict';import {writeFileSync,existsSync} from 'node:fs';import {execFileSync} from 'node:child_process';import {feature} from '../web/feature.js';import {other} from '../web/other.js';test('actual exact composed behavior',()=>{console.log('SOURCE_ADVANCE_BODY');${blocked?`writeFileSync(${JSON.stringify(gateEntered)},'entered');const end=Date.now()+30000;while(!existsSync(${JSON.stringify(gateRelease)})&&Date.now()<end)Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,10);assert.ok(existsSync(${JSON.stringify(gateRelease)}),'test-owned source gate is released');`:''}assert.equal(feature,'accepted');assert.equal(other,'base');${dirty?"writeFileSync('web/other.js',\"export const other = 'dirty';\\n\");writeFileSync('untracked-after-check.txt','actual child output');execFileSync('git',['init','-q','nested-child-repo']);writeFileSync('nested-child-repo/body.txt','actual nested Git fixture');":''}});\n`);
   if (selective) writeFileSync(join(repo,'test/unrelated.test.js'),`import {test} from 'node:test';test('unrelated project body',()=>console.log('UNRELATED_BODY'));\n`);
   writeFileSync(join(repo,'docs/lifecycle.md'),'base declaration artifact\n');
   git(repo,'init','-q','-b','main');git(repo,'add','-A');git(repo,'commit','-q','-m','chore: actual main-movement base');
@@ -102,7 +103,9 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
     for (;;) {
       const rows=existsSync(directory)?readdirSync(directory).filter(name=>name.endsWith('.json')&&!['wake.json','owner.json','settled.json'].includes(name)).map(name=>JSON.parse(readFileSync(join(directory,name),'utf8'))):[];
       const ownerFile=join(directory,'owner.json');
-      const owner=existsSync(ownerFile)?JSON.parse(readFileSync(ownerFile,'utf8')):null;
+      let owner=null;
+      try { owner=JSON.parse(readFileSync(ownerFile,'utf8')); }
+      catch (error) { if(error.code!=='ENOENT') throw error; }
       const signature=JSON.stringify(rows.map(row=>[row.state,row.head,row.reason]));
       if(signature!==last){last=signature;quietSince=Date.now();}
       const current=board(db=>store.getItem(db,id));
@@ -120,5 +123,5 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
   });
   /** The ordinary health worker is the production automatic entry point; old source has no replacement stub. */
   function trigger() { const wake=join(directory,'wake.json');expectedGeneration=(existsSync(wake)?JSON.parse(readFileSync(wake,'utf8')).generation:0)+1;const run=cli('sentinel','run','--health-only','--json');assert.equal(run.status,0,run.context ?? run.stderr);return run; }
-  return {repo,installed,env,store,board,git,cli,trigger,settled,id,actors,accepted,trunk,tree,base,original,marker,directory,scratch};
+  return {repo,installed,env,store,board,git,cli,trigger,settled,id,actors,accepted,trunk,tree,base,original,marker,directory,scratch,gateEntered,gateRelease};
 }

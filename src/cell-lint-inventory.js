@@ -5,8 +5,6 @@ import { gitSpawnSync } from './git-adapter.js';
 import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { importsIn } from './module-imports.js';
-import { commonJsIn } from './module-imports.js';
 import { repositoryImport } from './import-map.js';
 
 /** Name the actual cell folder, without inventing a metadata registry. */
@@ -35,7 +33,9 @@ export function committedCellTransition(root) {
 }
 
 /** Inventory all ordinary repository files; symlinks remain visible unknowns rather than traversed boundaries. */
-export function cellInventory(root) {
+export function cellInventory(root, parsers) {
+  if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new TypeError('cell inventory needs explicit module parser operations');
+  const { importsIn, commonJsIn } = parsers;
   const files = new Map(), unknown = [];
   const listed = gitSpawnSync(['ls-files', '--cached', '--others', '--exclude-per-directory=.gitignore', '-z'], { cwd: root, env: gitChildEnv(root), encoding: 'utf8' });
   if (listed.status !== 0) throw new Error('cell lint inventory needs a real Git repository; initialize the private fixture or restore Git metadata');

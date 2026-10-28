@@ -1,3 +1,5 @@
+import { frozenCheckTiming } from '../check-timing.js';
+import { quarantineWaivers } from '../quarantine.js';
 import { withBoardRead as waitBoardRead } from '../board-read.js';
 import { retrySync } from '../cli-sync.js';
 import { checkAtCommit } from '../runner-private-check.js';
@@ -222,7 +224,7 @@ export async function submitHere(ctx, id, infra) {
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
   const submitConfig = submitGateConfig(companion ? policyAt(root, companion.commit).config : ctx.config, acceptedMain.config);
   const admission = { commit: companion?.commit ?? commit, tree: companion?.tree ?? headTree(root) };
-  const gate = await withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, outputRoot: root, base: claimHead, trunk: acceptedMain.commit, check: frozenCheck(held), agent: me.id, item: String(id), onWait: queuedItemLease(ctx, held, me.id, 'build', admission), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
+  const gate = await withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, outputRoot: root, base: claimHead, trunk: acceptedMain.commit, check: frozenCheck(held), timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: queuedItemLease(ctx, held, me.id, 'build', admission), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission },
     onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
@@ -233,7 +235,7 @@ export async function submitHere(ctx, id, infra) {
     companion.phases = gate.phasePlan.map(({ role, command }) => ({ role, command: createHash('sha256').update(command).digest('hex') }));
   }
   // Only fully accounted exact-main failures or live person waivers pass a red proof; the item check stays mandatory [B3].
-  const waived = !gate.isGreen && gate.check?.green ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, root))) : null;
+  const waived = !gate.isGreen && gate.check?.green ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, root), { quarantineWaivers })) : null;
   const onMeasuredReceipt = receiptId => nativeFlakes.recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent });
   let comparison;
   let knownMainFailures;

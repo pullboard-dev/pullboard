@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /** Write, check or file the cells move plan, or check one cell's move against it [D3,CD60,CD64]. */
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -84,18 +86,19 @@ export function writePlan(root, plan) {
 }
 
 /** Read the committed plan back as one object, refusing an index whose shard is missing. */
-export function readPlan(root) {
-  const index = JSON.parse(readFileSync(join(root, PLAN_FILE), 'utf8'));
+export function readPlan(root, read = file => readFileSync(join(root, file), 'utf8')) {
+  const index = JSON.parse(read(PLAN_FILE));
   const cells = index.cells.map(row => {
-    if (!existsSync(join(root, row.file))) throw new Refused('CELLS_PLAN_SHARD', `${row.file} is missing; regenerate with node bin/cells-plan.js --write`);
-    return JSON.parse(readFileSync(join(root, row.file), 'utf8'));
+    let source;
+    try { source = read(row.file); } catch { throw new Refused('CELLS_PLAN_SHARD', `${row.file} is missing; regenerate with node bin/cells-plan.js --write`); }
+    return JSON.parse(source);
   });
   return { ...index, cells };
 }
 
 /** Compute the plan from a checkout's tracked files and real import edges, at its HEAD. */
 export function computePlan(root) {
-  const { files, edges } = cellInventory(root);
+  const { files, edges } = cellInventory(root, { importsIn, commonJsIn });
   const seed = readSeed(root);
   const head = tryGit(root, ['rev-parse', 'HEAD']);
   const paths = [...files.keys()].filter(inPlanScope).sort();
@@ -162,7 +165,7 @@ export function checkMoved(root, plan, name) {
     }
   }
   if (existsSync(join(root, CELL_BASELINE_DESCRIPTOR))) {
-    for (const row of cellLintGrowth(cellLintReport(root), readCellLintBaseline(root), { enforcedOnly: true })) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
+    for (const row of cellLintGrowth(cellLintReport(root, { importsIn, commonJsIn }), readCellLintBaseline(root), { enforcedOnly: true })) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
   }
   return problems;
 }

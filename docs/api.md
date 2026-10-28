@@ -136,7 +136,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `capacity` | `version:number`, `report:object` |
 | `stats` | `version:number`, `stats:object`, `gateWaits:array` |
 | `badge` | `version:number`, `items:number`, `checked:number`, `percent:number\|null`, `changed:array` |
-| `status` | `version:number`, `me:object`, `mine:array`, `ruleCounts:object`, `stats:object`, `reviewQueue:object`, `unread:number`, `relay:object` |
+| `status` | `version:number`, `me:object`, `mine:array`, `capacityForecast:object`, `ruleCounts:object`, `stats:object`, `reviewQueue:object`, `unread:number`, `relay:object` |
 | `doctor` | `version:number`, `problems:array` |
 | `health` | `version:number`, `asOf:string`, `thresholds:object`, `stuck:array`, `waiting:array` |
 | `sentinel propose` | `version:number`, `sentinel:object` |
@@ -193,7 +193,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `gate` | `version:number`, `green:boolean`, `report:string` |
 | `gate set` | `version:number`, `gate:string`, `file:string` |
 | `export` | `version:number`, `tables:object` |
-| `digest` | `version:number`, `markdown:string`, `bytes:number`, `sequence:number`, `sections:array` |
+| `digest` | `version:number`, `markdown:string`, `capacityForecast:object`, `bytes:number`, `sequence:number`, `sections:array` |
 | `import` | `version:number`, `tables:array` |
 | `spec` | `version:number`, `rows:array` |
 | `spec check` | `version:number`, `rows:array` |
@@ -799,6 +799,16 @@ query; it does not execute the decision or grant cross-board authority.
 Consumers supply the existing canonical resolver as `resolveBoardRef(id) -> {boardId}` without alias normalization here, their local `boardId`, and a synchronous authenticated `authorize({action,boardId,document})` port. Actions are `accepted`, `declined`, and `receive-result`. The port must verify the appropriate source/destination authority for the exact document; there is no permissive default. The destination's synchronous `createChild(content)` port must perform its native child move on this same board and return its item id. Invoke these contracts inside the consumer's ordered move: child creation and the destination retry record share one SQLite transaction. Source result delivery is a separately authorized, idempotent transaction. These contracts add no offer orchestration, two-board transaction or landing sequencer.
 
 `minimalItemReceipt(fields,{sign})` accepts only `{version:1,sourceBoardId,item,commit,verifier,verdict}` and appends `integrity:{digest,signature}` over canonical permitted bytes. `verifyItemReceipt(receipt,{resolveBoardRef,verify},expected)` requires all expected references to match, checks the digest, and calls `verify(bytes,signature,sourceBoardId)` against the consumer's established source trust. Signatures are supplied through the existing authority adapter; a digest alone proves no authority. Titles, criteria, notes and unknown fields are refused even on verification. Private landing consumers still establish the real landing and verdict before issuing this reduced envelope.
+
+### Capacity advice
+
+`pullboard status --json`, the local API state and `pullboard digest --json` expose the same local derived capacity snapshot as `capacityForecast`; status's separate `capacity` field remains the live-seat routing count. Text status and the morning briefing print the useful-agent range, finish range, binding constraint and suggested lever. This advice never changes claim eligibility.
+
+The snapshot reports remaining build/review agent-hours (`workHours`), the critical-path, whole-cycle p90 and observed coordinator landing-batch bounds, their maximum (`tInfinityHours`), and `agents.recommended = min(ceil(2W/T∞), collision wave width, ready supply plus unlocks)`. `agents.lower/upper` and `finishHours.lower/upper` are empirical p10/p90 forecasts from 100 seeded discrete-event replicates. The forecast assumes the number of seats active in recorded events over the preceding sixty minutes; `staffing` labels this activity proxy explicitly, without asserting live presence. Builds and reviews share capacity; a modeled builder cannot review its own work. Queue and rework delays affect latency rather than active labor. Declared disjoint files provide a conservative collision width; unknown files are not assumed independent.
+
+Ordinary board writes refresh the closed form at five-minute intervals and the forecast at fifteen-minute intervals. Empirical fits refresh nightly over the preceding seven complete UTC days. Read-only consumers never replay or warm missing indexes. `source`, `asOf` and `monteCarlo.asOf/sequence` identify the fit and each estimate's provenance; forecast ranges may predate a newer closed form. `stale` marks a snapshot older than thirty minutes or an unavailable index. Missing or incompatible history, person waits, held work, cycles and missing route/landing measurements remain explicit in `unknown`; unavailable estimates use null values for unknown quantities. `available: false` can retain independently known `workHours` while staffing advice and finish bounds remain null; known labor does not establish a complete forecast. `needsYou` lists unfinished items citing rows without recorded approval evidence; it is null when the index is unavailable, rather than an invented zero count.
+
+Build intervals measure a recorded live claim through submission, and review intervals require the matching reserving identity and commit. These are observed seat-occupancy intervals, not CPU execution times. Landing samples measure terminal adopted-member coordinator batch cycles, including in-batch admission and bisection; they exclude the prior acceptance queue and do not establish the failure rate of unfinished or failed batches. Landing-return risk is fitted separately from deduplicated completed accepted-source episodes: a matching typed conflict/landing-failure return is a failure, and a merged receipt completes the accepted episode even when its landed SHA differs from the submitted source SHA. Unclassified exits or invalid episode provenance leave outcome coverage unknown; still-open accepted episodes are right-censored, not zero-risk outcomes. Known positive failure risk can contribute measured cause-specific repair labor, but an unmeasured failed landing-cycle duration prevents complete staffing and finish forecasts. Successful batch timing is not substituted for that missing duration. This does not model abandoned pre-submission occupancy or provide a full failed-landing simulation. The wire object's version remains 1, and its `assumptions` retain these limits. The model is a projection of recorded evidence, not proof that a gate ran or that a future completion time is guaranteed.
 
 ## Companion requests
 

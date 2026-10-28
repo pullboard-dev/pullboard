@@ -32,6 +32,9 @@ import { optionTakesValue } from '../src/test-file-dispatch.js';
 import { knownNodeOption } from '../src/test-file-dispatch.js';
 import { COLLECTION_ID_ENV } from '../src/gate-run-receipt.js';
 import { beginSuiteTiming, TIMING_RUN_ID_ENV } from '../src/run-timing.js';
+import { removeGitRepositorySelectors } from '../src/git-child-selectors.js';
+// Discovery and full-suite delegation happen before the existing per-worker isolation below.
+removeGitRepositorySelectors(process.env, process.stderr.write.bind(process.stderr));
 const runner = fileURLToPath(import.meta.url);
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
 const LANDING_WORKER_STARTS_ENV = 'PULLBOARD_LANDING_WORKER_STARTS';
@@ -1350,8 +1353,9 @@ async function main(args) {
         if (!files.length) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
         const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null;
         const { runLandingShards } = await import('../src/landing-shards.js');
+        const { parseProcessCensus } = await import('../src/process-census.js');
         const { testsNeedBrowser } = await import('../src/browser-admission.js');
-        const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite,
+        const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite, parseProcessCensus,
           needsBrowser: shardFiles => testsNeedBrowser(process.cwd(), shardFiles), timing });
         timing.sharded(result, files);
         process.exitCode = result.isGreen ? 0 : 1;

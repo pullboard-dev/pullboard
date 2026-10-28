@@ -93,6 +93,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .home-counts dt { color: var(--ink-muted); font-size: var(--text-sm); }
 .home-counts dd { margin: var(--space-0) 0 0; font-size: var(--text-3xl); font-weight: 600; font-variant-numeric: tabular-nums; }
 .home-needs { margin: 0; padding: 0; border-bottom: 0; }
+.home-capacity p { margin: var(--space-2) 0; overflow-wrap: anywhere; }
+.capacity-main strong { font-size: var(--text-3xl); font-variant-numeric: tabular-nums; }
+.capacity-note, .capacity-curve figcaption { color: var(--ink-muted); font-size: var(--text-xs); }
+.capacity-warning { color: var(--warn); }
+.capacity-curve { max-width: 300px; margin: var(--space-4) 0 0; }
+.capacity-curve svg { display: block; width: 100%; height: 72px; }
+.capacity-curve polyline { fill: none; stroke: var(--accent-strong); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .group-need { display: grid; grid-template-columns: minmax(90px, auto) auto minmax(0, 1fr) auto; align-items: baseline; gap: var(--space-2) var(--space-4); width: 100%; padding: var(--space-3) 0; text-align: left; border: 0; border-top: 1px solid var(--line); background: none; }
 .group-need:hover { background: var(--surface-2); }
 .group-need > b { color: var(--ink-muted); }
@@ -729,6 +736,20 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .flow .tag { font: var(--text-xs) var(--sans); fill: var(--ink-muted); }
 .flow .tag.idle { fill: var(--ink-faint); } .flow .tag.back { fill: var(--reject); }
 .flow g:hover > .box, .flow g:hover > .edge { stroke-width: 2.2; }
+.activity-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.activity-toolbar .activity-bar { margin: 0; }
+.activity-toolbar .flow-show { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0 0 0 auto; font-size: var(--text-xs); }
+.flow-show svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.flow [data-lifecycle-stage] .name { font: 600 var(--text-sm) var(--sans); letter-spacing: 0; fill: var(--ink-muted); }
+.flow [data-lifecycle-stage] .sub { font: var(--text-xs) var(--sans); fill: var(--ink-faint); }
+.flow .s-verified .n { fill: var(--accent-strong); }
+.flow .box.withdrawn { stroke-dasharray: 4 3; }
+.flow .tag.masked { paint-order: stroke; stroke: var(--surface); stroke-width: 8px; stroke-linejoin: round; }
+.lifecycle-notes { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin-top: var(--space-4); color: var(--ink-muted); font-size: var(--text-xs); }
+.lifecycle-notes p { margin: 0; }
+.lifecycle-notes .lifecycle-returns { color: var(--reject); }
+.lifecycle-rare summary { cursor: pointer; color: var(--accent-strong); font-weight: 600; }
+.lifecycle-rare ul { margin: var(--space-2) 0; padding-left: var(--space-5); }
 .console { position: static; width: min(560px, calc(100% - 32px)); margin: var(--space-3) auto; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-card); box-shadow: var(--shadow); padding: var(--space-4) var(--space-4); font: var(--text-xs)/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 38vh; overflow: auto; cursor: pointer; }
 .console.ok { border-color: var(--accent); } .console.no { border-color: var(--reject); }
 /* Keep the replay viewport width fixed when its event list grows a classic scrollbar. */

@@ -1,5 +1,7 @@
+import { frozenCheckTiming } from './check-timing.js';
 /** Finite autonomous main-merge work uses ordinary admission, native receipts and ordered writes [C7,V4,H16]. */
 import { copyFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -39,6 +41,19 @@ function writer(root, { context, ordered, withBoard }) {
   return work => withBoard(ctx, board => work(board, (operation, args) => ordered(ctx, board, operation, args)));
 }
 
+/** Serialize only the final ordered source change with publication, never its gate execution. */
+function complete(root, write, { takeLandingResource }, action) {
+  if (typeof takeLandingResource !== 'function') throw new TypeError('source-advance completion needs native landing admission');
+  return write(async (board, order) => {
+    const lease = await takeLandingResource({ board, branch: git(root, ['symbolic-ref', 'HEAD']),
+      write: order });
+    try {
+      await lease.assertHeld();
+      return await action(board, order, lease);
+    } finally { await lease.release(); }
+  });
+}
+
 /** Known process start identity prevents PID reuse from blocking or stealing an unrelated owner. */
 function processStart(pid) {
   try { return execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8', timeout: 1000 }).trim() || null; }
@@ -76,6 +91,16 @@ function snapshot(root, info, { landingLeaseState }) {
       } // Unavailable objects/invalid inputs stay explicitly incomplete, never endorsed or silently dropped.
     });
   });
+}
+
+/** Exact readonly eligibility probe used by the foreground nudge before it spawns a worker. */
+export function hasSourceAdvanceJobs(root, services, info = repoInfo(root)) {
+  if (snapshot(root, info, services).length > 0) return true;
+  const directory = sourceAdvanceDirectory(info);
+  // Once this repository has advisory state, a foreground wake must enter the
+  // serialized drain even when the current snapshot is empty. It may be the
+  // next generation after an earlier real job, and only the owner can settle it.
+  return existsSync(directory);
 }
 
 /** Signal incomplete work once through the ordinary item thread without a self-shout or fabricated authority. */
@@ -124,16 +149,21 @@ async function advance(root, directory, job, write, services) {
       const config = policy.config;
       custody.started();
       const gate = await runSubmitGate(composition.directory, config, { base: composition.inputHead, changed: composition.changed,
-        executionServices: services.executionServices, check: frozenCheck(job.item), agent: 'coordinator', item: String(job.item.item_id), sourceAdvance: true,
+        executionServices: services.executionServices, check: frozenCheck(job.item), timing: frozenCheckTiming(job.item), agent: 'coordinator', item: String(job.item.item_id), sourceAdvance: true,
         proofContext: { item: job.item.item_id, frozenDigest: job.basis.bar, seat: 'coordinator', kind: 'submit' } });
       if (!gate.cleanupUnverified && !(gate.profile?.landingShards?.unverified?.length > 0)) custody.terminal();
       const artifacts = retainArtifacts(directory, job, gate, composition, services);
-      const result = await write(async (board, order) => {
-        const request = gate.isGreen ? prepareSourceAdvance(root, board, job.item, composition, gate, job.basis)
-          : prepareSourceAdvanceReturn(root, board, job.item, job.basis, { composition, gate });
-        for (const receiptId of gate.proofReceiptIds.filter(Boolean)) await order('recordProofRun', [{ agentId: 'coordinator', itemId: job.item.item_id, receiptId }]);
+      const result = await complete(root, write, services, async (board, order, lease) => {
+        const request = gate.isGreen ? prepareSourceAdvance(root, board, job.item, composition, gate, job.basis, services.selectors)
+          : prepareSourceAdvanceReturn(root, board, job.item, job.basis, { composition, gate }, services.selectors);
+        for (const receiptId of gate.proofReceiptIds.filter(Boolean)) {
+          await lease.assertHeld();
+          await order('recordProofRun', [{ agentId: 'coordinator', itemId: job.item.item_id, receiptId }]);
+        }
         git(root, ['update-ref', `refs/pullboard/items/${job.item.item_id}/${composition.head.slice(0,12)}`, composition.head]);
-        return gate.isGreen ? order('advanceItemSource', [job.item.item_id, request]) : order('reopen', [job.item.item_id, request]);
+        await lease.assertHeld();
+        const fenced = { ...request, landingFence: lease.fence };
+        return gate.isGreen ? order('advanceItemSource', [job.item.item_id, fenced]) : order('reopen', [job.item.item_id, fenced]);
       });
       saveMainAudit(file, { ...readMainAudit(file), state: gate.isGreen ? 'advanced' : 'returned', result,
         receiptIds: gate.proofReceiptIds.filter(Boolean), artifacts });
@@ -141,8 +171,11 @@ async function advance(root, directory, job, write, services) {
   } catch (error) {
     if (!entered && error.code === 'MERGE_CONFLICT' && error.files?.length) {
       try {
-        const result = await write((board, order) => order('reopen', [job.item.item_id,
-          prepareSourceAdvanceReturn(root, board, job.item, job.basis)]));
+        const result = await complete(root, write, services, async (board, order, lease) => {
+          const request = prepareSourceAdvanceReturn(root, board, job.item, job.basis);
+          await lease.assertHeld();
+          return order('reopen', [job.item.item_id, { ...request, landingFence: lease.fence }]);
+        });
         saveMainAudit(file, { ...readMainAudit(file), state: 'returned', files: error.files, result });
         return;
       } catch (returned) { error = returned; }
@@ -155,7 +188,15 @@ async function advance(root, directory, job, write, services) {
 export async function runSourceAdvances(root, token, services) {
   const info = repoInfo(root);
   if (!info.isMain || !codeIsFromMain() || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
+  if (typeof services?.selectors?.selectAffectedTests !== 'function' || typeof services?.selectors?.selectTestTreeGuards !== 'function') throw new TypeError('source advance worker needs explicit test selector operations');
+  const selectors = Object.freeze({ selectAffectedTests: services.selectors.selectAffectedTests, selectTestTreeGuards: services.selectors.selectTestTreeGuards });
+  services = { ...services, selectors };
   const { withFileLock, readMainAudit, saveMainAudit } = services;
+  // A wake with no source obligations must be observationally inert. A successful CLI
+  // command can start this worker just before its caller removes a private fixture repo;
+  // creating advisory state before discovering an empty snapshot races that cleanup.
+  // The serialized snapshot below remains authoritative for every real job.
+  if (!hasSourceAdvanceJobs(root, services, info)) return;
   const directory = sourceAdvanceDirectory(info); mkdirSync(directory, { recursive: true, mode: 0o700 });
   const ownerFile = join(directory,'owner.json'), wakeFile = join(directory,'wake.json'), lock = join(directory,'owner.guard.sqlite');
   const acquired = await withFileLock(lock, () => {

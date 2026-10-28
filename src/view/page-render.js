@@ -112,6 +112,7 @@ function render() {
       $('needs').innerHTML = needsHtml;
     } else {
       $('home-rules').innerHTML = homeRules(p.spec);
+      $('home-capacity').innerHTML = homeCapacity(p.capacityForecast);
       $('home-needs').innerHTML = needsHtml;
       $('home-calm').hidden = Boolean(needsHtml);
     }
@@ -454,11 +455,12 @@ function render() {
   }
 
   if (view.tab === 'activity') {
-  if (keep('pb.flow') !== 'hidden') $('flow').innerHTML = flowSvg(p);
+  if (keep('pb.flow') === 'shown') $('flow').innerHTML = lifecycleChart(p, p.moveCounts ? new Map(Object.entries(p.moveCounts)) : moveCounts(p.items), p.items.filter(item => stateOf(item) === 'back').length);
+  $('activity-filters').innerHTML = activityFilters(activityModel(p), view.activityFilter || 'all');
   const activity = $('activity');
   const activityOpen = activity.dataset.boardRoot === p.root ? [...activity.querySelectorAll('[data-activity-run][open]')].map(entry => entry.dataset.activityRun) : [];
   activity.dataset.boardRoot = p.root;
-  activity.innerHTML = activityHtml(activityModel(p), { words: activityWords, filter: view.activityFilter || 'all', itemHref: itemAddress, open: activityOpen, dayLabel: dayName, quote: text => inline(text, titles) });
+  activity.innerHTML = activityHtml(activityModel(p), { controls: false, words: activityWords, filter: view.activityFilter || 'all', itemHref: itemAddress, open: activityOpen, dayLabel: dayName, quote: text => inline(text, titles) });
   }
   showTab();
   revealPlace();
