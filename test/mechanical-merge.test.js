@@ -6,7 +6,11 @@ import { after, test } from 'node:test';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { hostname, tmpdir } from 'node:os';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import {
+  privateFixtureFiles,
+  runFixtureChild,
+  runFixtureGit,
+} from './fixture-child.js';
 import { cleanGitEnvironment } from '../src/git.js';
 import { conflictFiles } from '../src/health.js';
 import { recordedTrunkMerge, trunkMerge } from '../src/trunk-merge.js';
@@ -32,7 +36,8 @@ after(e2e.cleanup);
 
 /** Build divergent real commits without inherited Git identity or repository selectors. */
 function fixture(path, base, left, right, extra = {}) {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-mechanical-'));
+  const inputs = privateFixtureFiles('pullboard-mechanical-');
+  const root = inputs.root;
   directories.push(root);
   const env = { ...cleanGitEnvironment(), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Mechanical fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
@@ -41,8 +46,7 @@ function fixture(path, base, left, right, extra = {}) {
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
   /** Write a real source file and its parent directories. */
   function write(file, source) {
-    mkdirSync(dirname(join(root, file)), { recursive: true });
-    writeFileSync(join(root, file), source);
+    inputs.write(file, source);
   }
   /** Commit the exact selected fixture version. */
   function commit(source, message) {
@@ -58,7 +62,7 @@ function fixture(path, base, left, right, extra = {}) {
   const head = commit(right, 'feat: candidate');
   git('checkout', '-q', 'main');
   const trunk = commit(left, 'feat: trunk');
-  return { root, env, git, write, path, ancestor, head, trunk };
+  return { root, env, git, write, read: inputs.read, path, ancestor, head, trunk };
 }
 
 /** Pin the actual checkout/index before all read-only conflict entry points. */
@@ -79,7 +83,7 @@ function land(box, expected) {
     { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(merge.status, 1, `${merge.stdout}\n${merge.stderr}`);
   assert.ok(resolveMechanicalMerge(box.root, [box.path]));
-  assert.equal(readFileSync(join(box.root, box.path), 'utf8'), expected);
+  assert.equal(box.read(box.path).toString('utf8'), expected);
   box.git('add', '--', box.path);
   box.git('commit', '-q', '-m', 'chore: land mechanical merge');
   assert.equal(box.git('show', `HEAD:${box.path}`), expected.trimEnd());
@@ -137,9 +141,9 @@ for (const [name, path, base, left, right] of [
     inspect(box, [path]);
     assert.equal(runFixtureChild('git', ['merge', '--no-commit', box.head],
       { cwd: box.root, env: box.env, encoding: 'utf8' }).status, 1);
-    const before = readFileSync(join(box.root, path));
+    const before = box.read(path);
     assert.equal(resolveMechanicalMerge(box.root, [path]), null);
-    assert.deepEqual(readFileSync(join(box.root, path)), before, 'a refused resolution leaves the merge for normal conflict handling');
+    assert.deepEqual(box.read(path), before, 'a refused resolution leaves the merge for normal conflict handling');
   });
 }
 

@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../src/cell-binding-uses.js';
 import { stringSuffixDisjoint } from '../src/path-map-operands.js';
+import { repositoryImport } from '../src/import-map.js';
 
 const ID = '[A-Za-z_$][\\w$]*';
 const READS = new Set(['readFileSync', 'cpSync', 'copyFileSync']);
@@ -68,8 +69,128 @@ function slashLine(source, code, at) {
   return code.slice(start, end).includes('/');
 }
 
+/** Resolve only immutable declared callable/literal exports, never native namespace aliases or evaluated values. */
+function sourceExportPorts(readSource) {
+  const captured = new Map(), parsed = new Map(), compiled = new Set();
+  const unresolved = Symbol('unresolved export');
+  /** Bind each source to its actual Git blob; one proof has a finite module and byte closure. */
+  function snapshot(file) {
+    let value;
+    try { value = readSource?.(file); } catch { return null; }
+    if (!value || typeof value.source !== 'string' || value.source.length > 1024 ** 2
+      || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.object ?? '')
+      || createHash(value.object.length === 64 ? 'sha256' : 'sha1').update(`blob ${Buffer.byteLength(value.source)}\0`)
+        .update(value.source).digest('hex') !== value.object) return null;
+    const prior = captured.get(file);
+    if (prior && (prior.source !== value.source || prior.object !== value.object)) return null;
+    if (!prior && (captured.size >= 32 || [...captured.values()].reduce((sum, row) => sum + row.source.length, value.source.length) > 2 * 1024 ** 2)) return null;
+    captured.set(file, value);
+    return value;
+  }
+  /** Use the repository's real Node import-map resolver for closed relative or package specifiers. */
+  function target(file, specifier) {
+    let map = {};
+    if (specifier.startsWith('#')) {
+      const manifest = snapshot('package.json');
+      if (!manifest) return null;
+      try { map = JSON.parse(manifest.source).imports; } catch { return null; }
+    }
+    return repositoryImport(file, specifier, map);
+  }
+  /** Record exact public origins; expressions, defaults and unknown export grammar remain unsupported. */
+  function surface(file) {
+    if (parsed.has(file)) return parsed.get(file);
+    const value = snapshot(file);
+    if (!value) return null;
+    const scanned = lex(value.source), code = scanned.code, rows = new Map(), stars = [];
+    const identities = imports(value.source, scanned, [], file, { producer: true }).bindings;
+    /** Retain a public name exactly once, including its actual declaration source. */
+    function add(name, row) { if (rows.has(name)) return false; rows.set(name, row); return true; }
+    for (const match of code.matchAll(/\bexport\b/gu)) {
+      if (/\.\s*$/u.test(code.slice(0, match.index))) continue;
+      const line = code.slice(code.lastIndexOf('\n', match.index - 1) + 1, match.index);
+      if (line.trim() && !/;\s*$/u.test(line) || slashLine(value.source, code, match.index)) return null;
+      const rest = code.slice(match.index);
+      const declaration = new RegExp(`^export\\s+(?:async\\s+)?(function|class)\\s+(${ID})\\b`, 'u').exec(rest);
+      if (declaration) {
+        if (!add(declaration[2], { file, name: declaration[2], kind: declaration[1] })) return null;
+        continue;
+      }
+      const primitive = new RegExp(`^export\\s+const\\s+(${ID})\\s*=\\s*(?:[0-9][0-9_]*|true|false|null)\\s*;`, 'u').exec(rest);
+      if (primitive) { if (!add(primitive[1], { file, name: primitive[1], kind: 'literal' })) return null; continue; }
+      const unknown = new RegExp(`^export\\s+(?:const|let|var)\\s+(${ID})\\s*=`, 'u').exec(rest);
+      if (unknown) { if (!add(unknown[1], { file, name: unknown[1], kind: 'unknown' })) return null; continue; }
+      const clause = /^export\s*(\*|\{[^}]*\})\s*(from\s*)?/u.exec(rest);
+      if (!clause) return null;
+      let destination = null;
+      if (clause[2]) {
+        const at = match.index + rest.indexOf(clause[1]) + clause[1].length;
+        const literal = scanned.strings.find(row => row.start >= at && /^\s*from\s*$/u.test(code.slice(at, row.start)));
+        if (!literal || !(destination = target(file, literal.text))) return null;
+      }
+      if (clause[1] === '*') { if (!destination) return null; stars.push(destination); continue; }
+      for (const part of clause[1].slice(1, -1).split(',')) {
+        const names = new RegExp(`^\\s*(${ID})(?:\\s+as\\s+(${ID}))?\\s*$`, 'u').exec(part);
+        if (!names) return null;
+        const local = names[1], name = names[2] ?? local, binding = identities.get(local);
+        const origin = destination ?? (binding?.module === 'source' && binding.imported !== '*' ? binding.target : null);
+        if (!origin || !add(name, { to: origin, name: destination ? local : binding.imported })) return null;
+      }
+    }
+    const result = { rows, stars };
+    parsed.set(file, result);
+    return result;
+  }
+  /** Follow a finite exact named reexport chain, refusing ambiguous stars and every cycle. */
+  function named(file, name, seen = new Set()) {
+    const key = `${file}#${name}`;
+    if (seen.has(key) || seen.size >= 8) return unresolved;
+    const module = surface(file);
+    if (!module) return unresolved;
+    const next = new Set([...seen, key]), row = module.rows.get(name);
+    if (row) return row.to ? named(row.to, row.name, next) : row.kind === 'unknown' ? unresolved : row;
+    const candidates = module.stars.map(to => named(to, name, next));
+    if (candidates.includes(unresolved)) return unresolved;
+    const matches = candidates.filter(Boolean);
+    return matches.length > 1 ? unresolved : matches[0] ?? null;
+  }
+  /** Enumerate only proven export origins; star cycles never become an empty successful surface. */
+  function all(file, seen = new Set()) {
+    if (seen.has(file) || seen.size >= 8) return null;
+    const module = surface(file);
+    if (!module) return null;
+    const names = new Set(module.rows.keys());
+    for (const to of module.stars) {
+      const inherited = all(to, new Set([...seen, file]));
+      if (!inherited) return null;
+      for (const name of inherited) names.add(name);
+    }
+    return names.size && [...names].every(name => {
+      const origin = named(file, name);
+      if (!origin || origin === unresolved) return false;
+      const value = snapshot(origin.file), scanned = value && lex(value.source);
+      if (!scanned || /\b(?:readFileSync|copyFileSync|cpSync)\b/u.test(scanned.code)) return false;
+      const bindings = imports(value.source, scanned, [], origin.file, { producer: true }).bindings;
+      return ![...bindings.values()].some(binding => binding.module === 'fs' && binding.imported === '*');
+    }) ? names : null;
+  }
+  /** Recheck captured immutable bytes before granting ordinary API-origin authority. */
+  function stable() {
+    if (![...captured].every(([file, value]) => snapshot(file)?.object === value.object)) return false;
+    const pending = [...captured].filter(([file, value]) => file.endsWith('.js') && !compiled.has(value.object));
+    try {
+      const rows = bindingReadsForModules(pending.map(([file, value]) => ({ file, source: value.source, body: '', bindings: [{ local: '__source_port_probe' }] })));
+      if (pending.some(([file]) => rows.get(file)?.get('__source_port_probe')?.opaque)) return false;
+      for (const [, value] of pending) compiled.add(value.object);
+      return true;
+    } catch { return false; }
+  }
+  return { named: (file, name) => { const row = named(file, name); return row && row !== unresolved && stable() ? row : null; },
+    all: file => Boolean(all(file) && stable()) };
+}
+
 /** Recognize imported module identities and exclude their declarations from binding-read probes. */
-function imports(source, scanned, problems, file, { producer = false } = {}) {
+function imports(source, scanned, problems, file, { producer = false, dynamicPort } = {}) {
   const bindings = new Map();
   let body = scanned.code;
   for (const literal of scanned.strings) {
@@ -80,7 +201,7 @@ function imports(source, scanned, problems, file, { producer = false } = {}) {
     const match = /\bimport\s*([^;]*?)\bfrom\s*$/u.exec(before);
     if (!match) {
       if (/\b(?:require|import)\s*\(\s*$/u.test(before)
-        && !(producer && target && /\bimport\s*\(\s*$/u.test(before))) {
+        && !(target && /\bimport\s*\(\s*$/u.test(before) && (producer || dynamicPort?.(target)))) {
         problems.push(`${file}: unsupported dynamic/CommonJS fixture filesystem binding`);
       }
       continue;
@@ -108,7 +229,41 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
   if (source.length > 1024 ** 2) return { edits, problems: [`${file}: fixture source analysis exceeds its byte budget`] };
   const scanned = lex(source);
   const { code, strings } = scanned;
-  const imported = imports(source, scanned, problems, file);
+  const ports = sourceExportPorts(readSource);
+  let sourcePortsUsed = false;
+  const imported = imports(source, scanned, problems, file, { dynamicPort: target => {
+    const proven = ports.all(target);
+    sourcePortsUsed ||= proven;
+    return proven;
+  } });
+  /** Callable origin does not authorize a returned filesystem namespace or an extracted reader. */
+  function returnedFilesystemCapabilities() {
+    if (!sourcePortsUsed) return;
+    if (/\]\s*(?:\?\.)?\s*\(/u.test(code)
+      || /\b(?:Reflect\s*\.\s*get|Object\s*\.\s*getOwnPropertyDescriptors?)\s*\(/u.test(code)
+      || /\b(?:const|let|var)\s*\{[^}]*\[/u.test(code)) {
+      problems.push(`${file}: computed or reflected returned capability is not a proven fixture input port`);
+    }
+    for (const match of imported.body.matchAll(/\b(readFileSync|copyFileSync|cpSync)\b/gu)) {
+      const before = code.slice(0, match.index), after = code.slice(match.index + match[0].length);
+      const member = /\.\s*$/u.test(before);
+      const receiver = /([A-Za-z_$][\w$]*)\s*(?:\?\.|\.)\s*$/u.exec(before);
+      const binding = imported.bindings.get(member ? receiver?.[1] : match[0]);
+      if (/[{: ,]\s*$/u.test(before) && /^\s*[:,}]/u.test(after)) {
+        problems.push(`${file}: extracted filesystem property is not a proven fixture input port`);
+        continue;
+      }
+      if (binding?.module === 'fs') continue; // The existing native binding/escape proof remains authoritative.
+      if (member || /^\s*(?:\?\.)?\(/u.test(after)) {
+        problems.push(`${file}: returned or extracted filesystem capability is not a proven fixture input port`);
+      }
+    }
+    for (const literal of strings) if (READS.has(literal.text)
+      && /\[\s*$/u.test(code.slice(0, literal.start)) && /^\s*\]/u.test(code.slice(literal.end))) {
+      problems.push(`${file}: computed filesystem capability is not a proven fixture input port`);
+    }
+  }
+  returnedFilesystemCapabilities();
   if (![...imported.bindings.values()].some(binding => binding.module === 'fs'
     && (binding.imported === '*' || READS.has(binding.imported)))) return { edits, problems };
   const declarations = new Map(), loops = [], consumed = new Set(), scopedReads = new Map(), producers = new Map();
@@ -350,23 +505,67 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
     return values(loop.input, loop.at);
   }
 
-  /** Prove one imported zero-argument return leaf from exact regular Git-source bytes, never from its spelling. */
+  /** Read and verify the exact immutable producer blob without importing or evaluating it. */
+  function producerSnapshot(target) {
+    let snapshot;
+    try { snapshot = readSource?.(target); } catch { return null; }
+    return snapshot && typeof snapshot.source === 'string' && snapshot.source.length <= 1024 ** 2
+      && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(snapshot.object ?? '')
+      && createHash(snapshot.object.length === 64 ? 'sha256' : 'sha1')
+        .update(`blob ${Buffer.byteLength(snapshot.source)}\0`).update(snapshot.source).digest('hex') === snapshot.object ? snapshot : null;
+  }
+
+  /** Follow only explicit constant exports; unknown exports, cycles and runtime expressions stay unsupported. */
+  function producerConstant(target, name, seen = new Set()) {
+    const key = `${target}#${name}`;
+    if (seen.has(key) || seen.size >= 8) return null;
+    const snapshot = producerSnapshot(target);
+    if (!snapshot) return null;
+    const scanned = lex(snapshot.source), values = [];
+    for (const match of scanned.code.matchAll(new RegExp(`\\bexport\\s+const\\s+${name}\\s*=\\s*`, 'gu'))) {
+      if (slashLine(snapshot.source, scanned.code, match.index)) return null;
+      const at = match.index + match[0].length, token = scanned.strings.find(row => row.start === at);
+      const end = scanned.code.indexOf(';', at);
+      if (!token || end < token.end || scanned.code.slice(token.end, end).trim()
+        || token.text.includes('\\') || token.text.includes('${')) return null;
+      values.push(token.text);
+    }
+    for (const token of scanned.strings) {
+      const match = /\bexport\s*\{([^{}]*)\}\s*from\s*$/u.exec(scanned.code.slice(0, token.start));
+      if (!match) continue;
+      if (slashLine(snapshot.source, scanned.code, match.index)) return null;
+      for (const entry of match[1].split(',')) {
+        const names = new RegExp(`^\\s*(${ID})(?:\\s+as\\s+(${ID}))?\\s*$`, 'u').exec(entry);
+        if (!names || (names[2] ?? names[1]) !== name) continue;
+        if (!/^\.\.?\/[^?#%\\]+\.js$/u.test(token.text)) return null;
+        const next = posix.normalize(posix.join(posix.dirname(target), token.text));
+        if (next.startsWith('../') || posix.isAbsolute(next)) return null;
+        values.push(producerConstant(next, names[1], new Set([...seen, key])));
+      }
+    }
+    const again = producerSnapshot(target);
+    return values.length === 1 && typeof values[0] === 'string'
+      && again?.object === snapshot.object && again.source === snapshot.source ? values[0] : null;
+  }
+
+  /** Prove one imported fixed-leaf return from exact Git bytes; arguments never establish a root identity. */
   function producerLeaf(parsed) {
     const binding = imported.bindings.get(parsed?.name);
-    if (binding?.module !== 'source' || binding.imported === '*' || parsed.member || parsed.args.length
+    if (binding?.module !== 'source' || binding.imported === '*' || parsed.member
       || !proven(parsed.name, parsed.at) || typeof readSource !== 'function') return null;
-    const key = `${binding.target}#${binding.imported}`;
-    let snapshot;
-    try { snapshot = readSource(binding.target); } catch { return null; }
-    if (!snapshot || typeof snapshot.source !== 'string' || snapshot.source.length > 1024 ** 2
-      || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(snapshot.object ?? '')
-      || createHash(snapshot.object.length === 64 ? 'sha256' : 'sha1')
-        .update(`blob ${Buffer.byteLength(snapshot.source)}\0`).update(snapshot.source).digest('hex') !== snapshot.object) return null;
+    const origin = ports.named(binding.target, binding.imported);
+    if (!origin || origin.kind !== 'function') return null;
+    const key = `${binding.target}#${binding.imported}/${parsed.args.length}`;
+    const snapshot = producerSnapshot(origin.file);
+    if (!snapshot) return null;
     if (producers.has(key)) return producers.get(key).object === snapshot.object ? producers.get(key).leaf : null;
-    const scanned = lex(snapshot.source), issues = [], identity = imports(snapshot.source, scanned, issues, binding.target, { producer: true });
-    const definitions = [...scanned.code.matchAll(new RegExp(`\\bexport\\s+function\\s+${binding.imported}\\s*\\(\\s*\\)\\s*\\{`, 'gu'))];
+    const scanned = lex(snapshot.source), issues = [], identity = imports(snapshot.source, scanned, issues, origin.file, { producer: true });
+    const definitions = [...scanned.code.matchAll(new RegExp(`\\bexport\\s+function\\s+${origin.name}\\s*\\(([^()]*)\\)\\s*\\{`, 'gu'))];
     if (issues.length || definitions.length !== 1) return null;
-    const definition = definitions[0], open = definition.index + definition[0].lastIndexOf('{');
+    const definition = definitions[0], parameters = definition[1].split(',').map(value => value.trim()).filter(Boolean);
+    if (parameters.length !== parsed.args.length || new Set(parameters).size !== parameters.length
+      || parameters.some(value => !new RegExp(`^${ID}$`, 'u').test(value))) return null;
+    const open = definition.index + definition[0].lastIndexOf('{');
     const range = expressions(scanned.code, scanned.strings), end = range.close(open);
     const returned = new RegExp(`^\\s*return\\s+(${ID})(?:\\s*\\.\\s*(${ID}))?\\s*\\(`, 'u').exec(scanned.code.slice(open + 1, end));
     if (end < 0 || !returned) return null;
@@ -378,13 +577,13 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
       || (callee.imported === '*' ? returned[2] : returned[2] ? null : callee.imported) !== 'join') return null;
     const leaf = scanned.strings.find(row => row.start === args[1].start && row.end === args[1].end)?.text;
     if (!leaf || leaf.includes('${') || /[\\/:\x00-\x1f]/u.test(leaf) || leaf === '.' || leaf === '..') return null;
-    const nameAt = definition.index + definition[0].lastIndexOf(binding.imported);
-    const body = blank(identity.body, nameAt, nameAt + binding.imported.length);
-    const names = [...new Set([returned[1], binding.imported, ...[...identity.bindings]
+    const nameAt = definition.index + definition[0].lastIndexOf(origin.name);
+    const body = blank(identity.body, nameAt, nameAt + origin.name.length);
+    const names = [...new Set([returned[1], origin.name, ...[...identity.bindings]
       .filter(([, row]) => row.module === 'path' && row.imported === '*').map(([name]) => name)])];
     let rows;
-    try { rows = bindingReadsForModules([{ file: binding.target, source: snapshot.source, body, scopeBraces: true,
-      bindings: names.map(local => ({ local })) }]).get(binding.target); } catch { return null; }
+    try { rows = bindingReadsForModules([{ file: origin.file, source: snapshot.source, body, scopeBraces: true,
+      bindings: names.map(local => ({ local })) }]).get(origin.file); } catch { return null; }
     if (names.some(name => !rows.get(name) || rows.get(name).opaque || rows.get(name).potentialShadow)
       || !rows.get(returned[1]).reads.includes(callAt)) return null;
     for (const [name, row] of identity.bindings) if (row.module === 'path' && row.imported === '*') {
@@ -394,14 +593,14 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
           || /\bdelete\s*$/u.test(scanned.code.slice(0, at))) return null;
       }
     }
-    try { const again = readSource(binding.target); if (again?.object !== snapshot.object || again.source !== snapshot.source) return null; } catch { return null; }
+    try { const again = readSource(origin.file); if (again?.object !== snapshot.object || again.source !== snapshot.source) return null; } catch { return null; }
     producers.set(key, { object: snapshot.object, leaf });
     return leaf;
   }
 
   /** Prove a disjoint regular-file suffix through constants, without guessing what an unknown fixture root means. */
   function leafName(range, seen = new Set()) {
-    const value = literal(range);
+    const value = closedString(range);
     if (value !== null) return value;
     const name = code.slice(range.start, range.end);
     if (new RegExp(`^${ID}$`, 'u').test(name)) {
@@ -410,7 +609,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
       return declared ? leafName(declared, new Set([...seen, name])) : null;
     }
     const parsed = call(range), method = parsed && operation(parsed, 'path', ['join', 'resolve']);
-    return method && parsed.args.length > 1 ? literal(parsed.args.at(-1)) : parsed ? producerLeaf(parsed) : null;
+    return method && parsed.args.length > 1 ? leafName(parsed.args.at(-1), seen) : parsed ? producerLeaf(parsed) : null;
   }
 
   /** A proven whole string tail cannot name any moved basename, regardless of its unevaluated prefix. */
@@ -421,13 +620,48 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
       return declared ? disjointSuffix(declared, new Set([...seen, name])) : false;
     }
     const parsed = call(range);
-    if (parsed && operation(parsed, 'path', ['join']) && parsed.args.length > 1) range = parsed.args.at(-1);
+    if (parsed && operation(parsed, 'path', ['join']) && parsed.args.length > 1) return disjointSuffix(parsed.args.at(-1), seen);
     return stringSuffixDisjoint({ source, code, strings, range, close }, [...moved.keys()].map(from => posix.basename(from)));
+  }
+
+  /** Resolve an immutable string operand without evaluating a caller or a computed property. */
+  function closedString(range, seen = new Set()) {
+    const value = literal(range);
+    if (value !== null) return value;
+    const name = code.slice(range.start, range.end);
+    if (!new RegExp(`^${ID}$`, 'u').test(name) || seen.has(name)) return null;
+    const declared = constant(name, range.start);
+    if (declared) return closedString(declared, new Set([...seen, name]));
+    const binding = imported.bindings.get(name);
+    return binding?.module === 'source' && binding.imported !== '*' && proven(name, range.start)
+      ? producerConstant(binding.target, binding.imported) : null;
+  }
+
+  /** Collect only complete immutable trailing segments; parent traversal or absolute resets prove nothing. */
+  function closedPathTail(range) {
+    const parsed = call(range);
+    if (!parsed || !operation(parsed, 'path', ['join', 'resolve']) || parsed.args.length < 2) return null;
+    const tail = [];
+    for (let index = parsed.args.length - 1; index > 0; index--) {
+      const value = closedString(parsed.args[index]);
+      if (value === null) break;
+      if (!value || posix.isAbsolute(value) || value.split('/').some(part => !part || part === '.' || part === '..')) return null;
+      tail.unshift(...value.split('/'));
+    }
+    return tail.length ? tail : null;
+  }
+
+  /** A closed regular-file tail cannot name an old source; directories may carry source indirectly. */
+  function disjointPathTail(range) {
+    const tail = closedPathTail(range);
+    if (!tail) return false;
+    const suffix = tail.join('/');
+    return ![...moved.keys()].some(from => from === suffix || from.endsWith('/' + suffix));
   }
 
   /** Edit only the fs source argument; unsupported source construction never masquerades as success. */
   function sourceArgument(range, reader, regularFile) {
-    if (regularFile && disjointSuffix(range)) return;
+    if (regularFile && (disjointSuffix(range) || disjointPathTail(range))) return;
     const dynamic = [...code.slice(range.start, range.end).matchAll(new RegExp(`\\b(${ID})\\b`, 'gu'))]
       .map(match => ({ name: match[1], at: range.start + match.index })).filter(row => loops.some(loop => loop.name === row.name && row.at > loop.body && row.at < loop.end));
     const variables = [...new Set(dynamic.map(row => row.name))];

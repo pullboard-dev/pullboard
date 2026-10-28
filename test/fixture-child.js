@@ -1,6 +1,58 @@
 /** Shared private fixture child runner and redacted failure diagnostics [C7]. */
 import { spawn, spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
+import {
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from 'node:fs';
+import { join, sep } from 'node:path';
+import { tmpdir } from 'node:os';
+
+/** Own a newly created private fixture root and read only files this capability actually created. */
+export function privateFixtureFiles(prefix = 'pullboard-fixture-input-') {
+  if (typeof prefix !== 'string' || !/^[a-z0-9-]+$/u.test(prefix)) throw new Error('invalid private fixture prefix');
+  const root = realpathSync(mkdtempSync(join(tmpdir(), prefix)));
+  const owned = new Set();
+  /** Resolve an explicit relative file without traversing symbolic or non-directory ancestors. */
+  function pathFor(file, create = false) {
+    if (typeof file !== 'string' || !file || /[\\:\x00-\x1f\x7f]/u.test(file)
+      || file.split('/').some(part => !part || part === '.' || part === '..')) throw new Error('invalid private fixture file');
+    let directory = root;
+    for (const part of file.split('/').slice(0, -1)) {
+      directory = join(directory, part);
+      let stat;
+      try { stat = lstatSync(directory); }
+      catch (error) { if (!create || error.code !== 'ENOENT') throw error; mkdirSync(directory); stat = lstatSync(directory); }
+      if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('private fixture ancestor is not a directory');
+    }
+    const path = join(root, file);
+    if (!realpathSync(directory).startsWith(root + sep) && directory !== root) throw new Error('private fixture escaped its root');
+    return path;
+  }
+  /** Write and register the real private input; an existing unowned or symbolic file never acquires authority. */
+  function write(file, bytes) {
+    const path = pathFor(file, true);
+    try {
+      const stat = lstatSync(path);
+      if (!owned.has(file) || !stat.isFile() || stat.isSymbolicLink()) throw new Error('private fixture file is not owned');
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    writeFileSync(path, bytes);
+    owned.add(file);
+  }
+  /** Preserve exact current working bytes, including changes made by the actual component under test. */
+  function read(file) {
+    if (!owned.has(file)) throw new Error('private fixture file is not owned');
+    const path = pathFor(file);
+    const stat = lstatSync(path);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('private fixture file is not regular');
+    return readFileSync(path);
+  }
+  return Object.freeze({ root, write, read });
+}
 
 const SENSITIVE_NAME = /(?:token|secret|password|private.?key|access.?key|relay[_ -]?key|pairing.?code|verification.?code)/iu;
 const activeFixtureChildren = new Set();

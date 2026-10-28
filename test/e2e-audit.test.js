@@ -13,7 +13,10 @@ import { refreshTestPlacement } from '../src/test-placement-report.js';
 import { testValueReport } from '../src/test-value.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { indexedStageSelection, readPlacementIndex, readPlacementReport, writePlacementIndex } from '../src/test-economics-index.js';
-import { mainAuditFixture } from './main-audit-project.js';
+import {
+  mainAuditFixture,
+  readAuditJob,
+} from './main-audit-project.js';
 import { runFixtureGit } from './fixture-child.js';
 import { paidTests, placementLandingGate, placementLandingPlan, placementSubmitSelection, VALUE_GATE, valueGateCommand } from '../src/test-placement.js';
 import { packageBranchCoverage } from '../src/audit-coverage.js';
@@ -187,7 +190,7 @@ test('production audit runs a CLI journey, reuses an unchanged unit and files a 
   const box = await mainAuditFixture(t, { initialGreen: true });
   runFixtureGit(['merge', '--ff-only', box.tip], { cwd: box.repo, env: box.env });
   await box.runWorker();
-  const first = JSON.parse(readFileSync(join(box.directory, box.key + '.json')));
+  const first = readAuditJob(box.directory, box.key);
   assert.equal(first.state, 'complete', JSON.stringify(first));
   assert.equal(first.green, true);
   assert.equal(box.readUnitMarker(), 'ran');
@@ -200,7 +203,7 @@ test('production audit runs a CLI journey, reuses an unchanged unit and files a 
   assert.ok(first.coverage.packages.some(row => row.percent === null && row.missing.length), 'unloaded product coverage stays unknown');
   const secondBatch = box.appendBatch();
   await box.runWorker();
-  const second = JSON.parse(readFileSync(join(box.directory, secondBatch.key + '.json')));
+  const second = readAuditJob(box.directory, secondBatch.key);
   assert.equal(second.state, 'complete', JSON.stringify(second));
   assert.equal(second.green, true);
   assert.ok(second.plan.reused.some(row => row.file === 'test/b.test.js'));
@@ -209,7 +212,7 @@ test('production audit runs a CLI journey, reuses an unchanged unit and files a 
   assert.equal(box.readGateReceipt(box.receiptStore(box.repo), second.receiptId).collection.full, false, 'selected native proof is labeled selected');
   const failedBatch = box.appendBatch({ fail: true });
   await box.runWorker();
-  const failed = JSON.parse(readFileSync(join(box.directory, failedBatch.key + '.json')));
+  const failed = readAuditJob(box.directory, failedBatch.key);
   assert.equal(failed.state, 'complete', JSON.stringify(failed));
   assert.equal(failed.green, false);
   const defects = box.board(db => box.store.landingTestDefects(db)).filter(row => row.batchId === failedBatch.batchId);

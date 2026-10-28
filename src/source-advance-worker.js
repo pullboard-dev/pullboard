@@ -142,8 +142,8 @@ async function advance(root, directory, job, write, services) {
       if (!gate.cleanupUnverified && !(gate.profile?.landingShards?.unverified?.length > 0)) custody.terminal();
       const artifacts = retainArtifacts(directory, job, gate, composition, services);
       const result = await complete(root, write, services, async (board, order, lease) => {
-        const request = gate.isGreen ? prepareSourceAdvance(root, board, job.item, composition, gate, job.basis)
-          : prepareSourceAdvanceReturn(root, board, job.item, job.basis, { composition, gate });
+        const request = gate.isGreen ? prepareSourceAdvance(root, board, job.item, composition, gate, job.basis, services.selectors)
+          : prepareSourceAdvanceReturn(root, board, job.item, job.basis, { composition, gate }, services.selectors);
         for (const receiptId of gate.proofReceiptIds.filter(Boolean)) {
           await lease.assertHeld();
           await order('recordProofRun', [{ agentId: 'coordinator', itemId: job.item.item_id, receiptId }]);
@@ -176,6 +176,9 @@ async function advance(root, directory, job, write, services) {
 export async function runSourceAdvances(root, token, services) {
   const info = repoInfo(root);
   if (!info.isMain || !codeIsFromMain() || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
+  if (typeof services?.selectors?.selectAffectedTests !== 'function' || typeof services?.selectors?.selectTestTreeGuards !== 'function') throw new TypeError('source advance worker needs explicit test selector operations');
+  const selectors = Object.freeze({ selectAffectedTests: services.selectors.selectAffectedTests, selectTestTreeGuards: services.selectors.selectTestTreeGuards });
+  services = { ...services, selectors };
   const { withFileLock, readMainAudit, saveMainAudit } = services;
   const directory = sourceAdvanceDirectory(info); mkdirSync(directory, { recursive: true, mode: 0o700 });
   const ownerFile = join(directory,'owner.json'), wakeFile = join(directory,'wake.json'), lock = join(directory,'owner.guard.sqlite');
