@@ -1,0 +1,10 @@
+{
+  "kind": "row_apply",
+  "entries": [
+    {
+      "order": 57,
+      "actor": "coordinator",
+      "detail": "`events`, atomic cited-spec corrections `refreezes`, explicit draft omissions `skippedDrafts`"
+    }
+  ]
+}

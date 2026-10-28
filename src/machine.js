@@ -598,7 +598,7 @@ export function lifecycleMarkdown(machine = MACHINE) {
   return [
     '# The item lifecycle',
     '',
-    'Generated from src/machine.js by `pullboard lifecycle`. Do not edit it by hand: change the declaration, then run `pullboard lifecycle > docs/lifecycle.md`.',
+    'Generated from src/machine.js by `pullboard lifecycle`. Do not edit it by hand: change the declaration, then run `node bin/update-docs.js` to refresh every generated document.',
     '',
     `An item starts ${machine.initial}. Its final states, ${finals.map((state) => state.id).join(' and ')}, cannot be left. Every move into a guarded state passes the same transition guards, whatever command gets there. The board file itself refuses any move not declared here.`,
     '',

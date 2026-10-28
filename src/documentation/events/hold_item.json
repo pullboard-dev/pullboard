@@ -1,0 +1,10 @@
+{
+  "kind": "hold_item",
+  "entries": [
+    {
+      "order": 32,
+      "actor": "coordinator",
+      "detail": "`reason`"
+    }
+  ]
+}

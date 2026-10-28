@@ -28,6 +28,7 @@ import { sampleRunnerLoad } from './runner-load.js';
 import {
   startRunnerPhases,
   validateCacheTips,
+  tagObjectBodies,
 } from './runner-overhead.js';
 import { freemem } from 'node:os';
 import { loadavg } from 'node:os';
@@ -468,7 +469,7 @@ function gitSetupFailure(root, args, env, result, stderr, overflow, inputError) 
 }
 
 /** Invoke bounded Git in an owned group, retaining stderr if it fails instead of erasing the cause. */
-async function git(root, args, env, input) {
+async function gitBytes(root, args, env, input) {
   const owned = spawnOwned('git', args, { cwd: root, env, stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
   const output = [];
   let stderr = Buffer.alloc(0);
@@ -492,7 +493,12 @@ async function git(root, args, env, input) {
   await inputDone;
   await drainOwned(owned);
   if (overflow || inputError || result.error || result.code !== 0 || result.signal) throw gitSetupFailure(root, args, env, result, stderr.toString('utf8'), overflow, inputError);
-  return Buffer.concat(output).toString('utf8').trim();
+  return Buffer.concat(output);
+}
+
+/** Preserve existing text-command decoding while raw Git batches retain exact byte framing. */
+async function git(root, args, env, input) {
+  return (await gitBytes(root, args, env, input)).toString('utf8').trim();
 }
 
 /** Receive the negotiated history pack after the worker announces the cache's candidate tips. */
@@ -588,8 +594,8 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     if (objectType !== 'commit' || await git(cache, ['rev-parse', `${spec.commit}^{tree}`], env) !== spec.tree) {
       throw new Error('source history does not match the requested commit and tree');
     }
-    const historyCount = Number(await git(cache, ['rev-list', '--count', spec.commit], env));
-    if (!Number.isSafeInteger(historyCount) || historyCount < 1) throw new Error('source history is incomplete');
+    const candidateHistory = new Set((await git(cache, ['rev-list', spec.commit], env)).split(/\r?\n/u).filter(Boolean));
+    if (!candidateHistory.size) throw new Error('source history is incomplete');
     if (spec.originBase) await git(cache, ['merge-base', '--is-ancestor', spec.originBase, spec.commit], env);
     const roots = [...new Set([spec.commit, ...(spec.trunk ? [spec.trunk.commit] : []), ...(spec.trustedMode ? [spec.trustedMode.policyCommit, spec.trustedMode.trunk.commit] : [])])];
     for (const commit of roots) {
@@ -611,17 +617,22 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     if ([...received].some(object => !closure.has(object) && !tagObjects.has(object))) {
       throw new Error('source history pack contains missing or unrelated objects');
     }
+    const tagBodies = requestedTagObjects.length
+      ? tagObjectBodies(requestedTagObjects, await gitBytes(cache, ['cat-file', '--batch'], env, `${requestedTagObjects.join('\n')}\n`))
+      : new Map();
+    const lightweight = [...new Set(spec.tags.filter(tag => !tag.chain.length).map(tag => tag.object))];
+    if (lightweight.length) validateCacheTips(lightweight,
+      await git(cache, ['cat-file', '--batch-check'], env, `${lightweight.join('\n')}\n`));
     for (const tag of spec.tags) {
       await git(cache, ['check-ref-format', tag.name], env);
       if (tag.chain.length) {
         let target = tag.object;
         for (let index = 0; index < tag.chain.length; index++) {
           const object = tag.chain[index];
-          if (target !== object || (!received.has(object) && !knownTagObjects.includes(object))
-            || await git(cache, ['cat-file', '-t', object], env) !== 'tag') {
+          if (target !== object || (!received.has(object) && !knownTagObjects.includes(object)) || !tagBodies.has(object)) {
             throw new Error('source tag chain is incomplete or unrelated');
           }
-          const body = await git(cache, ['cat-file', '-p', object], env);
+          const body = tagBodies.get(object).trim();
           const header = body.split(/\r?\n\r?\n/u, 1)[0];
           const next = /^object ([a-f0-9]{40,64})$/mu.exec(header)?.[1];
           const type = /^type (commit|tag|tree|blob)$/mu.exec(header)?.[1];
@@ -632,11 +643,10 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
           }
           target = next;
         }
-      } else if (await git(cache, ['cat-file', '-t', tag.object], env) !== 'commit'
-        || tag.object !== tag.peeledCommit || !closure.has(tag.object)) {
+      } else if (tag.object !== tag.peeledCommit || !closure.has(tag.object)) {
         throw new Error('lightweight source tag does not point into candidate history');
       }
-      await git(cache, ['merge-base', '--is-ancestor', tag.peeledCommit, spec.commit], env);
+      if (!candidateHistory.has(tag.peeledCommit)) throw new Error('source tag is not an ancestor of the candidate');
     }
     for (const commit of roots) await git(cache, ['update-ref', `refs/pullboard/candidates/${commit}`, commit], env);
     await git(root, ['init', '-q', `--object-format=${spec.commit.length === 64 ? 'sha256' : 'sha1'}`], env);
@@ -658,14 +668,22 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
       await git(root, ['config', '--local', '--replace-all', 'pullboard.trunk', mode.trunk.ref], env);
       writeFileSync(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(runnerPolicyRecord({ ...spec, trunk: mode.trunk })), { mode: 0o600 });
     }
-    for (let index = 0; index < spec.tags.length; index++) {
-      const tag = spec.tags[index];
-      const deliveryRef = `refs/pullboard/tag-delivery/${spec.id}/${index}`;
-      await git(cache, ['update-ref', deliveryRef, tag.object], env);
-      deliveryRefs.push(deliveryRef);
-      await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, `${deliveryRef}:${tag.name}`], env);
-      if (await git(root, ['rev-parse', `${tag.name}^{}`], env) !== tag.peeledCommit) {
-        throw new Error('isolated source checkout has an invalid tag ref');
+    if (spec.tags.length) {
+      const updates = spec.tags.map((tag, index) => {
+        const deliveryRef = `refs/pullboard/tag-delivery/${spec.id}/${index}`;
+        deliveryRefs.push(deliveryRef);
+        return `update ${deliveryRef} ${tag.object}`;
+      });
+      await git(cache, ['update-ref', '--stdin'], env, `${updates.join('\n')}\n`);
+      // Bound argv while delivering all already-validated tag refs in a few owned Git invocations.
+      for (let index = 0; index < spec.tags.length; index += 32) {
+        const tags = spec.tags.slice(index, index + 32);
+        const refspecs = tags.map((tag, offset) => `${deliveryRefs[index + offset]}:${tag.name}`);
+        await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, ...refspecs], env);
+        const peeled = (await git(root, ['rev-parse', '--revs-only', '--end-of-options', ...tags.map(tag => `${tag.name}^{}`)], env)).split(/\r?\n/u);
+        if (peeled.length !== tags.length || tags.some((tag, offset) => peeled[offset] !== tag.peeledCommit)) {
+          throw new Error('isolated source checkout has an invalid tag ref');
+        }
       }
     }
     if (await git(root, ['rev-parse', 'HEAD'], env) !== spec.commit
@@ -675,8 +693,9 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
       throw new Error('isolated source checkout does not contain the complete requested history');
     }
   } finally {
-    for (const ref of deliveryRefs) {
-      try { await git(cache, ['update-ref', '-d', ref], env); } catch { /* Leave cache refs only if Git refuses safe removal. */ }
+    if (deliveryRefs.length) {
+      try { await git(cache, ['update-ref', '--stdin'], env, `${deliveryRefs.map(ref => `delete ${ref}`).join('\n')}\n`); }
+      catch { /* Leave cache refs only if Git refuses safe removal. */ }
     }
     try { cacheLease.release(); } catch { /* Retaining the lease on cleanup error is safer than speculative deletion. */ }
   }

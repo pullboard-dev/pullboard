@@ -1,0 +1,10 @@
+{
+  "kind": "shout_news",
+  "entries": [
+    {
+      "order": 40,
+      "actor": "sender",
+      "detail": "`shout`, `to`, `decision`, `request`, `answers`"
+    }
+  ]
+}

@@ -2,6 +2,8 @@
 
 This page describes the text files people edit and the SQLite board kept inside `.git`. The row parser is in `src/spec.js`; board declarations and migrations are in `src/board.js`; lifecycle guards are generated from `src/machine.js`.
 
+Run `node bin/update-docs.js` to refresh the marked tables, API shapes, lifecycle page and full CLI help. `--check` reports stale copies without writing. Change source declarations rather than these tables; normal landing regenerates outputs after every merge and engine allocation. Add a command's help and required JSON fields in its own `src/command-docs/<name>.json`, beside its independently discovered command implementation. Source-owned event descriptions live in separate `src/documentation/events/<kind>.json` files; authored prose outside tables is retained.
+
 ## SPEC.md and DOCTRINE.md
 
 Doctrine means the house rules for agentic development. New repos use `DOCTRINE.md`; existing `PRACTICE.md` files keep working. Rename a tracked legacy file with `git mv -- PRACTICE.md DOCTRINE.md`; for an untracked file, use `mv -- PRACTICE.md DOCTRINE.md`. Keeping both names is refused because they define the same repo doctrine. The configuration and API retain their `practice` field names; an explicitly configured custom path still works.
@@ -123,7 +125,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `src/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `src/board.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `src/board.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `152` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `154` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
@@ -131,6 +133,8 @@ A signed board uses event-log format 2; older tools refuse it.
 A builder never picks an engine number (#1101). An item that adds a board move adds its own `src/<name>-engine.js` leaf as `export const NAME_ENGINE = unassignedEngine();` (importing `unassignedEngine` from `./engine-next.js`); on its branch the leaf reads as one above the highest landed engine. The landing merge writes the next number into the leaf, in landing order, inside that item's merge commit, and sets the `move engine` row above to the highest landed number. A landed number never changes, so recorded moves replay as they were written. Moves are recorded under landed numbers only: code with an unnumbered engine is for its branch's own tests, and a move it records on a real board before landing may later read under another item's number, so the item lands before its moves are used.
 
 Engine 130 (`MECHANICAL_MERGE_ENGINE`) gives new automatic conflict returns version-two `computedConflict` receipts. Health, fresh conflict returns and landing share conservative mechanical decisions: structural JSON retains independent additions and unchanged-value removals, jointly raised numeric counters keep the larger value, and add-only text unions must pass a syntax-only check for JavaScript. Health classifies declared generated `docs/lifecycle.md` without executing item code; only landing runs its generator in the merged tree before its gate. A failed generator blocks with `LAND_MERGE`, naming the item, file and generator, rather than reopening accepted work as a conflict. Version-one receipts continue to verify their original plain-Git conflict paths on replay; version-two receipts verify mechanical conflict paths. The receipt version is part of the immutable-object cache identity. Fresh authors cannot reuse version-one semantics, and a version-two receipt requires engine 130 before changing a board or replay cursor.
+
+Version-three conflict receipts additionally recognize source-generated API and formats tables, full CLI help and its browser-safe command additions. `GENERATED_DOCS_ENGINE` is their replay floor. Versions one and two keep their original conflict policy, even when version three can regenerate a newer output. Narrative conflicts remain ordinary conflicts; automatic generation never discards competing prose edits. Health and replay inspect immutable bytes only, while landing runs the candidate generator before the gate.
 
 Relay transport capability `apiVersion: 2` is independent of these versions and
 of the unchanged `version: 1` HTTP envelope and seal envelope. API2 uses
@@ -500,6 +504,7 @@ The computed-grant engine adds `grantEngine` to new join, claim and renewal even
 | `row_apply` | coordinator | `events`, atomic cited-spec corrections `refreezes`, explicit draft omissions `skippedDrafts` |
 | `person_signing` | enabling agent, or person | engine-76 `signed`, `request`, `presence`, `intent` |
 | `person_proposal` | proposing agent | engine-76 `request`, `verb` |
+| `source_advanced` | coordinator | Exact checked source and native receipt custody: `version`, `board`, `submitted`, `status`, `previous`, `inputHead`, `trunk`, `bar`, `patchDigest`, `episode`, `reviewEpisode`, `reviewBy`, `reviewUntil`, `verdict`, `head`, `tree`, `mergeTree`, `paths`, `generated`, `selectionDigest`, `phases`. |
 <!-- events:end -->
 
 A CLI `accept` event includes `check: "none"` when no frozen item check ran or `check: "green"` when it passed. Older accept events and records without this field read as `unknown`; the result stays in event detail and does not change the board schema or event-log version.
@@ -642,6 +647,7 @@ Native `event_id` order is canonical, even when an input array is shuffled. A hi
 | `collisionFreeBatch` | `true` (`on`) | `false` |
 | `landingBatchSize` | whole numbers 1 through 8 | `false` |
 | `landingCadenceMinutes` | whole minutes 5 through 30 | `false` |
+| `route.liveOnly` | `true` (`on`) | `false` |
 
 `order` opts into next ordering: a builder’s own send-back, scarce review eligibility, release, downstream demand, signed-bar readiness, then coordinator rank. The readiness tier stays inert until the signed-readiness predicate is available (#1110); it never guesses a sign-off from prose. The other inputs retain their separate meanings; `reviewsFirst` selects review versus build and does not turn ordering on. Takeover and landing behavior are separate changes. The move carries `{agentId,key,value,reason,window}`; its native `line_setting` event carries `{key,value,reason,window}` with the board's actor and time outside that detail. Latest values live under `board_meta` keys `line_setting:<name>`, and ordered engine replay updates them and appends the same evidence. The unassigned `LINE_SETTINGS_ENGINE` leaf receives its permanent number at landing. Older engine records cannot request this new operation. Range, unknown-key, missing-reason and invalid-window refusals have named codes. The existing settings API reports each input as `scope: "board"`, key `line.<name>`, with off as its default and the board SQLite file as its source; it does not expose reason text or evidence payloads through that inventory.
 
