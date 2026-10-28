@@ -335,7 +335,7 @@ test('verify and escalate take a note from a file, exactly as written [V12]', ()
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
   assert.match(box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note', 'x', '--note-file', join(box.dir, 'note.txt'), '--as', 'coordinator').err, /USAGE\] give the note once/);
   assert.match(box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note-file', join(box.dir, 'nope.txt'), '--as', 'coordinator').err, /NO_FILE/);
-  assert.match(box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note-file', join(box.dir, 'note.txt'), '--as', 'coordinator').out, /rejected #1/);
+  assert.match(box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'The page renders.', '--note-file', join(box.dir, 'note.txt'), '--as', 'coordinator').out, /rejected #1/);
   assert.equal(JSON.parse(box.run(box.repo, 'show', '1', '--json').out).verdicts[0].verdict_note, note);
   box.git(box.repo, 'switch', '-q', 'main');
   box.run(box.repo, 'add', 'web', 'Light', '--route', 'light', '--criterion', 'says hi', '--check', 'true', '--brief', LIGHT_BRIEF);

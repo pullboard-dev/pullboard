@@ -32,9 +32,9 @@ function submitted(t) {
   store.register(board, { lane: 'coordinator', path: '/fixture' });
   store.register(board, { lane: 'web', path: '/fixture/web-1' });
   store.register(board, { lane: 'web', path: '/fixture/web-2' });
-  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Sealed review fixture' });
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Sealed review fixture', criterion: 'Sealed review fixture' });
   store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 3_600_000, head: BASE,
-    freeze: () => ({ text: JSON.stringify({ rows: [], policy: { version: 1, commit: BASE, verify: { policy: 'any', family: 'off' } } }), digest: DIGEST }) });
+    freeze: () => ({ text: JSON.stringify({ criterion: 'Sealed review fixture', rows: [], policy: { version: 1, commit: BASE, verify: { policy: 'any', family: 'off' } } }), digest: DIGEST }) });
   submitFixture(board, id, { agentId: 'web-1', commit: COMMIT, tree: TRUNK, files: ['web/feature.js'], policyCommit: BASE });
   delete board.executionEngineVersion;
   return board;
@@ -111,10 +111,14 @@ test('a rejection carrying both cause and checked review keeps the newer review 
   const board = submitted(t);
   const move = prepareEngineMove(board, 'verify', [1, {
     ...verdict({ commit: COMMIT, head: COMMIT, trunk: TRUNK, paths: ['web/feature.js'] }),
-    decision: 'REJECT', reason: 'TEST_FAILURE', note: 'the checked feature failed', cause: 'row:G1',
+    decision: 'REJECT', reason: 'TEST_FAILURE', note: 'the checked feature failed', clause: 'Sealed review fixture', cause: 'row:G1',
   }], { id: 'cause-and-checked-review' });
   const before = exportBoard(board);
-  assert.throws(() => applyEngineMove(board, { ...move, engine: 30 }, { sequence: 1, at: AT }), { code: 'RELAY_MOVE' });
+  const historical = { ...move, engine: VERDICT_REVIEW_ENGINE, args: [1, { ...move.args[1] }] };
+  delete historical.args[1].clause;
+  assert.throws(() => applyEngineMove(board, { ...historical, engine: 30 }, { sequence: 1, at: AT }), { code: 'RELAY_MOVE' });
+  const legacy = replica(t, board);
+  assert.equal(applyEngineMove(legacy, historical, { sequence: 1, at: AT }).error, undefined, 'historical checked rejects keep their original floor');
   assert.deepEqual(exportBoard(board), before, 'a cause key cannot downgrade checked-review metadata or advance the prefix');
   const result = applyEngineMove(board, move, { sequence: 1, at: AT });
   assert.equal(result.error, undefined);

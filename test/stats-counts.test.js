@@ -73,7 +73,7 @@ function verdictAt(f, id, decision, commit, at) {
   f.setTime(at);
   return verify(f.board, id, {
     agentId: 'web-2', decision,
-    ...(decision === 'REJECT' ? { reason: 'TEST_FAILURE' } : {}),
+    ...(decision === 'REJECT' ? { reason: 'TEST_FAILURE', clause: 'The fixture lifecycle remains auditable.' } : {}),
     note: decision === 'REJECT' ? 'the first result fails; rework is needed' : 'rework is verified against the frozen criterion',
     head: commit,
     digest: 'fixture-criterion-digest',

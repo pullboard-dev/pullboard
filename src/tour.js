@@ -208,7 +208,7 @@ export async function tour(io) {
     run('review-1', 'git', ['switch', '-q', '--detach', first]);
     pb('review-1', ['next', '--verify', '1'], { show: /^next to verify/ });
     const edge = run('review-1', process.execPath, TRY_EDGE, { label: "node -e \"greet('')\"" });
-    pb('review-1', ['verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--note', `greet('') returns "${edge}"; G1 says a blank name greets the world`], { tone: 'red' });
+    pb('review-1', ['verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'a blank name greets the world', '--note', `greet('') returns "${edge}"; G1 says a blank name greets the world`], { tone: 'red' });
 
     step(5, "The builder's next session starts from the board, not from memory.");
     pb('app-1', ['resume'], { show: /^sent back|^next/ });
