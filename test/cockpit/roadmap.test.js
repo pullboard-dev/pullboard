@@ -76,6 +76,7 @@ test('Roadmap references stay inline and rows expand before opening Items [N26,N
   let chrome;
   try {
     chrome = await openRoadmapChrome(executable, view.link.href, profile);
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.querySelector('#chain .row[data-item=\"2\"]')");
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -795,7 +796,7 @@ test('a refresh between pointer down and up preserves a roadmap release click [N
           t.diagnostic(`${width}: held refresh: ${JSON.stringify(held)}`);
         },
       });
-      await chrome.waitFor(`document.querySelector('#feed')?.textContent.includes(${JSON.stringify(message)})`);
+      await chrome.waitFor(`!deferredClickRender && data.project.shouts.some(shout => shout.shout_text === ${JSON.stringify(message)})`);
       const released = await trace.snapshot();
       t.diagnostic(`${width}: released: ${JSON.stringify(released)}`);
       assert.ok(held.samples.some(sample => sample.phase === 'after render'), `${width}: the real board refresh attempted a render while held`);
