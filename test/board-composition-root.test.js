@@ -53,6 +53,7 @@ function observedPorts(label, calls) {
 test('the single native root supplies every port before migration and keeps legacy/library/fixture entry points [C7,B1,B2]', t => {
   assert.equal(legacy.openBoard, native.openBoard);
   assert.equal(library.openBoard, native.openBoard);
+  assert.equal(library, legacy, 'the complete existing module namespace remains the library surface');
   const calls = [], ports = observedPorts('one', calls);
   const board = native.openBoard(':memory:', undefined, { ports });
   t.after(() => native.closeBoard(board));
@@ -64,7 +65,7 @@ test('the single native root supplies every port before migration and keeps lega
   assert.ok(Object.isFrozen(board.enginePorts));
   assert.ok(calls.includes('one:guards'));
   assert.ok(calls.includes('one:proof'));
-  native.register(board, { lane: 'coordinator', path: '/private/native-root-test' });
+  native.board.register(board, { lane: 'coordinator', path: '/private/native-root-test' });
   ports.nativePorts.atomic(board, () => ports.nativePorts.logEvent(board, 'coordinator', 'native-root-proof', null, { exact: true }));
   const event = board.db.prepare("SELECT * FROM event WHERE event_kind='native-root-proof'").get();
   assert.deepEqual(JSON.parse(event.event_detail), { exact: true, model: 'unknown' });

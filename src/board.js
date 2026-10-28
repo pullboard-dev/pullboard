@@ -66,18 +66,12 @@ import {
   remainingPaths,
 } from './critical-path-order.js';
 import { activityNewsFlag } from './activity-news.js';
-import { migrateEventLogVersion } from './board-event-log-migrate.js';
-import {
-  configureBoardJournal,
-  closeBoardWrites,
-} from './board-write-lock.js';
 import {
   focusOrder,
   focusReasons,
   milestoneFocus,
 } from './focus-milestone.js';
 import { answerProvenance } from './decision-origin.js';
-import { ensureProofCounters } from './proof-counters.js';
 import { correctedNoVerdictReopen } from './reopen-history.js';
 import {
   getShout,
@@ -146,21 +140,7 @@ import {
   saveCheckBaseline,
 } from './item-check-baseline.js';
 export { coordinatorCheck, completeCheckBaseline, itemCheckAuthor } from './item-check-baseline.js';
-import {
-  closeBoard,
-  openBoardForRead,
-  openBoardReadOnly,
-  readEventLogVersion,
-  systemClock,
-} from './board-read-open.js';
 import * as verdictWithdrawal from './verdict-withdrawal.js';
-import {
-  BOARD_BUSY_TIMEOUT_MS,
-  EVENT_LOG_VERSION,
-  SCHEMA,
-  SCHEMA_DIGEST,
-  SCHEMA_VERSION,
-} from './board-schema-source.js';
 import {
   PERSON,
   now,
@@ -225,42 +205,14 @@ export { landingTestDefects, recordLandingTestDefect } from './landing-test-defe
 export { landingLeaseMove, landingLeaseState } from './landing-lease.js';
 import { guardLandingWrite } from './landing-lease.js';
 import {
-  randomBytes,
   randomUUID,
 } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-} from 'node:fs';
-import { dirname } from 'node:path';
-import {
-  sharedSchemaOwner,
-  expectedBoardSchema,
-  sharedSchemaDiagnostic,
-  reportSharedSchema,
-} from './board-schema.js';
-import { DatabaseSync } from 'node:sqlite';
-import {
-  boardNotWritable,
-  boardBusyError,
-} from './board-access.js';
-import { ensureHotIndexes } from './board-hot.js';
-import { guardStore } from './board-store-guards.js';
-import { refreshStoreDeclarations } from './board-store-guards.js';
-import { ensureAdditiveIndexes } from './board-hot.js';
-import { missingAdditiveIndexes } from './board-hot.js';
 import {
   factIdentityExists,
   requireFactIdentityIndexes,
 } from './fact-identity.js';
 import { NEXT_STEPS } from './next-step-words.js';
 export { boardBusyError } from './board-access.js';
-import {
-  boardStanding,
-  migrate,
-  recordSchemaStamp,
-  reportDrift,
-} from './board-migrate.js';
 export { schemaMissing, writeRefused } from './board-migrate.js';
 import { checkRoute } from './item-routing.js';
 import { checkRouted } from './item-routing.js';
@@ -292,7 +244,6 @@ import {
   UNKNOWN_MOVE,
   VERIFIER_STANDING_ENGINE,
   effectiveGuards,
-  storeTriggers,
 } from './machine.js';
 import { LOCAL_LANDING_ENGINE } from './land-engine.js';
 import { SPEC_REVISION_ENGINE } from './spec-revision-engine.js';
