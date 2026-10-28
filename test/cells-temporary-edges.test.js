@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { computePlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { importCuts } from '../src/cells-plan-cuts.js';
@@ -40,7 +41,7 @@ function fixture(t) {
     expires: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10) };
   /** Exercise the actual production command, retaining its status and named diagnostics. */
   function check() {
-    return runFixtureChild(process.execPath, [new URL('../bin/cells-plan.js', import.meta.url).pathname, '--cuts', group.cell], { cwd: root, env, encoding: 'utf8' });
+    return runFixtureChild(process.execPath, [fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url)), '--cuts', group.cell], { cwd: root, env, encoding: 'utf8' });
   }
   /** Replace the one committed-policy input without mocking the scanner. */
   function policy(edges) { put('bin/cells-plan/temporary-edges.json', JSON.stringify({ version: 1, edges })); }
