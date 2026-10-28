@@ -263,7 +263,11 @@ test('a committed #1781 marker makes new debt advisory until #1770 deletes it, b
   const box = fixture(t), run = mode => runFixtureChild(process.execPath, [BIN, mode, box.root], { encoding: 'utf8' });
   box.put('bin/cells-plan/path-map/sample.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
   box.git('add', '-A'); box.git('commit', '-qm', 'test: accept a package migration');
-  const baseline = cellLintBaseline(box.report());
+  const baseline = planCellLintBaseline(box.report()).baseline;
+  writeCellLintBaseline(box.root, baseline, {
+    initialize: true,
+    verify: () => JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(baseline),
+  });
   assert.equal(box.report().transition.active, false, 'the committed package map has already closed the earlier transition');
   box.put(TRANSITION_FILE, '{"version":1,"deleteItem":1770}\n');
   assert.equal(box.report().transition.active, false, 'an uncommitted marker cannot grant advisory growth');
