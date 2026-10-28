@@ -1301,7 +1301,7 @@ export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   try {
     const { deliverActivity, activityDeliveryLines } = await import('./activity-delivery-cli.js');
     const delivery = await deliverActivity(ctx, { afterSubmit: true, directShouts: false });
-    submission.activity = delivery.activity;
+    submission.activity = { ...delivery.activity, budget: delivery.budget };
     for (const line of activityDeliveryLines(delivery, ctx.config)) ctx.io.say(line);
   } catch (error) {
     submission.activity = { receipt: { recorded: false, code: error.code ?? 'ACTIVITY_DELIVERY_FAILED', message: error.message } };
@@ -1673,7 +1673,7 @@ export function resourceAgent(ctx) {
 
 /** Keep the public queue adapter while its lease protocol lives in a bounded module. */
 export function queuedItemLease(ctx, initial, agentId, kind, admission = null) {
-  return createQueuedItemLease(ctx, initial, agentId, kind, admission);
+  return createQueuedItemLease(ctx, initial, agentId, kind, admission, { getItem: store.getItem, withBoard, ordered, claimFreezer });
 }
 
 /**

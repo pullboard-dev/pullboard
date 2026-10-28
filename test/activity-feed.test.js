@@ -1,6 +1,6 @@
-import { requireFixtureReviewFamilies } from './review-family-fixture.js';
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/machine.js */
 /** Lifecycle activity retains its evidence without turning routine status into messages [B3,R2,N26,H16]. */
+import { requireFixtureReviewFamilies } from './review-family-fixture.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -24,6 +24,8 @@ import { activityMainFiles, activityWorkingFiles, readActivityCursor, saveActivi
 import { fixtureBoard } from './board-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { DatabaseSync } from 'node:sqlite';
+import { budgetInbox } from '../src/inbox-budget.js';
+import { activityDeliveryLines } from '../src/activity-delivery-cli.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -537,6 +539,7 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   const summary = JSON.parse(submitted.out).activity;
   assert.ok(summary.digests.length, 'the actual successful submit delivers the pending short digest');
+  assert.equal(summary.budget?.counting, 'utf8-bytes', 'submit JSON retains the feed accounting and omission summary');
   assert.equal(JSON.stringify(summary.digests).includes('SECOND_PRIVATE_RAW_STATUS_BODY'), false);
 
 });
@@ -592,6 +595,11 @@ test('interrupt receipts replay once and only their recipient can acknowledge de
 
 test('pullboard inbox answers in under a second on a 40,000-shout backlog and matches the inbox API [B26,C7]', t => {
   const box = e2e.project();
+  // This raw inbox-API comparison explicitly requests room for the whole directed backlog.
+  const configPath = join(box.web, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.inbox = { tokenBudget: 1_048_576 };
+  writeFileSync(configPath, JSON.stringify(config));
   // An in-memory-style fixture board with a declared persistence purpose; the CLI reads a copy of its file.
   const board = fixtureBoard(t, { storage: 'file', purpose: 'persistence' });
   const boardFile = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main').file;
@@ -644,3 +652,128 @@ function timedInbox(box, board, seat) {
   assert.deepEqual(shoutIds, expected, 'the CLI delivers the same shouts as the inbox API');
   return { shoutIds, ms };
 }
+
+test('an inbox check over its budget summarizes the rest and names what it left out [R2,N26,H16]', () => {
+  const box = e2e.project();
+  const configPath = join(box.web, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.inbox = { tokenBudget: 1024 };
+  writeFileSync(configPath, JSON.stringify(config));
+  // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  for (let index = 0; index < 12; index++) store.shout(board, { from: 'coordinator', to: 'web-1',
+    text: `Private budget message ${index}: ${'界'.repeat(350)}`, lanes: ['web', 'api'] });
+  const before = exportBoard(board);
+  store.closeBoard(board);
+  const result = box.run(box.web, 'inbox', '--json');
+  assert.equal(result.code, 0, result.err);
+  assert.ok(Buffer.byteLength(result.out, 'utf8') <= 1024,
+    'the complete JSON delivery fits the configured conservative UTF-8 byte token budget');
+  const delivered = JSON.parse(result.out);
+  assert.equal(delivered.budget.counting, 'utf8-bytes', 'the public response declares its conservative accounting method');
+  assert.equal(delivered.budget.limit, 1024);
+  assert.equal(delivered.budget.omitted.shout, 12, 'every omitted message is counted once, not again as activity');
+  assert.match(delivered.budget.summary, /12 shout/u, 'the summary names the omitted count and kind');
+  assert.doesNotMatch(result.out, /Private budget message/u, 'oversized messages are summarized rather than partly leaked');
+  const again = box.run(box.web, 'inbox', '--json');
+  assert.equal(again.code, 0, again.err);
+  const continued = JSON.parse(again.out);
+  assert.equal(continued.shouts.length, 0, 'summarized messages are acknowledged rather than repeated forever');
+  // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
+  const unchanged = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  assert.deepEqual(exportBoard(unchanged).tables.event.filter(event => event.event_kind !== 'activity-delivered'),
+    before.tables.event, 'budgeting preserves original immutable events while allowing canonical delivery receipts');
+  assert.deepEqual(exportBoard(unchanged).tables.shout, before.tables.shout, 'budgeting preserves original message bodies');
+  store.closeBoard(unchanged);
+});
+
+test('inbox budgets retain small deliveries and bound text without clipping messages [R2,N26]', () => {
+  const box = e2e.project();
+  const configPath = join(box.web, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.inbox = { tokenBudget: 1024 };
+  writeFileSync(configPath, JSON.stringify(config));
+  // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  store.shout(board, { from: 'coordinator', to: 'web-1', text: 'An oversized message: ' + '界'.repeat(350), lanes: ['web'] });
+  store.closeBoard(board);
+  const text = box.run(box.web, 'inbox');
+  assert.equal(text.code, 0, text.err);
+  assert.ok(Buffer.byteLength(text.out) <= 1024);
+  assert.match(text.out, /1 shout/u);
+  assert.doesNotMatch(text.out, /An oversized message/u);
+  config.inbox.tokenBudget = 2048;
+  writeFileSync(configPath, JSON.stringify(config));
+  // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
+  const reopened = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  store.shout(reopened, { from: 'coordinator', to: 'web-1', text: 'Ready.', lanes: ['web'] });
+  store.closeBoard(reopened);
+  const small = box.run(box.web, 'inbox', '--json');
+  assert.equal(small.code, 0, small.err);
+  assert.ok(Buffer.byteLength(small.out) <= 2048);
+  assert.equal(JSON.parse(small.out).shouts[0]?.shout_text, 'Ready.');
+  config.inbox.tokenBudget = 1;
+  writeFileSync(configPath, JSON.stringify(config));
+  const invalid = box.run(box.web, 'inbox', '--json');
+  assert.equal(invalid.code, 1);
+  assert.equal(JSON.parse(invalid.out).error.code, 'BAD_CONFIG');
+});
+
+test('inbox budgets withhold interrupt receipts until the whole interrupt is rendered [R2,N26,H16]', () => {
+  const box = e2e.project();
+  const configPath = join(box.web, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.inbox = { tokenBudget: 1024 };
+  writeFileSync(configPath, JSON.stringify(config));
+  // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const question = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'Which bounded path?',
+    decision: true, lanes: ['web', 'api'] });
+  store.answerDecision(board, question, { agentId: 'coordinator', text: '界'.repeat(350), lanes: ['web', 'api'] });
+  const answer = store.events(board).findLast(event => event.event_kind === 'answer');
+  const id = `event:${answer.event_id}`;
+  const bodies = exportBoard(board).tables.shout;
+  store.closeBoard(board);
+  const small = box.run(box.web, 'inbox', '--json');
+  assert.equal(small.code, 0, small.err);
+  assert.ok(Buffer.byteLength(small.out) <= 1024);
+  const withheld = JSON.parse(small.out);
+  assert.deepEqual(withheld.activity.interrupts, []);
+  assert.equal(withheld.budget.omitted.interrupt, 1);
+  assert.match(withheld.budget.summary, /1 interrupt/u);
+  // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
+  const recorded = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  assert.ok(store.events(recorded).filter(event => event.event_kind === 'activity-delivered')
+    .every(event => !JSON.parse(event.event_detail).interrupts.includes(id)), 'a summary is not an interrupt delivery receipt');
+  assert.deepEqual(exportBoard(recorded).tables.shout, bodies, 'canonical source bodies stay intact');
+  store.closeBoard(recorded);
+  const premature = box.run(box.web, 'inbox', '--acted-on', id, '--json');
+  assert.equal(JSON.parse(premature.out).error?.code, 'ACTIVITY_NOT_DELIVERED');
+  config.inbox.tokenBudget = 8192;
+  writeFileSync(configPath, JSON.stringify(config));
+  const enlarged = box.run(box.web, 'inbox', '--json');
+  assert.equal(enlarged.code, 0, enlarged.err);
+  assert.ok(Buffer.byteLength(enlarged.out) <= 8192);
+  assert.deepEqual(JSON.parse(enlarged.out).activity.interrupts.map(interrupt => interrupt.id), [id],
+    'a withheld fresh obligation survives both canonical and local cursor advancement');
+  const repeat = box.run(box.web, 'inbox', '--json');
+  assert.deepEqual(JSON.parse(repeat.out).activity.interrupts.map(interrupt => interrupt.id), [id],
+    'delivery still grants no acted-on authority');
+  const acted = box.run(box.web, 'inbox', '--acted-on', id, '--json');
+  assert.equal(acted.code, 0, acted.err);
+  assert.deepEqual(JSON.parse(acted.out).activity.interrupts, []);
+});
+
+
+test('inbox omission metadata stays bounded across many digest event kinds [R2,N26,H16]', () => {
+  const digests = Array.from({ length: 40 }, (_, index) => ({ kind: `fixture-event-kind-${index}`,
+    count: index + 1, text: '界'.repeat(350) }));
+  const document = budgetInbox({ shouts: [], activity: { interrupts: [], entries: [], digests, cursor: 1 } },
+    1024, result => activityDeliveryLines(result, {}));
+  assert.ok(Buffer.byteLength(JSON.stringify({ version: 1, ...document }, null, 2) + '\n') <= 1024,
+    'the count metadata alone must fit the same delivery budget');
+  assert.ok(Buffer.byteLength(activityDeliveryLines(document, {}).join('\n') + '\n') <= 1024);
+  assert.deepEqual(document.activity.digests, []);
+  assert.deepEqual(document.budget.omitted, { digest: 820 }, 'fixed delivery kinds preserve the exact omitted update count');
+  assert.match(document.budget.summary, /820 digest/u);
+});

@@ -16,7 +16,7 @@ import {
 } from 'node:test';
 import {
   pushedFirstParentCommits,
-  pushReceiptProblems,
+  pushReceiptProblems as evaluatePushReceiptProblems,
 } from '../src/pre-push-receipts.js';
 import {
   readGateReceipt,
@@ -28,6 +28,12 @@ import { runFixtureChild } from './fixture-child.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const ZERO = '0'.repeat(40);
+
+/** Exercise the actual evaluator with its trusted native receipt readers supplied explicitly. */
+function pushReceiptProblems(root, input) {
+  return evaluatePushReceiptProblems(root, input, { readGateReceipt, receiptStore });
+}
+
 
 /** Git's four-field stdin record names the remote object, not a guessed tracking ref. */
 function update(local, remote = ZERO, ref = 'refs/heads/main') {

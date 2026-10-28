@@ -61,6 +61,7 @@ export function defaults() {
     // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
     map: { slice: false },
     agents: { names: 'suffix' },
+    inbox: { tokenBudget: 8192 },
     check: { install: '', timeout: '5m' },
     claim: { reopenFirstRefusalMinutes: 0, barTestFiles: ['**/*.test.js', '**/*.test.mjs', '**/*.test.cjs', '**/*.spec.js', '**/*.spec.mjs', '**/*.spec.cjs'] },
     lanes: {},
@@ -123,6 +124,9 @@ function merge(base, raw) {
     verify: typeof raw.verify === 'string'
       ? { ...base.verify, policy: raw.verify }
       : { ...base.verify, ...(raw.verify ?? {}) },
+    inbox: raw.inbox === undefined ? base.inbox
+      : raw.inbox && typeof raw.inbox === 'object' && !Array.isArray(raw.inbox)
+        ? { ...base.inbox, ...raw.inbox } : raw.inbox,
     agents: raw.agents === undefined ? base.agents
       : raw.agents && typeof raw.agents === 'object' && !Array.isArray(raw.agents)
         ? { ...base.agents, ...raw.agents }
@@ -224,6 +228,11 @@ export function configProblems(config) {
   if (config.approvers !== undefined && (!Array.isArray(config.approvers) || config.approvers.length > 50 || new Set(config.approvers).size !== config.approvers.length
       || config.approvers.some((login) => typeof login !== 'string' || !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/u.test(login)))) problems.push('"approvers" lists the GitHub logins who act as the person on a linked board, at most fifty; leave it out for today\'s behaviour');
   if (!['inside', 'beside'].includes(config.worktrees)) problems.push('"worktrees" is "inside" or "beside"');
+  if (!config.inbox || typeof config.inbox !== 'object' || Array.isArray(config.inbox)
+    || Object.keys(config.inbox).some(key => key !== 'tokenBudget')
+    || !Number.isSafeInteger(config.inbox.tokenBudget) || config.inbox.tokenBudget < 1024) {
+    problems.push('"inbox.tokenBudget" is a whole number of at least 1024 UTF-8 bytes; 8192 by default');
+  }
   if (!Number.isSafeInteger(config.itemSizeBudget) || config.itemSizeBudget < 1) {
     problems.push('"itemSizeBudget" is a positive whole number of changed lines; 100 by default');
   }
