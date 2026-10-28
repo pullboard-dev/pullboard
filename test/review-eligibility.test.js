@@ -521,7 +521,7 @@ test('an undeclared seat declares its vendor family once from a new session and 
   assert.equal(events.length, 1, 'the declaration is one board event');
   assert.equal(parentOf(), before, 'the recorded parent session is untouched');
   assert.doesNotThrow(() => f.reserve(id, 'core-7'), 'the declared seat is now reviewable');
-  assert.throws(() => again('OpenAI'), error => error.code === 'PARENT_SESSION_CHANGED', 'a declared seat is refused a change from another session');
+  assert.throws(() => again('OpenAI'), error => error.code === 'FAMILY_DECLARED', 'a declared seat is refused a change from another session');
   assert.equal(f.board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get('core-7').agent_family, 'Anthropic', 'a refused declaration changes nothing');
 });
 

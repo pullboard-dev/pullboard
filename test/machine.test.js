@@ -44,6 +44,7 @@ const NOT_MOVES = {
   ALREADY_JOINED: 'registering who is asking, before any move',
   BAD_PARENT: 'validating optional parent/session declarations at join, before any move',
   PARENT_SESSION_CHANGED: 'preserving the joined seat’s immutable parent/session identity, before any move',
+  FAMILY_DECLARED: 'a seat\u2019s declared vendor family is final, checked at join before any move',
   BAD_ROUTE: 'registering who is asking, before any move',
   ONE_COORDINATOR: 'registering who is asking, before any move',
   BAD_SEAT_ID: 'registering who is asking, before any move; only a creator naming a new worktree seat raises it',
@@ -1085,7 +1086,7 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
     const decision = verb === 'accept' ? 'ACCEPT' : 'REJECT';
     board.db.prepare("UPDATE agent SET agent_family = 'REQUIRED REVIEW' WHERE agent_id = 'web-2'").run();
     store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
-    store.register(board, { lane: 'web', path: '/repo-web-other', family: null });
+    board.db.prepare("UPDATE agent SET agent_family = ? WHERE agent_path = '/repo-web-other'").run(null);
     const built = submittedItem(board, { reviewFamily: 'Required Review' });
     const vendorOnly = submittedItem(board, { sensitive: true });
     const landed = submittedItem(board);
@@ -1108,9 +1109,9 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
       judge(built, other, { reason: bad, policy: 'any' }),
       /** Observe vendor refusal on Strict work, then restore the required-family peer for later guards. */
       (() => {
-        store.register(board, { lane: 'web', path: '/repo-web-other', family: 'BUILDER-VENDOR' });
+        board.db.prepare("UPDATE agent SET agent_family = ? WHERE agent_path = '/repo-web-other'").run('BUILDER-VENDOR');
         const refused = judge(vendorOnly, other, { reason: bad, policy: 'any', familyPolicy: 'require' });
-        store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
+        board.db.prepare("UPDATE agent SET agent_family = ? WHERE agent_path = '/repo-web-other'").run('required review');
         return refused;
       })(),
       judge(built, other, { reason: bad, policy: 'any' }),
@@ -1141,9 +1142,9 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
   store.reserveReview(board, cooling, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
   store.release(board, cooling, 'web-2', 'another reviewer should take it');
   const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2'), reserveAs(built, other, 'any')];
-  store.register(board, { lane: 'web', path: '/repo-web-other', family: 'BUILDER-VENDOR' });
+  board.db.prepare("UPDATE agent SET agent_family = ? WHERE agent_path = '/repo-web-other'").run('BUILDER-VENDOR');
   fired.push(reserveAs(vendorOnly, other, 'any', 'require'));
-  store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
+  board.db.prepare("UPDATE agent SET agent_family = ? WHERE agent_path = '/repo-web-other'").run('required review');
   store.reserveReview(board, built, { agentId: other, leaseMs: 3_600_000, policy: 'any' });
   fired.push(reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
   assert.deepEqual(fired, [...declaredBoardOrder('reserve'), 'ok']);
