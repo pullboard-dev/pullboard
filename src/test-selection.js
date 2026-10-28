@@ -97,3 +97,36 @@ export function shardArguments(args) {
   }
   return { args: [`--test-shard=${shard}`, ...forwarded] };
 }
+
+/** Distinguish file selection from option values so filtered discovery still takes a full-suite slot. */
+export function hasTestFiles(args, optionTakesValue) {
+  let takesValue = false;
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (takesValue) { takesValue = false; continue; }
+    if (argument === '--') return index < args.length - 1;
+    if (argument.startsWith('-')) {
+      if (!argument.includes('=')) takesValue = optionTakesValue(argument);
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
+/** Extract explicit test paths while skipping option values, returning an empty list for discovery. */
+export function explicitTestFiles(args, optionTakesValue) {
+  const files = [];
+  let takesValue = false;
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (takesValue) { takesValue = false; continue; }
+    if (argument === '--') { files.push(...args.slice(index + 1)); break; }
+    if (argument.startsWith('-')) {
+      if (!argument.includes('=')) takesValue = optionTakesValue(argument);
+      continue;
+    }
+    files.push(argument);
+  }
+  return files;
+}
