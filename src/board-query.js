@@ -59,14 +59,12 @@ export function isHeld(board, item) {
  *
  * @param {any} board
  * @param {any} item
+ * @param {string | null | undefined} reviewFamily Native joined metadata; undefined requests the ordinary lookup.
  * @returns {any}
  */
-export function current(board, item) {
-  return currentLease(board, projectReviewFamily(board, item));
-}
-
-/** Normalize only the lease after the caller has read this row's reviewer family. */
-function currentLease(board, item) {
+export function current(board, item, reviewFamily = undefined) {
+  item = reviewFamily === undefined ? projectReviewFamily(board, item)
+    : reviewFamily === null ? item : { ...item, item_review_family: reviewFamily };
   if (item.item_status !== 'claimed' || isHeld(board, item)) return { ...item };
   return { ...item, item_status: 'open', item_owner: null, item_lease_until: null };
 }
@@ -153,7 +151,7 @@ export function listItems(board, { lane, all = false } = {}) {
       AND ${all ? '1' : "item_status NOT IN ('verified','withdrawn')"}${hasLane ? ' AND item_lane=?' : ''} ORDER BY item_id DESC`)
     .all(...(hasLane ? [lane] : []));
   const items = rows.map(({ imported_rehome: imported, review_family: family, ...item }) => ({
-    ...currentLease(board, family === null ? item : { ...item, item_review_family: family }),
+    ...current(board, item, family),
     ...(imported ? { item_rehome_import: JSON.parse(imported) } : {}) }));
   return items;
 }
