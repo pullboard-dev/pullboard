@@ -1,5 +1,5 @@
 {
- "order": 7,
+ "order": 6,
  "name": "config",
  "kind": "package",
  "root": "packages/config",
@@ -41,8 +41,8 @@
   {"cell":"git","imports":1,"before":true},
   {"cell":"queue","imports":3,"before":true},
   {"cell":"resources","imports":1,"before":true},
-  {"cell":"sandbox","imports":2,"before":true},
   {"cell":"seats","imports":1,"before":false},
+  {"cell":"sandbox","imports":2,"before":false},
   {"cell":"doctrine","imports":1,"before":false},
   {"cell":"link","imports":2,"before":false},
   {"cell":"gate","imports":1,"before":false},
@@ -54,8 +54,7 @@
  "cuts": [
   {"cell":"git","imports":1,"edges":["src/push-native-evidence.js->src/config.js"]},
   {"cell":"queue","imports":1,"edges":["src/queue-settings.js->src/machine-home.js"]},
-  {"cell":"resources","imports":1,"edges":["src/resources.js->src/machine-home.js"]},
-  {"cell":"sandbox","imports":1,"edges":["src/trusted-policy-read.js->src/config.js"]}
+  {"cell":"resources","imports":1,"edges":["src/resources.js->src/machine-home.js"]}
  ],
  "ratchets": {
   "legacySource": 0,
@@ -63,15 +62,15 @@
   "boundaries": -6,
   "strays": -7,
   "documents": 0,
-  "cyclesIfUncut": 9,
+  "cyclesIfUncut": 11,
   "assetReads": 0
  },
  "item": {
   "lane": "core",
-  "title": "Cells move 7/43: config moves into packages/config behind shims",
-  "criterion": "Cells move 7 of 43 (RFC 0006; plan entry 7 in bin/cells-plan.json): the 15 paths the entry lists for package config move with git mv to their planned targets under packages/config, and packages/config/index.js is the front door, re-exporting the 8 modules other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. First the 4 imports from earlier cells into it that the entry lists as cuts are gone, each cut by an item in the importing cell, so no cycle between cells forms. The cell lint counts change as the entry states (legacySource 0, shims +8, boundaries -6) and none rises; node bin/cells-plan.js --moved config passes, and the full suite passes on Node 22.13 and 24.",
+  "title": "Cells move 6/43: config moves into packages/config behind shims",
+  "criterion": "Cells move 6 of 43 (RFC 0006; plan entry 6 in bin/cells-plan.json): the 15 paths the entry lists for package config move with git mv to their planned targets under packages/config, and packages/config/index.js is the front door, re-exporting the 8 modules other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. First the 3 imports from earlier cells into it that the entry lists as cuts are gone, each cut by an item in the importing cell, so no cycle between cells forms. The cell lint counts change as the entry states (legacySource 0, shims +8, boundaries -6) and none rises; node bin/cells-plan.js --moved config passes, and the full suite passes on Node 22.13 and 24.",
   "specs": ["C7","doctrine:CD60","doctrine:CD64"],
   "check": "node bin/cells-plan.js --moved config",
-  "after": ["kernel","git","queue","resources","sandbox"]
+  "after": ["kernel","git","queue","resources"]
  }
 }
