@@ -1,5 +1,8 @@
 /** Optional item-specific reviewer families, independent of model names [V1,V2,H16]. */
 import { AUTOMATIC_DISPATCH_ENGINE } from './automatic-dispatch-engine.js';
+import { familyName } from './review-policy.js';
+import { familyAliasesOf } from './review-policy.js';
+import { aliasEngineOn } from './review-policy.js';
 import { Refused } from './refused.js';
 
 /** Validate only explicitly supplied metadata; omission preserves legacy move bytes. */
@@ -34,7 +37,10 @@ export function requiredReviewFamilyProblem(board, item, agentId) {
   const required = requiredReviewFamily(board, item.item_id);
   if (!required) return null;
   const declared = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(agentId)?.agent_family;
-  return typeof declared === 'string' && declared.trim().toLowerCase() === required.toLowerCase() ? null
+  const aliases = familyAliasesOf(board);
+  const same = aliasEngineOn(board) ? familyName(declared, aliases) !== null && familyName(declared, aliases) === familyName(required, aliases)
+    : typeof declared === 'string' && declared.trim().toLowerCase() === required.toLowerCase();
+  return same ? null
     : new Refused('REQUIRED_REVIEW_FAMILY', `#${item.item_id} requires reviewer family ${required}; join a reviewer with that declared family; model names do not declare a family`);
 }
 
