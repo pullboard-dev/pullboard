@@ -187,7 +187,7 @@ test('next diagnostics preserve default query shapes and report only actually en
 });
 
 
-test('Dashboard API carries the same event-only comparison with explicit cached as-of windows [R1,R2,A2]', async t => {
+test('Dashboard API projects the same read-time windows from cached event history, including deltas [R1,R2,A2]', async t => {
   const box = fixture(t);
   let now = Date.parse(at(120)), builds = 0;
   const before = box.history();
@@ -208,8 +208,15 @@ test('Dashboard API carries the same event-only comparison with explicit cached 
   assert.equal(next.status, 200);
   const cached = await next.json();
   assert.equal(cached.state.observedAt, at(121));
-  assert.deepEqual(cached.state.statsComparison, document.state.statsComparison,
-    'unchanged history retains its labelled observation instead of scanning it again on each poll');
+  assert.deepEqual(cached.state.statsComparison, compareFlowWindows(before, { now, windowMinutes: 120, complete: true }),
+    'read-time windows project from the same cached event prefix without another database scan');
+  assert.equal(cached.state.statsComparison.current.until, at(121));
+  now = Date.parse(at(122));
+  const deltaResponse = await fetchFresh(`${route}?since=${document.state.sequence}`, { headers });
+  assert.equal(deltaResponse.status, 200);
+  const delta = await deltaResponse.json();
+  assert.deepEqual(delta.delta.replace.statsComparison, compareFlowWindows(before, { now, windowMinutes: 120, complete: true }),
+    'a clock-only delta carries the new comparison despite the unchanged event sequence');
   assert.equal(builds, 1, 'comparison uses the existing snapshot build, not a second history read');
   assert.deepEqual(box.history(), before);
 });
