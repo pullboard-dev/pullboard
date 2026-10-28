@@ -1,5 +1,7 @@
 import { flakyProject, writeTarget, TITLE } from './flakes-fixture.js';
 import { repoInfo } from '../src/git.js';
+import { selectAffectedTests } from '../src/affected-tests.js';
+import { selectTestTreeGuards } from '../src/affected-tests.js';
 import { landingPorts } from './landing-ports-fixture.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 /** @pullboard-test-input source-tree */
@@ -33,7 +35,8 @@ import { executionServices } from './gate-execution-fixture.js';
 import { flakeLedger } from '../src/flakes.js';
 import { eventCauses } from '../src/rigor.js';
 
-const workerServices = Object.freeze({ executionServices, context, ordered, withBoard, runSubmitGate, withFileLock,
+const workerServices = Object.freeze({ selectors: { selectAffectedTests, selectTestTreeGuards },
+  executionServices, context, ordered, withBoard, runSubmitGate, withFileLock,
   readMainAudit, saveMainAudit, landingLeaseState, testValue: { flakeLedger, eventCauses } });
 
 const CI_ROOT = join(tmpdir(), 'pullboard-ci-runner', 'repo');
