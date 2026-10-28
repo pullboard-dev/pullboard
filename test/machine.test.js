@@ -179,7 +179,7 @@ const CAUGHT = {
   // Only an unsupported historical grammar is ignored; new caller refusals remain audited below.
   'rigor-auto-source.js#automaticDecisionSource': ['spec.js#parseSpec'],
   'rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec'],
-  'person-row-proof.js#signedRowDecisionsMatch': ['blueprints.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
+  'person-row-proof.js#signedRowDecisionsMatch': ['spec.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
 };
 /**
  * Encrypted transport authenticates/orders a move; its board operation is walked separately above.

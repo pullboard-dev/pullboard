@@ -1,10 +1,11 @@
 import { itemCheckBaseline } from './board-query.js';
 /** Durable sealed request intake and ordinary-move receipts; no replica executes CLI intent [H12,H16]. */
+import { answerQuestion } from './spec.js';
 import * as store from './board.js';
 import { createHash } from 'node:crypto';
 import { recordedRefusal } from './recorded-refusal.js';
 import { Refused } from './refused.js';
-import { answerQuestion } from './spec.js';
+
 import { personSigning } from './person-signing.js';
 import { signedRowDecisionsMatch } from './person-row-proof.js';
 import { parseImplies } from './implies.js';

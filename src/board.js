@@ -268,7 +268,6 @@ import { SPEC_REVISION_ENGINE } from './spec-revision-engine.js';
 import {
   validRevisionApproval,
 } from './spec-revisions.js';
-export { decideSpecRevisions } from './spec-revisions.js';
 import * as landingEnvironment from './landing-environment-guards.js';
 import { Refused } from './refused.js';
 import { saveJoinedSession } from './parent-session.js';
@@ -1950,8 +1949,8 @@ export function maintainStaleState(board, options) {
   return applyStaleState(board, options, { atomic, getItem, setItem, releaseItemHold, logEvent, insertShout });
 }
 
-// A lane agent's drafted rows live in row-drafts.js (#878); exported here so the engine dispatches them.
-export { draftSpecRow, rowDrafts } from './row-drafts.js';
+export { rowDrafts } from './board-query.js';
+export { draftSpecRow, decideSpecRevisions, recordRowVerification } from './native-board.js';
 export { recordSpecApprovalBaseline, specApprovalBaseline, specApprovalBaselineExists } from './spec-approval-baseline.js';
 // The roadmap's moves live in milestones.js; the board keeps exporting them so the engine replays them.
 export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone } from './milestones.js';
@@ -1982,7 +1981,7 @@ export function recordRowDecisions(board, { agentId, channel, decisions }) {
     const validDeclineText = record.decision !== 'decline' || (engineVersion >= 12
       ? record.text === original[0]?.text
       : target?.text === record.reason);
-    const revision = record.revision !== undefined && engineVersion >= SPEC_REVISION_ENGINE && validRevisionApproval(board, record);
+    const revision = record.revision !== undefined && engineVersion >= SPEC_REVISION_ENGINE && validRevisionApproval(board, record, board.nativePorts);
     if (!revision && (record.revision !== undefined || original.length !== 1 || original[0].id !== record.id || replacement.length !== 1 || target.id !== record.id
       || target.status !== (record.decision === 'approve' ? 'approved' : 'wont') || target.text !== record.text
       || !validDeclineText)) throw new Refused('ROW_DECISION', 'the exact row must match its recorded approval or decline; use pullboard spec approve or decline');
@@ -2005,7 +2004,7 @@ export function recordRowDecisions(board, { agentId, channel, decisions }) {
 
 /** Apply row decisions and validated cited-item freezes under one board transaction. */
 export function applyRowDecisions(board, options) {
-  return applySpecRowDecisions(board, options, { refreeze, writeRowDecisions, notice: message => insertShout(board, message) });
+  return applySpecRowDecisions(board, options, { ...board.nativePorts, refreeze, writeRowDecisions, notice: message => insertShout(board, message) });
 }
 
 export { recentShouts, eventsOfKinds, recentEvents, lastMoves, decisionAndEvidenceShouts, submitInvariantEvents } from './board-hot.js';
@@ -2150,7 +2149,7 @@ export function setLaneLead(board, options) {
 /** Tailored inbox activity is the same canonical read projection as other board queries. */
 export { agentActivity } from './board-query.js';
 
-export { recordRowVerification, rowVerifications } from './spec-verdicts.js';
+export { rowVerifications } from './spec-verdicts.js';
 /** Read recipient delivery state without mutating any cursor or receipt. */
 export function activityDeliveryState(board, agentId) {
   return activityDeliveryStore.activityDeliveryState(board, agentId);

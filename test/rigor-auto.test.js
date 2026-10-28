@@ -1,6 +1,7 @@
 import { digestNativePorts } from './digest-native-ports.fixture.js';
 /** @pullboard-test-loads src/board.js src/engine.js src/machine.js */
 /** Automatic Rigor proposals retain evidence, never invent proof or person approval [D1,D3,H16]. */
+import { loadDoctrine } from '../src/doctrine.js';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -173,7 +174,7 @@ test('materialized Rigor advice uses the existing person decision and a decline 
     const [draft] = store.rowDrafts(box.board);
     const ref = `doctrine:${draft.id}`;
     const config = loadConfig(box.root);
-    assert.throws(() => prepareRowDecisions(box.root, config, { ids: [ref], decision: 'decline', reason: 'not the right remedy' }),
+    assert.throws(() => prepareRowDecisions(box.root, config, { ids: [ref], decision: 'decline', reason: 'not the right remedy' }, { loadDoctrine }),
       error => error.code === 'NO_ROW', 'a board-only proposal cannot bypass the existing exact-file person decision');
     const need = personNeedsState(box.root, { board: box.board }).rigorDrafts.find(entry => entry.id === ref);
     assert.equal(need.materialized, false);
@@ -182,7 +183,7 @@ test('materialized Rigor advice uses the existing person decision and a decline 
     writeRowApply(box.root, planAutomaticRigorApply(box.root, config, store.rowDrafts(box.board)));
     assert.deepEqual(planAutomaticRigorApply(box.root, config, store.rowDrafts(box.board)).files, [], 'materialization is idempotent');
     assert.equal(personNeedsState(box.root, { board: box.board }).needs.find(entry => entry.id === ref).materialized, true);
-    const records = prepareRowDecisions(box.root, config, { ids: [ref], decision: 'decline', reason: 'not the right remedy', on: box.board.clock.now().toISOString() });
+    const records = prepareRowDecisions(box.root, config, { ids: [ref], decision: 'decline', reason: 'not the right remedy', on: box.board.clock.now().toISOString() }, { loadDoctrine });
     store.recordRowDecisions(box.board, { agentId: store.PERSON, channel: 'terminal', decisions: records });
     assert.equal(personNeedsState(box.root, { board: box.board }).rigorDrafts.some(entry => entry.id === ref), false);
     const fourth = box.submit('New item after decline'); box.reject(fourth);
@@ -215,9 +216,9 @@ test('a person can replace automatic advice without breaking a later spec apply 
     const drafts = store.rowDrafts(box.board);
     writeRowApply(box.root, planAutomaticRigorApply(box.root, config, drafts));
     const records = prepareRowDecisions(box.root, config, { ids: [`doctrine:${drafts[0].id}`], decision: 'approve',
-      text: 'The person chooses a different remedy.', on: box.board.clock.now().toISOString() });
+      text: 'The person chooses a different remedy.', on: box.board.clock.now().toISOString() }, { loadDoctrine });
     store.recordRowDecisions(box.board, { agentId: store.PERSON, channel: 'terminal', decisions: records });
-    const plan = planRowApply(box.root, config, store.rowDecisions(box.board));
+    const plan = planRowApply(box.root, config, store.rowDecisions(box.board), undefined, { loadDoctrine });
     writeRowApply(box.root, plan);
     store.applyRowDecisions(box.board, { agentId: 'coordinator', events: plan.records.map(record => record.event) });
     assert.deepEqual(planAutomaticRigorApply(box.root, config, drafts, store.rowDecisions(box.board)).files, []);
@@ -238,7 +239,7 @@ test('a stale person decision refuses spec apply before any unrelated automatic 
   const box = fixture();
   try {
     const config = loadConfig(box.root);
-    const records = prepareRowDecisions(box.root, config, { ids: ['G1'], decision: 'approve', on: box.board.clock.now().toISOString() });
+    const records = prepareRowDecisions(box.root, config, { ids: ['G1'], decision: 'approve', on: box.board.clock.now().toISOString() }, { loadDoctrine });
     store.recordRowDecisions(box.board, { agentId: store.PERSON, channel: 'terminal', decisions: records });
     const spec = join(box.root, 'SPEC.md');
     writeFileSync(spec, readFileSync(spec, 'utf8').replace('Keep the product coherent.', 'Changed after the decision.'));
@@ -267,7 +268,7 @@ test('declining a never-again proposal stays quiet for the same item and records
     const config = loadConfig(box.root);
     writeRowApply(box.root, planAutomaticRigorApply(box.root, config, drafts));
     const records = prepareRowDecisions(box.root, config, { ids: [`doctrine:${drafts[0].id}`], decision: 'decline',
-      reason: 'No new rule is needed.', on: box.board.clock.now().toISOString() });
+      reason: 'No new rule is needed.', on: box.board.clock.now().toISOString() }, { loadDoctrine });
     store.recordRowDecisions(box.board, { agentId: store.PERSON, channel: 'terminal', decisions: records });
     mark();
     assert.equal(store.rowDrafts(box.board).length, 1);

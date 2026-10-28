@@ -1,4 +1,5 @@
 /** Exact person row decisions and coordinator file application [B26,S18,S19]. */
+import { answerFromText } from './spec.js';
 import {
   appendFileSync,
   existsSync,
@@ -11,8 +12,6 @@ import {
   dirname,
   join,
 } from 'node:path';
-import { loadDoctrine } from './doctrine.js';
-import { answerFromText } from './spec.js';
 import {
   loadSpec,
   parseSpec,
@@ -32,7 +31,7 @@ import { rowDecisionContext } from './row-decision-state.js';
 import { staleRowDecision } from './row-decision-state.js';
 
 /** Resolve qualified doctrine ids while bare ids continue to name the spec. */
-function decisionRows(root, config, ids) {
+function decisionRows(root, config, ids, { loadDoctrine }) {
   const spec = loadSpec(root, config);
   const doctrine = loadDoctrine(root, config);
   const lines = new Map();
@@ -50,8 +49,8 @@ function decisionRows(root, config, ids) {
 }
 
 /** Capture the complete original source row a passkey confirms, including gate and required SSH signer fields. */
-export function shownDecisionRows(root, config, ids) {
-  return decisionRows(root, config, ids).map(({ kind, row, source }) => ({ id: kind === 'doctrine' ? `doctrine:${row.id}` : row.id, text: row.text, source }));
+export function shownDecisionRows(root, config, ids, { loadDoctrine }) {
+  return decisionRows(root, config, ids, { loadDoctrine }).map(({ kind, row, source }) => ({ id: kind === 'doctrine' ? `doctrine:${row.id}` : row.id, text: row.text, source }));
 }
 
 /**
@@ -59,14 +58,14 @@ export function shownDecisionRows(root, config, ids) {
  * a pending question is an approval of its answered text and carries no separate answer field: the
  * answer shown is read back from the signed source and text by decisionAnswer.
  */
-export function prepareRowDecisions(root, config, { ids, decision, reason = '', text: proposedText, by, on, commit = '', note = '', sshSign = true, passkeyRequest }) {
+export function prepareRowDecisions(root, config, { ids, decision, reason = '', text: proposedText, by, on, commit = '', note = '', sshSign = true, passkeyRequest }, { loadDoctrine }) {
   if (!ids.length) throw new Refused('USAGE', 'name rows: pullboard spec approve <ids> or spec decline <ids> --reason "why"');
   if (!['approve', 'decline'].includes(decision)) throw new Refused('ROW_DECISION', 'use pullboard spec approve or decline');
   if (decision === 'decline' && (!reason.trim() || /[\r\n|]/u.test(reason))) throw new Refused('ROW_DECISION', 'a decline needs a one-line reason without a field separator; use --reason "why"');
   if (proposedText !== undefined && (decision !== 'approve' || ids.length !== 1 || !proposedText.trim() || /[\r\n|]/u.test(proposedText))) throw new Refused('ROW_DECISION', 'approve one row with --text "exact one-line text", without a field separator');
   const signed = sshSign && decision === 'approve' && hasSignerFile(root);
   const principal = by ?? (signed ? defaultPrincipal(root) : 'person');
-  return decisionRows(root, config, ids).map(({ kind, file, row, source }) => {
+  return decisionRows(root, config, ids, { loadDoctrine }).map(({ kind, file, row, source }) => {
     const status = decision === 'approve' ? 'approved' : 'wont';
     const text = decision === 'approve' ? proposedText?.trim() ?? row.text : row.text;
     const replacement = rowDecisionReplacement(source, decision, text);
@@ -185,7 +184,7 @@ export function handAnsweredQuestions(before, after, readDecisions) {
 function decisionReceipt({ event, at, applied, appliedAt, ...record }) { return record; }
 
 /** Preflight every file and signature before an apply writes even its first byte. */
-export function planRowApply(root, config, records, { passkeyDecision = () => false } = {}) {
+export function planRowApply(root, config, records, { passkeyDecision = () => false } = {}, { loadDoctrine }) {
   const pending = records.filter((record) => !record.applied);
   const files = new Map();
   for (const record of pending) {

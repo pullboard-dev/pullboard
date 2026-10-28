@@ -100,12 +100,12 @@ export async function draftQualityRows(ctx, { read, reserve }) {
       throw new Refused('STALE_ROW_DECISION', `${pending.id} has a person decision but its doctrine row is missing; a quality draft cannot recreate it`, 'ask the coordinator to restore the decided doctrine row and run pullboard spec apply before retrying');
     }
     if (pending) {
-      drafts.push(draftRow(root, ctx.config, { ...request, id: pending.id }));
+      drafts.push(draftRow(root, ctx.config, { ...request, id: pending.id }, { loadDoctrine }));
       continue;
     }
-    const planned = draftRow(root, ctx.config, { ...request, taken: state.rows.map((row) => row.id), write: false });
+    const planned = draftRow(root, ctx.config, { ...request, taken: state.rows.map((row) => row.id), write: false }, { loadDoctrine });
     const entry = await reserve({ ...planned.row, target: 'doctrine' });
-    drafts.push(draftRow(root, ctx.config, { ...request, id: entry.id }));
+    drafts.push(draftRow(root, ctx.config, { ...request, id: entry.id }, { loadDoctrine }));
     state.rows.push({ ...planned.row, id: entry.id, target: 'doctrine', written: true });
   }
   return drafts;

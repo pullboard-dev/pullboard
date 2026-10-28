@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import { counterProofStats } from './proof-counter-read.js';
 import { viewFlowSummary } from './view-state-summary.js';
 import { proofStats } from './stats.js';
@@ -974,7 +975,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     const cacheId = JSON.stringify([info.commonDir, root]);
     const cached = approvalCache.get(cacheId);
     if (cached?.key === key) return cached.approval;
-    const approval = specApprovalState(root, { board: currentBoard, config });
+    const approval = specApprovalState(root, { board: currentBoard, config }, { store, verifiedPasskeyRowDecision });
     approvalCache.delete(cacheId);
     approvalCache.set(cacheId, { key, approval });
     while (approvalCache.size > 32) approvalCache.delete(approvalCache.keys().next().value);

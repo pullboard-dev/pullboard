@@ -1,4 +1,10 @@
 /** The pullboard hook command, in its own module so an item adding another command never edits these lines. */
+import { boardBusyError } from '../board-access.js';
+import { openBoardReadOnly } from '../board-read-open.js';
+import { rowDecisions } from '../row-decisions-query.js';
+import { checkLoosening } from '../doctrine-checks.js';
+
+const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import { gitBoardDataPush } from '../../packages/commits/src/core/board-format.js';
 import * as store from '../board.js';
 import { pendingCommitSignoffProblem } from '../commit-signoff.js';
@@ -78,7 +84,7 @@ export async function hookCommand(io, { first, second }) {
     const landing = hookRead(ctx, (board) => store.landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root)));
     if (landing) io.caller('coordinator', info.root);
     else if (agent) io.caller('seat', info.root);
-    problems = preCommitProblems({ root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) });
+    problems = preCommitProblems({ approvedRowPorts, root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) });
   } else if (first === 'commit-msg') {
     const originalMessage = readFileSync(second ?? '', 'utf8');
     const metadataContext = hookRead(ctx, board => {

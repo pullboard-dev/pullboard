@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
+import { headerRows } from '../src/spec.js';
 import {
   HEADER_LIMIT,
   buildCommitMessage,
@@ -10,7 +11,6 @@ import {
   parseCommitMessage,
   specOrder,
 } from '../src/commit-message.js';
-import { headerRows } from '../src/spec.js';
 import { landingRows } from '../packages/commits/src/core/landing-rows.js';
 import { checkLandingMessages, itemCommitType, landingMessage } from '../src/land.js';
 import { citedIds, parseSpec } from '../src/spec.js';
