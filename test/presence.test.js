@@ -56,7 +56,7 @@ test('a locked presence sidecar retains cached timestamps and next reports its b
 
 test('presence fallback does not hide a corrupt private sidecar [B3,C7]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-presence-corrupt-'));
-  // @pullboard-board-file fixture: only this disposable board and its own sidecar are changed.
+  // @pullboard-board-file persistence: only this disposable board and its own sidecar are changed.
   const board = store.openBoard(join(root, 'board.sqlite'));
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
   const id = store.register(board, { lane: 'core', path: join(root, 'seat') });
