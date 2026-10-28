@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
-import * as milestones from '../src/milestones.js';
+import * as milestones from '../src/board.js';
 import { MOVE_OPERATIONS } from '../src/move-registry.js';
 import { publishLatestCheckpoint } from '../src/relay.js';
 import { captureSpecApprovalBaseline } from '../src/spec-approval.js';
