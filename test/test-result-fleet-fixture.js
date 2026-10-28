@@ -1,10 +1,11 @@
 /** @pullboard-test-input source-tree */
 /** Exercise cache exchange through real worker capsules in two isolated SSH fixture machines [C7]. */
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { copyPackageFiles } from '../src/package-files.js';
 import { runOnRunnerAsync } from '../src/runners.js';
 import { runFixtureGit } from './fixture-child.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
@@ -23,9 +24,9 @@ export async function fleetTestResultReuse(t) {
   const homeA = join(directory, 'machine-a');
   const homeB = join(directory, 'machine-b');
   for (const folder of [repo, bin, worker, controller, homeA, homeB, join(repo, 'test'), join(repo, 'lib')]) mkdirSync(folder, { recursive: true });
-  cpSync(join(SOURCE, 'src'), join(repo, 'src'), { recursive: true });
-  cpSync(join(SOURCE, 'bin'), join(repo, 'bin'), { recursive: true });
-  writeFileSync(join(repo, 'package.json'), JSON.stringify({ name: 'fleet-cache-fixture', private: true, type: 'module' }) + '\n');
+  copyPackageFiles(SOURCE, repo);
+  const shippedManifest = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8'));
+  writeFileSync(join(repo, 'package.json'), JSON.stringify({ ...shippedManifest, name: 'fleet-cache-fixture', private: true, type: 'module' }) + '\n');
   writeFileSync(join(repo, 'lib', 'value.js'), 'export const value = 1;\n');
   writeFileSync(join(repo, 'test', 'probe.test.js'), `import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -40,7 +41,7 @@ test('fleet cache probe [C7]', () => { console.log('${EXECUTED}'); assert.ok(val
   /** Commit exact fixture inputs with real Git. */
   const git = (...args) => runFixtureGit(args, { cwd: repo, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
-  git('add', 'package.json', 'src', 'bin', 'lib', 'test');
+  git('add', '.');
   git('commit', '-q', '-m', 'test: commit cache fixture');
   const changedEnv = ['HOME', 'PATH', 'PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME',
     'PULLBOARD_TEST_RESULT_STORE', 'PULLBOARD_TEST_RESULT_ORIGIN', 'PULLBOARD_TEST_CACHE_TOOLING',

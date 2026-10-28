@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** A verdict survives a main move that touches nothing the review depends on (#928) [V4,C7]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { cpSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -21,8 +22,7 @@ function reviewWithLanding(t, { setting, landing }) {
   const box = helpers.project('true');
   const armed = join(box.dir, 'landing-armed');
   const landed = join(box.dir, 'landing-done');
-  cpSync(resolve(import.meta.dirname, '../bin'), join(box.repo, 'bin'), { recursive: true });
-  cpSync(resolve(import.meta.dirname, '../src'), join(box.repo, 'src'), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), box.repo);
   for (const folder of ['test', 'web', 'api']) mkdirSync(join(box.repo, folder), { recursive: true });
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ private: true, type: 'module' }) + '\n');
   writeFileSync(join(box.repo, 'web/shared.js'), 'export const shared = 1;\n');

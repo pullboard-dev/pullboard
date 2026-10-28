@@ -1,9 +1,10 @@
 /** Exercise native test-file sharding through the production test runner [C7]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { chmodSync, closeSync, copyFileSync, cpSync, existsSync, fstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, delimiter, dirname, join } from 'node:path';
+import { basename, delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { startFixtureChild, runFixtureChild, runFixtureGit } from './fixture-child.js';
@@ -110,8 +111,7 @@ function makeShardFixture(t) {
   mkdirSync(bin);
   mkdirSync(tests);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
-  copyFileSync(runner, join(bin, 'run-tests.js'));
-  cpSync(fileURLToPath(new URL('../src', import.meta.url)), source, { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
   const capture = join(root, 'selected-files.txt');
   const expected = [];
   for (let number = 1; number <= shardFileCount; number += 1) {
@@ -142,8 +142,7 @@ function makeLandingStopFixture(t) {
   mkdirSync(bin);
   mkdirSync(tests);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
-  copyFileSync(runner, join(bin, 'run-tests.js'));
-  cpSync(source, join(root, 'src'), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
   writeFileSync(join(tests, '01-sibling.test.js'), `import { existsSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { test } from 'node:test';
@@ -422,8 +421,7 @@ test('a landing worker runs after persistent identity snapshot errors [C7,V4]', 
   mkdirSync(bin);
   mkdirSync(tests);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
-  copyFileSync(runner, join(bin, 'run-tests.js'));
-  cpSync(fileURLToPath(new URL('../src', import.meta.url)), join(root, 'src'), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
   const fixtureRunner = join(bin, 'run-tests.js');
   const workerTest = join(tests, 'worker-start.test.js');
   const preload = join(root, 'worker-snapshot-unavailable.mjs');
@@ -1085,8 +1083,7 @@ function makeTrackedSelectionFixture(t) {
   mkdirSync(join(root, 'docs'));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   writeFileSync(join(root, '.gitignore'), 'scratch/\n');
-  copyFileSync(runner, join(bin, 'run-tests.js'));
-  cpSync(fileURLToPath(new URL('../src', import.meta.url)), source, { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
   const capture = join(root, 'selected-files.txt');
   const trackedSources = new Map([
     ['test/tracked.test.js', trackedFixtureSource('tracked')],
@@ -1336,8 +1333,7 @@ function makeFileExitFixture(t, source) {
   mkdirSync(bin);
   mkdirSync(tests);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
-  copyFileSync(runner, join(bin, 'run-tests.js'));
-  cpSync(fileURLToPath(new URL('../src', import.meta.url)), join(root, 'src'), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
   const testFile = join(tests, 'file-exit.test.js');
   writeFileSync(testFile, source);
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -1504,8 +1500,7 @@ function makeFocusedPoolFixture(t) {
   mkdirSync(machine);
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
-  copyFileSync(runner, join(bin, 'run-tests.js'));
-  cpSync(fileURLToPath(new URL('../src', import.meta.url)), join(root, 'src'), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
   const ready = join(root, 'first-ready');
   const nestedDone = join(root, 'nested-done');
   const release = join(root, 'release-first');
