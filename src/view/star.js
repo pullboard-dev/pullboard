@@ -6,11 +6,8 @@
  */
 import { readFileSync } from 'node:fs';
 
-/** The line's words: a plain sentence, never an instruction. */
-export const STAR_TEXT = 'Like Pullboard? A GitHub star helps.';
-
-/** The page storage key that remembers a dismissal, beside the page's other pb. preferences. */
-export const STAR_KEY = 'pb.star';
+import { starHtml } from './star-render.js';
+export { STAR_TEXT, STAR_KEY } from './star-render.js';
 
 /**
  * The repository's web address, read from package.json's repository field so the link never goes stale.
@@ -23,13 +20,5 @@ export function starRepository() {
   return url.replace(/^git\+/u, '').replace(/\.git$/u, '');
 }
 
-/**
- * The line's markup, hidden until the page knows a signed-in person has a linked board.
- *
- * @returns {string}
- */
-export function starMarkup() {
-  const href = starRepository().replace(/[&<>"']/gu, (character) => `&#${character.charCodeAt(0)};`);
-  return `<p class="star-line" id="star-line" hidden><a href="${href}" target="_blank" rel="noopener">${STAR_TEXT}</a>`
-    + '<button class="star-dismiss" id="star-dismiss" type="button" aria-label="Dismiss the star line" title="Dismiss">×</button></p>';
-}
+/** Read the repository at the server boundary before rendering the unchanged star line. */
+export function starMarkup() { return starHtml(starRepository()); }

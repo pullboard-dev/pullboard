@@ -5,6 +5,9 @@ import { lineAt } from '../js-lex.js';
 
 /** Reviewed renderer coverage; a journey never substitutes for these data-in/HTML-out witnesses. */
 export const VIEW_RENDERER_COVERAGE = Object.freeze([
+  { module: 'src/view/settings-render.js', names: ['settingsMarkup', 'settingsContentHtml'], tests: ['test/cockpit/auxiliary-pure.test.js'] },
+  { module: 'src/view/star-render.js', names: ['starHtml'], tests: ['test/cockpit/auxiliary-pure.test.js'] },
+  { module: 'src/view/hosted-render.js', names: ['hostedMarkup', 'hostedBrowser', 'hostedState'], tests: ['test/cockpit/auxiliary-pure.test.js'] },
   { module: 'src/view/segmented-control.js', names: ['segmentedToggle'], tests: ['test/cockpit/segmented-control-pure.test.js'] },
   { module: 'src/view/agents-panel-model.js', names: ['agentsPanelModel'], tests: ['test/cockpit/agents-panel-pure.test.js'] },
   { module: 'src/view/agents-panel-render.js', names: ['agentsPanelHtml'], tests: ['test/cockpit/agents-panel-pure.test.js'] },
