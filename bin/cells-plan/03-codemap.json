@@ -7,7 +7,7 @@
  "placedBy": {
   "seed": 1,
   "rule": 15,
-  "imports": 0
+  "imports": 1
  },
  "paths": [
   ["src/cell-binding-uses.js","packages/codemap/src/shell/cell-binding-uses.js","rule"],
@@ -25,6 +25,7 @@
   ["src/import-map.js","packages/codemap/src/core/import-map.js","rule"],
   ["src/path-map-operands.js","packages/codemap/src/core/path-map-operands.js","rule"],
   ["src/path-map.js","packages/codemap/src/core/path-map.js","rule"],
+  ["src/source-advance-plan.js","packages/codemap/src/shell/source-advance-plan.js","imports"],
   ["src/source-inventory.js","packages/codemap/src/shell/source-inventory.js","rule"]
  ],
  "reexports": [
@@ -38,17 +39,18 @@
   "src/code-map.js",
   "src/import-map.js",
   "src/path-map.js",
+  "src/source-advance-plan.js",
   "src/source-inventory.js"
  ],
  "imports": [
-  {"cell":"kernel","imports":13,"before":true},
+  {"cell":"kernel","imports":14,"before":true},
   {"cell":"git","imports":3,"before":true},
-  {"cell":"gate","imports":1,"before":false}
+  {"cell":"gate","imports":2,"before":false}
  ],
  "cuts": [],
  "ratchets": {
   "legacySource": -5,
-  "shims": 11,
+  "shims": 12,
   "boundaries": -7,
   "strays": 0,
   "documents": 0,
@@ -58,7 +60,7 @@
  "item": {
   "lane": "core",
   "title": "Cells move 3/43: codemap moves into packages/codemap behind shims",
-  "criterion": "Cells move 3 of 43 (RFC 0006; plan entry 3 in bin/cells-plan.json): the 16 paths the entry lists for package codemap move with git mv to their planned targets under packages/codemap, and packages/codemap/index.js is the front door, re-exporting the 11 modules other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. The cell lint counts change as the entry states (legacySource -5, shims +11, boundaries -7) and none rises; node bin/cells-plan.js --moved codemap passes, and the full suite passes on Node 22.13 and 24.",
+  "criterion": "Cells move 3 of 43 (RFC 0006; plan entry 3 in bin/cells-plan.json): the 17 paths the entry lists for package codemap move with git mv to their planned targets under packages/codemap, and packages/codemap/index.js is the front door, re-exporting the 12 modules other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. The cell lint counts change as the entry states (legacySource -5, shims +12, boundaries -7) and none rises; node bin/cells-plan.js --moved codemap passes, and the full suite passes on Node 22.13 and 24.",
   "specs": ["C7","doctrine:CD60","doctrine:CD64"],
   "check": "node bin/cells-plan.js --moved codemap",
   "after": ["kernel","git"]
