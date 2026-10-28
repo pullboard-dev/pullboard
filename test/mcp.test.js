@@ -30,7 +30,7 @@ import dgram from 'node:dgram';
 import { appendFileSync } from 'node:fs';
 const log = process.env.MCP_NETWORK_LOG;
 appendFileSync(log, 'guard loaded\\n');
-const blocked = (kind) => { appendFileSync(log, 'attempt ' + kind + '\\n'); throw new Error('unexpected outbound attempt: ' + kind); };
+const blocked = (kind) => { appendFileSync(log, 'attempt ' + kind + '\\n' + new Error('network guard call site').stack + '\\n'); throw new Error('unexpected outbound attempt: ' + kind); };
 globalThis.fetch = async () => blocked('fetch');
 http.request = () => blocked('http.request');
 http.get = () => blocked('http.get');
@@ -443,7 +443,8 @@ test('an agent claims, submits, verifies and resumes through MCP with the CLI\'s
   assertProtocolOnly((await reviewer.close()).lines);
   const shown = cli(box, box.repo, ['show', String(id)]);
   assert.equal(shown.document.item_status, 'verified', 'the item was claimed, submitted and verified through MCP alone');
-  assert.equal(readFileSync(box.env.MCP_NETWORK_LOG, 'utf8').includes('attempt'), false, 'no tool opened a network connection');
+  const networkLog = readFileSync(box.env.MCP_NETWORK_LOG, 'utf8');
+  assert.equal(networkLog.includes('attempt'), false, `no tool opened a network connection\n${networkLog}`);
 
   // init registered the server for both clients, keeping what was already there.
   const servers = JSON.parse(readFileSync(join(box.repo, '.mcp.json'), 'utf8')).mcpServers;
