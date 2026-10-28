@@ -390,10 +390,11 @@ async function runProfileSubmission(box, queue) {
   const holderExited = holder
     ? (holder.exitCode === null ? once(holder, 'exit') : Promise.resolve())
     : null;
+  // The enclosing clock starts before the child, so it bounds the child's own recorded work and wait.
+  const startedAt = Date.now();
   const submit = startProfiledSubmit(box, box.web);
   const priorHome = process.env.PULLBOARD_HOME;
   const priorMachineHome = process.env.PULLBOARD_MACHINE_HOME;
-  const startedAt = Date.now();
   let queued = false;
   let released = false;
   let result;
@@ -401,7 +402,8 @@ async function runProfileSubmission(box, queue) {
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
   try {
     if (holder) {
-      for (let attempt = 0; attempt < 120; attempt += 1) {
+      // Wait for the child to join the real queue, bounded by the same ceiling as the submission itself, not a fixed poll count.
+      while (Date.now() - startedAt < 60_000) {
         queued = listResources({ scope: 'machine', root: box.repo })
           .find(resource => resource.name === 'gate')?.line.some(waiter => waiter.agent !== 'profile-test-holder') ?? false;
         if (queued || submit.child.exitCode !== null) break;
