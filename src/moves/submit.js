@@ -91,6 +91,7 @@ export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   "ITEM_PATCH_AUTHOR": "name an existing native author seat",
   "SUBMISSION_PROOF": "rerun pullboard submit <id> with the current CLI so its selected files and fallback are recorded",
   "TIMING_SLOT_REQUIRED": "start the timing check outside its inherited ordinary lease and acquire the machine gate with timing true",
-  "UNTRACKED": "commit or ignore the untracked files, then run the command again",
+  "UNDECLARED_BUILDER_FAMILY": "rejoin with your vendor family: pullboard join <lane> --family <vendor> --model \"<model name>\", then submit again",
+  "UNTRACKED":"commit or ignore the untracked files, then run the command again",
   "USAGE": "run pullboard help"
 }) });
