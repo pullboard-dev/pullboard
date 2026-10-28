@@ -256,7 +256,8 @@ import {
   reportDrift,
 } from './board-migrate.js';
 export { schemaMissing, writeRefused } from './board-migrate.js';
-import { checkRoute, checkRouted } from './item-routing.js';
+import { checkRoute } from './item-routing.js';
+import { checkRouted } from './item-routing.js';
 import {
   itemFiles,
   itemFileCollisions,
