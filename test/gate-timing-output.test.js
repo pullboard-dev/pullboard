@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Timing profiles parse the caller's unchanged TAP or JUnit output [C7,V10]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyFixtureRunner } from './fixture-runner-copy.js';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
@@ -144,7 +144,7 @@ test('a gate receipt splits waiting from running [C7,V10]', async t => {
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   // A check the runner can classify: this repo's own runner and one named file that never launches a browser.
-  copyPackageFiles(resolve(import.meta.dirname, '..'), box.repo);
+  copyFixtureRunner(resolve(import.meta.dirname, '..'), box.repo);
   mkdirSync(join(box.repo, 'test'));
   writeFileSync(join(box.repo, 'test/quick.test.js'), "import { test } from 'node:test'; test('quick', () => new Promise(done => setTimeout(done, 200)));\n");
   box.git(box.repo, 'add', '.');
