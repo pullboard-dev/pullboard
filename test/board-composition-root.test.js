@@ -28,8 +28,23 @@ function observedPorts(label, calls) {
     return original.logEvent(...args);
   }
   const nativePorts = { ...original.nativePorts, atomic, logEvent };
+  const verification = { ...original.verification,
+    /** Observe actual Rigor warming through this connection's explicit capability. */
+    ensureRigorCounters(board, ...args) {
+      assert.equal(board.runtimePorts.verification, verification);
+      assert.ok(Object.isFrozen(verification));
+      calls.push(label + ':rigor-warm');
+      return original.verification.ensureRigorCounters(board, ...args);
+    },
+    /** Observe actual event projection without changing the provider's arguments. */
+    appendRigorCounter(board, ...args) {
+      assert.equal(board.runtimePorts.verification, verification);
+      calls.push(label + ':rigor-append');
+      return original.verification.appendRigorCounter(board, ...args);
+    },
+  };
   return {
-    ...original, nativePorts, logEvent,
+    ...original, nativePorts, logEvent, verification,
     guards: { ...original.guards,
       /** Migration guards must see the final native and engine bags before returning the connection. */
       guardStore(board) {
@@ -64,11 +79,13 @@ test('the single native root supplies every port before migration and keeps lega
   assert.ok(Object.isFrozen(board.enginePorts));
   assert.ok(calls.includes('one:guards'));
   assert.ok(calls.includes('one:proof'));
+  assert.ok(calls.includes('one:rigor-warm'));
   native.board.register(board, { lane: 'coordinator', path: '/private/native-root-test' });
   ports.nativePorts.atomic(board, () => ports.nativePorts.logEvent(board, 'coordinator', 'native-root-proof', null, { exact: true }));
   const event = board.db.prepare("SELECT * FROM event WHERE event_kind='native-root-proof'").get();
   assert.deepEqual(JSON.parse(event.event_detail), { exact: true, model: 'unknown' });
   assert.ok(calls.includes('one:event'));
+  assert.ok(calls.includes('one:rigor-append'));
   const fixture = fixtureBoard(t);
   assert.ok(fixture.nativePorts);
   assert.equal(fixture.enginePorts.store.openBoard, native.openBoard);
@@ -164,4 +181,22 @@ test('native read wrappers carry explicit capabilities while SQLite remains read
   assert.equal(read.db.prepare("SELECT name FROM sqlite_master WHERE name='forbidden'").get(), undefined);
   assert.equal(native.openBoardForRead(join(directory, 'absent.sqlite')), null);
   assert.equal(legacy.openBoardForRead, native.openBoardForRead);
+});
+
+
+test('every verification capability is required before storage exists [C7,B1,B2]', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-verification-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'never-created', 'board.sqlite');
+  const ports = native.nativeBoardPorts();
+  for (const key of Object.keys(ports.verification)) {
+    const verification = { ...ports.verification };
+    delete verification[key];
+    assert.throws(() => {
+      // @pullboard-board-file persistence: absent verification capabilities refuse before creating storage.
+      const board = native.openBoard(file, undefined, { ports: { ...ports, verification } });
+      native.closeBoard(board);
+    }, error => error.code === 'NO_POLICY' && error.message.includes(`verification.${key}`));
+    assert.equal(existsSync(join(directory, 'never-created')), false);
+  }
 });
