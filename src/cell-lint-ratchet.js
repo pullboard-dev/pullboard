@@ -64,7 +64,7 @@ export function cellLintGrowth(report, baseline, { enforcedOnly = false } = {}) 
     if (after.count > before.count) rows.push({ metric, key: '(total)', actual: after.count, allowed: before.count });
     // fileSize stores excess over 500: a per-file rise above 1000 excess crosses the hard 1500 maximum.
     return rows.map(row => transitionalGrowth(report, metric)
-      && !(metric === 'fileSize' && row.key !== '(total)' && row.actual > 1000)
+      && !(metric === 'fileSize' && /\.(?:[cm]?js|ts)$/u.test(row.key) && row.actual > 1000)
       ? { ...row, advisory: true, item: 1527, until: 1395 }
       : row);
   });

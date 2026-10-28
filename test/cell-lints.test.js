@@ -447,7 +447,7 @@ spawnSync(process.execPath, [fileURLToPath(new URL('../../src/process-worker.js'
   assert.ok(opaque.unknown.some(row => row.file === 'apps/demo/index.js'), 'computed input remains disclosed, not a fabricated edge');
 });
 
-for (const file of ['src/oversized.js', 'test/oversized.test.js']) test(`hard file maximum stays falling-only for ${file} before and after migration [C7,CD64]`, t => {
+for (const file of ['src/oversized.js', 'test/oversized.test.js', 'src/oversized.mjs', 'test/oversized.cjs', 'src/oversized.ts']) test(`hard file maximum stays falling-only for ${file} before and after migration [C7,CD64]`, t => {
   const box = fixture(t);
   /** Write an exact private source line count without compressing code. */
   const lines = count => box.put(file, 'void 0;\n'.repeat(count));
@@ -476,4 +476,15 @@ for (const file of ['src/oversized.js', 'test/oversized.test.js']) test(`hard fi
   assert.equal(box.report().transition.active, false);
   lines(1501);
   assert.ok(cellLintGrowth(box.report(), edge, { enforcedOnly: true }).some(row => row.key === file));
+});
+
+test('hard file cap excludes data and Markdown while preserving their advisory debt [C7]', t => {
+  const box = fixture(t), baseline = cellLintBaseline(box.report());
+  for (const file of ['test/golden.json', 'test/golden.txt', 'docs/guide.md']) box.put(file, '\n'.repeat(1501));
+  const report = box.report();
+  assert.deepEqual(cellLintGrowth(report, baseline, { enforcedOnly: true }), []);
+  for (const file of ['test/golden.json', 'test/golden.txt', 'docs/guide.md']) {
+    assert.ok(cellLintGrowth(report, baseline).some(row => row.metric === 'fileSize' && row.key === file && row.advisory));
+  }
+  assert.throws(() => lowerCellLintBaseline(report, baseline), { code: 'CELL_LINT_ROSE' });
 });
