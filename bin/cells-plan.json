@@ -19,12 +19,12 @@
  },
  "totals": {
   "cells": 43,
-  "movedPaths": 1283,
-  "stays": 39,
+  "movedPaths": 1291,
+  "stays": 40,
   "placedBy": {
    "seed": 893,
-   "rule": 308,
-   "imports": 82
+   "rule": 314,
+   "imports": 84
   },
   "shims": 655,
   "cutImports": 363,
@@ -114,6 +114,7 @@
   {"path":"bin/runner-controller.js","reason":"bin/ stays in place during the move (dry run section 1)"},
   {"path":"bin/timed-shell.js","reason":"bin/ stays in place during the move (dry run section 1)"},
   {"path":"bin/update-docs.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/cells-data-reads.js","reason":"bin/ stays in place during the move (dry run section 1)"}
+  {"path":"bin/cells-data-reads.js","reason":"bin/ stays in place during the move (dry run section 1)"},
+  {"path":"bin/cells-move-mentions.js","reason":"bin/ stays in place during the move (dry run section 1)"}
  ]
 }

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
 import { readMachineMemory, memoryVerdict } from '../src/resources.js';
+import { toolSourcePath } from '../src/package-files.js';
 import { cleanupFailureReport } from './cleanup-diagnostics.js';
 
 /** Inject only the documented OS-tool boundary; all production parsing and failure rendering still run. */
@@ -61,10 +62,10 @@ test('cleanup ownership probes request nonblocking lsof and retain scoped holder
 });
 
 test('literal process-directory and cleanup helper probes all retain the nonblocking flag [C7]', () => {
-  const paths = ['../src/resources.js', './cleanup-diagnostics.js', './view-port.test.js'];
+  const sources = [['src/resources.js', readFileSync(toolSourcePath(join(import.meta.dirname, '..'), 'src/resources.js'), 'utf8')]];
+  for (const path of ['./cleanup-diagnostics.js', './view-port.test.js']) sources.push([path, readFileSync(new URL(path, import.meta.url), 'utf8')]);
   let calls = 0;
-  for (const path of paths) {
-    const source = readFileSync(new URL(path, import.meta.url), 'utf8');
+  for (const [path, source] of sources) {
     const probes = source.matchAll(/(?:spawnSync|run|runFixtureProcessTool)\(\s*(['"])(?:\/usr\/(?:sbin|bin)\/)?lsof\1\s*,\s*\[([^\]]*)\]/gu);
     for (const probe of probes) { calls++; assert.match(probe[2], /['"]-b['"]/u, path + ' uses nonblocking lsof'); }
   }

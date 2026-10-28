@@ -7,7 +7,7 @@
  "placedBy": {
   "seed": 10,
   "rule": 0,
-  "imports": 4
+  "imports": 5
  },
  "paths": [
   ["src/flow-replay-history.js","packages/stats/src/core/flow-replay-history.js","seed"],
@@ -23,7 +23,8 @@
   ["src/capacity-counter.js","packages/stats/src/core/capacity-counter.js","imports"],
   ["src/capacity-model.js","packages/stats/src/core/capacity-model.js","imports"],
   ["src/capacity-read.js","packages/stats/src/shell/capacity-read.js","imports"],
-  ["src/capacity-store.js","packages/stats/src/core/capacity-store.js","imports"]
+  ["src/capacity-store.js","packages/stats/src/core/capacity-store.js","imports"],
+  ["test/stats-compare.test.js","packages/stats/tests/stats-compare.test.js","imports"]
  ],
  "reexports": [
   "src/flow-replay.js",
