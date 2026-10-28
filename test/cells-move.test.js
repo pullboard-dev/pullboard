@@ -151,3 +151,16 @@ test('failed apply preserves a concurrently deleted preexisting path map [C7]', 
   assert.ok(existsSync(join(custody, plan.digest + '.json')));
   assert.match(readFileSync(join(root, input.from), 'utf8'), /^export \*/u);
 });
+
+
+test('explicit export pruning keeps real consumer API and reverses exact source [C7]', t => {
+  const { root, custody, input } = fixture(t, 'export const internal = 41;\nexport const value = internal + 1;\n');
+  const before = git(root, 'write-tree');
+  const result = cellsMove.apply(cellsMove.plan({ ...input, keepExports: ['value'] }), custody);
+  assert.equal(value(root, input.frontDoor), '42\n');
+  assert.match(readFileSync(join(root, input.to), 'utf8'), /const internal = 41/u);
+  assert.doesNotMatch(readFileSync(join(root, input.to), 'utf8'), /export const internal/u);
+  cellsMove.undo(result.record);
+  assert.equal(git(root, 'write-tree'), before);
+  assert.equal(git(root, 'status', '--porcelain'), '');
+});

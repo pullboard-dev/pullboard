@@ -6,15 +6,16 @@ import { Refused } from '../src/refused.js';
 
 try {
   const [mode, ...args] = process.argv.slice(2);
-  if (mode === '--undo' && args.length === 1) {
+  const keep = args.at(-1)?.startsWith('--keep-exports=') ? args.pop().slice('--keep-exports='.length).split(',') : null;
+  if (mode === '--undo' && args.length === 1 && keep === null) {
     cellsMove.undo(resolve(args[0]));
     console.log('Restored the exact pre-move checkout.');
   } else if (mode === '--apply' && args.length === 5) {
     const [from, to, frontDoor, purpose, custody] = args;
-    const plan = cellsMove.plan({ root: process.cwd(), from, to, frontDoor, purpose });
+    const plan = cellsMove.plan({ root: process.cwd(), from, to, frontDoor, purpose, keepExports: keep });
     console.log(JSON.stringify(cellsMove.apply(plan, resolve(custody)), null, 2));
   } else {
-    throw new Refused('CELLS_MOVE', 'Use --apply <old> <body> <front-door> <purpose> <existing-external-custody-dir> or --undo <record>.');
+    throw new Refused('CELLS_MOVE', 'Use --apply <old> <body> <front-door> <purpose> <existing-external-custody-dir> [--keep-exports=name,...] or --undo <record>.');
   }
 } catch (error) {
   console.error(error.message);

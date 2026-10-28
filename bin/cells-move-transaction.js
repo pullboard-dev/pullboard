@@ -73,7 +73,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
     requireThat(/^100(?:644|755) blob [a-f0-9]+\t/u.test(row) && row.endsWith(`\t${file}\0`), `${file} is not a regular committed file`);
   }
   /** Relocate only plain static module literals; V8 verifies the complete recognized import set. */
-  function relocate(root, commit, from, to, source) {
+  function relocate(root, commit, from, to, source, keepExports) {
     const { code, strings } = lex(source);
     for (const declaration of code.matchAll(/\bexport\s+([^;\n]*)/gu)) {
       requireThat(/^(?:const|let|var|function|class|async\s+function)\b/u.test(declaration[1]),
@@ -85,6 +85,26 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
     const expected = new Set(importsIn([source])[0]);
     const seen = new Set();
     const edits = [];
+    if (keepExports !== null) {
+      requireThat(Array.isArray(keepExports) && keepExports.length > 0
+        && new Set(keepExports).size === keepExports.length
+        && keepExports.every(name => /^[A-Za-z_$][\w$]*$/u.test(name)), 'keepExports must name distinct declaration exports');
+      const declarations = [...code.matchAll(/\bexport\s+(?:(?:async\s+)?function\s*\*?|class|const|let|var)\s+([A-Za-z_$][\w$]*)/gu)];
+      requireThat(keepExports.every(name => declarations.some(match => match[1] === name)), 'requested export is absent');
+      for (const match of declarations) if (!keepExports.includes(match[1])) {
+        if (/^export\s+(?:const|let|var)\b/u.test(match[0])) {
+          let depth = 0;
+          for (let at = match.index + match[0].length; at < code.length; at++) {
+            const char = code[at];
+            if ('({['.includes(char)) depth++;
+            if (')}]'.includes(char)) depth--;
+            requireThat(!(depth === 0 && char === ','), 'export pruning requires one variable per declaration');
+            if (depth === 0 && char === ';') break;
+          }
+        }
+        edits.push({ start: match.index, end: match.index + 'export'.length, text: '' });
+      }
+    }
     for (const literal of strings) {
       const prefix = code.slice(0, literal.start);
       const moduleSite = /\b(?:from|import)\s*$/u.test(prefix);
@@ -106,12 +126,12 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
     }
     requireThat(expected.size === seen.size && [...expected].every(value => seen.has(value)), 'some imports have no supported literal site');
     let next = source;
-    for (const edit of edits.reverse()) next = next.slice(0, edit.start) + edit.text + next.slice(edit.end);
+    for (const edit of edits.sort((a, b) => b.start - a.start)) next = next.slice(0, edit.start) + edit.text + next.slice(edit.end);
     importsIn([next]); // Compile, never link/evaluate.
     return next;
   }
   /** Capture a closed four-file preimage before any mutation; old importers keep their shim. */
-  function derive({ root, from, to, frontDoor, purpose }, recordedHead = null) {
+  function derive({ root, from, to, frontDoor, purpose, keepExports = null }, recordedHead = null) {
     root = realpathSync(root);
     [from, to, frontDoor].forEach(filePath);
     requireThat(/^packages\/[a-z][a-z0-9-]*\/index\.js$/u.test(frontDoor), 'front door must be one package index');
@@ -151,7 +171,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
     const mapping = before['path-map.json'] ? JSON.parse(Buffer.from(before['path-map.json'].bytes, 'base64')) : {};
     requireThat(!Object.hasOwn(mapping, from), 'do not overwrite an existing move');
     mapping[from] = to; // The history identity targets the body, never the index or shim.
-    const body = relocate(root, head, from, to, source);
+    const body = relocate(root, head, from, to, source, keepExports);
     let shimTarget = posix.relative(posix.dirname(from), frontDoor);
     if (!shimTarget.startsWith('.')) shimTarget = './' + shimTarget;
     let bodyTarget = posix.relative(posix.dirname(frontDoor), to);
@@ -168,7 +188,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
       while (directory !== '.' && !existsSync(join(root, directory))) { result.unshift(directory); directory = posix.dirname(directory); }
       return result;
     }))].sort((a, b) => a.split('/').length - b.split('/').length);
-    const value = { version: 1, directories, root, head, from, to, frontDoor, purpose, before, after };
+    const value = { version: 1, directories, root, head, from, to, frontDoor, purpose, keepExports, before, after };
     return Object.freeze({ ...value, digest: digest(value) });
   }
   /** Plan only from a clean current checkout; inverse validation derives from immutable Git instead. */
