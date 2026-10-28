@@ -156,7 +156,7 @@ test('a selected real landing failure remains accounted under its native private
   commitFixtureFiles(box, ['pullboard.json']);
   const source = `import {readFileSync,existsSync} from 'node:fs';
 import {runGate} from './src/gate.js'; import * as store from './src/board.js';
-import {accountedFailures,waivedFailures} from './src/land.js';
+import {accountedFailures,waivedFailures,liveWaiverProjection} from './src/land.js';
 import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js';
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));
 // @pullboard-board-file persistence: install and read a live native waiver in this private fixture's actual board.
@@ -164,7 +164,7 @@ const board=store.openBoard('.git/pullboard/board.sqlite');
 try {
 const waiver=store.recordLandingWaiver(board,{agentId:'person',channel:'terminal',id:'timing-selected-native-waiver',
  test:'test/one.test.js',until:'2099-01-01',reason:'private selected landing accounting regression'});
-const run=await runGate(root,config,{landing:true,stages:true,trustStamp:false,agent:'coordinator'});
+const run=await runGate(root,config,{landing:true,stages:true,trustStamp:false,agent:'coordinator',waivers:liveWaiverProjection(board)});
 const accounted=accountedFailures(run,root),covered=waivedFailures(board,accounted);
 const receipt=readGateReceipt(receiptStore(root),run.receiptId);
 console.log(JSON.stringify({raw:run.output,stages:run.stages,source:{commit:receipt.head,tree:receipt.tree},
