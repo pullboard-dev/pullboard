@@ -69,15 +69,15 @@ function fixture() {
   return { repo, web, review, run, json, git };
 }
 
-/** Submit an item from the builder and reject it from the reviewer. */
+/** Submit and reject only this control item, leaving the other bar fixtures genuinely unclaimed. */
 function rejectOnce(box, id, note, clause) {
   writeFileSync(join(box.web, 'web', 'shared.txt'), `implemented item ${id}\n`);
   box.git(box.web, 'add', 'web/shared.txt');
   box.git(box.web, 'commit', '-q', '-m', 'fix: implement bar fixture [G1]');
-  box.json(box.web, 'submit', String(id));
+  box.json(box.web, 'submit', String(id), '--no-next');
   box.git(box.review, 'switch', '--detach', box.json(box.repo, 'show', String(id)).item_commit);
   box.json(box.review, 'next', '--verify', String(id));
-  box.json(box.review, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--clause', clause, '--note', note);
+  box.json(box.review, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--clause', clause, '--note', note, '--no-next');
 }
 
 test('[B10,B31] a corrected bar records why the old one was wrong', () => {
