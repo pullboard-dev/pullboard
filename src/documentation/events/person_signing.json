@@ -1,0 +1,10 @@
+{
+  "kind": "person_signing",
+  "entries": [
+    {
+      "order": 58,
+      "actor": "enabling agent, or person",
+      "detail": "engine-76 `signed`, `request`, `presence`, `intent`"
+    }
+  ]
+}

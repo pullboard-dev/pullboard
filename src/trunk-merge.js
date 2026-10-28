@@ -30,7 +30,7 @@ export function trunkMerge(root, commit, retainedRef = trunkRef(root)) {
 /** Verify exactly the recorded immutable commits, independent of this machine's current trunk. */
 export function recordedTrunkMerge(gitDirectory, head, trunk, { version = 2 } = {}) {
   if (version === 1) return plainRecordedTrunkMerge(gitDirectory, head, trunk);
-  const files = mechanicalConflictFiles(gitDirectory, trunk, head, { gitDirectory });
+  const files = mechanicalConflictFiles(gitDirectory, trunk, head, { gitDirectory, version });
   if (files === null) throw new Refused('MERGE_CHECK_FAILED', 'fetch the recorded submitted and trunk commits, then resume this move; Git could not verify its immutable conflict');
   return files.length ? files : null;
 }

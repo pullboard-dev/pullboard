@@ -1,0 +1,42 @@
+[
+  [
+    "`id`",
+    "Stable row identifier."
+  ],
+  [
+    "`status`",
+    "One token from the status list."
+  ],
+  [
+    "`tier`",
+    "Optional second token: must or aim."
+  ],
+  [
+    "`text`",
+    "Requirement text before trailing fields."
+  ],
+  [
+    "`gate`",
+    "Check named by gate, or an empty string."
+  ],
+  [
+    "`serves`",
+    "Comma-separated ids named by serves, or an empty list."
+  ],
+  [
+    "`signers`",
+    "Comma-separated SSH principals named by signers, or an empty list."
+  ],
+  [
+    "`unknown`",
+    "Unrecognized trailing fields; spec check reports them."
+  ],
+  [
+    "`section`",
+    "Containing ## heading."
+  ],
+  [
+    "`line`",
+    "1-based source line."
+  ]
+]

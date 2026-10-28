@@ -1,0 +1,10 @@
+{
+  "kind": "board_members",
+  "entries": [
+    {
+      "order": 10,
+      "actor": "coordinator",
+      "detail": "`document` (exact version-1 body with board, repository, revision and complete members, approving login and SSH signature; native moves and checkpoints carry it sealed)"
+    }
+  ]
+}

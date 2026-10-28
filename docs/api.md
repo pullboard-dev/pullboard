@@ -90,6 +90,8 @@ Successful `submit` (including `done`), `release`, and `verify` commands normall
 <!-- api-command-shapes:start -->
 `status --json` and local API state carry `ruleCounts`: `approved`, `gated` (approved rows naming a gate), `ungated`, `proven`, `unproven`, and `contradicted`. Proof requires a green configured full-gate receipt on the current trunk whose supported test selection includes the row's test files. Opaque or unsupported coverage remains unproven. Contradicted counts approved rows whose gate files failed on the trunk in the last seven days; it is independent of proven, so a row can count in both after a later green. The API refreshes this window when evidence ages out, even without a board move.
 
+The `watch --json` stream prints one document per line and has no end-of-command document.
+
 | Command | Required top-level fields |
 | --- | --- |
 | `help` | `version:number`, `help:string` |
@@ -100,7 +102,7 @@ Successful `submit` (including `done`), `release`, and `verify` commands normall
 | `takeover` | `version:number`, `agent:string`, `path:string` |
 | `worktree` | `version:number`, `agent:string`, `lane:string`, `route:string`, `path:string`, `branch:string`, `prompt:string`, `model:string`, `displayName:string` |
 | `resume` | `version:number`, `me:object`, `all:array`, `requests:array`, `holding:array`, `sentBack:array`, `awaiting:array`, `toVerify:array`, `toMerge:array`, `open:array`, `stale:array`, `doctrineNotes:array`, `holds:array`, `unread:number`, `newest:array`, `root:string`, `newWorktreeLocation:string`, `dirty:number`, `next:string` |
-| `whoami` | `address:string`, `version:number`, `id:string`, `lane:string`, `path:string`, `model:string`, `displayName:string` |
+| `whoami` | `version:number`, `address:string`, `id:string`, `lane:string`, `path:string`, `model:string`, `displayName:string` |
 | `agents` | `version:number`, `agents:array` |
 | `lanes` | `version:number`, `lanes:object`, `shared:array`, `coordinator:string` |
 | `lane add` | `version:number`, `lane:string`, `owns:array` |
@@ -108,7 +110,7 @@ Successful `submit` (including `done`), `release`, and `verify` commands normall
 | `settings` | `version:number`, `settings:object` |
 | `runner` | `version:number`, `runner:object` |
 | `relay` | `version:number`, `linked:boolean`, `board:string`, `url:string`, `link:string`, `sequence:number`, `behind:number`, `recovery:object` |
-| `sync` | `version:number`, `ref:string`, `sequence:number`, `pending:string|null` |
+| `sync` | `version:number`, `ref:string`, `sequence:number`, `pending:string\|null` |
 | `list` | `version:number`, `items:array` |
 | `move` | `version:number`, `source:string`, `destination:string`, `moveId:string`, `item:object` |
 | `queue` | `version:number`, `releases:array`, `unreleased:array`, `first:object` |
@@ -124,19 +126,26 @@ Successful `submit` (including `done`), `release`, and `verify` commands normall
 | `milestone move` | `version:number`, `milestone:object` |
 | `milestone edit` | `version:number`, `milestone:object` |
 | `milestone remove` | `version:number`, `milestone:object` |
-| `milestone ship` | `version:number`, `milestone:object`, `into:string|null`, `moved:array`, `notMoved:array` |
+| `milestone ship` | `version:number`, `milestone:object`, `into:string\|null`, `moved:array`, `notMoved:array` |
 | `companion` | `version:number`, `item:object`, `created:boolean` |
 | `patch` | `version:number`, `item:number` |
 | `patch attach` | `version:number`, `item:number`, `key:string`, `digest:string`, `changed:boolean` |
-| `patch list` | `version:number`, `item:number`, `digest:string\|null`, `patches:array` |
+| `patch list` | `version:number`, `item:number`, `patches:array`, `digest:string\|null` |
 | `patch remove` | `version:number`, `item:number`, `key:string`, `digest:string`, `changed:boolean` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array`, `thread:array`, `reviewEligibility:object` |
 | `capacity` | `version:number`, `report:object` |
 | `stats` | `version:number`, `stats:object`, `gateWaits:array` |
+| `badge` | `version:number`, `items:number`, `checked:number`, `percent:number\|null`, `changed:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `ruleCounts:object`, `stats:object`, `reviewQueue:object`, `unread:number`, `relay:object` |
-| `heartbeat` | `version:number`, `seat:string|null`, `presence:string`, `heartbeatAt:string|null` |
 | `doctor` | `version:number`, `problems:array` |
 | `health` | `version:number`, `asOf:string`, `thresholds:object`, `stuck:array`, `waiting:array` |
+| `sentinel propose` | `version:number`, `sentinel:object` |
+| `sentinel approve` | `version:number`, `sentinel:object` |
+| `sentinel decline` | `version:number`, `sentinel:object` |
+| `sentinels` | `version:number`, `sentinels:array` |
+| `loop` | `version:number`, `jobs:array` |
+| `loop declare` | `version:number`, `job:object` |
+| `loop ran` | `version:number`, `job:object` |
 | `skills` | `version:number`, `updated:array`, `current:array`, `customized:array` |
 | `inbox` | `version:number`, `shouts:array` |
 | `request` | `version:number`, `requests:array` |
@@ -151,15 +160,14 @@ Successful `submit` (including `done`), `release`, and `verify` commands normall
 | `edit` | `version:number`, `item:object` |
 | `fact` | `version:number`, `item:number`, `fact:object` |
 | `why` | `version:number`, `id:number`, `decisions:array` |
-| `why file` | `version:number`, `file:string`, `line:number|null`, `items:array`, `rows:array`, `decisions:array` |
+| `why file` | `version:number`, `file:string`, `line:number\|null`, `items:array`, `rows:array`, `decisions:array` |
 | `escalate` | `version:number`, `id:number`, `from:string`, `to:string` |
 | `run` | `version:number`, `messages:array` |
 | `sweep` | `version:number`, `messages:array` |
 | `next` | `version:number`, `item:object`, `review:boolean`, `held:boolean`, `shared:array` |
-| `badge` | `version:number`, `items:number`, `checked:number`, `percent:number\|null`, `changed:array` |
 | `check` | `version:number`, `id:number`, `green:boolean`, `seconds:number`, `check:string`, `receipt:object`, `report:string` |
-| `check accept` | `version:number`, `id:number`, `digest:string`, `check:string` |
 | `test` | `version:number`, `green:boolean`, `output:string`, `runner:string`, `seconds:number`, `files:array`, `known:array`, `main:string\|null` |
+| `check accept` | `version:number`, `id:number`, `digest:string`, `check:string` |
 | `claim` | `version:number`, `id:number`, `renewed:boolean`, `leaseUntil:string`, `digest:string` |
 | `hold` | `version:number`, `lane:string`, `held:boolean` |
 | `release` | `version:number`, `id:number` |
@@ -179,7 +187,7 @@ Successful `submit` (including `done`), `release`, and `verify` commands normall
 | `view` | `version:number`, `url:string`, `port:number` |
 | `view export` | `version:number`, `path:string` |
 | `serve` | `version:number`, `url:string`, `port:number` |
-| `watch` | one document per line: `version:number`, `sequence:number`, `kind:string`, `item:number\|null`, `actor:string\|null`, `detail:string` |
+| `watch` | `version:number`, `sequence:number`, `kind:string`, `item:number\|null`, `actor:string\|null`, `detail:string` |
 | `forget` | `version:number`, `root:string` |
 | `prompt` | `version:number`, `role:string`, `text:string` |
 | `gate` | `version:number`, `green:boolean`, `report:string` |
@@ -208,13 +216,7 @@ Successful `submit` (including `done`), `release`, and `verify` commands normall
 | `hook pre-merge-commit` | `version:number`, `messages:array` |
 | `hook commit-msg` | `version:number`, `messages:array` |
 | `hook pre-push` | `version:number`, `messages:array` |
-| `sentinel propose` | `version:number`, `sentinel:object` |
-| `sentinel approve` | `version:number`, `sentinel:object` |
-| `sentinel decline` | `version:number`, `sentinel:object` |
-| `sentinels` | `version:number`, `sentinels:array` |
-| `loop` | `version:number`, `jobs:array` |
-| `loop declare` | `version:number`, `job:object` |
-| `loop ran` | `version:number`, `job:object` |
+| `heartbeat` | `version:number`, `seat:string\|null`, `presence:string`, `heartbeatAt:string\|null` |
 <!-- api-command-shapes:end -->
 
 `spec draft "<rule>" --doctrine --source "chat, 2026-10-16"` proposes a sourced doctrine row and returns a qualified `id`, such as `doctrine:DR1`, for the existing person approval commands. Resume adds `doctrineNotes`, an array of newly seen approved rules with `id`, `text` and `gate`; each checkout consumes its own notices. Drafts and pending applications are excluded. The shared approved doctrine also supplies frozen citations and stale-item comparisons in older checkouts.

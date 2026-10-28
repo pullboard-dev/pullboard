@@ -1,0 +1,30 @@
+[
+  [
+    "Missing declared tables or indexes",
+    "Create them with `CREATE ... IF NOT EXISTS`."
+  ],
+  [
+    "Missing declared columns",
+    "Add each with `ALTER TABLE ... ADD COLUMN` and its declared default."
+  ],
+  [
+    "Missing or changed declared triggers",
+    "Install the declared trigger definitions."
+  ],
+  [
+    "Undeclared `machine_` triggers",
+    "Drop them as stale."
+  ],
+  [
+    "A board that previously had guard triggers",
+    "Append a `guards` event listing missing, changed and stale trigger names."
+  ],
+  [
+    "An older schema version",
+    "Set `PRAGMA user_version` to the current `SCHEMA_VERSION` after installation."
+  ],
+  [
+    "Existing rows and event history",
+    "Keep them in the same board file; guard repair may append its `guards` event."
+  ]
+]
