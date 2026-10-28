@@ -3,9 +3,6 @@ import { spawnSync } from 'node:child_process';
 import { configFromSource } from './config.js';
 import {
   cleanGitEnvironment,
-  gitConfig,
-  invalidateGitFacts,
-  localConfigIs,
   mainCheckout,
 } from './git.js';
 import { Refused } from './refused.js';
@@ -30,21 +27,7 @@ export function mainPolicy(root) {
   return policyAt(root, checkout.commit);
 }
 
-/** Retain the local primary branch outside replicated board data and read-only diagnostics [B34,V6]. */
-export function trunkRef(root, branch) {
-  // A trunk already recorded as this branch needs no Git process to confirm and nothing written.
-  if (branch !== undefined && localConfigIs(root, 'pullboard', 'trunk', branch)) return branch;
-  const read = gitConfig(root, 'pullboard.trunk', { local: true, clean: true, flags: false, noReplace: true });
-  if (read.status !== 0 && read.status !== 1) throw new Refused('NO_POLICY', 'the retained trunk cannot be read; restore the local Git configuration and retry');
-  const current = read.status === 0 ? read.stdout.trim() : null;
-  if (branch === undefined || branch === current) return current;
-  const saved = spawnSync('git', ['--no-replace-objects', 'config', '--local', '--replace-all', 'pullboard.trunk', branch], {
-    cwd: root, env: cleanGitEnvironment(), encoding: 'utf8',
-  });
-  invalidateGitFacts();
-  if (saved.status !== 0) throw new Refused('NO_POLICY', 'the trunk branch cannot be recorded; restore writable local Git configuration and retry');
-  return branch;
-}
+export { trunkRef } from './git-trunk-ref.js';
 
 /** Re-read coordinator settings from a pinned Git object; never from the candidate filesystem. */
 export function policyAt(root, commit) {
