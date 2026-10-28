@@ -56,12 +56,15 @@ export function personRequestGuidance(message, { caller, leading = false } = {})
  * Collect one command's output; text mode writes immediately and JSON mode writes one document.
  * Long-running view explicitly flushes its address before waiting for a shutdown signal.
  */
-export function commandOutput(argv, streams, { version = 1, refusalDocument: suppliedRenderer } = {}) {
+export function commandOutput(argv, streams, { version = 1, refusalDocument: suppliedRenderer, loadRefusal } = {}) {
   let renderer = suppliedRenderer;
   let preparing;
   /** Load recovery declarations only when this command actually needs a refusal document. */
   async function prepareRefusal() {
-    if (!renderer) renderer = (await (preparing ??= import('./json.js'))).refusalDocument;
+    if (!renderer) {
+      if (typeof loadRefusal !== 'function') throw new Error('the output collector needs its caller’s lazy refusal renderer');
+      renderer = await (preparing ??= loadRefusal());
+    }
   }
   /** Keep rendering synchronous after the explicit asynchronous refusal boundary. */
   function documentFor(error, options) {

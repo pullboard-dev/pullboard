@@ -8,7 +8,7 @@
  */
 import { COORDINATOR } from "../../../../src/config.js";
 import { VERSION } from "../../../../src/help.js";
-import { refusalDocument } from "../../../../src/json.js";
+import { refusalDocument } from "../../../../src/next-step-words.js";
 import { Refused } from "../../../../src/refused.js";
 import { personNeeds } from "../../../../src/needs.js";
 import { personNeedsState } from "../../../../src/needs-state.js";
