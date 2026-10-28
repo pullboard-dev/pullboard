@@ -379,9 +379,9 @@ test('the pre-cell transition keeps real cycles strict and reports every other f
   const report = box.report();
   assert.equal(report.transition.active, true);
   const strict = cellLintGrowth(report, baseline, { enforcedOnly: true });
-  assert.ok(strict.length && strict.every(row => row.metric === 'cycles' && !row.advisory));
+  assert.ok(strict.length && strict.every(row => ['cycles', 'fileSize'].includes(row.metric) && !row.advisory));
   const reported = cellLintGrowth(report, baseline);
-  for (const metric of ['shims', 'fileSize', 'unreachable', 'unreachableExports', 'documents', 'unknown']) {
+  for (const metric of ['shims', 'unreachable', 'unreachableExports', 'documents', 'unknown']) {
     assert.ok(reported.some(row => row.metric === metric && row.advisory), `${metric} is measured and reported`);
   }
   assert.throws(() => lowerCellLintBaseline(report, baseline), { code: 'CELL_LINT_ROSE' });
@@ -445,4 +445,35 @@ spawnSync(process.execPath, [fileURLToPath(new URL('../../src/process-worker.js'
   const opaque = box.report();
   assert.ok(opaque.metrics.unreachable.findings.some(row => row.key === 'src/process-worker.js'));
   assert.ok(opaque.unknown.some(row => row.file === 'apps/demo/index.js'), 'computed input remains disclosed, not a fabricated edge');
+});
+
+for (const file of ['src/oversized.js', 'test/oversized.test.js']) test(`hard file maximum stays falling-only for ${file} before and after migration [C7,CD64]`, t => {
+  const box = fixture(t);
+  /** Write an exact private source line count without compressing code. */
+  const lines = count => box.put(file, 'void 0;\n'.repeat(count));
+  lines(1500);
+  const baseline = cellLintBaseline(box.report());
+  lines(1501);
+  const strict = cellLintGrowth(box.report(), baseline, { enforcedOnly: true });
+  assert.ok(strict.some(row => row.metric === 'fileSize' && row.key === file && row.actual === 1001 && row.allowed === 1000));
+  assert.throws(() => lowerCellLintBaseline(box.report(), baseline), { code: 'CELL_LINT_ROSE' });
+  lines(1600);
+  const debt = cellLintBaseline(box.report());
+  lines(1601);
+  assert.ok(cellLintGrowth(box.report(), debt, { enforcedOnly: true }).some(row => row.key === file));
+  lines(1599);
+  assert.deepEqual(cellLintGrowth(box.report(), debt, { enforcedOnly: true }), []);
+  const lowered = lowerCellLintBaseline(box.report(), debt);
+  assert.equal(lowered.metrics.fileSize.allowances[file], 1099);
+  lines(1600);
+  assert.ok(cellLintGrowth(box.report(), lowered, { enforcedOnly: true }).some(row => row.key === file && row.allowed === 1099));
+  lines(1500);
+  const edge = lowerCellLintBaseline(box.report(), lowered);
+  lines(1499);
+  assert.deepEqual(cellLintGrowth(box.report(), edge, { enforcedOnly: true }), []);
+  box.put('path-map.json', JSON.stringify({ 'src/old.js': 'packages/sample/index.js' }));
+  box.git('add', '-A'); box.git('commit', '-qm', 'test: accept the private package migration');
+  assert.equal(box.report().transition.active, false);
+  lines(1501);
+  assert.ok(cellLintGrowth(box.report(), edge, { enforcedOnly: true }).some(row => row.key === file));
 });
