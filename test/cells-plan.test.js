@@ -1,5 +1,10 @@
 /** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** The committed cells move plan places each path once and orders cells leaf-first by real imports [D3,CD60,CD64]. */
+import { sourceAdvancePlan } from '../src/source-advance-plan.js';
+import { selectAffectedTests } from '../src/affected-tests.js';
+import { selectTestTreeGuards } from '../src/affected-tests.js';
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -58,7 +63,7 @@ test('the plan places every tracked module and asset under src/, bin/ and relay/
 });
 
 test('no cell is ordered ahead of a cell it imports, computed from the real source, except the cuts it names [D3,CD64]', () => {
-  const { edges } = cellInventory(ROOT);
+  const { edges } = cellInventory(ROOT, { importsIn, commonJsIn });
   const index = cellIndex(PLAN, readPathMap(ROOT));
   const position = new Map(PLAN.cells.map(cell => [cell.name, cell.order]));
   const cuts = new Set(PLAN.cells.flatMap(cell => cell.cuts.map(row => `${row.cell}->${cell.name}`)));
@@ -170,4 +175,26 @@ test('an asset a placed reader lists joins that reader cell, and an asset nothin
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'unread asset');
   assert.throws(() => computePlan(root), error => error.code === 'CELLS_UNPLACED' && error.message.includes('src/orphan/unread.json'));
+});
+
+/** Real Git graph selection remains explicit, while missing parsers/selectors refuse before repository reads. */
+test('codemap providers are required and source advance retains its real raw closure [C7,D3,CD64]', t => {
+  for (const parsers of [undefined, { importsIn }, { commonJsIn }]) {
+    assert.throws(() => cellInventory('/missing-codemap-provider', parsers), /explicit module parser operations/u);
+  }
+  const config = { affectedTests: 'node --test --test-reporter=tap', gate: 'npm run gate', registryGuards: [], submitInvariants: [] };
+  for (const selectors of [undefined, { selectAffectedTests }, { selectTestTreeGuards }]) {
+    assert.throws(() => sourceAdvancePlan('/missing-codemap-provider', config, { base: 'HEAD', changed: [] }, selectors), /explicit test selector operations/u);
+  }
+  const { root, put } = fixture(t);
+  put('test/selected.test.js', "import { stats } from '../src/stats.js';\nimport { test } from 'node:test';\ntest('selected real graph', () => stats());\n");
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'fixture: actual test importer');
+  const base = git(root, 'rev-parse', 'HEAD').trim();
+  const plan = sourceAdvancePlan(root, config, { base, changed: ['src/stats.js'], check: 'node --test test/selected.test.js' }, { selectAffectedTests, selectTestTreeGuards });
+  assert.equal(plan.selection.full, false);
+  assert.deepEqual(plan.proofFiles, ['test/selected.test.js']);
+  assert.equal(plan.criterion, 'node --test test/selected.test.js');
+  assert.equal(plan.affected, "node --test --test-reporter=tap './test/selected.test.js'");
+  assert.match(plan.selectionDigest, /^[a-f0-9]{64}$/u);
 });
