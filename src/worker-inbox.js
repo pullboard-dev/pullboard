@@ -1,3 +1,4 @@
+import { withDerivedFamilies } from './family-declaration.js';
 /** One inbox follows a canonical worker session, never the parent shared with its helpers [B7,N19]. */
 import {
   COORDINATION_SHOUT,
@@ -10,8 +11,8 @@ export function workerInboxSeats(board, agent) {
   const digest = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?')
     .get(`agent_session:${agent.agent_id}`)?.meta_value;
   if (!/^[a-f0-9]{64}$/u.test(digest ?? '')) return [agent];
-  return board.db.prepare(`SELECT agent.* FROM agent JOIN board_meta
-    ON board_meta.meta_key='agent_session:' || agent.agent_id WHERE board_meta.meta_value=? ORDER BY agent.agent_id`).all(digest);
+  return withDerivedFamilies(board, board.db.prepare(`SELECT agent.* FROM agent JOIN board_meta
+    ON board_meta.meta_key='agent_session:' || agent.agent_id WHERE board_meta.meta_value=? ORDER BY agent.agent_id`).all(digest));
 }
 
 /** Select each unread message once using its recipient's cursor, so old uneven cursors lose no mail. */

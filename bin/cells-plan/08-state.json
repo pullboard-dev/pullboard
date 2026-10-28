@@ -6,7 +6,7 @@
  "frontDoor": "packages/state/index.js",
  "placedBy": {
   "seed": 110,
-  "rule": 49,
+  "rule": 53,
   "imports": 2
  },
  "paths": [
@@ -170,7 +170,11 @@
   ["src/train-landing-engine.js","packages/state/src/core/train-landing-engine.js","rule"],
   ["src/move-history/166.json","packages/state/src/shell/move-history/166.json","rule"],
   ["src/check-widen-self-engine.js","packages/state/src/core/check-widen-self-engine.js","rule"],
-  ["src/move-history/167.json","packages/state/src/shell/move-history/167.json","rule"]
+  ["src/move-history/167.json","packages/state/src/shell/move-history/167.json","rule"],
+  ["src/next-idle-engine.js","packages/state/src/core/next-idle-engine.js","rule"],
+  ["src/move-history/168.json","packages/state/src/shell/move-history/168.json","rule"],
+  ["src/move-history/169.json","packages/state/src/shell/move-history/169.json","rule"],
+  ["src/no-eligible-reviewer-engine.js","packages/state/src/core/no-eligible-reviewer-engine.js","rule"]
  ],
  "reexports": [
   "src/activity-delivery-engine.js",

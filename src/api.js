@@ -67,6 +67,7 @@ import {
   itemSummary,
 } from './item-list.js';
 import {
+  compareFlowWindows,
   prepareFlowHistory,
   projectFlowStats,
 } from './stats-flow.js';
@@ -444,12 +445,12 @@ function searchText(item) {
 }
 
 /** One cached board build: the full state, its item summaries, its delta fingerprint and the lookups that serve them. */
-function snapshotEntry(revision, state, preparedFlow, { inputs = null, itemMeta = new Map(), itemMoveCounts = new Map(), clockWindow = null } = {}) {
+function snapshotEntry(revision, state, preparedFlow, { inputs = null, itemMeta = new Map(), itemMoveCounts = new Map(), clockWindow = null, comparisonHistory = null } = {}) {
   const summary = { ...state, items: state.items.map(itemSummary) };
   const reportValidator = { json: JSON.stringify(state.proofStats?.flow?.report), expiries: [...new Set(preparedFlow.items.flatMap(item =>
     item.state === 'claimed' ? [item.leaseUntil] : item.state === 'submitted' ? [item.reserve?.until] : []).filter(Number.isFinite))].sort((a, b) => a - b) };
   reportValidator.digest = createHash('sha256').update(reportValidator.json ?? 'null').digest('hex');
-  return { revision, sequence: state.sequence, state, summary, preparedFlow, reportValidator, summaryFields: prepareStateJson(summary), stateJsonFields: null,
+  return { revision, sequence: state.sequence, state, summary, preparedFlow, comparisonHistory, reportValidator, summaryFields: prepareStateJson(summary), stateJsonFields: null,
     print: fingerprint(summary), items: new Map(state.items.map((item) => [item.id, item])), itemMeta, itemMoveCounts, inputs, clockWindow, searchTexts: null };
 }
 
@@ -520,11 +521,12 @@ function stateDelta(bases, current, state) {
 }
 
 /** Add the request-specific unread count without mutating the reusable snapshot. */
-function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, observedAt) {
+function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, observedAt, comparisonHistory) {
   const projection = seen === null ? { unseen: null } : withBoard(root, (board) => ({
     unseen: { since: seen, count: board.db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_id > ?').get(seen).n },
   }), isMain);
   if (state.capacityForecast) projection.capacityForecast = capacityAtRead(state.capacityForecast, observedAt);
+  if (refreshFlow && comparisonHistory) projection.statsComparison = compareFlowWindows(comparisonHistory, { now: observedAt, windowMinutes: 120, complete: true });
   if (refreshFlow && preparedFlow) {
     projection.proofStats = {
       ...state.proofStats,
@@ -537,7 +539,7 @@ function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, o
 /** Cache JSON fragments for state fields whose values stay fixed across a cache hit. */
 function prepareStateJson(state) {
   const fields = Object.entries(state).map(([key, value]) => {
-    if (key === 'unseen' || key === 'observedAt' || key === 'capacityForecast') return { dynamic: key };
+    if (key === 'unseen' || key === 'observedAt' || key === 'capacityForecast' || key === 'statsComparison') return { dynamic: key };
     if (key === 'proofStats') {
       const stats = Object.entries(value).filter(([name]) => name !== 'flow').map(([name, entry]) => jsonField(name, entry)).filter(Boolean);
       return { dynamic: key, stats };
@@ -567,7 +569,7 @@ function serializeState(state, fields, reportJson) {
   if (!fields) return JSON.stringify(state);
   const encoded = fields.map((field) => {
     if (field.static !== undefined) return field.static;
-    if (field.dynamic === 'unseen' || field.dynamic === 'observedAt' || field.dynamic === 'capacityForecast') return jsonField(field.dynamic, state[field.dynamic]);
+    if (field.dynamic === 'unseen' || field.dynamic === 'observedAt' || field.dynamic === 'capacityForecast' || field.dynamic === 'statsComparison') return jsonField(field.dynamic, state[field.dynamic]);
     if (field.dynamic === 'proofStats') {
       const value = state.proofStats?.flow;
       const flow = reportJson === undefined || !value ? jsonField('flow', value)
@@ -907,12 +909,16 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       localRelayHealth: relayCanaryNeeds(board.root),
       localCapacity: true,
     }), codeIsMain);
-    const state = { ...built.state, sequence: built.sequence };
+    // Capture the complete prefix once in this transaction; each read projects its actual observation
+    // windows from those cached canonical inputs without another database scan or state rebuild.
+    const state = { ...built.state, sequence: built.sequence,
+      statsComparison: compareFlowWindows(built.history, { now: observedAt, windowMinutes: 120, complete: true }) };
     const entry = snapshotEntry(before.revision, state, prepareFlowHistory(built.history), {
       inputs: before.inputs,
       itemMeta: built.itemMeta,
       itemMoveCounts: built.itemMoveCounts,
       clockWindow: built.clockWindow,
+      comparisonHistory: built.history,
     });
     entry.cacheId = before.cacheId;
     const after = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt });
@@ -933,7 +939,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     const full = !compact && (detail ?? stateDetail) === 'full';
     const sent = withSnapshot(board, (entry, cached) => {
       const base = full ? entry.state : compact ? (entry.compact ??= compactItemSummaries(entry.summary)) : entry.summary;
-      const state = stateForRequest(base, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt);
+      const state = stateForRequest(base, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory);
       // Full fragments wait for the first full request, so a server sending summaries never builds them.
       const fields = full ? (entry.stateJsonFields ??= prepareStateJson(entry.state))
         : compact ? (entry.compactFields ??= prepareStateJson(base)) : entry.summaryFields;
@@ -954,7 +960,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     const observedAt = now();
     /** One build's answer: its delta from the summary states sent at `since`, or a reset naming why there is none. */
     const answerFor = (entry, cached) => {
-      const state = stateForRequest(entry.summary, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt);
+      const state = stateForRequest(entry.summary, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory);
       const answer = { since, sequence: entry.sequence, eventLogVersion: store.EVENT_LOG_VERSION };
       const path = '/api/v1/boards/' + board.id + '/state';
       /** Tell the client to load a fresh snapshot, and why. */
