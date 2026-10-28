@@ -112,6 +112,7 @@ function render() {
       $('needs').innerHTML = needsHtml;
     } else {
       $('home-rules').innerHTML = homeRules(p.spec);
+      $('home-capacity').innerHTML = homeCapacity(p.capacityForecast);
       $('home-needs').innerHTML = needsHtml;
       $('home-calm').hidden = Boolean(needsHtml);
     }
