@@ -62,7 +62,9 @@ export function cellLintGrowth(report, baseline, { enforcedOnly = false } = {}) 
     const rows = Object.entries(after.allowances).filter(([key, count]) => count > (allowances.get(key) ?? 0))
       .map(([key, count]) => ({ metric, key, actual: count, allowed: allowances.get(key) ?? 0 }));
     if (after.count > before.count) rows.push({ metric, key: '(total)', actual: after.count, allowed: before.count });
+    // fileSize stores excess over 500: a per-file rise above 1000 excess crosses the hard 1500 maximum.
     return rows.map(row => transitionalGrowth(report, metric)
+      && !(metric === 'fileSize' && /\.(?:[cm]?js|ts)$/u.test(row.key) && row.actual > 1000)
       ? { ...row, advisory: true, item: 1527, until: 1395 }
       : row);
   });

@@ -449,7 +449,7 @@ function closuresInGraph(graph) {
 }
 
 /**
- * Select declared repository-wide test scanners independently of ordinary affected-test deferral.
+ * Select explicit test-tree repo guards on source or test changes, independently of affected-test deferral.
  * Both committed trees bind the obligation: removing a declaration cannot drop an accepted guard.
  * Missing bases retain every scanner; unreadable Git inputs refuse instead of silently omitting one.
  */
@@ -460,12 +460,16 @@ export function selectTestTreeGuards(root, { base, trunk, commit = 'HEAD', chang
     changed = undefined;
   }
   if (base) changed ??= selectionGit(root, ['diff', '--no-renames', '--name-only', '-z', base, commit]).split('\0').filter(Boolean);
-  if (base && !changed.some(path => path.startsWith('test/') || /^(?:packages|apps)\/[^/]+\/tests\//u.test(path)
-    || TEST.test(path) || /^test\.[cm]?js$/u.test(path))) return [];
+  const testChanged = !base || changed.some(path => path.startsWith('test/') || /^(?:packages|apps)\/[^/]+\/tests\//u.test(path)
+    || TEST.test(path) || /^test\.[cm]?js$/u.test(path));
+  const sourceChanged = !base || changed.some(path => /^(?:src|bin|packages|apps)\//u.test(path));
+  if (!testChanged && !sourceChanged) return [];
   const guards = new Set();
   for (const revision of [...new Set([base, commit].filter(Boolean))]) {
     for (const [path, source] of modulesAt(root, revision).modules) {
-      if (TEST.test(path) && headerLines(source).includes(TEST_TREE_INPUT)) guards.add(path);
+      if (!TEST.test(path)) continue;
+      const headers = headerLines(source);
+      if (headers.includes(TEST_TREE_INPUT)) guards.add(path);
     }
   }
   return [...guards].sort();
