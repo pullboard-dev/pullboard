@@ -93,8 +93,12 @@ function itemAddress(id, root = view.root) {
   const path = prefix + '/items/' + encodeURIComponent(String(id));
   return routed ? path + location.search : location.pathname + location.search + '#' + path.slice(1);
 }
-/** A board's address opens on Dashboard; explicit tab addresses retain their destination. */
-function homeTab(page) { return 'dashboard'; }
+/** Live routed boards open on Dashboard; exports and embedded pages retain their own default and remembered tab. */
+function homeTab(page) {
+  if (routed) return 'dashboard';
+  const kept = keep('pb.tab');
+  return kept && kept !== 'roadmap' ? kept : page?.project && !page.project.items?.length ? 'home' : 'items';
+}
 
 const view = { roadmapOpen: new Map(), root: keep('pb.project'), tab: addressTab() || homeTab(), itemsView: typeof location !== 'undefined' && location.hash === '#items/pipeline' ? 'pipeline' : 'list', filterOpen: false, seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', statsOpen: false, open: {}, addressDetail: null, shout: null, scrollPlace: false };
 let switchGeneration = 0;

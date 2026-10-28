@@ -14,13 +14,13 @@ export function dashboardModel(project, history, { now = Date.now(), complete = 
   const latest = new Map(), landed = new Map(), work = new Map(), rows = new Map();
   /** One row per registered agent, also retaining actors present in this historical prefix. */
   const row = id => {
-    if (!id || id === 'coordinator' || id === 'person' || id === 'clock') return null;
-    if (!rows.has(id)) rows.set(id, { id, name: id, segments: [], build: 0, review: 0, idle: 0, shouts: 0, last: 0, current: [] });
+    if (!id || id === 'coordinator' || id === 'person' || id === 'clock' || id === 'sentinel') return null;
+    if (!rows.has(id)) rows.set(id, { id, name: id, segments: [], build: 0, review: 0, idle: 0, shouts: 0, last: 0, current: [], sentBack: [] });
     return rows.get(id);
   };
   for (const agent of project.agents ?? []) {
     const entry = row(agent.agent_id);
-    if (entry) { entry.name = agent.displayName || agent.agent_id; entry.last = Date.parse(agent.lastMoveAt) || 0; entry.start = Math.max(start, Date.parse(agent.agent_created_at) || start); }
+    if (entry) { entry.name = agent.agent_id; entry.model = agent.model || agent.agent_model || '';  entry.last = Date.parse(agent.lastMoveAt) || 0; entry.start = Math.max(start, Date.parse(agent.agent_created_at) || start); }
   }
   /** Close an actual item's occupied interval, clipping only when calculating the four-hour window. */
   const close = (key, at) => {
@@ -34,6 +34,7 @@ export function dashboardModel(project, history, { now = Date.now(), complete = 
     const at = Date.parse(event.event_at), d = detail(event), id = event.item_id, actor = row(event.event_by);
     if (!Number.isFinite(at)) continue;
     for (const [key, held] of [...work]) if (held.until <= at) close(key, held.until);
+    if (actor && ['reject', 'reopen'].includes(event.event_kind) && at > start) actor.sentBack.push({ at, item: id });
     if (actor) { actor.last = Math.max(actor.last, at); if (event.event_kind === 'shout' && at > start) actor.shouts++; }
     latest.set(event.event_kind + ':' + id, event);
     if (event.event_kind === 'merged') {
@@ -55,12 +56,12 @@ export function dashboardModel(project, history, { now = Date.now(), complete = 
     }
     if (['accept', 'reject', 'reopen', 'withdraw', 'patch'].includes(event.event_kind)) close('review:' + id, at);
   }
-  const claims = items.filter(item => item.status === 'claimed' && item.claim?.by === item.owner && Date.parse(item.claim.until) > now);
+  const claims = items.filter(item => item.status === 'claimed' && item.claim?.by && item.claim.by === item.owner && Date.parse(item.claim.until) > now);
   const reviewing = items.filter(item => item.status === 'submitted');
   for (const [key, held] of [...work]) close(key, now);
   for (const item of claims) row(item.owner)?.current.push({ kind: 'build', item });
   for (const item of reviewing) if (item.reviewer && Date.parse(item.reviewUntil) > now) row(item.reviewer)?.current.push({ kind: 'review', item });
-  const agents = [...rows.values()];
+  const agents = [...rows.values()].filter(agent => agent.last > start || agent.current.length || agent.segments.length);
   for (const agent of agents) {
     // Union overlapping intervals: a minute is counted once, with building taking precedence.
     const points = [...new Set([start, now, ...agent.segments.flatMap(segment => [segment.start, segment.end])])].sort((a,b) => a-b);

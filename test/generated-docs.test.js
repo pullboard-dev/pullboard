@@ -23,6 +23,7 @@ import { computedConflictFields } from '../src/computed-conflict-receipt.js';
 import reopenMove from '../src/moves/reopen.js';
 import { GENERATED_DOCS_ENGINE } from '../src/generated-docs-engine.js';
 import { MECHANICAL_MERGE_ENGINE } from '../src/mechanical-merge-engine.js';
+import { SOURCE_ADVANCE_ENGINE } from '../src/source-advance-engine.js';
 import { docsRepository } from './generated-docs-fixture.js';
 import { addDocumentedCommand } from './generated-docs-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
@@ -107,6 +108,9 @@ test('authored narrative conflicts stay real while v1/v2 receipts retain their e
   assert.deepEqual(computedConflictFields(receipt), receipt);
   assert.equal(computedConflictFields({ ...receipt, version: 4 }), null);
   assert.equal(reopenMove.minimumEngine([1, { computedConflict: receipt }]), GENERATED_DOCS_ENGINE);
+  assert.equal(reopenMove.minimumEngine([1, { sourceAdvanceReturn: {} }]), SOURCE_ADVANCE_ENGINE);
+  assert.equal(reopenMove.minimumEngine([1, { sourceAdvanceReturn: {}, computedConflict: receipt }]),
+    Math.max(SOURCE_ADVANCE_ENGINE, GENERATED_DOCS_ENGINE));
   assert.equal(reopenMove.minimumEngine([1, { computedConflict: { version: 2 } }]), MECHANICAL_MERGE_ENGINE);
   assert.ok(reopenMove.minimumEngine([1, { computedConflict: { version: 1 } }]) < MECHANICAL_MERGE_ENGINE);
 });

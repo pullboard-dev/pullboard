@@ -1,0 +1,10 @@
+{
+  "kind": "source_advanced",
+  "entries": [
+    {
+      "order": 60,
+      "actor": "coordinator",
+      "detail": "Exact-source proof: `version`, `board`, immutable `submitted`, `status`, `previous`, `inputHead`, `trunk`, `bar`, `patchDigest`, source/review episodes and reservation, prior `verdict`, checked `head`, `tree`, `mergeTree`, reviewed `paths`, regenerated paths, `selectionDigest`, and genuine criterion/affected `phases` receipts."
+    }
+  ]
+}

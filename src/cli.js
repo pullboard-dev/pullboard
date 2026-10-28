@@ -1,3 +1,4 @@
+import { laneSeatContext } from './seat-checkout.js';
 import { mainRedReviewItems } from './main-red.js';
 import { createQueuedItemLease } from './queued-item-lease.js';
 export { resourceRunLabel } from './cli-resource-display.js';
@@ -1310,6 +1311,10 @@ export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; ${gate.report}`);
   ctx.io.say(`pinned as ${pin}, so this work can't be lost; keep your worktree until it is merged`);
   ctx.io.say(`next: ${reviewerStartup(primaryCheckoutRoot(ctx.info), ctx.config, id)}`);
+  if (ctx.afterSubmission) {
+    const handed = await ctx.afterSubmission(submission);
+    if (ctx.submissionResult) ctx.submissionResult.value = handed;
+  }
   return 0;
 }
 
@@ -1519,25 +1524,16 @@ function nextSessionSeats(ctx, board) {
   return digest ? localSessionSeats(ctx.info, { agents: store.listAgents(board), digest }) : null;
 }
 
-/** Choose or open the matching lane seat, retaining ordinary checkout ownership and lane guards. */
-async function nextSeatContext(ctx, board, me, item, seats) {
-  const available = seats.filter((agent) => agent.agent_lane === item.item_lane
-    && store.ROUTES.indexOf(agent.agent_route) >= store.ROUTES.indexOf(item.item_route));
-  const held = item.item_status === 'claimed';
-  let agent = held ? available.find((seat) => seat.agent_id === item.item_owner)
-    : available.find((seat) => seat.agent_id === me.id) ?? available[0];
-  let created = false;
-  if (!agent) {
-    let opened;
-    const { worktreeFor } = await import('./commands/worktree.js');
-    await worktreeFor({ ...ctx.io, say: () => {}, result: (value) => { opened = value; } }, item.item_lane, me.route, me.family, me.model, false);
-    agent = store.agentAt(board, opened.path);
-    created = true;
-  }
-  const target = agent.agent_path === ctx.info.root ? ctx : context({ ...ctx.io, cwd: agent.agent_path });
-  if (target.info.commonDir !== ctx.info.commonDir) throw new Refused('NOT_YOUR_CHECKOUT', 'the selected lane seat no longer belongs to this board; run pullboard next again');
-  await bindLocalSession(target.info, { agent: agent.agent_id, digest: personIdentity.agentSessionDigest() });
-  return { context: target, seat: { agent: agent.agent_id, lane: agent.agent_lane, path: target.info.root, created } };
+/** Enrich the ordinary lane refusal with a clean destination owned by this session; never widen claim authority. */
+export async function wrongLaneGuidance(ctx, board, me, id, error) {
+  if (!(error instanceof Refused) || error.code !== 'WRONG_LANE') return error;
+  const seats = nextSessionSeats(ctx, board);
+  if (!seats) return error;
+  const item = store.getItem(board, id);
+  if (item.item_lane === COORDINATOR || store.ROUTES.indexOf(item.item_route) > store.ROUTES.indexOf(me.route)) return error;
+  const { seat } = await laneSeatContext(ctx, board, me, item, seats, context);
+  return new Refused('WRONG_LANE', `item #${id} is in the ${item.item_lane} lane; this checkout is in ${me.lane}. Build it in ${seat.agent} at ${seat.path}`,
+    `${cdTo(seat.path)} pullboard claim ${id}`);
 }
 
 /**
@@ -1559,7 +1555,7 @@ export async function nextOnce(ctx, values) {
     const picked = nextPick(ctx, board, values);
     if (!picked.claim) return picked;
     const { me, item, held, shared, reasons, reviewSkipped, seats } = picked;
-    const routed = seats ? await nextSeatContext(ctx, board, me, item, seats) : { context: ctx };
+    const routed = seats ? await laneSeatContext(ctx, board, me, item, seats, context) : { context: ctx };
     const target = routed.context;
     const holder = whoAmI(target, board);
     try {
@@ -1583,14 +1579,16 @@ function nextPick(ctx, board, values) {
   const heldItem = seats ? store.listItems(board).find((item) => item.item_status === 'claimed'
     && item.item_parent_id === null && item.item_owner === me.id
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
-  const { item, reasons, shared } = heldItem ? { item: heldItem, reasons: [], shared: [] }
-    : store.nextFor(board, { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
-      ...(seats ? { lanes: laneNames(ctx.config).filter((lane) => lane !== COORDINATOR) } : {}),
-      priority: mainRedReworkItems(ctx.info.root, board) });
+  const selection = { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
+    priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [] };
+  const own = heldItem ? { item: heldItem, reasons: [], shared: [] } : store.nextFor(board, selection);
+  const { item, reasons, shared } = own.item || !seats ? own : store.nextFor(board, { ...selection,
+    lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
   const held = item?.item_status === 'claimed';
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
   const findOffer = () => store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
-    familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes, skipIds: ownSessionReviews(ctx.info, board), priority: mainRedReviewItems(ctx.info.root, board) });
+    familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
+    omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board), priority: mainRedReviewItems(ctx.info.root, board) });
   const offer = held ? null : relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
   if (offer && !values.build && (offer.urgent || focusReviewFirst(board, offer.item, item))) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item) };
   if (!item) return { reasons, laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };

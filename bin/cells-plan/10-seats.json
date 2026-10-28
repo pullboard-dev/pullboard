@@ -62,7 +62,7 @@
  ],
  "imports": [
   {"cell":"kernel","imports":14,"before":true},
-  {"cell":"git","imports":2,"before":true},
+  {"cell":"git","imports":3,"before":true},
   {"cell":"queue","imports":2,"before":true},
   {"cell":"resources","imports":1,"before":true},
   {"cell":"config","imports":7,"before":true},
@@ -70,12 +70,12 @@
   {"cell":"person","imports":1,"before":false},
   {"cell":"items","imports":1,"before":false},
   {"cell":"stats","imports":1,"before":false},
-  {"cell":"verify","imports":1,"before":false},
-  {"cell":"store","imports":9,"before":false},
+  {"cell":"verify","imports":2,"before":false},
+  {"cell":"store","imports":10,"before":false},
   {"cell":"link","imports":1,"before":false},
   {"cell":"outbox","imports":1,"before":false},
   {"cell":"github","imports":1,"before":false},
-  {"cell":"app:cli","imports":5,"before":false}
+  {"cell":"app:cli","imports":6,"before":false}
  ],
  "cuts": [
   {"cell":"sandbox","imports":1,"edges":["src/trusted-policy.js->src/lanes.js"]},

@@ -361,17 +361,17 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await json(box, repo, 'next');
   await json(box, repo, 'claim', ['1']);
   await json(box, repo, 'check', ['1']);
-  await json(box, repo, 'release', ['1']);
+  await json(box, repo, 'release', ['1', '--no-next']);
   await json(box, repo, 'claim', ['1']);
-  const submitted = await json(box, repo, 'submit', ['1']);
+  const submitted = await json(box, repo, 'submit', ['1', '--no-next']);
   await exercisePatchCommands({ box, json, submitted });
   await json(box, reviewPath, 'next', ['--verify']);
-  await json(box, reviewPath, 'verify', ['1', 'accept', '--note', 'checked the fixture result']);
+  await json(box, reviewPath, 'verify', ['1', 'accept', '--note', 'checked the fixture result', '--no-next']);
   await json(box, repo, 'merged', ['1', 'HEAD']);
 
   await json(box, repo, 'add', ['coordinator', 'Done alias item', '--check', 'true']);
   await json(box, repo, 'claim', ['2']);
-  await json(box, repo, 'done', ['2']);
+  await json(box, repo, 'done', ['2', '--no-next']);
   await json(box, repo, 'add', ['coordinator', 'Withdraw item']);
   await json(box, repo, 'withdraw', ['3', 'obsolete']);
 
@@ -786,13 +786,13 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   const reopenItem = (await json(source, source.repo, 'add', ['coordinator', 'Reopen catalog item', '--criterion', 'Exercise the versioned reopen result.', '--check', 'true'], 'add')).item;
   assert.equal((await json(source, source.repo, 'check', ['accept', String(reopenItem.item_id)], 'accept')).check, 'true', 'the person accepts the check as it reads');
   await json(source, source.repo, 'claim', [String(reopenItem.item_id)]);
-  await json(source, source.repo, 'submit', [String(reopenItem.item_id)]);
+  await json(source, source.repo, 'submit', [String(reopenItem.item_id), '--no-next']);
   await json(source, source.repo, 'reopen', [String(reopenItem.item_id), '--note', 'exercise the versioned reopen result']);
   // A cause repeated on two items becomes a draft row once its check is proved red, then green (#714).
   for (const title of ['Rigor catalog one', 'Rigor catalog two']) {
     const caused = (await json(source, source.repo, 'add', ['coordinator', title, '--criterion', 'Exercise a caused reopen.', '--check', 'true'], 'add')).item;
     await json(source, source.repo, 'claim', [String(caused.item_id)]);
-    await json(source, source.repo, 'submit', [String(caused.item_id)]);
+    await json(source, source.repo, 'submit', [String(caused.item_id), '--no-next']);
     await json(source, source.repo, 'reopen', [String(caused.item_id), '--note', 'the bar cites the wrong row', '--cause', 'row:G1']);
   }
   const red = await source.git(source.repo, 'rev-parse', 'HEAD');
@@ -820,7 +820,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   assert.deepEqual([lane.lane, lane.owns], ['catalog', ['catalog/']]);
   assert.deepEqual((await json(source, source.repo, 'lanes')).lanes.catalog, { owns: ['catalog/'] });
   const runner = await json(source, source.repo, 'runner', ['add', 'fixture-runner', '--slots', '2', '--browser', '1']);
-  assert.deepEqual(runner.runner, { host: 'fixture-runner', slots: 2, browser: 1 });
+  assert.deepEqual(runner.runner, { host: 'fixture-runner', slots: 2, browser: 1, gui: null });
   const projectGate = JSON.parse(readFileSync(join(source.repo, 'pullboard.json'), 'utf8')).gate;
   assert.equal((await json(source, source.repo, 'gate', ['set', projectGate], 'set')).gate, projectGate);
 

@@ -68,12 +68,12 @@
    "cell": "gate",
    "imports": 7,
    "edges": [
+    "src/gate-execution.js->src/runners.js",
     "src/gate-policy-load.js->src/runner-registration.js",
     "src/gate-receipt.js->src/runner-overhead.js",
     "src/gate-slot.js->src/runner-load.js",
     "src/gate-slot.js->src/runner-policy.js",
     "src/gate-slot.js->src/runner-transport.js",
-    "src/gate.js->src/runners.js",
     "src/test-run.js->src/runners.js"
    ]
   }

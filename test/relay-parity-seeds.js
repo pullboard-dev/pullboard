@@ -7,7 +7,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
 /** Count only actual native mutations whose full current owner-supplied oracle succeeds.
- * work is synchronous, matching the original native-store recipe contract.
+ * work may prepare genuine asynchronous gate evidence before its native mutation.
  * Coded refusals remain visible and uncovered; they never count as successful proof.
  */
 export function createStudyExercise({ board, verifyAfterMutation, covered = new Set(), setupRefusals = [] }) {
@@ -15,7 +15,7 @@ export function createStudyExercise({ board, verifyAfterMutation, covered = new 
   async function exercise(operation, work) {
     const before = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
     let result;
-    try { result = work(); }
+    try { result = await work(); }
     catch (error) {
       if (!error.code) throw error;
       setupRefusals.push({ operation, code: error.code });

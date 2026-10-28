@@ -93,11 +93,12 @@ export const workHelp = `Work
                                         coverage rows retain whole-file observations; slow files require named checks and explicit landing coverage
   pullboard bar <id>                    show missing prerequisites and the current revision
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
-  pullboard release <id> [--stale --note "why"]  hand it back; coordinator --stale requires measured inactivity and a note
-  pullboard submit <id> [--wait]        needs a clean tree, item check and affected tests green at HEAD (alias: done)
+  pullboard release <id> [--no-next] [--stale --note "why"]  hand it back; coordinator --stale requires measured inactivity and a note
+  pullboard submit <id> [--wait] [--no-next]        needs a clean tree, item check and affected tests green at HEAD (alias: done)
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
-  pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
-  pullboard verify <id> reject --reason TEST_FAILURE --note "what failed" [--cause <key>]
+  pullboard verify <id> accept [--no-next] --note "what you broke or which edge you tried, and what happened"
+  pullboard verify <id> reject [--no-next] --reason TEST_FAILURE --note "what failed" [--cause <key>]
+                                        submit, release and verdict take native next work; --no-next leaves the seat empty
                                         a cause is test:<file>::<title>, refusal:<CODE>, row:<id> or doctrine:<id>
                                         a verdict takes --implies <ids>; a later verdict on the item supersedes it
                                         any --note can be --note-file <file>, which keeps quotes, $ and backticks intact
