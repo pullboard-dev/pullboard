@@ -16,6 +16,7 @@ import {
 } from './board.js';
 import { GATE_RUN_ENGINE } from './gate-run-engine.js';
 import { LANDING_ENVIRONMENT_ENGINE } from './landing-environment-engine.js';
+import { RUN_TIMING_ENGINE } from './run-timing-engine.js';
 import {
   boardReceiptStore,
   receiptBinds,
@@ -111,6 +112,10 @@ export function requireBound(board, receipt) {
  * @returns {{ run: object, duplicate?: boolean, quarantined: {file: string, name: string, item: number}[] }}
  */
 export function recordGateRun(board, { agentId, receipt, lane }) {
+  if ((Object.hasOwn(receipt ?? {}, 'timing') || Object.hasOwn(receipt ?? {}, 'full'))
+    && (board.executionEngineVersion ?? ENGINE_VERSION) < RUN_TIMING_ENGINE) {
+    throw new Refused('ENGINE_VERSION', `run phase timings require engine ${RUN_TIMING_ENGINE}`);
+  }
   if (Object.hasOwn(receipt ?? {}, 'collection') && (board.executionEngineVersion ?? ENGINE_VERSION) < MAIN_AUDIT_ENGINE) {
     throw new Refused('ENGINE_VERSION', `collection receipts require engine ${MAIN_AUDIT_ENGINE}`);
   }
@@ -136,11 +141,14 @@ export function recordGateRun(board, { agentId, receipt, lane }) {
       if (JSON.stringify(stored) !== JSON.stringify(value)) throw new Refused('GATE_RUN_CHANGED', 'a run id already binds different evidence; keep the original and use a new id');
       return { run: stored, duplicate: true, quarantined: [] };
     }
-    logEvent(board, agentId, 'gate-run', null, { engine: Object.hasOwn(value, 'collection') ? Math.max(MAIN_AUDIT_ENGINE, Object.hasOwn(value, 'environment') ? LANDING_ENVIRONMENT_ENGINE : GATE_RUN_ENGINE)
-      : Object.hasOwn(value, 'environment') ? LANDING_ENVIRONMENT_ENGINE : GATE_RUN_ENGINE, run: value });
+    const engine = Math.max(Object.hasOwn(value, 'collection') ? MAIN_AUDIT_ENGINE : GATE_RUN_ENGINE,
+      Object.hasOwn(value, 'environment') ? LANDING_ENVIRONMENT_ENGINE : GATE_RUN_ENGINE,
+      Object.hasOwn(value, 'timing') ? RUN_TIMING_ENGINE : GATE_RUN_ENGINE);
+    logEvent(board, agentId, 'gate-run', null, { engine, run: value });
     // Only the coordinator's runs prove a flake: its landing and main-checkout gates run accepted work, and no seat can
     // send a move as the coordinator. A seat's runs stay on the board as evidence of what it saw [C7,D1].
-    const sameTree = gateRuns(board).filter(entry => entry.tree === value.tree && entry.by === COORDINATOR);
+    const sameTree = gateRuns(board).filter(entry => entry.tree === value.tree && entry.by === COORDINATOR
+      && !['suite', 'main-red'].includes(entry.kind));
     const candidates = new Map();
     for (const entry of sameTree) for (const failure of entry.failures) candidates.set(testKey(failure.file, failure.name), failure);
     const known = new Map(flakeQuarantines(board).map(entry => [testKey(entry.file, entry.name), entry]));

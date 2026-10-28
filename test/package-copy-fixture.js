@@ -9,6 +9,12 @@ const COMMIT_SOURCE_BYTES = 3 * 1024 * 1024;
 /** Copy every manifest path and commit bounded groups through the fixture's ordinary Git hooks. */
 export function copyCommittedPackageFiles(box, source) {
   const files = copyPackageFiles(source, box.repo);
+  commitFixtureFiles(box, files);
+  return files;
+}
+
+/** Commit a fixture's explicit changed paths in bounded groups while retaining ordinary hooks. */
+export function commitFixtureFiles(box, files) {
   let batch = [];
   let bytes = 0;
   /** Commit only this batch, retaining hook checks and all copied paths in the final source tree. */
@@ -19,12 +25,16 @@ export function copyCommittedPackageFiles(box, source) {
     batch = [];
     bytes = 0;
   }
-  for (const file of files) {
-    const size = statSync(join(box.repo, file)).size;
+  for (const file of new Set(files)) {
+    let size;
+    try { size = statSync(join(box.repo, file)).size; }
+    catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      size = Buffer.byteLength(box.git(box.repo, 'show', `HEAD:${file}`));
+    }
     if (bytes + size > COMMIT_SOURCE_BYTES) commitBatch();
     batch.push(file);
     bytes += size;
   }
   commitBatch();
-  return files;
 }
