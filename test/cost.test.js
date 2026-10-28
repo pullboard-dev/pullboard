@@ -21,6 +21,7 @@ import { projectAgentActivity } from '../src/activity-feed.js';
 import { activityInterests } from '../src/activity-feed.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import { assertUsagePresentation } from './cockpit/usage-history-control.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -146,6 +147,7 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
   try {
     const events = store.events(inspect), accounting = events.filter(event => ['usage', 'shared-usage'].includes(event.event_kind));
     assert.ok(accounting.length > 0, 'real fixture checkpoints retained native ordered accounting events');
+    assertUsagePresentation(events, id);
     assert.ok(accounting.every(event => Number.isSafeInteger(JSON.parse(event.event_detail).item)), 'each per-item usage receipt carries its item identity');
     assert.ok(store.itemThread(inspect, id).every(entry => !['usage', 'shared-usage'].includes(entry.kind)), 'item history omits accounting without deleting native receipts');
     assert.ok(replayHistory(events).events.every(event => !['usage', 'shared-usage'].includes(event.event_kind)), 'offline lifecycle replay omits accounting');
@@ -294,6 +296,8 @@ test('an item records the tokens and cost its seats spent with a shared native s
   assert.equal(JSON.stringify({ totals, a, b }).includes(file), false);
   seatUsage(box, box.web, identity);
   assert.equal(JSON.parse(box.run(box.repo, 'stats', '--json').out).usage.sharedSessions[0].inputTokens, 150, 'closed shared-session replay is idempotent');
+  const presentation = store.openBoard(boardFile);
+  try { assertUsagePresentation(store.events(presentation), first); } finally { store.closeBoard(presentation); }
 });
 
 
