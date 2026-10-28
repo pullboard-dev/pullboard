@@ -546,7 +546,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       return null;
     }
     const remote = runnerSlot();
-    if (waiter.runnerOnly === 1 && runners.length) return remote;
+    if (waiter.runnerOnly === 1) return remote;
     if (runnersFirst) {
       if (remote) return remote;
       const local = localSlot();
@@ -898,7 +898,7 @@ export function requiredExecutorOf(value) {
 /**
  * Join the queue in its admission class (landing, review, submit, other), aging up over time; FIFO by ticket within a class.
  *
- * @param {{ name: string, capacity: number, capacityProvider?: () => number, shortCapacityProvider?: () => number, browserCapacityProvider?: () => number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string}, runnerOnly?: boolean, runnerExecution?: boolean, timing?: boolean, runnerProvider?: () => Array<{host:string,slots:number,browser:number}>, item?: string, kind?: string, onWait?: (state: object) => any | Promise<any>, allowIdleCapacityUpdate?: boolean, memory?: () => Promise<{ checked: boolean, held: boolean, line: string, warning?: string }>, _resume?: object }} options - Resource identity, queue class, short-slot eligibility, optional remote executor pool and memory check. An awaited wait callback may return {leaseUntil} and then receives a final {admitted:true} callback before work starts.
+ * @param {{ name: string, capacity: number, capacityProvider?: () => number, shortCapacityProvider?: () => number, browserCapacityProvider?: () => number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string}, runnerOnly?: boolean, runnerDeadlineAt?: number, runnerExecution?: boolean, timing?: boolean, runnerProvider?: () => Array<{host:string,slots:number,browser:number}>, item?: string, kind?: string, onWait?: (state: object) => any | Promise<any>, allowIdleCapacityUpdate?: boolean, memory?: () => Promise<{ checked: boolean, held: boolean, line: string, warning?: string }>, _resume?: object }} options - Resource identity, queue class, short-slot eligibility, optional remote executor pool and memory check. An awaited wait callback may return {leaseUntil} and then receives a final {admitted:true} callback before work starts.
  *   memory, when given, is read before each admission: a held verdict blocks ordinary and short local
  *   executors while compatible remote slots remain eligible; an unchecked one is passed to onWait once
  *   so the caller can warn.
@@ -918,6 +918,7 @@ export async function takeResource(options) {
   const gui = options.gui === true;
   const remote = options.remote === true;
   const runnerOnly = options.runnerOnly === true;
+  if (options.runnerDeadlineAt !== undefined && (!Number.isSafeInteger(options.runnerDeadlineAt) || options.runnerDeadlineAt <= 0 || !runnerOnly)) throw new Refused('BAD_RESOURCE_METADATA', 'runnerDeadlineAt must be a positive captured runner-only deadline');
   const restriction = requiredExecutorOf(options.requiredExecutor);
   const requiredExecutor = restriction ? JSON.stringify(restriction) : '';
   if (restriction && (name !== 'gate' || scope !== 'machine' || restriction.kind === 'ssh' && !remote
@@ -968,7 +969,7 @@ export async function takeResource(options) {
   const token = resume?.token ?? randomUUID();
   const requestedAt = resume?.requestedAt ?? Date.now();
   // Capture once: requeueing or editing the machine setting cannot restart this run's clock.
-  let runnerDeadlineAt = resume?.runnerDeadlineAt ?? 0;
+  let runnerDeadlineAt = resume?.runnerDeadlineAt ?? options.runnerDeadlineAt ?? 0;
   let runnerDispatched = resume?.runnerDispatched === true;
   let lateAdmissionClosed = resume?.lateAdmissionClosed === true;
   let lateRunnerDispatch = resume?.lateRunnerDispatch ?? null;
@@ -1053,7 +1054,7 @@ export async function takeResource(options) {
         const runners = runnerProvider ? validatedRunners(runnerProvider()) : [];
         if (restriction?.kind === 'ssh' && !runners.some(runner => runner.host === restriction.host)) throw new Refused('BAD_RUNNER_POOL', 'the required SSH executor is not registered');
         const runnersFirst = runnersFirstProvider?.() === true;
-        if (!runnerDeadlineAt && remote && runners.length && options.runnerWaitMs) runnerDeadlineAt = requestedAt + options.runnerWaitMs;
+        if (!runnerDeadlineAt && remote && (runnerOnly || runners.length) && options.runnerWaitMs) runnerDeadlineAt = requestedAt + options.runnerWaitMs;
         const runnerDeadlinePassed = runnerDeadlineAt > 0 && now >= runnerDeadlineAt;
         const waiter = db.prepare('SELECT ticket, remote, browser, gui, runner_wait_branch AS runnerWaitBranch FROM waiter WHERE token = ?').get(token);
         if (!waiter) {
@@ -1104,7 +1105,7 @@ export async function takeResource(options) {
         if (runnerDeadlinePassed && !executor?.host) {
           db.prepare('UPDATE waiter SET remote = 0 WHERE token = ?').run(token);
           if (!executor && (runnerOnly || restriction?.kind === 'ssh' || runnerDeadline.branch === 'no local capacity')) {
-            throw new Refused('RUNNER_WAIT_DEADLINE', `${runnerDeadlineLine(runnerDeadline)}; restore safe local capacity or check the named runners, then retry`);
+            throw new Refused('RUNNER_WAIT_DEADLINE', `${runnerDeadlineLine(runnerDeadline)}; ${runnerOnly ? 'register or restore a compatible runner' : 'restore safe local capacity or check the named runners'}, then retry`, runnerOnly ? 'restore or register a compatible runner with pullboard runner add, then retry' : undefined);
           }
         }
         if (executor) {

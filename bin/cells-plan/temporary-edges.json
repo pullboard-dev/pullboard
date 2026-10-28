@@ -18,18 +18,6 @@
       "target": "src/trusted-policy-read.js",
       "contractItem": 1699,
       "expires": "2026-10-30"
-    },
-    {
-      "importer": "src/changelog.js",
-      "target": "src/release-headlines.js",
-      "contractItem": 1786,
-      "expires": "2026-10-30"
-    },
-    {
-      "importer": "src/help-version.js",
-      "target": "src/release-version.js",
-      "contractItem": 1786,
-      "expires": "2026-10-30"
     }
   ]
 }
