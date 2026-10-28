@@ -157,7 +157,7 @@ test('the digest is a readable briefing of one board [A2,N26]', (t) => {
   const body = (text) => text.slice(text.indexOf('## At a glance')).trimEnd();
   assert.equal(body(json.markdown), body(markdown), 'the JSON result carries the same briefing');
   assert.deepEqual(json.sections.map((entry) => entry.title), ['Stuck and who moves it', 'Open work', 'Blocked work', 'In review', 'Recent decisions and answers',
-    'Recent verdicts', 'Questions waiting on you', 'Latest shouts to the coordinator', 'Milestones', 'What the board caught, last 30 days', 'Unanswered Rigor drafts']);
+    'Recent verdicts', 'Questions waiting on you', 'Latest shouts to the coordinator', 'Milestones', 'What the board caught, last 30 days', 'Unanswered Rigor drafts', 'Capacity forecast']);
 
   const out = join(box.dir, 'briefing.md');
   writeFileSync(out, 'an older briefing');
