@@ -2,12 +2,16 @@
 /** @pullboard-test-input source-tree */
 /** View files never quote the owner or name a private machine, and this scan keeps it that way [N26]. */
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 
-const ROOT = resolve(import.meta.dirname, '../..');
-const SELF = 'test/cockpit/privacy-scan.test.js';
+const ROOT = resolve(import.meta.dirname, '..');
+const SELF = 'test/privacy-scan-guard.test.js';
 // The view lane's paths, as `pullboard lanes` prints them.
 const VIEW = ['src/cockpit.js', 'src/serve.js', 'src/view.css', 'src/view', 'test/cockpit.test.js', 'test/cockpit', 'test/journeys.test.js'];
 // Names written in pieces so this file never contains them whole; the scan also finds the pieces joined.
