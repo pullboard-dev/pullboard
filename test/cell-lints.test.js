@@ -1,5 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-input ** */
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
 import { runFixtureGit } from './fixture-child.js';
 /** Private real-file fixtures prove falling cell debt without moving any repository source [C7,CD64]. */
 import assert from 'node:assert/strict';
@@ -52,7 +54,7 @@ function fixture(t) {
   put('package.json', JSON.stringify({ type: 'module', imports: { '#*': './packages/*/index.js', '#*.js': './packages/*.js' } }));
   put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n");
   put('packages/sample/index.js', 'export const value = 1;\n');
-  return { root, put, remove, git, report: () => cellLintReport(root) };
+  return { root, put, remove, git, report: () => cellLintReport(root, { importsIn, commonJsIn }) };
 }
 
 const FAMILIES = [
@@ -389,7 +391,7 @@ test('bounded hash-bound baseline shards count their own files and refuse missin
 
 
 test('the actual repository gate enforces strict cell debt and reports temporary named transition rises [C7,CD64]', () => {
-  const root = dirname(dirname(BIN)), report = cellLintReport(root), baseline = readCellLintBaseline(root);
+  const root = dirname(dirname(BIN)), report = cellLintReport(root, { importsIn, commonJsIn }), baseline = readCellLintBaseline(root);
   const growth = cellLintGrowth(report, baseline);
   for (const row of growth.filter(row => row.advisory)) console.log(`advisory item #${row.item} until #${row.until}: ${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed}`);
   assert.deepEqual(cellLintGrowth(report, baseline, { enforcedOnly: true }), [], 'normal npm test keeps all non-transition debt strict without updating the baseline');
@@ -454,10 +456,12 @@ test('baseline initialization preserves unowned colliding shard bytes and leaves
   const box = fixture(t), plan = planCellLintBaseline(box.report()), files = cellLintFiles(plan.baseline);
   const shard = [...files.keys()].find(file => file.includes('/strays-'));
   assert.ok(shard, 'the real planned metadata inventory has its own stray shard');
+  const collision = 'bin/cell-lint-baselines/strays-001.json';
+  assert.equal(shard, collision, 'the real planner names its first stray shard deterministically');
   const original = Buffer.from('existing private bytes are not a baseline and must remain untouched\n');
   box.put(shard, original);
   assert.throws(() => writeCellLintBaseline(box.root, plan.baseline, { initialize: true }), { code: 'CELL_BASELINE' });
-  assert.deepEqual(readFileSync(join(box.root, shard)), original, 'a rejected initial write neither overwrites nor rollback-deletes the colliding file');
+  assert.deepEqual(readFileSync(join(box.root, collision)), original, 'a rejected initial write neither overwrites nor rollback-deletes the colliding file');
   assert.throws(() => readFileSync(join(box.root, 'bin/cell-lint-baselines/index.json')), { code: 'ENOENT' });
 });
 

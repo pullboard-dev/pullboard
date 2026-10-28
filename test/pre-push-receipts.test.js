@@ -21,6 +21,7 @@ import {
 } from '../src/pre-push-receipts.js';
 import {
   readGateReceipt,
+  receiptBody,
   receiptStore,
 } from '../src/gate-run-receipt.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -108,7 +109,8 @@ test('push evidence refuses missing landings and unfiled newest audit failures w
   assert.equal(redAudit.failures.length, 1, 'a real failing committed test has an exact identity');
   const input = { commits: [head], landingReceipts: [{ commit: head, receiptId: landing.id }],
     audits: [{ receiptId: greenAudit.id }], filings: [], items: [], landingCommand: command, auditCommand: command };
-  const receiptBytes = readFileSync(join(receiptStore(box.repo), `${landing.id}.json`), 'utf8');
+  const receiptBytes = receiptBody(readGateReceipt(receiptStore(box.repo), landing.id));
+  assert.equal(typeof receiptBytes, 'string', 'the native receipt exists with its exact canonical disk bytes');
   assert.deepEqual(pushReceiptProblems(box.repo, input), []);
   assert.match(pushReceiptProblems(box.repo, { ...input, landingReceipts: [] }).join('\n'), /lacks its exact green landing receipt/u);
   assert.match(pushReceiptProblems(box.repo, { ...input, landingReceipts: [{ commit: head, receiptId: greenAudit.id }] }).join('\n'), /lacks its exact green landing receipt/u);
@@ -122,7 +124,7 @@ test('push evidence refuses missing landings and unfiled newest audit failures w
   assert.match(pushReceiptProblems(box.repo, { ...input, audits: [...input.audits, { receiptId: 'missing' }] }).join('\n'), /latest full audit has no bound receipt/u);
   assert.match(pushReceiptProblems(box.repo, { ...input, audits: [{ receiptId: unparsedAudit.id }] }).join('\n'), /red without identified failures/u);
   assert.match(pushReceiptProblems(box.repo, { ...input, landingCommand: 'another gate' }).join('\n'), /lacks its exact green landing receipt/u);
-  assert.equal(readFileSync(join(receiptStore(box.repo), `${landing.id}.json`), 'utf8'), receiptBytes, 'read-only evaluation cannot create a replacement green stamp');
+  assert.equal(receiptBody(readGateReceipt(receiptStore(box.repo), landing.id)), receiptBytes, 'read-only evaluation cannot create a replacement green stamp');
 });
 
 /** Invoke the real additive smoke helper using the fixture's accepted policy and ordinary inherited admission. */

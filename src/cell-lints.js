@@ -15,8 +15,8 @@ const ROOT_FILES = new Set(['package.json', 'jsconfig.json', 'path-map.json', 'R
 const TRANSITION_FILE = 'bin/cells-plan/transition.json';
 
 /** Count stable finding identities, so moving an existing debt elsewhere cannot silently pay for a new one. */
-export function cellLintReport(root) {
-  const { files, edges, unknown } = cellInventory(root);
+export function cellLintReport(root, parsers) {
+  const { files, edges, unknown } = cellInventory(root, parsers);
   const metrics = Object.fromEntries(CELL_METRICS.map(name => [name, { count: 0, findings: [] }]));
   /** Add an explicit weighted finding; file-size debt records excess lines, not merely one oversized file. */
   function add(metric, key, count = 1, detail = '') {
