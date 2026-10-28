@@ -1,0 +1,10 @@
+{
+  "kind": "landing_batch",
+  "entries": [
+    {
+      "order": 22,
+      "actor": "coordinator",
+      "detail": "`batch`"
+    }
+  ]
+}

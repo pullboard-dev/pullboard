@@ -1,0 +1,10 @@
+{
+  "kind": "row_decision",
+  "entries": [
+    {
+      "order": 53,
+      "actor": "person",
+      "detail": "`record`, `channel`"
+    }
+  ]
+}

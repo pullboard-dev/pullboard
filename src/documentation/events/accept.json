@@ -1,0 +1,10 @@
+{
+  "kind": "accept",
+  "entries": [
+    {
+      "order": 17,
+      "actor": "reviewer",
+      "detail": "`reason`, `commit`, engine-20 `implies`, engine-33 `review`, engine-68 `note`"
+    }
+  ]
+}

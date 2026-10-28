@@ -1,0 +1,10 @@
+{
+  "kind": "main-moved",
+  "entries": [
+    {
+      "order": 26,
+      "actor": "coordinator",
+      "detail": "`batch`, `items`, `sha`"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "kind": "sentinel-run",
+  "entries": [
+    {
+      "order": 49,
+      "actor": "running agent",
+      "detail": "`name`, `digest`, `run`, `result`, `engine`"
+    }
+  ]
+}

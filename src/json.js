@@ -1,5 +1,6 @@
 /** Versioned command results and refusals for tools that drive the CLI (A1). */
 import { nextStepFor } from './next-step-words.js';
+import { declaredCommandShapes } from './command-docs.js';
 import {
   commandOutput as collectCommandOutput,
   personRequestGuidance,
@@ -13,7 +14,7 @@ function shape(fields) {
 /** The CLI JSON v1 catalog, shared with API documentation and contract checks (A1). */
 export const JSON_SHAPES = {
   version: 1,
-  commands: {
+  commands: declaredCommandShapes({
     help: shape({ help: 'string' }),
     version: shape({ release: 'string' }),
     init: shape({ root: 'string', notes: 'array', proposedLanes: 'array', mcp: 'object' }),
@@ -57,7 +58,6 @@ export const JSON_SHAPES = {
     badge: shape({ items: 'number', checked: 'number', percent: 'number|null', changed: 'array' }),
     status: shape({ me: 'object', mine: 'array', ruleCounts: 'object', stats: 'object', reviewQueue: 'object', unread: 'number', relay: 'object' }),
     doctor: shape({ problems: 'array' }),
-    heartbeat: shape({ seat: 'string|null', presence: 'string', heartbeatAt: 'string|null' }),
     health: shape({ asOf: 'string', thresholds: 'object', stuck: 'array', waiting: 'array' }),
     'sentinel propose': shape({ sentinel: 'object' }),
     'sentinel approve': shape({ sentinel: 'object' }),
@@ -137,7 +137,7 @@ export const JSON_SHAPES = {
     'hook pre-merge-commit': shape({ messages: 'array' }),
     'hook commit-msg': shape({ messages: 'array' }),
     'hook pre-push': shape({ messages: 'array' }),
-  },
+  }),
   http: {
     boards: shape({ boards: 'array' }),
     state: shape({ state: 'object' }),

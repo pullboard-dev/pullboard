@@ -15,7 +15,7 @@ const ID = /^[a-f0-9-]{36}$/u;
 
 /** Read the canonical immutable record, rejecting altered, unknown or malformed fields. */
 export function computedConflictFields(value) {
-  if (!value || ![1, 2].includes(value.version) || !ID.test(value.id ?? '') || !/^[a-f0-9]{32}$/u.test(value.board ?? '')
+  if (!value || ![1, 2, 3].includes(value.version) || !ID.test(value.id ?? '') || !/^[a-f0-9]{32}$/u.test(value.board ?? '')
     || !Number.isSafeInteger(value.item) || value.item < 1 || typeof value.actor !== 'string' || !value.actor || value.actor.length > 128 || /[\r\n\0]/u.test(value.actor)
     || !Number.isSafeInteger(value.submission) || value.submission < 1
     || !SHA.test(value.head ?? '') || !SHA.test(value.trunk ?? '') || !Array.isArray(value.files)
@@ -63,7 +63,7 @@ export function requireComputedConflict(board, receipt) {
 
 /** Fresh authoring must use the current trunk; recorded acknowledgments return before this mutation path. */
 function requireCurrentConflict(board, fields) {
-  if (fields.version !== 2) throw new Refused('COORDINATOR_ONLY', 'fresh automatic returns need current mechanical conflict evidence; compute a new return');
+  if (fields.version !== 3) throw new Refused('COORDINATOR_ONLY', 'fresh automatic returns need current mechanical conflict evidence; compute a new return');
   const root = board.db.prepare("SELECT agent_path FROM agent WHERE agent_id='coordinator'").get()?.agent_path;
   if (!root) throw new Refused('COORDINATOR_ONLY', 'fresh automatic return needs the registered native trunk');
   const current = trunkMerge(root, fields.head);

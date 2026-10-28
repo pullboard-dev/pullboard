@@ -1,0 +1,10 @@
+{
+  "kind": "companion",
+  "entries": [
+    {
+      "order": 5,
+      "actor": "requesting agent",
+      "detail": "`item`, `lane`, `key` (event item id names the parent)"
+    }
+  ]
+}

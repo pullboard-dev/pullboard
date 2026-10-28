@@ -1,0 +1,10 @@
+{
+  "kind": "person_proposal",
+  "entries": [
+    {
+      "order": 59,
+      "actor": "proposing agent",
+      "detail": "engine-76 `request`, `verb`"
+    }
+  ]
+}

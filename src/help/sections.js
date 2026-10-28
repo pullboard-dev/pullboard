@@ -10,6 +10,7 @@ import { rolesHelp } from './roles.js';
 import { gateHelp } from './gate.js';
 import { lifecycleHelp } from './lifecycle.js';
 import { footerHelp } from './footer.js';
+import { additionsHelp } from './additions.js';
 
 export const HELP_SECTIONS = Object.freeze([
   Object.freeze({ name: 'intro', text: introHelp }),
@@ -22,6 +23,7 @@ export const HELP_SECTIONS = Object.freeze([
   Object.freeze({ name: 'roles', text: rolesHelp }),
   Object.freeze({ name: 'gate', text: gateHelp }),
   Object.freeze({ name: 'lifecycle', text: lifecycleHelp }),
+  Object.freeze({ name: 'additions', text: additionsHelp }),
   Object.freeze({ name: 'footer', text: footerHelp }),
 ]);
 
