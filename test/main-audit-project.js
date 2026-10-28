@@ -1,16 +1,18 @@
 /** @pullboard-module-loads src/board.js src/main-audit-state.js src/gate-run-receipt.js */
 /** Shared real main-audit fixture; synthetic acceptance is setup, never runtime proof [C7]. */
 /** @pullboard-test-input source-tree */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { startFixtureChild as spawn, runFixtureChild as spawnSync } from './fixture-child.js';
 import { once } from 'node:events';
 import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as pause } from 'node:timers/promises';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyPackageFiles, packageFiles } from '../src/package-files.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 const SOURCE=new URL('../',import.meta.url);
 /** Run actual Git in the private fixture and retain failures. */
 function git(root,env,...args){const ran=spawnSync('git',args,{cwd:root,env,encoding:'utf8'});assert.equal(ran.status,0,ran.stderr);return ran.stdout.trim();}
@@ -20,7 +22,9 @@ async function observed(read,name){const deadline=Date.now()+30_000;while(Date.n
 export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   const scratch=mkdtempSync(join(tmpdir(),'pullboard main audit ')),installed=join(scratch,'installed tooling'),repo=join(scratch,'repo'),machine=join(scratch,'machine');
   mkdirSync(installed);mkdirSync(repo);mkdirSync(machine);
-  for(const folder of [installed,repo])for(const name of ['src','bin','package.json'])cpSync(new URL(name,SOURCE),join(folder,name),{recursive:true});
+  // This full-audit project deliberately has only its three test files; copied documentation tests are not its suite.
+  const source=fileURLToPath(SOURCE),files=packageFiles(source).filter(file=>file==='package.json'||/^(?:src|bin|packages)\//u.test(file)&&!/(?:^|\/)tests?\//u.test(file));
+  for(const folder of [installed,repo])copyPackageFiles(source,folder,{files});
   assert.equal(existsSync(join(installed,'.git')),false);
   const env={...process.env,HOME:join(scratch,'home'),PULLBOARD_HOME:join(scratch,'pullboard'),PULLBOARD_MACHINE_HOME:machine,
     GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1',GIT_AUTHOR_NAME:'Fixture',GIT_AUTHOR_EMAIL:'fixture@example.invalid',GIT_COMMITTER_NAME:'Fixture',GIT_COMMITTER_EMAIL:'fixture@example.invalid'};
@@ -80,7 +84,8 @@ export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   /** Hold both private production gate slots, releasing only this owned child's actions by IPC. */
   async function holdBoth(){
     const module=pathToFileURL(join(installed,'src/gate.js')).href;
-    const code=`import {withGateSlot} from ${JSON.stringify(module)};await Promise.all([0,1].map(i=>withGateSlot(${JSON.stringify(repo)},async()=>{process.send({held:i});await new Promise(r=>process.once('message',r));},{remote:false,browser:false,agent:'fixture-slot-'+i})));process.disconnect();`;
+    const code=`import {withGateSlot} from ${JSON.stringify(module)};
+${executionServicesSource(module)}await Promise.all([0,1].map(i=>withGateSlot(${JSON.stringify(repo)},async()=>{process.send({held:i});await new Promise(r=>process.once('message',r));},{ executionServices,remote:false,browser:false,agent:'fixture-slot-'+i})));process.disconnect();`;
     const child=spawn(process.execPath,['--input-type=module','-e',code],{cwd:repo,env,detached:true,stdio:['ignore','pipe','pipe','ipc']});children.push(child);child.stdout.resume();child.stderr.resume();const closed=once(child,'close');const held=new Set();child.on('message',m=>held.add(m.held));
     await observed(()=>held.size===2,'both production gate slots held');
     return async()=>{child.send('release');assert.equal((await closed)[0],0);};

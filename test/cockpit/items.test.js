@@ -51,12 +51,15 @@ test('a review in progress names its reviewer [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    await page.click({ tab: 'items' });
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip warn" title="reviewing until [^"]+">web-2 \(Test Model\) reviewing<\/span><\/li>$/, 'the row names who holds the review');
     assert.doesNotMatch(page.show('needs'), /Greeting/, "a review is the agents' work, so it stays out of Needs-you");
     page.run('view.open.idle = true; render();');
+    await page.click({ tab: 'shouts' });
     const holds = (id) => agentEntries(page.show('agents')).find((agent) => agent.id === id).holds;
     assert.deepEqual(holds('web-2'), ['#1 Greeting: reviewing'], 'the reviewer holds it');
     assert.deepEqual(holds('web-1'), ['#1 Greeting: to verify'], 'the builder waits on it');
+    await page.click({ tab: 'items' });
     // A name is board text, so it is escaped: give the board on hand a reviewer with markup and redraw.
     page.run('data.project.items.find((i) => i.id === 1).claim.by = "web<b>"; render();');
     assert.match(itemRow(page.show('chain'), 1), />web&lt;b&gt; reviewing<\/span><\/li>$/);
@@ -67,6 +70,7 @@ test('a review in progress names its reviewer [N26]', async () => {
     await page.run('refresh()');
     await page.click({ state: 'all' });
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip ok">verified<\/span><\/li>$/, 'once the verdict lands, the review is over');
+    await page.click({ tab: 'shouts' });
     assert.deepEqual(holds('web-2'), []);
   } finally {
     await view.stop();
@@ -82,6 +86,7 @@ test('a stale verdict shows a stale chip [N26,V4]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    await page.click({ tab: 'items' });
     await page.click({ state: 'all' });
     // Core (#409) publishes verdictState; here the fixture hands it in, a file name with markup included.
     const [one, two, file] = ['a'.repeat(40), 'b'.repeat(40), `web/<b>x</b>&"y'.html`];
@@ -102,7 +107,8 @@ test('a stale verdict shows a stale chip [N26,V4]', async () => {
     await page.click({ go: 'item:3' });
     assert.equal(marks(page.show('detail')), '', 'a merged item carries no mark');
     page.run('view.tab = "roadmap"; render();');
-    assert.deepEqual(rows(page.show('roadmap'), (id) => `data-go="item:${id}"`), [stale, '', '', legacy], 'the Roadmap marks the same rows');
+    assert.deepEqual(rows(page.show('roadmap'), (id) => `data-roadmap-key="i:#${id}"`), [stale, '', '', legacy], 'the Roadmap marks the same rows');
+    await page.click({ tab: 'shouts' });
     page.run('view.agent = "web-1"; render();');
     assert.deepEqual(rows(page.show('agents').replaceAll('<div class="agent-work"', '<li'), (id) => `data-item="${id}"`), [stale, '', '', legacy], 'the builder holds its stale verdicts in the agent rows');
   } finally { await view.stop(); }
@@ -126,6 +132,7 @@ test('each row says what it waits on [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    await page.click({ tab: 'items' });
     const rows = Object.fromEntries(page.show('chain').split('<li class="row').slice(1).map((row) => [/data-item="(\d+)"/.exec(row)[1], {
       chip: /<span class="chip ([^"]*)"[^>]*>([^<]*)<\/span><\/li>$/.exec(row).slice(1).join(': '),
       edge: /^[^"]*\bgated\b/.test(row),
@@ -239,6 +246,7 @@ test('a sent-back item shows why first [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    await page.click({ tab: 'items' });
     const beforeCriterion = () => page.show('detail').slice(0, Math.max(0, page.show('detail').indexOf('<h3>Criterion</h3>')));
     const needs = page.show('needs');
     assert.doesNotMatch(needs, /Greeting|Farewell/, "work sent back is the agents' to move, so it stays out of Needs-you; its row says why");
@@ -311,6 +319,7 @@ test('a sent-back reason reads once [N26]', { timeout: 90_000 }, async () => {
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.waitFor('document.querySelectorAll("#chain .row").length === 2');
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -354,6 +363,7 @@ test('the list shows active, verified or all [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    await page.click({ tab: 'items' });
     const control = () => [...page.show('filter-menu').matchAll(/<button class="filter-option" role="menuitemradio" aria-checked="(true|false)" data-filter-choice="state:([a-z]+)"[^>]*><span class="filter-option-label">([A-Za-z ]+)<\/span><b>(\d+)<\/b><\/button>/g)].map((match) => `${match[3]} ${match[4]}${match[1] === 'true' ? ' (shown)' : ''}`);
     const rows = () => [...page.show('chain').matchAll(/data-item="(\d+)"/g)].map((match) => Number(match[1])).sort();
     assert.deepEqual(control(), ['Active 1 (shown)', 'Verified 1', 'All 2'], 'three choices, each with its count');
@@ -389,6 +399,7 @@ test('the items toolbar is one row: view, filter and new [N26]', async () => {
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.querySelectorAll('#chain .row').length === 2");
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -470,6 +481,7 @@ const wideFontToolbar = (forcedFonts) => async () => {
   })())`));
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.querySelectorAll('#chain .row').length === 2");
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 375');
@@ -543,6 +555,7 @@ test('the filter menu sets show and lane [N26]', async () => {
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.querySelectorAll('#chain .row').length === 1");
     assert.equal(await chrome.stable("document.querySelector('#chain .row').dataset.item"), '1');
     await press(chrome, "document.querySelector('#filter-toggle')");
@@ -618,6 +631,7 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    await page.click({ tab: 'items' });
     assert.equal(page.run('view.state'), 'active');
     assert.doesNotMatch(page.show('chain'), /Farewell banner/, 'Active hides the verified item');
     await page.type('q', 'farewell');
@@ -648,6 +662,7 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
     assert.match(page.show('filter-menu'), /<span class="filter-option-label">Active<\/span><b>0<\/b>/, 'a withdrawn item is not active');
     await page.type('q', '');
 
+    await page.click({ tab: 'shouts' });
     const feed = page.show('feed');
     assert.ok(feed.includes(`<a class="ref" href="/items/1" data-go="item:1" title="Greeting">#1</a> is next;`), feed);
     assert.ok(feed.includes(`<a class="ref" href="/items/2" data-go="item:2" title="Farewell banner">#2</a> shipped`));
@@ -661,9 +676,11 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
     assert.equal(page.element('detail').scrolled, 0, 'side by side, the detail is already in view');
 
     const narrow = await openPage(view, { width: 600 });
+    await narrow.click({ tab: 'items' });
     await narrow.click({ item: '1', classes: 'row' });
     assert.match(narrow.show('detail'), /Greeting/);
     assert.equal(narrow.element('detail').scrolled, 1, 'under 900px, picking an item brings its detail into view');
+    await narrow.click({ tab: 'shouts' });
     await narrow.click({ go: 'item:2', classes: 'ref' });
     assert.equal(narrow.element('detail').scrolled, 2, 'and so does a link to one');
   } finally {
@@ -689,6 +706,7 @@ test('the detail opens on the top item, not a blank form [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    await page.click({ tab: 'items' });
     const shown = () => /<h2><span>#(\d+)<\/span>([^<]*)</.exec(page.show('detail'))?.slice(1).join(' ');
     const rows = () => [...page.show('chain').matchAll(/<li class="row s-[a-z]+( on)?[^"]*" data-item="(\d+)"/g)].map((match) => match[2] + (match[1] ? '*' : ''));
     const form = () => [page.element('add-form').hidden, page.element('detail').hidden];
@@ -837,6 +855,7 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
       ['note', 'capture', 'measurement', 'diff', 'decision', 'rejection', 'supersession', 'root-cause'],
       'the API provides every fact in append order');
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.waitFor('typeof data !== "undefined" && !!data?.project?.items?.find((item) => item.id === 1)');
     await chrome.waitFor('document.querySelectorAll("#detail .tl [data-event-id]").length === ' + expected.length);
     const expectedIds = expected.map((entry) => entry.eventId);
@@ -932,21 +951,24 @@ test('in-text item references stay inline and open their target at phone and des
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
-    await chrome.waitFor('document.querySelectorAll("#chain .row").length >= 2 && document.querySelector("#needs .row")');
+    await chrome.waitFor('document.querySelectorAll("#chain .row").length >= 2 && document.querySelector("#needs .needs-call")');
 
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       // Needs you heads the Items list under Active; the steps below leave other tabs and filters open.
       await chrome.click("document.querySelector('[data-tab=items]')"); await chooseFilter(chrome, 'state:active');
-      // The row inlineReference stays on its title line beside the text.
+      const decision = "document.querySelector('#needs details[data-needs-key^=\"decision:\"]')";
+      if (await chrome.stable(`${decision}.open`) !== true) await chrome.click(`${decision}.querySelector('summary')`);
+      // The inline reference stays on its actual question line in the approved Needs disclosure.
       const rendered = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const row = document.querySelector('#chain .row[data-item="2"]');
         const plain = document.querySelector('#chain .row[data-item="1"]');
         const titleRef = row?.querySelector('.t a.ref[data-go]');
-        const need = [...document.querySelectorAll('#needs .row')].find((entry) => entry.textContent.includes('Please choose'));
-        const needRef = need?.querySelector('.t a.ref[data-go]');
-        const needAction = need;
+        const need = [...document.querySelectorAll('#needs .needs-call')].find((entry) => entry.textContent.includes('Please choose'));
+        const needRef = need?.querySelector('.needs-detail p a.ref[data-go]');
+        const needAction = need?.querySelector('.needs-detail button[data-go]');
         const realButton = document.querySelector('#new-item');
         /** Measure the element box independently of the inline-link assertion. */
         const rect = node => { const r=node.getBoundingClientRect(); return {height:r.height,width:r.width}; };
@@ -955,7 +977,7 @@ test('in-text item references stay inline and open their target at phone and des
           linkedTitle: row && rect(row.querySelector('.t')),
           plainTitle: plain && rect(plain.querySelector('.t')),
           needRef: needRef && { ...rect(needRef), border:getComputedStyle(needRef).borderWidth, lineHeight:getComputedStyle(needRef).lineHeight },
-          needText: need?.querySelector('.t') && rect(need.querySelector('.t')),
+          needText: need?.querySelector('.needs-detail p') && rect(need.querySelector('.needs-detail p')),
           needAction: needAction && rect(needAction), realButton: realButton && rect(realButton),
         };
       })())`));
@@ -1014,12 +1036,13 @@ test('in-text item references stay inline and open their target at phone and des
       await chrome.click(`document.querySelector('#chain .row[data-item="2"] .t a.ref[data-go]')`);
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Target item')");
       await chooseFilter(chrome, 'state:active');
-      await chrome.click(`document.querySelector('#needs .row .t a.ref[data-go]')`);
+      if (await chrome.stable(`${decision}.open`) !== true) await chrome.click(`${decision}.querySelector('summary')`);
+      await chrome.click(`${decision}.querySelector('.needs-detail p a.ref[data-go]')`);
       await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
 
       await chrome.click(`document.querySelector('[data-tab="activity"]')`);
-      await chrome.waitFor("document.querySelector('#activity .what a.ref[data-go]')");
-      await chrome.click(`document.querySelector('#activity .what a.ref[data-go]')`);
+      await chrome.waitFor(`document.querySelector('#activity .activity-quote a.ref[data-go="item:1"]')`);
+      await chrome.click(`document.querySelector('#activity .activity-quote a.ref[data-go="item:1"]')`);
       await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
 
       await chrome.click(`document.querySelector('#chain .row[data-item="2"]')`);
@@ -1059,6 +1082,7 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.waitFor('document.querySelectorAll("#chain .row").length === 5');
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -1211,6 +1235,7 @@ test('Pipeline view shows every stage, status counts, stage ages, detail links a
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && document.querySelector('#chain [data-item="5"]')`);
     const listRead = "JSON.stringify([...document.querySelectorAll('#chain > li[data-item]')].map(row => ({id:Number(row.dataset.item),title:row.title,meta:row.querySelector('.meta').textContent,tag:row.lastElementChild.textContent})))";
     const listBefore = await chrome.stable(listRead);
@@ -1293,6 +1318,7 @@ test('the pipeline opens the clicked item under a 6× CPU throttle [N26,N38,C7]'
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && document.querySelector('#chain [data-item="5"]')`);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await press(chrome, "document.querySelector('[data-items-view=\"pipeline\"]')");
@@ -1337,6 +1363,7 @@ test('a refresh between pointer down and up does not lose the click [N26,N38,C7]
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && document.querySelector('#chain [data-item="5"]')`);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await press(chrome, "document.querySelector('[data-items-view=\"pipeline\"]')");
@@ -1401,6 +1428,7 @@ test('Pipeline view dates an expired claim from its recorded deadline [N26,N38]'
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    await page.click({ tab: 'items' });
     await page.click({itemsView:'pipeline'});
     const open = () => page.show('pipeline').split('data-pipeline-stage="open"')[1].split('</header>')[1].split('</p>')[0];
     assert.match(open(), /data-go="item:2"/, 'an open item from minute35 is older than a claim that lapses at minute40');

@@ -1,6 +1,12 @@
 /**
  * The commit-message rules (C1, C2) and the pre-commit pattern checks on real staged changes.
  */
+import { boardBusyError } from '../src/board-access.js';
+import { openBoardReadOnly } from '../src/board-read-open.js';
+import { rowDecisions } from '../src/row-decisions-query.js';
+import { checkLoosening } from '../src/doctrine-checks.js';
+
+const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { runFixtureExecFile as execFileSync, runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
@@ -128,7 +134,7 @@ function stagedRepo(t) {
 
 /** Run the same staged protections called by the installed pre-commit hook. */
 function stagedProblems(root) {
-  return preCommitProblems({ root, isMain: true, config: defaults(), agent: null });
+  return preCommitProblems({ approvedRowPorts, root, isMain: true, config: defaults(), agent: null });
 }
 
 /**

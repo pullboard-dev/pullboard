@@ -1,8 +1,8 @@
 /** Count selected native cases independently of the caller's public reporter [C7,S13]. */
 import {
-  execFileSync,
-  spawnSync,
-} from 'node:child_process';
+  gitExecFileSync,
+  gitSpawnSync,
+} from './git-adapter.js';
 import {
   readFileSync,
   writeFileSync,
@@ -54,7 +54,7 @@ export function isDefaultTestFile(path) {
 
 /** Preserve native discovery outside Git, but never hide a repository access failure. */
 export function isGitWorkTree(cwd, env) {
-  const result = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
+  const result = gitSpawnSync(['rev-parse', '--is-inside-work-tree'], {
     cwd, env: { ...env, LC_ALL: 'C' }, encoding: 'utf8',
   });
   if (result.error) throw result.error;
@@ -65,7 +65,7 @@ export function isGitWorkTree(cwd, env) {
 
 /** List tracked repository test entry files, excluding helpers and worktree-only copies. */
 export function trackedDefaultTestFiles(cwd, env) {
-  const output = execFileSync('git', ['ls-files', '-z'], { cwd, env, encoding: 'utf8' });
+  const output = gitExecFileSync(['ls-files', '-z'], { cwd, env, encoding: 'utf8' });
   return output.split('\0').filter(path => path && isDefaultTestFile(path)).sort()
     .map(path => `./${path}`);
 }

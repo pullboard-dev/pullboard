@@ -12,6 +12,7 @@ import {
 import {
   execFileSync,
 } from 'node:child_process';
+import { gitExecFileSync } from './git-adapter.js';
 import {
   createHash,
 } from 'node:crypto';
@@ -34,15 +35,6 @@ import {
   join,
 } from 'node:path';
 import * as store from './board.js';
-import {
-  context,
-} from './cli.js';
-import {
-  ordered,
-} from './cli.js';
-import {
-  withBoard,
-} from './cli.js';
 import {
   codeIsFromMain,
 } from './git.js';
@@ -85,7 +77,7 @@ import {
 
 /** Run Git with the same sanitized repository environment as ordinary native code. */
 function git(root, args, encoding = 'utf8') {
-  return execFileSync('git', args, { cwd: root, env: gitChildEnv(root), encoding, stdio: ['ignore', 'pipe', 'pipe'] });
+  return gitExecFileSync(args, { cwd: root, env: gitChildEnv(root), encoding, stdio: ['ignore', 'pipe', 'pipe'] });
 }
 /** Read native history without retaining an open board across locks, admission or execution. */
 function readBoard(info, action) {
@@ -94,7 +86,7 @@ function readBoard(info, action) {
   try { return action(board); } finally { store.closeBoard(board); }
 }
 /** Bound ordinary native/relay writes retain exact session and origin receipt validation. */
-function writer(root) {
+function writer(root, { context, ordered, withBoard }) {
   const io = { cwd: root, say() {}, err() {}, stderr: { write() {} } };
   const ctx = context(io);
   return (operation, args) => withBoard(ctx, board => ordered(ctx, board, operation, args));
@@ -178,7 +170,7 @@ async function routeFailures(source, job, receipt, config, write, sinceEventId) 
   if (!receipt.green && !files.length) throw new Error('red main audit has no named failing file; not complete');
 }
 /** Run or finish routing one job; a durable complete receipt avoids rerunning an already observed suite. */
-async function audit(root, directory, job, write, options) {
+async function audit(root, directory, job, write, options, testValueServices, executionServices) {
   const key = mainAuditKey(job) + (options.forceFull ? `-release-${options.runId}` : ''), file = join(directory, `${key}.json`);
   const source = join(directory, `source-${key}`);
   let saved = readMainAudit(file);
@@ -215,7 +207,7 @@ async function audit(root, directory, job, write, options) {
       git(root, ['worktree', 'add', '--detach', source, job.tip]); created = true;
       if (git(source, ['rev-parse', 'HEAD']).trim() !== job.tip || git(source, ['rev-parse', 'HEAD^{tree}']).trim() !== job.tree
         || git(source, ['status', '--porcelain', '--untracked-files=all']) !== '') throw new Error('audit source is not the exact clean landed tree');
-      const plan = await readBoard(repoInfo(root), board => planMainAudit(source, board, directory, job, config, options));
+      const plan = await readBoard(repoInfo(root), board => planMainAudit(source, board, directory, job, config, options, testValueServices));
       if (!plan.run.length) {
         const previous = lastGreenAudit(root, directory);
         if (!previous) throw new Error('all-reused plan lost its complete green origin');
@@ -226,7 +218,7 @@ async function audit(root, directory, job, write, options) {
       }
       saveMainAudit(file, { ...job, plan, state: 'running', source, controller: process.pid, started: processStart(process.pid) });
       cleanupAllowed = false;
-      const run = await runGate(source, config, { landing: true, collectAll: true, auditBatchId: job.batchId, auditCoverage: true, ...(plan.reused.length ? { auditFiles: plan.run } : {}), trustStamp: false, agent: 'coordinator' });
+      const run = await runGate(source, config, { executionServices, landing: true, collectAll: true, auditBatchId: job.batchId, auditCoverage: true, ...(plan.reused.length ? { auditFiles: plan.run } : {}), trustStamp: false, agent: 'coordinator' });
       cleanupAllowed = run.cleanupVerified === true && !run.cleanupUnverified
         && !(run.profile?.landingShards?.unverified?.length > 0);
       receipt = run.receiptId && readGateReceipt(receiptStore(root), run.receiptId);
@@ -268,7 +260,7 @@ async function audit(root, directory, job, write, options) {
   }
 }
 /** Drain finite snapshots until all wakes observed by this owner have been serviced. */
-export async function runMainAudits(root, token, { scheduled = false, forceFull = false } = {}) {
+export async function runMainAudits(root, token, { scheduled = false, forceFull = false } = {}, services) {
   const info = repoInfo(root);
   if (!info.isMain || !codeIsFromMain() || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
   const directory = mainAuditDirectory(info); mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -299,14 +291,15 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
   let generation = acquired;
   const visited = new Set(); // Never hot-retry an incomplete obligation in a wake-draining invocation.
   try {
-    const write = writer(root);
+    if (!['context', 'ordered', 'withBoard'].every(name => typeof services?.[name] === 'function')) throw new TypeError('main audit needs explicit native writer services');
+    const write = writer(root, services);
     for (;;) {
       const jobs = snapshot(root, info, activation);
       for (const job of scheduled || forceFull ? jobs.slice(-1) : jobs) {
         const key = mainAuditKey(job);
         if (visited.has(key)) continue;
         visited.add(key);
-        try { await audit(root, directory, job, write, { forceFull, runId: token }); }
+        try { await audit(root, directory, job, write, { forceFull, runId: token }, services.testValue, services.executionServices); }
         catch (error) {
           const file = join(directory, `${key}.json`);
           const saved = readMainAudit(file) ?? job;

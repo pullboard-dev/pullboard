@@ -12,6 +12,8 @@ import { writeFileSync } from 'node:fs';
 import { unlinkSync } from 'node:fs';
 import { symlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolve } from 'node:path';
+import { copyPackageSubset } from './package-copy-fixture.js';
 import { createHash } from 'node:crypto';
 import { generatedDocDrift } from '../src/generated-docs.js';
 import { GENERATED_DOC_PATHS } from '../src/generated-doc-conflicts.js';
@@ -119,7 +121,8 @@ test('duplicate or symlinked command declarations refuse before any generated co
   const box = docsRepository(t);
   const copies = new Map(GENERATED_DOC_PATHS.map(file => [file, readFileSync(join(box.root, file))]));
   const file = join(box.root, 'src/command-docs/duplicate.json');
-  writeFileSync(file, readFileSync(join(box.root, 'src/command-docs/heartbeat.json')));
+  copyPackageSubset(resolve(import.meta.dirname, '..'), box.root,
+    [{ path: 'src/command-docs/heartbeat.json', as: 'src/command-docs/duplicate.json' }]);
   assert.notEqual(box.node('bin/update-docs.js').status, 0);
   for (const [name, bytes] of copies) assert.deepEqual(readFileSync(join(box.root, name)), bytes);
   unlinkSync(file);

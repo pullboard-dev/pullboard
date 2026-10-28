@@ -1,9 +1,7 @@
 /** Bind explicit GitHub acknowledgements to source authors without executing referenced content [C7]. */
 import { handledReferences } from './reference-lines.js';
 import { validateReferenceTargets } from './reference-lines.js';
-import { githubPullClient } from './pr-github.js';
 import { Refused } from './refused.js';
-import { requirePersonChannel } from './person.js';
 
 /** Validate typed targets and the public acknowledgement's authority and source in one ordered move. */
 export function validateReferences(brief, { actor, authors, authority, previous = '' }) {
@@ -19,7 +17,7 @@ function newAcknowledgements(brief, previous = '') {
 }
 
 /** Authorize public acknowledgement through the same authenticated person channels as outside approval. */
-export function referenceAuthority(ctx, actor, brief, previous = '') {
+export function referenceAuthority(ctx, actor, brief, previous = '', { requirePersonChannel } = {}) {
   if (!newAcknowledgements(brief, previous)) return undefined;
   if (ctx.io.personRequest?.phase !== 'execute') requirePersonChannel(ctx.io.personChannel);
   if (!ctx.info.isMain || actor !== 'coordinator') throw new Refused('B26_PERSON_CHANNEL', 'the person acknowledges an outside reference from the main checkout or its authenticated view; leave the reference unhandled for triage.');
@@ -42,7 +40,7 @@ function githubReference(target) {
 }
 
 /** Fetch only handled issue/PR authors and carry their checked identity in the same ordered move. */
-export function referenceAuthors(root, brief) {
+export function referenceAuthors(root, brief, { githubPullClient } = {}) {
   return handledReferences(brief).flatMap(reference => {
     const source = githubReference(reference.target);
     if (!source) return [];

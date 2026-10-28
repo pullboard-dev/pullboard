@@ -1,4 +1,6 @@
 /** Run a named local-trunk floor without reading or writing a full-gate tree stamp [B3,R3,C7]. */
+import { runnerExecutionServices } from './runners.js';
+import { landingExecutionServices } from './landing-shards.js';
 import { runProfiledShell } from './gate.js';
 import { pinRunMain } from './gate.js';
 import { withLandingGateSlot } from './gate.js';
@@ -18,7 +20,7 @@ export async function runLocalLandingGuard(root, config, { files, directory, lab
       timeoutMs: config.landing?.timeoutMs });
     if (!run.isGreen && !run.timedOut) await onFailure(run, { root, command: config.gate, lease });
     return { ...run, log: run.logPath };
-  }, { landing: true, browser, gui: testsNeedGui(root, files), agent: 'coordinator', kind: 'land-guards', onWait });
+  }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser, gui: testsNeedGui(root, files), agent: 'coordinator', kind: 'land-guards', onWait });
 }
 
 /** An observed baseline red or missing comparison is not evidence against any item in a local batch. */

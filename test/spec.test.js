@@ -1,6 +1,12 @@
 /**
  * The spec (S1–S5): parsing SPEC.md rows, the lint, the frozen criterion and sign-offs.
  */
+import { boardBusyError } from '../src/board-access.js';
+import { openBoardReadOnly } from '../src/board-read-open.js';
+import { rowDecisions } from '../src/row-decisions-query.js';
+import { checkLoosening } from '../src/doctrine-checks.js';
+
+const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import assert from 'node:assert/strict';
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
@@ -1096,14 +1102,14 @@ test('a commit that deletes an approved row test is refused [S4]', (t) => {
   box.git('commit', '-q', '-m', 'test: the proof');
   const config = configFromSource(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   box.git('rm', '-q', 'test/proof.test.js');
-  const refused = preCommitProblems({ root: box.root, isMain: true, config, agent: null });
+  const refused = preCommitProblems({ approvedRowPorts, root: box.root, isMain: true, config, agent: null });
   assert.ok(refused.some((problem) => problem.includes('G9 names test/proof.test.js, which this commit deletes')), refused.join('\n'));
   box.git('reset', '-q', '--hard', 'HEAD');
   writeFileSync(join(box.root, 'test/proof-new.test.js'), 'export {};\n');
   writeFileSync(join(box.root, config.spec), `${SPEC}- G9 [approved, must] A rule keeps its proof. | gate: test/proof-new.test.js\n`);
   box.git('rm', '-q', 'test/proof.test.js');
   box.git('add', '-A');
-  const repointed = preCommitProblems({ root: box.root, isMain: true, config, agent: null });
+  const repointed = preCommitProblems({ approvedRowPorts, root: box.root, isMain: true, config, agent: null });
   assert.ok(!repointed.some((problem) => problem.includes('G9 names')), `the same commit repoints the row: ${repointed.join('\n')}`);
 });
 
@@ -1117,7 +1123,7 @@ test('a gate path written another way still guards its test [S4]', (t) => {
     box.git('commit', '-q', '-m', 'test: the proof');
     const config = configFromSource(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
     box.git('rm', '-q', 'test/proof.test.js');
-    const refused = preCommitProblems({ root: box.root, isMain: true, config, agent: null });
+    const refused = preCommitProblems({ approvedRowPorts, root: box.root, isMain: true, config, agent: null });
     assert.ok(refused.some((problem) => problem.includes('G9 names test/proof.test.js, which this commit deletes')), `${gate}: ${refused.join('\n')}`);
   }
 });

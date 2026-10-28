@@ -3,6 +3,7 @@ import { copyFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { gitExecFileSync } from './git-adapter.js';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,7 +20,7 @@ import { withSourceComposition } from './source-advance-compose.js';
 
 /** Read immutable Git facts with a bounded child; never execute repository hooks. */
 function git(root, args) {
-  return execFileSync('git', args, { cwd: root, env: gitChildEnv(root), encoding: 'utf8', timeout: 30000 }).trim();
+  return gitExecFileSync(args, { cwd: root, env: gitChildEnv(root), encoding: 'utf8', timeout: 30000 }).trim();
 }
 
 /** The private advisory folder is repository-owned and contains no new board authority. */
@@ -123,7 +124,7 @@ async function advance(root, directory, job, write, services) {
       const config = policy.config;
       custody.started();
       const gate = await runSubmitGate(composition.directory, config, { base: composition.inputHead, changed: composition.changed,
-        check: frozenCheck(job.item), agent: 'coordinator', item: String(job.item.item_id), sourceAdvance: true,
+        executionServices: services.executionServices, check: frozenCheck(job.item), agent: 'coordinator', item: String(job.item.item_id), sourceAdvance: true,
         proofContext: { item: job.item.item_id, frozenDigest: job.basis.bar, seat: 'coordinator', kind: 'submit' } });
       if (!gate.cleanupUnverified && !(gate.profile?.landingShards?.unverified?.length > 0)) custody.terminal();
       const artifacts = retainArtifacts(directory, job, gate, composition, services);

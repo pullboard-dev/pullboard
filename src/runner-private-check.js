@@ -17,6 +17,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from './git-adapter.js';
 import { tmpdir } from 'node:os';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
@@ -203,27 +204,27 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
   };
   try {
     const common = policyGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
-    const clone = spawnSync('git', ['clone', '--quiet', '--shared', '--no-checkout', common, copy], { env, stdio: 'ignore' });
+    const clone = gitSpawnSync(['clone', '--quiet', '--shared', '--no-checkout', common, copy], { env, stdio: 'ignore' });
     if (clone.status === 0) {
       const retainedTrunk = trunkRef(root);
       if (retainedTrunk) {
-        const savedTrunk = spawnSync('git', ['config', '--local', '--replace-all', 'pullboard.trunk', retainedTrunk], {
+        const savedTrunk = gitSpawnSync(['config', '--local', '--replace-all', 'pullboard.trunk', retainedTrunk], {
           cwd: copy, env, stdio: 'ignore',
         });
         if (savedTrunk.status !== 0) return finish('unverified', 'retained trunk could not be copied into the private clone');
         // Cloning a detached primary HEAD omits its local trunk branch, even when the source has it.
-        const retainedTip = spawnSync('git', ['--no-replace-objects', 'rev-parse', '--verify', '--quiet', `${retainedTrunk}^{commit}`], {
+        const retainedTip = gitSpawnSync(['--no-replace-objects', 'rev-parse', '--verify', '--quiet', `${retainedTrunk}^{commit}`], {
           cwd: root, env, encoding: 'utf8',
         });
         if (retainedTip.status === 0 && retainedTrunk.startsWith('refs/heads/')) {
-          const savedTip = spawnSync('git', ['update-ref', retainedTrunk, retainedTip.stdout.trim()], {
+          const savedTip = gitSpawnSync(['update-ref', retainedTrunk, retainedTip.stdout.trim()], {
             cwd: copy, env, stdio: 'ignore',
           });
           if (savedTip.status !== 0) return finish('unverified', 'retained trunk tip could not be copied into the private clone');
         }
       }
     }
-    const checkout = clone.status === 0 && spawnSync('git', ['checkout', '--quiet', '--detach', item.item_commit], { cwd: copy, env, stdio: 'ignore' });
+    const checkout = clone.status === 0 && gitSpawnSync(['checkout', '--quiet', '--detach', item.item_commit], { cwd: copy, env, stdio: 'ignore' });
     if (!checkout || checkout.status !== 0) return finish('unverified', 'clone or checkout could not start');
     if (mutate) {
       const reason = mutate(copy);
@@ -405,7 +406,7 @@ function streamSanitizedLog(path, fallback, label, writeArtifact, onLine = () =>
 
 /** Capture the private clone before cleanup, so a diagnostic cannot call edited source an unchanged-head measurement. */
 function privateSourceUnchanged(root, commit, env) {
-  const state = spawnSync('git', ['--no-replace-objects', 'status', '--porcelain=v2', '--branch', '--untracked-files=normal'], { cwd: root, env, encoding: 'utf8' });
+  const state = gitSpawnSync(['--no-replace-objects', 'status', '--porcelain=v2', '--branch', '--untracked-files=normal'], { cwd: root, env, encoding: 'utf8' });
   if (state.status !== 0) return false;
   const lines = state.stdout.split('\n').filter(Boolean);
   return lines.includes('# branch.oid ' + commit) && lines.every(line => line.startsWith('# '));

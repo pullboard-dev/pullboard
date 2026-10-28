@@ -1,4 +1,5 @@
 /** Timing checks hold an entire physical machine, including its short slots [C7,Q1]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -23,6 +24,7 @@ async function runFixture(box, body) {
   const source = `import assert from 'node:assert/strict';
 import { takeResource, listResources, gateSlotEnvironment } from ${JSON.stringify(new URL('../src/resources.js', import.meta.url).href)};
 import { withGateSlot } from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};
+${executionServicesSource(new URL('../src/gate.js', import.meta.url).href)}
 const root = process.cwd();
 ${body}`;
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env });
@@ -73,7 +75,7 @@ const ordinary = await takeResource({ name: 'gate', capacity: 2, scope: 'machine
 try {
   Object.assign(process.env, gateSlotEnvironment(ordinary));
   await assert.rejects(withGateSlot(root, () => assert.fail('ordinary lease must not run a timing check'),
-    { timing: true, remote: false }), { code: 'TIMING_SLOT_REQUIRED' });
+    { executionServices, timing: true, remote: false }), { code: 'TIMING_SLOT_REQUIRED' });
 } finally {
   ordinary.release();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete process.env[key];
@@ -82,9 +84,9 @@ let receipt;
 await withGateSlot(root, async lease => {
   assert.equal(lease.timing, true);
   Object.assign(process.env, gateSlotEnvironment(lease));
-  try { assert.equal(await withGateSlot(root, inherited => inherited.timing, { timing: true, remote: false }), true); }
+  try { assert.equal(await withGateSlot(root, inherited => inherited.timing, { executionServices, timing: true, remote: false }), true); }
   finally { for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete process.env[key]; }
-}, { timing: true, remote: false, onReceipt: value => { receipt = value; } });
+}, { executionServices, timing: true, remote: false, onReceipt: value => { receipt = value; } });
 assert.equal(receipt.timing, true);
 assert.equal(receipt.exclusive, true);
 assert.deepEqual(receipt.unfencedClients, []);
@@ -112,7 +114,7 @@ await withGateSlot(root, async lease => {
   finally { legacy.release(); }
   assert.equal(listResources({ root }).find(row => row.name === 'gate').holders.length, 1,
     'the short legacy run already left before the receipt is captured');
-}, { timing: true, remote: false, onReceipt: value => { receipt = value; } });
+}, { executionServices, timing: true, remote: false, onReceipt: value => { receipt = value; } });
 assert.equal(receipt.exclusive, false, 'a number measured beside an unfenced client cannot claim isolation');
 assert.ok(receipt.unfencedClients.some(client => client.agent === 'legacy-unfenced-fixture'));
 `);

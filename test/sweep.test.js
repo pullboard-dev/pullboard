@@ -3,7 +3,8 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { briefFiles, briefSections } from '../src/brief.js';
+import { briefFiles } from '../src/brief.js';
+import { briefSections } from '../src/reference-lines.js';
 import { parseProblems, sweepItems } from '../src/sweep.js';
 
 const ROOT = '/repo';
