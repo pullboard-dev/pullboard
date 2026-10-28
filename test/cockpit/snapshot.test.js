@@ -69,8 +69,8 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
   observationBoard.db.exec('BEGIN');
   const observationEvents = JSON.parse(JSON.stringify(events(observationBoard)));
 
-  const exportDir = join(box.dir, 'snapshot-export');
-  box.run(alpha.repo, 'view', '--export', exportDir);
+  const snapshotOutput = box.exportSnapshot(alpha.repo, 'snapshot-export');
+  const exportDir = snapshotOutput.root;
   assert.ok(existsSync(join(exportDir, 'index.html')));
   assert.ok(existsSync(join(exportDir, 'view.css')));
   const exportedBoards = JSON.parse(readFileSync(join(exportDir, 'api', 'v1', 'boards.json'), 'utf8'));
@@ -105,7 +105,7 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
     const file = resolve(exportDir, relativePath);
     if (!file.startsWith(`${resolve(exportDir)}/`)) { response.writeHead(404).end(); return; }
     let body;
-    try { body = readFileSync(file); }
+    try { body = snapshotOutput.readFile(file); }
     catch { response.writeHead(404).end(); return; }
     const type = file.endsWith('.html') ? 'text/html; charset=utf-8'
       : file.endsWith('.css') ? 'text/css; charset=utf-8'
@@ -594,16 +594,10 @@ test('static export redacts structured checkout paths but preserves paths people
     const events = await boardEvents.json();
     assert.ok(events.events.length > 0);
 
-    /** Enumerate every exported file, including the API document subtree. */
-    const filesBelow = (directory) => readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-      const path = join(directory, entry.name);
-      return entry.isDirectory() ? filesBelow(path) : [path];
-    });
-    /** Read all bytes so an unexpected exported field cannot hide a private folder. */
-    const exportedText = (directory) => filesBelow(directory).map((path) => readFileSync(path, 'utf8')).join('\n');
-    const snapshot = join(box.dir, 'export-structured');
-    box.run(alpha.repo, 'view', '--export', snapshot);
-    const structuredFiles = exportedText(snapshot);
+    /** Read every actual export Buffer so an unexpected subtree cannot hide a private folder. */
+    const exportedText = (output) => output.files().map(({ body }) => body.toString('utf8')).join('\n');
+    const structuredOutput = box.exportSnapshot(alpha.repo, 'export-structured');
+    const structuredFiles = exportedText(structuredOutput);
     for (const privatePath of [box.dir, projectRoot, worktreeRoot, commonGitDir]) {
       assert.ok(!structuredFiles.includes(privatePath), `export does not include structured path ${privatePath}`);
     }
@@ -614,15 +608,15 @@ test('static export redacts structured checkout paths but preserves paths people
     const shout = `Please inspect this literal agent folder: ${worktreeRoot}`;
     box.run(alpha.repo, 'add', 'web', 'Path in prose', '--specs', 'G1', '--criterion', 'keeps prose literal', '--brief', brief);
     box.run(alpha.web, 'shout', 'all', shout);
-    const proseSnapshot = join(box.dir, 'export-prose');
-    box.run(alpha.repo, 'view', '--export', proseSnapshot);
+    const proseOutput = box.exportSnapshot(alpha.repo, 'export-prose');
+    const proseSnapshot = proseOutput.root;
     const stateFile = JSON.parse(readFileSync(join(proseSnapshot, 'api', 'v1', 'boards', board.id, 'state.json'), 'utf8')).state;
     assert.notEqual(stateFile.root, projectRoot, 'export redacts structured project root');
     assert.notEqual(stateFile.agents.find((entry) => entry.agent_id === 'web-1').agent_path, worktreeRoot,
       'export redacts the structured agent worktree');
     assert.equal(stateFile.items.find((entry) => entry.title === 'Path in prose').brief, brief);
     assert.ok(stateFile.shouts.some((entry) => entry.shout_text === shout), 'the authored shout remains literal');
-    const proseFiles = filesBelow(proseSnapshot).map((path) => readFileSync(path, 'utf8'));
+    const proseFiles = proseOutput.files().map(({ body }) => body.toString('utf8'));
     let scrubbedText = proseFiles.join('\n');
     for (const text of [brief, shout]) {
       scrubbedText = scrubbedText.replaceAll(JSON.stringify(text), '"<authored prose>"')
