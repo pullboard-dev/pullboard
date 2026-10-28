@@ -31,6 +31,7 @@ const DAMAGED_SERVER_FAILURE_FLOOR_MS = 5000;
 
 /** Copy one declared Docker source to its Dockerfile destination, optionally omitting a runtime file. */
 function copyDockerSource(source, destinationPath, omitted) {
+  source = source.replaceAll('\\', '/');
   if (omitted.has(source)) return;
   const sourcePath = join(ROOT, source);
   if (statSync(sourcePath).isDirectory()) {
