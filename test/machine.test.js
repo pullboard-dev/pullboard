@@ -206,7 +206,7 @@ function codeWalk(read, { caught = false } = {}) {
     // A facade may import and re-export the helper; follow its real definition after extraction.
     if (!bodies.has(name) && named.has(name)) return refusalsOf(named.get(name), skip, seen);
     // Loaded source is fixed within this walk; local scans do not depend on the caller's seen/skip sets.
-    let facts;
+    let facts = localFacts.get(key);
     if (!facts) {
       const body = bodies.get(name) ?? '';
       const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]));
