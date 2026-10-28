@@ -12,7 +12,7 @@ import { agentFloorHtml } from './agent-floor-render.js';
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart2(scope) {
-  const { sharedRowHtml, activityWords, activityModel, activityHtml, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, lifecycleEvent, lifecycleMove, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
+  const { sharedRowHtml, activityWords, activityModel, activityHtml, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeCapacity, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, lifecycleEvent, lifecycleMove, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
 return `let detailRead = null;
 const addressedShouts = new Map();
 const $ = (id) => document.getElementById(id);
@@ -325,6 +325,7 @@ function shoutAgentName(id) {
 /** Render a review note with escaped text and references bound to the selected board. */
 const verdictHtml = (v, titles) => '<div class="verdict ' + (v.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(v.decision) + ' ' + esc(v.reason) + '</b><span class="by">' + esc(agentName(v.by)) + ' · ' + when(v.at) + ' · at ' + esc(String(v.commit || '').slice(0, 12)) + '</span><div class="note">' + inline(visibleVerdictNote(v.reason, v.note), titles) + '</div></div>';
 const homeRules = (${homeRules.toString()});
+const homeCapacity = (${homeCapacity.toString()});
 const roadmapSummary = (${roadmapSummary.toString()}), roadmapHeaders = (${roadmapHeaders.toString()});
 const stateOf = (i) => i.status === 'claimed' ? 'building' : i.status === 'submitted' ? 'verify' : i.status === 'verified' ? 'verified' : i.status === 'withdrawn' ? 'withdrawn' : i.verdict && i.verdict.decision === 'REJECT' ? 'back' : 'open';
 const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['unclaimed', 'free'], withdrawn: ['withdrawn', ''] };

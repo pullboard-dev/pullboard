@@ -1,3 +1,4 @@
+import { parseCheckTiming } from '../check-timing.js';
 import { requirePersonChannel } from '../person.js';
 import { githubPullClient } from '../pr-github.js';
 import {
@@ -63,6 +64,7 @@ export async function run(io, args) {
     ...(values['review-family'] === undefined ? {} : { reviewFamily: values['review-family'] }),
     criterion: values.criterion,
     check: values.check,
+    ...(values['check-timing'] === undefined ? {} : { checkTiming: parseCheckTiming(values['check-timing']) }),
     after: editAfter(values.after),
     ...(values.reason !== undefined ? { reason: values.reason } : {}),
   };
@@ -78,7 +80,7 @@ export async function run(io, args) {
     if (authors.length) change.referenceAuthors = authors;
   }
   const { item, next, command } = store.validateItemEdit(board, id, change);
-  if (me.id === 'coordinator' && ['item_criterion', 'item_check', 'item_after'].some(key => next[key] !== item[key])) {
+  if (me.id === 'coordinator' && ['item_criterion', 'item_check', 'item_after', 'item_check_timing'].some(key => next[key] !== item[key])) {
     change.correction = true;
     change.freeze = freezer(ctx, { captureVerifyPolicy: true, board });
   }
