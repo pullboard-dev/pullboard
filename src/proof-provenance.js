@@ -4,6 +4,7 @@ import { environmentProblem } from './config.js';
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;
 const ID = /^[a-f0-9-]{36}$/u;
+const NODE = /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/u;
 const MOST_FAILURES = 500;
 const MOST_COLLECTION_FILES = 100000;
 
@@ -89,7 +90,13 @@ function checkedFields(value) {
   const hasCollection = Object.hasOwn(value ?? {}, 'collection');
   if (hasCollection && (version !== 1 || !['land', 'release'].includes(value.kind))) throw bad();
   const collection = hasCollection ? collectionFields(value.collection) : null;
-  const kinds = version === 2 ? ['check', 'submit', 'verdict'] : ['gate', 'land', 'submit', 'release'];
+  const hasTiming = Object.hasOwn(value ?? {}, 'timing');
+  const hasFull = Object.hasOwn(value ?? {}, 'full');
+  const timing = hasTiming ? runTimingFields(value.timing) : null;
+  if (value?.kind === 'main-red' && (!hasTiming || value.full !== false || timing?.compareMs === null || !timing)) throw bad();
+  if (hasTiming !== hasFull || hasTiming && (version !== 1 || !timing
+    || !(value.full === null || typeof value.full === 'boolean'))) throw bad();
+  const kinds = version === 2 ? ['check', 'submit', 'verdict'] : ['gate', 'land', 'submit', 'release', ...(hasTiming ? ['suite', 'main-red'] : [])];
   if (!value || ![1, 2].includes(version) || version === 2 && !proof || !ID.test(value.id ?? '') || !kinds.includes(value.kind)
     || !(version === 2 && value.tree === null) && !SHA.test(value.tree ?? '')
     || !(version === 2 && value.head === null) && !SHA.test(value.head ?? '')
@@ -107,7 +114,8 @@ function checkedFields(value) {
   return { version, id: value.id, kind: value.kind, tree: value.tree, head: value.head, main: value.main, command: value.command,
     green: value.green, failures, load: load === null ? null : { average: [...load.average], cpus: load.cpus, freeMB: load.freeMB }, at: value.at,
     ...(proof ? { proof } : {}), ...(Object.hasOwn(value, 'environment') ? { environment: value.environment } : {}),
-    ...(hasCollection ? { collection } : {}), ...(hasParticipation ? { participationDigest: value.participationDigest } : {}) };
+    ...(hasCollection ? { collection } : {}), ...(hasParticipation ? { participationDigest: value.participationDigest } : {}),
+    ...(hasTiming ? { full: value.full, timing } : {}) };
 }
 
 
@@ -119,6 +127,8 @@ function identity(value, limit = 512) {
 
 /** Validate the native facts attached to a version-two gate receipt. */
 export function proofFields(value) {
+  const hasPhase = Object.hasOwn(value ?? {}, 'submitPhase');
+  if (hasPhase && !['criterion', 'proof'].includes(value.submitPhase)) return null;
   const hasAdmission = Object.hasOwn(value ?? {}, 'submitAdmission');
   if (hasAdmission && !/^[a-f0-9-]{36}$/u.test(value.submitAdmission ?? '')) return null;
   if (!value || !Number.isSafeInteger(value.item) || value.item < 1
@@ -140,7 +150,7 @@ export function proofFields(value) {
     environment: actualEnvironment === null ? null : { node: actualEnvironment.node, platform: actualEnvironment.platform, arch: actualEnvironment.arch },
     seat: value.seat, runner: value.runner, exitCode: value.exitCode,
     counts: Object.fromEntries(names.map(name => [name, value.counts[name]])), durationMs: value.durationMs, sourceClean: value.sourceClean,
-    ...(hasTestRuntimes ? { testRuntimes } : {}), ...(hasAdmission ? { submitAdmission: value.submitAdmission } : {}) };
+    ...(hasTestRuntimes ? { testRuntimes } : {}), ...(hasPhase ? { submitPhase: value.submitPhase } : {}), ...(hasAdmission ? { submitAdmission: value.submitAdmission } : {}) };
 }
 
 /** Read explicit TAP or Node reporter totals; absent counters stay unknown rather than becoming zero. */
@@ -163,4 +173,28 @@ export function proofCounts(lines) {
   }
   return Object.keys(pending).length ? { passed: null, failed: null, skipped: null }
     : totals ?? { passed: null, failed: null, skipped: null };
+}
+
+/** Accept only measured finite milliseconds; null explicitly means the phase was not observed. */
+function measured(value, nullable = false) {
+  return nullable && value === null || typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER;
+}
+
+/** Normalize one attempt at a named shard; concurrent attempts are retained separately, never summed as wall time. */
+function shardFields(value) {
+  return value && typeof value.shard === 'string' && /^[A-Za-z0-9_/-]{1,80}$/u.test(value.shard)
+    && Number.isSafeInteger(value.attempt) && value.attempt > 0 && measured(value.wallMs)
+    ? { shard: value.shard, attempt: value.attempt, wallMs: value.wallMs } : null;
+}
+
+/** Keep every phase explicit; missing, unsupported and legacy measurements remain unknown rather than zero. */
+export function runTimingFields(value) {
+  if (!value || value.version !== 1 || !(value.node === null || typeof value.node === 'string' && NODE.test(value.node))
+    || !measured(value.wallMs) || !['selectionMs', 'setupMs', 'compareMs'].every(key => measured(value[key], true))
+    || !(value.shards === null || Array.isArray(value.shards) && value.shards.length <= 1024)) return null;
+  const shards = value.shards === null ? null : value.shards.map(shardFields);
+  if (shards?.some(row => row === null)) return null;
+  if (shards && new Set(shards.map(row => `${row.shard}:${row.attempt}`)).size !== shards.length) return null;
+  return { version: 1, node: value.node, wallMs: value.wallMs, selectionMs: value.selectionMs,
+    setupMs: value.setupMs, shards, compareMs: value.compareMs };
 }

@@ -5,6 +5,7 @@ import { GATE_RUN_ENGINE } from '../gate-run-engine.js';
 import { LANDING_ENVIRONMENT_ENGINE } from '../landing-environment-engine.js';
 import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
+import { RUN_TIMING_ENGINE } from '../run-timing-engine.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {
@@ -17,7 +18,9 @@ function existingEngine(args, board, at) {
 
 /** New collection evidence may not be silently dropped while historical first-match floors remain intact. */
 function minimumEngine(args, board, at) {
-  return Math.max(Object.hasOwn(args[0]?.receipt ?? {}, 'collection') ? MAIN_AUDIT_ENGINE : 1, existingEngine(args, board, at));
+  return Math.max(Object.hasOwn(args[0]?.receipt ?? {}, 'collection') ? MAIN_AUDIT_ENGINE : 1,
+    Object.hasOwn(args[0]?.receipt ?? {}, 'timing') || Object.hasOwn(args[0]?.receipt ?? {}, 'full') ? RUN_TIMING_ENGINE : 1,
+    existingEngine(args, board, at));
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

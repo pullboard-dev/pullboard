@@ -1,3 +1,4 @@
+import { checkAtCommit } from '../runner-private-check.js';
 import { trunkRef } from '../trusted-policy-read.js';
 import { selectAffectedTests } from '../affected-tests.js';
 import { committedItemAuthors } from '../review-independence.js';
@@ -57,7 +58,6 @@ import {
   gateRunnersFirstEnabled,
 } from '../settings.js';
 import {
-  checkAtCommit,
   dependencySnapshots,
   frozenCheck,
   itemPolicy,
@@ -177,7 +177,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           const gui = await checkNeedsGui(root, frozenCheck(item), { commit: checkedCommit });
           // Exact command classifiers still govern local and remote private-check admission [C7,V4].
           const shortEligible = Boolean(await explicitCheckFiles(root, frozenCheck(item), { commit: checkedCommit }));
-          check = await withGateSlot(root, async (lease) => { if (admitted && attempt === 0) ({ trunk, review } = composeNow()); const ran = await nativeFlakes.verify(ctx, checkedItem, frozenCheck(item), { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent })(lease); return ran.state === 'pass' ? { ...ran, guardNote: guardRevertNote(root, checkedItem, lease, { checkAtCommit }) } : ran; }, { browser, gui, remote: gateRunnersFirstEnabled(), agent: me.id, item: String(id), kind: 'review', itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
+          check = await withGateSlot(root, async (lease) => { if (admitted && attempt === 0) ({ trunk, review } = composeNow()); const ran = await nativeFlakes.verify(ctx, checkedItem, frozenCheck(item), { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent, checkAtCommit })(lease); return ran.state === 'pass' ? { ...ran, guardNote: guardRevertNote(root, checkedItem, lease, { checkAtCommit }) } : ran; }, { browser, gui, remote: gateRunnersFirstEnabled(), agent: me.id, item: String(id), kind: 'review', itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
         } else {
           check = checkAtCommit(root, checkedItem);
         }

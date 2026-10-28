@@ -1,6 +1,7 @@
 /** Read-only aggregate evidence for a case study; recorded work is not fresh execution [C7]. */
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
+import { receiptFields } from '../../src/gate-run-receipt.js';
 
 /** Bound memory and statement lifetimes: SQLite iterators on the minimum Node can outlive their statement. */
 export function* eventRows(db, kind = null) {
@@ -108,8 +109,9 @@ export function eventMetrics(boardPath, { from, to }) {
           }
         }
       }
-      if (event.event_kind === 'proof-run') {
-        const receipt = detail?.receipt;
+      if (event.event_kind === 'proof-run' || event.event_kind === 'gate-run' && detail?.run?.timing) {
+        const nativeRun = event.event_kind === 'gate-run' ? receiptFields(detail.run) : null;
+        const receipt = event.event_kind === 'gate-run' ? nativeRun : detail?.receipt;
         if (!receipt || typeof receipt.id !== 'string' || !receipt.id.trim()) {
           if (selected) unknown.receiptIdentity += 1;
           continue;
@@ -122,8 +124,8 @@ export function eventMetrics(boardPath, { from, to }) {
           if (previous.signature !== signature && !previous.conflicting) {
             previous.conflicting = true; unknown.conflictingReceiptIds += 1;
           }
-        } else receipts.set(receipt.id, { signature, receipt: { kind: receipt.kind, durationMs: receipt.durationMs,
-          full: receipt.full, environment: receipt.environment, reused: receipt.reused },
+        } else receipts.set(receipt.id, { signature, receipt: { kind: receipt.kind, durationMs: nativeRun ? receipt.timing.wallMs : receipt.durationMs,
+          full: receipt.full, environment: receipt.environment, node: nativeRun?.timing.node ?? null, reused: receipt.reused },
           selected: inWindow(receiptAt), conflicting: false });
       }
     }
@@ -137,7 +139,7 @@ export function eventMetrics(boardPath, { from, to }) {
     const duration = typeof receipt.durationMs === 'number' && Number.isFinite(receipt.durationMs) && receipt.durationMs > 0 ? receipt.durationMs : null;
     if (receipt.kind === 'submit') { submitPopulation += 1; if (duration !== null) submitDurations.push(duration); }
     if (receipt.full === true) { fullPopulation += 1; if (duration !== null) fullDurations.push(duration); }
-    if (typeof receipt.environment?.node === 'string') nodes.add(receipt.environment.node);
+    if (typeof (receipt.node ?? receipt.environment?.node) === 'string') nodes.add(receipt.node ?? receipt.environment.node);
     if (receipt.reused === true) reused += 1;
     else if (receipt.reused !== false) reuseUnknown += 1;
   }
@@ -161,7 +163,7 @@ export function eventMetrics(boardPath, { from, to }) {
       submitReceiptDuration: { ...distribution(submitDurations, submitPopulation), phaseMeaning: 'unknown; recorded receipt.durationMs only' },
       fullSuite: { ...distribution(fullDurations, fullPopulation), evidence: fullPopulation ? 'explicit receipt.full === true only' : 'missing explicit full-suite receipts' },
       reuse: { explicitReused: reused, unknown: reuseUnknown }, runtimeNodes: [...nodes].sort(),
-      qualification: 'recorded receipt duration phase meaning is unknown; neither total-run nor frozen-check duration is inferred; recorded runtime is executor metadata, deeper runtimes unknown' },
+      qualification: 'native timing.wallMs is admitted controller wall time, including executor preparation and command; overlapping shard attempts are not summed. Legacy receipt.durationMs phase meaning stays unknown. Native timing.node names the suite process; legacy runtime is executor metadata, deeper runtimes unknown' },
     unknown: { ...unknown, scope: 'invalid history anchors/deduplication inputs across the full recorded event table' },
   };
 }

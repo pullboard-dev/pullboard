@@ -6,6 +6,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { GitHubReleaseTransport, ReleaseTransportError, unpackReleaseReceipt } from '../src/release-transport.js';
+import { verifyHostedRelease } from '../src/release-hosted.js';
+import { releaseReceiptFields } from '../src/release-gate-receipt.js';
+import { releaseReceiptProblem } from '../src/release-gate-receipt.js';
 
 /** Supply explicit synthetic API observations; the envelope remains intentionally unvalidated by this transport. */
 function fixture() {
@@ -38,6 +41,26 @@ function fixture() {
 
 /** Register metadata and archive boundary controls, without running an actual workflow or contacting GitHub. */
 export function installReleaseTransportCases() {
+  test('hosted verifier keeps selected run binding and refuses synthetic transport through explicit services [C7,V4]', async () => {
+    for (const explicit of [false, true]) {
+      const f = fixture();
+      const selected = [];
+      const reads = [];
+      const services = {
+        releaseReceiptFields, releaseReceiptProblem, ReleaseTransportError,
+        latestGitHubReleaseRun: options => { selected.push(options); return f.options.runId; },
+        readGitHubReleaseReceipt: async options => { reads.push(options); return f.transport.read(options); },
+      };
+      const { repository, head, runId } = f.options;
+      await assert.rejects(() => verifyHostedRelease('/missing/synthetic-release-checkout',
+        { repository, head, ...(explicit ? { runId } : {}) }, services), error =>
+        error instanceof ReleaseTransportError && error.code === 'INVALID_RELEASE_RECEIPT'
+        && error.message === 'release evidence has no authenticated producer transport');
+      assert.deepEqual(selected, explicit ? [] : [{ repository, head }]);
+      assert.deepEqual(reads, [{ repository, head, runId }]);
+    }
+  });
+
   test('synthetic hosted metadata binds exact main producer latest attempt and server artifact id [C7,V4]', async () => {
     const f = fixture();
     const result = await f.transport.read(f.options);

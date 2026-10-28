@@ -20,9 +20,6 @@ import { sourceAdvanceEpisode } from './source-advance-state.js';
 import { sourceAdvanceChain } from './source-advance-state.js';
 import { sourceAdvanceVerdict } from './source-advance.js';
 import { itemPatchDigest } from './item-patch-state.js';
-import { boardReceiptStore } from './gate-run-receipt.js';
-import { readGateReceipt } from './gate-run-receipt.js';
-import { receiptBody } from './gate-run-receipt.js';
 import { mainPolicy } from './trusted-policy-read.js';
 import { frozenCheck } from './trusted-policy.js';
 import { git } from './git.js';
@@ -76,6 +73,7 @@ export function prepareSourceAdvance(root, board, item, composition, gate, basis
   const roles = [...(plan.criterion ? ['criterion'] : []), 'affected'];
   const ids = gate.proofReceiptIds.filter(Boolean);
   if (ids.length !== roles.length) throw new Refused('SOURCE_ADVANCE_PROOF', 'retain every actual frozen and affected phase receipt');
+  const { boardReceiptStore, readGateReceipt } = board.runtimePorts.sourceAdvanceReceipts;
   const phases = ids.map((id, index) => {
     const receipt = readGateReceipt(boardReceiptStore(board), id);
     const role = roles[index];
@@ -106,6 +104,7 @@ export function sealSourceAdvance(board, id, request) {
     throw new Refused('SOURCE_ADVANCE_STALE', 'the exact checked main changed or its native worker custody is unavailable');
   }
   requireNativeRoot(board, prepared.root);
+  const { boardReceiptStore, readGateReceipt, receiptBody } = board.runtimePorts.sourceAdvanceReceipts;
   for (const phase of prepared.proof.phases ?? []) {
     const stored = readGateReceipt(boardReceiptStore(board), phase.receipt.id);
     if (!stored || receiptBody(stored) !== receiptBody(phase.receipt)) throw new Refused('SOURCE_ADVANCE_PROOF', 'restore the unchanged gate-owned receipt before completing this source advance');
@@ -131,6 +130,7 @@ export function prepareSourceAdvanceReturn(root, board, item, basis, { compositi
     }
     const plan = sourceAdvancePlan(composition.directory, mainPolicy(root).config, { base: basis.inputHead, changed: composition.changed, check: frozenCheck(item) });
     const commands = [plan.criterion, plan.affected].filter(Boolean).map(sourceAdvanceHash);
+    const { boardReceiptStore, readGateReceipt } = board.runtimePorts.sourceAdvanceReceipts;
     const phases = (gate.proofReceiptIds ?? []).filter(Boolean).map(id => ({ receipt: readGateReceipt(boardReceiptStore(board), id) }));
     const failed = phases.map(phase => phase.receipt).find(receipt => receipt?.version === 2 && receipt.head === composition.head
       && receipt.tree === composition.tree && receipt.main === basis.trunk && receipt.proof.sourceClean

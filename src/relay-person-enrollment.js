@@ -1,13 +1,12 @@
 /** Deliver root-authenticated enrollments without adding unrestricted legacy roster authority [H15]. */
 import { authenticatePersonEnrollment } from './person-enrollment.js';
-import { relayPersonRoot } from './relay-machine.js';
 import { readBoardKey } from './relay-key.js';
 import { wrapDeviceBoardKey } from './relay-device-keys.js';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
 
-/** Verify the locally pinned root and current board before using its existing machine transport. */
-export async function deliverPersonEnrollments(state, io, send) {
+/** Verify the current board and caller-owned pin, reading it again before releasing any wrapped key. */
+export async function deliverPersonEnrollments(state, io, send, { relayPersonRoot }) {
   const pin = relayPersonRoot(state);
   if (!pin) return;
   const path = '/api/v1/devices/person-enrollments';

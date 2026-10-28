@@ -10,6 +10,8 @@ import {
   rememberHoldCondition,
 } from './conditional-holds.js';
 import { STALE_STATE_ENGINE } from './stale-state-engine.js';
+import { sealItemPatchSubmit } from './item-patch-submit.js';
+import { checkItemPatchSubmit } from './item-patch-submit.js';
 import * as rejectClause from './reject-clause.js';
 import { requireSourceAdvanceReview } from './source-advance-state.js';
 import { SOURCE_ADVANCE_ENGINE } from './source-advance-engine.js';
@@ -66,7 +68,7 @@ import { companionPlan } from './companion.js';
 import { itemPatchReviewProblem } from './item-patches.js';
 import { applyItemPatchAttachment } from './item-patches.js';
 import { applyItemPatchRemoval } from './item-patches.js';
-import { itemPatchResetFields } from './item-patches.js';
+import { invalidateItemPatch as applyItemPatchInvalidation } from './item-patches.js';
 export { itemPatches, itemPatchDigest } from './item-patches.js';
 import { applyCompanionRequest } from './companion.js';
 export { readBoardMembers, setBoardMembers } from './board-members.js';
@@ -788,17 +790,9 @@ function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}
   return item;
 }
 
-/** Return changed companion inputs to submitted through the same declared lifecycle as every status update. */
+/** Keep companion lifecycle changes on this board's canonical status writer. */
 function invalidateItemPatch(board, id, agentId) {
-  moveItem(board, id, 'patch', {
-    checks: {
-      joined: null,
-      [IN_STATE]: found => new Refused('ITEM_PATCH_STATE', `item #${id} is ${found.item_status}; attach only to submitted, unmerged work`),
-      coordinatorOnly: () => onlyCoordinator(agentId, 'changes companion inputs'),
-      notMerged: found => found.item_merged_commit ? new Refused('ALREADY_MERGED', 'file a follow-up for landed work') : null,
-    },
-    set: found => itemPatchResetFields(board, found, { reviewHolder }),
-  });
+  return applyItemPatchInvalidation(board, id, agentId, { moveItem, onlyCoordinator, inState: IN_STATE, getItem, reviewHolder });
 }
 
 /** Attach native bytes atomically, with lifecycle mutation confined to moveItem. */
@@ -1019,9 +1013,14 @@ export { prepareMergeOnlySubmit };
  * @param {{ agentId: string, commit: string, tree: string, files?: string[], policyCommit?: string, note?: string }} at - `files`: what the
  *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
-export function submit(board, id, { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, infra = null, gateGreen, mergeOnly: recordedCarry }) {
+export function submit(board, id, { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, infra = null, gateGreen, companion, mergeOnly: recordedCarry }) {
   let recordedProof;
   let recordedSize;
+  if (companion) {
+    const options = { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion };
+    if (board.executionEngineVersion === undefined) sealItemPatchSubmit(board, id, options);
+    else checkItemPatchSubmit(board, id, options);
+  }
   if (note !== undefined && (typeof note !== 'string' || !note.trim() || /[\r\n\u2028\u2029]/u.test(note))) {
     throw new Refused('USAGE', 'a submission note, when present, is one nonempty line');
   }
@@ -1092,7 +1091,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
       set: found => submissionItemValues(board, found, { agentId, commit, tree, files, carry, basis }),
     });
     recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra,
-      modern, gateGreen, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION });
+      modern, gateGreen, companion, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION });
   });
 }
 

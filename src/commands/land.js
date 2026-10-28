@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { codeIsFromMain } from '../git.js';
 import { syncRelay } from '../relay.js';
 /** The pullboard land command, in its own module so an item adding another command never edits these lines. */
@@ -54,6 +55,7 @@ export async function run(io, { first, second, rest, values }) {
     await (await import('../main-audit-state.js')).activateMainAudits(ctx.info.root, afterEventId, store.boardId(board));
   }
   const result = await land({ root: ctx.info.root, board,
+    landingWorkerFile: fileURLToPath(new URL('../../bin/landing-worker.js', import.meta.url)),
     write: (operation, parameters) => ordered(ctx, board, operation, parameters), refresh: () => syncRelay(ctx.info.root, io), say: io.say, owner: agentSessionDigest() ?? `pid-${process.pid}`,
     maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), due: Boolean(values.due), onWait: gateWaitReporter(io) });
   io.result?.(result);

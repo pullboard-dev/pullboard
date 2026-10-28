@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { counterProofStats } from './proof-counter-read.js';
 import { viewFlowSummary } from './view-state-summary.js';
 import { proofStats } from './stats.js';
@@ -7,6 +8,7 @@ import { fileRevision } from './native-board-state.js';
 import { WHOLE_STATE_DELTA_FIELDS } from './api-delta-fields.js';
 import { nativeStateClockMatches } from './native-state-clock.js';
 import {
+  dependencyValues,
   localDependencyIds,
 } from './item-dependencies.js';
 /** The local API v1: the CLI's moves, persistent board identities and live events (A2). */
@@ -71,11 +73,6 @@ import {
 import { Refused } from './refused.js';
 import { verdictProjector } from './verdict-freshness.js';
 import { trunkRevisionReader } from './trunk-revision.js';
-import {
-  codeAt,
-  projectItemState,
-  projectState,
-} from './serve.js';
 import { relayPresentationShout } from './relay-presentation.js';
 import { createApiHandler } from './api-http.js';
 import { settingsInventory } from './settings-inventory.js';
@@ -83,7 +80,7 @@ import { performanceCores } from './gate.js';
 import {
   defaultViewPort,
   DEFAULT_VIEW_PORT,
-} from './view-port.js';
+} from './config.js';
 import { moveArgs } from './api-moves.js';
 import { personRequestStatuses } from './relay-requests.js';
 import { relayCanaryNeeds } from './relay-canary-needs.js';
@@ -1138,3 +1135,95 @@ export function serveApi({ port = 0, secret = randomBytes(18).toString('base64ur
     });
   });
 }
+
+/**
+ * One verdict as the page shows it.
+ *
+ * @param {any} row A verdict row from store.verdictsFor.
+ * @returns {{ decision: any, reason: any, note: any, by: any, at: any, commit: any }}
+ */
+function verdictOf(row) {
+  return { decision: row.verdict_decision, reason: row.verdict_reason, note: row.verdict_note, by: row.verdict_by, at: row.verdict_at, commit: row.verdict_commit };
+}
+
+/**
+ * One item as the page and the API show it (A2, N26): its fields, its verdicts, the items it waits on that are not yet
+ * verified, and its full history. The API projects one item's detail with it, without building the whole state, so
+ * the page and the API never word an item two ways. It only reads: it returns a fresh object and changes neither the
+ * row nor the map.
+ *
+ * @param {any} board
+ * @param {any} item The item's current row, as store.listItems reads it.
+ * @param {Map<number, string>} status Every current item's status by its id.
+ * @returns {any}
+ */
+export function projectItemState(board, item, status) {
+  const verdicts = store.verdictsFor(board, item.item_id).map(verdictOf);
+  const after = dependencyValues(item);
+  const foreign = new Map(store.foreignDependencyStates(board, item).map(ref => [`${ref.repo}#${ref.id}`, ref.status]));
+  return {
+    id: item.item_id,
+    title: item.item_title,
+    lane: item.item_lane,
+    status: item.item_status,
+    route: item.item_route,
+    owner: item.item_owner,
+    // Who holds the review under a live lease (V15), by the board's own rule.
+    reviewer: store.reviewHolder(board, item),
+    reviewUntil: item.item_review_until ?? null,
+    builtBy: item.item_built_by,
+    verifiedBy: item.item_verified_by,
+    specs: item.item_spec_ids ? item.item_spec_ids.split(',') : [],
+    criterion: item.item_criterion,
+    brief: item.item_brief,
+    commit: item.item_commit,
+    merged: item.item_merged_commit,
+    blockedBy: after.filter((id) => (typeof id === 'number' ? status.get(id) : foreign.get(id)) !== 'verified'),
+    updatedAt: item.item_updated_at,
+    verdict: verdicts.at(-1) ?? null,
+    verdicts,
+    history: store.events(board, { itemId: item.item_id }).map((event) => ({ kind: event.event_kind, by: event.event_by, at: event.event_at })),
+  };
+}
+
+/** The most lines one code reference shows (B23). */
+const CODE_LINES = 60;
+/** The largest file a code reference reads, in bytes. */
+const CODE_BYTES = 2_000_000;
+
+/**
+ * The lines a shout's path:lines@commit reference names, as they were at that commit (B23). Git
+ * alone reads them, from the commit's own tree: never the working tree, never a path outside the
+ * repo, never a revision that is not a plain SHA, never lines past the file's end, and never more
+ * than CODE_LINES lines. A reference is one word, so the text written before it on its line may be
+ * the start of a longer path that ends in this one: when the commit holds such a file, the reference
+ * may mean it, and it is refused rather than opened as a different file.
+ *
+ * @param {string} root
+ * @param {{ path: string, from: number, to: number, commit: string, before?: string }} ref
+ * @returns {{ path: string, commit: string, from: number, to: number, lines: string[], more: boolean }}
+ */
+export function codeAt(root, { path, from, to, commit, before = '' }) {
+  if (!/^[0-9a-f]{7,40}$/.test(commit)) throw new Refused('BAD_REF', `name the commit by its SHA, 7 to 40 hex digits (saw "${commit}")`);
+  if (!/^[\w.-]+(?:\/[\w.-]+)*$/.test(path) || path.split('/').some((part) => part === '.' || part === '..')) {
+    throw new Refused('BAD_REF', `name a file inside the repo by its path from the top, such as src/serve.js (saw "${path}")`);
+  }
+  if (!(Number.isInteger(from) && Number.isInteger(to) && from >= 1 && to >= from)) throw new Refused('BAD_REF', 'name the lines as 12, or 12-30');
+  const full = resolveCommit(root, commit);
+  if (!full) throw new Refused('NO_COMMIT', `no commit ${commit} in this repo`);
+  const object = `${full}:${path}`;
+  const type = spawnSync('git', ['cat-file', '-t', object], { cwd: root, encoding: 'utf8' });
+  if (type.status !== 0 || type.stdout.trim() !== 'blob') throw new Refused('NO_FILE', `no file ${path} at ${commit}`);
+  const written = `${before}${path}`;
+  const names = spawnSync('git', ['ls-tree', '-r', '-z', '--name-only', full], { cwd: root, encoding: 'utf8', maxBuffer: 64_000_000 }).stdout.split('\0');
+  const longer = names.find((name) => name.length > path.length && name.endsWith(path) && written.endsWith(name));
+  if (longer) throw new Refused('AMBIGUOUS', `the text before it may make it "${longer}", which a reference cannot name`);
+  const size = Number(spawnSync('git', ['cat-file', '-s', object], { cwd: root, encoding: 'utf8' }).stdout);
+  if (!(size <= CODE_BYTES)) throw new Refused('TOO_LARGE', `${path} is over ${CODE_BYTES / 1_000_000} MB, too large to show`);
+  const lines = spawnSync('git', ['cat-file', 'blob', object], { cwd: root, encoding: 'utf8', maxBuffer: CODE_BYTES + 1 }).stdout.split('\n');
+  if (lines.at(-1) === '') lines.pop();
+  if (to > lines.length) throw new Refused('NO_LINES', `${path} has ${lines.length} lines at ${commit}`);
+  const last = Math.min(to, from + CODE_LINES - 1);
+  return { path, commit: full, from, to: last, lines: lines.slice(from - 1, last), more: last < to };
+}
+

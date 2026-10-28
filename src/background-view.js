@@ -25,7 +25,7 @@ import {
   HOSTED_ORIGIN,
   LOOPBACK,
 } from './serve.js';
-import { defaultViewPort } from './view-port.js';
+import { defaultViewPort } from './config.js';
 import {
   portHolder,
   runningView,
