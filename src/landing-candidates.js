@@ -79,7 +79,7 @@ export async function runLandingCandidateWorker(options, { write, checkLease, sa
 }
 
 /** Execute only through an owned IPC channel; a candidate can ask its parent, never publish. */
-function candidateMain(options, { checkAtCommit }) {
+function candidateMain(options, { checkAtCommit, landingPorts }) {
   let next = 0;
   const pending = new Map();
   /** Ask the current landing owner to fence and acknowledge one operation. */
@@ -113,7 +113,7 @@ function candidateMain(options, { checkAtCommit }) {
     if (!board) throw new Refused('LAND_CANDIDATE', 'the candidate cannot read its landing board; restore it before adopting');
     try {
       const { runLandingCandidate } = await import('./land.js');
-      return await runLandingCandidate({ ...options, board, checkAtCommit,
+      return await runLandingCandidate({ ...options, board, checkAtCommit, landingPorts,
         write: (operation, args) => call(operation, args),
         claimGate: (tree, plan) => call('claimGate', [tree, plan]),
         finishGate: (tree, gate) => call('finishGate', [tree, gate]),
@@ -131,13 +131,13 @@ function candidateMain(options, { checkAtCommit }) {
 }
 
 /** Enter only from the literal bin composition under the original candidate IPC guard. */
-export function landingCandidateEntry({ checkAtCommit }) {
+export function landingCandidateEntry({ checkAtCommit, landingPorts }) {
   if (!process.send || process.argv[2] !== 'candidate') return;
   let started = false;
   process.on('disconnect', () => { if (!started) process.exitCode = 1; });
   process.once('message', message => {
     if (message.type !== 'start') { process.disconnect(); return; }
     started = true;
-    candidateMain(message.options, { checkAtCommit });
+    candidateMain(message.options, { checkAtCommit, landingPorts });
   });
 }

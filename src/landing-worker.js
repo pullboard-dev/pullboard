@@ -11,14 +11,13 @@ import {
   repoInfo,
 } from './git.js';
 import { Refused } from './refused.js';
-import { parseProcessCensus } from './process-census.js';
 
 
 /** Preserve one typed refusal prefix while passing it through more than one process. */
 function messageText(error) { return String(error.message).replace(/^\[[A-Z][A-Z0-9_]*\] /u, ''); }
 
 /** Read process identities before attributing a live worker or its detached gate descendants. */
-function census() {
+function census(parseProcessCensus) {
   try {
     const result = spawnSync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,lstart=,stat=,comm='], { encoding: 'utf8', env: { ...process.env, LC_ALL: 'C', TZ: 'UTC' } });
     if (result.status !== 0) return null;
@@ -29,7 +28,7 @@ function census() {
 }
 
 /** Stop owned descendants and their group; optional observers exercise census races without signaling foreign processes. */
-export function stop(child, member, { read = census, kill = process.kill, log = stopNotice } = {}) {
+export function stop(child, member, { parseProcessCensus, read = () => census(parseProcessCensus), kill = process.kill, log = stopNotice } = {}) {
   if (!child.pid) return;
   const rows = read();
   const root = rows?.get(child.pid);
@@ -75,7 +74,9 @@ function stopNotice(message) { process.stderr.write(message + '\n'); }
 function runningGroup(rows, pgid) { return [...rows.values()].some(row => row.pgid === pgid && !row.state.startsWith('Z')); }
 
 /** Run blocking batch work under a live parent that owns all canonical writes and lease renewal. */
-export async function runLandingWorker(options, { write, checkLease, checkLeaseNow, bindWorker, watchDeadline, onWait, say, signal, workerFile }) {
+export async function runLandingWorker(options, { write, checkLease, checkLeaseNow, bindWorker, watchDeadline, onWait, say, signal, workerFile, parseProcessCensus }) {
+  if (typeof parseProcessCensus !== 'function') throw new TypeError('landing worker needs the explicit process census parser');
+  const read = () => census(parseProcessCensus);
   const child = spawn(process.execPath, [workerFile, 'guardian'], { cwd: options.root, env: process.env, detached: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
   const inFlight = new Set();
   let result;
@@ -85,7 +86,7 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
   const unwatch = watchDeadline(until => { if (child.connected) child.send({ type: 'deadline', until }, () => {}); });
   child.stderr.setEncoding('utf8').on('data', part => { stderr = (stderr + part).slice(-65536); });
   /** A failed authority check stops the whole owned group before another command can adopt its worktree. */
-  const abort = () => { failure ??= signal.reason; stop(child, member); };
+  const abort = () => { failure ??= signal.reason; stop(child, member, { read }); };
   signal.addEventListener('abort', abort, { once: true });
   /** Reply only over this owned child's channel, preserving the original typed refusal. */
   const answer = (id, value, error) => {
@@ -94,13 +95,13 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
   };
   child.on('message', message => {
     if (message.type === 'worker') {
-      if (signal.aborted || failure) { stop(child, member); return; }
+      if (signal.aborted || failure) { stop(child, member, { read }); return; }
       try { checkLeaseNow(); }
-      catch (error) { failure = error; stop(child, member); return; }
-      const row = census()?.get(message.pid);
+      catch (error) { failure = error; stop(child, member, { read }); return; }
+      const row = read()?.get(message.pid);
       if (!row || row.ppid !== child.pid || row.pgid !== child.pid) {
         failure = new Refused('LAND_WORKER', 'the landing worker identity could not be confirmed; inspect pullboard resume before adopting');
-        stop(child);
+        stop(child, undefined, { read });
         return;
       }
       member = row;
@@ -131,7 +132,7 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
       child.once('exit', (code, terminatedBy) => {
         if (code !== 0 || terminatedBy || result === undefined) {
           failure ??= new Refused('LAND_WORKER', 'the landing guardian stopped unexpectedly; inspect pullboard resume before adopting');
-          stop(child, member);
+          stop(child, member, { read });
         }
       });
       child.once('close', (code, terminatedBy) => resolveClose({ code, signal: terminatedBy }));
@@ -147,7 +148,7 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
   } finally {
     signal.removeEventListener('abort', abort);
     unwatch();
-    if (child.exitCode === null && child.signalCode === null) stop(child, member);
+    if (child.exitCode === null && child.signalCode === null) stop(child, member, { read });
     await Promise.allSettled(inFlight);
   }
 }
@@ -175,7 +176,7 @@ function channel(group) {
 }
 
 /** Enter batch execution only through the parent's private process channel. */
-async function workerMain(options, { checkAtCommit, candidateWorkerFile }) {
+async function workerMain(options, { checkAtCommit, candidateWorkerFile, landingPorts }) {
   const pipe = channel(options.guardianPid);
   const { call } = pipe;
   const board = store.openBoard(join(repoInfo(options.root).commonDir, 'pullboard', 'board.sqlite'));
@@ -183,7 +184,7 @@ async function workerMain(options, { checkAtCommit, candidateWorkerFile }) {
     const { runLandingBatch } = await import('./land.js');
     /** Canonical catch-up may have moved proof or trunk while the request was in flight. */
     const checkLease = async () => { await call('check'); invalidateGitFacts(); assertWorkerFence(board, options.fence, options.root); };
-    const result = await runLandingBatch({ ...options, board, checkAtCommit, candidateWorkerFile, write: (operation, args) => call(operation, args),
+    const result = await runLandingBatch({ ...options, board, checkAtCommit, candidateWorkerFile, landingPorts, write: (operation, args) => call(operation, args),
       say: text => process.send({ type: 'say', text }), onWait: state => call('wait', [state]), checkLease,
       checkLeaseNow: () => assertWorkerFence(board, options.fence, options.root) });
     pipe.finish({ type: 'result', value: result });
@@ -204,7 +205,7 @@ function assertWorkerFence(board, fence, root) {
 import { assertLandingLease } from './board-landing-lease.js';
 
 /** A nonblocking guardian survives CLI death and stops its own whole group, even while the worker is synchronous. */
-function guardianMain({ workerFile }) {
+function guardianMain({ workerFile, parseProcessCensus }) {
   let worker;
   let finished = false;
   let closed = false;
@@ -215,8 +216,8 @@ function guardianMain({ workerFile }) {
   const expire = () => {
     if (finished || expiring) return;
     expiring = true;
-    if (process.connected) process.send({ type: 'failure', code: 'LAND_LEASE_LOST', message: 'the guardian stopped its owned worker before the acknowledged landing lease expired' }, () => stop({ pid: process.pid }));
-    else stop({ pid: process.pid });
+    if (process.connected) process.send({ type: 'failure', code: 'LAND_LEASE_LOST', message: 'the guardian stopped its owned worker before the acknowledged landing lease expired' }, () => stop({ pid: process.pid }, undefined, { parseProcessCensus }));
+    else stop({ pid: process.pid }, undefined, { parseProcessCensus });
   };
   const watchdog = setInterval(() => { if (deadline && Date.now() >= deadline - 1500) expire(); }, 100);
   /** Flush result and refusal messages before ending this private channel normally. */
@@ -255,14 +256,15 @@ function guardianMain({ workerFile }) {
       worker.send({ type: 'start', options: message.options });
     } else if (worker?.connected) worker.send(message, () => {});
   });
-  process.once('disconnect', () => { if (!finished) stop({ pid: process.pid }); });
+  process.once('disconnect', () => { if (!finished) stop({ pid: process.pid }, undefined, { parseProcessCensus }); });
 }
 
 /** Enter only from the literal bin composition, retaining the original private IPC modes. */
-export function landingWorkerEntry({ checkAtCommit, workerFile, candidateWorkerFile }) {
+export function landingWorkerEntry({ checkAtCommit, workerFile, candidateWorkerFile, landingPorts, parseProcessCensus }) {
   if (!process.send) return;
-  if (process.argv[2] === 'guardian') guardianMain({ workerFile });
+  if (['guardian', 'worker'].includes(process.argv[2]) && typeof parseProcessCensus !== 'function') throw new TypeError('landing IPC entry needs the explicit process census parser');
+  if (process.argv[2] === 'guardian') guardianMain({ workerFile, parseProcessCensus });
   else if (process.argv[2] === 'worker') process.once('message', message => {
-    if (message.type === 'start') void workerMain(message.options, { checkAtCommit, candidateWorkerFile });
+    if (message.type === 'start') void workerMain(message.options, { checkAtCommit, candidateWorkerFile, landingPorts });
   });
 }

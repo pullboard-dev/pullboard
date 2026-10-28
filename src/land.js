@@ -45,10 +45,6 @@ import {
 } from 'node:path';
 import * as store from './board.js';
 import {
-  badgeCounts,
-  writeBadges,
-} from './badge.js';
-import {
   git,
   headCommit,
   headTree,
@@ -104,10 +100,6 @@ import {
   validateLandingRevision,
 } from './submit-invariants.js';
 import {
-  flakeSource,
-  observeNativeFailure,
-} from './native-flakes.js';
-import {
   staleVerdictRefusal,
   verdictProjector,
 } from './verdict-freshness.js';
@@ -128,11 +120,11 @@ function testBlob(root, commit, file) {
 }
 
 /** A test defect holds every batch on its trunk until the committed test changes or every failure is waived. */
-function heldTestDefects(root, board, trunk) {
+function heldTestDefects(root, board, trunk, landingPorts) {
   return store.landingTestDefects(board).filter(defect => {
     if (defect.branch !== trunk.branch) return false;
     const blob = testBlob(root, trunk.commit, defect.test);
-    return !(blob && blob !== defect.blob && blob !== defect.trunkBlob) && !defect.names.every(name => store.landingWaiverFor(board, { file: defect.test, name }));
+    return !(blob && blob !== defect.blob && blob !== defect.trunkBlob) && !defect.names.every(name => store.landingWaiverFor(board, { file: defect.test, name }, landingPorts));
   });
 }
 
@@ -193,7 +185,7 @@ function landingEntry(item) {
 }
 
 /** Select in verdict order; a read-only preflight may stop at its first eligible item [B3,R3]. */
-function candidates(board, root, base, maximum, { firstReady = false } = {}) {
+function candidates(board, root, base, maximum, { firstReady = false, landingPorts } = {}) {
   const all = store.listItems(board, { all: true });
   const projector = verdictProjector(root, board, { main: base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
   const pending = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit);
@@ -222,7 +214,7 @@ function candidates(board, root, base, maximum, { firstReady = false } = {}) {
     if (stale) { blocked.push({ id: item.item_id, ...stale }); continue; }
     const known = knownReds.find((entry) => entry.id === item.item_id && entry.commit === item.item_commit
       && (entry.reviewedCommit ?? entry.commit) === item.item_landing_commit);
-    if (known && !known.tests.every((failure) => store.landingWaiverFor(board, failure))) {
+    if (known && !known.tests.every((failure) => store.landingWaiverFor(board, failure, landingPorts))) {
       blocked.push({ id: item.item_id, code: 'LAND_KNOWN_RED', tests: known.tests });
       continue;
     }
@@ -322,7 +314,7 @@ async function mergeGroup(state, items) {
     merged.push({ id: item.item_id, commit: item.item_commit, ...(checked !== item.item_commit ? { reviewedCommit: checked } : {}), merge: first });
   }
   if (merged.length) {
-    const changed = writeBadges(batch.root, badgeCounts(state.board));
+    const changed = state.landingPorts.writeBadges(batch.root, state.landingPorts.badgeCounts(state.board));
     if (changed.length) {
       git(batch.root, ['add', '--', ...changed]);
       const tip = headCommit(batch.root);
@@ -420,7 +412,7 @@ function completeGate(gate) {
 
 /** Whether current person waivers cover every named failure of this exact recorded run. */
 function coveredFailures(state, gate) {
-  return gate.failures.length > 0 && gate.failures.every((failure) => failure.file && store.landingWaiverFor(state.board, failure));
+  return gate.failures.length > 0 && gate.failures.every((failure) => failure.file && store.landingWaiverFor(state.board, failure, state.landingPorts));
 }
 
 /** Record the receipt the landing gate wrote for its run, in the lane that owns its first failing test [C7,D1]. */
@@ -475,8 +467,8 @@ async function gateGroup(state, label, options) {
   mkdirSync(directory, { recursive: true });
   const logPath = join(directory, `${label}-${state.batch.revision}.log`);
   await save(state, { state: 'gating', tip: headCommit(state.batch.root), logPath });
-  const pin = flakeSource(state.batch.root, { commit, main: state.batch.base });
-  const onFailure = Object.assign((run, { root, command, lease }) => observeNativeFailure({ root, config, pin, run, command, lease, kind: 'land', checkAtCommit: state.checkAtCommit,
+  const pin = state.landingPorts.flakeSource(state.batch.root, { commit, main: state.batch.base });
+  const onFailure = Object.assign((run, { root, command, lease }) => state.landingPorts.observeNativeFailure({ root, config, pin, run, command, lease, kind: 'land', checkAtCommit: state.checkAtCommit,
     record: observation => {
       const owner = observation.file ? laneOf(state.config, observation.file) : 'coordinator';
       const lane = owner === 'coordinator' ? store.getItem(state.board, state.batch.items[0].id).item_lane : owner;
@@ -484,9 +476,9 @@ async function gateGroup(state, label, options) {
     } }), { main: pin.main, recordRun: receiptId => recordLandingRun(state, receiptId) });
   const gate = subset
     ? await runLocalLandingGuard(state.batch.root, config, { files, directory, label, onWait: state.onWait,
-      waivers: liveWaiverProjection(state.board), onFailure })
+      waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure })
     : await runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, agent: 'coordinator', onWait: state.onWait,
-      stages: true, waivers: liveWaiverProjection(state.board), onFailure });
+      stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure });
   copyFileSync(gate.log, logPath);
   if (gate.profilePath) copyFileSync(gate.profilePath, `${logPath}.profile.json`);
   if (headCommit(state.batch.root) !== commit || headTree(state.batch.root) !== tree || !isClean(state.batch.root)) {
@@ -514,7 +506,8 @@ async function gateGroup(state, label, options) {
 }
 
 /** Merge and test one speculative prefix without giving its worker publication authority. */
-export async function runLandingCandidate({ root, board, config, batch, entries, write, say, onWait, checkLease, checkLeaseNow, claimGate, finishGate, checkAtCommit }) {
+export async function runLandingCandidate({ root, board, config, batch, entries, write, say, onWait, checkLease, checkLeaseNow, claimGate, finishGate, checkAtCommit, landingPorts }) {
+  landingPorts = landingOperations(landingPorts);
   await checkLease();
   if (!existsSync(batch.root)) {
     mkdirSync(dirname(batch.root), { recursive: true });
@@ -522,7 +515,7 @@ export async function runLandingCandidate({ root, board, config, batch, entries,
     git(root, ['worktree', 'add', '--detach', batch.root, batch.base]);
   }
   board.quarantineEnabled = () => config.flakes?.quarantine === true;
-  const state = { root, board, config, batch, write, say, onWait, checkLease, checkLeaseNow, checkAtCommit,
+  const state = { root, board, config, batch, write, say, onWait, checkLease, checkLeaseNow, checkAtCommit, landingPorts,
     culprits: [], flaky: false, gates: new Map(), diagnosed: new Map() };
   const build = await mergeGroup(state, entries);
   await save(state, { ...build });
@@ -564,10 +557,10 @@ async function parallelPrefixes(state, entries) {
     serial = pending.catch(() => {});
     return pending;
   };
-  const counts = badgeCounts(state.board);
+  const counts = state.landingPorts.badgeCounts(state.board);
   const groups = entries.map((_, index) => entries.slice(0, index + 1));
   const descriptors = groups.map(group => {
-    const key = createHash('sha256').update(JSON.stringify(['affected-gate-v1', state.batch.base, group, counts, liveWaiverProjection(state.board)])).digest('hex');
+    const key = createHash('sha256').update(JSON.stringify(['affected-gate-v1', state.batch.base, group, counts, liveWaiverProjection(state.board, state.landingPorts)])).digest('hex');
     const previous = state.batch.parallelCandidates?.find(candidate => candidate.key === key);
     if (previous) {
       if (previous.gate) state.gates.set(previous.gate.tree, previous.gate);
@@ -903,16 +896,16 @@ function pipelineFailures(components, root) {
  * Pair every named failure of a red run with the live person waiver covering it, or return null.
  * One unnamed, unfiled or unwaived failure voids the whole run, so a waiver never hides another red [B3,R3].
  */
-export function waivedFailures(board, failures) {
+export function waivedFailures(board, failures, landingPorts) {
   if (!Array.isArray(failures) || !failures.length || failures.some((entry) => !entry.file)) return null;
-  const covered = failures.map((failure) => ({ ...failure, waiver: store.landingWaiverFor(board, failure) }));
+  const covered = failures.map((failure) => ({ ...failure, waiver: store.landingWaiverFor(board, failure, landingPorts) }));
   return covered.every((entry) => entry.waiver) ? covered : null;
 }
 
 /** Project the live person waivers a landing run may read, so it does not stop early on one [B3]. */
-export function liveWaiverProjection(board) {
+export function liveWaiverProjection(board, landingPorts) {
   const now = board.clock.now().getTime();
-  return store.landingWaivers(board).filter((waiver) => Date.parse(waiver.until) > now)
+  return store.landingWaivers(board, landingPorts).filter((waiver) => Date.parse(waiver.until) > now)
     .map((waiver) => ({ kind: waiver.kind ?? store.landingWaiverKind(waiver.test), test: waiver.test }));
 }
 
@@ -926,7 +919,7 @@ export function waiverLine(failure) {
 /** Record every failure's exact live waiver rather than changing which tests the gate runs. */
 function waivedProof(state, gate) {
   if (!completeGate(gate) || gate.requiresGreen) return null;
-  const failures = waivedFailures(state.board, gate.accounted);
+  const failures = waivedFailures(state.board, gate.accounted, state.landingPorts);
   return failures ? { tree: gate.tree, failures: failures.map((entry) => ({ ...entry, waiver: entry.waiver.id })), logPath: gate.logPath } : null;
 }
 
@@ -1066,7 +1059,7 @@ function publicationInputs(state, batch) {
       throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed its checked composition; rebuild the landing before publishing`);
     }
   }
-  if (batch.proof?.failures?.some(failure => !store.landingWaiverFor(state.board, failure))) throw new Refused('LAND_WAIVER', 'the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver, then adopt the batch');
+  if (batch.proof?.failures?.some(failure => !store.landingWaiverFor(state.board, failure, state.landingPorts))) throw new Refused('LAND_WAIVER', 'the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver, then adopt the batch');
   if (headCommit(batch.root) !== batch.tip || !isClean(batch.root) || untracked(batch.root).length) throw new Refused('LAND_MOVED', 'the gated landing tree changed; inspect the batch and adopt it again');
   if (mainCheckout(state.root)?.commit !== batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved during the landing; rebuild the batch from its new tip');
 }
@@ -1100,7 +1093,7 @@ async function publish(state) {
   requireLandingCarries(state, batch);
   const remote = requirePushTarget(state.root, batch.branch);
   if (batch.proof?.failures?.length && batch.state !== 'pushed') {
-    const failures = batch.proof.failures.map((failure) => ({ ...failure, waiver: store.landingWaiverFor(state.board, failure)?.id }));
+    const failures = batch.proof.failures.map((failure) => ({ ...failure, waiver: store.landingWaiverFor(state.board, failure, state.landingPorts)?.id }));
     if (!failures.every((failure) => failure.waiver)) throw new Refused('LAND_WAIVER', 'the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver, then adopt the batch');
     batch = await save(state, { proof: { ...batch.proof, failures } });
   }
@@ -1262,8 +1255,16 @@ function requireParallelGateAdmission(root, config) {
   }
 }
 
+/** Validate and snapshot process-local providers before any landing admission or worker action. */
+function landingOperations(ports) {
+  const names = ['badgeCounts', 'writeBadges', 'flakeSource', 'observeNativeFailure', 'quarantineWaivers', 'parseProcessCensus'];
+  if (!names.every(name => typeof ports?.[name] === 'function')) throw new TypeError('landing needs explicit canonical operation ports');
+  return Object.freeze(Object.fromEntries(names.map(name => [name, ports[name]])));
+}
+
 /** Build, gate, diagnose and durably land one coordinator batch; all external actions stay in its worktree. */
 export async function land(options) {
+  options = { ...options, landingPorts: landingOperations(options.landingPorts) };
   if (options.dryRun) return runLandingBatch(options);
   invalidateGitFacts();
   const trunk = mainCheckout(options.root);
@@ -1286,7 +1287,7 @@ export async function land(options) {
     // Only accepted trunk policy may inform this read-only preflight.
     const config = policyAt(options.root, trunk.commit).config;
     options.board.quarantineEnabled = () => config.flakes?.quarantine === true;
-    const selected = candidates(options.board, options.root, trunk.commit, options.maximum ?? Infinity, { firstReady: true });
+    const selected = candidates(options.board, options.root, trunk.commit, options.maximum ?? Infinity, { firstReady: true, landingPorts: options.landingPorts });
     invalidateGitFacts();
     const current = mainCheckout(options.root);
     if (!selected.ready.length && current?.commit === trunk.commit && current.branch === branch
@@ -1324,7 +1325,7 @@ export async function land(options) {
       adopt: options.adopt, due: options.due, fence: lease.fence };
     if (batchOptions.maximum === null) delete batchOptions.maximum;
     return await runLandingWorker(batchOptions, { write, checkLease, checkLeaseNow: lease.assertCurrent,
-      bindWorker: lease.bindWorker, watchDeadline: lease.watchDeadline, onWait: options.onWait, say: options.say, signal: controller.signal, workerFile: options.landingWorkerFile });
+      bindWorker: lease.bindWorker, watchDeadline: lease.watchDeadline, onWait: options.onWait, say: options.say, signal: controller.signal, workerFile: options.landingWorkerFile, parseProcessCensus: options.landingPorts.parseProcessCensus });
   } catch (error) { failed = true; throw error; }
   finally {
     try { await lease.release(); }
@@ -1336,7 +1337,8 @@ export async function land(options) {
 }
 
 /** Select only after admission, retaining the existing batch, proof and adoption rules. */
-export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, candidateWorkerFile }) {
+export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, candidateWorkerFile, landingPorts }) {
+  landingPorts = landingOperations(landingPorts);
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
   if (!dryRun && trunk?.commit) requirePublishGreen(root, board, policyAt(root, trunk.commit).config);
@@ -1356,13 +1358,13 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   if (!dryRun) requireParallelGateAdmission(root, config);
   board.quarantineEnabled = () => config.flakes?.quarantine === true;
   const environment = dryRun ? null : requireLandingHost(store.boardId(board), config);
-  const testDefects = heldTestDefects(root, board, trunk);
+  const testDefects = heldTestDefects(root, board, trunk, landingPorts);
   if (!dryRun && testDefects.length) throw new Refused('LAND_TEST_DEFECT', `this trunk is held by ${testDefects.map(defect => `#${defect.item} (${defect.test})`).join(', ')}; correct the committed test or ask an approver for an expiring waiver`);
   if ((!dryRun || due) && !adopt && !unfinished) {
     const deferred = cadenceDeferral(board, config, trunk.branch, say, due);
     if (deferred) return deferred;
   }
-  const selected = candidates(board, root, trunk.commit, maximum);
+  const selected = candidates(board, root, trunk.commit, maximum, { landingPorts });
   if (!dryRun) for (const item of selected.ready) requireOutsideOwner(board, item);
   checkLandingMessages(selected.ready, landingContext(root, trunk.commit, config, (item) => item.item_landing_commit));
   const stale = selected.blocked.find(item => item.code === 'STALE_VERDICT');
@@ -1384,7 +1386,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     const held = (batch.flakes ?? []).filter((flake) => {
       const corrected = batch.base !== trunk.commit && testHash(root, flake.test) !== null && testHash(root, flake.test) !== flake.hash;
       const failures = (batch.failures ?? []).filter((failure) => failure.file === flake.test);
-      return !corrected && (!failures.length || !failures.every((failure) => store.landingWaiverFor(board, failure)));
+      return !corrected && (!failures.length || !failures.every((failure) => store.landingWaiverFor(board, failure, landingPorts)));
     });
     if (held.length) throw new Refused('LAND_FLAKE', `batch ${batch.id} is held by ${held.map((entry) => entry.test).join(', ')}; fix the test or ask the person for an expiring waiver; nothing retries`);
   }
@@ -1406,7 +1408,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     mkdirSync(directory, { recursive: true });
     git(root, ['worktree', 'add', '--detach', batch.root, batch.base]);
   }
-  const state = { root, board, config, write, say, onWait, checkLease, checkLeaseNow, fence, batch, checkAtCommit, candidateWorkerFile, culprits: batch.culprits ?? [], flaky: false, gates: new Map((batch.gateResults ?? []).map((result) => [result.tree, result])), diagnosed: new Map((batch.diagnostics ?? []).map((result) => [result.test, result.isGreen])) };
+  const state = { root, board, config, write, say, onWait, checkLease, checkLeaseNow, fence, batch, checkAtCommit, candidateWorkerFile, landingPorts, culprits: batch.culprits ?? [], flaky: false, gates: new Map((batch.gateResults ?? []).map((result) => [result.tree, result])), diagnosed: new Map((batch.diagnostics ?? []).map((result) => [result.test, result.isGreen])) };
   try {
     await save(state, { owner });
     await returnCulprits(state);
