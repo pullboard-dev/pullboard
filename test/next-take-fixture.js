@@ -27,16 +27,16 @@ import { submitFixture } from './board-submit-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 
 /** Run the actual command parser and operation pipeline against this fixture's clock. */
-export async function cli(box, cwd, args) {
+export async function cli(box, cwd, args, hooks = {}) {
   let out = '', err = '';
-  const code = await main([...args, '--json'], { cwd, clock: box.clock,
+  const code = await main([...args, '--json'], { ...hooks, cwd, clock: box.clock,
     stdout: { isTTY: false, write: part => { out += part; } },
     stderr: { write: part => { err += part; } } });
   return { code, out, err, document: out.trim() ? JSON.parse(out) : null };
 }
 
 /** Isolate real worktrees and shared SQLite; only the explicitly injected clock advances time. */
-export async function fixture(t, { route = 'strong', family = 'off', policy = 'any', mainRed = false } = {}) {
+export async function fixture(t, { route = 'strong', family = 'off', policy = 'any', files = {}, mainRed = false } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-next-take-')));
   const root = join(directory, 'repo');
   mkdirSync(root);
@@ -66,6 +66,10 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
     writeFileSync(join(root, 'test/main-red.test.js'), `import { test } from 'node:test';\nimport assert from 'node:assert/strict';\ntest('current main is actually red [G1]', () => assert.equal(1, 2));\n`);
   }
   writeFileSync(join(root, 'DOCTRINE.md'), '# Fixture rules\n');
+  for (const [file, content] of Object.entries(files)) {
+    mkdirSync(join(root, file, '..'), { recursive: true });
+    writeFileSync(join(root, file), content);
+  }
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'chore: initialize dispatch fixture [G1]');
   const settings = machineSettingsFile();
   mkdirSync(join(directory, 'machine'), { recursive: true });

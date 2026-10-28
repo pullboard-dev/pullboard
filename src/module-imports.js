@@ -1,5 +1,6 @@
 /** Parse import edges without evaluating repository code, using V8 rather than a JavaScript grammar guess [V4,C7]. */
 import { spawnSync } from 'node:child_process';
+import { importParseScopes } from './module-import-cache-state.js';
 import {
   mkdtempSync,
   rmSync,
@@ -35,7 +36,7 @@ const PARSER = [
  * @param {string[]} sources
  * @returns {{ compiles: boolean, imports: string[] }[]}
  */
-function look(sources) {
+function compileSources(sources) {
   // The package parser has an observed stdin/EOF hang. Use a private regular file and bound V8 too.
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-imports-'));
   const input = join(directory, 'sources.json');
@@ -47,6 +48,42 @@ function look(sources) {
     if (child.status !== 0) throw new Error('V8 import parser failed: ' + (child.error?.message ?? child.stderr));
     return JSON.parse(child.stdout);
   } finally { rmSync(directory, { recursive: true, force: true }); }
+}
+
+const MAX_COMPILED_SOURCE_BYTES = 64 * 1024 * 1024;
+
+/** Copy a private compiler result so callers never receive a mutable cache container. */
+function copyCompilation(row) { return { compiles: row.compiles, imports: [...row.imports] }; }
+
+/** Compile fresh bytes with real V8, reusing only successful subprocess results in this one scope. */
+function look(sources) {
+  const scope = importParseScopes.getStore();
+  if (!scope || !scope.allowed()) return compileSources(sources);
+  const epoch = JSON.stringify([process.execPath, process.versions.node,
+    Object.hasOwn(process.env, 'NODE_OPTIONS') ? process.env.NODE_OPTIONS : null,
+    '--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', PARSER]);
+  if (!scope.epochs.has(epoch)) {
+    if (scope.epochs.size >= 8) return compileSources(sources);
+    scope.epochs.set(epoch, new Map());
+  }
+  const cache = scope.epochs.get(epoch);
+  const fresh = [...new Set(sources.filter(source => !cache.has(source)))];
+  const compiled = fresh.length ? compileSources(fresh) : [];
+  if (!Array.isArray(compiled) || compiled.length !== fresh.length || compiled.some(row =>
+    typeof row?.compiles !== 'boolean' || !Array.isArray(row.imports) || row.imports.some(value => typeof value !== 'string'))) {
+    throw new Error('V8 import parser returned an invalid compile result');
+  }
+  const observed = new Map();
+  for (let index = 0; index < fresh.length; index++) {
+    const source = fresh[index];
+    const row = Object.freeze({ compiles: compiled[index].compiles, imports: Object.freeze([...compiled[index].imports]) });
+    observed.set(source, row);
+    const bytes = Buffer.byteLength(source);
+    if (scope.entries < 20_000 && scope.bytes + bytes <= MAX_COMPILED_SOURCE_BYTES) {
+      cache.set(source, row); scope.bytes += bytes; scope.entries++;
+    }
+  }
+  return sources.map(source => copyCompilation(cache.get(source) ?? observed.get(source)));
 }
 
 /** Every place the whole word import appears, in code or not; Unicode letters count as part of a word. */
