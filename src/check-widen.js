@@ -14,6 +14,22 @@ function segments(command) {
   return command.split('&&').map((part) => part.trim().split(/\s+/u).filter(Boolean));
 }
 
+/** Flags that take no value; every other flag binds the next word as its value, so an option is never mistaken for a file. */
+const BOOLEAN_FLAGS = new Set(['--test-force-exit']);
+
+/** Split runner words into option strings (a flag with its bound value, in order) and the selected files. */
+function parseRunnerWords(words) {
+  const options = [];
+  const files = [];
+  for (let at = 0; at < words.length; at += 1) {
+    const word = words[at];
+    if (!word.startsWith('-')) files.push(word);
+    else if (BOOLEAN_FLAGS.has(word) || word.includes('=')) options.push(word);
+    else options.push(at + 1 < words.length ? `${word} ${words[++at]}` : word);
+  }
+  return { options, files };
+}
+
 /**
  * The test files a new check adds to the frozen one, or a refusal naming what stops it being a superset.
  * Only `node bin/run-tests.js <flags> <files>` segments may grow; every other segment, the flags and the order must match exactly.
@@ -37,13 +53,14 @@ export function widenedCheckFiles(oldCheck, newCheck) {
       return;
     }
     if (!RUNNER.every((word, at) => next[at] === word)) throw refuse(`the runner changed: "${old.join(' ')}" became "${next.join(' ')}"`);
-    const flags = (words) => words.slice(RUNNER.length).filter((word) => word.startsWith('-'));
-    const files = (words) => words.slice(RUNNER.length).filter((word) => !word.startsWith('-'));
-    if (flags(old).join(' ') !== flags(next).join(' ')) throw refuse(`the flags changed: "${flags(old).join(' ')}" became "${flags(next).join(' ')}"`);
-    for (const file of [...files(old), ...files(next)]) if (!SAFE_FILE.test(file)) throw refuse(`${file} is not a plain test file path`);
-    const kept = new Set(files(next));
-    for (const file of files(old)) if (!kept.has(file)) throw refuse(`${file} was removed`);
-    for (const file of kept) if (!files(old).includes(file) && !added.includes(file)) added.push(file);
+    const parsed = (words) => parseRunnerWords(words.slice(RUNNER.length));
+    const [was, now] = [parsed(old), parsed(next)];
+    if (was.options.join(' ') !== now.options.join(' ')) throw refuse(`the options changed: "${was.options.join(' ')}" became "${now.options.join(' ')}"`);
+    const files = (found) => found.files;
+    for (const file of [...files(was), ...files(now)]) if (!SAFE_FILE.test(file)) throw refuse(`${file} is not a plain test file path`);
+    const kept = new Set(files(now));
+    for (const file of files(was)) if (!kept.has(file)) throw refuse(`${file} was removed`);
+    for (const file of kept) if (!files(was).includes(file) && !added.includes(file)) added.push(file);
   });
   if (!added.length) throw refuse('it adds no test file');
   return added;

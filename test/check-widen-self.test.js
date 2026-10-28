@@ -107,11 +107,19 @@ test('[C7,V4,H16] a holder adds test files to its own check; removing a file or 
 
   const flags = tryCheck(box, box.web, widened.replace(' --test-force-exit', ''));
   assert.equal(flags.error?.code, 'CHECK_WIDEN_REFUSED');
-  assert.match(flags.error.message, /flags changed/, 'changed flags are refused');
+  assert.match(flags.error.message, /options changed/, 'changed flags are refused');
 
   const injected = tryCheck(box, box.web, `${widened}; rm -rf x`);
   assert.equal(injected.error?.code, 'CHECK_WIDEN_REFUSED', 'shell syntax is not a plain test file');
   assert.equal(box.json(box.repo, 'show', '1').item_check, widened, 'refused edits change nothing');
+
+  const reordered = tryCheck(box, box.web, 'node bin/run-tests.js --test-name-pattern test/b.test.js test/a.test.js test/c.test.js');
+  assert.equal(reordered.error?.code, 'CHECK_WIDEN_REFUSED', 'an unrelated check is refused');
+  assert.equal(box.json(box.repo, 'edit', '1', '--check', 'node bin/run-tests.js --test-name-pattern test/a.test.js test/b.test.js', '--reason', 'set up the option case').item.item_check, 'node bin/run-tests.js --test-name-pattern test/a.test.js test/b.test.js');
+  const swapped = tryCheck(box, box.web, 'node bin/run-tests.js --test-name-pattern test/b.test.js test/a.test.js test/c.test.js');
+  assert.equal(swapped.error?.code, 'CHECK_WIDEN_REFUSED', 'the option value changed from a to b, so adding c is refused');
+  assert.match(swapped.error.message, /options changed/);
+  assert.equal(tryCheck(box, box.web, 'node bin/run-tests.js --test-name-pattern test/a.test.js test/b.test.js test/c.test.js').code, 0, 'the same option with an added file is accepted');
 
   const criterion = box.run(box.web, 'edit', '1', '--criterion', 'easier', '--json');
   assert.notEqual(criterion.code, 0, 'a builder still cannot edit anything but the check');
