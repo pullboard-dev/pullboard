@@ -456,10 +456,12 @@ test('baseline initialization preserves unowned colliding shard bytes and leaves
   const box = fixture(t), plan = planCellLintBaseline(box.report()), files = cellLintFiles(plan.baseline);
   const shard = [...files.keys()].find(file => file.includes('/strays-'));
   assert.ok(shard, 'the real planned metadata inventory has its own stray shard');
+  const collision = 'bin/cell-lint-baselines/strays-001.json';
+  assert.equal(shard, collision, 'the real planner names its first stray shard deterministically');
   const original = Buffer.from('existing private bytes are not a baseline and must remain untouched\n');
   box.put(shard, original);
   assert.throws(() => writeCellLintBaseline(box.root, plan.baseline, { initialize: true }), { code: 'CELL_BASELINE' });
-  assert.deepEqual(readFileSync(join(box.root, shard)), original, 'a rejected initial write neither overwrites nor rollback-deletes the colliding file');
+  assert.deepEqual(readFileSync(join(box.root, collision)), original, 'a rejected initial write neither overwrites nor rollback-deletes the colliding file');
   assert.throws(() => readFileSync(join(box.root, 'bin/cell-lint-baselines/index.json')), { code: 'ENOENT' });
 });
 
