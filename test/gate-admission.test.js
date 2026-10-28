@@ -1,4 +1,7 @@
 /** Test files on one machine never outnumber its cores, and the longest files start first [C7]. */
+import { executionServices } from './gate-execution-fixture.js';
+import { executionServicesSource } from './gate-execution-fixture.js';
+import { withGateSlot } from '../src/gate-slot.js';
 import { awaitNestedRun } from '../src/test-file-pool.js';
 import { measureFileInflation } from './gate-admission-p95-fixture.js';
 import assert from 'node:assert/strict';
@@ -37,11 +40,21 @@ test('a shell check is admitted by the test files it runs [C7,Q1,Q3]', async (t)
   ];
   const source = `import { checkNeedsBrowser } from ${JSON.stringify(admission)};
 import { withGateSlot } from ${JSON.stringify(gate)};
+${executionServicesSource(gate)}
 const decisions = [];
 for (const [name, command] of ${JSON.stringify(commands)}) {
   const fallbacks = [];
   const browser = await checkNeedsBrowser(process.cwd(), command, { onFallback: value => fallbacks.push(value) });
-  const actual = await withGateSlot(process.cwd(), lease => lease.browser, { browser, remote: false, agent: 'admission-fixture', kind: 'check' });
+  const actual = await withGateSlot(process.cwd(), lease => {
+    if (lease.executionServices.runners.runOnRunner !== executionServices.runners.runOnRunner
+      || !Object.isFrozen(lease.executionServices.runners)
+      || !Object.isFrozen(lease.executionServices.landing)
+      || Object.keys(lease).includes('executionServices')
+      || JSON.stringify(lease.runMetadata ?? {}).includes('executionServices')) {
+      throw new Error('canonical execution operations must remain immutable process-local lease state');
+    }
+    return lease.browser;
+  }, { executionServices, browser, remote: false, agent: 'admission-fixture', kind: 'check' });
   decisions.push({ name, browser, actual, fallbacks });
 }
 process.stdout.write(JSON.stringify(decisions));`;
@@ -537,4 +550,18 @@ test('four concurrent runs start only token-owned file processes and keep p95 be
       assert.ok(measurement.p95 < 2, `p95 process-lifetime ratio ${measurement.p95} must be below2x standalone`); // budget: #1091 requires p95<2x under four concurrent runs.
     });
   });
+});
+
+/** Missing providers refuse before any workspace read, queued lease or caller action can begin. */
+test('gate admission requires explicit complete execution providers before work [C7,Q1]', async () => {
+  let called = false;
+  const root = '/missing-core714-execution-provider-fixture';
+  const action = () => { called = true; };
+  for (const services of [undefined,
+    { ...executionServices, runners: { ...executionServices.runners, runOnRunnerAsync: undefined } },
+    { ...executionServices, landing: { ...executionServices.landing, captureReleaseQueue: undefined } }]) {
+    await assert.rejects(withGateSlot(root, action, { remote: false, executionServices: services }),
+      { name: 'TypeError', message: 'gate execution needs explicit canonical runner and landing services' });
+  }
+  assert.equal(called, false, 'incomplete providers cannot start admitted work');
 });

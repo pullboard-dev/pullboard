@@ -64,7 +64,7 @@ export function runShell(root, command, { pipefail = false, env = {}, stages = f
     const script = `${prefix}(\n${split ? stagedScript(split, marker, pipes) : command}\n) 2>&1`;
     const timedDirectory = timeoutMs ? mkdtempSync(join(tmpdir(), 'pullboard-timed-output-')) : null;
     const outputFile = timedDirectory ? join(timedDirectory, 'output.log') : null;
-    const timed = timeoutMs ? spawnSync(process.execPath, [fileURLToPath(new URL('./timed-shell-worker.js', import.meta.url))], { ...options, env: { ...callerEnv, ...(runtimes ? { PULLBOARD_RUNTIME_CAPTURE_DIR: runtimes.env.PULLBOARD_RUNTIME_CAPTURE_DIR } : {}) }, shell: false, stdio: ['pipe', 'pipe', 'pipe'], input: JSON.stringify({ command: script, timeoutMs, outputFile }) }) : null;
+    const timed = timeoutMs ? spawnSync(process.execPath, [fileURLToPath(new URL('../bin/timed-shell.js', import.meta.url))], { ...options, env: { ...callerEnv, ...(runtimes ? { PULLBOARD_RUNTIME_CAPTURE_DIR: runtimes.env.PULLBOARD_RUNTIME_CAPTURE_DIR } : {}) }, shell: false, stdio: ['pipe', 'pipe', 'pipe'], input: JSON.stringify({ command: script, timeoutMs, outputFile }) }) : null;
     if (timed && (timed.status !== 0 || timed.error)) throw new Refused('LAND_TIMEOUT_CUSTODY', 'the timed gate worker did not prove cleanup; inspect its owned processes before landing again');
     const result = timed ? { ...JSON.parse(timed.stdout || '{}'), stdout: '', stderr: timed.stderr } : spawnSync(script, options);
     if (timed && result.error) throw new Refused('LAND_GATE_OUTPUT', `the timed gate stopped and drained after its output failed (${result.error}); inspect free disk space and ${timedDirectory} before landing again`);

@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** A runner registered with no browser slots runs browser-free test files and never browser-bound ones [C7]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import { awaitNestedRun } from '../src/test-file-pool.js';
 import assert from 'node:assert/strict';
@@ -87,8 +88,9 @@ async function withNoBrowserRunner(t, { cli, git }, body) {
 function gateRun({ repo, env }, command) {
   const gateUrl = pathToFileURL(join(repo, 'src', 'gate.js')).href;
   const script = `const { runProfiledShell, withGateSlot } = await import(${JSON.stringify(gateUrl)});
+${executionServicesSource(gateUrl)}
 const result = await withGateSlot(${JSON.stringify(repo)}, lease => runProfiledShell(${JSON.stringify(repo)}, ${JSON.stringify(command)}, { gateLease: lease }),
-  { browser: false, item: '1043', kind: 'check', itemCheck: true, agent: 'browser-free-fixture' });
+  { executionServices, browser: false, item: '1043', kind: 'check', itemCheck: true, agent: 'browser-free-fixture' });
 process.stdout.write(result.output);
 process.stdout.write('PULLBOARD_RUN_RESULT ' + JSON.stringify({ isGreen: result.isGreen, runner: result.profile.executionRunner ?? null, runnerAttempt: result.runnerAttempt ?? null }) + '\\n');
 process.exitCode = result.isGreen ? 0 : 1;

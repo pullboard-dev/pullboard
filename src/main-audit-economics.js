@@ -51,8 +51,8 @@ export function lastGreenAudit(root, directory) {
 }
 
 /** Discover the full suite during audit work, publishing placement once and selecting exact changed action keys. */
-export async function planMainAudit(root, board, directory, job, config, { forceFull = false } = {}) {
-  refreshTestPlacement(board, { root, head: job.tip, config });
+export async function planMainAudit(root, board, directory, job, config, { forceFull = false } = {}, services) {
+  refreshTestPlacement(board, { root, head: job.tip, config }, services);
   const keys = await testActionKeys(root, { commit: job.tip, options: ['scheduled-audit-coverage-v1', semantics(config)] });
   if (!keys.size) throw new Error('audit inventory contains no committed test files');
   const previous = lastGreenAudit(root, directory);
