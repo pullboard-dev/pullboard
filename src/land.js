@@ -437,7 +437,7 @@ function batchAffectedTests(state) {
   const selection = state.config.affectedTests
     ? selectAffectedTests(root, { base: state.batch.base, commit })
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
-  const registry = selectRegistryGuards(root, state.config.registryGuards, { base: state.batch.base });
+  const registry = selectRegistryGuards(root, state.config.registryGuards, { base: state.batch.base, git });
   const mandatory = [...new Set([...(state.config.submitInvariants ?? []), ...registry])].sort();
   return { ...selection, mandatory, files: [...new Set([...mandatory, ...(!selection.full ? selection.files : [])])].sort() };
 }

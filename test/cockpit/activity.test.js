@@ -207,6 +207,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
     const page = await openPage(view);
     assert.doesNotMatch(page.html, /id="metrics"/, 'the drawing replaces the metric cards');
     assert.ok(!page.html.includes('pullboard claim <id>'), 'the declaration is embedded with < escaped');
+    await page.click({ tab: 'activity' });
     const svg = page.show('flow');
     const { boxes, routes, sentBack } = drawing(svg);
 
@@ -369,13 +370,15 @@ test('ages stay true while the board is quiet [N26]', async () => {
   const alpha = project(box, 'alpha');
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
-  box.run(alpha.repo, 'shout', 'person', 'Ship the greeting today?', '--decision');
+  box.run(alpha.repo, 'shout', 'person', 'Ship the greeting today?', '--kind', 'decision', '--decision');
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    await page.click({ tab: 'items' });
+    await page.click({ tab: 'shouts' });
     const ages = () => ({
       row: /<time data-ago="[^"]+">([^<]*)<\/time>/.exec(itemRow(page.show('chain'), 1))?.[1],
-      needs: /data-go="decide:[^"]*"[^]*?<span class="row-age"><time data-ago="[^"]+">([^<]*)<\/time>/.exec(page.show('needs'))?.[1],
+      needs: /<span class="needs-age"><time data-ago="[^"]+">([^<]*)<\/time>/.exec(page.show('needs'))?.[1],
       agent: agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1')?.age,
       shout: /<time class="long" data-ago="[^"]+" title="[^"]*">([^<]*)<\/time>/.exec(page.show('feed'))?.[1],
     });
@@ -407,20 +410,26 @@ test('times say which day they were [N26]', async () => {
     const bare = (list) => list.length > 0 && list.every((time) => /^\d\d:\d\d$/.test(time));
 
     const now = await openPage(view);
+    await now.click({ tab: 'shouts' });
     await now.click({ tab: 'items' });
+    await now.click({ tab: 'activity' });
     assert.deepEqual([days(now.show('feed')), days(now.show('activity'))], [[], ['Today']], 'shouts from today need no rule above them');
     assert.deepEqual(ages(now.show('feed')).map(([age, clock]) => [age, /^\d\d:\d\d$/.test(clock)]), [['now', true]], 'a shout from today says now, its clock time on hover');
     assert.ok(bare(times(now.show('detail'))), 'a history from today shows bare times');
 
     const tomorrow = await openPage(view, { later: 1 });
+    await tomorrow.click({ tab: 'shouts' });
+    await tomorrow.click({ tab: 'activity' });
     assert.deepEqual([days(tomorrow.show('feed')), days(tomorrow.show('activity'))], [['Yesterday'], ['Yesterday']]);
 
     const weekday = new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
     const date = new Date().toLocaleDateString([], { month: 'short', day: 'numeric' });
     const later = await openPage(view, { later: 2 });
+    await later.click({ tab: 'shouts' });
     await later.click({ tab: 'items' });
+    await later.click({ tab: 'activity' });
     assert.deepEqual([days(later.show('feed')), days(later.show('activity'))], [[weekday], [weekday]], 'two days on, the feeds name the day');
-    assert.ok(bare(times(later.show('activity'))), 'activity rows keep the clock time');
+    assert.ok(times(later.show('activity')).length > 0 && times(later.show('activity')).every(time => /^\d{1,2}:\d\d [AP]M$/.test(time)), 'Activity uses the approved person-clock format');
     assert.deepEqual(ages(later.show('feed')).map(([age, clock]) => [age, new RegExp(`^${date} \\d\\d:\\d\\d$`).test(clock)]), [['2d ago', true]], 'a shout says how long ago, with its date and time on hover');
     const history = times(later.show('detail'));
     assert.ok(history.length === 4 && history.every((time) => new RegExp(`^${date} \\d\\d:\\d\\d$`).test(time)), `the history dates every move including its proof receipt: ${history}`);
@@ -450,7 +459,8 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
   const long = 'Please take #1 next, run `pullboard next` in your worktree, and keep going until the greeting reads right on every width the view supports';
   box.run(demo.repo, 'shout', 'web', `${long}\nA second line the row leaves out.`);
   box.run(demo.repo, 'shout', 'all', 'The private news release is ready.', '--news');
-  box.run(demo.web, 'shout', 'coordinator', 'Ship the greeting today?', '--decision');
+  box.run(demo.repo, 'lanes', 'lead', 'web', 'web-1');
+  box.run(demo.web, 'shout', 'coordinator', 'Ship the greeting today?', '--kind', 'decision', '--decision');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-said-chrome-'));
   let chrome;
@@ -466,11 +476,11 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
     await chrome.waitFor('!!document.querySelector(\'[data-tab="activity"]\')');
     await chrome.waitFor("typeof data === 'object' && !!data && !!data.project");
     await chrome.click('document.querySelector(\'[data-tab="activity"]\')');
-    await chrome.waitFor(`[...document.querySelectorAll('#activity .act')].some((row) => row.textContent.startsWith('coordinator (unknown) answered'))`);
+    await chrome.waitFor(`[...document.querySelectorAll('#activity .activity-say')].some(row => row.textContent.includes('Yes, ship it once'))`);
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       // Measure only laid-out previews: on Activity, at this width, each preview with a box of its own.
-      const laidOut = `innerWidth === ${width} && !document.querySelector('[data-pane="activity"]').hidden && [...document.querySelectorAll('#activity .said')].every((said) => said.getBoundingClientRect().height > 0)`;
+      const laidOut = `innerWidth === ${width} && !document.querySelector('[data-pane="activity"]').hidden && [...document.querySelectorAll('#activity .activity-quote')].every((said) => said.getBoundingClientRect().height > 0)`;
       await chrome.waitFor(laidOut).catch(async (error) => { throw new Error(`${error.message}; showing ${await chrome.stable("[...document.querySelectorAll('[data-pane]')].filter((pane) => !pane.hidden).map((pane) => pane.dataset.pane).join()")}`); });
       await chrome.waitFor("[...document.querySelectorAll('#flow svg text.tag')].some(node => node.textContent === 'intake' && node.getBoundingClientRect().width > 0)");
       const labels = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#flow svg text.tag')].map(node => {
@@ -483,26 +493,27 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
         assert.ok(intake.right <= other.left || intake.left >= other.right || intake.bottom <= other.top || intake.top >= other.bottom,
           `${width}: intake stays clear of ${other.words} in the actual browser layout`);
       }
-      const rows = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity .act')].map((row) => {
-        const said = row.querySelector('.said');
-        const lines = said ? Math.round(said.getBoundingClientRect().height / parseFloat(getComputedStyle(said).lineHeight)) : 0;
-        return { text: row.textContent, said: said?.textContent ?? null, tip: said?.title ?? null, lines, refs: said ? said.querySelectorAll('a.ref[data-go]').length : 0,
-          code: said ? [...said.querySelectorAll('code')].map((code) => code.textContent) : [], ellipsis: said ? getComputedStyle(said).textOverflow === 'ellipsis' : null,
-          cut: said ? said.scrollWidth > said.clientWidth : null };
+      const rows = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity .activity-say')].map(row => {
+        const quote = row.querySelector('.activity-quote');
+        return { sentence: row.querySelector('p')?.textContent, text: row.textContent, said: quote?.textContent ?? null,
+          refs: quote ? quote.querySelectorAll('a.ref[data-go]').length : 0,
+          code: quote ? [...quote.querySelectorAll('code')].map(code => code.textContent) : [],
+          fullQuote: quote ? getComputedStyle(quote).whiteSpace === 'pre-wrap' : null,
+          model: row.querySelector('.activity-who')?.title ?? '' };
       }))`));
-      const find = (start) => rows.find((row) => row.text.startsWith(start) && (row.said ?? '').length > 0);
-      const told = find('coordinator (unknown) shouted to web' + 'Please take');
-      assert.ok(told, `${width}: a shout reads sender, shouted to, recipient, then what it said: ${JSON.stringify(rows.slice(0, 4))}`);
-      assert.deepEqual([told.said, told.tip], [long.replaceAll("`", ""), long], `${width}: its first line, as written in the tooltip and rendered in the row, never its second`);
-      assert.ok(told.lines === 1 && told.ellipsis, `${width}: on one line, set to end in an ellipsis: ${JSON.stringify(told)}`);
-      if (width === 375) assert.ok(told.cut, `${width}: cut on a phone, so the ellipsis shows`);
-      assert.deepEqual([told.refs, told.code], [1, ['pullboard next']], `${width}: keeping the item link and the inline code`);
-      assert.ok(find('coordinator (unknown) shouted to all' + 'The private news release is ready.'), `${width}: typed news retains its actual text in activity`);
-      assert.ok(find(`${asker} (Test Model) asked coordinator (unknown)` + 'Ship the greeting today?'), `${width}: a decision reads asked`);
-      assert.ok(find(`coordinator (unknown) answered ${asker} (Test Model)` + 'Yes, ship it once'), `${width}: an answer reads who answered whom, then the answer`);
-      const oldest = rows.filter((row) => row.text.startsWith('coordinator (unknown) shouted to web')).at(-1);
-      assert.deepEqual([oldest.text, oldest.said], ['coordinator (unknown) shouted to web', null], `${width}: a shout older than the forty on hand still names who it went to`);
-      assert.ok(rows.some((row) => row.text === 'coordinator (unknown) add #1 Greet the visitor'), `${width}: other rows read as before`);
+      const find = (sentence, said) => rows.find(row => row.sentence === sentence && row.said?.startsWith(said));
+      const told = find('The coordinator told web', 'Please take');
+      assert.ok(told, `${width}: sender, recipient and original words remain visible`);
+      assert.equal(told.said, long.replaceAll('`', '') + '\nA second line the row leaves out.', `${width}: the approved quote retains every line`);
+      assert.equal(told.fullQuote, true, 'full quotes wrap rather than hiding the second line');
+      assert.deepEqual([told.refs, told.code], [1, ['pullboard next']], `${width}: item links and inline code still work`);
+      assert.ok(find('The coordinator told all', 'The private news release is ready.'), 'typed news retains its actual words');
+      assert.ok(find(asker + ' told the coordinator', 'Ship the greeting today?'), 'a decision retains its sender, recipient and question');
+      assert.equal(find(asker + ' told the coordinator', 'Ship the greeting today?').model, 'Test Model', 'the model is a hover title');
+      assert.ok(find('The coordinator told ' + asker, 'Yes, ship it once'), 'the answer retains both addresses and its words');
+      assert.ok(rows.some(row => row.sentence === 'The coordinator told web' && row.said === null), 'older unloaded shout words are not invented');
+      assert.ok(rows.some(row => row.sentence === 'The coordinator added' && row.text.includes('#1Greet the visitor')), 'other work has a sentence and item underneath');
+      assert.ok(rows.every(row => !row.sentence?.includes('(unknown)')), 'unknown models are omitted');
     }
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
@@ -519,13 +530,13 @@ test('activity names the item each event moved [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
-    const rows = page.show('activity').split('<div><time>').slice(1);
-    const about = rows.filter((row) => row.includes('data-go="item:1"'));
+    await page.click({ tab: 'activity' });
+    const rows = page.show('activity').split('<li class="activity-event"').slice(1);
+    const about = rows.filter(row => row.includes('data-go="item:1"'));
     assert.equal(about.length, 2, 'the add and the claim');
-    for (const row of about) assert.match(row, /data-go="item:1">#1<\/a> <span class="what">Greeting &lt;b&gt;bold&lt;\/b&gt;<\/span><\/div>/, 'the escaped title follows the link');
-    const joins = rows.filter((row) => /<\/b> join<\/div>/.test(row));
-    assert.ok(joins.length > 0 && joins.every((row) => !row.includes('class="what"')), 'an event about no item names none');
-    assert.match(await styleOf(view), /\.feed \.act \.what \{ flex: 1 1 auto; min-width: 0; overflow-wrap: break-word;/, 'activity titles wrap at words and permit an overflowing token to break');
+    for (const row of about) assert.match(row, /data-go="item:1">#1<\/a>Greeting &lt;b&gt;bold&lt;\/b&gt;/, 'the escaped title follows its real item link');
+    assert.ok(rows.every(row => !row.includes('>join<')), 'subjectless join bookkeeping is hidden');
+    assert.match(await styleOf(view), /\.activity-item \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/, 'the approved item title uses one line with ellipsis');
   } finally {
     await view.stop();
   }
