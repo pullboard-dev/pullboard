@@ -1,8 +1,28 @@
 /** Tell a fixture's module references to a moved source from the reads and copies a move must repoint [C7]. */
 
+import { readdirSync, readFileSync } from 'node:fs';
 import { posix } from 'node:path';
 
 const CANONICAL_COPIER = 'src/package-files.js';
+const PLAN_DIRECTORY = new URL('./cells-plan/', import.meta.url);
+let planned;
+
+/**
+ * The repository paths that are the canonical copier: src/package-files.js and, read from the committed cells plan
+ * rather than hard-coded, the body it moves to. A lookalike module under the same package is not one of them.
+ * @returns {Set<string>} Root-relative module paths.
+ */
+export function canonicalCopierPaths() {
+  if (!planned) {
+    planned = new Set([CANONICAL_COPIER]);
+    for (const name of readdirSync(PLAN_DIRECTORY).filter(file => /\.json$/u.test(file))) {
+      let cell;
+      try { cell = JSON.parse(readFileSync(new URL(name, PLAN_DIRECTORY), 'utf8')); } catch { continue; }
+      for (const row of Array.isArray(cell?.paths) ? cell.paths : []) if (row[0] === CANONICAL_COPIER && typeof row[1] === 'string') planned.add(row[1]);
+    }
+  }
+  return planned;
+}
 
 /** Escape one file name for a literal match inside a regular expression. */
 function escaped(value) {
@@ -56,7 +76,7 @@ export function operationalMentions(source, scanned, basenames, provenCopier = (
   const copierNames = new Set();
   for (const match of source.matchAll(/\bimport\s*\{([^}]*)\}\s*from\s*['"](\.\.?\/[^'"]*)['"]/gu)) {
     // Only the repository's canonical copier counts: the specifier must resolve from this file to src/package-files.js.
-    if (posix.normalize(posix.join(posix.dirname(file), match[2])) !== CANONICAL_COPIER) continue;
+    if (!canonicalCopierPaths().has(posix.normalize(posix.join(posix.dirname(file), match[2])))) continue;
     for (const entry of match[1].split(',')) {
       const named = /^\s*toolSourcePath(?:\s+as\s+([\w$]+))?\s*$/u.exec(entry);
       if (named) copierNames.add(named[1] ?? 'toolSourcePath');

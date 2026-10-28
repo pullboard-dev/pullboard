@@ -2,9 +2,10 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 import { test } from 'node:test';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
+import { canonicalCopierPaths } from '../bin/cells-move-mentions.js';
 import { copyPackageFiles, shimTargets, toolSourcePath } from '../src/package-files.js';
 
 const BODY = 'export const answer = 42;\n';
@@ -140,4 +141,19 @@ test('only an import that resolves to the canonical src/package-files.js makes a
     const result = withImport(specifier, file);
     assert.ok(result.edits.length + result.problems.length > 0, `${specifier} from ${file} is a lookalike`);
   }
+});
+
+test('the copier is also accepted at the cells-plan target of src/package-files.js, read from the plan [C7]', () => {
+  const target = [...canonicalCopierPaths()].find(path => path !== 'src/package-files.js');
+  assert.ok(target, 'the committed plan names where src/package-files.js moves');
+  const read = "const a = readFileSync(toolSourcePath(dir, 'src/foo.js'));\nconst other = readFileSync(somewhere);\n";
+  const as = (specifier, file) => fixtureSourceEdits(
+    `import { readFileSync } from 'node:fs';\nimport { toolSourcePath } from '${specifier}';\n${read}`, { ...options, file });
+  const from = 'test/a.test.js';
+  assert.deepEqual(as(posix.relative(posix.dirname(from), target), from), { edits: [], problems: [] }, target);
+  const lookalike = posix.join(posix.dirname(target), 'package-files-copy.js');
+  const refused = as(posix.relative(posix.dirname(from), lookalike), from);
+  assert.ok(refused.edits.length + refused.problems.length > 0, 'a sibling module in the same package is not the copier');
+  const wrongPackage = as(posix.relative(posix.dirname(from), posix.join('packages/other', posix.relative('packages/runners', target))), from);
+  assert.ok(wrongPackage.edits.length + wrongPackage.problems.length > 0);
 });

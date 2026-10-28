@@ -8,7 +8,7 @@ import { localFunctionCallSets } from '../src/cell-binding-uses.js';
 import { readOnlyMemberRanges } from '../src/cell-binding-uses.js';
 import { stringSuffixDisjoint } from '../src/path-map-operands.js';
 import { repositoryImport } from '../src/import-map.js';
-import { operationalMentions } from './cells-move-mentions.js';
+import { canonicalCopierPaths, operationalMentions } from './cells-move-mentions.js';
 
 const ID = '[A-Za-z_$][\\w$]*';
 const READS = new Set(['readFileSync', 'cpSync', 'copyFileSync']);
@@ -493,7 +493,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
     // The canonical copier's resolver follows shims to the moved body in every fixture, for any move.
     const copier = imported.bindings.get(parsed.name);
     if (!parsed.member && copier?.module === 'source' && copier.imported === 'toolSourcePath'
-      && copier.target === 'src/package-files.js' && proven(parsed.name, parsed.at)) return { fixture: true };
+      && canonicalCopierPaths().has(copier.target) && proven(parsed.name, parsed.at)) return { fixture: true };
     if (operation(parsed, 'url', ['fileURLToPath']) && parsed.args.length === 1) {
       const arg = code.slice(parsed.args[0].start, parsed.args[0].end).replace(/\s/gu, '');
       if (arg === 'import.meta.url') return { path: posix.join(REPOSITORY, file), render: target => `${parsed.callee}(new URL(${JSON.stringify(posix.relative(moduleDirectory, target))}, import.meta.url))` };
