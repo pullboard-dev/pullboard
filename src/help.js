@@ -1,5 +1,5 @@
 /** Help declarations and command phrases stay independent of CLI/server initialization [N26]. */
-import { VERSION } from './help-version.js';
+import { VERSION } from './release-version.js';
 import { ALL_HELP } from './help/sections.js';
 export { VERSION };
 
