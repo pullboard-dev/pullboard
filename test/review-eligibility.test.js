@@ -375,7 +375,7 @@ test('routing activation fences vendor-rule downgrades while genuine historical 
   }
 });
 
-test('an explicit alias makes one vendor one family, while a true cross-family reviewer stays eligible [#1762]', t => {
+test('an explicit alias makes one vendor one family, while a true cross-family reviewer stays eligible [V4,B26,H16]', t => {
   const f = fixture(t), id = f.add();
   store.register(f.board, { id: 'core-6', lane: 'core', path: '/fixture/core-6', family: 'OpenAI', parentDigest: 'f'.repeat(64), model: 'Synthetic fixture model' });
   const item = f.submit(id);
@@ -387,7 +387,7 @@ test('an explicit alias makes one vendor one family, while a true cross-family r
   assert.ok(projected.eligible.includes('core-2'), 'a reviewer from a different vendor remains eligible');
 });
 
-test('a strict submit whose builder declared no vendor family is refused with the join fix [#1762]', t => {
+test('a strict submit whose builder declared no vendor family is refused with the join fix [V4,B26]', t => {
   const f = fixture(t), id = f.add({ sensitive: true });
   store.register(f.board, { id: 'core-7', lane: 'core', path: '/fixture/core-7', parentDigest: '7'.repeat(64), model: 'Synthetic fixture model' });
   store.claim(f.board, id, { agentId: 'core-7', lane: 'core', leaseMs: LEASE, freeze });
