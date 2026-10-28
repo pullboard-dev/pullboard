@@ -65,7 +65,7 @@ function fixture(t, { hold = false } = {}) {
   writeFileSync(configFile, JSON.stringify(config, null, 2) + '\n');
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-m', 'chore: private companion lane policy');
-  const coordinator = { root: box.repo, session: 'presubmit-coordinator' };
+  const coordinator = { root: box.repo, session: box.env.CODEX_THREAD_ID };
   const builder = seat(box, 'presubmit-builder', 'core');
   const author = seat(box, 'presubmit-author', 'view');
   const id = document(run(box, coordinator, 'add', 'core', 'Core command needs its view import',

@@ -111,15 +111,15 @@ export function sealItemPatchSubmit(board, id, options) {
 /** Execute in a native temporary worktree sharing the real receipt store; always remove only this owned scratch. */
 export async function withItemPatchSubmit(root, binding, work) {
   if (!binding) return work(root);
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-companion-submit-'));
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-companion-submit-')));
   const checkout = join(directory, 'repo');
-  let added = false;
   try {
     git(root, ['worktree', 'add', '--detach', checkout, binding.commit]);
-    added = true;
     return await work(checkout);
   } finally {
-    try { if (added) { git(root, ['worktree', 'remove', '--force', checkout]); added = false; } }
-    finally { if (!added) rmSync(directory, { recursive: true, force: true }); }
+    // A post-checkout hook may fail after Git registered the worktree: inspect native registration, not exit status.
+    const registered = git(root, ['worktree', 'list', '--porcelain', '-z']).split('\0').includes(`worktree ${checkout}`);
+    if (registered) git(root, ['worktree', 'remove', '--force', checkout]);
+    rmSync(directory, { recursive: true, force: true });
   }
 }
