@@ -73,7 +73,7 @@ function imports(source, scanned, problems, file, { producer = false } = {}) {
   let body = scanned.code;
   for (const literal of scanned.strings) {
     const target = /^\.\.?\/[^?#%\\]+\.js$/u.test(literal.text) ? posix.normalize(posix.join(posix.dirname(file), literal.text)) : null;
-    const native = ['node:fs', 'fs', 'node:path', 'path', 'node:url', 'url'].includes(literal.text);
+    const native = ['node:fs', 'fs', 'node:path', 'path', 'node:url', 'url', 'node:process', 'process'].includes(literal.text);
     if (!native && (!target || target.startsWith('../') || posix.isAbsolute(target))) continue;
     const before = scanned.code.slice(0, literal.start);
     const match = /\bimport\s*([^;]*?)\bfrom\s*$/u.exec(before);
@@ -432,6 +432,9 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
       if (found.some(Boolean)) edits.push({ ...range, text: `({${table.join(', ')}})[${name}]` });
       return;
     }
+    const scalar = imported.bindings.get(code.slice(range.start, range.end));
+    if (regularFile && scalar?.module === 'process' && scalar.imported === 'execPath'
+      && proven(code.slice(range.start, range.end), range.start)) return;
     const resolved = path(range);
     if (resolved?.fixture) return;
     if (!resolved?.path) {

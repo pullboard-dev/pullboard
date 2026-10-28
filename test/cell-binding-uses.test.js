@@ -156,3 +156,23 @@ test('imported producers need exact source identity and a proven native join ret
   let calls = 0;
   assert.ok(inspect(() => blob(calls++ ? changed : valid)).problems.length, 'source mutation during analysis is refused');
 });
+
+
+/** Recognize one explicit imported scalar input through the existing compiler identity proof. */
+function binaryRead(source) {
+  return fixtureSourceEdits("import { readFileSync } from 'node:fs';\n" + source,
+    { file: 'test/binary.test.js', moves: [['src/leaf.js', 'packages/git/src/shell/leaf.js']] });
+}
+
+test('an explicit native executable scalar is disjoint while unknown and shadowed inputs refuse [C7]', () => {
+  const imported = "import { execPath as binary } from 'node:process';\n";
+  assert.deepEqual(binaryRead(imported + 'readFileSync(binary);'), { edits: [], problems: [] });
+  for (const source of [imported + "function nested(binary) { readFileSync(binary); }",
+    imported + "binary = 'src/leaf.js'; readFileSync(binary);",
+    "import { argv as binary } from 'node:process'; readFileSync(binary);",
+    "import { cwd as binary } from 'node:process'; readFileSync(binary());",
+    "import process from 'node:process'; readFileSync(process.execPath);",
+    "const process = { execPath: 'src/leaf.js' }; readFileSync(process.execPath);"]) {
+    assert.ok(binaryRead(source).problems.length, 'unsupported native exports and uncertain binding identity stay unsupported');
+  }
+});
