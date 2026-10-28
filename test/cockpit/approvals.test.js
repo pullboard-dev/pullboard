@@ -37,7 +37,7 @@ test('agent approvals show full rows and styled actions at narrow width and reso
         const boxes = buttons.map(button => button.getBoundingClientRect());
         const commit = row.querySelector('[data-needs-field=commit] code');
         const title = row.querySelector('.needs-detail p');
-        return { text: row.textContent, commit: commit.textContent, full: commit.title, at: row.querySelector('time')?.dateTime,
+        return { text: row.textContent, commit: commit.textContent, full: commit.title, at: row.querySelector('[data-needs-field=approved-in-git] time')?.dateTime,
           tab: view.tab, boxes: boxes.map(box => ({ x: box.x, y: box.y, width: box.width, height: box.height })),
           unclipped: getComputedStyle(title).whiteSpace !== 'nowrap' && title.scrollHeight <= title.clientHeight,
           labels: buttons.map(button => button.textContent),

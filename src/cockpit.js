@@ -1117,12 +1117,13 @@ function render() {
   const personalNeeds = personNeeds(p);
   const agentApprovals = personalNeeds.filter(row => row.kind === 'agent-approved');
   const person = !snapshot && (!readOnly || requests);
-  const expandedNeeds = [...document.querySelectorAll('details[data-needs-key][open]')].map(entry => entry.dataset.needsKey);
+  const expandedNeeds = [...document.querySelectorAll('details[data-needs-key][open]')].filter(entry => !entry.closest('[hidden]')).map(entry => entry.dataset.needsKey);
   /** Actions retain the existing person/request handlers and advertised row identities. */
   const needsControls = row => {
     if (!person) return '';
     if (row.kind === 'agent-approved') return agentApprovalActions(row);
     if (row.kind === 'sentinel-draft') return sentinelDraftActions(row);
+    if (row.kind === 'relay-health' || row.kind === 'block') return '';
     if (row.kind === 'spec-revision') return '<div class="actions">'+(row.actions??[]).filter(action => ['spec-approve','spec-decline'].includes(action.verb) && action.args?.ids===row.id).map(action => '<button type="button" class="'+(action.verb==='spec-approve'?'approve-row':'decline-row')+'" data-row-kind="spec" data-row-id="'+esc(row.id)+'" data-row-decision="'+(action.verb==='spec-approve'?'approve':'decline')+'">'+(action.verb==='spec-approve'?'Approve':'Decline')+'</button>').join('')+'</div>';
     const target = row.kind==='decision' ? 'decide:'+row.id : row.kind==='pending' ? 'spec:'+row.id : row.kind==='hold' ? 'tab:shouts' : row.target;
     if (!target || row.unproved && !row.materialized) return '';

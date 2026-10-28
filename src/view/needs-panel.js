@@ -5,7 +5,7 @@ export function needsPanelHtml(calls, project, { compact = false, person = false
   /** Native summary elements supply keyboard, expanded-state and focus behavior without another listener. */
   const icon = kind => '<span class="needs-kind needs-kind-' + kind + '" aria-hidden="true">' + ({ question: '?', sentinel: '◉', approval: '✓', draft: '≡' })[kind] + '</span>';
   const drafts = calls.find(row => row.kind === 'draft')?.count ?? 0;
-  const sorted = calls.filter(row => row.kind !== 'draft').toSorted((a, b) => (Date.parse(a.at ?? a.approvedAt) || 0) - (Date.parse(b.at ?? b.approvedAt) || 0));
+  const sorted = calls.filter(row => row.kind !== 'draft').map(row => row.kind === 'hold' ? { ...row, at: row.at ?? project.holds?.find(hold => hold.hold_lane === row.id)?.hold_at } : row).toSorted((a, b) => (Date.parse(a.at ?? a.approvedAt) || 0) - (Date.parse(b.at ?? b.approvedAt) || 0));
   const approvals = sorted.filter(row => row.kind === 'agent-approved');
   const questions = sorted.filter(row => row.kind !== 'agent-approved');
   /** Retain the recorded repeat and red/green provenance when a watch or Rigor draft cites it. */
@@ -26,8 +26,9 @@ export function needsPanelHtml(calls, project, { compact = false, person = false
       ['Gate', source?.gate || 'Not recorded', true], ['Approved in Git', approval.agent || 'Unknown author', false, { date: approval.approvedAt }], ['Commit', approval.commit ? approval.commit.slice(0, 12) : 'Unavailable', true, { title: approval.commit }]], body: source?.text ?? '' };
     if (row.kind === 'sentinel-draft') return { kind: 'sentinel', id: row.ref, title: 'Run ' + row.check + ' ' + row.every + ', reporting to ' + row.owner, context: 'Sentinel draft · not watching until you approve', action: 'Approve or decline', fields: [
       ['Command', row.check, true], ['Directory', row.directory, true], ['Schedule', row.every], ['Owner', row.owner], ['Proposed by', row.evidence ? 'An agent · ' + row.evidence.occurrences + ' repeats' : 'An agent, with no repeat cited'], ...evidenceFields(row)], body: '' };
+    if (row.kind === 'rigor-draft') return { kind: 'question', id: row.ref, title: row.text, context: (row.unproved ? 'an unproved Rigor proposal' : 'a proved Rigor draft') + (row.evidence ? ', repeated ' + row.evidence.occurrences + ' times' : ''), action: 'Review', fields: [['Next step', row.what], ...evidenceFields(row)], body: row.text };
     if (row.kind === 'spec-revision') return { kind: 'question', id: row.ref ?? row.id, title: row.reason || 'Review the proposed row revision', context: 'Proposed spec revision · ' + (row.what || 'approve or decline'), action: 'Review', fields: [['Current row', row.source], ['Proposed row', row.replacement]], body: row.reason };
-    return { kind: 'question', id: row.kind === 'decision' ? '#' + row.id : row.ref, title: String(row.text ?? '').split(/\n/u)[0], context: row.kind === 'decision' ? 'Asked by ' + row.ref : row.what, action: row.kind === 'decision' ? 'Decide' : 'Review', fields: [...(row.kind === 'decision' ? [['Asked by', row.ref]] : row.what ? [['Next step', row.what]] : []), ...evidenceFields(row)], body: row.text };
+    return { kind: 'question', id: row.kind === 'decision' ? '#' + row.id : row.ref, title: String(row.text ?? '').split(/\n/u)[0], context: row.kind === 'decision' ? 'Asked by ' + row.ref : row.what, action: row.kind === 'decision' ? 'Decide' : row.kind === 'relay-health' ? 'Inspect' : row.kind === 'block' ? 'Next step' : 'Review', fields: [...(row.kind === 'decision' ? [['Asked by', row.ref]] : row.what ? [['Next step', row.what]] : []), ...evidenceFields(row)], body: row.text };
   };
   /** Render every kind through the same two-line summary and in-place details. */
   const rowHtml = row => {

@@ -20,6 +20,13 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
     assert.ok(chromeExecutable(), 'Chrome is required for the two real presentation surfaces');
     chrome = await openSnapshotChrome(chromeExecutable(), view.link.href, join(box.dir, 'needs-panel-chrome'));
     await chrome.waitFor('document.querySelectorAll("#dashboard .needs-call").length === 3');
+    /** Preserve actual seeded browser views in bounded native-log chunks for visual review. */
+    const capture = async (surface, width) => {
+      const height = await chrome.stable('Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)');
+      const shot = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height: Math.ceil(height), scale: 1 } });
+      const size = 32_000, chunks = Math.ceil(shot.data.length / size);
+      for (let index = 0; index < chunks; index++) console.log('# needs-image ' + JSON.stringify({ surface, width, index, chunks, data: shot.data.slice(index * size, (index + 1) * size) }));
+    };
     for (const width of [1440, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
@@ -27,6 +34,7 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
       assert.equal(await chrome.stable('document.querySelectorAll("#dashboard .needs-call").length'), 3, 'Dashboard caps the same typed rows at three');
       assert.match(await chrome.stable('document.querySelector("#dashboard .needs-more").textContent'), /3 more and 1 draft rows/u);
       assert.equal(await chrome.stable('document.querySelectorAll("#dashboard details[open]").length'), 0, 'the initial summary rows are collapsed');
+      await capture('dashboard', width);
       await press(chrome, 'document.querySelector("#dashboard [data-needs-list]")');
       await chrome.waitFor('view.tab === "items" && view.state === "active"');
       assert.match(await chrome.stable('document.querySelector("#needs").textContent'), /Questions and sentinels · 2/u);
@@ -44,8 +52,11 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
       assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(selector + ' .needs-detail p')}).textContent`), row.text, 'expanded text preserves the actual full requirement');
       assert.equal(await chrome.stable(`getComputedStyle(document.querySelector(${JSON.stringify(selector + ' .needs-copy b')})).whiteSpace`), 'nowrap', 'the summary title uses the mockup single line');
       assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(selector)}).textContent.includes('agent-approved;')`), false, 'status prose does not replace the row title');
+      await capture('items-expanded', width);
       await press(chrome, `document.querySelector(${JSON.stringify(selector + ' summary')})`);
       assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(selector + ' details')}).open`), false);
+      await chrome.stable('render(); true');
+      assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(selector + ' details')}).open`), false, 'a hidden duplicate surface cannot reopen the collapsed row on refresh');
       assert.equal(await chrome.stable('document.documentElement.scrollWidth <= innerWidth + 1'), true, 'the full list fits both viewports');
     }
     await press(chrome, 'document.querySelector("#needs [data-needs-confirm]")');

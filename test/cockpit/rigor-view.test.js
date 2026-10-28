@@ -15,7 +15,7 @@ import { SPEC, machine, project, build, sendBack, startView, openPage, boardOf, 
  */
 function draft({ name, check, cited = true }) {
   return {
-    kind: 'sentinel-draft', id: `sentinel:${name}`, ref: name,
+    kind: 'sentinel-draft', id: `sentinel:${name}`, ref: name, check, directory: '.', every: 'hourly', owner: 'coordinator',
     text: `Sentinel draft: ${name} runs ${check} hourly, reporting to coordinator`,
     what: `pullboard sentinel approve ${name}, or decline it with --reason`, target: `sentinel:${name}`,
     ...(cited ? { cause: 'row:G1', evidence: { key: 'row:G1', items: [{ id: 4, commits: [] }, { id: 7, commits: [] }], occurrences: 2,
@@ -117,8 +117,8 @@ test('a materialized automatic Rigor draft shows in Needs you, marked unproved, 
       await chrome.click(`document.querySelector('[data-tab=items]')`);
       const read = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const needs = document.querySelector('#needs');
-        const rows = [...needs.querySelectorAll(':scope > .row')].map((row) => ({ words: row.querySelector('.t').textContent,
-          kind: row.querySelector('.meta .why').textContent, chip: row.querySelector(':scope > .chip').textContent, go: row.dataset.go ?? null,
+        const rows = [...needs.querySelectorAll('.needs-call')].map((row) => ({ words: row.querySelector('.needs-copy b').textContent,
+          kind: row.querySelector('.needs-copy small').textContent, chip: row.querySelector('.needs-action').textContent, go: row.querySelector('[data-go]')?.dataset.go ?? null,
           right: row.getBoundingClientRect().right }));
         return { shown: !needs.hidden && needs.getBoundingClientRect().height > 0, rows,
           page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth } };
