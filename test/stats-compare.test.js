@@ -135,7 +135,7 @@ test('next records an authenticated prospective cause and refuses an invented re
   const event = box.history().at(-1);
   assert.equal(event.event_kind, 'next-idle');
   assert.equal(event.event_by, 'core-1');
-  assert.deepEqual(JSON.parse(event.event_detail), idle('held'));
+  assert.deepEqual(JSON.parse(event.event_detail), { ...idle('held'), model: 'unknown' });
   assert.equal(box.history().length, before + 1);
   assert.throws(() => store.recordNextIdle(box.board, { agentId: 'core-1', reason: 'guessed-old-history' }), error => error.code === 'BAD_IDLE_REASON');
   assert.throws(() => store.recordNextIdle(box.board, { agentId: 'missing', reason: 'held' }), error => error.code === 'NOT_JOINED');
@@ -155,7 +155,7 @@ test('ordinary next records its structured observation but stats reads add no id
   const observed = box.history().filter(row => row.event_kind === 'next-idle');
   assert.equal(observed.length, 1, result.stdout + result.stderr);
   assert.equal(observed[0].event_by, 'coordinator');
-  assert.deepEqual(JSON.parse(observed[0].event_detail), idle('nothing-eligible'));
+  assert.deepEqual(JSON.parse(observed[0].event_detail), { ...idle('nothing-eligible'), model: 'unknown' });
   assert.deepEqual(box.history().filter(row => row.event_kind !== 'next-idle'), before);
   const after = box.history();
   const stats = await cli(box.root, box.clock, ['stats', '--window', '1h', '--compare', '--json']);
