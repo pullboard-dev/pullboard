@@ -1,5 +1,6 @@
 /** @pullboard-test-loads src/browser-admission.js */
 /** Real gates and item checks share the machine queue; landing priority and lease behavior stay intact [Q1,Q2,Q4,O5,O6,V18]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn, runFixtureChild as spawnSync, runFixtureChild } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -80,12 +81,13 @@ function launchDiagnostic(box, root, name, started, release, waiting) {
   const script = join(box.dir, `${name}.mjs`);
   writeFileSync(script, `import { existsSync, renameSync, writeFileSync } from 'node:fs';
 import { withGateSlot } from ${JSON.stringify(GATE_MODULE)};
+${executionServicesSource(GATE_MODULE)}
 /** Publish a complete handshake so its visible file always contains its value. */
 function publish(file, value) { writeFileSync(file + '.tmp', value); renameSync(file + '.tmp', file); }
 await withGateSlot(process.cwd(), async () => {
   publish(${JSON.stringify(started)}, 'started');
   while (!existsSync(${JSON.stringify(release)})) await new Promise(done => setTimeout(done, 10));
-}, { diagnostic: true, kind: 'main-red', agent: ${JSON.stringify(name)}, onWait: state => publish(${JSON.stringify(waiting)}, String(state.position)) });
+}, { executionServices, diagnostic: true, kind: 'main-red', agent: ${JSON.stringify(name)}, onWait: state => publish(${JSON.stringify(waiting)}, String(state.position)) });
 `);
   const child = spawn(process.execPath, [script], { cwd: root, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdoutText = '';
@@ -139,10 +141,11 @@ function launchOrdinaryLease(box, root, { marker, release, waiting }) {
   const script = join(box.dir, 'ordinary-lease.mjs');
   writeFileSync(script, `import { existsSync, writeFileSync } from 'node:fs';
 import { withGateSlot } from ${JSON.stringify(GATE_MODULE)};
+${executionServicesSource(GATE_MODULE)}
 await withGateSlot(process.cwd(), async () => {
   writeFileSync(${JSON.stringify(marker)}, 'started');
   while (!existsSync(${JSON.stringify(release)})) await new Promise(done => setTimeout(done, 10));
-}, { kind: 'fixture-ordinary', onWait: () => writeFileSync(${JSON.stringify(waiting)}, 'waiting') });
+}, { executionServices, kind: 'fixture-ordinary', onWait: () => writeFileSync(${JSON.stringify(waiting)}, 'waiting') });
 `);
   const child = spawn(process.execPath, [script], { cwd: root, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdoutText = '';

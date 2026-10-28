@@ -1,9 +1,3 @@
-import {
-  forgetHoldMaintenance,
-  holdUntilKind,
-  rememberHoldCondition,
-} from './conditional-holds.js';
-import { STALE_STATE_ENGINE } from './stale-state-engine.js';
 /** Ordinary item holds share their existing transaction and event semantics [B4,C7]. */
 import { Refused } from './refused.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
@@ -11,10 +5,10 @@ import { RIGOR_AUTO_ENGINE } from './rigor-auto-engine.js';
 
 /** Hold an open or already claimed item under the existing coordinator authority. */
 export function applyItemHold(board, id, { agentId, reason, until }, dependencies) {
-  const { coordinatorOnly, atomic, getItem, setItem, now, logEvent, postRigorNotices, itemHold } = dependencies;
+  const { coordinatorOnly, atomic, getItem, setItem, now, logEvent, postRigorNotices, itemHold, holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine } = dependencies;
   coordinatorOnly(agentId, 'holds an item');
   const condition = holdUntilKind(until);
-  if (until !== undefined && (board.executionEngineVersion ?? ENGINE_VERSION) < STALE_STATE_ENGINE) {
+  if (until !== undefined && (board.executionEngineVersion ?? ENGINE_VERSION) < staleStateEngine) {
     throw new Refused('ENGINE_VERSION', 'conditional holds require replay-aware writers; upgrade every linked device');
   }
   const text = String(reason ?? '').trim();
@@ -36,7 +30,7 @@ export function applyItemHold(board, id, { agentId, reason, until }, dependencie
 
 /** Lift a coordinator item hold while preserving every other lifecycle field. */
 export function applyItemHoldRelease(board, id, { agentId }, dependencies) {
-  const { coordinatorOnly, atomic, itemHold, setItem, logEvent } = dependencies;
+  const { coordinatorOnly, atomic, itemHold, setItem, logEvent, forgetHoldMaintenance } = dependencies;
   coordinatorOnly(agentId, 'lifts an item hold');
   return atomic(board, () => {
     const held = itemHold(board, id);

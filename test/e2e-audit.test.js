@@ -1,5 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** Value placement and incremental audit control contracts, without executing repository journeys [C7]. */
+import { flakeLedger } from '../src/flakes.js';
+import { eventCauses } from '../src/rigor.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHash } from 'node:crypto';
@@ -188,7 +190,7 @@ test('production audit runs a CLI journey, reuses an unchanged unit and files a 
   const first = JSON.parse(readFileSync(join(box.directory, box.key + '.json')));
   assert.equal(first.state, 'complete', JSON.stringify(first));
   assert.equal(first.green, true);
-  assert.equal(readFileSync(box.unitMarker, 'utf8'), 'ran');
+  assert.equal(box.readUnitMarker(), 'ran');
   const firstReceipt = box.readGateReceipt(box.receiptStore(box.repo), first.receiptId);
   assert.equal(firstReceipt.collection.full, true);
   const placement = readPlacementReport(box.repo);
@@ -203,7 +205,7 @@ test('production audit runs a CLI journey, reuses an unchanged unit and files a 
   assert.equal(second.green, true);
   assert.ok(second.plan.reused.some(row => row.file === 'test/b.test.js'));
   assert.ok(!second.plan.run.includes('test/b.test.js'));
-  assert.equal(readFileSync(box.unitMarker, 'utf8'), 'ran', 'unchanged body was not executed again');
+  assert.equal(box.readUnitMarker(), 'ran', 'unchanged body was not executed again');
   assert.equal(box.readGateReceipt(box.receiptStore(box.repo), second.receiptId).collection.full, false, 'selected native proof is labeled selected');
   const failedBatch = box.appendBatch({ fail: true });
   await box.runWorker();
@@ -223,14 +225,14 @@ test('production audit runs a CLI journey, reuses an unchanged unit and files a 
   const cadence = JSON.parse(readFileSync(join(box.directory, 'schedule.json')));
   assert.equal(cadence.inputs.escapes, 1, 'lambda counts an actual audit-filed repair item');
   assert.ok(cadence.hours > 0);
-  const report = box.board(db => testValueReport(db, { root: box.repo, costs: loadConfig(box.repo).testEconomics }));
+  const report = box.board(db => testValueReport(db, { root: box.repo, costs: loadConfig(box.repo).testEconomics }, { flakeLedger, eventCauses }));
   const caught = report.files.find(row => row.file === 'test/a.test.js');
   assert.equal(caught.realCatches, 1, 'the routed native audit red earns a catch before a green repair exists');
   assert.equal(caught.catches[0].red, failed.receiptId);
   assert.equal(caught.catches[0].source, 'audit');
   assert.equal(caught.catches[0].green, null, 'a found regression never claims an unobserved green repair');
   assert.ok(caught.catchRate > 0);
-  const promoted = box.board(db => refreshTestPlacement(db, { root: box.repo, head: failedBatch.tip, config: loadConfig(box.repo) }));
+  const promoted = box.board(db => refreshTestPlacement(db, { root: box.repo, head: failedBatch.tip, config: loadConfig(box.repo) }, { flakeLedger, eventCauses }));
   assert.ok(['submit', 'landing'].includes(promoted.files.find(row => row.file === 'test/a.test.js').tier),
     'a valuable caught contract can move back out of audit after the next inventory refresh');
 });

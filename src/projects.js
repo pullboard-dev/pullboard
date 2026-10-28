@@ -26,7 +26,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { loadConfig } from './config.js';
 import { originRepository } from './github-origin.js';
 import { withMachineHomeWrite } from './machine-home.js';
-import { boardReferenceId } from './board-reference.js';
+import { boardReferenceId } from '../packages/kernel/src/core/registry-guards.js';
 import { repoInfo } from './git.js';
 import * as store from './board.js';
 import { Refused } from './refused.js';

@@ -81,9 +81,17 @@ test('nested shard uses carried admitted policy [C7,V4]', () => {
   git(repo, env, 'worktree', 'add', '--detach', source, candidate);
   const requests = join(dir, 'requests.jsonl');
   const stderrLog = join(dir, 'worker.stderr');
+  /** Read the original immutable request log; caller comparisons retain their exact raw bytes. */
+  function readRequests() {
+    return readFileSync(requests, 'utf8');
+  }
+  /** Preserve the existing conditional stderr read and its native missing-file failure. */
+  function readStderr() {
+    return readFileSync(stderrLog, 'utf8');
+  }
   installSshStandIn({ bin, worker, home: remoteHome,
     machineHome: remoteMachine, requests, stderrLog });
-  return { dir, repo, source, candidate, trunk, env, requests, stderrLog };
+  return { dir, repo, source, candidate, trunk, env, requests, stderrLog, readRequests, readStderr };
 }
 
 test('ordinary fake-SSH source carries its actual trunk policy into a detached nested shard without a board [C7,V4]', async t => {
@@ -91,7 +99,7 @@ test('ordinary fake-SSH source carries its actual trunk policy into a detached n
   const registered = cli(box.source, box.env, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json');
   assert.equal(registered.status, 0, registered.context);
   const result = await runThroughGate(box.source, box.env, 'node bin/run-tests.js test/nested.test.js', { landing: true, requests: box.requests });
-  assert.equal(result.status, 0, fixtureResultContext(result) + (existsSync(box.stderrLog) ? readFileSync(box.stderrLog, 'utf8') : ''));
+  assert.equal(result.status, 0, fixtureResultContext(result) + (existsSync(box.stderrLog) ? box.readStderr() : ''));
   assert.equal(gateResult(result.stdout).runner, HOST, 'the positive policy proof must execute remotely, never pass by local fallback');
   assert.match(result.stdout, /nested shard uses carried admitted policy/u);
   assert.match(result.stdout, /TAP version 13/u);
@@ -117,7 +125,7 @@ console.log(JSON.stringify(result.privateCheck)); process.exitCode = result.isGr
   const refused = await runThroughGate(missing, box.env, 'node bin/run-tests.js test/nested.test.js', { landing: true, requests: box.requests });
   assert.equal(refused.status, 1, fixtureResultContext(refused));
   assert.match(refused.stdout, /NO_POLICY/u, 'a real nested job without carried provenance refuses loudly');
-  const requestsBeforeProtection = readFileSync(box.requests, 'utf8');
+  const requestsBeforeProtection = box.readRequests();
   writeFileSync(join(box.repo, 'confidential.txt'), 'harmless protected history witness\n');
   git(box.repo, box.env, 'add', 'confidential.txt');
   git(box.repo, box.env, 'commit', '-q', '-m', 'test: historical protected path');
@@ -128,7 +136,7 @@ console.log(JSON.stringify(result.privateCheck)); process.exitCode = result.isGr
   const protectedRun = await runThroughGate(box.source, box.env, 'node -e "console.log(1)"', { requests: box.requests });
   assert.equal(protectedRun.status, 1, fixtureResultContext(protectedRun));
   assert.match(protectedRun.stdout + protectedRun.stderr, /RUNNER_SECRET/u);
-  assert.equal(readFileSync(box.requests, 'utf8'), requestsBeforeProtection, 'new admitted protection rules stop historical bytes before SSH');
+  assert.equal(box.readRequests(), requestsBeforeProtection, 'new admitted protection rules stop historical bytes before SSH');
 });
 
 test('detached nested policy refuses absent, malformed, stale-source and changed-trunk context [C7,V4]', t => {

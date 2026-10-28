@@ -5,8 +5,8 @@ import * as store from '../src/board.js';
 import {
   COORDINATION_SHOUT,
   itemShoutReader,
-  shoutItemId,
 } from '../src/shout-audience.js';
+import { shoutItemId } from '../packages/kernel/src/core/registry-guards.js';
 
 /** Compare the optimized query to the previous all-project-then-filter semantics. */
 function reference(board, recipient) {

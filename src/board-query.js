@@ -15,9 +15,9 @@ import { outsideSource } from './outside-source.js';
 import {
   COORDINATION_SHOUT,
   itemShoutReader,
-  shoutItemId,
   UNREAD_SHOUT_SQL,
 } from './shout-audience.js';
+import { shoutItemId } from '../packages/kernel/src/core/registry-guards.js';
 import { workerInboxQuery } from './worker-inbox.js';
 /** Canonical board queries shared by reads and the synchronous write store [C7]. */
 import { verdictWithdrawals } from './verdict-withdrawal.js';

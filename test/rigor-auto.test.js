@@ -1,3 +1,4 @@
+import { digestNativePorts } from './digest-native-ports.fixture.js';
 /** @pullboard-test-loads src/board.js src/engine.js src/machine.js */
 /** Automatic Rigor proposals retain evidence, never invent proof or person approval [D1,D3,H16]. */
 import assert from 'node:assert/strict';
@@ -21,7 +22,7 @@ import { planRowApply, prepareRowDecisions, writeRowApply } from '../src/row-dec
 import { loadConfig } from '../src/config.js';
 import { RIGOR_AUTO_ENGINE } from '../src/rigor-auto-engine.js';
 import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
-import { conflictNote } from '../src/trunk-conflict.js';
+import { conflictNote } from '../packages/kernel/src/core/registry-guards.js';
 import { automaticDecisionSource, rigorDecisionKey } from '../src/rigor-auto-source.js';
 
 const roots = [];
@@ -157,7 +158,7 @@ test('an unanswered Rigor draft is restated once in each read-only digest after 
     for (const title of ['First', 'Second']) { const id = box.submit(title); box.reject(id); }
     box.advance(3_600_001);
     const before = store.events(box.board).length;
-    const digest = readDigest(box.file, { root: box.root, now: box.board.clock.now(), healthReport: digestHealth });
+    const digest = readDigest(box.file, { root: box.root, now: box.board.clock.now(), healthReport: digestHealth }, digestNativePorts);
     assert.match(digest.markdown, /Unanswered Rigor drafts/u);
     const ids = store.rowDrafts(box.board).map(row => row.id);
     for (const id of ids) assert.equal(digest.markdown.split(`Rigor draft ${id}:`).length - 1, 1);
@@ -228,7 +229,7 @@ test('a person can replace automatic advice without breaking a later spec apply 
       'a later edit cannot hide behind the old person decision');
     assert.throws(() => planAutomaticRigorApply(box.root, config, drafts, store.rowDecisions(box.board)), error => error.code === 'ROW_DRAFT');
     box.advance(3_600_001);
-    assert.ok(readDigest(box.file, { root: box.root, now: box.board.clock.now(), healthReport: digestHealth }).markdown.includes(`Rigor draft ${drafts[0].id}:`),
+    assert.ok(readDigest(box.file, { root: box.root, now: box.board.clock.now(), healthReport: digestHealth }, digestNativePorts).markdown.includes(`Rigor draft ${drafts[0].id}:`),
       'the overdue digest also retains a proposal whose old decision is stale');
   } finally { box.close(); }
 });

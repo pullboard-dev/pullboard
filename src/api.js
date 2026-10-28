@@ -1,4 +1,5 @@
-import { spawnSync } from 'node:child_process';
+import { lifecycleEvent } from './item-list.js';
+import { gitSpawnSync } from './git-adapter.js';
 import { counterProofStats } from './proof-counter-read.js';
 import { viewFlowSummary } from './view-state-summary.js';
 import { proofStats } from './stats.js';
@@ -7,7 +8,6 @@ import { stateFileInputs } from './native-board-state.js';
 import { fileRevision } from './native-board-state.js';
 import { WHOLE_STATE_DELTA_FIELDS } from './api-delta-fields.js';
 import { nativeStateClockMatches } from './native-state-clock.js';
-import { foreignDependencyStates } from './cross-repo-dependencies.js';
 import {
   dependencyValues,
   localDependencyIds,
@@ -1011,7 +1011,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       const dependent = db.prepare('SELECT item_status FROM item WHERE item_id = ?').get(dependency);
       if (dependent) status.set(dependency, dependent.item_status);
     }
-    for (const ref of foreignDependencyStates(currentBoard, row)) status.set(`${ref.repo}#${ref.id}`, ref.status);
+    for (const ref of store.foreignDependencyStates(currentBoard, row)) status.set(`${ref.repo}#${ref.id}`, ref.status);
     // Detail reads need no new Git process while the trunk holds.
     const tip = trunkRevisionReader(info)();
     const approval = approvalFor(board.root, currentBoard, info);
@@ -1161,7 +1161,7 @@ function verdictOf(row) {
 export function projectItemState(board, item, status) {
   const verdicts = store.verdictsFor(board, item.item_id).map(verdictOf);
   const after = dependencyValues(item);
-  const foreign = new Map(foreignDependencyStates(board, item).map(ref => [`${ref.repo}#${ref.id}`, ref.status]));
+  const foreign = new Map(store.foreignDependencyStates(board, item).map(ref => [`${ref.repo}#${ref.id}`, ref.status]));
   return {
     id: item.item_id,
     title: item.item_title,
@@ -1183,7 +1183,7 @@ export function projectItemState(board, item, status) {
     updatedAt: item.item_updated_at,
     verdict: verdicts.at(-1) ?? null,
     verdicts,
-    history: store.events(board, { itemId: item.item_id }).map((event) => ({ kind: event.event_kind, by: event.event_by, at: event.event_at })),
+    history: store.events(board, { itemId: item.item_id }).map(lifecycleEvent),
   };
 }
 
@@ -1213,15 +1213,15 @@ export function codeAt(root, { path, from, to, commit, before = '' }) {
   const full = resolveCommit(root, commit);
   if (!full) throw new Refused('NO_COMMIT', `no commit ${commit} in this repo`);
   const object = `${full}:${path}`;
-  const type = spawnSync('git', ['cat-file', '-t', object], { cwd: root, encoding: 'utf8' });
+  const type = gitSpawnSync(['cat-file', '-t', object], { cwd: root, encoding: 'utf8' });
   if (type.status !== 0 || type.stdout.trim() !== 'blob') throw new Refused('NO_FILE', `no file ${path} at ${commit}`);
   const written = `${before}${path}`;
-  const names = spawnSync('git', ['ls-tree', '-r', '-z', '--name-only', full], { cwd: root, encoding: 'utf8', maxBuffer: 64_000_000 }).stdout.split('\0');
+  const names = gitSpawnSync(['ls-tree', '-r', '-z', '--name-only', full], { cwd: root, encoding: 'utf8', maxBuffer: 64_000_000 }).stdout.split('\0');
   const longer = names.find((name) => name.length > path.length && name.endsWith(path) && written.endsWith(name));
   if (longer) throw new Refused('AMBIGUOUS', `the text before it may make it "${longer}", which a reference cannot name`);
-  const size = Number(spawnSync('git', ['cat-file', '-s', object], { cwd: root, encoding: 'utf8' }).stdout);
+  const size = Number(gitSpawnSync(['cat-file', '-s', object], { cwd: root, encoding: 'utf8' }).stdout);
   if (!(size <= CODE_BYTES)) throw new Refused('TOO_LARGE', `${path} is over ${CODE_BYTES / 1_000_000} MB, too large to show`);
-  const lines = spawnSync('git', ['cat-file', 'blob', object], { cwd: root, encoding: 'utf8', maxBuffer: CODE_BYTES + 1 }).stdout.split('\n');
+  const lines = gitSpawnSync(['cat-file', 'blob', object], { cwd: root, encoding: 'utf8', maxBuffer: CODE_BYTES + 1 }).stdout.split('\n');
   if (lines.at(-1) === '') lines.pop();
   if (to > lines.length) throw new Refused('NO_LINES', `${path} has ${lines.length} lines at ${commit}`);
   const last = Math.min(to, from + CODE_LINES - 1);

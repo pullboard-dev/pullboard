@@ -1,7 +1,9 @@
+import { digestNativePorts } from './digest-native-ports.fixture.js';
 /**
  * pullboard health names every stuck item, why, since when, the next step and who takes it, on a
  * real SQLite board in a real git repo with an injected clock, and never changes either [A6].
  */
+import { executionServices } from './gate-execution-fixture.js';
 import { dispatchHealth } from '../src/dispatch-health.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
@@ -60,7 +62,7 @@ test('health upper bindings retain actual dispatch findings without changing the
   const digest = await dispatchCli(box, box.root, ['digest']);
   assert.equal(digest.code, 0, digest.err);
   for (const finding of expected) assert.ok(digest.document.markdown.includes(finding.title), 'the actual digest CLI retains dispatch health');
-  assert.doesNotThrow(() => readDigest(box.file), 'a root-free digest still needs no health operation');
+  assert.doesNotThrow(() => readDigest(box.file, undefined, digestNativePorts), 'a root-free digest still needs no health operation');
   assert.deepEqual(store.events(box.board), before, 'health observation is read-only');
   assert.throws(() => healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now() }),
     /requires its dispatchHealth observation port/u, 'an omitted port never silently drops findings');
@@ -572,7 +574,7 @@ test('a positive control inherits the gate slot it runs under [C7,D1]', async (t
   commitPolicy(box, { gate: 'true', positiveControl: probe });
   const { runGate } = await import('../src/gate.js');
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
-  const gate = await runGate(box.root, config, { trustStamp: false });
+  const gate = await runGate(box.root, config, { executionServices, trustStamp: false });
   assert.equal(gate.isGreen, true, 'the gate itself is green');
   const run = gateRuns(box.root).at(-1);
   assert.equal(run.control, true, 'the positive control saw the inherited gate slot and passed');

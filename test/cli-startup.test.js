@@ -55,6 +55,8 @@ function fixture(t) {
   const repo = join(dir, 'repo');
   const shims = join(dir, 'shims');
   const home = join(dir, 'home');
+  const gitCallsFile = join(dir, 'git-calls.log');
+  const moduleLogFile = join(dir, 'modules.log');
   mkdirSync(repo);
   mkdirSync(shims);
   // Each line names the folder Git ran in, then its arguments, so a count can tell this repository from the code's own.
@@ -68,8 +70,8 @@ function fixture(t) {
     HOME: home,
     PULLBOARD_HOME: join(home, '.pullboard'),
     PULLBOARD_MACHINE_HOME: join(home, '.pullboard-machine'),
-    PULLBOARD_GIT_CALLS: join(dir, 'git-calls.log'),
-    PULLBOARD_MODULE_LOG: join(dir, 'modules.log'),
+    PULLBOARD_GIT_CALLS: gitCallsFile,
+    PULLBOARD_MODULE_LOG: moduleLogFile,
     PULLBOARD_REAL_GIT: realGitPath(),
     PATH: `${shims}${delimiter}${process.env.PATH}`,
     GIT_CONFIG_GLOBAL: '/dev/null',
@@ -83,13 +85,13 @@ function fixture(t) {
   const hook = moduleHook(dir);
   /** Run the real CLI and return its result with the modules it loaded and the Git processes it started. */
   const runIn = (cwd, ...args) => {
-    writeFileSync(env.PULLBOARD_GIT_CALLS, '');
-    writeFileSync(env.PULLBOARD_MODULE_LOG, '');
+    writeFileSync(gitCallsFile, '');
+    writeFileSync(moduleLogFile, '');
     const result = runFixtureChild(process.execPath, ['--import', hook, BIN, ...args], { cwd, env, encoding: 'utf8' });
     assert.equal(result.status, 0, `${args.join(' ')}: ${result.stdout}${result.stderr}`);
-    const modules = [...new Set(readFileSync(env.PULLBOARD_MODULE_LOG, 'utf8').split('\n').filter(Boolean))]
+    const modules = [...new Set(readFileSync(moduleLogFile, 'utf8').split('\n').filter(Boolean))]
       .map((url) => fileURLToPath(url)).filter((path) => path.startsWith(REPO + sep)).map((path) => path.slice(REPO.length + 1).split(sep).join('/'));
-    const gitCalls = readFileSync(env.PULLBOARD_GIT_CALLS, 'utf8').split('\n').filter(Boolean);
+    const gitCalls = readFileSync(gitCallsFile, 'utf8').split('\n').filter(Boolean);
     return { ...result, modules, gitCalls };
   };
   const run = (...args) => runIn(repo, ...args);
@@ -97,7 +99,7 @@ function fixture(t) {
   const git = (...args) => gitAt(repo, ...args);
   /** Compare the command snapshot with uncached facts from the same real repository. */
   const facts = (cwd) => {
-    writeFileSync(env.PULLBOARD_GIT_CALLS, '');
+    writeFileSync(gitCallsFile, '');
     const source = `import {readFileSync} from 'node:fs';
 import {repoInfo,headCommit,mainCheckout,withGitFacts} from ${JSON.stringify(new URL('../src/git.js', import.meta.url).href)};
 const root=${JSON.stringify(cwd)};

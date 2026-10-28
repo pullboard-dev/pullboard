@@ -1,13 +1,13 @@
 /** Explain owner-sensitive outside changes from trusted main policy and exact Git objects, never execution. */
 import { git } from './git.js';
 import { Refused } from './refused.js';
-import { mainPolicy } from './trusted-policy.js';
 
 /** Fixed trust boundaries cannot be removed by a project's extensions or the contributed configuration. */
 export const OUTSIDE_SENSITIVE_PATHS = Object.freeze([
   'relay/', '.githooks/', '.husky/', '.github/workflows/', 'bin/',
   'src/seal.js', 'src/sealed-pages.js', 'src/signature.js', 'src/relay-key.js', 'src/relay-device-keys.js',
   'src/person.js', 'src/person-request.js', 'src/relay-requests.js', 'src/relay-request-execution.js', 'src/relay-sender.js',
+  'packages/state/src/core/relay-sender-policy.js', 'src/board-engine-ports.js',
   'src/row-decisions.js', 'src/row-decision-state.js', 'src/spec-approval.js', 'src/spec-approval-baseline.js',
   'src/hooks.js', 'src/commands/hook.js', 'src/commands/hooks.js', 'pullboard.json',
 ]);
@@ -25,7 +25,7 @@ function declared(path, pattern) {
 }
 
 /** Record a reason for every rule/path match; a display can explain the hold without rerunning the classifier. */
-export function outsideSensitivity(root, base, commit, paths) {
+export function outsideSensitivity(root, base, commit, paths, { mainPolicy }) {
   const configured = mainPolicy(root).config.intake?.sensitivePaths ?? [];
   if (!Array.isArray(configured) || configured.some(path => typeof path !== 'string' || !path || path.startsWith('/') || path.split('/').includes('..') || /[\r\n\0]/u.test(path))) {
     throw new Refused('BAD_CONFIG', 'intake.sensitivePaths in trusted main is a list of relative exact files or trailing-slash prefixes; correct it before intake');

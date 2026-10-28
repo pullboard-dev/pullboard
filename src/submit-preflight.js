@@ -4,7 +4,6 @@
  * whole proof ran; on 19 Oct #890 spent 679 s before HEAD_NOT_NEW. Here the real submit move runs in a transaction
  * that always rolls back, with a stand-in proof, so every board guard decides now and nothing is recorded.
  */
-import * as store from './board.js';
 
 /** Thrown to roll back a preflight that passed; never escapes this module. */
 const PASSED = Symbol('submit preflight passed');
@@ -19,10 +18,10 @@ const STAND_IN_PROOF = Object.freeze({ version: 1, files: [], full: false, defer
  * @param {number} id
  * @param {{ agentId: string, commit: string, tree: string }} submission
  */
-export function submitPreflight(board, id, { agentId, commit, tree }) {
+export function submitPreflight(board, id, { agentId, commit, tree }, { atomic, submit }) {
   try {
-    store.atomic(board, () => {
-      store.submit(board, id, { agentId, commit, tree, files: [], submissionProof: STAND_IN_PROOF });
+    atomic(board, () => {
+      submit(board, id, { agentId, commit, tree, files: [], submissionProof: STAND_IN_PROOF });
       throw PASSED;
     });
   } catch (error) {

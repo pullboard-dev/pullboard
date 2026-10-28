@@ -1,7 +1,5 @@
 /** Recent merge collisions are architectural advice, separate from proof-bound Rigor causes [D1]. */
-import {
-  shownPath,
-} from './trunk-conflict.js';
+import { shownPath } from '../packages/kernel/src/core/registry-guards.js';
 
 import {
   conflictNoteFiles,

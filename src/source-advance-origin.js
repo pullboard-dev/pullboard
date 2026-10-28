@@ -1,3 +1,8 @@
+import { effectiveItemHead } from './source-advance-state.js';
+import { itemPolicy } from './trusted-policy.js';
+import { requireTrunkMerge } from './trusted-policy.js';
+import { retryReviewCommit } from './verdict-retry.js';
+import { getItem } from './board-query.js';
 /** Seal only gate-owned receipts on a composition produced by the trusted worker [C7,V4,H16]. */
 import { sourceAdvanceReviewEpisode } from './source-advance-state.js';
 import { realpathSync } from 'node:fs';
@@ -47,7 +52,7 @@ export function captureSourceAdvanceBasis(root, board, item) {
   if (outsideSource(board, item.item_id)) throw new Refused('OUTSIDE_SANDBOX_REQUIRED', 'outside sources retain their isolated sandbox path; automatic native main merging is unavailable');
   const verdict = sourceAdvanceVerdict(board, item);
   const inputHead = sourceAdvanceChain(board, item).at(-1)?.head ?? verdict?.review?.head
-    ?? prepareItemPatchReview(root, board, item, { mergeMain: false }).commit;
+    ?? prepareItemPatchReview(root, board, item, { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem }, { mergeMain: false }).commit;
   const basis = Object.freeze({ version: 1, board: identity(board), submitted: item.item_commit, status: item.item_status,
     previous: sourceAdvanceChain(board, item).at(-1)?.head ?? verdict?.review?.head ?? item.item_commit,
     inputHead, trunk: mainPolicy(root).commit, bar: item.item_frozen_digest, patchDigest: itemPatchDigest(board, item.item_id),

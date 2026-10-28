@@ -12,8 +12,12 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { agentSessionDigest } from './person.js';
 import { Refused } from './refused.js';
+
+/** A caller must explicitly capture a native digest or the no-agent null result, never omit identity [V1,B3]. */
+function requireCapturedSession(digest) {
+  if (digest === undefined) throw new Refused('SESSION_LEDGER', 'the native caller must capture its current agent session before using the local ledger');
+}
 
 /** The local ledger of item moves by session digest, shared by every worktree of this repository. */
 function ledgerFile(info) {
@@ -30,7 +34,8 @@ function ledgerRefusal(info, error) {
  * Refuse a claim or submit from an agent session before it moves when the ledger cannot be written (#921). A shell
  * with no agent session records nothing and is never refused.
  */
-export function requireLedger(info, digest = agentSessionDigest()) {
+export function requireLedger(info, digest) {
+  requireCapturedSession(digest);
   if (!digest) return;
   try {
     mkdirSync(join(info.commonDir, 'pullboard'), { recursive: true, mode: 0o700 });
@@ -39,7 +44,8 @@ export function requireLedger(info, digest = agentSessionDigest()) {
 }
 
 /** Record that this session claimed or submitted an item; a write that fails after the move is reported, never dropped. */
-export function recordItemSession(info, item, move, digest = agentSessionDigest()) {
+export function recordItemSession(info, item, move, digest) {
+  requireCapturedSession(digest);
   if (!digest || !Number.isInteger(Number(item))) return;
   try {
     appendFileSync(ledgerFile(info), JSON.stringify({ item: Number(item), move, digest, at: new Date().toISOString() }) + '\n', { mode: 0o600 });
@@ -92,7 +98,8 @@ function boundSeats(info, digest) {
  * @param {string|null} [digest] - Current local session digest.
  * @param {string[]} [authors] - Historical author seats from the board's claim and submit events.
  */
-export function refuseSelfSession(info, item, digest = agentSessionDigest(), authors = [], { commitOnly = false } = {}) {
+export function refuseSelfSession(info, item, digest, authors = [], { commitOnly = false } = {}) {
+  requireCapturedSession(digest);
   if (!digest) return;
   const builders = [item.item_built_by, ...(commitOnly ? [] : [item.item_owner]), ...authors].filter(Boolean);
   const seats = boundSeats(info, digest);

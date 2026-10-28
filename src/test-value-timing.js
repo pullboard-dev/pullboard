@@ -1,3 +1,4 @@
+import { repoInfo } from './git.js';
 /** Private measured file runtimes keyed by the native receipt that observed them [C7]. */
 import {
   mkdirSync,
@@ -69,3 +70,18 @@ export function retainTestValueTimings(store, id, profile) {
     return true;
   } catch { return false; }
 }
+
+/** Where the last landing's per-file wall times live, shared by every worktree of the repository. */
+export function fileTimesPath(root) {
+  return join(repoInfo(root).commonDir, 'pullboard', 'landing-file-times.json');
+}
+
+/** Read the last per-file wall times; a missing or unreadable record means none are known. */
+export function readFileTimes(root) {
+  try {
+    const value = JSON.parse(readFileSync(fileTimesPath(root), 'utf8'));
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return Object.fromEntries(Object.entries(value.files ?? {}).filter(([, ms]) => Number.isFinite(ms) && ms >= 0));
+  } catch { return {}; }
+}
+

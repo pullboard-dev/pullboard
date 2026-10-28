@@ -7,7 +7,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { register, shout as shoutOnBoard } from '../../src/board.js';
-import { relaySenderProblem } from '../../src/relay-sender.js';
+import { boardEnginePorts } from '../../src/board-engine-ports.js';
+const { relaySenderProblem } = boardEnginePorts();
 import { BIN, fetchLive, boardOf, shoutNameText, tapTarget, SPEC, machine, project, build, startView, styleOf, element, storage, openPage, boardId, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, earlier, shoutsAt, press, pressedInto } from './fixture.js';
 import { assertFirstStateDelay, press as sharedPress } from './stable.js';
 

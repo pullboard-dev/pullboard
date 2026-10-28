@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Real private worker/controller custody: refused input must not retain an open pipe or gate lease [C7]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -84,6 +85,7 @@ async function controllerCase(t, { invalidSpec, browser }) {
   const script = `
     import assert from 'node:assert/strict';
     import { withGateSlot } from ${JSON.stringify(moduleURL('gate.js'))};
+${executionServicesSource(moduleURL('gate.js'))}
     import { runOnRunnerAsync } from ${JSON.stringify(moduleURL('runners.js'))};
     import { listResources, takeResource } from ${JSON.stringify(moduleURL('resources.js'))};
     const root = ${JSON.stringify(f.repo)};
@@ -93,7 +95,7 @@ async function controllerCase(t, { invalidSpec, browser }) {
         const held = listResources({ root }).find(row => row.name === 'gate');
         assert.equal(held.holders.length, 1, 'the controller actually holds a private gate slot');
         await runOnRunnerAsync(root, 'printf must-not-run', { browser: ${browser}, runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 } });
-      }, { remote: false, browser: false, gui: false, diagnostic: true, shortEligible: false,
+      }, { executionServices, remote: false, browser: false, gui: false, diagnostic: true, shortEligible: false,
         agent: 'private-invalid-spec-controller', kind: 'test' });
     } catch (error) { refusal = error; }
     assert.equal(refusal?.code, 'RUNNER_WORK_SPEC');
