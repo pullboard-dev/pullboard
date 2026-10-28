@@ -233,7 +233,7 @@ export function withOpenedBoard(ctx, work, board) {
   board.quarantineEnabled = () => quarantine ??= mainPolicy(ctx.info.root).config.flakes?.quarantine === true;
   // The explicit vendor alias list comes from accepted main, as quarantine does; it is read on first family comparison [#1762].
   let aliases;
-  Object.defineProperty(board, 'familyAliases', { configurable: true, get: () => aliases ??= familyIndex(mainPolicy(ctx.info.root).config.families) });
+  Object.defineProperty(board, 'familyAliases', { configurable: true, enumerable: true, get: () => aliases ??= familyIndex(mainPolicy(ctx.info.root).config.families) });
   const firstEvent = board.emittedEvents?.length ?? 0;
   /** Forward committed events before releasing either synchronous or asynchronous work. */
   const finish = () => {

@@ -394,3 +394,15 @@ test('a strict submit whose builder declared no vendor family is refused with th
   assert.throws(() => store.submit(f.board, id, { agentId: 'core-7', commit: 'c'.repeat(40), tree: 'd'.repeat(40), files: [] }), error => error.code === 'UNDECLARED_BUILDER_FAMILY'
     && /pullboard join <lane> --family <vendor>/u.test(error.message));
 });
+
+test('aliases installed by the production accessor reach the review projection, which spreads the board [V4,B26]', t => {
+  const f = fixture(t), id = f.add();
+  store.register(f.board, { id: 'core-6', lane: 'core', path: '/fixture/core-6', family: 'OpenAI', parentDigest: 'f'.repeat(64), model: 'Synthetic fixture model' });
+  const item = f.submit(id);
+  // The same non-enumerable accessor shape cli-read-context.js installs on a real board.
+  let aliases;
+  Object.defineProperty(f.board, 'familyAliases', { configurable: true, get: () => aliases ??= familyIndex({ openai: ['codex'] }) });
+  const projected = reviewEligibility(f.board, item, { familyPolicy: 'require' });
+  assert.equal(projected.eligible.includes('core-6'), false, 'an OpenAI reviewer of a codex builder is the same vendor on the production path');
+  assert.ok(projected.ineligible.some(row => row.agent === 'core-6' && row.code === 'O2_FAMILY_MATCH'));
+});

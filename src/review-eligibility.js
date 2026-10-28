@@ -56,7 +56,8 @@ function withReviewFacts(board, work) {
   };
   // A read-only savepoint also keeps peer writes from mixing different snapshots inside one result.
   board.db.exec('SAVEPOINT review_eligibility');
-  try { return work({ ...board, db }); }
+  // The spread copies only enumerable properties, so the explicit alias index is carried across the snapshot [#1762].
+  try { return work({ ...board, db, familyAliases: board.familyAliases }); }
   finally { board.db.exec('RELEASE review_eligibility'); }
 }
 
