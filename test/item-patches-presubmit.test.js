@@ -9,6 +9,10 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as store from '../src/board.js';
 import { prepareItemPatchReview } from '../src/item-patch-review.js';
+import { effectiveItemHead } from '../src/source-advance-state.js';
+import { itemPolicy } from '../src/trusted-policy-read.js';
+import { requireTrunkMerge } from '../src/trusted-policy-read.js';
+import { retryReviewCommit } from '../src/verdict-retry.js';
 import { itemPatchAuthors } from '../src/item-patch-state.js';
 import { prepareItemPatchSubmit } from '../src/item-patch-submit.js';
 import { sealItemPatchSubmit } from '../src/item-patch-submit.js';
@@ -150,7 +154,8 @@ test('claimed companion submits the real core command and records exact composed
   assert.notEqual(binding.commit, f.source);
   assert.equal(binding.sourceTree, f.box.git(f.builder.root, 'rev-parse', `${f.source}^{tree}`));
   assert.equal(binding.tree, f.box.git(f.builder.root, 'rev-parse', `${binding.commit}^{tree}`));
-  assert.equal(prepareItemPatchReview(f.builder.root, f.board, store.getItem(f.board, f.id)).commit, binding.commit,
+  assert.equal(prepareItemPatchReview(f.builder.root, f.board, store.getItem(f.board, f.id),
+    { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem }).commit, binding.commit,
     'submit and verifier share the actual deterministic composition');
   assert.deepEqual(binding.phases.map(phase => phase.role), ['criterion', 'proof']);
   const options = { ...detail, agentId: f.builder.id };
