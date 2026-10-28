@@ -6,9 +6,9 @@ export function budgetInbox(document, limit, lines, diagnostics = []) {
   for (const shout of shouts) groups.push({ kind: 'shout', count: 1, shout,
     entries: activity.entries.filter(entry => entry.shout === shout.shout_id) });
   for (const entry of activity.entries) if (!direct.has(entry.shout)) {
-    groups.push({ kind: entry.shout ? 'shout' : entry.kind, count: 1, entries: [entry] });
+    groups.push({ kind: entry.shout ? 'shout' : 'activity', count: 1, entries: [entry] });
   }
-  for (const digest of activity.digests) groups.push({ kind: digest.kind, count: digest.count, digest });
+  for (const digest of activity.digests) groups.push({ kind: 'digest', count: digest.count, digest });
   const omitted = {};
   for (const group of groups) omitted[group.kind] = (omitted[group.kind] ?? 0) + group.count;
   const result = { ...document, shouts: [], activity: { ...activity, interrupts: [], entries: [], digests: [] },
