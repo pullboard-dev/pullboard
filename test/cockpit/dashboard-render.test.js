@@ -18,6 +18,24 @@ function section(html, name) {
 /** Count actual item rows rendered in a card, excluding links and headings. */
 function itemRows(html) { return [...html.matchAll(/class="dash-item"/gu)].length; }
 
+test('Dashboard time and number labels depend on supplied locale and zone, not the test host [N26,C7]', () => {
+  const input = dashboardData({ populated: true });
+  const model = dashboardModel(input.project, input.events, { now: input.clockBase, complete: true });
+  model.totals.allTime = 1234;
+  const before = JSON.stringify(model);
+  const utc = dashboardHtml(model, { locale: 'en-GB', timeZone: 'UTC' });
+  const tokyo = dashboardHtml(model, { locale: 'en-GB', timeZone: 'Asia/Tokyo' });
+  assert.match(section(utc, 'Shipping now'), /Wednesday at 14:00 – Wednesday at 16:00/u);
+  assert.match(section(tokyo, 'Shipping now'), /Wednesday at 23:00 – Thursday at 01:00/u);
+  assert.match(section(utc, 'Landed per hour'), /28\/10\/2026, 11:00:00 – 12:00:00/u);
+  assert.match(section(tokyo, 'Landed per hour'), /28\/10\/2026, 20:00:00 – 21:00:00/u);
+  assert.match(utc, /1,234 landed all time/u);
+  assert.match(dashboardHtml(model, { locale: 'de-DE', timeZone: 'UTC' }), /1\.234 landed all time/u);
+  assert.equal(dashboardHtml(model), dashboardHtml(model, { locale: 'en-US', timeZone: 'UTC' }), 'omitted preferences have deterministic defaults');
+  assert.equal(dashboardHtml(model, { locale: 'en-GB', timeZone: 'UTC' }), utc);
+  assert.equal(JSON.stringify(model), before, 'formatting never changes its model');
+});
+
 test('Dashboard renders release, charts, agents, landings and capped lists from plain input [N26]', () => {
   const input = dashboardData({ populated: true });
   const { clockBase } = input;

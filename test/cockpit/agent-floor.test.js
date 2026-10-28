@@ -32,6 +32,22 @@ function age(ms) {
   return minutes < 60 ? `${minutes}m` : `${(minutes / 60).toFixed(1)}h`;
 }
 
+test('Agent Floor labels use explicit locale and timezone with stable pure-render defaults [N26,C7]', () => {
+  const { floor } = floorAt(seeded.now);
+  floor.now = Date.parse('2026-10-28T12:00:00Z');
+  floor.numbers.allTime = 1234;
+  const before = JSON.stringify(floor);
+  const utc = agentFloorHtml(floor, { locale: 'en-GB', timeZone: 'UTC' });
+  const tokyo = agentFloorHtml(floor, { locale: 'en-GB', timeZone: 'Asia/Tokyo' });
+  assert.match(utc, /data-floor-clock datetime="2026-10-28T12:00:00\.000Z">12:00:00<\/time>/u);
+  assert.match(tokyo, /data-floor-clock datetime="2026-10-28T12:00:00\.000Z">21:00:00<\/time>/u);
+  assert.match(utc, /1,234 items landed all time/u);
+  assert.match(agentFloorHtml(floor, { locale: 'de-DE', timeZone: 'UTC' }), /1\.234 items landed all time/u);
+  assert.equal(agentFloorHtml(floor), agentFloorHtml(floor, { locale: 'en-US', timeZone: 'UTC' }));
+  assert.equal(agentFloorHtml(floor, { locale: 'en-GB', timeZone: 'UTC' }), utc);
+  assert.equal(JSON.stringify(floor), before);
+});
+
 test('the floor\'s headline counts live agents, builders, reviewers and 24-hour landings from the board [N26]', () => {
   const { model, floor, html } = floorAt(seeded.now);
   const headline = section(html, 'Headline');
