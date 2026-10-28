@@ -139,6 +139,7 @@ import {
 import {
   assertNoCitedSpecDecline,
   prepareSpecRefreezes,
+  specRefreezeSkips,
 } from '../spec-refreeze.js';
 
 /** Validate optional verdicts using only existing board state; a check never initializes a board. */
@@ -374,10 +375,14 @@ export async function specCommand(io, { first, second, rest, values }) {
       let applied;
       try {
         const args = { agentId: me.id, events: plan.records.map((record) => record.event) };
-        const refreezes = prepareSpecRefreezes(plan.records, board.db.prepare('SELECT * FROM item ORDER BY item_id').all(),
-          freezer(ctx, { captureVerifyPolicy: true, board }));
+        const items = board.db.prepare('SELECT * FROM item ORDER BY item_id').all();
+        const skippedDrafts = specRefreezeSkips(board, plan.records, items);
+        const refreezes = prepareSpecRefreezes(plan.records, items,
+          freezer(ctx, { captureVerifyPolicy: true, board }), { skippedDrafts });
         if (refreezes !== undefined) args.refreezes = refreezes;
+        if (skippedDrafts.length) args.skippedDrafts = skippedDrafts;
         applied = await ordered(ctx, board, 'applyRowDecisions', [args]);
+        if (skippedDrafts.length) io.say(`Refreeze skipped never-frozen open items ${skippedDrafts.map(id => `#${id}`).join(', ')} citing explicitly declined drafts.`);
       } catch (error) { restoreRowApply(ctx.info.root, plan); throw error; }
       const verifications = planRowVerificationApply(ctx.info.root, ctx.config, store.rowVerifications(board), store.rowDecisions(board));
       writeRowApply(ctx.info.root, verifications);

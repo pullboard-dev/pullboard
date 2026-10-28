@@ -5,7 +5,11 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runFixtureChild } from './fixture-child.js';
-import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
+import {
+  HOST,
+  installRegistrationProbeStandIn,
+  installSshStandIn,
+} from './runner-ssh-fixture.js';
 
 /** Ask the real private machine queue for one gate lease from a fresh process. */
 function runPrivateGateLease(box, behavior = '') {
@@ -29,6 +33,10 @@ export async function runnerFirstPolicyCase(e2e) {
   const box = e2e.privateCheckSubmission({ check: 'true' });
   const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  const probeBin = join(box.dir, 'registration-bin');
+  mkdirSync(probeBin);
+  installRegistrationProbeStandIn({ bin: probeBin });
+  box.env.PATH = `${probeBin}:${box.env.PATH}`;
   const hosts = ['a51', 'a52', 'a53'];
   for (const host of hosts) {
     const added = box.run(box.repo, 'runner', 'add', host, '--slots', '1', '--browser', '1');

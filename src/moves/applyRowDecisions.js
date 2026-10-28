@@ -1,5 +1,6 @@
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from '../automatic-dispatch-engine.js';
+import { SPEC_DRAFT_REFREEZE_ENGINE } from '../spec-draft-refreeze-engine.js';
 /** Routing metadata owned by applyRowDecisions, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
@@ -16,6 +17,7 @@ function minimumEngine(args, board, at) {
   } else if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) minimum = RIGOR_AUTO_ENGINE;
   else if (args[0]?.landingFence !== undefined) minimum = LANDING_LEASE_ENGINE;
   else if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('sentinel:')) minimum = BOARD_SENTINEL_ENGINE;
+  if (Object.hasOwn(args[0] ?? {}, 'skippedDrafts')) minimum = Math.max(minimum, SPEC_DRAFT_REFREEZE_ENGINE);
   return Object.hasOwn(args[0] ?? {}, 'refreezes')
     ? Math.max(minimum, AUTOMATIC_DISPATCH_ENGINE)
     : minimum;

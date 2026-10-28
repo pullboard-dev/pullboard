@@ -93,11 +93,9 @@ function itemAddress(id, root = view.root) {
   const path = prefix + '/items/' + encodeURIComponent(String(id));
   return routed ? path + location.search : location.pathname + location.search + '#' + path.slice(1);
 }
-/** The tab the board's own address shows: the one last picked there, else Home on a board with no items yet and Items on one with work (#967). */
-function homeTab(page) {
-  const kept = keep('pb.tab');
-  return kept && kept !== 'roadmap' ? kept : page?.project && !page.project.items?.length ? 'home' : 'items';
-}
+/** A board's address opens on Dashboard; explicit tab addresses retain their destination. */
+function homeTab(page) { return 'dashboard'; }
+
 const view = { roadmapOpen: new Map(), root: keep('pb.project'), tab: addressTab() || homeTab(), itemsView: typeof location !== 'undefined' && location.hash === '#items/pipeline' ? 'pipeline' : 'list', filterOpen: false, seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', statsOpen: false, open: {}, addressDetail: null, shout: null, scrollPlace: false };
 let switchGeneration = 0;
 // Each board read in the order it started, and the newest one drawn: an answer older than that one is stale.
