@@ -79,7 +79,7 @@
     "test/cockpit/open-board.test.js": 14,
     "test/cockpit/perf/run.mjs": 201,
     "test/cockpit/projects.test.js": 301,
-    "test/cockpit/relay.test.js": 1791,
+    "test/cockpit/relay.test.js": 1794,
     "test/cockpit/roadmap.test.js": 988,
     "test/cockpit/search.test.js": 72,
     "test/cockpit/shouts.test.js": 544,
