@@ -146,11 +146,10 @@
   {"cell":"app:cli","imports":3,"before":false}
  ],
  "cuts": [
-  {"cell":"git","imports":2,"edges":["src/push-native-evidence.js->src/board-query.js","src/queued-item-lease.js->src/board.js"]},
-  {"cell":"state","imports":3,"edges":["src/engine.js->src/board.js","src/engine.js->src/proof-receipts.js","src/implies.js->src/board-query.js"]},
+  {"cell":"queue","imports":2,"edges":["src/queue-readiness.js->src/board-query.js","src/routing-capacity.js->src/seat-presence.js"]},
   {
    "cell": "seats",
-   "imports": 10,
+   "imports": 12,
    "edges": [
     "src/agent-hook-work.js->src/board.js",
     "src/agent-tree.js->src/board.js",
@@ -158,75 +157,16 @@
     "src/line-capacity-board.js->src/board-query.js",
     "src/line-settings.js->src/board-event-log.js",
     "src/line-settings.js->src/board.js",
-    "src/projects.js->src/board-reference.js",
     "src/projects.js->src/board.js",
+    "src/route-capacity.js->src/board-item-read.js",
+    "src/routing-presence.js->src/seat-presence.js",
     "src/seat-checkout.js->src/board.js",
+    "src/seat-review-read.js->src/board-query.js",
     "src/seats.js->src/board-query.js"
    ]
   },
-  {"cell":"roadmap","imports":3,"edges":["src/focus-milestone.js->src/board-read-auxiliary.js","src/milestones.js->src/board.js","src/roadmap.js->src/board.js"]},
-  {
-   "cell": "spec",
-   "imports": 17,
-   "edges": [
-    "src/approved-rows.js->src/board.js",
-    "src/project-decisions.js->src/board.js",
-    "src/reference-release.js->src/board.js",
-    "src/row-draft-store.js->src/board-query.js",
-    "src/row-draft-store.js->src/board.js",
-    "src/row-drafts.js->src/board-query.js",
-    "src/row-drafts.js->src/board.js",
-    "src/setup-rows.js->src/board.js",
-    "src/spec-approval-bootstrap.js->src/board.js",
-    "src/spec-approval-bootstrap.js->src/local-state.js",
-    "src/spec-approval.js->src/board-query.js",
-    "src/spec-revisions.js->src/board-query.js",
-    "src/spec-revisions.js->src/board.js",
-    "src/spec-row-apply.js->src/board-event-log.js",
-    "src/spec-row-apply.js->src/board-query.js",
-    "src/spec-verdicts.js->src/board-query.js",
-    "src/spec-verdicts.js->src/board.js"
-   ]
-  },
-  {
-   "cell": "items",
-   "imports": 18,
-   "edges": [
-    "src/cross-repo-dependencies.js->src/board-link-format.js",
-    "src/cross-repo-dependencies.js->src/board-link-state.js",
-    "src/digest.js->src/board-query.js",
-    "src/digest.js->src/board.js",
-    "src/handoff.js->src/board.js",
-    "src/item-fields.js->src/board-query.js",
-    "src/item-offer.js->src/board.js",
-    "src/item-patches.js->src/board-event-log.js",
-    "src/item-patches.js->src/board-query.js",
-    "src/queue.js->src/board.js",
-    "src/reopen-authority.js->src/board-query.js",
-    "src/resume-sources.js->src/board.js",
-    "src/resume.js->src/board.js",
-    "src/submit-preflight.js->src/board.js",
-    "src/submit-wait.js->src/board-read.js",
-    "src/submit-wait.js->src/board.js",
-    "src/work-order.js->src/board-query.js",
-    "src/work-order.js->src/board-read-auxiliary.js"
-   ]
-  },
-  {"cell":"stats","imports":1,"edges":["src/stats.js->src/board.js"]},
-  {"cell":"merge","imports":2,"edges":["src/main-moved-warning.js->src/board.js","src/merge-only-submit.js->src/board-query.js"]},
-  {
-   "cell": "verify",
-   "imports": 7,
-   "edges": [
-    "src/bar-actor.js->src/board.js",
-    "src/bar-readiness.js->src/board.js",
-    "src/bar-readiness.js->src/item-check-baseline.js",
-    "src/check-accept.js->src/board.js",
-    "src/next-review.js->src/board.js",
-    "src/proof-cli.js->src/proof-receipts.js",
-    "src/verdict-freshness.js->src/board-query.js"
-   ]
-  }
+  {"cell":"items","imports":2,"edges":["src/item-patch-submit.js->src/board-query.js","src/item-patches.js->src/board-query.js"]},
+  {"cell":"verify","imports":1,"edges":["src/check-widen.js->src/item-check-baseline.js"]}
  ],
  "ratchets": {
   "legacySource": -14,

@@ -23,9 +23,7 @@
   {"cell":"seats","imports":2,"before":true},
   {"cell":"store","imports":3,"before":false}
  ],
- "cuts": [
-  {"cell":"state","imports":1,"edges":["src/engine.js->src/milestones.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": 0,
   "shims": 3,

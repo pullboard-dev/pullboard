@@ -27,8 +27,8 @@
    "imports": 82
   },
   "shims": 656,
-  "cutImports": 364,
-  "cutEdges": 143
+  "cutImports": 154,
+  "cutEdges": 57
  },
  "cells": [
   {"order":1,"name":"kernel","file":"bin/cells-plan/01-kernel.json"},

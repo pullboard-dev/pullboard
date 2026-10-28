@@ -44,9 +44,7 @@
   {"cell":"person","imports":2,"before":true}
  ],
  "cuts": [
-  {"cell":"spec","imports":1,"edges":["src/row-decisions.js->src/blueprints.js"]},
-  {"cell":"store","imports":1,"edges":["src/native-board-state.js->src/blueprint-fit.js"]},
-  {"cell":"person","imports":1,"edges":["src/person-row-proof.js->src/blueprints.js"]}
+  {"cell":"store","imports":1,"edges":["src/native-board-state.js->src/blueprint-fit.js"]}
  ],
  "ratchets": {
   "legacySource": -10,

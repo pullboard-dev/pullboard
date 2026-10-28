@@ -29,7 +29,6 @@
   {"cell":"app:view","imports":1,"before":false}
  ],
  "cuts": [
-  {"cell":"items","imports":1,"edges":["src/item-decision-queue.js->src/shout-audience.js"]},
   {
    "cell": "store",
    "imports": 5,

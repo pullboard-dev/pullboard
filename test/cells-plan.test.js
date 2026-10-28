@@ -15,6 +15,7 @@ import { inPlanScope } from '../src/cells-plan.js';
 import { readPathMap } from '../src/path-map.js';
 import { mappedPath } from '../src/path-map.js';
 import { computePlan } from '../bin/cells-plan.js';
+import { refreshPlanCuts } from '../src/cells-plan-cuts.js';
 import { checkMoved } from '../bin/cells-plan.js';
 import { itemCommands } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
@@ -198,4 +199,30 @@ test('codemap providers are required and source advance retains its real raw clo
   assert.equal(plan.criterion, 'node --test test/selected.test.js');
   assert.equal(plan.affected, "node --test --test-reporter=tap './test/selected.test.js'");
   assert.match(plan.selectionDigest, /^[a-f0-9]{64}$/u);
+});
+
+
+test('cut metadata refresh preserves frozen moves and records only current real source edges [D3,CD64]', t => {
+  const { root, put } = fixture(t), plan = computePlan(root);
+  const early = plan.cells.find(cell => cell.name === 'kernel'), later = plan.cells.find(cell => cell.name === 'stats');
+  const before = structuredClone(plan);
+  writePlan(root, plan);
+  put('src/refused.js', "import { stats } from './stats.js';\nexport class Refused extends Error {}\nexport const probe = stats;\n");
+  put('test/probe.test.js', "import '../src/stats.js';\n");
+  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'new actual source edge');
+  const { edges } = cellInventory(root, { importsIn, commonJsIn });
+  const refreshed = refreshPlanCuts(plan, edges, readPathMap(root));
+  const run = runFixtureChild(process.execPath, [BIN, '--refresh-cuts'], { cwd: root, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.deepEqual(readPlan(root).cells, refreshed.cells, 'the real generator command writes the exact bounded refresh');
+  assert.deepEqual(plan, before, 'the reader does not mutate its input');
+  assert.deepEqual(refreshed.cells.map(({ cuts, ...cell }) => cell), plan.cells.map(({ cuts, ...cell }) => cell),
+    'order, numbering, paths, frozen item fields and every non-cut cell field remain exact');
+  const cut = refreshed.cells.find(cell => cell.name === later.name).cuts.find(row => row.cell === early.name);
+  assert.deepEqual(cut, { cell: early.name, imports: 1, edges: ['src/refused.js->src/stats.js'] });
+  assert.ok(refreshed.cells.every(cell => cell.cuts.every(row => row.edges.every(edge => !edge.includes('test/probe')))), 'test imports do not create source cuts');
+  put('src/refused.js', 'export class Refused extends Error {}\n');
+  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'remove actual edge');
+  const removed = refreshPlanCuts(refreshed, cellInventory(root, { importsIn, commonJsIn }).edges, readPathMap(root));
+  assert.ok(!removed.cells.find(cell => cell.name === later.name).cuts.some(row => row.cell === early.name), 'removed source edges cannot remain authorized cuts');
 });

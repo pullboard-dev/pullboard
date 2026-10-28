@@ -80,20 +80,20 @@
   {"cell":"app:cli","imports":3,"before":false}
  ],
  "cuts": [
-  {"cell":"state","imports":1,"edges":["src/engine.js->src/person-signing.js"]},
   {"cell":"seats","imports":1,"edges":["src/seat-checkout.js->src/person.js"]},
-  {"cell":"spec","imports":2,"edges":["src/reference-authors.js->src/person.js","src/spec-approval.js->src/person-row-proof.js"]},
-  {"cell":"items","imports":3,"edges":["src/blocks.js->src/person.js","src/item-sessions.js->src/person.js","src/parent-session.js->src/person.js"]},
-  {"cell":"verify","imports":2,"edges":["src/bar-actor.js->src/person.js","src/check-accept.js->src/person.js"]},
+  {"cell":"verify","imports":1,"edges":["src/next-review.js->src/person.js"]},
   {
    "cell": "store",
-   "imports": 6,
+   "imports": 9,
    "edges": [
     "src/board-access.js->src/person.js",
+    "src/board-engine-ports.js->src/person-presence.js",
+    "src/board-engine-ports.js->src/person-signing.js",
     "src/board-link-envelope.js->src/seal.js",
     "src/board-signing-recovery.js->src/person-authority-schema.js",
     "src/board.js->src/person-signing.js",
     "src/exchange.js->src/person-signing.js",
+    "src/native-board-state.js->src/person-row-proof.js",
     "src/native-board-state.js->src/person-signing-presentation.js"
    ]
   }

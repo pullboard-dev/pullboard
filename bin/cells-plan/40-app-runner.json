@@ -38,29 +38,7 @@
   {"cell":"runners","imports":5,"before":true}
  ],
  "cuts": [
-  {"cell":"store","imports":1,"edges":["src/board-write-lock.js->src/process-census.js"]},
-  {
-   "cell": "sandbox",
-   "imports": 3,
-   "edges": [
-    "src/trusted-policy.js->src/private-check-worker.js",
-    "src/trusted-policy.js->src/runner-private-check.js",
-    "src/trusted-policy.js->src/runner-private-mode.js"
-   ]
-  },
-  {"cell":"gate","imports":1,"edges":["src/timed-shell-worker.js->src/runner-custody.js"]},
-  {
-   "cell": "runners",
-   "imports": 3,
-   "edges": [
-    "src/runner-utilization.js->src/runner-stage.js",
-    "src/runners.js->src/runner-private-mode.js",
-    "src/runners.js->src/runner-stage.js"
-   ]
-  },
-  {"cell":"landing","imports":2,"edges":["src/landing-shards.js->src/process-census.js","src/landing-worker.js->src/process-census.js"]},
-  {"cell":"sentinels","imports":1,"edges":["src/sentinel-runner.js->src/process-census.js"]},
-  {"cell":"rigor","imports":1,"edges":["src/rigor-proof.js->src/process-census.js"]}
+  {"cell":"store","imports":1,"edges":["src/board-write-lock.js->src/process-census.js"]}
  ],
  "ratchets": {
   "legacySource": -1,

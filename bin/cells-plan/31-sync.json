@@ -24,9 +24,7 @@
   {"cell":"link","imports":1,"before":true},
   {"cell":"landing","imports":1,"before":true}
  ],
- "cuts": [
-  {"cell":"commits","imports":1,"edges":["src/hooks.js->src/git-sync-format.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": 0,
   "shims": 3,

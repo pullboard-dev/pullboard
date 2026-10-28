@@ -67,22 +67,15 @@
  ],
  "cuts": [
   {
-   "cell": "items",
-   "imports": 3,
-   "edges": [
-    "src/digest.js->src/health.js",
-    "src/item-holds.js->src/conditional-holds.js",
-    "src/item-holds.js->src/stale-state-engine.js"
-   ]
-  },
-  {
    "cell": "store",
-   "imports": 5,
+   "imports": 7,
    "edges": [
     "src/board-event-log.js->src/conditional-holds.js",
     "src/board-health.js->src/health-receipts.js",
+    "src/board.js->src/conditional-holds.js",
     "src/board.js->src/recurring-jobs.js",
     "src/board.js->src/release-claim.js",
+    "src/board.js->src/stale-state-engine.js",
     "src/board.js->src/stale-state-store.js"
    ]
   }

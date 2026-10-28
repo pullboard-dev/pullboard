@@ -32,11 +32,8 @@
   {"cell":"github","imports":1,"before":true}
  ],
  "cuts": [
-  {"cell":"git","imports":1,"edges":["src/push-native-evidence.js->src/quarantine.js"]},
-  {"cell":"state","imports":1,"edges":["src/engine.js->src/quarantine.js"]},
-  {"cell":"store","imports":2,"edges":["src/board.js->src/flakes.js","src/board.js->src/quarantine.js"]},
-  {"cell":"gate","imports":2,"edges":["src/test-capacity.js->src/quarantine.js","src/test-value.js->src/flakes.js"]},
-  {"cell":"landing","imports":2,"edges":["src/land.js->src/native-flakes.js","src/landing-waivers.js->src/quarantine.js"]}
+  {"cell":"store","imports":3,"edges":["src/board-engine-ports.js->src/quarantine.js","src/board.js->src/flakes.js","src/board.js->src/quarantine.js"]},
+  {"cell":"landing","imports":2,"edges":["src/publish-pause.js->src/quarantine.js","src/record-train-landing.js->src/quarantine.js"]}
  ],
  "ratchets": {
   "legacySource": -1,

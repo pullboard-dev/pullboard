@@ -42,9 +42,7 @@
   {"cell":"landing","imports":1,"before":false},
   {"cell":"sync","imports":1,"before":false}
  ],
- "cuts": [
-  {"cell":"spec","imports":1,"edges":["src/spec.js->src/commit-message.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": 0,
   "shims": 7,

@@ -1,4 +1,6 @@
 /** Plan startable import-cut work per importing cell without changing the accepted move order [C7,D3]. */
+import { testFile } from './cell-lint-inventory.js';
+import { mappedPath } from './path-map.js';
 /** The board refuses a brief longer than this (item-routing.js); this cell sits below it, so it cannot import it. */
 const BRIEF_LIMIT = 8000;
 
@@ -60,4 +62,30 @@ export function cutItemCommands(plan, ids = new Map()) {
     return { group, args: ['add', 'core', cutTitle(group.cell), '--criterion', criterion,
       '--specs', 'C7,D3,doctrine:CD64', '--check', check, '--brief', brief, '--json'] };
   });
+}
+
+/** Refresh real import-cut occurrences without changing any frozen move identity, path or ordering. */
+export function refreshPlanCuts(plan, edges, map) {
+  const owners = new Map();
+  for (const cell of plan.cells) for (const [from, to] of cell.paths) {
+    for (const path of [from, to, mappedPath(map, from)]) {
+      const prior = owners.get(path);
+      if (prior && (prior.cell !== cell.name || prior.from !== from)) throw new Error(`ambiguous planned source identity ${path}`);
+      owners.set(path, { cell: cell.name, from });
+    }
+  }
+  const positions = new Map(plan.cells.map(cell => [cell.name, cell.order]));
+  const cuts = new Map(plan.cells.map(cell => [cell.name, new Map()]));
+  for (const [file, rows] of edges) for (const { target } of rows) {
+    if (testFile(file) || testFile(target)) continue;
+    const from = owners.get(file), to = owners.get(target);
+    if (!from || !to || positions.get(from.cell) >= positions.get(to.cell)) continue;
+    const groups = cuts.get(to.cell), occurrences = groups.get(from.cell) ?? [];
+    occurrences.push(`${from.from}->${to.from}`);
+    groups.set(from.cell, occurrences);
+  }
+  const cells = plan.cells.map(cell => ({ ...cell, cuts: [...cuts.get(cell.name)]
+    .sort(([a], [b]) => positions.get(a) - positions.get(b))
+    .map(([name, occurrences]) => ({ cell: name, imports: occurrences.length, edges: occurrences.sort() })) }));
+  return { ...plan, cells };
 }
