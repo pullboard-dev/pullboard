@@ -30,7 +30,7 @@ import { beginSentinelRun } from '../src/sentinels.js';
 import { finishSentinelRun } from '../src/sentinels.js';
 import { COORDINATOR } from '../src/config.js';
 import { JSON_SHAPES } from '../src/json.js';
-import { exportView } from '../src/cli-view.js';
+import { exportView } from '../src/commands/view.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { discoverEngines } from '../src/engine-metadata.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';

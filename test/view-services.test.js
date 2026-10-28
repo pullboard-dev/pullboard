@@ -34,12 +34,12 @@ test('an export refuses missing services before reading a board or writing outpu
   assert.equal(existsSync(output), false, 'a refused export writes no snapshot');
 });
 
-/** @pullboard-test-input src/cli-view.js */
+/** @pullboard-test-input src/commands/view.js */
 test('the actual CLI composition serves and exports a private real board [N26,C7]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const module = new URL('../src/cli-view.js', import.meta.url).href;
+  const module = new URL('../src/commands/view.js', import.meta.url).href;
   const output = join(box.dir, 'snapshot');
   const program = `
 import assert from 'node:assert/strict';

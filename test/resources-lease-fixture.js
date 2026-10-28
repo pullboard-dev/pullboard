@@ -10,7 +10,7 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { SUBMIT_ADMISSION_ENGINE } from '../src/submit-admission-engine.js';
 import { registerProject } from '../src/projects.js';
-import { serveView } from '../src/cli-view.js';
+import { serveView } from '../src/commands/view.js';
 import { runFixtureChild } from './fixture-child.js';
 
 /** Build the resource test's child programs with the importing test's absolute module URLs. */

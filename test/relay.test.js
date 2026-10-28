@@ -12,7 +12,7 @@ import { createRelayAuth, ACCESS_WINDOW_MS } from '../relay/auth.js';
 import { serveRelay } from '../relay/service.js';
 import { githubFixture } from './relay-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
-import { serveView } from '../src/cli-view.js';
+import { serveView } from '../src/commands/view.js';
 import { fetchFresh } from './http-fixture.js';
 import { fetchPrintedViewLink } from './view-link-fixture.js';
 import { VERIFIER_STANDING_ENGINE } from '../src/machine.js';

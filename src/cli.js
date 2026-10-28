@@ -324,7 +324,7 @@ import {
 import {
   exportView,
   serveView,
-} from './cli-view.js';
+} from './commands/view.js';
 import {
   forgetView,
   busyViewPortRefusal,

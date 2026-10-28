@@ -10,7 +10,7 @@ import { createServer, request as httpRequest } from 'node:http';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createLocalApiHandler, serveApi } from '../src/api.js';
-import { serveView } from '../src/cli-view.js';
+import { serveView } from '../src/commands/view.js';
 import { main } from '../src/cli.js';
 import { applyStateDelta, createApiHandler } from '../src/api-http.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../src/api-delta-fields.js';
@@ -455,11 +455,11 @@ test('a detail read after a cache miss on a linked board spawns no git process [
   try {
     const result = runFixtureChild(process.execPath, [
       '--input-type=module', '-e', REPEATED_READ_HARNESS,
-      join(codeLinked, 'src', 'cli-view.js'), JSON.stringify(projects), privateCommonDir,
+      join(codeLinked, 'src', 'commands', 'view.js'), JSON.stringify(projects), privateCommonDir,
     ], { cwd: box.root, env: box.env, encoding: 'utf8' });
     const initialContext = JSON.stringify({
       route: 'GET /api/v1/boards; 3x state; 3x item detail; GET /',
-      argv: [process.execPath, '--input-type=module', '-e', 'REPEATED_READ_HARNESS', join(codeLinked, 'src', 'cli-view.js'), 'projects-json', privateCommonDir],
+      argv: [process.execPath, '--input-type=module', '-e', 'REPEATED_READ_HARNESS', join(codeLinked, 'src', 'commands', 'view.js'), 'projects-json', privateCommonDir],
       cwd: box.root, status: result.status, stderr: String(result.stderr ?? '').slice(-2_000), failure: String(result.failure ?? '').slice(-2_000),
     });
     assert.ok(result.stdout.trim(), initialContext);
@@ -531,7 +531,7 @@ test('a repeated read through the view page spawns no process [A2,N26]', (t) => 
   // Keep the fixture's ordinary private Git config and identity; run-tests removes inherited repo/object selectors.
   const result = runFixtureChild(process.execPath, [
     '--input-type=module', '-e', REPEATED_READ_HARNESS,
-    resolve(import.meta.dirname, '../src/cli-view.js'), JSON.stringify(projects),
+    resolve(import.meta.dirname, '../src/commands/view.js'), JSON.stringify(projects),
   ], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.ok(result.stdout.trim(), result.failure ?? result.stderr);
   const lines = result.stdout.trim().split('\n');
