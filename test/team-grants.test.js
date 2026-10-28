@@ -1,5 +1,4 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-input test-tree */
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js */
 /** Computed grants preserve actual authority and exact historical replicas [E21,H16]. */
 import assert from 'node:assert/strict';
