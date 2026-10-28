@@ -1,7 +1,7 @@
 import {
   readBarState as read,
   barReadySetting,
-} from './bar-ready-setting.js';
+} from './bar-corrections.js';
 export { barReadySetting };
 import { normalizeBarActor } from './bar-actor.js';
 import {
@@ -10,12 +10,6 @@ import {
 } from './bar-coverage.js';
 /** Readiness is a revision-bound peer judgement, with mechanical prerequisites [B4,V1,V2,H16]. */
 import { createHash } from 'node:crypto';
-import {
-  atomic,
-  itemById,
-  logEvent,
-} from './board.js';
-import { itemCheckBaseline } from './item-check-baseline.js';
 import { agentParent } from './seats.js';
 import { ENGINE_VERSION } from './machine.js';
 import { BAR_READY_ENGINE } from './bar-ready-engine.js';
@@ -36,6 +30,7 @@ export function barDigest(item) {
 }
 /** Make activation an ordered boundary; repeating on does not erase earlier obligations. */
 export function setBarReady(board, { agentId, enabled }) {
+  const { atomic, logEvent } = board.nativePorts;
   if (agentId !== 'coordinator') throw new Refused('COORDINATOR_ONLY', 'only the coordinator changes bar readiness; shout coordinator');
   if (typeof enabled !== 'boolean') throw new Refused('USAGE', 'pullboard bar ready on|off');
   return atomic(board, () => {
@@ -63,6 +58,7 @@ function historicalAuthors(board, item) {
 /** Snapshot authors on semantic edits, never retroactively upgrading an unknown historical parent. */
 export function recordBarRevision(board, item, by, before = null, actor = null) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < BAR_READY_ENGINE || !barReadySetting(board).enabled) return;
+  const { logEvent } = board.nativePorts;
   const previous = read(board, `bar_revision:${item.item_id}`);
   const changed = FIELDS.filter(key => !before || before[key] !== item[key]);
   if (!changed.length && previous) return;
@@ -99,7 +95,7 @@ export function barReadinessRequired(board, item) {
     || old.frozen !== item.item_frozen_digest || old.revision !== revision;
 }
 /** Mechanical omissions are aggregated, so the coordinator can repair the bar in one pass. */
-export function barReadiness(board, item, { signature = true } = {}) {
+export function barReadiness(board, item, { signature = true } = {}, { itemCheckBaseline }) {
   const revision = read(board, `bar_revision:${item.item_id}`);
   const notes = barNotes(item.item_brief);
   const baseline = itemCheckBaseline(board, item);
@@ -121,15 +117,17 @@ export function barReadiness(board, item, { signature = true } = {}) {
 /** The same board guard protects explicit claim, next, run, renew and submit. */
 export function barReadyProblem(board, item) {
   if (!barReadinessRequired(board, item)) return null;
-  const status = barReadiness(board, item);
+  const status = barReadiness(board, item, {}, board.runtimePorts.verification);
   return status.missing.length ? new Refused('BAR_NOT_READY', `#${item.item_id}'s bar needs ${status.missing.join('; ')}; ask its author to edit the brief, then another session runs pullboard bar sign ${item.item_id}`) : null;
 }
 /** Record the peer's judgement against exact words, author identities and baseline observation. */
 export function signBar(board, id, { agentId, revision, digest, note, coverage, barActor }) {
+  const { atomic, logEvent } = board.nativePorts;
+  const { itemById } = board.runtimePorts.verification;
   return atomic(board, () => {
     const item = itemById(board, id);
     if (['verified','withdrawn'].includes(item.item_status)) throw new Refused('CLOSED', `#${id} is ${item.item_status}; sign an open bar`);
-    const status = barReadiness(board, item, { signature: false });
+    const status = barReadiness(board, item, { signature: false }, board.runtimePorts.verification);
     if (status.missing.length) throw new Refused('BAR_NOT_READY', `#${id} needs ${status.missing.join('; ')}; edit the brief or wait for its baseline before signing`);
     if (status.revision.revision !== revision || status.revision.digest !== digest) throw new Refused('BAR_SIGN_STALE', `#${id}'s bar changed; read it again before pullboard bar sign ${id}`);
     const signerActor = normalizeBarActor(barActor);

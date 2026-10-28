@@ -1,3 +1,4 @@
+import { itemCheckBaseline } from './board-query.js';
 /** Durable sealed request intake and ordinary-move receipts; no replica executes CLI intent [H12,H16]. */
 import * as store from './board.js';
 import { createHash } from 'node:crypto';
@@ -127,7 +128,7 @@ function fulfilsIntent(record, move, board) {
     if (verb !== 'add') {
       if (value !== intent.item) return false;
       const item = store.getItem(board, value);
-      const before = { revision: barReadiness(board, item, { signature: false }).revision?.revision ?? 0, digest: barDigest(item) };
+      const before = { revision: barReadiness(board, item, { signature: false }, { itemCheckBaseline }).revision?.revision ?? 0, digest: barDigest(item) };
       if (!sameBarEffect(effect.before, before)) return false;
     }
     const expectedActor = barReadySetting(board).enabled ? { authority: 'person', session: null, parent: null } : null;

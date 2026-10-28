@@ -126,7 +126,7 @@ export async function seedBarSignature(context) {
     barActor: { session: 'a'.repeat(64), parent: 'a'.repeat(64) }, criterion: 'The projection witness names a mismatch', check,
     checkBaseline: { command: check, main: head, result: 'red', testEvidence: { failed: ['projection witness'], passed: [], noTestsMatched: false } },
     brief: 'Files: src/projection.js\nTest: projection witness asserts mismatch\nNamed test: projection witness\nMeasurements: no quantitative acceptance bounds\nReviewer edges: absent field and clock-only change' });
-  const { revision } = barReadiness(board, store.getItem(board, item));
+  const { revision } = barReadiness(board, store.getItem(board, item), {}, board.runtimePorts.verification);
   await exercise('signBar', () => store.signBar(board, item, { agentId: reviewer,
     barActor: { session: 'b'.repeat(64), parent: 'b'.repeat(64) }, revision: revision.revision, digest: revision.digest,
     note: 'Synthetic readiness signature for state projection only.', coverage: { version: 1, sourceMain: head, policyKey: 'd'.repeat(64),
