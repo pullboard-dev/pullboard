@@ -95,7 +95,7 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
   if (kind !== 'relay_refused') requireHandoffActive(board, by, kind, [{ item: kind === 'shout' ? detail.item : undefined }]);
   board.db.exec('SAVEPOINT proof_event_append');
   try {
-    ensureProofCounters(board);
+    ensureProofCounters(board, { refresh: false });
     const model = agentModel(board, by);
     const isAgent = Boolean(board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(by));
     const recorded = { ...detail, ...((board.executionEngineVersion ?? ENGINE_VERSION) >= 8 && isAgent ? { model: model ?? 'unknown' } : {}),
