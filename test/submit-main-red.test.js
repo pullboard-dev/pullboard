@@ -197,6 +197,51 @@ test('repair links retain historical receipts and reject closed, stale or ambigu
   assert.throws(() => submissionProof({ ...proof, knownMainFailures: known }, KNOWN_MAIN_REWORKS_ENGINE), { code: 'SUBMISSION_PROOF' });
 });
 
+test('ordered submit refuses a closed repair and an old-engine linked envelope without changing item history [V4,B3,H16]', async t => {
+  const store = await import('../src/board.js');
+  const { fixtureBoard } = await import('./board-fixture.js');
+  const { prepareEngineMove, applyEngineMove } = await import('../src/engine.js');
+  const { exportBoard, importBoard } = await import('../src/exchange.js');
+  const at = '2026-10-28T00:00:00.000Z';
+  const source = fixtureBoard(t, { clock: { now: () => new Date(at) } });
+  source.executionEngineVersion = KNOWN_MAIN_FAILURES_ENGINE;
+  store.register(source, { lane: 'coordinator', path: '/fixture/coordinator' });
+  const agentId = store.register(source, { lane: 'web', path: '/fixture/web' });
+  const item = store.addItem(source, { by: 'coordinator', lane: 'web', title: 'Ordered repair-link fixture' });
+  const repair = store.addItem(source, { by: 'coordinator', lane: 'web', title: 'Main red: one assertion',
+    check: 'node --test test/one.test.js' });
+  store.claim(source, item, { agentId, lane: 'web', leaseMs: 3600000,
+    freeze: () => ({ text: '{"rows":[]}', digest: 'f'.repeat(64) }) });
+  delete source.executionEngineVersion;
+  const known = { main: 'b'.repeat(40), failures: [{ file: 'test/one.test.js', name: 'synthetic ordered failure [V4]',
+    signature: 'a'.repeat(64), item: repair }] };
+  // This is a board-protocol fixture, not an assertion that an executable gate ran.
+  const options = { agentId, commit: 'c'.repeat(40), tree: 'd'.repeat(40), submissionProof: {
+    version: 1, files: ['test/one.test.js'], full: false, deferred: true,
+    reason: 'synthetic ordered receipt; no execution claim', knownMainFailures: known } };
+  const move = prepareEngineMove(source, 'submit', [item, options], { id: 'linked-repair-submit' });
+  const replica = fixtureBoard(t, { clock: { now: () => new Date(at) } });
+  importBoard(replica, exportBoard(source));
+  const beforeDowngrade = exportBoard(replica);
+  assert.throws(() => applyEngineMove(replica, { ...move, engine: KNOWN_MAIN_FAILURES_ENGINE }, { sequence: 1, at }), { code: 'RELAY_MOVE' });
+  assert.deepEqual(exportBoard(replica), beforeDowngrade, 'a downgraded linked envelope changes no receipt or board rows');
+  store.withdraw(source, repair, { agentId: 'coordinator', reason: 'closed after preparation' });
+  const before = { item: store.getItem(source, item), events: store.events(source, { itemId: item }) };
+  const result = applyEngineMove(source, move, { sequence: 1, at });
+  assert.equal(result.error?.code, 'SUBMISSION_PROOF');
+  assert.deepEqual({ item: store.getItem(source, item), events: store.events(source, { itemId: item }) }, before);
+  assert.deepEqual(applyEngineMove(source, move, { sequence: 1, at }), result, 'duplicate replay retains the recorded refusal');
+  const historical = { ...move, id: 'historical-unlinked-submit', engine: KNOWN_MAIN_FAILURES_ENGINE,
+    args: [item, { ...options, submissionProof: { ...options.submissionProof,
+      knownMainFailures: { main: known.main, failures: known.failures.map(({ item: ignored, ...row }) => row) } } }] };
+  const replayed = applyEngineMove(replica, historical, { sequence: 1, at });
+  assert.equal(replayed.error, undefined, JSON.stringify(replayed));
+  assert.equal(store.getItem(replica, item).item_status, 'submitted');
+  const event = store.events(replica, { itemId: item }).find(row => row.event_kind === 'submit');
+  assert.deepEqual(JSON.parse(event.event_detail).submissionProof.knownMainFailures, historical.args[1].submissionProof.knownMainFailures,
+    'historical engine-124 replay neither adds repair ownership nor rewrites its receipt');
+});
+
 test('an exact main red needs an open repair and its reviewer sees the repair link [V4,B3]', t => {
   const box = fixture(t, { mainRed: false });
   const refused = cli(box, box.builder, 'submit', String(box.item));
