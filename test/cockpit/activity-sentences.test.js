@@ -155,6 +155,8 @@ test('real board Activity has sentence rows, working filters, full quotes and an
       const count = await chrome.stable('Number(document.querySelector("#activity [data-activity-filter=' + filter + '] b").textContent)');
       assert.equal(await chrome.stable('document.querySelectorAll("#activity .activity-event").length'), count);
     }
+    await press(chrome, run + '.querySelector("summary")');
+    await chrome.waitFor(run + '.open');
     for (const width of [1440, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 700 });
       await chrome.waitFor('innerWidth === ' + width);

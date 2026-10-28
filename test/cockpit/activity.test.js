@@ -375,7 +375,7 @@ test('ages stay true while the board is quiet [N26]', async () => {
     const page = await openPage(view);
     const ages = () => ({
       row: /<time data-ago="[^"]+">([^<]*)<\/time>/.exec(itemRow(page.show('chain'), 1))?.[1],
-      needs: /data-go="decide:[^"]*"[^]*?<span class="row-age"><time data-ago="[^"]+">([^<]*)<\/time>/.exec(page.show('needs'))?.[1],
+      needs: /<span class="needs-age"><time data-ago="[^"]+">([^<]*)<\/time>/.exec(page.show('needs'))?.[1],
       agent: agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1')?.age,
       shout: /<time class="long" data-ago="[^"]+" title="[^"]*">([^<]*)<\/time>/.exec(page.show('feed'))?.[1],
     });
@@ -450,6 +450,7 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
   const long = 'Please take #1 next, run `pullboard next` in your worktree, and keep going until the greeting reads right on every width the view supports';
   box.run(demo.repo, 'shout', 'web', `${long}\nA second line the row leaves out.`);
   box.run(demo.repo, 'shout', 'all', 'The private news release is ready.', '--news');
+  box.run(demo.repo, 'lanes', 'lead', 'web', 'web-1');
   box.run(demo.web, 'shout', 'coordinator', 'Ship the greeting today?', '--kind', 'decision', '--decision');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-said-chrome-'));
