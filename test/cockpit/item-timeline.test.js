@@ -38,6 +38,7 @@ test('the native item timeline reads as sentences with clamped notes and working
   box.git(demo.web, 'commit', '-m', 'test(web): correct real timeline source after review [G1]');
   const correctedHead = box.git(demo.web, 'rev-parse', 'HEAD');
   box.run(demo.web, 'submit', '1', '--no-next');
+  // @pullboard-board-file journey: record native health transitions in the private SQLite file read by this HTTP/Chrome journey.
   const board = openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const finding = { key: 'timeline-fixture-observation', cause: 'NO_REVIEWER', item: 1, subject: '#1',
