@@ -51,7 +51,7 @@ export function dashboardRuntime({ model, html, api, boardPath, current, redraw,
     let quietRows;
     const quietOpen = expanded.includes('quiet');
     region.innerHTML = html(state, { needs, progress, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; } })+(held.error?'<p class="muted" role="status">Dashboard history is unavailable; live work remains visible.</p>':'');
-    const quiet = region.querySelector('[data-dashboard-disclosure="quiet"]');
+    const quiet = [...region.querySelectorAll('[data-dashboard-disclosure="quiet"]')][0];
     /** Fill current quiet rows before native summary activation exposes them. */
     function materializeQuiet() {
       // A detached prior render cannot materialize its old root or model into the current page.
