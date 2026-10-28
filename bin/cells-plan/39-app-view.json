@@ -7,11 +7,12 @@
  "placedBy": {
   "seed": 32,
   "rule": 4,
-  "imports": 0
+  "imports": 1
  },
  "paths": [
   ["src/background-view.js","apps/view/src/shell/background-view.js","seed"],
   ["src/badge.js","apps/view/src/shell/badge.js","seed"],
+  ["src/help/setup.js","apps/view/src/shell/help/setup.js","imports"],
   ["src/needs-state.js","apps/view/src/shell/needs-state.js","seed"],
   ["src/needs-summary.js","apps/view/src/core/needs-summary.js","seed"],
   ["src/needs.js","apps/view/src/core/needs.js","seed"],
@@ -50,6 +51,7 @@
  "reexports": [
   "src/background-view.js",
   "src/badge.js",
+  "src/help/setup.js",
   "src/needs-state.js",
   "src/needs-summary.js",
   "src/needs.js",
@@ -88,10 +90,10 @@
   {"cell":"config","imports":4,"before":true},
   {"cell":"seats","imports":5,"before":true},
   {"cell":"roadmap","imports":1,"before":true},
-  {"cell":"doctrine","imports":3,"before":true},
   {"cell":"spec","imports":12,"before":true},
   {"cell":"items","imports":3,"before":true},
   {"cell":"store","imports":5,"before":true},
+  {"cell":"doctrine","imports":3,"before":true},
   {"cell":"blueprints","imports":2,"before":true},
   {"cell":"link","imports":3,"before":true},
   {"cell":"api","imports":2,"before":true},
@@ -111,7 +113,7 @@
  ],
  "ratchets": {
   "legacySource": -3,
-  "shims": 33,
+  "shims": 34,
   "boundaries": 19,
   "strays": 0,
   "documents": 0,
@@ -121,7 +123,7 @@
  "item": {
   "lane": "core",
   "title": "Cells move 39/43: view moves into apps/view behind shims",
-  "criterion": "Cells move 39 of 43 (RFC 0006; plan entry 39 in bin/cells-plan.json): the 36 paths the entry lists for app view move with git mv to their planned targets under apps/view, and apps/view/index.js is the front door, re-exporting the 33 modules other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. First the 8 imports from earlier cells into it that the entry lists as cuts are gone, each cut by an item in the importing cell, so no cycle between cells forms. The cell lint counts change as the entry states (legacySource -3, shims +33, boundaries +19) and none rises; node bin/cells-plan.js --moved app:view passes, and the full suite passes on Node 22.13 and 24.",
+  "criterion": "Cells move 39 of 43 (RFC 0006; plan entry 39 in bin/cells-plan.json): the 37 paths the entry lists for app view move with git mv to their planned targets under apps/view, and apps/view/index.js is the front door, re-exporting the 34 modules other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. First the 8 imports from earlier cells into it that the entry lists as cuts are gone, each cut by an item in the importing cell, so no cycle between cells forms. The cell lint counts change as the entry states (legacySource -3, shims +34, boundaries +19) and none rises; node bin/cells-plan.js --moved app:view passes, and the full suite passes on Node 22.13 and 24.",
   "specs": ["C7","doctrine:CD60","doctrine:CD64"],
   "check": "node bin/cells-plan.js --moved app:view",
   "after": [
@@ -130,10 +132,10 @@
    "config",
    "seats",
    "roadmap",
-   "doctrine",
    "spec",
    "items",
    "store",
+   "doctrine",
    "blueprints",
    "link",
    "api",

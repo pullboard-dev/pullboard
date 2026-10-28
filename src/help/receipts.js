@@ -39,6 +39,7 @@ export const receiptsHelp = `Receipts
                                         merge wait: land the accepted items: #A, #B
                                         when that queue is empty, the action says none waiting or waits for open work
   pullboard ledger                      markdown: what was built, by whom, verified by whom
+  pullboard capacity                     serial test-work minutes, work per landing, declared pure/contract share and conversion priority; --json
   pullboard test-value                   fourteen-day per-file runs, code-fixed catches, flakes, runtime, edits and value; --json
                                         report-only costs in pullboard.json testEconomics: costOfEscape 3600, costOfWaiting 1, costOfFalseRed 300
                                         runtime gaps remain unknown; no test admission policy changes

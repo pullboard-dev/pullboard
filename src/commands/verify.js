@@ -1,3 +1,4 @@
+import { completeMoveHandoff } from '../post-move-handoff.js';
 import { itemReviewPolicy } from '../review-independence.js';
 import { twoTierReviews } from '../review-independence.js';
 import { prepareItemPatchReview } from '../item-patch-review.js';
@@ -154,10 +155,10 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
-      let checkedCommit = companionDigest ? prepareItemPatchReview(root, board, item).commit : reReview ? head : commit;
+      let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item).commit : reReview ? head : commit;
       let checkedLabel = reReview ? 'reviewed composition' : 'submitted commit';
       const composeNow = () => composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack });
-      const admitted = companionDigest === null && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
+      const admitted = companionDigest === null && !item.item_effective_head && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
       let trunk = null;
       if (!admitted) ({ trunk, review } = composeNow());
       for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -219,6 +220,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       digest,
       policy: ctx.config.verify.policy,
       familyPolicy: ctx.config.verify.family,
+      sourceAdvanceHead: item.item_effective_head ?? null,
       review,
       ...(companionDigest ? { companionDigest } : {}),
       environment: check?.environment ?? null,
@@ -234,18 +236,25 @@ export async function verifyHere(ctx, id, { second, values }) {
     }
     return verdict;
   });
-  ctx.io.result?.({ id, ...result, ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) });
+  const primary = { id, ...result, ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) };
+  ctx.io.result?.(primary);
   const verifiedSummary = timingDigest(verificationProfile);
   const verifiedTiming = result.decision === 'ACCEPT' && verificationProfile && verifiedSummary ? `\n${verifiedSummary}\ntiming profile: ${verificationProfile.profilePath ?? '(not saved)'}` : '';
   ctx.io.say(result.decision === 'ACCEPT'
     ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verifiedTiming}`
     : `rejected #${id}: ${result.reason}; it is open again for rework`);
   if (accepted) ctx.io.say(landNext(ctx.info, accepted, acceptedLandingCommit, { spec: loadSpec(ctx.info.root, ctx.config) }));
+  if (ctx.verdictResult) ctx.verdictResult.value = primary;
   return 0;
 }
 
 /** Run `pullboard verify` and return its exit code. */
-export function run(io, args) {
-  const { first } = args;
-  return verifyHere(context(io), idArg(first), args);
+export async function run(io, args) {
+  const { first, values } = args;
+  const id = idArg(first);
+  const verdictResult = {};
+  const ctx = { ...context(io), verdictResult };
+  const code = await verifyHere(ctx, id, args);
+  if (code === 0 && verdictResult.value) await completeMoveHandoff(ctx, id, values, verdictResult.value);
+  return code;
 }

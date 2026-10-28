@@ -1,3 +1,5 @@
+import { sealSourceAdvanceReturn } from './source-advance-origin.js';
+import { sealSourceAdvance } from './source-advance-origin.js';
 import { recordReviewPolicyActivation } from './review-policy.js';
 import { computedReturnArgs } from './computed-conflict-return.js';
 import { requirePreparedComputedConflict } from './computed-conflict-receipt.js';
@@ -110,6 +112,8 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
   if (operation === 'reopen' && values[1] && typeof values[1] === 'object'
     && manualLandingFailureQuoted(values[1].note)) values[1].quotedLandingFailure = true;
   // Seal native stored facts at origin; replicas replay these bytes without the origin file.
+  if (operation === 'reopen' && args[1]?.sourceAdvanceReturn !== undefined) values[1] = sealSourceAdvanceReturn(board, values[0], args[1]);
+  if (operation === 'advanceItemSource') values[1] = sealSourceAdvance(board, values[0], args[1]);
   if (operation === 'recordProofRun') {
     const receipt = boundProofReceipt(board, args[0]);
     values[0] = { agentId: args[0].agentId, itemId: args[0].itemId, receipt };

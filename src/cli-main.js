@@ -54,6 +54,7 @@ const OPTIONS = {
   export: { type: 'string' },
   public: { type: 'boolean' },
   'no-open': { type: 'boolean' },
+  'no-next': { type: 'boolean' },
   lan: { type: 'boolean' },
   'no-permissions': { type: 'boolean' },
   'no-hooks': { type: 'boolean' },
@@ -302,6 +303,7 @@ async function runMain(argv, streams) {
   let parsed;
   let checkoutSession;
   let auditAfterCommand = false;
+  let advanceAfterCommand = false;
   try {
     parsed = parseCommandArgs(argv);
     const command = parsed.positionals[0];
@@ -359,6 +361,8 @@ async function runMain(argv, streams) {
     const code = await runCommand(argv, io);
     auditAfterCommand = code === 0 && parsed?.positionals[0] === 'land'
       && !parsed.values['dry-run'] && parsed.values.waive === undefined;
+    advanceAfterCommand = code === 0 && !parsed.values['dry-run'] && (auditAfterCommand
+      || parsed.positionals[0] === 'merged' || parsed.positionals[0] === 'sentinel' && parsed.positionals[1] === 'run');
     if (code === 0) {
       await checkoutSession?.finish?.();
     }
@@ -372,6 +376,10 @@ async function runMain(argv, streams) {
     CHECKOUT_LEASES.delete(io);
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
+    if (advanceAfterCommand) {
+      try { await (await import('./source-advance-nudge.js')).nudgeSourceAdvances(io.cwd); }
+      catch { io.err('pullboard: the automatic main-merge worker could not start; run pullboard sentinel run --health-only to retry'); }
+    }
     if (auditAfterCommand) {
       try { await (await import('./main-audit-nudge.js')).nudgeMainAudit(io.cwd); }
       catch { io.err('pullboard: the full-suite audit could not start; run pullboard land again to retry'); }
