@@ -2,7 +2,9 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -16,6 +18,29 @@ import { serveView } from '../src/serve.js';
 /** Match a required service refusal without accepting unrelated setup or transport failures. */
 function missingService(name) {
   return error => error.code === 'VIEW_SERVICE_REQUIRED' && error.message.includes(name);
+}
+
+/** Record the initial approved spec before init, as the real public-export fixtures do [N26]. */
+function approvedViewFixture(t) {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.sandbox();
+  const repo = join(box.dir, 'repo');
+  mkdirSync(repo);
+  box.git(repo, 'init', '-q', '-b', 'main');
+  writeFileSync(join(repo, 'SPEC.md'), helpers.SPEC);
+  const model = box.env.PULLBOARD_MODEL;
+  delete box.env.PULLBOARD_MODEL;
+  try {
+    const initialized = box.run(repo, 'init');
+    assert.equal(initialized.code, 0, initialized.err || initialized.out);
+  } finally {
+    if (model !== undefined) box.env.PULLBOARD_MODEL = model;
+  }
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG, gate: 'true' }, null, 2));
+  box.git(repo, 'add', '-A');
+  box.git(repo, 'commit', '-q', '-m', 'chore: prepare real view fixture');
+  return { ...box, repo };
 }
 
 test('a live view refuses missing command or renderer services before listening [N26,C7]', async () => {
@@ -36,9 +61,7 @@ test('an export refuses missing services before reading a board or writing outpu
 
 /** @pullboard-test-input src/commands/view.js */
 test('the actual CLI composition serves and exports a private real board [N26,C7]', t => {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.project('true');
+  const box = approvedViewFixture(t);
   const module = new URL('../src/commands/view.js', import.meta.url).href;
   const output = join(box.dir, 'snapshot');
   const program = `
