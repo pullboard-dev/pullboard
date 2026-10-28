@@ -68,6 +68,26 @@ export function suiteTimingFromOutput(output, id, source) {
   return matching.length === 1 ? matching[0] : null;
 }
 
+/** Project only one canonical authenticated frame out of a component's TAP accounting view. */
+export function timingAccountingOutput(output, id, source) {
+  if (typeof output !== 'string') return output;
+  const timing = suiteTimingFromOutput(output, id, source);
+  if (!timing) return output;
+  const canonical = formatSuiteTiming(timing).slice(0, -1);
+  const chunks = output.match(/[^\n]*\n|[^\n]+$/gu) ?? [];
+  const matching = chunks.filter(chunk => chunk.replace(/\r?\n$/u, '') === canonical);
+  if (matching.length !== 1) return output;
+  return chunks.filter(chunk => chunk !== matching[0]).join('');
+}
+
+/** Keep raw stage objects intact while independently authenticating each component's accounting view. */
+export function timingAccountingStages(stages, id, source) {
+  if (!Array.isArray(stages)) return stages;
+  return stages.map(stage => ({ ...stage,
+    ...(typeof stage.output === 'string' ? { output: timingAccountingOutput(stage.output, id, source) } : {}),
+    ...(Array.isArray(stage.pipeline) ? { pipeline: timingAccountingStages(stage.pipeline, id, source) } : {}) }));
+}
+
 /** Describe the controller's actual wall duration alongside only the suite phases it really observed. */
 export function observedRunTiming(run, suite = null) {
   const wallMs = run.profile?.wallMs ?? run.remoteWallMs;

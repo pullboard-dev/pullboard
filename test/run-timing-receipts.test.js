@@ -7,7 +7,7 @@ import { copyPackageFiles } from '../src/package-files.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { readGateReceipt, receiptFields, receiptStore } from '../src/gate-run-receipt.js';
-import { formatSuiteTiming, suiteTimingFromOutput, SUITE_TIMING_PREFIX } from '../src/run-timing.js';
+import { formatSuiteTiming, suiteTimingFromOutput, SUITE_TIMING_PREFIX, timingAccountingStages } from '../src/run-timing.js';
 import { RUN_TIMING_ENGINE } from '../src/run-timing-engine.js';
 import { prepareEngineMove, applyEngineMove, appliedSequence } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
@@ -191,9 +191,11 @@ test('a fresh main comparison survives checkout cleanup and cached comparisons a
   const box = timingProject(t);
   const source = `import assert from 'node:assert/strict'; import {readFileSync} from 'node:fs';
 import {runGate} from './src/gate.js'; import {compareMainFailures} from './src/main-red.js';
+import {accountedFailures} from './src/land.js';
 import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js'; import * as store from './src/board.js';
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));
-const red=await runGate(root,config,{trustStamp:false,agent:'coordinator'}); assert.equal(red.isGreen,false);
+const red=await runGate(root,config,{trustStamp:false,agent:'coordinator',stages:true}); assert.equal(red.isGreen,false);
+assert.match(red.output,/# pullboard suite timing /); assert.equal(accountedFailures(red,root)?.length,1);
 const ids=[]; const options={commit:${JSON.stringify(box.head)},detailed:true,onMeasuredReceipt:async id=>{
 const receipt=readGateReceipt(receiptStore(root),id); assert.ok(receipt);
 const board=store.openBoard('.git/pullboard/board.sqlite');
@@ -232,4 +234,16 @@ test('missing, duplicate and wrong-source suite observations never invent phase 
   assert.equal(suiteTimingFromOutput(line, id, { ...source, head: 'c'.repeat(40) }), null);
   assert.equal(formatSuiteTiming({ ...frame, setupMs: -1 }), '');
   assert.equal(suiteTimingFromOutput(line, id, source).setupMs, null);
+  const raw = [{ status: 1, output: 'original TAP account\n' + line,
+    pipeline: [{ status: 1, output: 'component account\n' + line }] }];
+  const projected = timingAccountingStages(raw, id, source);
+  assert.equal(projected[0].output, 'original TAP account\n');
+  assert.equal(projected[0].pipeline[0].output, 'component account\n');
+  assert.equal(raw[0].output, 'original TAP account\n' + line, 'the raw evidence is not rewritten');
+  for (const invalid of [line + line, line.replace(source.head, 'c'.repeat(40)),
+    line.replace(id, randomUUID()), SUITE_TIMING_PREFIX + '{broken}\n', line + '# unexplained failure\n']) {
+    const view = timingAccountingStages([{ status: 1, output: invalid }], id, source)[0].output;
+    if (invalid.endsWith('# unexplained failure\n')) assert.equal(view, '# unexplained failure\n');
+    else assert.equal(view, invalid, 'unproven diagnostics remain visible to strict failure accounting');
+  }
 });

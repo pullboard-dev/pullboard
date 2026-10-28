@@ -2,6 +2,7 @@
 import {
   TIMING_RUN_ID_ENV,
   suiteTimingFromOutput,
+  timingAccountingStages,
   observedRunTiming,
   timingSource as timingSourceForReceipt,
   sameTimingSource,
@@ -190,6 +191,7 @@ export function safeLog(output) {
  */
 export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs, auditCoverage = false } = {}) {
   const proofSource = gateLease?.proof ? proofSourceAt(root) : null;
+  const timingSourceBefore = stages ? timingSourceForReceipt(root) : null;
   const directory = artifactDirectory ?? dirname(gitPath(root, LOG));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const id = randomUUID();
@@ -234,7 +236,14 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
     waitMs: Math.max(0, Math.round(waitMs)), wallMs: Math.max(0, Date.now() - started), receipt: settleReceipt(gateLease),
   });
   const collectionReport = collectionId ? parseCollectionReports(run.output, { id: collectionId, scope: 'suite', requireComplete: false }) : null;
+  const timingSourceAfter = stages ? timingSourceForReceipt(root) : null;
+  const executionSource = run.executionSource && { head: run.executionSource.commit, tree: run.executionSource.tree };
+  const accountingSource = sameTimingSource(timingSourceBefore, timingSourceAfter)
+    && run.executionSourceUnchanged !== false && (!gateLease?.runner || Boolean(executionSource))
+    && (!executionSource || sameTimingSource(timingSourceBefore, executionSource))
+    ? timingSourceBefore : null;
   const result = { ...profiledRun, profile, profilePath, logPath,
+    ...(stages ? { stages: timingAccountingStages(run.stages, id, accountingSource) } : {}),
     suiteTiming: suiteTimingFromOutput(run.output, id, run.executionSource
       ? { head: run.executionSource.commit, tree: run.executionSource.tree } : timingSourceForReceipt(root)),
     ...(releaseRequest ? { releaseParticipation: releaseParticipation(run.output, releaseRequest.id) } : {}),
