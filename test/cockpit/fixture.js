@@ -1183,7 +1183,7 @@ async function tabBar(chrome) {
         return { on: ${JSON.stringify(on)}, bar: [bar.getBoundingClientRect().left, bar.getBoundingClientRect().right], tabs: [...bar.querySelectorAll('.tab')].map(tab => {
           const range = document.createRange(); range.selectNodeContents(tab.firstChild);
           const box = tab.getBoundingClientRect(), label = range.getBoundingClientRect();
-          return { tab: tab.dataset.tab, left: box.left, right: box.right, labelLeft: label.left, labelRight: label.right };
+          return { tab: tab.dataset.tab, top: box.top, bottom: box.bottom, left: box.left, right: box.right, labelLeft: label.left, labelRight: label.right };
         }) };
       })()`, "document.querySelectorAll('#tabs, #tabs .tab')"));
     }

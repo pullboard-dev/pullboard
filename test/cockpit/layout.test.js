@@ -56,18 +56,18 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
   }
 });
 
-test('the tabs fit one row on a phone [N26]', async () => {
+test('the Dashboard and retained tabs fit two rows on a phone [N26]', async () => {
   const view = await startView(machine());
   try {
     const html = await (await fetchPage(view)).text();
     const style = await styleOf(view);
     const phone = /@media \(width < 480px\) \{\n([^@]*?)\n\}/.exec(style)?.[1] ?? '';
     assert.doesNotMatch(style, /max-width: 480px/, 'at 480px itself the tabs keep their row');
-    assert.match(phone, /\.tabs \{ flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: auto;/, 'under 480px the tabs share the bar: each as wide as its label, plus an even share of the room left');
+    assert.match(phone, /\.tabs \{ flex: 1 1 100%; display: grid; grid-template-columns: repeat\(4, minmax\(0, 1fr\)\); grid-auto-flow: row;/, 'under 480px eight full labels share two rows of four');
     assert.match(phone, /\.tab \{ display: grid; justify-items: center; align-content: center;/, 'each tab centres its label in its share');
     assert.match(style, /\n\.tabs \{ display: flex; flex-wrap: wrap; gap: 2px; \}\n/, 'wider, the tabs keep the row they have');
     const tabs = [...html.matchAll(/<button class="tab" data-tab="([a-z]+)" type="button">([A-Za-z]+)<\/button>/g)];
-    assert.deepEqual(tabs.map((match) => match[2]), ['Home', 'Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap'], 'seven tabs, each its label alone: their counts are in the status bar');
+    assert.deepEqual(tabs.map((match) => match[2]), ['Dashboard', 'Home', 'Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap'], 'Dashboard leads the retained tabs, each its label alone: their counts are in the status bar');
   } finally {
     await view.stop();
   }
@@ -320,7 +320,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
         const r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll: ${JSON.stringify(r.page)}`);
         // The header carries the tabs and nothing else: no counts, no clock.
-        assert.deepEqual(r.tabs, ['Home', 'Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap'], `${at}: the tabs carry no counts`);
+        assert.deepEqual(r.tabs, ['Dashboard', 'Home', 'Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap'], `${at}: the tabs carry no counts`);
         assert.ok(r.live === '' && r.liveInBar && !/live|\d\d:\d\d/.test(r.header), `${at}: a live board says nothing in the header: ${r.header}`);
         // On a phone the bar stays out of the way while the board is live.
         if (width === 375) assert.equal(r.barShown, false, `${at}: no status bar on a phone while live`);
@@ -723,7 +723,7 @@ test('phone tab labels keep their two pixel inset under real wide fonts [N26]', 
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor('!!data?.project && document.querySelectorAll("#tabs .tab").length === 7');
+    await chrome.waitFor('!!data?.project && document.querySelectorAll("#tabs .tab").length === 8');
     for (const [width, font] of [[375, 'system-ui, sans-serif'], [375, 'Verdana, "DejaVu Sans", sans-serif'],
       [320, 'Verdana, "DejaVu Sans", sans-serif'], [305, 'Verdana, "DejaVu Sans", sans-serif'], [1280, 'system-ui, sans-serif']]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -732,10 +732,11 @@ test('phone tab labels keep their two pixel inset under real wide fonts [N26]', 
       const bar = await tabBar(chrome);
       for (const layout of bar.layouts) {
         const where = `${width}/${font}/${layout.on}`;
-        assert.equal(layout.tabs.length, 7, where + ': all seven complete labels remain');
+        assert.equal(layout.tabs.length, 8, where + ': Dashboard and all retained complete labels remain');
         for (const tab of layout.tabs) assert.ok(tab.labelLeft >= tab.left + 2 && tab.labelRight <= tab.right - 2,
           `${where}: ${tab.tab} retains the original two-pixel inset: ${JSON.stringify(tab)}`);
-        layout.tabs.forEach((tab, index) => { if (index) assert.ok(tab.left >= layout.tabs[index - 1].right - 0.5, where + ': tabs never overlap'); });
+        assert.equal(new Set(layout.tabs.map(tab => Math.round(tab.top))).size, width < 480 ? 2 : 1, where + ': the phone has two rows and desktop one');
+        layout.tabs.forEach((tab, index) => { if (index) assert.ok(tab.top >= layout.tabs[index - 1].bottom - 0.5 || tab.left >= layout.tabs[index - 1].right - 0.5, where + ': tabs never overlap'); });
         assert.ok(layout.tabs[0].left >= layout.bar[0] - 0.5 && layout.tabs.at(-1).right <= layout.bar[1] + 0.5
           && layout.bar[1] <= bar.client, where + ': the whole tab bar fits the actual content width');
       }
