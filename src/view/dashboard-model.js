@@ -55,7 +55,7 @@ export function dashboardModel(project, history, { now = Date.now(), complete = 
     }
     if (['accept', 'reject', 'reopen', 'withdraw', 'patch'].includes(event.event_kind)) close('review:' + id, at);
   }
-  const claims = items.filter(item => item.status === 'claimed' && item.claim?.by === item.owner && Date.parse(item.claim.until) > now);
+  const claims = items.filter(item => item.status === 'claimed' && item.claim?.by && item.claim.by === item.owner && Date.parse(item.claim.until) > now);
   const reviewing = items.filter(item => item.status === 'submitted');
   for (const [key, held] of [...work]) close(key, now);
   for (const item of claims) row(item.owner)?.current.push({ kind: 'build', item });
