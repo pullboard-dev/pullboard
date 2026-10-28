@@ -1,3 +1,4 @@
+import { ITEM_PATCH_SUBMIT_ENGINE } from '../../../../src/item-patch-submit-engine.js';
 /** A native proof can finish its admitted claim; it never grants new work after expiry [V4,H16]. */
 import { Refused } from '../../../../src/refused.js';
 import { SUBMIT_ADMISSION_ENGINE } from '../../../../src/submit-admission-engine.js';
@@ -27,7 +28,8 @@ export function completesAdmittedSubmit(board, move, item, actor) {
   if (claim?.item_id !== item.item_id) return false;
   const detail = JSON.parse(claim.event_detail);
   const admission = detail.submitAdmission;
-  const source = move.args[1];
+  const submitted = move.args[1];
+  const source = move.engine >= ITEM_PATCH_SUBMIT_ENGINE && submitted?.companion ? submitted.companion : submitted;
   if (!admission || admission.commit !== source?.commit || admission.tree !== source?.tree
     || detail.digest !== item.item_frozen_digest) return false;
   const receipts = board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_by=? AND event_kind='proof-run' AND event_id>? ORDER BY event_id")
