@@ -21,7 +21,7 @@ function names(text) {
 
 /** Read literal dynamic imports: `(await import('x')).name` and `const { a } = await import('x')` name exact exports; any other use is opaque. */
 function dynamicUses(info, edges) {
-  const uses = [], call = `import\\s*\\(\\s*(['"])[^'"]*\\1\\s*\\)`, seen = new Set();
+  const uses = [], call = `import\\s*\\(\\s*['"][^'"]*['"]\\s*\\)`, seen = new Set();
   /** Resolve the literal inside the call that starts at `at` through the compiler-checked edge list. */
   function resolve(at, length) {
     const literal = info.strings.find(row => row.start >= at && row.end <= at + length);
@@ -31,7 +31,7 @@ function dynamicUses(info, edges) {
   for (const match of info.code.matchAll(member)) {
     const at = match.index + match[0].indexOf('import', 1), target = resolve(at, match[1].length);
     seen.add(at);
-    if (target) uses.push({ target, names: [match[3]] });
+    if (target) uses.push({ target, names: [match[2]] });
   }
   const pattern = new RegExp(`\\{([^{}]*)\\}\\s*=\\s*await\\s+(${call})`, 'gu');
   for (const match of info.code.matchAll(pattern)) {
