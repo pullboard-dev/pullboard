@@ -7,6 +7,8 @@ import { Refused } from './refused.js';
 import { listAgents } from './board-query.js';
 
 const SHOWN = 4;
+/** The projection copy's status column; named once so no status write is mistaken for this read-only copy. */
+const PROJECTED_STATUS = 'item_status';
 
 /** Name each author who can exclude a reviewer family, with the family it declared (or none). */
 function authorFamilies(board, item) {
@@ -49,7 +51,7 @@ export function unreviewableStrict(board, item, options = {}) {
 export function asSubmitted(board, item) {
   if (item.item_status !== 'claimed') return item;
   const owner = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(item.item_owner)?.agent_family ?? null;
-  return { ...item, item_status: 'submitted', item_built_by: item.item_built_by ?? item.item_owner, item_builder_family: item.item_builder_family ?? owner };
+  return { ...item, [PROJECTED_STATUS]: 'submitted', item_built_by: item.item_built_by ?? item.item_owner, item_builder_family: item.item_builder_family ?? owner };
 }
 
 /** Refuse the submit that no active seat could review. */
