@@ -8,6 +8,9 @@ import { renameSync } from 'node:fs';
 import { unlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { cellLintCells } from './cell-lint-cell-shards.js';
+import { readCellLintCellBaseline } from './cell-lint-cell-shards.js';
+import { writeCellLintCellBaseline } from './cell-lint-cell-shards.js';
 import { CELL_METRICS } from './cell-lints.js';
 import { validateCellLintBaseline } from './cell-lint-ratchet.js';
 import { Refused } from './refused.js';
@@ -43,7 +46,7 @@ export function cellLintFiles(baseline) {
 }
 
 /** Read only complete, hash-bound generations; no missing shard ever becomes a lower allowance. */
-export function readCellLintBaseline(root) {
+function readLegacyCellLintBaseline(root) {
   try {
     const descriptor = JSON.parse(readFileSync(join(root, DESCRIPTOR), 'utf8'));
     if (descriptor?.version !== 2 || !descriptor.metrics || Object.keys(descriptor.metrics).sort().join() !== [...CELL_METRICS].sort().join()) throw new Error('invalid descriptor');
@@ -70,15 +73,37 @@ export function readCellLintBaseline(root) {
   }
 }
 
+/** Combine the immutable accepted generation with the complete per-cell falling deltas. */
+export function readCellLintBaseline(root) {
+  try { return readCellLintCellBaseline(root, readLegacyCellLintBaseline(root)); }
+  catch (error) { throw new Refused('CELL_BASELINE', `restore the complete per-cell cell lint baseline: ${error.message}`); }
+}
+
+/** Seed one empty shard for each existing path-map cell without rewriting accepted legacy bytes. */
+export function initializeCellLintCellShards(root) {
+  if (!cellLintCells(root).length) throw new Refused('CELL_BASELINE', 'no per-cell path-map shards exist');
+  const base = readLegacyCellLintBaseline(root);
+  writeCellLintCellBaseline(root, base, base, () => true);
+}
+
 /** Capture only the validated generation's actual bytes for precise planning and rollback. */
 export function storedCellLintFiles(root) {
   readCellLintBaseline(root);
   const descriptor = readFileSync(join(root, DESCRIPTOR)), parsed = JSON.parse(descriptor);
-  return new Map([[DESCRIPTOR, descriptor], ...Object.values(parsed.metrics).flatMap(row => row.shards.map(({ file }) => [file, readFileSync(join(root, file))]))]);
+  const legacy = [[DESCRIPTOR, descriptor], ...Object.values(parsed.metrics).flatMap(row => row.shards.map(({ file }) => [file, readFileSync(join(root, file))]))];
+  const cells = cellLintCells(root).map(cell => `${DIRECTORY}/cells/${cell}.json`).filter(file => existsSync(join(root, file)));
+  return new Map([...legacy, ...cells.map(file => [file, readFileSync(join(root, file))])]);
 }
 
 /** Publish bounded shards and an atomic descriptor; failed final verification restores the exact prior generation. */
 export function writeCellLintBaseline(root, baseline, { initialize = false, verify = () => true, previous = null } = {}) {
+  if (cellLintCells(root).length && existsSync(join(root, DESCRIPTOR))) {
+    if (initialize) throw new Refused('CELL_BASELINE', 'baseline already exists; use explicit falling update');
+    const base = readLegacyCellLintBaseline(root);
+    if (previous && JSON.stringify(readCellLintBaseline(root)) !== JSON.stringify(previous)) throw new Refused('CELL_BASELINE', 'baseline changed since planning; read the current per-cell generation');
+    writeCellLintCellBaseline(root, base, baseline, verify);
+    return;
+  }
   const files = cellLintFiles(baseline), descriptor = join(root, DESCRIPTOR);
   mkdirSync(join(root, DIRECTORY), { recursive: true });
   const lock = join(root, DIRECTORY, '.write-lock');

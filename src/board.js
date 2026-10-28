@@ -74,7 +74,7 @@ import { itemPatchReviewProblem } from './item-patches.js';
 import { applyItemPatchAttachment } from './item-patches.js';
 import { applyItemPatchRemoval } from './item-patches.js';
 import { invalidateItemPatch as applyItemPatchInvalidation } from './item-patches.js';
-export { itemPatches, itemPatchDigest } from './item-patches.js';
+export { itemPatches, itemPatchDigest, followItemPatches } from './item-patches.js';
 import { applyCompanionRequest } from './companion.js';
 export { readBoardMembers, setBoardMembers } from './board-members.js';
 import { heartbeatSeat } from './seat-presence.js';
@@ -1305,10 +1305,10 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
  * @param {{ agentId: string, note: string, cause?: string, withdrawVerdict?: boolean }} request
  * @returns {{ id: number, commit: string, supersedes?: number, landingFailure?: object }}
  */
-export function reopen(board, id, { agentId, note = '', conflict, cause, reopenFirstRefusalMinutes, quotedLandingFailure, withdrawVerdict, computedConflict, sourceAdvanceReturn }) {
+export function reopen(board, id, { agentId, note = '', conflict, cause, reopenFirstRefusalMinutes, quotedLandingFailure, withdrawVerdict, computedConflict, sourceAdvanceReturn, landingFence }) {
   return atomic(board, () => {
     if (sourceAdvanceReturn !== undefined) {
-      if (board.executionEngineVersion === undefined) ({ note, conflict, quotedLandingFailure, sourceAdvanceReturn } = sealSourceAdvanceReturn(board, id, { agentId, sourceAdvanceReturn }));
+      if (board.executionEngineVersion === undefined) ({ note, conflict, quotedLandingFailure, sourceAdvanceReturn } = sealSourceAdvanceReturn(board, id, { agentId, sourceAdvanceReturn, landingFence }));
       const problem = sourceAdvanceReturnProblem(board, getItem(board, id), { agentId, note, conflict, quotedLandingFailure, sourceAdvanceReturn });
       if (problem) throw problem;
     }

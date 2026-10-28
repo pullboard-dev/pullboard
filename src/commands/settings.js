@@ -23,6 +23,9 @@ import {
   setGateRunnersOnly,
   setGateRunnerWaitMs,
   setLandingPool,
+  parseWorkerBudget,
+  setWorkerBudget,
+  workerBudget,
 } from '../settings.js';
 import {
   context,
@@ -64,6 +67,8 @@ export function settingsCommand(io, { first, second, rest, values }) {
     io.say(`gate.runnersFirst: ${runnersFirst} (registered runners are preferred before local slots when on)`);
     io.say(`gate.runnersOnly: ${runnersOnly} (submit and verify wait for registered runners, with no local fallback when on)`);
     io.say(`gate.runnerWaitMs: ${gateRunnerWaitMs()} (runner-only submit/review refuses; other runs retain ordinary local admission)`);
+    const budget = workerBudget();
+    io.say(`workers.budget: ${budget?.seatHours ? `${budget.seatHours}/${budget.window} (seat-hours pullboard run --scale may spend across every live seat on this machine)` : 'off (pullboard run --scale launches no workers)'}`);
     return 0;
   }
   if (!SETTING_FORMS.includes(first) || !second || rest.length) {
@@ -81,6 +86,12 @@ export function settingsCommand(io, { first, second, rest, values }) {
     const settings = setGateRunnersOnly(second === 'on');
     io.result?.({ settings });
     io.say(`gate.runnersOnly set to ${second}`);
+    return 0;
+  }
+  if (first === 'workers.budget') {
+    const settings = setWorkerBudget(parseWorkerBudget(second));
+    io.result?.({ settings });
+    io.say(`workers.budget set to ${settings.workers.budget.seatHours} seat-hours per ${settings.workers.budget.window}`);
     return 0;
   }
   if (first === 'gate.runnerWaitMs') {

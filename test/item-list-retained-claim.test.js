@@ -1,5 +1,6 @@
 /** Native event projections preserve retained claims and the lifecycle's rare routes [N26,C7]. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { logEvent } from '../src/board-event-log.js';
@@ -131,4 +132,20 @@ test('a genuine accepted rehome import counts the recorded rehome_import kind [N
   assert.equal(state.items[0].history.at(-1).kind, 'rehome_import', 'the importer itself records the native kind');
   assert.equal(state.moveCounts['open>verified:rehomeImport'], 1);
   assert.equal(state.items[0].stage, 'accepted');
+});
+
+test('a genuine outside intake counts the recorded outside-intake kind as the intake move [N26,C7]', t => {
+  const f = fixture(t);
+  const text = '{"rows":[]}';
+  const outside = store.intakeOutside(f.board, { agentId: 'coordinator',
+    source: { kind: 'pull-request', repository: 'fixture/repository', number: 1665, author: 'outside-contributor', state: 'open', maintainerReplied: false,
+      commit: 'd'.repeat(40), tree: 'e'.repeat(40), base: 'f'.repeat(40), files: ['outside.txt'], sensitive: false },
+    item: { lane: 'core', title: 'Outside lifecycle input', criterion: 'The outside intake is counted', check: 'true', route: 'strong' },
+    frozen: { text, digest: createHash('sha256').update(text).digest('hex') } });
+  const row = store.getItem(f.board, outside);
+  const item = { ...projectItemState(f.board, row, new Map([[outside, row.item_status]])), thread: [] };
+  const state = withListFields({ items: [item] }, new Map()).state;
+  assert.equal(state.items[0].history.some(event => event.kind === 'outside-intake'), true, 'the board records the outside-intake kind');
+  assert.equal(state.moveCounts['open>submitted:intake'], 1, 'one intake move, not an unmatched event');
+  assert.equal(state.items[0].stage, 'submitted');
 });

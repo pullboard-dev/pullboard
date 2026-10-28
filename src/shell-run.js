@@ -41,7 +41,9 @@ import { sandboxBlockedOperation } from './sandbox-denial.js';
  */
 export function runShell(root, command, { pipefail = false, env = {}, stages = false, timeoutMs, captureRuntimes = false } = {}) {
   const started = Date.now();
-  const options = { cwd: root, env: { ...gitChildEnv(root), ...env }, shell: true, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 2 ** 30 };
+  const diagnostics = [];
+  const options = { cwd: root, env: gitChildEnv(root, { env, report: diagnostics.push.bind(diagnostics) }), shell: true,
+    stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 2 ** 30 };
   let prefix = '';
   if (pipefail) {
     // Probe the same shell as the command, with no load-sensitive deadline or alternate shell.
@@ -76,7 +78,7 @@ export function runShell(root, command, { pipefail = false, env = {}, stages = f
     if (pipes) rmSync(pipes, { recursive: true, force: true });
     const testRuntimes = runtimes?.finish() ?? null;
     const environment = executionEnvironment();
-    const raw = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+    const raw = `${diagnostics.join('')}${result.stdout ?? ''}${result.stderr ?? ''}`;
     const seconds = Math.round((Date.now() - started) / 1000);
     const blocked = (output) => (result.status === 0 ? null : sandboxBlockedOperation(root, output));
     if (!stages) return { isGreen: result.status === 0, exitCode: result.status, output: raw, seconds, environment, testRuntimes, ...(timed ? { timedOut: result.timedOut } : {}), sandboxBlocked: blocked(raw) };

@@ -27,6 +27,7 @@ import {
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Refused } from './refused.js';
+import { removeGitRepositorySelectors } from './git-child-selectors.js';
 
 const GIT_FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false'];
 const gitFacts = new AsyncLocalStorage();
@@ -432,10 +433,12 @@ const CODE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
  * Pullboard's own Git calls retain those variables, including a hook's staged index.
  *
  * @param {string} root
+ * @param {{ env?: NodeJS.ProcessEnv, report?: ((line: string) => any)|null }} [options]
  * @returns {NodeJS.ProcessEnv}
  */
-export function gitChildEnv(root) {
-  const env = { ...process.env };
+export function gitChildEnv(root, { env: extra = {}, report = null } = {}) {
+  const env = { ...process.env, ...extra };
+  removeGitRepositorySelectors(env, report);
   const discoveryEnv = { ...env };
   for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR']) delete discoveryEnv[name];
   const result = gitSpawnSync(['rev-parse', '--local-env-vars'], {
@@ -445,7 +448,7 @@ export function gitChildEnv(root) {
     stdio: ['ignore', 'pipe', 'ignore'],
   });
   if (result.status === 0) for (const name of result.stdout.split('\n')) delete env[name];
-  else for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_PREFIX']) delete env[name];
+  else for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_PREFIX']) delete env[name];
   env.GIT_NO_REPLACE_OBJECTS = '1'; // Exact-tree receipts never resolve replacement refs.
   return env;
 }
