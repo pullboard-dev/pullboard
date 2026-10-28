@@ -88,6 +88,14 @@ test('docs-only submission remains Standard with optional same-vendor review [V4
   assert.equal(f.reserve(id, 'core-2').item_review_by, 'core-2');
 });
 
+test('ordinary board, review, person and test-family work permits Standard same-vendor review [V4,B26]', t => {
+  const f = fixture(t), id = f.add();
+  const item = f.submit(id, ['src/board.js', 'src/board-query.js', 'src/review-queue-line.js',
+    'src/person-signing-words.js', 'src/test-value.js', 'test/board.test.js', 'test/review-queue.test.js']);
+  assert.equal(reviewEligibility(f.board, item).tier, 'standard');
+  assert.equal(f.reserve(id, 'core-2').item_review_by, 'core-2');
+});
+
 test('an active source-bound gate companion makes docs work Strict without changing its submitted inventory [V4,B26,H16]', t => {
   const f = fixture(t), id = f.add();
   const item = f.submit(id, ['README.md']);
