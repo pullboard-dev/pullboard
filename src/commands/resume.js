@@ -369,5 +369,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
 export async function run(io, { values }) {
   repoInfo(io.cwd);
   // JSON v1 retains its real diagnostic fields; only the default text card defers them.
-  return resumeHere(io, await keepViewRunning(), Boolean(values.diagnostics || values.json), { json: Boolean(values.json) });
+  // MCP is a local stdio control channel; it never starts or probes a browser listener.
+  const view = io.personChannel === 'mcp' ? { state: 'off' } : await keepViewRunning();
+  return resumeHere(io, view, Boolean(values.diagnostics || values.json), { json: Boolean(values.json) });
 }
