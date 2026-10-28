@@ -4,9 +4,9 @@ import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readPathMap, mappedPath } from '../src/path-map.js';
 
-const SOURCE_MAP = readPathMap(fileURLToPath(new URL('../', import.meta.url)));
+const SOURCE_MAP = new Map([...readPathMap(fileURLToPath(new URL('../', import.meta.url)))].filter(([, target]) => target.startsWith('packages/commits/')));
 
-/** Follow only a committed exact file identity through its whole generated shim, preserving physical relative imports. */
+/** Follow only this moved cell's committed exact aliases through whole generated shims, preserving other cells' readers. */
 export function machineSourceModule(file, read) {
   const source = read(file), original = posix.normalize(posix.join('src', file));
   const target = mappedPath(SOURCE_MAP, original);
