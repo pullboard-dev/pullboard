@@ -5,6 +5,8 @@ import { segmentedToggle } from './view/seg-toggle.js';
 import { activityWords } from './view/activity-words.js';
 import { sharedRowHtml } from './view/row-component.js';
 import { activityModel } from './view/activity-model.js';
+import { activityFilters } from './view/activity-render.js';
+import { lifecycleChart } from './view/lifecycle-chart.js';
 import { activityHtml } from './view/activity-render.js';
 import { dashboardModel } from './view/dashboard-model.js';
 import { dashboardHtml } from './view/dashboard-render.js';
@@ -112,7 +114,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   const releaseInfo = hostedReleaseInfo(hostedReleaseVersion, hostedReleaseVersions, releaseHosted);
   const css = stylesheet ?? (snapshot ? 'view.css' : transportModule ? '/view.css' : '/view.css?k=' + encodeURIComponent(key));
   const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-  const pageScope = { sharedRowHtml, activityWords, activityModel, activityHtml, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, closePageDialog, connection, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeRules, hostedState, lifecycle, lifecycleEvent, lifecycleMove, moduleOption, openPageDialog, pageStartup, paths, personNeeds, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
+  const pageScope = { sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, closePageDialog, connection, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeRules, hostedState, lifecycle, lifecycleEvent, lifecycleMove, moduleOption, openPageDialog, pageStartup, paths, personNeeds, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -225,8 +227,8 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <aside class="card-panel detail" aria-label="Practice row"><div id="doctrine-detail"></div></aside>
   </section>
   <section data-pane="activity">
-    <figure class="card-panel flow" id="flow-panel"><button class="flow-hide" id="flow-hide" type="button" title="Hide the lifecycle" aria-label="Hide the lifecycle">×</button><div id="flow"></div><figcaption>The lifecycle every item follows, as pullboard declares it. Boxes count the items in each state now, labels the moves made along each route, and ↻ the moves that keep an item where it is; hover over one for what it means and checks.</figcaption></figure>
-    <button class="ghost flow-show" id="flow-show" type="button" hidden>Show the lifecycle</button>
+    <div class="activity-toolbar"><div id="activity-filters"></div><button class="ghost flow-show" id="flow-show" type="button" aria-controls="flow-panel" aria-expanded="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 13V8h3v5m2 0V3h3v10m2 0V6h2v7"/></svg>How work moves</button></div>
+    <figure class="card-panel flow" id="flow-panel" hidden><div id="flow"></div><figcaption>Every item on the board, since the start. Hover a number for what it means.</figcaption></figure>
     <div class="card-panel feed" id="activity"></div>
   </section>
   ${settingsMarkup()}

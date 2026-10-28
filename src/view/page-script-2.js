@@ -12,16 +12,18 @@ import { agentFloorHtml } from './agent-floor-render.js';
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart2(scope) {
-  const { sharedRowHtml, activityWords, activityModel, activityHtml, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, lifecycleEvent, lifecycleMove, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
+  const { sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, lifecycleEvent, lifecycleMove, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
 return `let detailRead = null;
 const addressedShouts = new Map();
 const $ = (id) => document.getElementById(id);
 const sharedRowHtml = (${sharedRowHtml.toString()});
 const activityWords = (${activityWords.toString()});
 const activityModel = (${activityModel.toString()});
+const activityFilters = (${activityFilters.toString()});
 const segmentedToggle = (${segmentedToggle.toString()});
 const revealSegmentedChoices = (${revealSegmentedChoices.toString()});
 const activityHtml = (${activityHtml.toString()});
+const lifecycleChart = (${lifecycleChart.toString()});
 const dashboardModel = (${dashboardModel.toString()});
 const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry) => roadmapSummary(entry), floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
 // The update note from src/view/hosted-release.js (#632): only a confirmed read of this machine's view says how far behind it is.
@@ -570,10 +572,16 @@ const span = (ms) => {
  * ends or begins at one says its length was not logged rather than guess it.
  */
 function timeline(item) {
-  const entries = Array.isArray(item.thread) && item.thread.length
+  const fromThread = Array.isArray(item.thread) && item.thread.length > 0;
+  const rawEntries = fromThread
     ? item.thread
     : item.history.filter((entry) => entry.kind !== 'fact').map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry }));
-  const steps = replay({ ...item, history: entries.filter((entry) => entry.type === 'move').map(({ kind, by, at }) => ({ kind, by, at })) });
+  // Project native nested detail through the canonical lifecycle adapter; retain fallback history flags.
+  const entries = rawEntries.map(entry => entry.type === 'move' && fromThread
+    ? { ...entry, ...lifecycleEvent({ event_kind: entry.kind, event_by: entry.by, event_at: entry.at,
+      event_detail: JSON.stringify(entry.detail ?? {}) }) }
+    : entry);
+  const steps = replay({ ...item, history: entries.filter(entry => entry.type === 'move') });
   const facts = entries.filter((entry) => entry.type === 'fact');
   const replacements = new Map(facts.filter((fact) => fact.supersedes).map((fact) => [fact.supersedes, fact]));
   const rows = [];

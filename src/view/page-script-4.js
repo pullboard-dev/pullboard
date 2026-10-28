@@ -9,8 +9,8 @@ export function pageScriptPart4(scope) {
 return `function showFlow(shown) {
   keep('pb.flow', shown ? 'shown' : 'hidden');
   $('flow-panel').hidden = !shown;
-  $('flow-show').hidden = shown;
-  if (shown && data && data.project) $('flow').innerHTML = flowSvg(data.project);
+  $('flow-show').setAttribute('aria-expanded', String(shown));
+  if (shown && data && data.project) $('flow').innerHTML = lifecycleChart(data.project, data.project.moveCounts ? new Map(Object.entries(data.project.moveCounts)) : moveCounts(data.project.items), data.project.items.filter(item => stateOf(item) === 'back').length);
 }
 
 function showTab() {
@@ -1010,10 +1010,9 @@ $('spec-approve-form').addEventListener('submit', (event) => {
   if (asked && asked.root === view.root) decideRow('spec', 'spec-approve', { ids: asked.ids.join(' ') });
 });
 $('answer-cancel').addEventListener('click', () => answer(null));
-$('flow-hide').addEventListener('click', () => showFlow(false));
-$('flow-show').addEventListener('click', () => showFlow(true));
-$('flow-panel').hidden = keep('pb.flow') === 'hidden';
-$('flow-show').hidden = !$('flow-panel').hidden;
+$('flow-show').addEventListener('click', () => showFlow($('flow-panel').hidden));
+$('flow-panel').hidden = keep('pb.flow') !== 'shown';
+$('flow-show').setAttribute('aria-expanded', String(!$('flow-panel').hidden));
 // Each press moves on one, from the system's theme to light, then dark, and back; this browser keeps it.
 $('side-toggle').addEventListener('click', () => {
   // A phone always shows the switcher, so there the logo is only the logo.
