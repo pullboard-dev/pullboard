@@ -2,71 +2,79 @@
   "version": 2,
   "metrics": {
     "boundaries": {
-      "count": 6376,
+      "count": 7164,
       "shards": [
         {
           "file": "bin/cell-lint-baselines/boundaries-001.json",
-          "sha256": "e8f77e599bec068b565faca43e43fcde39e97156bd9e68b895744c8c8540969d"
+          "sha256": "380992f122de6f3bb18fadbcbf03dec80898da9c922528fb53d7b9a85ebf531a"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-002.json",
-          "sha256": "902907f235046a59cb40d3cc016c52518d0c8ee6281e8528dc36dafc623e9d79"
+          "sha256": "06a3f91c93fb7f34ae86fca5d930cb18abcece14e639ef616e36f6d1f772b7a0"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-003.json",
-          "sha256": "8c1b0bd36b6e123b5b7ce1b15dd8f15628053687af7d9d313293582bcad13c33"
+          "sha256": "39a7bcefa3d84bebd8fc2776e480e565dae1d1823c99f95c6ac4d29d77ef79a2"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-004.json",
-          "sha256": "4c649a638f0b50f270836f58de22084d08eed2072bec87c0b55fe817c7f1c464"
+          "sha256": "e1314102dc079b96813cf504cac118719d1c234afdabfdae5f701b8c974e05aa"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-005.json",
-          "sha256": "a9af5d82ad0444d313db720db465f1077990e6f3efe7dfb45159d944b7c11f01"
+          "sha256": "22ebaf8403dee66b2d9f4d0ac9303c3c3f8f8442beb05c157ded82836d2a7e61"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-006.json",
-          "sha256": "cd7648295a6de0de7297928106970556b7b9518405288813ccc1610e546a9688"
+          "sha256": "0b4c2c09dc0fe0451cdb649922955ea2cdaedb86c6375540e086ec1907a56b2f"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-007.json",
-          "sha256": "daa3c2042d096a516d007d3fec3c06b714fe271e472db9aab007ebad18fd5f4d"
+          "sha256": "a51da02fc9a677055d347e65f611883c83f3b979c52d23ed9272fa375a2d7c40"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-008.json",
-          "sha256": "51e67a094853a348c3f00b51f746058583b4a91563d8c7786a22d1ba8806b01b"
+          "sha256": "2d8b7054c0472756b6d8c4938264e8941368cc1fd619cd4233645b82ed05b7f5"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-009.json",
-          "sha256": "1d126ed35aaf1ec60d5aac72f29c4000c91ac0f5ab0b00c5f962955cc95d4113"
+          "sha256": "6495b4a38702ea43f297cef9a0faa852f8488dbe6e4096786960247db8a2eeec"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-010.json",
-          "sha256": "3511c0d4d428d974158ab4c26bc22d9a0ddc02f4985039af4557f1befc89be9f"
+          "sha256": "0d242679702211bfd0362082d368c0649c8fd347825ce62ed08afd4680b78726"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-011.json",
-          "sha256": "5e24316230b110511ceb71d54370ce69ad75c311d38f9fa37e5264c42743d59f"
+          "sha256": "8ddd31561332cecb040240fac6397bf25e3230f24f0c570f954f472205df1694"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-012.json",
-          "sha256": "871661d48d042d1f18a888965c1442573e3981f9c49fd4e5d497e82057829e19"
+          "sha256": "6c9de3599d72fd2ee4fbe3a45f3fd81efa88d8b02649f8311fdb31352d800b7e"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-013.json",
-          "sha256": "340055f924f7d409ef0cfaa023eb23af4b378d651f8f428910cde66a369923d4"
+          "sha256": "a60903c0003e994d8c67eac7cf5b7c4782766299c7dc0a8e4a76a3be49a3bd40"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-014.json",
-          "sha256": "9329b9b8130a31499c60889314f5f665ce4f0173d012466cf365a63cef77a8fb"
+          "sha256": "962a69258d954f4228383072b72175fbc757d93d4ee15913d81c3e4d02769b5e"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-015.json",
-          "sha256": "4514c74e99d3dc258d3d03447a088af4face285b255edcefb8814ff56ca9b19d"
+          "sha256": "9be945362bb8cfbe00a9d1e2622dc958a5bead7ea779fb87979b0f5beeb045d7"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-016.json",
-          "sha256": "7785e155d99f185edf843e9e1546f0de7163600235d3c344eae94ed4dbeadc4b"
+          "sha256": "8704119644b6cfd2d7f1af3ad3269e89a0aef5ab032be85c010f23accdbae428"
+        },
+        {
+          "file": "bin/cell-lint-baselines/boundaries-017.json",
+          "sha256": "92f53de5f8c487de3fb779e85df42287ac2c87020cc22f9bba5490866fe6c164"
+        },
+        {
+          "file": "bin/cell-lint-baselines/boundaries-018.json",
+          "sha256": "bab1b599d2ad1356d4a3b00e8ead819f10bc46ef37bf88b02b49f3bbc4c75948"
         }
       ]
     },
@@ -75,50 +83,54 @@
       "shards": []
     },
     "shims": {
-      "count": 1,
+      "count": 4,
       "shards": [
         {
           "file": "bin/cell-lint-baselines/shims-001.json",
-          "sha256": "af7fb8e79457b598a201a7e227d7a89d45b1ba148e4b8e03fa83dd4e36b06e63"
+          "sha256": "d7fb95ed80052ae1e01fc31d2b530b07f681675214f2cd21976b9d7ca6fd35d7"
         }
       ]
     },
     "legacySource": {
-      "count": 866,
+      "count": 1042,
       "shards": [
         {
           "file": "bin/cell-lint-baselines/legacySource-001.json",
-          "sha256": "d8f9f70eec98f36e772c98c4c152369941744028bb8a05d0fb622c446ba36f66"
+          "sha256": "06857a452fc875c3e37dcf8d392357628debc5fb5e763f890f09dae0cee883d8"
         },
         {
           "file": "bin/cell-lint-baselines/legacySource-002.json",
-          "sha256": "37158f68a02b81cb4b36a8ac89ba4ace31bf7d8e8e04d347e2e1979230bba1a7"
+          "sha256": "3afdc49da8925d1663115f8ca75c97640477d13a78826182ea772762bfd9f515"
         },
         {
           "file": "bin/cell-lint-baselines/legacySource-003.json",
-          "sha256": "6f973b024d214588c391b6d93eb4eef91c2d7688ada84810cbae3efb5f8b1705"
+          "sha256": "7922efd245528946eabe606012645b7b5765c8f70a057c081e7e53e038a6577a"
         }
       ]
     },
     "fileSize": {
-      "count": 66576,
+      "count": 66926,
       "shards": [
         {
           "file": "bin/cell-lint-baselines/fileSize-001.json",
-          "sha256": "a83005ee7d96232f13630eb042484b8e1566c68b1a0be9ce49cafd4b47829015"
+          "sha256": "04c593e2978b4aa16c8cab8245fa142159fa3ea8d956d922639c56e90d43d298"
         }
       ]
     },
     "strays": {
-      "count": 755,
+      "count": 872,
       "shards": [
         {
           "file": "bin/cell-lint-baselines/strays-001.json",
-          "sha256": "647c7ec44708f503d21f961d838c8133013efbb45ef7875a7da71fc843903362"
+          "sha256": "1f8f8497c69c743729e0c00e697b2fbc7ec1644818d95dc9b8d8f4f738184e18"
         },
         {
           "file": "bin/cell-lint-baselines/strays-002.json",
-          "sha256": "86e59585aef999546e5b7226c556ab1c80adfd17f6d5a27474bbc15046efb03c"
+          "sha256": "7a788e5ea7e7364741abffe774a117987d8ecab539d1175e0bc58e5005c2015f"
+        },
+        {
+          "file": "bin/cell-lint-baselines/strays-003.json",
+          "sha256": "3b730b062910c06af2b1c49623389e7e32eb5ba16ef260a7358d51500fd9b3d7"
         }
       ]
     },
@@ -127,11 +139,11 @@
       "shards": []
     },
     "unreachable": {
-      "count": 399,
+      "count": 367,
       "shards": [
         {
           "file": "bin/cell-lint-baselines/unreachable-001.json",
-          "sha256": "7328e035920e0de704857bc912d444df56f14e92ab34fc26bb052db81aff54a2"
+          "sha256": "24cd8f49c0abeceb803b6eb4c67bc019e03b5e11d324334811ba4b69534f110f"
         }
       ]
     },
@@ -140,36 +152,28 @@
       "shards": []
     },
     "unreachableExports": {
-      "count": 1664,
+      "count": 1130,
       "shards": [
         {
           "file": "bin/cell-lint-baselines/unreachableExports-001.json",
-          "sha256": "e29db5a14d01c2b12fb1c5d6df261c169481d378e6111c9d116acb5f34ea65ab"
+          "sha256": "6ff60067c15080144a0c7d1887e7db1f533e40040b50df125b338e434712acd1"
         },
         {
           "file": "bin/cell-lint-baselines/unreachableExports-002.json",
-          "sha256": "f63bce246c802201d23f0c12369342a6fd06f6a6d2d3d3df35f25c211628b19d"
+          "sha256": "f29a2abf52b5de9769ff9d4f8e1429013eee02b1c014055561278ae8d157905b"
         },
         {
           "file": "bin/cell-lint-baselines/unreachableExports-003.json",
-          "sha256": "3de5baf4df82603ce3587889c09ab43880181bf36403fe2579c0c8c000b67c2e"
-        },
-        {
-          "file": "bin/cell-lint-baselines/unreachableExports-004.json",
-          "sha256": "830715cb6e3e73fe269b58316093646e76d727d2417ac3e98419c1bfe6778a9d"
-        },
-        {
-          "file": "bin/cell-lint-baselines/unreachableExports-005.json",
-          "sha256": "d247cec9f5df94f7b1596c40b93b6a30467c0d20654f21d853ccfe255522ecba"
+          "sha256": "e4390e68719c8519616983764f722d8f05e6118b89cdf8073ec7b23d36bdcc85"
         }
       ]
     },
     "unknown": {
-      "count": 154,
+      "count": 163,
       "shards": [
         {
           "file": "bin/cell-lint-baselines/unknown-001.json",
-          "sha256": "04419429a4f6881f9129ff4588d96684e1933bd311bd80bcb9ddcb5987ae62ed"
+          "sha256": "2018aebfae8faae5b1c522d94f2f2561df40e9f8458637c383953cf8ade0eb4c"
         }
       ]
     }
