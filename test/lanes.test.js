@@ -9,6 +9,7 @@ import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { configProblems, defaults, durationMs, loadConfig } from '../src/config.js';
 import { isLane, laneNames, laneOf, outOfLane } from '../src/lanes.js';
+import { crossLaneFixture } from './e2e-helpers.js';
 
 const CONFIG = {
   ...defaults(),
@@ -39,6 +40,33 @@ test('lane names list the coordinator first [L1]', () => {
   assert.deepEqual(laneNames(CONFIG), ['coordinator', 'web', 'ui', 'api']);
   assert.ok(isLane(CONFIG, 'coordinator'));
   assert.ok(!isLane(CONFIG, 'all'));
+});
+
+test('WRONG_LANE names a clean native lane checkout and the claim there retains its lane hook [L2,B13,N2]', t => {
+  const box = crossLaneFixture(t);
+  const web = box.seat('claim-web', 'web', box.session);
+  const api = box.seat('claim api', 'api', box.session);
+  const id = box.add('api', 'Build only in the API lane');
+  const wrong = box.runAs(box.session, web.root, 'claim', String(id), '--json');
+  assert.equal(wrong.code, 1);
+  const refusal = JSON.parse(wrong.out).error;
+  assert.equal(refusal.code, 'WRONG_LANE');
+  assert.equal(refusal.next, `cd '${api.root}' && pullboard claim ${id}`);
+  assert.equal(box.json(box.run(box.repo, 'show', String(id), '--json')).item_status, 'open');
+  box.json(box.runAs(box.session, api.root, 'claim', String(id), '--json'));
+  mkdirSync(join(api.root, 'api'), { recursive: true });
+  writeFileSync(join(api.root, 'api/proof.js'), 'export const proof = true;\n');
+  box.git(api.root, 'add', 'api/proof.js');
+  const allowed = box.runAs(box.session, api.root, 'hook', 'pre-commit', '--json');
+  assert.equal(allowed.code, 0, allowed.out + allowed.err);
+  mkdirSync(join(api.root, 'web'), { recursive: true });
+  writeFileSync(join(api.root, 'web/forbidden.js'), 'export const forbidden = true;\n');
+  box.git(api.root, 'add', 'web/forbidden.js');
+  const refused = box.runAs(box.session, api.root, 'hook', 'pre-commit', '--json');
+  assert.equal(refused.code, 1);
+  const hookRefusal = JSON.parse(refused.out).error;
+  assert.equal(hookRefusal.code, 'COMMAND_FAILED', 'the native hook returns a nonzero command result rather than throwing a board refusal');
+  assert.match(hookRefusal.message, /outside the api lane: web\/forbidden\.js \(web's\); shout its owner instead/u);
 });
 
 test('a config with a bad lane refuses and names the field [L1]', () => {
