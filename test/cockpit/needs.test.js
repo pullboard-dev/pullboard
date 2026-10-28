@@ -44,6 +44,7 @@ test('every Needs-you surface follows the shared builder [N26,A9]', async () => 
   try {
     await confirmBaseline(view, alpha.repo);
     const page = await openPage(view);
+    page.run("openTab('items'); render();");
     const calls = [
       { kind: 'decision', id: 701, ref: 'reviewer', text: 'Builder decision one?', what: 'decision' },
       { kind: 'decision', id: 702, ref: 'reviewer', text: 'Builder decision two?', what: 'decision' },
@@ -106,6 +107,9 @@ test('a local relay-health Needs-you entry is an inspection with no release or h
       render();
       return true;
     })()`);
+    await chrome.click('document.querySelector("[data-tab=home]")');
+    await chrome.waitFor(`Array.from(document.querySelectorAll('#home-needs .needs-call')).some(row => row.textContent.includes(${JSON.stringify(text)}))`);
+    await chrome.click('document.querySelector("[data-tab=items]")');
     await chrome.waitFor(`Array.from(document.querySelectorAll('#needs .needs-call')).some(row => row.textContent.includes(${JSON.stringify(text)}))`);
     const rendered = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const row = [...document.querySelectorAll('#needs .needs-call')].find(entry => entry.textContent.includes(${JSON.stringify(text)}));
@@ -163,6 +167,7 @@ test("the page's Needs-you comes from the shared builder [N26]", { timeout: 180_
       ['decision', 1, null], ['pending', 'G3', null], ['hold', 'web', null], ['draft', 'drafts', 1],
     ], 'agent questions and already-approved rows are excluded; the remaining draft count is exact');
     const page = await openPage(view);
+    page.run("openTab('items'); render();");
     assert.deepEqual(JSON.parse(page.run('JSON.stringify(projectNeeds(data.project))')), expected, 'the live page uses the same builder');
     assert.equal(needEntries(page.show('needs')).length, expected.length, 'the panel has one row per shared entry');
     assert.deepEqual(JSON.parse(page.run('JSON.stringify((({decisions,pending,holds,drafts}) => ({decisions,pending,holds,drafts}))(boardSummary({},data.project)))')),
@@ -197,6 +202,8 @@ test("the page's Needs-you comes from the shared builder [N26]", { timeout: 180_
     for (const [mode, address] of [['export', snapshotHost.base + '/snapshot/'], ['relay page', 'http://127.0.0.1:' + relayServer.address().port + '/']]) {
       const profile = mkdtempSync(join(tmpdir(), 'pullboard-shared-needs-')); profiles.push(profile);
       chrome = await openSnapshotChrome(executable, address, profile);
+      await chrome.waitFor("data?.project?.needs?.length === 4");
+      await chrome.click('document.querySelector("[data-tab=items]")');
       await chrome.waitFor("data?.project?.needs?.length === 4 && document.querySelectorAll('#needs .needs-call').length === 4");
       assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify(projectNeeds(data.project))')), expected, mode + ' computes identical entries');
       assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify([...document.querySelectorAll("#needs .needs-copy b")].map(row => row.textContent))')),
@@ -227,6 +234,7 @@ test('a person-only block shows in Needs you with its one step [N26]', async () 
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    page.run("openTab('items'); render();");
     const state = await boardOf(view, alpha.repo);
     assert.equal(state.blocks.length, 1, 'the live API supplies the person-only block list');
     assert.equal(state.blocks[0].audience, 'person');
@@ -270,6 +278,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    page.run("openTab('items'); render();");
     // Deliberately age the ask past a minute; gate load must not decide its label.
     const askedAt = page.run('Date.parse(data.project.asked.find(shout => shout.shout_id === 1).shout_at)');
     page.run(`Date.now = () => ${askedAt + 61_000}; render();`);
@@ -277,9 +286,10 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     const question = 'Greet in &lt;b&gt;French&lt;/b&gt; first\\?';
     // An agent asks its coordinator (B25): the ask waits on the board with who holds it, never in Needs-you.
     assert.doesNotMatch(page.show('needs'), /decide:/, "an agent's ask is its coordinator's to answer");
+    page.run("openTab('shouts'); render();");
     assert.equal(page.element('decisions').hidden, true, 'an ask waiting on others stays folded');
     assert.match(page.show('asks-slot'), /^<button class="asks-toggle" data-fold="waiting" type="button" aria-expanded="false" title="Asks between agents, waiting on others: web-1 \(Test Model\) asks coordinator \(unknown\)">1 ask waiting <span aria-hidden="true">▾<\/span><\/button>$/, 'its toggle sits at the end of the composer line');
-    page.run('view.open.waiting = true; render();');
+    page.run("openTab('shouts'); view.open.waiting = true; render();");
     assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1 \\(Test Model\\)</b><span class="to">→ coordinator \\(unknown\\)</span><span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">1m ago</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
     assert.doesNotMatch(page.show('feed'), /Greet in/, 'though the feed no longer reaches it');
 
@@ -288,10 +298,12 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     await page.run('refresh()');
     const passedAt = page.run('Date.parse(data.project.decisions.find(shout => shout.shout_id === 42).shout_at)');
     page.run(`Date.now = () => ${passedAt + 61_000}; render();`);
+    page.run("openTab('items'); render();");
     const passed = `Passed up from web-1: ${question}\nCoordinator note: over to you`;
     assert.deepEqual(needEntries(page.show('needs')), [['decide:42', '#42', 'Passed up from web-1: Greet in &lt;b&gt;French&lt;/b&gt; first?', 'Asked by coordinator (unknown)', 'Decide']], "the person's call identifies its source, question and action");
     assert.ok(page.show('needs').includes('Passed up from web-1: Greet in &lt;b&gt;French&lt;/b&gt; first?<br>Coordinator note: over to you'), 'expanded details preserve the entire passed question and coordinator note');
     assert.match(page.show('needs'), /<span class="needs-age"><time data-ago="[^"]+">1m<\/time><\/span>/u, 'the call retains its actual one-minute age');
+    page.run("openTab('shouts'); render();");
     assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<div class="head"><i></i>Decision needed</div><article class="shout h\\d lead" data-shout-id="42"><span class="avatar"><svg [\\s\\S]*?</svg></span><div class="shout-main"><header><b class="who">coordinator \\(unknown\\)</b><span class="to">→ person</span><span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">1m ago</time></header><div class="text">${passed.replace('\n', '<br>')}</div><button class="more" data-more type="button">more</button><button class="ghost answer" data-go="decide:42" type="button">Answer</button></div></article>$`), 'and above the shouts as the coordinator\'s card, with an Answer button');
 
     const form = () => ({
@@ -319,7 +331,9 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
       [['person', 'web-1', 1, 'Person answered #42: French, then English']], 'the answer reaches the agent that asked');
     assert.deepEqual(form(), { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' }, 'the form is a plain shout again');
     assert.equal(page.element('shout-text').value, '');
+    page.run("openTab('items'); render();");
     assert.doesNotMatch(page.show('needs'), /decide:/, 'an answered decision leaves Needs-you');
+    page.run("openTab('shouts'); render();");
     assert.equal(page.element('decisions').hidden, true, 'and the banner');
 
     box.run(alpha.web, 'shout', 'coordinator', 'Ship today?', '--decision');
@@ -328,6 +342,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     const feed = shoutNameText(page.show('feed'));
     assert.match(feed, /<b class="who">web-1 \(Test Model\)<\/b><span class="to">→ coordinator \(unknown\)<\/span><span class="mark ask" role="group" title="decision" aria-label="decision">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
     assert.match(feed, /<b class="who">you<\/b><span class="to">→ coordinator \(unknown\)<\/span><span class="mark" role="group" title="answer" aria-label="answer">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
+    page.run("openTab('items'); render();");
     assert.match(page.show('needs'), /data-go="decide:46"/);
 
     // An answer belongs to the project whose question it shows.
@@ -375,6 +390,7 @@ test("needs-you holds only the person's calls; the rest show on the board with w
   try {
     await confirmBaseline(view, alpha.repo);
     const page = await openPage(view);
+    page.run("openTab('items'); render();");
     const needs = page.show('needs');
     assert.deepEqual(needEntries(needs).map(([go, ref, words]) => [go.split(':')[0], ref, words]), [
       ['spec', 'G3', 'Greet in French?'],
@@ -387,11 +403,12 @@ test("needs-you holds only the person's calls; the rest show on the board with w
     assert.match(needs, /<span class="needs-id"(?: title="[^"]*")?>web<\/span>G3 is open<\/b><small>lane held by coordinator \(unknown\)<\/small>[\s\S]*?<span class="needs-age"><time data-ago="[^"]+">(?:now|\d+[mhd])<\/time>/u, 'a held lane says who set it and shows the API-provided hold age');
 
     // Each of the rest is on the board, with who holds it.
-    page.run('view.open.waiting = true; render();');
+    page.run("openTab('shouts'); view.open.waiting = true; render();");
     assert.match(shoutNameText(page.show('decisions')), /<article class="shout h\d" data-shout-id="\d+"><span class="avatar" aria-hidden="true">W1<\/span><div class="shout-main"><header><b class="who">web-1 \(Test Model\)<\/b><span class="to">→ coordinator \(unknown\)<\/span>/, "the agent's ask waits on its coordinator");
+    page.run("openTab('items'); render();");
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip [^"]*">to verify<\/span><\/li>$/, 'work waiting for a verdict');
     assert.ok(itemRow(page.show('chain'), 2).includes('<b>BEHAVIOR_MISMATCH</b> no farewell yet'), 'and work sent back, with why');
-    page.run("view.agent = 'web-1'; render();");
+    page.run("openTab('shouts'); view.agent = 'web-1'; render();");
     assert.deepEqual(agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1').holds, ['#2 Farewell: sent back', '#1 Greeting: to verify'], 'the agent that built them holds both');
     page.run('view.agent = null; render();');
     assert.match(page.show('lanes'), /<b>web<\/b> <span class="chip no" title="held by coordinator \(unknown\)">held by coordinator \(unknown\)<\/span> <span class="muted">G3 is open<\/span>/, 'a held lane names who holds it');
@@ -411,6 +428,7 @@ test('needs-you lines keep their titles on a phone [N26]', async () => {
   try {
     await confirmBaseline(view, alpha.repo);
     const page = await openPage(view, { width: 375 });
+    page.run("openTab('items'); render();");
     const style = await styleOf(view);
     // The shared summary keeps its reference and one-line title, with context below and action at the right.
     assert.match(style, /\.needs-copy b, \.needs-copy small \{[^}]*overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/u, 'both summary lines truncate within the phone width');
@@ -573,6 +591,7 @@ test('an agent-approved row shows in Needs you with its agent and commit and a c
     const flagged = initial.needs.filter(row => row.kind === 'agent-approved');
     assert.deepEqual(flagged.map(row => row.id), ['G1', 'G2']);
     const page = await openPage(view);
+    page.run("openTab('items'); render();");
     for (const row of flagged) {
       assert.ok(page.show('needs').includes(`data-agent-approved="${row.id}"`), 'agent-approved calls have their own Needs-you row');
       assert.equal(row.agent, 'Agent & \"unconfirmed\" seat');
@@ -598,6 +617,8 @@ test('an agent-approved row shows in Needs you with its agent and commit and a c
     box.run(alpha.repo, 'view', '--export', output);
     snapshotHost = await serveFolder(output, '/agent/');
     chrome = await openSnapshotChrome(executable, snapshotHost.base + '/agent/', join(box.dir, 'agent-approval-readonly-chrome'));
+    await chrome.waitFor('data?.project');
+    await chrome.click('document.querySelector("[data-tab=items]")');
     await chrome.waitFor('document.querySelectorAll("#needs [data-agent-approved]").length === 2');
     const agentRows = await chrome.stable('document.querySelector("#needs").innerHTML');
     assert.match(agentRows, /agent-approved/u);
@@ -611,6 +632,8 @@ test('an agent-approved row shows in Needs you with its agent and commit and a c
     chrome = await openSnapshotChrome(executable, 'about:blank', join(box.dir, 'agent-approval-person-chrome'));
     reads = await approvalReadGate(chrome, view.base);
     await chrome.send('Page.navigate', { url: view.link.href });
+    await chrome.waitFor('data?.project');
+    await chrome.click('document.querySelector("[data-tab=items]")');
     await chrome.waitFor('document.querySelectorAll("#needs [data-agent-approved]").length === 2');
     await chrome.click('document.querySelector("[data-tab=items]")');
     await chrome.waitFor("view.tab === 'items' && !document.querySelector('[data-pane=items]').hidden");
@@ -697,6 +720,8 @@ test('a sentinel draft in Needs you is approved and declined from the view [N26,
 
     chrome = await openSnapshotChrome(executable, 'about:blank', join(box.dir, 'sentinel-person-chrome'));
     await chrome.send('Page.navigate', { url: view.link.href });
+    await chrome.waitFor('data?.project');
+    await chrome.click('document.querySelector("[data-tab=items]")');
     await chrome.waitFor('document.querySelectorAll("#needs [data-sentinel-draft]").length === 2');
     await chrome.click('document.querySelector("[data-tab=items]")');
     await chrome.waitFor("view.tab === 'items' && !document.querySelector('[data-pane=items]').hidden");
