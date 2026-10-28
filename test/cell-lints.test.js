@@ -195,7 +195,7 @@ test('sharded committed path maps activate ratchets while absent maps remain adv
   assert.deepEqual(moved.transition.witness, ['src/previous.js', 'packages/sample/index.js']);
   assert.ok(!moved.metrics.strays.findings.some(row => row.key === 'bin/cells-plan/path-map/git.json'), 'a path-map shard is tooling metadata, not a stray');
   assert.ok(!moved.metrics.unreachable.findings.some(row => row.key === 'bin/cells-plan/path-map/git.json'), 'a path-map shard is not an application module');
-  const strictBaseline = cellLintBaseline(moved);
+  const strictPlan = planCellLintBaseline(moved), strictBaseline = strictPlan.baseline;
   writeCellLintBaseline(box.root, strictBaseline, {
     initialize: true,
     verify: () => JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(strictBaseline),
