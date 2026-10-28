@@ -1,3 +1,4 @@
+import { environmentProblem } from './config.js';
 import {
   lstatSync,
   mkdtempSync,
@@ -26,14 +27,6 @@ export function executionEnvironment() {
   return { platform: process.platform, arch: process.arch, node: process.versions.node };
 }
 
-/** Validate bounded identity without substituting this host for an unknown old receipt. */
-export function environmentProblem(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)
-    || Object.keys(value).length !== 3 || !['platform', 'arch', 'node'].every(key => Object.hasOwn(value, key))) return 'needs platform, arch and node';
-  if (!['platform', 'arch'].every(key => typeof value[key] === 'string' && /^[a-z0-9_]{1,32}$/u.test(value[key]))) return 'platform and arch are bounded system identifiers';
-  if (typeof value.node !== 'string' || value.node.length > 80 || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(value.node)) return 'node names one exact Node version';
-  return '';
-}
 
 /** Require all three exact fields; unknown historical environments never match by inference. */
 export function sameEnvironment(left, right) {

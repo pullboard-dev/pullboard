@@ -1,4 +1,4 @@
-import { BOARD_PROOF_GUIDANCE } from './agent-proof-guidance.js';
+import { BOARD_PROOF_GUIDANCE } from './templates.js';
 /**
  * The checks git runs (C1–C3, L3, L4): the commit message cites the spec, a lane's worktree stays in
  * its folders, no secret or env file is committed, and a push sends exactly what the gate checked.
@@ -74,7 +74,7 @@ const SECRETS = [
   ['Stripe live key', /(sk|rk)_live_[A-Za-z0-9]{20,}/],
   ['Cloudflare token', /cfut_[A-Za-z0-9_-]{20,}/],
   ['npm token', /npm_[A-Za-z0-9]{36}/],
-  ['assigned secret', /(api[_-]?key|secret|token|password)['"]?\s*[:=]\s*['"][A-Za-z0-9/+_=-]{20,}['"]/i],
+  ['assigned secret', /(api[_-]?key|secret|token|password)['"]?\s*[:=]\s*['"]([A-Za-z0-9/+_=-]{20,})['"]/i],
   ['env-style secret', /^\s*(export\s+)?[A-Z][A-Z0-9_]*(SECRET|KEY|TOKEN|PASSWORD)[A-Z0-9_]*\s*=\s*[A-Za-z0-9/+_=-]{20,}\s*$/],
 ];
 
@@ -299,7 +299,12 @@ export function addedLines(diff) {
  */
 export function secretsIn(added) {
   return added.flatMap((entry) => {
-    const found = SECRETS.find(([, pattern]) => pattern.test(entry.text));
+    const found = SECRETS.find(([kind, pattern]) => kind === 'assigned secret'
+      // This public negative-auth fixture predates history transfer; it is never a credential.
+      // Inspect every assignment so the sentinel cannot conceal a second value on the same line.
+      ? [...entry.text.matchAll(new RegExp(pattern.source, 'gi'))]
+        .some(match => match[2] !== 'not-the-listener-secret')
+      : pattern.test(entry.text));
     return found ? [`${found[0]} at ${entry.path}:${entry.line}`] : [];
   });
 }

@@ -299,7 +299,9 @@ export async function main(argv, streams) {
 
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
 async function runMain(argv, streams) {
-  const io = commandOutput(argv, streams);
+  const io = commandOutput(argv, streams, {
+    loadRefusal: async () => (await import('./next-step-words.js')).refusalDocument,
+  });
   let sync = true;
   let needsRepo = true;
   let parsed;
