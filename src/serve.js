@@ -1,3 +1,4 @@
+import { landingPace } from './roadmap.js';
 /** @pullboard-test-input src/view.css */
 import { foreignDependencyStates } from './cross-repo-dependencies.js';
 import { dependencyValues } from './item-dependencies.js';
@@ -366,6 +367,10 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       decisionQueue: store.openDecisions(board, COORDINATOR),
       asked: store.openDecisions(board).filter((ask) => ask.shout_to !== store.PERSON),
       events: log,
+      dashboardNext: [...all].filter(item => item.item_status === 'open').sort(store.buildOrder(board)).map(item => item.item_id),
+      dashboardPace: landingPace(board, new Map(all.map(item => [item.item_id, item])), board.clock.now().getTime()),
+      dashboardLanded: all.filter(item => item.item_status === 'verified' && item.item_merged_commit)
+        .map(item => ({ id: item.item_id, commit: item.item_merged_commit, reviewer: item.item_verified_by })),
       agents: store.listAgents(board).map((agent) => ({ ...agent, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
       holds: store.laneHolds(board),
       // Each item held on its own, with its reason, so every list can say why it is not moving (#1256).
@@ -719,7 +724,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     }
     try {
       // The board, and the Roadmap at its own address (N38), are the one page.
-      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:home|items|shouts|spec|doctrine|activity|roadmap|settings)(?:\/[^/]+)?$/.test(url.pathname))) return reply(res, 200, 'text/html; charset=utf-8', cockpitPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css' }));
+      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:dashboard|home|items|shouts|spec|doctrine|activity|roadmap|settings)(?:\/[^/]+)?$/.test(url.pathname))) return reply(res, 200, 'text/html; charset=utf-8', cockpitPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css' }));
       if (req.method === 'GET' && url.pathname === '/view.css') return reply(res, 200, 'text/css; charset=utf-8', VIEW_CSS);
       return json(res, 404, { error: 'no such page' });
     } catch (error) {
