@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/relay-pairing-client.js->src/board.js": 1,
     "src/relay-pairing-client.js->src/computer-name.js": 1,
     "src/relay-pairing-client.js->src/exchange.js": 1,
     "src/relay-pairing-client.js->src/git.js": 1,
@@ -400,7 +401,6 @@
     "src/runner-stage.js->src/refused.js": 1,
     "src/runner-tooling-snapshot.js->src/refused.js": 1,
     "src/runner-tooling-snapshot.js->src/runner-module-parser.js": 1,
-    "src/runner-tooling-snapshot.js->src/runner-package.js": 1,
-    "src/runner-transport.js->src/gui-session.js": 1
+    "src/runner-tooling-snapshot.js->src/runner-package.js": 1
   }
 }

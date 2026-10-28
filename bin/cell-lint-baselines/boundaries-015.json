@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "test/project-meta.test.js->test/http-fixture.js": 1,
+    "test/proof-provenance.test.js->src/board.js": 1,
+    "test/proof-provenance.test.js->src/engine.js": 1,
     "test/proof-provenance.test.js->src/execution-environment.js": 1,
     "test/proof-provenance.test.js->src/gate-run-receipt.js": 1,
     "test/proof-provenance.test.js->src/proof-cli.js": 1,
@@ -398,9 +401,6 @@
     "test/relay-pairing-options.test.js->src/relay-device-keys.js": 1,
     "test/relay-pairing-options.test.js->test/relay-client-fixture.js": 1,
     "test/relay-pairing.test.js->test/relay-browser-fixture.js": 1,
-    "test/relay-pairing.test.js->test/relay-client-fixture.js": 1,
-    "test/relay-parity-clock.test.js->relay/browser-model.js": 1,
-    "test/relay-parity-clock.test.js->src/api.js": 1,
-    "test/relay-parity-clock.test.js->src/blocks.js": 1
+    "test/relay-pairing.test.js->test/relay-client-fixture.js": 1
   }
 }

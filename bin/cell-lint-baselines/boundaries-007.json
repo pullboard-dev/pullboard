@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/moves/appendFact.js->src/rigor-auto-engine.js": 1,
     "src/moves/appendFact.js->src/sentinel-engine.js": 1,
     "src/moves/applyRehomeItem.js->src/private-rehome-engine.js": 1,
     "src/moves/applyRehomeItem.js->src/review-independence-engine.js": 1,
@@ -400,7 +401,6 @@
     "src/next-take.js->src/next-review.js": 1,
     "src/next-take.js->src/refused.js": 1,
     "src/next-take.js->src/trusted-policy.js": 1,
-    "src/outside-proof.js->src/refused.js": 1,
-    "src/outside-sensitive.js->src/git.js": 1
+    "src/outside-proof.js->src/refused.js": 1
   }
 }

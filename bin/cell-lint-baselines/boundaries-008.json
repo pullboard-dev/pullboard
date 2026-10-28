@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/outside-sensitive.js->src/git.js": 1,
     "src/outside-sensitive.js->src/refused.js": 1,
     "src/outside-sensitive.js->src/trusted-policy.js": 1,
     "src/outside-source.js->src/refused.js": 1,
@@ -400,7 +401,6 @@
     "src/relay-page-layout.js->src/refused.js": 1,
     "src/relay-page-layout.js->src/sealed-pages.js": 1,
     "src/relay-page-writer.js->src/item-list.js": 1,
-    "src/relay-page-writer.js->src/relay-page-layout.js": 1,
-    "src/relay-pairing-client.js->src/board.js": 1
+    "src/relay-page-writer.js->src/relay-page-layout.js": 1
   }
 }

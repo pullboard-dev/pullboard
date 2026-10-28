@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/commands/index.js->src/commands/test.js": 1,
     "src/commands/index.js->src/commands/tour.js": 1,
     "src/commands/index.js->src/commands/verify.js": 1,
     "src/commands/index.js->src/commands/version.js": 1,
@@ -400,7 +401,6 @@
     "src/commands/verify.js->src/outside-verify.js": 1,
     "src/commands/verify.js->src/post-move-handoff.js": 1,
     "src/commands/verify.js->src/recorded-recovery.js": 1,
-    "src/commands/verify.js->src/refused.js": 1,
-    "src/commands/verify.js->src/relay.js": 1
+    "src/commands/verify.js->src/refused.js": 1
   }
 }

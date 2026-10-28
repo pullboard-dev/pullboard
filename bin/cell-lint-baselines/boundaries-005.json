@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/commands/verify.js->src/relay.js": 1,
     "src/commands/verify.js->src/review-independence.js": 1,
     "src/commands/verify.js->src/settings.js": 1,
     "src/commands/verify.js->src/spec-approval.js": 1,
@@ -400,7 +401,6 @@
     "src/inbox-store.js->src/board-read-auxiliary.js": 1,
     "src/inbox-store.js->src/board.js": 1,
     "src/inbox-store.js->src/config.js": 1,
-    "src/inbox-store.js->src/refused.js": 1,
-    "src/inbox-store.js->src/worker-inbox.js": 1
+    "src/inbox-store.js->src/refused.js": 1
   }
 }

@@ -16,6 +16,7 @@
     "src/hooks.js": 1,
     "src/implies.js": 1,
     "src/import-map.js": 1,
+    "src/inbox-budget.js": 1,
     "src/inbox-store.js": 1,
     "src/index.js": 1,
     "src/infra-note.js": 1,
@@ -400,7 +401,6 @@
     "src/resume-sources.js": 1,
     "src/resume.js": 1,
     "src/review-eligibility.js": 1,
-    "src/review-grant-engine.js": 1,
-    "src/review-independence-engine.js": 1
+    "src/review-grant-engine.js": 1
   }
 }

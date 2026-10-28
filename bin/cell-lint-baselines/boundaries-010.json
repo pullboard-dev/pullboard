@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/runner-transport.js->src/gui-session.js": 1,
     "src/runner-utilization.js->src/gate-receipt.js": 1,
     "src/runner-utilization.js->src/runner-capacity-read.js": 1,
     "src/runner-utilization.js->src/runner-stage.js": 1,
@@ -400,7 +401,6 @@
     "src/trusted-policy.js->src/lanes.js": 1,
     "src/trusted-policy.js->src/path-map.js": 1,
     "src/trusted-policy.js->src/private-check-worker.js": 1,
-    "src/trusted-policy.js->src/proof-provenance.js": 1,
-    "src/trusted-policy.js->src/refused.js": 1
+    "src/trusted-policy.js->src/proof-provenance.js": 1
   }
 }

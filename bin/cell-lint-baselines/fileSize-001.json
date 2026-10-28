@@ -54,7 +54,7 @@
     "src/view.css": 839,
     "src/view/page-script-2.js": 585,
     "src/view/page-script-4.js": 735,
-    "test/activity-feed.test.js": 146,
+    "test/activity-feed.test.js": 279,
     "test/api-catalog.test.js": 423,
     "test/api-http.test.js": 1455,
     "test/api.test.js": 1099,

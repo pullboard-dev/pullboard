@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "test/cli-startup-budget-fixture.js->test/board-submit-fixture.js": 1,
+    "test/cli-startup-budget-fixture.js->test/fixture-child.js": 1,
+    "test/cli-startup.test.js->test/cli-startup-budget-fixture.js": 1,
     "test/cli-startup.test.js->test/fixture-child.js": 1,
     "test/cockpit/activity-sentences.test.js->src/board.js": 1,
     "test/cockpit/activity-sentences.test.js->src/engine.js": 1,
@@ -398,9 +401,6 @@
     "test/fixtures/proof-stats-legacy.js->src/stats-flow.js": 1,
     "test/fixtures/resources-pre-runners.js->src/git.js": 1,
     "test/fixtures/resources-pre-runners.js->src/machine-home.js": 1,
-    "test/fixtures/resources-pre-runners.js->src/refused.js": 1,
-    "test/flakes-ledger.test.js->src/board.js": 1,
-    "test/flakes-ledger.test.js->src/engine.js": 1,
-    "test/flakes-ledger.test.js->src/exchange.js": 1
+    "test/fixtures/resources-pre-runners.js->src/refused.js": 1
   }
 }

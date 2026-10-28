@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/cli-read-context.js->src/trusted-policy-read.js": 1,
     "src/cli-support.js->src/board.js": 1,
     "src/cli-sync.js->src/check-baseline-worker.js": 1,
     "src/cli-sync.js->src/cli-context.js": 1,
@@ -400,7 +401,6 @@
     "src/commands/index.js->src/commands/sweep.js": 1,
     "src/commands/index.js->src/commands/sync.js": 1,
     "src/commands/index.js->src/commands/takeover.js": 1,
-    "src/commands/index.js->src/commands/test-value.js": 1,
-    "src/commands/index.js->src/commands/test.js": 1
+    "src/commands/index.js->src/commands/test-value.js": 1
   }
 }

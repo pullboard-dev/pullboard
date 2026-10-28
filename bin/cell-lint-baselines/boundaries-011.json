@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/trusted-policy.js->src/refused.js": 1,
     "src/trusted-policy.js->src/resources.js": 1,
     "src/trusted-policy.js->src/runner-private-check.js": 1,
     "src/trusted-policy.js->src/runner-private-mode.js": 1,
@@ -78,6 +79,7 @@
     "src/work-order.js->src/work-order-engine.js": 1,
     "src/worker-inbox.js->src/shout-audience.js": 1,
     "src/worktree.js->src/git.js": 1,
+    "test/activity-feed.test.js->src/activity-delivery-cli.js": 1,
     "test/activity-feed.test.js->src/activity-delivery-engine.js": 1,
     "test/activity-feed.test.js->src/activity-delivery-read.js": 1,
     "test/activity-feed.test.js->src/activity-inbox.js": 1,
@@ -85,6 +87,7 @@
     "test/activity-feed.test.js->src/board.js": 1,
     "test/activity-feed.test.js->src/engine.js": 1,
     "test/activity-feed.test.js->src/exchange.js": 1,
+    "test/activity-feed.test.js->src/inbox-budget.js": 1,
     "test/activity-feed.test.js->src/item-shout-engine.js": 1,
     "test/activity-feed.test.js->src/landing-lease-engine.js": 1,
     "test/activity-feed.test.js->src/moves/shout.js": 1,
@@ -398,9 +401,6 @@
     "test/cli-read-performance.test.js->src/cli.js": 1,
     "test/cli-read-performance.test.js->test/board-submit-fixture.js": 1,
     "test/cli-read-performance.test.js->test/fixture-child.js": 1,
-    "test/cli-startup-budget-fixture.js->src/board.js": 1,
-    "test/cli-startup-budget-fixture.js->test/board-submit-fixture.js": 1,
-    "test/cli-startup-budget-fixture.js->test/fixture-child.js": 1,
-    "test/cli-startup.test.js->test/cli-startup-budget-fixture.js": 1
+    "test/cli-startup-budget-fixture.js->src/board.js": 1
   }
 }

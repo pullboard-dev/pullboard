@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "legacySource",
   "allowances": {
+    "src/review-independence-engine.js": 1,
     "src/review-independence.js": 1,
     "src/review-policy.js": 1,
     "src/review-queue-line.js": 1,

@@ -296,6 +296,7 @@
     "src/activity-delivery-cli.js->src/board.js": 1,
     "src/activity-delivery-cli.js->src/cli.js": 1,
     "src/activity-delivery-cli.js->src/handoff-state.js": 1,
+    "src/activity-delivery-cli.js->src/inbox-budget.js": 1,
     "src/activity-delivery-cli.js->src/refused.js": 1,
     "src/activity-delivery-read.js->src/activity-delivery-store.js": 1,
     "src/activity-delivery-read.js->src/activity-delivery.js": 1,
@@ -400,7 +401,6 @@
     "src/bar-coverage.js->src/brief.js": 1,
     "src/bar-coverage.js->src/git.js": 1,
     "src/bar-coverage.js->src/refused.js": 1,
-    "src/bar-readiness.js->src/bar-actor.js": 1,
-    "src/bar-readiness.js->src/bar-coverage.js": 1
+    "src/bar-readiness.js->src/bar-actor.js": 1
   }
 }

@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/inbox-store.js->src/worker-inbox.js": 1,
     "src/index.js->src/board.js": 1,
     "src/index.js->src/cli.js": 1,
     "src/index.js->src/config.js": 1,
@@ -400,7 +401,6 @@
     "src/moves/appendFact.js->src/item-notes.js": 1,
     "src/moves/appendFact.js->src/landing-lease-engine.js": 1,
     "src/moves/appendFact.js->src/move-engine-constants.js": 1,
-    "src/moves/appendFact.js->src/move-implies.js": 1,
-    "src/moves/appendFact.js->src/rigor-auto-engine.js": 1
+    "src/moves/appendFact.js->src/move-implies.js": 1
   }
 }
