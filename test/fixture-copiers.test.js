@@ -42,6 +42,21 @@ test('invalid subsets fail before copying any selected file [C7]', t => {
   assert.throws(() => readdirSync(target), { code: 'ENOENT' });
 });
 
+test('manifest exclusions never become subset destination or path-map instructions [C7]', t => {
+  const { source, target } = fixture(t);
+  writeFileSync(join(source, 'packages/spec/private.js'), 'private fixture bytes\n');
+  writeFileSync(join(source, 'package.json'), JSON.stringify({ type: 'module',
+    files: ['packages', '!packages/spec/private.js'] }));
+  assert.throws(() => copyPackageFiles(source, target,
+    { files: [{ path: 'packages/spec/value.js', as: '!private.js' }] }), /exact regular files/u);
+  assert.throws(() => copyPackageFiles(source, target, { files: ['src/value.js'],
+    pathMap: new Map([['src/value.js', '!packages/spec/value.js']]) }), /exact regular files/u);
+  assert.throws(() => readdirSync(target), { code: 'ENOENT' }, 'invalid subsets create no partial destination');
+  assert.deepEqual(copyPackageFiles(source, target), ['package.json', 'packages/spec/value.js']);
+  assert.throws(() => readFileSync(join(target, 'packages/spec/private.js')), { code: 'ENOENT' },
+    'ordinary manifest exclusions retain their accepted behavior');
+});
+
 test('the guard names hand copies including imported aliases, finite lists and read-write copies [C7]', () => {
   for (const source of [
     "import { cpSync } from 'node:fs'; cpSync(new URL('../src/', import.meta.url), target);",

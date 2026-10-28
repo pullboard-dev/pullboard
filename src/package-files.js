@@ -80,8 +80,8 @@ export function packageFiles(root) {
 
 /** Validate one exact manifest identity or explicit private-fixture destination, never a glob or parent escape. */
 function copyPath(value) {
-  packagePattern(value);
-  if (/[?*]/u.test(value) || value.split('/').some(part => part === '.git' || part === 'node_modules')) {
+  const pattern = packagePattern(value);
+  if (pattern.exclude || /[?*]/u.test(value) || value.split('/').some(part => part === '.git' || part === 'node_modules')) {
     throw new Error('package copy paths must name exact regular files');
   }
   return value.replace(/^\.\//u, '');
