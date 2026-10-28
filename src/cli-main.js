@@ -74,6 +74,8 @@ const OPTIONS = {
   'coverage-file': { type: 'string' },
   text: { type: 'string' },
   gate: { type: 'string' },
+  'gate-receipt': { type: 'string' },
+  receipt: { type: 'boolean' },
   aim: { type: 'boolean' },
   doctrine: { type: 'boolean' },
   source: { type: 'string' },
@@ -370,8 +372,9 @@ async function runMain(argv, streams) {
     await (await syncWork())?.syncBefore(io, main);
     traceServeStartup('cli-command-preamble-ready');
     const code = await runCommand(argv, io);
-    auditAfterCommand = code === 0 && parsed?.positionals[0] === 'land'
-      && !parsed.values['dry-run'] && parsed.values.waive === undefined;
+    auditAfterCommand = code === 0 && ((parsed?.positionals[0] === 'land'
+      && !parsed.values['dry-run'] && parsed.values.waive === undefined)
+      || (parsed?.positionals[0] === 'merged' && parsed.values['gate-receipt'] !== undefined));
     advanceAfterCommand = code === 0 && !parsed.values['dry-run'] && (auditAfterCommand
       || parsed.positionals[0] === 'merged' || parsed.positionals[0] === 'sentinel' && parsed.positionals[1] === 'run');
     if (code === 0) {
