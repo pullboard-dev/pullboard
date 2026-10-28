@@ -1,3 +1,4 @@
+import { effectiveItemHead } from './source-advance-state.js';
 /** Native computation of automatic submitted-head returns; callers supply no conflict assertion [V4,H16]. */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
@@ -14,13 +15,14 @@ export function computeConflictReturn(board, id, actor) {
   let native = false;
   try { native = Boolean(root && file && realpathSync(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) === realpathSync(file)); } catch { /* Unreadable or imported paths fail closed. */ }
   if (!native) throw new Refused('COORDINATOR_ONLY', 'automatic conflict return requires this board\'s registered native repository');
-  const item = board.db.prepare('SELECT item_id,item_status,item_commit FROM item WHERE item_id=?').get(id);
+  const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id);
   if (!item || item.item_status !== 'submitted' || !item.item_commit) throw new Refused('NOT_SUBMITTED', `item #${id} is not submitted`);
   if (!board.db.prepare('SELECT agent_id FROM agent WHERE agent_id=?').get(actor)) throw new Refused('NOT_JOINED', 'join before selecting a review');
-  const merge = trunkMerge(root, item.item_commit);
+  const head = effectiveItemHead(board, item) ?? item.item_commit;
+  const merge = trunkMerge(root, head);
   if (!merge.files?.length) throw new Refused('NOT_CONFLICTING', 'the submitted head merges cleanly; no automatic return is needed');
   const fields = { version: 2, id: randomUUID(), board: board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='board_id'").get().meta_value,
-    item: item.item_id, actor, head: item.item_commit, trunk: merge.commit, files: merge.files, at: board.clock.now().toISOString(),
+    item: item.item_id, actor, head, trunk: merge.commit, files: merge.files, at: board.clock.now().toISOString(),
     submission: board.db.prepare("SELECT event_id FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1").get(item.item_id).event_id };
   const receipt = { ...fields, digest: createHash('sha256').update(JSON.stringify(fields)).digest('hex') };
   return receipt;

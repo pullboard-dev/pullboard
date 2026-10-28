@@ -20,7 +20,7 @@ export function capturePrProof(board) {
     const verdicts = byItem(board.db.prepare('SELECT * FROM verdict ORDER BY verdict_id').all());
     const events = byItem(store.eventsOfKinds(board, ['accept', 'reject', 'reopen']));
     const metadata = new Map(board.db.prepare(`SELECT meta_key,meta_value FROM board_meta
-      WHERE meta_key GLOB 'verdict_assurance:*' OR meta_key GLOB 'outside:*' OR meta_key GLOB 'rehome_import:*'`).all()
+      WHERE meta_key GLOB 'verdict_assurance:*' OR meta_key GLOB 'outside:*' OR meta_key GLOB 'rehome_import:*' OR meta_key GLOB 'item_source_advance:*' OR meta_key GLOB 'item_patches:*'`).all()
       .map(row => [row.meta_key, row]));
     const batches = store.landingBatches(board);
     // This private reader accepts only the canonical interpreter's known queries. Carry lookups
@@ -39,6 +39,9 @@ export function capturePrProof(board) {
             || /^SELECT 1 FROM event(?:_history)? WHERE item_id = \? AND event_kind = 'merge-only-accept' AND event_id > \? AND event_id < \? AND json_extract\(event_detail,'\$\.commit'\) = \? AND json_extract\(event_detail,'\$\.verdict'\) = \?$/u.test(query)) {
           return board.db.prepare(sql);
         }
+        if (query === "SELECT 1 FROM event WHERE item_id=? AND event_kind='accept' AND event_id>? LIMIT 1"
+          || query === "SELECT event_id FROM event WHERE item_id=? AND event_kind IN ('submit','reopen','refreeze','reject') ORDER BY event_id DESC LIMIT 1"
+          || query === 'SELECT item_commit FROM item WHERE item_id=?') return board.db.prepare(sql);
         throw new Refused('PUBLISH_STATE', 'the native receipt reader changed; update Pullboard before publishing');
       },
     } };
