@@ -1291,6 +1291,11 @@ export function refuseUncommittedSetup(mainRoot, config) {
   throw new Refused('NOT_COMMITTED', `${why}. Commit them first: ${cdTo(mainRoot)} git add${force} -- ${words} && git commit -q -m "${subject}" -- ${words}`);
 }
 
+/** Supply native CLI identity, ordering and presentation explicitly to the lower activity cell. */
+export function activityDeliveryPorts() {
+  return Object.freeze({ agentDisplayName, evidenceLine, ordered, whoAmI, withBoard });
+}
+
 /** Report and pin the original submitted commit, including a recovered acknowledged outcome. */
 export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   const { root } = ctx.info;
@@ -1300,9 +1305,10 @@ export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   if (ctx.submissionResult) ctx.submissionResult.value = submission;
   try {
     const { deliverActivity, activityDeliveryLines } = await import('./activity-delivery-cli.js');
-    const delivery = await deliverActivity(ctx, { afterSubmit: true, directShouts: false });
+    const ports = activityDeliveryPorts();
+    const delivery = await deliverActivity(ctx, { afterSubmit: true, directShouts: false }, ports);
     submission.activity = { ...delivery.activity, budget: delivery.budget };
-    for (const line of activityDeliveryLines(delivery, ctx.config)) ctx.io.say(line);
+    for (const line of activityDeliveryLines(delivery, ctx.config, ports)) ctx.io.say(line);
   } catch (error) {
     submission.activity = { receipt: { recorded: false, code: error.code ?? 'ACTIVITY_DELIVERY_FAILED', message: error.message } };
     ctx.io.err(`submitted #${id}, but its activity delivery failed: ${error.message}; read pullboard inbox to retry delivery`);
