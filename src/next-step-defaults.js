@@ -2,6 +2,12 @@
 export const DEFAULT_NEXT_STEPS = Object.freeze({
   CELL_BASELINE: 'run node bin/cell-lints.js --report; restore the complete accepted bin/cell-lint-baselines descriptor and hash-bound shards, resolve reported inventory or ownership conflicts, then run node bin/cell-lints.js --check; initialize with --init only when no accepted baseline exists after explicit review',
   CELL_LINT_ROSE: 'run node bin/cell-lints.js --report and node bin/cell-lints.js --check; repair every reported debt increase, then use node bin/cell-lints.js --update only to record falling allowances; never regenerate an accepted baseline to raise debt',
+  CELLS_UNPLACED: 'add a name rule for the reported paths in src/cells-plan.js, then regenerate the plan with node bin/cells-plan.js --write',
+  CELLS_PLAN_CELL: 'use a cell name listed in bin/cells-plan.json, as in node bin/cells-plan.js --moved kernel',
+  CELLS_PLAN_SHARD: 'regenerate the plan and its shards with node bin/cells-plan.js --write',
+  CELLS_PLAN_FILE: 'run pullboard list core --all to see which move items exist, fix the reported problem, then rerun node bin/cells-plan.js --file, which skips filed items',
+  CELLS_PLAN_GIT: 'run node bin/cells-plan.js inside a Git checkout of this repository',
+  CELLS_PLAN_MODE: 'run node bin/cells-plan.js --write, --check, --moved <cell> or --file [--yes]',
   SUBMISSION_CHANGED: 'run pullboard show <id> to inspect its current submission attempt and verdict; do not resubmit an acknowledged attempt',
   ITEM_PATCH: 'inspect the native patches with pullboard patch list <item>; ask the coordinator to replace unsafe or conflicting input',
   "NO_PUSH_SMOKE": "record an explicit short pushReceiptCheck.smoke command in accepted pullboard.json, then retry the additive receipt check",
