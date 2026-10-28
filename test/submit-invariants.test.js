@@ -12,7 +12,9 @@ import {
   prepareEngineMove,
 } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
-import { SUBMISSION_PROOF_ENGINE, landingFileTimes, submitInvariantProposals } from '../src/submit-invariants.js';
+import { SUBMISSION_PROOF_ENGINE } from '../src/move-engine-constants.js';
+import { landingFileTimes } from '../src/submit-invariants.js';
+import { submitInvariantProposals } from '../src/submit-invariants.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { landingFailures } from '../src/land.js';
 import { createE2eHelpers } from './e2e-helpers.js';

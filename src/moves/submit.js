@@ -11,10 +11,8 @@ import { outsideSource } from '../outside-source.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 import { BAR_CHECK_ENGINE } from '../bar-check-engine.js';
 import { barCheckEnabled } from '../bar-check.js';
-import {
-  SUBMISSION_PROOF_ENGINE,
-  submissionProof,
-} from '../submit-invariants.js';
+import { SUBMISSION_PROOF_ENGINE } from '../move-engine-constants.js';
+import { submissionProof } from '../../packages/state/src/core/submission-proof.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {

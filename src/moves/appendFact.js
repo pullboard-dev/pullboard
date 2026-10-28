@@ -5,7 +5,7 @@ import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 import { CAUSE_ENGINE } from '../engine-metadata.js';
 import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { IMPLIES_ENGINE } from '../move-engine-constants.js';
-import { carriesImplies } from '../move-implies.js';
+import { carriesImplies } from '../../packages/state/src/core/move-implies.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 import { BAR_CHECK_ENGINE } from '../bar-check-engine.js';
 

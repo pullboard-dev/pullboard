@@ -44,7 +44,7 @@ export function firstRefusalArgs(operation, args, config) {
   return [args[0], { ...args[1], reopenFirstRefusalMinutes: minutes }, ...args.slice(2)];
 }
 
-export { manualLandingFailureQuoted } from './manual-landing-failure-quoted.js';
+export { manualLandingFailureQuoted } from '../packages/state/src/core/manual-landing-failure-quoted.js';
 
 /** Read a quoted test name and its end offset, refusing malformed escapes or multiline text. */
 function quotedLandingTestName(text, start) {

@@ -8,7 +8,7 @@ import { tryGit } from '../src/git.js';
 import { barReadiness } from '../src/bar-readiness.js';
 import { revisionReference } from '../src/spec-revisions.js';
 import { receiptBody } from '../src/gate-run-receipt.js';
-import { requireHandoffActive } from '../src/handoff-state.js';
+import { requireHandoffActive } from '../packages/state/src/core/handoff-state.js';
 import { preparePersonRequest } from '../src/person-request.js';
 
 /** Outside metadata is synthetic fixture input; these calls make no GitHub or owner-authentication assurance claim. */
