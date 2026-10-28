@@ -302,6 +302,10 @@ async function runMain(argv, streams) {
   const io = commandOutput(argv, streams, {
     loadRefusal: async () => (await import('./next-step-words.js')).refusalDocument,
   });
+  // Background launch is a CLI operation; lower relay code receives it explicitly.
+  io.launchRelaySender = (root, env) => {
+    void import('./relay-sender-main.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});
+  };
   let sync = true;
   let needsRepo = true;
   let parsed;
