@@ -36,6 +36,8 @@ test('a spec revision shows old and proposed rows side by side with proposal-id 
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       const approve = proposals[index * 2], decline = proposals[index * 2 + 1];
       const row = `document.querySelector('#needs [data-spec-revision="${approve}"]')`;
+      await press(chrome, `${row}.querySelector('summary')`);
+      await chrome.waitFor(`${row}.querySelector('details').open`);
       const shown = JSON.parse(await chrome.stable(`(() => { const row = ${row}; const old = row.querySelector('[data-revision-before]');
         const proposed = row.querySelector('[data-revision-after]'); const a = old.getBoundingClientRect(), b = proposed.getBoundingClientRect();
         return JSON.stringify({ old: old.textContent, proposed: proposed.textContent, reason: row.textContent,
@@ -51,6 +53,8 @@ test('a spec revision shows old and proposed rows side by side with proposal-id 
       await press(chrome, `${row}.querySelector('[data-row-decision="approve"]')`);
       await chrome.waitFor(`window.revisionMoves.some(move => move.verb === 'spec-approve' && move.args.ids === '${approve}')`);
       const declinedRow = `document.querySelector('#needs [data-spec-revision="${decline}"]')`;
+      await press(chrome, `${declinedRow}.querySelector('summary')`);
+      await chrome.waitFor(`${declinedRow}.querySelector('details').open`);
       await press(chrome, `${declinedRow}.querySelector('[data-row-decision="decline"]')`);
       await chrome.waitFor('!document.getElementById("spec-decline-dialog").hidden');
       await chrome.stable(`document.getElementById('spec-decline-reason').value = 'Keep the existing requirement.'; true`);
