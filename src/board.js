@@ -1111,13 +1111,7 @@ export function reviewReleaseNoteProblem(board, itemId, agentId, note) {
 }
 
 /** Return a reviewer's active one-hour cooldown, if a later submission has not reset it [V1,R1]. */
-function reviewReleaseCooldown(board, itemId, agentId) {
-  if ((board.executionEngineVersion ?? ENGINE_VERSION) < 5) return null;
-  const event = reviewReleasesSinceSubmit(board, itemId, agentId).find((release) => !release.legacy);
-  if (!event) return null;
-  const until = Date.parse(event.event_at) + REVIEW_RELEASE_COOLDOWN_MS;
-  return until > board.clock.now().getTime() ? new Date(until).toISOString() : null;
-}
+const reviewReleaseCooldown = (board, itemId, agentId) => reviewRouting.reviewReleaseCooldown(board, itemId, agentId, { engineVersion: ENGINE_VERSION, reviewReleasesSinceSubmit, cooldownMs: REVIEW_RELEASE_COOLDOWN_MS });
 
 export { reviewQueueBreakdown } from './board-query.js';
 
@@ -2192,6 +2186,4 @@ export function foreignBlockers(board, item) { return readForeignBlockers(board,
 export function foreignDependencyStates(board, item) { return readForeignDependencyStates(board, item, { readReceivedBoardState }); }
 
 /** Persist next's observed idle cause through the normal ordered actor boundary [R2,N2]. */
-export function recordNextIdle(board, options) {
-  return recordNextIdleObservation(board, options, { atomic, logEvent, agentById });
-}
+export function recordNextIdle(board, options) { return recordNextIdleObservation(board, options, { atomic, logEvent, agentById }); }

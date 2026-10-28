@@ -54,6 +54,7 @@ function fixture(t, changes = entries()) {
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: { core: { owns: ['src/'] } } }));
   writeFileSync(join(root, 'PRACTICE.md'), '');
   const clock = { now: () => new Date(at(120)) };
+  // @pullboard-board-file persistence: native export/import must preserve real SQLite event history.
   const seed = store.openBoard(join(root, '.git', 'seed.sqlite'), clock);
   store.register(seed, { lane: 'coordinator', path: root });
   store.register(seed, { lane: 'core', path: join(root, 'builder') });
@@ -67,6 +68,7 @@ function fixture(t, changes = entries()) {
     .map(({ entry: [minute, by, kind, id, detail = {}] }, index) => ({ event_id: index + 1,
       event_at: at(minute), event_by: by, event_kind: kind, item_id: id, event_detail: JSON.stringify(detail) }));
   document.tables.sqlite_sequence.find(row => row.name === 'event').seq = document.tables.event.length;
+  // @pullboard-board-file journey: the CLI and authenticated API must read the imported private board.
   const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   importBoard(board, document);
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });

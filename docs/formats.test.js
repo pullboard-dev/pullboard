@@ -25,6 +25,7 @@ import { exerciseRejectedWorkFormat } from '../test/rejected-work-format-fixture
 import { syntheticFlakeObservation } from '../test/flake-observation-fixture.js';
 import { sourceAdvanceEventContract } from '../test/generated-doc-source-advance-fixture.js';
 import { recordFlakeObservation } from '../src/board.js';
+import { recordNextIdle } from '../src/board.js';
 import { proposeSentinel } from '../src/sentinels.js';
 import { decideSentinel } from '../src/sentinels.js';
 import { beginSentinelRun } from '../src/sentinels.js';
@@ -332,6 +333,7 @@ function recordEventContract() {
   // Synthetic format fixture; cryptographic authority is exercised by relay-membership.test.js.
   setBoardMembers(board, { agentId: coordinator, document: { body: { v: 1, board: boardId(board), repository: 'fixture/repository', revision: 1, members: ['bob'] }, by: 'alice', signature: '-----BEGIN SSH SIGNATURE-----\nsynthetic format fixture\n' } });
   const builder = register(board, { lane: 'docs', path: '/builder' });
+  recordNextIdle(board, { agentId: builder, reason: 'nothing-eligible' });
   register(board, { lane: 'docs', path: '/builder', family: 'codex' });
   register(board, { lane: 'docs', path: '/builder', model: 'Fixture Model' });
   const reviewer = register(board, { lane: 'tests', path: '/reviewer', family: 'Fixture Review' });
@@ -829,6 +831,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     shout: 'sender',
     'activity-delivered': 'recipient',
     'activity-acted': 'recipient',
+    'next-idle': 'idle seat',
     shout_news: 'sender',
     pass: 'coordinator',
     answer: 'answerer',

@@ -92,3 +92,12 @@ export function requireStrictBuilderFamily(board, id, agentId) {
   const declared = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(agentId)?.agent_family;
   if (!canonicalFamily(board, declared)) throw new Refused('UNDECLARED_BUILDER_FAMILY', `#${id} is strict and ${agentId} declared no vendor family; rejoin with: pullboard join <lane> --family <vendor>, then resubmit`);
 }
+
+/** Preserve the native release cooldown and its historical floor through explicit board readers [V1,R1]. */
+export function reviewReleaseCooldown(board, itemId, agentId, { engineVersion, reviewReleasesSinceSubmit, cooldownMs }) {
+  if ((board.executionEngineVersion ?? engineVersion) < 5) return null;
+  const event = reviewReleasesSinceSubmit(board, itemId, agentId).find((release) => !release.legacy);
+  if (!event) return null;
+  const until = Date.parse(event.event_at) + cooldownMs;
+  return until > board.clock.now().getTime() ? new Date(until).toISOString() : null;
+}
