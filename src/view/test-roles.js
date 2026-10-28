@@ -1,5 +1,6 @@
 /** Explicit test roles are an inventory, not completion evidence or a browser-admission exemption [N26,C7]. */
 export const VIEW_TEST_ROLES = Object.freeze({
+  'test/cockpit/plain-words.test.js': { kind: 'journey', reason: 'Genuine legacy model-less seat, ordered native health/review/fact events, authenticated HTTP and Chrome scan of person-visible names, words and chart hover text; pure label assertions retain explicit timestamp inputs.' },
   "test/cockpit/needs-actions-pure.test.js": {
     "kind": "logic",
     "reason": "Exact advertised row actions and explicit person authority produce controls over plain data; native decisions and Chrome interaction remain journeys."
