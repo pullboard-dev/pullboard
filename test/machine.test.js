@@ -1022,7 +1022,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.claim(board, dependency, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
     submitFixture(board, dependency, { agentId: 'web-1', commit: SHA_A, tree: 'tree' });
     store.holdLane(board, 'web', { agentId: 'coordinator', reason: 'pause' });
-    store.holdItem(board, target, { agentId: 'coordinator', reason: 'item pause' });
+    store.holdItem(board, target, { agentId: 'coordinator', reason: 'item pause' }); store.setRoutingRule(board, { agentId: 'coordinator', act: 'build', scope: { item: target }, effect: 'bar-seat', value: strong, source: 1 });
     const fired = [claimAs(999, light, 'api'), claimAs(done, light, 'api')];
     store.setBarReady(board, { agentId: 'coordinator', enabled: true });
     store.editItem(board, target, { agentId: 'coordinator', brief: 'Unsigned bar edge' });
@@ -1030,9 +1030,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.setBarReady(board, { agentId: 'coordinator', enabled: false });
     fired.push(claimAs(target, light, 'api'));
     store.releaseItemHold(board, target, { agentId: 'coordinator' });
-    const barring = store.setRoutingRule(board, { agentId: 'coordinator', act: 'build', scope: { item: target }, effect: 'bar-seat', value: strong, source: 1 });
-    fired.push(claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web'));
-    store.setRoutingRule(board, { agentId: 'coordinator', revoke: barring }); fired.push(claimAs(target, strong, 'web'));
+    fired.push(claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web'), (store.setRoutingRule(board, { agentId: 'coordinator', revoke: 1 }), claimAs(target, strong, 'web')));
     verdictOn(board, dependency, 'web-2', 'ACCEPT');
     fired.push(claimAs(target, strong, 'web'), claimAs(returned, strong, 'web'));
     store.editItem(board, target, { agentId: 'coordinator', criterion: 'Pending correction before the lane guard.' });
