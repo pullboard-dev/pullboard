@@ -24,6 +24,7 @@ import { join, dirname, resolve, basename, delimiter } from 'node:path';
 import { after, test } from 'node:test';
 import { main, resultCommands } from '../src/cli.js';
 import { createLocalApiHandler } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { serveApi } from '../src/api.js';
 import * as apiExports from '../src/api.js';
 import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, closeBoard, events as boardEvents, openBoard, verdictsFor } from '../src/board.js';
@@ -42,7 +43,6 @@ import {
 
 // The newest event-log format this Pullboard reads: a board with signed person moves is format 2 [E22].
 const READABLE_EVENT_LOG = Math.max(EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION);
-
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
 const covered = new Set();
@@ -68,13 +68,13 @@ test('apiBoardListing is exported and matches the board list [A2]', async (t) =>
     { root: box.repo, name: 'Readable fixture', project: 'API parity', added: '2026-10-23T00:00:00.000Z' },
     { root: unreadableRoot, name: 'Unreadable fixture', project: 'API parity', added: '2026-10-23T00:00:00.000Z' },
   ];
-  const api = await serveApi({ runCommand: main, projects });
+  const api = await serveApi({ refusalDocument, runCommand: main, projects });
   t.after(() => api.close());
   const address = new URL(api.url);
   const response = await apiFetch({ origin: address.origin, secret: address.searchParams.get('k') }, '/api/v1/boards');
   assert.equal(response.status, 200);
   const listed = await response.json();
-  assert.deepEqual({ version: 1, ...apiBoardListing(projects) }, listed);
+  assert.deepEqual({ version: 1, ...apiBoardListing(projects, undefined, refusalDocument) }, listed);
   assert.deepEqual(listed.boards.map(({ root }) => root), [box.repo]);
   assert.deepEqual(listed.warnings.map(({ root, error }) => [root, error.error.code]), [[unreadableRoot, 'BOARD_UNAVAILABLE']]);
 });
@@ -162,7 +162,7 @@ test('local API admits only configured literal IPv4 hosts at their own origin [H
   const defaulted = await startLocalHandler(t, box);
   const denied = await apiFetch(defaulted, '/api/v1/boards', { headers: { host, origin } });
   assert.equal((await apiError(denied, 401)).code, 'AUTH_REQUIRED', 'omitting the allowlist preserves loopback-only Host authority');
-  for (const invalid of ['localhost', '0.0.0.0', '2001:db8::1', '192.168.7', '192.168.7.256', '192.168.007.9', '192.168.7.9:80']) assert.throws(() => createLocalApiHandler({
+  for (const invalid of ['localhost', '0.0.0.0', '2001:db8::1', '192.168.7', '192.168.7.256', '192.168.007.9', '192.168.7.9:80']) assert.throws(() => createLocalApiHandler({ refusalDocument,
     secret: randomUUID(), getPort: () => 1, runCommand: main, projects: () => [], allowedHosts: [invalid],
   }), TypeError, `invalid LAN host ${invalid} is rejected`);
 });
@@ -543,10 +543,10 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
 
   const surfaceProbe = join(linked, '.schema-surface-probe.mjs');
   writeFileSync(surfaceProbe, `
-    import { serveApi } from './src/api.js';
+    import { serveApi } from './src/api.js'; import { refusalDocument } from './src/next-step-words.js';
     const root = process.env.PULLBOARD_FIXTURE_REPO;
     const project = { root, name: 'schema fixture', project: '', added: '2026-01-01T00:00:00.000Z' };
-    const api = await serveApi({ secret: 'api-probe', runCommand: async () => 0, projects: () => [project], isMain: true });
+    const api = await serveApi({ refusalDocument, secret: 'api-probe', runCommand: async () => 0, projects: () => [project], isMain: true });
     try {
       const listing = await fetch(api.url).then((response) => response.json());
       console.log(JSON.stringify({
@@ -680,7 +680,7 @@ test('[N26,A2] roadmap text, JSON and API state follow live local and registered
 async function startLocalHandler(t, box, options = {}) {
   const secret = randomUUID();
   let port = 0;
-  const handler = createLocalApiHandler({
+  const handler = createLocalApiHandler({ refusalDocument,
     secret,
     getPort: () => port,
     runCommand: options.runCommand ?? main,

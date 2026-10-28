@@ -10,6 +10,7 @@ import { relaySnapshot } from '../src/relay-presentation.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { differences, paths, readRelay, valueDifferences } from './relay-study-fixture.js';
 import { serveApi } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { main } from '../src/cli.js';
 import { presentationState } from '../relay/browser-model.js';
 import { apiFetch } from './api-fixture.js';
@@ -22,7 +23,7 @@ test('relay study compares each exercised move effect through the real API2 read
   const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const covered = new Set(), setupRefusals = [], nativeParity = [];
-  const api = await serveApi({ runCommand: main, projects: () => [{ root: box.root, name: 'study', project: '', added: '2026-10-26T00:00:00.000Z' }], stateDetail: 'full' });
+  const api = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'study', project: '', added: '2026-10-26T00:00:00.000Z' }], stateDetail: 'full' });
   t.after(() => api.close());
   const address = new URL(api.url);
   const nativeApi = { origin: address.origin, secret: address.searchParams.get('k') };

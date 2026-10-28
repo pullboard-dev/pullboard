@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveApi } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import * as store from '../src/board.js';
 import { main } from '../src/cli.js';
 import { receiptBody } from '../src/gate-run-receipt.js';
@@ -94,7 +95,7 @@ test('the server reports how many rule rows are proven, unproven and contradicte
   ] });
   seedRun(box, { green: false, days: 8, failures: [{ file: 'test/unproven.test.js', name: 'too old' }] });
   seedRun(box, { green: false, main: box.original, failures: [{ file: 'test/unproven.test.js', name: 'branch failure' }] });
-  const api = await serveApi({ runCommand: main, isMain: true,
+  const api = await serveApi({ refusalDocument, runCommand: main, isMain: true,
     projects: () => [{ root: box.root, name: 'Rule proof fixture' }, { root: empty.root, name: 'Empty rule fixture' }] });
   t.after(() => api.close());
   const before = await documents(box, api);
@@ -229,7 +230,7 @@ test('a gate command with npm flags counts as opaque [S1,A1,A2]', async (t) => {
     box.head = box.git(box.root, 'rev-parse', 'HEAD').trim();
     // These historical records are seeded classification inputs, never a claim that npm ran the script.
     seedRun(box, { command });
-    const api = await serveApi({ runCommand: main, isMain: true,
+    const api = await serveApi({ refusalDocument, runCommand: main, isMain: true,
       projects: () => [{ root: box.root, name: 'Npm gate proof fixture' }] });
     try {
       const seen = await documents(box, api);
