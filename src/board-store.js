@@ -107,7 +107,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
     db = new DatabaseSync(file);
     db.exec(`PRAGMA busy_timeout = ${BOARD_BUSY_TIMEOUT_MS}`);
     if (file !== ':memory:' && isMain !== false) configureBoardJournal(db, writeContext);
-    const board = { db, clock, writeContext, gitRoot, onDiagnostic };
+    const board = { db, clock, writeContext, gitRoot, onDiagnostic, runtimePorts, nativePorts: runtimePorts.nativePorts, enginePorts: runtimePorts.enginePorts };
     let warmCounters = true;
     if (isMain !== false || file === ':memory:') {
       // Migrate and audit only a board whose version is behind; a drifted shape is reported and left alone (#1047).
@@ -136,7 +136,6 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
       readEventLogVersion(db);
       reportSharedSchema(file, sharedSchemaDiagnostic(db, expectedBoardSchema(SCHEMA, migrate, storeTriggers)), onDiagnostic);
     }
-    Object.assign(board, { runtimePorts, nativePorts: runtimePorts.nativePorts, enginePorts: runtimePorts.enginePorts });
     guardMoves(board);
     // Writable commands catch up old writers or missing local projections once. Read-only open
     // never calls this path; drifted stores remain untouched, and invalid history stays invalid.
