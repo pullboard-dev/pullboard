@@ -7,7 +7,6 @@ import {
 } from './config.js';
 import { tryGit } from './git.js';
 import {
-  checkAtCommit,
   submissionPaths,
   dependencySnapshots,
 } from './trusted-policy.js';
@@ -55,7 +54,7 @@ export function doctrineProblems(root, config) {
  * @param {{ isMain?: boolean }} [options] - Give older-board repair steps for the running source.
  * @returns {{ code: string, message: string, next: string }[]}
  */
-export function doctorProblems(file, root, tryGit, config, { isMain = true } = {}) {
+export function doctorProblems(file, root, tryGit, config, { isMain = true, checkAtCommit } = {}) {
   if (!existsSync(file)) return [finding('BOARD_MISSING', 'board file is missing', 'run pullboard status to create a new board')];
   const startedAt = Date.now();
   let db;
@@ -86,7 +85,7 @@ export function doctorProblems(file, root, tryGit, config, { isMain = true } = {
       ...(layout.itemFields ? itemProblems(db) : []),
       ...(layout.itemPins ? pinProblems(db, root, tryGit) : []),
       ...(layout.verdicts ? verdictProblems(db, root, tryGit) : []),
-      ...(layout.itemAudit ? submissionProblems(db, root) : []),
+      ...(layout.itemAudit ? submissionProblems(db, root, checkAtCommit) : []),
       ...(layout.itemAudit && config ? staleFrozenItems(db.prepare('SELECT * FROM item ORDER BY item_id').all(), loadSpec(root, config).rows, loadDoctrine(root, config).rows).map(staleItemFinding) : []),
     ];
   } catch (error) {
@@ -226,7 +225,7 @@ function verdictProblems(db, root, tryGit) {
 }
 
 /** Audit the pinned submission, including its pre-merge policy proof, without changing the board or live checkout. */
-function submissionProblems(db, root) {
+function submissionProblems(db, root, checkAtCommit) {
   const problems = [];
   const eventsExist = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='event'").get();
   for (const item of db.prepare("SELECT * FROM item WHERE item_status='verified' OR item_merged_commit IS NOT NULL ORDER BY item_id").all()) {

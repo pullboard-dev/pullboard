@@ -569,7 +569,8 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     const roots = [...new Set([spec.commit, ...(spec.trunk ? [spec.trunk.commit] : []), ...(spec.trustedMode ? [spec.trustedMode.policyCommit, spec.trustedMode.trunk.commit] : [])])];
     /** Log exact ref deletions without reporting candidate source or credentials. */
     const logPrune = result => process.stderr.write(`PULLBOARD_RUNNER_CACHE_PRUNE ${spec.id} ${JSON.stringify(result)}\n`);
-    await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune });
+    const proven = new Set();
+    await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune, proven });
     const refLines = await git(cache, ['for-each-ref', '--format=%(refname) %(objectname)', 'refs/pullboard/candidates', 'refs/pullboard/published'], env);
     const tips = [];
     if (refLines) for (const line of refLines.split(/\r?\n/u)) {
@@ -584,8 +585,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     }
     const uniqueTips = [...new Set(tips)];
     if (uniqueTips.length > 1_024) throw new Error('source history cache needs maintenance');
-    if (uniqueTips.length) validateCacheTips(uniqueTips,
-      await git(cache, ['cat-file', '--batch-check'], env, `${uniqueTips.join('\n')}\n`));
+    if (uniqueTips.some(tip => !proven.has(tip))) throw new Error('source history cache contains a missing or non-commit tip');
     const requestedTagObjects = [...new Set(spec.tags.flatMap(tag => tag.chain))];
     const knownTagObjects = [];
     if (requestedTagObjects.length) {
@@ -617,6 +617,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     if (spec.originBase) await git(cache, ['merge-base', '--is-ancestor', spec.originBase, spec.commit], env);
     for (const commit of roots) {
       if (await git(cache, ['cat-file', '-t', commit], env) !== 'commit') throw new Error('trusted policy history is incomplete');
+      proven.add(commit);
     }
     const closure = new Set((await git(cache, ['rev-list', '--objects', ...roots], env)).split(/\r?\n/u)
       .map(line => line.match(/^([a-f0-9]{40,64})(?:\s|$)/u)?.[1]).filter(Boolean));
@@ -666,7 +667,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
       if (!candidateHistory.has(tag.peeledCommit)) throw new Error('source tag is not an ancestor of the candidate');
     }
     for (const commit of roots) await git(cache, ['update-ref', `refs/pullboard/candidates/${commit}`, commit], env);
-    await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune });
+    await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune, proven });
     await git(root, ['init', '-q', `--object-format=${spec.commit.length === 64 ? 'sha256' : 'sha1'}`], env);
     await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, `refs/pullboard/candidates/${spec.commit}`], env);
     await git(root, ['checkout', '--detach', 'FETCH_HEAD'], env);

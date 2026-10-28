@@ -23,7 +23,7 @@ import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { parseSpec } from '../src/spec.js';
-import { checkAtCommit } from '../src/trusted-policy.js';
+import { checkAtCommit } from '../src/runner-private-check.js';
 import * as store from '../src/board.js';
 
 import { createE2eHelpers } from './e2e-helpers.js';

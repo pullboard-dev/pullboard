@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { projectState } from '../src/serve.js';
-import { checkAtCommit } from '../src/trusted-policy.js';
+import { checkAtCommit } from '../src/runner-private-check.js';
 import { doctrineHistory } from '../src/doctrine.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
