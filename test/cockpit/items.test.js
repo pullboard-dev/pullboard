@@ -708,7 +708,7 @@ test('the detail opens on the top item, not a blank form [N26]', async () => {
     const page = await openPage(view);
     await page.click({ tab: 'items' });
     const shown = () => /<h2><span>#(\d+)<\/span>([^<]*)</.exec(page.show('detail'))?.slice(1).join(' ');
-    const rows = () => [...page.show('chain').matchAll(/<li class="row s-[a-z]+( on)?[^"]*" data-item="(\d+)"/g)].map((match) => match[2] + (match[1] ? '*' : ''));
+    const rows = () => [...page.show('chain').matchAll(/<li class="(row s-[^"]+)" data-item="(\d+)"/g)].map((match) => match[2] + (match[1].split(/\s/u).includes('on') ? '*' : ''));
     const form = () => [page.element('add-form').hidden, page.element('detail').hidden];
 
     assert.equal(shown(), '2 Farewell', 'the first row, the item updated last');
