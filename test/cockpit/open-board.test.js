@@ -446,7 +446,12 @@ test('the page moves on by itself when the view starts [N26,H5]', { timeout: 120
     // document's failure. The same interval used to depend on the periodic refresh happening to fire under load.
     await chrome.stable('refresh().then(() => true, () => true)');
     await chrome.send('Page.navigate', { url: HOSTED + '/?recover' });
-    await chrome.waitFor("location.search === '?recover' && " + opened + " && document.getElementById('local-note').hidden && !document.body.classList.contains('open-board')", 30_000); // budget: hang ceiling for one round trip, the failed list, a re-read two seconds on and the first board read.
+    try {
+      await chrome.waitFor("location.search === '?recover' && " + opened + " && document.getElementById('local-note').hidden && !document.body.classList.contains('open-board')", 30_000); // budget: hang ceiling for one round trip, the failed list, a re-read two seconds on and the first board read.
+    } catch (error) {
+      const page = await chrome.stable("JSON.stringify({ href: location.href, states: window.__states, state: document.getElementById('local-note')?.dataset.state, hidden: document.getElementById('local-note')?.hidden, board: document.querySelector('#chain')?.textContent.slice(0, 120) })").catch((failure) => failure.message);
+      throw new Error(`${error.message}; recovery diagnostic ${JSON.stringify({ page, failedDocuments: stand.failedDocuments, remainingFailures: stand.failList, failures: stand.failures })}`, { cause: error });
+    }
     assert.equal(stand.failList, 0, 'the first board list met a 503');
     assert.deepEqual(stand.failedDocuments, [HOSTED + '/?recover'], 'the recovering document, not the departing page, met the 503');
     const recovered = JSON.parse(await chrome.stable("JSON.stringify({ states: window.__states, state: document.getElementById('local-note').dataset.state, side: document.querySelector('.side').getClientRects().length > 0, clicks: window.__clicks })"));
