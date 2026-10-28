@@ -2,6 +2,11 @@
 export function needsPanelHtml(calls, project, { compact = false, person = false, expanded = [], controls = () => '', feedback = () => '', rich = null, age = () => '' } = {}) {
   /** Board text is escaped independently of the page's trusted action renderers. */
   function escape(value) { return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+  /** Match the approved month/day and minute display while the time element retains the full instant. */
+  const approvalDate = value => {
+    const date = new Date(value), hour = date.getHours();
+    return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][date.getMonth()] + ' ' + date.getDate() + ', ' + (hour % 12 || 12) + ':' + String(date.getMinutes()).padStart(2, '0') + ' ' + (hour < 12 ? 'AM' : 'PM');
+  };
   /** Native summary elements supply keyboard, expanded-state and focus behavior without another listener. */
   const icon = kind => '<span class="needs-kind needs-kind-' + kind + '" aria-hidden="true">' + ({ question: '?', sentinel: '◉', approval: '✓', draft: '≡' })[kind] + '</span>';
   const drafts = calls.find(row => row.kind === 'draft')?.count ?? 0;
@@ -38,7 +43,7 @@ export function needsPanelHtml(calls, project, { compact = false, person = false
     return '<li class="needs-call ' + (row.kind === 'agent-approved' ? 'agent-approval' : '') + '"' + attrs + '><details data-needs-key="' + escape(key) + '" data-dashboard-disclosure="needs:' + escape(key) + '"' + (expanded.includes(key) ? ' open' : '') + '><summary>' + icon(d.kind)
       + '<span class="needs-copy"><b><span class="needs-id" title="'+escape(d.id)+'">' + escape(d.id) + '</span>' + escape(d.title) + '</b><small>' + escape(d.context) + '</small></span>'
       + '<span class="needs-side"><span class="needs-age">' + (row.at || row.approvedAt ? age(row.at ?? row.approvedAt) : '') + '</span><span class="needs-action needs-action-' + d.kind + '">' + d.action + '</span><span class="needs-caret" aria-hidden="true">›</span></span></summary>'
-      + '<div class="needs-detail">' + (d.body ? '<p>' + (rich ?? escape)(d.body) + '</p>' : '') + (d.fields.length ? '<dl>' + d.fields.map(([label, value, code, meta]) => '<dt>' + escape(label) + '</dt><dd data-needs-field="' + escape(label.toLowerCase().replace(/ /g,'-')) + '">' + (code ? '<code'+(meta?.title?' title="'+escape(meta.title)+'"':'')+'>' + escape(value) + '</code>' : escape(value)) + (label==='Approved in Git' ? ' · '+(Number.isFinite(Date.parse(meta?.date))?'<time datetime="'+escape(meta.date)+'">'+escape(new Date(meta.date).toLocaleString())+'</time>':'Date unknown'):'') + '</dd>').join('') + '</dl>' : '')
+      + '<div class="needs-detail">' + (d.body ? '<p>' + (rich ?? escape)(d.body) + '</p>' : '') + (d.fields.length ? '<dl>' + d.fields.map(([label, value, code, meta]) => '<dt>' + escape(label) + '</dt><dd data-needs-field="' + escape(label.toLowerCase().replace(/ /g,'-')) + '">' + (code ? '<code'+(meta?.title?' title="'+escape(meta.title)+'"':'')+'>' + escape(value) + '</code>' : escape(value)) + (label==='Approved in Git' ? ' · '+(Number.isFinite(Date.parse(meta?.date))?'<time datetime="'+escape(meta.date)+'" title="'+escape(meta.date)+'">'+escape(approvalDate(meta.date))+'</time>':'Date unknown'):'') + '</dd>').join('') + '</dl>' : '')
       + feedback(row) + controls(row) + '</div></details></li>';
   };
   const draftRow = drafts ? '<li class="needs-call needs-drafts"><button type="button" data-go="tab:spec">' + icon('draft') + '<span class="needs-copy"><b>' + drafts + ' draft spec rows to approve or drop</b><small>In the Spec tab, one by one or a section at a time</small></span><span class="needs-action">Review</span></button></li>' : '';
