@@ -521,9 +521,18 @@ test('an undeclared seat declares its vendor family once from a new session and 
   assert.equal(events.length, 1, 'the declaration is one board event');
   assert.equal(parentOf(), before, 'the recorded parent session is untouched');
   assert.doesNotThrow(() => f.reserve(id, 'core-7'), 'the declared seat is now reviewable');
-  assert.throws(() => again('OpenAI'), error => error.code === 'FAMILY_DECLARED' && /never changed/u.test(error.message), 'another vendor is refused');
-  assert.doesNotThrow(() => again('claude-family', '7'), 'an alias of the declared family is the same declaration');
-  assert.equal(f.board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get('core-7').agent_family, 'Anthropic', 'a refused or repeated declaration changes nothing');
+  assert.throws(() => again('OpenAI'), error => error.code === 'PARENT_SESSION_CHANGED', 'a declared seat is refused a change from another session');
+  assert.equal(f.board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get('core-7').agent_family, 'Anthropic', 'a refused declaration changes nothing');
+});
+
+test('a declared alias spelling is the builder\'s vendor, so that seat still cannot review [V4,B26,H16]', t => {
+  const f = fixture(t), id = f.add({ sensitive: true });
+  f.board.familyAliases = familyIndex({ claude: ['claude-family'] });
+  const seat = { id: 'core-9', lane: 'core', path: '/fixture/core-9', model: 'Synthetic fixture model' };
+  store.register(f.board, { ...seat, parentDigest: '7'.repeat(64) });
+  f.submit(id, 'core-2');
+  store.register(f.board, { ...seat, family: 'claude-family', parentDigest: '9'.repeat(64) });
+  assert.throws(() => f.reserve(id, 'core-9'), error => error.code === 'O2_FAMILY_MATCH', 'the declared name goes through the alias list');
 });
 
 test('the one-time family declaration applies only from its engine; an older engine keeps the session refusal [C7,V4,B26,H16]', t => {

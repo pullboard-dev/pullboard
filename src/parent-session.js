@@ -11,6 +11,7 @@ import { Refused } from './refused.js';
 import { createHash } from 'node:crypto';
 import { AGENT_SESSION_IDS } from '../packages/kernel/src/core/discovery.js';
 import { PARENT_SESSION_ENGINE } from './parent-session-engine.js';
+import { FAMILY_DECLARE_ENGINE } from './family-declare-engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import {
   saveAgentParent,
@@ -37,10 +38,26 @@ export function canonicalSessionDigest(value) {
 }
 
 /** Save canonical ordered identities, or normalize direct API declarations, under their feature engine. */
-export function saveJoinedSession(board, id, { parent, session, parentDigest, sessionDigest }) {
+export function saveJoinedSession(board, id, { parent, session, parentDigest, sessionDigest, family }) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < PARENT_SESSION_ENGINE) return;
   const recordedParent = parentDigest != null ? canonicalSessionDigest(parentDigest) : parent != null ? parentSessionDigest(parent) : null;
   const recordedSession = sessionDigest != null ? canonicalSessionDigest(sessionDigest) : session != null ? parentSessionDigest(session) : null;
+  const first = typeof family === 'string' && family.trim() !== '' && (board.executionEngineVersion ?? ENGINE_VERSION) >= FAMILY_DECLARE_ENGINE
+    && !board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(id)?.agent_family;
+  if (first) {
+    // A seat with no declared family declares it once from its own worktree, whatever session joins; its recorded session stays as it was.
+    board.db.exec('SAVEPOINT declare_family');
+    try {
+      if (recordedParent) saveAgentParent(board, id, recordedParent);
+      if (recordedSession) saveAgentSession(board, id, recordedSession);
+      board.db.exec('RELEASE declare_family');
+    } catch (error) {
+      board.db.exec('ROLLBACK TO declare_family');
+      board.db.exec('RELEASE declare_family');
+      if (error.code !== 'PARENT_SESSION_CHANGED') throw error;
+    }
+    return;
+  }
   if (recordedParent) saveAgentParent(board, id, recordedParent);
   if (recordedSession) saveAgentSession(board, id, recordedSession);
 }

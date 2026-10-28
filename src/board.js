@@ -47,7 +47,6 @@ import { applySpecRowDecisions } from './spec-row-apply.js';
 import { SPEC_REFREEZE } from './spec-row-apply.js';
 import * as reviewFamilies from './required-review-family.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from './automatic-dispatch-engine.js';
-import { FAMILY_DECLARE_ENGINE } from './family-declare-engine.js';
 import { correctedBar } from './corrected-bar.js';
 import { UNCHANGED_REFREEZE_ENGINE } from './unchanged-refreeze-engine.js';
 import { applyLaneLead } from './lane-lead-policy.js';
@@ -441,21 +440,8 @@ export function register(board, who) {
           `this worktree is ${existing.agent_id} in the ${existing.agent_lane} lane, routed ${existing.agent_route}; use another worktree for ${lane} routed ${route}`,
         );
       }
-      const declaring = engine >= FAMILY_DECLARE_ENGINE && family !== undefined;
-      if (declaring && existing.agent_family && reviewRouting.canonicalFamily(board, family) !== reviewRouting.canonicalFamily(board, existing.agent_family)) {
-        throw new Refused('FAMILY_DECLARED', `${existing.agent_id} already declared vendor family ${existing.agent_family}; a declared family is never changed`);
-      }
-      if (declaring && !existing.agent_family) {
-        // A first declaration needs no matching session: the seat's own worktree declares, and the recorded session stays as it was.
-        board.db.exec('SAVEPOINT declare_family');
-        try { saveJoinedSession(board, existing.agent_id, who); board.db.exec('RELEASE declare_family'); }
-        catch (error) {
-          board.db.exec('ROLLBACK TO declare_family'); board.db.exec('RELEASE declare_family');
-          if (error.code !== 'PARENT_SESSION_CHANGED') throw error;
-        }
-      } else saveJoinedSession(board, existing.agent_id, who);
-      // From the declare engine a declared family is final: another spelling of it is the same declaration, not an update.
-      if (family !== undefined && family !== existing.agent_family && !(declaring && existing.agent_family)) {
+      saveJoinedSession(board, existing.agent_id, who);
+      if (family !== undefined && family !== existing.agent_family) {
         board.db.prepare('UPDATE agent SET agent_family = ? WHERE agent_id = ?').run(family, existing.agent_id);
         logEvent(board, existing.agent_id, 'family', null, { family });
       }

@@ -20,7 +20,6 @@ export default Object.freeze({ operation: "register", order: 6, engine: 1,
   nextSteps: Object.freeze({
   "ALREADY_JOINED": "create a worktree for the other lane: pullboard worktree <lane> --model \"<model name>\", then work from the path it prints",
   "BAD_ROUTE": "use --route light, mid or strong",
-  "FAMILY_DECLARED": "keep the declared family; to review as another vendor, create a fresh worktree: pullboard worktree <lane> --family <vendor> --model \"<model name>\"",
   "NO_AGENT": "create and join a lane worktree: pullboard worktree <lane> --model \"<model name>\"",
   "ONE_COORDINATOR": "make a lane worktree and join it as an agent: pullboard worktree <lane> --model \"<model name>\""
 }) });
