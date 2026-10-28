@@ -209,7 +209,12 @@ export async function submitHere(ctx, id, infra) {
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : acceptedMain.commit;
   withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }, { atomic: store.atomic, submit: store.submit }));
   const trunk = requireTrunkMerge(root, commit);
-  const companion = withBoard(ctx, board => prepareItemPatchSubmit(root, board, held, commit));
+  const companion = await withBoard(ctx, async board => {
+    if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
+      await ordered(ctx, board, 'followItemPatches', [id, { agentId: me.id, commit }]);
+    }
+    return prepareItemPatchSubmit(root, board, held, commit);
+  });
   if (requireComposition) requireSubmitComposition(root, commit, trunk, acceptedMain.commit);
   withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });

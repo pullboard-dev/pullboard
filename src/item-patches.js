@@ -4,6 +4,8 @@ import { ENGINE_VERSION } from './engine-metadata.js';
 import { ITEM_PATCH_SUBMIT_ENGINE } from './item-patch-submit-engine.js';
 import { ITEM_PATCH_ENGINE } from './item-patch-engine.js';
 import { PATCH_REVIEW_CUSTODY_ENGINE } from './patch-review-custody-engine.js';
+import { PATCH_FOLLOW_ENGINE } from './patch-follow-engine.js';
+import { itemPatchSetDigest } from './item-patch-state.js';
 import { Refused } from './refused.js';
 import { outsideSource } from './outside-source.js';
 import { itemPatchRecords as records } from './item-patch-state.js';
@@ -47,6 +49,32 @@ function save(board, id, patches) {
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
     .run(PREFIX + id, JSON.stringify({ version: 1, patches }));
 }
+
+/** Replay one all-or-nothing binding change without changing immutable bytes, authors or the claim. */
+export function applyItemPatchFollow(board, id, options, { atomic, getItem, logEvent }) {
+  return atomic(board, () => {
+    const item = getItem(board, id);
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) < PATCH_FOLLOW_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before following companion heads');
+    if (outsideSource(board, id)) throw new Refused('ITEM_PATCH_OUTSIDE', 'outside PR changes remain with their source author; attach patches only to native items');
+    if (item.item_status !== 'claimed' || item.item_owner !== options?.agentId
+      || !(item.item_lease_until > board.clock.now().toISOString())) throw new Refused('NOT_YOURS', 'claim this item before following its companions');
+    const history = records(board, id), patches = history.filter(record => record.active);
+    const previous = patches.map(({ key, commit, digest }) => ({ key, commit, digest }));
+    if (!fields(options, ['agentId', 'commit', 'digest', 'previous', 'nextDigest']) || !COMMIT.test(options.commit ?? '')
+      || !patches.length || patches.some(record => record.source?.commit !== record.commit)
+      || options.digest !== itemPatchDigest(board, id) || JSON.stringify(options.previous) !== JSON.stringify(previous)) {
+      throw new Refused('ITEM_PATCH_CHANGED', 'read and compose the current exact companion set before following it');
+    }
+    const rebound = patches.map(record => ({ ...record, commit: options.commit, source: { commit: options.commit } }));
+    if (options.nextDigest !== itemPatchSetDigest(options.commit, rebound)) throw new Refused('ITEM_PATCH_CHANGED', 'the followed companion set does not match its sealed applicability');
+    if (patches.every(record => record.commit === options.commit)) return { item: id, changed: false, digest: options.nextDigest };
+    const changed = previous.map(record => ({ key: record.key, oldHead: record.commit, newHead: options.commit, hash: record.digest }));
+    for (const record of patches) { record.attachedCommit ??= record.commit; record.commit = options.commit; record.source = { commit: options.commit }; }
+    save(board, id, history);
+    logEvent(board, options.agentId, 'item_patch_follow', id, { patches: changed, previousDigest: options.digest, digest: options.nextDigest });
+    return { item: id, changed: true, digest: options.nextDigest };
+  });
+}
 /** Only the registered coordinator may change submitted, unmerged review inputs. */
 function target(board, id, options, allowed, { getItem }) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < ITEM_PATCH_ENGINE) throw new Refused('ENGINE_VERSION', `item patches require engine ${ITEM_PATCH_ENGINE}`);
@@ -78,13 +106,13 @@ export function applyItemPatchAttachment(board, id, options, ports) {
   return ports.atomic(board, () => {
     const item = target(board, id, options, ['agentId', 'key', 'commit', 'patch', 'author', 'presubmit'], ports);
     if (outsideSource(board, id)) throw new Refused('ITEM_PATCH_OUTSIDE', 'outside PR changes remain with their source author; attach patches only to native items');
-    if (!COMMIT.test(options.commit ?? '') || item.item_status !== 'claimed' && options.commit !== item.item_commit) throw new Refused('ITEM_PATCH_SOURCE', 'attach against the exact builder head (or submitted commit)');
     const patch = patchBytes(options.patch), author = authorIdentity(board, options.author), digest = hash(patch);
     const patches = records(board, id), existing = patches.find(record => record.key === options.key);
     if (existing) {
-      if (existing.commit !== options.commit || existing.patch !== patch || existing.author.agentId !== author.agentId) throw new Refused('ITEM_PATCH_CONFLICT', 'this immutable patch key already names different bytes, source or author');
+      if ((existing.attachedCommit ?? existing.commit) !== options.commit || existing.patch !== patch || existing.author.agentId !== author.agentId) throw new Refused('ITEM_PATCH_CONFLICT', 'this immutable patch key already names different bytes, source or author');
       return { item: id, key: options.key, digest: itemPatchDigest(board, id), changed: false };
     }
+    if (!COMMIT.test(options.commit ?? '') || item.item_status !== 'claimed' && options.commit !== item.item_commit) throw new Refused('ITEM_PATCH_SOURCE', 'attach against the exact builder head (or submitted commit)');
     const record = { key: options.key, commit: options.commit, source: { commit: options.commit }, patch, digest, author, active: true,
       ...(item.item_status === 'claimed' ? { presubmit: true } : {}) };
     patches.push(record); save(board, id, patches); ports.invalidate(id);

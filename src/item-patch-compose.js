@@ -16,11 +16,32 @@ function sha(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
 function refuse(message) { throw new Refused('ITEM_PATCH', message); }
 
 /** Execute Git plumbing with an isolated index and no optional live-index locks. */
-function git(root, env, args, input) {
+function git(root, env, args, input, patch) {
   try {
     return gitExecFileSync(['-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgSign=false', ...args],
       { cwd: root, env, input, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, stdio: ['pipe', 'pipe', 'pipe'] });
-  } catch { refuse(`patch composition refused by Git (${args[0]}); resolve the patch against the exact submitted commit`); }
+  } catch (error) {
+    if (patch) refuse(patchFailure(patch, String(error.stderr ?? '')));
+    refuse(`patch composition refused by Git (${args[0]}); resolve the patch against the exact submitted commit`);
+  }
+}
+
+/** Report only validated file names and numeric hunk headers, never failed source lines or Git output. */
+function patchFailure(record, stderr) {
+  const paths = [...itemPatchPaths(record.patch)];
+  const failed = stderr.split('\n').map(line => /^error: patch failed: (.+):(\d+)$/u.exec(line)).find(match => match && paths.includes(match[1]));
+  const path = failed?.[1] ?? paths.find(path => stderr.includes(path)) ?? paths[0];
+  let file;
+  const hunks = [];
+  for (const line of record.patch.split('\n')) {
+    if (line.startsWith('diff --git ')) file = /^diff --git a\/(\S+) b\/(\S+)$/u.exec(line)?.[2];
+    const hunk = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u.exec(line);
+    if (file === path && hunk) hunks.push(hunk);
+  }
+  const line = Number(failed?.[2]);
+  const exact = hunks.find(hunk => line >= Number(hunk[1]) && line < Number(hunk[1]) + Math.max(1, Number(hunk[2] ?? 1)));
+  const headers = (exact ? [exact] : hunks).map(hunk => hunk[0]).join(', ') || 'binary or file-mode operation';
+  return `companion ${record.key} no longer applies: file ${path}; hunk ${headers}; replace it against the current builder head`;
 }
 
 /** Validate the native author snapshot, without inventing or resolving session authority. */
@@ -74,8 +95,7 @@ export function composeItemPatches(root, item, patches, { trunk, baseCommit = it
     const applied = [];
     let previous = git(root, isolated, ['write-tree']).trim();
     for (const record of patches) {
-      try { git(root, isolated, ['apply', '--cached', '--3way', '--binary', '--whitespace=nowarn', '-'], record.patch); }
-      catch { refuse(`companion ${record.key} refused by Git (apply), no longer applies; replace it against the exact source`); }
+      git(root, isolated, ['apply', '--cached', '--3way', '--binary', '--whitespace=nowarn', '-'], record.patch, record);
       const next = git(root, isolated, ['write-tree']).trim();
       const changed = git(root, isolated, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', '--no-renames', previous, next]).split('\0').filter(Boolean);
       if (changed.some(path => !safePath(path) || !itemPatchPaths(record.patch).has(path))) refuse('patch changes an undeclared or unsafe path');
