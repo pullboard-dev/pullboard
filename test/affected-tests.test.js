@@ -406,7 +406,7 @@ test('repo-wide test guards survive declaration removal and use committed leadin
   box.put('test/new.test.js', 'export const added = true;\n');
   const commit = box.commit();
   assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js']);
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }), []);
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }), ['test/scanner.test.js'], 'source changes retain the old explicit repo-guard obligation');
   box.put('test/text.test.js', header + 'export const dirty = true;\n');
   assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'], 'dirty declarations have no authority');
 });
