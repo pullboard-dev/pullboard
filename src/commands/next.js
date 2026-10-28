@@ -9,8 +9,8 @@ import {
 } from '../check-baseline.js';
 import {
   refuseNextIdle,
-  reviewQueueLine,
 } from '../next-steps.js';
+import { reviewQueueLine } from '../review-queue-line.js';
 import {
   Refused,
 } from '../refused.js';

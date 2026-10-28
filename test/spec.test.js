@@ -346,7 +346,7 @@ test('an id once committed or cited never leaves the spec [S8]', () => {
   const spec = parseSpec('# Demo\n\n## G · Goals\n- G1 [approved, must] One. | gate: t\n');
   const problems = permanenceProblems(spec, {
     committed: new Map([['G1', 'a'.repeat(40)], ['G2', 'b'.repeat(40)]]),
-    cited: new Map([['G1', 'commit 1234567'], ['G2', 'item #3'], ['X4', 'commit 89abcde']]),
+    cited: new Map([['G1', 'commit 1234567'], ['G2', 'item #3'], ['X4', 'commit 89abcde'], ['doctrine:CD60', 'item #1592']]),
   });
   assert.deepEqual(problems, [
     { id: 'G2', message: 'was committed in bbbbbbbbbbbb and is gone; ids are permanent: restore the row and mark it wont or retired' },
