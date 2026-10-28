@@ -9,6 +9,7 @@ import {
   repoInfo,
 } from "../../../../src/git.js";
 import { listApiProjects } from "../../../../src/projects.js";
+import { workQueue } from "../../../../src/queue.js";
 import { milestoneReferencesToRemove } from "./milestones.js";
 
 /** Require explicit board readers before resolving local or foreign roadmap state. */
@@ -98,7 +99,10 @@ export function milestoneRoadmap(root, board, options = {}) {
   const now = board.clock.now().getTime();
   const pace = landingPace(board, items, now, ports);
   const needsYou = personDecisionItems(board, ports);
+  const placed = queuePositions(board, ports);
+  const landedAt = firstLandings(board, items, ports);
   return milestones.map(milestone => {
+    milestone = { ...milestone, items: queueOrdered(milestone, placed, landedAt) };
     const active = milestone.items.filter(entry => entry.status !== 'withdrawn');
     const summary = { total: active.length, left: active.length - milestone.landed,
       landed: 0, landing: 0, review: 0, building: 0, held: 0, waiting: 0,
@@ -119,6 +123,34 @@ export function milestoneRoadmap(root, board, options = {}) {
     Object.assign(summary, milestoneForecast(summary.left, pace, Boolean(milestone.shipped)));
     return { ...milestone, summary };
   });
+}
+
+/** Each open item's 1-based position in pullboard queue, from the queue's own ordering (workQueue), never a second sort. */
+function queuePositions(board, ports) {
+  const positions = new Map();
+  if (typeof ports.buildOrder !== 'function') return positions;
+  const queue = workQueue(board, ports);
+  for (const item of [...queue.releases.flatMap(release => release.items), ...queue.unreleased]) positions.set(item.id, positions.size + 1);
+  return positions;
+}
+
+/** When each landed local item first recorded its current merge, for landing order. */
+function firstLandings(board, items, ports) {
+  const times = new Map();
+  for (const event of ports.eventsOfKinds(board, ['merged'])) {
+    const item = items.get(event.item_id);
+    if (!item?.item_merged_commit || times.has(event.item_id)) continue;
+    if (JSON.parse(event.event_detail).commit === item.item_merged_commit) times.set(event.item_id, Date.parse(event.event_at));
+  }
+  return times;
+}
+
+/** A milestone's items as agents pull them: queued items in queue order with their position, other items as added, landed items last in landing order. */
+function queueOrdered(milestone, placed, landedAt) {
+  const queued = milestone.items.filter(entry => placed.has(entry.id)).sort((a, b) => placed.get(a.id) - placed.get(b.id)).map(entry => ({ ...entry, position: placed.get(entry.id) }));
+  const landed = milestone.items.filter(entry => !placed.has(entry.id) && entry.state === 'landed');
+  const landedOrder = landed.map((entry, index) => [entry, index]).sort(([a, i], [b, j]) => (landedAt.get(a.id) ?? Infinity) - (landedAt.get(b.id) ?? Infinity) || i - j).map(([entry]) => entry);
+  return [...queued, ...milestone.items.filter(entry => !placed.has(entry.id) && entry.state !== 'landed'), ...landedOrder];
 }
 
 /** Exact first matching merge observations shared by roadmap display and its cache-window boundary. */
