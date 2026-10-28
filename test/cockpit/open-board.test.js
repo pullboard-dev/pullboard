@@ -36,7 +36,7 @@ function call(base, path, { method = 'GET', headers = {} } = {}) {
  * the person answers), and otherwise passed to the view the test started on its own port.
  */
 async function openBoardStand(chrome, view) {
-  const stand = { signedIn: false, linked: [], local: null, hold: false, held: [], failures: [], failList: 0, failDocument: null, failedDocuments: [], dropped: 0 };
+  const stand = { signedIn: false, linked: [], local: null, hold: false, held: [], failures: [], failList: 0, departingDocument: null, failedDocuments: [], dropped: 0 };
   const requestDocuments = new Map();
   const waitingDocuments = new Map();
   /** Attribute an intercepted request to its originating document, regardless of CDP event delivery order. */
@@ -47,7 +47,7 @@ async function openBoardStand(chrome, view) {
         waitingDocuments.delete(networkId);
         reject(new Error('The intercepted board list has no originating document.'));
       }, 5_000);
-      waitingDocuments.set(networkId, (documentURL) => { clearTimeout(timer); resolve(documentURL); });
+      waitingDocuments.set(networkId, (document) => { clearTimeout(timer); resolve(document); });
     });
   };
   const client = 'export function rememberPairing() { return null; }\nexport async function createTransport() { return { async request(path) { if (path === "/api/v1/boards") return { version: 1, boards: [], warnings: [] }; throw new Error("no paired board"); } }; }\n';
@@ -72,11 +72,12 @@ async function openBoardStand(chrome, view) {
   const listener = ({ data }) => {
     const message = JSON.parse(String(data));
     if (message.method === 'Network.requestWillBeSent') {
-      const { requestId, documentURL, request: sent } = message.params;
+      const { requestId, loaderId, frameId, request: sent } = message.params;
       const target = new URL(sent.url);
       if (sent.method !== 'GET' || target.origin !== view.base || target.pathname !== '/api/v1/boards') return;
-      requestDocuments.set(requestId, documentURL);
-      waitingDocuments.get(requestId)?.(documentURL);
+      const document = { loaderId, frameId };
+      requestDocuments.set(requestId, document);
+      waitingDocuments.get(requestId)?.(document);
       waitingDocuments.delete(requestId);
       return;
     }
@@ -92,15 +93,18 @@ async function openBoardStand(chrome, view) {
       // view can, then passes through untouched.
       if (address.origin === view.base) {
         if (stand.failList > 0 && asked.method === 'GET' && address.pathname === '/api/v1/boards') {
-          let documentURL;
-          try { documentURL = await documentFor(networkId); }
+          let document, current;
+          try {
+            document = await documentFor(networkId);
+            current = (await chrome.send('Page.getFrameTree')).frameTree.frame;
+          }
           catch (error) {
             await chrome.send('Fetch.continueRequest', { requestId });
             throw error;
           }
-          if (stand.failList > 0 && documentURL === stand.failDocument) {
+          if (stand.failList > 0 && document.loaderId !== stand.departingDocument && document.loaderId === current.loaderId && document.frameId === current.id && new URL(current.url).origin === HOSTED) {
             stand.failList -= 1;
-            stand.failedDocuments.push(documentURL);
+            stand.failedDocuments.push(document.loaderId);
             return send(requestId, 503, [{ name: 'Content-Type', value: 'application/json' }, { name: 'Access-Control-Allow-Origin', value: HOSTED }], JSON.stringify({ error: { code: 'BUSY', message: 'The view is busy.' } }));
           }
         }
@@ -440,20 +444,22 @@ test('the page moves on by itself when the view starts [N26,H5]', { timeout: 120
     // The view answers, but its first board list fails once with a 503, as a busy view can, and the next one succeeds:
     // the problem screen it met gives way to the board by itself, with the sidebar back, and nobody clicks.
     await chrome.stable("(() => { sessionStorage.clear(); return true; })()");
+    const departingTime = await chrome.stable('performance.timeOrigin');
+    stand.departingDocument = (await chrome.send('Page.getFrameTree')).frameTree.frame.loaderId;
     stand.failList = 1;
-    stand.failDocument = HOSTED + '/?recover';
     // Exercise the departing page's real refresh in the vulnerable interval: its request must not spend the next
     // document's failure. The same interval used to depend on the periodic refresh happening to fire under load.
     await chrome.stable('refresh().then(() => true, () => true)');
     await chrome.send('Page.navigate', { url: HOSTED + '/?recover' });
     try {
-      await chrome.waitFor("location.search === '?recover' && " + opened + " && document.getElementById('local-note').hidden && !document.body.classList.contains('open-board')", 30_000); // budget: hang ceiling for one round trip, the failed list, a re-read two seconds on and the first board read.
+      await chrome.waitFor('performance.timeOrigin !== ' + departingTime + ' && ' + opened + " && document.getElementById('local-note').hidden && !document.body.classList.contains('open-board')", 30_000); // budget: hang ceiling for one round trip, the failed list, a re-read two seconds on and the first board read.
     } catch (error) {
       const page = await chrome.stable("JSON.stringify({ href: location.href, states: window.__states, state: document.getElementById('local-note')?.dataset.state, hidden: document.getElementById('local-note')?.hidden, board: document.querySelector('#chain')?.textContent.slice(0, 120) })").catch((failure) => failure.message);
       throw new Error(`${error.message}; recovery diagnostic ${JSON.stringify({ page, failedDocuments: stand.failedDocuments, remainingFailures: stand.failList, failures: stand.failures })}`, { cause: error });
     }
     assert.equal(stand.failList, 0, 'the first board list met a 503');
-    assert.deepEqual(stand.failedDocuments, [HOSTED + '/?recover'], 'the recovering document, not the departing page, met the 503');
+    const recoveredDocument = (await chrome.send('Page.getFrameTree')).frameTree.frame.loaderId;
+    assert.deepEqual(stand.failedDocuments, [recoveredDocument], 'the recovering document, not the departing page, met the 503');
     const recovered = JSON.parse(await chrome.stable("JSON.stringify({ states: window.__states, state: document.getElementById('local-note').dataset.state, side: document.querySelector('.side').getClientRects().length > 0, clicks: window.__clicks })"));
     assert.ok(recovered.states.includes('problem'), `the failed list showed the problem screen first: ${JSON.stringify(recovered.states)}`);
     assert.deepEqual({ state: recovered.state, side: recovered.side, clicks: recovered.clicks }, { state: '', side: true, clicks: 0 }, 'then the board shows, the problem screen gone and the sidebar back, and nobody clicked');
