@@ -5,12 +5,11 @@ import assert from 'node:assert/strict';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
 import { stageFixtureTests } from './run-tests-fixture.js';
 
-const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 
 /** Create an isolated runner tree with one tracked test file, so the regression exercises its own worker. */
 function makeIdentityFixture(t) {
@@ -18,10 +17,9 @@ function makeIdentityFixture(t) {
   mkdirSync(join(root, 'bin'));
   mkdirSync(join(root, 'test'));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
-  writeFileSync(join(root, 'bin/run-tests.js'), readFileSync(runner));
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
   const fixtureRunner = join(root, 'bin/run-tests.js');
   assert.equal(realpathSync(fixtureRunner), fixtureRunner, 'the copied runner uses its physical path');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return { root, runner: fixtureRunner, workerTest: join(root, 'test/worker-start.test.js') };
 }

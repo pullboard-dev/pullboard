@@ -22,7 +22,7 @@ export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   const scratch=mkdtempSync(join(tmpdir(),'pullboard main audit ')),installed=join(scratch,'installed tooling'),repo=join(scratch,'repo'),machine=join(scratch,'machine');
   mkdirSync(installed);mkdirSync(repo);mkdirSync(machine);
   // This full-audit project deliberately has only its three test files; copied documentation tests are not its suite.
-  const source=fileURLToPath(SOURCE),files=packageFiles(source).filter(file=>file==='package.json'||/^(?:src|bin|packages)\//u.test(file));
+  const source=fileURLToPath(SOURCE),files=packageFiles(source).filter(file=>file==='package.json'||/^(?:src|bin|packages)\//u.test(file)&&!/(?:^|\/)tests?\//u.test(file));
   for(const folder of [installed,repo])copyPackageFiles(source,folder,{files});
   assert.equal(existsSync(join(installed,'.git')),false);
   const env={...process.env,HOME:join(scratch,'home'),PULLBOARD_HOME:join(scratch,'pullboard'),PULLBOARD_MACHINE_HOME:machine,

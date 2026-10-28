@@ -668,6 +668,7 @@ test('a relay redeploy keeps every pairing, session and board [H5,H7,H15]', { ti
 test('[H5,H18] Docker COPY sources boot the relay and serve its browser page, while omitted runtime files refuse startup', async (t) => {
   const provider = await githubFixture(t);
   const image = copiedImage(t);
+  assert.ok(existsSync(join(image, 'packages/kernel/index.js')), 'the actual Docker COPY list carries the moved kernel runtime');
   await assertCopiedChangelog(image);
   // The Dockerfile-only copy starts the production entry point and reaches health.
   const running = await bootCopiedServer(t, image, provider);
