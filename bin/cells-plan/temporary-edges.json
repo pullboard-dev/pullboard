@@ -1,4 +1,17 @@
 {
   "version": 1,
-  "edges": []
+  "edges": [
+    {
+      "importer": "src/json.js",
+      "target": "src/next-step-words.js",
+      "contractItem": 1739,
+      "expires": "2026-10-30"
+    },
+    {
+      "importer": "src/templates.js",
+      "target": "src/doctrine.js",
+      "contractItem": 1739,
+      "expires": "2026-10-30"
+    }
+  ]
 }
