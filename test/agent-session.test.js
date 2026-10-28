@@ -190,7 +190,7 @@ test('no-session shells are one session and markerless terminals retain their wr
   assert.equal(identified.status, 1);
   assert.equal(JSON.parse(identified.stdout).error.code, 'NOT_YOUR_CHECKOUT');
   assert.deepEqual(boardSnapshot(box.boardFile), beforeIdentified);
-  const terminalWrite = box.run(box.web, ['shout', 'coordinator', 'the markerless terminal still works', '--json'], { agent: false });
+  const terminalWrite = box.run(box.web, ['shout', 'all', 'the markerless terminal still works', '--json'], { agent: false });
   assert.equal(terminalWrite.status, 0, terminalWrite.stdout + terminalWrite.stderr);
   const secondSessionRead = box.run(box.web, ['show', '1', '--json'], { session: 'read-from-another-session-273' });
   assert.equal(secondSessionRead.status, 0, secondSessionRead.stdout + secondSessionRead.stderr);
@@ -217,7 +217,7 @@ test('a shout from the local view as the person is recorded as the person [N26,B
     const { executeMove } = await import(${JSON.stringify(apiModule)});
     const { main } = await import(${JSON.stringify(cliModule)});
     const response = await executeMove(process.cwd(), { verb: 'shout', args: { to: 'web', text: 'actual view action' } }, main);
-    const asAgent = await executeMove(process.cwd(), { verb: 'shout', agent: 'web-1', args: { to: 'coordinator', text: 'view acting as web-1' } }, main);
+    const asAgent = await executeMove(process.cwd(), { verb: 'shout', agent: 'web-1', args: { to: 'coordinator', text: 'Which path should web-1 use?', kind: 'question' } }, main);
     process.stdout.write(JSON.stringify({ ...response, asAgent }));
   `;
   const response = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {

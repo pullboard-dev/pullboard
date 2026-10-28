@@ -162,7 +162,7 @@ export function blockNotice(error, { command, by, path, at, caller }) {
  */
 export function blockLine(block) {
   if (block?.audience === 'person') return 'pullboard: only the person can clear this; it is in their Needs you list now';
-  if (block?.audience === 'coordinator') return `pullboard: only the coordinator can clear this; tell them: pullboard shout coordinator "blocked by ${block.code} on ${block.command}: ${block.reason.replaceAll('"', "'")}"`;
+  if (block?.audience === 'coordinator') return `pullboard: only the coordinator can clear this; tell them: pullboard shout coordinator --kind blocker "blocked by ${block.code} on ${block.command}: ${block.reason.replaceAll('"', "'")}"`;
   return null;
 }
 

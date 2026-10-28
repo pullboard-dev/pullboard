@@ -13,7 +13,7 @@ function document(box, cwd, ...args) {
 
 /** Ask through the real parser and append pipeline; no test directly supplies a computed owner. */
 function ask(box, text, effects, ...args) {
-  return document(box, box.web, 'shout', 'coordinator', text, '--decision', '--effects', JSON.stringify(effects), ...args);
+  return document(box, box.web, 'shout', 'coordinator', text, '--kind', 'question', '--decision', '--effects', JSON.stringify(effects), ...args);
 }
 
 /** Prove persistence, live row re-evaluation, escalation and unchanged execution authority. */
@@ -57,7 +57,7 @@ export function proveRulingOwnerCli(t) {
   assert.equal(changed.ruling.owner, null, 'an old implementation request does not retain agent ownership after the governing row changes');
   assert.equal(changed.ruling.code, 'RULING_ROW');
   assert.deepEqual(changed.effects, ownEffects, 're-evaluation does not rewrite the original request');
-  const legacy = document(box, box.web, 'shout', 'coordinator', 'An ordinary old-style question', '--decision');
+  const legacy = document(box, box.web, 'shout', 'coordinator', 'An ordinary old-style question', '--kind', 'question', '--decision');
   const plain = document(box, box.repo, 'decisions').decisions.find(row => row.shout_id === legacy.id);
   assert.equal(plain.effects, undefined);
   assert.equal(plain.ruling, undefined);
@@ -71,7 +71,7 @@ export function proveRulingOwnerRefusals(t) {
   for (const effects of [[], { effects: [{ op: 'withdraw', item: 1 }], owner: 'agent' },
     [{ op: 'withdraw' }], [{ op: 'implement-row', row: 'G1', status: 'approved' }],
     [{ op: 'revise-row', row: 'G1', owner: 'agent' }], [{ op: 'implement-row', row: 'Missing' }]]) {
-    const result = box.run(box.web, 'shout', 'coordinator', 'A concrete request', '--decision', '--effects', JSON.stringify(effects), '--json');
+    const result = box.run(box.web, 'shout', 'coordinator', 'A concrete request', '--kind', 'question', '--decision', '--effects', JSON.stringify(effects), '--json');
     assert.notEqual(result.code, 0);
     assert.match(JSON.parse(result.out).error.code, /^RULING_/u);
   }

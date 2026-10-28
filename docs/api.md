@@ -77,7 +77,7 @@ For example: `flow: review wait average 61 min (1 measured; > 60 min); bottlenec
 
 `firstEventAt` and `lastEventAt` are the first and latest dates in the selected window, or `null` when it is empty. `since` is the inclusive boundary as an ISO UTC timestamp, or `null` for the full history. Dates accept `YYYY-MM-DD` or an ISO UTC timestamp ending in `Z`; invalid dates return `BAD_SINCE` with repair guidance.
 
-`agentCount` counts distinct event actors other than `board` and `person`; the coordinator and join moves are included. `agents` lists `{id, moves, families}` for each actor. `families` lists `{name, agents, moves}` by recorded family label, and `familyCount` counts these buckets, including `unknown`. Labels are not inferred from a model name or current agent, item, or verdict rows. A family's first recorded event snapshot applies to that move and following moves, until another snapshot changes or clears it; earlier unattributed moves remain `unknown`. Date windows preserve earlier recorded declarations but count only selected moves. Arrays are sorted by identifier or label. Local HTTP board state carries the same full-history object as `state.proofStats`.
+`agentCount` counts distinct event actors other than `board` and `person`; the coordinator and join moves are included. `agents` lists `{id, moves, families}` for each actor. `families` lists `{name, agents, moves}` by recorded family label, and `familyCount` counts these buckets, including `unknown`. Labels are not inferred from a model name or current agent, item, or verdict rows. A family's first recorded event snapshot applies to that move and following moves, until another snapshot changes or clears it; earlier unattributed moves remain `unknown`. Date windows preserve earlier recorded declarations but count only selected moves. Arrays are sorted by identifier or label. Local HTTP board state carries the totals and flow summaries as `state.proofStats`; per-item flow records are read on demand from the authenticated proof endpoint below. The CLI retains the full-history object.
 
 `merged <id> <commit>` records only a commit reachable from the primary checkout's branch that contains the item's submitted commit or has the same stable patch id as the item's change from its claim base. Other commits are refused with `NOT_MERGED`; `--note "why"` records an exceptional receipt and keeps the note in that item's `merged` event.
 
@@ -90,6 +90,8 @@ Successful `submit` (including `done`), `release`, and `verify` commands normall
 <!-- api-command-shapes:start -->
 `status --json` and local API state carry `ruleCounts`: `approved`, `gated` (approved rows naming a gate), `ungated`, `proven`, `unproven`, and `contradicted`. Proof requires a green configured full-gate receipt on the current trunk whose supported test selection includes the row's test files. Opaque or unsupported coverage remains unproven. Contradicted counts approved rows whose gate files failed on the trunk in the last seven days; it is independent of proven, so a row can count in both after a later green. The API refreshes this window when evidence ages out, even without a board move.
 
+The `watch --json` stream prints one document per line and has no end-of-command document.
+
 | Command | Required top-level fields |
 | --- | --- |
 | `help` | `version:number`, `help:string` |
@@ -100,7 +102,7 @@ Successful `submit` (including `done`), `release`, and `verify` commands normall
 | `takeover` | `version:number`, `agent:string`, `path:string` |
 | `worktree` | `version:number`, `agent:string`, `lane:string`, `route:string`, `path:string`, `branch:string`, `prompt:string`, `model:string`, `displayName:string` |
 | `resume` | `version:number`, `me:object`, `all:array`, `requests:array`, `holding:array`, `sentBack:array`, `awaiting:array`, `toVerify:array`, `toMerge:array`, `open:array`, `stale:array`, `doctrineNotes:array`, `holds:array`, `unread:number`, `newest:array`, `root:string`, `newWorktreeLocation:string`, `dirty:number`, `next:string` |
-| `whoami` | `address:string`, `version:number`, `id:string`, `lane:string`, `path:string`, `model:string`, `displayName:string` |
+| `whoami` | `version:number`, `address:string`, `id:string`, `lane:string`, `path:string`, `model:string`, `displayName:string` |
 | `agents` | `version:number`, `agents:array` |
 | `lanes` | `version:number`, `lanes:object`, `shared:array`, `coordinator:string` |
 | `lane add` | `version:number`, `lane:string`, `owns:array` |
@@ -108,7 +110,7 @@ Successful `submit` (including `done`), `release`, and `verify` commands normall
 | `settings` | `version:number`, `settings:object` |
 | `runner` | `version:number`, `runner:object` |
 | `relay` | `version:number`, `linked:boolean`, `board:string`, `url:string`, `link:string`, `sequence:number`, `behind:number`, `recovery:object` |
-| `sync` | `version:number`, `ref:string`, `sequence:number`, `pending:string|null` |
+| `sync` | `version:number`, `ref:string`, `sequence:number`, `pending:string\|null` |
 | `list` | `version:number`, `items:array` |
 | `move` | `version:number`, `source:string`, `destination:string`, `moveId:string`, `item:object` |
 | `queue` | `version:number`, `releases:array`, `unreleased:array`, `first:object` |
@@ -124,19 +126,26 @@ Successful `submit` (including `done`), `release`, and `verify` commands normall
 | `milestone move` | `version:number`, `milestone:object` |
 | `milestone edit` | `version:number`, `milestone:object` |
 | `milestone remove` | `version:number`, `milestone:object` |
-| `milestone ship` | `version:number`, `milestone:object`, `into:string|null`, `moved:array`, `notMoved:array` |
+| `milestone ship` | `version:number`, `milestone:object`, `into:string\|null`, `moved:array`, `notMoved:array` |
 | `companion` | `version:number`, `item:object`, `created:boolean` |
 | `patch` | `version:number`, `item:number` |
 | `patch attach` | `version:number`, `item:number`, `key:string`, `digest:string`, `changed:boolean` |
-| `patch list` | `version:number`, `item:number`, `digest:string\|null`, `patches:array` |
+| `patch list` | `version:number`, `item:number`, `patches:array`, `digest:string\|null` |
 | `patch remove` | `version:number`, `item:number`, `key:string`, `digest:string`, `changed:boolean` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array`, `thread:array`, `reviewEligibility:object` |
 | `capacity` | `version:number`, `report:object` |
 | `stats` | `version:number`, `stats:object`, `gateWaits:array` |
+| `badge` | `version:number`, `items:number`, `checked:number`, `percent:number\|null`, `changed:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `ruleCounts:object`, `stats:object`, `reviewQueue:object`, `unread:number`, `relay:object` |
-| `heartbeat` | `version:number`, `seat:string|null`, `presence:string`, `heartbeatAt:string|null` |
 | `doctor` | `version:number`, `problems:array` |
 | `health` | `version:number`, `asOf:string`, `thresholds:object`, `stuck:array`, `waiting:array` |
+| `sentinel propose` | `version:number`, `sentinel:object` |
+| `sentinel approve` | `version:number`, `sentinel:object` |
+| `sentinel decline` | `version:number`, `sentinel:object` |
+| `sentinels` | `version:number`, `sentinels:array` |
+| `loop` | `version:number`, `jobs:array` |
+| `loop declare` | `version:number`, `job:object` |
+| `loop ran` | `version:number`, `job:object` |
 | `skills` | `version:number`, `updated:array`, `current:array`, `customized:array` |
 | `inbox` | `version:number`, `shouts:array` |
 | `request` | `version:number`, `requests:array` |
@@ -151,15 +160,14 @@ Successful `submit` (including `done`), `release`, and `verify` commands normall
 | `edit` | `version:number`, `item:object` |
 | `fact` | `version:number`, `item:number`, `fact:object` |
 | `why` | `version:number`, `id:number`, `decisions:array` |
-| `why file` | `version:number`, `file:string`, `line:number|null`, `items:array`, `rows:array`, `decisions:array` |
+| `why file` | `version:number`, `file:string`, `line:number\|null`, `items:array`, `rows:array`, `decisions:array` |
 | `escalate` | `version:number`, `id:number`, `from:string`, `to:string` |
 | `run` | `version:number`, `messages:array` |
 | `sweep` | `version:number`, `messages:array` |
 | `next` | `version:number`, `item:object`, `review:boolean`, `held:boolean`, `shared:array` |
-| `badge` | `version:number`, `items:number`, `checked:number`, `percent:number\|null`, `changed:array` |
 | `check` | `version:number`, `id:number`, `green:boolean`, `seconds:number`, `check:string`, `receipt:object`, `report:string` |
-| `check accept` | `version:number`, `id:number`, `digest:string`, `check:string` |
 | `test` | `version:number`, `green:boolean`, `output:string`, `runner:string`, `seconds:number`, `files:array`, `known:array`, `main:string\|null` |
+| `check accept` | `version:number`, `id:number`, `digest:string`, `check:string` |
 | `claim` | `version:number`, `id:number`, `renewed:boolean`, `leaseUntil:string`, `digest:string` |
 | `hold` | `version:number`, `lane:string`, `held:boolean` |
 | `release` | `version:number`, `id:number` |
@@ -179,7 +187,7 @@ Successful `submit` (including `done`), `release`, and `verify` commands normall
 | `view` | `version:number`, `url:string`, `port:number` |
 | `view export` | `version:number`, `path:string` |
 | `serve` | `version:number`, `url:string`, `port:number` |
-| `watch` | one document per line: `version:number`, `sequence:number`, `kind:string`, `item:number\|null`, `actor:string\|null`, `detail:string` |
+| `watch` | `version:number`, `sequence:number`, `kind:string`, `item:number\|null`, `actor:string\|null`, `detail:string` |
 | `forget` | `version:number`, `root:string` |
 | `prompt` | `version:number`, `role:string`, `text:string` |
 | `gate` | `version:number`, `green:boolean`, `report:string` |
@@ -208,13 +216,7 @@ Successful `submit` (including `done`), `release`, and `verify` commands normall
 | `hook pre-merge-commit` | `version:number`, `messages:array` |
 | `hook commit-msg` | `version:number`, `messages:array` |
 | `hook pre-push` | `version:number`, `messages:array` |
-| `sentinel propose` | `version:number`, `sentinel:object` |
-| `sentinel approve` | `version:number`, `sentinel:object` |
-| `sentinel decline` | `version:number`, `sentinel:object` |
-| `sentinels` | `version:number`, `sentinels:array` |
-| `loop` | `version:number`, `jobs:array` |
-| `loop declare` | `version:number`, `job:object` |
-| `loop ran` | `version:number`, `job:object` |
+| `heartbeat` | `version:number`, `seat:string\|null`, `presence:string`, `heartbeatAt:string\|null` |
 <!-- api-command-shapes:end -->
 
 `spec draft "<rule>" --doctrine --source "chat, 2026-10-16"` proposes a sourced doctrine row and returns a qualified `id`, such as `doctrine:DR1`, for the existing person approval commands. Resume adds `doctrineNotes`, an array of newly seen approved rules with `id`, `text` and `gate`; each checkout consumes its own notices. Drafts and pending applications are excluded. The shared approved doctrine also supplies frozen citations and stale-item comparisons in older checkouts.
@@ -438,6 +440,7 @@ The server checks any Origin against its own address and grants no CORS permissi
 | `GET /api/v1/boards/:board/state?seen=N` | The board state, listing item summaries, including open coordinator requests and the unseen shout count since N |
 | `GET /api/v1/boards/:board/state?detail=full` | The same state with every item in full, which static view exports read |
 | `GET /api/v1/boards/:board/state?since=N` | What changed in the summary state since the snapshot this server sent at event N, and the new latest sequence |
+| `GET /api/v1/boards/:board/proofs/:item` | One item’s full flow proof record, authenticated like board state |
 | `GET /api/v1/boards/:board/items/:id` | One item's full detail: the fields its summary leaves out |
 | `GET /api/v1/boards/:board/items?q=text` | The ids of the items whose id, title, lane, spec ids or criterion contain the text, ignoring case |
 | `GET /api/v1/boards/:board/shouts/:id` | One shout from any point in the board's history, including its decision and answer fields |
@@ -466,6 +469,10 @@ An item's `blockedBy` and dependency metadata retain numeric local IDs and liter
 `GET /api/v1/boards/:board/items/:id` returns `{item}`: the item's `id` and every field its summary leaves out, which are `owner`, `reviewer`, `reviewUntil`, `verifiedBy`, `criterion`, `brief`, `commit`, `merged`, `history`, `check`, `checkBaseline` when recorded, `verdicts`, `thread`, and the latest `verdict` in full. Laid over its summary, the detail is the item exactly as the full state carries it. An unknown id returns `NO_ITEM` with HTTP 404; a malformed id is refused with HTTP 400. `state?detail=full` returns every item in full, summary fields included, and `detail=summary` returns summaries; any other value is refused with `BAD_REQUEST`. Without `detail`, a server answers with its own default, `stateDetail: "summary"` or `"full"`: `serveApi`, which `pullboard serve` runs, defaults to summaries, and `createLocalApiHandler`, which a page's own server builds, defaults to full items until that page reads summaries. `GET /api/v1/boards/:board/items?q=text` returns `{ids}`, in state order, for the items whose `#id`, title, lane, spec ids or criterion contain the trimmed text, ignoring case, as the view's search matches; empty text matches every item. An adapter without these reads returns `ITEM_NOT_AVAILABLE`. The paired API2 phone transport implements these reads by decrypting addressed pages; its initial state is bounded and full detail follows separately.
 
 Every state names the event it reflects as `sequence`, the latest event id when it was read. `GET /api/v1/boards/:board/state?since=N` answers `{since, sequence, eventLogVersion, delta}`, where `sequence` is the new latest and `delta` brings the summary state this server sent at event N up to date: `delta.replace` holds whole fields that changed, `delta.merge` holds keyed lists by field, as `{key, set, ids?}`, with only their changed entries and, when entries came, went or moved, the full key order, and `delta.remove` names fields that went away. Items merge by `id`, `shouts` and `asked` by `shout_id`, `events` by `event_id`, `agents` by `agent_id`, `spec` and `practice` rows by `id`, and `milestones` by `name`. `unseen`, `proofStats` and the Needs-you lists, `decisions`, `holds`, `requests` and `personRequests`, always come whole. Apply a delta without recomputing anything: copy `replace` over the state, delete each `remove` field, and for each `merge` field, overlay `set` on the entries by `key` and order them by `ids`, or keep their order. `applyStateDelta(state, delta)` in `src/api-http.js` does exactly this, and the result equals a fresh snapshot at `sequence`. A delta also carries changes that wrote no event, such as a spec or doctrine edit, so its `sequence` may equal N. N alone cannot say which of the snapshots sent at N a client holds, so after such a change a later delta from the same N may repeat it; it still applies exactly.
+
+Authenticated native state sends proof-stat totals and flow summaries (stages, queues, activity, bottleneck, daily counts, and report overall/lane/milestone aggregates). It omits historical per-agent attribution, bar/catch details and `flow.report.items`; the CLI's full stats are unchanged. `agents` contains seats whose latest recorded move falls within the Dashboard's inclusive last four hours, retaining each seat's existing fields. Clock-only reads expire seats when that window passes.
+
+`GET /api/v1/boards/:board/proofs/:item` returns `{version: 1, proof}` with that item's full flow report (the corresponding record formerly in `proofStats.flow.report.items`). It uses the same board authentication as state and item reads; unknown items return 404, malformed ids and writes are refused. Adapters without proof reads, or a known item whose derived report is unavailable, return `ITEM_NOT_AVAILABLE` rather than a fabricated record. A normal writable board command rebuilds missing derived reports; unknown items remain 404.
 
 A server keeps, in memory only, the fingerprints of the last 24 summary states it sent for each board, as snapshots or as a delta's result; a read of one item or a search sends no snapshot, so it never makes a base. When it cannot extend the client's snapshot, `delta` is `null` and `reset` says why, with `{code, message, next}`: `BASE_NOT_KEPT` when it never sent a snapshot at N or has forgotten it, as after a restart; `BASE_AHEAD` when N is past the board's latest event; and `FORMAT_CHANGED` when the request's optional `eventLogVersion` differs from the server's. The client then loads a fresh snapshot. `since` must be a nonnegative integer (`BAD_CURSOR` otherwise), works with `seen`, and is refused with `detail=full`; an adapter without deltas, such as the relay, returns `DELTA_NOT_AVAILABLE`.
 

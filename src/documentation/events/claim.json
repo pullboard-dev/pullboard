@@ -1,0 +1,10 @@
+{
+  "kind": "claim",
+  "entries": [
+    {
+      "order": 12,
+      "actor": "builder",
+      "detail": "`leaseUntil`, `digest`, optional `grantEngine`"
+    }
+  ]
+}

@@ -20,6 +20,6 @@ function actor(move) { return move.args[0]?.agentId ?? null; }
 export default Object.freeze({ operation: "takeCoordinator", order: 58, engine: COORDINATOR_HOLD_ENGINE,
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
-  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator \"<what you need>\"",
+  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator --kind question \"<what you need>\"",
   "COORDINATOR_TAKEOVER": "link the board with pullboard relay on in the main checkout, then run pullboard takeover there"
 }) });

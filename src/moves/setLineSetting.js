@@ -36,7 +36,7 @@ function actor(move) { return move.args[0]?.agentId ?? null; }
 export default Object.freeze({ operation: "setLineSetting", order: 53, engine: LINE_SETTINGS_ENGINE,
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
-  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator \"<what you need>\"",
+  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator --kind question \"<what you need>\"",
   "ENGINE_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "LINE_SETTING_REASON": "repeat the board setting change with --reason describing the measured window"
 }) });

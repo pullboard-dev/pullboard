@@ -1,0 +1,9 @@
+{
+  "name": "heartbeat",
+  "help": "  pullboard heartbeat                 record this seat's local session activity; no board move\n",
+  "required": {
+    "seat": "string|null",
+    "presence": "string",
+    "heartbeatAt": "string|null"
+  }
+}

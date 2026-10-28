@@ -1,0 +1,10 @@
+{
+  "kind": "relay_exclusion",
+  "entries": [
+    {
+      "order": 9,
+      "actor": "person",
+      "detail": "`action` (exclude, the durable opt-out intent), `path` (relayOff), `reason`, `channel`; event time and actor identify the request before machine settings persist it"
+    }
+  ]
+}

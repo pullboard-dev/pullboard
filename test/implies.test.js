@@ -81,7 +81,7 @@ function occurrences(text, needle) {
 test('[B29,B31,N29] a decision reaches the items it implies', () => {
   const box = fixture();
   assert.equal(box.json(box.web, 'claim', '1').id, 1);
-  const ask = box.json(box.web, 'shout', 'coordinator', 'Which engine ships in 0.8.8?', '--decision').id;
+  const ask = box.json(box.web, 'shout', 'coordinator', 'Which engine ships in 0.8.8?', '--kind', 'question', '--decision').id;
   const answer = box.json(box.repo, 'answer', String(ask), 'Ship engine 9 in 0.8.8\nso #1 and #2 move to engine 10', '--implies', '1,#2');
 
   for (const id of [1, 2]) {
@@ -106,7 +106,7 @@ test('[B29,B31,N29] a decision reaches the items it implies', () => {
   assert.equal(second.code, 0, second.err);
   assert.equal(occurrences(second.out, notice), 0, `a later resume does not repeat it:\n${second.out}`);
 
-  const ask2 = box.json(box.web, 'shout', 'coordinator', 'Engine 9 slipped; what now?', '--decision').id;
+  const ask2 = box.json(box.web, 'shout', 'coordinator', 'Engine 9 slipped; what now?', '--kind', 'question', '--decision').id;
   const replacement = box.json(box.repo, 'answer', String(ask2), 'Ship engine 10 in 0.8.9 instead', '--supersedes', String(answer.id));
   for (const id of [1, 2]) {
     const told = facts(box, id).filter((fact) => fact.supersededBy);

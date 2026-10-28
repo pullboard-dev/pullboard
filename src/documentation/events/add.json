@@ -1,0 +1,10 @@
+{
+  "kind": "add",
+  "entries": [
+    {
+      "order": 4,
+      "actor": "item creator",
+      "detail": "`lane`, `specIds`, `after`, `route`, optional `reviewFamily`, optional `reviewPolicy`"
+    }
+  ]
+}
