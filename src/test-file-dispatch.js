@@ -231,6 +231,7 @@ export async function reportDispatchedTests(options, env, loadCustomReporter) {
   const ends = [];
   let reporterError;
   let successful = false;
+  const completedFiles = new Set();
   const originalEnv = { ...process.env };
   /** Reporter failures stop new dispatch while existing actual workers drain through their normal signal path. */
   const failed = error => { reporterError ??= error; controller.abort(error); };
@@ -259,7 +260,10 @@ export async function reportDispatchedTests(options, env, loadCustomReporter) {
     Object.assign(process.env, env);
     const source = dispatchTestFiles({ ...options, signal: controller.signal,
       setup(tests) {
-        tests.on('test:summary', summary => { if (!summary.file) successful = summary.success; });
+        tests.on('test:summary', summary => {
+          if (!summary.file) successful = summary.success;
+          else if (!(summary.counts?.cancelled > 0)) completedFiles.add(summary.file);
+        });
       } }, env);
     try {
       for await (const event of source) for (const input of inputs) input.write(event);
@@ -271,7 +275,8 @@ export async function reportDispatchedTests(options, env, loadCustomReporter) {
     Object.assign(process.env, originalEnv);
   }
   if (reporterError) throw reporterError;
-  return { status: successful ? 0 : 1, signal: null };
+  return { status: successful ? 0 : 1, signal: null, completedFiles: [...completedFiles],
+    collectionComplete: !controller.signal.aborted && options.files?.length > 0 && options.files.every(file => completedFiles.has(file)) };
 }
 
 /** Preserve native CLI option placement, aliases and validation before public dispatch. */

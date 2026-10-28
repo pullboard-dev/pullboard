@@ -553,6 +553,7 @@ async function requestFor(root, command, { runner, source, browser = false, byLa
       ...(trustedMode ? { trustedMode } : {}),
       ...(!trustedMode && metadata.trunk ? { trunk: { ...metadata.trunk } } : {}),
       browser: runner.browser, browserRequired: browser, guiRequired: metadata.gui === true, landing: metadata.landing === true, auditCoverage: metadata.auditCoverage === true,
+      ...(typeof metadata.timingRunId === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(metadata.timingRunId) ? { timingRunId: metadata.timingRunId } : {}),
       ...(metadata.landing === true && metadata.timeoutMs ? { timeoutMs: metadata.timeoutMs } : {}),
       // The classification this controller used, so the runner never reclassifies by its own settings (#1043).
       browserByLaunch: byLaunch ?? carriedBrowserByLaunch() ?? readMachineSettingsFile(machineSettingsFile())?.gate?.browserByLaunch === true,

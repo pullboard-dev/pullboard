@@ -12,6 +12,8 @@ import { resumeRigorCounters } from '../src/rigor-counters.js';
 import { RIGOR_COLD_NOTICE } from '../src/rigor-counters.js';
 import { clearProofCounters } from '../src/proof-counters.js';
 import { readDigest } from '../src/digest.js';
+import { healthReport } from '../src/health.js';
+import { dispatchHealth } from '../src/dispatch-health.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { planAutomaticRigorApply } from '../src/rigor-auto-apply.js';
@@ -23,6 +25,10 @@ import { conflictNote } from '../src/trunk-conflict.js';
 import { automaticDecisionSource, rigorDecisionKey } from '../src/rigor-auto-source.js';
 
 const roots = [];
+/** Bind real upper health providers for direct digest reads without changing their board snapshot. */
+function digestHealth(options) {
+  return healthReport({ ...options, dispatchHealth });
+}
 after(() => { for (const root of roots) rmSync(root, { recursive: true, force: true }); });
 
 /** A real repository and private SQLite board; all failure receipts below are synthetic board fixtures. */
@@ -151,7 +157,7 @@ test('an unanswered Rigor draft is restated once in each read-only digest after 
     for (const title of ['First', 'Second']) { const id = box.submit(title); box.reject(id); }
     box.advance(3_600_001);
     const before = store.events(box.board).length;
-    const digest = readDigest(box.file, { root: box.root, now: box.board.clock.now() });
+    const digest = readDigest(box.file, { root: box.root, now: box.board.clock.now(), healthReport: digestHealth });
     assert.match(digest.markdown, /Unanswered Rigor drafts/u);
     const ids = store.rowDrafts(box.board).map(row => row.id);
     for (const id of ids) assert.equal(digest.markdown.split(`Rigor draft ${id}:`).length - 1, 1);
@@ -222,7 +228,7 @@ test('a person can replace automatic advice without breaking a later spec apply 
       'a later edit cannot hide behind the old person decision');
     assert.throws(() => planAutomaticRigorApply(box.root, config, drafts, store.rowDecisions(box.board)), error => error.code === 'ROW_DRAFT');
     box.advance(3_600_001);
-    assert.ok(readDigest(box.file, { root: box.root, now: box.board.clock.now() }).markdown.includes(`Rigor draft ${drafts[0].id}:`),
+    assert.ok(readDigest(box.file, { root: box.root, now: box.board.clock.now(), healthReport: digestHealth }).markdown.includes(`Rigor draft ${drafts[0].id}:`),
       'the overdue digest also retains a proposal whose old decision is stale');
   } finally { box.close(); }
 });

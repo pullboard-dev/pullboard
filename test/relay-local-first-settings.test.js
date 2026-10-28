@@ -9,7 +9,7 @@ import { performanceCores } from '../src/gate.js';
 import {
   defaultViewPort,
   DEFAULT_VIEW_PORT,
-} from '../src/view-port.js';
+} from '../src/config.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Return the effective relay.outbox row from the production settings inventory. */

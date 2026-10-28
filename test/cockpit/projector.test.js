@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
 import * as serve from '../../src/serve.js';
+import { projectItemState } from '../../src/api.js';
 import { machine, project, build, sendBack, accept } from './fixture.js';
 
 /**
@@ -99,12 +100,12 @@ test('the item projector matches the full projection [A2,N26]', () => {
 
     // Each item projected on its own is that item in the full projection, a fresh object each time, and it changes
     // neither the row nor the status map.
-    assert.equal(typeof serve.projectItemState, 'function', 'serve.js exports projectItemState');
+    assert.equal(typeof projectItemState, 'function', 'api.js exports projectItemState');
     for (const item of all) {
       const row = structuredClone(item), statuses = new Map(status);
-      const one = serve.projectItemState(board, item, status);
+      const one = projectItemState(board, item, status);
       assert.equal(JSON.stringify(one), JSON.stringify(byId.get(item.item_id)), `projectItemState for #${item.item_id} equals that item in the full projection`);
-      assert.notEqual(serve.projectItemState(board, item, status), one, `projectItemState for #${item.item_id} returns a fresh object`);
+      assert.notEqual(projectItemState(board, item, status), one, `projectItemState for #${item.item_id} returns a fresh object`);
       assert.deepEqual(item, row, `projectItemState leaves #${item.item_id}'s row as it was`);
       assert.deepEqual(status, statuses, 'projectItemState leaves the status map as it was');
     }

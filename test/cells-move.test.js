@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, chmodSync, statSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, writeFileSync, rmSync, existsSync, chmodSync, statSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -24,7 +24,8 @@ function git(root, ...args) {
 
 /** Build an actual committed ESM leaf with a relative dependency and executable mode. */
 function fixture(t, source = "import { number } from './number.js';\nexport const value = number + 1;\n") {
-  const outer = mkdtempSync(join(tmpdir(), 'pb-cell-move-'));
+  // macOS tmpdir is a symlink; the tool requires canonical custody, so the fixture supplies the real path.
+  const outer = realpathSync(mkdtempSync(join(tmpdir(), 'pb-cell-move-')));
   t.after(() => rmSync(outer, { recursive: true, force: true }));
   const root = join(outer, 'repo');
   const custody = join(outer, 'custody');
@@ -390,4 +391,37 @@ test('the shipped installation includes the first real package and runs its CLI 
   assert.match(child.stdout, /pullboard/u);
   const body = spawnSync(process.execPath, ['--input-type=module', '-e', "import assert from 'node:assert/strict'; import { serveMcp, refusePersonMove } from './src/mcp.js'; assert.equal(typeof serveMcp, 'function'); assert.throws(() => refusePersonMove('spec_approve'), { code: 'HUMAN_REQUIRED' });"], { cwd: installed, env, encoding: 'utf8' });
   assert.equal(body.status, 0, body.stderr);
+});
+
+/** Snapshot every tracked byte, mode and Git status so a rollback is compared to the exact pre-move tree. */
+function snapshot(root) {
+  const files = git(root, 'ls-files').trim().split('\n').filter(Boolean);
+  return {
+    index: git(root, 'ls-files', '-s'),
+    status: git(root, 'status', '--porcelain=v1', '-z'),
+    contents: Object.fromEntries(files.map(file => [file, readFileSync(join(root, file), 'utf8')])),
+    packages: existsSync(join(root, 'packages')),
+  };
+}
+
+test('a late git add failure beside a concurrent source delete restores the exact pre-move tree [C7]', t => {
+  const { root, custody, input } = fixture(t);
+  const plan = cellsMove.plan(input);
+  const preMove = snapshot(root);
+  const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim();
+  const shim = join(custody, 'git');
+  const marker = join(custody, 'failed-once');
+  writeFileSync(shim, `#!${process.execPath}\n` +
+    `const fs = require('node:fs'); const cp = require('node:child_process');\n` +
+    `const args = process.argv.slice(2);\n` +
+    `if (args[2] === 'add' && !fs.existsSync(${JSON.stringify(marker)})) {\n` +
+    ` fs.writeFileSync(${JSON.stringify(marker)}, 'yes'); fs.unlinkSync(${JSON.stringify(join(root, input.from))}); process.exit(1); }\n` +
+    `const result = cp.spawnSync(${JSON.stringify(realGit)}, args, { stdio: 'inherit' }); process.exit(result.status ?? 1);\n`);
+  chmodSync(shim, 0o755);
+  const previous = process.env.PATH;
+  process.env.PATH = custody + ':' + previous;
+  try {
+    assert.throws(() => cellsMove.apply(plan, custody), /git add failed|retain exact custody/u);
+  } finally { process.env.PATH = previous; }
+  assert.deepEqual(snapshot(root), preMove);
 });

@@ -401,6 +401,7 @@ test('a move made during pairing is still refused as busy [H15,H17]', async t =>
   const result = await box.script(`
     const store = await import(${JSON.stringify(new URL('../src/board.js', import.meta.url).href)});
     const {relayPair} = await import(${JSON.stringify(new URL('../src/relay-pairing-client.js', import.meta.url).href)});
+    const pairPorts = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
     const root = process.cwd();
     const originalFetch = globalThis.fetch;
     let injected = false;
@@ -415,7 +416,7 @@ test('a move made during pairing is still refused as busy [H15,H17]', async t =>
     };
     const sink = {isTTY:false,write(){}};
     let code = null, issued = false;
-    try { await relayPair(root,{cwd:root,stdout:sink,stderr:sink,say(){},err(){},result(){issued=true;}}); }
+    try { await relayPair(root,{cwd:root,stdout:sink,stderr:sink,say(){},err(){},result(){issued=true;}},pairPorts); }
     catch(error) { code=error.code; }
     finally { globalThis.fetch=originalFetch; }
     process.stdout.write(JSON.stringify({injected,code,issued}));
@@ -433,6 +434,7 @@ test('a local move during pairing upload refuses before issuing a code [H15,H17]
   const result = await box.script(`
     const store = await import(${JSON.stringify(new URL('../src/board.js', import.meta.url).href)});
     const {relayPair} = await import(${JSON.stringify(new URL('../src/relay-pairing-client.js', import.meta.url).href)});
+    const pairPorts = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
     const root = process.cwd();
     const originalFetch = globalThis.fetch;
     let injected = false;
@@ -447,7 +449,7 @@ test('a local move during pairing upload refuses before issuing a code [H15,H17]
     };
     const sink = {isTTY:false,write(){}};
     let code = null, issued = false;
-    try { await relayPair(root,{cwd:root,stdout:sink,stderr:sink,say(){},err(){},result(){issued=true;}}); }
+    try { await relayPair(root,{cwd:root,stdout:sink,stderr:sink,say(){},err(){},result(){issued=true;}},pairPorts); }
     catch(error) { code=error.code; }
     finally { globalThis.fetch=originalFetch; }
     process.stdout.write(JSON.stringify({injected,code,issued}));
@@ -465,6 +467,7 @@ test('a refused upload race discards only its unprinted package [H15,H17]', asyn
   const result=await box.script(`
     const store=await import(${JSON.stringify(new URL('../src/board.js',import.meta.url).href)});
     const {relayPair}=await import(${JSON.stringify(new URL('../src/relay-pairing-client.js',import.meta.url).href)});
+    const pairPorts = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
     const root=process.cwd(), originalFetch=globalThis.fetch;
     let injected=false,published=null;
     globalThis.fetch=async (...args)=>{
@@ -477,7 +480,7 @@ test('a refused upload race discards only its unprinted package [H15,H17]', asyn
       return originalFetch(...args);
     };
     const sink={isTTY:false,write(){}};let code=null,issued=false;
-    try{await relayPair(root,{cwd:root,stdout:sink,stderr:sink,say(){},err(){},result(){issued=true;}});}catch(error){code=error.code;}finally{globalThis.fetch=originalFetch;}
+    try{await relayPair(root,{cwd:root,stdout:sink,stderr:sink,say(){},err(){},result(){issued=true;}},pairPorts);}catch(error){code=error.code;}finally{globalThis.fetch=originalFetch;}
     const {readFileSync}=await import('node:fs');
     const state=JSON.parse(readFileSync(root+'/.git/pullboard/relay.json','utf8'));
     const second=await originalFetch(published+'/consume',{method:'POST',headers:{authorization:'Bearer '+state.token,'content-type':'application/json','x-pullboard-engine':${JSON.stringify(String(ENGINE_VERSION))}},body:'{}'});
@@ -499,6 +502,7 @@ test('a local move while sealing is refused before the pairing upload [H15,H17]'
     const {webcrypto}=await import('node:crypto');
     const store=await import(${JSON.stringify(new URL('../src/board.js',import.meta.url).href)});
     const {relayPair}=await import(${JSON.stringify(new URL('../src/relay-pairing-client.js',import.meta.url).href)});
+    const pairPorts = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
     const root=process.cwd(), originalEncrypt=webcrypto.subtle.encrypt;
     let injected=false,issued=false,code=null;
     webcrypto.subtle.encrypt=async function(...args) {
@@ -512,7 +516,7 @@ test('a local move while sealing is refused before the pairing upload [H15,H17]'
       return result;
     };
     const sink={isTTY:false,write(){}};
-    try{await relayPair(root,{cwd:root,stdout:sink,stderr:sink,say(){},err(){},result(){issued=true;}});}catch(error){code=error.code;}finally{webcrypto.subtle.encrypt=originalEncrypt;}
+    try{await relayPair(root,{cwd:root,stdout:sink,stderr:sink,say(){},err(){},result(){issued=true;}},pairPorts);}catch(error){code=error.code;}finally{webcrypto.subtle.encrypt=originalEncrypt;}
     process.stdout.write(JSON.stringify({injected,code,issued}));
   `);
   assert.equal(result.code,0,result.stderr);

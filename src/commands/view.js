@@ -28,7 +28,7 @@ import {
 } from '../serve.js';
 import {
   defaultViewPort,
-} from '../view-port.js';
+} from '../config.js';
 import {
   busyViewPortRefusal,
   forgetView,
