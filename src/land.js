@@ -1,6 +1,7 @@
 import { completeGate } from './landing-completion.js';
 import { finalizeLandingEnvelope } from './land-envelope.js';
 import { prepareNativeTrainLanding } from './train-landing.js';
+import { requirePublishGreen } from './publish-pause.js';
 import { runDeferredGuards } from './landing-deferred-run.js';
 import { refreshLandedCodeMap } from './landing-main-notices.js';
 import { cadenceDeferral } from './landing-cadence.js';
@@ -1211,7 +1212,11 @@ export async function land(options) {
   const trunk = mainCheckout(options.root);
   const branch = trunk?.branch;
   if (!branch) throw new Refused('LAND_TRUNK', 'landing needs the coordinator’s primary branch; return its checkout to the trunk');
-  if (trunk.commit) requireParallelGateAdmission(options.root, policyAt(options.root, trunk.commit).config);
+  if (trunk.commit) {
+    const policy = policyAt(options.root, trunk.commit).config;
+    requireParallelGateAdmission(options.root, policy);
+    requirePublishGreen(options.root, options.board, policy);
+  }
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);
     if (!options.due || idleLanding(options.board, trunk.commit)) {
@@ -1277,6 +1282,7 @@ export async function land(options) {
 export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, due = false, onWait, checkLease, checkLeaseNow, fence }) {
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
+  if (!dryRun && trunk?.commit) requirePublishGreen(root, board, policyAt(root, trunk.commit).config);
   const unfinished = store.landingBatches(board).findLast((batch) => batch.state !== 'landed' && batch.state !== 'blocked');
   if (fence && unfinished && unfinished.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the interrupted batch belongs to another trunk branch; restore that branch and start a fresh land --adopt');
   if (!dryRun && unfinished) for (const entry of unfinished.items ?? []) requireOutsideOwner(board, store.getItem(board, entry.id));
