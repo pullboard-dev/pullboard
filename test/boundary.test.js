@@ -1,4 +1,3 @@
-import { cockpitPage } from '../src/cockpit.js';
 /** @pullboard-test-input source-tree */
 /**
  * The boundary (P5): the core stays free of any particular model, inference engine or model vendor,
@@ -6,6 +5,7 @@ import { cockpitPage } from '../src/cockpit.js';
  * the tools that run models, however useful they are. Agent tools are another matter: helping
  * Claude Code, Codex and others read the repo's rules (AGENTS.md, skills) is the core's job.
  */
+import { cockpitPage } from '../src/cockpit.js';
 import assert from 'node:assert/strict';
 import { workingSourceInventory } from '../bin/checks/scan.js';
 import { spawnSync } from 'node:child_process';
