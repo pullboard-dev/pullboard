@@ -20,12 +20,25 @@ import { storedCellLintFiles } from '../src/cell-lint-store.js';
 import { writeCellLintBaseline } from '../src/cell-lint-store.js';
 import { planCellLintBaseline } from '../src/cell-lint-baseline-plan.js';
 import { cellLintReport } from '../src/cell-lints.js';
+import { CELL_METRICS } from '../src/cell-lints.js';
 import { cellLintBaseline } from '../src/cell-lint-ratchet.js';
 import { cellLintGrowth } from '../src/cell-lint-ratchet.js';
 import { lowerCellLintBaseline } from '../src/cell-lint-ratchet.js';
 import { runFixtureChild } from './fixture-child.js';
+import { fixture as planFixture } from './cells-plan-fixture.js';
 
 const BIN = fileURLToPath(new URL('../bin/cell-lints.js', import.meta.url));
+const PLAN_BIN = fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url));
+const TRANSITION_FILE = 'bin/cells-plan/transition.json';
+/** Build a report-shaped value for exact identity-collision controls without filesystem side effects. */
+function identityReport(pathMap, { boundaries = [], unreachableExports = [] } = {}) {
+  const selected = { boundaries, unreachableExports };
+  const metrics = Object.fromEntries(CELL_METRICS.map(metric => {
+    const findings = selected[metric] ?? [];
+    return [metric, { count: findings.reduce((sum, finding) => sum + finding.count, 0), findings }];
+  }));
+  return { pathMap, metrics };
+}
 /** Create actual files and an explicit root import map; no source modules execute during reports. */
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-cell-lints-'));
@@ -178,7 +191,129 @@ test('a committed src-to-cell path map preserves existing debt identities while 
   assert.ok(after.metrics.fileSize.count < before.metrics.fileSize.count);
   assert.deepEqual(cellLintGrowth(after, baseline), []);
   box.put('packages/sample/index.js', 'export const value = 1; export const unused = 2; export const newlyUnused = 3;\n');
-  assert.ok(cellLintGrowth(box.report(), baseline).some(row => row.key.endsWith('#newlyUnused')));
+  assert.ok(cellLintGrowth(box.report(), baseline).some(row => row.metric === 'unreachableExports'
+    && row.key === 'packages/sample/index.js#newlyUnused'));
+});
+
+test('normalized aliases preserve collision growth and keep unrelated identities separate [C7,CD64]', () => {
+  const map = { 'src/legacy-edge.js': 'packages/sample/index.js', 'src/legacy.js': 'packages/sample/index.js' };
+  const before = identityReport(map, {
+    boundaries: [{ key: 'apps/demo/index.js->src/legacy-edge.js', count: 1 }],
+    unreachableExports: [{ key: 'src/legacy.js#unused', count: 1 }],
+  });
+  const snapshot = cellLintBaseline(before);
+  assert.deepEqual(cellLintGrowth(before, snapshot), [], 'a normalized generation consumes no debt twice');
+
+  const duplicate = identityReport(map, {
+    boundaries: [
+      { key: 'apps/demo/index.js->src/legacy-edge.js', count: 1 },
+      { key: 'apps/demo/index.js->packages/sample/index.js', count: 1 },
+    ],
+    unreachableExports: [
+      { key: 'src/legacy.js#unused', count: 1 },
+      { key: 'packages/sample/index.js#unused', count: 1 },
+    ],
+  });
+  const duplicateGrowth = cellLintGrowth(duplicate, snapshot);
+  assert.ok(duplicateGrowth.some(row => row.metric === 'boundaries'
+    && row.key === 'apps/demo/index.js->packages/sample/index.js' && row.actual === 2 && row.allowed === 1));
+  assert.ok(duplicateGrowth.some(row => row.metric === 'unreachableExports'
+    && row.key === 'packages/sample/index.js#unused' && row.actual === 2 && row.allowed === 1));
+  assert.equal(cellLintBaseline(duplicate).metrics.boundaries.count, 2, 'normalization leaves raw boundary totals intact');
+  assert.equal(cellLintBaseline(duplicate).metrics.unreachableExports.count, 2, 'normalization leaves raw export totals intact');
+
+  const unrelated = identityReport(map, {
+    boundaries: [{ key: 'apps/demo/index.js->packages/other/index.js', count: 1 }],
+    unreachableExports: [{ key: 'packages/sample/index.js#newName', count: 1 }],
+  });
+  const unrelatedGrowth = cellLintGrowth(unrelated, snapshot);
+  assert.ok(unrelatedGrowth.some(row => row.metric === 'boundaries'
+    && row.key === 'apps/demo/index.js->packages/other/index.js' && row.allowed === 0));
+  assert.ok(unrelatedGrowth.some(row => row.metric === 'unreachableExports'
+    && row.key === 'packages/sample/index.js#newName' && row.allowed === 0));
+});
+
+test('sharded committed path maps activate ratchets while absent maps remain advisory [C7]', t => {
+  const box = fixture(t), run = mode => runFixtureChild(process.execPath, [BIN, mode, box.root], { encoding: 'utf8' });
+  const before = box.report(), baseline = cellLintBaseline(before);
+  assert.equal(before.transition.active, true, 'a repository with no committed map stays in the advisory transition');
+  box.put('src/advisory-rise.js', 'export const value = 1;\n');
+  assert.ok(cellLintGrowth(box.report(), baseline).some(row => row.key === 'src/advisory-rise.js' && row.advisory));
+
+  box.put('bin/cells-plan/path-map/git.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
+  box.git('add', '-A'); box.git('commit', '-qm', 'test: accept a sharded package migration map');
+  const moved = box.report();
+  assert.equal(moved.transition.active, false, 'the committed shard closes the transition without a root map');
+  assert.deepEqual(moved.transition.witness, ['src/previous.js', 'packages/sample/index.js']);
+  assert.ok(!moved.metrics.strays.findings.some(row => row.key === 'bin/cells-plan/path-map/git.json'), 'a path-map shard is tooling metadata, not a stray');
+  assert.ok(!moved.metrics.unreachable.findings.some(row => row.key === 'bin/cells-plan/path-map/git.json'), 'a path-map shard is not an application module');
+  const strictPlan = planCellLintBaseline(moved), strictBaseline = strictPlan.baseline;
+  writeCellLintBaseline(box.root, strictBaseline, {
+    initialize: true,
+    verify: () => JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(strictBaseline),
+  });
+  assert.deepEqual(cellLintGrowth(moved, strictBaseline), [], 'a same-generation snapshot does not remap its own debt twice');
+  box.put('src/strict-rise.js', 'export const value = 2;\n');
+  const strict = box.report(), rise = cellLintGrowth(strict, strictBaseline);
+  assert.ok(rise.some(row => row.key === 'src/strict-rise.js' && !row.advisory), 'post-migration source debt is enforced');
+  assert.notEqual(run('--check').status, 0, 'the actual CLI refuses a rise with only a committed shard map');
+});
+
+test('a committed #1781 marker makes new debt advisory until #1770 deletes it, but never cycles or the hard cap [C7,CD64]', t => {
+  const box = fixture(t), run = mode => runFixtureChild(process.execPath, [BIN, mode, box.root], { encoding: 'utf8' });
+  box.put('bin/cells-plan/path-map/sample.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
+  box.git('add', '-A'); box.git('commit', '-qm', 'test: accept a package migration');
+  const baseline = planCellLintBaseline(box.report()).baseline;
+  writeCellLintBaseline(box.root, baseline, {
+    initialize: true,
+    verify: () => JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(baseline),
+  });
+  assert.equal(box.report().transition.active, false, 'the committed package map has already closed the earlier transition');
+  box.put(TRANSITION_FILE, '{"version":1,"deleteItem":1770}\n');
+  assert.equal(box.report().transition.active, false, 'an uncommitted marker cannot grant advisory growth');
+  box.git('add', '-A'); box.git('commit', '-qm', 'test: commit the named transition marker');
+  const marked = box.report();
+  assert.deepEqual([marked.transition.item, marked.transition.until, marked.transition.active], [1781, 1770, true]);
+  assert.ok(!marked.metrics.strays.findings.some(row => row.key === TRANSITION_FILE));
+  assert.ok(!marked.metrics.unreachable.findings.some(row => row.key === TRANSITION_FILE));
+  box.put('apps/demo/index.js', "import { value } from '../../packages/sample/index.js'; console.log(value);\n");
+  const advisory = cellLintGrowth(box.report(), baseline);
+  assert.ok(advisory.some(row => row.metric === 'boundaries' && row.key === 'apps/demo/index.js->packages/sample/index.js'
+    && row.advisory && row.item === 1781 && row.until === 1770));
+  assert.deepEqual(cellLintGrowth(box.report(), baseline, { enforcedOnly: true }), []);
+  const checked = run('--check');
+  assert.equal(checked.status, 0, checked.stderr);
+  assert.match(checked.stderr, /advisory item #1781 until #1770: boundaries:apps\/demo\/index\.js->packages\/sample\/index\.js/u);
+  assert.throws(() => lowerCellLintBaseline(box.report(), baseline), { code: 'CELL_LINT_ROSE' }, 'advisory rises cannot raise the ratchet');
+  box.put('packages/sample/index.js', "import '#other'; export const value = 1;\n" + '\n'.repeat(1500));
+  box.put('packages/other/index.js', "import '#sample';\n");
+  const strict = cellLintGrowth(box.report(), baseline, { enforcedOnly: true });
+  assert.ok(strict.some(row => row.metric === 'cycles' && !row.advisory));
+  assert.ok(strict.some(row => row.metric === 'fileSize' && row.key === 'packages/sample/index.js' && !row.advisory));
+  assert.notEqual(run('--check').status, 0, 'the actual CLI refuses a cycle and over-1500-line file with the marker');
+  box.put('packages/sample/index.js', 'export const value = 1;\n');
+  box.remove('packages/other');
+  box.remove(TRANSITION_FILE);
+  box.git('add', '-A'); box.git('commit', '-qm', 'test: delete the marker after the migration');
+  assert.equal(box.report().transition.active, false);
+  assert.ok(cellLintGrowth(box.report(), baseline, { enforcedOnly: true }).some(row => row.metric === 'boundaries' && !row.advisory));
+  assert.notEqual(run('--check').status, 0, 'deleting the marker restores strict identity growth');
+  box.put(TRANSITION_FILE, '{"version":1,"deleteItem":1771}\n');
+  box.git('add', '-A'); box.git('commit', '-qm', 'test: malformed marker');
+  const malformed = box.report();
+  assert.equal(malformed.transition.active, false, 'another deletion item grants no transition');
+  assert.ok(malformed.metrics.unknown.findings.some(row => row.key.includes(TRANSITION_FILE)), 'invalid marker remains named debt');
+});
+
+test('the actual plan --write preserves only the named transition marker beside generated shards [C7,CD64]', t => {
+  const { root, put } = planFixture(t);
+  const bytes = '{"version":1,"deleteItem":1770}\n';
+  put(TRANSITION_FILE, bytes);
+  put('bin/cells-plan/stale.json', '{}\n');
+  const result = runFixtureChild(process.execPath, [PLAN_BIN, '--write'], { cwd: root, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(join(root, TRANSITION_FILE), 'utf8'), bytes, 'regeneration preserves the exact marker bytes');
+  assert.throws(() => readFileSync(join(root, 'bin/cells-plan/stale.json')), { code: 'ENOENT' }, 'unrelated metadata is not exempted');
 });
 
 test('property keys and member spellings never prove imported binding reads; shorthand and calls do [C7,CD62]', t => {

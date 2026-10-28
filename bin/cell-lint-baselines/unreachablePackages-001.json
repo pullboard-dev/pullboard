@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "metric": "unreachablePackages",
+  "allowances": {
+    "packages/commits": 1,
+    "packages/stats": 1
+  }
+}
