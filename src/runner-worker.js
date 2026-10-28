@@ -594,21 +594,10 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     const roots = [...new Set([spec.commit, ...(spec.trunk ? [spec.trunk.commit] : []), ...(spec.trustedMode ? [spec.trustedMode.policyCommit, spec.trustedMode.trunk.commit] : [])])];
     /** Log exact ref deletions without reporting candidate source or credentials. */
     const logPrune = result => process.stderr.write(`PULLBOARD_RUNNER_CACHE_PRUNE ${spec.id} ${JSON.stringify(result)}\n`);
-    const proven = new Set();
-    await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune, proven });
-    const refLines = await git(cache, ['for-each-ref', '--format=%(refname) %(objectname)', 'refs/pullboard/candidates', 'refs/pullboard/published'], env);
-    const tips = [];
-    if (refLines) for (const line of refLines.split(/\r?\n/u)) {
-      const split = /^(refs\/pullboard\/(?:candidates|published)\/.+) ([a-f0-9]{40,64})$/u.exec(line);
-      if (!split || split[2].length !== spec.commit.length) {
-        throw new Error('source history cache contains an invalid candidate ref');
-      }
-      if (split[1].slice(split[1].lastIndexOf('/') + 1) !== split[2]) {
-        throw new Error('source history cache contains an invalid candidate ref');
-      }
-      tips.push(split[2]);
-    }
-    const uniqueTips = [...new Set(tips)];
+    const proven = new Set(), inventory = new Map();
+    await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune, proven, inventory });
+    const uniqueTips = [...new Set(inventory.values())];
+    if (uniqueTips.some(tip => tip.length !== spec.commit.length)) throw new Error('source history cache contains an invalid candidate ref');
     if (uniqueTips.length > 1_024) throw new Error('source history cache needs maintenance');
     if (uniqueTips.some(tip => !proven.has(tip))) throw new Error('source history cache contains a missing or non-commit tip');
     const requestedTagObjects = [...new Set(spec.tags.flatMap(tag => tag.chain))];
@@ -645,7 +634,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     for (const commit of roots) proven.add(commit);
     const candidateHistory = new Set((await git(cache, ['rev-list', spec.commit], env)).split(/\r?\n/u).filter(Boolean));
     if (!candidateHistory.size) throw new Error('source history is incomplete');
-    if (spec.originBase) await git(cache, ['merge-base', '--is-ancestor', spec.originBase, spec.commit], env);
+    if (spec.originBase && !candidateHistory.has(spec.originBase)) throw new Error('source history does not contain its origin base');
     const closure = new Set((await git(cache, ['rev-list', '--objects', ...roots], env)).split(/\r?\n/u)
       .map(line => line.match(/^([a-f0-9]{40,64})(?:\s|$)/u)?.[1]).filter(Boolean));
     closure.add(spec.commit);
@@ -752,8 +741,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
         }
       }
     }
-    if (await git(root, ['rev-parse', 'HEAD', 'HEAD^{tree}'], env) !== `${spec.commit}\n${spec.tree}`
-      || await git(root, ['rev-parse', '--is-shallow-repository'], env) !== 'false'
+    if (await git(root, ['rev-parse', '--is-shallow-repository', 'HEAD', 'HEAD^{tree}'], env) !== `false\n${spec.commit}\n${spec.tree}`
       || existsSync(join(root, '.git', 'objects', 'info', 'alternates'))) {
       throw new Error('isolated source checkout does not contain the complete requested history');
     }

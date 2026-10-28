@@ -104,8 +104,9 @@ async function cacheRefs(cache, git, env, proven) {
 }
 
 /** Prune only unprotected candidate refs under the caller's actual exclusive repository-cache lease. `proven` is the
- * set of object ids this checkout already verified as commits; object types never change, so each id is checked once. */
-export async function pruneSourceCache({ cache, runnerRoot, repoId, roots, lease, git, env, limit = SOURCE_CACHE_CANDIDATES, log = () => {}, proven = new Set() }) {
+ * set of object ids this checkout already verified as commits; object types never change, so each id is checked once.
+ * Optional `inventory` receives only actual retained refs after Git has committed any deletions. */
+export async function pruneSourceCache({ cache, runnerRoot, repoId, roots, lease, git, env, limit = SOURCE_CACHE_CANDIDATES, log = () => {}, proven = new Set(), inventory }) {
   if (typeof lease?.release !== 'function' || !Number.isSafeInteger(limit) || limit < 1 || roots.some(root => !SHA.test(root))) {
     throw new Error('source cache pruning requires its owned lease and valid candidate bound');
   }
@@ -130,6 +131,10 @@ export async function pruneSourceCache({ cache, runnerRoot, repoId, roots, lease
       `start\n${remove.map(ref => `delete ${ref.name} ${ref.head}`).join('\n')}\nprepare\ncommit\n`);
   }
   const removed = new Set(remove.map(ref => ref.name));
+  if (inventory) {
+    inventory.clear();
+    for (const ref of refs) if (!removed.has(ref.name)) inventory.set(ref.name, ref.head);
+  }
   const retained = new Set(candidates.filter(ref => !removed.has(ref.name)).map(ref => ref.name));
   for (const root of roots) retained.add(`refs/pullboard/candidates/${root}`);
   index.uses = [...uses].filter(([name]) => retained.has(name)).sort(([left], [right]) => left.localeCompare(right, 'en'));
