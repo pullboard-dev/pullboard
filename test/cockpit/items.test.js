@@ -1041,7 +1041,7 @@ test('in-text item references stay inline and open their target at phone and des
       await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
 
       await chrome.click(`document.querySelector('[data-tab="activity"]')`);
-      await chrome.waitFor("document.querySelector('#activity .activity-quote a.ref[data-go="item:1"]')");
+      await chrome.waitFor(`document.querySelector('#activity .activity-quote a.ref[data-go="item:1"]')`);
       await chrome.click(`document.querySelector('#activity .activity-quote a.ref[data-go="item:1"]')`);
       await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
 
