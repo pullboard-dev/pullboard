@@ -1,5 +1,5 @@
 /** Move one leaf with exact reversible byte custody; never evaluate the moved module [C7]. */
-import { Refused } from './refused.js';
+import { Refused } from '../src/refused.js';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {

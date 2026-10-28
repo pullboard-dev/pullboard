@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Apply one explicit leaf move, or reverse its exact uncommitted transaction [C7]. */
 import { resolve } from 'node:path';
-import { cellsMove } from '../src/cells-move.js';
+import { cellsMove } from './cells-move-tool.js';
 import { Refused } from '../src/refused.js';
 
 try {

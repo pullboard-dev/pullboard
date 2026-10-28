@@ -6,7 +6,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellsMove } from '../src/cells-move.js';
+import { cellsMove } from '../bin/cells-move-tool.js';
 
 /** Execute real Git with private fixture identity and no inherited repository selector. */
 function git(root, ...args) {
