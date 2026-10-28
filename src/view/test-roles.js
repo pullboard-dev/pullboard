@@ -1,5 +1,9 @@
 /** Explicit test roles are an inventory, not completion evidence or a browser-admission exemption [N26,C7]. */
 export const VIEW_TEST_ROLES = Object.freeze({
+  "test/cockpit/group-pure.test.js": {
+    "kind": "logic",
+    "reason": "Cross-repository history selection and Needs/event HTML receive plain observations plus explicitly prepared rich fields, without a native board or browser."
+  },
   "test/cockpit/auxiliary-pure.test.js": {
     "kind": "logic",
     "reason": "Settings rows, hosted state and star markup run over supplied data, without the manifest reader, network reader or DOM writer."

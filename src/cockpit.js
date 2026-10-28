@@ -1,3 +1,6 @@
+import { groupActivityModel } from './view/group-render.js';
+import { groupNeedsHtml } from './view/group-render.js';
+import { groupEventHtml } from './view/group-render.js';
 import { lifecycleEvent } from './item-list.js';
 import { lifecycleMove } from './item-list.js';
 import { revealSegmentedChoices } from './view/seg-toggle.js';
@@ -795,19 +798,25 @@ function renderSide() {
     return output.map((part, n) => (n && typeof part === 'string' && typeof output[n - 1] === 'string' ? '<br>' : '') + (typeof part === 'string' ? part : part.list ?? part.block)).join('');
   }
 
-/** Draw a project's cross-repo Needs-you list and one activity feed. */
+const groupActivityModel = (${groupActivityModel.toString()});
+const groupNeedsHtml = (${groupNeedsHtml.toString()});
+const groupEventHtml = (${groupEventHtml.toString()});
+/** Prepare cross-repository labels and links at the browser boundary, then draw pure HTML. */
 function renderGroup(group) {
-  const needs = group.repos.flatMap((repo) => projectNeeds(repo.board).map((row) => ({ ...row, repo })));
-  $('group-needs').innerHTML = needs.length ? needs.map((row) => {
-    const titles = new Map(row.repo.board.items.map((item) => [String(item.id), item.title]));
-    const text = rich(row.text, titles, true, row.repo.root);
-    return '<div class="group-need"><b>' + esc(row.repo.name) + '</b><code>' + esc(row.ref) + '</code><span>' + text + '</span><button data-root="' + esc(row.repo.root) + '" type="button"><em>' + esc(row.kind === 'pending' ? 'answer ' + row.ref : row.what) + (row.at ? ', ' + age(row.at) : '') + ' →</em></button></div>';
-  }).join('') : '<div class="empty">Nothing needs you across this project.</div>';
-  const events = group.repos.flatMap((repo) => {
-    const titles = new Map(repo.board.items.map((item) => [String(item.id), item.title]));
-    return repo.board.events.map((event) => ({ ...event, repo, titles, title: event.item_id ? titles.get(String(event.item_id)) : null }));
-  }).sort((a, b) => b.event_at.localeCompare(a.event_at)).slice(0, 80);
-  $('group-activity').innerHTML = events.length ? byDay(events, (event) => event.event_at, (event) => '<div><time>' + clock(event.event_at) + '</time><div class="act"><b class="repo-label">' + esc(event.repo.name) + '</b> <span>' + esc(agentName(event.event_by, event.repo.board)) + ' ' + esc(event.event_kind) + (event.item_id ? ' <a class="ref" href="' + esc(itemAddress(event.item_id, event.repo.root)) + '" data-go="item:' + event.item_id + '"' + (event.repo.root === view.root ? '' : ' data-board="' + esc(event.repo.root) + '"') + '>#' + event.item_id + '</a>' + (event.title ? ' ' + rich(event.title, event.titles, true, event.repo.root) : '') : '') + '</span></div></div>') : '<div class="empty">No activity yet.</div>';
+  const needs = group.repos.flatMap(repo => projectNeeds(repo.board).map(row => ({ ...row, repo })));
+  $('group-needs').innerHTML = groupNeedsHtml(needs.map(row => {
+    const titles = new Map(row.repo.board.items.map(item => [String(item.id), item.title]));
+    return { repoName: row.repo.name, repoRoot: row.repo.root, ref: row.ref,
+      textHtml: rich(row.text, titles, true, row.repo.root), actionLabel: row.kind === 'pending' ? 'answer ' + row.ref : row.what,
+      ageHtml: row.at ? age(row.at) : '' };
+  }));
+  const events = groupActivityModel(group.repos);
+  $('group-activity').innerHTML = events.length ? byDay(events, event => event.event_at, event => groupEventHtml({
+    timeLabel: clock(event.event_at), repoName: event.repo.name, agentLabel: agentName(event.event_by, event.repo.board), kind: event.event_kind,
+    itemId: event.item_id, itemHref: event.item_id ? itemAddress(event.item_id, event.repo.root) : null,
+    foreignRoot: event.repo.root === view.root ? null : event.repo.root,
+    titleHtml: event.title ? rich(event.title, event.titles, true, event.repo.root) : '',
+  })) : '<div class="empty">No activity yet.</div>';
 }
 
 /**
