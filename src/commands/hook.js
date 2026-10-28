@@ -26,6 +26,8 @@ import {
 } from '../gate.js';
 import {
   headTree,
+  headCommit,
+  tryGit,
   isClean,
   repoInfo,
   untracked,
@@ -94,6 +96,8 @@ export async function hookCommand(io, { first, second }) {
       const items = store.listItems(board, { all: true });
       const landing = info.isMain || store.landingBatches(board).some(batch => landingBatchOwnsRoot(batch, info.root));
       return {
+        migration: landing && existsSync(gitPath(info.root, 'MERGE_HEAD'))
+          ? { base: headCommit(info.root), side: tryGit(info.root, ['rev-parse', '--verify', 'MERGE_HEAD']).stdout } : null,
         claims: items.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id),
         landings: landing ? items.filter(item => item.item_status === 'verified' && !item.item_merged_commit) : [],
       };

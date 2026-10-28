@@ -116,7 +116,7 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
       if (signal.aborted || failure) throw signal.reason ?? failure;
       if (message.operation === 'check') { await checkLease(); checkLeaseNow(); return null; }
       if (message.operation === 'wait') return await onWait?.(message.args[0]);
-      if (!['recordLandingBatch', 'finishLandingBatch', 'recordLandingFlake', 'recordLandingTestDefect', 'recordFlakeObservation', 'recordGateRun', 'reopen', 'appendFact'].includes(message.operation)) {
+      if (!['recordTrainLanding', 'recordLandingBatch', 'finishLandingBatch', 'recordLandingFlake', 'recordLandingTestDefect', 'recordFlakeObservation', 'recordGateRun', 'reopen', 'appendFact'].includes(message.operation)) {
         throw new Refused('LAND_WORKER', 'the landing worker requested an unsupported operation; stop it and inspect pullboard resume');
       }
       return await write(message.operation, message.args);

@@ -1,3 +1,6 @@
+import { completeGate } from './landing-completion.js';
+import { finalizeLandingEnvelope } from './land-envelope.js';
+import { prepareNativeTrainLanding } from './train-landing.js';
 import { requirePublishGreen } from './publish-pause.js';
 import { runnerExecutionServices } from './runners.js';
 import { landingExecutionServices } from './landing-shards.js';
@@ -28,13 +31,10 @@ import {
   randomUUID,
 } from 'node:crypto';
 import {
-  closeSync,
   copyFileSync,
   existsSync,
   mkdirSync,
-  openSync,
   readFileSync,
-  readSync,
   realpathSync,
 } from 'node:fs';
 import {
@@ -349,75 +349,6 @@ async function mergeGroup(state, items) {
   return { items: merged, conflicts, resolutions, tip: headCommit(batch.root), doctrineCounts };
 }
 
-/** Read positive TAP completion counts while rejecting the canonical runner's incomplete accounts. */
-function completionAccount() {
-  let early = false;
-  let plan = null;
-  let topLevel = 0;
-  let counts = {};
-  let prior = true;
-  /** Require every completed TAP stream, not just the last appended phase, to account for its tests. */
-  const finished = () => !early && Number.isSafeInteger(plan) && plan > 0 && plan === topLevel && Number.isSafeInteger(counts.tests)
-    && Number.isSafeInteger(counts.pass) && Number.isSafeInteger(counts.fail) && (counts.cancelled ?? 0) === 0
-    && counts.pass + counts.fail + (counts.skipped ?? 0) + (counts.todo ?? 0) === counts.tests;
-  /** Recognize canonical incomplete accounts even when only a bounded line prefix is retained. */
-  const markerPrefix = (text) => {
-    if (/^(?:Landing gate stopped early after |Files not run: |Interrupted test files: )/u.test(text)) early = true;
-  };
-  return {
-    markerPrefix,
-    /** Consume one complete output line without retaining test output or diagnostic blocks. */
-    line(text) {
-      markerPrefix(text);
-      if (/^TAP version \d+\s*$/u.test(text) && (plan !== null || topLevel || Object.keys(counts).length)) {
-        prior = prior && finished(); plan = null; topLevel = 0; counts = {};
-      }
-      if (/^(?:not )?ok \d+\b/u.test(text)) topLevel++;
-      const planned = /^1\.\.(\d+)\s*$/u.exec(text);
-      if (planned) plan = Number(planned[1]);
-      const count = /^# (tests|pass|fail|cancelled|skipped|todo) (\d+)\s*$/u.exec(text);
-      if (count) counts[count[1]] = Number(count[2]);
-    },
-    /** A complete plan accounts for every test and contains no interrupted or cancelled work. */
-    complete() {
-      return prior && finished();
-    },
-  };
-}
-
-/** Require positive completion evidence from this run, or stream the retained legacy raw account. */
-function completeGate(gate) {
-  if (typeof gate.complete === 'boolean') return gate.complete;
-  const account = completionAccount();
-  if (typeof gate.output === 'string') {
-    for (const line of gate.output.split('\n')) account.line(line);
-    return account.complete();
-  }
-  if (!gate.logPath || !existsSync(gate.logPath)) return false;
-  const input = openSync(gate.logPath, 'r');
-  const chunk = Buffer.alloc(64 * 1024);
-  let pending = '';
-  let oversized = false;
-  try {
-    let count;
-    while ((count = readSync(input, chunk, 0, chunk.length, null)) > 0) {
-      const parts = chunk.toString('latin1', 0, count).split('\n');
-      for (const [index, part] of parts.entries()) {
-        if (index) {
-          if (oversized) account.markerPrefix(pending);
-          else account.line(pending);
-          pending = ''; oversized = false;
-        }
-        if (pending.length + part.length > 256) oversized = true;
-        pending += part.slice(0, 256 - pending.length);
-      }
-    }
-    if (oversized) account.markerPrefix(pending);
-    else account.line(pending);
-    return account.complete();
-  } finally { closeSync(input); }
-}
-
 /** Whether current person waivers cover every named failure of this exact recorded run. */
 function coveredFailures(state, gate) {
   return gate.failures.length > 0 && gate.failures.every((failure) => failure.file && store.landingWaiverFor(state.board, failure));
@@ -447,19 +378,32 @@ function batchAffectedTests(state) {
 function batchGatePlan(state, { localTrunk = false } = {}) {
   const selection = batchAffectedTests(state);
   const changed = git(state.batch.root, ['diff', '--no-renames', '--name-only', '-z', state.batch.base, 'HEAD']).split('\0').filter(Boolean);
-  const deferred = localTrunk ? deferredSelections(state).flatMap(row => row.files) : [];
+  // Receipt-enabled publication runs the unchanged full command on its final envelope; this pass is only its floor.
+  const receiptFloor = state.config.landing?.requireReceipts === true && Boolean(state.config.affectedTests);
+  const deferred = localTrunk || receiptFloor ? deferredSelections(state).flatMap(row => row.files) : [];
   const valued = placementLandingPlan(state.batch.root, state.config, selection, [...selection.mandatory, ...deferred], changed);
   if (valued) return valued;
-  if (localTrunk) {
+  if (localTrunk || receiptFloor) {
     const files = [...new Set([...selection.files, ...deferred])].sort();
     const affected = files.length ? `${state.config.affectedTests} ${files.map(quote).join(' ')}` : '';
-    const command = selection.full ? affected ? `(\n${state.config.gate}\n) && ${affected}` : state.config.gate : affected || 'true';
+    const command = selection.full && !receiptFloor ? affected ? `(\n${state.config.gate}\n) && ${affected}` : state.config.gate : affected || 'true';
     const config = { ...state.config, gate: command };
-    return { config, files, subset: !selection.full, affectedGate: createHash('sha256').update(command).digest('hex') };
+    return { config, files, subset: receiptFloor || !selection.full, affectedGate: createHash('sha256').update(command).digest('hex') };
   }
   const appended = selection.files.length ? `${state.config.affectedTests} ${selection.files.map(quote).join(' ')}` : '';
   const config = appended ? { ...state.config, gate: `(\n${state.config.gate}\n) && ${appended}` } : state.config;
   return { config, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
+}
+
+/** Preserve the same native failure and gate-run observer for floors and exact envelope gates. */
+function landingRunObserver(state, config, commit) {
+  const pin = flakeSource(state.batch.root, { commit, main: state.batch.base });
+  return Object.assign((run, { root, command, lease }) => observeNativeFailure({ root, config, pin, run, command, lease, kind: 'land', checkAtCommit: state.checkAtCommit,
+    record: observation => {
+      const owner = observation.file ? laneOf(state.config, observation.file) : 'coordinator';
+      const lane = owner === 'coordinator' ? store.getItem(state.board, state.batch.items[0].id).item_lane : owner;
+      return state.write('recordFlakeObservation', [{ agentId: 'coordinator', observation, lane }]);
+    } }), { main: pin.main, recordRun: receiptId => recordLandingRun(state, receiptId) });
 }
 
 /** Run one source-pinned gate or selective floor, retaining its complete immutable phase log. */
@@ -475,13 +419,7 @@ async function gateGroup(state, label, options) {
   mkdirSync(directory, { recursive: true });
   const logPath = join(directory, `${label}-${state.batch.revision}.log`);
   await save(state, { state: 'gating', tip: headCommit(state.batch.root), logPath });
-  const pin = flakeSource(state.batch.root, { commit, main: state.batch.base });
-  const onFailure = Object.assign((run, { root, command, lease }) => observeNativeFailure({ root, config, pin, run, command, lease, kind: 'land', checkAtCommit: state.checkAtCommit,
-    record: observation => {
-      const owner = observation.file ? laneOf(state.config, observation.file) : 'coordinator';
-      const lane = owner === 'coordinator' ? store.getItem(state.board, state.batch.items[0].id).item_lane : owner;
-      return state.write('recordFlakeObservation', [{ agentId: 'coordinator', observation, lane }]);
-    } }), { main: pin.main, recordRun: receiptId => recordLandingRun(state, receiptId) });
+  const onFailure = landingRunObserver(state, config, commit);
   const gate = subset
     ? await runLocalLandingGuard(state.batch.root, config, { files, directory, label, onWait: state.onWait,
       waivers: liveWaiverProjection(state.board), onFailure })
@@ -1073,7 +1011,7 @@ function publicationInputs(state, batch) {
 
 /** Push from the actual gate-owning worktree, preserving its native stamp and canonical batch root. */
 function parallelPublicationRoot(state, batch) {
-  const root = batch.parallelProofRoot ?? batch.root;
+  const root = state.config.landing?.requireReceipts === true ? batch.root : batch.parallelProofRoot ?? batch.root;
   if (root === batch.root) return root;
   const owner = (batch.parallelCandidates ?? []).some(candidate => candidate.snapshot.root === root
     && (candidate.gate?.tree === batch.proof?.tree || candidate.snapshot.gateResults?.some(gate => gate.tree === batch.proof?.tree)));
@@ -1096,6 +1034,7 @@ function parallelPublicationRoot(state, batch) {
 
 /** Push the exact gated tip before recording receipts, then fast-forward only a clean unchanged main. */
 async function publish(state) {
+  await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
   let batch = state.batch;
   requireLandingCarries(state, batch);
   const remote = requirePushTarget(state.root, batch.branch);
@@ -1119,7 +1058,9 @@ async function publish(state) {
   if (tryGit(batch.root, ['ls-remote', remote, batch.branch]).stdout.split(/\s+/u)[0] !== batch.tip) {
     throw new Refused('LAND_REMOTE_MOVED', 'the remote no longer names the pushed batch tip; inspect it before adopting, without rewriting the remote');
   }
-  state.batch = await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
+  state.batch = state.config.landing?.requireReceipts === true
+    ? await state.write('recordTrainLanding', [prepareNativeTrainLanding(state.batch.root, state.board, state.batch.id, state.batch.proof?.receipt?.id)])
+    : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
   await state.checkLease();
   const main = mainCheckout(state.root);
   if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
@@ -1228,9 +1169,12 @@ function requireLandingCarries(state, batch) {
 
 /** Record a tier-1 batch's merged receipts and move the local trunk to it; an adopted 'trunk' batch resumes here (#801). */
 async function finishTrunk(state) {
+  await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
   await state.checkLease();
   publicationInputs(state, state.batch);
-  state.batch = await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
+  state.batch = state.config.landing?.requireReceipts === true
+    ? await state.write('recordTrainLanding', [prepareNativeTrainLanding(state.batch.root, state.board, state.batch.id, state.batch.proof?.receipt?.id)])
+    : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
   await state.checkLease();
   const main = mainCheckout(state.root);
   if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
@@ -1314,7 +1258,7 @@ export async function land(options) {
     /** Bind each batch transition to this acknowledged grant, never to an optimistic local result. */
     const write = async (operation, args) => {
       await lease.assertHeld();
-      const values = ['recordLandingBatch', 'finishLandingBatch'].includes(operation)
+      const values = ['recordTrainLanding', 'recordLandingBatch', 'finishLandingBatch'].includes(operation)
         ? [{ ...args[0], landingFence: lease.fence }, ...args.slice(1)] : args;
       return options.write(operation, values);
     };
