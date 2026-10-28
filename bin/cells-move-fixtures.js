@@ -1,5 +1,6 @@
 /** Recognize fixture source reads without editing destinations, oracles or unevaluated fixture programs [C7]. */
 import { posix } from 'node:path';
+import { createHash } from 'node:crypto';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../src/cell-binding-uses.js';
 
@@ -19,54 +20,9 @@ function trim(code, start, end) {
   return { start, end };
 }
 
-/** Recognize imported module identities and exclude their declarations from binding-read probes. */
-function imports(source, scanned, problems, file) {
-  const bindings = new Map();
-  let body = scanned.code;
-  for (const literal of scanned.strings) {
-    if (!['node:fs', 'fs', 'node:path', 'path', 'node:url', 'url'].includes(literal.text)) continue;
-    const before = scanned.code.slice(0, literal.start);
-    const match = /\bimport\s*([^;]*?)\bfrom\s*$/u.exec(before);
-    if (!match) {
-      if (/\b(?:require|import)\s*\(\s*$/u.test(before)) problems.push(`${file}: unsupported dynamic/CommonJS fixture filesystem binding`);
-      continue;
-    }
-    const clause = match[1].trim(), module = literal.text.replace(/^node:/u, '');
-    const namespace = new RegExp(`^\\*\\s*as\\s+(${ID})$`, 'u').exec(clause);
-    if (namespace) bindings.set(namespace[1], { module, imported: '*' });
-    else if (new RegExp(`^${ID}$`, 'u').test(clause)) bindings.set(clause, { module, imported: '*' });
-    else if (clause.startsWith('{') && clause.endsWith('}')) {
-      for (const part of clause.slice(1, -1).split(',').map(value => value.trim()).filter(Boolean)) {
-        const named = new RegExp(`^(${ID})(?:\\s+as\\s+(${ID}))?$`, 'u').exec(part);
-        if (!named) problems.push(`${file}: unsupported ${module} import binding ${part}`);
-        else bindings.set(named[2] ?? named[1], { module, imported: named[1] });
-      }
-    } else problems.push(`${file}: unsupported mixed ${module} import bindings`);
-    body = blank(body, match.index, literal.end);
-  }
-  return { bindings, body };
-}
-
-/** Return nonoverlapping source-only edits and explicit unsupported sites; never execute candidate code. */
-export function fixtureSourceEdits(source, { file, moves }) {
-  const moved = new Map(moves), edits = [], problems = [];
-  if (source.length > 1024 ** 2) return { edits, problems: [`${file}: fixture source analysis exceeds its byte budget`] };
-  const scanned = lex(source);
-  const { code, strings } = scanned;
-  const imported = imports(source, scanned, problems, file);
-  if (![...imported.bindings.values()].some(binding => binding.module === 'fs'
-    && (binding.imported === '*' || READS.has(binding.imported)))) return { edits, problems };
-  const declarations = new Map(), loops = [], consumed = new Set(), scopedReads = new Map();
+/** Reuse the same balanced expression ranges for fixture and immutable producer bytes. */
+function expressions(code, strings) {
   const literalStarts = new Map(strings.map(value => [value.start, value]));
-  const moduleDirectory = posix.dirname(posix.join(REPOSITORY, file));
-  let probeBody = imported.body;
-  if (!moved.size) return { edits, problems: [] };
-
-  /** Name an unsupported site without leaking or rewriting the supplied expression. */
-  function unsupported(at, reason) {
-    problems.push(`${file}:${source.slice(0, at).split('\n').length}: unsupported fixture source: ${reason}`);
-  }
-
   /** Find a balanced code delimiter while strings/templates remain indivisible source tokens. */
   function close(at) {
     const pairs = { '(': ')', '[': ']', '{': '}' }, stack = [pairs[code[at]]];
@@ -98,6 +54,72 @@ export function fixtureSourceEdits(source, { file, moves }) {
     }
     if (code.slice(begin, end).trim()) result.push(trim(code, begin, end));
     return result;
+  }
+
+  return { close, parts };
+}
+
+/** A lexer-exposed slash line cannot establish an import declaration inside a possible regular expression. */
+function slashLine(source, code, at) {
+  let start = at, end = at;
+  while (start > 0 && !/[\n\r\u2028\u2029]/u.test(source[start - 1])) start--;
+  while (end < source.length && !/[\n\r\u2028\u2029]/u.test(source[end])) end++;
+  return code.slice(start, end).includes('/');
+}
+
+/** Recognize imported module identities and exclude their declarations from binding-read probes. */
+function imports(source, scanned, problems, file, { producer = false } = {}) {
+  const bindings = new Map();
+  let body = scanned.code;
+  for (const literal of scanned.strings) {
+    const target = /^\.\.?\/[^?#%\\]+\.js$/u.test(literal.text) ? posix.normalize(posix.join(posix.dirname(file), literal.text)) : null;
+    const native = ['node:fs', 'fs', 'node:path', 'path', 'node:url', 'url'].includes(literal.text);
+    if (!native && (!target || target.startsWith('../') || posix.isAbsolute(target))) continue;
+    const before = scanned.code.slice(0, literal.start);
+    const match = /\bimport\s*([^;]*?)\bfrom\s*$/u.exec(before);
+    if (!match) {
+      if (/\b(?:require|import)\s*\(\s*$/u.test(before)
+        && !(producer && target && /\bimport\s*\(\s*$/u.test(before))) {
+        problems.push(`${file}: unsupported dynamic/CommonJS fixture filesystem binding`);
+      }
+      continue;
+    }
+    if (slashLine(source, scanned.code, match.index)) { problems.push(`${file}: uncertain fixture import declaration`); continue; }
+    const clause = match[1].trim(), module = native ? literal.text.replace(/^node:/u, '') : 'source';
+    const namespace = new RegExp(`^\\*\\s*as\\s+(${ID})$`, 'u').exec(clause);
+    if (namespace) bindings.set(namespace[1], { module, target, imported: '*' });
+    else if (new RegExp(`^${ID}$`, 'u').test(clause)) bindings.set(clause, { module, target, imported: '*' });
+    else if (clause.startsWith('{') && clause.endsWith('}')) {
+      for (const part of clause.slice(1, -1).split(',').map(value => value.trim()).filter(Boolean)) {
+        const named = new RegExp(`^(${ID})(?:\\s+as\\s+(${ID}))?$`, 'u').exec(part);
+        if (!named) problems.push(`${file}: unsupported ${module} import binding ${part}`);
+        else bindings.set(named[2] ?? named[1], { module, target, imported: named[1] });
+      }
+    } else problems.push(`${file}: unsupported mixed ${module} import bindings`);
+    body = blank(body, match.index, literal.end);
+  }
+  return { bindings, body };
+}
+
+/** Return nonoverlapping source-only edits and explicit unsupported sites; never execute candidate code. */
+export function fixtureSourceEdits(source, { file, moves, readSource }) {
+  const moved = new Map(moves), edits = [], problems = [];
+  if (source.length > 1024 ** 2) return { edits, problems: [`${file}: fixture source analysis exceeds its byte budget`] };
+  const scanned = lex(source);
+  const { code, strings } = scanned;
+  const imported = imports(source, scanned, problems, file);
+  if (![...imported.bindings.values()].some(binding => binding.module === 'fs'
+    && (binding.imported === '*' || READS.has(binding.imported)))) return { edits, problems };
+  const declarations = new Map(), loops = [], consumed = new Set(), scopedReads = new Map(), producers = new Map();
+  const literalStarts = new Map(strings.map(value => [value.start, value]));
+  const { close, parts } = expressions(code, strings);
+  const moduleDirectory = posix.dirname(posix.join(REPOSITORY, file));
+  let probeBody = imported.body;
+  if (!moved.size) return { edits, problems: [] };
+
+  /** Name an unsupported site without leaking or rewriting the supplied expression. */
+  function unsupported(at, reason) {
+    problems.push(`${file}:${source.slice(0, at).split('\n').length}: unsupported fixture source: ${reason}`);
   }
 
   /** Read a plain literal or one finite loop-variable substitution, without evaluating escapes or expressions. */
@@ -135,8 +157,9 @@ export function fixtureSourceEdits(source, { file, moves }) {
       else end++;
     }
     const nameAt = match.index + match[0].indexOf(match[1], 'const'.length);
-    const repeated = declarations.has(match[1]);
-    declarations.set(match[1], repeated ? null : { range: trim(code, start, end), at: nameAt });
+    const entries = declarations.get(match[1]) ?? [];
+    entries.push({ range: trim(code, start, end), at: nameAt });
+    declarations.set(match[1], entries);
     if (!imported.bindings.has(match[1]) && match[1] !== 'URL') probeBody = blank(probeBody, nameAt, nameAt + match[1].length);
   }
   for (const match of imported.body.matchAll(new RegExp(`\\bfor\\s*\\(\\s*const\\s+(${ID})\\s+of\\b\\s*`, 'gu'))) {
@@ -166,7 +189,7 @@ export function fixtureSourceEdits(source, { file, moves }) {
 
   const unsafeModules = new Set();
   for (const [name, binding] of imported.bindings) {
-    if (binding.imported !== '*') continue;
+    if (binding.imported !== '*' || binding.module === 'source') continue;
     for (const at of reads.get(name)?.reads ?? []) {
       const member = /^\s*\.\s*([A-Za-z_$][\w$]*)/u.exec(code.slice(at + name.length));
       const tail = member && code.slice(at + name.length + member[0].length);
@@ -191,10 +214,9 @@ export function fixtureSourceEdits(source, { file, moves }) {
     return binding?.module === module && allowed.includes(name) && proven(parsed.name, parsed.at) ? name : null;
   }
 
-  /** Resolve constants only within their containing lexical braces, with no shadowed or mutable binding proof. */
-  function constant(name, at) {
-    const declaration = declarations.get(name);
-    if (!declaration || at < declaration.range.end) return null;
+  /** Retain the lexical brace containing a declaration; template-local declarations remain unsupported. */
+  function declarationScope(declaration) {
+    if (strings.some(token => token.start < declaration.at && token.end > declaration.at)) return null;
     let start = 0, end = code.length;
     for (let index = 0; index < declaration.at; index++) {
       const token = literalStarts.get(index);
@@ -204,18 +226,27 @@ export function fixtureSourceEdits(source, { file, moves }) {
         if (finish >= declaration.at) { start = index + 1; end = finish; }
       }
     }
-    if (at < start || at >= end) return null;
-    let row = reads.get(name);
-    if (!row || row.opaque || row.potentialShadow || !row.reads.includes(at)) {
-      const key = `${name}:${start}:${end}`;
-      if (!scopedReads.has(key)) {
-        let body = blank(blank(code, 0, start), end, code.length);
-        body = blank(body, declaration.at, declaration.at + name.length);
-        try { scopedReads.set(key, bindingReadsForModules([{ file, source, body, bindings: [{ local: name }] }]).get(file).get(name)); }
-        catch { scopedReads.set(key, null); }
-      }
-      row = scopedReads.get(key);
+    return { start, end };
+  }
+
+  /** Resolve one nearest containing declaration, including later TDZ shadows, before the existing scoped compiler proof. */
+  function constant(name, at) {
+    const candidates = (declarations.get(name) ?? []).map(declaration => ({ declaration, scope: declarationScope(declaration) }))
+      .filter(row => row.scope && at >= row.scope.start && at < row.scope.end);
+    if (!candidates.length) return null;
+    const nearest = Math.max(...candidates.map(row => row.scope.start));
+    const selected = candidates.filter(row => row.scope.start === nearest);
+    if (selected.length !== 1) return null;
+    const { declaration, scope: { start, end } } = selected[0];
+    if (at < declaration.range.end || /\b(?:case|default)\b/u.test(code.slice(start, end))) return null;
+    const key = `${name}:${declaration.at}:${start}:${end}`;
+    if (!scopedReads.has(key)) {
+      let body = blank(blank(code, 0, start), end, code.length);
+      body = blank(body, declaration.at, declaration.at + name.length);
+      try { scopedReads.set(key, bindingReadsForModules([{ file, source, body, scopeBraces: true, bindings: [{ local: name }] }]).get(file).get(name)); }
+      catch { scopedReads.set(key, null); }
     }
+    const row = scopedReads.get(key);
     return row && !row.opaque && !row.potentialShadow && row.reads.includes(at) ? declaration.range : null;
   }
 
@@ -318,6 +349,55 @@ export function fixtureSourceEdits(source, { file, moves }) {
     return values(loop.input, loop.at);
   }
 
+  /** Prove one imported zero-argument return leaf from exact regular Git-source bytes, never from its spelling. */
+  function producerLeaf(parsed) {
+    const binding = imported.bindings.get(parsed?.name);
+    if (binding?.module !== 'source' || binding.imported === '*' || parsed.member || parsed.args.length
+      || !proven(parsed.name, parsed.at) || typeof readSource !== 'function') return null;
+    const key = `${binding.target}#${binding.imported}`;
+    let snapshot;
+    try { snapshot = readSource(binding.target); } catch { return null; }
+    if (!snapshot || typeof snapshot.source !== 'string' || snapshot.source.length > 1024 ** 2
+      || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(snapshot.object ?? '')
+      || createHash(snapshot.object.length === 64 ? 'sha256' : 'sha1')
+        .update(`blob ${Buffer.byteLength(snapshot.source)}\0`).update(snapshot.source).digest('hex') !== snapshot.object) return null;
+    if (producers.has(key)) return producers.get(key).object === snapshot.object ? producers.get(key).leaf : null;
+    const scanned = lex(snapshot.source), issues = [], identity = imports(snapshot.source, scanned, issues, binding.target, { producer: true });
+    const definitions = [...scanned.code.matchAll(new RegExp(`\\bexport\\s+function\\s+${binding.imported}\\s*\\(\\s*\\)\\s*\\{`, 'gu'))];
+    if (issues.length || definitions.length !== 1) return null;
+    const definition = definitions[0], open = definition.index + definition[0].lastIndexOf('{');
+    const range = expressions(scanned.code, scanned.strings), end = range.close(open);
+    const returned = new RegExp(`^\\s*return\\s+(${ID})(?:\\s*\\.\\s*(${ID}))?\\s*\\(`, 'u').exec(scanned.code.slice(open + 1, end));
+    if (end < 0 || !returned) return null;
+    const callAt = open + 1 + returned.index + returned[0].indexOf(returned[1]);
+    const callOpen = open + 1 + returned[0].lastIndexOf('('), callEnd = range.close(callOpen);
+    if (scanned.code.slice(callEnd + 1, end).trim() !== ';') return null;
+    const args = range.parts(callOpen + 1, callEnd), callee = identity.bindings.get(returned[1]);
+    if (!args || args.length !== 2 || callee?.module !== 'path'
+      || (callee.imported === '*' ? returned[2] : returned[2] ? null : callee.imported) !== 'join') return null;
+    const leaf = scanned.strings.find(row => row.start === args[1].start && row.end === args[1].end)?.text;
+    if (!leaf || leaf.includes('${') || /[\\/:\x00-\x1f]/u.test(leaf) || leaf === '.' || leaf === '..') return null;
+    const nameAt = definition.index + definition[0].lastIndexOf(binding.imported);
+    const body = blank(identity.body, nameAt, nameAt + binding.imported.length);
+    const names = [...new Set([returned[1], binding.imported, ...[...identity.bindings]
+      .filter(([, row]) => row.module === 'path' && row.imported === '*').map(([name]) => name)])];
+    let rows;
+    try { rows = bindingReadsForModules([{ file: binding.target, source: snapshot.source, body, scopeBraces: true,
+      bindings: names.map(local => ({ local })) }]).get(binding.target); } catch { return null; }
+    if (names.some(name => !rows.get(name) || rows.get(name).opaque || rows.get(name).potentialShadow)
+      || !rows.get(returned[1]).reads.includes(callAt)) return null;
+    for (const [name, row] of identity.bindings) if (row.module === 'path' && row.imported === '*') {
+      for (const at of rows.get(name).reads) {
+        const member = /^\s*\.\s*[A-Za-z_$][\w$]*/u.exec(scanned.code.slice(at + name.length));
+        if (!member || /^\s*(?:=(?!=)|\+\+|--|(?:\?\?|\|\||&&|[+*/%-])=)/u.test(scanned.code.slice(at + name.length + member[0].length))
+          || /\bdelete\s*$/u.test(scanned.code.slice(0, at))) return null;
+      }
+    }
+    try { const again = readSource(binding.target); if (again?.object !== snapshot.object || again.source !== snapshot.source) return null; } catch { return null; }
+    producers.set(key, { object: snapshot.object, leaf });
+    return leaf;
+  }
+
   /** Prove a disjoint regular-file suffix through constants, without guessing what an unknown fixture root means. */
   function leafName(range, seen = new Set()) {
     const value = literal(range);
@@ -329,7 +409,7 @@ export function fixtureSourceEdits(source, { file, moves }) {
       return declared ? leafName(declared, new Set([...seen, name])) : null;
     }
     const parsed = call(range), method = parsed && operation(parsed, 'path', ['join', 'resolve']);
-    return method && parsed.args.length > 1 ? literal(parsed.args.at(-1)) : null;
+    return method && parsed.args.length > 1 ? literal(parsed.args.at(-1)) : parsed ? producerLeaf(parsed) : null;
   }
 
   /** Edit only the fs source argument; unsupported source construction never masquerades as success. */
