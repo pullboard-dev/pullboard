@@ -464,6 +464,14 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
     if (operation(parsed, 'url', ['fileURLToPath']) && parsed.args.length === 1) {
       const arg = code.slice(parsed.args[0].start, parsed.args[0].end).replace(/\s/gu, '');
       if (arg === 'import.meta.url') return { path: posix.join(REPOSITORY, file), render: target => `${parsed.callee}(new URL(${JSON.stringify(posix.relative(moduleDirectory, target))}, import.meta.url))` };
+      const nested = /^new\s+URL\s*\(/u.exec(code.slice(parsed.args[0].start, parsed.args[0].end));
+      if (!nested) return null;
+      const open = parsed.args[0].start + nested[0].lastIndexOf('(');
+      const args = close(open) === parsed.args[0].end - 1 && parts(open + 1, parsed.args[0].end - 1);
+      const relative = args?.length === 2 ? literal(args[0], substitutions) : null;
+      if (relative === null || !/^(?:\.{1,2}(?:\/|$))/u.test(relative)) return null;
+      const resolved = path(parsed.args[0], substitutions, seen);
+      return resolved?.path ? { path: resolved.path, render: target => `${parsed.callee}(${resolved.render(target)})` } : null;
     }
     const method = operation(parsed, 'path', ['join', 'resolve', 'dirname']);
     if (!method || !parsed.args.length) return null;
