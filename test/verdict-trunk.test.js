@@ -17,6 +17,8 @@ function reviewWithLanding(t, { setting, landing }) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  // This independent CLI launches a new test runner, not the outer worker's internal child context.
+  delete box.env.NODE_TEST_CONTEXT;
   const armed = join(box.dir, 'landing-armed');
   const landed = join(box.dir, 'landing-done');
   for (const folder of ['test', 'web', 'api']) mkdirSync(join(box.repo, folder), { recursive: true });
@@ -61,7 +63,7 @@ test('page is built', () => {
   json(box.run(reviewer, 'join', 'api', '--json'));
   writeFileSync(armed, 'armed');
   const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'the page builds', '--json');
-  assert.ok(existsSync(landed), 'main really moved while the review ran');
+  assert.ok(existsSync(landed), 'main really moved while the review ran: ' + verdict.out + verdict.err);
   return { box, verdict, json };
 }
 
