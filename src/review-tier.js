@@ -2,7 +2,7 @@
 import { REVIEW_TIER_ENGINE } from './review-tier-engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { itemPatches } from './item-patch-state.js';
-import { itemPatchPaths } from './item-patch-compose.js';
+import { itemPatchPaths } from './item-patch-paths.js';
 
 // Strict areas include their focused tests, without making unrelated UI/product tests Strict.
 const DIRECTORIES = ['relay/', 'bin/', '.githooks/', '.husky/', '.github/workflows/', 'src/moves/',

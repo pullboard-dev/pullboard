@@ -94,6 +94,17 @@ test('an active source-bound gate companion makes docs work Strict without chang
   assert.equal(f.reserve(id, 'core-4').item_review_by, 'core-4');
 });
 
+test('unsafe companion headers refuse classification rather than silently selecting Standard [V4,H16]', t => {
+  const f = fixture(t), id = f.add();
+  const item = f.submit(id, ['README.md']);
+  const patch = 'diff --git a/../escape.js b/../escape.js\n--- a/../escape.js\n+++ b/../escape.js\n@@ -1 +1 @@\n-old\n+new\n';
+  store.attachItemPatch(f.board, id, { agentId: 'coordinator', key: 'unsafe-companion', commit: item.item_commit,
+    patch, author: 'core-1' });
+  const before = exportBoard(f.board);
+  assert.throws(() => f.reserve(id, 'core-4'), { code: 'ITEM_PATCH' });
+  assert.deepEqual(exportBoard(f.board), before);
+});
+
 test('only coordinator can mark Strict and every mark needs a reason and refuses downgrade atomically [V4,B26]', t => {
   const f = fixture(t), id = f.add();
   for (const [change, code] of [[{ agentId: 'core-2', reviewTier: 'strict', reason: 'Risk' }, 'COORDINATOR_ONLY'],
