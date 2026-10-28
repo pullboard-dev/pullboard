@@ -9,7 +9,7 @@ import {
 import {
   COLLECTION_ID_ENV,
   parseCollectionReports,
-} from './landing-collection-report.js';
+} from './gate-run-receipt.js';
 import {
   retainTestValueTimings,
 } from './test-value-timing.js';
@@ -112,7 +112,7 @@ import {
   landingShardProfile,
   RELEASE_EXECUTORS_ENV,
   releaseParticipation,
-} from './landing-shards.js';
+} from './gate-run-receipt.js';
 import {
   releaseParticipationFields,
   releaseParticipationDigest,

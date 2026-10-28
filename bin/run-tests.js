@@ -27,7 +27,7 @@ import { foreignNodeOptions, isolateTestMachine } from '../src/test-isolation.js
 import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../src/test-file-pool.js';
 import { optionTakesValue } from '../src/test-file-dispatch.js';
 import { knownNodeOption } from '../src/test-file-dispatch.js';
-import { COLLECTION_ID_ENV } from '../src/landing-collection-report.js';
+import { COLLECTION_ID_ENV } from '../src/gate-run-receipt.js';
 const runner = fileURLToPath(import.meta.url);
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
 const LANDING_WORKER_STARTS_ENV = 'PULLBOARD_LANDING_WORKER_STARTS';

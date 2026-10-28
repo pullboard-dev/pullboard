@@ -464,7 +464,8 @@ test('a landing gate split into shards reports one result [C7,V4]', { timeout: 3
 async function landingWithRunnerAnswer(box, answer, count, deadlineMs) {
   const url = name => JSON.stringify(pathToFileURL(join(SOURCE, 'src', name)).href);
   const files = NAMES.map(name => `./test/${name}.test.js`);
-  const script = `const { runLandingShards, landingShardProfile } = await import(${url('landing-shards.js')});
+  const script = `const { runLandingShards } = await import(${url('landing-shards.js')});
+const { landingShardProfile } = await import(${url('gate-run-receipt.js')});
 const { Refused } = await import(${url('refused.js')});
 const { RunnerDropped } = await import(${url('runners.js')});
 const { appendFileSync } = await import('node:fs');
@@ -672,7 +673,7 @@ test('a collect-all shard cancelled by its owner reports drained but incomplete 
   git(box.repo,box.env,'add','-A');git(box.repo,box.env,'commit','-q','-m','test: real collect-all cancellation');
   const gateUrl=pathToFileURL(join(box.repo,'src/gate.js')).href;
   const resourceUrl=pathToFileURL(join(box.repo,'src/resources.js')).href;
-  const reportUrl=pathToFileURL(join(box.repo,'src/landing-collection-report.js')).href;
+  const reportUrl=pathToFileURL(join(box.repo,'src/gate-run-receipt.js')).href;
   const id='11111111-1111-4111-8111-111111111111';
   const program=`import {spawn} from 'node:child_process';import {once} from 'node:events';
 import {withGateSlot} from ${JSON.stringify(gateUrl)};import {gateSlotEnvironment} from ${JSON.stringify(resourceUrl)};
