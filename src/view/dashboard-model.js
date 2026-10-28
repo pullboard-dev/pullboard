@@ -12,9 +12,10 @@ export function dashboardModel(project, history, { now = Date.now(), complete = 
   /** Parse only native event JSON; malformed history cannot create activity. */
   const detail = event => { try { return JSON.parse(event.event_detail || '{}'); } catch { return {}; } };
   const latest = new Map(), landed = new Map(), work = new Map(), rows = new Map();
-  /** One row per registered agent, also retaining actors present in this historical prefix. */
+  const seats = new Set((project.agents ?? []).map(agent => agent.agent_id));
+  /** Attribute history only to registered seats; board automation is not an agent. */
   const row = id => {
-    if (!id || id === 'coordinator' || id === 'person' || id === 'clock' || id === 'sentinel') return null;
+    if (!seats.has(id) || id === 'coordinator') return null;
     if (!rows.has(id)) rows.set(id, { id, name: id, segments: [], build: 0, review: 0, idle: 0, shouts: 0, last: 0, current: [], sentBack: [] });
     return rows.get(id);
   };
