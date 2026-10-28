@@ -1,3 +1,4 @@
+import { agentById } from './seats.js';
 import { committedItemAuthors } from './review-independence.js';
 import { strictReviewProblem } from './review-independence.js';
 import { firstRefusal } from './first-refusal-window.js';

@@ -48,7 +48,8 @@ export function itemAuthorProblem(board, item, reviewer, ports) {
   const authors = itemAuthors(board, item, ports);
   const identity = authorIdentityProblem(board, item, reviewer, authors);
   if (identity) return identity;
-  const strict = ports.strictReviewProblem(board, item, reviewer);
+  const { strictReviewProblem } = ports;
+  const strict = strictReviewProblem(board, item, reviewer);
   if (strict) return strict;
   return (authors.length ? authors : [item.item_built_by])
     .map(author => standingProblem(board, reviewer, author, item.item_id)).find(Boolean) ?? null;

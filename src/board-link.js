@@ -21,9 +21,9 @@ import { boardLinkSigningText } from '../packages/kernel/src/core/registry-guard
 import { boardLinkFormat } from '../packages/kernel/src/core/registry-guards.js';
 import { boardLinkName } from '../packages/kernel/src/core/registry-guards.js';
 import { discloseBoardState } from '../packages/kernel/src/core/registry-guards.js';
-export { discloseBoardState } from './registry-guards.js';
-export { resolveBoardReference } from './registry-guards.js';
-export { boardItemReference } from './registry-guards.js';
+export { discloseBoardState } from '../packages/kernel/src/core/registry-guards.js';
+export { resolveBoardReference } from '../packages/kernel/src/core/registry-guards.js';
+export { boardItemReference } from '../packages/kernel/src/core/registry-guards.js';
 
 const PREFIX = 'board_link:';
 const VERIFIED_LINKS = new WeakSet();

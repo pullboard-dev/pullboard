@@ -125,6 +125,10 @@ const NON_MOVE_ENTRY_POINTS = [
 ];
 /** Board functions handed a function to call, and the one the CLI and the runner hand them. */
 const CALLBACKS = {
+  // Explicit item ports preserve these canonical authority and sandbox refusal paths.
+  'reopen-authority.js': { verdictWithdrawalTarget: 'verdict-withdrawal.js#verdictWithdrawalTarget' },
+  'outside-verify.js': { verifyOutsideSandbox: 'sandbox-verify.js#verifyOutsideSandbox' },
+  'item-authors.js': { strictReviewProblem: 'review-independence.js#strictReviewProblem' },
   // Native verification ports retain these exact receipt and projection guards.
   'proof-cli.js': { proofRunReceipt: 'proof-receipts.js#proofRunReceipt' },
   'proof-counters.js': {
