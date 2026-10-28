@@ -1,5 +1,6 @@
 import { SOURCE_ADVANCE_ENGINE } from '../source-advance-engine.js';
 import { MECHANICAL_MERGE_ENGINE } from '../mechanical-merge-engine.js';
+import { GENERATED_DOCS_ENGINE } from '../generated-docs-engine.js';
 import { AGENT_GRANT_ENGINE } from '../agent-grant-engine.js';
 import { VERDICT_WITHDRAW_ENGINE } from '../verdict-withdraw-engine.js';
 import { MERGE_ONLY_VERDICT_ENGINE } from '../merge-only-verdict-engine.js';
@@ -34,7 +35,8 @@ function existingEngine(args, board, at) {
 /** Keep verdict withdrawal as an independent maximum over every prior first-match floor [H16]. */
 function minimumEngine(args, board, at) {
   const carried = board && board.db.prepare("SELECT 1 FROM item i JOIN event e ON e.item_id = i.item_id WHERE i.item_id = ? AND e.event_kind = 'merge-only-accept' AND json_extract(e.event_detail,'$.commit') = i.item_commit LIMIT 1").get(args[0]);
-  return Math.max(args[1]?.sourceAdvanceReturn !== undefined ? SOURCE_ADVANCE_ENGINE : 1, args[1]?.computedConflict?.version === 2 ? MECHANICAL_MERGE_ENGINE : 1,
+  return Math.max(args[1]?.sourceAdvanceReturn !== undefined ? SOURCE_ADVANCE_ENGINE : 1, args[1]?.computedConflict?.version === 3 ? GENERATED_DOCS_ENGINE : 1,
+    args[1]?.computedConflict?.version === 2 ? MECHANICAL_MERGE_ENGINE : 1,
     carried ? MERGE_ONLY_VERDICT_ENGINE : 1,
     args[1]?.computedConflict !== undefined ? AGENT_GRANT_ENGINE : 1,
     args[1]?.withdrawVerdict === true ? VERDICT_WITHDRAW_ENGINE : 1, existingEngine(args, board, at));
@@ -54,7 +56,7 @@ export default Object.freeze({ operation: "reopen", order: 22, engine: 8,
   "BAD_CONFIG": "fix pullboard.json as the message says, then commit it: git commit -m \"chore: fix pullboard config\" pullboard.json",
   "BAD_CONFLICT": "run pullboard reopen <id> --conflict <file> [--conflict <file>] from the main checkout",
   "CONFLICT_FILES": "name only the files Git reports as conflicting with the trunk: pullboard reopen <id> --conflict <file> [--conflict <file>]",
-  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator \"<what you need>\"",
+  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator --kind question \"<what you need>\"",
   "ENGINE_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "LANDING_FAILURE_REQUIRED": "reopen with --note \"<test file>: <test name>; merge commit <sha>\", or with --note '<test file>: \"<test name; with semicolon>\"; merge commit <sha>' when the test name contains a semicolon, or use --conflict <file> for each file that only conflicts with the trunk",
   "MERGE_CHECK_FAILED": "use Git 2.38 or newer (git --version), then retry",

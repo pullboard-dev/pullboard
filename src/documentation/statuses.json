@@ -1,0 +1,26 @@
+[
+  [
+    "`approved`",
+    "decided and in force"
+  ],
+  [
+    "`draft`",
+    "proposed, not decided"
+  ],
+  [
+    "`pending`",
+    "open question"
+  ],
+  [
+    "`fact`",
+    "true today"
+  ],
+  [
+    "`wont`",
+    "not building; the row stays permanent"
+  ],
+  [
+    "`retired`",
+    "no longer in force; the row stays permanent"
+  ]
+]

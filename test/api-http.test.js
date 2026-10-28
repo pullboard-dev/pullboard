@@ -907,7 +907,7 @@ test('[A2, N26] a delta brings a snapshot up to date', async (t) => {
   const verdict = await catchUp('verdict');
   assert.deepEqual(changed(verdict, 'items').sort((a, b) => a - b), [item, waiting], 'the accept also unblocks the item waiting on it');
 
-  const asked = await move({ verb: 'shout', agent: builder.agent, args: { to: 'coordinator', text: 'May the delta skip the order?', decision: true } });
+  const asked = await move({ verb: 'shout', agent: builder.agent, args: { to: 'coordinator', text: 'May the delta skip the order?', kind: 'question', decision: true } });
   const shouted = await catchUp('shout');
   assert.ok(changed(shouted, 'shouts').includes(asked.id), 'the new shout travels');
   assert.ok(changed(shouted, 'asked').includes(asked.id), 'and so does the open question');

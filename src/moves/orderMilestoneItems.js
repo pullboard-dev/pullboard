@@ -20,7 +20,7 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "orderMilestoneItems", order: 32, engine: MILESTONE_RANK_ENGINE,
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
-  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator \"<what you need>\"",
+  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator --kind question \"<what you need>\"",
   "ENGINE_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "MILESTONE_ITEMS": "list item ids once each: pullboard milestone add <name> --items 1,2",
   "MILESTONE_PLACE": "pin, sink or lift: pullboard milestone pin <name> <ids> --reason \"<why>\"",

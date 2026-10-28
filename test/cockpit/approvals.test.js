@@ -10,6 +10,8 @@ import { machine, project, startView, boardOf, chromeExecutable, openSnapshotChr
 test('agent approvals show full rows and styled actions at narrow width and resolve from Spec detail [B26,N26,S1,P6]', { timeout: 120_000 }, async () => { // budget: real Git/API/browser setup and two person decisions; no performance claim.
   const box = machine();
   box.env.GIT_AUTHOR_NAME = 'Agent <review> & team';
+  box.env.GIT_AUTHOR_DATE = '2026-10-25T14:51:00Z';
+  box.env.GIT_COMMITTER_DATE = '2026-10-25T14:51:00Z';
   const spec = '# Approval review\n\n## G · Goals\n- G1 [approved, must] Show the complete first requirement, including its final words. | gate: first browser gate\n- G2 [approved, must] Show the complete second requirement before declining it. | gate: second browser gate\n';
   const alpha = project(box, 'approval-review', spec, {}, { agentApproved: true });
   const view = await startView(box);
@@ -19,10 +21,14 @@ test('agent approvals show full rows and styled actions at narrow width and reso
     assert.deepEqual(before.needs.filter(row => row.kind === 'agent-approved').map(row => row.id), ['G1', 'G2']);
     const executable = chromeExecutable();
     assert.ok(executable, 'real Chrome is required for person actions and narrow layout');
-    chrome = await openSnapshotChrome(executable, view.link.href, join(box.dir, 'approval-review-chrome'));
+    chrome = await openSnapshotChrome(executable, 'about:blank', join(box.dir, 'approval-review-chrome'));
+    await chrome.send('Emulation.setTimezoneOverride', { timezoneId: 'UTC' });
+    await chrome.send('Page.navigate', { url: view.link.href });
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 375 && document.querySelectorAll("#needs [data-agent-approved]").length === 2');
+    assert.equal(await chrome.stable('document.querySelector("#dashboard [data-needs-field=approved-in-git] time").textContent'), 'Oct 25, 2:51 PM', 'Dashboard uses the approved minute display without a locale date, year or seconds');
     await chrome.click("document.querySelector('[data-tab=items]')");
+    for (const row of before.spec) await chrome.click(`document.querySelector('#needs [data-agent-approved="${row.id}"] summary')`);
     await chrome.waitFor(`view.tab === 'items' && [...document.querySelectorAll('#needs [data-agent-approved], #needs [data-row-decision]')].every(element => {
       const box = element.getBoundingClientRect();
       return !element.closest('[hidden]') && getComputedStyle(element).visibility === 'visible' && box.width > 0 && box.height > 0;
@@ -34,9 +40,9 @@ test('agent approvals show full rows and styled actions at narrow width and reso
         const row = document.querySelector('#needs [data-agent-approved="${row.id}"]');
         const buttons = [...row.querySelectorAll('[data-row-decision]')];
         const boxes = buttons.map(button => button.getBoundingClientRect());
-        const commit = row.querySelector('code');
-        const title = row.querySelector('.t');
-        return { text: row.textContent, commit: commit.textContent, full: commit.title, at: row.querySelector('time')?.dateTime,
+        const commit = row.querySelector('[data-needs-field=commit] code');
+        const title = row.querySelector('.needs-detail p');
+        return { text: row.textContent, commit: commit.textContent, full: commit.title, at: row.querySelector('[data-needs-field=approved-in-git] time')?.dateTime, dateLabel: row.querySelector('[data-needs-field=approved-in-git] time')?.textContent,
           tab: view.tab, boxes: boxes.map(box => ({ x: box.x, y: box.y, width: box.width, height: box.height })),
           unclipped: getComputedStyle(title).whiteSpace !== 'nowrap' && title.scrollHeight <= title.clientHeight,
           labels: buttons.map(button => button.textContent),
@@ -51,6 +57,7 @@ test('agent approvals show full rows and styled actions at narrow width and reso
       assert.ok(shown.text.includes(row.gate), 'Needs-you includes the actual gate');
       assert.ok(shown.text.includes(row.agentApproval.agent), 'plain attribution preserves the actual recorded Git author');
       assert.equal(shown.at, commitDate, 'the visible date uses the core-provided timestamp');
+      assert.equal(shown.dateLabel, 'Oct 25, 2:51 PM', 'Items uses the same approved month/day and minute display');
       assert.doesNotMatch(shown.text, /Git author, seat unknown/u);
       assert.equal(shown.commit, row.agentApproval.commit.slice(0, 12));
       assert.equal(shown.full, row.agentApproval.commit, 'the full commit remains available on hover');

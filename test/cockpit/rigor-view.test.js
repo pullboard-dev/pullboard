@@ -15,7 +15,7 @@ import { SPEC, machine, project, build, sendBack, startView, openPage, boardOf, 
  */
 function draft({ name, check, cited = true }) {
   return {
-    kind: 'sentinel-draft', id: `sentinel:${name}`, ref: name,
+    kind: 'sentinel-draft', id: `sentinel:${name}`, ref: name, check, directory: '.', every: 'hourly', owner: 'coordinator',
     text: `Sentinel draft: ${name} runs ${check} hourly, reporting to coordinator`,
     what: `pullboard sentinel approve ${name}, or decline it with --reason`, target: `sentinel:${name}`,
     ...(cited ? { cause: 'row:G1', evidence: { key: 'row:G1', items: [{ id: 4, commits: [] }, { id: 7, commits: [] }], occurrences: 2,
@@ -48,14 +48,14 @@ test('the view shows one sentinel draft with its proof, never as an approved sen
     const html = page.show('needs');
     const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
     assert.equal((html.match(/data-sentinel-draft=/g) || []).length, 1, 'one draft is one row');
-    assert.match(text, /rigor-row-g1 Sentinel draft: rigor-row-g1 runs test -f up\.txt hourly, reporting to coordinator/, 'the row names the watch and its check');
-    assert.match(text, /a sentinel draft awaiting your approval, not watching yet/, 'it is labelled a draft awaiting approval');
-    assert.match(text, /Drafted from 2 repeats of row:G1 on #4, #7\./, 'it cites the repeat');
-    assert.match(text, /Proof: test -f up\.txt, red commit aaaaaaaaaaaa exit 1, green commit bbbbbbbbbbbb exit 0\./, 'it shows the red and green proof');
+    assert.match(text, /rigor-row-g1 Run test -f up\.txt hourly, reporting to coordinator/, 'the row names the watch and its check');
+    assert.match(text, /Sentinel draft · not watching until you approve/, 'it is labelled a draft awaiting approval');
+    assert.match(text, /Proposed by An agent · 2 repeats Repeated cause row:G1 Cited items #4, #7/, 'it cites the repeat');
+    assert.match(text, /Proof command test -f up\.txt Red proof aaaaaaaaaaaa · exit 1 Green proof bbbbbbbbbbbb · exit 0/, 'it shows the red and green proof');
     assert.doesNotMatch(text, /release|approved sentinel|is watching/i, 'it is neither a lane hold nor an approved sentinel');
     await page.run(`data.project.sentinelDrafts = ${JSON.stringify([draft({ name: 'x<b>y', check: 'true', cited: false })])}; render();`);
     const bare = page.show('needs');
-    assert.match(bare, /Proposed by an agent with no repeat cited\./, 'a draft with no evidence says so');
+    assert.match(bare, /Proposed by.*An agent, with no repeat cited/, 'a draft with no evidence says so');
     assert.ok(!bare.includes('<b>y'), 'the name is escaped');
     await page.run('data.project.sentinelDrafts = []; render();');
     assert.equal(page.show('needs').includes('data-sentinel-draft'), false, 'an approved or declined draft leaves Needs-you');
@@ -117,8 +117,8 @@ test('a materialized automatic Rigor draft shows in Needs you, marked unproved, 
       await chrome.click(`document.querySelector('[data-tab=items]')`);
       const read = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const needs = document.querySelector('#needs');
-        const rows = [...needs.querySelectorAll(':scope > .row')].map((row) => ({ words: row.querySelector('.t').textContent,
-          kind: row.querySelector('.meta .why').textContent, chip: row.querySelector(':scope > .chip').textContent, go: row.dataset.go ?? null,
+        const rows = [...needs.querySelectorAll('.needs-call')].map((row) => ({ words: row.querySelector('.needs-copy b').textContent,
+          kind: row.querySelector('.needs-copy small').textContent, chip: row.querySelector('.needs-action').textContent, go: row.querySelector('.actions [data-go]')?.dataset.go ?? null,
           right: row.getBoundingClientRect().right }));
         return { shown: !needs.hidden && needs.getBoundingClientRect().height > 0, rows,
           page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth } };

@@ -164,7 +164,7 @@ test('a shout completes while a submit compares with main [V4,C7,B7]', async t =
   const box = fixture(t, 1);
   const submission = launch(box, 'submit', String(box.item));
   await observed(() => events(box).some(event => event.phase === 'start'), 'the real main comparison is waiting');
-  const shout = launch(box, 'shout', 'coordinator', 'Comparison is still running');
+  const shout = launch(box, 'shout', 'all', 'Comparison is still running');
   await observed(() => shout.exitCode !== null || (rows(box.repoQueue,
     "SELECT token FROM holder WHERE name LIKE 'checkout-session:%' AND pid=?", [submission.pid]).length > 0
     && rows(box.repoQueue, "SELECT ticket FROM waiter WHERE name LIKE 'checkout-session:%'").length > 0),

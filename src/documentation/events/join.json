@@ -1,0 +1,10 @@
+{
+  "kind": "join",
+  "entries": [
+    {
+      "order": 0,
+      "actor": "joining agent",
+      "detail": "`lane`, `route`, optional `grantEngine`"
+    }
+  ]
+}

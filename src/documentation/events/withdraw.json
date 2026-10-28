@@ -1,0 +1,10 @@
+{
+  "kind": "withdraw",
+  "entries": [
+    {
+      "order": 27,
+      "actor": "coordinator",
+      "detail": "`reason`"
+    }
+  ]
+}
