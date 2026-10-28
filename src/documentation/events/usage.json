@@ -4,7 +4,7 @@
     {
       "order": 13,
       "actor": "builder",
-      "detail": "`revision`, `observedAt`, `shared`, `records`, `estimate`"
+      "detail": "`item`, `revision`, `observedAt`, `shared`, `records`, `estimate`"
     }
   ]
 }

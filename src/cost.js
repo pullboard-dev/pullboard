@@ -48,7 +48,8 @@ export function recordUsage(board, { agentId, item, revision, records, observedA
     }
     const value = { agent: agentId, item, revision, observedAt, shared, records: rows };
     board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(key, JSON.stringify(value));
-    logEvent(board, agentId, 'usage', item, { revision, observedAt, shared, records: rows, estimate: true });
+    // A checkpoint is not a lifecycle move: it names its item in detail and stays out of item histories.
+    logEvent(board, agentId, 'usage', null, { item, revision, observedAt, shared, records: rows, estimate: true });
     return { recorded: true };
   });
 }
