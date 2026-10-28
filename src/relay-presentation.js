@@ -16,6 +16,7 @@ import { fileRevision } from './native-board-state.js';
 import { resolveCommit } from './git.js';
 import { trunkRevisionReader } from './trunk-revision.js';
 import { cachedVerdictStates } from './verdict-freshness.js';
+import { compareFlowWindows } from './stats-flow.js';
 
 // A comparison clock is an internal fingerprint input, never a displayed forecast or observation.
 const COMPARISON_CLOCK = Date.UTC(2000, 0, 1);
@@ -39,7 +40,8 @@ function readRelayPresentation(root, providedBoard, observedAt) {
     /** Preserve a single authorized board, including existing unavailable external milestone entries. */
     const project = (clock) => {
       const built = buildLocalBoardState(root, boardId, board, isMain, { projects, scopeCommonDir: info.commonDir, observedAt: clock, freshnessReader });
-      return { ...built.state, sequence: built.sequence };
+      return { ...built.state, sequence: built.sequence,
+        statsComparison: compareFlowWindows(built.history, { now: clock, windowMinutes: 120, complete: true }) };
     };
     const state = project(observedAt);
     const comparison = project(COMPARISON_CLOCK);

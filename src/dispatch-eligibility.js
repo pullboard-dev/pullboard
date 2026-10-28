@@ -12,7 +12,7 @@ import * as store from './board.js';
  * @param {{ policy?: string, familyPolicy?: string, skipIds?: number[], assignedIds?: number[] }} [options]
  * @returns {{ item: any | null, review: boolean, held: boolean, reasons: string[] }}
  */
-export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy = 'off', skipIds = [], assignedIds = [], priority = [] } = {}) {
+export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy = 'off', skipIds = [], assignedIds = [], priority = [], observeIdle = false } = {}) {
   const agentId = nativeSeat.agent_id;
   const lane = nativeSeat.agent_lane;
 
@@ -22,11 +22,11 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   const heldReview = store.listItems(board).find(item => item.item_status === 'submitted'
     && store.reviewHolder(board, item) === agentId);
   if (heldReview) return { item: heldReview, review: true, held: true, reasons: [] };
-  const review = store.nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, skipIds, omitIds: assignedIds, priority });
+  const review = store.nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, skipIds, omitIds: assignedIds, priority, observeIdle });
   if (review.item) {
     return { item: review.item, review: true, held: store.reviewHolder(board, review.item) === agentId, reasons: review.reasons };
   }
 
-  const build = store.nextFor(board, { agentId, lane, omitIds: assignedIds });
-  return { item: build.item, review: false, held: false, reasons: build.item ? build.reasons : [...new Set([...review.reasons, ...build.reasons])] };
+  const build = store.nextFor(board, { agentId, lane, omitIds: assignedIds, observeIdle });
+  return { item: build.item, review: false, held: false, ...(observeIdle && !build.item ? { idleReason: [review.idleReason, build.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? build.idleReason ?? 'unknown' } : {}), reasons: build.item ? build.reasons : [...new Set([...review.reasons, ...build.reasons])] };
 }
