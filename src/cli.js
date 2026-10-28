@@ -1,3 +1,4 @@
+import { mainRedReviewItems } from './main-red.js';
 import { createQueuedItemLease } from './queued-item-lease.js';
 export { resourceRunLabel } from './cli-resource-display.js';
 export { browserAdmissionReporter } from './cli-resource-display.js';
@@ -328,7 +329,10 @@ import {
   launchBackgroundView,
   reportView,
 } from './background-view.js';
-import { nextReview } from './next-review.js';
+import {
+  nextReview,
+  ownSessionReviews,
+} from './next-review.js';
 import { firstRefusalArgs } from './claims.js';
 import { serveApi } from './api.js';
 import { serveMcp } from './mcp.js';
@@ -1232,12 +1236,6 @@ export function boardSetup(ctx, card, identity, { decisions: capturedDecisions }
   return current ? { step: current.number, total: 5, ...current, steps } : null;
 }
 
-
-
-
-
-
-
 /** Describe the active configured location for new agent worktrees. */
 export function worktreeLocation(mainRoot, config) {
   return config.worktrees === 'inside'
@@ -1291,8 +1289,6 @@ export function refuseUncommittedSetup(mainRoot, config) {
   const subject = hasCommit ? 'chore: commit pullboard files' : 'chore: set up pullboard';
   throw new Refused('NOT_COMMITTED', `${why}. Commit them first: ${cdTo(mainRoot)} git add${force} -- ${words} && git commit -q -m "${subject}" -- ${words}`);
 }
-
-
 
 /** Report and pin the original submitted commit, including a recovered acknowledged outcome. */
 export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
@@ -1450,7 +1446,6 @@ export async function addBlueprint(ctx, board, me, blueprint, { report = true, r
   return summary;
 }
 
-
 /**
  * Say the exact command that lands an accepted item in this repo [B3].
  * A repo with a push remote lands through pullboard land; one without merges by hand,
@@ -1595,15 +1590,14 @@ function nextPick(ctx, board, values) {
   const held = item?.item_status === 'claimed';
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
   const findOffer = () => store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
-    familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes });
+    familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes, skipIds: ownSessionReviews(ctx.info, board), priority: mainRedReviewItems(ctx.info.root, board) });
   const offer = held ? null : relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
-  if (offer && !values.build && focusReviewFirst(board, offer.item, item)) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item) };
+  if (offer && !values.build && (offer.urgent || focusReviewFirst(board, offer.item, item))) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item) };
   if (!item) return { reasons, laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
   return { claim: true, me, item, held, shared, reasons, reviewSkipped, seats };
 }
-
 
 /**
  * `pullboard sweep` (N15, N17): run a checker, then file one routed item per file it flags, each
@@ -1674,7 +1668,6 @@ export function actOn(io, work, { privateBoard = false } = {}) {
   return withBoard(ctx, (board) => work(ctx, board, whoAmI(ctx, board)));
 }
 
-
 /** Name a known board seat for queue diagnostics without requiring an unjoined checkout to join. */
 export function resourceAgent(ctx) {
   return ctx.info.isMain ? COORDINATOR : withBoard(ctx, board => store.agentAt(board, ctx.info.root)?.agent_id);
@@ -1718,8 +1711,6 @@ export function specProof(ctx) {
     return { items, verdicts: items.flatMap((item) => store.verdictsFor(board, item.item_id)) };
   });
 }
-
-
 
 /**
  * Every private name a saved blueprint must never carry: each agent's id, display name, model
