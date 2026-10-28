@@ -313,6 +313,8 @@ import {
   requireNeverAgain,
 } from './rigor.js';
 import { barCorrectionFields } from './bar-corrections.js';
+import { CHECK_WIDEN_SELF_ENGINE } from './check-widen-self-engine.js';
+import { widenedCheckFiles } from './check-widen.js';
 import {
   conflictDetail,
   conflictProblem,
@@ -599,9 +601,9 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
   atomic(board, () => {
     const stored = itemById(board, id);
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
-    const { item, next, command, unfreeze, bar } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming });
+    const { item, next, command, unfreeze, bar, widened } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming });
     const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, id, { sensitive, reviewFamily, reviewTier }) : null;
-    const baseline = normalizeCheckBaseline(agentId, command, checkBaseline);
+    const baseline = normalizeCheckBaseline(agentId, command, checkBaseline, { authorized: Boolean(widened) });
     const { pendingFields, frozen, pendingRefreeze, clearFrozen } = itemEditBar(board, item, next, { command, agentId, correction, freeze, unfreeze, expiredHolder });
     if (expiredHolder) {
       moveItem(board, id, 'lapse', { checks: {}, set: () => ({ item_owner: null, item_lease_until: null }) });
@@ -662,15 +664,16 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
     if (typeof reason !== 'string' || !reason.trim()) throw new Refused('BAR_REASON', 'marking strict review needs --reason explaining the gate judgment or independence risk');
   }
   let item = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8 ? current(board, itemById(board, id)) : null;
-  if (item?.item_status === 'claimed' && agentId !== COORDINATOR) {
+  const widened = item && selfWidenedFiles(board, item, agentId, { brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming });
+  if (item?.item_status === 'claimed' && agentId !== COORDINATOR && !widened) {
     throw new Refused('HELD', `item #${id} is claimed; only the coordinator may edit it while held; shout coordinator`);
   }
-  const command = coordinatorCheck(agentId, check);
+  const command = widened ? check.trim() : coordinatorCheck(agentId, check);
   if ([brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming].every((value) => value === undefined)) {
     throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>" or --after <ids|none>');
   }
   item ??= current(board, itemById(board, id));
-  if (agentId !== COORDINATOR && agentId !== item.item_created_by) {
+  if (agentId !== COORDINATOR && agentId !== item.item_created_by && !widened) {
     throw new Refused('NOT_YOURS', `only the coordinator or ${item.item_created_by}, who added #${id}, edits it; shout them instead`);
   }
   if (['verified', 'withdrawn'].includes(item.item_status)) {
@@ -697,7 +700,7 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
   const moved = ['item_route', 'item_criterion', 'item_check', 'item_after', 'item_check_timing'].filter((key) => next[key] !== item[key]);
   const routeChanged = next.item_route !== item.item_route;
   const correctionWhileClaimed = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
-    && item.item_status === 'claimed' && agentId === COORDINATOR
+    && item.item_status === 'claimed' && (agentId === COORDINATOR || widened)
     && (next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_after !== item.item_after || next.item_check_timing !== item.item_check_timing);
   if (moved.length && item.item_status !== 'open' && (routeChanged || !correctionWhileClaimed)) {
     throw new Refused('HELD', `item #${id} is ${item.item_status}; change its route, criterion or check only while it is open`);
@@ -705,7 +708,18 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
   if (brief !== undefined && engine >= REFERENCE_ENGINE) validateReferences(brief, { actor: agentId, authors: referenceAuthors, authority: referenceAuthority, previous: item.item_brief });
   checkRouted({ brief: next.item_brief, route: next.item_route, criterion: next.item_criterion, check: next.item_check }, engine);
   const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_check_timing !== item.item_check_timing || Boolean(reviewPolicy) && (sensitive !== undefined || reviewFamily !== undefined);
-  return { item, next, command, unfreeze, bar: barCorrectionFields(board, item, next, { reason }) };
+  const bar = widened ? { reason: reason?.trim() || `added test files: ${widened.join(', ')}`, widenedCheck: widened } : barCorrectionFields(board, item, next, { reason });
+  return { item, next, command, unfreeze, bar, widened: widened || null };
+}
+
+/** The test files a claim holder adds to its own frozen check, or null when this edit is not that move; a check that is no provable superset is refused by name [C7,V4,H16]. */
+function selfWidenedFiles(board, item, agentId, change) {
+  if (agentId === COORDINATOR || change.check === undefined) return null;
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < CHECK_WIDEN_SELF_ENGINE) return null;
+  if (item.item_status !== 'claimed' || item.item_owner !== agentId) return null;
+  if (Object.entries(change).some(([key, value]) => key !== 'check' && value !== undefined)) return null;
+  if (typeof change.check !== 'string') return null;
+  return widenedCheckFiles(item.item_check, change.check.trim());
 }
 
 /**
