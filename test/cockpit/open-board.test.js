@@ -43,10 +43,10 @@ async function openBoardStand(chrome, view) {
   const documentFor = (networkId) => {
     if (requestDocuments.has(networkId)) return Promise.resolve(requestDocuments.get(networkId));
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
+      const timer = setTimeout(() => { // budget: hang ceiling for the matching Network event, not a page recovery retry.
         waitingDocuments.delete(networkId);
         reject(new Error('The intercepted board list has no originating document.'));
-      }, 5_000); // budget: hang ceiling for the matching Network event, not a page recovery retry.
+      }, 5_000);
       waitingDocuments.set(networkId, (documentURL) => { clearTimeout(timer); resolve(documentURL); });
     });
   };
@@ -92,8 +92,13 @@ async function openBoardStand(chrome, view) {
       // view can, then passes through untouched.
       if (address.origin === view.base) {
         if (stand.failList > 0 && asked.method === 'GET' && address.pathname === '/api/v1/boards') {
-          const documentURL = await documentFor(networkId);
-          if (documentURL === stand.failDocument) {
+          let documentURL;
+          try { documentURL = await documentFor(networkId); }
+          catch (error) {
+            await chrome.send('Fetch.continueRequest', { requestId });
+            throw error;
+          }
+          if (stand.failList > 0 && documentURL === stand.failDocument) {
             stand.failList -= 1;
             stand.failedDocuments.push(documentURL);
             return send(requestId, 503, [{ name: 'Content-Type', value: 'application/json' }, { name: 'Access-Control-Allow-Origin', value: HOSTED }], JSON.stringify({ error: { code: 'BUSY', message: 'The view is busy.' } }));
