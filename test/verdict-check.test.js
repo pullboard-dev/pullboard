@@ -138,7 +138,7 @@ test('rework keeps historical rejection unknown and shows the latest accept chec
   try {
     const { repo, web } = project(box);
     const item = submitted(box, repo, web, 'Reworked accept');
-    succeeds(box, repo, 'verify', String(item.id), 'reject', '--as', 'coordinator', '--reason', 'BEHAVIOR_MISMATCH', '--note', 'the first version missed an edge');
+    succeeds(box, repo, 'verify', String(item.id), 'reject', '--as', 'coordinator', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'The fixture item is complete.', '--note', 'the first version missed an edge');
     box.git(repo, 'switch', 'main');
     succeeds(box, web, 'claim', String(item.id));
     writeFileSync(join(web, 'web', `item-${item.id}.js`), 'export const complete = true; // revised\n');

@@ -822,7 +822,7 @@ test("[A2, N26] a sent-back item's summary carries its reject note's first line"
   }
   const note = 'The page shows no greeting.\nThe second line stays in the detail.';
   const rejected = await submitted('Rejected item');
-  await move({ verb: 'verify', item: rejected, agent: verifier.agent, args: { decision: 'reject', reason: 'BEHAVIOR_MISMATCH', note } });
+  await move({ verb: 'verify', item: rejected, agent: verifier.agent, args: { decision: 'reject', reason: 'BEHAVIOR_MISMATCH', note, clause: 'shows a greeting' } });
   const accepted = await submitted('Accepted item');
   await move({ verb: 'verify', item: accepted, agent: verifier.agent, args: { decision: 'accept', reason: 'CRITERION_MET', note: 'The page greets by name.\nChecked twice.' } });
 

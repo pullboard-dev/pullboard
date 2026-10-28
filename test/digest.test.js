@@ -106,11 +106,11 @@ test('the digest is a readable briefing of one board [A2,N26]', (t) => {
   store.shout(box.board, { from: 'web-1', to: 'coordinator', text: `Found a key ${planted} in the logs`, lanes: ['web'] });
   store.shout(box.board, { from: 'web-2', to: 'coordinator', text: 'The upload review is next in my queue', lanes: ['web'] });
   /** The frozen criterion a claim records. */
-  const freeze = (item) => ({ text: item.item_title, digest: 'digest:briefing' });
+  const freeze = (item) => ({ text: JSON.stringify({ criterion: item.item_criterion, rows: [] }), digest: 'digest:briefing' });
   store.claim(box.board, first, { agentId: 'web-1', lane: 'web', leaseMs: 3_600_000, freeze });
   submitFixture(box.board, first, { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'fixture-tree' });
   store.verify(box.board, first, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE',
-    note: 'The upload test fails on an empty file', head: 'a'.repeat(40), digest: 'digest:briefing', policy: 'any' });
+    note: 'The upload test fails on an empty file', clause: 'A person uploads a file and sees it listed', head: 'a'.repeat(40), digest: 'digest:briefing', policy: 'any' });
   store.addMilestone(box.board, { agentId: 'coordinator', name: 'First release', note: 'Uploads that work', items: [first, prerequisite] });
 
   const before = snapshot(box);

@@ -101,8 +101,8 @@ test('a recorded submit stays successful when its later activity delivery fails 
 });
 
 /** Freeze a private item's exact requirement without claiming a test gate ran in this board-state fixture. */
-function freeze() {
-  return { text: JSON.stringify({ rows: [], policy: { version: 1, verify: { policy: 'any', family: 'off' } } }), digest: 'activity-fixture' };
+function freeze(item = {}) {
+  return { text: JSON.stringify({ criterion: item.item_criterion ?? '', rows: [], policy: { version: 1, verify: { policy: 'any', family: 'off' } } }), digest: 'activity-fixture' };
 }
 
 test('status moves are feed events and the board sends no status shout [B3,R2,N26,H16]', t => {
@@ -117,7 +117,7 @@ test('status moves are feed events and the board sends no status shout [B3,R2,N2
   requireFixtureReviewFamilies(board);
   const reviewer = store.register(board, { lane: 'api', path: join(box.dir, 'activity-reviewer'), family: 'Fixture Activity Reviewer Vendor' });
   const item = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Activity fixture' });
-  const other = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Unrelated item' });
+  const other = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Unrelated item', criterion: 'Unrelated item' });
   const beforeShouts = board.db.prepare('SELECT * FROM shout ORDER BY shout_id').all();
   store.claim(board, item, { agentId: 'web-1', lane: 'web', leaseMs: 3600000, head: base, freeze });
   const evidence = { version: 1, files: [], full: false, deferred: true, reason: 'private lifecycle fixture, not gate evidence' };
@@ -145,7 +145,7 @@ test('status moves are feed events and the board sends no status shout [B3,R2,N2
   assert.equal(store.events(board).filter(event => event.event_kind === 'main-moved').length, 1, 'one original batch receipt serves all item readers');
   store.claim(board, other, { agentId: 'web-1', lane: 'web', leaseMs: 3600000, head: base, freeze });
   submitFixture(board, other, { agentId: 'web-1', commit, tree });
-  store.verify(board, other, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'Synthetic private refusal fixture.',
+  store.verify(board, other, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'Synthetic private refusal fixture.', clause: 'Unrelated item',
     head: commit, digest: freeze().digest, policy: 'any', familyPolicy: 'off', reopenFirstRefusalMinutes: 30,
     review: { commit, head: commit, trunk: base, paths: ['web/activity.txt'] } });
   assert.equal(store.itemThread(board, other).at(-1).kind, 'reject', 'a rejection remains item activity');
@@ -476,11 +476,11 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   t.after(() => store.closeBoard(board));
   requireFixtureReviewFamilies(board);
   const reviewer = store.register(board, { lane: 'api', path: join(box.dir, 'interrupt-reviewer'), family: 'Fixture Interrupt Reviewer Vendor' });
-  const rejected = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Private rejected work' });
+  const rejected = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Private rejected work', criterion: 'Private rejected work' });
   store.claim(board, rejected, { agentId: 'web-1', lane: 'web', leaseMs: 3_600_000, head: base, freeze });
   submitFixture(board, rejected, { agentId: 'web-1', commit: rejectedCommit, tree });
   store.verify(board, rejected, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
-    note: 'Synthetic board-state refusal, not an executed gate.', head: rejectedCommit, digest: freeze().digest,
+    note: 'Synthetic board-state refusal, not an executed gate.', clause: 'Private rejected work', head: rejectedCommit, digest: freeze().digest,
     policy: 'any', familyPolicy: 'off', reopenFirstRefusalMinutes: 30,
     review: { commit: rejectedCommit, head: rejectedCommit, trunk: base, paths: ['web/interrupt.txt'] } });
   const active = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Private lapsing work',
