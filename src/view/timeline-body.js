@@ -6,7 +6,9 @@ export function timelineBodyHtml(text, { itemHref, codeLink, timeLabel, commit =
   const esc = value => String(value ?? '').replace(/[&<>"']/gu, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   // Consume external references whole, before their path, fragment or hash can look repository-relative.
   const literalReference = /\b[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s<>"']+|\bmailto:[^\s<>"']+|(?<![A-Za-z0-9_.\/-])(?:~\/|\/|[A-Za-z]:[\\/])[^\s<>"']+/u;
-  const detectedReference = /\b\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)\b|[A-Za-z0-9_.-]+\.[A-Za-z0-9]+:\d+(?:-\d+)?@[0-9a-f]{7,40}|(?:[A-Za-z0-9_.-]+\/)+[A-Za-z0-9_.-]+(?::\d+(?:-\d+)?)?(?:@[0-9a-f]{7,64})?|#[1-9]\d*\b|\b[0-9a-f]{12,64}\b|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/u;
+  // Infer files only under conventional repository directories, with an actual filename extension.
+  // Boundaries keep diff prefixes and path suffixes literal; hashes win before slash-separated prose.
+  const detectedReference = /\b\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)\b|\b[0-9a-f]{12,64}\b|(?<![A-Za-z0-9_.\/-])[A-Za-z0-9_.-]+\.[A-Za-z0-9]+:\d+(?:-\d+)?@[0-9a-f]{7,40}|(?<![A-Za-z0-9_.\/-])(?:\.github|apps|assets|api|bin|config|docs|examples|lib|packages|public|scripts|src|test|tests|tools|web)\/(?:[A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+\.[A-Za-z0-9]+(?::\d+(?:-\d+)?)?(?:@[0-9a-f]{7,64})?|#[1-9]\d*\b|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/u;
   const pattern = new RegExp(literalReference.source + '|' + detectedReference.source, 'gu');
   const source = String(text ?? '');
   let html = '', at = 0;
