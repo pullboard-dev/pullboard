@@ -332,6 +332,7 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         await press(chrome, 'document.querySelector("[data-agent=\\"\\"]")');
         await tab('activity');
         const activity = await text('#activity');
+        t.diagnostic(JSON.stringify({ checkpoint: at + ': activity identities', text: activity, names: JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#activity .activity-who')].map(node => ({ text: node.textContent, title: node.title })))")) }));
         assert.ok(activity.includes(expected.builder) && activity.includes(expected.unknown) && activity.includes(expected.reviewer), `${at}: activity identities`);
         await tab('roadmap');
         // Disclosure choices survive tab visits: explicitly fold rows before testing the collapsed view.
@@ -451,8 +452,9 @@ test('local agents panel inventories and phone-revokes a scoped credential [H2,H
   stage('device confirmation');
   await phoneChrome.navigate(`${box.origin}/#device=${pending.locator}.${pending.secret}`);
   stage('device navigation returned');
-  assert.equal((await setupDone).code, 0, 'the real phone session pairs the machine');
   await phoneChrome.waitFor("document.querySelector('#phone-approvals') !== null");
+  stage('phone enrollment page ready');
+  assert.equal((await setupDone).code, 0, 'the real phone session pairs the machine');
 
   stage('first agent');
   const joined = await box.cli('worktree', box.lane);

@@ -70,6 +70,7 @@ test('a review in progress names its reviewer [N26]', async () => {
     await page.run('refresh()');
     await page.click({ state: 'all' });
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip ok">verified<\/span><\/li>$/, 'once the verdict lands, the review is over');
+    await page.click({ tab: 'shouts' });
     assert.deepEqual(holds('web-2'), []);
   } finally {
     await view.stop();
@@ -1040,8 +1041,8 @@ test('in-text item references stay inline and open their target at phone and des
       await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
 
       await chrome.click(`document.querySelector('[data-tab="activity"]')`);
-      await chrome.waitFor("document.querySelector('#activity .what a.ref[data-go]')");
-      await chrome.click(`document.querySelector('#activity .what a.ref[data-go]')`);
+      await chrome.waitFor("document.querySelector('#activity .activity-item a.ref[data-go]')");
+      await chrome.click(`document.querySelector('#activity .activity-item a.ref[data-go]')`);
       await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
 
       await chrome.click(`document.querySelector('#chain .row[data-item="2"]')`);
