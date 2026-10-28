@@ -6,16 +6,19 @@ import { ENGINE_VERSION } from './machine.js';
 const DIRECTORIES = ['relay/', 'bin/', '.githooks/', '.husky/', '.github/workflows/', 'src/moves/',
   'src/gate/', 'src/auth/', 'src/kernel/', 'src/landing/', 'src/runner/',
   'test/gate/', 'test/auth/', 'test/relay/', 'test/kernel/', 'test/landing/', 'test/runner/'];
-const FILES = new Set(['package.json', 'package-lock.json', 'pullboard.json', 'src/config.js', 'src/cli.js', 'src/cli-main.js']);
+const FILES = new Set(['package.json', 'package-lock.json', 'pullboard.json', 'src/config.js', 'src/cli.js', 'src/cli-main.js',
+  'test/lane-bypass.test.js', 'test/trunk.test.js', 'test/evidence.test.js', 'test/retention-prune.test.js',
+  'test/approved-row-changes.test.js', 'test/row-decisions.test.js', 'test/qr.test.js']);
 const FAMILIES = [
-  'gate', 'flake', 'flakes', 'native-flake', 'native-flakes', 'ci-flake', 'ci-flakes', 'quarantine',
+  'gate', 'source-advance', 'flake', 'flakes', 'native-flake', 'native-flakes', 'ci-flake', 'ci-flakes', 'quarantine',
   'test', 'tap-tests', 'perf-budgets', 'timing', 'timed-shell', 'runner', 'runners', 'remote', 'hook', 'hooks',
   'module-imports', 'static-import-style', 'affected-tests', 'audit-coverage', 'main-audit', 'main-red', 'main-failure-matches',
   'known-main', 'review', 'next', 'queue', 'line-capacity', 'route-escalation', 'item-authors', 'item-patch',
   'required-review-family', 'verdict', 'verify', 'merge-only', 'landing', 'land', 'train', 'mechanical-merge',
   'trunk-conflict', 'computed-conflict', 'receipt', 'proof', 'pre-push', 'push-receipt', 'push-native', 'release-gate',
-  'submit', 'submission', 'browser', 'gui-admission', 'cpu-load-admission', 'child-journal', 'shell-run',
+  'submit', 'submission', 'browser', 'gui', 'cpu', 'resources', 'chrome', 'child-journal', 'shell-run',
   'bar', 'check', 'criterion', 'frozen', 'policy', 'trusted', 'ratchet', 'rigor', 'doctrine', 'spec',
+  'claim', 'claims', 'verifier', 'refusal', 'guard', 'privacy-words', 'intake', 'outside',
   'auth', 'relay', 'secret', 'secrets', 'credential', 'security', 'signature', 'seal', 'sealed', 'pairing',
   'person', 'agent-grant', 'agent-session', 'parent-session', 'coordinator-hold', 'seats', 'seat',
   'kernel', 'refused', 'discovery', 'registry-guards', 'literal-shell-words', 'js-lex', 'machine',
