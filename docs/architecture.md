@@ -61,7 +61,7 @@ On top of the GitHub identity, the relay issues its own credentials. Each one is
 
 A person session can revoke any of its account's credentials through `POST /auth/tokens/revoke`; a machine or agent credential can revoke only itself (`revoke` in `relay/auth.js`). Deleting a board's relay copy, or letting it expire, deletes every credential bound to it (`forgetBoard` in `relay/auth.js`). The relay keeps the hashes of the ones still live until they would have expired, so a machine that uses one later hears that the relay copy was deleted and keeps working locally.
 
-The relay labels each record with a sender taken from the credential that sent it, and ignores any sender named in the request (`sender` in `relay/service.js`). Every client refuses a record its sender may not make: a machine credential may send snapshots, seat registrations, the coordinator seat and phone-approved moves, and an agent may act only as itself (`relaySenderProblem` in `src/relay-sender.js`). On the machine, a terminal that carries an agent marker or an SSH marker cannot take person actions, and the person uses the view or the phone instead (`requirePersonChannel` in `src/person.js`).
+The relay labels each record with a sender taken from the credential that sent it, and ignores any sender named in the request (`sender` in `relay/service.js`). Every client refuses a record its sender may not make: a machine credential may send snapshots, seat registrations, the coordinator seat and phone-approved moves, and an agent may act only as itself (`relaySenderProblem` in `packages/state/src/core/relay-sender-policy.js`). On the machine, a terminal that carries an agent marker or an SSH marker cannot take person actions, and the person uses the view or the phone instead (`requirePersonChannel` in `src/person.js`).
 
 ## What the relay stores
 
@@ -114,13 +114,13 @@ It also reads phone approvals. A machine publishes each approval with its contex
 
 ## What only your devices can read
 
-Board contents travel sealed: items, criteria, shouts, verdicts and spec rows. The machine seals each snapshot, move and request with AES-256-GCM under the board key, and the associated data binds the board id, the sequence and the kind (`seal` in `src/seal.js`). The relay checks only that a payload is canonical base64url, then stores the bytes unparsed (`sealed` in `relay/service.js`, `relay/journal.js`). Your repository's code stays on your machine; only board records go to the relay.
+Board contents travel sealed: items, criteria, shouts, verdicts and spec rows. The machine seals each snapshot, move and request with AES-256-GCM under the board key, and the associated data binds the board id, the sequence and the kind (`seal` in `packages/kernel/src/core/seal.js`). The relay checks only that a payload is canonical base64url, then stores the bytes unparsed (`sealed` in `relay/service.js`, `relay/journal.js`). Your repository's code stays on your machine; only board records go to the relay.
 
 The relay never receives a board key in a form it can use. A phone gets it wrapped to the phone's own ECDH key, and another machine gets it sealed under a secret that exists only in the printed pairing code. The pairing secrets themselves stay off the relay: the phone's secret rides in the link's fragment, which the browser never sends (`relay/browser-devices.js`).
 
 ## How pairing moves the board key
 
-**Linking a board.** `pullboard relay on` makes a 256-bit board key on the machine and keeps it in `~/.pullboard/relay-keys/<board>.key`, mode 600 (`generateBoardKey` in `src/seal.js`, `storeBoardKey` in `src/relay-key.js`). The person signs in and the relay records the link. The machine receives its `pm_` and uploads the board's first sealed snapshot.
+**Linking a board.** `pullboard relay on` makes a 256-bit board key on the machine and keeps it in `~/.pullboard/relay-keys/<board>.key`, mode 600 (`generateBoardKey` in `packages/kernel/src/core/seal.js`, `storeBoardKey` in `src/relay-key.js`). The person signs in and the relay records the link. The machine receives its `pm_` and uploads the board's first sealed snapshot.
 
 **Pairing a phone.** The machine makes a one-time locator and secret, keeps the secret in its private `relay-machine/state.json`, and shows both in a QR code (`beginDeviceEnrollment` in `src/relay-machine.js`). The phone makes an ECDH P-256 key pair whose private half cannot be exported, and keeps it in IndexedDB (`createDeviceKeys` in `src/relay-device-keys.js`). It signs its public key with an HMAC derived from the secret and posts it through the relay (`signDeviceEnrollment`). The machine checks that MAC before it trusts the key, so the relay cannot slip in a key of its own (`acceptDeviceEnrollment` in `src/relay-machine.js`). The machine then wraps the board key to the public key it recorded itself (`wrapForRecordedDevice`) and uploads the wrap with its `pm_`. It wraps again on every sync (`deliverDeviceWraps` in `src/relay.js`). The phone unwraps it with its private key and keeps the board key in `localStorage` (`deviceBoardKeys` in `relay/browser-devices.js`, `relay/browser-client.js`).
 
@@ -156,7 +156,7 @@ A compromised relay could serve a compromised page. Every script the phone runs 
 
 Approval context is in clear. The relay reads each requested action, its target, the machine id and the command text, and keeps them with no deletion path.
 
-The sender of a record is the relay's word. The seal binds the board, the sequence and the kind, and leaves the sender outside it (`src/seal.js`), so a compromised relay could relabel a validly sealed move. The device key only agrees keys: it cannot sign, and no passcode or Face ID guards it. A phone approval proves a tap in a browser that holds the session cookie.
+The sender of a record is the relay's word. The seal binds the board, the sequence and the kind, and leaves the sender outside it (`packages/kernel/src/core/seal.js`), so a compromised relay could relabel a validly sealed move. The device key only agrees keys: it cannot sign, and no passcode or Face ID guards it. A phone approval proves a tap in a browser that holds the session cookie.
 
 Agents on a machine share what is on disk. Every agent runs as the same operating-system user, so any of them can read the board key file and `relay.json`. The `pm_` there can issue a `pa_` for any seat name the relay is given (`issueToken` in `relay/auth.js`), and only the client checks that the name is a registered seat (`actorTransport` in `src/relay.js`).
 
