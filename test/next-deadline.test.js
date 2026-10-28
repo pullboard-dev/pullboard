@@ -7,7 +7,11 @@ import { fileURLToPath } from 'node:url';
 import * as store from '../src/board.js';
 import { nextProgress } from '../src/next-take.js';
 import { fixture } from './next-take-fixture.js';
-import { runFixtureChild } from './fixture-child.js';
+import {
+  privateFixtureFiles,
+  runFixtureChildAsync,
+} from './fixture-child.js';
+import { rmSync } from 'node:fs';
 
 /** Capture only progress stderr; the actual JSON result channel remains separate. */
 function observer(options) {
@@ -123,12 +127,14 @@ test('next answers within sixty seconds on a generated private SQLite board of c
   const bin = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
   const started = performance.now();
   // Budget: #1811 requires the real command to answer or refuse within sixty seconds, excluding fixture setup.
-  const result = runFixtureChild(process.execPath, [bin, 'next', '--build', '--json'], {
+  const phaseLines = [];
+  const result = await runFixtureChildAsync(process.execPath, [bin, 'next', '--build', '--json'], {
     cwd: box.seats.actor.path, env: process.env, encoding: 'utf8', timeout: 60_000,
+    onStderrChunk: text => phaseLines.push({ atMs: performance.now() - started, text }),
   });
   const elapsed = performance.now() - started;
   t.diagnostic(JSON.stringify({ generated: true, copiedPrivateHistory: false, counts, elapsedMs: elapsed,
-    status: result.status, signal: result.signal, stderr: result.stderr }));
+    status: result.status, signal: result.signal, stderr: result.stderr, phaseLines }));
   assert.equal(result.signal, null, 'the fixture timeout must not stand in for a named native result');
   assert.ok(elapsed < 60_000, `next took ${elapsed} ms`); // budget: declared #1811 response bound is sixty seconds, excluding fixture setup.
   const document = JSON.parse(result.stdout);
@@ -140,4 +146,53 @@ test('next answers within sixty seconds on a generated private SQLite board of c
     assert.ok(document.error?.code, 'a refusal must name the actual rule');
     assert.notEqual(document.error.code, 'USAGE', 'the real seeded routing command must run');
   }
+});
+
+
+test('the real progress worker reports during synchronous private SQLite work before the phase ends [C7]', async t => {
+  const files = privateFixtureFiles('next-sync-phase-');
+  t.after(() => rmSync(files.root, { recursive: true, force: true }));
+  const progressModule = new URL('../src/next-take.js', import.meta.url).href;
+  const monitorModule = new URL('../src/next-progress-monitor.js', import.meta.url).href;
+  files.write('phase.mjs', `
+import { DatabaseSync } from 'node:sqlite';
+import { nextProgress } from ${JSON.stringify(progressModule)};
+import { startNextProgressMonitor } from ${JSON.stringify(monitorModule)};
+const db = new DatabaseSync(${JSON.stringify(files.root + '/phase.sqlite')});
+db.exec('CREATE TABLE sample(value INTEGER); WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<2000) INSERT INTO sample SELECT i FROM n');
+const query = db.prepare('SELECT SUM(value) AS total FROM sample');
+const monitor = await startNextProgressMonitor({ stderr: process.stderr });
+const progress = nextProgress({ stderr: process.stderr }, { monitor });
+let reads = 0;
+const started = performance.now();
+try {
+  await progress.run('private SQLite selection', 73, () => {
+    // Budget: exceed the actual production ten-second reporting threshold with real synchronous SQL, not a yielding timer.
+    while (performance.now() - started < 12_000) {
+      if (query.get().total !== 2001000) throw new Error('private SQL result changed');
+      reads++;
+    }
+  });
+  process.stdout.write(JSON.stringify({ phaseMs: performance.now() - started, reads }) + '\n');
+} finally { progress.stop(); await monitor.close(); db.close(); }
+`);
+  const chunks = [], started = performance.now();
+  // Budget: the private synchronous phase is twelve seconds; this outer fixture timeout only drains a broken child.
+  const child = runFixtureChildAsync(process.execPath, [files.root + '/phase.mjs'], {
+    env: process.env, timeout: 30_000,
+    onStderrChunk: text => chunks.push({ atMs: performance.now() - started, text }),
+  });
+  const result = await child;
+  t.diagnostic(JSON.stringify({ status: result.status, stdout: result.stdout, stderr: result.stderr, chunks }));
+  assert.equal(result.status, 0, result.context);
+  assert.equal(result.signal, null, result.context);
+  const completed = JSON.parse(result.stdout);
+  assert.ok(completed.reads > 0, 'the private child really executed synchronous SQLite reads');
+  const lines = result.stderr.split('\n').filter(line => line.startsWith('next phase '));
+  assert.equal(lines.length, 1, 'worker and completion check share one reporting claim');
+  const line = /^next phase private SQLite selection; item #73; (\d+) ms$/u.exec(lines[0]);
+  assert.ok(line, result.stderr);
+  assert.ok(Number(line[1]) >= 10_000, 'the real production threshold was not shortened');
+  assert.ok(Number(line[1]) < completed.phaseMs - 1_000, 'the line precedes completion by a full second; the old completion-time fallback cannot pass');
+  assert.ok(chunks.some(chunk => chunk.text.includes(lines[0]) && chunk.atMs < result.elapsedMs), 'the observing parent received progress before child completion');
 });

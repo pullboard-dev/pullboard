@@ -71,7 +71,7 @@ export async function nextTake(ctx, values = {}, services) {
 }
 
 /** Bound active routing retries while yielding so native progress and peer work can run [C7,1811]. */
-export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetries = 16, now = () => performance.now() } = {}) {
+export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetries = 16, now = () => performance.now(), monitor = null } = {}) {
   // Budget: #1811 allows one minute of active routing and names a phase after ten seconds.
   let started = now(), lastIdleNotice = -Infinity;
   let phase = 'startup', item = null, phaseStarted = started, timer = null, warned = false, retries = 0;
@@ -82,14 +82,15 @@ export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetr
     if (io.stderr?.write) io.stderr.write(text + '\n'); else io.err?.(text);
   }
   /** Print one delayed line for the current phase; a retry yields to this timer. */
-  function warn() { if (!warned) { warned = true; line(); } }
+  function warn() { if (!warned) { warned = true; if (monitor) monitor.warn(); else line(); } }
   /** Stop a completed phase's timer without touching a native operation or its claim. */
-  function stop() { if (timer) clearTimeout(timer); timer = null; }
+  function stop() { if (timer) clearTimeout(timer); timer = null; monitor?.stop(); }
   /** Name the next real phase and its item before entering potentially slow work. */
   function enter(name, id = null) {
     check();
     stop(); phase = name; item = Number.isSafeInteger(id) ? id : null; phaseStarted = now(); warned = false;
-    timer = setTimeout(warn, phaseMs); timer.unref?.();
+    if (monitor) monitor.enter(phase, item);
+    else { timer = setTimeout(warn, phaseMs); timer.unref?.(); }
   }
   /** Refuse only between completed native attempts, preserving any committed claim's custody. */
   function check() {

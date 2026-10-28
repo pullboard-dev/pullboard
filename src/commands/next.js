@@ -1,5 +1,6 @@
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
+import { startNextProgressMonitor } from '../next-progress-monitor.js';
 import { mainRedReviewItems } from '../main-red.js';
 import { mainRedReworkItems } from '../main-red.js';
 import { computedReturnArgs } from '../computed-conflict-return.js';
@@ -63,10 +64,11 @@ function inboxReasons(ctx) {
  * @returns {Promise<number>}
  */
 export async function nextHere(io, values) {
-  const progress = nextProgress(io), previous = io.nextPhase;
+  const monitor = await startNextProgressMonitor(io);
+  const progress = nextProgress(io, { monitor }), previous = io.nextPhase;
   io.nextPhase = progress.enter;
   try { return await nextWithProgress(io, values, progress); }
-  finally { progress.stop(); if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous; }
+  finally { progress.stop(); await monitor?.close(); if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous; }
 }
 
 /** Keep native routing and deliberate idle waits separate from bounded nonprogress retries. */
