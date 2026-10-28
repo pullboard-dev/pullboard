@@ -117,7 +117,7 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     assert.ok(calls.some((call) => call.path === '/api/v1/boards'));
     assert.ok(calls.some((call) => call.path.startsWith('/api/v1/boards/') && call.path.endsWith('/state')));
     assert.equal(await chrome.stable("document.querySelector('#live').textContent"), '', 'read-only transport keeps the page live, which says nothing');
-    await chrome.click(`document.querySelector('#chain [data-go^="item:"]')`);
+    await chrome.click(`document.querySelector('#chain [data-item]')`);
     await chrome.waitFor("document.querySelector('#detail [data-shout]') !== null");
     await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
     await chrome.waitFor("document.querySelector('[data-release]') !== null && document.querySelector('[data-go^=\"decide:\"]') !== null");
