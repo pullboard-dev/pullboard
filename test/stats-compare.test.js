@@ -52,18 +52,20 @@ function fixture(t, changes = entries()) {
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: { core: { owns: ['src/'] } } }));
   writeFileSync(join(root, 'PRACTICE.md'), '');
   const clock = { now: () => new Date(at(120)) };
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
-  store.register(board, { lane: 'coordinator', path: root });
-  store.register(board, { lane: 'core', path: join(root, 'builder') });
-  store.register(board, { lane: 'review', path: join(root, 'reviewer') });
-  for (let n = 1; n <= 3; n++) store.addItem(board, { by: 'coordinator', lane: 'core', title: `Window ${n}` });
-  const document = exportBoard(board);
+  const seed = store.openBoard(join(root, '.git', 'seed.sqlite'), clock);
+  store.register(seed, { lane: 'coordinator', path: root });
+  store.register(seed, { lane: 'core', path: join(root, 'builder') });
+  store.register(seed, { lane: 'review', path: join(root, 'reviewer') });
+  for (let n = 1; n <= 3; n++) store.addItem(seed, { by: 'coordinator', lane: 'core', title: `Window ${n}` });
+  const document = exportBoard(seed);
+  store.closeBoard(seed);
   const joins = document.tables.agent.map(agent => [0, agent.agent_id, 'join', null, { lane: agent.agent_lane }]);
   document.tables.event = [...joins, ...changes].map((entry, order) => ({ entry, order }))
     .sort((a, b) => a.entry[0] - b.entry[0] || a.order - b.order)
     .map(({ entry: [minute, by, kind, id, detail = {}] }, index) => ({ event_id: index + 1,
       event_at: at(minute), event_by: by, event_kind: kind, item_id: id, event_detail: JSON.stringify(detail) }));
   document.tables.sqlite_sequence.find(row => row.name === 'event').seq = document.tables.event.length;
+  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   importBoard(board, document);
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
   return { root, board, clock, history: () => store.events(board) };
