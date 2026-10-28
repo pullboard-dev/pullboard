@@ -3,8 +3,10 @@ import { createHash } from 'node:crypto';
 import { atomic } from './board-event-log.js';
 import { logEvent } from './board-event-log.js';
 import { getItem } from './board-query.js';
+import { reviewHolder } from './board-query.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { ITEM_PATCH_ENGINE } from './item-patch-engine.js';
+import { PATCH_REVIEW_CUSTODY_ENGINE } from './patch-review-custody-engine.js';
 import { Refused } from './refused.js';
 import { outsideSource } from './outside-source.js';
 import { itemPatchRecords as records } from './item-patch-state.js';
@@ -15,6 +17,13 @@ const PREFIX = 'item_patches:';
 const KEY = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u;
 const COMMIT = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const MAX_BYTES = 8 * 1024 * 1024;
+/** Revoke checked inputs without evicting their live reviewer; old ordered moves retain eviction. */
+export function itemPatchResetFields(board, item) {
+  const held = (board.executionEngineVersion ?? ENGINE_VERSION) >= PATCH_REVIEW_CUSTODY_ENGINE && reviewHolder(board, item);
+  return { item_built_by: item.item_built_by, item_frozen_digest: item.item_frozen_digest,
+    item_verdict: null, item_verified_by: null,
+    item_review_by: held ? item.item_review_by : null, item_review_until: held ? item.item_review_until : null };
+}
 /** Hash exact UTF8 data with one stable algorithm on all replicas. */
 function hash(value) { return createHash('sha256').update(value, 'utf8').digest('hex'); }
 /** Refuse unknown payload fields rather than accepting caller identity assertions. */

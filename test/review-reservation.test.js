@@ -8,7 +8,10 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { main } from '../src/cli.js';
 import { exportBoard } from '../src/exchange.js';
+import { importBoard } from '../src/exchange.js';
+import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { itemPatchDigest } from '../src/item-patches.js';
+import { PATCH_REVIEW_CUSTODY_ENGINE } from '../src/patch-review-custody-engine.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 
@@ -56,7 +59,7 @@ function fixture(t) {
   /** Exercise native verdict input validation; this fixture does not claim to run a gate. */
   const verdict = companionDigest => store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT',
     head, digest, policy: 'any', companionDigest, note: 'Synthetic state control: freshly captured companion digest; no runtime proof claimed.' });
-  return { board, id, clock, root, reviewer, other, otherPath: paths[2], reserve, attach, verdict };
+  return { board, id, clock, root, head, builder, reviewer, other, otherPath: paths[2], reserve, attach, verdict };
 }
 
 /** Capture the real CLI against a separate connection to the fixture's persisted board. */
@@ -114,4 +117,24 @@ test('changed companion inputs still revoke acceptance when no submitted review 
   assert.equal(item.item_verified_by, null);
   assert.equal(item.item_review_by, null);
   assert.equal(item.item_review_until, null);
+});
+
+test('older ordered companion changes replay eviction and the new engine retains custody [V15,H16,C7]', t => {
+  const box = fixture(t);
+  const held = box.reserve(box.reviewer);
+  const options = { agentId: 'coordinator', key: 'ordered-part', commit: box.head, patch: PATCH, author: box.builder };
+  const move = prepareEngineMove(box.board, 'attachItemPatch', [box.id, options], { id: 'review-custody-order' });
+  assert.ok(move.engine >= PATCH_REVIEW_CUSTODY_ENGINE, 'the producer stamps the engine that defines retained custody');
+  for (const engine of [PATCH_REVIEW_CUSTODY_ENGINE - 1, PATCH_REVIEW_CUSTODY_ENGINE]) {
+    const replica = store.openBoard(':memory:', box.clock);
+    t.after(() => store.closeBoard(replica));
+    importBoard(replica, exportBoard(box.board));
+    const outcome = applyEngineMove(replica, { ...move, engine }, { sequence: 1, at: box.clock.now().toISOString() });
+    assert.equal(outcome.error, undefined, JSON.stringify(outcome));
+    const item = store.getItem(replica, box.id);
+    assert.equal(item.item_review_by, engine < PATCH_REVIEW_CUSTODY_ENGINE ? null : box.reviewer);
+    assert.equal(item.item_review_until, engine < PATCH_REVIEW_CUSTODY_ENGINE ? null : held.item_review_until);
+    assert.deepEqual(applyEngineMove(replica, { ...move, engine }, { sequence: 1, at: box.clock.now().toISOString() }), outcome,
+      'an identical ordered retry retains its original receipt and custody');
+  }
 });
