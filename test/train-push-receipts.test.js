@@ -1,4 +1,4 @@
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyCommittedPackageFiles } from './package-copy-fixture.js';
 /** @pullboard-test-input source-tree */
 /** Exercise the native train producer, ordered landing writer and additive push check [C7]. */
 import assert from 'node:assert/strict';
@@ -6,12 +6,9 @@ import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { relative } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { configFromSource } from '../src/config.js';
@@ -80,7 +77,7 @@ async function finishAudits(box, waitFor) {
       for (const name of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN',
         'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_CHECKOUT_SESSION_TOKEN']) delete env[name];
       box.auditTokens.set(batch.id, token); // A failed or unobserved job is inspected, never silently executed again.
-      const result = runFixtureChild(process.execPath, [join(box.repo, '.tooling/bin/main-audit.js'), box.repo, token, '--release'],
+      const result = runFixtureChild(process.execPath, [join(box.repo, 'bin/main-audit.js'), box.repo, token, '--release'],
         { cwd: box.repo, env, encoding: 'utf8' });
       assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
     }
@@ -97,48 +94,15 @@ function onBoard(box, action) {
   try { return action(board); } finally { store.closeBoard(board); }
 }
 
-/** Commit every shipped tooling byte through ordinary hooks in batches below the staged-text scan ceiling. */
-function commitTooling(box, tooling) {
-  const files = [];
-  /** Enumerate the real private installation without following directory aliases. */
-  function collect(directory) {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      const path = join(directory, entry.name);
-      if (entry.isDirectory()) collect(path);
-      else {
-        assert.ok(entry.isFile(), `published tooling entry must be regular: ${path}`);
-        files.push(path);
-      }
-    }
-  }
-  collect(tooling);
-  let batch = [], bytes = 0, number = 0;
-  /** Keep the original secret scanner and commit hook on every bounded installation commit. */
-  function commit() {
-    if (!batch.length) return;
-    box.git(box.repo, 'add', '--', ...batch);
-    box.git(box.repo, 'commit', '-q', '-m', `test: install native tooling batch ${++number}`);
-    batch = []; bytes = 0;
-  }
-  for (const file of files.sort()) {
-    const size = statSync(file).size + 4096;
-    if (batch.length && bytes + size > 2 * 1024 * 1024) commit();
-    batch.push(relative(box.repo, file)); bytes += size;
-  }
-  commit();
-}
-
 /** Prepare real private source and policy; all gate receipts are produced by actual native executions. */
 function fixture(t, required = true) {
   const helpers = createE2eHelpers();
-  const box = helpers.project('node .tooling/bin/run-tests.js', undefined, { withWorktree: false });
+  const box = helpers.project('node bin/run-tests.js', undefined, { withWorktree: false });
   box.auditTokens = new Map();
   t.after(async () => { await finishAudits(box, helpers.waitFor); helpers.cleanup(); });
   delete box.env.NODE_TEST_CONTEXT;
-  const tooling = join(box.repo, '.tooling');
-  mkdirSync(tooling);
-  copyPackageFiles(import.meta.dirname + '/..', tooling);
-  writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'native-train-fixture', private: true, type: 'module' }));
+  // A root installation retains a single real package scope for the production import-closure audit.
+  copyCommittedPackageFiles(box, import.meta.dirname + '/..');
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/train.test.js'), "import { test } from 'node:test'; import assert from 'node:assert/strict'; test('the actual train body [C7]',()=>assert.notEqual(process.env.TRAIN_RED,'1'));\n");
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
@@ -146,7 +110,6 @@ function fixture(t, required = true) {
     landing: { publish: 'separate', requireReceipts: required }, pushReceiptCheck: { smoke: 'node -e ""' } }));
   box.git(box.repo, 'add', '--', 'package.json', 'pullboard.json', 'web/train.test.js');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare native train fixture');
-  commitTooling(box, tooling);
   const base = box.git(box.repo, 'rev-parse', 'HEAD').trim();
   return { ...box, base, waitFor: helpers.waitFor };
 }
@@ -362,7 +325,7 @@ test('a native train landing records ordered bound evidence and an audit permits
   const range = pushedFirstParentCommits(box.repo, `refs/heads/main ${tip} refs/heads/main ${box.base}\n`);
   assert.deepEqual(range, [tip]);
   assert.deepEqual(onBoard(box, board => nativePushReceiptProblems(box.repo, board, range)), []);
-  const positive = runFixtureChild(process.execPath, [join(box.repo, '.tooling/bin/pullboard.js'), 'push-receipts', '--json'],
+  const positive = runFixtureChild(process.execPath, [join(box.repo, 'bin/pullboard.js'), 'push-receipts', '--json'],
     { cwd: box.repo, env: box.env, encoding: 'utf8',
       input: `refs/heads/main ${tip} refs/heads/main ${box.base}\n` });
   assert.equal(positive.status, 0, `${positive.stdout}${positive.stderr}`);
@@ -374,7 +337,7 @@ test('a native train landing records ordered bound evidence and an audit permits
   box.git(box.repo, 'add', '-A'); box.git(box.repo, 'commit', '-q', '-m', 'chore: bypass the native train');
   const bypass = box.git(box.repo, 'rev-parse', 'HEAD').trim();
   assert.match(onBoard(box, board => nativePushReceiptProblems(box.repo, board, [tip, bypass])).join('\n'), /lacks its exact native green landing receipt/u);
-  const negative = runFixtureChild(process.execPath, [join(box.repo, '.tooling/bin/pullboard.js'), 'push-receipts', '--json'],
+  const negative = runFixtureChild(process.execPath, [join(box.repo, 'bin/pullboard.js'), 'push-receipts', '--json'],
     { cwd: box.repo, env: box.env, encoding: 'utf8',
       input: `refs/heads/main ${bypass} refs/heads/main ${box.base}\n` });
   assert.equal(negative.status, 1, `${negative.stdout}${negative.stderr}`);
