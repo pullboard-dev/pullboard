@@ -40,6 +40,7 @@
     "src/item-offer.js": 1,
     "src/item-patch-compose.js": 1,
     "src/item-patch-engine.js": 1,
+    "src/item-patch-paths.js": 1,
     "src/item-patch-review.js": 1,
     "src/item-patch-state.js": 1,
     "src/item-patches.js": 1,
@@ -143,6 +144,7 @@
     "src/move-history/156.json": 1,
     "src/move-history/157.json": 1,
     "src/move-history/158.json": 1,
+    "src/move-history/159.json": 1,
     "src/move-history/legacy.json": 1,
     "src/move-implies.js": 1,
     "src/move-registry.js": 1,
@@ -399,8 +401,6 @@
     "src/reopen-first-refusal-engine.js": 1,
     "src/reopen-history.js": 1,
     "src/required-review-family.js": 1,
-    "src/resources.js": 1,
-    "src/resume-needs.js": 1,
-    "src/resume-sources.js": 1
+    "src/resources.js": 1
   }
 }

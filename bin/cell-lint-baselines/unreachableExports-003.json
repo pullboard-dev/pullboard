@@ -159,6 +159,8 @@
     "src/review-policy.js#anyItemReviewPolicyEngine": 1,
     "src/review-policy.js#itemReviewPolicyEngine": 1,
     "src/review-skip-engine.js#REVIEW_SKIP_ENGINE": 1,
+    "src/review-tier.js#gateJudgmentItem": 1,
+    "src/review-tier.js#gateJudgmentPath": 1,
     "src/rigor-counters.js#RIGOR_COLD_NOTICE": 1,
     "src/rigor-counters.js#RIGOR_TAIL_LIMIT": 1,
     "src/rigor-draft.js#rigorDraft": 1,

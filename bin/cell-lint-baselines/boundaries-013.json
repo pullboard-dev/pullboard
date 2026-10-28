@@ -2,6 +2,18 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "test/fixtures/engine-55-reader.js->src/refused.js": 1,
+    "test/fixtures/proof-stats-legacy.js->src/bar-corrections.js": 1,
+    "test/fixtures/proof-stats-legacy.js->src/board.js": 1,
+    "test/fixtures/proof-stats-legacy.js->src/caught.js": 1,
+    "test/fixtures/proof-stats-legacy.js->src/refused.js": 1,
+    "test/fixtures/proof-stats-legacy.js->src/stats-flow.js": 1,
+    "test/fixtures/resources-pre-runners.js->src/git.js": 1,
+    "test/fixtures/resources-pre-runners.js->src/machine-home.js": 1,
+    "test/fixtures/resources-pre-runners.js->src/refused.js": 1,
+    "test/flakes-ledger.test.js->src/board.js": 1,
+    "test/flakes-ledger.test.js->src/engine.js": 1,
+    "test/flakes-ledger.test.js->src/exchange.js": 1,
     "test/flakes-ledger.test.js->test/board-submit-fixture.js": 1,
     "test/flakes.test.js->src/board.js": 1,
     "test/flakes.test.js->src/land.js": 1,
@@ -389,18 +401,6 @@
     "test/line-settings.test.js->src/queue-settings.js": 1,
     "test/line-settings.test.js->src/settings-inventory.js": 1,
     "test/line-settings.test.js->test/e2e-helpers.js": 1,
-    "test/local-fetch.test.js->src/local-fetch.js": 1,
-    "test/local-fetch.test.js->test/fixture-child.js": 1,
-    "test/lsof-lookups.test.js->src/resources.js": 1,
-    "test/lsof-lookups.test.js->test/cleanup-diagnostics.js": 1,
-    "test/machine-home.test.js->src/package-files.js": 1,
-    "test/machine-home.test.js->src/recorded-refusal.js": 1,
-    "test/machine-home.test.js->test/e2e-helpers.js": 1,
-    "test/machine-home.test.js->test/fixture-child.js": 1,
-    "test/machine.test.js->src/board.js": 1,
-    "test/machine.test.js->src/cli.js": 1,
-    "test/machine.test.js->src/config.js": 1,
-    "test/machine.test.js->src/machine.js": 1,
-    "test/machine.test.js->src/refused.js": 1
+    "test/local-fetch.test.js->src/local-fetch.js": 1
   }
 }

@@ -2,6 +2,8 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/moves/appendFact.js->src/bar-check-engine.js": 1,
+    "src/moves/appendFact.js->src/engine-metadata.js": 1,
     "src/moves/appendFact.js->src/item-notes-engine.js": 1,
     "src/moves/appendFact.js->src/item-notes.js": 1,
     "src/moves/appendFact.js->src/landing-lease-engine.js": 1,
@@ -68,6 +70,7 @@
     "src/moves/editItem.js->src/landing-lease-engine.js": 1,
     "src/moves/editItem.js->src/reference-engine.js": 1,
     "src/moves/editItem.js->src/review-independence-engine.js": 1,
+    "src/moves/editItem.js->src/review-tier-engine.js": 1,
     "src/moves/editItem.js->src/rigor-auto-engine.js": 1,
     "src/moves/editItem.js->src/sentinel-engine.js": 1,
     "src/moves/editMilestone.js->src/landing-lease-engine.js": 1,
@@ -398,9 +401,6 @@
     "src/next-steps.js->src/refused.js": 1,
     "src/next-take.js->src/board.js": 1,
     "src/next-take.js->src/cli.js": 1,
-    "src/next-take.js->src/computed-conflict-return.js": 1,
-    "src/next-take.js->src/dispatch-eligibility.js": 1,
-    "src/next-take.js->src/git.js": 1,
-    "src/next-take.js->src/main-red-build-routing.js": 1
+    "src/next-take.js->src/computed-conflict-return.js": 1
   }
 }

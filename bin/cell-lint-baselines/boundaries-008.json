@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/next-take.js->src/dispatch-eligibility.js": 1,
+    "src/next-take.js->src/git.js": 1,
+    "src/next-take.js->src/main-red-build-routing.js": 1,
     "src/next-take.js->src/main-red.js": 1,
     "src/next-take.js->src/next-review.js": 1,
     "src/next-take.js->src/refused.js": 1,
@@ -202,7 +205,6 @@
     "src/queue-readiness.js->src/cross-repo-dependencies.js": 1,
     "src/queue-readiness.js->src/item-dependencies.js": 1,
     "src/queue-readiness.js->src/item-files.js": 1,
-    "src/queue-settings.js->src/machine-home.js": 1,
     "src/queue-settings.js->src/refused.js": 1,
     "src/queue.js->src/board.js": 1,
     "src/queue.js->src/queue-readiness.js": 1,
@@ -399,8 +401,6 @@
     "src/relay-page-writer.js->src/item-list.js": 1,
     "src/relay-page-writer.js->src/relay-page-layout.js": 1,
     "src/relay-pairing-client.js->src/board.js": 1,
-    "src/relay-pairing-client.js->src/computer-name.js": 1,
-    "src/relay-pairing-client.js->src/exchange.js": 1,
-    "src/relay-pairing-client.js->src/git.js": 1
+    "src/relay-pairing-client.js->src/computer-name.js": 1
   }
 }

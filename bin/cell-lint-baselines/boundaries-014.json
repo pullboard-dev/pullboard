@@ -2,6 +2,18 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "test/local-fetch.test.js->test/fixture-child.js": 1,
+    "test/lsof-lookups.test.js->src/resources.js": 1,
+    "test/lsof-lookups.test.js->test/cleanup-diagnostics.js": 1,
+    "test/machine-home.test.js->src/package-files.js": 1,
+    "test/machine-home.test.js->src/recorded-refusal.js": 1,
+    "test/machine-home.test.js->test/e2e-helpers.js": 1,
+    "test/machine-home.test.js->test/fixture-child.js": 1,
+    "test/machine.test.js->src/board.js": 1,
+    "test/machine.test.js->src/cli.js": 1,
+    "test/machine.test.js->src/config.js": 1,
+    "test/machine.test.js->src/machine.js": 1,
+    "test/machine.test.js->src/refused.js": 1,
     "test/machine.test.js->test/board-fixture.js": 1,
     "test/machine.test.js->test/board-submit-fixture.js": 1,
     "test/machine.test.js->test/fixture-child.js": 1,
@@ -389,18 +401,6 @@
     "test/private-board-move-fixture.js->test/relay-device-enrollment-fixture.js": 1,
     "test/private-rehome-grants.test.js->src/board.js": 1,
     "test/private-rehome-grants.test.js->src/engine.js": 1,
-    "test/private-rehome-grants.test.js->src/exchange.js": 1,
-    "test/private-rehome-grants.test.js->test/e2e-helpers.js": 1,
-    "test/products.test.js->src/board.js": 1,
-    "test/products.test.js->src/config.js": 1,
-    "test/products.test.js->src/products.js": 1,
-    "test/products.test.js->src/spec.js": 1,
-    "test/products.test.js->test/board-submit-fixture.js": 1,
-    "test/products.test.js->test/fixture-child.js": 1,
-    "test/project-meta.test.js->src/serve.js": 1,
-    "test/project-meta.test.js->test/fixture-child.js": 1,
-    "test/project-meta.test.js->test/http-fixture.js": 1,
-    "test/proof-provenance.test.js->src/board.js": 1,
-    "test/proof-provenance.test.js->src/engine.js": 1
+    "test/private-rehome-grants.test.js->src/exchange.js": 1
   }
 }

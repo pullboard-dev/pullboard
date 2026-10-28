@@ -75,7 +75,9 @@
     "src/item-offer.js->src/item-offer-contract.js": 1,
     "src/item-offer.js->src/item-receipt.js": 1,
     "src/item-offer.js->src/refused.js": 1,
+    "src/item-patch-compose.js->src/item-patch-paths.js": 1,
     "src/item-patch-compose.js->src/refused.js": 1,
+    "src/item-patch-paths.js->src/refused.js": 1,
     "src/item-patch-review.js->src/git.js": 1,
     "src/item-patch-review.js->src/item-patch-compose.js": 1,
     "src/item-patch-review.js->src/item-patches.js": 1,
@@ -399,8 +401,6 @@
     "src/moves/answerDecision.js->src/move-implies.js": 1,
     "src/moves/answerDecision.js->src/rigor-auto-engine.js": 1,
     "src/moves/answerDecision.js->src/sentinel-engine.js": 1,
-    "src/moves/answerTypedRequests.js->src/typed-requests-engine.js": 1,
-    "src/moves/appendFact.js->src/bar-check-engine.js": 1,
-    "src/moves/appendFact.js->src/engine-metadata.js": 1
+    "src/moves/answerTypedRequests.js->src/typed-requests-engine.js": 1
   }
 }

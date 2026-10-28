@@ -2,6 +2,18 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/trusted-policy.js->src/gate-output.js": 1,
+    "src/trusted-policy.js->src/git.js": 1,
+    "src/trusted-policy.js->src/hooks.js": 1,
+    "src/trusted-policy.js->src/item-dependencies.js": 1,
+    "src/trusted-policy.js->src/lanes.js": 1,
+    "src/trusted-policy.js->src/path-map.js": 1,
+    "src/trusted-policy.js->src/private-check-worker.js": 1,
+    "src/trusted-policy.js->src/proof-provenance.js": 1,
+    "src/trusted-policy.js->src/refused.js": 1,
+    "src/trusted-policy.js->src/resources.js": 1,
+    "src/trusted-policy.js->src/runner-private-check.js": 1,
+    "src/trusted-policy.js->src/runner-private-mode.js": 1,
     "src/trusted-policy.js->src/sandbox-denial.js": 1,
     "src/trusted-policy.js->src/timing.js": 1,
     "src/trusted-policy.js->src/trunk-merge.js": 1,
@@ -389,18 +401,6 @@
     "test/cli-help.test.js->test/cli-in-process-fixture.js": 1,
     "test/cli-help.test.js->test/fixture-child.js": 1,
     "test/cli-help.test.js->test/import-style-helpers.js": 1,
-    "test/cli-in-process-fixture.js->src/cli-main.js": 1,
-    "test/cli-in-process.test.js->src/board.js": 1,
-    "test/cli-in-process.test.js->test/cli-in-process-fixture.js": 1,
-    "test/cli-in-process.test.js->test/e2e-helpers.js": 1,
-    "test/cli-in-process.test.js->test/fixture-child.js": 1,
-    "test/cli-read-performance.test.js->src/board.js": 1,
-    "test/cli-read-performance.test.js->src/cli.js": 1,
-    "test/cli-read-performance.test.js->test/board-submit-fixture.js": 1,
-    "test/cli-read-performance.test.js->test/fixture-child.js": 1,
-    "test/cli-startup-budget-fixture.js->src/board.js": 1,
-    "test/cli-startup-budget-fixture.js->test/board-submit-fixture.js": 1,
-    "test/cli-startup-budget-fixture.js->test/fixture-child.js": 1,
-    "test/cli-startup.test.js->test/cli-startup-budget-fixture.js": 1
+    "test/cli-in-process-fixture.js->src/cli-main.js": 1
   }
 }

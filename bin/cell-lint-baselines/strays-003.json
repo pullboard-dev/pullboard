@@ -2,6 +2,8 @@
   "version": 1,
   "metric": "strays",
   "allowances": {
+    "test/spec-decline-citations.test.js": 1,
+    "test/spec-draft-refreeze.test.js": 1,
     "test/spec-refreeze-fixture.js": 1,
     "test/spec-revise.test.js": 1,
     "test/spec.test.js": 1,

@@ -167,6 +167,7 @@
     "test/qr.test.js": 1,
     "test/query-plans.test.js": 1,
     "test/queue-order.test.js": 1,
+    "test/queue-settings-port.test.js": 1,
     "test/readme.test.js": 1,
     "test/references.test.js": 1,
     "test/refreeze.test.js": 1,
@@ -323,6 +324,7 @@
     "test/review-queue-replay.test.js": 1,
     "test/review-queue.test.js": 1,
     "test/review-reservation.test.js": 1,
+    "test/review-tier.test.js": 1,
     "test/rigor-auto.test.js": 1,
     "test/rigor-checks.test.js": 1,
     "test/rigor-counter-state.test.js": 1,
@@ -399,8 +401,6 @@
     "test/signoff.test.js": 1,
     "test/skills.test.js": 1,
     "test/spec-approval.test.js": 1,
-    "test/spec-behind-main.test.js": 1,
-    "test/spec-decline-citations.test.js": 1,
-    "test/spec-draft-refreeze.test.js": 1
+    "test/spec-behind-main.test.js": 1
   }
 }
