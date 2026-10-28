@@ -130,7 +130,7 @@ test('next answers within sixty seconds on a generated private SQLite board of c
   t.diagnostic(JSON.stringify({ generated: true, copiedPrivateHistory: false, counts, elapsedMs: elapsed,
     status: result.status, signal: result.signal, stderr: result.stderr }));
   assert.equal(result.signal, null, 'the fixture timeout must not stand in for a named native result');
-  assert.ok(elapsed < 60_000, `next took ${elapsed} ms`);
+  assert.ok(elapsed < 60_000, `next took ${elapsed} ms`); // budget: declared #1811 response bound is sixty seconds, excluding fixture setup.
   const document = JSON.parse(result.stdout);
   if (result.status === 0) {
     assert.equal(document.item.item_owner, box.seats.actor.id);
