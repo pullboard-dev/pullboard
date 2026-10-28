@@ -32,10 +32,10 @@
   {"cell":"kernel","imports":5,"before":true},
   {"cell":"git","imports":2,"before":true},
   {"cell":"config","imports":1,"before":true},
-  {"cell":"person","imports":1,"before":true},
   {"cell":"items","imports":1,"before":true},
   {"cell":"verify","imports":1,"before":true},
   {"cell":"store","imports":3,"before":true},
+  {"cell":"person","imports":1,"before":true},
   {"cell":"link","imports":1,"before":false}
  ],
  "cuts": [],
@@ -54,6 +54,6 @@
   "criterion": "Cells move 22 of 43 (RFC 0006; plan entry 22 in bin/cells-plan.json): the 7 paths the entry lists for package pages move with git mv to their planned targets under packages/pages, and packages/pages/index.js is the front door, re-exporting the 7 modules other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. The cell lint counts change as the entry states (legacySource 0, shims +7, boundaries -1) and none rises; node bin/cells-plan.js --moved pages passes, and the full suite passes on Node 22.13 and 24.",
   "specs": ["C7","doctrine:CD60","doctrine:CD64"],
   "check": "node bin/cells-plan.js --moved pages",
-  "after": ["kernel","git","config","person","items","verify","store"]
+  "after": ["kernel","git","config","items","verify","store","person"]
  }
 }

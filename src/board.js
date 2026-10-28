@@ -257,6 +257,7 @@ import {
   reportDrift,
 } from './board-migrate.js';
 export { schemaMissing, writeRefused } from './board-migrate.js';
+import { checkRoute } from './item-routing.js';
 import { checkRouted } from './item-routing.js';
 import {
   itemFiles,
@@ -637,17 +638,6 @@ export function ensureCoordinator(board, path) {
     });
   }
   return COORDINATOR;
-}
-
-/**
- * Refuse a route that is not one of ROUTES.
- *
- * @param {string} route
- */
-function checkRoute(route) {
-  if (!ROUTES.includes(route)) {
-    throw new Refused('BAD_ROUTE', `route "${route}" is light (a small or local model can build it from the brief), mid (a capable model) or strong (a frontier model)`);
-  }
 }
 
 /**

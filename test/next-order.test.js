@@ -880,13 +880,13 @@ test('next offers the focus milestone first and explains a claimable outside fal
   box.milestone('0.9.3', focused);
   const ordinary = box.json(box.runAs(box.session, owner.root, 'next', '--build', '--json'));
   assert.equal(ordinary.item.item_id, outside, 'unset retains the existing roadmap order');
-  box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--json'));
+  box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--no-next', '--json'));
 
   box.json(box.run(box.repo, 'settings', 'line', 'focusMilestone', '0.9.3',
     '--reason', 'Finish the named release before later work', '--window', '{"activeItems":2}', '--json'));
   const picked = box.json(box.runAs(box.session, owner.root, 'next', '--build', '--json'));
   assert.equal(picked.item.item_id, focused, 'the named focus overrides an earlier roadmap milestone');
-  box.json(box.runAs(box.session, owner.root, 'release', String(focused), '--json'));
+  box.json(box.runAs(box.session, owner.root, 'release', String(focused), '--no-next', '--json'));
   box.json(box.runAs('focus-peer-session', peer.root, 'claim', String(focused), '--json'));
   const fallback = box.runAs(box.session, owner.root, 'next', '--build');
   assert.equal(fallback.code, 0, `${fallback.out}\n${fallback.err}`);
@@ -897,8 +897,8 @@ test('next offers the focus milestone first and explains a claimable outside fal
     assert.equal(store.getItem(board, outside).item_owner, owner.agent, 'a peer-held focus does not starve claimable outside work');
     assert.equal(store.getItem(board, focused).item_owner, peer.agent, 'focus never steals another seat’s claim');
   } finally { store.closeBoard(board); }
-  box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--json'));
-  box.json(box.runAs('focus-peer-session', peer.root, 'release', String(focused), '--json'));
+  box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--no-next', '--json'));
+  box.json(box.runAs('focus-peer-session', peer.root, 'release', String(focused), '--no-next', '--json'));
   box.json(box.run(box.repo, 'settings', 'line', 'focusMilestone', 'off',
     '--reason', 'Restore ordinary roadmap selection', '--window', '{"activeItems":2}', '--json'));
   const restored = box.json(box.runAs(box.session, owner.root, 'next', '--build', '--json'));
@@ -960,11 +960,11 @@ test('next offers the focus milestone first across review and build modes [N2,B1
   const picked = box.json(box.runAs(box.session, owner.root, 'next', '--json'));
   assert.equal(picked.item.item_id, focused, 'a focused build outranks an outside review');
   assert.equal(picked.review, false);
-  box.json(box.runAs(box.session, owner.root, 'release', String(focused), '--json'));
+  box.json(box.runAs(box.session, owner.root, 'release', String(focused), '--no-next', '--json'));
   const review = box.json(box.runAs(box.session, owner.root, 'next', '--verify', '--json'));
   assert.equal(review.item.item_id, outside, 'review-only next never silently claims the focused build');
   assert.equal(review.review, true);
-  box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--note', 'Continue the private focus ordering control', '--json'));
+  box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--note', 'Continue the private focus ordering control', '--no-next', '--json'));
   const focusedReview = box.add('api', 'Focused review before focused build');
   const updated = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {

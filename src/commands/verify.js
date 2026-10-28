@@ -1,3 +1,4 @@
+import { completeMoveHandoff } from '../post-move-handoff.js';
 import { itemReviewPolicy } from '../review-independence.js';
 import { twoTierReviews } from '../review-independence.js';
 import { prepareItemPatchReview } from '../item-patch-review.js';
@@ -237,18 +238,25 @@ export async function verifyHere(ctx, id, { second, values }) {
     }
     return verdict;
   });
-  ctx.io.result?.({ id, ...result, ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) });
+  const primary = { id, ...result, ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) };
+  ctx.io.result?.(primary);
   const verifiedSummary = timingDigest(verificationProfile);
   const verifiedTiming = result.decision === 'ACCEPT' && verificationProfile && verifiedSummary ? `\n${verifiedSummary}\ntiming profile: ${verificationProfile.profilePath ?? '(not saved)'}` : '';
   ctx.io.say(result.decision === 'ACCEPT'
     ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verifiedTiming}`
     : `rejected #${id}: ${result.reason}${result.clause ? `; clause: ${result.clause}` : ''}; ${result.held ? 'held until its bar is sharpened' : 'it is open again for rework'}`);
   if (accepted) ctx.io.say(landNext(ctx.info, accepted, acceptedLandingCommit, { spec: loadSpec(ctx.info.root, ctx.config) }));
+  if (ctx.verdictResult) ctx.verdictResult.value = primary;
   return 0;
 }
 
 /** Run `pullboard verify` and return its exit code. */
-export function run(io, args) {
-  const { first } = args;
-  return verifyHere(context(io), idArg(first), args);
+export async function run(io, args) {
+  const { first, values } = args;
+  const id = idArg(first);
+  const verdictResult = {};
+  const ctx = { ...context(io), verdictResult };
+  const code = await verifyHere(ctx, id, args);
+  if (code === 0 && verdictResult.value) await completeMoveHandoff(ctx, id, values, verdictResult.value);
+  return code;
 }

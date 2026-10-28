@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** The committed cells move plan places each path once and orders cells leaf-first by real imports [D3,CD60,CD64]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -22,6 +22,7 @@ import { readPlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
+import { installCutCases } from './cells-plan-cut-cases.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const BIN = fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url));
@@ -154,3 +155,5 @@ test('a move item\'s frozen check passes only when the cell moved behind shims [
   assert.notEqual(unknown.status, 0);
   assert.match(unknown.stderr, /CELLS_PLAN_CELL/u);
 });
+
+installCutCases({ PLAN, BIN, fixture, git });
