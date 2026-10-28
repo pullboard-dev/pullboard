@@ -105,7 +105,7 @@ test('a second submit records fresh main evidence before a held submit finishes,
   try {
     await observed(() => existsSync(join(box.env.CACHE_CONTROL, 'first.ready')) || first.finished(), 'first submit reaches its real held main comparison');
     assert.equal(first.finished(), false, first.output());
-    const resources = new DatabaseSync(join(box.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite'), { readOnly: true });
+    const resources = new DatabaseSync(join(box.root, '.git/pullboard/resources.sqlite'), { readOnly: true });
     try {
       assert.equal(resources.prepare("SELECT COUNT(*) AS count FROM holder WHERE name='main-red-cache'").get().count, 0, 'a held actual test never holds the cache metadata lease');
     } finally { resources.close(); }
