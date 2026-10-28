@@ -128,6 +128,7 @@ console.log(run.output); console.log(JSON.stringify({receiptId:run.receiptId}));
   assert.ok(normalized);
   assert.equal(normalized.timing ?? null, null, 'legacy phase times remain unknown');
   assert.equal(normalized.full ?? null, null, 'legacy full coverage remains unknown');
+  // @pullboard-board-file persistence: bind native receipts to this fixture's actual store before sealed replay and tamper checks.
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const receipt = readGateReceipt(receiptStore(box.repo), rows[0].id);
