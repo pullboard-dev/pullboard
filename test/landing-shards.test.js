@@ -45,6 +45,7 @@ for(const host of ${JSON.stringify(hosts)}) recordRunnerGui(host,host==='fixture
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 ${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
+import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 const calls = [];
 const remoteRun = async (_root, _command, options) => {
@@ -52,7 +53,7 @@ const remoteRun = async (_root, _command, options) => {
   return { isGreen: true, output: '' };
 };
 // Actual private SQLite leases occupy both local slots, forcing the planner to choose a runner.
-const result = await withGateSlot(root, () => withGateSlot(root, () => runLandingShards({ root,
+const result = await withGateSlot(root, () => withGateSlot(root, () => runLandingShards({ parseProcessCensus, root,
   runner: ${JSON.stringify(join(box.repo, 'bin/run-tests.js'))}, files: ['./test/a.test.js'], count: 1,
   needsBrowser: async () => true, needsGui: async () => true, remoteRun, write: () => {},
 }), { executionServices, remote: false, kind: 'check' }), { executionServices, remote: false, kind: 'check' });
@@ -77,6 +78,7 @@ recordRunnerGui(${JSON.stringify(HOST)}, null);
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 ${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
+import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 let release;
 let entered;
@@ -87,7 +89,7 @@ const result = await withGateSlot(root, async () => {
   await ready;
   const timer = setTimeout(release, 250);
   try {
-    return await runLandingShards({ root, runner: ${JSON.stringify(join(box.repo, 'bin/run-tests.js'))},
+    return await runLandingShards({ parseProcessCensus, root, runner: ${JSON.stringify(join(box.repo, 'bin/run-tests.js'))},
       files: ['./test/a.test.js'], count: 1, needsBrowser: async () => false, needsGui: async () => true,
       remoteRun: async () => { throw new Error('an unknown GUI runner must not execute this shard'); }, write: () => {} });
   } finally { clearTimeout(timer); release(); await held; }
@@ -116,6 +118,7 @@ import assert from 'node:assert/strict';
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 ${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
+import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 let release;
 let entered;
@@ -129,7 +132,7 @@ const result = await withGateSlot(root, async () => {
       assert.equal(inherited.runner.host, ${JSON.stringify(HOST)});
       assert.equal(inherited.runner.gui, false);
       const timer = setTimeout(release, 250);
-      try { return await runLandingShards({ root, inherited, runner: ${JSON.stringify(join(box.repo, 'bin/run-tests.js'))},
+      try { return await runLandingShards({ parseProcessCensus, root, inherited, runner: ${JSON.stringify(join(box.repo, 'bin/run-tests.js'))},
         files: ['./test/a.test.js'], count: 1, needsBrowser: async () => false, needsGui: async () => true,
         remoteRun: async () => { throw new Error('a no-GUI inherited runner must not execute this shard'); }, write: () => {} }); }
       finally { clearTimeout(timer); }
@@ -158,6 +161,7 @@ test('six shards land on six different runners [C7,V4]', (t) => {
   const script = `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 ${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
+import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 const calls = [];
 let release;
@@ -169,7 +173,7 @@ const remoteRun = async (_root, _command, options) => {
   return { isGreen: true, output: '' };
 };
 // Hold the two real local slots, so all six shards must acquire actual registered runner leases.
-const result = await withGateSlot(root, () => withGateSlot(root, () => runLandingShards({ root,
+const result = await withGateSlot(root, () => withGateSlot(root, () => runLandingShards({ parseProcessCensus, root,
   runner: ${JSON.stringify(join(box.repo, 'bin/run-tests.js'))},
   files: ${JSON.stringify(NAMES.map(name => `./test/${name}.test.js`))}, count: 6, remoteRun, write: () => {},
 }), { executionServices, remote: false, kind: 'check' }), { executionServices, remote: false, kind: 'check' });
@@ -471,6 +475,7 @@ async function landingWithRunnerAnswer(box, answer, count, deadlineMs) {
   const url = name => JSON.stringify(pathToFileURL(join(SOURCE, 'src', name)).href);
   const files = NAMES.map(name => `./test/${name}.test.js`);
   const script = `const { runLandingShards } = await import(${url('landing-shards.js')});
+const { parseProcessCensus } = await import(${url('process-census.js')});
 const { landingShardProfile } = await import(${url('gate-run-receipt.js')});
 const { Refused } = await import(${url('refused.js')});
 const { RunnerDropped } = await import(${url('runners.js')});
@@ -488,7 +493,7 @@ const remoteRun = async (_root, _command, options) => {
   throw new Refused(answer, 'runner ' + options.runner.host + ' answered ' + answer + '; inspect job fixture-job under its runner namespace before another run');
 };
 const chunks = [];
-const result = await runLandingShards({ root: ${JSON.stringify(box.repo)}, runner: ${JSON.stringify(join(box.repo, 'bin', 'run-tests.js'))},
+const result = await runLandingShards({ parseProcessCensus, root: ${JSON.stringify(box.repo)}, runner: ${JSON.stringify(join(box.repo, 'bin', 'run-tests.js'))},
   files: ${JSON.stringify(files)}, count: ${count}, remoteRun, write: text => chunks.push(text) });
 const output = chunks.join('');
 process.stdout.write(JSON.stringify({ isGreen: result.isGreen, output, calls, profile: landingShardProfile(output) }));`;

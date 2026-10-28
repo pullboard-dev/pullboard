@@ -1,3 +1,4 @@
+import { landingPorts } from './landing-ports-fixture.js';
 import './item-patch-journey.test.js';
 /** Exercise landing against real private Git worktrees, hooks, SQLite and bare remotes [B3,R3]. */
 import assert from 'node:assert/strict';
@@ -626,12 +627,12 @@ test('land holds a flake without retries and person waivers cover every failure 
   assert.deepEqual(calls(box).slice(start), [[], ['--alone', FILES[0]], ['--alone', FILES[1]]], 'waiver uses the recorded full gate at the same exact tree without retrying');
   assert.deepEqual(landed.batch.proof.failures.map((failure) => failure.waiver), [waiverZero.id, waiver.id]);
   assert.equal(landed.batch.proof.tree, box.git(landed.batch.root, 'rev-parse', 'HEAD^{tree}'));
-  assert.ok(onBoard(box, (board) => store.waivedLandingProof(board, landed.batch.proof.tree)));
-  assert.equal(onBoard(box, (board) => store.waivedLandingProof(board, 'f'.repeat(40))), null, 'proof cannot cover another tree');
+  assert.ok(onBoard(box, (board) => store.waivedLandingProof(board, landed.batch.proof.tree, landingPorts)));
+  assert.equal(onBoard(box, (board) => store.waivedLandingProof(board, 'f'.repeat(40), landingPorts)), null, 'proof cannot cover another tree');
   const stamp = box.git(landed.batch.root, 'rev-parse', '--git-path', 'pullboard-gate-green');
   assert.ok(!existsSync(stamp) || readFileSync(stamp, 'utf8').trim() !== landed.batch.proof.tree, 'red gate never writes an ordinary green stamp');
   const expired = { now: () => new Date('2099-01-02T00:00:00Z') };
-  assert.equal(onBoard(box, (board) => store.waivedLandingProof(board, landed.batch.proof.tree), expired), null, 'every waiver must remain live');
+  assert.equal(onBoard(box, (board) => store.waivedLandingProof(board, landed.batch.proof.tree, landingPorts), expired), null, 'every waiver must remain live');
   const event = events(box).find((entry) => entry.event_kind === 'landing_waiver');
   assert.equal(event.event_by, 'person');
   assert.equal(commitFile(box, box.repo, 'docs/after-land.md', 'new exact tree\n', 'chore: advance the private tree').status, 0);
@@ -809,7 +810,7 @@ test("a person's waiver lets a submit and a landing gate through only the waived
     assert.throws(() => store.recordLandingWaiver(board, { ...attempt, agentId: 'coordinator' }), /LAND_PERSON_ONLY/u);
     assert.throws(() => store.recordLandingWaiver(board, { ...attempt, agentId: 'web-1' }), /LAND_PERSON_ONLY/u);
     assert.throws(() => store.recordLandingWaiver(board, { ...attempt, agentId: 'person', channel: 'api' }), /B26_PERSON_CHANNEL/u);
-    assert.equal(store.landingWaiverFor(board, { file: FILES[0], name: FILES[0] }), null, 'no attempt recorded a live waiver');
+    assert.equal(store.landingWaiverFor(board, { file: FILES[0], name: FILES[0] }, landingPorts), null, 'no attempt recorded a live waiver');
   });
   const waiver = json(box, box.repo, 'land', '--waive', FILES[0], '--until', '2099-01-01', '--reason', 'private flaky fixture tracked elsewhere').waiver;
   const line = new RegExp(`waived: .*\\(${FILES[0].replaceAll('.', '\\.')}\\) by person waiver ${waiver.id} for file ${FILES[0].replaceAll('.', '\\.')}: private flaky fixture tracked elsewhere; expires 2099-01-01T00:00:00\\.000Z`, 'u');
@@ -985,10 +986,10 @@ test("a person's waiver lets a submit and a landing gate through only the waived
   setGate(gateCommand, 'chore: restore the single-stage gate');
 
   onBoard(box, (board) => {
-    assert.equal(store.landingWaiverFor(board, { file: FILES[2], name: FILES[0] }), null, 'a file waiver never covers a test merely named like that file');
+    assert.equal(store.landingWaiverFor(board, { file: FILES[2], name: FILES[0] }, landingPorts), null, 'a file waiver never covers a test merely named like that file');
     store.recordLandingWaiver(board, { agentId: 'person', channel: 'terminal', id: 'name-waiver', test: 'keeps a named behavior', until: '2099-01-01', reason: 'named fixture' });
-    assert.equal(store.landingWaiverFor(board, { file: FILES[3], name: 'keeps a named behavior' })?.kind, 'name');
-    assert.equal(store.landingWaiverFor(board, { file: 'keeps a named behavior', name: 'another behavior' }), null, 'a name waiver covers only that name');
+    assert.equal(store.landingWaiverFor(board, { file: FILES[3], name: 'keeps a named behavior' }, landingPorts)?.kind, 'name');
+    assert.equal(store.landingWaiverFor(board, { file: 'keeps a named behavior', name: 'another behavior' }, landingPorts), null, 'a name waiver covers only that name');
     assert.deepEqual(['test/my check.test.js', 'tests/check.rb', 'web/land-1.test.js', 'check.py', 'keeps a named behavior', 'parses a/b in the header'].map(store.landingWaiverKind),
       ['file', 'file', 'file', 'file', 'name', 'name'], 'paths with spaces or other languages stay file waivers');
   });
