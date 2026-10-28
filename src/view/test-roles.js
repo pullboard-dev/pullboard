@@ -1,5 +1,9 @@
 /** Explicit test roles are an inventory, not completion evidence or a browser-admission exemption [N26,C7]. */
 export const VIEW_TEST_ROLES = Object.freeze({
+  "test/cockpit/roadmap-pure.test.js": {
+    "kind": "logic",
+    "reason": "Actual release ranking, completion, disclosure and shipping renderers consume supplied rows and prepared display Maps; async reads and real geometry stay journeys."
+  },
   "test/cockpit/verdict-pure.test.js": {
     "kind": "logic",
     "reason": "Review notes and metadata render through the actual verdict functions with prepared links and explicit labels; no page or native review is fabricated."
