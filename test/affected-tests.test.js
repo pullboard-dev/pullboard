@@ -446,6 +446,7 @@ test('the repository test-tree guards list only source scanners and launch no br
     'test/gui-marker-guard.test.js',
     'test/privacy-scan-guard.test.js',
     'test/shared-wait-guard.test.js',
+    'test/view-test-policy.test.js',
     'test/wall-clock-budgets.test.js',
   ];
   const guards = affectedTests.selectTestTreeGuards(root, { commit: 'HEAD', changed: ['test/changed-input.test.js'] });
