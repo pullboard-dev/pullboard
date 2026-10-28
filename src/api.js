@@ -66,6 +66,7 @@ import {
   itemSummary,
 } from './item-list.js';
 import {
+  compareFlowWindows,
   prepareFlowHistory,
   projectFlowStats,
 } from './stats-flow.js';
@@ -906,7 +907,10 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       localRelayHealth: relayCanaryNeeds(board.root),
       localCapacity: true,
     }), codeIsMain);
-    const state = { ...built.state, sequence: built.sequence };
+    // Reuse the complete prefix already captured in this board read transaction; cached snapshots retain
+    // their comparison's explicit as-of windows rather than pretending they were measured again.
+    const state = { ...built.state, sequence: built.sequence,
+      statsComparison: compareFlowWindows(built.history, { now: observedAt, windowMinutes: 120, complete: true }) };
     const entry = snapshotEntry(before.revision, state, prepareFlowHistory(built.history), {
       inputs: before.inputs,
       itemMeta: built.itemMeta,

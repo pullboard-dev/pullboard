@@ -9,6 +9,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { main } from '../src/cli.js';
+import { serveApi } from '../src/api.js';
+import { fetchFresh } from './http-fixture.js';
 import { exportBoard } from '../src/exchange.js';
 import { importBoard } from '../src/exchange.js';
 import { compareFlowWindows } from '../src/stats-flow.js';
@@ -180,4 +182,32 @@ test('next diagnostics preserve default query shapes and report only actually en
   assert.equal(observed.idleReason, 'held');
   const { idleReason: ignored, ...unchanged } = observed;
   assert.deepEqual(unchanged, old, 'observation does not change eligibility or historical return shape');
+});
+
+
+test('Dashboard API carries the same event-only comparison with explicit cached as-of windows [R1,R2,A2]', async t => {
+  const box = fixture(t);
+  let now = Date.parse(at(120)), builds = 0;
+  const before = box.history();
+  const api = await serveApi({ runCommand: main, projects: () => [{ root: box.root, name: 'Comparison fixture' }],
+    now: () => now, onStateBuild: () => { builds++; } });
+  t.after(() => api.close());
+  const url = new URL(api.url), headers = { 'x-pullboard-key': url.searchParams.get('k') };
+  const route = `${url.origin}/api/v1/boards/${store.boardId(box.board)}/state`;
+  const first = await fetchFresh(route, { headers });
+  assert.equal(first.status, 200);
+  const document = await first.json();
+  const command = await cli(box.root, box.clock, ['stats', '--window', '2h', '--compare', '--json']);
+  assert.equal(command.code, 0, command.stderr);
+  assert.deepEqual(document.state.statsComparison, command.data.comparison);
+  assert.equal(document.state.statsComparison.current.until, at(120));
+  now = Date.parse(at(121));
+  const next = await fetchFresh(route, { headers });
+  assert.equal(next.status, 200);
+  const cached = await next.json();
+  assert.equal(cached.state.observedAt, at(121));
+  assert.deepEqual(cached.state.statsComparison, document.state.statsComparison,
+    'unchanged history retains its labelled observation instead of scanning it again on each poll');
+  assert.equal(builds, 1, 'comparison uses the existing snapshot build, not a second history read');
+  assert.deepEqual(box.history(), before);
 });
