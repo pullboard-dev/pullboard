@@ -146,3 +146,123 @@ export function bindingReadsForModules(modules) {
   }
   return results;
 }
+
+/** Locate literal-aware matching delimiters and argument spans without interpreting candidate expressions. */
+function localCallSyntax(source, lexical) {
+  const { code, strings, comments } = lexical;
+  const hidden = new Map([...strings, ...comments].map(range => [range.start, range.end]));
+  const pairs = new Map(), stack = [];
+  for (let at = 0; at < code.length; at++) {
+    if (hidden.has(at)) { at = hidden.get(at) - 1; continue; }
+    const token = code[at];
+    if ('([{'.includes(token)) stack.push({ token, at });
+    else if (')]}'.includes(token)) {
+      const open = stack.pop();
+      if (!open || '([{'.indexOf(open.token) !== ')]}'.indexOf(token)) return null;
+      pairs.set(open.at, at);
+    }
+  }
+  if (stack.length) return null;
+  /** Retain exact source offsets while splitting only outer ordinary call arguments. */
+  function argumentsAt(open) {
+    const end = pairs.get(open);
+    if (end === undefined) return null;
+    const args = [];
+    let start = open + 1;
+    /** Trim surrounding whitespace, never changing an argument's original source coordinates. */
+    function append(stop) {
+      while (start < stop && /\s/u.test(source[start])) start++;
+      while (stop > start && /\s/u.test(source[stop - 1])) stop--;
+      if (stop > start) args.push({ start, end: stop });
+    }
+    for (let at = start; at < end; at++) {
+      if (hidden.has(at)) { at = hidden.get(at) - 1; continue; }
+      if (pairs.has(at)) { at = pairs.get(at); continue; }
+      if (code[at] === ',') { append(at); start = at + 1; }
+    }
+    append(end);
+    if (args.length > 64 || args.some(range => /^\s*\.\.\./u.test(code.slice(range.start, range.end)))) return null;
+    return args;
+  }
+  return { pairs, argumentsAt };
+}
+
+/** Return complete direct-call sets only for unique compiler-proven local function declarations; uncertainty grants no authority. */
+export function localFunctionCallSets(source, { file } = {}) {
+  if (typeof source !== 'string' || source.length > 1024 * 1024) return [];
+  const lexical = lex(source), { code } = lexical;
+  // Dynamic scope or code construction can observe bindings outside any statically complete call set.
+  if (/\b(?:eval|Function)\b/u.test(code)) return [];
+  const syntax = localCallSyntax(source, lexical);
+  if (!syntax) return [];
+  const candidates = [], names = new Map();
+  for (const match of code.matchAll(/\b(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/gu)) {
+    const name = match[1], nameAt = match.index + match[0].lastIndexOf(name);
+    names.set(name, (names.get(name) ?? 0) + 1);
+    let before = match.index - 1;
+    while (before >= 0 && /\s/u.test(code[before])) before--;
+    // Named expressions, exports and control-statement declarations have no authority in this bounded grammar.
+    if (before >= 0 && !';{}'.includes(code[before])) continue;
+    const open = match.index + match[0].lastIndexOf('('), close = syntax.pairs.get(open);
+    if (close === undefined) continue;
+    let body = close + 1;
+    while (/\s/u.test(code[body] ?? '') && body < code.length) body++;
+    if (code[body] !== '{' || !syntax.pairs.has(body)) continue;
+    candidates.push({ name, nameAt, parameterStart: open + 1, parameterEnd: close, bodyStart: body + 1, bodyEnd: syntax.pairs.get(body) });
+    if (candidates.length > 64) return [];
+  }
+  const unique = candidates.filter(row => names.get(row.name) === 1);
+  const modules = unique.map(row => ({ file: `${file ?? '<source>'}:local:${row.nameAt}`, source,
+    body: code.slice(0, row.nameAt) + ' '.repeat(row.name.length) + code.slice(row.nameAt + row.name.length),
+    bindings: [{ local: row.name }], scopeBraces: true }));
+  const proof = bindingReadsForModules(modules), result = [];
+  for (let index = 0; index < unique.length; index++) {
+    const row = unique[index], binding = proof.get(modules[index].file)?.get(row.name);
+    if (!binding || binding.opaque || binding.potentialShadow || binding.reads.length > 128) continue;
+    const calls = [];
+    let complete = true;
+    for (const at of binding.reads) {
+      let end = at + row.name.length, before = at - 1;
+      while (/\s/u.test(code[end] ?? '') && end < code.length) end++;
+      while (before >= 0 && /\s/u.test(code[before])) before--;
+      const prefix = code.slice(0, before + 1);
+      if (code[end] !== '(' || code[before] === '.' || /\bnew\s*$/u.test(prefix)) { complete = false; break; }
+      const args = syntax.argumentsAt(end);
+      if (!args) { complete = false; break; }
+      calls.push({ at, args });
+    }
+    if (complete) result.push({ ...row, calls });
+  }
+  return result;
+}
+
+
+/** Prove grammar substitution only: callers must separately reject delete, calls, escapes, shadowing and other mutations. */
+export function readOnlyMemberRanges(source, ranges) {
+  const accepted = new Set();
+  if (typeof source !== 'string' || source.length > 1024 * 1024 || Buffer.byteLength(source, 'utf8') > 1024 * 1024
+    || !Array.isArray(ranges) || ranges.length > 128) return accepted;
+  const starts = new Set();
+  for (const range of ranges) {
+    if (!range || !Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end)
+      || range.start < 0 || range.end <= range.start || range.end > source.length || starts.has(range.start)) return accepted;
+    starts.add(range.start);
+  }
+  if (!ranges.length || compiles([source])[0] !== true) return accepted;
+  let chunk = [], offsets = [], bytes = 0;
+  /** Compile bounded independent replacements; a successful parse is never module linking or evaluation. */
+  function flush() {
+    if (!chunk.length) return;
+    const valid = compiles(chunk);
+    for (let index = 0; index < offsets.length; index++) if (valid[index] === true) accepted.add(offsets[index]);
+    chunk = []; offsets = []; bytes = 0;
+  }
+  for (const range of ranges) {
+    const variant = source.slice(0, range.start) + '(0)' + source.slice(range.end);
+    const size = Buffer.byteLength(variant, 'utf8');
+    if (chunk.length + 1 > 256 || bytes + size > 8 * 1024 * 1024) flush();
+    chunk.push(variant); offsets.push(range.start); bytes += size;
+  }
+  flush();
+  return accepted;
+}

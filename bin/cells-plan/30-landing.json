@@ -6,8 +6,8 @@
  "frontDoor": "packages/landing/index.js",
  "placedBy": {
   "seed": 29,
-  "rule": 6,
-  "imports": 0
+  "rule": 10,
+  "imports": 5
  },
  "paths": [
   ["src/computed-conflict-receipt.js","packages/landing/src/shell/computed-conflict-receipt.js","seed"],
@@ -44,7 +44,16 @@
   ["src/manual-landing-failure-quoted.js","packages/landing/src/core/manual-landing-failure-quoted.js","seed"],
   ["src/release-queue.js","packages/landing/src/shell/release-queue.js","seed"],
   ["test/main-red.test.js","packages/landing/tests/main-red.test.js","seed"],
-  ["test/retention-prune.test.js","packages/landing/tests/retention-prune.test.js","seed"]
+  ["test/retention-prune.test.js","packages/landing/tests/retention-prune.test.js","seed"],
+  ["src/land-envelope.js","packages/landing/src/shell/land-envelope.js","rule"],
+  ["src/landing-completion.js","packages/landing/src/shell/landing-completion.js","rule"],
+  ["src/landing-docs.js","packages/landing/src/shell/landing-docs.js","rule"],
+  ["src/landing-envelope.js","packages/landing/src/core/landing-envelope.js","rule"],
+  ["src/main-failure-noise.js","packages/landing/src/core/main-failure-noise.js","imports"],
+  ["src/publish-pause.js","packages/landing/src/shell/publish-pause.js","imports"],
+  ["src/record-train-landing.js","packages/landing/src/shell/record-train-landing.js","imports"],
+  ["src/train-landing-receipt.js","packages/landing/src/shell/train-landing-receipt.js","imports"],
+  ["src/train-landing.js","packages/landing/src/shell/train-landing.js","imports"]
  ],
  "reexports": [
   "src/computed-conflict-receipt.js",

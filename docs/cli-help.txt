@@ -35,6 +35,7 @@ Set up
                                         short slots for runs that name their test files are opt-in: pullboard settings gate.shortSlots <n> (default 0)
                                         signed person moves are opt-in: pullboard settings person.signed on makes each wait for your passkey; only the passkey turns it off
                                         runner-first dispatch is opt-in: pullboard settings gate.runnersFirst on|off (default off)
+                                        submit/verify runner-only admission is opt-in: pullboard settings gate.runnersOnly on|off (default off)
                                         runner admission deadline: pullboard settings gate.runnerWaitMs <n> (default 300000ms)
                                         worker budget: pullboard settings workers.budget 40/day (or /week), seat-hours run --scale may spend (default off)
   pullboard runner add <ssh-host> --slots <n> --browser <n> [--node <remote-path>] [--root <remote-path>]
@@ -186,7 +187,7 @@ Work
   pullboard inbox --acted-on <interrupt-ids>     acknowledge comma-separated ids only after acting; reading is not acting
   pullboard shout --item <id> <text>             message the item builder, reviewer and coordinator
   A seat shout to all reaches only coordinator and person; their broadcasts reach everyone.
-  pullboard shout coordinator <text> --kind question|blocker|decision|exception|idea  declare the coordinator message kind
+  pullboard shout coordinator <text> --kind question|blocker|decision|exception|idea  declare the kind; a submit or verdict the board recorded is not shouted
   Coordinator shouts without --kind, or with --kind status, refuse; record item updates with pullboard fact.
   A named lane lead receives question and blocker kinds first; exception and idea reach the coordinator.
   pullboard lanes lead <lane> <seat|off>          coordinator names or removes the existing lane seat
@@ -237,7 +238,7 @@ Coordinator
   pullboard land --due [--dry-run]       coordinator: use configured age/count; no --max or --adopt; explain when not due
   pullboard land --waive <test> --until <date> --reason "why"  the person records an expiring test waiver
   pullboard publish                     coordinator: run the whole suite on the trunk head; push it only when every test passes
-  pullboard merged <id> <commit>        record where verified work landed
+  pullboard merged <id> <commit> [--gate-receipt <id>] [--items 1,2,3]  record verified work with its native batch receipt
   pullboard withdraw <id> <reason>      drop an item nobody should build
   pullboard refreeze <id>               adopt a corrected criterion or changed spec rows
   pullboard reopen <id> [--withdraw-verdict] --note "why" [--cause <key>]
@@ -348,7 +349,7 @@ Role guides
 
 Gate and hooks
   pullboard push-receipts               additive check of Git pre-push stdin, native receipts and accepted-policy smoke; does not replace the active hook
-  pullboard gate [--landing]            run the configured gate; prioritize a trunk landing in the machine queue
+  pullboard gate [--landing [--receipt]] run the configured gate; --receipt produces fresh native landing evidence
   pullboard gate set "<command>"         record the project gate in the main checkout; commit it before running the gate
   pullboard hook pre-commit|pre-merge-commit|commit-msg|pre-push   git runs these
 

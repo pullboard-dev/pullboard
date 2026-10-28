@@ -25,9 +25,10 @@ test('agent approvals show full rows and styled actions at narrow width and reso
     await chrome.send('Emulation.setTimezoneOverride', { timezoneId: 'UTC' });
     await chrome.send('Page.navigate', { url: view.link.href });
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
-    await chrome.waitFor('innerWidth === 375 && document.querySelectorAll("#needs [data-agent-approved]").length === 2');
+    await chrome.waitFor('innerWidth === 375 && document.querySelector("#dashboard [data-needs-field=approved-in-git] time")');
     assert.equal(await chrome.stable('document.querySelector("#dashboard [data-needs-field=approved-in-git] time").textContent'), 'Oct 25, 2:51 PM', 'Dashboard uses the approved minute display without a locale date, year or seconds');
     await chrome.click("document.querySelector('[data-tab=items]')");
+    await chrome.waitFor('document.querySelectorAll("#needs [data-agent-approved]").length === 2');
     for (const row of before.spec) await chrome.click(`document.querySelector('#needs [data-agent-approved="${row.id}"] summary')`);
     await chrome.waitFor(`view.tab === 'items' && [...document.querySelectorAll('#needs [data-agent-approved], #needs [data-row-decision]')].every(element => {
       const box = element.getBoundingClientRect();

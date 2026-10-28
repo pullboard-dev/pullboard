@@ -5,19 +5,19 @@
  * view's stylesheet policy refuses inline styles.
  *
  * @param {object} floor - What agentFloorModel returned.
- * @param {{ back?: string }} [options] - The Dashboard's own address, for the link back.
+ * @param {{ back?: string, locale?: string, timeZone?: string }} [options] - Link and explicit display preferences.
  * @returns {string} The page's markup.
  */
-export function agentFloorHtml(floor, { back = '#dashboard' } = {}) {
+export function agentFloorHtml(floor, { back = '#dashboard', locale = 'en-US', timeZone = 'UTC' } = {}) {
   const f = floor, n = f.numbers, hour = 3_600_000, frame = f.now - f.start;
   /** Escape text and attribute values that come from a board. */
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   /** Minutes as the floor says them: 23m under an hour, 1.5h from an hour up. */
   const span = ms => { const minutes = Math.max(0, Math.round(ms / 60_000)); return minutes < 60 ? minutes + 'm' : (minutes / 60).toFixed(1) + 'h'; };
   /** A number the history has not finished loading reads as a dash, never as a zero. */
-  const count = value => value === null || value === undefined ? '—' : Number(value).toLocaleString();
-  /** A clock time in the reader's own zone. */
-  const clock = (at, seconds = false) => new Date(at).toLocaleTimeString([], seconds ? { hour: 'numeric', minute: '2-digit', second: '2-digit' } : { hour: 'numeric', minute: '2-digit' });
+  const count = value => value === null || value === undefined ? '—' : Number(value).toLocaleString(locale);
+  /** A clock time in the explicitly supplied display zone. */
+  const clock = (at, seconds = false) => new Date(at).toLocaleTimeString(locale, seconds ? { timeZone, hour: 'numeric', minute: '2-digit', second: '2-digit' } : { timeZone, hour: 'numeric', minute: '2-digit' });
   /** The same item button the Dashboard uses, so a press opens the item through the page's own dispatcher. */
   const item = entry => '<button class="dash-item" type="button" data-go="item:' + entry.id + '"><span>#' + entry.id + '</span><b>' + esc(entry.title) + '</b></button>';
   /** Place a moment on the 1000-wide four-hour timeline. */
@@ -49,7 +49,7 @@ export function agentFloorHtml(floor, { back = '#dashboard' } = {}) {
   const landedBars = '<svg class="floor-bars" viewBox="0 0 960 80" preserveAspectRatio="none" role="img" aria-label="Items landed per hour, last 24 hours">' + f.bins.map((bin, index) => {
     const height = bin.count ? Math.max(3, bin.count / tallest * 76) : 1;
     return '<rect' + (bin.count ? '' : ' class="floor-none"') + ' x="' + (index * 40 + 4) + '" y="' + (80 - height) + '" width="32" height="' + height + '" rx="2"><title>' + bin.count + ' landed, ' + esc(clock(bin.from)) + ' to ' + esc(clock(bin.to)) + '</title></rect>';
-  }).join('') + '</svg><div class="dash-axis">' + [0, 6, 12, 18, 24].map(h => '<span>' + esc(h === 24 ? 'now' : new Date(f.now - (24 - h) * hour).toLocaleTimeString([], { hour: 'numeric' })) + '</span>').join('') + '</div>';
+  }).join('') + '</svg><div class="dash-axis">' + [0, 6, 12, 18, 24].map(h => '<span>' + esc(h === 24 ? 'now' : new Date(f.now - (24 - h) * hour).toLocaleTimeString(locale, { timeZone, hour: 'numeric' })) + '</span>').join('') + '</div>';
   const landedCard = '<section class="dash-card floor-card" aria-label="Landed per hour"><h2>Landed per hour<span>' + count(n.landed) + ' in 24 h · peak ' + peak + '/h · ' + (n.landed === null ? '—' : (n.landed / 24).toFixed(1)) + '/h average</span></h2>' + landedBars + '</section>';
 
   const parts = [['build', 'Building', f.time.build], ['review', 'Reviewing', f.time.review], ['idle', 'Holding nothing', f.time.idle]];
