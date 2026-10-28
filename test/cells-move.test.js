@@ -6,6 +6,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { readPathMap } from '../src/path-map.js';
 import { cellsMove } from '../bin/cells-move-tool.js';
 
 /** Execute real Git with private fixture identity and no inherited repository selector. */
@@ -172,4 +173,32 @@ test('export pruning refuses grouped variable exports rather than leaking extra 
   const { root, input } = fixture(t, 'export const value = 42, hidden = 7;\n');
   assert.throws(() => cellsMove.plan({ ...input, keepExports: ['value'] }), /one variable per declaration/u);
   assert.equal(git(root, 'status', '--porcelain'), '');
+});
+
+
+test('committed cell shards combine with root compatibility map and reject conflicts [C7]', t => {
+  const { root } = fixture(t);
+  mkdirSync(join(root, 'bin/cells-plan/path-map'), { recursive: true });
+  writeFileSync(join(root, 'path-map.json'), JSON.stringify({ 'src/old.js': 'src/leaf.js' }));
+  writeFileSync(join(root, 'bin/cells-plan/path-map/leaf.json'), JSON.stringify({ 'src/leaf.js': 'packages/leaf/src/core/leaf.js' }));
+  writeFileSync(join(root, 'bin/cells-plan/path-map/other.json'), JSON.stringify({ 'src/other.js': 'packages/other/src/core/other.js' }));
+  git(root, 'add', '.'); git(root, 'commit', '-qm', 'committed shards');
+  const accepted = git(root, 'rev-parse', 'HEAD').trim();
+  const map = readPathMap(root);
+  assert.equal(map.get('src/old.js'), 'packages/leaf/src/core/leaf.js');
+  assert.equal(map.get('src/other.js'), 'packages/other/src/core/other.js');
+  writeFileSync(join(root, 'bin/cells-plan/path-map/other.json'), JSON.stringify({ 'src/leaf.js': 'packages/other/src/core/other.js' }));
+  assert.deepEqual(readPathMap(root), map, 'uncommitted bytes cannot change the selected map');
+  git(root, 'add', '.'); git(root, 'commit', '-qm', 'conflicting shards');
+  assert.throws(() => readPathMap(root), /NO_POLICY/u);
+  assert.deepEqual(readPathMap(root, { commit: accepted }), map);
+});
+
+test('cycles spanning cell shards fail closed [C7]', t => {
+  const { root } = fixture(t);
+  mkdirSync(join(root, 'bin/cells-plan/path-map'), { recursive: true });
+  writeFileSync(join(root, 'bin/cells-plan/path-map/a.json'), JSON.stringify({ 'src/a.js': 'src/b.js' }));
+  writeFileSync(join(root, 'bin/cells-plan/path-map/b.json'), JSON.stringify({ 'src/b.js': 'src/a.js' }));
+  git(root, 'add', '.'); git(root, 'commit', '-qm', 'cyclic shards');
+  assert.throws(() => readPathMap(root), /NO_POLICY/u);
 });
