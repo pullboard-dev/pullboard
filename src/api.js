@@ -8,6 +8,7 @@ import { buildLocalBoardState } from './native-board-state.js';
 import { stateFileInputs } from './native-board-state.js';
 import { fileRevision } from './native-board-state.js';
 import { WHOLE_STATE_DELTA_FIELDS } from './api-delta-fields.js';
+import { capacityAtRead } from './capacity-read.js';
 import { nativeStateClockMatches } from './native-state-clock.js';
 import {
   dependencyValues,
@@ -516,6 +517,7 @@ function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, o
   const projection = seen === null ? { unseen: null } : withBoard(root, (board) => ({
     unseen: { since: seen, count: board.db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_id > ?').get(seen).n },
   }), isMain);
+  if (state.capacityForecast) projection.capacityForecast = capacityAtRead(state.capacityForecast, observedAt);
   if (refreshFlow && preparedFlow) {
     projection.proofStats = {
       ...state.proofStats,
@@ -528,7 +530,7 @@ function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, o
 /** Cache JSON fragments for state fields whose values stay fixed across a cache hit. */
 function prepareStateJson(state) {
   const fields = Object.entries(state).map(([key, value]) => {
-    if (key === 'unseen' || key === 'observedAt') return { dynamic: key };
+    if (key === 'unseen' || key === 'observedAt' || key === 'capacityForecast') return { dynamic: key };
     if (key === 'proofStats') {
       const stats = Object.entries(value).filter(([name]) => name !== 'flow').map(([name, entry]) => jsonField(name, entry)).filter(Boolean);
       return { dynamic: key, stats };
@@ -558,7 +560,7 @@ function serializeState(state, fields, reportJson) {
   if (!fields) return JSON.stringify(state);
   const encoded = fields.map((field) => {
     if (field.static !== undefined) return field.static;
-    if (field.dynamic === 'unseen' || field.dynamic === 'observedAt') return jsonField(field.dynamic, state[field.dynamic]);
+    if (field.dynamic === 'unseen' || field.dynamic === 'observedAt' || field.dynamic === 'capacityForecast') return jsonField(field.dynamic, state[field.dynamic]);
     if (field.dynamic === 'proofStats') {
       const value = state.proofStats?.flow;
       const flow = reportJson === undefined || !value ? jsonField('flow', value)
@@ -898,6 +900,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       scopeCommonDir,
       observedAt,
       localRelayHealth: relayCanaryNeeds(board.root),
+      localCapacity: true,
     }), codeIsMain);
     const state = { ...built.state, sequence: built.sequence };
     const entry = snapshotEntry(before.revision, state, prepareFlowHistory(built.history), {

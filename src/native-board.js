@@ -1,3 +1,4 @@
+import { guardLandingWrite } from './landing-lease.js';
 import { recordRowVerification as applyRowVerification } from './spec-verdicts.js';
 import { decideSpecRevisions as applySpecRevisionDecisions } from './spec-revisions.js';
 import { draftSpecRow as applySpecRowDraft } from './row-drafts.js';
@@ -124,7 +125,7 @@ export function nativeBoardPorts() {
   const enginePorts = boardEnginePorts();
   return Object.freeze({
     nativePorts, enginePorts, operations: enginePorts.operations, logEvent,
-    sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody }),
+    sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody, guardLandingWrite }),
     verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters }),
     guards: Object.freeze({ guardStore, refreshStoreDeclarations, storeTriggers }),
     lifecycle: Object.freeze({ atomic, ensureProofCounters, ensureHotIndexes, missingAdditiveIndexes,

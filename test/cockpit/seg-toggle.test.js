@@ -75,7 +75,7 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
         ['items', '#items-view-switch', 'data-items-view', 'list', 'pipeline'],
         ['spec', '#spec-chips', 'data-rows', 'spec:all', 'spec:approved'],
         ['doctrine', '#doctrine-chips', 'data-rows', 'doctrine:all', 'doctrine:approved'],
-        ['activity', '#activity .activity-bar', 'data-activity-filter', 'all', 'shouts'],
+        ['activity', '#activity-filters .activity-bar', 'data-activity-filter', 'all', 'shouts'],
       ]) {
         await press(chrome, 'document.querySelector("[data-tab=' + pane + ']")');
         await chrome.waitFor('!document.querySelector("[data-pane=' + pane + ']").hidden && !!document.querySelector(' + JSON.stringify(selector + ' [' + attribute + ']') + ')');

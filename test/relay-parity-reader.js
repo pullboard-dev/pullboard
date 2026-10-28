@@ -12,6 +12,7 @@ import { snapshotState } from '../relay/browser-model.js';
 export const LOCAL_PARITY_FIELDS = Object.freeze([
   { path: 'root', reason: 'Native routing uses a local repository directory; a relay reader routes by persistent board id.' },
   { path: 'relayHealthAlerts', reason: 'Canary observations are private telemetry on this local client, never sealed board state.' },
+  { path: 'capacityForecast', reason: 'The forecast reads a machine-local derived proof-counter index, which sealed exports omit; only the local host serves it.' },
   { path: 'needs', kind: 'relay-health', reason: 'Only Needs derived from this local client canary stay on that client.' },
 ]);
 

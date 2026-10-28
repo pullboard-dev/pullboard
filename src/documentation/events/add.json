@@ -4,7 +4,7 @@
     {
       "order": 4,
       "actor": "item creator",
-      "detail": "`lane`, `specIds`, `after`, `route`, optional `reviewFamily`, optional `reviewPolicy`"
+      "detail": "`lane`, `specIds`, `after`, `route`, optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion)"
     }
   ]
 }

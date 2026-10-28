@@ -36,9 +36,8 @@ import {
   resolve,
 } from 'node:path';
 import * as store from './board.js';
-import { cockpitPage } from './cockpit.js';
-import { releaseHeadlinesBetween } from './changelog.js';
-import { VERSION } from './help.js';
+import { releaseHeadlinesBetween } from './release-headlines.js';
+import { VERSION } from './release-version.js';
 import { displayAgentName } from './agent-names.js';
 import {
   COORDINATOR,
@@ -110,6 +109,13 @@ export function portableSnapshot(value, root, field = '') {
   return value;
 }
 
+/** Refuse missing higher-level services before opening a transport or writing an export [N26]. */
+function requireViewServices({ runCommand, renderPage }) {
+  for (const [name, operation] of Object.entries({ runCommand, renderPage })) {
+    if (typeof operation !== 'function') throw new Refused('VIEW_SERVICE_REQUIRED', `the view needs its caller to provide ${name}; use the CLI view composition or pass the actual service`);
+  }
+}
+
 /**
  * Export one board through the same API v1 used by the live page, closing its temporary local
  * transport before returning. The static page needs neither that transport nor its session key.
@@ -118,10 +124,10 @@ export function portableSnapshot(value, root, field = '') {
  *
  * @param {string} root
  * @param {string} directory
- * @param {{ fetchApi?: typeof fetchLocal, public?: boolean }} [options]
  * @returns {Promise<{path: string}>}
  */
-export async function exportView(root, directory, { fetchApi = fetchLocal, public: publicMode = false } = {}) {
+export async function exportView(root, directory, { fetchApi = fetchLocal, public: publicMode = false, runCommand, renderPage } = {}) {
+  requireViewServices({ runCommand, renderPage });
   const output = resolve(directory);
   if (existsSync(output) && (!statSync(output).isDirectory() || readdirSync(output).length)) {
     throw new Refused('EXPORT_EXISTS', `snapshot folder ${output} is not empty; use an empty folder`);
@@ -132,8 +138,7 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
     try { return repoInfo(entry.root).commonDir === info.commonDir; } catch { return false; }
   }) ?? { root: info.root, name: config.name || basename(info.root), project: config.project || '', added: new Date().toISOString() };
   const { serveApi } = await import('./api.js');
-  const { main } = await import('./cli.js');
-  const api = await serveApi({ port: 0, projects: () => [registered], runCommand: main });
+  const api = await serveApi({ port: 0, projects: () => [registered], runCommand });
   let listing;
   let state;
   let events;
@@ -181,7 +186,7 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
   }
   const boardPath = join(output, 'api', 'v1', 'boards', listing.boards[0].id);
   mkdirSync(boardPath, { recursive: true });
-  writeFileSync(join(output, 'index.html'), cockpitPage('', { snapshot: true }));
+  writeFileSync(join(output, 'index.html'), renderPage('', { snapshot: true }));
   writeFileSync(join(output, 'view.css'), VIEW_CSS);
   writeFileSync(join(output, 'api', 'v1', 'boards.json'), JSON.stringify(listing) + '\n');
   writeFileSync(join(boardPath, 'state.json'), JSON.stringify(state) + '\n');
@@ -412,10 +417,10 @@ const credentialMatches = (given, expected) => given.length === expected.length 
 /**
  * Serve the view until stopped, optionally giving its API access to only one registered project.
  *
- * @param {{ port?: number, secret?: string, projectRoot?: string, lan?: boolean }} [options]
  * @returns {Promise<{ url: string, port: number, close: () => Promise<void> }>}
  */
-export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, lan = false } = {}) {
+export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, runCommand, renderPage, lan = false } = {}) {
+  requireViewServices({ runCommand, renderPage });
   const address = lan ? viewLanAddress() : LOOPBACK;
   const key = Buffer.from(secret);
   const cookieName = `pullboard_view_${randomBytes(9).toString('hex')}`;
@@ -432,11 +437,10 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   // Load the API transport factory when the view starts, after the shared projection exports
   // initialize, and use the real CLI entry point without adding a second move implementation.
   const { apiBoardListing, createLocalApiHandler } = await import('./api.js');
-  const { main } = await import('./cli.js');
   const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import('./relay-setup.js');
   const signIns = new Set();
   const signInLifetime = new AbortController();
-  const apiHandler = createLocalApiHandler({ secret, getPort: () => bound, runCommand: main, stateDetail: 'summary',
+  const apiHandler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, stateDetail: 'summary',
     allowedOrigins: lan ? [] : [HOSTED_ORIGIN], allowedHosts: lan ? [address] : [],
     sessionCookie: { name: cookieName, value: session }, ...(projectRoot === undefined ? {} : { scope: { projectRoot } }) });
   const reply = (res, code, type, body, headers = {}) => {
@@ -644,7 +648,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     }
     try {
       // The board, and the Roadmap at its own address (N38), are the one page.
-      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:dashboard|home|items|shouts|spec|doctrine|activity|roadmap|settings)(?:\/[^/]+)?$/.test(url.pathname))) return reply(res, 200, 'text/html; charset=utf-8', cockpitPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css' }));
+      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:dashboard|home|items|shouts|spec|doctrine|activity|roadmap|settings)(?:\/[^/]+)?$/.test(url.pathname))) return reply(res, 200, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css' }));
       if (req.method === 'GET' && url.pathname === '/view.css') return reply(res, 200, 'text/css; charset=utf-8', VIEW_CSS);
       return json(res, 404, { error: 'no such page' });
     } catch (error) {

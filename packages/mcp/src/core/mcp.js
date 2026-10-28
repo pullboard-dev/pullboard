@@ -51,6 +51,21 @@ const PERSON_MOVE = /approv|declin|answer|sign_?off|decide|decision|check_?accep
     },
   },
   {
+    name: 'usages',
+    description: 'Observed imports and calls for a committed module or module#function. Static observations, not a complete dynamic call graph.',
+    inputSchema: { type: 'object', properties: { target: { type: 'string' } }, required: ['target'], additionalProperties: false },
+  },
+  {
+    name: 'impact',
+    description: 'Dependent modules and the exact affected-tests selection for changed repository files at HEAD. Unknown edges remain named.',
+    inputSchema: { type: 'object', properties: { files: { type: 'array', items: { type: 'string' }, minItems: 1 } }, required: ['files'], additionalProperties: false },
+  },
+  {
+    name: 'cell',
+    description: 'A committed file’s cell, front door and earlier cells it may import under the committed cells plan; temporary edges stay explicit.',
+    inputSchema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'], additionalProperties: false },
+  },
+  {
     name: 'shout',
     description: 'Shout to a lane, an agent or all, as this seat\'s agent. Coordinator shouts require kind question, blocker, decision, exception or idea.',
     inputSchema: {
@@ -157,6 +172,9 @@ function validateArguments(tool, args) {
     if (rule.type === 'string' && typeof value !== 'string') {
       throw new Refused('BAD_REQUEST', `${tool.name} needs ${key} as text; use the tool's input schema`);
     }
+    if (rule.type === 'array' && (!Array.isArray(value) || !value.length || value.some(entry => typeof entry !== 'string'))) {
+      throw new Refused('BAD_REQUEST', `${tool.name} needs ${key} as a nonempty list of repository paths; use the tool's input schema`);
+    }
     if (rule.type === 'boolean' && typeof value !== 'boolean') {
       throw new Refused('BAD_REQUEST', `${tool.name} needs ${key} as true or false; use the tool's input schema`);
     }
@@ -225,11 +243,15 @@ function toolResult(document, isError) {
  * Each read or move is the CLI command it mirrors; a nonzero status is that command's own refusal.
  * readNeeds is the caller's person-needs reader, injected because the needs projection belongs to later cells [D3].
  */
-async function callTool(runCommand, readNeeds, cwd, name, args) {
+async function callTool(runCommand, readNeeds, cwd, name, args, readCodeMap) {
   refusePersonMove(name);
   const tool = MCP_TOOLS.find((entry) => entry.name === name);
   if (!tool) return null;
   const input = validateArguments(tool, args);
+  if (['usages', 'impact', 'cell'].includes(name)) {
+    if (!readCodeMap) throw new Refused('BAD_REQUEST', 'code-map reads need the native MCP command; restart pullboard mcp');
+    return toolResult(await readCodeMap(cwd, name, input), false);
+  }
   if (name === 'board_status') {
     const status = await runCli(runCommand, cwd, ['status', '--json']);
     if (status.status) return toolResult(status.document, true);
@@ -278,7 +300,7 @@ function rpcError(id, code, message, data) {
  * Answer one JSON-RPC message, or return null for a notification, which never gets a reply.
  * Refusals from a tool are tool results with isError; protocol faults are JSON-RPC errors.
  */
-async function handleMessage(message, { runCommand, needsYou, cwd, seat }) {
+async function handleMessage(message, { runCommand, needsYou, cwd, seat, readCodeMap }) {
   if (!message || typeof message !== 'object' || Array.isArray(message) || message.jsonrpc !== '2.0' || typeof message.method !== 'string') {
     return rpcError(message && typeof message === 'object' && !Array.isArray(message) ? message.id : null, -32600, 'invalid request: send one JSON-RPC 2.0 object with a method');
   }
@@ -300,7 +322,7 @@ async function handleMessage(message, { runCommand, needsYou, cwd, seat }) {
   if (method === 'tools/call') {
     if (!params || typeof params !== 'object' || typeof params.name !== 'string') return rpcError(id, -32602, 'tools/call needs params.name and params.arguments');
     try {
-      const result = await callTool(runCommand, needsYou, cwd, params.name, params.arguments);
+      const result = await callTool(runCommand, needsYou, cwd, params.name, params.arguments, readCodeMap);
       if (!result) {
         return rpcError(id, -32602, `unknown tool ${params.name}`, refusalDocument(new Refused('UNKNOWN_TOOL', `no tool ${params.name}; use one from tools/list`)));
       }
@@ -321,7 +343,7 @@ async function handleMessage(message, { runCommand, needsYou, cwd, seat }) {
  * @param {{ cwd: string, input: NodeJS.ReadableStream, output: { write(text: string): any }, log: { write(text: string): any }, runCommand: Function, needsYou: (cwd: string) => object[] }} options
  * @returns {Promise<number>} the exit code
  */
-export async function serveMcp({ cwd, input, output, log, runCommand, needsYou }) {
+export async function serveMcp({ cwd, input, output, log, runCommand, needsYou, readCodeMap }) {
   if (typeof needsYou !== 'function') throw new TypeError('serveMcp needs the caller\'s needsYou reader');
   const me = await runCli(runCommand, cwd, ['whoami', '--json']);
   const seat = me.status ? 'this checkout' : `agent ${me.document.id} in the ${me.document.lane} lane`;
@@ -337,7 +359,7 @@ export async function serveMcp({ cwd, input, output, log, runCommand, needsYou }
         output.write(`${JSON.stringify(rpcError(null, -32700, 'parse error: each line must be one JSON-RPC message'))}\n`);
         return;
       }
-      const reply = await handleMessage(message, { runCommand, needsYou, cwd, seat });
+      const reply = await handleMessage(message, { runCommand, needsYou, cwd, seat, readCodeMap });
       if (reply) output.write(`${JSON.stringify(reply)}\n`);
     }).catch((error) => { log.write(`pullboard mcp: ${error.stack ?? error.message}\n`); });
   };

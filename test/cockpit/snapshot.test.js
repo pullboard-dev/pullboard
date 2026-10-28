@@ -13,7 +13,8 @@ import { closeBoard } from '../../src/board.js';
 import { events } from '../../src/board.js';
 import { openBoardForRead } from '../../src/board-read-open.js';
 import { proofStats } from '../../src/stats.js';
-import { exportView, portableSnapshot } from '../../src/serve.js';
+import { portableSnapshot } from '../../src/serve.js';
+import { exportView } from '../../src/commands/view.js';
 import { machine, project, build, sendBack, fetchLive, startView, accept, boardId, boardOf, chromeExecutable, browserPause, openSnapshotChrome, closeSnapshotChrome, press, travel, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, serveFolder, proofShot } from './fixture.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */
