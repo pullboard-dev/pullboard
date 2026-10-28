@@ -251,3 +251,26 @@ test('one sender keeps its claim through a slow multi-board pass [H21,H5,H16]', 
     assert.ok(workerIdentity(first.pid, first.cwd)?.metadata === first.metadata, 'one original sender finishes both boards');
   } finally { releaseAll(); }
 });
+
+test('a real local-first CLI read starts its owned background sender [H21,C7]', async t => {
+  let box, record;
+  t.after(async () => {
+    if (!record && box) {
+      const claim = join(box.env.PULLBOARD_HOME, 'relay-sender/sender.pid');
+      if (existsSync(claim)) record = workerIdentity(Number(readFileSync(claim, 'utf8')), box.root);
+    }
+    if (record) await stopWorker(record);
+  });
+  box = await relayClientFixture(t);
+  commitDefault(box.root, box.env);
+  await box.link();
+  const env = { ...box.env };
+  delete env.PULLBOARD_RELAY_SENDER_BACKGROUND;
+  assert.equal(env.PULLBOARD_RELAY_TOKEN, undefined);
+  const claim = join(env.PULLBOARD_HOME, 'relay-sender/sender.pid');
+  assert.equal(existsSync(claim), false, 'setup did not start a sender');
+  await cli(box.root, env, ['list']);
+  await until('the local-first CLI read did not start its sender', () => existsSync(claim));
+  record = workerIdentity(Number(readFileSync(claim, 'utf8')), box.root);
+  assert.ok(record, 'the real read launched the actual CLI-owned sender entry in this private checkout');
+});
