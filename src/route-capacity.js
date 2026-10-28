@@ -1,7 +1,7 @@
 /** Compare live idle seats with compatible free work without counting a seat at multiple routes [A6,N2,B13]. */
 import { ROUTES } from './route-escalation.js';
 import { canTake } from './route-escalation.js';
-import { firstRefusal } from './first-refusal-window.js';
+import { firstRefusal } from './board-item-read.js';
 import { takeoverReady } from './line-capacity.js';
 
 /**

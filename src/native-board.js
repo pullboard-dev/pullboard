@@ -93,7 +93,7 @@ import {
 } from './computed-conflict-receipt.js';
 import {
   firstRefusal,
-} from './claims.js';
+} from './board-item-read.js';
 import {
   itemReviewPolicy,
 } from './review-policy.js';
