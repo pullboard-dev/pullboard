@@ -1,6 +1,7 @@
 /** @pullboard-test-gui */
 /** Public exports keep public prose and refuse private data before writing [N26]. */
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { copyFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -9,6 +10,12 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { withPrivateBoard } from '../../src/projects.js';
+import { closeBoard } from '../../src/board.js';
+import { finishLandingBatch } from '../../src/board.js';
+import { getItem } from '../../src/board.js';
+import { landingBatches } from '../../src/board.js';
+import { openBoard } from '../../src/board.js';
+import { recordLandingBatch } from '../../src/board.js';
 import { addItem } from '../../src/board.js';
 import { ensureCoordinator } from '../../src/board.js';
 import { PUBLIC_EXPORT_BLOCKS } from '../../src/view/public-export.js';
@@ -215,7 +222,21 @@ test('a clean public export renders offline with public work and no write path [
   build(box, alpha, 2, 'public.html');
   accept(box, alpha, 2);
   box.git(alpha.repo, 'merge', '-q', '--no-ff', alpha.branch, '-m', 'chore: land public fixture');
-  box.run(alpha.repo, 'merged', '2', box.git(alpha.repo, 'rev-parse', 'HEAD'));
+  const tip = box.git(alpha.repo, 'rev-parse', 'HEAD'), base = box.git(alpha.repo, 'rev-parse', 'HEAD^1');
+  const batchId = randomUUID();
+  // @pullboard-board-file journey: genuine native batch operations project this private Git merge.
+  // The helper's synthetic acceptance is lifecycle setup only, never gate or landing assurance.
+  const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    const item = getItem(board, 2);
+    recordLandingBatch(board, { agentId: 'coordinator', batch: { version: 1, id: batchId, state: 'trunk', base, tip,
+      root: alpha.repo, branch: 'refs/heads/main', owner: randomUUID(),
+      logPath: join(alpha.repo, '.git', 'pullboard', 'landings', batchId, 'batch.log'),
+      items: [{ id: 2, commit: item.item_commit, merge: tip }], invariantEvidence: { version: 1, gates: [], diagnostics: [] } } });
+    finishLandingBatch(board, { agentId: 'coordinator', id: batchId, tip });
+    assert.equal(landingBatches(board).find(batch => batch.id === batchId).state, 'landed');
+  } finally { closeBoard(board); }
+
   box.run(alpha.repo, 'milestone', 'add', 'Public milestone', '--items', '1,2');
   box.run(alpha.web, 'shout', 'web', 'Public progress');
   box.run(alpha.repo, 'shout', 'all', 'Internal notice');
@@ -227,6 +248,19 @@ test('a clean public export renders offline with public work and no write path [
   const state = JSON.parse(readFileSync(join(output, 'api/v1/boards', listing.boards[0].id, 'state.json'), 'utf8'));
   assert.equal(JSON.stringify(state).includes('Internal notice'), false);
   assert.ok(state.state.items.find(item => item.id === 2).merged);
+  const exported = JSON.parse(readFileSync(join(output, 'api/v1/boards', listing.boards[0].id, 'events.json'), 'utf8'));
+  const moved = exported.events.filter(event => event.event_kind === 'main-moved').map(event => JSON.parse(event.event_detail))
+    .find(detail => detail.batch === batchId);
+  const batches = exported.events.filter(event => event.event_kind === 'landing_batch').map(event => JSON.parse(event.event_detail).batch)
+    .filter(batch => batch.id === batchId);
+  assert.equal(moved.sha, tip, 'the real native main-moved hash remains public');
+  assert.equal(batches.length, 2, 'initial and terminal native batch revisions survive');
+  for (const batch of batches) {
+    assert.equal(batch.base, base); assert.equal(batch.tip, tip);
+    assert.equal(batch.items[0].merge, tip);
+    for (const key of ['root', 'owner', 'logPath']) assert.equal(Object.hasOwn(batch, key), false, 'private batch execution linkage is omitted');
+  }
+
   assert.equal(state.state.items.find(item => item.id === 1).thread.find(entry => entry.type === 'fact' && entry.id === fact.id)?.text,
     'Public export fixture observation', 'a real native fact keeps its public identity and prose');
   assert.ok(JSON.stringify(state.state.milestones).includes('Public milestone'));
