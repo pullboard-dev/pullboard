@@ -81,6 +81,19 @@ test('docs-only submission remains Standard with optional same-vendor review [V4
   assert.equal(f.reserve(id, 'core-2').item_review_by, 'core-2');
 });
 
+test('an active source-bound gate companion makes docs work Strict without changing its submitted inventory [V4,B26,H16]', t => {
+  const f = fixture(t), id = f.add();
+  const item = f.submit(id, ['README.md']);
+  assert.equal(itemReviewPolicy(f.board, id).tier, 'standard');
+  const patch = 'diff --git a/src/quarantine.js b/src/quarantine.js\n--- a/src/quarantine.js\n+++ b/src/quarantine.js\n@@ -1 +1 @@\n-old\n+new\n';
+  store.attachItemPatch(f.board, id, { agentId: 'coordinator', key: 'gate-companion', commit: item.item_commit,
+    patch, author: 'core-1' });
+  assert.equal(store.getItem(f.board, id).item_files, 'README.md');
+  assert.equal(itemReviewPolicy(f.board, id).tier, 'strict');
+  assert.throws(() => f.reserve(id, 'core-2'), { code: 'O2_FAMILY_MATCH' });
+  assert.equal(f.reserve(id, 'core-4').item_review_by, 'core-4');
+});
+
 test('only coordinator can mark Strict and every mark needs a reason and refuses downgrade atomically [V4,B26]', t => {
   const f = fixture(t), id = f.add();
   for (const [change, code] of [[{ agentId: 'core-2', reviewTier: 'strict', reason: 'Risk' }, 'COORDINATOR_ONLY'],

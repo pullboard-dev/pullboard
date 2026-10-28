@@ -1,6 +1,8 @@
 /** Deterministic classification uses native submitted paths, never prose or receiver files [V4,B26,H16]. */
 import { REVIEW_TIER_ENGINE } from './review-tier-engine.js';
 import { ENGINE_VERSION } from './machine.js';
+import { itemPatches } from './item-patch-state.js';
+import { itemPatchPaths } from './item-patch-compose.js';
 
 // Strict areas include their focused tests, without making unrelated UI/product tests Strict.
 const DIRECTORIES = ['relay/', 'bin/', '.githooks/', '.husky/', '.github/workflows/', 'src/moves/',
@@ -42,7 +44,8 @@ export function gateJudgmentPath(path) {
 /** Native submitted file inventory is replicated; titles, briefs and the reviewer's filesystem are not authority. */
 export function gateJudgmentItem(board, id) {
   const files = board.db.prepare('SELECT item_files FROM item WHERE item_id=?').get(id)?.item_files ?? '';
-  return files.split('\n').some(gateJudgmentPath);
+  if (files.split('\n').some(gateJudgmentPath)) return true;
+  return itemPatches(board, id).some(record => [...itemPatchPaths(record.patch)].some(gateJudgmentPath));
 }
 
 /** Genuine old ordered moves keep their old tier even after an upgrade. */
