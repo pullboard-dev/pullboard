@@ -1,4 +1,3 @@
-/** @pullboard-test-input test-tree */
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/browser-admission.js */
 /** Browser admission follows current test dependencies without executing them [C7]. */
@@ -11,6 +10,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { browserBoundFiles, checkNeedsBrowser, testsNeedBrowser } from '../src/browser-admission.js';
 import { browserInCall } from '../src/browser-slot-guard.js';
+import { snapshotBrowserSourceFiles, withBrowserSourceFiles } from '../src/browser-source-files.js';
 
 const TEST_RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
 
@@ -179,12 +179,21 @@ test('module launchers and dynamic builtins keep browser admission conservative 
     assert.equal(await testsNeedBrowser(root, [`test/${file}.test.js`]), true, file);
   }
 
-  mkdirSync(join(root, 'src'), { recursive: true });
-  copyFileSync(resolve(import.meta.dirname, '../src/module-imports.js'), join(root, 'src/module-imports.js'));
-  copyFileSync(resolve(import.meta.dirname, '../src/js-lex.js'), join(root, 'src/js-lex.js'));
+  // The reviewed parser has real local dependencies; preserve its actual source closure.
+  cpSync(resolve(import.meta.dirname, '../src'), join(root, 'src'), { recursive: true });
   writeFileSync(join(root, 'test/parser.test.js'), "import '../src/module-imports.js';\n");
-  assert.equal(await testsNeedBrowser(root, ['test/parser.test.js']), false,
+  const parserFallbacks = [];
+  const parserBrowser = await testsNeedBrowser(root, ['test/parser.test.js'], { onFallback: decision => parserFallbacks.push(decision) });
+  t.diagnostic('reviewed parser fallback: ' + JSON.stringify(parserFallbacks));
+  assert.equal(parserBrowser, false,
     'the reviewed V8 compile-only import parser may use node:vm without evaluating the test graph');
+  assert.deepEqual(parserFallbacks, [], 'the positive control inspects the real complete parser closure');
+  rmSync(join(root, 'src/module-import-cache-state.js'));
+  const missingFallbacks = [];
+  assert.equal(await testsNeedBrowser(root, ['test/parser.test.js'], { onFallback: decision => missingFallbacks.push(decision) }), true,
+    'a missing real parser helper remains conservative, rather than receiving the compile-only exception');
+  assert.ok(missingFallbacks.some(decision => decision.file === 'src/module-imports.js'
+    && decision.reason === 'import ./module-import-cache-state.js is missing or ambiguous'));
 });
 
 test('only actual CommonJS loader words trigger browser admission in JavaScript source [C7]', async t => {
@@ -437,7 +446,10 @@ test('only a file that reaches a browser launch takes a browser slot [C7,O5]', a
   const listed = spawnSync('git', ['ls-files', '-z', 'test'], { cwd: repository, env: plainGitEnvironment(), encoding: 'utf8' });
   assert.equal(listed.status, 0, listed.stderr);
   const tracked = listed.stdout.split('\0').filter(path => /\.test\.(?:js|mjs)$/u.test(path)).sort();
-  const bound = await browserBoundFiles(repository, tracked, { byLaunch: true });
+  const snapshotPaths = spawnSync('git', ['ls-files', '-z'], { cwd: repository, env: plainGitEnvironment(), encoding: 'utf8' });
+  assert.equal(snapshotPaths.status, 0, snapshotPaths.stderr);
+  const sourceFiles = await snapshotBrowserSourceFiles(repository, snapshotPaths.stdout.split('\0').filter(Boolean));
+  const bound = await withBrowserSourceFiles(sourceFiles, () => browserBoundFiles(repository, tracked, { byLaunch: true }));
   assert.ok(!bound.includes('test/runners.test.js'), 'runner subprocess fixture source data does not launch a browser in the runner test process');
   const missed = CENSUS_LAUNCHED.filter(file => tracked.includes(file) && !bound.includes(file));
   assert.deepEqual(missed, [], 'every file that launched Chrome in the census is classified browser-bound');

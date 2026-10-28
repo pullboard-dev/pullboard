@@ -1,3 +1,4 @@
+import { REVIEW_ROUTING_ENGINE } from '../review-routing-engine.js';
 import { anyItemReviewPolicyEngine } from '../review-policy.js';
 import { anyRequiredReviewFamilyEngine } from '../required-review-family.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
@@ -7,7 +8,7 @@ import { REVIEW_SKIP_ENGINE } from '../review-skip-engine.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
-function minimumEngine(args, board, at) {
+function historicalMinimumEngine(args, board, at) {
   if (anyItemReviewPolicyEngine(board) > 1) return Math.max(anyItemReviewPolicyEngine(board), anyRequiredReviewFamilyEngine(board));
   if (anyRequiredReviewFamilyEngine(board) > 1) return anyRequiredReviewFamilyEngine(board);
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;
@@ -40,3 +41,8 @@ export default Object.freeze({ operation: "reserveNextReview", order: 17, engine
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again",
   "VERIFIER_STANDING": "ask the coordinator to make an independent verifier from the main checkout: pullboard worktree <lane> --model \"<model name>\""
 }) });
+
+/** Fresh review routing records its engine; older ordered moves keep their original guards. */
+function minimumEngine(args, board, at) {
+  return Math.max(Object.hasOwn(args[0] ?? {}, 'priority') ? REVIEW_ROUTING_ENGINE : 1, historicalMinimumEngine(args, board, at));
+}

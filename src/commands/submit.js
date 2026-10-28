@@ -1,3 +1,4 @@
+import { completeMoveHandoff } from '../post-move-handoff.js';
 import {
   barReadySetting,
   barReadyProblem,
@@ -91,6 +92,7 @@ import {
 import { recordedRecovery } from '../recorded-recovery.js';
 import { failureSignatures } from '../main-failure-matches.js';
 import { matchingMainFailures } from '../main-failure-matches.js';
+import { linkKnownMainReworks } from '../known-main-reworks.js';
 import { submitReferenceReminders } from '../reference-lines.js';
 import { waitForSubmissionVerdict } from '../submit-wait.js';
 
@@ -223,7 +225,8 @@ export async function submitHere(ctx, id, infra) {
   if (failures && mainFailureBase) {
     try {
       comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true });
-      knownMainFailures = matchingMainFailures(failures, comparison, mainFailureBase);
+      const matched = matchingMainFailures(failures, comparison, mainFailureBase);
+      knownMainFailures = matched && withBoard(ctx, board => linkKnownMainReworks(matched, store.listItems(board, { all: true }), id));
     } catch { /* Unavailable exact-main proof never authorizes a red submission. */ }
   }
   if (!gate.isGreen && !waived && !knownMainFailures) {
@@ -256,7 +259,7 @@ export async function submitHere(ctx, id, infra) {
     refuseUnverifiedStack(root, board, store.getItem(board, id), commit, currentTrunk);
     // The waived run is written to the item's thread before the submission, so no waived proof reads as green.
     if (waived) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof at ${commit.slice(0, 12)} was red and is recorded as waived, not green; every failure is covered by a live person waiver:\n${waivedLines.join('\n')}` }]);
-    if (knownMainFailures) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof at ${commit.slice(0, 12)} remains red; known main failures at ${knownMainFailures.main}: ${knownMainFailures.failures.map(row => `${row.file} (${row.name})`).join('; ')}. The item check passed; no new or unaccounted failure is accepted.` }]);
+    if (knownMainFailures) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof at ${commit.slice(0, 12)} remains red; known main failures at ${knownMainFailures.main}: ${knownMainFailures.failures.map(row => `${row.file} (${row.name}), open repair #${row.item}`).join('; ')}. The item check passed; no new or unaccounted failure is accepted.` }]);
     return await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...(infraRecord ? { infra: infraRecord } : {}),
       gateGreen: gate.isGreen && !waived,
       ...(size ? { submissionSize: size } : {}),
@@ -275,6 +278,7 @@ export async function submitHere(ctx, id, infra) {
   return reportSubmission(ctx, id, commit, { green: gate.isGreen, report, files: gate.files, full: gate.full, deferred: gate.deferred, deferFullFallback: gate.deferFullFallback, ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), reason: gate.reason, check: gate.check,
     log: gate.log, profile: gate.profile, profilePath: gate.profilePath, proofLog: gate.proofLog, proofProfilePath: gate.proofProfilePath,
     ...(knownMainFailures ? { knownMainFailures } : {}),
+    ...(knownMainFailures ? { knownMainReworks: knownMainFailures.failures.map(({ file, name, item }) => ({ file, name, item })) } : {}),
     ...(waived ? { waived: waived.map(({ file, name, waiver }) => ({ file, name, waiver: waiver.id, reason: waiver.reason, until: waiver.until })) } : {}) }, doctrine);
 }
 
@@ -283,6 +287,8 @@ export async function run(io, { first, values }) {
   const submissionResult = {};
   const ctx = { ...context(io), submissionResult };
   const id = idArg(first);
+  /** Dispatch before optional verdict waiting, retaining this exact submission document. */
+  ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission);
   const previous = io.onOrderedMove;
   io.onOrderedMove = receipt => {
     previous?.(receipt);

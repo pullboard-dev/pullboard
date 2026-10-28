@@ -1,3 +1,5 @@
+import { effectiveItemHead } from './source-advance-state.js';
+import { mainRedReviewItems } from './main-red.js';
 import { itemReviewPolicy } from './review-independence.js';
 import { twoTierReviews } from './review-independence.js';
 /**
@@ -24,7 +26,7 @@ export async function returnUnmergeable(root, board, me, { ordered, trunkMerge }
   const returned = [];
   for (const item of store.listItems(board).filter((entry) => entry.item_status === 'submitted' && entry.item_commit)) {
     let merge;
-    try { merge = trunkMerge(root, item.item_commit); }
+    try { merge = trunkMerge(root, effectiveItemHead(board, item) ?? item.item_commit); }
     catch (error) { if (error instanceof Refused) return returned; throw error; }
     if (!merge.files?.length) continue;
     try {
@@ -79,5 +81,5 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
     return { item: await ordered('reserveReview', [id, reservation]), reasons: [] };
   }
   return await ordered('reserveNextReview', [{ agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy,
-    familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes, skipIds: ownSessionReviews(ctx.info, board) }]);
+    familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes, skipIds: ownSessionReviews(ctx.info, board), priority: mainRedReviewItems(ctx.info.root, board) }]);
 }

@@ -1,7 +1,12 @@
+import {
+  overdueReview,
+  reviewRoutingEnabled,
+} from './review-routing.js';
 /** Capacity adapters retain the board's canonical review eligibility checks [N2,B13,H16]. */
 import { Refused } from './refused.js';
 import { ROUTES } from './route-escalation.js';
 import {
+  listItems,
   reviewQueue,
   reviewHolder,
 } from './board-query.js';
@@ -13,13 +18,20 @@ import {
 import { lineWipLimit } from './line-wip-limit.js';
 
 /** Offer the existing eligible review with either the historical ratio or enabled total-cap threshold. */
-export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy = 'off', ratio = 3, runnable = false, routes = ROUTES }, nextFor) {
+export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy = 'off', ratio = 3, runnable = false, routes = ROUTES, omitIds = [], skipIds = [], priority = [] }, nextFor) {
+  const offered = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, omitIds, skipIds, priority });
   const queue = reviewQueue(board);
+  const held = offered.item && reviewHolder(board, offered.item) === agentId;
+  if (reviewRoutingEnabled(board) && held) return { item: offered.item, queue, ratio, urgent: 'held-review', held: true };
+  if (!held && reviewRoutingEnabled(board) && offered.item && priority.includes(offered.item.item_id)) return { item: offered.item, queue, ratio, urgent: 'main-red' };
+  const urgent = held ? { item: null } : nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, omitIds, priority,
+    skipIds: [...skipIds, ...listItems(board).filter(item => !overdueReview(board, item)).map(item => item.item_id)] });
+  if (urgent.item) return { item: urgent.item, queue, ratio, urgent: 'age' };
   const settings = capacitySettings(board);
   const capacity = settings.reviewsFirst === true ? lineCapacitySnapshot(board) : null;
   if (capacity) ratio = typeof settings.wipPerReviewer === 'number' ? settings.wipPerReviewer : 3;
   if (capacity ? queue.pending <= lineWipLimit(ratio, capacity.activeReviewers) : queue.pending < ratio * Math.max(queue.reviewing, 1)) return null;
-  const { item } = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes });
+  const { item } = offered;
   return item ? { item, queue, ratio } : null;
 }
 

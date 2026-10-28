@@ -1,3 +1,11 @@
+import { crossLaneFixture } from './e2e-helpers.js';
+import { HOUR } from './next-order-fixture.js';
+import { MID_ITEM_DETAILS } from './next-order-fixture.js';
+import { FREEZE } from './next-order-fixture.js';
+import { boardFixture } from './next-order-fixture.js';
+import { submitted } from './next-order-fixture.js';
+import { lineOrderFixture } from './next-order-fixture.js';
+import { REVIEW_ROUTING_ENGINE } from '../src/review-routing-engine.js';
 /** Roadmap position leads next's existing route order only across unfinished milestones [B16]. */
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
@@ -15,36 +23,6 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
-
-const HOUR = 60 * 60 * 1000;
-const MID_ITEM_DETAILS = {
-  criterion: 'the item can be built and checked from its brief',
-  check: 'true',
-  brief: 'Files: src/board.js\nTest: verify the candidate follows the release roadmap',
-};
-/** Build the minimal frozen bar required to submit a fixture item. */
-const FREEZE = (item) => ({ text: item.item_title, digest: `digest:${item.item_title}` });
-
-/** Open a real SQLite board and register a coordinator plus strong builder and reviewer agents. */
-function boardFixture() {
-  const board = store.openBoard(':memory:');
-  store.register(board, { lane: 'coordinator', path: '/coordinator' });
-  const builder = store.register(board, { lane: 'core', path: '/builder', route: 'strong' });
-  const reviewer = store.register(board, { lane: 'review', path: '/reviewer', route: 'strong' });
-  return { board, builder, reviewer };
-}
-
-/** Add and submit an item through the board's normal claim and submit moves. */
-function submitted(board, builder, title, route, number) {
-  const id = store.addItem(board, {
-    by: 'coordinator', lane: 'core', title, route,
-    ...(route === 'mid' ? MID_ITEM_DETAILS : {}),
-  });
-  store.claim(board, id, { agentId: builder, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
-  const hash = String(number).repeat(40);
-  submitFixture(board, id, { agentId: builder, commit: hash, tree: hash });
-  return id;
-}
 
 test('next offers the item on the longest remaining path first [N2,B13,N20]', t => {
   const { board, builder } = boardFixture();
@@ -108,7 +86,7 @@ test('a file overlap keeps the hard collision skip under the sharpened precedenc
     'an independent item remains offerable while the collision stays blocked');
 });
 
-test('next reviews the longer remaining path with line ordering off [N2,B13,H16]', t => {
+test('historical review paths replay while modern reviews use age [C7,N2,B13,H16]', t => {
   const { board, builder, reviewer } = boardFixture();
   t.after(() => store.closeBoard(board));
   const independent = submitted(board, builder, 'Older independent submission', 'strong', 1);
@@ -117,12 +95,16 @@ test('next reviews the longer remaining path with line ordering off [N2,B13,H16]
   store.addMilestone(board, { agentId: 'coordinator', name: 'focus', items: [independent, root, follower] });
   setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: 'focus',
     reason: 'Synthetic review critical-chain fixture.', window: { items: 3 } });
+  board.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
   assert.equal(store.nextFor(board, { agentId: reviewer, lane: 'review', verify: true }).item.item_id, root,
     'review offers also advance the longer remaining path with the separate line.order switch off');
+  delete board.executionEngineVersion;
+  assert.equal(store.nextFor(board, { agentId: reviewer, lane: 'review', verify: true }).item.item_id, independent,
+    'modern review age precedes the critical path under coordinator37962');
 });
 
 test('recorded review selection keeps its historical path priority on replay [N2,H16]', t => {
-  for (const engine of [CRITICAL_PATH_ENGINE - 1, ENGINE_VERSION]) {
+  for (const engine of [CRITICAL_PATH_ENGINE - 1, REVIEW_ROUTING_ENGINE - 1, ENGINE_VERSION]) {
     const { board, builder, reviewer } = boardFixture();
     const replica = store.openBoard(':memory:');
     t.after(() => { store.closeBoard(board); store.closeBoard(replica); });
@@ -139,8 +121,8 @@ test('recorded review selection keeps its historical path priority on replay [N2
     const outcomes = [board, replica].map(current => applyEngineMove(current, move, receipt));
     assert.equal(outcomes[0].error, undefined, JSON.stringify(outcomes[0]));
     assert.deepEqual(outcomes[0], outcomes[1], 'independent SQLite replicas select and record the same offer');
-    assert.equal(outcomes[0].result.item.item_id, engine < CRITICAL_PATH_ENGINE ? independent : root,
-      'only current-feature moves acquire longest-path selection');
+    assert.equal(outcomes[0].result.item.item_id, engine < CRITICAL_PATH_ENGINE || engine >= REVIEW_ROUTING_ENGINE ? independent : root,
+      'each engine retains its original age, path, or modern age selection');
     for (const current of [board, replica]) {
       const count = store.events(current).length;
       assert.deepEqual(applyEngineMove(current, move, receipt), outcomes[0], 'same move identity reuses its immutable outcome');
@@ -149,8 +131,9 @@ test('recorded review selection keeps its historical path priority on replay [N2
   }
 });
 
-test('a reviewer gets the earliest milestone\'s submissions first [B16]', (t) => {
+test('historical reviewers keep earliest-milestone submissions first [B16,H16]', (t) => {
   const { board, builder, reviewer } = boardFixture();
+  board.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
   t.after(() => store.closeBoard(board));
 
   const laterStrong = submitted(board, builder, 'later milestone strong', 'strong', 1);
@@ -221,56 +204,9 @@ test('recorded reserve-next moves retain their versioned ordering [B16,H16]', (t
     assert.equal(move.engine, ENGINE_VERSION, 'new moves carry the current engine');
     const outcome = applyEngineMove(board, { ...move, engine: version }, { sequence: 1, at: new Date().toISOString() });
     assert.equal(outcome.error, undefined, JSON.stringify(outcome.error));
-    assert.equal(outcome.result.item.item_id, version < 8 ? laterStrong : earliestMid, `engine ${version} retains its recorded selection`);
+    assert.equal(outcome.result.item.item_id, version < 8 || version >= REVIEW_ROUTING_ENGINE ? laterStrong : earliestMid, `engine ${version} retains its recorded selection`);
   }
 });
-
-/** Run the public CLI in one private session without letting a peer inherit its identity. */
-function crossLaneFixture(t) {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.project('true');
-  const session = 'cross-lane-owner-session';
-  /** Each command gets its actual invoking session, and the surrounding fixture keeps none. */
-  function runAs(identity, cwd, ...args) {
-    const previous = { CLAUDECODE: box.env.CLAUDECODE, CLAUDE_CODE_SESSION_ID: box.env.CLAUDE_CODE_SESSION_ID };
-    box.env.CLAUDECODE = '1';
-    box.env.CLAUDE_CODE_SESSION_ID = identity;
-    try { return box.run(cwd, ...args); }
-    finally {
-      for (const [name, value] of Object.entries(previous)) {
-        if (value === undefined) delete box.env[name];
-        else box.env[name] = value;
-      }
-    }
-  }
-  /** Demand real command success before interpreting its versioned result. */
-  function json(result) {
-    assert.equal(result.code, 0, `${result.out}\n${result.err}`);
-    return JSON.parse(result.out);
-  }
-  /** An existing seat is joined by the actual owner session, rather than a test-only owner flag. */
-  function seat(name, lane, identity, route = 'strong') {
-    const root = join(box.dir, name);
-    box.git(box.repo, 'worktree', 'add', '-q', '--detach', root, 'main');
-    return { ...json(runAs(identity, root, 'join', lane, '--route', route, '--model', 'Cross-lane test', '--json')), root };
-  }
-  /** Add an ordinary routed item through the coordinator CLI with its lane's approved row. */
-  function add(lane, title, route = 'strong') {
-    return json(box.run(box.repo, 'add', lane, title, '--specs', lane === 'api' ? 'G2' : 'G1', '--route', route,
-      ...(route === 'strong' ? [] : ['--criterion', 'The item can be built and checked from its brief.', '--check', 'true',
-        '--brief', `Files: ${lane}/${route}.js\nChange: build the fixture item\nTest: the check proves the fixture`]), '--json')).item.item_id;
-  }
-  /** Keep the test's queue order explicit without touching a production board. */
-  function milestone(name, id) {
-    json(box.run(box.repo, 'milestone', 'add', name, '--items', String(id), '--json'));
-  }
-  /** Read the local checkout binding only; a session digest must never become board metadata. */
-  function binding(root) {
-    return JSON.parse(readFileSync(join(resolve(root, box.git(root, 'rev-parse', '--git-dir')), 'pullboard-checkout-session.json'), 'utf8'));
-  }
-  return { ...box, session, runAs, json, seat, add, milestone, binding };
-}
 
 test('next in the main checkout names the lane worktree to join [N2,B26]', t => {
   const helpers = createE2eHelpers();
@@ -316,7 +252,7 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', t => 
   assert.match(empty.next, /pullboard next --wait 9/u, 'a genuinely idle board retains its ordinary wait');
 });
 
-test('an agent pulls the top item in any of its lanes [N2,B13]', (t) => {
+test('an agent exhausts ready own-lane work before pulling another lane [N2,B13]', (t) => {
   const box = crossLaneFixture(t);
   const web = box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'Cross-lane test', '--json'));
   const peer = box.seat('peer-api', 'api', 'unrelated-session');
@@ -327,8 +263,13 @@ test('an agent pulls the top item in any of its lanes [N2,B13]', (t) => {
   box.milestone('first', first);
   box.milestone('later', later);
 
+  const own = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
+  assert.equal(own.item.item_id, later, 'ready own-lane work precedes an earlier release in another lane');
+  assert.equal(own.item.item_owner, web.agent);
+  box.json(box.runAs(box.session, box.web, 'release', String(later), '--json'));
+  box.json(box.run(box.repo, 'hold', String(later), '--reason', 'Own-lane work is intentionally blocked', '--json'));
   const next = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
-  assert.equal(next.item.item_id, first, 'the earlier release in another lane precedes this seat’s later work');
+  assert.equal(next.item.item_id, first, 'an idle lane falls back to the earlier eligible foreign release');
   assert.equal(next.item.item_owner, api.agent, 'the claim belongs to the matching lane seat');
   assert.deepEqual(next.seat, { agent: api.agent, lane: 'api', path: api.root, created: false });
   assert.equal(next.review, false);
@@ -338,9 +279,9 @@ test('an agent pulls the top item in any of its lanes [N2,B13]', (t) => {
   assert.equal(resumed.item.item_id, first, 'next resumes the claim in the seat that holds it rather than starting a second item');
   assert.equal(resumed.held, true);
   assert.equal(resumed.seat.agent, api.agent);
-  const sibling = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
-  assert.equal(sibling.held, false, 'a sibling seat answers from its own claims, not the api seat\'s (#958)');
-  assert.notEqual(sibling.item.item_id, first);
+  const sibling = box.runAs(box.session, box.web, 'next', '--build', '--json');
+  assert.equal(sibling.code, 1, 'the idle sibling never resumes the API seat’s claim (#958)');
+  box.json(box.run(box.repo, 'hold', String(later), '--off', '--json'));
   const wrongLane = box.runAs(box.session, api.root, 'claim', String(later), '--json');
   assert.equal(wrongLane.code, 1);
   assert.equal(JSON.parse(wrongLane.out).error.code, 'WRONG_LANE', 'cross-lane routing does not widen a seat’s write authority');
@@ -373,10 +314,8 @@ test('next names the seat to open for a lane the agent lacks [N2,B13]', (t) => {
   const peerBinding = box.binding(peer.root);
   const tooStrong = box.add('api', 'A strong-only earlier release');
   const first = box.add('api', 'Available mid API work', 'mid');
-  const later = box.add('web', 'Later mid web work', 'mid');
   box.milestone('strong-only', tooStrong);
   box.milestone('first-eligible', first);
-  box.milestone('later', later);
   const before = box.git(box.repo, 'worktree', 'list', '--porcelain');
 
   const next = box.json(box.runAs(box.session, web.root, 'next', '--build', '--json'));
@@ -394,6 +333,8 @@ test('next names the seat to open for a lane the agent lacks [N2,B13]', (t) => {
   assert.equal(who.model, 'Cross-lane test');
   assert.equal(box.binding(next.seat.path).digest, createHash('sha256').update(JSON.stringify(['CLAUDE_CODE_SESSION_ID', box.session])).digest('hex'));
   assert.deepEqual(box.binding(peer.root), peerBinding);
+  const later = box.add('web', 'Later mid web work', 'mid');
+  box.milestone('later', later);
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.equal(store.getItem(board, tooStrong).item_status, 'open', 'the new mid seat never claims above its route');
@@ -415,8 +356,8 @@ test('next follows the rank the coordinator set inside a milestone [N2,B13]', (t
   box.milestone('later', later);
   const ordered = box.runAs(box.session, box.web, 'milestone', 'order', 'current', `${first},${second}`, '--json');
   assert.equal(ordered.code, 0, `an agent can order the milestone through the real CLI\n${ordered.out}\n${ordered.err}`);
-  const next = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
-  assert.equal(next.item.item_id, first, 'explicit rank precedes route and age across the session’s lanes');
+  const next = box.json(box.runAs(box.session, api.root, 'next', '--build', '--json'));
+  assert.equal(next.item.item_id, first, 'explicit rank precedes route and age within the seat’s own lane');
   assert.equal(next.item.item_owner, api.agent);
   box.json(box.runAs(box.session, api.root, 'release', String(first), '--json'));
   box.json(box.runAs('rank-peer-session', peer.root, 'claim', String(first), '--json'));
@@ -524,7 +465,9 @@ test('milestone rank moves replay identically and preserve historical next selec
     importBoard(replica, exportBoard(source.board));
     const move = prepareEngineMove(fixtures[0].board, 'orderMilestoneItems', ['release', { agentId: fixtures[0].builder, items: [2, 1] }]);
     assert.equal(move.engine, ENGINE_VERSION, 'the envelope carries the current engine; milestone order starts at34');
-    const outcomes = fixtures.map(({ board }) => applyRelayMove(board, move, {
+    // Historical review receipts need a prefix before modern review activation, not a newer snapshot.
+    const recorded = version < REVIEW_ROUTING_ENGINE ? { ...move, engine: MILESTONE_RANK_ENGINE } : move;
+    const outcomes = fixtures.map(({ board }) => applyRelayMove(board, recorded, {
       sequence: 1, at: '2026-10-18T01:00:00Z', kind: 'move', sender: { kind: 'agent', userId: 'fixture', agent: fixtures[0].builder },
     }));
     assert.equal(outcomes[0].error, undefined, JSON.stringify(outcomes[0]));
@@ -533,7 +476,7 @@ test('milestone rank moves replay identically and preserve historical next selec
     const reserve = prepareEngineMove(fixtures[0].board, 'reserveNextReview', [{ agentId: fixtures[0].reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' }]);
     const results = fixtures.map(({ board }) => applyEngineMove(board, { ...reserve, engine: version }, { sequence: 2, at: '2026-10-18T01:01:00Z' }));
     assert.deepEqual(results[0], results[1]);
-    assert.equal(results[0].result.item.item_id, version < MILESTONE_RANK_ENGINE ? 1 : 2, `engine${version} preserves its recorded selection`);
+    assert.equal(results[0].result.item.item_id, version < MILESTONE_RANK_ENGINE || version >= REVIEW_ROUTING_ENGINE ? 1 : 2, `engine${version} preserves its recorded selection`);
     assert.throws(() => applyEngineMove(fixtures[0].board, { ...move, id: 'old-order', engine: MILESTONE_RANK_ENGINE - 1 }, { sequence: 3, at: '2026-10-18T01:02:00Z' }), { code: 'RELAY_MOVE' });
     assert.equal(fixtures[0].board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='relay_applied_sequence'").get().meta_value, '2');
   }
@@ -579,15 +522,15 @@ test('a cross-checkout claim leads with its seat and other checkouts cannot act 
   const box = crossLaneFixture(t);
   const web = box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'Cross-lane test', '--json'));
   const api = box.seat('owned-api', 'api', box.session);
-  const later = box.add('web', 'Later web work');
   const first = box.add('api', 'Earlier API release');
   box.milestone('first', first);
-  box.milestone('later', later);
   const next = box.runAs(box.session, box.web, 'next', '--build');
   assert.equal(next.code, 0, next.out + next.err);
   const lines = next.out.trim().split('\n');
   assert.match(lines[0], new RegExp(`^${api.agent} .*${api.root.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`, 'u'), `the output leads with the holding seat and its checkout: ${lines[0]}`);
   assert.ok(lines.slice(0, 3).some((line) => line.includes(`cd '${api.root}'`) || line.includes(`cd ${api.root}`)), 'and the command to continue there');
+  const later = box.add('web', 'Later web work');
+  box.milestone('later', later);
   for (const args of [['check', String(first), '--yes'], ['submit', String(first)], ['release', String(first)]]) {
     const refused = box.runAs(box.session, box.web, ...args, '--json');
     assert.notEqual(refused.code, 0, `${args[0]} from another checkout is refused`);
@@ -817,26 +760,6 @@ test("a claimed item whose files grow into another claimed item's files names th
 });
 
 
-/** A private real Git repository and SQLite queue; lifecycle records below are not gate executions. */
-function lineOrderFixture(t) {
-  const helpers = createE2eHelpers();
-  const box = helpers.sandbox();
-  const root = join(box.dir, 'line-order');
-  mkdirSync(root);
-  box.git(root, 'init', '-q', '-b', 'main');
-  box.git(root, 'commit', '--allow-empty', '-qm', 'test: seed the private line-order repository');
-  const board = store.openBoard(join(root, 'board.sqlite'));
-  store.register(board, { lane: 'coordinator', path: root });
-  const builder = store.register(board, { lane: 'core', path: join(root, 'builder'), route: 'strong', parent: 'builder-P', session: 'builder-child' });
-  const reviewer = store.register(board, { lane: 'review', path: join(root, 'reviewer'), route: 'strong', parent: 'reviewer-R', session: 'reviewer-child' });
-  t.after(() => { store.closeBoard(board); helpers.cleanup(); });
-  /** Switch only the recorded ordering control; other line controls remain off. */
-  function order(value) {
-    store.setLineSetting(board, { agentId: 'coordinator', key: 'order', value, reason: 'private queue policy control', window: { windowMinutes: 60, activeReviewers: 3 } });
-  }
-  return { board, root, builder, reviewer, order };
-}
-
 test('line order sends a send-back home first and gives the scarcest review first [N2,B13,H16]', t => {
   const home = lineOrderFixture(t);
   const older = store.addItem(home.board, { by: 'coordinator', lane: 'core', title: 'older fresh work' });
@@ -865,6 +788,7 @@ test('line order sends a send-back home first and gives the scarcest review firs
   store.claim(scarce.board, limited, { agentId: otherAuthor, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
   submitFixture(scarce.board, limited, { agentId: otherAuthor, commit: '4'.repeat(40), tree: '4'.repeat(40) });
   assert.equal(store.nextFor(scarce.board, { agentId: scarce.reviewer, lane: 'review', verify: true }).item.item_id, abundant, 'off retains oldest review');
+  scarce.board.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
   scarce.order(true);
   assert.equal(store.nextFor(scarce.board, { agentId: scarce.reviewer, lane: 'review', verify: true }).item.item_id, limited,
     'scarcity excludes every seat from the same parent as an author, just as the review guard does');
@@ -875,6 +799,9 @@ test('line order sends a send-back home first and gives the scarcest review firs
   const replay = store.openBoard(join(scarce.root, 'replica.sqlite'));
   t.after(() => store.closeBoard(replay));
   importBoard(replay, snapshot);
+  assert.equal(store.nextFor(replay, { agentId: scarce.reviewer, lane: 'review', verify: true }).item.item_id, abundant,
+    'modern review age supersedes scarcity without relaxing author eligibility');
+  replay.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
   assert.equal(store.nextFor(replay, { agentId: scarce.reviewer, lane: 'review', verify: true }).item.item_id, limited, 'export/import retains the recorded policy and author lineage');
   const oldMove = prepareEngineMove(replay, 'reserveNextReview', [{ agentId: scarce.reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' }]);
   const oldOutcome = applyEngineMove(replay, { ...oldMove, engine: LINE_ORDER_ENGINE - 1 }, { sequence: 1, at: '2026-10-24T00:00:00Z' });
@@ -934,7 +861,12 @@ test('line capacity offers reviews before builds when reviews pile up [N2,B13,H1
   assert.deepEqual(store.events(board, { itemId: returned.item_id }).slice(0, historyBefore.length), historyBefore,
     'taking over appends history and never rewrites the rejected work');
   setting('reviewsFirst', false);
-  assert.equal(store.reviewOffer(board, { agentId: reviewer, lane: 'review', ratio: 99 }), null, 'off restores the old ratio');
+  const overdue = store.reviewOffer(board, { agentId: reviewer, lane: 'review', ratio: 99 });
+  assert.equal(overdue?.item.item_id, waiting[1], 'over-ten-minute normal submissions override ratio even when capacity preference is off');
+  assert.equal(overdue.urgent, 'age');
+  board.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
+  assert.equal(store.reviewOffer(board, { agentId: reviewer, lane: 'review', ratio: 99 }), null, 'historical engines restore the old ratio');
+  delete board.executionEngineVersion;
 });
 
 /** Public next commands use a private Git/SQLite board; no seeded state claims a gate execution. */
@@ -948,13 +880,13 @@ test('next offers the focus milestone first and explains a claimable outside fal
   box.milestone('0.9.3', focused);
   const ordinary = box.json(box.runAs(box.session, owner.root, 'next', '--build', '--json'));
   assert.equal(ordinary.item.item_id, outside, 'unset retains the existing roadmap order');
-  box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--json'));
+  box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--no-next', '--json'));
 
   box.json(box.run(box.repo, 'settings', 'line', 'focusMilestone', '0.9.3',
     '--reason', 'Finish the named release before later work', '--window', '{"activeItems":2}', '--json'));
   const picked = box.json(box.runAs(box.session, owner.root, 'next', '--build', '--json'));
   assert.equal(picked.item.item_id, focused, 'the named focus overrides an earlier roadmap milestone');
-  box.json(box.runAs(box.session, owner.root, 'release', String(focused), '--json'));
+  box.json(box.runAs(box.session, owner.root, 'release', String(focused), '--no-next', '--json'));
   box.json(box.runAs('focus-peer-session', peer.root, 'claim', String(focused), '--json'));
   const fallback = box.runAs(box.session, owner.root, 'next', '--build');
   assert.equal(fallback.code, 0, `${fallback.out}\n${fallback.err}`);
@@ -965,8 +897,8 @@ test('next offers the focus milestone first and explains a claimable outside fal
     assert.equal(store.getItem(board, outside).item_owner, owner.agent, 'a peer-held focus does not starve claimable outside work');
     assert.equal(store.getItem(board, focused).item_owner, peer.agent, 'focus never steals another seat’s claim');
   } finally { store.closeBoard(board); }
-  box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--json'));
-  box.json(box.runAs('focus-peer-session', peer.root, 'release', String(focused), '--json'));
+  box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--no-next', '--json'));
+  box.json(box.runAs('focus-peer-session', peer.root, 'release', String(focused), '--no-next', '--json'));
   box.json(box.run(box.repo, 'settings', 'line', 'focusMilestone', 'off',
     '--reason', 'Restore ordinary roadmap selection', '--window', '{"activeItems":2}', '--json'));
   const restored = box.json(box.runAs(box.session, owner.root, 'next', '--build', '--json'));
@@ -974,8 +906,9 @@ test('next offers the focus milestone first and explains a claimable outside fal
 });
 
 /** Review eligibility still owns held reservations; focus changes preference, not authority. */
-test('next offers the focus milestone first for eligible reviews without taking a held reservation [N2,B16]', t => {
+test('historical focus reviews retain reservations and modern reviews use age [C7,N2,B16,H16]', t => {
   const { board, builder, reviewer } = boardFixture();
+  board.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
   t.after(() => store.closeBoard(board));
   const outside = submitted(board, builder, 'Outside earlier roadmap review', 'strong', 1);
   const focused = submitted(board, builder, 'Named focus review', 'strong', 2);
@@ -985,6 +918,10 @@ test('next offers the focus milestone first for eligible reviews without taking 
     outside, 'unset review selection keeps the roadmap order');
   setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: '0.9.3',
     reason: 'Complete the current release', window: { activeReviews: 2 } });
+  delete board.executionEngineVersion;
+  assert.equal(store.nextFor(board, { agentId: reviewer, lane: 'review', verify: true }).item.item_id, outside,
+    'modern review age supersedes focus before either item is reserved');
+  board.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
   const selected = store.reserveNextReview(board, { agentId: reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' });
   assert.equal(selected.item.item_id, focused, 'normal reserve-next selects the named focus');
   const peer = store.register(board, { lane: 'review', path: '/focus-review-peer', route: 'strong' });
@@ -1023,11 +960,11 @@ test('next offers the focus milestone first across review and build modes [N2,B1
   const picked = box.json(box.runAs(box.session, owner.root, 'next', '--json'));
   assert.equal(picked.item.item_id, focused, 'a focused build outranks an outside review');
   assert.equal(picked.review, false);
-  box.json(box.runAs(box.session, owner.root, 'release', String(focused), '--json'));
+  box.json(box.runAs(box.session, owner.root, 'release', String(focused), '--no-next', '--json'));
   const review = box.json(box.runAs(box.session, owner.root, 'next', '--verify', '--json'));
   assert.equal(review.item.item_id, outside, 'review-only next never silently claims the focused build');
   assert.equal(review.review, true);
-  box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--note', 'Continue the private focus ordering control', '--json'));
+  box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--note', 'Continue the private focus ordering control', '--no-next', '--json'));
   const focusedReview = box.add('api', 'Focused review before focused build');
   const updated = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
@@ -1037,8 +974,12 @@ test('next offers the focus milestone first across review and build modes [N2,B1
       tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}') });
   } finally { store.closeBoard(updated); }
   const preferredReview = box.json(box.runAs(box.session, owner.root, 'next', '--json'));
-  assert.equal(preferredReview.item.item_id, focusedReview, 'an eligible focused review precedes the focused build');
-  assert.equal(preferredReview.review, true);
+  assert.equal(preferredReview.item.item_id, focused, 'build focus still precedes a nonurgent outside review');
+  assert.equal(preferredReview.review, false);
+  box.json(box.runAs(box.session, owner.root, 'release', String(focused), '--json'));
+  const oldestReview = box.json(box.runAs(box.session, owner.root, 'next', '--verify', '--json'));
+  assert.equal(oldestReview.item.item_id, moreOutside[0], 'modern review-only selection takes the oldest eligible submission before the newer focused review');
+  assert.equal(oldestReview.review, true);
 });
 
 /** A newer recorded control must not alter historical selection when replaying an older move. */
@@ -1058,8 +999,13 @@ test('focus milestone policy survives export while old reserve-next retains its 
   const replica = store.openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(board));
+  assert.equal(store.lineSettings(replica).focusMilestone, 'focus', 'the focus policy travels with export');
   assert.equal(store.nextFor(replica, { agentId: reviewer, lane: 'review', verify: true }).item.item_id,
-    focused, 'the policy is board data and travels with export');
+    outside, 'modern review age leads despite the exported focus policy');
+  replica.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
+  assert.equal(store.nextFor(replica, { agentId: reviewer, lane: 'review', verify: true }).item.item_id,
+    focused, 'historical review selection still reads the exported focus policy');
+  delete replica.executionEngineVersion;
   const move = prepareEngineMove(replica, 'reserveNextReview', [{ agentId: reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' }]);
   const historical = applyEngineMove(replica, { ...move, engine: FOCUS_MILESTONE_ENGINE - 1 },
     { sequence: 1, at: '2026-10-24T00:00:00Z' });
