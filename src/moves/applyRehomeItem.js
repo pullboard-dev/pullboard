@@ -1,8 +1,10 @@
+import { frozenCheckTiming } from '../check-timing.js';
+import { CHECK_TIMING_ENGINE } from '../check-timing-engine.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../review-independence-engine.js';
 import { PRIVATE_REHOME_ENGINE } from '../private-rehome-engine.js';
 
 /** Destination application uses the source identity as its idempotency key [H16]. */
-function minimumEngine(args) { return args[0]?.reviewPolicy ? Math.max(PRIVATE_REHOME_ENGINE, REVIEW_INDEPENDENCE_ENGINE) : PRIVATE_REHOME_ENGINE; }
+function minimumEngine(args) { return Math.max((args[0]?.item?.item_check_timing !== undefined || frozenCheckTiming(args[0]?.item ?? {})) ? CHECK_TIMING_ENGINE : 1, args[0]?.reviewPolicy ? Math.max(PRIVATE_REHOME_ENGINE, REVIEW_INDEPENDENCE_ENGINE) : PRIVATE_REHOME_ENGINE); }
 /** Destination replay is attributed to the authenticated local/relay actor [H2,H16]. */
 function actor(move) { return move.args[1]?.destinationAgentId ?? move.args[1]?.agentId ?? null; }
 

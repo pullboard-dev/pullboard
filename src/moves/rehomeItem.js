@@ -1,9 +1,10 @@
+import { checkTimingEngine } from '../check-timing.js';
 import { itemReviewPolicy } from '../review-policy.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../review-independence-engine.js';
 import { PRIVATE_REHOME_ENGINE } from '../private-rehome-engine.js';
 
 /** Preserve the ordered source move ID in its arguments for idempotent destination application. */
-function minimumEngine(args, board) { return board && itemReviewPolicy(board, args[0]).tier === 'strict' ? Math.max(PRIVATE_REHOME_ENGINE, REVIEW_INDEPENDENCE_ENGINE) : PRIVATE_REHOME_ENGINE; }
+function minimumEngine(args, board) { return Math.max(checkTimingEngine(board, args[0]), board && itemReviewPolicy(board, args[0]).tier === 'strict' ? Math.max(PRIVATE_REHOME_ENGINE, REVIEW_INDEPENDENCE_ENGINE) : PRIVATE_REHOME_ENGINE); }
 /** Read the actor from the re-home options [H2,H16]. */
 function actor(move) { return move.args[1]?.agentId ?? null; }
 
