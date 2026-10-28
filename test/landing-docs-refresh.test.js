@@ -25,6 +25,27 @@ function success(box, cwd, ...args) {
   return JSON.parse(result.stdout);
 }
 
+/** Import the full fixture in bounded normal commits, keeping every installed hook enabled. */
+function commitFixture(box) {
+  const files = [...new Set(box.git(box.repo, 'ls-files', '--modified', '--others', '--exclude-standard', '-z').split('\0').filter(Boolean))].sort();
+  let chunk = [], bytes = 0, number = 0;
+  /** Commit only the already measured bounded set, without changing any hook or scan budget. */
+  const flush = () => {
+    if (!chunk.length) return;
+    box.git(box.repo, 'add', '--', ...chunk);
+    box.git(box.repo, 'commit', '-q', '-m', `chore: import documentation fixture part ${++number} [B3,C7]`);
+    chunk = []; bytes = 0;
+  };
+  for (const file of files) {
+    const size = readFileSync(join(box.repo, file)).length;
+    assert.ok(size <= 1024 * 1024, `single fixture file needs a different normal setup: ${file}`);
+    if (bytes + size > 1024 * 1024 || chunk.length === 100) flush();
+    chunk.push(file); bytes += size;
+  }
+  flush();
+  assert.equal(box.git(box.repo, 'status', '--porcelain'), '', 'the entire archived fixture is committed');
+}
+
 /** Copy only committed candidate code/data into the real private CLI/Git/SQLite project. */
 function project(disableRefresh) {
   const box = helpers.project('node --test --test-reporter=tap web/docs.test.js');
@@ -58,8 +79,7 @@ function project(disableRefresh) {
     assert.equal(source.split(call).length, 2, 'the private mutation removes exactly the actual landing refresh call');
     writeFileSync(file, source.replace(call, '// Mutation control: landing documentation refresh removed.'));
   }
-  box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare clean documentation landing [B3,C7]');
+  commitFixture(box);
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   return { ...box, armed };
 }
