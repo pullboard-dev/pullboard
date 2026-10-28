@@ -1,3 +1,4 @@
+import { seatFamily } from './family-declaration.js';
 import {
   dependencyReferences,
   dependencyLabel,
@@ -286,7 +287,7 @@ export function withOpenedBoard(ctx, work, board) {
 export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, readers = store) {
   // A CI or cloud session works as the agent its environment token names, on that one board [E18].
   const seat = environmentAgent(ctx.info.root, board);
-  if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: seat.agent_route, family: seat.agent_family ?? null, model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names) };
+  if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: seat.agent_route, family: seatFamily(board, seat.agent_id), model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names) };
   if (ctx.info.isMain) {
     ctx.io.caller?.('coordinator', ctx.info.root);
     const registered = readers.agentById(board, COORDINATOR);
@@ -294,12 +295,12 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
     if (linked && !registered) throw new Refused('NO_AGENT', 'the linked snapshot has no coordinator; restore a consistent relay snapshot before acting');
     const id = linked ? COORDINATOR : readers.ensureCoordinator(board, ctx.info.root);
     const agent = registered ?? readers.agentAt(board, ctx.info.root);
-    return { id, lane: COORDINATOR, family: agent?.agent_family ?? null, model: agent?.agent_model ?? 'unknown', displayName: displayAgentName(agent ?? { agent_id: id }, ctx.config.agents.names) };
+    return { id, lane: COORDINATOR, family: agent ? seatFamily(board, agent.agent_id) : null, model: agent?.agent_model ?? 'unknown', displayName: displayAgentName(agent ?? { agent_id: id }, ctx.config.agents.names) };
   }
   const agent = readers.agentAt(board, ctx.info.root);
   if (!agent) {
     throw new Refused('NOT_JOINED', 'this worktree has not joined a lane: pullboard join <lane> --model "<model name>" (see: pullboard lanes)');
   }
   ctx.io.caller?.('seat', ctx.info.root);
-  return { id: agent.agent_id, lane: agent.agent_lane, route: agent.agent_route, family: agent.agent_family ?? null, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names) };
+  return { id: agent.agent_id, lane: agent.agent_lane, route: agent.agent_route, family: seatFamily(board, agent.agent_id), model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names) };
 }

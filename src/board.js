@@ -446,7 +446,7 @@ export function register(board, who) {
         );
       }
       const locked = saveJoinedSession(board, existing.agent_id, who);
-      if (family !== undefined && family !== existing.agent_family && !locked) {
+      if (family !== undefined && family !== reviewRouting.seatFamily(board, existing.agent_id) && !locked) {
         board.db.prepare('UPDATE agent SET agent_family = ? WHERE agent_id = ?').run(family, existing.agent_id);
         logEvent(board, existing.agent_id, 'family', null, { family });
       }
@@ -472,7 +472,7 @@ export function register(board, who) {
         'INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_family, agent_created_at) VALUES (?, ?, ?, ?, ?, ?)',
       )
       .run(id, lane, path, route, family ?? null, now(board));
-    saveJoinedSession(board, id, who);
+    const recordsFamily = saveJoinedSession(board, id, { ...who, inserting: true });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= 8) saveAgentModel(board, id, model);
     if (createdBy !== undefined) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_creator:${id}`, createdBy);
     // Only a relay replica replaying a receipt-bound registration marks the seat enrolled.
@@ -482,8 +482,8 @@ export function register(board, who) {
       const lineage = createdBy === COORDINATOR ? board.verifierStanding?.lineage ?? null : seatLineage(board, createdBy);
       if (lineage) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_lineage:${id}`, lineage);
     }
-    logEvent(board, id, 'join', null, { lane, ...(route === 'strong' ? {} : { route }),
-      ...(engine >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}) });
+    logEvent(board, id, 'join', null, { lane, ...(route === 'strong' ? {} : { route }), // From the declaration engine a join records its family (#1783).
+      ...(engine >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}), ...(recordsFamily ? { family: family ?? null } : {}) });
     if (board.executionEngineVersion === undefined) heartbeatSeat(board, id);
     return id;
   });
@@ -1138,7 +1138,7 @@ export function reviewOffer(board, who) {
  * @returns {Record<string, (found: any) => Refused | null>}
  */
 function reviewerChecks(board, { agentId, policy, familyPolicy = 'off' }) {
-  const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
+  const family = reviewRouting.seatFamily(board, agentId);
   return {
     notBuilder: (found) => itemAuthorProblem(board, found, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }),
     routeAllows: (found) => {
@@ -1770,7 +1770,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;
   if (verify) {
-    const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
+    const family = reviewRouting.seatFamily(board, agentId);
     const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, entry.item_builder_family);
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
     const standingRefusal = unrelated.map((entry) => itemAuthorProblem(board, entry, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }) ?? reviewFamilyProblem(board, entry, agentId, familyPolicy)).find(Boolean);

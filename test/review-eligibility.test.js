@@ -21,10 +21,12 @@ import { minimumMoveEngine } from '../src/move-registry.js';
 import { familyIndex } from '../src/review-policy.js';
 import { FAMILY_ALIAS_ENGINE } from '../src/family-alias-engine.js';
 import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
+import { seatFamily } from '../src/family-declaration.js';
 import { parentSessionDigest as parentSessionDigestOf } from '../src/parent-session.js';
 import { familyName } from '../src/review-policy.js';
 import { withOpenedBoard } from '../src/cli-read-context.js';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -576,7 +578,7 @@ test('the one-time family declaration applies only from its engine; an older eng
 });
 
 /** Read the seat's family column directly: the value review eligibility reads. */
-const familyOf = (board, id) => board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(id)?.agent_family;
+const familyOf = (board, id) => seatFamily(board, id);
 
 test('counterexample: after a modern declaration, a fresh older-engine registration cannot clear the family for a later redeclaration [V4,B26,H16]', t => {
   const f = fixture(t);
@@ -716,7 +718,7 @@ test('counterexample: a new seat of an original session that declared OpenAI inh
   assert.deepEqual(exportBoard(f.board), before, 'the refused seat is not created');
   for (const [path, family] of [['/fixture/core-21', undefined], ['/fixture/core-22', null], ['/fixture/core-23', '  '], ['/fixture/core-24', 'openai']]) {
     const id = store.register(f.board, { lane: 'core', path, model: 'Synthetic fixture model', ...ids, ...(family === undefined ? {} : { family }) });
-    assert.equal(familyOf(f.board, id), family === 'openai' ? 'openai' : 'OpenAI', `a new seat of the session joining with ${JSON.stringify(family)} inherits the declaration`);
+    assert.equal(familyOf(f.board, id), 'OpenAI', `a new seat of the session joining with ${JSON.stringify(family)} inherits the first declared spelling`);
     assert.throws(() => store.register(f.board, { lane: 'core', path, model: 'Synthetic fixture model', ...ids, family: 'Claude' }), error => error.code === 'FAMILY_DECLARED');
   }
   // A seat that joined without a session later rejoining from that session is refused too.
@@ -808,4 +810,53 @@ test('adversarial sweep: every key a registration can vary cannot give a declare
   assert.equal(familyOf(f.board, store.agentAt(f.board, '/fixture/T').agent_id), 'Claude', 'a different session T declares Claude');
   const older = f.send({ lane: 'core', path: '/fixture/U', model: 'Synthetic fixture model', parentDigest: Q, sessionDigest: 'e'.repeat(64), family: 'Claude' }, { engine: FAMILY_DECLARE_ENGINE - 1 });
   assert.equal(older.thrown, undefined, 'an older-engine registration of an undeclared new seat and session keeps its engine\'s rules');
+});
+
+test('counterexample: after a historical null clear the first family is still derived from the original receipt [V4,B26,H16]', t => {
+  const f = orderedBoard(t);
+  const seat = { lane: 'core', path: '/fixture/core-h', model: 'Synthetic fixture model', parentDigest: 'a'.repeat(64), sessionDigest: 'b'.repeat(64) };
+  const old = FAMILY_DECLARE_ENGINE - 1;
+  const first = f.send({ ...seat, family: 'OpenAI' }, { engine: old });
+  assert.equal(first.error, undefined, 'a genuine older-engine first registration records OpenAI');
+  assert.equal(f.send({ ...seat, family: null }, { engine: old }).error, undefined, 'a genuine older-engine null clear, before activation');
+  assert.equal(f.send({ lane: 'core', path: '/fixture/core-t', model: 'Synthetic fixture model', parentDigest: 'c'.repeat(64), sessionDigest: 'c'.repeat(64), family: 'Claude' }).error, undefined,
+    'positive control: an independent session T declares Claude and activates the declaration engine');
+  const id = store.agentAt(f.board, seat.path).agent_id;
+  assert.equal(familyOf(f.board, id), 'OpenAI', 'the derived family is the first one recorded, not the cleared column');
+  const modern = f.send({ ...seat, family: 'Claude' });
+  assert.equal(modern.error?.code, 'FAMILY_DECLARED', 'view-213: the modern Claude registration of the same seat, path and session is refused');
+  assert.equal(familyOf(f.board, id), 'OpenAI');
+  for (const other of [{ ...seat, path: '/fixture/core-h2', family: 'Claude' }, { ...seat, path: '/fixture/core-h3', family: 'claude' }]) {
+    assert.equal(f.send(other).error?.code, 'FAMILY_DECLARED', 'another seat of the same session is refused too');
+  }
+});
+
+test('the derived family decides eligibility: a historically cleared seat still counts as its first vendor [V4,B26,H16]', t => {
+  const f = fixture(t), id = f.add({ sensitive: true });
+  const seat = { id: 'core-30', lane: 'core', path: '/fixture/core-30', model: 'Synthetic fixture model', parentDigest: '3'.repeat(64) };
+  store.register(f.board, { ...seat, family: 'codex' });
+  f.board.executionEngineVersion = FAMILY_DECLARE_ENGINE - 1;
+  store.register(f.board, { ...seat, family: null });
+  delete f.board.executionEngineVersion;
+  f.submit(id, 'core-1');
+  assert.throws(() => f.reserve(id, 'core-30'), error => error.code === 'O2_FAMILY_MATCH',
+    'the cleared column does not make core-30 an independent vendor of codex-built work');
+});
+
+test('no family decision reads the stored family column outside the one derivation [V4,B26,H16]', () => {
+  const root = new URL('../src/', import.meta.url);
+  const files = readdirSync(root, { recursive: true }).filter(name => typeof name === 'string' && name.endsWith('.js') && !name.startsWith('move-history'));
+  const allowed = new Set(['family-declaration.js', 'board-schema-source.js', 'board-migrate.js']);
+  const offenders = [];
+  for (const file of files) {
+    if (allowed.has(file)) continue;
+    const lines = readFileSync(new URL(file, root), 'utf8').split('\n');
+    lines.forEach((line, index) => {
+      // Writes keep the display column; every read of it, by property or SELECT, must call seatFamily instead.
+      if (/\.agent_family\b/u.test(line) || /SELECT[^;]*\bagent_family\b/u.test(line) || /\bagent_family\b/u.test(line) && !/UPDATE agent SET agent_family|INSERT INTO agent \(/u.test(line)) {
+        offenders.push(`${file}:${index + 1}: ${line.trim()}`);
+      }
+    });
+  }
+  assert.deepEqual(offenders, [], 'family reads go through src/family-declaration.js seatFamily');
 });

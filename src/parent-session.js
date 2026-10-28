@@ -12,11 +12,7 @@ import { createHash } from 'node:crypto';
 import { AGENT_SESSION_IDS } from '../packages/kernel/src/core/discovery.js';
 import { PARENT_SESSION_ENGINE } from './parent-session-engine.js';
 import { FAMILY_DECLARE_ENGINE } from './family-declare-engine.js';
-import { declaredFamily } from './family-declaration.js';
-import { saveFamilyWitness } from './family-declaration.js';
-import { originalSession } from './family-declaration.js';
-import { sessionDeclaredFamily } from './family-declaration.js';
-import { saveSessionWitness } from './family-declaration.js';
+import { derivedFamily } from './family-declaration.js';
 import { familyAliasesOf } from './review-policy.js';
 import { familyName } from './review-policy.js';
 import { ENGINE_VERSION } from './machine.js';
@@ -44,34 +40,25 @@ export function canonicalSessionDigest(value) {
   return value;
 }
 
-/** Save canonical ordered identities, or normalize direct API declarations, under their feature engine; true when the seat's family is already declared and final. */
-export function saveJoinedSession(board, id, { parent, session, parentDigest, sessionDigest, family }) {
+/**
+ * Save canonical ordered identities, or normalize direct API declarations, under their feature engine. For a rejoin,
+ * true when the seat's family is already declared and final; for a new seat (`inserting`), true when its join event
+ * records the family it registered, which the declaration engine does.
+ */
+export function saveJoinedSession(board, id, { parent, session, parentDigest, sessionDigest, family, inserting = false }) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < PARENT_SESSION_ENGINE) return;
   const recordedParent = parentDigest != null ? canonicalSessionDigest(parentDigest) : parent != null ? parentSessionDigest(parent) : null;
   const recordedSession = sessionDigest != null ? canonicalSessionDigest(sessionDigest) : session != null ? parentSessionDigest(session) : null;
   const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= FAMILY_DECLARE_ENGINE;
   const naming = typeof family === 'string' && family.trim() !== '' && modern;
-  // Declared means ever declared: the recorded first declaration, the current family or any recorded family event.
-  const original = modern ? originalSession(board, id, recordedSession) : null;
-  // A family is declared for a seat and for its original session: another seat of that session inherits it.
-  const bySession = modern ? sessionDeclaredFamily(board, original, id) : null;
-  const current = modern ? board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(id)?.agent_family : null;
-  const differs = (left, right) => familyName(left, familyAliasesOf(board)) !== familyName(right, familyAliasesOf(board));
-  const claimed = naming ? family : typeof current === 'string' && current.trim() ? current : null;
-  if (bySession && claimed && differs(claimed, bySession)) {
-    throw new Refused('FAMILY_DECLARED', `${id}'s original session already declared vendor family ${bySession}; a declared family is never changed, in any seat of that session`);
+  // The one derived family of this seat and its original session, leaving out a seat row this move just inserted.
+  const declared = modern ? derivedFamily(board, id, { session: recordedSession, inserting }) : null;
+  // A derived family is final for the seat and every seat of its session: another vendor is refused, another spelling of the same vendor is the same declaration, and a cleared (null) family changes nothing.
+  if (naming && declared && familyName(family, familyAliasesOf(board)) !== familyName(declared, familyAliasesOf(board))) {
+    throw new Refused('FAMILY_DECLARED', `${id} or its original session already declared vendor family ${declared}; a declared family is never changed`);
   }
-  if (bySession && !claimed) board.db.prepare('UPDATE agent SET agent_family = ? WHERE agent_id = ?').run(bySession, id);
-  const declared = modern ? declaredFamily(board, id) : null;
-  // A declared family is final in every session: another vendor is refused, another spelling of the same vendor is the same declaration, and a cleared (null) family changes nothing.
-  if (naming && declared && differs(family, declared)) {
-    throw new Refused('FAMILY_DECLARED', `${id} already declared vendor family ${declared}; a declared family is never changed`);
-  }
-  if (declared) { saveFamilyWitness(board, id, declared); saveSessionWitness(board, original, declared); }
   const first = naming && !declared;
   if (first) {
-    saveFamilyWitness(board, id, family);
-    saveSessionWitness(board, original, family);
     // A seat with no declared family declares it once from its own worktree, whatever session joins; its recorded session stays as it was.
     board.db.exec('SAVEPOINT declare_family');
     try {
@@ -83,11 +70,11 @@ export function saveJoinedSession(board, id, { parent, session, parentDigest, se
       board.db.exec('RELEASE declare_family');
       if (error.code !== 'PARENT_SESSION_CHANGED') throw error;
     }
-    return false;
+    return inserting ? modern : false;
   }
   if (recordedParent) saveAgentParent(board, id, recordedParent);
   if (recordedSession) saveAgentSession(board, id, recordedSession);
-  return Boolean(declared);
+  return inserting ? modern : Boolean(declared);
 }
 
 /** Read only the bounded first record; conversation history and other sessions' contents are never opened. */

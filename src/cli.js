@@ -1,3 +1,4 @@
+import { seatFamily } from './family-declaration.js';
 import { itemCheckBaseline } from './board-query.js';
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import { laneSeatContext } from './seat-checkout.js';
@@ -1725,7 +1726,7 @@ export function privateNames(root, board, spec) {
     for (const part of text.split(/[\s@.<>()]+/u)) if (part.length >= 3 && part !== 'unknown' && part !== text) parts.add(part);
   };
   for (const agent of store.listAgents(board)) {
-    add(agent.agent_id); add(agent.agent_model); add(agent.agent_family); add(displayAgentName(agent)); add(displayAgentName(agent, 'prefix'));
+    add(agent.agent_id); add(agent.agent_model); add(seatFamily(board, agent.agent_id)); add(displayAgentName(agent)); add(displayAgentName(agent, 'prefix'));
   }
   for (const key of ['user.name', 'user.email']) add(tryGit(root, ['config', '--get', key]).stdout);
   for (const ident of ['GIT_AUTHOR_IDENT', 'GIT_COMMITTER_IDENT']) {
