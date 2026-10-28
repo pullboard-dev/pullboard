@@ -1,7 +1,8 @@
 /** Shared review urgency and tier adapter for selection and reservation [C7,V1,B3]. */
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { REVIEW_ROUTING_ENGINE } from './review-routing-engine.js';
-import { familyName, itemReviewPolicy } from './review-policy.js';
+import { familyName } from './review-policy.js';
+import { itemReviewPolicy } from './review-policy.js';
 import { Refused } from './refused.js';
 
 /** Historical recorded reservations retain the ordering and eligibility they originally used. */
