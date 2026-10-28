@@ -294,7 +294,8 @@ test('one publish pass computes pull request coverage once with bounded git call
     setStatus: (sha, value) => statuses.push({ sha, ...value }) };
   const realGit = process.env.PATH.split(delimiter).map(directory => join(directory || '.', 'git')).find(existsSync);
   assert.ok(realGit);
-  const trace = join(box.dir, 'proof-git-calls.log'), traceBin = join(box.dir, 'proof-bin');
+  const trace = join(box.dir, 'proof-git-calls.log');
+  const traceBin = join(box.dir, 'proof-bin');
   mkdirSync(traceBin);
   const shim = join(traceBin, 'git');
   writeFileSync(shim, `#!/bin/sh\nprintf '%s\\n' "$*" >> "$PB_PROOF_GIT_CALLS"\nexec "$PB_PROOF_REAL_GIT" "$@"\n`);
