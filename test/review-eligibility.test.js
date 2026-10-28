@@ -860,4 +860,29 @@ test('no family decision reads the stored family column outside the one derivati
     });
   }
   assert.deepEqual(offenders, [], 'family reads go through src/family-declaration.js seatFamily');
+  // Whole-row reads carry agent_family too: every SELECT * or agent.* projection of agent rows must derive it.
+  const rowReads = [];
+  for (const base of ['../src/', '../packages/']) {
+    const dir = new URL(base, import.meta.url);
+    for (const file of readdirSync(dir, { recursive: true }).filter(name => typeof name === 'string' && name.endsWith('.js') && !name.includes('move-history') && !name.includes('/tests/'))) {
+      if (base === '../src/' && ['family-declaration.js', 'exchange.js'].includes(file)) continue; // exchange.js validates raw exported tables.
+      readFileSync(new URL(file, dir), 'utf8').split('\n').forEach((line, index) => {
+        if (/SELECT\s+\*\s+FROM\s+agent\b|SELECT\s+agent\.\*/u.test(line) && !/withDerivedFamil(?:y|ies)\(|withModel\(/u.test(line)) rowReads.push(`${base}${file}:${index + 1}: ${line.trim()}`);
+      });
+    }
+  }
+  assert.deepEqual(rowReads, [], 'agent-row projections return the derived family');
+});
+
+test('counterexample: every public agent-row reader returns the derived family after a historical clear [V4,B26,H16]', t => {
+  const f = orderedBoard(t);
+  const seat = { lane: 'core', path: '/fixture/core-r', model: 'Synthetic fixture model', parentDigest: 'a'.repeat(64), sessionDigest: 'b'.repeat(64) };
+  const old = FAMILY_DECLARE_ENGINE - 1;
+  assert.equal(f.send({ ...seat, family: 'OpenAI' }, { engine: old }).error, undefined);
+  assert.equal(f.send({ ...seat, family: null }, { engine: old }).error, undefined);
+  assert.equal(f.send({ lane: 'core', path: '/fixture/core-rt', model: 'Synthetic fixture model', sessionDigest: 'c'.repeat(64), family: 'Claude' }).error, undefined, 'a modern move activates the declaration engine');
+  const id = store.agentAt(f.board, seat.path).agent_id;
+  assert.equal(store.agentAt(f.board, seat.path).agent_family, 'OpenAI', 'view-215: agentAt returns the derived family, not the cleared column');
+  assert.equal(store.agentById(f.board, id).agent_family, 'OpenAI', 'agentById returns it');
+  assert.equal(store.listAgents(f.board).find(agent => agent.agent_id === id).agent_family, 'OpenAI', 'listAgents returns it');
 });

@@ -498,7 +498,7 @@ export function register(board, who) {
  * @returns {string}
  */
 export function ensureCoordinator(board, path) {
-  const existing = board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(COORDINATOR);
+  const existing = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id = ?').get(COORDINATOR);
   if (!existing) return register(board, { lane: COORDINATOR, path });
   if (existing.agent_path !== path) {
     atomic(board, () => {

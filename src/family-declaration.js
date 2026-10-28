@@ -131,3 +131,13 @@ export function familyDeclareFloor(board, who) {
   if (session === undefined || session && derivedFamily(board, null, { session })) return FAMILY_DECLARE_ENGINE;
   return 1;
 }
+
+/** An agent row as every reader sees it: its `agent_family` is the one derived family, never the stored column. */
+export function withDerivedFamily(board, row) {
+  return row ? { ...row, agent_family: seatFamily(board, row.agent_id) } : row;
+}
+
+/** Agent rows as every reader sees them, each with its one derived family. */
+export function withDerivedFamilies(board, rows) {
+  return rows.map(row => withDerivedFamily(board, row));
+}
