@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Exercise the real registered-runner flake ledger with an isolated committed source [C7]. */
+import { copyCommittedPackageFiles } from './package-copy-fixture.js';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -20,7 +21,7 @@ export async function runPairedRerun(t, mode, { createE2eHelpers, cli, observe, 
   for (const folder of [fixtureBin, remoteMachineHome, worker, join(repo, 'test')]) mkdirSync(folder, { recursive: true });
   const env = { ...box.env, PATH: fixtureBin + ':' + box.env.PATH };
   writeFileSync(join(repo, 'package.json'), JSON.stringify({ private: true, type: 'module' }) + '\n');
-  for (const part of ['src', 'bin']) cpSync(join(import.meta.dirname, '..', part), join(repo, part), { recursive: true });
+  copyCommittedPackageFiles(box, join(import.meta.dirname, '..'));
   // Red on its first run, green on its paired rerun: a flake the ledger should record.
   const runs = join(box.dir, 'flaky-runs');
   writeFileSync(join(repo, 'test/flaky.test.js'), `import { test } from 'node:test'; import { appendFileSync, existsSync, readFileSync } from 'node:fs';

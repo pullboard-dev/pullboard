@@ -1,4 +1,5 @@
 /** Unmerged source protects both shared formats, including indirect openers and real hooks [A5,A6]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -16,7 +17,7 @@ function fixture(t) {
   writeFileSync(join(executables, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "$(git rev-parse --show-toplevel)/bin/pullboard.js" "$@"\n`);
   chmodSync(join(executables, 'pullboard'), 0o755);
   mkdirSync(root);
-  for (const name of ['bin', 'src', 'skills', 'package.json', 'CHANGELOG.md']) cpSync(resolve(import.meta.dirname, '..', name), join(root, name), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
   const env = { ...process.env, HOME: join(dir, 'home'), PULLBOARD_HOME: join(dir, 'board-home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'), PATH: executables + ':' + process.env.PATH };
   for (const name of Object.keys(env)) if (name.startsWith('GIT_')) delete env[name];
   delete env.PULLBOARD_RELAY_TOKEN;
@@ -63,7 +64,7 @@ test('an event-log-only worktree refuses upgrades and primary source still opens
 test('a broken Git link cannot impersonate an installed release and upgrade a board [A5,A6]', t => {
   const box = fixture(t); const before = box.versions(); box.bump('SCHEMA_VERSION', 3, 4);
   const broken = join(box.dir, 'broken'); mkdirSync(broken);
-  for (const name of ['bin', 'src', 'package.json']) cpSync(join(box.lane, name), join(broken, name), { recursive: true });
+  copyPackageFiles(box.lane, broken);
   writeFileSync(join(broken, '.git'), 'gitdir: /nonexistent/pullboard-pruned-link\n');
   const r = box.cli(broken, box.root, 'status', '--json'); assert.equal(r.status, 1, r.stderr + r.stdout);
   assert.equal(JSON.parse(r.stdout).error.code, 'UNMERGED_SCHEMA'); assert.match(JSON.parse(r.stdout).error.next, /restore its Git link/);

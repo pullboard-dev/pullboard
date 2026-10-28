@@ -11,6 +11,7 @@ import { pathToFileURL } from 'node:url';
 import { exportBoard } from '../src/exchange.js';
 import { importBoard } from '../src/exchange.js';
 import { test } from 'node:test';
+import { selectAffectedTests } from '../src/affected-tests.js';
 import { mainMovedFixture } from './main-moved-fixture.js';
 
 /** Read the native checked source and immutable receipts after the independent worker has drained. */
@@ -174,4 +175,24 @@ test('an outside submitted source is never composed or checked by the native mai
   assert.equal(box.git(box.repo,'worktree','list','--porcelain'),worktrees,'outside source never acquired a composition checkout');
   assert.equal(box.git(box.repo,'status','--porcelain'),'');
   box.trigger();const repeated=await box.settled();assert.deepEqual(repeated.rows,terminal.rows,'the unavailable sandbox path is not hot-retried');
+});
+
+/** A minimal consumer project keeps selective execution distinct from the full installed-tooling fallback. */
+test('source advance selectively checks only the changed project closure [C7,V4,H16]',{timeout:180000},async t=>{
+  const box=await mainMovedFixture(t,{selective:true});box.trigger();const terminal=await box.settled();
+  assert.equal(terminal.item.item_status,'verified',JSON.stringify(terminal.rows));
+  const now=state(box);
+  const selection=selectAffectedTests(box.repo,{base:box.accepted,commit:now.landing});
+  assert.equal(selection.full,false,selection.reason);
+  assert.deepEqual(selection.files,['test/check.test.js']);
+  assert.equal(now.proofs.length,2);
+  assert.ok(now.proofs.every(row=>row.commit===now.landing&&row.exitCode===0&&row.sourceClean&&row.counts.passed===1&&row.counts.failed===0&&row.counts.skipped===0));
+  const detail=JSON.parse(now.events.find(row=>row.event_kind==='source_advanced').event_detail);
+  const command="node --test --test-reporter=tap './test/check.test.js'";
+  assert.equal(detail.phases.find(phase=>phase.role==='affected').command,createHash('sha256').update(command).digest('hex'));
+  for(const artifact of terminal.rows.flatMap(row=>row.artifacts??[]).filter(row=>row.roles.includes('criterion')||row.roles.includes('affected'))){
+    const output=readFileSync(artifact.file,'utf8');
+    assert.equal(output.split('SOURCE_ADVANCE_BODY').length-1,1);
+    assert.ok(!output.includes('UNRELATED_BODY'));
+  }
 });

@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -182,9 +183,7 @@ test('an unsupported Node reporter stays unclassified rather than guessing a sel
 test('the pinned bundled runner selects one target and skips unrelated bodies [C7,H16]', t => {
   const box = flakyProject(t);
   const unrelated = join(box.scratch, 'bundled-unrelated-runs');
-  mkdirSync(join(box.root, 'bin'));
-  cpSync(resolve(import.meta.dirname, '../bin/run-tests.js'), join(box.root, 'bin/run-tests.js'));
-  cpSync(resolve(import.meta.dirname, '../src'), join(box.root, 'src'), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), box.root);
   writeFileSync(join(box.root, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(box.root, 'test/unrelated.test.mjs'), `import { test } from 'node:test';
 import { appendFileSync } from 'node:fs';

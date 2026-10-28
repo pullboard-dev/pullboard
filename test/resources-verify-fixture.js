@@ -1,4 +1,5 @@
 /** Private real-board setup for resource-admission verification checks [C7,V4]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { copyFileSync, cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -6,7 +7,6 @@ import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
-const TEST_RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
 
 /** Create a minimal real board whose CPU check and affected tests share the private gate pool. */
 export function checkProject(box) {
@@ -20,8 +20,7 @@ export function checkProject(box) {
   writeFileSync(join(repo, 'SPEC.md'), '# CPU check fixture\n\n## G · Goals\n- G1 [approved, must] The fixture keeps its board. | gate: true\n');
   writeFileSync(join(repo, 'package.json'), '{"type":"module"}\n');
   mkdirSync(join(repo, 'bin'), { recursive: true });
-  cpSync(resolve(import.meta.dirname, '../src'), join(repo, 'src'), { recursive: true });
-  copyFileSync(TEST_RUNNER, join(repo, 'bin/run-tests.js'));
+  copyPackageFiles(resolve(import.meta.dirname, '..'), repo);
   mkdirSync(join(repo, 'test'), { recursive: true });
   writeFileSync(join(repo, 'test/unrelated.test.js'), "import { test } from 'node:test'; test('unrelated test', () => {});\n");
   runFixtureGit(['add', '-A'], { cwd: repo, env: box.env });

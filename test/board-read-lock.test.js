@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/cli.js src/board.js src/board-hot.js src/board-migrate.js src/board-read.js src/commands/status.js src/commands/show.js src/commands/list.js src/commands/version.js */
 /** A read command opens the board read-only, so a writer holding the lock never stalls it [C7]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { after, test } from 'node:test';
@@ -48,7 +49,7 @@ const HOMES = ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME'];
  */
 function released(box) {
   const release = join(box.dir, 'release');
-  for (const path of ['src', 'bin', 'package.json']) cpSync(resolve(import.meta.dirname, '..', path), join(release, path), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), release);
   return release;
 }
 

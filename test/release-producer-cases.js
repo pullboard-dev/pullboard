@@ -1,10 +1,11 @@
-/** @pullboard-test-input src/** bin/** package.json */
+/** @pullboard-test-input source-tree */
 /** Real private native execution through fake SSH capsules; never evidence of eight physical machines [C7,V4]. */
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
+import { copyPackageFiles } from '../src/package-files.js';
 import { awaitNestedRun } from '../src/test-file-pool.js';
 import { runFixtureChild, runFixtureChildAsync } from './fixture-child.js';
 import { installRegistrationProbeStandIn } from './runner-ssh-fixture.js';
@@ -78,17 +79,31 @@ function fixture(t, { red = false, hosts = 7 } = {}) {
   // Accepted fake-runner fixture isolation: these nested runs acquire their own actual private leases.
   for (const key of Object.keys(box.env)) if (/^PULLBOARD_(GATE|BROWSER|TEST|LANDING|RELEASE)_/u.test(key)
     || ['NODE_OPTIONS', 'NODE_TEST_CONTEXT', 'GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'].includes(key)) delete box.env[key];
-  cpSync(join(SOURCE, 'src'), join(box.repo, 'src'), { recursive: true });
-  cpSync(join(SOURCE, 'bin'), join(box.repo, 'bin'), { recursive: true });
+  // Installed tooling is complete, but its vendor documentation tests are not this project's eight cases.
+  box.tool = join(box.repo, '.tooling');
+  const shipped = copyPackageFiles(SOURCE, box.tool);
+  mkdirSync(join(box.repo, 'bin'));
+  writeFileSync(join(box.repo, 'bin/run-tests.js'), `/** @pullboard-module-loads .tooling/bin/run-tests.js */
+/** Invoke the real installed dispatcher without replacing its arguments, output or verdict. */
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+const entry=fileURLToPath(new URL('../.tooling/bin/run-tests.js',import.meta.url));
+const child=spawnSync(process.execPath,[...process.execArgv,entry,...process.argv.slice(2)],{stdio:'inherit'});
+if(child.error)throw child.error;
+if(child.signal)process.kill(process.pid,child.signal);
+else process.exitCode=child.status??1;
+`);
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '0.0.0-fixture', private: true, type: 'module' }) + '\n');
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ gate: 'node bin/run-tests.js', landingShards: 1 }));
   for (const name of NAMES) writeFileSync(join(box.repo, 'test', `${name}.test.js`), tinyTest(name, box, red));
   git(box, 'init', '-q', '-b', 'main');
   git(box, 'add', '.');
   git(box, 'commit', '-q', '-m', 'test: commit private native release fixture');
+  assert.deepEqual(git(box, 'ls-files', '-z', '--', '.tooling', 'bin/run-tests.js').split('\0').filter(Boolean).sort(),
+    [...shipped.map(file => '.tooling/' + file), 'bin/run-tests.js'].sort(), 'the real launcher and complete installed package enter the immutable release source');
   installRegistrationProbeStandIn({ bin: box.bin });
   for (const host of Object.keys(box.workers)) {
-    const added = runFixtureChild(process.execPath, [join(box.repo, 'bin/pullboard.js'), 'runner', 'add', host,
+    const added = runFixtureChild(process.execPath, [join(box.tool, 'bin/pullboard.js'), 'runner', 'add', host,
       '--slots', '1', '--browser', '0', '--json'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
     assert.equal(added.status, 0, added.context);
   }
@@ -102,13 +117,26 @@ async function producer(box, checks) {
 import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
-import {runReleaseGate,verifyNativeReleaseReceipt} from './src/release-gate.js';
-import {isStampedGreen} from './src/gate.js';
-import {releaseReceiptBody,releaseParticipationDigest} from './src/release-gate-receipt.js';
-import {openBoard,closeBoard} from './src/board.js';
+import {runReleaseGate,verifyNativeReleaseReceipt} from './.tooling/src/release-gate.js';
+import {isStampedGreen} from './.tooling/src/gate.js';
+import {releaseReceiptBody,releaseParticipationDigest} from './.tooling/src/release-gate-receipt.js';
+import {openBoard,closeBoard} from './.tooling/src/board.js';
 const root=process.cwd();
 const board=openBoard(join(root,'.git','pullboard','board.sqlite'));closeBoard(board);
+try {
 ${checks}
+} catch (error) {
+  const receipts=[];
+  try { for (const file of readdirSync(join(root,'.git','pullboard','gate-receipts')).filter(file=>file.endsWith('.json')).slice(-20)) {
+    receipts.push(JSON.parse(readFileSync(join(root,'.git','pullboard','gate-receipts',file),'utf8')));
+  } } catch { /* A missing receipt is itself evidence; preserve the original failure. */ }
+  console.error('PRIVATE_RELEASE_DIAGNOSTIC '+JSON.stringify({
+    head:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
+    tree:execFileSync('git',['rev-parse','HEAD^{tree}'],{encoding:'utf8'}).trim(),
+    status:execFileSync('git',['status','--porcelain'],{encoding:'utf8'}),receipts,
+  }));
+  throw error;
+}
 `;
   return await awaitNestedRun(runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script],
     { cwd: box.repo, env: box.env, encoding: 'utf8' }));
