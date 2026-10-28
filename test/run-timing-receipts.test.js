@@ -14,6 +14,8 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { fixtureBoard } from './board-fixture.js';
 import { eventMetrics } from '../bin/case-study/events.js';
 import { commitFixtureFiles } from './package-copy-fixture.js';
+import { COLLECTION_REPORT_PREFIX } from '../src/landing-collection-report.js';
+import { formatCollectionReport } from '../src/landing-collection-report.js';
 import { randomUUID } from 'node:crypto';
 import * as store from '../src/board.js';
 
@@ -290,4 +292,45 @@ test('missing, duplicate and wrong-source suite observations never invent phase 
     if (invalid.endsWith('# unexplained failure\n')) assert.equal(view, '# unexplained failure\n');
     else assert.equal(view, invalid, 'unproven diagnostics remain visible to strict failure accounting');
   }
+});
+
+
+test('collection accounting projects only canonical own diagnostics per component [C7,H16]', () => {
+  const id = randomUUID(), source = { head: 'a'.repeat(40), tree: 'b'.repeat(40) };
+  const timing = formatSuiteTiming({ version: 1, id, ...source, full: false, node: '22.13.1', wallMs: 1,
+    selectionMs: 0, setupMs: 0, shards: [], compareMs: null });
+  const report = { id, scope: 'suite', shard: null, full: false,
+    plannedFiles: ['test/b.test.js', 'test/a.test.js'], completedFiles: ['test/b.test.js', 'test/a.test.js'],
+    complete: true, cleanupVerified: true };
+  const collection = formatCollectionReport(report), account = 'original failure account\n';
+  /** Project one component, preserving every unexplained byte for the strict TAP consumer. */
+  const project = (output, options) => timingAccountingStages([{ status: 1, output }], id, source, options)[0].output;
+  assert.equal(project(account + collection + timing), account, 'real producer order need not be sorted');
+  assert.equal(project(account + collection), account + collection, 'collection alone supplies no source authentication');
+  const incomplete = formatCollectionReport({ ...report, completedFiles: [], complete: false });
+  assert.equal(project(account + incomplete + timing), account, 'diagnostic projection grants no completion authority');
+  const otherId = randomUUID(), separate = formatCollectionReport({ ...report, id: otherId });
+  assert.equal(project(account + separate + timing), account + separate, 'foreign collection nonce stays visible');
+  assert.equal(project(account + separate + timing, { collectionId: otherId }), account,
+    'collect-all supplies its distinct native nonce explicitly');
+  for (const invalid of [collection + collection, COLLECTION_REPORT_PREFIX + '{broken}\n',
+    COLLECTION_REPORT_PREFIX + JSON.stringify({ version: 1, ...report, extra: true }) + '\n',
+    collection.replace('{', '{ '), formatCollectionReport({ ...report, shard: '1/1' }),
+    formatCollectionReport({ ...report, plannedFiles: ['../outside.test.js'] }),
+    formatCollectionReport({ ...report, completedFiles: [], complete: true })]) {
+    assert.equal(project(account + invalid + timing), account + invalid,
+      'malformed, duplicate and noncanonical collection bytes remain unexplained');
+  }
+  assert.equal(project(account + collection + separate + timing), account + separate,
+    'another valid report is never silently erased');
+  assert.equal(timingAccountingStages([{ status: 1, output: account + collection + timing }], id,
+    { ...source, head: 'c'.repeat(40) })[0].output, account + collection + timing);
+  const raw = [{ status: 1, output: account + collection + timing, pipeline: [
+    { status: 1, output: account + collection }, { status: 0, output: collection + timing }] }];
+  const original = structuredClone(raw), projected = timingAccountingStages(raw, id, source);
+  assert.equal(projected[0].output, account);
+  assert.equal(projected[0].pipeline[0].output, account + collection,
+    'a different component cannot borrow the stage timing frame');
+  assert.equal(projected[0].pipeline[1].output, '');
+  assert.deepEqual(raw, original, 'raw stage and component evidence remains immutable');
 });

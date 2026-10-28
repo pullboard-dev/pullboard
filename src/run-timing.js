@@ -11,6 +11,10 @@ import {
   sep,
 } from 'node:path';
 
+import { COLLECTION_REPORT_PREFIX } from './landing-collection-report.js';
+import { formatCollectionReport } from './landing-collection-report.js';
+import { parseCollectionReports } from './landing-collection-report.js';
+
 export const TIMING_RUN_ID_ENV = 'PULLBOARD_TIMING_RUN_ID';
 export const SUITE_TIMING_PREFIX = '# pullboard suite timing ';
 const ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u;
@@ -68,8 +72,8 @@ export function suiteTimingFromOutput(output, id, source) {
   return matching.length === 1 ? matching[0] : null;
 }
 
-/** Project only one canonical authenticated frame out of a component's TAP accounting view. */
-export function timingAccountingOutput(output, id, source) {
+/** Project only canonical invocation-bound diagnostics out of a component's TAP accounting view. */
+export function timingAccountingOutput(output, id, source, { collectionId = id } = {}) {
   if (typeof output !== 'string') return output;
   const timing = suiteTimingFromOutput(output, id, source);
   if (!timing) return output;
@@ -77,15 +81,30 @@ export function timingAccountingOutput(output, id, source) {
   const chunks = output.match(/[^\n]*\n|[^\n]+$/gu) ?? [];
   const matching = chunks.filter(chunk => chunk.replace(/\r?\n$/u, '') === canonical);
   if (matching.length !== 1) return output;
-  return chunks.filter(chunk => chunk !== matching[0]).join('');
+  const removed = new Set(matching);
+  // A complete source-bound timing frame authenticates this component, never another pipeline member.
+  const collection = parseCollectionReports(output, { id: collectionId, scope: 'suite', requireComplete: false });
+  if (collection) {
+    const reports = chunks.filter(chunk => {
+      const line = chunk.replace(/\r?\n$/u, '');
+      if (!line.startsWith(COLLECTION_REPORT_PREFIX)) return false;
+      let value;
+      try { value = JSON.parse(line.slice(COLLECTION_REPORT_PREFIX.length)); } catch { return false; }
+      // Preserve the actual producer's file order; validation normalizes sets, formatting does not.
+      return value?.id === collectionId && value.scope === 'suite' && value.shard === null
+        && formatCollectionReport(value).slice(0, -1) === line;
+    });
+    if (reports.length === 1) removed.add(reports[0]);
+  }
+  return chunks.filter(chunk => !removed.has(chunk)).join('');
 }
 
 /** Keep raw stage objects intact while independently authenticating each component's accounting view. */
-export function timingAccountingStages(stages, id, source) {
+export function timingAccountingStages(stages, id, source, options) {
   if (!Array.isArray(stages)) return stages;
   return stages.map(stage => ({ ...stage,
-    ...(typeof stage.output === 'string' ? { output: timingAccountingOutput(stage.output, id, source) } : {}),
-    ...(Array.isArray(stage.pipeline) ? { pipeline: timingAccountingStages(stage.pipeline, id, source) } : {}) }));
+    ...(typeof stage.output === 'string' ? { output: timingAccountingOutput(stage.output, id, source, options) } : {}),
+    ...(Array.isArray(stage.pipeline) ? { pipeline: timingAccountingStages(stage.pipeline, id, source, options) } : {}) }));
 }
 
 /** Describe the controller's actual wall duration alongside only the suite phases it really observed. */
