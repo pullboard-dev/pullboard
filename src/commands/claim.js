@@ -7,6 +7,7 @@ import {
   listItems,
 } from '../board.js';
 import { itemFileCollisions } from '../item-files.js';
+import { sayMapSlice } from '../map-slice-say.js';
 import {
   MainSpecMerged,
   actOn,
@@ -36,6 +37,7 @@ export async function run(io, { first }) {
   const warnings = itemFileCollisions(getItem(board, id), listItems(board, { all: true }));
   io.result?.({ id, ...result, ...(warnings.length ? { warnings } : {}) });
   for (const warning of warnings) io.say(`warning: ${warning}; explicit claim retained`);
+  await sayMapSlice(io, ctx, getItem(board, id));
   io.say(`${result.renewed ? 'renewed' : 'claimed'} #${first} until ${result.leaseUntil}; criterion frozen as ${result.digest.slice(0, 12)}`);
   return 0;
 });
