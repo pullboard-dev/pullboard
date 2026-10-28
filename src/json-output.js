@@ -52,6 +52,11 @@ export function personRequestGuidance(message, { caller, leading = false } = {})
   return lines.join('\n');
 }
 
+/** Build a versioned wire envelope from an already-decided refusal; recovery policy stays with its caller. */
+export function versionedRefusal({ code, message, next }, { version = 1 } = {}) {
+  return { version, error: { code, message, next } };
+}
+
 /**
  * Collect one command's output; text mode writes immediately and JSON mode writes one document.
  * Long-running view explicitly flushes its address before waiting for a shutdown signal.
