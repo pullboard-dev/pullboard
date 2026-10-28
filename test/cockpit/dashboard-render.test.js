@@ -87,6 +87,10 @@ test('Dashboard renders populated release, chart, agents, landing and capped lis
     from: 'quiet-1', to: 'person', text: 'A recent dashboard fixture update.', lanes: ['web'],
   }));
 
+  earlier(alpha.repo, clockBase + 2 * 60_000, board => store.shout(board, {
+    from: 'sentinel', to: 'person', text: 'Dashboard fixture health notice.', lanes: ['web'],
+  }));
+
   box.run(alpha.repo, 'milestone', 'add', '0.1.0', '--items', Array.from({ length: 21 }, (_, index) => index + 1).join(','));
   box.run(alpha.repo, 'milestone', 'order', '0.1.0', Array.from({ length: 21 }, (_, index) => 21 - index).join(','));
   const view = await startView(box);

@@ -1105,7 +1105,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .dash-agent-now .dash-item { width: 100%; padding: 0; }
 .dash-track { stroke: var(--line); stroke-width: 5; }
 .dash-tick { stroke: var(--line); stroke-width: 1; }
-.dash-agent-axis { display: grid; grid-template-columns: 124px minmax(100px, 1.4fr) minmax(100px, 1fr) 54px 54px 48px; gap: 12px; color: var(--ink-faint); font: 10px var(--mono); }
+.dash-agent-axis { text-transform: uppercase; letter-spacing: .05em; display: grid; grid-template-columns: 124px minmax(100px, 1.4fr) minmax(100px, 1fr) 54px 54px 48px; gap: 12px; color: var(--ink-faint); font: 10px var(--mono); }
 .dash-agent-axis > span:nth-child(n+4) { text-align: right; }
 .dash-agent-axis > span:nth-child(2) { display: flex; justify-content: space-between; }
 .dash-old { color: var(--warn) !important; }
@@ -1118,7 +1118,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
   .dash-hero { display: block; }
   .dash-hero h1, .dash-accent { font-size: 20px; }
   .dash-rate { text-align: left; margin-top: 16px; }
-  .dash-agent, .dash-agent-axis { grid-template-columns: 86px minmax(0, 1fr); gap: 8px; }
+  .dash-agent, .dash-agent-axis { gap: 8px; }
   .dash-agent-now, .dash-agent-axis > span:nth-child(3), .dash-agent-number, .dash-agent-axis > span:nth-child(4), .dash-agent-axis > span:nth-child(5) { display: none; }
   .dash-agent, .dash-agent-axis { grid-template-columns: 100px minmax(0, 1fr) 38px; }
   .dash-agent-number:last-child { display: block; }
@@ -1147,4 +1147,5 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .dash-agent rect.dash-sent-back { fill: var(--reject); }
 @media (max-width: 700px) {
   .dash-agent-legend { justify-content: flex-start; margin: 0 0 14px; }
+  .dash-agent-axis > span:nth-child(2) > span:not(:first-child):not(:last-child) { display: none; }
 }
