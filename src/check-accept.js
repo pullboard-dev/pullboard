@@ -6,13 +6,6 @@ export { CHECK_ACCEPT_ENGINE };
  */
 import { createHash } from 'node:crypto';
 import { provingCheck } from './check-baseline-format.js';
-import {
-  PERSON,
-  atomic,
-  getItem,
-  itemById,
-  logEvent,
-} from './board.js';
 import { COORDINATOR } from './config.js';
 import { Refused } from './refused.js';
 import { mainPolicy } from './trusted-policy-read.js';
@@ -43,6 +36,8 @@ export function checkDigest(command) {
  * @returns {{ id: number, digest: string, check: string }}
  */
 export function acceptCheck(board, id, { agentId, channel, digest }) {
+  const { PERSON, atomic, logEvent } = board.nativePorts;
+  const { itemById } = board.runtimePorts.verification;
   if (agentId !== PERSON) throw new Refused('CHECK_ACCEPT_PERSON_ONLY', 'only the person accepts a check that already passes on main; ask the coordinator to bring it to the person');
   if (!['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'a check acceptance uses the person’s terminal or view; run pullboard view');
   return atomic(board, () => {
@@ -107,6 +102,7 @@ export function refuseProvesNothing(mainConfig, board, item) {
  * @param {number} id
  */
 export function refuseClaimProvesNothing(root, board, id) {
+  const { getItem } = board.nativePorts;
   const item = getItem(board, id);
   if (['open', 'claimed'].includes(item.item_status)) refuseProvesNothing(() => mainPolicy(root).config, board, item);
 }
@@ -128,6 +124,7 @@ export async function checkAcceptCommand(io, first, rest, { context, withBoard, 
   if (!/^#?\d+$/u.test(first ?? '') || rest.length) throw new Refused('USAGE', 'pullboard check accept <id>');
   const ctx = context(io);
   return withBoard(ctx, async (board) => {
+    const { getItem, PERSON } = board.nativePorts;
     if (!ctx.info.isMain || whoAmI(ctx, board).id !== COORDINATOR) throw new Refused('B26_PERSON_APPROVAL', 'only the person accepts a check, from the main checkout or the view', 'ask the person to accept it in pullboard view, or in their own terminal at the main checkout');
     const item = getItem(board, idArg(first));
     if (!item.item_check) throw new Refused('NO_CHECK', `#${item.item_id} has no check command to accept; its proof is the project gate: pullboard gate`);
