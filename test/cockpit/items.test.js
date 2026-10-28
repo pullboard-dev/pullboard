@@ -1,8 +1,9 @@
 /** @pullboard-test-gui */
 /** Cockpit items checks, using the shared real-board fixtures [N26]. */
+import { copyPackageFiles } from '../../src/package-files.js';
 import { submitFixture } from '../board-submit-fixture.js';
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -1421,7 +1422,7 @@ test('the view shows what is new once after an upgrade [N26]', async () => {
     for (const board of [alpha, beta]) box.run(board.repo, 'add', 'web', 'First visible item', '--specs', 'G1');
     const cli = join(box.dir, 'upgrade-cli');
     mkdirSync(cli);
-    for (const entry of ['bin', 'src', 'skills', 'package.json']) cpSync(resolve(import.meta.dirname, '../..', entry), join(cli, entry), { recursive: true });
+    copyPackageFiles(resolve(import.meta.dirname, '../..'), cli);
     const packagePath = join(cli, 'package.json');
     const packageData = JSON.parse(readFileSync(packagePath, 'utf8'));
     const releases = ['0.8.10', '0.8.9', '0.8.8', '0.8.7', '0.8.4'];
