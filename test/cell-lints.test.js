@@ -645,3 +645,20 @@ test('hard file cap excludes data and Markdown while preserving their advisory d
   }
   assert.throws(() => lowerCellLintBaseline(report, baseline), { code: 'CELL_LINT_ROSE' });
 });
+
+test('an export used only through a literal dynamic import of a shim is reachable; a non-literal dynamic import is named unknown [C7,CD62]', t => {
+  const box = fixture(t);
+  box.put('packages/sample/index.js', 'export const value = 1, lazy = 2, destructured = 3, other = 4;\n');
+  box.put('src/sync.js', "export { lazy, destructured } from '../packages/sample/index.js';\n");
+  box.put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\nconsole.log((await import('../../src/sync.js')).lazy);\nconst { destructured: renamed } = await import('../../src/sync.js'); console.log(renamed);\n");
+  const keys = report => report.metrics.unreachableExports.findings.map(row => row.key);
+  const literal = box.report();
+  assert.ok(!keys(literal).includes('packages/sample/index.js#lazy'), 'member read through the shim reaches the moved export');
+  assert.ok(!keys(literal).includes('packages/sample/index.js#destructured'), 'destructured read through the shim reaches the moved export');
+  assert.ok(!keys(literal).includes('src/sync.js#lazy'));
+  assert.ok(keys(literal).includes('packages/sample/index.js#other'), 'unrelated exports stay debt');
+  box.put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\nconst name = process.env.TARGET; console.log((await import(name)).lazy);\n");
+  const computed = box.report();
+  assert.ok(keys(computed).includes('packages/sample/index.js#lazy'), 'a non-literal specifier proves nothing');
+  assert.ok(computed.unknown.some(row => row.file === 'apps/demo/index.js' && row.reason.includes('computed')), 'the non-literal import is named in the output');
+});
