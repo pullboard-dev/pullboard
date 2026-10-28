@@ -2,6 +2,12 @@
 import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { accountedFailures } from './land.js';
+import {
+  MAIN_FAILURE_SIGNATURE_VERSION,
+  normalizedFailureDiagnostics,
+} from './main-failure-noise.js';
+
+export { MAIN_FAILURE_SIGNATURE_VERSION } from './main-failure-noise.js';
 
 /** Keep deterministic failure diagnostics, excluding only timing, source location and stack presentation. */
 function diagnostics(output, root) {
@@ -19,11 +25,20 @@ function diagnostics(output, root) {
     const value = line.slice(active.indent);
     if (/^(?:duration_ms|location|stack):/u.test(value)) { omitted = true; continue; }
     if (/^[\w-]+:/u.test(value)) omitted = false;
-    if (!omitted && value !== '---' && value !== '...') active.lines.push(value.replaceAll(root, '<root>'));
+    if (!omitted && value !== '---' && value !== '...') active.lines.push(value);
   }
   return rows.map(row => ({ ...row,
     signature: row.lines.some(line => line.startsWith('error:')) && row.lines.some(line => line.startsWith('failureType:'))
-      ? createHash('sha256').update(row.lines.join('\n')).digest('hex') : null }));
+      ? createHash('sha256').update(JSON.stringify([MAIN_FAILURE_SIGNATURE_VERSION, normalizedFailureDiagnostics(row.lines, root)])).digest('hex') : null }));
+}
+
+/** Legacy coarse outcomes remain useful, but old detailed hashes cannot authorize equality under a new scheme. */
+export function cachedFailureSignatures(outcome, file) {
+  const failures = outcome.failures;
+  if (!Array.isArray(failures) || failures.some(row => row?.file !== file
+    || typeof row.name !== 'string' || !row.name || !/^[a-f0-9]{64}$/u.test(row.signature))) return undefined;
+  return outcome.signatureVersion === MAIN_FAILURE_SIGNATURE_VERSION || outcome.result === 'green' && failures.length === 0
+    ? failures : undefined;
 }
 
 /** Null means some process failure or diagnostic cannot be accounted for; it never authorizes acceptance. */
