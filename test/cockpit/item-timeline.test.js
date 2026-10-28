@@ -69,6 +69,8 @@ test('the native item timeline reads as sentences with clamped notes and working
           body: (() => { const copy = text.cloneNode(true); for (const ref of copy.querySelectorAll('[data-code]')) ref.replaceWith(ref.dataset.code); for (const hash of copy.querySelectorAll('code.sha')) hash.replaceWith(hash.title); for (const time of copy.querySelectorAll('time[datetime]')) time.replaceWith(time.getAttribute('datetime')); return copy.textContent; })(), clamp: style.webkitLineClamp, height: rect.height, lineHeight: parseFloat(style.lineHeight),
           models: [...document.querySelectorAll('#detail .tl-who[title]')].map(row => ({ text: row.textContent, title: row.title })),
           kinds: rows.filter(row => row.classList.contains('tl-fact')).map(row => row.querySelector('.tl-kind').textContent),
+          kindTints: ['note', 'measurement', 'fact', 'proof'].map(kind => getComputedStyle(document.querySelector('#detail .tl-kind-' + kind)).color),
+          rail: getComputedStyle(rows[0], '::after').backgroundColor,
           pair: rows.some(row => row.textContent.includes('ran the proof twice') && row.dataset.eventIds.split(' ').length === 2),
           refs: [...note.querySelectorAll('[data-code]')].map(row => row.dataset.code),
           hashes: [...note.querySelectorAll('code.sha')].map(row => ({ text: row.textContent, title: row.title })),
@@ -80,6 +82,8 @@ test('the native item timeline reads as sentences with clamped notes and working
       assert.equal(result.clamp, '3');
       assert.ok(result.height <= result.lineHeight * 3 + 1, width + ': clamped geometry ' + JSON.stringify(result));
       assert.deepEqual(result.kinds, ['note', 'measurement', 'capture']);
+      assert.deepEqual({ distinctKinds: new Set(result.kindTints).size, railVisible: !['transparent', 'rgba(0, 0, 0, 0)'].includes(result.rail) },
+        { distinctKinds: 4, railVisible: true }, width + ': each kind has its own tint and the timeline rail is visible');
       assert.ok(result.pair, JSON.stringify(result) + ': actual consecutive checks merge, retaining both event identities');
       for (const sentence of ['web-1 claimed it', 'web-1 recorded a measurement', 'Sentinels found this item failing', 'Sentinels found this item passing again', reviewer.agent + ' started reviewing', reviewer.agent + ' passed it', reviewer.agent + ' sent it back']) assert.ok(result.sentences.includes(sentence), `${width}: ${sentence}`);
       assert.ok(result.models.some(row => row.text === 'web-1' && row.title === 'Test Model'));
