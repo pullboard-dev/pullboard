@@ -1,3 +1,4 @@
+import { lifecycleEvent } from './item-list.js';
 import { spawnSync } from 'node:child_process';
 import { counterProofStats } from './proof-counter-read.js';
 import { viewFlowSummary } from './view-state-summary.js';
@@ -1183,7 +1184,7 @@ export function projectItemState(board, item, status) {
     updatedAt: item.item_updated_at,
     verdict: verdicts.at(-1) ?? null,
     verdicts,
-    history: store.events(board, { itemId: item.item_id }).map((event) => ({ kind: event.event_kind, by: event.event_by, at: event.event_at })),
+    history: store.events(board, { itemId: item.item_id }).map(lifecycleEvent),
   };
 }
 
