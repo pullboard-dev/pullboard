@@ -36,6 +36,8 @@ test('warm runner source copies a clean base and sends only the changed history 
   writeFileSync(join(repo, 'unchanged.bin'), Buffer.concat([Buffer.from([0]), randomBytes(128 * 1024)]));
   git(repo, env, 'add', '.'); git(repo, env, 'commit', '-qm', 'test: warm source base');
   const base = git(repo, env, 'rev-parse', 'HEAD');
+  const sourceTags = Array.from({ length: 40 }, (_, index) => `source-${String(index).padStart(2, '0')}`);
+  for (const tag of sourceTags) git(repo, env, 'tag', tag);
   installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachine, requests, stderrLog });
   const added = cli(repo, env, 'runner', 'add', HOST, '--slots', '1', '--browser', '0', '--json');
   assert.equal(added.status, 0, added.context);
@@ -46,11 +48,12 @@ test('warm runner source copies a clean base and sends only the changed history 
   const receipts = () => readFileSync(stderrLog, 'utf8').split(/\r?\n/u).filter(line => line.startsWith('PULLBOARD_RUNNER_RESULT '))
     .map(line => JSON.parse(Buffer.from(line.split(' ')[2], 'base64').toString('utf8')));
   /** Run actual source assertions and return this run's source measurement. */
-  const run = async (expected, mutate = false, forbidden = null) => {
+  const run = async (expected, mutate = false, forbidden = null, expectedTags = sourceTags) => {
     const body = `const a=require('node:assert/strict'),f=require('node:fs'),c=require('node:child_process');
       a.equal(f.readFileSync('tracked.txt','utf8'),${JSON.stringify(expected)});
       a.equal(f.existsSync('command-poison'),false);
       a.equal(c.execFileSync('git',['tag','--list','command-poison'],{encoding:'utf8'}),'');
+      a.deepEqual(c.execFileSync('git',['tag','--list'],{encoding:'utf8'}).trim().split(/\\n/).filter(Boolean),${JSON.stringify(expectedTags)});
       a.equal(c.execFileSync('git',['status','--porcelain'],{encoding:'utf8'}),'');
       a.equal(c.execFileSync('git',['rev-parse','--is-shallow-repository'],{encoding:'utf8'}).trim(),'false');
       a.equal(f.existsSync('.git/objects/info/alternates'),false);
@@ -68,6 +71,7 @@ test('warm runner source copies a clean base and sends only the changed history 
     const cold = await run('base source\n', true);
     const warm = await run('base source\n');
     assert.equal(warm.sourcePreparation.reusedCommit, base, 'second job reused the private clean base tree');
+    assert.equal(warm.sourcePreparation.git.fetch.calls, 1, 'all forty short tags are delivered by one actual worker fetch');
     assert.equal(warm.sourcePreparation.packBytes, 32, 'same-base transport contains the real empty SHA-1 pack');
     assert.ok(cold.sourcePreparation.packBytes > 64 * 1024, 'cold transport contained the real bulk history');
     writeFileSync(join(repo, 'tracked.txt'), 'changed source\n');
@@ -83,7 +87,7 @@ test('warm runner source copies a clean base and sends only the changed history 
     writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
     writeFileSync(join(repo, 'tracked.txt'), 'unrelated source\n');
     git(repo, env, 'add', '.'); git(repo, env, 'commit', '-qm', 'test: unrelated source history');
-    const unrelated = await run('unrelated source\n', false, base);
+    const unrelated = await run('unrelated source\n', false, base, []);
     assert.equal(unrelated.sourcePreparation.reusedCommit, null, 'an unrelated branch does not inherit a prior job repository');
     completed = true;
   } finally {

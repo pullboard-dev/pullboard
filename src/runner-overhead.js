@@ -52,7 +52,7 @@ export function sourcePreparationFields(value) {
     || !value.git || typeof value.git !== 'object' || Array.isArray(value.git)
     || Object.entries(value.git).some(([operation, row]) => !operations.has(operation) || !row
       || !count(row.calls) || row.calls < 1 || !count(row.ms))
-    || value.reusedCommit != null && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.reusedCommit)) return null;
+    || value.reusedCommit != null && (typeof value.reusedCommit !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.reusedCommit))) return null;
   return { version: 1, packBytes: value.packBytes, totalMs: value.totalMs,
     stages: Object.fromEntries(stages.map(name => [name, value.stages[name]])),
     git: Object.fromEntries(Object.entries(value.git).map(([name, row]) => [name, { calls: row.calls, ms: row.ms }])),

@@ -161,7 +161,6 @@ export async function restoreSourceTree({ directory, root, commit, history, leas
   const actual = (await git(root, ['rev-parse', 'HEAD', 'HEAD^{tree}'], env)).split(/\r?\n/u);
   if (actual.length !== 2 || actual[0] !== value.commit || actual[1] !== value.tree
     || existsSync(join(root, '.git', 'objects', 'info', 'alternates'))
-    || await git(root, ['rev-parse', '--is-shallow-repository'], env) !== 'false'
     || await git(root, ['status', '--porcelain=v1', '--untracked-files=all'], env)) {
     throw new Error('source tree cache does not match its clean committed base');
   }
