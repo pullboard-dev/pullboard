@@ -32,6 +32,9 @@ import { optionTakesValue } from '../src/test-file-dispatch.js';
 import { knownNodeOption } from '../src/test-file-dispatch.js';
 import { COLLECTION_ID_ENV } from '../src/gate-run-receipt.js';
 import { beginSuiteTiming, TIMING_RUN_ID_ENV } from '../src/run-timing.js';
+import { removeGitRepositorySelectors } from '../src/git-child-selectors.js';
+// Discovery and full-suite delegation happen before the existing per-worker isolation below.
+removeGitRepositorySelectors(process.env, process.stderr.write.bind(process.stderr));
 const runner = fileURLToPath(import.meta.url);
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
 const LANDING_WORKER_STARTS_ENV = 'PULLBOARD_LANDING_WORKER_STARTS';
