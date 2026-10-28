@@ -48,7 +48,8 @@ function translatedAllowance(metric, key, map) {
 
 /** Mark only the explicitly recorded pre-cell transition families; malformed or absent evidence stays strict. */
 function transitionalGrowth(report, metric) {
-  return report.transition?.item === 1527 && report.transition.until === 1395 && report.transition.active === true
+  const { item, until, active } = report.transition ?? {};
+  return active === true && (item === 1527 && until === 1395 || item === 1781 && until === 1770)
     && metric !== 'cycles';
 }
 
@@ -69,7 +70,7 @@ export function cellLintGrowth(report, baseline, { enforcedOnly = false } = {}) 
     // fileSize stores excess over 500: a per-file rise above 1000 excess crosses the hard 1500 maximum.
     return rows.map(row => transitionalGrowth(report, metric)
       && !(metric === 'fileSize' && /\.(?:[cm]?js|ts)$/u.test(row.key) && row.actual > 1000)
-      ? { ...row, advisory: true, item: 1527, until: 1395 }
+      ? { ...row, advisory: true, item: report.transition.item, until: report.transition.until }
       : row);
   });
   return enforcedOnly ? growth.filter(row => !row.advisory) : growth;
