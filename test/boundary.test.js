@@ -21,7 +21,7 @@ const SECRET_LABELS = /\['(Anthropic|OpenAI) key',/;
  * Every source file of the core, with its lines.
  */
 function sources() {
-  return ['src', 'bin'].flatMap((dir) =>
+  return ['src', 'bin', 'packages/sync/src/shell'].flatMap((dir) =>
     readdirSync(join(ROOT, dir)).filter((name) => name.endsWith('.js')).map((name) => ({
       file: `${dir}/${name}`,
       lines: readFileSync(join(ROOT, dir, name), 'utf8').split('\n'),
@@ -44,7 +44,7 @@ test('only explicit relay commands open outbound connections; the view defaults 
     // relay on's key hand-over reads a person's public SSH keys from GitHub itself, so the relay cannot add one [E17].
     (file === 'src/relay-handover.js' && line.trim() === "const response = await fetch(new URL('users/' + encodeURIComponent(login) + '/keys', base.href.endsWith('/') ? base : base.href + '/'),") ||
     (['src/serve.js', 'src/api.js'].includes(file) && line.trim() === "import { createServer } from 'node:http';") ||
-    (file === 'src/local-fetch.js' && line.trim() === "import { request as httpRequest } from 'node:http';") ||
+    (file === 'packages/sync/src/shell/local-fetch.js' && line.trim() === "import { request as httpRequest } from 'node:http';") ||
     (file === 'src/serve.js' && line.trim() === "const reply = await fetch(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });") ||
     (file === 'src/view-session.js' && line.trim() === "const response = await fetch(`http://${LOOPBACK}:${view.port}/api/v1/boards?k=${encodeURIComponent(view.secret)}`, {") ||
     (file === 'src/cockpit.js' && /^\s*const res = await fetch\(path, /.test(line)) ||
@@ -77,7 +77,7 @@ test('only explicit relay commands open outbound connections; the view defaults 
     assert.match(validator, /address\.port\s*!==\s*''/u);
     assert.match(validator, /address\.origin\s*===\s*value\.origin/u, 'origin equality rejects credentials and non-canonical origins');
   }
-  const localFetchPath = join(ROOT, 'src', 'local-fetch.js');
+  const localFetchPath = join(ROOT, 'packages', 'sync', 'src', 'shell', 'local-fetch.js');
   const localFetchSource = readFileSync(localFetchPath, 'utf8');
   const httpImport = "import { request as httpRequest } from 'node:http';";
   assert.equal(localFetchSource.split(httpImport).length - 1, 1, 'the local fetch has one exact HTTP request import');
