@@ -1,6 +1,5 @@
 import { sealItemPatchSubmit } from './item-patch-submit.js';
 import { checkItemPatchSubmit } from './item-patch-submit.js';
-import { boardEnginePorts } from './board-engine-ports.js';
 import * as rejectClause from './reject-clause.js';
 import { requireSourceAdvanceReview } from './source-advance-state.js';
 import { SOURCE_ADVANCE_ENGINE } from './source-advance-engine.js';
@@ -69,18 +68,12 @@ import {
   remainingPaths,
 } from './critical-path-order.js';
 import { activityNewsFlag } from './activity-news.js';
-import { migrateEventLogVersion } from './board-event-log-migrate.js';
-import {
-  configureBoardJournal,
-  closeBoardWrites,
-} from './board-write-lock.js';
 import {
   focusOrder,
   focusReasons,
   milestoneFocus,
 } from './focus-milestone.js';
 import { answerProvenance } from './decision-origin.js';
-import { ensureProofCounters } from './proof-counters.js';
 import { correctedNoVerdictReopen } from './reopen-history.js';
 import {
   getShout,
@@ -150,21 +143,7 @@ import {
   saveCheckBaseline,
 } from './item-check-baseline.js';
 export { coordinatorCheck, completeCheckBaseline, itemCheckAuthor } from './item-check-baseline.js';
-import {
-  closeBoard,
-  openBoardForRead,
-  openBoardReadOnly,
-  readEventLogVersion,
-  systemClock,
-} from './board-read-open.js';
 import * as verdictWithdrawal from './verdict-withdrawal.js';
-import {
-  BOARD_BUSY_TIMEOUT_MS,
-  EVENT_LOG_VERSION,
-  SCHEMA,
-  SCHEMA_DIGEST,
-  SCHEMA_VERSION,
-} from './board-schema-source.js';
 import {
   PERSON,
   now,
@@ -229,42 +208,14 @@ export { landingTestDefects, recordLandingTestDefect } from './landing-test-defe
 export { landingLeaseMove, landingLeaseState } from './landing-lease.js';
 import { guardLandingWrite } from './landing-lease.js';
 import {
-  randomBytes,
   randomUUID,
 } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-} from 'node:fs';
-import { dirname } from 'node:path';
-import {
-  sharedSchemaOwner,
-  expectedBoardSchema,
-  sharedSchemaDiagnostic,
-  reportSharedSchema,
-} from './board-schema.js';
-import { DatabaseSync } from 'node:sqlite';
-import {
-  boardNotWritable,
-  boardBusyError,
-} from './board-access.js';
-import { ensureHotIndexes } from './board-hot.js';
-import { guardStore } from './board-store-guards.js';
-import { refreshStoreDeclarations } from './board-store-guards.js';
-import { ensureAdditiveIndexes } from './board-hot.js';
-import { missingAdditiveIndexes } from './board-hot.js';
 import {
   factIdentityExists,
   requireFactIdentityIndexes,
 } from './fact-identity.js';
 import { NEXT_STEPS } from './next-step-words.js';
 export { boardBusyError } from './board-access.js';
-import {
-  boardStanding,
-  migrate,
-  recordSchemaStamp,
-  reportDrift,
-} from './board-migrate.js';
 export { schemaMissing, writeRefused } from './board-migrate.js';
 import { checkRoute } from './item-routing.js';
 import { checkRouted } from './item-routing.js';
@@ -296,7 +247,6 @@ import {
   UNKNOWN_MOVE,
   VERIFIER_STANDING_ENGINE,
   effectiveGuards,
-  storeTriggers,
 } from './machine.js';
 import { LOCAL_LANDING_ENGINE } from './land-engine.js';
 import { SPEC_REVISION_ENGINE } from './spec-revision-engine.js';
@@ -409,115 +359,11 @@ export const REJECT_REASONS = [
 
 export { systemClock } from './board-read-open.js';
 
-export { openBoardForRead } from './board-read-open.js';
+export { openBoardForRead } from './native-board.js';
 
 export { openBoardReadOnly } from './board-read-open.js';
-/**
- * Open, or create, the board at `file`. Tests pass `:memory:`.
- *
- * The busy timeout comes first, so a second process opening the board at the same moment waits for
- * the lock instead of failing.
- *
- * @param {string} file
- * @param {{ now: () => Date }} [clock]
- * @param {{ isMain?: boolean, onDiagnostic?: (message: string) => void, writeContext?: {command?:string, seat?:string, path?:string}, gitRoot?: string }} [options] Only main upgrades schema; gitRoot is a local verification port, never replicated metadata.
- * @returns {{ db: DatabaseSync, clock: { now: () => Date } }}
- */
-export function openBoard(file, clock = systemClock, { isMain, onDiagnostic, writeContext, gitRoot } = {}) {
-  isMain = sharedSchemaOwner(file, isMain);
-  if (file !== ':memory:' && isMain === false) {
-    let boardVersion = 0;
-    let logVersion = 0;
-    if (existsSync(file)) {
-      const startedAt = Date.now();
-      let current;
-      try {
-        current = openBoardReadOnly(file);
-        boardVersion = current.prepare('PRAGMA user_version').get().user_version;
-        logVersion = readEventLogVersion(current);
-      } catch (error) {
-        throw boardNotWritable(file, boardBusyError(file, startedAt, error));
-      } finally {
-        current?.close();
-      }
-      if (SCHEMA_VERSION > boardVersion) {
-        throw new Refused(
-          'UNMERGED_SCHEMA',
-          `this worktree expects board schema ${SCHEMA_VERSION}, newer than the shared board's version ${boardVersion}; merge this code into the main checkout first, or test it against a throwaway board`,
-        );
-      }
-      if (EVENT_LOG_VERSION > logVersion) {
-        throw new Refused('UNMERGED_SCHEMA', `this worktree expects event log ${EVENT_LOG_VERSION}, newer than the shared board's version ${logVersion}; merge this code into the main checkout first, or test it against a throwaway board`);
-      }
-    }
-  }
-  if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
-  const startedAt = Date.now();
-  let db;
-  try {
-    db = new DatabaseSync(file);
-    db.exec(`PRAGMA busy_timeout = ${BOARD_BUSY_TIMEOUT_MS}`);
-    if (file !== ':memory:' && isMain !== false) configureBoardJournal(db, writeContext);
-    const board = { db, clock, writeContext, gitRoot, onDiagnostic, enginePorts: boardEnginePorts() };
-    let warmCounters = true;
-    if (isMain !== false || file === ':memory:') {
-      // Migrate and audit only a board whose version is behind; a drifted shape is reported and left alone (#1047).
-      let standing = boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION, readEventLogVersion(db) < EVENT_LOG_VERSION);
-      if (standing === 'behind' || standing === 'unstamped') atomic(board, () => {
-        if (standing === 'behind') {
-          migrateEventLogVersion(db);
-          migrate(db);
-          ensureHotIndexes(db);
-          db.prepare('INSERT OR IGNORE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run('board_id', randomBytes(16).toString('hex'));
-          guardStore(board);
-        }
-        recordSchemaStamp(db, SCHEMA_DIGEST);
-      });
-      if (refreshStoreDeclarations(board)) standing = boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION);
-      // Index-only upgrades keep the data version/digest unchanged. Install and restamp together;
-      // drifted or read-only stores never take this path, and old clients accept the resulting stamp.
-      if (standing !== 'drifted' && missingAdditiveIndexes(db)) atomic(board, () => {
-        if (boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION) !== 'current') return;
-        ensureAdditiveIndexes(db);
-        recordSchemaStamp(db, SCHEMA_DIGEST);
-      });
-      if (standing === 'drifted') { warmCounters = false; reportDrift(file, onDiagnostic); }
-    } else {
-      // Read compatibility before any local effect; persistent schema belongs to trunk alone.
-      readEventLogVersion(db);
-      reportSharedSchema(file, sharedSchemaDiagnostic(db, expectedBoardSchema(SCHEMA, migrate, storeTriggers)), onDiagnostic);
-    }
-    guardMoves(board);
-    // Writable commands catch up old writers or missing local projections once. Read-only open
-    // never calls this path; drifted stores remain untouched, and invalid history stays invalid.
-    // Proof warming also preserves the Rigor projection, including after a proof-cache rebuild.
-    if (warmCounters) atomic(board, () => ensureProofCounters(board));
-    return board;
-  } catch (error) {
-    try { db?.close(); if (db) closeBoardWrites(db); } catch { /* Preserve the opening failure when SQLite cleanup also fails. */ }
-    throw boardNotWritable(file, boardBusyError(file, startedAt, error));
-  }
-}
-
-/**
- * Make this connection refuse any change to an item's status that does not come through moveItem
- * (M1). A TEMP trigger, which lives only in this process's connection, lets the status column
- * change only while moveItem holds a token in a TEMP table, so a status written anywhere else in
- * this code, however it is spelled, is refused by SQLite itself. Recursive triggers stay on, so a
- * REPLACE INTO, which deletes the old row first, meets the board file's own delete trigger. An
- * agent's own connection never sees these TEMP objects; the board file's triggers (M3) govern it.
- *
- * @param {any} board
- */
-function guardMoves(board) {
-  board.db.exec(`
-    PRAGMA recursive_triggers = ON;
-    CREATE TEMP TABLE IF NOT EXISTS moving (token INTEGER);
-    CREATE TEMP TRIGGER IF NOT EXISTS status_through_moves BEFORE UPDATE OF item_status ON main.item
-    WHEN NOT EXISTS (SELECT 1 FROM temp.moving)
-    BEGIN SELECT RAISE(ABORT, 'STATUS_OUTSIDE_MOVE: only moveItem in src/board.js changes an item''s status'); END;
-  `);
-}
+/** Temporary public compatibility; #1624 removes this edge after native-root callers compose. */
+export { openBoard } from './native-board.js';
 
 export { SCHEMA_VERSION } from './board-schema-source.js';
 
