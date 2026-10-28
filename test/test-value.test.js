@@ -1,4 +1,5 @@
 /** Synthetic historical receipts exercise report arithmetic; they are not engineering proof [C7]. */
+import { testCapacityReport } from '../src/test-capacity.js';
 import { flakeLedger } from '../src/flakes.js';
 import { eventCauses } from '../src/rigor.js';
 import assert from 'node:assert/strict';
@@ -303,4 +304,13 @@ test('[C7] one unbound named outcome cannot cover two same-file worker execution
   assert.equal(report.files.find(row => row.file === file).flakeRate, null);
   assert.equal(report.files.find(row => row.file === file).unmatchedFlakes, 1,
     'a unique receipt still has two possible failing worker attempts');
+});
+
+/** Lower report readers refuse missing composition ports rather than importing a later cell implicitly. */
+test('value and capacity reports need explicit historical evidence readers [C7,doctrine:CD64]', t => {
+  const f = fixture(t);
+  const options = { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) };
+  assert.throws(() => testValueReport(f.board, options), /explicit flake ledger and cause readers/u);
+  assert.throws(() => testValueReport(f.board, options, { flakeLedger }), /explicit flake ledger and cause readers/u);
+  assert.throws(() => testCapacityReport(f.board, options, { flakeLedger, eventCauses }), /explicit native gate-run reader/u);
 });
