@@ -147,6 +147,49 @@ console.log(run.output); console.log(JSON.stringify({receiptId:run.receiptId}));
   } finally { store.closeBoard(board); }
 });
 
+test('a selected real landing failure remains accounted under its native private waiver [C7,H16]', async t => {
+  const box = timingProject(t);
+  const configPath = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  writeFileSync(configPath, JSON.stringify({ ...config, landingShards: 1,
+    gate: 'node bin/run-tests.js --test-concurrency=1 test/one.test.js' }) + '\n');
+  commitFixtureFiles(box, ['pullboard.json']);
+  const source = `import {readFileSync,existsSync} from 'node:fs';
+import {runGate} from './src/gate.js'; import * as store from './src/board.js';
+import {accountedFailures,waivedFailures} from './src/land.js';
+import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js';
+const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));
+// @pullboard-board-file persistence: install and read a live native waiver in this private fixture's actual board.
+const board=store.openBoard('.git/pullboard/board.sqlite');
+try {
+const waiver=store.recordLandingWaiver(board,{agentId:'person',channel:'terminal',id:'timing-selected-native-waiver',
+ test:'test/one.test.js',until:'2099-01-01',reason:'private selected landing accounting regression'});
+const run=await runGate(root,config,{landing:true,stages:true,trustStamp:false,agent:'coordinator'});
+const accounted=accountedFailures(run,root),covered=waivedFailures(board,accounted);
+const receipt=readGateReceipt(receiptStore(root),run.receiptId);
+console.log(JSON.stringify({raw:run.output,stages:run.stages,source:{commit:receipt.head,tree:receipt.tree},
+ green:run.isGreen,waiver,accounted,covered,stamp:existsSync('.git/pullboard-gate-green')}));
+} finally {store.closeBoard(board);}`;
+  const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source],
+    { cwd: box.repo, env: { ...box.env, PULLBOARD_TIMING_FIXTURE_RED: '1' }, encoding: 'utf8' });
+  t.diagnostic(JSON.stringify({ stage: 'actual selected landing capture', status: result.status,
+    stdout: result.stdout, stderr: result.stderr }));
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  const capture = JSON.parse(result.stdout.trim());
+  assert.equal(capture.green, false, 'the real assertion failure remains red');
+  assert.match(capture.raw, /first actual timing case/u);
+  assert.match(capture.raw, /^# tests 1$/mu);
+  assert.match(capture.raw, /^# fail 1$/mu);
+  assert.ok(Array.isArray(capture.stages) && capture.stages.length > 0, 'actual execution stages are captured');
+  assert.equal(capture.source?.commit, box.git(box.repo, 'rev-parse', 'HEAD'));
+  assert.equal(capture.source?.tree, box.git(box.repo, 'rev-parse', 'HEAD^{tree}'));
+  assert.equal(capture.accounted?.length, 1, 'the complete real TAP account names exactly one failure');
+  assert.equal(capture.covered?.length, 1, 'the native private waiver covers that actual failure');
+  assert.equal(capture.covered[0].file, 'test/one.test.js');
+  assert.equal(capture.covered[0].waiver.id, capture.waiver.id);
+  assert.equal(capture.stamp, false, 'a waived red run never leaves an ordinary green stamp');
+});
+
 test('an all-reused direct invocation preserves a receipt without inventing a fresh full suite [C7,H16]', async t => {
   const box = timingProject(t);
   const env = { ...box.env, PULLBOARD_TEST_REUSE: '1' };
