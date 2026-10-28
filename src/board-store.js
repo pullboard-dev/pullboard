@@ -47,7 +47,7 @@ export function requireRuntimePorts(ports) {
   if (!ports.enginePorts.store || typeof ports.enginePorts.store.openBoard !== 'function') throw new Refused('NO_POLICY', 'The native board root must supply enginePorts.store.');
   if (!ports.enginePorts.registry || typeof ports.enginePorts.registry !== 'object' || Array.isArray(ports.enginePorts.registry)) throw new Refused('NO_POLICY', 'The native board root must supply enginePorts.registry.');
   for (const name of ['withSeatPresence', 'minimumOperationEngine', 'sealSourceAdvanceReturn', 'sealSourceAdvance',
-    'computedReturnArgs', 'requirePreparedComputedConflict', 'preflightComputedConflict', 'boundProofReceipt',
+    'prepareTrainLanding', 'prepareNativeTrainLanding', 'computedReturnArgs', 'requirePreparedComputedConflict', 'preflightComputedConflict', 'boundProofReceipt',
     'requireOutsideReceipt', 'signedMoveProblem', 'requireCoordinatorHold', 'requireBound',
     'requestMoveProblem', 'recordRequestMove', 'relayPerson', 'requestPerson',
     'personAuthority', 'relayMoveActor', 'relaySenderProblem', 'validRelaySender', 'credentialActor']) {
