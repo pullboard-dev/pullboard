@@ -1,0 +1,67 @@
+/** Report remaining literal Git launches, retaining a per-file ratchet during adapter conversion [C7]. */
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+} from 'node:fs';
+import {
+  join,
+  relative,
+} from 'node:path';
+import {
+  lex,
+  lineAt,
+} from "../../../../src/js-lex.js";
+
+const PROCESS_NAMES = ['spawn', 'spawnSync', 'execFile', 'execFileSync', 'exec', 'execSync'];
+
+/** Find literal executable arguments in executable code, including namespace calls and imported aliases.
+ * This migration report deliberately does not claim to detect shell strings or computed executables.
+ */
+export function gitLaunches(source) {
+  const { code, strings } = lex(source);
+  const names = new Set(PROCESS_NAMES);
+  for (const match of source.matchAll(/\bimport\s*\{([^}]+)\}\s*from\s*(['"])node:child_process\2/gu)) {
+    for (const binding of match[1].split(',')) {
+      const [original, alias] = binding.trim().split(/\s+as\s+/u);
+      if (names.has(original) && alias) names.add(alias);
+    }
+  }
+  const calls = new RegExp(`\\b(${[...names].join('|')})\\s*\\(\\s*`, 'gu');
+  const literals = new Map(strings.map(string => [string.start, string]));
+  const result = [];
+  for (const match of code.matchAll(calls)) {
+    const argument = literals.get(match.index + match[0].length);
+    if (argument?.text === 'git') result.push({ line: lineAt(source, match.index), api: match[1] });
+  }
+  return result;
+}
+
+/** Retain legacy Git-launch identities when this cell moves; exclude only the actual adapter boundary. */
+export function gitLaunchReport(root) {
+  const files = {};
+  /** Walk source files without following symlinks or searching dependencies. */
+  function walk(directory) {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (entry.isFile() && entry.name.endsWith('.js')) {
+        const actual = relative(root, path).replaceAll('\\', '/');
+        const file = actual.replace(/^packages\/git\/src\/shell\//u, 'src/');
+        if (file === 'src/git-adapter.js') continue;
+        const launches = gitLaunches(readFileSync(path, 'utf8'));
+        if (launches.length) files[file] = [...(files[file] ?? []), ...launches];
+      }
+    }
+  }
+  walk(join(root, 'src'));
+  const moved = join(root, 'packages/git/src/shell');
+  if (existsSync(moved)) walk(moved);
+  return { total: Object.values(files).reduce((sum, launches) => sum + launches.length, 0), files };
+}
+
+/** Refuse growth in any file, even if a removal elsewhere would hide it in the global count. */
+export function gitLaunchGrowth(report, allowances) {
+  return Object.entries(report.files).flatMap(([file, launches]) => launches.length > (allowances[file] ?? 0)
+    ? [{ file, actual: launches.length, allowed: allowances[file] ?? 0 }] : []);
+}

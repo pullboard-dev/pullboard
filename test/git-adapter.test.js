@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
@@ -294,7 +295,7 @@ test('real Git streaming implementation preserves child output and completion [C
 });
 
 test('literal Git launch ratchet counts code and aliases, rejects growth, and reports the remaining migration [C7]', () => {
-  const baseline = JSON.parse(readFileSync(join(ROOT, 'src/git-launch-baseline.json'), 'utf8'));
+  const baseline = JSON.parse(readFileSync(join(ROOT, 'packages/git/src/shell/git-launch-baseline.json'), 'utf8'));
   const report = gitLaunchReport(ROOT);
   assert.ok(report.total <= 81, 'this slice migrates all eight direct src/git.js launches from the original 89');
   assert.equal(report.total, Object.values(baseline.files).reduce((sum, count) => sum + count, 0), 'lower the committed allowance when a caller migrates');
@@ -306,4 +307,26 @@ test('literal Git launch ratchet counts code and aliases, rejects growth, and re
   assert.deepEqual(gitLaunchGrowth(added, baseline.files), [{ file: 'src/new-stray.js', actual: 1, allowed: 0 }]);
   const first = Object.keys(report.files)[0];
   assert.equal(gitLaunchGrowth({ files: { [first]: [...report.files[first], { api: 'spawn', line: 1 }] } }, baseline.files)[0].actual, baseline.files[first] + 1);
+});
+
+/** A package move retains the original launch allowance and cannot hide a duplicate legacy launcher. */
+test('moving a Git launcher preserves its original ratchet identity and rejects duplicate growth [C7,doctrine:CD64]', t => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-moved-git-launch-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, 'src'));
+  const moved = join(root, 'packages/git/src/shell');
+  mkdirSync(moved, { recursive: true });
+  const legacy = join(root, 'src/committed-file-reader.js');
+  writeFileSync(legacy, "export * from '../packages/git/index.js';\n");
+  writeFileSync(join(moved, 'committed-file-reader.js'), "spawn('git', ['cat-file', '--batch']);\n");
+  writeFileSync(join(moved, 'git-adapter.js'), "spawn('git', []);\n");
+  const original = { 'src/committed-file-reader.js': 1 };
+  const report = gitLaunchReport(root);
+  assert.equal(report.total, 1, 'the moved launcher remains counted and the adapter remains excluded');
+  assert.deepEqual(Object.keys(report.files), Object.keys(original), 'the committed baseline identity survives the move');
+  assert.deepEqual(gitLaunchGrowth(report, original), []);
+  writeFileSync(legacy, "spawn('git', ['status']);\n");
+  const duplicate = gitLaunchReport(root);
+  assert.equal(duplicate.total, 2, 'a live legacy launcher cannot be overwritten by its package counterpart');
+  assert.deepEqual(gitLaunchGrowth(duplicate, original), [{ file: 'src/committed-file-reader.js', actual: 2, allowed: 1 }]);
 });

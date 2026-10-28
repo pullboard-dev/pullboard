@@ -1,14 +1,33 @@
 /** Running source provenance ignores inherited Git hook repository overrides [A5,A6]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import {
+  join,
+  resolve,
+} from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { openBoard, closeBoard, SCHEMA_VERSION } from '../src/board.js';
-import { codeIsFromMain, withGitFacts } from '../src/git.js';
+import {
+  openBoard,
+  closeBoard,
+  SCHEMA_VERSION,
+} from "../../../src/board.js";
+import {
+  codeIsFromMain,
+  withGitFacts,
+} from "../src/shell/git.js";
 
 /** Run Git in a disposable fixture without depending on user or system config. */
 function git(cwd, args, env) {
@@ -52,10 +71,10 @@ test('[A5,A6] code provenance strips inherited GIT_DIR in both worktree-to-main 
   const commonGitDir = git(main, ['rev-parse', '--path-format=absolute', '--git-common-dir'], baseEnv).stdout.trim();
   const alias = join(fixture, 'MAIN');
   if (existsSync(alias) && statSync(alias).ino === statSync(main).ino) {
-    assert.equal(probe(pathToFileURL(resolve(import.meta.dirname, '../src/git.js')).href, alias, baseEnv), true,
+    assert.equal(probe(pathToFileURL(resolve(import.meta.dirname, '../src/shell/git.js')).href, alias, baseEnv), true,
       'a case alias of the primary checkout remains primary on a case-insensitive volume');
   }
-  const helperURL = pathToFileURL(resolve(import.meta.dirname, '../src/git.js')).href;
+  const helperURL = pathToFileURL(resolve(import.meta.dirname, '../src/shell/git.js')).href;
 
   const worktreeAsMain = probe(helperURL, linked, {
     ...baseEnv, GIT_DIR: mainGitDir, GIT_WORK_TREE: main, GIT_COMMON_DIR: mainGitDir,
@@ -123,7 +142,7 @@ test('[A5,A6,C7] one provenance read preserves main branch detached and absent-m
     const result = git(primary, args, env);
     assert.equal(result.status, 0, result.stderr);
   }
-  const helper = pathToFileURL(resolve(import.meta.dirname, '../src/git.js')).href;
+  const helper = pathToFileURL(resolve(import.meta.dirname, '../src/shell/git.js')).href;
   const cases = [['main', primary, true], ['branch', branch, false], ['detached', detached, false], ['released', released, true]];
   for (const [label, root, expected] of cases) {
     const actual = probe(helper, root, env);

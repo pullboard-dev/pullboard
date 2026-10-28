@@ -14,7 +14,7 @@ import { report } from './scan.js';
 
 /** Find additions against the committed baseline, retaining the remaining sites as an explicit report. */
 export function gitLaunchProblems(root) {
-  const baseline = JSON.parse(readFileSync(new URL('../../src/git-launch-baseline.json', import.meta.url), 'utf8'));
+  const baseline = JSON.parse(readFileSync(new URL('../../packages/git/src/shell/git-launch-baseline.json', import.meta.url), 'utf8'));
   return gitLaunchGrowth(gitLaunchReport(root), baseline.files).map(problem => ({
     path: problem.file, line: 1,
     text: `${problem.actual} direct Git launches exceeds the ratchet allowance ${problem.allowed}; use the Git adapter`,
