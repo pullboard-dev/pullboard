@@ -378,7 +378,7 @@ async function runMain(argv, streams) {
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
     if (advanceAfterCommand) {
-      try { await (await import('./source-advance-nudge.js')).nudgeSourceAdvances(io.cwd); }
+      try { await (await import('./source-advance-nudge.js')).nudgeSourceAdvances(io.cwd, { workerUrl: new URL('../bin/source-advance.js', import.meta.url) }); }
       catch { io.err('pullboard: the automatic main-merge worker could not start; run pullboard sentinel run --health-only to retry'); }
     }
     if (auditAfterCommand) {
