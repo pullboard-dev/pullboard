@@ -222,15 +222,18 @@ test('spec rows read across a phone [N26,D1]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view, { width: 375 });
+    await page.click({ tab: 'doctrine' });
     const doctrineRows = page.show('doctrine-list');
     assert.match(doctrineRows, /data-row="doctrine:W1"[^]*?Numbers over adjectives\./, 'W1 from the configured doctrine is shown');
     assert.match(doctrineRows, /data-row="doctrine:W2"[^]*?One record per decision\./, 'W2 from the configured doctrine is shown');
     const style = await styleOf(view);
     assert.match(style, /\.row \{ grid-template-areas: "dot t age" "dot meta chip";/, 'all three lists use the Items two-line grid');
+    await page.click({ tab: 'spec' });
     await page.click({ rows: 'spec:all' });
     const rows = (html) => html.split('<div class="srow').slice(1);
     assert.deepEqual(rows(page.show('spec-list')).map((row) => /data-row="spec:([^"]+)"/.exec(row)[1]), ['G1', 'G2']);
     for (const kind of ['spec', 'doctrine']) {
+      await page.click({ tab: kind });
       const drawn = rows(page.show(kind + '-list'));
       assert.ok(drawn.length > 0, kind + ' has rows');
       for (const row of drawn) {
