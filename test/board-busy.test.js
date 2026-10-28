@@ -7,6 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { join, resolve } from 'node:path';
 import {
   cpSync,
+  mkdirSync,
   readFileSync,
   writeFileSync,
 } from 'node:fs';
@@ -267,16 +268,19 @@ test('a real CLI writer labels its long transaction without changing JSON or nat
 
 test('opening an older board names and logs its genuine index-building write [C7,P4,B2]', async (t) => {
   const box = e2e.project();
-  // Both the running source and the command need a genuine primary checkout to migrate.
-  copyPackageFiles(resolve(import.meta.dirname, '..'), box.repo);
-  box.git(box.repo, 'add', '.');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: install private primary source [G1]');
-  const privateBin = join(box.repo, 'bin', 'pullboard.js');
+  // Installed source may own a main-board migration without entering the small project's Git history.
+  const installed = join(box.dir, 'installed-maintenance-cli');
+  mkdirSync(installed);
+  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
+  const privateBin = join(installed, 'bin', 'pullboard.js');
   assert.equal(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-dir'),
     box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'));
   assert.equal(readFileSync(privateBin, 'utf8'), readFileSync(BIN, 'utf8'));
-  const installedGit = mappedWorkingSource(box.repo, 'src/git.js');
   const sourceGit = mappedWorkingSource(resolve(import.meta.dirname, '..'), 'src/git.js');
+  const installedGit = {
+    body: readFileSync(join(installed, sourceGit.implementationPath)),
+    shimBody: sourceGit.shimBody === null ? null : readFileSync(join(installed, sourceGit.shimPath)),
+  };
   assert.deepEqual(installedGit.body, sourceGit.body, 'the installed implementation retains exact source Buffer bytes');
   assert.deepEqual(installedGit.shimBody, sourceGit.shimBody, 'the installed compatibility shim retains exact source bytes');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -504,9 +508,9 @@ test('journal conversion reports total wait-plus-hold separately and preserves i
 
 test('a failed owning migration rolls back schema, index and stamp work together [A5,A6,C7]', () => {
   const box = e2e.project();
-  copyPackageFiles(resolve(import.meta.dirname, '..'), box.repo);
-  box.git(box.repo, 'add', '.');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: install private rollback source [G1]');
+  const installed = join(box.dir, 'installed-rollback-cli');
+  mkdirSync(installed);
+  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const before = snapshot(file);
   const db = new DatabaseSync(file);
@@ -528,7 +532,7 @@ test('a failed owning migration rolls back schema, index and stamp work together
       return result;
     };
   `);
-  const result = runFixtureChild(process.execPath, ['--import', preload, join(box.repo, 'bin/pullboard.js'), 'shout', 'all', 'must roll back', '--json'], {
+  const result = runFixtureChild(process.execPath, ['--import', preload, join(installed, 'bin/pullboard.js'), 'shout', 'all', 'must roll back', '--json'], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
   });
   assert.equal(result.status, 1);
