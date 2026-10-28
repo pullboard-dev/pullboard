@@ -52,7 +52,7 @@ test('the declared public filter blocks every ruled kind without echoing its val
     events: { events: [{ event_kind: 'submit', event_detail: JSON.stringify({ commit: 'a'.repeat(40), tree: 'b'.repeat(40), criterionDigest: 'c'.repeat(64),
       submissionSize: { base: 'b'.repeat(40), head: 'a'.repeat(40), lines: 1, method: 'added-plus-deleted-no-renames' } }) }] } };
   assert.deepEqual(publicSnapshot(native), native, 'only native paths with exact identifier widths are exempt');
-  const receipt = { commit: 'a'.repeat(40), tree: 'b'.repeat(64), frozenDigest: 'c'.repeat(64) };
+  const receipt = { id: '018fc314-57c9-7318-a11f-55a08a28a101', commit: 'a'.repeat(40), tree: 'b'.repeat(64), frozenDigest: 'c'.repeat(64) };
   const proofs = { state: { state: { items: [{ thread: [{ kind: 'proof-run', detail: { receipt } }] }],
     events: [{ event_kind: 'proof-run', event_detail: JSON.stringify({ receipt }) }] } },
     events: { events: [{ event_kind: 'proof-run', event_detail: JSON.stringify({ receipt }) }] } };
@@ -76,10 +76,13 @@ test('the declared public filter blocks every ruled kind without echoing its val
 });
 
 test('native Dashboard landing commits keep their exact public identity shape [N26]', () => {
-  const native = { state: { state: { dashboardLanded: [{ id: 1, commit: 'a'.repeat(40) }] } } };
-  assert.deepEqual(publicSnapshot(native), native);
+  for (const width of [40, 64]) {
+    const native = { state: { state: { dashboardLanded: [{ id: 1, commit: 'a'.repeat(width) }] } } };
+    assert.deepEqual(publicSnapshot(native), native);
+  }
   for (const changed of [
-    { state: { state: { dashboardLanded: [{ id: 1, commit: 'a'.repeat(64) }] } } },
+    { state: { state: { dashboardLanded: [{ id: 1, commit: 'a'.repeat(41) }] } } },
+    { state: { state: { dashboardLanded: [{ id: 1, commit: 'a'.repeat(63) }] } } },
     { dashboardLanded: [{ id: 1, commit: 'a'.repeat(40) }] },
     { state: { state: { dashboardLanded: [{ id: 1, note: 'a'.repeat(40) }] } } },
   ]) assert.throws(() => publicSnapshot(changed), /secret-shaped string/u);
@@ -105,6 +108,11 @@ test('home paths and chat session identifiers never survive public prose or keys
       assert.throws(() => publicSnapshot(input), error => error.code === 'PUBLIC_EXPORT_BLOCKED'
         && error.message.includes(kind) && !error.message.includes(text) && !error.next.includes(text));
     }
+  }
+  for (const forged of [{ id: session }, { receipt: { id: session } },
+    { events: { events: [{ event_kind: 'fact', event_detail: JSON.stringify({ receipt: { id: session } }) }] } },
+    { state: { state: { items: [{ thread: [{ kind: 'proof-run', detail: { receipt: { id: session + ' extra' } } }] }] } } }]) {
+    assert.throws(() => publicSnapshot(forged), /chat or agent session id/u, 'only a complete UUID at the exact native proof receipt id path qualifies');
   }
   assert.deepEqual(publicSnapshot({ note: 'Open docs/guide.md on the public site.' }), { note: 'Open docs/guide.md on the public site.' });
 });

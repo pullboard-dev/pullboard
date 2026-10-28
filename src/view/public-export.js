@@ -71,7 +71,7 @@ function structuredIdentity(path, value, eventKind) {
   if (/^(?:listing\/boards\/\*\/id|state\/state\/board|state\/board|events\/board)$/u.test(location)) width = 32;
   if (path.length === 4 && path.slice(0, 3).join('/') === 'state/state/rowAgesAt') width = 40;
   if (/^state\/state\/items\/\*\/(?:commit|merged|verdict\/commit|verdicts\/\*\/commit|checkBaseline\/main)$/u.test(location)) width = 40;
-  if (/^state\/state\/dashboardLanded\/\*\/commit$/u.test(location)) width = 40;
+  if (/^state\/state\/dashboardLanded\/\*\/commit$/u.test(location)) return /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value);
   if (/^state\/state\/(?:shouts|asked)\/\*\/shout_evidence_commit$/u.test(location)) width = 40;
   if (EVENT_PATH.test(path.slice(0, -2).join('/')) && ['detail', 'event_detail'].includes(path.at(-2))) {
     width = EVENT_IDENTITIES[eventKind]?.[path.at(-1)] ?? 0;
@@ -82,6 +82,7 @@ function structuredIdentity(path, value, eventKind) {
     if (eventKind === 'submit' && /^submissionSize\/(?:base|head)$/u.test(path.slice(-2).join('/'))) width = 40;
   }
   if (proofReceiptPath(path.slice(0, -1), eventKind)) {
+    if (path.at(-1) === 'id') return /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/u.test(value);
     if (['commit', 'tree'].includes(path.at(-1))) return /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value);
     if (path.at(-1) === 'frozenDigest') width = 64;
   }
@@ -100,7 +101,7 @@ export function publicSnapshot(document, { privateBoard = false } = {}) {
   /** Check retained keys as prose; only string values at exact native paths can be structured identities. */
   function inspect(text, path, eventKind, allowIdentity = true) {
     for (const [kind, pattern] of PUBLIC_EXPORT_BLOCKS.text) {
-      if (allowIdentity && kind === 'secret-shaped string' && structuredIdentity(path, text, eventKind)) continue;
+      if (allowIdentity && ['secret-shaped string', 'chat or agent session id'].includes(kind) && structuredIdentity(path, text, eventKind)) continue;
       if (pattern.test(text)) { blocked.add(kind); fields.add(diagnosticPath(path)); }
     }
   }
