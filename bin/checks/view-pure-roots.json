@@ -1,0 +1,21 @@
+{
+  "roots": [
+    "test/cockpit/activity-sentences.test.js",
+    "test/cockpit/agent-floor.test.js",
+    "test/cockpit/agents-panel-pure.test.js",
+    "test/cockpit/auxiliary-pure.test.js",
+    "test/cockpit/dashboard-model.test.js",
+    "test/cockpit/dashboard-render.test.js",
+    "test/cockpit/group-pure.test.js",
+    "test/cockpit/home-capacity-pure.test.js",
+    "test/cockpit/lifecycle-chart-pure.test.js",
+    "test/cockpit/needs-actions-pure.test.js",
+    "test/cockpit/needs-data.test.js",
+    "test/cockpit/pipeline-pure.test.js",
+    "test/cockpit/roadmap-pure.test.js",
+    "test/cockpit/row-component-pure.test.js",
+    "test/cockpit/segmented-control-pure.test.js",
+    "test/cockpit/verdict-pure.test.js",
+    "test/cockpit/view-pure.test.js"
+  ]
+}
