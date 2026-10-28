@@ -6,6 +6,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   CELL_BASELINE: 'run node bin/cell-lints.js --report; restore the complete accepted bin/cell-lint-baselines descriptor and hash-bound shards, resolve reported inventory or ownership conflicts, then run node bin/cell-lints.js --check; initialize with --init only when no accepted baseline exists after explicit review',
   CELL_LINT_ROSE: 'run node bin/cell-lints.js --report and node bin/cell-lints.js --check; repair every reported debt increase, then use node bin/cell-lints.js --update only to record falling allowances; never regenerate an accepted baseline to raise debt',
   CELLS_UNPLACED: 'add a name rule for the reported paths in src/cells-plan.js, then regenerate the plan with node bin/cells-plan.js --write',
+  CELLS_MOVE: 'restore the clean recorded checkout or resolve the unsupported input, then rerun node bin/cells-move.js',
   CELLS_PLAN_CELL: 'use a cell name listed in bin/cells-plan.json, as in node bin/cells-plan.js --moved kernel',
   CELLS_PLAN_SHARD: 'regenerate the plan and its shards with node bin/cells-plan.js --write',
   CELLS_PLAN_FILE: 'run pullboard list core --all to see which move items exist, fix the reported problem, then rerun node bin/cells-plan.js --file, which skips filed items',
