@@ -23,6 +23,7 @@ import {
 } from './gate.js';
 import {
   cleanGitEnvironment,
+  git as readGit,
   headCommit,
 } from './git.js';
 import {
@@ -120,7 +121,7 @@ export async function runTestFiles(root, config, files, { agent, onWait, affecte
     if (policy) {
       const options = { base: policy.commit, trunk: policy.commit };
       const selection = selectAffectedTests(checkout, options);
-      const guards = selectRegistryGuards(checkout, config.registryGuards, options);
+      const guards = selectRegistryGuards(checkout, config.registryGuards, { ...options, git: readGit });
       full = selection.full;
       paths = [...new Set([...(full ? [] : selection.files), ...guards])].sort();
       if (paths.length) paths = testFiles(checkout, paths);
