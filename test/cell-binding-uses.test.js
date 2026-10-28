@@ -3,6 +3,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  machine as snapshotMachine,
+  project as snapshotProject,
+} from './cockpit/fixture.js';
+import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -214,6 +218,37 @@ test('working source inventory retains shim, mapped and private body bytes witho
   assert.throws(() => workingSourceInventory(root, ['outside']), /contained and regular/u);
   symlinkSync(join(root, 'bin/check.js'), join(root, 'src/linked.js'));
   assert.throws(() => workingSourceInventory(root, ['src']), /contained regular file/u);
+});
+
+test('snapshot output capability retains all actual export bytes and refuses foreign roots [C7,N26]', async (t) => {
+  const box = snapshotMachine(), alpha = snapshotProject(box, 'private export inputs');
+  const output = box.exportSnapshot(alpha.repo, 'owned-export');
+  const index = join(output.root, 'index.html');
+  assert.deepEqual(output.readFile(index), readFileSync(index), 'HTTP input retains the actual export Buffer');
+  mkdirSync(join(output.root, 'extra-source', 'nested'), { recursive: true });
+  const secret = Buffer.from(box.dir), raw = Buffer.from([0xff, 0x00, 0xfe]);
+  const planted = join(output.root, 'extra-source', 'nested', 'body.js');
+  writeFileSync(planted, secret);
+  writeFileSync(join(output.root, 'unexpected.lock'), raw);
+  const bytes = output.files();
+  assert.ok(bytes.some(row => row.file === planted && row.body.equals(secret)), 'nested copied source is never filtered from the privacy audit');
+  assert.ok(bytes.some(row => row.body.equals(raw)), 'every extension and invalid UTF-8 Buffer remains covered');
+  assert.throws(() => assert.ok(!bytes.map(row => row.body.toString('utf8')).join('\n').includes(box.dir)),
+    'the original privacy assertion catches a planted actual private path');
+  writeFileSync(planted, 'changed actual export bytes');
+  assert.deepEqual(output.readFile(planted), Buffer.from('changed actual export bytes'), 'reads never return seeded or cached output');
+  assert.throws(() => output.readFile(join(output.root, 'missing.json')), { code: 'ENOENT' });
+  const outsider = mkdtempSync(join(tmpdir(), 'pb-foreign-output-'));
+  t.after(() => rmSync(outsider, { recursive: true, force: true }));
+  const before = box.invocations.length;
+  assert.throws(() => box.exportSnapshot(outsider, 'foreign-export'), /belongs/u);
+  assert.throws(() => box.exportSnapshot(alpha.repo, '../escape'), /private leaf/u);
+  assert.throws(() => box.exportSnapshot(alpha.repo, 'owned-export'), /fresh/u);
+  assert.equal(box.invocations.length, before, 'refused roots never launch a substitute producer');
+  assert.throws(() => output.readFile(join(outsider, 'source.js')), /belongs/u);
+  assert.throws(() => output.readFile(join(output.root, '..', 'source.js')), /belongs/u);
+  symlinkSync(outsider, join(output.root, 'outside'));
+  assert.throws(() => output.files(), /contained regular file/u);
 });
 
 test('mechanical fixture input owns its origin and reads actual post-component bytes [C7]', (t) => {
