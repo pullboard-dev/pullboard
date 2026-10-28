@@ -331,6 +331,7 @@ test('a loaded controller refuses changes to every derived runtime file before r
   const f = fixture(t);
   f.write('src/runner-worker.js', "import '../packages/leaf/src/value.js';\n");
   f.write('src/runners.js', 'export const controller = true;\n');
+  f.write('bin/runner-controller.js', 'export const composition = true;\n');
   const loaded = captureRunnerTooling(f.root);
   assert.deepEqual(currentRunnerTooling(f.root, loaded), runnerPackage(f.root));
   for (const [file, original] of Object.entries(loaded.files)) {
@@ -341,6 +342,9 @@ test('a loaded controller refuses changes to every derived runtime file before r
   f.write('src/runners.js', loaded.controller + '\n// a different controller generation\n');
   assert.throws(() => currentRunnerTooling(f.root, loaded), error => error.code === 'RUNNER_TOOLING_CHANGED');
   f.write('src/runners.js', loaded.controller);
+  f.write('bin/runner-controller.js', loaded.controllerEntry + '\n// a different native composition generation\n');
+  assert.throws(() => currentRunnerTooling(f.root, loaded, { rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED');
+  f.write('bin/runner-controller.js', loaded.controllerEntry);
   assert.deepEqual(currentRunnerTooling(f.root, loaded), runnerPackage(f.root));
 });
 
@@ -348,6 +352,7 @@ test('freshness follows added package dependencies and ignores files outside the
   const f = fixture(t);
   f.write('src/runner-worker.js', "import '../packages/leaf/src/value.js';\n");
   f.write('src/runners.js', 'export const controller = true;\n');
+  f.write('bin/runner-controller.js', 'export const composition = true;\n');
   const loaded = captureRunnerTooling(f.root);
   f.write('packages/leaf/src/unrelated.js', 'export const outsideRuntime = true;\n');
   assert.deepEqual(currentRunnerTooling(f.root, loaded), runnerPackage(f.root));
@@ -363,6 +368,7 @@ test('a warmed derived snapshot still refuses newly selected symlinks outside it
   const f = fixture(t);
   f.write('src/runner-worker.js', "import '../packages/leaf/src/value.js';\n");
   f.write('src/runners.js', 'export const controller = true;\n');
+  f.write('bin/runner-controller.js', 'export const composition = true;\n');
   const loaded = captureRunnerTooling(f.root);
   assert.deepEqual(currentRunnerTooling(f.root, loaded), runnerPackage(f.root));
   assert.deepEqual(currentRunnerTooling(f.root, loaded), runnerPackage(f.root));
