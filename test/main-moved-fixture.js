@@ -22,11 +22,19 @@ import { copyPackageFiles } from '../src/package-files.js';
 const SOURCE = new URL('../', import.meta.url);
 
 /** Copy actual installed code, create a real tracked project and seed one explicitly synthetic prior acceptance. */
-export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false } = {}) {
+export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false, selective = false } = {}) {
   const scratch = mkdtempSync(join(tmpdir(),'pullboard-main-moved-'));
   const installed = join(scratch,'installed'), repo = join(scratch,'repo'), machine = join(scratch,'machine');
   for (const folder of [installed,repo,machine]) mkdirSync(folder);
-  for (const folder of [installed,repo]) copyPackageFiles(fileURLToPath(SOURCE),folder);
+  copyPackageFiles(fileURLToPath(SOURCE),installed);
+  let shipped = [];
+  if (!selective) {
+    const tooling = join(repo,'.tooling');
+    shipped = copyPackageFiles(fileURLToPath(SOURCE),tooling);
+    mkdirSync(join(repo,'bin'));
+    writeFileSync(join(repo,'bin/pullboard.js'),`/** @pullboard-module-loads .tooling/bin/pullboard.js */\nimport {spawnSync} from 'node:child_process';\nimport {fileURLToPath} from 'node:url';\nconst entry=fileURLToPath(new URL('../.tooling/bin/pullboard.js',import.meta.url));\nconst child=spawnSync(process.execPath,[...process.execArgv,entry,...process.argv.slice(2)],{stdio:'inherit'});\nif(child.error)throw child.error;\nif(child.signal)process.kill(process.pid,child.signal);\nelse process.exitCode=child.status??1;\n`);
+  }
+  writeFileSync(join(repo,'package.json'),JSON.stringify({private:true,type:'module'}));
   const env = { ...process.env, HOME: join(scratch,'home'), PULLBOARD_HOME: join(scratch,'home','pullboard'),
     PULLBOARD_MACHINE_HOME: machine, GIT_CONFIG_GLOBAL:'/dev/null', GIT_CONFIG_NOSYSTEM:'1',
     GIT_AUTHOR_NAME:'Fixture', GIT_AUTHOR_EMAIL:'fixture@example.invalid', GIT_COMMITTER_NAME:'Fixture', GIT_COMMITTER_EMAIL:'fixture@example.invalid' };
@@ -44,13 +52,15 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
   for (const name of ['web','test','docs']) mkdirSync(join(repo,name),{recursive:true});
   writeFileSync(join(repo,'SPEC.md'),'# Private fixture specification\n');
   const check = 'node --test --test-reporter=tap test/check.test.js';
-  writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:check,affectedTests:'node --test --test-reporter=tap',submitGate:'landing',submitDeferAbove:1,
+  writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:check,...(selective?{affectedTests:'node --test --test-reporter=tap'}:{}),submitGate:'landing',submitDeferAbove:1,
     spec:'SPEC.md',verify:'any',lanes:{web:{owns:['web/'],specs:[]},review:{owns:['test/'],specs:[]}},shared:['docs/','src/','bin/','package.json','pullboard.json']}));
   writeFileSync(join(repo,'web/feature.js'),"export const feature = 'base';\n");
   writeFileSync(join(repo,'web/other.js'),"export const other = 'base';\n");
   writeFileSync(join(repo,'test/check.test.js'),`import {test} from 'node:test';import assert from 'node:assert/strict';import {writeFileSync} from 'node:fs';import {execFileSync} from 'node:child_process';import {feature} from '../web/feature.js';import {other} from '../web/other.js';test('actual exact composed behavior',()=>{console.log('SOURCE_ADVANCE_BODY');assert.equal(feature,'accepted');assert.equal(other,'base');${dirty?"writeFileSync('web/other.js',\"export const other = 'dirty';\\n\");writeFileSync('untracked-after-check.txt','actual child output');execFileSync('git',['init','-q','nested-child-repo']);writeFileSync('nested-child-repo/body.txt','actual nested Git fixture');":''}});\n`);
+  if (selective) writeFileSync(join(repo,'test/unrelated.test.js'),`import {test} from 'node:test';test('unrelated project body',()=>console.log('UNRELATED_BODY'));\n`);
   writeFileSync(join(repo,'docs/lifecycle.md'),'base declaration artifact\n');
   git(repo,'init','-q','-b','main');git(repo,'add','-A');git(repo,'commit','-q','-m','chore: actual main-movement base');
+  if (!selective) assert.deepEqual(git(repo,'ls-files','-z','--','.tooling').split('\0').filter(Boolean).sort(),shipped.map(file=>'.tooling/'+file).sort(),'every complete installed package byte is tracked in the composed source');
   const base = git(repo,'rev-parse','HEAD'), candidate = join(scratch,'candidate');
   git(repo,'worktree','add','--detach',candidate,base);
   writeFileSync(join(candidate,'web/feature.js'),"export const feature = 'accepted';\n");
