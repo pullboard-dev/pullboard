@@ -207,17 +207,17 @@ function codeWalk(read, { caught = false } = {}) {
     if (!files.has(file)) files.set(file, sourceFacts(read, file));
     return files.get(file);
   };
-  const refusalsOf = (key, skip = new Set(), seen = new Set(), caughtAt = new Set()) => {
-    if (seen.has(key) || skip.has(key) || caughtAt.has(key) || TRANSPORT_BOUNDARIES.has(key)) return new Set();
+  const refusalsOf = (key, skip = new Set(), seen = new Set()) => {
+    if (seen.has(key) || skip.has(key) || TRANSPORT_BOUNDARIES.has(key)) return new Set();
     seen.add(key);
     const [file, name] = key.split('#');
     const { bodies, named, spaces, source, stars } = load(file);
     // A facade may import and re-export the helper; follow its real definition after extraction.
-    if (!bodies.has(name) && named.has(name)) return refusalsOf(named.get(name), skip, seen, caughtAt);
+    if (!bodies.has(name) && named.has(name)) return refusalsOf(named.get(name), skip, seen);
     // A public export-star front door retains every concrete provider's refusal path.
     if (!bodies.has(name) && stars.length) {
       const codes = new Set();
-      for (const from of stars) for (const code of refusalsOf(`${from}#${name}`, skip, seen, caughtAt)) codes.add(code);
+      for (const from of stars) for (const code of refusalsOf(`${from}#${name}`, skip, seen)) codes.add(code);
       return codes;
     }
     // Loaded source is fixed within this walk; local scans do not depend on the caller's seen/skip sets.
@@ -236,7 +236,7 @@ function codeWalk(read, { caught = false } = {}) {
     const codes = new Set(facts.codes);
     for (const callee of facts.callees.filter(Boolean)) {
       if (caught && (CAUGHT[key] ?? []).includes(callee)) continue;
-      for (const code of refusalsOf(callee, skip, seen, new Set(caught ? CAUGHT[key] ?? [] : []))) codes.add(code);
+      for (const code of refusalsOf(callee, skip, seen)) codes.add(code);
     }
     return codes;
   };
