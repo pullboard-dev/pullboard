@@ -623,7 +623,7 @@ export async function ordered(ctx, board, operation, args) {
     const write = () => store.atomic(board, () => {
       requireHandoffActive(board, actor, operation, args);
       requireAgentGrant(board, { operation, args, engine: NATIVE_ENGINE }); // A native write applies current semantics.
-      return store[operation](board, ...args);
+      return board.enginePorts.store[operation](board, ...args);
     });
     if (initialBaseline && actor) await recordBaseline(actor);
     const requestedCommand = ctx.io.relayCommand?.cliOperation ?? (ctx.privateBoard ? ctx.io.requestedCommand : undefined);

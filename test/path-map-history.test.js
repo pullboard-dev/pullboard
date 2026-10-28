@@ -1,3 +1,5 @@
+import { flakeLedger as nativeFlakeLedger } from '../src/flakes.js';
+import { recordFlakeObservation as nativeRecordFlakeObservation } from '../src/flakes.js';
 /** File moves preserve frozen checks and read-only engineering history [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -195,7 +197,7 @@ test('flake and Rigor read projections join moved names while original SQLite ev
     const receipt = green => ({ green, sha256: (green ? 'a' : 'b').repeat(64), bytes: 1,
       artifact: `flake-evidence/fixture/${green ? 'paired' : 'original'}.log`, profileSha256: null });
     for (const [index, file] of [OLD, OLD, NEW, NEW].entries()) {
-      store.recordFlakeObservation(board, { agentId: actor, lane: 'web', observation: {
+      nativeRecordFlakeObservation(board, { agentId: actor, lane: 'web', observation: {
         id: `path-map-synthetic-${index}`, file, name: 'synthetic path identity fixture', head: box.head,
         tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}'), main: box.head,
         kind: 'check', classification: 'flake', reason: 'Synthetic ledger metadata; no flake execution is claimed.',
@@ -203,7 +205,7 @@ test('flake and Rigor read projections join moved names while original SQLite ev
         load: { average: [0, 0, 0], cpus: 1, freeMB: 100 }, original: receipt(false), paired: receipt(true), mainReceipt: null } });
     }
     const before = store.events(board);
-    const projected = store.flakeLedger(board, { root: box.repo });
+    const projected = nativeFlakeLedger(board, { root: box.repo });
     assert.equal(projected.length, 1);
     assert.equal(projected[0].file, NEW);
     assert.equal(projected[0].count, 4);
@@ -211,7 +213,7 @@ test('flake and Rigor read projections join moved names while original SQLite ev
     assert.equal(projected[0].repairs.length, 2, 'both independently drafted repair relationships survive joining');
     const oldReader = join(box.dir, 'old-reader');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', oldReader, box.base);
-    assert.deepEqual(store.flakeLedger(board, { root: oldReader }), projected, 'an old reader uses the primary branch map');
+    assert.deepEqual(nativeFlakeLedger(board, { root: oldReader }), projected, 'an old reader uses the primary branch map');
     const printed = box.run(oldReader, 'flakes');
     assert.equal(printed.code, 0, printed.err);
     for (const id of projected[0].repairs) assert.match(printed.out, new RegExp(`#${id}\\b`, 'u'));

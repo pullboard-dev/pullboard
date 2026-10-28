@@ -73,7 +73,7 @@ export async function seedSourceAdvance({ board, box, store, exercise, agent, cl
     }
     assert.match(gate.check.profile.tests[0]?.name ?? '', /both independently committed source branches survive composition/u);
     const request = prepareSourceAdvance(root, board, item, composition, gate, basis);
-    const advanced = await exercise('advanceItemSource', () => store.advanceItemSource(board, id, request));
+    const advanced = await exercise('advanceItemSource', () => board.enginePorts.store.advanceItemSource(board, id, request));
     assert.ok(advanced, 'only the actual source-advance mutation counts as parity coverage');
     assert.equal(store.getItem(board, id).item_effective_head, composition.head);
     assert.equal(store.getItem(board, id).item_commit, candidate);

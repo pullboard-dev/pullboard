@@ -475,7 +475,7 @@ async function reapply(link, outbox, entry) {
   const { move } = resolveMove(entry, outbox, { local: true });
   entry.sequences = localRecords(root, rowCounters);
   const applied = await captureBoardChanges(() => localRecords(root, (board) => {
-    try { return store.atomic(board, () => store[move.operation](board, ...executableArgs(move, board))); }
+    try { return store.atomic(board, () => board.enginePorts.store[move.operation](board, ...executableArgs(move, board))); }
     catch (error) { if (!(error instanceof Refused)) throw error; return null; }
   }));
   entry.changes = encodeChanges(applied.changes);

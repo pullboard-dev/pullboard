@@ -1,3 +1,4 @@
+import { recordFlakeObservation as nativeRecordFlakeObservation } from '../src/flakes.js';
 import { digestNativePorts } from './digest-native-ports.fixture.js';
 /** @pullboard-test-loads src/board.js src/engine.js src/machine.js */
 /** Automatic Rigor proposals retain evidence, never invent proof or person approval [D1,D3,H16]. */
@@ -74,7 +75,7 @@ function fixture() {
     return id;
   };
   /** Record an unclassified original failure, with no claim that this fixture executed a test. */
-  const failure = (id, name = 'the same behavior fails') => store.recordFlakeObservation(board, { agentId: reviewer,
+  const failure = (id, name = 'the same behavior fails') => nativeRecordFlakeObservation(board, { agentId: reviewer,
     lane: 'app', observation: { id: `fixture-${serial}`, head: store.getItem(board, id).item_commit,
       tree: 'e'.repeat(40), main: null, kind: 'verify', classification: 'unclassified',
       commandSha256: 'a'.repeat(64), reason: 'synthetic original failure; no gate execution', at: now.toISOString(),

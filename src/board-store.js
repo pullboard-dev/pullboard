@@ -40,8 +40,12 @@ export function requireRuntimePorts(ports) {
   for (const name of ['agentAt', 'itemById', 'itemCheckBaseline', 'events', 'acceptedVerdict', 'verdictReviewProblem', 'boardId', 'appendRigorCounter', 'ensureRigorCounters']) {
     if (typeof ports.verification[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply verification.${name}.`);
   }
-  for (const name of ['atomic', 'logEvent', 'rowDrafts', 'rowDecisions', 'recordRowDecisions', 'now', 'sourceAdvanceCASProblem', 'beginCommandPhase', 'exportedMeta', 'guardRestore']) {
+  for (const name of ['atomic', 'logEvent', 'rowDrafts', 'rowDecisions', 'recordRowDecisions', 'now', 'sourceAdvanceCASProblem', 'beginCommandPhase', 'exportedMeta', 'guardRestore', 'sealSourceAdvanceReturn', 'conflictValue', 'deriveRigorCause', 'recordAutomaticRigorDrafts', 'normalizedDispatch', 'rejectedWorkReturns', 'newRigorNotices', 'rigorNoticeText']) {
     if (typeof ports.nativePorts[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply nativePorts.${name}.`);
+  }
+  if (!ports.nativePorts.nextSteps || typeof ports.nativePorts.nextSteps.LANDING_FAILURE_REQUIRED !== 'string') throw new Refused('NO_POLICY', 'The native board root must supply its exact refusal guidance.');
+  for (const name of ['requireVerdict', 'requireBatch', 'requireRevision', 'requireTrunk', 'requireStoredBatch']) {
+    if (typeof ports.nativePorts.landingEnvironment?.[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply landingEnvironment.${name}.`);
   }
   if (typeof ports.nativePorts.PERSON !== 'string' || !ports.nativePorts.PERSON.trim()) throw new Refused('NO_POLICY', 'The native board root must supply nativePorts.PERSON.');
   if (!ports.enginePorts.store || typeof ports.enginePorts.store.openBoard !== 'function') throw new Refused('NO_POLICY', 'The native board root must supply enginePorts.store.');

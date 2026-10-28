@@ -97,7 +97,7 @@ async function withFixtureLease(box, branch, action) {
     invalidateGitFacts();
     const check = () => assertLandingLease(board, fence);
     return await action({ root: box.repo, board, fence, owner: 'private-boundary-control', say() {},
-      write: async (operation, args) => store[operation](board, ...args), checkLease: async () => { check(); invalidateGitFacts(); }, checkLeaseNow: check });
+      write: async (operation, args) => board.enginePorts.store[operation](board, ...args), checkLease: async () => { check(); invalidateGitFacts(); }, checkLeaseNow: check });
   } finally {
     if (fence) store.landingLeaseMove(board, { ...fence, action: 'release' });
     store.closeBoard(board);

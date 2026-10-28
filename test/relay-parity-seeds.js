@@ -112,13 +112,13 @@ export async function seedLifecycle(context) {
 /** seedWatchReceipts uses real operations; synthetic records retain their original explicit labels. */
 export async function seedWatchReceipts(context) {
   const { board, box, store, milestones, exercise, submitFixture, syntheticFlakeObservation, agent, reviewer, item, other, claim } = context;
-  const watch = await exercise('proposeSentinel', () => store.proposeSentinel(board, { agentId: agent,
+  const watch = await exercise('proposeSentinel', () => board.enginePorts.store.proposeSentinel(board, { agentId: agent,
     row: { name: 'study-watch', check: 'true', every: 'hourly', owner: 'coordinator' } }));
   if (watch) {
-    await exercise('decideSentinel', () => store.decideSentinel(board, { agentId: 'person', channel: 'terminal',
+    await exercise('decideSentinel', () => board.enginePorts.store.decideSentinel(board, { agentId: 'person', channel: 'terminal',
       name: watch.name, digest: watch.digest, decision: 'approve' }));
-    await exercise('beginSentinelRun', () => store.beginSentinelRun(board, { agentId: agent, name: watch.name, digest: watch.digest, run: 'study-run' }));
-    await exercise('finishSentinelRun', () => store.finishSentinelRun(board, { agentId: agent, name: watch.name, digest: watch.digest,
+    await exercise('beginSentinelRun', () => board.enginePorts.store.beginSentinelRun(board, { agentId: agent, name: watch.name, digest: watch.digest, run: 'study-run' }));
+    await exercise('finishSentinelRun', () => board.enginePorts.store.finishSentinelRun(board, { agentId: agent, name: watch.name, digest: watch.digest,
       run: 'study-run', result: { green: true, code: 0, timedOut: false, signal: null, aborted: false, durationMs: 1, output: 'Synthetic watch receipt, no command execution claimed.' } }));
   }
   return context;
@@ -131,7 +131,7 @@ export async function seedObservationReceipts(context) {
     observedRevision: board.db.prepare('SELECT MAX(event_id) AS n FROM event').get().n,
     findings: [{ key: 'study-fixture', cause: 'STUDY_FIXTURE', subject: agent, title: 'Synthetic projection observation',
       since: board.clock.now().toISOString(), why: 'Private state fixture, not a real health finding', next: 'Read study metadata', item: null }] }));
-  await exercise('recordFlakeObservation', () => store.recordFlakeObservation(board, { agentId: 'coordinator',
+  await exercise('recordFlakeObservation', () => board.enginePorts.store.recordFlakeObservation(board, { agentId: 'coordinator',
     lane: box.lane, observation: syntheticFlakeObservation('study-synthetic-unclassified') }));
   return context;
 }
@@ -139,7 +139,7 @@ export async function seedObservationReceipts(context) {
 /** seedPublishFinding uses real operations; synthetic records retain their original explicit labels. */
 export async function seedPublishFinding(context) {
   const { board, box, store, milestones, exercise, submitFixture, syntheticFlakeObservation, agent, reviewer, item, other, claim } = context;
-  await exercise('recordPublishFinding', () => store.recordPublishFinding(board, { agentId: 'coordinator', item,
+  await exercise('recordPublishFinding', () => board.enginePorts.store.recordPublishFinding(board, { agentId: 'coordinator', item,
     repository: 'fixture/repository', pull: 1281, head: 'c'.repeat(40),
     failures: [{ id: 1281, name: 'Synthetic state only, not a CI failure', url: 'https://example.invalid/study', files: ['synthetic-study.txt'] }] }));
   return context;

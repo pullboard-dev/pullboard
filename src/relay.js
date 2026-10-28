@@ -1020,7 +1020,7 @@ function outboxLink(root, file, state, io, senderPolicy) {
  */
 async function queueLocally(root, file, operation, args, io, command, applyLocally, onRecorded, senderPolicy) {
   const guarded = landingRelayCallbacks(operation, args, {
-    apply: () => typeof applyLocally === 'function' ? applyLocally() : localRecords(root, (board) => store[operation](board, ...args)),
+    apply: () => typeof applyLocally === 'function' ? applyLocally() : localRecords(root, (board) => board.enginePorts.store[operation](board, ...args)),
     queue: () => { throw new Refused('RELAY_OUTBOX', 'a local-first move queues itself; it is never queued twice'); },
   });
   // An unlink that finished while this move waited for the guard leaves an ordinary local board.
@@ -1046,7 +1046,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
     const state = loadLink(file);
     if (operation === 'rehomeItem') await requireAuthoritativeRehomeItem(file, state, args?.[0]);
     const guarded = landingRelayCallbacks(operation, args, {
-      apply: () => typeof applyLocally === 'function' ? applyLocally() : localRecords(root, (board) => store[operation](board, ...args)),
+      apply: () => typeof applyLocally === 'function' ? applyLocally() : localRecords(root, (board) => board.enginePorts.store[operation](board, ...args)),
       queue: (error, move, apply) => queueMove(outboxLink(root, file, state, io, senderPolicy), { operation, args, command, move, error, applyLocally: apply }),
     });
     const applyPausedMoveLocally = guarded.apply;

@@ -1,6 +1,34 @@
+import { advanceItemSource } from './source-advance.js';
+import {
+  proposeSentinel,
+  decideSentinel,
+  beginSentinelRun,
+  finishSentinelRun,
+} from './sentinels.js';
+import {
+  flakeLedger,
+  recordFlakeObservation,
+} from './flakes.js';
+import {
+  flakeQuarantines,
+  gateRuns,
+  recordGateRun,
+} from './quarantine.js';
+import {
+  personProposals,
+  personSigning,
+  proposePersonMove,
+  setPersonSigning,
+} from './person-signing.js';
+import { recordPublishFinding } from './pr-findings.js';
+import {
+  landingWaivers,
+  landingWaiverFor,
+  waivedLandingProof,
+} from './landing-waivers.js';
 import { sealItemPatchSubmit } from './item-patch-submit.js';
 /** Compose the store's explicit runtime ports for deterministic state execution [C7,H16]. */
-import * as store from './board.js';
+import * as rawStore from './board.js';
 import { withSeatPresence } from './seat-presence.js';
 import { MOVE_REGISTRY } from './move-registry.js';
 import { MOVE_OPERATIONS } from './move-registry.js';
@@ -25,6 +53,7 @@ import { validPresence } from './person-presence.js';
 
 /** Supply native providers once when a writable board is opened; only values enter sealed moves. */
 export function boardEnginePorts() {
+  const store = Object.freeze({ ...rawStore, advanceItemSource, proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation, flakeQuarantines, gateRuns, recordGateRun, personProposals, personSigning, proposePersonMove, setPersonSigning, recordPublishFinding, landingWaivers, landingWaiverFor, waivedLandingProof });
   const { personAuthority, relayMoveActor, relaySenderProblem, validRelaySender, credentialActor } =
     relaySenderPolicy({ declaredMoveActor, validPresence });
   return Object.freeze({ store, withSeatPresence, registry: MOVE_REGISTRY, operations: MOVE_OPERATIONS,

@@ -51,7 +51,7 @@ test('a landing warns on a claimed local HEAD, then submit refuses until a real 
       { item: 1, head: worker, trunk, files: ['web/shared.txt'] });
     const notices = [];
     await refreshLandedCodeMap({ root: box.repo, board, batch: { tip: trunk },
-      write: async (operation, args) => store[operation](board, ...args), say: text => notices.push(text) });
+      write: async (operation, args) => board.enginePorts.store[operation](board, ...args), say: text => notices.push(text) });
     assert.ok(notices.some(text => text.includes('web/shared.txt') && text.includes('git merge main')),
       'the actual shared land publish/finishTrunk post-landing hook emits its warning');
   } finally { store.closeBoard(board); }

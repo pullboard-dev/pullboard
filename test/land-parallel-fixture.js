@@ -56,7 +56,7 @@ function runBatch(box, enabled) {
     'const root = process.argv[1]; const enabled = process.argv[2] === "true";',
     'const board = store.openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
     'try { const config = loadConfig(root); config.landing = { ...config.landing, parallel: enabled };',
-    'const result = await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config, owner: "coordinator", maximum: 3, write: async (operation, args) => store[operation](board, ...args), say: () => {}, checkLease: async () => {}, checkLeaseNow: () => {} });',
+    'const result = await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config, owner: "coordinator", maximum: 3, write: async (operation, args) => board.enginePorts.store[operation](board, ...args), say: () => {}, checkLease: async () => {}, checkLeaseNow: () => {} });',
     'console.log(JSON.stringify(result)); } finally { store.closeBoard(board); }',
   ].join('\n');
   const env = { ...box.env };
@@ -239,7 +239,7 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
     `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../bin/landing-candidate.js'))};`,
     "import { join } from 'node:path';",
     'const root = process.argv[1]; const board = store.openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
-    'try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, owner: "private-nested-api", write: async (operation, args) => store[operation](board, ...args), say: () => {} }); console.log(JSON.stringify({ code: null })); }',
+    'try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, owner: "private-nested-api", write: async (operation, args) => board.enginePorts.store[operation](board, ...args), say: () => {} }); console.log(JSON.stringify({ code: null })); }',
     'catch (error) { console.log(JSON.stringify({ code: error.code, message: error.message })); } finally { store.closeBoard(board); }',
   ].join('\n');
   const controller = [

@@ -1,3 +1,6 @@
+import { flakeLedger as nativeFlakeLedger } from './flakes.js';
+import { landingWaivers as nativeLandingWaivers } from './landing-waivers.js';
+import { landingWaiverFor as nativeLandingWaiverFor } from './landing-waivers.js';
 import { requirePublishGreen } from './publish-pause.js';
 import { runnerExecutionServices } from './runners.js';
 import { landingExecutionServices } from './landing-shards.js';
@@ -124,7 +127,7 @@ function heldTestDefects(root, board, trunk, landingPorts) {
   return store.landingTestDefects(board).filter(defect => {
     if (defect.branch !== trunk.branch) return false;
     const blob = testBlob(root, trunk.commit, defect.test);
-    return !(blob && blob !== defect.blob && blob !== defect.trunkBlob) && !defect.names.every(name => store.landingWaiverFor(board, { file: defect.test, name }, landingPorts));
+    return !(blob && blob !== defect.blob && blob !== defect.trunkBlob) && !defect.names.every(name => nativeLandingWaiverFor(board, { file: defect.test, name }, landingPorts));
   });
 }
 
@@ -214,7 +217,7 @@ function candidates(board, root, base, maximum, { firstReady = false, landingPor
     if (stale) { blocked.push({ id: item.item_id, ...stale }); continue; }
     const known = knownReds.find((entry) => entry.id === item.item_id && entry.commit === item.item_commit
       && (entry.reviewedCommit ?? entry.commit) === item.item_landing_commit);
-    if (known && !known.tests.every((failure) => store.landingWaiverFor(board, failure, landingPorts))) {
+    if (known && !known.tests.every((failure) => nativeLandingWaiverFor(board, failure, landingPorts))) {
       blocked.push({ id: item.item_id, code: 'LAND_KNOWN_RED', tests: known.tests });
       continue;
     }
@@ -412,7 +415,7 @@ function completeGate(gate) {
 
 /** Whether current person waivers cover every named failure of this exact recorded run. */
 function coveredFailures(state, gate) {
-  return gate.failures.length > 0 && gate.failures.every((failure) => failure.file && store.landingWaiverFor(state.board, failure, state.landingPorts));
+  return gate.failures.length > 0 && gate.failures.every((failure) => failure.file && nativeLandingWaiverFor(state.board, failure, state.landingPorts));
 }
 
 /** Record the receipt the landing gate wrote for its run, in the lane that owns its first failing test [C7,D1]. */
@@ -685,7 +688,7 @@ function withoutParallelBlocker(state, entries, removed) {
 /** Trust a recorded positive main comparison only for every exact failing target of this gate. */
 function parallelGreenBase(state, gate) {
   const ids = new Set((gate.flakeDiagnostics?.observations ?? []).filter(row => row.recorded).map(row => row.id));
-  const observations = store.flakeLedger(state.board).flatMap(row => row.observations).filter(row => ids.has(row.id));
+  const observations = nativeFlakeLedger(state.board).flatMap(row => row.observations).filter(row => ids.has(row.id));
   return gate.failures.length > 0 && gate.failures.every(failure => observations.some(observation => observation.file === failure.file
     && observation.name === failure.name && observation.main === state.batch.base
     && observation.classification === 'possible-regression' && observation.mainReceipt?.green === true));
@@ -898,14 +901,14 @@ function pipelineFailures(components, root) {
  */
 export function waivedFailures(board, failures, landingPorts) {
   if (!Array.isArray(failures) || !failures.length || failures.some((entry) => !entry.file)) return null;
-  const covered = failures.map((failure) => ({ ...failure, waiver: store.landingWaiverFor(board, failure, landingPorts) }));
+  const covered = failures.map((failure) => ({ ...failure, waiver: nativeLandingWaiverFor(board, failure, landingPorts) }));
   return covered.every((entry) => entry.waiver) ? covered : null;
 }
 
 /** Project the live person waivers a landing run may read, so it does not stop early on one [B3]. */
 export function liveWaiverProjection(board, landingPorts) {
   const now = board.clock.now().getTime();
-  return store.landingWaivers(board, landingPorts).filter((waiver) => Date.parse(waiver.until) > now)
+  return nativeLandingWaivers(board, landingPorts).filter((waiver) => Date.parse(waiver.until) > now)
     .map((waiver) => ({ kind: waiver.kind ?? store.landingWaiverKind(waiver.test), test: waiver.test }));
 }
 
@@ -1059,7 +1062,7 @@ function publicationInputs(state, batch) {
       throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed its checked composition; rebuild the landing before publishing`);
     }
   }
-  if (batch.proof?.failures?.some(failure => !store.landingWaiverFor(state.board, failure, state.landingPorts))) throw new Refused('LAND_WAIVER', 'the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver, then adopt the batch');
+  if (batch.proof?.failures?.some(failure => !nativeLandingWaiverFor(state.board, failure, state.landingPorts))) throw new Refused('LAND_WAIVER', 'the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver, then adopt the batch');
   if (headCommit(batch.root) !== batch.tip || !isClean(batch.root) || untracked(batch.root).length) throw new Refused('LAND_MOVED', 'the gated landing tree changed; inspect the batch and adopt it again');
   if (mainCheckout(state.root)?.commit !== batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved during the landing; rebuild the batch from its new tip');
 }
@@ -1093,7 +1096,7 @@ async function publish(state) {
   requireLandingCarries(state, batch);
   const remote = requirePushTarget(state.root, batch.branch);
   if (batch.proof?.failures?.length && batch.state !== 'pushed') {
-    const failures = batch.proof.failures.map((failure) => ({ ...failure, waiver: store.landingWaiverFor(state.board, failure, state.landingPorts)?.id }));
+    const failures = batch.proof.failures.map((failure) => ({ ...failure, waiver: nativeLandingWaiverFor(state.board, failure, state.landingPorts)?.id }));
     if (!failures.every((failure) => failure.waiver)) throw new Refused('LAND_WAIVER', 'the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver, then adopt the batch');
     batch = await save(state, { proof: { ...batch.proof, failures } });
   }
@@ -1386,7 +1389,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     const held = (batch.flakes ?? []).filter((flake) => {
       const corrected = batch.base !== trunk.commit && testHash(root, flake.test) !== null && testHash(root, flake.test) !== flake.hash;
       const failures = (batch.failures ?? []).filter((failure) => failure.file === flake.test);
-      return !corrected && (!failures.length || !failures.every((failure) => store.landingWaiverFor(board, failure, landingPorts)));
+      return !corrected && (!failures.length || !failures.every((failure) => nativeLandingWaiverFor(board, failure, landingPorts)));
     });
     if (held.length) throw new Refused('LAND_FLAKE', `batch ${batch.id} is held by ${held.map((entry) => entry.test).join(', ')}; fix the test or ask the person for an expiring waiver; nothing retries`);
   }

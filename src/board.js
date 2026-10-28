@@ -14,7 +14,6 @@ import * as rejectClause from './reject-clause.js';
 import { requireSourceAdvanceReview } from './source-advance-state.js';
 import { SOURCE_ADVANCE_ENGINE } from './source-advance-engine.js';
 import { sourceAdvanceReturnProblem } from './source-advance-return.js';
-export { advanceItemSource } from './source-advance.js';
 import * as reviewRouting from './review-routing.js';
 import { reviewFamilyProblem } from './review-independence.js';
 import { reviewPolicyChange } from './review-independence.js';
@@ -283,10 +282,6 @@ import {
   saveAgentModel,
   seatLineage,
 } from './seats.js';
-import {
-  newRigorNotices,
-  rigorNoticeText,
-} from './rigor-notices.js';
 import { RIGOR_NOTICE_ENGINE } from './board-rigor-source.js';
 import { RIGOR_AUTO_ENGINE } from './rigor-auto-engine.js';
 import {
@@ -324,23 +319,17 @@ import { validateLandingBatch } from './submit-invariants.js';
 import { validateLandingRevision } from './submit-invariants.js';
 import { submissionProof } from '../packages/state/src/core/submission-proof.js';
 import { SUBMISSION_PROOF_ENGINE } from './move-engine-constants.js';
-import { landingBatches } from './landing-batch-history.js';
+import { landingBatches } from './git-landing-batches.js';
 import {
   NATIVE_FLAKE_ENGINE,
   carriesFlakeDiagnostics,
 } from './flake-engine.js';
 export { landingFlakes, landingWaiverCovers, landingWaiverKind };
-export { landingWaivers, landingWaiverFor, waivedLandingProof } from './landing-waivers.js';
 export { acceptCheck } from './check-accept.js';
 export { declareJob, recordJobRun } from './board-recurring-jobs.js';
-export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } from './sentinels.js';
-export { flakeLedger, recordFlakeObservation } from './flakes.js';
-export { flakeQuarantines, gateRuns, recordGateRun } from './quarantine.js';
-export { personProposals, personSigning, proposePersonMove, setPersonSigning } from './person-signing.js'; // Signed person moves [E22].
 export { proofReceipts, recordProofRun } from './proof-receipts.js';
 import { refuseLongShout } from './proof-receipts.js';
 import { PROOF_RUN_ENGINE } from './proof-run-engine.js';
-export { recordPublishFinding } from './pr-findings.js';
 /** The seat readers live in seats.js; the board re-exports them so `store.*` callers keep one import. */
 export { agentAt, agentById, agentCreator, coordinatorHolder, listAgents, nextSeatId, seatEnrolled, seatLineage, takeCoordinator, withVerifierStanding } from './seats.js';
 
@@ -1703,8 +1692,8 @@ function postRigorNotices(board, trigger) {
     board.nativePorts.recordAutomaticRigorDrafts(board, trigger, persistShout);
     return;
   }
-  for (const cause of newRigorNotices(events(board), trigger, { person: PERSON })) {
-    persistShout(board, { from: 'rigor', to: COORDINATOR, text: rigorNoticeText(cause) });
+  for (const cause of board.nativePorts.newRigorNotices(events(board), trigger, { person: PERSON })) {
+    persistShout(board, { from: 'rigor', to: COORDINATOR, text: board.nativePorts.rigorNoticeText(cause) });
     logEvent(board, 'rigor', 'rigor-notice', null, { cause: cause.key, items: cause.items,
       occurrences: cause.occurrences, neverAgain: cause.neverAgain, engine: RIGOR_NOTICE_ENGINE });
   }

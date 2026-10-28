@@ -1,3 +1,9 @@
+import { proposeSentinel as nativeProposeSentinel } from '../src/sentinels.js';
+import { decideSentinel as nativeDecideSentinel } from '../src/sentinels.js';
+import { beginSentinelRun as nativeBeginSentinelRun } from '../src/sentinels.js';
+import { finishSentinelRun as nativeFinishSentinelRun } from '../src/sentinels.js';
+import { recordFlakeObservation as nativeRecordFlakeObservation } from '../src/flakes.js';
+import { recordPublishFinding as nativeRecordPublishFinding } from '../src/pr-findings.js';
 /** Exercise native move effects before comparing the actual relay's complete decoded projection [H5,H17]. */
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -118,20 +124,20 @@ test('relay study compares each exercised move effect through the real API2 read
     digest: 'study-frozen', policy: 'any', note: 'Synthetic native state only; no gate execution claimed.' }));
   await exercise('merged', () => store.merged(board, item, { agentId: 'coordinator', commit: 'c'.repeat(40) }));
   await exercise('withdraw', () => store.withdraw(board, other, { agentId: 'coordinator', reason: 'Study withdrawal.' }));
-  const watch = await exercise('proposeSentinel', () => store.proposeSentinel(board, { agentId: agent,
+  const watch = await exercise('proposeSentinel', () => nativeProposeSentinel(board, { agentId: agent,
     row: { name: 'study-watch', check: 'true', every: 'hourly', owner: 'coordinator' } }));
   if (watch) {
-    await exercise('decideSentinel', () => store.decideSentinel(board, { agentId: 'person', channel: 'terminal',
+    await exercise('decideSentinel', () => nativeDecideSentinel(board, { agentId: 'person', channel: 'terminal',
       name: watch.name, digest: watch.digest, decision: 'approve' }));
-    await exercise('beginSentinelRun', () => store.beginSentinelRun(board, { agentId: agent, name: watch.name, digest: watch.digest, run: 'study-run' }));
-    await exercise('finishSentinelRun', () => store.finishSentinelRun(board, { agentId: agent, name: watch.name, digest: watch.digest,
+    await exercise('beginSentinelRun', () => nativeBeginSentinelRun(board, { agentId: agent, name: watch.name, digest: watch.digest, run: 'study-run' }));
+    await exercise('finishSentinelRun', () => nativeFinishSentinelRun(board, { agentId: agent, name: watch.name, digest: watch.digest,
       run: 'study-run', result: { green: true, code: 0, timedOut: false, signal: null, aborted: false, durationMs: 1, output: 'Synthetic watch receipt, no command execution claimed.' } }));
   }
   await exercise('recordHealthFindings', () => store.recordHealthFindings(board, { agentId: 'coordinator',
     observedRevision: board.db.prepare('SELECT MAX(event_id) AS n FROM event').get().n,
     findings: [{ key: 'study-fixture', cause: 'STUDY_FIXTURE', subject: agent, title: 'Synthetic projection observation',
       since: board.clock.now().toISOString(), why: 'Private state fixture, not a real health finding', next: 'Read study metadata', item: null }] }));
-  await exercise('recordFlakeObservation', () => store.recordFlakeObservation(board, { agentId: 'coordinator',
+  await exercise('recordFlakeObservation', () => nativeRecordFlakeObservation(board, { agentId: 'coordinator',
     lane: box.lane, observation: syntheticFlakeObservation('study-synthetic-unclassified') }));
   const outsideText = '{"rows":[]}';
   const outside = await exercise('intakeOutside', () => store.intakeOutside(board, { agentId: 'coordinator',
@@ -141,7 +147,7 @@ test('relay study compares each exercised move effect through the real API2 read
     item: { lane: box.lane, title: 'Synthetic outside state', criterion: 'State projection only.', route: 'strong' },
     frozen: { text: outsideText, digest: createHash('sha256').update(outsideText).digest('hex') } }));
   if (outside) await exercise('approveOutside', () => store.approveOutside(board, outside, { agentId: 'person' }));
-  await exercise('recordPublishFinding', () => store.recordPublishFinding(board, { agentId: 'coordinator', item,
+  await exercise('recordPublishFinding', () => nativeRecordPublishFinding(board, { agentId: 'coordinator', item,
     repository: 'fixture/repository', pull: 1281, head: 'c'.repeat(40),
     failures: [{ id: 1281, name: 'Synthetic state only, not a CI failure', url: 'https://example.invalid/study', files: ['synthetic-study.txt'] }] }));
   const command = 'node -e "process.exit(0)"';
