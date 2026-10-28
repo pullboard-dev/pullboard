@@ -115,7 +115,7 @@
   {"cell":"git","imports":9,"before":true},
   {"cell":"sandbox","imports":4,"before":true},
   {"cell":"config","imports":3,"before":true},
-  {"cell":"state","imports":32,"before":true},
+  {"cell":"state","imports":33,"before":true},
   {"cell":"seats","imports":5,"before":true},
   {"cell":"doctrine","imports":2,"before":true},
   {"cell":"spec","imports":4,"before":true},

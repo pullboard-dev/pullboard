@@ -1,4 +1,6 @@
 /** @pullboard-module-loads src/moves/*.js */
+import { sourceAdvanceFloor } from './source-advance-state.js';
+import { SOURCE_ADVANCE_ENGINE } from './source-advance-engine.js';
 /**
  * One declaration per public board operation [C7,V4,H16]. Consumers derive their routing from these
  * files; a new move adds its own file rather than editing three registries. Leaves import only
@@ -69,7 +71,7 @@ export function minimumMoveEngine(operation, args, board, at) {
   if (!Object.hasOwn(MOVE_REGISTRY, operation)) throw new Error(`unknown move ${operation}; declare its own module before using it`);
   const value = MOVE_REGISTRY[operation].minimumEngine(args, board, at);
   if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${operation} returned an invalid engine floor`);
-  return Math.max(value, conditionalHoldFloor(board));
+  return Math.max(value, conditionalHoldFloor(board), sourceAdvanceFloor(board, SOURCE_ADVANCE_ENGINE));
 }
 
 /** Unknown operations and missing argument arrays retain the original null actor. */
