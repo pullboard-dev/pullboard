@@ -125,7 +125,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `src/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `src/board.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `src/board.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `155` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `156` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
@@ -462,7 +462,9 @@ The computed-grant engine adds `grantEngine` to new join, claim and renewal even
 | `submit` | builder | `commit`, `tree`, `policyCommit`, engine-9 `criterionDigest`, engine-38 `submissionProof`, optional `submissionSize` |
 | `reserve` | reviewer | `until` |
 | `accept` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-33 `review`, engine-68 `note` |
-| `reject` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-30 `cause`, engine-33 `review`, automatic-Rigor `causeDerivation` |
+| `reject` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-30 `cause`, engine-33 `review`, automatic-Rigor `causeDerivation`, clause-bound rejection `clause`, `clauseText`, `barKey` |
+| `bar-sharpen` | coordinator | `clause`, `clauseText`, `barKey`, `to`, `digest` |
+| `strong-rejection-notice` | coordinator | `engine`, `route`, `builder`, `rejections` |
 | `reject_returned` | coordinator | `rejection`, `builder`, `commit`, `note`, `reason`, `engine`, inactive `presence`, `heartbeatAt`, `observedAt` |
 | `reopen` | coordinator, or reviewer | `commit`, `note`, `judgment`, engine-10 `supersedes`, `landingFailure`, engine-30 `cause`, engine-52 `conflict`, `withdrawnVerdict`, automatic-Rigor `causes`, `causeDerivation` |
 | `merged` | coordinator | `commit` |

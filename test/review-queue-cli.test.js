@@ -196,7 +196,7 @@ test('[V1,R1] a review released without a verdict waits an hour for the same rev
   assert.equal(anotherReviewer.data.item.item_id, released, 'another reviewer may take the released submission');
 
   const item = store.getItem(box.board, released);
-  store.verify(box.board, released, { agentId: box.reviewer2Id, decision: 'REJECT', reason: 'OTHER', note: 'private fixture rework',
+  store.verify(box.board, released, { agentId: box.reviewer2Id, decision: 'REJECT', reason: 'OTHER', note: 'private fixture rework', clause: 'Every move keeps its evidence.',
     head: item.item_commit, digest: item.item_frozen_digest, policy: 'any' });
   const rejectedReserve = await run(box, box.builder, ['next', '--verify', String(released), '--json']);
   assert.equal(rejectedReserve.code, 1);
