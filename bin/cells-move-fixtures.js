@@ -285,7 +285,8 @@ export function fixtureSourceEdits(source, { file, moves }) {
     if (method === 'dirname') return null;
     const segments = parsed.args.slice(1).map(arg => literal(arg, substitutions));
     if (segments.some(segment => segment === null)) return null;
-    return { path: posix.resolve(base.path, ...segments), render: target => `${parsed.callee}(${source.slice(parsed.args[0].start, parsed.args[0].end)}, ${JSON.stringify(posix.relative(base.path, target))})` };
+    return { path: method === 'join' ? posix.join(base.path, ...segments) : posix.resolve(base.path, ...segments),
+      render: target => `${parsed.callee}(${source.slice(parsed.args[0].start, parsed.args[0].end)}, ${JSON.stringify(posix.relative(base.path, target))})` };
   }
 
   /** Resolve a bounded plain string array; mixed lists and aliases remain explicitly unsupported. */

@@ -203,6 +203,42 @@ test('lookalike calls, comments, assertions and synthetic fixture code are not p
   assert.equal(git(root, 'status', '--porcelain'), '');
 });
 
+test('fixture joins retain rooted later segments while resolve keeps its absolute reset [C7]', t => {
+  const { root, custody, input } = fixture(t, 'export const value = 42;\n');
+  mkdirSync(join(root, 'test'));
+  const file = 'test/join-copy.test.js';
+  const external = "function external() { return fs.readFileSync(path.resolve(import.meta.dirname, '..', '/src/leaf.js')); }";
+  const source = [
+    "import assert from 'node:assert/strict';",
+    "import * as fs from 'node:fs';",
+    "import * as path from 'node:path';",
+    "const body = fs.readFileSync(path.join(import.meta.dirname, '..', '/src/leaf.js'), 'utf8');",
+    "assert.equal(body, 'export const value = 42;\\n');",
+    "assert.equal(path.resolve(import.meta.dirname, '..', '/src/leaf.js'), '/src/leaf.js');",
+    '/** An external absolute read is deliberately outside the repository move. */',
+    external,
+    "console.log('joined copy reads actual body');",
+  ].join('\n') + '\n';
+  writeFileSync(join(root, file), source);
+  git(root, 'add', '.'); git(root, 'commit', '-qm', 'native join versus resolve fixture');
+  const result = cellsMove.apply(cellsMove.plan(input), custody);
+  assert.deepEqual(result.rewrittenTests, [file]);
+  const rewritten = readFileSync(join(root, file), 'utf8');
+  assert.ok(rewritten.includes(external), 'an actual absolute resolve read is unchanged');
+  const plan = { cells: [{ name: 'leaf', frontDoor: input.frontDoor, paths: [[input.from, input.to]] }] };
+  assert.deepEqual(checkMoved(root, plan, 'leaf'), []);
+  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+  const child = runFixtureChild(process.execPath, [join(root, file)], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(child.status, 0, child.context);
+  assert.match(child.stdout, /joined copy reads actual body/u);
+  writeFileSync(join(root, file), source);
+  assert.ok(checkMoved(root, plan, 'leaf').some(problem => problem.includes(file)), 'the missed join is independently refused');
+  writeFileSync(join(root, file), rewritten);
+  cellsMove.undo(result.record);
+  assert.equal(readFileSync(join(root, file), 'utf8'), source);
+  assert.equal(git(root, 'status', '--porcelain'), '');
+});
+
 for (const [label, source] of [
   ['default', 'export default 1;\n'],
   ['aliased default', 'const value = 1; export { value as default };\n'],
