@@ -1,4 +1,4 @@
-/** @pullboard-test-loads relay/client.js src/changelog.js */
+/** @pullboard-test-loads relay/client.js src/release-headlines.js */
 /** Exercise the deploy smoke script against a private loopback relay [H5,H18]. */
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn, reportFixtureChildFailure, safeFixtureDiagnostic } from './fixture-child.js';
@@ -10,7 +10,7 @@ import { copyPackageFiles, packageFiles } from '../src/package-files.js';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { releaseHeadlinesBetween } from '../src/changelog.js';
+import { releaseHeadlinesBetween } from '../src/release-headlines.js';
 import { ENGINE_VERSION, VERIFIER_STANDING_ENGINE } from '../src/machine.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { githubFixture } from './relay-fixture.js';
@@ -70,7 +70,7 @@ async function assertCopiedChangelog(image) {
   const shipped = readFileSync(join(ROOT, 'CHANGELOG.md'));
   const copied = readFileSync(join(image, 'CHANGELOG.md'));
   assert.deepEqual(copied, shipped, 'the production image includes byte-identical shipped release notes');
-  const runtimeChangelog = await import(pathToFileURL(join(image, 'src/changelog.js')).href);
+  const runtimeChangelog = await import(pathToFileURL(join(image, 'src/release-headlines.js')).href);
   assert.deepEqual(
     runtimeChangelog.releaseHeadlinesBetween('0.0.0', '99.99.99'),
     releaseHeadlinesBetween('0.0.0', '99.99.99'),
