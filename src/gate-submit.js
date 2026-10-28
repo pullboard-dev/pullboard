@@ -22,6 +22,7 @@ import {
   join,
 } from 'node:path';
 import {
+  git,
   gitPath,
 } from './git.js';
 import {
@@ -81,7 +82,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   // A selection over submitDeferAbove files moves to the landing gate, which runs every recorded file before the item lands.
   const deferSelection = deferred && !selection.full && Number.isSafeInteger(config.submitDeferAbove) && selection.files.length > config.submitDeferAbove;
   const invariants = advancePlan?.invariants ?? (deferred ? [...new Set(config.submitInvariants ?? [])].sort() : []);
-  const registryGuards = advancePlan?.registryGuards ?? [...new Set([...selectRegistryGuards(root, config.registryGuards, { base, trunk, changed }),
+  const registryGuards = advancePlan?.registryGuards ?? [...new Set([...selectRegistryGuards(root, config.registryGuards, { base, trunk, changed, git }),
     ...selectTestTreeGuards(root, { base, trunk, changed })])].sort();
   if ((invariants.length || registryGuards.length) && !config.affectedTests?.trim()) {
     throw new Refused('BAD_CONFIG', 'submitInvariants and repository guards require the project affectedTests runner');

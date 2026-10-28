@@ -16,6 +16,15 @@ function projectFile(value) {
     && value.split('/').every(part => part && part !== '.' && part !== '..');
 }
 
+/**
+ * Bound a submit's selection reason to what a submission proof stores, declaring what it cut: every selected and
+ * deferred file is recorded in full beside it, so only the prose explanation shortens (#1605, #1648, #1651).
+ */
+export function boundedProofReason(reason) {
+  if (reason.length <= 8192) return reason;
+  return `${reason.slice(0, 8000)} ... (+${reason.length - 8000} characters elided; every selected and deferred file is recorded in full in this proof)`;
+}
+
 /** Normalize the receipt required by modern submits; legacy replay skips this guard. */
 export function submissionProof(value, engine = KNOWN_MAIN_REWORKS_ENGINE) {
   if (!value || value.version !== 1 || typeof value.full !== 'boolean'
