@@ -474,7 +474,7 @@ async function gateGroup(state, label, options) {
   const logPath = join(directory, `${label}-${state.batch.revision}.log`);
   await save(state, { state: 'gating', tip: headCommit(state.batch.root), logPath });
   const pin = flakeSource(state.batch.root, { commit, main: state.batch.base });
-  const onFailure = Object.assign((run, { root, command, lease }) => observeNativeFailure({ root, config, pin, run, command, lease, kind: 'land',
+  const onFailure = Object.assign((run, { root, command, lease }) => observeNativeFailure({ root, config, pin, run, command, lease, kind: 'land', checkAtCommit: state.checkAtCommit,
     record: observation => {
       const owner = observation.file ? laneOf(state.config, observation.file) : 'coordinator';
       const lane = owner === 'coordinator' ? store.getItem(state.board, state.batch.items[0].id).item_lane : owner;
@@ -512,7 +512,7 @@ async function gateGroup(state, label, options) {
 }
 
 /** Merge and test one speculative prefix without giving its worker publication authority. */
-export async function runLandingCandidate({ root, board, config, batch, entries, write, say, onWait, checkLease, checkLeaseNow, claimGate, finishGate }) {
+export async function runLandingCandidate({ root, board, config, batch, entries, write, say, onWait, checkLease, checkLeaseNow, claimGate, finishGate, checkAtCommit }) {
   await checkLease();
   if (!existsSync(batch.root)) {
     mkdirSync(dirname(batch.root), { recursive: true });
@@ -520,7 +520,7 @@ export async function runLandingCandidate({ root, board, config, batch, entries,
     git(root, ['worktree', 'add', '--detach', batch.root, batch.base]);
   }
   board.quarantineEnabled = () => config.flakes?.quarantine === true;
-  const state = { root, board, config, batch, write, say, onWait, checkLease, checkLeaseNow,
+  const state = { root, board, config, batch, write, say, onWait, checkLease, checkLeaseNow, checkAtCommit,
     culprits: [], flaky: false, gates: new Map(), diagnosed: new Map() };
   const build = await mergeGroup(state, entries);
   await save(state, { ...build });
@@ -641,7 +641,7 @@ async function parallelPrefixes(state, entries) {
     try {
       const result = await runLandingCandidateWorker({ root: state.root, config: state.config, batch: descriptor.snapshot,
         entries: descriptor.snapshot.candidates, fence: state.fence }, {
-        write, checkLease: state.checkLease, say: state.say, onWait: state.onWait,
+        write, checkLease: state.checkLease, say: state.say, onWait: state.onWait, workerFile: state.candidateWorkerFile,
         onStart: pid => update(key, { workerPid: pid }),
       });
       await update(key, { complete: true, gate: candidateGateRecord(result.gate) });
@@ -1322,7 +1322,7 @@ export async function land(options) {
       adopt: options.adopt, due: options.due, fence: lease.fence };
     if (batchOptions.maximum === null) delete batchOptions.maximum;
     return await runLandingWorker(batchOptions, { write, checkLease, checkLeaseNow: lease.assertCurrent,
-      bindWorker: lease.bindWorker, watchDeadline: lease.watchDeadline, onWait: options.onWait, say: options.say, signal: controller.signal });
+      bindWorker: lease.bindWorker, watchDeadline: lease.watchDeadline, onWait: options.onWait, say: options.say, signal: controller.signal, workerFile: options.landingWorkerFile });
   } catch (error) { failed = true; throw error; }
   finally {
     try { await lease.release(); }
@@ -1334,7 +1334,7 @@ export async function land(options) {
 }
 
 /** Select only after admission, retaining the existing batch, proof and adoption rules. */
-export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, due = false, onWait, checkLease, checkLeaseNow, fence }) {
+export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, candidateWorkerFile }) {
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
   if (!dryRun && trunk?.commit) requirePublishGreen(root, board, policyAt(root, trunk.commit).config);
@@ -1404,7 +1404,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     mkdirSync(directory, { recursive: true });
     git(root, ['worktree', 'add', '--detach', batch.root, batch.base]);
   }
-  const state = { root, board, config, write, say, onWait, checkLease, checkLeaseNow, fence, batch, culprits: batch.culprits ?? [], flaky: false, gates: new Map((batch.gateResults ?? []).map((result) => [result.tree, result])), diagnosed: new Map((batch.diagnostics ?? []).map((result) => [result.test, result.isGreen])) };
+  const state = { root, board, config, write, say, onWait, checkLease, checkLeaseNow, fence, batch, checkAtCommit, candidateWorkerFile, culprits: batch.culprits ?? [], flaky: false, gates: new Map((batch.gateResults ?? []).map((result) => [result.tree, result])), diagnosed: new Map((batch.diagnostics ?? []).map((result) => [result.test, result.isGreen])) };
   try {
     await save(state, { owner });
     await returnCulprits(state);

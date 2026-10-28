@@ -1,3 +1,4 @@
+import { checkAtCommit } from '../runner-private-check.js';
 import { submitGateConfig } from '../gate-submit.js';
 import { createHash } from 'node:crypto';
 import { prepareItemPatchSubmit } from '../item-patch-submit.js';
@@ -219,7 +220,7 @@ export async function submitHere(ctx, id, infra) {
   const admission = { commit: companion?.commit ?? commit, tree: companion?.tree ?? headTree(root) };
   const gate = await withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { outputRoot: root, base: claimHead, trunk: acceptedMain.commit, check: frozenCheck(held), agent: me.id, item: String(id), onWait: queuedItemLease(ctx, held, me.id, 'build', admission), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission },
-    onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, config: submitConfig }, { ordered, withBoard, resourceAgent }) }));
+    onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
     await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt });
   }
@@ -229,12 +230,13 @@ export async function submitHere(ctx, id, infra) {
   }
   // Only fully accounted exact-main failures or live person waivers pass a red proof; the item check stays mandatory [B3].
   const waived = !gate.isGreen && gate.check?.green ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, root))) : null;
+  const onMeasuredReceipt = receiptId => nativeFlakes.recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent });
   let comparison;
   let knownMainFailures;
   const failures = !gate.isGreen && gate.check?.green && !waived ? failureSignatures(gate, root) : null;
   if (failures && mainFailureBase && !companion) {
     try {
-      comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true });
+      comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, onMeasuredReceipt });
       const matched = matchingMainFailures(failures, comparison, mainFailureBase);
       knownMainFailures = matched && withBoard(ctx, board => linkKnownMainReworks(matched, store.listItems(board, { all: true }), id));
     } catch { /* Unavailable exact-main proof never authorizes a red submission. */ }
@@ -247,7 +249,7 @@ export async function submitHere(ctx, id, infra) {
     CHECKOUT_LEASES.delete(ctx.io);
     comparison ??= { main: null, files: [], unavailable: 'main comparison could not be completed' };
     if (!failures && mainFailureBase && !companion) {
-      try { comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase }); } catch { /* Keep the original gate refusal if main evidence is unavailable. */ }
+      try { comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, onMeasuredReceipt }); } catch { /* Keep the original gate refusal if main evidence is unavailable. */ }
     }
     const mainNote = withBoard(ctx, board => mainRedMessage(root, board, gate.profile, comparison));
     throw new Refused('GATE_RED', `${message}${mainNote ? `\n${mainNote}` : ''}`, 'fix the reported test or gate, commit the change, and run pullboard submit <id> again');

@@ -167,12 +167,7 @@ import { relayOrigin } from './relay-origin.js';
 import { readRelayLink } from './relay-link-read.js';
 import { refusalFromReceipt } from './recorded-refusal.js';
 import { relayNotices } from './relay-notices.js';
-import {
-  readRelayMachine,
-  removeRecordedDevice,
-  updateRelayMachine,
-  wrapForRecordedDevice,
-} from './relay-machine.js';
+import * as relayMachine from './relay-machine.js';
 import {
   receivePersonRequest,
   requestMoveProblem,
@@ -1542,7 +1537,7 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
     requireRelayOnChannel(io.personChannel);
     io.ignoreRelayEnvironmentToken = true;
   } else if (!reusableCredential) requirePersonChannel(io.personChannel);
-  readRelayMachine();
+  relayMachine.readRelayMachine();
   for (const project of listApiProjects()) { try { loadLink(linkFile(project.root)); } catch { /* Report this command's own link below. */ } }
   const repository = originRepository(root);
   const file = linkFile(root);
@@ -1593,8 +1588,8 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
       delete state.linkPending; delete state.replaces;
       saveLink(file, state);
     }
-    const machine = updateRelayMachine(settings => settings.machine);
-    const named = computerName(label ?? state.computerName ?? readRelayMachine().computerName);
+    const machine = relayMachine.updateRelayMachine(settings => settings.machine);
+    const named = computerName(label ?? state.computerName ?? relayMachine.readRelayMachine().computerName);
     const issued = reusableCredential ?? await request({ ...state, token: signed.token }, '/auth/machines', { method: 'POST', body: { board: state.board, machine, ...(named === undefined ? {} : { name: named }) } }, io);
     if (!/^pm_[A-Za-z0-9_-]{43}$/u.test(issued.token ?? '') || issued.board !== state.board || issued.machine !== machine) throw new Refused('RELAY_RESPONSE', 'the relay did not issue this board’s machine credential; sign in again');
     // Cached agent credentials belong to the account that minted them.
@@ -1734,13 +1729,13 @@ export async function relayDeviceRequest(session, path, options, io) {
 export async function deliverDeviceWraps(root, io) {
   const state = loadLink(linkFile(root));
   if (!state || state.unlinking || !state.account) return;
-  await deliverPersonEnrollments(state, io, request);
-  const devices = readRelayMachine().devices.filter(device => device.account === state.account && device.url === state.url);
+  await deliverPersonEnrollments(state, io, request, { relayPersonRoot: relayMachine.relayPersonRoot });
+  const devices = relayMachine.readRelayMachine().devices.filter(device => device.account === state.account && device.url === state.url);
   if (!devices.length) return;
   const key = readBoardKey(state.board);
   for (const device of devices) {
     const context = { board: state.board, device: device.deviceId, engine: ENGINE_VERSION };
-    const wrapped = await wrapForRecordedDevice(key, context, state);
+    const wrapped = await relayMachine.wrapForRecordedDevice(key, context, state);
     await relayDeviceRequest(state, '/api/v1/devices/' + device.deviceId + '/boards/' + state.board,
       { method: 'PUT', body: { engine: ENGINE_VERSION, wrapped: Buffer.from(JSON.stringify(wrapped)).toString('base64url') } }, io);
   }
@@ -1768,7 +1763,7 @@ export async function relayRevokeDevice(root, deviceId, io) {
   requirePersonChannel(io.personChannel);
   const state = managementLink(linkFile(root));
   const result = await nativePhoneAction(state, 'revoke-device', deviceId, io, request);
-  removeRecordedDevice(deviceId);
-  updateRelayMachine(machine => { machine.revocations = machine.revocations.filter(entry => entry.deviceId !== deviceId); });
+  relayMachine.removeRecordedDevice(deviceId);
+  relayMachine.updateRelayMachine(machine => { machine.revocations = machine.revocations.filter(entry => entry.deviceId !== deviceId); });
   return { ...result, notice: 'Revoked device; keys it already received remain known. Board key rotation is separate.' };
 }
