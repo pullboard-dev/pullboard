@@ -6,6 +6,8 @@ import { appliedSequence, applyEngineMove, applyRelayMove, prepareEngineMove } f
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { parentSessionDigest } from '../src/parent-session.js';
 import { ITEM_PATCH_ENGINE } from '../src/item-patch-engine.js';
+import { PATCH_AUTHOR_IDENTITY_ENGINE } from '../src/patch-author-identity-engine.js';
+import { retainedVerifierIdentityProblem } from '../src/item-authors.js';
 import {
   itemPatches, itemPatchAuthors,
   itemPatchDigest, itemPatchReviewProblem, itemPatchSetDigest,
@@ -175,4 +177,48 @@ test('companion authors and related seats cannot review removed history, while u
   store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', head: COMMIT, digest: 'patch-frozen', policy: 'any',
     companionDigest: itemPatchDigest(board, id), note: 'synthetic native board-state acceptance; no runtime execution asserted' });
   assert.equal(store.getItem(board, id).item_status, 'verified', 'unrelated native reviewer can accept the current explicit empty patch set');
+});
+
+test('a companion author without session metadata cannot review active or removed inputs [V1,V4,H16]', t => {
+  const { board, id, reviewer } = fixture(t);
+  const author = store.register(board, { lane: 'api', path: '/patch-domain/no-session-author' });
+  store.attachItemPatch(board, id, input(author));
+  const identity = itemPatchAuthors(board, id).find(record => record.agentId === author);
+  assert.equal(identity.parentSession, null);
+  assert.equal(identity.session, null);
+  for (const removed of [false, true]) {
+    if (removed) store.removeItemPatch(board, id, { agentId: 'coordinator', key: 'fix' });
+    const before = exportBoard(board);
+    assert.throws(() => store.reserveReview(board, id, { agentId: author, leaseMs: 60_000, policy: 'any' }), { code: 'SELF_VERIFY' });
+    assert.throws(() => store.verify(board, id, { agentId: author, decision: 'ACCEPT', head: COMMIT,
+      digest: 'patch-frozen', policy: 'any', companionDigest: itemPatchDigest(board, id),
+      note: 'Synthetic native author control; no runtime proof claimed.' }), { code: 'SELF_VERIFY' });
+    assert.equal(retainedVerifierIdentityProblem(board, store.getItem(board, id), author).code, 'SELF_VERIFY');
+    assert.deepEqual(exportBoard(board), before, 'direct-author refusals preserve the item and history');
+  }
+  store.reserveReview(board, id, { agentId: reviewer, leaseMs: 60_000, policy: 'any' });
+  store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', head: COMMIT, digest: 'patch-frozen',
+    policy: 'any', companionDigest: itemPatchDigest(board, id), note: 'Synthetic unrelated reviewer positive control.' });
+  assert.equal(store.getItem(board, id).item_status, 'verified');
+});
+
+test('ordered direct-companion author refusals retain their historical code and new explicit identity rule [V1,H16]', t => {
+  const { board: seed, id } = fixture(t);
+  const author = store.register(seed, { lane: 'api', path: '/patch-domain/ordered-author',
+    parent: 'ordered-companion-parent', session: 'ordered-companion-session' });
+  store.attachItemPatch(seed, id, input(author));
+  store.removeItemPatch(seed, id, { agentId: 'coordinator', key: 'fix' });
+  const move = prepareEngineMove(seed, 'reserveReview', [id, { agentId: author, leaseMs: 60_000, policy: 'any' }], { id: 'direct-patch-author-review' });
+  assert.ok(move.engine >= PATCH_AUTHOR_IDENTITY_ENGINE);
+  for (const engine of [PATCH_AUTHOR_IDENTITY_ENGINE - 1, PATCH_AUTHOR_IDENTITY_ENGINE]) {
+    const replica = store.openBoard(':memory:');
+    t.after(() => store.closeBoard(replica));
+    importBoard(replica, exportBoard(seed));
+    const before = store.getItem(replica, id);
+    const order = { sequence: 1, at: new Date().toISOString() };
+    const outcome = applyEngineMove(replica, { ...move, engine }, order);
+    assert.equal(outcome.error?.code, engine < PATCH_AUTHOR_IDENTITY_ENGINE ? 'SELF_SESSION_VERIFY' : 'SELF_VERIFY');
+    assert.deepEqual(store.getItem(replica, id), before, 'the refusal never reserves or changes the submitted item');
+    assert.deepEqual(applyEngineMove(replica, { ...move, engine }, order), outcome, 'a retry returns the recorded refusal');
+  }
 });

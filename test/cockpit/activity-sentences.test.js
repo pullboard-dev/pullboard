@@ -105,6 +105,32 @@ test('sentinel words cover rank, elapsed idle time, withdrawn dependencies and u
   }
 });
 
+test('Activity omits absent and unknown model hover titles and retains a known model [N26]', () => {
+  for (const metadata of [{}, { model: '' }, { model: 'unknown' }, { agent_model: 'unknown' }, { model: ' UNKNOWN ' }]) {
+    const html = render({ agents: [{ agent_id: 'coordinator', ...metadata }], events: [event(1, 'fact', { by: 'coordinator' })] });
+    assert.match(html, /<span class="activity-who">The coordinator<\/span>/u);
+    assert.doesNotMatch(html, /title="unknown"|title=" UNKNOWN "/u);
+  }
+  const known = render({ agents: [{ agent_id: 'view-1', model: '<Known & model>' }], events: [event(1, 'fact')] });
+  assert.match(known, /class="activity-who" title="&lt;Known &amp; model&gt;">view-1/u);
+});
+
+test('sentinel rejection reasons become words while the reviewer note keeps its own code text [N26]', () => {
+  const reasons = { TEST_FAILURE: 'Tests failed', BEHAVIOR_MISMATCH: 'Behavior did not match', INSUFFICIENT_EVIDENCE: 'Not enough evidence', STALE_HEAD: 'Source changed', OTHER: 'Other reason' };
+  const note = 'Keep [MY_CODE] and (TEST_FAILURE) exactly; quoted words are evidence.';
+  for (const [reason, label] of Object.entries(reasons)) {
+    const finding = { key: 'REWORK_UNCLAIMED:1', cause: 'refusal:REWORK_UNCLAIMED', subject: '#1', since: at(4),
+      why: 'rejected by core-728 (' + reason + '): ' + note + '; its builder is not live', next: 'Inspect [' + reason + ']' };
+    const html = render({ events: [
+      event(1, 'health-failure', { by: 'sentinel', detail: finding }),
+      event(2, 'health-scan', { item: null, by: 'coordinator', detail: { active: [finding] } }),
+    ] }, { open: ['sentinels:2'] });
+    assert.ok(html.includes('rejected by core-728 (' + label + '): ' + note), reason + ' is translated only in the native prefix');
+    assert.ok(html.includes('Next: Inspect ' + label), 'machine guidance uses the same reason words');
+    assert.ok(!html.includes('rejected by core-728 (' + reason + '):'), 'raw rejection reason does not leak from the machine prefix');
+  }
+});
+
 test('real board Activity has sentence rows, working filters, full quotes and an ellipsized item on desktop and phone [N26]', { timeout: 120_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the Activity sentence journey.');

@@ -6,7 +6,11 @@ export function activityHtml(model, { filter = 'all', words, itemHref = id => '#
   const clock = value => new Date(value).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   const localTimes = text => String(text ?? '').replace(/\b\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)\b/gu,
     value => Number.isFinite(Date.parse(value)) ? clock(value) : value);
-  const who = (id, agent) => '<span class="activity-who"' + (agent?.model || agent?.agent_model ? ' title="' + esc(agent.model || agent.agent_model) + '"' : '') + '>' + esc(id === 'coordinator' ? 'The coordinator' : id === 'person' ? 'The person' : id) + '</span>';
+  /** Missing model metadata is not a model name; retain real models only as hover titles. */
+  const who = (id, agent) => {
+    const model = [agent?.model, agent?.agent_model].find(value => typeof value === 'string' && value.trim() && value.trim().toLowerCase() !== 'unknown');
+    return '<span class="activity-who"' + (model ? ' title="' + esc(model) + '"' : '') + '>' + esc(id === 'coordinator' ? 'The coordinator' : id === 'person' ? 'The person' : id) + '</span>';
+  };
   const item = entry => '<span class="activity-item" title="' + esc(entry.title) + '"><a class="ref" href="' + esc(itemHref(entry.id)) + '" data-go="item:' + entry.id + '">#' + entry.id + '</a>' + esc(entry.title) + '</span>';
   const paths = {
     build: '<path d="m9.5 2.5 4 4-1.5 1.5-4-4zM8 4 2.5 9.5l4 4L12 8"/>',

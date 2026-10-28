@@ -20,7 +20,17 @@ export function activityWords(finding, { now = Date.now(), clock = value => new 
   };
   const localTimes = text => String(text ?? '').replace(/\b\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)\b/gu,
     value => Number.isFinite(Date.parse(value)) ? clock(value) : value);
-  const plain = text => localTimes(text).replace(/\[([A-Z][A-Z0-9_]+)\]/gu, (_, key) => words[key] ?? key.toLowerCase().replaceAll('_', ' '));
+  const reasons = { TEST_FAILURE: 'Tests failed', BEHAVIOR_MISMATCH: 'Behavior did not match',
+    INSUFFICIENT_EVIDENCE: 'Not enough evidence', STALE_HEAD: 'Source changed', OTHER: 'Other reason' };
+  /** Localize machine labels while preserving the reviewer's own note after its typed rejection prefix. */
+  const plain = text => {
+    const localized = localTimes(text);
+    const quoted = /^(rejected by \S+ \([A-Z][A-Z0-9_]+\): )([\s\S]*)$/u.exec(localized);
+    const machine = quoted ? quoted[1] : localized;
+    const described = machine.replace(/\[([A-Z][A-Z0-9_]+)\]/gu, (_, key) => words[key] ?? reasons[key] ?? key.toLowerCase().replaceAll('_', ' '))
+      .replace(/\b(TEST_FAILURE|BEHAVIOR_MISMATCH|INSUFFICIENT_EVIDENCE|STALE_HEAD|OTHER)\b/gu, key => reasons[key]);
+    return described + (quoted ? quoted[2] : '');
+  };
   let text = finding.why || [finding.subject, words[code] ?? code.toLowerCase().replaceAll('_', ' ')].filter(Boolean).join(' ');
   if (code === 'RANK_INVERSION') {
     const match = /^(.*?) claimed (#\d+) while (#\d+) ranks ahead.*and sits free/u.exec(text);
