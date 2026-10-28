@@ -1,4 +1,5 @@
 /** Real CLI scenario for a review, submit or check that keeps its item lease while queued [C7,V4]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -38,8 +39,9 @@ try {
 `;
   const SUBMIT_CHECK = `
 import { runSubmitGate } from ${JSON.stringify(GATE_MODULE)};
+${executionServicesSource(GATE_MODULE)}
 const [root, base, check] = process.argv.slice(1);
-const result = await runSubmitGate(root, { gate: 'true', affectedTests: 'node bin/run-tests.js test/cpu-check.test.js' }, {
+const result = await runSubmitGate(root, { gate: 'true', affectedTests: 'node bin/run-tests.js test/cpu-check.test.js' }, { executionServices,
   base, changed: ['test/cpu-check.test.js'], check, agent: 'submit-check', item: '636',
 });
 process.stdout.write(JSON.stringify({ green: result.isGreen, full: result.full, reason: result.reason, files: result.files, checkGreen: result.check.green }) + '\\n');
@@ -253,6 +255,7 @@ function inheritedAdmissionProof(box) {
 import assert from 'node:assert/strict';
 import { takeResource, gateSlotEnvironment } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/resources.js')).href)};
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href)};
+${executionServicesSource(pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href)}
 const root = process.cwd();
 const lease = await takeResource({ name: 'gate', capacity: 2, scope: 'machine', root, agent: 'inherited-admission-control' });
 Object.assign(process.env, gateSlotEnvironment(lease));
@@ -261,9 +264,9 @@ try {
   await withGateSlot(root, inherited => {
     assert.equal(inherited.inherited, true);
     assert.equal(renewed, true, 'renewal finishes before inherited work starts');
-  }, { onWait: async state => { assert.equal(state.admitted, true); await Promise.resolve(); renewed = true; } });
+  }, { executionServices, onWait: async state => { assert.equal(state.admitted, true); await Promise.resolve(); renewed = true; } });
   const lost = new Error('private item lease lost');
-  await assert.rejects(withGateSlot(root, () => assert.fail('lost admission must not run'), {
+  await assert.rejects(withGateSlot(root, () => assert.fail('lost admission must not run'), { executionServices,
     onWait: async () => { throw lost; },
   }), error => error === lost);
 } finally { lease.release(); }

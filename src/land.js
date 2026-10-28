@@ -1,4 +1,6 @@
 import { requirePublishGreen } from './publish-pause.js';
+import { runnerExecutionServices } from './runners.js';
+import { landingExecutionServices } from './landing-shards.js';
 import { runDeferredGuards } from './landing-deferred-run.js';
 import { refreshLandedCodeMap } from './landing-main-notices.js';
 import { cadenceDeferral } from './landing-cadence.js';
@@ -483,7 +485,7 @@ async function gateGroup(state, label, options) {
   const gate = subset
     ? await runLocalLandingGuard(state.batch.root, config, { files, directory, label, onWait: state.onWait,
       waivers: liveWaiverProjection(state.board), onFailure })
-    : await runGate(state.batch.root, config, { trustStamp: false, landing: true, agent: 'coordinator', onWait: state.onWait,
+    : await runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, agent: 'coordinator', onWait: state.onWait,
       stages: true, waivers: liveWaiverProjection(state.board), onFailure });
   copyFileSync(gate.log, logPath);
   if (gate.profilePath) copyFileSync(gate.profilePath, `${logPath}.profile.json`);
@@ -790,7 +792,7 @@ async function diagnose(state, failures, gate) {
     const tree = headTree(state.batch.root);
     const result = await withLandingGateSlot(state.batch.root, (lease) => runProfiledShell(state.batch.root, `${runner} ${quote(file)}`, {
       waitMs: lease.waitMs, artifactDirectory: dirname(state.batch.logPath), artifactPrefix: 'diagnostic', persistLog: true, pipefail: true, gateLease: lease,
-    }), { landing: true, browser: true, agent: 'coordinator', kind: 'land-diagnostic', onWait: state.onWait });
+    }), { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser: true, agent: 'coordinator', kind: 'land-diagnostic', onWait: state.onWait });
     if (headCommit(state.batch.root) !== commit || headTree(state.batch.root) !== tree || !isClean(state.batch.root)) {
       throw new Refused('LAND_SOURCE_CHANGED', `the landing source changed during its whole-file diagnostic; inspect ${result.logPath} before adopting`);
     }
@@ -1136,7 +1138,7 @@ export function landsOnTrunk(config) {
  * guards remain a floor; an uncertain import graph requires the configured full gate before adoption.
  */
 async function quickGuards(state, label = 'local-trunk') {
-  await runStaticChecks(state.batch.root, state.config, { agent: 'coordinator', onWait: state.onWait });
+  await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
   const gate = await gateGroup(state, label, { localTrunk: true });
   if (!gate.isGreen && (!completeGate(gate) || !gate.accounted)) {
     throw new Refused('LAND_DIAGNOSTIC', 'the local-trunk guards have no complete accounted failure; inspect the recorded gate before adopting');

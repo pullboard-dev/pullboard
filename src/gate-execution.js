@@ -9,6 +9,7 @@ import {
 } from './run-timing.js';
 import {
   settleReceipt,
+  requireGateExecutionServices,
   withGateSlot,
 } from './gate-slot.js';
 import {
@@ -62,9 +63,6 @@ import {
   executionEnvironment,
   testRuntimeEnvironment,
 } from './execution-environment.js';
-import {
-  constrainedLandingHost,
-} from './landing-host.js';
 import {
   gitChildEnv,
   gitPath,
@@ -130,10 +128,6 @@ import {
 import {
   writeTimingProfile,
 } from './gate-output.js';
-import {
-  runOnRunner,
-  runOnRunnerAsync,
-} from './runners.js';
 import {
   sandboxBlockedOperation,
 } from './sandbox-denial.js';
@@ -213,7 +207,7 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
   // The registered worker returns the same complete stage/component accounting as a local run.
   gateLease?.tracker?.mark('runAt');
   const remoteCommand = landing && collectAll ? `(export ${LANDING_COLLECT_ALL_ENV}=1 ${COLLECTION_ID_ENV}=${collectionId}\n${command}\n)` : command;
-  const run = gateLease?.runner ? { ...runOnRunner(root, remoteCommand, { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
+  const run = gateLease?.runner ? { ...gateLease.executionServices.runners.runOnRunner(root, remoteCommand, { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
     browser: gateLease.browser, pipefail, stages, waivers: landing ? waivers : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,
       testStage: inherited.PULLBOARD_TEST_STAGE, timingRunId: id, ...(timeoutMs ? { timeoutMs } : {}) } }) }
     : runShell(root, command, { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease) });
@@ -333,7 +327,7 @@ export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlo
   const started = Date.now();
   gateLease?.tracker?.mark('runAt');
   if (gateLease?.runner) {
-    const run = await runOnRunnerAsync(root, command, { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
+    const run = await gateLease.executionServices.runners.runOnRunnerAsync(root, command, { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
       browser: gateLease.browser, metadata: { ...(gateLease.runMetadata ?? {}), landing,
         testStage: gateLease.receiptKind ?? (landing ? 'land' : 'gate') } });
     gateLease.environment = run.environment ?? null;
@@ -419,9 +413,10 @@ function runTiming(run, command, root) {
 
 /** Validate landing membership before admission; generic SSH capacity cannot stand in for a constrained host. */
 export async function withLandingGateSlot(root, action, options = {}) {
-  const constrained = constrainedLandingHost(root);
+  const executionServices = requireGateExecutionServices(options.executionServices);
+  const constrained = executionServices.landing.constrainedLandingHost(root);
   if (constrained && requiredExecutorOf(options.requiredExecutor)?.kind === 'ssh') throw new Refused('LAND_ENVIRONMENT', 'the required SSH executor conflicts with this board’s constrained local landing policy');
-  return withGateSlot(root, action, { ...options, landing: true, ...(constrained ? { remote: false } : {}) });
+  return withGateSlot(root, action, { ...options, executionServices, landing: true, ...(constrained ? { remote: false } : {}) });
 }
 
 /** Carry a failure observer's pinned main on the lease, so a remote runner's receipt names the main this run used (#925). */
@@ -442,7 +437,7 @@ export function pinRunMain(lease, observer) {
  * @param {{ trustStamp?: boolean, onWait?: (state: object) => void, landing?: boolean, collectAll?: boolean, auditBatchId?: string, agent?: string, item?: string|number }} [options]
  * @returns {Promise<{ isGreen: boolean, isCached: boolean, output: string, seconds: number, log: string, profile?: object, profilePath?: string }>}
  */
-export async function runGate(root, config, { trustStamp = true, onWait, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, agent, item = '', stages = false, waivers = [], onFailure } = {}) {
+export async function runGate(root, config, { trustStamp = true, onWait, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, agent, item = '', stages = false, waivers = [], onFailure, executionServices } = {}) {
   const releaseStartedAt = releaseRequest ? new Date().toISOString() : null;
   if (releaseRequest && (!landing || !collectAll || trustStamp || auditBatchId !== undefined
     || releaseRequest.version !== 1 || !/^[a-f0-9-]{36}$/u.test(releaseRequest.id ?? '')
@@ -471,7 +466,7 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
     await recordRun(onFailure, run);
     return run;
   }, {
-    landing, browser: true, gui: projectNeedsGui(root), agent, item, kind: landing ? 'landing' : 'gate', onWait,
+    executionServices, landing, browser: true, gui: projectNeedsGui(root), agent, item, kind: landing ? 'landing' : 'gate', onWait,
     ...(releaseRequest ? { requiredExecutor: { kind: 'local' } } : {}),
   });
 }

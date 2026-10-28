@@ -107,9 +107,9 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, agent, item = '', kind = 'submit', onWait, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root }) {
+export async function runSubmitGate(root, config, { base, trunk, changed, check, agent, item = '', kind = 'submit', onWait, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, executionServices }) {
   if (!config.gate.trim()) throw missingGate(root);
-  await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback });
+  await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, executionServices });
   const plan = submitGatePlan(root, config, { base, trunk, changed, check, sourceAdvance });
   const { selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
     proofFiles, fullConfig, hasFinalProof } = plan;
@@ -189,6 +189,6 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       command: !deferFullFallback && selection.full ? fullConfig.gate : `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`, lease });
     await recordRun(onFailure, proof);
     return finish(proof);
-  }, { browser, gui, agent, item, kind, itemCheck: true, onWait });
+  }, { executionServices, browser, gui, agent, item, kind, itemCheck: true, onWait });
 }
 

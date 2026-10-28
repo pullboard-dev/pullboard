@@ -1,4 +1,6 @@
 import { checkAtCommit } from '../runner-private-check.js';
+import { runnerExecutionServices } from '../runners.js';
+import { landingExecutionServices } from '../landing-shards.js';
 import { trunkRef } from '../trusted-policy-read.js';
 import { selectAffectedTests } from '../affected-tests.js';
 import { completeMoveHandoff } from '../post-move-handoff.js';
@@ -137,7 +139,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (item.item_status !== 'submitted' && !stale) {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
     }
-    if (item.outside) return outsideVerdict(ctx, board, item, me, decision, values);
+    if (item.outside) return outsideVerdict(ctx, board, item, me, decision, values, { runners: runnerExecutionServices(), landing: landingExecutionServices() });
     // Name an unknown implied item before the frozen check runs, not after it.
     if (implies) checkImplies(board, implies);
     const policy = itemPolicy(root, item);
@@ -173,7 +175,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           const gui = await checkNeedsGui(root, frozenCheck(item), { commit: checkedCommit });
           // Exact command classifiers still govern local and remote private-check admission [C7,V4].
           const shortEligible = Boolean(await explicitCheckFiles(root, frozenCheck(item), { commit: checkedCommit }));
-          check = await withGateSlot(root, async (lease) => { if (admitted && attempt === 0) ({ trunk, review } = composeNow()); const ran = await nativeFlakes.verify(ctx, checkedItem, frozenCheck(item), { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent, checkAtCommit })(lease); return ran.state === 'pass' ? { ...ran, guardNote: guardRevertNote(root, checkedItem, lease, { checkAtCommit }) } : ran; }, { browser, gui, remote: gateRunnersFirstEnabled(), agent: me.id, item: String(id), kind: 'review', itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
+          check = await withGateSlot(root, async (lease) => { if (admitted && attempt === 0) ({ trunk, review } = composeNow()); const ran = await nativeFlakes.verify(ctx, checkedItem, frozenCheck(item), { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent, checkAtCommit })(lease); return ran.state === 'pass' ? { ...ran, guardNote: guardRevertNote(root, checkedItem, lease, { checkAtCommit }) } : ran; }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, remote: gateRunnersFirstEnabled(), agent: me.id, item: String(id), kind: 'review', itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
         } else {
           check = checkAtCommit(root, checkedItem);
         }

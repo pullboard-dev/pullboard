@@ -22,7 +22,7 @@ import {
 } from './trusted-policy.js';
 
 /** Accept only a bound sandbox result; rejection does not execute contributed programs. */
-export async function outsideVerdict(ctx, board, item, me, decision, values) {
+export async function outsideVerdict(ctx, board, item, me, decision, values, executionServices) {
   if (decision === 'ACCEPT' && !values.sandbox) throw new Refused('OUTSIDE_SANDBOX_REQUIRED', `outside code cannot be verified on the host; run pullboard verify ${item.item_id} accept --sandbox --note "what you checked"`);
   const policy = itemPolicy(ctx.info.root, item);
   const digest = freezer(ctx, { board })(item).digest;
@@ -37,7 +37,7 @@ export async function outsideVerdict(ctx, board, item, me, decision, values) {
     const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(ctx.info.root, command, { commit: item.item_commit })
       || await checkNeedsBrowser(ctx.info.root, policy.config.gate, { commit: item.item_commit });
     sandbox = await withGateSlot(ctx.info.root, lease => verifyOutsideSandbox(ctx.info.root, item, policy, lease),
-      { remote: false, browser, agent: resourceAgent(ctx), item: String(item.item_id), kind: 'review', itemCheck: true });
+      { executionServices, remote: false, browser, agent: resourceAgent(ctx), item: String(item.item_id), kind: 'review', itemCheck: true });
     requireOutsideReceipt(board, sandbox);
     if (headCommit(ctx.info.root) !== head || !isClean(ctx.info.root) || untracked(ctx.info.root).length) throw new Refused('NOT_AT_COMMIT', 'the trusted reviewing checkout moved during sandbox verification; restore its clean head before reviewing again');
     const after = requireTrunkMerge(ctx.info.root, item.item_commit);

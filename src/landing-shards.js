@@ -1,3 +1,4 @@
+import { runnerExecutionServices } from './runners.js';
 import { constrainedLandingHost } from './landing-host.js';
 import { captureReleaseQueue } from './release-queue.js';
 import { RELEASE_EXECUTORS_ENV } from './gate-run-receipt.js';
@@ -545,7 +546,7 @@ export async function runLandingShards({ root, runner, files, count, inherited =
       if (lease.runner && quarantined.has(lease.runner.host)) return 'divert';
       entry.claimed = true;
       await runOnLease(entry, lease);
-    }, { landing: true, browser: entry.browser, gui: entry.gui, remote: !localOnly, kind: 'landing', item: `shard ${entry.label}`,
+    }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser: entry.browser, gui: entry.gui, remote: !localOnly, kind: 'landing', item: `shard ${entry.label}`,
       ...(entry.shard.executor ? { requiredExecutor: entry.shard.executor.kind === 'local'
         ? { kind: 'local' } : { kind: 'ssh', host: entry.shard.executor.host } } : {}),
       onWait: () => { if (entry.claimed || entry.done || stop.aborted) throw new NotNeeded(); } });

@@ -1248,7 +1248,10 @@ async function main(args) {
   try {
     if (!args.length && !process.env.PULLBOARD_GATE_SLOT_HELD && !process.env.PULLBOARD_GATE_SLOT_POOL
       && !process.env.PULLBOARD_GATE_SLOT_TOKEN && !process.env[LANDING_SHARD_ENV]) {
-      const direct = await (await import('../src/test-run.js')).runFullSuite(process.cwd(), runner);
+      const [{ runFullSuite }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
+        import('../src/test-run.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
+      ]);
+      const direct = await runFullSuite(process.cwd(), runner, { runners: runnerExecutionServices(), landing: landingExecutionServices() });
       if (direct) {
         if (direct.receiptId) await (await import('../src/native-flake-cli.js')).recordSuiteRun(process.cwd(), direct.receiptId, await import('../src/cli.js'));
         process.stdout.write(direct.output); process.exitCode = direct.isGreen ? 0 : 1; return;
@@ -1365,8 +1368,8 @@ async function main(args) {
     /** Acquire all required capabilities before creating the sandbox or starting test processes. */
     async function acquire() {
       // Direct runs use the public queue, requesting gate and browser capacity atomically when needed.
-      const [{ withGateSlot }, { loadMachineSettings }] = await Promise.all([
-        import('../src/gate-slot.js'), import('../src/settings.js'),
+      const [{ withGateSlot }, { loadMachineSettings }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
+        import('../src/gate-slot.js'), import('../src/settings.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
       ]);
       const capacity = loadMachineSettings().gateSlots;
       let announced = false;
@@ -1385,7 +1388,7 @@ async function main(args) {
         process.stdout.write(result.output);
         process.exitCode = result.exitCode;
       }, {
-        browser, gui, kind: fullSuite ? 'gate' : 'focused', shortEligible,
+        executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, kind: fullSuite ? 'gate' : 'focused', shortEligible,
         remote: Boolean(canShipRunner), runnerOnly,
         onWait: ({ holders, runnerUnavailable }) => {
           if (runnerUnavailable) {

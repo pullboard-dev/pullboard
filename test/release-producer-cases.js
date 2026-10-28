@@ -118,6 +118,9 @@ import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {runReleaseGate,verifyNativeReleaseReceipt} from './.tooling/src/release-gate.js';
+import {runnerExecutionServices} from './.tooling/src/runners.js';
+import {landingExecutionServices} from './.tooling/src/landing-shards.js';
+const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 import {isStampedGreen} from './.tooling/src/gate.js';
 import {releaseReceiptBody,releaseParticipationDigest} from './.tooling/src/release-gate-receipt.js';
 import {openBoard,closeBoard} from './.tooling/src/board.js';
@@ -148,7 +151,7 @@ export function installReleaseProducerCases() {
     { timeout: 180_000, cpuLoad: true }, async t => { // budget: seven real private worker capsules and their owned cleanup.
     const box = fixture(t);
     const result = await producer(box, `
-const run=await runReleaseGate(root);
+const run=await runReleaseGate(root, { executionServices });
 const receipt=run.receipt,id=receipt.participation.id;
 assert.equal(receipt.gateReceipt.kind,'release');
 assert.equal(receipt.gateReceipt.collection.full,true);assert.equal(receipt.gateReceipt.collection.complete,true);
@@ -157,9 +160,9 @@ assert.equal(receipt.participation.required.length,8);
 assert.equal(new Set(receipt.participation.shards.map(s=>s.executor)).size,8);
 assert.deepEqual(receipt.participation.shards.flatMap(s=>s.files).sort(),receipt.gateReceipt.collection.files);
 assert.ok(receipt.participation.shards.every(s=>s.green&&s.complete&&s.cleanupVerified));
-assert.deepEqual(verifyNativeReleaseReceipt(root,id),receipt);
+assert.deepEqual(verifyNativeReleaseReceipt(root,id, executionServices),receipt);
 assert.equal(isStampedGreen(root),true);
-assert.equal(verifyNativeReleaseReceipt(root,'not-a-native-id'),null);
+assert.equal(verifyNativeReleaseReceipt(root,'not-a-native-id', executionServices),null);
 const expected={head:receipt.participation.head,tree:receipt.participation.tree,command:receipt.participation.command,required:receipt.participation.required};
 const original=readFileSync(run.file,'utf8');
 assert.equal(original,releaseReceiptBody(receipt,expected));
@@ -173,23 +176,23 @@ for(const substitute of substitutions){
  const substituted=structuredClone(receipt);substitute(substituted.participation);
  assert.equal(releaseReceiptBody(substituted,expected),null,'changed participation loses the observed gate binding');
  writeFileSync(run.file,JSON.stringify(substituted)+'\\n');
- try { assert.equal(verifyNativeReleaseReceipt(root,id)===null,true,'valid participation substitutions cannot inherit native custody'); }
+ try { assert.equal(verifyNativeReleaseReceipt(root,id, executionServices)===null,true,'valid participation substitutions cannot inherit native custody'); }
  finally { writeFileSync(run.file,original); }
  substituted.gateReceipt.participationDigest=releaseParticipationDigest(substituted.participation);
  const substitutedBytes=releaseReceiptBody(substituted,expected);
  assert.ok(substitutedBytes,'a forged matching hash preserves structure but cannot alter the private native gate record');
  writeFileSync(run.file,substitutedBytes);
- try { assert.equal(verifyNativeReleaseReceipt(root,id)===null,true,'recomputing a forged digest cannot inherit native custody'); }
+ try { assert.equal(verifyNativeReleaseReceipt(root,id, executionServices)===null,true,'recomputing a forged digest cannot inherit native custody'); }
  finally { writeFileSync(run.file,original); }
 }
-assert.deepEqual(verifyNativeReleaseReceipt(root,id),receipt,'the unmodified real native receipt remains valid');
+assert.deepEqual(verifyNativeReleaseReceipt(root,id, executionServices),receipt,'the unmodified real native receipt remains valid');
 const forged=structuredClone(receipt);forged.participation.shards[0].files=['test/not-planned.test.js'];
 writeFileSync(run.file,JSON.stringify(forged)+'\\n');
-assert.equal(verifyNativeReleaseReceipt(root,id),null,'tampering a private envelope cannot create native custody');
+assert.equal(verifyNativeReleaseReceipt(root,id, executionServices),null,'tampering a private envelope cannot create native custody');
 writeFileSync(run.file,original);
 writeFileSync('after-release.txt','a different accepted private head');
 execFileSync('git',['add','after-release.txt']);execFileSync('git',['commit','-qm','test: advance private accepted head']);
-assert.equal(verifyNativeReleaseReceipt(root,id),null,'old green bytes cannot authorize a new head');
+assert.equal(verifyNativeReleaseReceipt(root,id, executionServices),null,'old green bytes cannot authorize a new head');
 assert.equal(isStampedGreen(root),false);
 `);
     assert.equal(result.status, 0, result.context);
@@ -210,7 +213,7 @@ assert.equal(isStampedGreen(root),false);
     { timeout: 180_000, cpuLoad: true }, async t => { // budget: a complete real private eight-shard run, including red collection and cleanup.
     const box = fixture(t, { red: true });
     const result = await producer(box, `
-await assert.rejects(()=>runReleaseGate(root),error=>error.code==='GATE_RUN_EVIDENCE');
+await assert.rejects(()=>runReleaseGate(root, { executionServices }),error=>error.code==='GATE_RUN_EVIDENCE');
 assert.equal(isStampedGreen(root),false);
 let receipts=[];try{receipts=readdirSync(join(root,'.git','pullboard','release-receipts'));}catch(error){if(error.code!=='ENOENT')throw error;}
 assert.deepEqual(receipts,[]);
@@ -224,7 +227,7 @@ assert.deepEqual(receipts,[]);
       { timeout: 180_000, cpuLoad: true }, async t => { // budget: actual private worker capsules, full collection and owned cleanup.
       const box = fixture(t, { hosts: count - 1 });
       const result = await producer(box, `
-const run=await runReleaseGate(root), receipt=run.receipt;
+const run=await runReleaseGate(root, { executionServices }), receipt=run.receipt;
 assert.equal(receipt.participation.required.length,${count});
 assert.equal(new Set(receipt.participation.shards.map(shard=>shard.executor)).size,${count});
 assert.equal(receipt.participation.shards.length,${count});
@@ -234,7 +237,7 @@ assert.equal(receipt.gateReceipt.collection.plannedFiles,8);
 assert.equal(receipt.gateReceipt.collection.completedFiles,8);
 assert.deepEqual(receipt.participation.shards.flatMap(shard=>shard.files).sort(),receipt.gateReceipt.collection.files);
 assert.ok(receipt.participation.shards.every(shard=>shard.green&&shard.complete&&shard.cleanupVerified));
-assert.deepEqual(verifyNativeReleaseReceipt(root,receipt.participation.id),receipt);
+assert.deepEqual(verifyNativeReleaseReceipt(root,receipt.participation.id, executionServices),receipt);
 assert.equal(isStampedGreen(root),true);
 `);
       assert.equal(result.status, 0, result.context);

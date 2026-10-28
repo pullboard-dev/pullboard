@@ -2,6 +2,7 @@
  * pullboard health names every stuck item, why, since when, the next step and who takes it, on a
  * real SQLite board in a real git repo with an injected clock, and never changes either [A6].
  */
+import { executionServices } from './gate-execution-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -532,7 +533,7 @@ test('a positive control inherits the gate slot it runs under [C7,D1]', async (t
   commitPolicy(box, { gate: 'true', positiveControl: probe });
   const { runGate } = await import('../src/gate.js');
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
-  const gate = await runGate(box.root, config, { trustStamp: false });
+  const gate = await runGate(box.root, config, { executionServices, trustStamp: false });
   assert.equal(gate.isGreen, true, 'the gate itself is green');
   const run = gateRuns(box.root).at(-1);
   assert.equal(run.control, true, 'the positive control saw the inherited gate slot and passed');

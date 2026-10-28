@@ -169,7 +169,7 @@ async function routeFailures(source, job, receipt, config, write, sinceEventId) 
   if (!receipt.green && !files.length) throw new Error('red main audit has no named failing file; not complete');
 }
 /** Run or finish routing one job; a durable complete receipt avoids rerunning an already observed suite. */
-async function audit(root, directory, job, write, options, testValueServices) {
+async function audit(root, directory, job, write, options, testValueServices, executionServices) {
   const key = mainAuditKey(job) + (options.forceFull ? `-release-${options.runId}` : ''), file = join(directory, `${key}.json`);
   const source = join(directory, `source-${key}`);
   let saved = readMainAudit(file);
@@ -217,7 +217,7 @@ async function audit(root, directory, job, write, options, testValueServices) {
       }
       saveMainAudit(file, { ...job, plan, state: 'running', source, controller: process.pid, started: processStart(process.pid) });
       cleanupAllowed = false;
-      const run = await runGate(source, config, { landing: true, collectAll: true, auditBatchId: job.batchId, auditCoverage: true, ...(plan.reused.length ? { auditFiles: plan.run } : {}), trustStamp: false, agent: 'coordinator' });
+      const run = await runGate(source, config, { executionServices, landing: true, collectAll: true, auditBatchId: job.batchId, auditCoverage: true, ...(plan.reused.length ? { auditFiles: plan.run } : {}), trustStamp: false, agent: 'coordinator' });
       cleanupAllowed = run.cleanupVerified === true && !run.cleanupUnverified
         && !(run.profile?.landingShards?.unverified?.length > 0);
       receipt = run.receiptId && readGateReceipt(receiptStore(root), run.receiptId);
@@ -298,7 +298,7 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
         const key = mainAuditKey(job);
         if (visited.has(key)) continue;
         visited.add(key);
-        try { await audit(root, directory, job, write, { forceFull, runId: token }, services.testValue); }
+        try { await audit(root, directory, job, write, { forceFull, runId: token }, services.testValue, services.executionServices); }
         catch (error) {
           const file = join(directory, `${key}.json`);
           const saved = readMainAudit(file) ?? job;

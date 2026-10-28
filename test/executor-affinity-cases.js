@@ -1,6 +1,7 @@
 /** @pullboard-test-loads src/resources.js */
 /** @pullboard-test-loads src/gate.js */
 /** Private native admission restricts placement without granting capacity or capabilities [Q1,Q2,E27]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -85,8 +86,9 @@ test('a constrained landing refuses SSH affinity before invoking its action [E27
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', `
     import assert from 'node:assert/strict';
     import {withLandingGateSlot} from ${JSON.stringify(GATE)};
+${executionServicesSource(GATE)}
     let called=false;
-    await assert.rejects(withLandingGateSlot(process.cwd(),()=>{called=true;},{requiredExecutor:{kind:'ssh',host:'fixture-a'}}),{code:'LAND_ENVIRONMENT'});
+    await assert.rejects(withLandingGateSlot(process.cwd(),()=>{called=true;},{ executionServices,requiredExecutor:{kind:'ssh',host:'fixture-a'}}),{code:'LAND_ENVIRONMENT'});
     assert.equal(called,false);
   `], { cwd: box.repo, env: box.env });
   assert.equal(result.status, 0, result.failure);

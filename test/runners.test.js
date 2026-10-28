@@ -1,4 +1,5 @@
 /** Registered SSH runner execution stays inside a committed, secret-free worker checkout [C7]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import { copyCommittedPackageFiles } from './package-copy-fixture.js';
 import { runnerPackage } from '../src/runner-package.js';
@@ -77,6 +78,7 @@ function startQueueController(repo, env, command, { item, queueMarker, firstItem
   snapshot.active++;
   const script = `import { writeFileSync } from 'node:fs';
 const { runProfiledShell, withGateSlot } = await import(${JSON.stringify(gateUrl)});
+${executionServicesSource(gateUrl)}
 const root = ${JSON.stringify(repo)};
 const command = ${JSON.stringify(command)};
 const queueMarker = ${JSON.stringify(queueMarker)};
@@ -87,7 +89,7 @@ const result = await withGateSlot(root, async lease => {
   process.stdout.write('PULLBOARD_RUN_RESULT ' + JSON.stringify({ isGreen: run.isGreen, runner: run.profile.executionRunner }) + '\\n');
   return run;
 },
-  { browser: ${browser}, remote: ${remote}, item: ${JSON.stringify(item)}, kind: 'runner-retry-test', agent: ${JSON.stringify(item)},
+  { executionServices, browser: ${browser}, remote: ${remote}, item: ${JSON.stringify(item)}, kind: 'runner-retry-test', agent: ${JSON.stringify(item)},
   onWait(state) {
     const rows = state.line ?? [];
     if (queueMarker && rows.some(row => row.item === ${JSON.stringify(item)}) && (firstItem === null || rows.some(row => row.item === firstItem))) {
