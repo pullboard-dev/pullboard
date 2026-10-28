@@ -5,6 +5,7 @@
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
  */
 import { functionsIn, MACHINE_CALLBACKS as CALLBACKS } from './machine-source-functions.fixture.js';
+import { assertCommitShimRefusals, machineSourceModule } from './commits-machine-fixture.js';
 import { assertMachineWalkMemo } from './machine-walk-memo.fixture.js';
 import * as fs from 'node:fs';
 import * as machineRules from '../src/machine.js';
@@ -176,10 +177,10 @@ function codeWalk(read, { caught = false } = {}) {
   const localFacts = new Map();
   const load = (file) => {
     if (!files.has(file)) {
-      const source = read(file);
+      const { sourceFile, source } = machineSourceModule(file, read);
       const named = new Map();
       /** Resolve literal relative imports with their repository layout, including extracted packages. */
-      const under = (specifier) => posix.normalize(posix.join(posix.dirname(file), specifier));
+      const under = (specifier) => posix.normalize(posix.join(posix.dirname(sourceFile), specifier));
       for (const [, names, specifier] of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*'(\.{1,2}\/[^']+\.js)'/g)) {
         const from = under(specifier);
         if (!from) continue;
@@ -1460,6 +1461,7 @@ test('a source walk scans local facts once while retaining caller-specific refus
 
 
 test('lifecycle audit follows extracted package guards and catches a new refusal [M1,M4,H16]', () => {
+  assertCommitShimRefusals(codeWalk, fromDisk, editedSource, codeProblems, machineRules.MACHINE);
   const file = '../packages/state/src/core/handoff-state.js';
   const walk = codeWalk(fromDisk);
   assert.ok(walk.refusalsOf(`${file}#requireHandoffActive`).has('AGENT_REPLACED'));
