@@ -2,10 +2,6 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
-    "src/trusted-policy.js->src/refused.js": 1,
-    "src/trusted-policy.js->src/resources.js": 1,
-    "src/trusted-policy.js->src/runner-private-check.js": 1,
-    "src/trusted-policy.js->src/runner-private-mode.js": 1,
     "src/trusted-policy.js->src/sandbox-denial.js": 1,
     "src/trusted-policy.js->src/timing.js": 1,
     "src/trusted-policy.js->src/trunk-merge.js": 1,
@@ -318,6 +314,7 @@
     "test/cell-lints.test.js->src/discovery.js": 1,
     "test/cell-lints.test.js->test/fixture-child.js": 1,
     "test/cells-move.test.js->bin/cells-move-tool.js": 1,
+    "test/cells-move.test.js->src/package-files.js": 1,
     "test/cells-move.test.js->src/path-map.js": 1,
     "test/cells-plan-cut-cases.js->bin/cells-plan-cuts.js": 1,
     "test/cells-plan-cut-cases.js->bin/cells-plan.js": 1,
@@ -401,6 +398,9 @@
     "test/cli-read-performance.test.js->src/cli.js": 1,
     "test/cli-read-performance.test.js->test/board-submit-fixture.js": 1,
     "test/cli-read-performance.test.js->test/fixture-child.js": 1,
-    "test/cli-startup-budget-fixture.js->src/board.js": 1
+    "test/cli-startup-budget-fixture.js->src/board.js": 1,
+    "test/cli-startup-budget-fixture.js->test/board-submit-fixture.js": 1,
+    "test/cli-startup-budget-fixture.js->test/fixture-child.js": 1,
+    "test/cli-startup.test.js->test/cli-startup-budget-fixture.js": 1
   }
 }

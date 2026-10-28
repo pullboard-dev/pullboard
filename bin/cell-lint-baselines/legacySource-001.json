@@ -377,10 +377,13 @@
     "src/generated-docs-engine.js": 1,
     "src/generated-docs.js": 1,
     "src/git-adapter.js": 1,
+    "src/git-landing-batches.js": 1,
     "src/git-launch-baseline.json": 1,
     "src/git-launch-ratchet.js": 1,
     "src/git-memory.js": 1,
     "src/git-sync-format.js": 1,
+    "src/git-trunk-ref.js": 1,
+    "src/git-wait-reporter.js": 1,
     "src/git.js": 1,
     "src/github-origin.js": 1,
     "src/gone-claim-engine.js": 1,
@@ -398,9 +401,6 @@
     "src/help-version.js": 1,
     "src/help.js": 1,
     "src/help/additions.js": 1,
-    "src/help/coordinator.js": 1,
-    "src/help/declarations.js": 1,
-    "src/help/footer.js": 1,
-    "src/help/gate.js": 1
+    "src/help/coordinator.js": 1
   }
 }

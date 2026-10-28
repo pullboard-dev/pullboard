@@ -17,6 +17,7 @@
     "bin/cells-move.js->src/refused.js": 1,
     "bin/cells-plan-cuts.js->src/cell-lint-inventory.js": 1,
     "bin/cells-plan-cuts.js->src/cells-plan-cuts.js": 1,
+    "bin/cells-plan-cuts.js->src/js-lex.js": 1,
     "bin/cells-plan-cuts.js->src/path-map.js": 1,
     "bin/cells-plan-cuts.js->src/refused.js": 1,
     "bin/cells-plan.js->bin/cells-plan-cuts.js": 1,
@@ -400,7 +401,6 @@
     "src/bar-corrections.js->src/refused.js": 1,
     "src/bar-coverage.js->src/brief.js": 1,
     "src/bar-coverage.js->src/git.js": 1,
-    "src/bar-coverage.js->src/refused.js": 1,
-    "src/bar-readiness.js->src/bar-actor.js": 1
+    "src/bar-coverage.js->src/refused.js": 1
   }
 }

@@ -2,7 +2,6 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
-    "test/rigor-checks.test.js->src/doctrine-rulings.js": 1,
     "test/rigor-checks.test.js->src/doctrine.js": 1,
     "test/rigor-checks.test.js->src/rigor-auto-engine.js": 1,
     "test/rigor-checks.test.js->src/rigor-conflicts.js": 1,
@@ -401,6 +400,7 @@
     "test/stats-cli.test.js->src/stats.js": 1,
     "test/stats-cli.test.js->test/board-submit-fixture.js": 1,
     "test/stats-cli.test.js->test/fixture-child.js": 1,
-    "test/stats-cli.test.js->test/http-fixture.js": 1
+    "test/stats-cli.test.js->test/http-fixture.js": 1,
+    "test/stats-cold.test.js->src/board.js": 1
   }
 }

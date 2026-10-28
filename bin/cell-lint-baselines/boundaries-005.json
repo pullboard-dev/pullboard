@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/commands/verify.js->src/refused.js": 1,
     "src/commands/verify.js->src/relay.js": 1,
     "src/commands/verify.js->src/review-independence.js": 1,
     "src/commands/verify.js->src/settings.js": 1,
@@ -293,6 +294,7 @@
     "src/gate-submit.js->src/settings.js": 1,
     "src/gate-submit.js->src/source-advance-plan.js": 1,
     "src/gate-submit.js->src/test-placement.js": 1,
+    "src/gate-wait.js->src/git-wait-reporter.js": 1,
     "src/gate.js->src/gate-execution.js": 1,
     "src/gate.js->src/gate-output.js": 1,
     "src/gate.js->src/gate-report.js": 1,
@@ -318,6 +320,8 @@
     "src/git-launch-ratchet.js->src/js-lex.js": 1,
     "src/git-sync-format.js->src/git.js": 1,
     "src/git-sync-format.js->src/refused.js": 1,
+    "src/git-trunk-ref.js->src/git.js": 1,
+    "src/git-trunk-ref.js->src/refused.js": 1,
     "src/git.js->src/git-adapter.js": 1,
     "src/git.js->src/refused.js": 1,
     "src/github-origin.js->src/git.js": 1,
@@ -397,10 +401,6 @@
     "src/implies.js->src/engine-metadata.js": 1,
     "src/implies.js->src/move-engine-constants.js": 1,
     "src/implies.js->src/move-implies.js": 1,
-    "src/implies.js->src/refused.js": 1,
-    "src/inbox-store.js->src/board-read-auxiliary.js": 1,
-    "src/inbox-store.js->src/board.js": 1,
-    "src/inbox-store.js->src/config.js": 1,
-    "src/inbox-store.js->src/refused.js": 1
+    "src/implies.js->src/refused.js": 1
   }
 }

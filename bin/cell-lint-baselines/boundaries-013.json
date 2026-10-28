@@ -2,9 +2,6 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
-    "test/flakes-ledger.test.js->src/board.js": 1,
-    "test/flakes-ledger.test.js->src/engine.js": 1,
-    "test/flakes-ledger.test.js->src/exchange.js": 1,
     "test/flakes-ledger.test.js->test/board-submit-fixture.js": 1,
     "test/flakes.test.js->src/board.js": 1,
     "test/flakes.test.js->src/land.js": 1,
@@ -401,6 +398,9 @@
     "test/machine-home.test.js->test/e2e-helpers.js": 1,
     "test/machine-home.test.js->test/fixture-child.js": 1,
     "test/machine.test.js->src/board.js": 1,
-    "test/machine.test.js->src/cli.js": 1
+    "test/machine.test.js->src/cli.js": 1,
+    "test/machine.test.js->src/config.js": 1,
+    "test/machine.test.js->src/machine.js": 1,
+    "test/machine.test.js->src/refused.js": 1
   }
 }

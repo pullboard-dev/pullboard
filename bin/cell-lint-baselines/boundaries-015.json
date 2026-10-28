@@ -2,9 +2,6 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
-    "test/project-meta.test.js->test/http-fixture.js": 1,
-    "test/proof-provenance.test.js->src/board.js": 1,
-    "test/proof-provenance.test.js->src/engine.js": 1,
     "test/proof-provenance.test.js->src/execution-environment.js": 1,
     "test/proof-provenance.test.js->src/gate-run-receipt.js": 1,
     "test/proof-provenance.test.js->src/proof-cli.js": 1,
@@ -15,12 +12,14 @@
     "test/proof-provenance.test.js->test/fixture-child.js": 1,
     "test/publish-pause.test.js->test/e2e-helpers.js": 1,
     "test/push-native-evidence-fixture.js->src/board.js": 1,
+    "test/push-native-evidence-fixture.js->src/config.js": 1,
     "test/push-native-evidence-fixture.js->src/gate-run-receipt.js": 1,
     "test/push-native-evidence-fixture.js->src/gate.js": 1,
     "test/push-native-evidence-fixture.js->src/git.js": 1,
     "test/push-native-evidence-fixture.js->src/landing-test-defects.js": 1,
     "test/push-native-evidence-fixture.js->src/push-native-evidence.js": 1,
     "test/push-native-evidence-fixture.js->src/quarantine.js": 1,
+    "test/push-native-evidence-fixture.js->src/trusted-policy-read.js": 1,
     "test/qr.test.js->src/qr.js": 1,
     "test/query-plans.test.js->src/board-migrate.js": 1,
     "test/query-plans.test.js->src/board-schema-source.js": 1,
@@ -401,6 +400,7 @@
     "test/relay-pairing-options.test.js->src/relay-device-keys.js": 1,
     "test/relay-pairing-options.test.js->test/relay-client-fixture.js": 1,
     "test/relay-pairing.test.js->test/relay-browser-fixture.js": 1,
-    "test/relay-pairing.test.js->test/relay-client-fixture.js": 1
+    "test/relay-pairing.test.js->test/relay-client-fixture.js": 1,
+    "test/relay-parity-clock.test.js->relay/browser-model.js": 1
   }
 }

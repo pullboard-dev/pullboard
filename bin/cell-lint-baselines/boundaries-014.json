@@ -2,9 +2,6 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
-    "test/machine.test.js->src/config.js": 1,
-    "test/machine.test.js->src/machine.js": 1,
-    "test/machine.test.js->src/refused.js": 1,
     "test/machine.test.js->test/board-fixture.js": 1,
     "test/machine.test.js->test/board-submit-fixture.js": 1,
     "test/machine.test.js->test/fixture-child.js": 1,
@@ -401,6 +398,9 @@
     "test/products.test.js->test/board-submit-fixture.js": 1,
     "test/products.test.js->test/fixture-child.js": 1,
     "test/project-meta.test.js->src/serve.js": 1,
-    "test/project-meta.test.js->test/fixture-child.js": 1
+    "test/project-meta.test.js->test/fixture-child.js": 1,
+    "test/project-meta.test.js->test/http-fixture.js": 1,
+    "test/proof-provenance.test.js->src/board.js": 1,
+    "test/proof-provenance.test.js->src/engine.js": 1
   }
 }

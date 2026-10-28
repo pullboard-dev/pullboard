@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/bar-readiness.js->src/bar-actor.js": 1,
     "src/bar-readiness.js->src/bar-coverage.js": 1,
     "src/bar-readiness.js->src/bar-ready-engine.js": 1,
     "src/bar-readiness.js->src/bar-ready-setting.js": 1,
@@ -400,7 +401,6 @@
     "src/cli-read-context.js->src/doctrine.js": 1,
     "src/cli-read-context.js->src/git.js": 1,
     "src/cli-read-context.js->src/item-dependencies.js": 1,
-    "src/cli-read-context.js->src/refused.js": 1,
-    "src/cli-read-context.js->src/trunk-conflict.js": 1
+    "src/cli-read-context.js->src/refused.js": 1
   }
 }

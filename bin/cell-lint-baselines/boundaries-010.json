@@ -2,10 +2,6 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
-    "src/runner-transport.js->src/gui-session.js": 1,
-    "src/runner-utilization.js->src/gate-receipt.js": 1,
-    "src/runner-utilization.js->src/runner-capacity-read.js": 1,
-    "src/runner-utilization.js->src/runner-stage.js": 1,
     "src/runner-wait.js->src/machine-home.js": 1,
     "src/runner-wait.js->src/refused.js": 1,
     "src/runner-worker.js->src/execution-environment.js": 1,
@@ -155,7 +151,6 @@
     "src/source-advance-compose.js->src/git.js": 1,
     "src/source-advance-compose.js->src/mechanical-merge.js": 1,
     "src/source-advance-compose.js->src/refused.js": 1,
-    "src/source-advance-nudge.js->bin/source-advance.js": 1,
     "src/source-advance-nudge.js->src/git.js": 1,
     "src/source-advance-origin.js->src/board-item-read.js": 1,
     "src/source-advance-origin.js->src/gate-run-receipt.js": 1,
@@ -388,8 +383,9 @@
     "src/trunk-merge.js->src/mechanical-merge.js": 1,
     "src/trunk-merge.js->src/refused.js": 1,
     "src/trunk-merge.js->src/trusted-policy-read.js": 1,
-    "src/trunk-revision.js->src/trusted-policy-read.js": 1,
+    "src/trunk-revision.js->src/git-trunk-ref.js": 1,
     "src/trusted-policy-read.js->src/config.js": 1,
+    "src/trusted-policy-read.js->src/git-trunk-ref.js": 1,
     "src/trusted-policy-read.js->src/git.js": 1,
     "src/trusted-policy-read.js->src/refused.js": 1,
     "src/trusted-policy-read.js->src/runner-policy.js": 1,
@@ -401,6 +397,10 @@
     "src/trusted-policy.js->src/lanes.js": 1,
     "src/trusted-policy.js->src/path-map.js": 1,
     "src/trusted-policy.js->src/private-check-worker.js": 1,
-    "src/trusted-policy.js->src/proof-provenance.js": 1
+    "src/trusted-policy.js->src/proof-provenance.js": 1,
+    "src/trusted-policy.js->src/refused.js": 1,
+    "src/trusted-policy.js->src/resources.js": 1,
+    "src/trusted-policy.js->src/runner-private-check.js": 1,
+    "src/trusted-policy.js->src/runner-private-mode.js": 1
   }
 }

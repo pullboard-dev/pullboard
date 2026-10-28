@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "legacySource",
   "allowances": {
+    "src/resume.js": 1,
+    "src/review-eligibility.js": 1,
+    "src/review-grant-engine.js": 1,
     "src/review-independence-engine.js": 1,
     "src/review-independence.js": 1,
     "src/review-policy.js": 1,

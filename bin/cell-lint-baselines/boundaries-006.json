@@ -2,6 +2,10 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/inbox-store.js->src/board-read-auxiliary.js": 1,
+    "src/inbox-store.js->src/board.js": 1,
+    "src/inbox-store.js->src/config.js": 1,
+    "src/inbox-store.js->src/refused.js": 1,
     "src/inbox-store.js->src/worker-inbox.js": 1,
     "src/index.js->src/board.js": 1,
     "src/index.js->src/cli.js": 1,
@@ -159,6 +163,7 @@
     "src/land.js->src/test-placement.js": 1,
     "src/land.js->src/trusted-policy.js": 1,
     "src/land.js->src/verdict-freshness.js": 1,
+    "src/landing-batch-history.js->src/git-landing-batches.js": 1,
     "src/landing-cadence.js->src/landing-batch-history.js": 1,
     "src/landing-cadence.js->src/verdict-reviews.js": 1,
     "src/landing-candidates.js->src/board.js": 1,
@@ -396,11 +401,6 @@
     "src/moves/answerDecision.js->src/sentinel-engine.js": 1,
     "src/moves/answerTypedRequests.js->src/typed-requests-engine.js": 1,
     "src/moves/appendFact.js->src/bar-check-engine.js": 1,
-    "src/moves/appendFact.js->src/engine-metadata.js": 1,
-    "src/moves/appendFact.js->src/item-notes-engine.js": 1,
-    "src/moves/appendFact.js->src/item-notes.js": 1,
-    "src/moves/appendFact.js->src/landing-lease-engine.js": 1,
-    "src/moves/appendFact.js->src/move-engine-constants.js": 1,
-    "src/moves/appendFact.js->src/move-implies.js": 1
+    "src/moves/appendFact.js->src/engine-metadata.js": 1
   }
 }

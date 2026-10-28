@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "legacySource",
   "allowances": {
+    "src/help/declarations.js": 1,
+    "src/help/footer.js": 1,
+    "src/help/gate.js": 1,
     "src/help/intro.js": 1,
     "src/help/lifecycle.js": 1,
     "src/help/outside.js": 1,
@@ -398,9 +401,6 @@
     "src/required-review-family.js": 1,
     "src/resources.js": 1,
     "src/resume-needs.js": 1,
-    "src/resume-sources.js": 1,
-    "src/resume.js": 1,
-    "src/review-eligibility.js": 1,
-    "src/review-grant-engine.js": 1
+    "src/resume-sources.js": 1
   }
 }

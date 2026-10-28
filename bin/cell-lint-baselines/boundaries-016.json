@@ -2,7 +2,6 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
-    "test/relay-parity-clock.test.js->relay/browser-model.js": 1,
     "test/relay-parity-clock.test.js->src/api.js": 1,
     "test/relay-parity-clock.test.js->src/blocks.js": 1,
     "test/relay-parity-clock.test.js->src/board.js": 1,
@@ -401,6 +400,7 @@
     "test/rigor-checks.test.js->bin/checks/test-inputs.js": 1,
     "test/rigor-checks.test.js->bin/checks/test-names.js": 1,
     "test/rigor-checks.test.js->src/board.js": 1,
-    "test/rigor-checks.test.js->src/config.js": 1
+    "test/rigor-checks.test.js->src/config.js": 1,
+    "test/rigor-checks.test.js->src/doctrine-rulings.js": 1
   }
 }

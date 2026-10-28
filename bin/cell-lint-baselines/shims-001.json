@@ -2,6 +2,8 @@
   "version": 1,
   "metric": "shims",
   "allowances": {
+    "src/gate-wait.js": 1,
+    "src/landing-batch-history.js": 1,
     "src/mcp.js": 1,
     "src/train-mechanical-merge.js": 1
   }
