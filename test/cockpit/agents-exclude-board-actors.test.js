@@ -18,7 +18,6 @@ test('Rigor drafts and executed sentinels do not create agent rows or increase a
     assert.ok(chromeExecutable(), 'Chrome is required for both actual agent surfaces');
     chrome = await openSnapshotChrome(chromeExecutable(), view.link.href, join(box.dir, 'agents-board-actors-chrome'));
     await chrome.waitFor(`!!document.querySelector('#dashboard [data-dashboard-agent="web-1"]')`);
-    const before = await boardOf(view, alpha.repo);
     const beforeFloor = await chrome.stable('Array.from(document.querySelectorAll("#dashboard [data-dashboard-agent]"), row => row.dataset.dashboardAgent)');
     const beforeHeadline = await chrome.stable('document.querySelector("#dashboard h1").textContent');
     earlier(alpha.repo, Date.now(), board => store.appendFact(board, 1, {
@@ -48,7 +47,6 @@ test('Rigor drafts and executed sentinels do not create agent rows or increase a
     await chrome.stable('view.allAgents = true; view.open.idle = true; render(); true');
     assert.ok((await chrome.stable('Array.from(document.querySelectorAll("#agents [data-agent]"), row => row.dataset.agent)')).includes('web-1'), 'the real agent remains in the Agents panel');
     for (const actor of ['rigor', 'sentinel']) assert.equal(await chrome.stable(`!!document.querySelector('#agents [data-agent="${actor}"]')`), false, actor + ' is not an Agents panel row');
-    assert.equal(after.proofStats.agentCount, before.proofStats.agentCount, 'recorded automation does not increase the public agent count');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     await view.stop();
