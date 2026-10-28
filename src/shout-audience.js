@@ -44,3 +44,22 @@ export const UNREAD_SHOUT_SQL = `FROM shout WHERE shout_id > ? AND shout_from !=
 export function unreadShoutBindings(cursor, seat, lane) {
   return [cursor, seat, lane, seat, seat, seat, seat, seat, seat];
 }
+
+/** The kinds of evidence a shout can carry (B22): what was tried, or what was measured. */
+export const EVIDENCE_KINDS = ['attempt', 'receipt'];
+
+/**
+ * Refuse evidence that is not fields a reader can trust (B22): its kind, its outcome, an item on
+ * the board, and a full commit SHA, which the CLI resolves in the repo before it gets here.
+ *
+ * @param {any} board
+ * @param {{ kind: string, outcome: string, item: number, commit: string }} evidence
+ */
+export function checkEvidence(board, { kind, outcome, item, commit }) {
+  if (!EVIDENCE_KINDS.includes(kind)) throw new Refused('BAD_EVIDENCE', `the evidence kind is attempt or receipt, not "${kind ?? ''}": --evidence receipt`);
+  if (!String(outcome ?? '').trim()) throw new Refused('BAD_EVIDENCE', 'evidence names its outcome: --outcome measured');
+  if (!Number.isInteger(item) || !board.db.prepare('SELECT 1 FROM item WHERE item_id = ?').get(item)) {
+    throw new Refused('BAD_EVIDENCE', `evidence names an item on the board: --item <id> (saw ${item})`);
+  }
+  if (!/^[0-9a-f]{40}$/.test(commit ?? '')) throw new Refused('BAD_EVIDENCE', `evidence names a commit by its full SHA (saw "${commit ?? ''}")`);
+}

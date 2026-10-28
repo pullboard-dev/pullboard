@@ -186,6 +186,7 @@ import {
 import { ITEM_SHOUT_ENGINE } from './item-shout-engine.js';
 import {
   COORDINATION_SHOUT,
+  checkEvidence,
   itemShoutTarget,
   itemShoutReader,
   unreadShoutBindings,
@@ -236,7 +237,7 @@ import { checkRouted } from './item-routing.js';
 import {
   itemFiles,
   itemFileCollisions,
-  addedFileCollisions,
+  notifyFileGrowth as applyFileGrowthNotice,
 } from './item-files.js';
 export { itemFiles };
 import { COORDINATOR } from './config.js';
@@ -643,25 +644,9 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
   });
 }
 
-/** Persist both holder notices with the edit; a fixed system sender also reaches an editing holder's inbox. */
+/** Bind file-growth delivery to this board's canonical readers and event writers. */
 function notifyFileGrowth(board, before, after) {
-  if ((board.executionEngineVersion ?? ENGINE_VERSION) < FILE_GROWTH_NOTICE_ENGINE
-    || !['claimed', 'submitted'].includes(before.item_status)) return;
-  for (const collision of addedFileCollisions(before, after, listItems(board, { all: true }))) {
-    const recipients = new Map();
-    for (const item of [before, collision.item]) {
-      const holder = item.item_owner || item.item_built_by;
-      const to = holder && board.db.prepare('SELECT 1 FROM agent WHERE agent_id=?').get(holder) ? holder : COORDINATOR;
-      recipients.set(to, [...(recipients.get(to) ?? []), item.item_id]);
-    }
-    const text = `New file overlap: #${after.item_id} grew into #${collision.item.item_id} on ${collision.shared.join(', ')}. Coordinate both items; the edit is retained.`;
-    for (const [to, items] of recipients) {
-      const detail = { changedItem: after.item_id, otherItem: collision.item.item_id, files: collision.shared };
-      const shout = persistShout(board, { from: 'overlap', to, text, detail: { ...detail, item: items[0] } });
-      // One holder may own both items: deliver once while retaining the notice on both item threads.
-      for (const item of items.slice(1)) logEvent(board, 'overlap', 'shout', item, { ...detail, shout, to, text });
-    }
-  }
+  return applyFileGrowthNotice(board, before, after, { engineVersion: ENGINE_VERSION, noticeEngine: FILE_GROWTH_NOTICE_ENGINE, coordinator: COORDINATOR, listItems, persistShout, logEvent });
 }
 
 /** Validate an edit without side effects, so a refused change never starts a shell baseline; a bar correction needs a reason [B31]. */
@@ -1677,24 +1662,7 @@ export function answerDecision(board, id, { agentId, text, lanes, asPerson = fal
   });
 }
 
-/** The kinds of evidence a shout can carry (B22): what was tried, or what was measured. */
-export const EVIDENCE_KINDS = ['attempt', 'receipt'];
-
-/**
- * Refuse evidence that is not fields a reader can trust (B22): its kind, its outcome, an item on
- * the board, and a full commit SHA, which the CLI resolves in the repo before it gets here.
- *
- * @param {any} board
- * @param {{ kind: string, outcome: string, item: number, commit: string }} evidence
- */
-function checkEvidence(board, { kind, outcome, item, commit }) {
-  if (!EVIDENCE_KINDS.includes(kind)) throw new Refused('BAD_EVIDENCE', `the evidence kind is attempt or receipt, not "${kind ?? ''}": --evidence receipt`);
-  if (!String(outcome ?? '').trim()) throw new Refused('BAD_EVIDENCE', 'evidence names its outcome: --outcome measured');
-  if (!Number.isInteger(item) || !board.db.prepare('SELECT 1 FROM item WHERE item_id = ?').get(item)) {
-    throw new Refused('BAD_EVIDENCE', `evidence names an item on the board: --item <id> (saw ${item})`);
-  }
-  if (!/^[0-9a-f]{40}$/.test(commit ?? '')) throw new Refused('BAD_EVIDENCE', `evidence names a commit by its full SHA (saw "${commit ?? ''}")`);
-}
+export { EVIDENCE_KINDS } from './shout-audience.js';
 
 export { openDecisions } from './board-query.js';
 
