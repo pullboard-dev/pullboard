@@ -21,6 +21,7 @@
   "files": [
     "bin",
     "src",
+    "packages",
     "skills",
     "docs",
     "CHANGELOG.md",
