@@ -12,7 +12,6 @@ import * as store from '../../src/board.js';
 import { addItem, closeBoard, completeCheckBaseline, openBoard } from '../../src/board.js';
 import { tapTarget, SPEC, machine, project, build, sendBack, startView, element, target, openPage, agentEntries, accept, itemRow, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, settled, earlier, press, travel, chooseFilter, pickProject } from './fixture.js';
 
-
 test('an added item confirmation names its returned id [A3,N27]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
