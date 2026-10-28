@@ -1,5 +1,13 @@
 import { performance } from 'node:perf_hooks';
 
+/** A fixture handshake and release, independent of elapsed-time guesses. */
+export function journeyDeferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+
 /** Create the shared absolute monotonic deadline for one hosted journey. */
 export function createJourneyDeadline({ timeoutMs, onTimeout, now = () => performance.now() } = {}) {
   if (!Number.isFinite(timeoutMs) || timeoutMs < 0) {

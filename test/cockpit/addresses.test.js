@@ -586,7 +586,7 @@ test('a sandbox-blocked view port names the fix [I1,L3,P4]', { timeout: 120_000 
       next: `allow local network in your agent tool's sandbox settings, ${terminal}` },
   ];
   // The view's own refusal, in process: the stub replaces listen only for this call.
-  const { serveView } = await import('../../src/serve.js');
+  const { serveView } = await import('../../src/commands/view.js');
   const { Server } = await import('node:net');
   const listen = Server.prototype.listen;
   const saved = { CLAUDECODE: process.env.CLAUDECODE, CODEX_SANDBOX: process.env.CODEX_SANDBOX, CODEX_SANDBOX_NETWORK_DISABLED: process.env.CODEX_SANDBOX_NETWORK_DISABLED };
