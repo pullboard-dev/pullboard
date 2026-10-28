@@ -1,5 +1,6 @@
 /** Person-authorized account device enrollment and opaque key delivery [H5,H15,H17]. */
 import { apiJson, apiRefusal, apiStatus, readApiBody } from '../src/api-http.js';
+import { refusalDocument } from '../src/json.js';
 import { Refused } from '../src/refused.js';
 import { devicePublicKey } from '../src/relay-device-keys.js';
 import { approvalContext } from '../src/relay-approval.js';
@@ -168,6 +169,6 @@ export function createDeviceHandler({ authenticate, authorizeBoard, boardsFor, d
       } else if (!url.pathname.endsWith('/boards') && !board && req.method === 'DELETE') devices.revoke(account, id);
       else throw new Refused('NO_ENDPOINT', 'Use the supported device action.');
       apiJson(res, 200, { recorded: true }); return true;
-    } catch (error) { apiJson(res, apiStatus(error), apiRefusal(error)); return true; }
+    } catch (error) { apiJson(res, apiStatus(error), apiRefusal(error, refusalDocument)); return true; }
   };
 }

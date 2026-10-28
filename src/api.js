@@ -41,7 +41,6 @@ import {
   resolveCommit,
   withGitReadFacts,
 } from './git.js';
-import { refusalDocument } from './json.js';
 import {
   relayLinked,
   relayOperation,
@@ -631,7 +630,8 @@ export function apiBoards(projects = listApiProjects, isMain) {
  * @param {() => { root: string, name: string, project: string, added: string }[]} projects
  * @returns {{ boards: object[], warnings: object[] }}
  */
-export function apiBoardListing(projects = listApiProjects, isMain) {
+export function apiBoardListing(projects = listApiProjects, isMain, refusalDocument) {
+  if (typeof refusalDocument !== 'function') throw new TypeError('apiBoardListing needs the caller\'s refusalDocument renderer');
   const boards = [];
   const warnings = [];
   for (const project of projects()) {
@@ -723,12 +723,13 @@ function agentPath(root, name = COORDINATOR, isMain) {
 }
 
 /** Execute one actual CLI command and retain its emitted event without a latest-row race. */
-export async function executeMove(root, body, runCommand, isMain, personChannel = 'view') {
+export async function executeMove(root, body, runCommand, isMain, personChannel = 'view', refusalDocument) {
   if (Object.keys(body).some((key) => !['verb', 'item', 'args', 'agent'].includes(key))) throw new Refused('BAD_REQUEST', 'a move takes only verb, item, args and agent; remove the unknown fields');
   const argv = moveArgs(body);
   let cwd;
   try { cwd = agentPath(root, body.agent, isMain); } catch (error) {
     if (!(error instanceof Refused) || error.code === 'BAD_REQUEST') throw error;
+    if (typeof refusalDocument !== 'function') throw new TypeError(`executeMove needs the caller's refusalDocument renderer to answer ${error.code}`);
     return { status: error.code === 'WRONG_BOARD' ? 403 : 409, body: refusalDocument(error) };
   }
   let output = '';
@@ -807,7 +808,7 @@ function isLiteralIPv4(host) {
 /** Share the local router with the person's view and other local transports; the standalone API explicitly denies person authority.
  * @param {{ secret: string | Buffer, getPort: () => number, runCommand: Function, projects?: () => any[], scope?: { projectRoot: string }, isMain?: boolean, allowedOrigins?: string[], allowedHosts?: string[], onStateBuild?: Function, onItemBuild?: Function, personChannel?: string, stateDetail?: string, now?: () => number, sessionCookie?: {name:string,value:string} }} [options]
  */
-export function createLocalApiHandler({ secret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders } = {}) {
+export function createLocalApiHandler({ secret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument } = {}) {
   if (typeof now !== 'function') throw new TypeError('createLocalApiHandler needs an observation clock');
   if (typeof getPort !== 'function') throw new TypeError('createLocalApiHandler needs a bound-port getter');
   if (typeof runCommand !== 'function') throw new TypeError('createLocalApiHandler needs the actual CLI entry point as runCommand');
@@ -1054,6 +1055,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     });
   }
   return createApiHandler({
+    refusalDocument,
     authenticate: (req) => {
       const url = new URL(req.url ?? '/', 'http://' + ADDRESS);
       const authorization = String(req.headers.authorization ?? '');
@@ -1075,7 +1077,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       if (!settingsProviders) throw new Refused('SETTINGS_UNAVAILABLE', 'this API was started without its settings providers; start it through pullboard serve or pullboard view');
       return settingsInventory(settingsScope.projects(), selected, settingsProviders);
     },
-    boards: () => withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain)),
+    boards: () => withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument)),
     decisions: (selected) => withGitReadFacts(() => projectDecisionListing(selected, apiProjects, codeIsMain)),
     board: (id) => withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain)),
     state: (board, who, seen, options) => withGitReadFacts(() => localState(board, seen, options).state),
@@ -1104,7 +1106,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     code: (board, ref) => withGitReadFacts(() => codeAt(board.root, ref)),
     events: (board, after) => withGitReadFacts(() => afterEvents(board.root, after, codeIsMain)),
     eventLogVersion: () => store.EVENT_LOG_VERSION,
-    move: (board, body) => executeMove(board.root, body, runCommand, codeIsMain, personChannel),
+    move: (board, body) => executeMove(board.root, body, runCommand, codeIsMain, personChannel, refusalDocument),
     request: (board, body) => createRequest(board.root, body, codeIsMain, personChannel),
     tokens: async (board) => (await relayTokens(board.root, { err() {} })).tokens,
     revokeToken: (board, id) => relayRevoke(board.root, id, { personChannel, say() {}, err() {} }),
@@ -1115,11 +1117,11 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
  * Serve the RFC 0002 API only on loopback, behind the same session-secret boundary as the view. Its
  * state sends item summaries unless asked for detail=full; each item's detail has its own path (A2).
  */
-export function serveApi({ port = 0, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders } = {}) {
+export function serveApi({ port = 0, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument } = {}) {
   if (typeof runCommand !== 'function') throw new TypeError('serveApi needs the actual CLI entry point as runCommand');
   let bound;
   // A serve key authenticates board access, never a person, even in an ordinary terminal.
-  const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders });
+  const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders, refusalDocument });
   const server = createServer(handler);
   server.requestTimeout = 15_000;
   return new Promise((ready, fail) => {

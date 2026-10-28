@@ -133,12 +133,12 @@ async function viewSource(commonDir) {
  * The private API source: API v1 itself, on a free loopback port, serving only this board.
  * It starts on first use and stops when watch stops.
  */
-function directSource({ mainRoot, config, isMain, runCommand, serveApi }) {
+function directSource({ mainRoot, config, isMain, runCommand, serveApi, refusalDocument }) {
   let api = null;
   return {
     name: 'the board directly',
     async open() {
-      api ??= await serveApi({ port: 0, runCommand, isMain, stateDetail: 'summary',
+      api ??= await serveApi({ port: 0, runCommand, isMain, stateDetail: 'summary', refusalDocument,
         projects: () => [{ root: mainRoot, name: config.name ?? basename(mainRoot), project: config.project ?? '', added: new Date(0).toISOString() }] });
       const address = new URL(api.url);
       return { base: address.origin, key: address.searchParams.get('k') };
@@ -205,12 +205,12 @@ function laneWork(file, lane, reviewWaitMs, nowMs) {
  * A dropped stream is followed again from the last sequence handled, so nothing is missed or repeated.
  *
  * @param {{ file: string, mainRoot: string, commonDir: string, config: any, isMain: boolean, runCommand: Function,
- *   serveApi: Function, options: ReturnType<typeof watchOptions>, start: ReturnType<typeof watchStart>,
+ *   serveApi: Function, refusalDocument: Function, options: ReturnType<typeof watchOptions>, start: ReturnType<typeof watchStart>,
  *   write: (text: string) => void, note: (text: string) => void, signal: AbortSignal, now?: () => number }} watch
  */
-export async function followBoard({ file, mainRoot, commonDir, config, isMain, runCommand, serveApi, options, start, write, note, signal, now = Date.now }) {
+export async function followBoard({ file, mainRoot, commonDir, config, isMain, runCommand, serveApi, refusalDocument, options, start, write, note, signal, now = Date.now }) {
   let cursor = options.since ?? start.sequence;
-  const direct = directSource({ mainRoot, config, isMain, runCommand, serveApi });
+  const direct = directSource({ mainRoot, config, isMain, runCommand, serveApi, refusalDocument });
   /** Print one record as a plain line or as one JSON object, immediately. */
   const print = (record) => {
     if (options.json) write(JSON.stringify({ version: 1, ...record }) + '\n');
@@ -322,7 +322,7 @@ export async function followBoard({ file, mainRoot, commonDir, config, isMain, r
  * Run pullboard watch for one checkout until Ctrl-C (SIGINT or SIGTERM), or until `io.signal` aborts.
  * Each line is its own document, so --json never adds an end-of-command envelope.
  */
-export async function watchCommand({ io, values, words, ctx, primaryCheckoutRoot, runCommand }) {
+export async function watchCommand({ io, values, words, ctx, primaryCheckoutRoot, runCommand, refusalDocument }) {
   const { info, config, file, allowSchemaUpgrade: isMain } = ctx;
   const mainRoot = primaryCheckoutRoot(info) ?? info.root;
   if (words.some((word) => word !== undefined)) throw new Refused('USAGE', 'pullboard watch takes flags only, such as pullboard watch --to core; run pullboard help watch');
@@ -342,7 +342,7 @@ export async function watchCommand({ io, values, words, ctx, primaryCheckoutRoot
   if (io.signal?.aborted) stop();
   io.jsonMode?.(false);
   try {
-    return await followBoard({ file, mainRoot, commonDir: info.commonDir, config, isMain, runCommand, serveApi, options, start,
+    return await followBoard({ file, mainRoot, commonDir: info.commonDir, config, isMain, runCommand, serveApi, refusalDocument, options, start,
       write: (text) => io.stdout.write(text), note: (text) => io.stderr.write(text + '\n'), signal: abort.signal });
   } finally {
     process.off('SIGINT', stop);

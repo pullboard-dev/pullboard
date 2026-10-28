@@ -10,6 +10,7 @@ import { createServer, request as httpRequest } from 'node:http';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createLocalApiHandler, serveApi } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { serveView } from '../src/serve.js';
 import { main } from '../src/cli.js';
 import { applyStateDelta, createApiHandler } from '../src/api-http.js';
@@ -343,7 +344,7 @@ function fixture(t) {
 /** Serve this fixture's explicit project, avoiding any registry outside its private home. */
 async function httpBox(t, { includeMissing = false, onStateBuild, additionalProjects = [] } = {}) {
   const box = fixture(t);
-  const api = await serveApi({ runCommand: main, onStateBuild, projects: () => [...(includeMissing ? [{ root: join(box.dir, 'gone'), name: 'Missing fixture' }] : []), { root: box.root, name: 'HTTP fixture' }, ...additionalProjects] });
+  const api = await serveApi({ refusalDocument, runCommand: main, onStateBuild, projects: () => [...(includeMissing ? [{ root: join(box.dir, 'gone'), name: 'Missing fixture' }] : []), { root: box.root, name: 'HTTP fixture' }, ...additionalProjects] });
   t.after(() => api.close());
   const url = new URL(api.url);
   const key = url.searchParams.get('k');
@@ -791,7 +792,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   assert.equal(servedState.status, 200);
   assert.deepEqual((await servedState.json()).state.items, summaryState.document.state.items, 'pullboard serve sends the same summaries');
   let pagePort;
-  const pageHandler = createLocalApiHandler({ secret: 'page-fixture-secret', getPort: () => pagePort, runCommand: main, projects: () => [{ root: box.root, name: 'HTTP fixture' }] });
+  const pageHandler = createLocalApiHandler({ refusalDocument, secret: 'page-fixture-secret', getPort: () => pagePort, runCommand: main, projects: () => [{ root: box.root, name: 'HTTP fixture' }] });
   const page = createServer(pageHandler);
   await new Promise((done) => page.listen(0, '127.0.0.1', done));
   pagePort = page.address().port;
@@ -942,7 +943,7 @@ test('[A2, N26] a delta brings a snapshot up to date', async (t) => {
   // A restarted server that has only read an item, or searched, never sent a snapshot: it cannot
   // extend the held one, even when a change with no event leaves the sequence where it was.
   writeFileSync(join(box.root, 'DOCTRINE.md'), '# Local rules\n\n## Team Rules\n\n- LOCAL1 [approved, must] A restarted server knows only what it sent. | gate: true\n');
-  const restarted = await serveApi({ runCommand: main, projects: () => [{ root: box.root, name: 'HTTP fixture' }] });
+  const restarted = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'HTTP fixture' }] });
   t.after(() => restarted.close());
   const restartedUrl = new URL(restarted.url);
   /** Read through the restarted server with its own key. */
@@ -1071,7 +1072,7 @@ test('[A2, N33, N35] API listing refreshes live labels and preserves unreadable-
   writeFileSync(secondConfigFile, JSON.stringify({ ...secondConfig, name: 'Saved second', project: 'Saved group' }));
   registerProject(second, new Date('2026-02-03T04:05:06.000Z'));
 
-  const api = await serveApi({ runCommand: main });
+  const api = await serveApi({ refusalDocument, runCommand: main });
   t.after(() => api.close());
   const url = new URL(api.url);
   const key = url.searchParams.get('k');
@@ -1546,7 +1547,7 @@ test('[A2,N39] the view cookie check catches a weakened compare', async (t) => {
     name: `pullboard_view_${randomUUID().replaceAll('-', '')}`,
     value: randomBytes(24).toString('base64url'),
   };
-  assert.throws(() => createLocalApiHandler({
+  assert.throws(() => createLocalApiHandler({ refusalDocument,
     secret,
     getPort: () => 1,
     runCommand: main,
@@ -1554,7 +1555,7 @@ test('[A2,N39] the view cookie check catches a weakened compare', async (t) => {
     sessionCookie: { name: sessionCookie.name, value: randomBytes(8).toString('base64url') },
   }), /at least 128 bits/u, 'session cookies need capacity for at least 128 random bits');
   let bound;
-  const handler = createLocalApiHandler({
+  const handler = createLocalApiHandler({ refusalDocument,
     secret,
     getPort: () => bound,
     runCommand: main,
@@ -1720,7 +1721,7 @@ test('[A2] shared transport stops a live stream when its caller loses access', a
   const board = store.openBoard(file);
   const id = store.boardId(board);
   store.closeBoard(board);
-  const handler = createApiHandler({
+  const handler = createApiHandler({ refusalDocument,
     authenticate: () => {
       checks += 1;
       if (!authorized) throw new Refused('AUTH_REQUIRED', 'the fixture session was revoked; sign in again');
@@ -1755,7 +1756,7 @@ test('[A2] shared transport stops a live stream when its caller loses access', a
 });
 
 test('[A2] adapters without a committed-code capability return a versioned refusal', async (t) => {
-  const handler = createApiHandler({
+  const handler = createApiHandler({ refusalDocument,
     authenticate: () => ({ user: 'fixture-user' }),
     boards: () => [],
     board: (id) => ({ id }),
@@ -1784,7 +1785,7 @@ test('[A2] adapters without a committed-code capability return a versioned refus
 
 test('[A2, N26] state JSON fragments preserve the API envelope and legacy adapter fallback', async (t) => {
   const state = { board: 'fixture', label: 'a ",\\"injected\\":true', unseen: null };
-  const handler = createApiHandler({
+  const handler = createApiHandler({ refusalDocument,
     authenticate: () => ({ user: 'fixture-user' }),
     board: (id) => ({ id }),
     stateJson: (_board, _who, seen) => seen === 1 ? state : JSON.stringify(state),
@@ -1803,7 +1804,7 @@ test('[A2, N26] state JSON fragments preserve the API envelope and legacy adapte
   assert.equal(invalidSerializer.status, 500);
   assert.equal((await invalidSerializer.json()).error.code, 'SERVICE_ERROR');
 
-  const legacy = createApiHandler({
+  const legacy = createApiHandler({ refusalDocument,
     authenticate: () => ({ user: 'fixture-user' }),
     board: (id) => ({ id }),
     state: () => state,
@@ -1880,7 +1881,7 @@ async (t) => {
   assert.equal(box.cli(box.root, 'log').events.length, before);
   await stopServer();
   // Denial belongs to the interface, even when the server has no agent-shell marker.
-  const plain = await serveApi({ port: 0, runCommand: main, projects: () => [{ root: box.root, name: 'Plain API fixture' }] });
+  const plain = await serveApi({ refusalDocument, port: 0, runCommand: main, projects: () => [{ root: box.root, name: 'Plain API fixture' }] });
   t.after(() => plain.close());
   const plainAddress = new URL(plain.url);
   const plainReply = await fetchFresh(plainAddress.origin + path + '/moves', {

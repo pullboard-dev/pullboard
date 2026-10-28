@@ -5,6 +5,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { serveApi } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { main } from '../src/cli.js';
 import { relayPresentation, relaySnapshot } from '../src/relay-presentation.js';
 import { test } from 'node:test';
@@ -249,7 +250,7 @@ function threadHttpFixture(t) {
 /** Start a real authenticated API for only this test's fixture board. */
 async function threadHttpBox(t) {
   const box = threadHttpFixture(t);
-  const api = await serveApi({ runCommand: main, projects: () => [{ root: box.root, name: 'Thread HTTP fixture' }] });
+  const api = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'Thread HTTP fixture' }] });
   t.after(() => api.close());
   const url = new URL(api.url);
   const key = url.searchParams.get('k');

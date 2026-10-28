@@ -1,6 +1,7 @@
 /** Authenticated relay API2 snapshot objects; stored data remains opaque to the relay [H15,H17]. */
 import { createHash } from 'node:crypto';
 import { apiJson, apiRefusal, apiStatus, readApiBody } from '../src/api-http.js';
+import { refusalDocument } from '../src/json.js';
 import { Refused } from '../src/refused.js';
 import { PAGE_BYTES, PAGE_CIPHER_BYTES, PAGE_FANOUT, pageReference } from '../src/sealed-pages.js';
 
@@ -117,7 +118,7 @@ export function createRelayPagesHandler({ directory, now, authorize, withJournal
       }
       throw new Refused('BAD_REQUEST', 'Use the supported method for this sealed-page route.');
     } catch (error) {
-      const document = apiRefusal(error);
+      const document = apiRefusal(error, refusalDocument);
       if (error instanceof Refused && error.page && /^[0-9a-f]{64}$/u.test(error.page)) document.error.page = error.page;
       if (error instanceof Refused && error.storage) document.error.storage = error.storage;
       const status = { ACCOUNT_STORAGE_LIMIT: 507, BAD_PAGE_PATH: 403, SNAPSHOT_READ_EXPIRED: 410, SNAPSHOT_UPLOAD_EXPIRED: 410 }[error.code] ?? apiStatus(error);

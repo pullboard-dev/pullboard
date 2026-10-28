@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createLocalApiHandler } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { performanceCores } from '../src/gate.js';
 import { defaultViewPort, DEFAULT_VIEW_PORT } from '../src/config.js';
 import { defaults } from '../src/config.js';
@@ -83,7 +84,7 @@ export async function proveSettingsApi() {
       unknown: { token: canary },
     }));
     let port;
-    handler = createLocalApiHandler({ secret: 'api-fixture', getPort: () => port, runCommand: async () => 0, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT } });
+    handler = createLocalApiHandler({ refusalDocument, secret: 'api-fixture', getPort: () => port, runCommand: async () => 0, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT } });
     server = createServer(handler);
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     port = server.address().port;
