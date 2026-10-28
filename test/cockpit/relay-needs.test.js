@@ -101,6 +101,10 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     assert.deepEqual(normalEntries.map((row) => row[0]), ['G3', '#' + await chrome.stable('data.project.decisions[0].shout_id'), 'web', null], 'the normal Needs-you list contains the decision, pending row, held lane, and draft summary');
     assert.match(normalEntries[1][2], /^Asked by coordinator \(unknown\) @[^ ]+$/, 'the API-provided decision timestamp is shown as an age');
     assert.match(normalEntries[2][2], /^lane held by coordinator \(unknown\) @[^ ]+$/, 'the holder and API-provided hold timestamp are shown as an age');
+    await chrome.click(`document.querySelector('#needs .needs-drafts [data-go="tab:spec"]')`);
+    await chrome.waitFor('view.tab === "spec"');
+    assert.equal(await chrome.stable('data.project.spec.some(row => row.id === "G4" && row.status === "draft")'), true,
+      'the normal draft-summary button opens Spec while retaining the actual draft row');
     await chrome.send('Page.navigate', { url: `http://127.0.0.1:${address.port}/` });
     await chrome.waitFor("typeof data === 'object' && document.body?.classList.contains('read-only') && !!data?.project && typeof window.__transportUpdate === 'function'");
     await chrome.click(`document.querySelector('[data-tab="items"]')`);
@@ -113,6 +117,10 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     assert.ok(calls.some((call) => call.path === '/api/v1/boards'));
     assert.ok(calls.some((call) => call.path.startsWith('/api/v1/boards/') && call.path.endsWith('/state')));
     assert.equal(await chrome.stable("document.querySelector('#live').textContent"), '', 'read-only transport keeps the page live, which says nothing');
+    await chrome.click(`document.querySelector('#chain [data-go^="item:"]')`);
+    await chrome.waitFor("document.querySelector('#detail [data-shout]') !== null");
+    await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+    await chrome.waitFor("document.querySelector('[data-release]') !== null && document.querySelector('[data-go^=\"decide:\"]') !== null");
     const actionSelectors = ['#new-item', '#add-form', '#shout-form', '#hold-form', '[data-release]', '[data-shout]', '[data-new]', '[data-go^="decide:"]'];
     const actionMatches = JSON.parse(await chrome.stable(`JSON.stringify(${JSON.stringify(actionSelectors)}.map((selector) => ({ selector, count: document.querySelectorAll(selector).length, visible: [...document.querySelectorAll(selector)].some((node) => !node.hidden && getComputedStyle(node).display !== 'none') })))`));
     assert.ok(actionMatches.every((entry) => entry.count > 0), 'the seeded item, decision and hold exercise every action selector');

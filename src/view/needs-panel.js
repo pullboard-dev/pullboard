@@ -50,7 +50,10 @@ export function needsPanelHtml(calls, project, { compact = false, person = false
       className: row.kind === 'agent-approved' ? 'agent-approval' : '', attributes,
       detailsAttributes: { 'data-needs-key': key, 'data-dashboard-disclosure': 'needs:' + key }, open: expanded.includes(key), detailHtml });
   };
-  const draftRow = drafts ? '<li class="needs-call needs-drafts"><button type="button" data-go="tab:spec">' + icon('draft') + '<span class="needs-copy"><b>' + drafts + ' draft spec rows to approve or drop</b><small>In the Spec tab, one by one or a section at a time</small></span><span class="needs-action">Review</span></button></li>' : '';
+  const draftCopy = icon('draft') + '<span class="needs-copy"><b>' + drafts + ' draft spec rows to approve or drop</b><small>In the Spec tab, one by one or a section at a time</small></span><span class="needs-action">Review</span>';
+  const draftRow = drafts ? '<li class="needs-call needs-drafts">' + (person
+    ? '<button type="button" data-go="tab:spec">' + draftCopy + '</button>'
+    : '<span>' + draftCopy + '</span>') + '</li>' : '';
   if (compact) {
     const shown = [...questions, ...approvals].slice(0, 3), more = sorted.length - shown.length;
     return shown.map(rowHtml).join('') + (more || drafts ? '<li class="needs-more"><button type="button" data-needs-list>' + more + ' more' + (drafts ? ' and ' + drafts + ' draft rows' : '') + ' in Needs you</button></li>' : '');
