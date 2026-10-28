@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as store from '../src/board.js';
 import { prepareItemPatchReview } from '../src/item-patch-review.js';
+import { itemPatchAuthors } from '../src/item-patch-state.js';
 import { prepareItemPatchSubmit } from '../src/item-patch-submit.js';
 import { sealItemPatchSubmit } from '../src/item-patch-submit.js';
 import { prepareEngineMove } from '../src/engine.js';
@@ -193,7 +194,7 @@ test('moved builder head names the stale companion until explicit removal and ne
   document(run(f.box, f.coordinator, 'patch', 'remove', String(f.id), 'approved-view'));
   attach(f, 'rebound-view', moved);
   assert.equal(prepareItemPatchSubmit(f.builder.root, f.board, store.getItem(f.board, f.id), moved).source, moved);
-  assert.equal(store.itemPatchAuthors(f.board, f.id).length, 1, 'rebinding never removes original author custody');
+  assert.equal(itemPatchAuthors(f.board, f.id).length, 1, 'rebinding never removes original author custody');
 });
 
 test('a nonapplying claimed companion refuses by key without mutating builder source [C7,V4]', t => {
