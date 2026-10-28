@@ -703,3 +703,35 @@ test('a caused older-engine registration recorded before the modern prefix still
   assert.deepEqual(applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-28T18:00:00.000Z' }), first);
   assert.deepEqual(exportBoard(f.board), before);
 });
+
+test('counterexample: a new seat of an original session that declared OpenAI inherits it and cannot declare Claude [V4,B26,H16]', t => {
+  const f = fixture(t);
+  const ids = { parentDigest: 'p'.replace('p', 'a').repeat(64), sessionDigest: 'b'.repeat(64) };
+  store.register(f.board, { id: 'core-19', lane: 'core', path: '/fixture/core-19', model: 'Synthetic fixture model', ...ids, family: 'OpenAI' });
+  const before = exportBoard(f.board);
+  assert.throws(() => store.register(f.board, { id: 'core-20', lane: 'core', path: '/fixture/core-20', model: 'Synthetic fixture model', ...ids, family: 'Claude' }),
+    error => error.code === 'FAMILY_DECLARED', 'view-215: seat C of the same original session and parent is refused Claude');
+  assert.deepEqual(exportBoard(f.board), before, 'the refused seat is not created');
+  for (const [path, family] of [['/fixture/core-21', undefined], ['/fixture/core-22', null], ['/fixture/core-23', '  '], ['/fixture/core-24', 'openai']]) {
+    const id = store.register(f.board, { lane: 'core', path, model: 'Synthetic fixture model', ...ids, ...(family === undefined ? {} : { family }) });
+    assert.equal(familyOf(f.board, id), family === 'openai' ? 'openai' : 'OpenAI', `a new seat of the session joining with ${JSON.stringify(family)} inherits the declaration`);
+    assert.throws(() => store.register(f.board, { lane: 'core', path, model: 'Synthetic fixture model', ...ids, family: 'Claude' }), error => error.code === 'FAMILY_DECLARED');
+  }
+  // A seat that joined without a session later rejoining from that session is refused too.
+  const loose = store.register(f.board, { lane: 'core', path: '/fixture/core-25', model: 'Synthetic fixture model', parentDigest: ids.parentDigest });
+  assert.throws(() => store.register(f.board, { lane: 'core', path: '/fixture/core-25', model: 'Synthetic fixture model', parentDigest: ids.parentDigest, sessionDigest: ids.sessionDigest, family: 'Claude' }),
+    error => error.code === 'FAMILY_DECLARED' || error.code === 'PARENT_SESSION_CHANGED', 'the session is the declaring one');
+  assert.notEqual(familyOf(f.board, loose), 'Claude');
+  // Positive control: a genuinely different session T may declare Claude, with the same parent.
+  const other = store.register(f.board, { lane: 'core', path: '/fixture/core-26', model: 'Synthetic fixture model', parentDigest: ids.parentDigest, sessionDigest: 'c'.repeat(64), family: 'Claude' });
+  assert.equal(familyOf(f.board, other), 'Claude', 'another session declares its own vendor');
+});
+
+test('a session declared through an ordered modern move is inherited by a new seat from that session [V4,B26,H16]', t => {
+  const f = fixture(t);
+  const ids = { parentDigest: 'd'.repeat(64), sessionDigest: 'e'.repeat(64) };
+  assert.equal(applyEngineMove(f.board, prepareEngineMove(f.board, 'register', [{ lane: 'core', path: '/fixture/s-1', model: 'Synthetic fixture model', ...ids, family: 'OpenAI' }], { id: 'session-a' }), { sequence: 1, at: '2026-10-28T21:00:00.000Z' }).error, undefined);
+  const refused = applyEngineMove(f.board, prepareEngineMove(f.board, 'register', [{ lane: 'core', path: '/fixture/s-2', model: 'Synthetic fixture model', ...ids, family: 'Claude' }], { id: 'session-c' }), { sequence: 2, at: '2026-10-28T21:01:00.000Z' });
+  assert.equal(refused.error?.code, 'FAMILY_DECLARED');
+  assert.equal(store.agentAt(f.board, '/fixture/s-2'), undefined, 'no seat C was created');
+});

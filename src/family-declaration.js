@@ -46,3 +46,33 @@ export function saveFamilyWitness(board, id, family) {
   if (!names(family)) return;
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO NOTHING').run(`${WITNESS}${id}`, family);
 }
+
+const SESSION_WITNESS = 'session_family_declared:';
+
+/** A seat's original session: its recorded session identity, or the one this join declares when none is recorded. */
+export function originalSession(board, id, declared = null) {
+  return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`agent_session:${id}`)?.meta_value ?? declared ?? null;
+}
+
+/**
+ * The family any seat of this original session already declared: the session's recorded first declaration, else any
+ * other seat recorded with this session that has a declared family. A new seat of that session inherits it.
+ */
+export function sessionDeclaredFamily(board, session, exceptId) {
+  if (!session) return null;
+  const witness = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`${SESSION_WITNESS}${session}`)?.meta_value;
+  if (names(witness)) return witness;
+  for (const row of board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key LIKE 'agent_session:%' AND meta_value=? ORDER BY meta_key").all(session)) {
+    const id = row.meta_key.slice('agent_session:'.length);
+    if (id === exceptId) continue;
+    const family = declaredFamily(board, id);
+    if (family) return family;
+  }
+  return null;
+}
+
+/** Record a session's first declared family once, beside the seat's own record. */
+export function saveSessionWitness(board, session, family) {
+  if (!session || !names(family)) return;
+  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO NOTHING').run(`${SESSION_WITNESS}${session}`, family);
+}
