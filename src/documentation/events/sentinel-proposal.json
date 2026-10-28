@@ -1,0 +1,10 @@
+{
+  "kind": "sentinel-proposal",
+  "entries": [
+    {
+      "order": 46,
+      "actor": "proposing agent",
+      "detail": "`row`, `digest`, `engine`"
+    }
+  ]
+}

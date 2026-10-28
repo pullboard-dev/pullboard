@@ -1,0 +1,10 @@
+{
+  "kind": "refreeze",
+  "entries": [
+    {
+      "order": 28,
+      "actor": "coordinator, or live holder adopting a pending correction",
+      "detail": "`before`, `after`, optional `retainedClaim`"
+    }
+  ]
+}

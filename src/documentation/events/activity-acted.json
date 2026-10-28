@@ -1,0 +1,10 @@
+{
+  "kind": "activity-acted",
+  "entries": [
+    {
+      "order": 38,
+      "actor": "recipient",
+      "detail": "`interrupts`"
+    }
+  ]
+}

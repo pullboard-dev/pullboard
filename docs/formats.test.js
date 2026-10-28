@@ -22,6 +22,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { submitFixture } from '../test/board-submit-fixture.js';
 import { exerciseRejectedWorkFormat } from '../test/rejected-work-format-fixture.js';
 import { syntheticFlakeObservation } from '../test/flake-observation-fixture.js';
+import { sourceAdvanceEventContract } from '../test/generated-doc-source-advance-fixture.js';
 import { recordFlakeObservation } from '../src/board.js';
 import { proposeSentinel } from '../src/sentinels.js';
 import { decideSentinel } from '../src/sentinels.js';
@@ -766,7 +767,7 @@ test('[A5,A10] static export files and page readers match API v1', async () => {
   }
 });
 
-test('[A5] schema, versions, event kinds and event detail fields match live behavior', () => {
+test('[A5] schema, versions, event kinds and event detail fields match live behavior', async t => {
   const board = openBoard(':memory:');
   try {
     const version = board.db.prepare('PRAGMA user_version').get().user_version;
@@ -801,7 +802,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
 
   const { rows, actors } = recordEventContract();
   const repairedRows = exerciseUpgrade();
-  const actualRows = [...rows, ...repairedRows];
+  const actualRows = [...rows, ...repairedRows, ...await sourceAdvanceEventContract(t)];
   const actual = {};
   const actorByKind = {
     join: 'joining agent',
@@ -834,6 +835,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     'sentinel-run': 'running agent',
     'sentinel-failure': 'sentinel',
     person_proposal: 'proposing agent',
+    source_advanced: 'coordinator',
   };
   for (const row of actualRows) {
     const kind = row.event_kind;

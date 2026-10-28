@@ -1,0 +1,10 @@
+{
+  "kind": "activity-delivered",
+  "entries": [
+    {
+      "order": 37,
+      "actor": "recipient",
+      "detail": "`interrupts`, `through`, `observedThrough`, `digestThrough`"
+    }
+  ]
+}

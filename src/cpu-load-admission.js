@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import { sep } from 'node:path';
 import { loadMachineSettings } from './settings.js';
 import { cpuLoadOptionsIn } from './module-imports.js';
+import { cpuLiteralCache } from './module-imports.js';
 import { cpuRegistrationExportsIn } from './module-imports.js';
 import { cpuCallableExportsIn } from './module-imports.js';
 import { importsIn } from './module-imports.js';
@@ -54,7 +55,7 @@ export function testsNeedCpuRunner(root, files) {
     }
   } catch { /* Unreadable ordinary code cannot invent CPU authority; retain the readable prefix. */ }
   const sources = entries.map(entry => entry.source);
-  const literalCache = new Map();
+  const literalCache = cpuLiteralCache(sources);
   const exports = new Map(entries.map(entry => [entry.path, new Set()]));
   const callables = new Map(entries.map(entry => [entry.path, new Set()]));
   const resolveExports = table => (index, name) => {

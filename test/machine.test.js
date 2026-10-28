@@ -4,11 +4,12 @@
  * The item lifecycle's declaration (M1, M2, M4): sound on its own terms, each property shown
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
  */
+import { functionsIn } from './machine-source-functions.fixture.js';
+import { assertMachineWalkMemo } from './machine-walk-memo.fixture.js';
 import * as fs from 'node:fs';
 import * as machineRules from '../src/machine.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
-
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -25,14 +26,12 @@ import {
   assertConfiguredReviewLease,
   assertLifecycleReservation,
 } from './machine-reservation-fixture.js';
-
 import {
   runFixtureExecFile as execFileSync,
   runFixtureChild as spawnSync,
   runFixtureChild,
   runFixtureGit,
 } from './fixture-child.js';
-
 /**
  * Refusals that are not about an item's lifecycle, so no move declares them: command input, caller
  * registration and machine-wide settings are checked before any item move.
@@ -99,7 +98,6 @@ const NOT_MOVES = {
   PERSON_SIGNED: 'a person-only move on a board that signs person moves needs a passkey; no item move is person-only',
   PERSON_SIGNING_CORRUPT: 'the stored relay key is read when a command fetches the relay\'s authority, before any move; it is no item lifecycle rule',
 };
-
 /**
  * Where each move starts in the code. Accept and reject share the board's verify and the CLI's, so
  * they answer for its refusals together.
@@ -115,7 +113,6 @@ const ENTRY_POINTS = [
   { verbs: ['refreeze'], at: ['board.js#refreeze'] },
   { verbs: ['reopen'], at: ['board.js#reopen'] },
 ];
-
 /** Setup refusals have no item move, but stay in the same reachability audit. */
 const NON_MOVE_ENTRY_POINTS = [
   'cli.js#refuseRemoteCoordinatorModel',
@@ -123,7 +120,6 @@ const NON_MOVE_ENTRY_POINTS = [
   'resources.js#gateSlotEnvironment',
   'person-signing-cli.js#pinRelayAuthority', // Reads the relay's authority before a person command (#408).
 ];
-
 /** Board functions handed a function to call, and the one the CLI and the runner hand them. */
 const CALLBACKS = {
   'board.js': { freeze: 'cli.js#freezer' },
@@ -133,7 +129,6 @@ const CALLBACKS = {
     reviewReleaseCooldown: 'board.js#reviewReleaseCooldown',
   },
 };
-
 /**
  * Calls whose refusals an entry point catches and reports as another: submit and verify read a
  * cited row taken out of force as a changed criterion, CRITERIA_CHANGED. Submit also keeps its
@@ -167,46 +162,11 @@ const CAUGHT = {
   'rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec'],
   'person-row-proof.js#signedRowDecisionsMatch': ['blueprints.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
 };
-
 /**
  * Encrypted transport authenticates/orders a move; its board operation is walked separately above.
  * Keep walking the CLI dispatcher itself so a new item rule there cannot hide behind this boundary.
  */
 const TRANSPORT_BOUNDARIES = new Set(['relay.js#relayLinked', 'relay.js#relayOperation', 'relay.js#relayRecovered', 'relay.js#relayCommandReceipt', 'relay.js#relayCommandReceiptReported']);
-
-/** A top-level function, or a top-level arrow function bound to a const. */
-const START = /^(?:export )?(?:(?:async )?function (\w+)\(|const (\w+) = (?:async )?(?:\([^)]*\)|\w+) =>)/;
-
-/**
- * Each top-level function's source by name, arrow functions included. A function declaration ends
- * at its closing brace; an arrow function ends where its statement does.
- *
- * @param {string} source
- * @returns {Map<string, string>}
- */
-function functionsIn(source) {
-  const bodies = new Map();
-  let open = null;
-  for (const line of source.split('\n')) {
-    if (open) {
-      open.lines.push(line);
-      if (open.ends(line)) {
-        bodies.set(open.name, open.lines.join('\n'));
-        open = null;
-      }
-      continue;
-    }
-    const start = START.exec(line);
-    if (!start) continue;
-    const end = line.trimEnd();
-    if (start[1] && end.endsWith('}')) bodies.set(start[1], line);
-    else if (start[1]) open = { name: start[1], lines: [line], ends: (next) => next === '}' };
-    else if (end.endsWith(';')) bodies.set(start[2], line);
-    else if (end.endsWith('{')) open = { name: start[2], lines: [line], ends: (next) => next === '};' };
-    else open = { name: start[2], lines: [line], ends: (next) => next.trimEnd().endsWith(';') };
-  }
-  return bodies;
-}
 
 /**
  * A walk over this package's source: the refusal codes a function raises, itself or through the
@@ -218,6 +178,7 @@ function functionsIn(source) {
  */
 function codeWalk(read, { caught = false } = {}) {
   const files = new Map();
+  const localFacts = new Map();
   const load = (file) => {
     if (!files.has(file)) {
       const source = read(file);
@@ -244,14 +205,21 @@ function codeWalk(read, { caught = false } = {}) {
     const { bodies, named, spaces, source } = load(file);
     // A facade may import and re-export the helper; follow its real definition after extraction.
     if (!bodies.has(name) && named.has(name)) return refusalsOf(named.get(name), skip, seen);
-    const body = bodies.get(name) ?? '';
-    const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]));
-    const callees = [
-      ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
-      ...[...body.matchAll(/\b(\w+)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : undefined)),
-    ];
-    callees.push(...runnerControllerCallees(file, body, source));
-    for (const callee of callees.filter(Boolean)) {
+    // Loaded source is fixed within this walk; local scans do not depend on the caller's seen/skip sets.
+    let facts = localFacts.get(key);
+    if (!facts) {
+      const body = bodies.get(name) ?? '';
+      const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]));
+      const callees = [
+        ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
+        ...[...body.matchAll(/\b(\w+)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : undefined)),
+      ];
+      callees.push(...runnerControllerCallees(file, body, source));
+      facts = { codes, callees };
+      localFacts.set(key, facts);
+    }
+    const codes = new Set(facts.codes);
+    for (const callee of facts.callees.filter(Boolean)) {
       if (caught && (CAUGHT[key] ?? []).includes(callee)) continue;
       for (const code of refusalsOf(callee, skip, seen)) codes.add(code);
     }
@@ -1491,4 +1459,8 @@ test('same-file runner controller bridges retain child refusals in the lifecycle
 test('Rigor historical data boundaries do not hide a new projection refusal [M1,M4]', () => {
   const broken = editedSource('rigor-counter-state.js', /export function rigorCounterKeys\(event, person\) \{/, "export function rigorCounterKeys(event, person) { if (event.event_kind === 'probe') throw new Refused('RIGOR_PROBE', 'new item eligibility rule');");
   assert.ok(codeProblems(machineRules.MACHINE, broken).includes('RIGOR_PROBE is raised by claim but not declared there'));
+});
+
+test('a source walk scans local facts once while retaining caller-specific refusal traversal [C7,M1]', () => {
+  assertMachineWalkMemo(codeWalk);
 });

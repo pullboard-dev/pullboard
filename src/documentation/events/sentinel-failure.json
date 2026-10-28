@@ -1,0 +1,10 @@
+{
+  "kind": "sentinel-failure",
+  "entries": [
+    {
+      "order": 50,
+      "actor": "sentinel",
+      "detail": "`name`, `digest`, `run`, `cause`, `engine`"
+    }
+  ]
+}
