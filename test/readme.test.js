@@ -318,8 +318,12 @@ test('README pins its approved Philosophy, Key concepts and Why structure [I10,I
   const nextTopLevel = README.indexOf('\n## ', philosophy + 1);
   assert.ok(philosophy >= 0 && philosophy < concepts && concepts < whyStart && whyStart < nextTopLevel, 'Philosophy contains Key concepts and Why before the next top-level section');
   const approvedOpening = 'Pullboard keeps agents building **true to your intent**, with a second agent checking every change. Your judgement carries across every agent and every session, so a complex project stays coherent for months. It\'s a coordination queue for serious software: you decide what matters once, and many agents build, check and land the work.';
+  // 28 Oct: the person approved the live-floor figure between the opening and the holds figure (#1483).
+  const liveFloor = '<p align="center">\n  <a href="https://pullboard.dev/live/">\n    <picture>\n      <source media="(prefers-color-scheme: dark)" srcset="docs/img/live-floor-dark.png">\n      <img src="docs/img/live-floor-light.png"';
+  assert.ok(README.includes(`${approvedOpening}\n\n${liveFloor}`), 'the approved opening, then the live-floor figure');
+  assert.ok(README.includes('<p align="center"><a href="https://pullboard.dev/live/"><b>Watch Pullboard build itself, live →</b></a></p>\n\n---\n\n' + figureMarkup('docs/img/holds.svg', 'How it holds. Your decision becomes a bar each piece of work is frozen against; a second agent checks the exact commit; the board keeps what passed, what failed and why; the next agent starts from there.') + '\n\n**Vibe code a real product.**'), 'the live link, a rule, then the holds figure and the lead');
   const openingWithFigure = `${approvedOpening}\n\n${figureMarkup('docs/img/holds.svg', 'How it holds. Your decision becomes a bar each piece of work is frozen against; a second agent checks the exact commit; the board keeps what passed, what failed and why; the next agent starts from there.')}\n\n**Vibe code a real product.**`;
-  assert.ok(README.includes(openingWithFigure), 'the approved opening, then the holds figure, then the lead');
+  void openingWithFigure;
   assert.equal(README.split(approvedOpening).length - 1, 1, 'the approved opening appears exactly once');
   assert.doesNotMatch(`${approvedOpening} ${FIGURES.holds()}`, /\b(?:memory|remember)\b/iu, 'the opening and its figure avoid those terms');
   const section = README.slice(philosophy, nextTopLevel);
