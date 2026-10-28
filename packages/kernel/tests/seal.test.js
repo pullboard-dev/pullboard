@@ -4,14 +4,32 @@
 /** Device-side sealing is the same bytes and WebCrypto code in Node and Chrome (H15, H17). */
 import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync } from '../../../test/fixture-child.js';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import {
+  join,
+  resolve,
+} from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { decodeBoardKey, encodeBoardKey, generateBoardKey, seal, SEAL_VERSION, unseal } from '../../../src/seal.js';
-import { findChromeExecutable, startChrome } from '../../../test/chrome-fixture.js';
+import {
+  decodeBoardKey,
+  encodeBoardKey,
+  generateBoardKey,
+  seal,
+  SEAL_VERSION,
+  unseal,
+} from '../../../src/seal.js';
+import {
+  findChromeExecutable,
+  startChrome,
+} from '../../../test/chrome-fixture.js';
 
 const BOARD = '0123456789abcdef0123456789abcdef';
 const TEXT = new TextEncoder().encode('A private board payload: \u03bb \ud83d\udd12');
