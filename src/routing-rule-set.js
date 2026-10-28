@@ -8,6 +8,7 @@ import { routingRules } from './routing-rules.js';
 import { validRule } from './routing-rules.js';
 import { STANDING_RULINGS } from './routing-rules.js';
 import { Refused } from './refused.js';
+export { routingRules } from './routing-rules.js';
 
 /** Older recorded moves keep their meaning: no rule binds under an engine that predates the record. */
 function enabled(board) { return (board.executionEngineVersion ?? ENGINE_VERSION) >= ROUTING_RULES_ENGINE; }

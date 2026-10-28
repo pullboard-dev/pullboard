@@ -897,7 +897,6 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, 
           const route = routeOf(board, agentId);
           return canTake(route, found.item_route) ? null : new Refused('ROUTE', `item #${id} needs a ${found.item_route} model; you joined on the ${route} route. Take your next item: pullboard next`);
         },
-        routingRules: (found) => routingRuleProblem(board, found, agentId, 'build'),
         dependenciesVerified: (found) => {
           const foreign = foreignBlockers(board, found)[0];
           if (foreign) return new Refused('BLOCKED', `#${id} waits on ${itemDependencies.dependencyLabel(foreign)} (${foreign.status} on its own board); refresh that board before claiming`);
@@ -914,7 +913,7 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, 
         },
         notHeldByAnother: (found) => (isHeld(board, found) && found.item_owner !== agentId ? new Refused('HELD', `item #${id} is held by ${found.item_owner} until ${found.item_lease_until}`) : null),
         builderFirstRefusal: () => (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalProblem(board, id, agentId, { firstRefusal }) : null,
-        correctionRefrozen: () => adopts ? null : pendingRefreezeProblem(board, id),
+        correctionRefrozen: () => adopts ? null : pendingRefreezeProblem(board, id), routingRules: found => reviewRouting.routingRuleProblem(board, found, agentId, 'build'),
         laneOpen: (found) => {
           // Declared: not checked when the caller renews its own live claim.
           const paused = laneHold(board, found.item_lane);
@@ -984,10 +983,8 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, 
  * @returns {boolean} Whether a review reservation was released rather than a claim.
  */
 export function release(board, id, agentId, note = '', goneSeat) {
-  // A string fourth argument is the release reason code; an object is a coordinator's frozen observation.
-  const reasonCode = typeof goneSeat === 'string' ? goneSeat : undefined;
-  return releaseClaim(board, id, agentId, note, reasonCode === undefined ? goneSeat : undefined, { atomic, itemById, reviewHolder,
-    reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout }, reasonCode);
+  return releaseClaim(board, id, agentId, note, goneSeat, { atomic, itemById, reviewHolder,
+    reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout });
 }
 
 export { prepareMergeOnlySubmit };
@@ -1150,7 +1147,7 @@ function reviewerChecks(board, { agentId, policy, familyPolicy = 'off' }) {
     },
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
-    requiredReviewFamily: found => reviewFamilies.requiredReviewFamilyProblem(board, found, agentId) ?? routingRuleProblem(board, found, agentId, 'review'),
+    requiredReviewFamily: found => reviewFamilies.requiredReviewFamilyProblem(board, found, agentId) ?? reviewRouting.routingRuleProblem(board, found, agentId, 'review'),
     familyAllows: (found) => reviewRouting.strictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
       : null),
@@ -1777,8 +1774,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, entry.item_builder_family);
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
     const standingRefusal = unrelated.map((entry) => itemAuthorProblem(board, entry, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }) ?? reviewFamilyProblem(board, entry, agentId, familyPolicy)).find(Boolean);
-    const requiredRefusals = unrelated.map(entry => reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId) ?? routingRuleProblem(board, entry, agentId, 'review')).filter(Boolean);
-    let reviewable = unrelated.filter((entry) => !itemAuthorProblem(board, entry, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }) && !reviewFamilyProblem(board, entry, agentId, familyPolicy) && !reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId) && !routingRuleProblem(board, entry, agentId, 'review') && !reviewRouting.strictReviewProblem(board, entry, agentId));
+    const requiredRefusals = unrelated.map(entry => reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId) ?? reviewRouting.routingRuleProblem(board, entry, agentId, 'review')).filter(Boolean);
+    let reviewable = unrelated.filter((entry) => !itemAuthorProblem(board, entry, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }) && !reviewFamilyProblem(board, entry, agentId, familyPolicy) && !reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId) && !reviewRouting.routingRuleProblem(board, entry, agentId, 'review') && !reviewRouting.strictReviewProblem(board, entry, agentId));
     if (policy === COORDINATOR && agentId !== COORDINATOR) reviewable = reviewable.filter((entry) => entry.item_lane === COORDINATOR);
     if (familyPolicy === 'require') reviewable = reviewable.filter(hasDifferentFamily);
     if (familyPolicy === 'prefer') reviewable.sort((first, second) => Number(hasDifferentFamily(second)) - Number(hasDifferentFamily(first)));
@@ -1860,9 +1857,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const waiting = itemDependencies.localDependencyIds(entry)
       .map((id) => current(board, itemById(board, id)))
       .filter((before) => before.item_status !== 'verified');
-    const barred = routingRuleProblem(board, entry, agentId, 'build');
-    if (barred) { reasons.push(barred.message); continue; }
-    const reserved = firstRefusalReason(board, entry.item_id, agentId, { firstRefusal });
+    const reserved = reviewRouting.routingRuleProblem(board, entry, agentId, 'build')?.message ?? firstRefusalReason(board, entry.item_id, agentId, { firstRefusal });
     if (reserved) { reasons.push(reserved); continue; }
     const collisions = itemFileCollisions(entry, inFlight);
     if (collisions.length) { reasons.push(...collisions); continue; }
@@ -2176,10 +2171,7 @@ export function actOnActivity(board, options) {
 import { FLOW_SIZE_ENGINE } from './flow-size-engine.js';
 import { submissionSize } from '../packages/state/src/core/submission-size.js';
 
-export { fileTypedRequest, typedRequests, answerTypedRequests } from './typed-requests.js';
-export { setRoutingRule } from './routing-rule-set.js';
-export { routingRules } from './routing-rules.js';
-import { routingRuleProblem } from './routing-rules.js';
+export { fileTypedRequest, typedRequests, answerTypedRequests } from './typed-requests.js'; export { setRoutingRule, routingRules } from './routing-rule-set.js';
 
 /** Bind handoff creation to the native board writer and the same transaction [B3,N19,H16]. */
 export function openHandoff(board, options) { return handoffMoves.openHandoff(board, options, { atomic, addItem, agentById, logEvent }); }

@@ -32,6 +32,8 @@ function goneRelease(board, item, actor, observation) {
 /** Apply the existing ordinary release transition with narrowly frozen maintenance authority. */
 export function releaseClaim(board, id, agentId, note, observation, dependencies, reasonCode) {
   const { atomic, itemById, reviewHolder, reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout } = dependencies;
+  // A string fourth argument is the release reason code; an object is a coordinator's frozen observation.
+  if (typeof observation === 'string') { reasonCode = observation; observation = undefined; }
   return atomic(board, () => {
     if (reasonCode !== undefined) { const bad = releaseReasonProblem(reasonCode, note); if (bad) throw bad; }
     const item = itemById(board, id);
