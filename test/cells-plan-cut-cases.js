@@ -106,12 +106,19 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
     git(root, 'add', '-A');
     git(root, 'commit', '-q', '-m', 'fixture: extract shared code into the lower cell');
     assert.deepEqual(checkCuts(root, plan, group.cell), [], 'actual lower-cell ownership wins over the extracted definition historic alias');
+    put(shared, `import ${JSON.stringify('../../../../' + edge.to)};\nexport const detached = true;\n`);
+    assert.deepEqual(checkCuts(root, plan, group.cell), [], 'the lower cell owns its genuine later import, so this cut passes independently');
+    put(shared, 'await import(name);\n');
+    assert.ok(checkCuts(root, plan, group.cell).some(problem => problem.includes('cannot prove')),
+      'a lower-cell computed-loader forwarder still blocks this cut');
     put(shared, `export * from ${JSON.stringify('../../../../' + edge.to)};\n`);
     assert.ok(checkCuts(root, plan, group.cell).some(problem => problem.includes(`${shared} -> ${edge.to}`)), 'moving a forwarding shim into a lower planned cell cannot conceal the original dependency');
     put(shared, 'export const detached = true;\n');
     assert.deepEqual(checkCuts(root, plan, group.cell), [], 'restoring a genuine pure extraction restores the cut');
-    put('src/cut-forward.js', `export * from ${JSON.stringify(target)};\n`);
+    put('src/cut-forward.js', `import ${JSON.stringify(target)};\nexport const detached = true;\n`);
     put(edge.from, "import './cut-forward.js'; export const detached = true;\n");
+    assert.deepEqual(checkCuts(root, plan, group.cell), [], 'an unassigned genuine module has its own later import, outside this cut');
+    put('src/cut-forward.js', `export * from ${JSON.stringify(target)};\n`);
     assert.match(checkCuts(root, plan, group.cell).join('\n'), /cut-forward.js -> /u, 'an unassigned forwarding shim cannot hide the same provider');
     const provider = plan.cells.find(cell => cell.name === edge.target);
     put(provider.frontDoor, `export * from ${JSON.stringify('../../' + edge.to)};\n`);
