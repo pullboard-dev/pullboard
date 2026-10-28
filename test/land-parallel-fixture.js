@@ -48,11 +48,13 @@ function runBatch(box, enabled) {
     `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/board.js')).href)};`,
     `import { loadConfig } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/config.js')).href)};`,
     `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/land.js')).href)};`,
+    `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/runner-private-check.js')).href)};`,
+    `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../bin/landing-candidate.js'))};`,
     "import { join } from 'node:path';",
     'const root = process.argv[1]; const enabled = process.argv[2] === "true";',
     'const board = store.openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
     'try { const config = loadConfig(root); config.landing = { ...config.landing, parallel: enabled };',
-    'const result = await runLandingBatch({ root, board, config, owner: "coordinator", maximum: 3, write: async (operation, args) => store[operation](board, ...args), say: () => {}, checkLease: async () => {}, checkLeaseNow: () => {} });',
+    'const result = await runLandingBatch({ checkAtCommit, candidateWorkerFile, root, board, config, owner: "coordinator", maximum: 3, write: async (operation, args) => store[operation](board, ...args), say: () => {}, checkLease: async () => {}, checkLeaseNow: () => {} });',
     'console.log(JSON.stringify(result)); } finally { store.closeBoard(board); }',
   ].join('\n');
   const env = { ...box.env };
@@ -230,9 +232,11 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
   const direct = [
     `import * as store from ${JSON.stringify(url('board.js'))};`,
     `import { runLandingBatch } from ${JSON.stringify(url('land.js'))};`,
+    `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/runner-private-check.js')).href)};`,
+    `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../bin/landing-candidate.js'))};`,
     "import { join } from 'node:path';",
     'const root = process.argv[1]; const board = store.openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
-    'try { await runLandingBatch({ root, board, owner: "private-nested-api", write: async (operation, args) => store[operation](board, ...args), say: () => {} }); console.log(JSON.stringify({ code: null })); }',
+    'try { await runLandingBatch({ checkAtCommit, candidateWorkerFile, root, board, owner: "private-nested-api", write: async (operation, args) => store[operation](board, ...args), say: () => {} }); console.log(JSON.stringify({ code: null })); }',
     'catch (error) { console.log(JSON.stringify({ code: error.code, message: error.message })); } finally { store.closeBoard(board); }',
   ].join('\n');
   const controller = [
