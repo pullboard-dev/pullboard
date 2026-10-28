@@ -1,4 +1,5 @@
 /** The show command and review queue use the native rules rather than an agent's lineage notes [V4,B26]. */
+import { strictReviewProblem } from './review-routing.js';
 import { itemAuthorProblem } from './item-authors.js';
 import { itemReviewPolicy } from './review-independence.js';
 import { reviewFamilyProblem } from './review-independence.js';
@@ -15,6 +16,8 @@ export function eligibilityProblem(board, item, agent, { policy = 'any', familyP
   if (policy === 'coordinator' && item.item_lane !== 'coordinator' && agent.agent_id !== 'coordinator') return new Refused('COORDINATOR_VERIFIES', 'this board has the coordinator verify lane work');
   const required = requiredReviewFamilyProblem(board, item, agent.agent_id);
   if (required) return required;
+  const strict = strictReviewProblem(board, item, agent.agent_id);
+  if (strict) return strict;
   const family = twoTierReviews(board) ? reviewFamilyProblem(board, item, agent.agent_id, familyPolicy)
     : familyPolicy === 'require' && (!agent.agent_family || !item.item_builder_family || agent.agent_family === item.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', 'legacy policy requires different declared families') : null;
