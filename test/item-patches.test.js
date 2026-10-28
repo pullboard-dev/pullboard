@@ -169,3 +169,25 @@ test('companion authors and related seats cannot review removed history, while u
     companionDigest: itemPatchDigest(board, id), note: 'synthetic native board-state acceptance; no runtime execution asserted' });
   assert.equal(store.getItem(board, id).item_status, 'verified', 'unrelated native reviewer can accept the current explicit empty patch set');
 });
+
+test('a companion author without session metadata cannot review active or removed inputs [V1,V4,H16]', t => {
+  const { board, id, reviewer } = fixture(t);
+  const author = store.register(board, { lane: 'api', path: '/patch-domain/no-session-author' });
+  store.attachItemPatch(board, id, input(author));
+  const identity = itemPatchAuthors(board, id).find(record => record.agentId === author);
+  assert.equal(identity.parentSession, null);
+  assert.equal(identity.session, null);
+  for (const removed of [false, true]) {
+    if (removed) store.removeItemPatch(board, id, { agentId: 'coordinator', key: 'fix' });
+    const before = exportBoard(board);
+    assert.throws(() => store.reserveReview(board, id, { agentId: author, leaseMs: 60_000, policy: 'any' }), { code: 'SELF_VERIFY' });
+    assert.throws(() => store.verify(board, id, { agentId: author, decision: 'ACCEPT', head: COMMIT,
+      digest: 'patch-frozen', policy: 'any', companionDigest: itemPatchDigest(board, id),
+      note: 'Synthetic native author control; no runtime proof claimed.' }), { code: 'SELF_VERIFY' });
+    assert.deepEqual(exportBoard(board), before, 'direct-author refusals preserve the item and history');
+  }
+  store.reserveReview(board, id, { agentId: reviewer, leaseMs: 60_000, policy: 'any' });
+  store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', head: COMMIT, digest: 'patch-frozen',
+    policy: 'any', companionDigest: itemPatchDigest(board, id), note: 'Synthetic unrelated reviewer positive control.' });
+  assert.equal(store.getItem(board, id).item_status, 'verified');
+});
