@@ -11,7 +11,8 @@ import {
   parseCommitMessage,
   specOrder,
 } from '../src/commit-message.js';
-import { checkLandingMessages, itemCommitType, landingMessage, landingRows } from '../src/land.js';
+import { landingRows } from '../packages/commits/src/core/landing-rows.js';
+import { checkLandingMessages, itemCommitType, landingMessage } from '../src/land.js';
 import { citedIds, parseSpec } from '../src/spec.js';
 import { defaults } from '../src/config.js';
 import { commitMsgProblems } from '../src/hooks.js';

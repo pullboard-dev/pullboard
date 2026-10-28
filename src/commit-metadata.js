@@ -3,7 +3,7 @@ import {
   buildCommitMessage,
   parseCommitMessage,
 } from './commit-message.js';
-import { landingRows } from './landing-message.js';
+import { landingRows } from '../packages/commits/src/core/landing-rows.js';
 
 /** Validate supplied metadata before replacing it with the board's canonical trailer paragraph. */
 export function prepareCommitMetadata(raw, { claim = null, claims = null, landings = [], spec = null, syncMerge = false } = {}) {

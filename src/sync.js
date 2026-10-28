@@ -32,7 +32,7 @@ import { Refused } from './refused.js';
 import {
   GIT_BOARD_REF,
   validateGitBoardCommit,
-} from './git-sync-format.js';
+} from '../packages/commits/src/core/board-format.js';
 
 const PREFIX = 'local:git-sync:';
 const CACHE = 'refs/pullboard/cache';

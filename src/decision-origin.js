@@ -46,14 +46,3 @@ export function answerProvenance(board, { agentId, asPerson, text, origin, ratio
   const decidedBy = asPerson ? 'person' : chosen === 'agent' ? agentId : 'unknown';
   return { statement: String(text).trim(), rationale: reason, decidedBy, relayedBy: ['person-relayed', 'inherited'].includes(chosen) ? agentId : null, origin: chosen };
 }
-
-/**
- * The origin an answer event recorded; unknown when it recorded none.
- *
- * @param {{ provenance?: { origin?: string } }} detail an answer event's detail
- * @returns {string}
- */
-export function originOf(detail) {
-  const origin = detail?.provenance?.origin;
-  return typeof origin === 'string' && origin ? origin : 'unknown';
-}
