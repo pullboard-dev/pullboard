@@ -15,16 +15,16 @@ const CRITERION = 'The page renders its title. The page renders its footer.';
 const TITLE_CLAUSE = 'The page renders its title.';
 
 /** Create a real SQLite board with independent builder and reviewer seats. */
-function fixture(t) {
+function fixture(t, criterion = CRITERION) {
   const board = store.openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: '/reject-clause/main' });
   const builder = store.register(board, { lane: 'web', path: '/reject-clause/builder', route: 'strong' });
   const reviewer = store.register(board, { lane: 'web', path: '/reject-clause/reviewer', route: 'strong' });
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Render the page',
-    criterion: CRITERION, check: 'true', route: 'mid',
+    criterion, check: 'true', route: 'mid',
     brief: 'Files: web/page.html\nTest: assert the rendered title and footer.' });
-  const freeze = () => ({ text: JSON.stringify({ criterion: CRITERION, rows: [],
+  const freeze = () => ({ text: JSON.stringify({ criterion, rows: [],
     policy: { version: 1, commit: 'a'.repeat(40), verify: { policy: 'any', family: 'off' } } }), digest: 'reject-clause-bar-v1' });
   /** Submit a different synthetic head without claiming that a fixture ran a gate. */
   function submit(character) {
@@ -58,6 +58,18 @@ test('a second reject on the same clause routes the bar to be sharpened [V6,R2,B
   assert.equal(JSON.parse(notices[0].event_detail).clause, TITLE_CLAUSE);
 });
 
+
+test('a repeated long clause still issues its sharpening notice within the shout limit [V6,R2,H16]', t => {
+  const longClause = `The page renders ${'every listed section heading in order, '.repeat(12)}and its title.`;
+  const { board, id, submit, reject } = fixture(t, `${longClause} The page renders its footer.`);
+  reject(submit('a'), longClause);
+  reject(submit('b'), longClause);
+  assert.match(store.getItem(board, id).item_hold_reason ?? '', /bar.*sharpen/iu, 'the second reject still holds the item');
+  const notice = board.db.prepare("SELECT shout_text FROM shout WHERE shout_text LIKE '%sharper bar%'").all();
+  assert.equal(notice.length, 1, 'the sharpening notice is sent, not rolled back');
+  assert.ok(notice[0].shout_text.length <= 400, `the notice fits a shout: ${notice[0].shout_text.length}`);
+  assert.match(notice[0].shout_text, /\+\d+ characters; pullboard show \d+\)/u, 'the cut names what it elided');
+});
 
 test('rejects require a real frozen clause before appending any verdict [V6,R2,H16]', t => {
   const { board, id, submit, reject } = fixture(t);
