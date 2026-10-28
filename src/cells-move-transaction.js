@@ -235,7 +235,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
       parents(value.root, file);
       const actual = image(value.root, file);
       const movedOriginal = file === value.to ? value.before[value.from] : null;
-      requireThat((actual === null && (value.before[file] === null || file === value.from)) || same(actual, value.before[file]) || same(actual, value.after[file]) || same(actual, movedOriginal),
+      requireThat((actual === null && (value.before[file] === null || file === value.from)) || same(actual, value.before[file]) || same(actual, value.after[file]) || (movedOriginal !== null && same(actual, movedOriginal)),
         `unexpected concurrent bytes at ${file}; retain custody and resolve manually`);
     }
     for (const [file, preimage] of Object.entries(value.before)) put(value.root, file, preimage, created);
