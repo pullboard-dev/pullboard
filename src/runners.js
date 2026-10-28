@@ -876,3 +876,14 @@ async function runInController(root, command, options, ports) {
       ...(request.rawOutputPath ? { rawOutputPath: request.rawOutputPath, rawBytes, rawSha256: rawHash.digest('hex') } : {}) }, ports);
   } finally { clearTimeout(runnerWaitTimer); clearTimeout(runnerWaitKill); if (rawFd !== null) closeSync(rawFd); removeAbort(); request.cleanup(); }
 }
+
+/** Give a pre-upgrade cached self-spawn caller a typed restart without reading input or starting transport. */
+function refuseLegacyControllerEntry() {
+  if (process.argv[2] !== '--pullboard-runner-controller' || !process.argv[1]) return;
+  try { if (realpathSync(process.argv[1]) !== fileURLToPath(import.meta.url)) return; }
+  catch { return; }
+  process.stdout.write(JSON.stringify({ error: { name: 'Refused', code: 'RUNNER_TOOLING_CHANGED',
+    message: 'runner controller entry changed; restart the command from the current committed CLI before retrying' } }));
+  process.exitCode = 1;
+}
+refuseLegacyControllerEntry();

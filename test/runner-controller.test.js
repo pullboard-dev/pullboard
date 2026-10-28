@@ -7,11 +7,12 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
+const LEGACY_ENTRY = fileURLToPath(new URL('../src/runners.js', import.meta.url));
 const ENTRY = fileURLToPath(new URL('../bin/runner-controller.js', import.meta.url));
 
 test('the shipped controller entry is inert without its exact direct-entry flag [C7,P3]', () => {
-  for (const flags of [[], ['--unrelated-entry']]) {
-    const child = spawnSync(process.execPath, [ENTRY, ...flags], { input: 'untrusted input is not a controller request', encoding: 'utf8' });
+  for (const entry of [ENTRY, LEGACY_ENTRY]) for (const flags of [[], ['--unrelated-entry']]) {
+    const child = spawnSync(process.execPath, [entry, ...flags], { input: 'untrusted input is not a controller request', encoding: 'utf8' });
     assert.equal(child.status, 0, child.stderr);
     assert.equal(child.stdout, '');
     assert.doesNotMatch(child.stderr, /untrusted input|SyntaxError/u, 'the ignored input is never parsed');
@@ -32,4 +33,14 @@ test('a forged controller parent cannot execute a command or choose policy ports
   const reply = JSON.parse(child.stdout);
   assert.equal(reply.error.name, 'RunnerDropped', 'the exact parent fence aborts before source, private policy or SSH');
   assert.equal(existsSync(marker), false);
+});
+
+test('a pre-upgrade self-spawn entry requests restart without parsing controller input [C7,P3]', () => {
+  const child = spawnSync(process.execPath, [LEGACY_ENTRY, '--pullboard-runner-controller'], {
+    input: 'not a request; must never be parsed or executed', encoding: 'utf8',
+  });
+  assert.equal(child.status, 1, child.stderr);
+  const reply = JSON.parse(child.stdout);
+  assert.deepEqual({ name: reply.error.name, code: reply.error.code }, { name: 'Refused', code: 'RUNNER_TOOLING_CHANGED' });
+  assert.doesNotMatch(child.stdout + child.stderr, /not a request|SyntaxError/u);
 });
