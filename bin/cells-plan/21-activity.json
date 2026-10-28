@@ -7,7 +7,7 @@
  "placedBy": {
   "seed": 7,
   "rule": 0,
-  "imports": 0
+  "imports": 1
  },
  "paths": [
   ["src/activity-delivery-cli.js","packages/activity/src/shell/activity-delivery-cli.js","seed"],
@@ -16,7 +16,8 @@
   ["src/activity-delivery.js","packages/activity/src/core/activity-delivery.js","seed"],
   ["src/activity-feed.js","packages/activity/src/core/activity-feed.js","seed"],
   ["src/activity-inbox.js","packages/activity/src/shell/activity-inbox.js","seed"],
-  ["src/activity-news.js","packages/activity/src/core/activity-news.js","seed"]
+  ["src/activity-news.js","packages/activity/src/core/activity-news.js","seed"],
+  ["src/inbox-budget.js","packages/activity/src/core/inbox-budget.js","imports"]
  ],
  "reexports": [
   "src/activity-delivery-cli.js",
