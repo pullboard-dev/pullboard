@@ -223,7 +223,7 @@ test('[A9,P5] an MCP client reads the board and shouts as its agent', async (t) 
   assert.match(hello.result.instructions, new RegExp(`agent ${box.agent} in the web lane`));
 
   const listed = await client.request('tools/list');
-  assert.deepEqual(listed.result.tools.map((tool) => tool.name), ['board_status', 'show_item', 'shout', 'capture_idea', 'next', 'claim', 'submit', 'verify', 'resume']);
+  assert.deepEqual(listed.result.tools.map((tool) => tool.name), ['board_status', 'show_item', 'item_slice', 'shout', 'capture_idea', 'next', 'claim', 'submit', 'verify', 'resume']);
   for (const tool of listed.result.tools) {
     assert.equal(tool.inputSchema.type, 'object', tool.name);
     assert.equal(tool.inputSchema.additionalProperties, false, `${tool.name} refuses unknown arguments`);

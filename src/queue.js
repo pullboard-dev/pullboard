@@ -1,9 +1,5 @@
 import { eligibilityProblem } from './review-eligibility.js';
-import { foreignBlockers } from './cross-repo-dependencies.js';
-import {
-  localDependencyIds,
-  dependencyLabel,
-} from './item-dependencies.js';
+import { itemWaits } from './queue-readiness.js';
 /**
  * pullboard queue (#797): the work queue agents pull from, top to bottom. Each unshipped release is a
  * breakpoint with its landed count, then its pullable items in the order next serves them, each with
@@ -13,7 +9,6 @@ import {
  * It is for agents and coordinators; the person reads the Roadmap instead.
  */
 import { Refused } from './refused.js';
-import { itemFileCollisions } from './item-files.js';
 import {
   milestoneRanks,
   queueReasons,
@@ -21,8 +16,6 @@ import {
 import {
   buildOrder,
   canTake,
-  itemById,
-  laneHold,
   listItems,
   milestonePriorities,
   roadmap,
@@ -43,24 +36,6 @@ function holderOf(item, now) {
 }
 
 /**
- * What an item waits on before an agent can take it: dependencies, file collisions and holds.
- *
- * @param {any} board
- * @param {any} item
- * @param {any[]} inFlight
- * @returns {string[]}
- */
-function waitsOf(board, item, inFlight) {
-  const after = localDependencyIds(item)
-    .map((id) => itemById(board, id))
-    .filter((before) => before && before.item_status !== 'verified')
-    .map((before) => `#${before.item_id} (${before.item_status})`);
-  const lane = laneHold(board, item.item_lane);
-  const collisions = itemFileCollisions(item, inFlight);
-  return [...after, ...foreignBlockers(board, item).map(ref => `${dependencyLabel(ref)} (${ref.status} on its own board)`), ...collisions, ...(item.item_hold_reason ? [`held: ${item.item_hold_reason}`] : []), ...(lane ? [`${item.item_lane} lane held: ${lane.hold_reason}`] : [])];
-}
-
-/**
  * The queue as one document: releases in roadmap order with their items in pull order, the work in
  * no release after them, and the first item each route would pull now.
  *
@@ -76,12 +51,12 @@ export function workQueue(board, reviewer = null, options = {}) {
   const inFlight = listItems(board, { all: true });
   const reasons = queueReasons(board, { priority: release, rank: milestoneRanks(board, release) });
   const entry = (item) => ({ id: item.item_id, title: item.item_title, route: item.item_route, lane: item.item_lane,
-    status: item.item_status, holder: holderOf(item, now), waits: waitsOf(board, item, inFlight), ...reasons(item) });
+    status: item.item_status, holder: holderOf(item, now), waits: itemWaits(board, item, inFlight), ...reasons(item) });
   const releases = planned.map((milestone, index) => ({ name: milestone.name, landed: milestone.landed, total: milestone.total, shipped: Boolean(milestone.shipped),
     items: items.filter((item) => release(item) === index).map(entry) })).filter((milestone) => !milestone.shipped || milestone.items.length);
   const unreleased = items.filter((item) => release(item) >= planned.length).map(entry);
   // next takes its own route first (B13), so each route's first item comes from that same order.
-  const pullable = items.filter((item) => item.item_status === 'open' && !waitsOf(board, item, inFlight).length).sort(buildOrder(board, { tierFirst: true, priority: release }));
+  const pullable = items.filter((item) => item.item_status === 'open' && !itemWaits(board, item, inFlight).length).sort(buildOrder(board, { tierFirst: true, priority: release }));
   const first = Object.fromEntries([...ROUTES].reverse().map((route) => [route, pullable.find((item) => canTake(route, item.item_route))?.item_id ?? null]));
   return { releases: releases.map(({ shipped, ...milestone }) => milestone), unreleased, first };
 }

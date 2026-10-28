@@ -43,6 +43,16 @@ export const MCP_TOOLS = Object.freeze([
     },
   },
   {
+    name: 'item_slice',
+    description: 'The code map slice for one item: its named files and functions, one hop out, and the tests that import them, stamped with main. Mirrors pullboard map --for <id>. Observations, not a complete call graph.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'integer', description: 'The item id, as on the board.' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'shout',
     description: 'Shout to a lane, an agent or all, as this seat\'s agent. Mirrors pullboard shout <to> <text>.',
     inputSchema: {
@@ -234,6 +244,10 @@ async function callTool(runCommand, cwd, name, args) {
       items: list.document.items,
       needsYou,
     }, false);
+  }
+  if (name === 'item_slice') {
+    const slice = await runCli(runCommand, cwd, ['map', '--json', `--for=${input.id}`]);
+    return toolResult(slice.document, Boolean(slice.status));
   }
   if (name === 'show_item') {
     const shown = await runCli(runCommand, cwd, ['show', '--json', '--', String(input.id)]);
