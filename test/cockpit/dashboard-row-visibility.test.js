@@ -18,7 +18,7 @@ test('Dashboard retains offscreen agents and paints their real rows when scrolle
   try {
     for (let index = 0; index < 48; index++) {
       const agent = store.register(board, { lane: 'web', path: join(box.dir, 'offscreen-seat-' + index), model: 'fixture', family: 'fixture' });
-      store.shout(board, { agentId: agent, to: 'person', text: 'Which release should this native fixture observe?' });
+      store.shout(board, { from: agent, to: 'person', text: 'Which release should this native fixture observe?' });
       agents.push(agent);
     }
   } finally { store.closeBoard(board); }
