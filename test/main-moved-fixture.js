@@ -3,7 +3,6 @@
 /** Real Git and native historical state are setup; only the production worker supplies rerun evidence [C7,V4,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { cpSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -14,9 +13,11 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { setTimeout as pause } from 'node:timers/promises';
 import { runFixtureChild } from './fixture-child.js';
 import { exportBoard } from '../src/exchange.js';
+import { copyPackageFiles } from '../src/package-files.js';
 
 const SOURCE = new URL('../', import.meta.url);
 
@@ -25,7 +26,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
   const scratch = mkdtempSync(join(tmpdir(),'pullboard-main-moved-'));
   const installed = join(scratch,'installed'), repo = join(scratch,'repo'), machine = join(scratch,'machine');
   for (const folder of [installed,repo,machine]) mkdirSync(folder);
-  for (const folder of [installed,repo]) for (const name of ['src','bin','package.json']) cpSync(new URL(name,SOURCE),join(folder,name),{recursive:true});
+  for (const folder of [installed,repo]) copyPackageFiles(fileURLToPath(SOURCE),folder);
   const env = { ...process.env, HOME: join(scratch,'home'), PULLBOARD_HOME: join(scratch,'home','pullboard'),
     PULLBOARD_MACHINE_HOME: machine, GIT_CONFIG_GLOBAL:'/dev/null', GIT_CONFIG_NOSYSTEM:'1',
     GIT_AUTHOR_NAME:'Fixture', GIT_AUTHOR_EMAIL:'fixture@example.invalid', GIT_COMMITTER_NAME:'Fixture', GIT_COMMITTER_EMAIL:'fixture@example.invalid' };
@@ -40,7 +41,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
   /** Execute ordinary public CLI; no actor override or command-specific fake is provided. */
   function cli(...args) { return runFixtureChild(process.execPath,[join(installed,'bin/pullboard.js'),...args],{cwd:repo,env,encoding:'utf8'}); }
   const marker = join(scratch,'actual-check-bodies');
-  mkdirSync(join(repo,'web')); mkdirSync(join(repo,'test')); mkdirSync(join(repo,'docs'));
+  for (const name of ['web','test','docs']) mkdirSync(join(repo,name),{recursive:true});
   writeFileSync(join(repo,'SPEC.md'),'# Private fixture specification\n');
   const check = 'node --test --test-reporter=tap test/check.test.js';
   writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:check,affectedTests:'node --test --test-reporter=tap',submitGate:'landing',submitDeferAbove:1,
