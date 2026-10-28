@@ -435,7 +435,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .seg button b { font: 400 var(--text-2xs) var(--mono); color: var(--ink-faint); margin-left: var(--space-2); }
 
 .chain { list-style: none; margin: 0; padding: var(--space-2); display: grid; gap: var(--space-0); }
-.row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: var(--space-4); align-items: center; padding: var(--space-3) var(--space-3); border-radius: var(--radius-lg); border: 1px solid transparent; cursor: pointer; }
+.row { display: grid; grid-template-columns: var(--space-6) minmax(0, 1fr) auto; gap: var(--space-4); align-items: center; padding: var(--space-3) var(--space-3); border-radius: var(--radius-lg); border: 1px solid transparent; cursor: pointer; }
 .row:hover { background: var(--surface-2); }
 /* A row's whole shade says where it stands: blocked rows light red, rows waiting on a verdict light yellow. */
 .row.gated { border-color: light-dark(#ca9d96, #86403b); }
@@ -467,7 +467,6 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .row .meta > .gate, .row .meta > .why { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .row .meta > .why { flex-grow: 1; }
 .row > .chip { grid-area: chip; justify-self: end; max-width: 10rem; overflow: hidden; text-overflow: ellipsis; }
-.row.item-row { grid-template-columns: var(--space-6) minmax(0, 1fr) auto; }
 .row.item-row > .dot { width: var(--space-6); height: var(--space-6); display: grid; place-items: center; }
 .row-disclosure > summary { list-style: none; }
 .row-disclosure > summary::-webkit-details-marker { display: none; }
