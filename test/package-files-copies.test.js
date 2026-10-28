@@ -208,6 +208,18 @@ test('package copies refuse escaping patterns, selected symlinks and recursive d
   assert.throws(() => packageFiles(f.root), /unsafe package files entry/u);
 });
 
+test('package files honor a later exclusion and name any entry they cannot parse [C7,P3]', t => {
+  const f = fixture(t, ['src', 'packages', '!packages/**/*.test.js']);
+  assert.deepEqual(packageFiles(f.root), ['package.json', 'packages/leaf/src/value.js', 'src/entry.js'],
+    'the later exclusion removes the private test and keeps the module it did not match');
+  f.write('package.json', JSON.stringify({ files: ['src', '!src/entry.js', 'src/entry.js'] }));
+  assert.deepEqual(packageFiles(f.root), ['package.json', 'src/entry.js'], 'a later inclusion re-admits a path the exclusion removed');
+  f.write('package.json', JSON.stringify({ files: ['!src'] }));
+  assert.throws(() => packageFiles(f.root), /needs at least one inclusion entry/u, 'an exclusion-only list cannot silently ship nothing');
+  f.write('package.json', JSON.stringify({ files: ['src', '!!src/entry.js'] }));
+  assert.throws(() => packageFiles(f.root), /unsupported package files entry: "!!src\/entry.js"/u, 'a double negation is refused by name');
+});
+
 test('a computed runner copy follows a new packages import without a hand-kept list [C7,P3]', t => {
   const f = fixture(t);
   f.write('src/runner-worker.js', "import {value} from '../packages/leaf/src/value.js'; console.log(value);\n");
@@ -331,6 +343,7 @@ test('a loaded controller refuses changes to every derived runtime file before r
   const f = fixture(t);
   f.write('src/runner-worker.js', "import '../packages/leaf/src/value.js';\n");
   f.write('src/runners.js', 'export const controller = true;\n');
+  f.write('bin/runner-controller.js', 'export const composition = true;\n');
   const loaded = captureRunnerTooling(f.root);
   assert.deepEqual(currentRunnerTooling(f.root, loaded), runnerPackage(f.root));
   for (const [file, original] of Object.entries(loaded.files)) {
@@ -341,6 +354,9 @@ test('a loaded controller refuses changes to every derived runtime file before r
   f.write('src/runners.js', loaded.controller + '\n// a different controller generation\n');
   assert.throws(() => currentRunnerTooling(f.root, loaded), error => error.code === 'RUNNER_TOOLING_CHANGED');
   f.write('src/runners.js', loaded.controller);
+  f.write('bin/runner-controller.js', loaded.controllerEntry + '\n// a different native composition generation\n');
+  assert.throws(() => currentRunnerTooling(f.root, loaded, { rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED');
+  f.write('bin/runner-controller.js', loaded.controllerEntry);
   assert.deepEqual(currentRunnerTooling(f.root, loaded), runnerPackage(f.root));
 });
 
@@ -348,6 +364,7 @@ test('freshness follows added package dependencies and ignores files outside the
   const f = fixture(t);
   f.write('src/runner-worker.js', "import '../packages/leaf/src/value.js';\n");
   f.write('src/runners.js', 'export const controller = true;\n');
+  f.write('bin/runner-controller.js', 'export const composition = true;\n');
   const loaded = captureRunnerTooling(f.root);
   f.write('packages/leaf/src/unrelated.js', 'export const outsideRuntime = true;\n');
   assert.deepEqual(currentRunnerTooling(f.root, loaded), runnerPackage(f.root));
@@ -363,6 +380,7 @@ test('a warmed derived snapshot still refuses newly selected symlinks outside it
   const f = fixture(t);
   f.write('src/runner-worker.js', "import '../packages/leaf/src/value.js';\n");
   f.write('src/runners.js', 'export const controller = true;\n');
+  f.write('bin/runner-controller.js', 'export const composition = true;\n');
   const loaded = captureRunnerTooling(f.root);
   assert.deepEqual(currentRunnerTooling(f.root, loaded), runnerPackage(f.root));
   assert.deepEqual(currentRunnerTooling(f.root, loaded), runnerPackage(f.root));

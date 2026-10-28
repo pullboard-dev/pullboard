@@ -711,7 +711,7 @@ test('a timed-out proof drains only its captured process group before removing i
     watchdog = setTimeout(() => rejectMarker(new Error('proof fixture did not send its live process identities')), 5000);
     runOutcome = runCheckAt(box.repo, box.git('rev-parse', 'HEAD'), 'unused', {
       executable: process.execPath, args: ['hold-proof.mjs'],
-    }, { timeoutMs }).then(value => ({ value }), error => ({ error }));
+    }, { timeoutMs, parseProcessCensus }).then(value => ({ value }), error => ({ error }));
     const recorded = await marker;
     assert.equal(recorded.pids?.length, 2, 'the real helper reports itself and its child');
     assert.ok(recorded.pids.every(pid => Number.isInteger(pid) && pid > 0) && recorded.pids[0] !== recorded.pids[1]);

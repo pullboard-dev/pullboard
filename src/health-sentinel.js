@@ -19,7 +19,7 @@ export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFind
   try {
     db.exec('BEGIN');
     const observedRevision = db.prepare('SELECT COALESCE(MAX(event_id), 0) AS revision FROM event').get().revision;
-    const report = healthReport({ db, root, config, now });
+    const report = healthReport({ db, root, config, now, dispatchHealth });
     const { dispatch } = dispatchHealth({ db, clock: { now: () => now } }, config);
     const last = db.prepare("SELECT event_detail FROM event WHERE event_kind = 'health-scan' ORDER BY event_id DESC LIMIT 1").get();
     const processes = cpu(db);

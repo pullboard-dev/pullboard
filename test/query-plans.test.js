@@ -4,6 +4,7 @@
  * seeded board of 1,000 items, 45,000 events and 23,000 shouts [C7]. The commands run as the real CLI
  * with a preload that records each statement they prepare; each is then planned with EXPLAIN QUERY PLAN.
  */
+import { dispatchHealth } from '../src/dispatch-health.js';
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -606,7 +607,7 @@ test('health reads item history by index [C7]', () => {
     const db = store.openBoardReadOnly(box.board);
     try {
       const started = performance.now();
-      const report = healthReport({ db, root: box.repo, now: new Date('2026-10-23T00:00:00.000Z') });
+      const report = healthReport({ dispatchHealth, db, root: box.repo, now: new Date('2026-10-23T00:00:00.000Z') });
       const elapsed = performance.now() - started;
       assert.ok(historyPlans > 0, 'health planned its item-history statement');
       assert.ok(elapsed < 1_000, `health on 45,000 events took ${elapsed.toFixed(2)} ms, over 1 s`); // budget: approved row C7 requires health under 1s on the seeded board.
