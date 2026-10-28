@@ -109,11 +109,11 @@
       ]
     },
     "fileSize": {
-      "count": 66926,
+      "count": 66929,
       "shards": [
         {
           "file": "bin/cell-lint-baselines/fileSize-001.json",
-          "sha256": "04c593e2978b4aa16c8cab8245fa142159fa3ea8d956d922639c56e90d43d298"
+          "sha256": "e39e9ba195f3b8bab75402c7f48c290e99d5a4884e8fd34b0893810e56134825"
         }
       ]
     },
