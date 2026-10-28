@@ -423,7 +423,7 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
     delete process.env.NODE_TEST_CONTEXT;
     let completed;
     try {
-      await assert.rejects(land({ root: box.root, board, config, owner: 'private-interrupted-owner', say: () => {},
+      await assert.rejects(land({ root: box.root, board, config, owner: 'private-interrupted-owner', say: () => {}, landingWorkerFile: resolve(import.meta.dirname, '../bin/landing-worker.js'),
         write: async (operation, args) => {
           if (operation === 'recordLandingBatch' && args[0].batch.state === 'blocked') throw new Error('controlled interruption after retained diagnostic');
           return store[operation](board, ...args);
