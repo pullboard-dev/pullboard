@@ -164,3 +164,10 @@ test('explicit export pruning keeps real consumer API and reverses exact source 
   assert.equal(git(root, 'write-tree'), before);
   assert.equal(git(root, 'status', '--porcelain'), '');
 });
+
+
+test('export pruning refuses grouped variable exports rather than leaking extra API [C7]', t => {
+  const { root, input } = fixture(t, 'export const value = 42, hidden = 7;\n');
+  assert.throws(() => cellsMove.plan({ ...input, keepExports: ['value'] }), /one variable per declaration/u);
+  assert.equal(git(root, 'status', '--porcelain'), '');
+});

@@ -91,7 +91,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
         && keepExports.every(name => /^[A-Za-z_$][\w$]*$/u.test(name)), 'keepExports must name distinct declaration exports');
       const declarations = [...code.matchAll(/\bexport\s+(?:(?:async\s+)?function\s*\*?|class|const|let|var)\s+([A-Za-z_$][\w$]*)/gu)];
       requireThat(keepExports.every(name => declarations.some(match => match[1] === name)), 'requested export is absent');
-      for (const match of declarations) if (!keepExports.includes(match[1])) {
+      for (const match of declarations) {
         if (/^export\s+(?:const|let|var)\b/u.test(match[0])) {
           let depth = 0;
           for (let at = match.index + match[0].length; at < code.length; at++) {
@@ -102,7 +102,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
             if (depth === 0 && char === ';') break;
           }
         }
-        edits.push({ start: match.index, end: match.index + 'export'.length, text: '' });
+        if (!keepExports.includes(match[1])) edits.push({ start: match.index, end: match.index + 'export'.length, text: '' });
       }
     }
     for (const literal of strings) {
