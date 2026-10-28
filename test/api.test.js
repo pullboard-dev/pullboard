@@ -43,7 +43,6 @@ import {
 
 // The newest event-log format this Pullboard reads: a board with signed person moves is format 2 [E22].
 const READABLE_EVENT_LOG = Math.max(EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION);
-
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
 const covered = new Set();

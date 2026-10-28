@@ -1074,7 +1074,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       return { local: true };
     },
     settings: (selected) => {
-      if (!settingsProviders) throw new Refused('SETTINGS_UNAVAILABLE', 'this API was started without its settings providers; start it through pullboard serve or pullboard view');
+      if (!settingsProviders) throw new Refused('SERVICE_ERROR', 'this API was started without its settings providers; start it through pullboard serve or pullboard view');
       return settingsInventory(settingsScope.projects(), selected, settingsProviders);
     },
     boards: () => withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument)),

@@ -343,6 +343,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
   const browser = origin ? createRelayBrowserHandler({ authenticate: (req) => auth.authenticate(credential(req, origin)) }) : null;
   const pagesHandler = createRelayPagesHandler({ directory: root, now, authorize: authorizedRequest, withJournal, sender, quota, annotated, refreshStorage, enabled: Boolean(quota) });
   const common = createApiHandler({
+    refusalDocument,
     authenticate: async (req, { board, write }) => {
       const token = credential(req, origin, write);
       if (board !== null) return { ...await authorizedRequest(req, board, write), credential: token };

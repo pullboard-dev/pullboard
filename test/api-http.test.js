@@ -22,7 +22,6 @@ import { preparePersonRequest } from '../src/person-request.js';
 import { receivePersonRequest } from '../src/relay-requests.js';
 import { fetchFresh } from './http-fixture.js';
 import { liveFrames } from './http-stream-fixture.js';
-
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
 /** Run a private view in a child process with child-process accounting enabled only for warmed reads. */
