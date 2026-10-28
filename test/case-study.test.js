@@ -86,8 +86,8 @@ test('case study uses receipt timestamps, excludes duplicate receipts and does n
   ]);
   const metrics = eventMetrics(boardPath, { from: START, to: END });
   assert.equal(metrics.proofReceipts.n, 1, 'receipt completed inside the window even though recording was delayed');
-  assert.equal(metrics.proofReceipts.submitReceiptDuration.n, 1);
-  assert.equal(metrics.proofReceipts.submitReceiptDuration.medianMs, 5000);
+  assert.equal(metrics.proofReceipts.submitReceiptDuration.n, 1); // budget: derived from one distinct recorded receipt fixture, not a clock.
+  assert.equal(metrics.proofReceipts.submitReceiptDuration.medianMs, receipt.durationMs); // budget: derived from the recorded fixture payload, not elapsed execution.
   assert.equal(metrics.proofReceipts.fullSuite.n, 0);
   assert.equal(metrics.proofReceipts.fullSuite.medianMs, null);
   assert.match(metrics.proofReceipts.fullSuite.evidence, /missing/u);
