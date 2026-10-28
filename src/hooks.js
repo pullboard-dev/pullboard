@@ -65,8 +65,8 @@ const MAX_SECRET_DIFF_BYTES = 8 * 1024 * 1024;
  * Secrets by kind, most specific first, so a line is named once by what it most likely is.
  */
 const SECRETS = [
-  ['Anthropic key', /sk-ant-[A-Za-z0-9_-]{20,}/],
-  ['OpenAI key', /sk-(proj-)?[A-Za-z0-9_-]{32,}/],
+  ['Anthropic key', /(?<![A-Za-z0-9])sk-ant-[A-Za-z0-9_-]{20,}/],
+  ['OpenAI key', /(?<![A-Za-z0-9])sk-(proj-)?[A-Za-z0-9_-]{32,}/],
   ['AWS access key', /AKIA[0-9A-Z]{16}/],
   ['private key', /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
   ['GitHub token', /gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}/],
