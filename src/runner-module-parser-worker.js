@@ -80,6 +80,9 @@ if (!directory || !Number.isSafeInteger(parent) || parent <= 0 || process.ppid !
 try {
   watcher = watch(directory, scan);
   watcher.on('error', stop);
+  // A hint carries no source or result authority; scan validates the next regular request.
+  process.on('message', () => scan());
+  process.on('disconnect', stop);
   // Budget: check parent custody each second between compile batches; no operational worker is touched.
   parentWatch = setInterval(checkParent, 1_000);
   checkParent();

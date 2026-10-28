@@ -116,7 +116,7 @@ export function createRunnerModuleParser() {
     if (failed) throw parserFailure();
   }
 
-  /** Start the trusted parser entry without inherited Node flags, stdin, pipes or repository evaluation. */
+  /** Start the trusted parser entry without source input or repository evaluation. */
   function start() {
     if (child) return;
     directory = mkdtempSync(join(tmpdir(), 'pullboard-runner-parser-'));
@@ -125,7 +125,8 @@ export function createRunnerModuleParser() {
     writeFileSync(worker, LOADED_COMPILER.worker, { mode: 0o400, flag: 'wx' });
     child = spawn(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning',
       worker, directory, String(process.pid)],
-    { stdio: 'ignore' });
+    { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
+    child.channel?.unref();
     // This prevents an unhandled late error; synchronous progress depends only on the bounded reply protocol.
     child.on('error', () => { childFailed = true; });
     if (!Number.isSafeInteger(child.pid)) throw parserFailure();
@@ -150,6 +151,8 @@ export function createRunnerModuleParser() {
       const temporary = join(directory, `request-${id}.tmp`);
       writeFileSync(temporary, input, { mode: 0o600, flag: 'wx' });
       renameSync(temporary, request);
+      // Wake only: source and results remain in the validated atomic-file protocol.
+      child.send(id);
       while (true) {
         if (process.hrtime.bigint() >= deadline) throw parserFailure();
         const result = replyAt(reply);

@@ -4,6 +4,10 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { renameSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { setTimeout as pause } from 'node:timers/promises';
 import { gzipSync } from 'node:zlib';
 import { runnerPackage } from '../src/runner-package.js';
 import { createRunnerModuleParser } from '../src/runner-module-parser.js';
@@ -503,4 +507,38 @@ test('runner closure retains the 4096 file cap independently of byte accounting 
   f.write('src/extra.txt','');
   f.write('src/entry.js',source+"\nimport './extra.txt';");
   assert.throws(()=>runnerPackage(f.root,'src/entry.js'),error=>error.code==='RUNNER_TOOLING_FILES'&&error.message.includes('file-count bound'));
+});
+
+
+/** The private wake channel cannot supply source/results, and filesystem notifications remain a fallback. */
+test('private compiler missing duplicate and spurious hints retain atomic request authority [C7,P3]',async t=>{
+  const f=fixture(t);
+  const protocol=join(f.directory,'protocol');mkdirSync(protocol);
+  const worker=spawn(process.execPath,['--experimental-vm-modules','--disable-warning=ExperimentalWarning',resolve(import.meta.dirname,'../src/runner-module-parser-worker.js'),protocol,String(process.pid)],{stdio:['ignore','ignore','pipe','ipc']});
+  let stderr='';worker.stderr.on('data',part=>{stderr+=part;});
+  const closed=new Promise(resolve=>worker.once('close',(code,signal)=>resolve({code,signal})));
+  t.after(async()=>{if(worker.exitCode===null&&worker.signalCode===null)worker.kill('SIGKILL');await closed;});
+  /** Wait for an actual atomic reply; the bound is the existing private compiler protocol ceiling. */
+  async function reply(id){
+    const path=join(protocol,`reply-${id}.json`),end=Date.now()+10_000;
+    while(!existsSync(path)&&Date.now()<end&&worker.exitCode===null&&worker.signalCode===null)await pause(2);
+    assert.ok(existsSync(path),stderr);
+    return JSON.parse(readFileSync(path,'utf8'));
+  }
+  /** Publish exactly the production regular-file request shape. */
+  function request(id,sources){
+    const temporary=join(protocol,`request-${id}.tmp`);
+    writeFileSync(temporary,JSON.stringify({version:1,id,sources}));
+    renameSync(temporary,join(protocol,`request-${id}.json`));
+  }
+  request(1,["import './first.js';"]); // Deliberately no wake hint: watcher/initial scan must still work.
+  assert.deepEqual(await reply(1),{version:1,id:1,results:[{compiles:true,imports:['./first.js']}]});
+  rmSync(join(protocol,'request-1.json'));rmSync(join(protocol,'reply-1.json'));
+  const marker=join(f.directory,'must-not-execute');
+  worker.send({id:999,imports:[],sources:[`import {writeFileSync} from 'node:fs';writeFileSync(${JSON.stringify(marker)},'forged');`]});
+  worker.send(1);worker.send(1); // Old duplicate hints cannot manufacture the next response.
+  request(2,["import './second.js';"]);worker.send(2);worker.send(2);
+  assert.deepEqual(await reply(2),{version:1,id:2,results:[{compiles:true,imports:['./second.js']}]});
+  assert.equal(existsSync(marker),false);
+  assert.deepEqual(readdirSync(protocol).filter(name=>name.startsWith('reply-')),['reply-2.json']);
 });
