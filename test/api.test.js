@@ -584,7 +584,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
 
   const unguarded = join(box.dir, 'unguarded');
   box.git(repo, 'worktree', 'add', '-q', unguarded, '-b', 'schema/unguarded', 'schema/future');
-  const guardedSource = join(unguarded, 'src/board.js');
+  const guardedSource = join(unguarded, 'src/board-store.js');
   const guardedText = readFileSync(guardedSource, 'utf8');
   const unguardedText = guardedText.replace(
     "  isMain = sharedSchemaOwner(file, isMain);",
