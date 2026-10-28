@@ -39,7 +39,7 @@ function project(t) {
   const commit = () => { git('add', '-A'); git('commit', '-q', '-m', 'chore: private manifest fixture'); };
   commit();
   const plan = { cells: [{ name: 'commits', frontDoor: 'packages/commits/index.js', paths: [['src/hooks.js', target]] }] };
-  return { write, commit, check: () => checkMoved(root, plan, 'commits') };
+  return { write, commit, git, check: () => checkMoved(root, plan, 'commits') };
 }
 
 test('the real move scanner consumes exact manifest rows even without a moved basename in the reader [C7,CD64]', t => {
@@ -78,4 +78,21 @@ test('malformed and duplicate data declarations fail closed [C7,CD64]', () => {
     assert.ok(result.problems.length);
     assert.deepEqual(result.reads, []);
   }
+});
+
+test('an uncommitted manifest edit cannot supply data-read authority [C7,CD64]', t => {
+  const p = project(t);
+  p.write('bin/cells-plan/data-reads/commits.json', JSON.stringify({ version: 1, reads: [{ ...ROW, why: 'Uncommitted altered declaration.' }] }));
+  const problems = p.check();
+  assert.ok(problems.some(row => row.includes('manifest differs from its committed snapshot')));
+  assert.ok(problems.some(row => row.startsWith(`${FILE}:3: unsupported fixture source`)));
+});
+
+test('an untracked manifest cannot supply data-read authority [C7,CD64]', t => {
+  const p = project(t);
+  p.git('rm', '--cached', 'bin/cells-plan/data-reads/commits.json');
+  p.git('commit', '-q', '-m', 'chore: remove tracked declaration while retaining its untracked bytes');
+  const problems = p.check();
+  assert.ok(problems.some(row => row.includes('manifest must be a committed regular file')));
+  assert.ok(problems.some(row => row.startsWith(`${FILE}:3: unsupported fixture source`)));
 });

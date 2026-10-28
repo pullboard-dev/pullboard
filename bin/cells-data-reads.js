@@ -1,6 +1,8 @@
 /** Exact reviewed generated-data operands for one cells move; declarations never prove repository-source reads [C7,CD64]. */
 import { existsSync, lstatSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { tryGit } from '../src/git.js';
 
 const KINDS = new Set(['hook', 'settings', 'spec', 'marker', 'config', 'HTML']);
 
@@ -37,15 +39,29 @@ export function parseDataReads(value, label = 'generated-data manifest') {
 /** Read only this cell's bounded regular manifest; absence preserves the original analyzer behavior. */
 export function readMoveDataReads(root, cell) {
   const file = `bin/cells-plan/data-reads/${cell}.json`;
+  const head = tryGit(root, ['rev-parse', 'HEAD']);
+  if (head.status !== 0) return { reads: [], problems: [`${file}: cannot inspect the committed manifest`] };
+  const tracked = tryGit(root, ['ls-tree', '-z', head.stdout, '--', file]);
+  if (tracked.status !== 0) return { reads: [], problems: [`${file}: cannot inspect the committed manifest`] };
+  const object = /^100(?:644|755) blob ([a-f0-9]{40}|[a-f0-9]{64})\t/u.exec(tracked.stdout)?.[1];
+  if (!tracked.stdout && !existsSync(join(root, file))) return { reads: [], problems: [] };
+  if (!object) return { reads: [], problems: [`${file}: manifest must be a committed regular file`] };
   let path = root;
   for (const part of file.split('/')) {
     path = join(path, part);
-    if (!existsSync(path)) return { reads: [], problems: [] };
+    if (!existsSync(path)) return { reads: [], problems: [`${file}: committed manifest is missing`] };
     if (lstatSync(path).isSymbolicLink()) return { reads: [], problems: [`${file}: manifest path is a symbolic link`] };
   }
   const stat = lstatSync(path);
   if (!stat.isFile() || stat.size > 128 * 1024) return { reads: [], problems: [`${file}: manifest must be a regular file of at most 128 KiB`] };
-  try { return parseDataReads(JSON.parse(readFileSync(path, 'utf8')), file); }
+  try {
+    const bytes = readFileSync(path);
+    const actual = createHash(object.length === 64 ? 'sha256' : 'sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+    if (actual !== object || tryGit(root, ['rev-parse', 'HEAD']).stdout !== head.stdout) {
+      return { reads: [], problems: [`${file}: manifest differs from its committed snapshot`] };
+    }
+    return parseDataReads(JSON.parse(bytes.toString('utf8')), file);
+  }
   catch { return { reads: [], problems: [`${file}: invalid manifest JSON`] }; }
 }
 
