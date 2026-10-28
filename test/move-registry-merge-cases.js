@@ -94,6 +94,8 @@ export function installRegistryMergeCase() {
     mkdirSync(root);
     unpackRelease('HEAD', root);
     run(root, 'git', ['init', '-b', 'main']);
+    run(root, process.execPath, ['--input-type=module', '-e',
+      "import {assignEngineNumbers} from './src/engine-numbers.js'; assignEngineNumbers(process.cwd());"]);
     commit(root, 'fixture base');
     run(root, 'git', ['checkout', '-b', 'alpha']);
     addFeature(root, 'seedMergeAlpha', 'SEED_MERGE_ALPHA_ENGINE');

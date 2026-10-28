@@ -3,8 +3,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import * as store from '../src/board.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
@@ -224,6 +222,7 @@ test('public CLI and API reject calls preserve the explicit frozen clause [V6,A2
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
   const committed = helpers.commitFile(box, box.web, 'web/page.html', '<main>Missing the title</main>', 'feat(web): render a page [G1]');
   assert.equal(committed.status, 0, committed.stderr);
+  // @pullboard-board-file persistence: separate CLI reviewer commands read and append this exact private board file.
   board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   submitFixture(board, id, { agentId: 'web-1', commit: head, tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}') });
@@ -256,9 +255,8 @@ function freeze() {
 }
 
 test('rejects require a frozen clause before any verdict mutation [V6,R2,H16]', t => {
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-reject-clause-'));
-  const board = store.openBoard(join(directory, 'board.sqlite'));
-  t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
+  const board = store.openBoard(':memory:');
+  t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: '/reject-clause/main' });
   const builder = store.register(board, { lane: 'web', path: '/reject-clause/builder', route: 'strong' });
   const reviewer = store.register(board, { lane: 'web', path: '/reject-clause/reviewer', route: 'strong' });
