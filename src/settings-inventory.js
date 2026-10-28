@@ -24,13 +24,8 @@ import {
   gateQueueSettings,
   loadMachineSettings,
 } from './settings.js';
-import { performanceCores } from './gate.js';
-import {
-  defaultViewPort,
-  DEFAULT_VIEW_PORT,
-} from './view-port.js';
 import { Refused } from './refused.js';
-import { environmentProblem } from './execution-environment.js';
+import { environmentProblem } from './config.js';
 
 const MACHINE_DEFAULTS = {
   gateSlots: 2, browserSlots: 1, 'gate.shortSlots': 0, 'gate.runnerWaitMs': 300_000,
@@ -175,7 +170,7 @@ function resourceSettings(rows, context, file) {
 }
 
 /** Read machine configuration and credential presence without migrating legacy relay sessions. */
-function machineSettings(rows) {
+function machineSettings(rows, { defaultViewPort, DEFAULT_VIEW_PORT }) {
   const file = machineSettingsFile();
   const raw = readObject(file);
   loadMachineSettings();
@@ -195,7 +190,7 @@ function machineSettings(rows) {
 }
 
 /** Project every supported repository setting plus its board's relay connection configuration. */
-function repositorySettings(rows, board) {
+function repositorySettings(rows, board, { performanceCores }) {
   const info = repoInfo(board.root);
   const file = join(info.root, 'pullboard.json');
   const raw = readObject(file);
@@ -261,8 +256,8 @@ function registeredBoard(project) {
   } finally { db.close(); }
 }
 
-/** Return machine and registered authorized boards' settings without opening writable board helpers. */
-export function settingsInventory(projects, selected = null) {
+/** Read authorized settings using runtime defaults supplied by the API's composition layer. */
+export function settingsInventory(projects, selected, providers) {
   const rows = [];
   const boards = [];
   const warnings = [];
@@ -277,7 +272,7 @@ export function settingsInventory(projects, selected = null) {
   }
   const authorized = selected === null ? boards : boards.filter(board => board.id === selected);
   if (selected !== null && !authorized.length) throw new Refused('NO_BOARD', 'no registered board with this identity; use GET /api/v1/boards');
-  machineSettings(rows);
-  for (const board of authorized) { repositorySettings(rows, board); boardLineSettings(rows, board); }
+  machineSettings(rows, providers);
+  for (const board of authorized) { repositorySettings(rows, board, providers); boardLineSettings(rows, board); }
   return { settings: rows, ...(warnings.length ? { warnings } : {}) };
 }

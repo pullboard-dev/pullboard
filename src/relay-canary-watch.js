@@ -8,7 +8,7 @@ import {
   markCanaryNoticeRecorded,
 } from './relay-canary-health.js';
 import { Refused } from './refused.js';
-import { relayCanaryConfig } from './relay-canary-config.js';
+import { relayCanaryConfig } from './settings-read.js';
 import { loadMachineSettings } from './settings.js';
 
 export const RELAY_CANARY_INTERVAL_MS = 60000;

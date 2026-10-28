@@ -1,10 +1,5 @@
 /** Versioned command results and refusals for tools that drive the CLI (A1). */
-import { nextStepFor } from './next-step-words.js';
 import { declaredCommandShapes } from './command-docs.js';
-import {
-  commandOutput as collectCommandOutput,
-  personRequestGuidance,
-} from './json-output.js';
 
 /** A shape's required top-level fields; optional fields may be added within this version. */
 function shape(fields) {
@@ -155,14 +150,5 @@ export const JSON_SHAPES = {
   errorFields: { code: 'string', message: 'string', next: 'string' },
 };
 
-/** A refusal shared by the CLI and API, presenting guidance for a known caller without changing its receipt (A1, A2, B26). */
-export function refusalDocument(error, options = {}) {
-  const message = String(error.message).replace(/^\[[A-Z][A-Z0-9_]*\] /, '');
-  const code = error.code ?? 'INTERNAL';
-  return { version: JSON_SHAPES.version, error: { code, message: personRequestGuidance(message, options), next: nextStepFor({ code, next: error.next }, message, options) } };
-}
-
-/** Collect output with the already-loaded synchronous public refusal renderer [A1]. */
-export function commandOutput(argv, streams) {
-  return collectCommandOutput(argv, streams, { version: JSON_SHAPES.version, refusalDocument });
-}
+// Temporary compatibility for the approved serve.js importer companion; remove when that companion composes.
+export { refusalDocument } from './next-step-words.js';

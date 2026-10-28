@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { Refused } from './refused.js';
 import { relayStorage } from './relay-storage.js';
-import { refusalDocument } from './json.js';
+import { refusalDocument } from './next-step-words.js';
 import { withGitFacts } from './git.js';
 import { PAIR_PACKAGE_BODY_BYTES } from './relay-limits.js';
 
