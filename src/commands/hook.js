@@ -1,9 +1,10 @@
 /** The pullboard hook command, in its own module so an item adding another command never edits these lines. */
+import { gitBoardDataPush } from '../../packages/commits/src/core/board-format.js';
 import * as store from '../board.js';
 import { pendingCommitSignoffProblem } from '../commit-signoff.js';
 import { prepareCommitMetadata } from '../commit-metadata.js';
 import { landingBatchOwnsRoot } from '../landing-candidates.js';
-import { landingRows } from '../landing-message.js';
+import { landingRows } from '../../packages/commits/src/core/landing-rows.js';
 import {
   hookRead,
   readStdin,
@@ -29,7 +30,6 @@ import {
   FIX_NOTE,
   preCommitProblems,
   prePushProblems,
-  gitBoardDataPush,
   pushesTrunk,
 } from '../hooks.js';
 import {

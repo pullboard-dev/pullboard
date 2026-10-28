@@ -8,8 +8,7 @@ import {
   execFileSync,
   spawnSync,
 } from 'node:child_process';
-import { gitBoardDataPush } from './git-sync-format.js';
-export { gitBoardDataPush };
+import { gitBoardDataPush } from '../packages/commits/src/core/board-format.js';
 import { hostname } from 'node:os';
 import {
   chmodSync,
