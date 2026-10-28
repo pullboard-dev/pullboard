@@ -340,7 +340,7 @@ const CENSUS_LAUNCHED = [
   'test/cockpit/items.test.js', 'test/cockpit/layout.test.js', 'test/cockpit/live.test.js', 'test/cockpit/local-origin.test.js',
   'test/cockpit/needs.test.js', 'test/cockpit/newcomer.test.js', 'test/cockpit/perf.test.js', 'test/cockpit/projects.test.js',
   'test/cockpit/prose.test.js', 'test/cockpit/references.test.js', 'test/cockpit/relay.test.js', 'test/cockpit/roadmap.test.js',
-  'test/cockpit/scope.test.js', 'test/cockpit/search.test.js', 'test/cockpit/shared-wait.test.js', 'test/cockpit/shout-overlap.test.js',
+  'test/cockpit/scope.test.js', 'test/cockpit/search.test.js', 'test/cockpit/shared-wait-browser.test.js', 'test/cockpit/shout-overlap.test.js',
   'test/cockpit/shouts.test.js', 'test/cockpit/snapshot.test.js', 'test/cockpit/spec.test.js', 'test/cockpit/stats.test.js',
   'test/relay-agent.test.js', 'test/relay-approval-delivery.test.js', 'test/relay-browser-fixture.test.js', 'test/relay-browser.test.js',
   'test/relay-device-confirmation.test.js', 'test/relay-person-actions.test.js', 'test/relay-person-credential.test.js',
