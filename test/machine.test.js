@@ -923,7 +923,7 @@ test('docs/lifecycle.md is the page the declaration generates, so a stale copy f
 
 test('the lifecycle page versions fresh and historical family matching and explains unknown families [O2, O3]', () => {
   const page = machineRules.lifecycleMarkdown();
-  assert.match(page, /^\| O2_FAMILY_MATCH \| the existing vendor policy permits this reviewer, and explicit board or item family requirements are met, when verify\.family is require, an item requires a family, or requireReviewFamilies is on for unknown families \| ask the coordinator for a verifier from another declared family \|$/m);
+  assert.match(page, /^\| O2_FAMILY_MATCH \| strict reviews require different declared vendor families; the existing vendor policy and explicit board or item family requirements also apply, when the item is strict, verify\.family is require, an item requires a family, or requireReviewFamilies is on for unknown families \| ask the coordinator for a verifier from another declared family \|$/m);
   for (const verb of ['reserve', 'accept', 'reject']) {
     assert.match(page, new RegExp(`^\\| ${verb} \\| .*familyAllows \\(O2_FAMILY_MATCH or LINE_SETTING_RANGE\\)`, 'm'));
   }
@@ -1092,9 +1092,10 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
   for (const verb of ['accept', 'reject']) {
     const decision = verb === 'accept' ? 'ACCEPT' : 'REJECT';
     store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
-    store.register(board, { lane: 'web', path: '/repo-web-1', family: 'required review' });
+    store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
     store.register(board, { lane: 'web', path: '/repo-web-other', family: null });
     const built = submittedItem(board, { reviewFamily: 'Required Review' });
+    const vendorOnly = submittedItem(board, { sensitive: true });
     const landed = submittedItem(board);
     verdictOn(board, landed, 'web-2', 'ACCEPT');
     store.merged(board, landed, { agentId: 'coordinator', commit: SHA_A });
@@ -1113,10 +1114,12 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
       judge(built, light, { reason: bad }),
       judge(built, 'web-2', { reason: bad }),
       judge(built, other, { reason: bad, policy: 'any' }),
-      /** Declare the matching family only after its refusal has been observed. */
+      /** Observe vendor refusal on Strict work, then restore the required-family peer for later guards. */
       (() => {
+        store.register(board, { lane: 'web', path: '/repo-web-other', family: 'BUILDER-VENDOR' });
+        const refused = judge(vendorOnly, other, { reason: bad, policy: 'any', familyPolicy: 'require' });
         store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
-        return judge(built, other, { reason: bad, policy: 'any', familyPolicy: 'require' });
+        return refused;
       })(),
       judge(built, other, { reason: bad, policy: 'any' }),
       judge(built, 'web-2', { reason: bad, policy: 'any' }),
@@ -1136,17 +1139,20 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
   const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
   const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
   store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
-  store.register(board, { lane: 'web', path: '/repo-web-1', family: 'required review' });
+  store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
   const built = submittedItem(board, { reviewFamily: 'Required Review' });
+  const vendorOnly = submittedItem(board, { sensitive: true });
   const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
   const reserveAs = (id, agentId, policy = 'coordinator', familyPolicy = 'off') => outcome(() => store.reserveReview(board, id, { agentId, leaseMs: 3_600_000, policy, familyPolicy }));
   const cooling = submittedItem(board);
   store.reserveReview(board, cooling, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
   store.release(board, cooling, 'web-2', 'another reviewer should take it');
   const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2'), reserveAs(built, other, 'any')];
+  store.register(board, { lane: 'web', path: '/repo-web-other', family: 'BUILDER-VENDOR' });
+  fired.push(reserveAs(vendorOnly, other, 'any', 'require'));
   store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
   store.reserveReview(board, built, { agentId: other, leaseMs: 3_600_000, policy: 'any' });
-  fired.push(reserveAs(built, other, 'any', 'require'), reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
+  fired.push(reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
   assert.deepEqual(fired, [...declaredBoardOrder('reserve'), 'ok']);
   assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
 });

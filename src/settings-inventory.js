@@ -7,6 +7,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
+  configFromSource,
   defaults,
   loadConfig,
 } from './config.js';
@@ -83,8 +84,9 @@ function leaves(value, prefix = '') {
 
 /** Refuse malformed supported scalar settings without echoing credential-bearing input. */
 function checkedValue(key, value, fallback) {
-  const expected = key === 'landing.environment' ? 'object' : fallback === null ? (key === 'gate.memoryFloorMB' || key.startsWith('resources.') ? 'number' : 'string') : typeof fallback;
-  if (value !== null && expected !== 'object' && typeof value !== expected) {
+  const expected = key === 'landing.environment' ? 'object' : fallback === null
+    ? (key === 'gate.memoryFloorMB' || key === 'submitDeferAbove' || key.startsWith('resources.') ? 'number' : key === 'approvers' ? 'array' : 'string') : typeof fallback;
+  if (value !== null && (expected === 'array' ? !Array.isArray(value) : expected !== 'object' && typeof value !== expected)) {
     throw new Refused('BAD_SETTINGS', `setting ${key} has an unsupported type; restore its documented value`);
   }
   if (key === 'relay.excluded' && (!Array.isArray(value) || !value.every(entry => typeof entry === 'string'))) {
@@ -99,10 +101,60 @@ function checkedValue(key, value, fallback) {
 }
 
 /** Append one setting with both its effective value and explicit provenance. */
-function add(rows, { scope, board, root, file, raw, effective = raw }, key, fallback, { secret = false, value = at(effective, key), source, origin } = {}) {
-  rows.push({ key, scope, ...(board ? { board, root } : {}), value: secret ? (value ? 'set' : 'not set') : checkedValue(key, value ?? fallback, fallback),
+function add(rows, { scope, board, root, file, raw, effective = raw }, key, fallback, { secret = false, value = at(effective, key), source, origin, error } = {}) {
+  rows.push({ key, scope, ...(board ? { board, root } : {}), value: error ? null : secret ? (value ? 'set' : 'not set') : checkedValue(key, value ?? fallback, fallback),
     default: secret ? 'not set' : fallback, source: source ?? file,
-    origin: origin ?? (at(raw, key) === undefined ? 'default' : 'configured'), ...(secret ? { secret: true } : {}) });
+    origin: origin ?? (at(raw, key) === undefined ? 'default' : 'configured'), ...(secret ? { secret: true } : {}), ...(error ? { error } : {}) });
+}
+
+/** Remove one configured leaf in memory so the ordinary parser can isolate one bad setting. */
+function withoutSetting(raw, key) {
+  const candidate = structuredClone(raw);
+  const parts = key.split('.');
+  let parent = candidate;
+  for (const part of parts.slice(0, -1)) {
+    if (!parent?.[part] || typeof parent[part] !== 'object' || Array.isArray(parent[part])) {
+      if (parts[0] === 'verify' && typeof candidate.verify === 'string') {
+        delete candidate.verify;
+        return candidate;
+      }
+      return null;
+    }
+    parent = parent[part];
+  }
+  const leaf = parts.at(-1);
+  if (!Object.hasOwn(parent, leaf)) return null;
+  delete parent[leaf];
+  return candidate;
+}
+
+/** Keep healthy rows when precisely one configured leaf makes loadConfig refuse. */
+function repoConfigForInventory(root, raw, supported) {
+  try { return { effective: loadConfig(root), invalidKey: null }; }
+  catch (error) {
+    if (!(error instanceof Refused) || error.code !== 'BAD_CONFIG') throw error;
+    let sourceProblem;
+    try { configFromSource(JSON.stringify(raw)); }
+    catch (problem) { sourceProblem = problem; }
+    if (!sourceProblem) throw error;
+    if (!(sourceProblem instanceof Refused) || sourceProblem.code !== 'BAD_CONFIG') throw sourceProblem;
+    for (const key of supported.keys()) {
+      const candidate = withoutSetting(raw, key);
+      if (!candidate) continue;
+      try { return { effective: configFromSource(JSON.stringify(candidate)), invalidKey: key }; }
+      catch (candidateError) {
+        if (!(candidateError instanceof Refused) || candidateError.code !== 'BAD_CONFIG') throw candidateError;
+      }
+    }
+    throw error;
+  }
+}
+
+/** Give a precise repair for the numeric submit threshold and a safe repair for other keys. */
+function settingError(key) {
+  return { message: `Invalid ${key} setting.`, fix: key === 'submitDeferAbove'
+    ? 'Use a whole number at least 1 with submitGate set to landing, or remove submitDeferAbove.'
+    : `Restore ${key} to its documented value in pullboard.json.` };
 }
 
 /** Inspect capacity rows without opening the resource manager, which prunes and initializes storage. */
@@ -143,14 +195,15 @@ function repositorySettings(rows, board) {
   const info = repoInfo(board.root);
   const file = join(info.root, 'pullboard.json');
   const raw = readObject(file);
-  const effective = loadConfig(info.root);
-  const context = { scope: 'repo', board: board.id, root: info.root, file, raw, effective };
   const supported = new Map([...leaves(defaults()), ...Object.entries(OPTIONAL_REPO_DEFAULTS), ['testConcurrency.files', performanceCores()]]);
+  const { effective, invalidKey } = repoConfigForInventory(info.root, raw, supported);
+  const context = { scope: 'repo', board: board.id, root: info.root, file, raw, effective };
   for (const [key, fallback] of supported) {
     const value = key === 'testConcurrency.browser' ? Math.min(effective.testConcurrency?.files ?? supported.get('testConcurrency.files'), effective.testConcurrency?.browser ?? 2) : at(effective, key);
     // Legacy scalar verify configures only policy; its synthesized siblings retain default provenance.
     const origin = key === 'verify.policy' && typeof raw.verify === 'string' ? 'configured' : undefined;
-    add(rows, context, key, fallback, { value, origin });
+    add(rows, context, key, fallback, { value, origin: key === invalidKey ? 'configured' : origin,
+      ...(key === invalidKey ? { error: settingError(key) } : {}) });
   }
   resourceSettings(rows, context, join(info.commonDir, 'pullboard', 'resources.sqlite'));
   const relayFile = join(info.commonDir, 'pullboard', 'relay.json');

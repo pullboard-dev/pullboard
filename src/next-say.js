@@ -6,15 +6,18 @@ import {
   whoAmI,
 } from './cli.js';
 import { withBoardRead } from './board-read.js';
-import { reviewQueueLine } from './next-steps.js';
+import { reviewQueueLine } from './review-queue-line.js';
 import { Refused } from './refused.js';
 
 /** Print an unreserved review first, then the build available through an explicit opt-out. */
 export function sayReviewOffer(ctx, found) {
   const command = `pullboard next --verify ${found.item.item_id}${ctx.info.isMain ? ' --as coordinator' : ''}`;
   const offer = { item: found.item.item_id, command, queue: found.offer.queue, ratio: found.offer.ratio };
-  ctx.io.result?.({ item: found.item, review: true, held: false, shared: [], offer, build: found.build });
-  ctx.io.say(`${reviewQueueLine(ctx, offer.queue, span)}; ratio ${offer.ratio} reached (zero active reviewers counts as one)`);
+  ctx.io.result?.({ item: found.item, review: true, held: Boolean(found.offer.held), shared: [], offer, build: found.build });
+  ctx.io.say(found.offer.urgent === 'held-review' ? `${reviewQueueLine(ctx, offer.queue, span)}; resume the review already reserved by this seat`
+    : found.offer.urgent === 'main-red' ? `${reviewQueueLine(ctx, offer.queue, span)}; this review repairs a failure on current main`
+    : found.offer.urgent ? `${reviewQueueLine(ctx, offer.queue, span)}; this submission has waited over ten minutes for its first reviewer`
+    : `${reviewQueueLine(ctx, offer.queue, span)}; ratio ${offer.ratio} reached (zero active reviewers counts as one)`);
   const agents = withBoardRead(ctx, (board) => store.listAgents(board));
   ctx.io.say(`review offered: #${found.item.item_id} ${found.item.item_title}, built by ${agentDisplayName(agents, ctx.config, found.item.item_built_by)}; reserve it explicitly: ${command}`);
   if (found.build) ctx.io.say(`build available: #${found.build.item_id} ${found.build.item_title}; claim it explicitly: pullboard next --build`);
