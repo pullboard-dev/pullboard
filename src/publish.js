@@ -92,6 +92,8 @@ export async function publishTrunk({ root, board, config, say, onWait, onFailure
     gate = await runGate(directory, config, { trustStamp: false, landing: true, agent: 'coordinator', onWait, onFailure });
     // Push from the worktree that ran the suite, so the pre-push hook reads that run's green stamp instead of rerunning it.
     if (gate.isGreen) {
+      // Landing depends on the full-suite verdict, independently of whether the subsequent network push succeeds.
+      writeFileSync(stateFile(root), JSON.stringify({ green: head, published }) + '\n');
       const pushed = tryGit(directory, ['push', remote, `HEAD:refs/heads/${branch}`]);
       if (pushed.status !== 0) throw new Refused('LAND_PUSH', `the landing push failed: ${pushed.stderr || pushed.stdout}; inspect the remote and hooks, then run pullboard publish again`);
     }

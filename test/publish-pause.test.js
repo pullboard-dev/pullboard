@@ -1,6 +1,6 @@
 /** Real publish and gate receipts govern the optional landing pause [C7,V4]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -30,7 +30,7 @@ test('publish contract', () => assert.equal(existsSync(process.env.PUBLISH_PAUSE
   const remote = join(box.dir, 'remote.git');
   box.git(box.dir, 'init', '--bare', '-q', remote);
   box.git(repo, 'remote', 'add', 'origin', remote);
-  return { ...project, input };
+  return { ...project, input, remote };
 }
 
 test('a red full-suite run pauses landing until a green head or a proven flake [C7,V4]', () => {
@@ -44,12 +44,16 @@ test('a red full-suite run pauses landing until a green head or a proven flake [
   assert.match(blocked.err + blocked.out, /PUBLISH_RED/);
   assert.ok((blocked.err + blocked.out).includes(head.trim()));
   assert.match(blocked.err + blocked.out, /test\/publish.test.js/);
+  assert.match(blocked.err + blocked.out, /last changed by no recorded landed item/);
+  const state = join(box.repo, '.git', 'pullboard', 'publish.json');
+  const originalRed = readFileSync(state, 'utf8');
   rmSync(box.input);
   const green = box.run(box.repo, 'gate');
   assert.equal(green.code, 0, green.out + green.err);
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), head);
   const proven = box.run(box.repo, 'land');
   assert.doesNotMatch(proven.err + proven.out, /PUBLISH_RED/);
+  assert.equal(readFileSync(state, 'utf8'), originalRed, 'flake proof leaves the original publish red intact');
 
   // A later committed tree starts with a new red; the old tree's green cannot clear it.
   writeFileSync(join(box.repo, 'fix.txt'), 'new head');
@@ -62,6 +66,14 @@ test('a red full-suite run pauses landing until a green head or a proven flake [
   writeFileSync(join(box.repo, 'fix.txt'), 'corrected head');
   box.git(box.repo, 'add', 'fix.txt');
   box.git(box.repo, 'commit', '-qm', 'test: correct publish head');
+  const pushHook = join(box.remote, 'hooks', 'pre-receive');
+  writeFileSync(pushHook, '#!/bin/sh\nexit 1\n');
+  chmodSync(pushHook, 0o755);
+  const failedPush = box.run(box.repo, 'publish');
+  assert.notEqual(failedPush.code, 0);
+  assert.match(failedPush.err + failedPush.out, /LAND_PUSH/);
+  assert.doesNotMatch(box.run(box.repo, 'land').err, /PUBLISH_RED/);
+  rmSync(pushHook);
   const published = box.run(box.repo, 'publish');
   assert.equal(published.code, 0, published.out + published.err);
   assert.doesNotMatch(box.run(box.repo, 'land').err, /PUBLISH_RED/);
