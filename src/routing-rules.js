@@ -9,7 +9,7 @@ import { effectiveAgentParent } from './seat-review-read.js';
 import { Refused } from './refused.js';
 
 export const ROUTING_ACTS = Object.freeze(['review', 'build', 'any']);
-export const ROUTING_EFFECTS = Object.freeze(['only-seat', 'bar-seat', 'require-family', 'bar-family', 'bar-pool']);
+export const ROUTING_EFFECTS = Object.freeze(['only-seat', 'bar-seat', 'require-family', 'bar-family', 'bar-pool', 'require-session', 'bar-session']);
 export { RELEASE_REASONS, releaseReasonProblem } from './release-reasons.js';
 const KEY = ROUTING_RULES_KEY;
 
@@ -60,7 +60,7 @@ export function routingRuleProblem(board, item, agentId, act) {
   if (!rules.length) return null;
   const aliases = familyAliasesOf(board);
   const family = familyName(board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(agentId)?.agent_family, aliases);
-  const pool = effectiveAgentParent(board, agentId);
+  const pool = effectiveAgentParent(board, agentId), session = pool;
   for (const rule of rules) {
     if (!applies(board, rule, item, act)) continue;
     const named = familyName(rule.value, aliases) ?? rule.value.toLowerCase();
@@ -68,7 +68,9 @@ export function routingRuleProblem(board, item, agentId, act) {
       : rule.effect === 'bar-seat' ? agentId === rule.value
         : rule.effect === 'require-family' ? family !== named
           : rule.effect === 'bar-family' ? family === named
-            : agentId === rule.value || pool === rule.value || pool === `seat:${rule.value}`;
+            : rule.effect === 'bar-session' ? session === rule.value
+              : rule.effect === 'require-session' ? session !== rule.value
+                : agentId === rule.value || pool === rule.value || pool === `seat:${rule.value}`;
     if (barred) return new Refused('ROUTING_RULE', `routing rule #${rule.id}${rule.source ? ` (shout ${rule.source})` : ''} bars you from the ${act} of #${item.item_id}: ${rule.effect} ${rule.value}`);
   }
   return null;

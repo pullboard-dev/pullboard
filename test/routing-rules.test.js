@@ -8,6 +8,7 @@ import { submitFixture } from './board-submit-fixture.js';
 import { dispatchWork } from '../src/dispatch-eligibility.js';
 import { RELEASE_REASONS, STANDING_RULINGS, routingRuleProblem } from '../src/routing-rules.js';
 import { migrateStandingRulings } from '../src/routing-rule-set.js';
+import { effectiveAgentParent } from '../src/seat-review-read.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const LEASE = 3_600_000;
@@ -108,4 +109,33 @@ test('a release without a reason code is refused naming the list, and a coded re
   assert.equal(released.code, 0, released.err + released.out);
   const log = JSON.parse(box.run(box.repo, 'log', String(added), '--json').out).events.findLast(event => event.event_kind === 'release');
   assert.equal(JSON.parse(log.event_detail ?? JSON.stringify(log.detail ?? {})).reasonCode, 'OTHER');
+});
+
+test('a rule can bar or require by session lineage [C7]', t => {
+  const f = fixture(t), id = f.add();
+  f.submit(id);
+  const session = effectiveAgentParent(f.board, 'core-2');
+  assert.notEqual(effectiveAgentParent(f.board, 'core-4'), session, 'the fixture seats have distinct lineages');
+  const bar = f.rule({ act: 'review', scope: { item: id }, effect: 'bar-session', value: session, source: 43048 });
+  assert.equal(f.review('core-2').item, null, 'the barred session is offered nothing');
+  assert.equal(f.review('core-4').item?.item_id, id, 'another session is');
+  f.rule({ revoke: bar });
+  f.rule({ act: 'review', scope: { item: id }, effect: 'require-session', value: session, source: 43048 });
+  assert.equal(f.review('core-2').item?.item_id, id, 'the required session is offered the review');
+  assert.equal(f.review('core-4').item, null, 'every other session is barred');
+  assert.throws(() => store.reserveReview(f.board, id, { agentId: 'core-4', leaseMs: LEASE, policy: 'any', familyPolicy: 'off' }), { code: 'ROUTING_RULE' });
+});
+
+test('a shout to the coordinator that routes work is answered with the rule command [C7]', () => {
+  const box = helpers.project('true');
+  const id = JSON.parse(box.run(box.repo, 'add', 'web', 'Routed by shout', '--json').out).item.item_id;
+  for (const text of [`route #${id} to core-7`, `please review #${id} by core-7`, `assign #${id} to a claude reviewer`]) {
+    const refused = box.run(box.web, 'shout', 'coordinator', text, '--kind', 'question', '--json');
+    assert.notEqual(refused.code, 0, text);
+    const error = JSON.parse(refused.out).error;
+    assert.equal(error.code, 'ROUTING_BY_SHOUT');
+    assert.match(error.message, new RegExp(`pullboard rule add review only-seat <seat> --item ${id}`, 'u'));
+  }
+  const fine = box.run(box.web, 'shout', 'coordinator', `is #${id} blocked on the schema?`, '--kind', 'question', '--json');
+  assert.equal(fine.code, 0, fine.out + fine.err);
 });

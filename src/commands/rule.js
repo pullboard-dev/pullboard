@@ -8,7 +8,7 @@ import { withBoardRead } from '../cli.js';
 import { routingRules } from '../routing-rules.js';
 import { STANDING_RULINGS } from '../routing-rules.js';
 
-const USAGE = 'pullboard rule add review|build|any <only-seat|bar-seat|require-family|bar-family|bar-pool> <value> (--item <id> | --tier strict) --source <shout-id> [--note "why"]; rule revoke <id>; rule migrate; rule list';
+const USAGE = 'pullboard rule add review|build|any <only-seat|bar-seat|require-family|bar-family|bar-pool|require-session|bar-session> <value> (--item <id> | --tier strict) --source <shout-id> [--note "why"]; rule revoke <id>; rule migrate; rule list';
 
 /** One line per rule, naming its source shout. */
 function line(rule) {
