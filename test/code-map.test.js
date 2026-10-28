@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/board.js src/code-map.js src/commands/map.js src/commands/merged.js src/commands/index.js src/cli-main.js src/cli-help.js src/help.js src/land.js src/templates.js test/board-submit-fixture.js */
+/** @pullboard-test-loads src/board.js src/code-map.js src/commands/map.js src/commands/merged.js src/commands/index.js src/commands/next.js src/commands/claim.js src/map-slice-say.js src/cli-main.js src/cli-help.js src/help.js src/land.js src/templates.js test/board-submit-fixture.js */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -257,4 +257,30 @@ test('the map still detects a socket constructor as a network effect [C7,P5]', (
   const map = buildCodeMap(box.repo, box.git(box.repo, 'rev-parse', 'main'));
   const connect = map.modules.find(module => module.path === 'src/socket.js').functions.find(fn => fn.name === 'connectSocket');
   assert.ok(connect.effects.includes('network'));
+});
+
+test('next prints the item slice when the map setting is on [C7]', t => {
+  const box = e2e.project();
+  t.after(() => e2e.cleanup());
+  const configPath = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.lanes.web.owns.push('src/', 'test/');
+  config.map = { slice: true };
+  writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+  mkdirSync(join(box.repo, 'src'), { recursive: true });
+  mkdirSync(join(box.repo, 'test'), { recursive: true });
+  writeFileSync(join(box.repo, 'src/home.js'), 'export function renderHome() { return "home"; }\n');
+  writeFileSync(join(box.repo, 'test/home.test.js'), "import { renderHome } from '../src/home.js';\nvoid renderHome;\n");
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'test(core): add slice fixture source');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  const added = box.run(box.repo, 'add', 'web', 'Slice fixture item', '--criterion',
+    'src/home.js exports renderHome and test/home.test.js imports it', '--specs', 'G1', '--check', 'true', '--route', 'light',
+    '--brief', 'Files: src/home.js\nTest: test/home.test.js imports it\nOut of scope: anything else');
+  assert.equal(added.code, 0, added.out + added.err);
+  const claimed = box.run(box.web, 'next');
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
+  assert.match(claimed.out, /# Slice for #\d+/u, 'next prints the slice header for the claimed item');
+  assert.match(claimed.out, /renderHome/u, 'the slice names the function the item names');
+  assert.match(claimed.out, /test\/home\.test\.js/u, 'the slice lists the test importing the named module');
 });

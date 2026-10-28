@@ -8,6 +8,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { importCuts } from '../src/cells-plan-cuts.js';
 import { cutItemCommands } from '../src/cells-plan-cuts.js';
+import { cutBrief } from '../src/cells-plan-cuts.js';
 import { checkCuts } from '../bin/cells-plan-cuts.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { computePlan } from '../bin/cells-plan.js';
@@ -40,8 +41,10 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
       assert.equal(args.includes('--after'), false, 'disjoint cut work does not wait on #1395 or another move');
       assert.match(args[args.indexOf('--check') + 1], /--cuts .+ && npm run gate$/u);
       const brief = args[args.indexOf('--brief') + 1];
+      assert.ok(brief.length <= 8000, `the ${group.cell} brief fits the board's brief limit: ${brief.length}`);
+      if (brief.includes(`--cuts ${group.cell}.`)) continue;
       for (const file of group.files) assert.ok(brief.includes(`- ${file}\n`) || brief.endsWith(`- ${file}`));
-      for (const edge of group.edges) assert.ok(brief.includes(`[${edge.id}] ${edge.from} -> ${edge.to}: ${edge.how}`));
+      for (const edge of group.edges) assert.ok(brief.includes(`[${edge.id}] ${edge.from} -> ${edge.to}`), edge.id);
     }
     const box = board(t);
     writePlan(box.repo, PLAN);
@@ -50,6 +53,16 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
     assert.equal(dry.stdout.split('\n').filter(line => line.startsWith('pullboard ')).length, groups.length);
     for (const group of groups) for (const edge of group.edges) assert.equal(dry.stdout.split(`[${edge.id}]`).length - 1, 1, edge.id);
     assert.deepEqual(JSON.parse(box.run(box.repo, 'list', 'core', '--all', '--json').out).items, [], 'default mode leaves the real private board empty');
+  });
+
+  test('a cell with more cuts than one brief holds files with every edge, or a pointer, under the limit [C7,D3,CD64]', () => {
+    const edge = n => ({ id: `wide->deep:${n}`, from: `src/wide-${n}.js`, to: `src/deep-${n}.js`, how: n % 2 ? 'invert the dependency by passing the provider operation or state through an explicit caller-supplied port' : 'move the shared pure definition below both cells, retaining the provider front door' });
+    const group = (count) => { const edges = Array.from({ length: count }, (_, n) => edge(n)); return { cell: 'wide', edges, files: [...new Set(edges.flatMap(e => [e.from, e.to]))].sort() }; };
+    const compact = cutBrief(group(50), 'node bin/cells-plan.js --cuts wide && npm run gate');
+    assert.ok(compact.length <= 8000 && compact.includes('strategy by letter'), `fifty edges keep every edge, each strategy once: ${compact.length}`);
+    for (const e of group(50).edges) assert.ok(compact.includes(`[${e.id}] ${e.from} -> ${e.to} (`), e.id);
+    const pointer = cutBrief(group(400), 'node bin/cells-plan.js --cuts wide && npm run gate');
+    assert.ok(pointer.length <= 8000 && pointer.includes('node bin/cells-plan.js --cuts wide.'), `four hundred edges point to the full list: ${pointer.length}`);
   });
 
   test('filing import-cut items is idempotent on a real private board with no #1395 dependency [C7,D3,CD64]', t => {
