@@ -5,6 +5,7 @@ import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitPreflight } from '../src/submit-preflight.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
+import { refuseUnreviewable } from '../src/review-reachability.js';
 import { healthReport } from '../src/health.js';
 
 const LEASE = 3_600_000;
@@ -27,7 +28,7 @@ function fixture(t, seats, clock) {
   };
   const credit = (id, agentId) => board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(`item_patches:${id}`,
     JSON.stringify({ version: 1, patches: [{ key: 'companion', commit: 'c'.repeat(40), digest: 'd'.repeat(64), active: true, author: { agentId, parentSession: null, session: null } }] }));
-  const preflight = (id, builder) => submitPreflight(board, id, { agentId: builder, commit: 'a'.repeat(40), tree: 'b'.repeat(40) }, { atomic: store.atomic, submit: store.submit }, REVIEW);
+  const preflight = (id, builder) => submitPreflight(board, id, { agentId: builder, commit: 'a'.repeat(40), tree: 'b'.repeat(40) }, { atomic: store.atomic, submit: store.submit }, { refuse: (board, item) => refuseUnreviewable(board, item, REVIEW) });
   return { board, claimed, credit, preflight };
 }
 

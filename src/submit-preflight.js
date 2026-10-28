@@ -5,8 +5,6 @@
  * that always rolls back, with a stand-in proof, so every board guard decides now and nothing is recorded.
  */
 
-import { refuseUnreviewable } from './review-reachability.js';
-
 /** Thrown to roll back a preflight that passed; never escapes this module. */
 const PASSED = Symbol('submit preflight passed');
 
@@ -25,7 +23,7 @@ export function submitPreflight(board, id, { agentId, commit, tree }, { atomic, 
     atomic(board, () => {
       submit(board, id, { agentId, commit, tree, files: [], submissionProof: STAND_IN_PROOF });
       // The item is submitted only inside this rolled-back transaction, which is what the native eligibility projection reads.
-      refuseUnreviewable(board, board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id), review);
+      review.refuse?.(board, board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id));
       throw PASSED;
     });
   } catch (error) {
