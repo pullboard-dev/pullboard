@@ -1083,7 +1083,7 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
   const other = store.register(board, { lane: 'web', path: '/repo-web-other', family: 'review-vendor' });
   for (const verb of ['accept', 'reject']) {
     const decision = verb === 'accept' ? 'ACCEPT' : 'REJECT';
-    store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
+    board.db.prepare("UPDATE agent SET agent_family = 'REQUIRED REVIEW' WHERE agent_id = 'web-2'").run();
     store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
     store.register(board, { lane: 'web', path: '/repo-web-other', family: null });
     const built = submittedItem(board, { reviewFamily: 'Required Review' });
@@ -1131,7 +1131,7 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
   const { board } = lab;
   const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
   const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
-  store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
+  board.db.prepare("UPDATE agent SET agent_family = 'REQUIRED REVIEW' WHERE agent_id = 'web-2'").run();
   store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
   const built = submittedItem(board, { reviewFamily: 'Required Review' });
   const vendorOnly = submittedItem(board, { sensitive: true });

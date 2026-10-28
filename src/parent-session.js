@@ -12,6 +12,8 @@ import { createHash } from 'node:crypto';
 import { AGENT_SESSION_IDS } from '../packages/kernel/src/core/discovery.js';
 import { PARENT_SESSION_ENGINE } from './parent-session-engine.js';
 import { FAMILY_DECLARE_ENGINE } from './family-declare-engine.js';
+import { familyAliasesOf } from './review-policy.js';
+import { familyName } from './review-policy.js';
 import { ENGINE_VERSION } from './machine.js';
 import {
   saveAgentParent,
@@ -42,8 +44,13 @@ export function saveJoinedSession(board, id, { parent, session, parentDigest, se
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < PARENT_SESSION_ENGINE) return;
   const recordedParent = parentDigest != null ? canonicalSessionDigest(parentDigest) : parent != null ? parentSessionDigest(parent) : null;
   const recordedSession = sessionDigest != null ? canonicalSessionDigest(sessionDigest) : session != null ? parentSessionDigest(session) : null;
-  const first = typeof family === 'string' && family.trim() !== '' && (board.executionEngineVersion ?? ENGINE_VERSION) >= FAMILY_DECLARE_ENGINE
-    && !board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(id)?.agent_family;
+  const naming = typeof family === 'string' && family.trim() !== '' && (board.executionEngineVersion ?? ENGINE_VERSION) >= FAMILY_DECLARE_ENGINE;
+  const declared = naming ? board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(id)?.agent_family : null;
+  // A declared family is final in every session: another vendor is refused, another spelling of the same vendor is the same declaration.
+  if (declared && familyName(family, familyAliasesOf(board)) !== familyName(declared, familyAliasesOf(board))) {
+    throw new Refused('FAMILY_DECLARED', `${id} already declared vendor family ${declared}; a declared family is never changed`);
+  }
+  const first = naming && !declared;
   if (first) {
     // A seat with no declared family declares it once from its own worktree, whatever session joins; its recorded session stays as it was.
     board.db.exec('SAVEPOINT declare_family');

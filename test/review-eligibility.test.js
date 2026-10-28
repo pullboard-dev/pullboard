@@ -535,6 +535,19 @@ test('a declared alias spelling is the builder\'s vendor, so that seat still can
   assert.throws(() => f.reserve(id, 'core-9'), error => error.code === 'O2_FAMILY_MATCH', 'the declared name goes through the alias list');
 });
 
+test('a declared seat rejoining from the SAME session cannot change vendor, and another spelling of it is the same declaration [V4,B26,H16]', t => {
+  const f = fixture(t);
+  f.board.familyAliases = familyIndex({ openai: ['OpenAI Inc'] });
+  const seat = { id: 'core-10', lane: 'core', path: '/fixture/core-10', model: 'Synthetic fixture model', parentDigest: '5'.repeat(64) };
+  store.register(f.board, { ...seat, family: 'openai' });
+  assert.throws(() => store.register(f.board, { ...seat, family: 'Claude' }), error => error.code === 'FAMILY_DECLARED' && /never changed/u.test(error.message));
+  assert.equal(f.board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get('core-10').agent_family, 'openai', 'the refused rejoin changed nothing');
+  assert.equal(store.register(f.board, { ...seat, family: 'OpenAI Inc' }), 'core-10', 'an alias of the declared vendor is the same declaration');
+  assert.equal(store.register(f.board, { ...seat, family: null }), 'core-10', 'a join naming no family keeps the declaration');
+  f.board.executionEngineVersion = FAMILY_DECLARE_ENGINE - 1;
+  assert.doesNotThrow(() => store.register(f.board, { ...seat, family: 'Claude' }), 'below the engine a same-session rejoin keeps its old update');
+});
+
 test('the one-time family declaration applies only from its engine; an older engine keeps the session refusal [C7,V4,B26,H16]', t => {
   const f = fixture(t);
   f.board.executionEngineVersion = FAMILY_DECLARE_ENGINE - 1;
