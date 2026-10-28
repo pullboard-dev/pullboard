@@ -12,9 +12,9 @@ import {
   test,
 } from 'node:test';
 import {
-  startRunnerPhases,
   validateCacheTips,
 } from '../src/runner-overhead.js';
+import { startRunnerPhases } from '../src/timing.js';
 import { runnerPhaseFields } from '../src/timing.js';
 import { runnerPhaseLine } from '../src/timing.js';
 import { runnerUtilization } from '../src/runner-utilization.js';

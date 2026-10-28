@@ -1,3 +1,4 @@
+import { startRunnerPhases } from './timing.js';
 /** SSH runner entry point in a pinned capsule with a static trusted resource graph. */
 import {
   spawn,
@@ -26,7 +27,6 @@ import {
 } from './execution-environment.js';
 import { sampleRunnerLoad } from './runner-load.js';
 import {
-  startRunnerPhases,
   validateCacheTips,
   tagObjectBodies,
 } from './runner-overhead.js';

@@ -1,5 +1,4 @@
 /** Executor phase accounting and bounded cache-tip validation without additional profiling runs [C7]. */
-import { PHASES } from './timing.js';
 
 /** Preserve exact cache-tip type checks while replacing one Git launch per tip with one batch. */
 export function validateCacheTips(tips, output) {
@@ -12,32 +11,6 @@ export function validateCacheTips(tips, output) {
     const match = /^([a-f0-9]{40}|[a-f0-9]{64}) commit (0|[1-9][0-9]*)$/u.exec(rows[index]);
     return !match || match[1] !== tip;
   })) throw new Error('source history cache contains a missing or non-commit tip');
-}
-
-/** Record disjoint worker intervals with its monotonic clock; nested command/test durations are not added again. */
-export function startRunnerPhases(clock = () => performance.now()) {
-  const values = Object.fromEntries(PHASES.map(name => [name, 0]));
-  const started = clock();
-  let previous = 0;
-  let phase = 'prepareMs';
-  let finished = null;
-  /** Charge elapsed time to the preceding phase at each actual worker boundary. */
-  function mark(next) {
-    if (finished || !PHASES.includes(next)) throw new Error('invalid runner phase transition');
-    const elapsed = Math.max(previous, Math.round(clock() - started));
-    values[phase] += elapsed - previous;
-    previous = elapsed;
-    phase = next;
-  }
-  /** Freeze one exact sum after cleanup, before publishing the worker receipt. */
-  function finish() {
-    if (!finished) {
-      mark(phase);
-      finished = { version: 1, ...values, totalMs: previous };
-    }
-    return { ...finished };
-  }
-  return { mark, finish };
 }
 
 /** Decode exact bounded cat-file frames before converting annotation bytes to UTF-8. */

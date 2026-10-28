@@ -146,7 +146,7 @@ export function timingFromLog(path, runner) {
 }
 
 /** The disjoint executor intervals used by worker measurement and controller receipts [C7]. */
-export const PHASES = ['prepareMs', 'capacityWaitMs', 'sourceMs', 'dependenciesMs', 'commandMs', 'cleanupMs'];
+const PHASES = ['prepareMs', 'capacityWaitMs', 'sourceMs', 'dependenciesMs', 'commandMs', 'cleanupMs'];
 
 /** Reject contradictory phase arithmetic; absence from an older worker remains unmeasured. */
 export function runnerPhaseFields(value) {
@@ -160,5 +160,32 @@ export function runnerPhaseLine(value) {
   const phases = runnerPhaseFields(value);
   if (!phases) return '';
   return `executor: ${PHASES.map(name => `${name.slice(0, -2)} ${(phases[name] / 1000).toFixed(2)}s`).join(', ')}; total ${(phases.totalMs / 1000).toFixed(2)}s`;
+}
+
+
+/** Record disjoint worker intervals with its monotonic clock; nested command/test durations are not added again. */
+export function startRunnerPhases(clock = () => performance.now()) {
+  const values = Object.fromEntries(PHASES.map(name => [name, 0]));
+  const started = clock();
+  let previous = 0;
+  let phase = 'prepareMs';
+  let finished = null;
+  /** Charge elapsed time to the preceding phase at each actual worker boundary. */
+  function mark(next) {
+    if (finished || !PHASES.includes(next)) throw new Error('invalid runner phase transition');
+    const elapsed = Math.max(previous, Math.round(clock() - started));
+    values[phase] += elapsed - previous;
+    previous = elapsed;
+    phase = next;
+  }
+  /** Freeze one exact sum after cleanup, before publishing the worker receipt. */
+  function finish() {
+    if (!finished) {
+      mark(phase);
+      finished = { version: 1, ...values, totalMs: previous };
+    }
+    return { ...finished };
+  }
+  return { mark, finish };
 }
 
