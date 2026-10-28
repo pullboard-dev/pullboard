@@ -122,7 +122,8 @@ test('health names each stuck cause with its next step and owner [A6]', async (t
   const claim = (id, agentId, leaseMs = 2 * HOUR) => store.claim(board, id, { agentId, lane: 'core', leaseMs, freeze });
   const submit = (id, agentId, commit) => submitFixture(board, id, { agentId, commit, tree: `tree-${id}` });
   const decide = (id, decision, commit, title, by = reviewer) => store.verify(board, id, { agentId: by, decision,
-    reason: decision === 'ACCEPT' ? 'CRITERION_MET' : 'TEST_FAILURE', note: 'checked the fixture', head: commit, digest: `digest:${title}`, policy: 'any' });
+    reason: decision === 'ACCEPT' ? 'CRITERION_MET' : 'TEST_FAILURE', note: 'checked the fixture', head: commit, digest: `digest:${title}`, policy: 'any',
+    ...(decision === 'REJECT' ? { clause: title } : {}) });
   /** Build an item through claim and submit, optionally to an accept or a reject. */
   const built = (title, agentId, commit, verdict, extra) => {
     const id = add(title, extra);

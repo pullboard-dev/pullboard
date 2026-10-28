@@ -70,14 +70,14 @@ function fixture() {
 }
 
 /** Submit and reject only this control item, leaving the other bar fixtures genuinely unclaimed. */
-function rejectOnce(box, id, note) {
+function rejectOnce(box, id, note, clause) {
   writeFileSync(join(box.web, 'web', 'shared.txt'), `implemented item ${id}\n`);
   box.git(box.web, 'add', 'web/shared.txt');
   box.git(box.web, 'commit', '-q', '-m', 'fix: implement bar fixture [G1]');
   box.json(box.web, 'submit', String(id), '--no-next');
   box.git(box.review, 'switch', '--detach', box.json(box.repo, 'show', String(id)).item_commit);
   box.json(box.review, 'next', '--verify', String(id));
-  box.json(box.review, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--note', note, '--no-next');
+  box.json(box.review, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--clause', clause, '--note', note, '--no-next');
 }
 
 test('[B10,B31] a corrected bar records why the old one was wrong', () => {
@@ -112,7 +112,7 @@ test('[B10,B31] a corrected bar records why the old one was wrong', () => {
   assert.equal(afterRefreeze.item_lease_until, beforeRefreeze.item_lease_until, 'refreeze keeps the existing lease');
   assert.equal(afterRefreeze.item_frozen_digest, beforeRefreeze.item_frozen_digest, 'an unchanged refreeze preserves the corrected bar digest');
   assert.equal(JSON.parse(afterRefreeze.item_frozen).criterion, 'Corrected item works under WAL');
-  rejectOnce(box, 1, 'the WAL lock never appears');
+  rejectOnce(box, 1, 'the WAL lock never appears', 'Corrected item works under WAL');
   const unexplained = box.run(box.repo, 'edit', '1', '--check', 'true # wal', '--json');
   assert.equal(JSON.parse(unexplained.out).error?.code, 'BAR_REASON', 'a check correction on an item that was claimed needs a reason too');
   box.json(box.repo, 'edit', '1', '--check', 'true # wal', '--reason', 'the old check never opened a WAL board');
@@ -132,7 +132,7 @@ test('[B10,B31] a corrected bar records why the old one was wrong', () => {
 
   box.git(box.web, 'switch', '--detach', box.git(box.repo, 'rev-parse', 'HEAD'));
   box.json(box.web, 'claim', '3');
-  rejectOnce(box, 3, 'the build is broken');
+  rejectOnce(box, 3, 'the build is broken', 'Build-failed item works');
   const stats = box.json(box.repo, 'stats').stats.bars;
   assert.deepEqual(stats, { coordinator: { corrections: 2, barRejects: 1, buildRejects: 1 } },
     'stats reports, per coordinator, bar corrections and rejects caused by a bar, beside rejects caused by the build');

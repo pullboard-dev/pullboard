@@ -41,7 +41,7 @@ else process.exit(fs.existsSync('web/page.txt') && fs.readFileSync('web/page.txt
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
   json(box.run(reviewer, 'join', 'api', '--json'));
-  json(box.run(reviewer, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note', 'the page is not reachable', '--json'));
+  json(box.run(reviewer, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'the page is built', '--note', 'the page is not reachable', '--json'));
   json(box.run(box.web, 'claim', '1', '--json'));
   // Resubmit the same head with the check armed to run for minutes.
   rmSync(ran, { force: true });

@@ -465,3 +465,35 @@ test('an agent claims, submits, verifies and resumes through MCP with the CLI\'s
   assert.equal(readFileSync(join(other, '.codex', 'config.toml'), 'utf8'), toml, 'a second init adds nothing');
   assert.ok(again.status === 0 || again.status === 1, 'a second init leaves the registration alone');
 });
+
+test('MCP rejects require and preserve caller-supplied frozen wording [A9,V6,H16]', async t => {
+  const box = project(t);
+  const clause = 'web/mcp.txt contains a heading.';
+  const added = cli(box, box.repo, ['add', 'web', 'A quoted MCP rejection', '--specs', 'G1', '--criterion', clause]);
+  assert.equal(added.status, 0, JSON.stringify(added.document));
+  const id = added.document.item.item_id;
+  assert.equal(cli(box, box.web, ['claim', String(id)], box.sessionA).status, 0);
+  mkdirSync(join(box.web, 'web'), { recursive: true });
+  writeFileSync(join(box.web, 'web', 'mcp.txt'), '<p>The heading is absent.</p>\n');
+  box.git(box.web, 'add', 'web/mcp.txt');
+  box.git(box.web, 'commit', '-q', '-m', 'feat(web): write the rejected MCP fixture [G1]');
+  const submitted = cli(box, box.web, ['submit', String(id)], box.sessionA);
+  assert.equal(submitted.status, 0, JSON.stringify(submitted.document));
+  const review = join(box.dir, 'clause-review');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD').trim());
+  const session = { CODEX_SESSION_ID: 'mcp-clause-reviewer' };
+  assert.equal(cli(box, review, ['join', 'web', '--model', 'reviewer-model'], session).status, 0);
+  const reviewer = mcpClient(t, box, review, session);
+  await initialize(reviewer);
+  const input = { id, decision: 'reject', reason: 'TEST_FAILURE', note: 'The required heading is absent.' };
+  const missing = await reviewer.call('verify', input);
+  assert.equal(missing.isError, true);
+  assert.equal(missing.structuredContent.error.code, 'BAR_CLAUSE_REQUIRED');
+  assert.equal((await reviewer.call('verify', { ...input, clause: true })).isError, true);
+  const rejected = await reviewer.call('verify', { ...input, clause });
+  assert.equal(rejected.isError, false, JSON.stringify(rejected.structuredContent));
+  assert.equal(rejected.structuredContent.clause, clause);
+  const shown = cli(box, box.repo, ['show', String(id)]);
+  assert.equal(shown.document.verdicts[0].clause, clause);
+  assertProtocolOnly((await reviewer.close()).lines);
+});
