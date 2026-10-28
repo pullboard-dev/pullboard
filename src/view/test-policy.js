@@ -11,6 +11,8 @@ export const VIEW_RENDERER_COVERAGE = Object.freeze([
   { module: 'src/view/timeline-render.js', names: ['timelineHtml'], tests: ['test/cockpit/view-pure.test.js'] },
   { module: 'src/view/items-selection.js', names: ['selectItemsView'], tests: ['test/cockpit/view-pure.test.js'] },
   { module: 'src/view/rule-list-model.js', names: ['ruleListModel'], tests: ['test/cockpit/view-pure.test.js'] },
+  { module: 'src/view/row-component.js', names: ['sharedRowHtml'], tests: ['test/cockpit/row-component-pure.test.js'] },
+  { module: 'src/view/home.js', names: ['homeCapacity'], tests: ['test/cockpit/home-capacity-pure.test.js'] },
   { module: 'src/view/record-row.js', names: ['recordRowHtml'], tests: ['test/cockpit/view-pure.test.js'] },
   { module: 'src/view/pipeline-render.js', names: ['pipelineHtml'], tests: ['test/cockpit/view-pure.test.js'] },
   { module: 'src/view/lifecycle-diagram.js', names: ['lifecycleDiagramHtml'], tests: ['test/cockpit/view-pure.test.js'] },

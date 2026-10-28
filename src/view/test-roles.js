@@ -1,5 +1,13 @@
 /** Explicit test roles are an inventory, not completion evidence or a browser-admission exemption [N26,C7]. */
 export const VIEW_TEST_ROLES = Object.freeze({
+  "test/cockpit/row-component-pure.test.js": {
+    "kind": "logic",
+    "reason": "Original shared-row escaping, attributes and variant assertions invoke the real HTML function without the separate Chrome geometry journey."
+  },
+  "test/cockpit/home-capacity-pure.test.js": {
+    "kind": "logic",
+    "reason": "Original measured-capacity, unknown, stale and label assertions invoke the production presenter over plain inputs; Chrome refresh and layout stay separate."
+  },
   "test/cockpit/segmented-control-pure.test.js": {
     "kind": "logic",
     "reason": "Original segmented markup, escaping and pressed-state assertions invoke the real HTML-only component without the DOM adapter or native fixture."

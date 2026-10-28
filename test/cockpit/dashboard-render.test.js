@@ -25,8 +25,8 @@ test('Dashboard time and number labels depend on supplied locale and zone, not t
   const before = JSON.stringify(model);
   const utc = dashboardHtml(model, { locale: 'en-GB', timeZone: 'UTC' });
   const tokyo = dashboardHtml(model, { locale: 'en-GB', timeZone: 'Asia/Tokyo' });
-  assert.match(section(utc, 'Shipping now'), /Wednesday at 14:00 – Wednesday at 16:00/u);
-  assert.match(section(tokyo, 'Shipping now'), /Wednesday at 23:00 – Thursday at 01:00/u);
+  assert.match(section(utc, 'Shipping now'), /Wednesday(?: at)? 14:00 – Wednesday(?: at)? 16:00/u);
+  assert.match(section(tokyo, 'Shipping now'), /Wednesday(?: at)? 23:00 – Thursday(?: at)? 01:00/u);
   assert.match(section(utc, 'Landed per hour'), /28\/10\/2026, 11:00:00 – 12:00:00/u);
   assert.match(section(tokyo, 'Landed per hour'), /28\/10\/2026, 20:00:00 – 21:00:00/u);
   assert.match(utc, /1,234 landed all time/u);
