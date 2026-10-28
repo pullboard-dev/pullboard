@@ -102,6 +102,7 @@ test('runtime aliases preserve distinct paths and UUID relationships plus numeri
   assert.notEqual(identity(block(one, one)), identity(block(one, two)), 'distinct fixture roots cannot become the same path');
   const id = randomUUID(), other = randomUUID();
   assert.notEqual(identity(block(id, id)), identity(block(id, other)), 'distinct random IDs retain their equality relationship');
+  assert.notEqual(identity(block(id, id)), identity(block(id, id.toUpperCase())), 'UUID spelling remains distinct when asserted as a string');
   assert.notEqual(identity(block(one, two, 2)), identity(block(one, two, 3)), 'numeric expected values remain semantic');
   assert.notEqual(identity(block(one + ':1', two)), identity(block(one + ':2', two)), 'asserted path-like location values remain semantic outside nested stderr frames');
   assert.notEqual(identity(block('/etc/one', '/etc/two')), identity(block('/etc/one', '/etc/three')), 'non-temporary paths remain literal');

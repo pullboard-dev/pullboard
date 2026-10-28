@@ -38,7 +38,7 @@ export function normalizedFailureDiagnostics(lines, root) {
     let value = line.replaceAll(root, '<root>');
     if (locations) value = value.replace(/((?:file:\/\/)?<root>\/[^:\s"'\\<>]+):\d+(?::\d+)?(?=[),;]?\s*$)/gu, '$1:<location>');
     value = value.replace(/(?:file:\/\/)?\/[^\s"'\\<>]+/gu, path => temporaryPath(path, alias, locations));
-    value = value.replace(/\b[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}\b/giu, id => alias('uuid', id.toLowerCase()));
+    value = value.replace(/\b[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}\b/giu, id => alias('uuid', id));
     value = value.replace(/\b((?:https?:\/\/)?(?:127\.0\.0\.1|localhost|\[::1\]):)(\d{1,5})\b/gu,
       (whole, host, port) => Number(port) >= 32768 && Number(port) <= 65535 ? host + alias('port', port) : whole);
     // Expected/actual numeric values and command source are assertions, not elapsed measurements.
