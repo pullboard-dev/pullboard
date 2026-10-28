@@ -21,10 +21,11 @@ import { landingFailures } from './land.js';
 import { landingRemote } from './land.js';
 import { Refused } from './refused.js';
 import { publishPullRequests } from './pr-publish.js';
+import { publishStateFile } from './publish-pause.js';
 
 /** Where publish remembers the last head it found red, so the same head is not run again. */
 function stateFile(root) {
-  return join(repoInfo(root).commonDir, 'pullboard', 'publish.json');
+  return publishStateFile(root);
 }
 
 /** The head publish last found red, or null. */
@@ -107,7 +108,7 @@ export async function publishTrunk({ root, board, config, say, onWait, onFailure
   const files = [...new Set(failures.map(failure => failure.file).filter(Boolean))];
   const touched = touchedBy(root, board, published, head, files);
   const red = failures.map(failure => ({ file: failure.file, name: failure.name, items: failure.file ? touched.get(failure.file) : [] }));
-  writeFileSync(stateFile(root), JSON.stringify({ red: head, published }) + '\n');
+  writeFileSync(stateFile(root), JSON.stringify({ red: head, published, receipt: gate.receiptId ?? null, failures: red }) + '\n');
   say(`${branch} at ${head.slice(0, 12)} is red and was not pushed; ${red.length} failing ${red.length === 1 ? 'test' : 'tests'}:`);
   for (const entry of red) {
     say(`  ${entry.file ?? '(no file)'}: ${entry.name}; ${entry.items.length ? 'touched by ' + entry.items.map(id => `#${id}`).join(', ') : 'touched by no item landed since the last published head'}`);
