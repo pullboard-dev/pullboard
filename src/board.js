@@ -1301,10 +1301,10 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
  * @param {{ agentId: string, note: string, cause?: string, withdrawVerdict?: boolean }} request
  * @returns {{ id: number, commit: string, supersedes?: number, landingFailure?: object }}
  */
-export function reopen(board, id, { agentId, note = '', conflict, cause, reopenFirstRefusalMinutes, quotedLandingFailure, withdrawVerdict, computedConflict, sourceAdvanceReturn }) {
+export function reopen(board, id, { agentId, note = '', conflict, cause, reopenFirstRefusalMinutes, quotedLandingFailure, withdrawVerdict, computedConflict, sourceAdvanceReturn, landingFence }) {
   return atomic(board, () => {
     if (sourceAdvanceReturn !== undefined) {
-      if (board.executionEngineVersion === undefined) ({ note, conflict, quotedLandingFailure, sourceAdvanceReturn } = sealSourceAdvanceReturn(board, id, { agentId, sourceAdvanceReturn }));
+      if (board.executionEngineVersion === undefined) ({ note, conflict, quotedLandingFailure, sourceAdvanceReturn } = sealSourceAdvanceReturn(board, id, { agentId, sourceAdvanceReturn, landingFence }));
       const problem = sourceAdvanceReturnProblem(board, getItem(board, id), { agentId, note, conflict, quotedLandingFailure, sourceAdvanceReturn });
       if (problem) throw problem;
     }
