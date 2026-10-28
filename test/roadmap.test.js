@@ -224,7 +224,7 @@ test('withdraw leaves every milestone and the roadmap lists work to ship first [
 
   const text = run('roadmap');
   const itemText = text.replace(/^ {2}\d+ left of \d+: [^\n]*\n/gm, '');
-  assert.match(itemText, /^Now: 1\/4 landed\n {2}#3 First open page — open\n {2}#5 Second open page — open\n {2}#1 Landed page — landed\n {2}#4 Accepted page — accepted$/m, 'the text roadmap lists the same order and count');
+  assert.match(itemText, /^Now: 1\/4 landed\n {2}1. #3 First open page — open\n {2}2. #5 Second open page — open\n {2}#1 Landed page — landed\n {2}#4 Accepted page — accepted$/m, 'the text roadmap lists the same order and count');
   assert.match(itemText, /^Old: 1\/1 landed\n {2}#1 Landed page — landed$/m, 'and leaves the withdrawn item out of the text');
   assert.doesNotMatch(text, /Stale withdrawn page|Dropped idea/, 'no withdrawn item appears anywhere in the text roadmap');
 });

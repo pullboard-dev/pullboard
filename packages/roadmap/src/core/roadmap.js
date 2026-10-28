@@ -102,7 +102,6 @@ export function milestoneRoadmap(root, board, options = {}) {
   const placed = queuePositions(board, ports);
   const landedAt = firstLandings(board, items, ports);
   return milestones.map(milestone => {
-    milestone = { ...milestone, items: queueOrdered(milestone, placed, landedAt) };
     const active = milestone.items.filter(entry => entry.status !== 'withdrawn');
     const summary = { total: active.length, left: active.length - milestone.landed,
       landed: 0, landing: 0, review: 0, building: 0, held: 0, waiting: 0,
@@ -121,7 +120,7 @@ export function milestoneRoadmap(root, board, options = {}) {
       summary[state]++;
     }
     Object.assign(summary, milestoneForecast(summary.left, pace, Boolean(milestone.shipped)));
-    return { ...milestone, summary };
+    return { ...milestone, items: queueOrdered(milestone, placed, landedAt), summary };
   });
 }
 
@@ -148,9 +147,11 @@ function firstLandings(board, items, ports) {
 /** A milestone's items as agents pull them: queued items in queue order with their position, other items as added, landed items last in landing order. */
 function queueOrdered(milestone, placed, landedAt) {
   const queued = milestone.items.filter(entry => placed.has(entry.id)).sort((a, b) => placed.get(a.id) - placed.get(b.id)).map(entry => ({ ...entry, position: placed.get(entry.id) }));
-  const landed = milestone.items.filter(entry => !placed.has(entry.id) && entry.state === 'landed');
-  const landedOrder = landed.map((entry, index) => [entry, index]).sort(([a, i], [b, j]) => (landedAt.get(a.id) ?? Infinity) - (landedAt.get(b.id) ?? Infinity) || i - j).map(([entry]) => entry);
-  return [...queued, ...milestone.items.filter(entry => !placed.has(entry.id) && entry.state !== 'landed'), ...landedOrder];
+  const verified = milestone.items.map((entry, index) => ({ entry, index })).filter(({ entry }) => !placed.has(entry.id) && (entry.state === 'landed' || entry.state === 'accepted'));
+  const rest = milestone.items.filter(entry => !placed.has(entry.id) && entry.state !== 'landed' && entry.state !== 'accepted');
+  const key = ({ entry }) => entry.state === 'landed' ? landedAt.get(entry.id) ?? Number.MAX_SAFE_INTEGER - 1 : Number.MAX_SAFE_INTEGER;
+  verified.sort((a, b) => key(a) - key(b) || a.index - b.index);
+  return [...queued, ...rest, ...verified.map(({ entry }) => entry)];
 }
 
 /** Exact first matching merge observations shared by roadmap display and its cache-window boundary. */
