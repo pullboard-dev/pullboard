@@ -24,6 +24,8 @@ import { activityMainFiles, activityWorkingFiles, readActivityCursor, saveActivi
 import { fixtureBoard } from './board-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { DatabaseSync } from 'node:sqlite';
+import { budgetInbox } from '../src/inbox-budget.js';
+import { activityDeliveryLines } from '../src/activity-delivery-cli.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -537,6 +539,7 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   const summary = JSON.parse(submitted.out).activity;
   assert.ok(summary.digests.length, 'the actual successful submit delivers the pending short digest');
+  assert.equal(summary.budget?.counting, 'utf8-bytes', 'submit JSON retains the feed accounting and omission summary');
   assert.equal(JSON.stringify(summary.digests).includes('SECOND_PRIVATE_RAW_STATUS_BODY'), false);
 
 });
@@ -753,4 +756,18 @@ test('inbox budgets withhold interrupt receipts until the whole interrupt is ren
   const acted = box.run(box.web, 'inbox', '--acted-on', id, '--json');
   assert.equal(acted.code, 0, acted.err);
   assert.deepEqual(JSON.parse(acted.out).activity.interrupts, []);
+});
+
+
+test('inbox omission metadata stays bounded across many digest event kinds [R2,N26,H16]', () => {
+  const digests = Array.from({ length: 40 }, (_, index) => ({ kind: `fixture-event-kind-${index}`,
+    count: index + 1, text: '界'.repeat(350) }));
+  const document = budgetInbox({ shouts: [], activity: { interrupts: [], entries: [], digests, cursor: 1 } },
+    1024, result => activityDeliveryLines(result, {}));
+  assert.ok(Buffer.byteLength(JSON.stringify({ version: 1, ...document }, null, 2) + '\n') <= 1024,
+    'the count metadata alone must fit the same delivery budget');
+  assert.ok(Buffer.byteLength(activityDeliveryLines(document, {}).join('\n') + '\n') <= 1024);
+  assert.deepEqual(document.activity.digests, []);
+  assert.deepEqual(document.budget.omitted, { digest: 820 }, 'fixed delivery kinds preserve the exact omitted update count');
+  assert.match(document.budget.summary, /820 digest/u);
 });
