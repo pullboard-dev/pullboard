@@ -166,6 +166,7 @@ test("the view's styles live in their own file [N26]", async () => {
 
     // Nothing the script draws carries a style either: products, the list, a picked item, a spec row.
     await page.click({ go: 'item:1' });
+    await page.click({ tab: 'spec' });
     await page.click({ rows: 'spec:all' });
     await page.click({ row: 'spec:G1' });
     assert.match(page.show('prod-list'), /<svg class="bar" viewBox="0 0 100 1" preserveAspectRatio="none" aria-hidden="true"><rect width="50" height="1"\/><\/svg>/, 'a product bar is drawn, half full');
