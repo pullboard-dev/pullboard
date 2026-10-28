@@ -207,6 +207,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
     const page = await openPage(view);
     assert.doesNotMatch(page.html, /id="metrics"/, 'the drawing replaces the metric cards');
     assert.ok(!page.html.includes('pullboard claim <id>'), 'the declaration is embedded with < escaped');
+    await page.click({ tab: 'activity' });
     const svg = page.show('flow');
     const { boxes, routes, sentBack } = drawing(svg);
 
