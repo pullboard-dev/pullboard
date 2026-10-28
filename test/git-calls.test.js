@@ -39,6 +39,10 @@ function fixture(t, { ruleProof = false } = {}) {
   const home = join(dir, 'home');
   const shims = join(dir, 'shims');
   const calls = join(dir, 'git-calls.log');
+  /** Read the same immutable per-fixture log path without changing reset or failure semantics. */
+  function readCalls() {
+    return readFileSync(calls, 'utf8');
+  }
   mkdirSync(repo);
   mkdirSync(shims);
   const realGit = realGitPath();
@@ -95,7 +99,7 @@ function fixture(t, { ruleProof = false } = {}) {
   git(repo, 'commit', '-q', '-m', 'chore(repo): initialize Git-call fixture');
   git(repo, 'worktree', 'add', '-q', '-b', 'core/worker', worker);
   ok(worker, 'join', 'core', '--route', 'light', '--family', 'codex');
-  return { dir, repo, worker, calls, env, git, run, ok };
+  return { dir, repo, worker, calls, readCalls, env, git, run, ok };
 }
 
 /** Clear the per-command count and read the number of Git processes the CLI started. */
@@ -103,7 +107,7 @@ function resetAndCount(box, cwd, ...args) {
   writeFileSync(box.calls, '');
   const result = box.run(cwd, ...args);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  const count = readFileSync(box.calls, 'utf8').trim().split('\n').filter(Boolean).length;
+  const count = box.readCalls().trim().split('\n').filter(Boolean).length;
   return { result, count };
 }
 
@@ -185,7 +189,7 @@ test('ordinary Git scopes skip resume blobs and empty repository failures do not
     console.log(JSON.stringify(await withGitFacts(() => { try { repoInfo(process.argv[1]); return null; }
       catch (error) { return error.code; } })));`);
   assert.equal(outside, 'NOT_A_REPO');
-  assert.equal(readFileSync(box.calls, 'utf8').trim().split('\n').filter(Boolean).length, 1,
+  assert.equal(box.readCalls().trim().split('\n').filter(Boolean).length, 1,
     'an empty failed rev-parse goes directly to the filesystem bare-check rather than retrying Git');
 });
 

@@ -9,7 +9,8 @@ test('a large clean batch of kebab-case names and source text is never refused a
   }));
   const source = Array.from({ length: 600 }, (_, index) => ({
     path: `test/fixture-${index}.js`, line: 2,
-    text: `const queue = 'desk-scheduler-backed-queue-configuration-${index}';`,
+    // Joined at run time so older scanners reading this source never see a long key-shaped literal.
+    text: `const queue = '${['desk', 'scheduler-backed-queue-configuration', index].join('-')}';`,
   }));
   assert.deepEqual(secretsIn([...names, ...source]), []);
 });

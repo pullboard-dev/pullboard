@@ -40,7 +40,12 @@ export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   const actors=board(db=>{db.executionEngineVersion=1;try{return[store.register(db,{lane:'coordinator',path:repo}),store.register(db,{lane:'alpha',path:join(scratch,'builder')}),store.register(db,{lane:'beta',path:join(scratch,'reviewer')})];}finally{delete db.executionEngineVersion;}});
   const identity=board(db=>({id:store.boardId(db),after:store.events(db).at(-1).event_id}));await activateMainAudits(repo,identity.after,identity.id);
   const candidate=join(scratch,'candidate');git(repo,env,'worktree','add','--detach',candidate,base);
-  const marker=join(scratch,'green-body-ran'), unitMarker=join(scratch,'unchanged-unit-ran');
+  const marker=join(scratch,'green-body-ran');
+  const unitMarker=join(scratch,'unchanged-unit-ran');
+  /** Preserve the actual unchanged-unit marker bytes without exposing its path as an inferred object capability. */
+  function readUnitMarker() {
+    return readFileSync(unitMarker, 'utf8');
+  }
   writeFileSync(join(candidate,'test/a.test.js'),"import {test} from 'node:test';test('audit failure alpha',()=>{throw new Error('actual alpha');});\n");
   writeFileSync(join(candidate,'test/b.test.js'),"import {test} from 'node:test';test('audit failure beta',()=>{throw new Error('actual beta');});\n");
   writeFileSync(join(candidate,'test/c.test.js'),`import {test} from 'node:test';import {appendFileSync} from 'node:fs';test('later green body',()=>appendFileSync(${JSON.stringify(marker)},'ran'));\n`);
@@ -103,6 +108,6 @@ ${executionServicesSource(module)}await Promise.all([0,1].map(i=>withGateSlot(${
     return {tip:nextTip,tree:nextTree,batchId:nextBatch,item:nextItem,marker:nextMarker,key:mainAuditKey({board:identity.id,batchId:nextBatch,tip:nextTip,tree:nextTree})};
   }
   t.after(async()=>{for(const child of children)if(child.exitCode===null&&child.signalCode===null){try{process.kill(-child.pid,'SIGTERM');}catch{child.kill('SIGTERM');}}await Promise.all(children.map(child=>child.exitCode!==null||child.signalCode!==null?Promise.resolve():once(child,'close')));rmSync(scratch,{recursive:true,force:true});});
-  return {repo,env,base,tip,tree,batchId,item,marker,unitMarker,directory,key,board,store,runWorker,startWorker,holdBoth,appendBatch,queue,readGateReceipt,receiptStore};
+  return {repo,env,base,tip,tree,batchId,item,marker,unitMarker,readUnitMarker,directory,key,board,store,runWorker,startWorker,holdBoth,appendBatch,queue,readGateReceipt,receiptStore};
 }
 

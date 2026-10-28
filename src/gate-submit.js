@@ -31,6 +31,8 @@ import {
 import {
   missingGate,
 } from './gate-config.js';
+import { contains } from './git.js';
+import { mainPolicy } from './trusted-policy-read.js';
 import {
   browserFreeChecksEnabled,
 } from './settings.js';
@@ -109,6 +111,10 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
  */
 export async function runSubmitGate(root, config, { base, trunk, changed, check, agent, item = '', kind = 'submit', onWait, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, executionServices }) {
   if (!config.gate.trim()) throw missingGate(root);
+  // One pinned main per submit: every phase reads this commit, so a landing mid-submit cannot split the seal (#1777).
+  if (trunk !== undefined && trunk !== null && !contains(root, trunk, mainPolicy(root).commit)) {
+    throw new Refused('SUBMIT_PIN_NOT_MAIN', `submit pinned main ${trunk.slice(0, 12)}, which is not an ancestor of main; run pullboard submit again so it captures main`);
+  }
   await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, executionServices });
   const plan = submitGatePlan(root, config, { base, trunk, changed, check, sourceAdvance });
   const { selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
@@ -132,6 +138,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       ...(proofContext.companion ? { submitPhase: 'criterion' } : {}),
       ...(!hasFinalProof && proofContext.admission?.id ? { submitAdmission: proofContext.admission.id } : {}) };
     pinRunMain(lease, onFailure);
+    lease.pinnedMain = trunk ?? null;
     const startedAt = Date.now();
     const log = gitPath(outputRoot, 'pullboard-submit.log');
     const checkLog = `${log}.check.log`;
