@@ -612,8 +612,8 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
   for (let id = 3; id <= 39; id += 1) box.run(p.repo, 'add', 'web', `Filler ${id}`, '--specs', 'G1', '--criterion', 'fills');
   box.run(p.repo, 'add', 'web', 'Retired widget', '--specs', 'G1', '--criterion', 'retires');
   box.run(p.repo, 'withdraw', '40', 'nobody needs the widget');
-  box.run(p.web, 'shout', 'coordinator', "#1 is next; #2 shipped (#99 is not an item) and it's done");
-  box.run(p.web, 'shout', 'coordinator', "#7, see#7 and #7#8: it's 5 o'clock");
+  box.run(p.web, 'shout', 'all', "#1 is next; #2 shipped (#99 is not an item) and it's done");
+  box.run(p.web, 'shout', 'all', "#7, see#7 and #7#8: it's 5 o'clock");
   const view = await startView(box);
   try {
     const page = await openPage(view);

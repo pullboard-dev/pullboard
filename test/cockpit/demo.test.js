@@ -497,7 +497,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
   const wrapTitle = 'word boundary test ' + 'abcdef0123456789'.repeat(12);
   box.run(demo.repo, 'add', 'web', wrapTitle, '--specs', 'G1', '--criterion', 'the activity title wraps without splitting words');
   box.run(demo.repo, 'shout', 'person', 'Should the phone demo ship?', '--decision');
-  box.run(demo.web, 'shout', 'coordinator', 'Should this waiting ask span the full row?', '--decision');
+  box.run(demo.web, 'shout', 'coordinator', 'Should this waiting ask span the full row?', '--decision', '--kind', 'question');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-phone-'));
   let chrome;
@@ -958,7 +958,7 @@ test('a finished lane hold does not scroll after the next press is aimed [N26,C7
   for (const text of ['Phone shout 375', 'Phone answer 375', 'Phone shout 1280', 'Phone answer 1280']) {
     box.run(demo.repo, 'shout', 'web', text);
   }
-  for (let index = 0; index < 8; index++) box.run(demo.web, 'shout', 'coordinator', 'Earlier board discussion ' + index);
+  for (let index = 0; index < 8; index++) box.run(demo.web, 'shout', 'all', 'Earlier board discussion ' + index);
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-late-hold-'));
   let chrome;

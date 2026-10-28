@@ -4,6 +4,7 @@ import { runFixtureGit } from './fixture-child.js';
 /** Private real-file fixtures prove falling cell debt without moving any repository source [C7,CD64]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
+import { cpSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -392,6 +393,8 @@ test('the actual discovered command loader reaches command run and its literal h
   const box = fixture(t);
   box.put('src/commands/index.js', readFileSync(new URL('../src/commands/index.js', import.meta.url), 'utf8'));
   box.put('src/discovery.js', readFileSync(new URL('../src/discovery.js', import.meta.url), 'utf8'));
+  box.put('packages/kernel/index.js', readFileSync(new URL('../packages/kernel/index.js', import.meta.url), 'utf8'));
+  cpSync(new URL('../packages/kernel/src/', import.meta.url), join(box.root, 'packages/kernel/src'), { recursive: true });
   box.put('apps/demo/index.js', "import { COMMANDS } from '../../src/commands/index.js'; COMMANDS.next();\n");
   box.put('src/commands/next.js', "import { routing } from '../routing.js'; export function run() { return routing(); } export const unused = 1;\n");
   box.put('src/routing.js', 'export function routing() { return 1; }\n');
