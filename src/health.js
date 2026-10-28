@@ -1,3 +1,5 @@
+import { lineSettings } from './line-settings-read.js';
+import { withLocalSeatPresence } from './seat-presence.js';
 import { mechanicalConflictFiles } from './mechanical-merge.js';
 import { localDependencyIds } from './item-dependencies.js';
 import { dispatchHealth } from './dispatch-health.js';
@@ -320,12 +322,14 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
     FROM agent ORDER BY agent_id`).all();
   // Only a seat whose agent is around counts (#940): a live lease, or a move or shout in the last 30 minutes, and not
   // a worktree Git reports gone. Every other seat is retired for these checks: listed once, never a finding.
+  const localPresence = lineSettings(board)['route.liveOnly']
+    ? new Map(withLocalSeatPresence(board, rows.map(row => ({ agent_id: row.id }))).map(seat => [seat.agent_id, seat.presence])) : null;
   const agents = rows.filter((row) => row.lane !== 'coordinator').map((row) => {
     const last = Math.max(...[row.created, row.event_at, row.shout_at].filter(Boolean).map((value) => Date.parse(value)));
     const lease = items.some((item) => (item.item_status === 'claimed' && item.item_owner === row.id && Date.parse(item.item_lease_until ?? '') > at)
       || (item.item_review_by === row.id && Date.parse(item.item_review_until ?? '') > at));
     const awaitsReview = items.some((item) => item.item_status === 'submitted' && item.item_built_by === row.id);
-    const recent = !gone.has(row.path) && (lease || at - last < QUEUE_ACTIVE_MS);
+    const recent = !gone.has(row.path) && (localPresence ? localPresence.get(row.id) === 'live' : lease || at - last < QUEUE_ACTIVE_MS);
     const pulled = Math.max(...[row.created, row.pulled_at].filter(Boolean).map((value) => Date.parse(value)));
     const idle = recent && !lease && !awaitsReview && at - pulled >= QUEUE_ACTIVE_MS;
     return { ...row, last, recent, idle, idleSince: idle ? new Date(pulled + QUEUE_ACTIVE_MS).toISOString() : null };
