@@ -22,6 +22,7 @@ Statuses: approved = in force · draft = proposed · wont = considered and decli
 - C8 [approved, must] No bare empty catch hides a failure; existing cases can only fall. Why: failures need handling or an explicit reason to ignore them. | gate: check node bin/checks/empty-catch.js | count: 11
 - C10 [draft, must] No silent catch or fallback: each one logs a specific line that names its subject. Rigor names each catch clause and .catch handler a change adds to a source file that neither throws nor writes a line; a fallback written with a default operator is review. | gate: check node bin/pullboard.js rigor quality --rule silent-catch | count: 0 | source: rigor-quality:silent-catch
 - C11 [draft, must] A file over the 1500-line cap, or a change that grows code past its 400-line budget, is named. Rigor names each changed source file that ends over 1500 lines and grew, and a change whose non-test code grows by more than 400 lines net, or the board's rigor.budget setting, at the file that grew most. | gate: check node bin/pullboard.js rigor quality --rule size-budget | count: 0 | source: rigor-quality:size-budget
+- C12 [draft, must] Stylesheets take font sizes, spacing and corners from the scale in src/view.css; hand-typed sizes only fall. Why: one scale keeps every screen coherent. | gate: check node bin/checks/ui-sizes.js | count: 10
 
 ## T · Tests
 - T1 [approved, must] Tests use node:test against real git repos and a real SQLite file, not mocks. | gate: review

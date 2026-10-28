@@ -7,6 +7,9 @@ import { RIGOR_AUTO_ENGINE } from './rigor-auto-engine.js';
 import { SPEC_APPROVAL_ENGINE } from './spec-approval-engine.js';
 import { validateKnownLineSetting } from './queue-settings.js';
 
+/** A shout carries at most 400 characters (proof-receipts.js refuses longer). */
+const SHOUT_LIMIT = 400;
+
 /** Normalize presentation whitespace without changing the quoted requirement's wording. */
 function wording(value) { return String(value ?? '').normalize('NFC').trim().replace(/\s+/gu, ' '); }
 
@@ -77,7 +80,16 @@ export function sharpenRepeatedClause(board, item, detail, { holdItem, shout, lo
   holdItem(board, item.item_id, { agentId: 'coordinator', reason });
   logEvent(board, 'coordinator', 'bar-sharpen', item.item_id, { ...detail, to, digest: item.item_frozen_digest });
   shout(board, { from: to === 'person' ? 'coordinator' : 'sentinel', to, lanes: ['coordinator'], decision: to === 'person',
-    text: `#${item.item_id} needs a sharper bar after two rejects of “${detail.clauseText}”. Clarify the criterion, refreeze it, and lift the item hold before another build round.` });
+    text: sharpenText(item.item_id, detail.clauseText) });
+}
+
+/** Quote the clause whole when the notice fits a shout; otherwise keep its start and name what was cut (C6). */
+function sharpenText(id, clause) {
+  const text = quoted => `#${id} needs a sharper bar after two rejects of “${quoted}”. Clarify the criterion, refreeze it, and lift the item hold before another build round.`;
+  if (text(clause).length <= SHOUT_LIMIT) return text(clause);
+  const tail = `… (+${clause.length} characters; pullboard show ${id})`;
+  const kept = clause.slice(0, SHOUT_LIMIT - text('').length - tail.length);
+  return text(`${kept}… (+${clause.length - kept.length} characters; pullboard show ${id})`);
 }
 
 /** Complete an authorized verdict inside the caller's atomic boundary, preserving its exact writer/event order. */
