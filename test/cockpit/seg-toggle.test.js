@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { segmentedToggle } from '../../src/view/seg-toggle.js';
-import { SPEC, machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, proofShot } from './fixture.js';
+import { SPEC, machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, tapTouch, proofShot } from './fixture.js';
 
 test('the shared segmented component escapes labels, values and counts and exposes each pressed state [N26]', () => {
   const html = segmentedToggle({ label: 'A "group"', attribute: 'data-rows', value: 'chosen', options: [
@@ -40,8 +40,10 @@ async function measureControl(chrome, selector) {
       radius:style.borderRadius, background:style.backgroundColor, tap:Number.parseFloat(root.getPropertyValue('--tap')), expected,
       options:[...track.querySelectorAll('button')].map(button => {
         const css = getComputedStyle(button), box = button.getBoundingClientRect(), count = button.querySelector('b'), n = count && getComputedStyle(count);
+        const edges = [...button.querySelectorAll('.seg-hit')].map(edge => edge.getBoundingClientRect());
+        const hitHeight = Math.max(box.bottom, ...edges.map(edge => edge.bottom)) - Math.min(box.top, ...edges.map(edge => edge.top));
         return { text:button.childNodes[0]?.textContent, count:count?.textContent, pressed:button.getAttribute('aria-pressed'),
-          height:box.height, font:css.fontFamily, size:css.fontSize, weight:css.fontWeight, radius:css.borderRadius,
+          height:box.height, hitHeight, edgeWidths:edges.map(edge => edge.width), width:box.width, font:css.fontFamily, size:css.fontSize, weight:css.fontWeight, radius:css.borderRadius,
           padding:[css.paddingTop,css.paddingRight,css.paddingBottom,css.paddingLeft], color:css.color, background:css.backgroundColor,
           shadow:css.boxShadow, border:css.borderTopWidth, countSize:n?.fontSize, countFont:n?.fontFamily,
           countColor:n?.color, countWeight:n?.fontWeight, countGap:n?.marginLeft };
@@ -93,6 +95,8 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
         assert.equal(actual.options.filter(option => option.pressed === 'true').length, 1, 'one choice is pressed');
         for (const option of actual.options) {
           assert.equal(option.height, actual.tap - 4, 'options fit inside the quiet track');
+          assert.equal(option.hitHeight, actual.tap, 'transparent edges retain the full target height');
+          assert.deepEqual(option.edgeWidths, [option.width, option.width], 'both edges cover the full option width');
           assert.equal(option.size, '13px');
           assert.match(option.font, /system-ui/u);
           assert.equal(option.radius, actual.expected.optionRadius);
@@ -119,6 +123,10 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
           assert.equal(actual.options.find(option => option.text === 'Approved').count, String(rows.filter(row => row.status === 'approved').length));
         } else assert.ok(Number(actual.options.find(option => option.text === 'Shouts').count) > 0, 'a real native shout is counted');
         await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
+        await chrome.waitFor('document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ').getAttribute("aria-pressed") === "true"');
+        await tapTouch(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + selected + '"] .seg-hit-top') + ')');
+        await chrome.waitFor('document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + selected + '"]') + ').getAttribute("aria-pressed") === "true"');
+        await tapTouch(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"] .seg-hit-bottom') + ')');
         await chrome.waitFor('document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ').getAttribute("aria-pressed") === "true"');
         if (pane === 'items') assert.equal(await chrome.stable('document.querySelector("#pipeline").hidden'), false, 'Pipeline still opens');
         if (pane === 'activity') assert.equal(await chrome.stable('[...document.querySelectorAll("#activity [data-activity-kind]")].every(row => row.dataset.activityKind === "shout")'), true, 'Shouts still filters the real feed');

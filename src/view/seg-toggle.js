@@ -6,5 +6,5 @@ export function segmentedToggle({ label, attribute, value, options }) {
   const esc = text => String(text).replace(/[&<>"']/gu, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   return '<div class="seg" role="group" aria-label="' + esc(label) + '" data-segmented-control="' + attribute + '">'
     + options.map(option => '<button type="button" ' + attribute + '="' + esc(option.value) + '" aria-pressed="' + (option.value === value) + '" class="' + (option.value === value ? 'on' : '') + '">'
-      + esc(option.label) + (option.count === undefined ? '' : '<b>' + esc(option.count) + '</b>') + '</button>').join('') + '</div>';
+      + esc(option.label) + (option.count === undefined ? '' : '<b>' + esc(option.count) + '</b>') + '<span class="seg-hit seg-hit-top" aria-hidden="true"></span><span class="seg-hit seg-hit-bottom" aria-hidden="true"></span></button>').join('') + '</div>';
 }

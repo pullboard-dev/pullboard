@@ -416,7 +416,11 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .chips button b { font: 600 var(--text-2xs) var(--mono); color: var(--ink-faint); margin-left: var(--space-1); }
 /* One component for Items, Spec, Doctrine and Activity; the track matches its neighbouring Filter. */
 .seg { display: inline-flex; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none; height: var(--tap); gap: var(--space-0); padding: var(--space-0); border-radius: var(--radius-md); background: var(--surface-2); }
-.seg button { flex: none; height: calc(var(--tap) - var(--space-1)); min-height: 0; border: 0; background: none; padding: 0 var(--space-4); border-radius: var(--radius-sm); color: var(--ink-muted); cursor: pointer; font: var(--text-sm) var(--sans); white-space: nowrap; }
+.seg button { position: relative; flex: none; height: calc(var(--tap) - var(--space-1)); min-height: 0; border: 0; background: none; padding: 0 var(--space-4); border-radius: var(--radius-sm); color: var(--ink-muted); cursor: pointer; font: var(--text-sm) var(--sans); white-space: nowrap; }
+/* Transparent edge targets fill the track padding without enlarging the visible option. */
+.seg-hit { position: absolute; left: 0; right: 0; height: var(--space-0); }
+.seg-hit-top { top: calc(var(--space-0) * -1); }
+.seg-hit-bottom { bottom: calc(var(--space-0) * -1); }
 .seg button:hover { color: var(--ink); }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px var(--shade), 0 0 0 1px var(--line); }
 .seg button b { font: 400 var(--text-2xs) var(--mono); color: var(--ink-faint); margin-left: var(--space-2); }
