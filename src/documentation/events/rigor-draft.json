@@ -1,0 +1,10 @@
+{
+  "kind": "rigor-draft",
+  "entries": [
+    {
+      "order": 36,
+      "actor": "rigor",
+      "detail": "`id`, `target`, `cause`, exact typed `source`, `unproved` (always true), `items`, `occurrences`, `engine`"
+    }
+  ]
+}

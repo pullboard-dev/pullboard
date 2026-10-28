@@ -19,6 +19,7 @@ import {
   mechanicalConflictFiles,
 } from './mechanical-merge.js';
 import { writeFormatTable } from './format-registry.js';
+import { refreshLandingDocs } from './landing-docs.js';
 import {
   createHash,
   randomUUID,
@@ -308,6 +309,7 @@ async function mergeGroup(state, items) {
     const engines = assignEngineNumbers(batch.root);
     if (existsSync(join(batch.root, 'src', 'formats')) && existsSync(join(batch.root, 'docs', 'formats.md'))
       && writeFormatTable(batch.root) && !engines.files.includes('docs/formats.md')) engines.files.push('docs/formats.md');
+    for (const file of refreshLandingDocs(batch.root)) if (!engines.files.includes(file)) engines.files.push(file);
     if (engines.files.length) {
       git(batch.root, ['add', '--', ...engines.files]);
       git(batch.root, ['commit', '--amend', '--no-edit']);

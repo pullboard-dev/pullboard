@@ -359,7 +359,7 @@ test('read commands never refresh presence while committed writes and hooks do [
     assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM item WHERE item_status='claimed'").get().n, 0, 'the next control really makes no claim');
     assert.equal(local.prepare('SELECT n FROM writes').get().n, 0, 'none of the read commands writes the private sidecar');
   } finally { board.db.exec('ROLLBACK'); }
-  const shouted = await box.run(box.web, 'shout', 'coordinator', 'Committed write refreshes this seat', '--json');
+  const shouted = await box.run(box.web, 'shout', 'all', 'Committed write refreshes this seat', '--json');
   assert.equal(shouted.code, 0, shouted.err + shouted.out);
   assert.equal(local.prepare('SELECT n FROM writes').get().n, 1);
   const shout = board.db.prepare('SELECT shout_at FROM shout WHERE shout_from=? ORDER BY shout_id DESC LIMIT 1').get('web-1');

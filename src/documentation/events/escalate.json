@@ -1,0 +1,10 @@
+{
+  "kind": "escalate",
+  "entries": [
+    {
+      "order": 7,
+      "actor": "builder",
+      "detail": "`from`, `to`, `note`, `attempt`"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "kind": "renew",
+  "entries": [
+    {
+      "order": 13,
+      "actor": "builder",
+      "detail": "`leaseUntil`, `digest`, optional `grantEngine`"
+    }
+  ]
+}

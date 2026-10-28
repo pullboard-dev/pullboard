@@ -1,0 +1,10 @@
+{
+  "kind": "health-failure",
+  "entries": [
+    {
+      "order": 44,
+      "actor": "sentinel",
+      "detail": "`key`, `cause`, `since`, `subject`, `owner`, `commit`, `engine`"
+    }
+  ]
+}

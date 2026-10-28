@@ -1127,6 +1127,50 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
   .dash-list small { margin-left: auto; }
 }
 
+/* The shared Needs-you rows follow the approved full-list and Dashboard mockup. */
+.needs-group, .needs-call, .needs-more { min-width: 0; list-style: none; }
+.needs-group > ol { list-style: none; padding: 0; margin: 0; }
+.needs-group-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.needs-group h3 { margin: 16px 10px 6px; font: 600 11px var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
+.needs-call { border-radius: 10px; }
+.needs-call details[open] { background: var(--surface-2); border-radius: 10px; }
+.needs-call summary, .needs-drafts > button { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 10px; cursor: pointer; list-style: none; border: 0; background: none; width: 100%; text-align: left; color: var(--ink); }
+.needs-call summary::-webkit-details-marker { display: none; }
+.needs-call summary:hover, .needs-drafts > button:hover { background: var(--surface-2); border-radius: 10px; }
+.needs-kind { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-weight: 700; }
+.needs-kind-question, .needs-action-question { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, var(--surface)); }
+.needs-kind-sentinel, .needs-action-sentinel { color: var(--violet, #7959ce); background: color-mix(in srgb, var(--violet, #7959ce) 14%, var(--surface)); }
+.needs-kind-approval, .needs-action-approval { color: var(--blue); background: color-mix(in srgb, var(--blue) 14%, var(--surface)); }
+.needs-kind-draft { color: var(--ink-muted); background: var(--surface-2); }
+.needs-copy { min-width: 0; }
+.needs-copy b, .needs-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.needs-copy b { font-size: 14px; font-weight: 600; }
+.needs-id { display: inline-block; max-width: 9em; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; margin-right: 8px; color: var(--ink-faint); font: 12px var(--mono); }
+.needs-copy small { margin-top: 3px; color: var(--ink-muted); font-size: 12px; }
+.needs-side { display: flex; align-items: center; gap: 12px; }
+.needs-age { font: 12px var(--mono); color: var(--ink-faint); }
+.needs-action { padding: 2px 8px; border-radius: 999px; white-space: nowrap; font: 600 11px var(--mono); }
+.needs-caret { color: var(--ink-faint); font-size: 22px; line-height: 1; }
+.needs-call details[open] .needs-caret { transform: rotate(90deg); }
+.needs-detail { padding: 0 14px 16px 42px; display: grid; gap: 14px; }
+.needs-detail > p { margin: 0; }
+.needs-detail dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 18px; font-size: 13px; }
+.needs-detail dt { color: var(--ink-faint); }
+.needs-detail dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.needs-detail code { font: 12px var(--mono); padding: 1px 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+.needs-detail .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.needs-confirm-all { min-height: 28px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font-size: 12px; cursor: pointer; }
+.needs-more button { border: 0; background: none; color: var(--accent-strong); padding: 12px 10px; text-align: left; cursor: pointer; }
+@media (max-width: 640px) {
+  .needs-age { font-size: 10px; }
+  .needs-id { max-width: 4.5em; margin-right: 5px; }
+  .needs-call summary, .needs-drafts > button { gap: 8px; padding-inline: 6px; }
+  .needs-side { gap: 6px; }
+  .needs-copy b { font-size: 13px; }
+  .needs-detail { padding-left: 14px; }
+  .needs-detail dl { grid-template-columns: minmax(0, 95px) minmax(0, 1fr); gap: 5px 12px; }
+}
+
 /* Dashboard details follow the approved desktop and phone mockup. */
 .dash-icon { width: 14px; height: 14px; flex: none; display: inline-block; vertical-align: middle; }
 .dash-chips > span { display: inline-flex; align-items: center; gap: 6px; }
