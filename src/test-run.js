@@ -30,12 +30,8 @@ import {
   projectNeedsGui,
   testsNeedGui,
 } from './gui-admission.js';
-import {
-  compareMainFailures,
-  withMainCheckout,
-} from './main-red.js';
 import { Refused } from './refused.js';
-import { runnerSource } from './runners.js';
+import { runnerSource } from './gate-policy-load.js';
 import { fullGateRun } from './gate-execution.js';
 import { timingSource } from './run-timing.js';
 import { trackedDefaultTestFiles } from './test-selection.js';
@@ -46,7 +42,7 @@ import {
 } from './settings.js';
 
 /** Give a direct full suite the same admitted execution and immutable receipt writer as a gate. */
-export async function runFullSuite(root, runner) {
+export async function runFullSuite(root, runner, executionServices) {
   if (relative(root, runner).split(sep).join('/') !== 'bin/run-tests.js' || !timingSource(root)) return null;
   let policy;
   try { policy = mainPolicy(root); } catch { return null; }
@@ -54,7 +50,7 @@ export async function runFullSuite(root, runner) {
   const { cpuRunnerRequired } = await import('./cpu-load-admission.js');
   const result = await withGateSlot(root, lease => fullGateRun(root, { ...policy.config, gate: 'node ./bin/run-tests.js' }, false,
     { gateLease: lease, waitMs: lease.waitMs, kind: 'suite' }),
-  { browser: true, gui: testsNeedGui(root, files), runnerOnly: cpuRunnerRequired(root, files), kind: 'gate' });
+  { executionServices, browser: true, gui: testsNeedGui(root, files), runnerOnly: cpuRunnerRequired(root, files), kind: 'gate' });
   return result;
 }
 
@@ -101,7 +97,7 @@ function snapshotCommit(root) {
 }
 
 /** Run the files where the work is: this clean checkout, or a clean temporary checkout of its snapshot. */
-async function inCleanCheckout(root, work) {
+async function inCleanCheckout(root, work, withMainCheckout) {
   const { commit, clean } = snapshotCommit(root);
   if (clean) return work(root);
   const result = await withMainCheckout(root, commit, work);
@@ -123,7 +119,7 @@ function localReason() {
  *
  * @returns {Promise<{ green: boolean, output: string, runner: string, seconds: number, files: string[], known: Array<{file: string, result: string}>, main: string|null }>}
  */
-export async function runTestFiles(root, config, files, { agent, onWait, affected = false } = {}) {
+export async function runTestFiles(root, config, files, { agent, onWait, affected = false, executionServices, compareMainFailures, withMainCheckout } = {}) {
   if (affected && files.length) throw new Refused('USAGE', 'use pullboard test --affected without file arguments, or name the files without --affected');
   const policy = affected ? mainPolicy(root) : null;
   if (policy) config = policy.config;
@@ -131,6 +127,7 @@ export async function runTestFiles(root, config, files, { agent, onWait, affecte
     throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node bin/run-tests.js"');
   }
   let paths = affected ? [] : testFiles(root, files);
+  if (typeof compareMainFailures !== 'function' || typeof withMainCheckout !== 'function') throw new TypeError('test files need an explicit accepted-main comparison');
   const started = Date.now();
   const run = await inCleanCheckout(root, async (checkout) => {
     let full = false;
@@ -147,8 +144,8 @@ export async function runTestFiles(root, config, files, { agent, onWait, affecte
     const command = full ? `(${config.gate})${focused ? ' && ' + focused : ''}` : (focused || 'true');
     const browser = full || !browserFreeChecksEnabled() || await testsNeedBrowser(checkout, paths);
     return withGateSlot(checkout, (lease) => runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs }),
-      { browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full, agent, kind: 'test', onWait });
-  });
+      { executionServices, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full, agent, kind: 'test', onWait });
+  }, withMainCheckout);
   const result = { green: run.isGreen, output: run.output, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
     ...(run.executionRunner ? {} : { local: localReason() }) };
   if (!run.isGreen) {

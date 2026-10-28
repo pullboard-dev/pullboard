@@ -1,5 +1,7 @@
 /** @pullboard-module-loads src/gate.js src/runners.js */
 /** Exercise runner-first placement, zero local pools, and public submit/landing gate paths [C7]. */
+import { executionServices } from './gate-execution-fixture.js';
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -16,13 +18,14 @@ function runPrivateGateLease(box, behavior = '') {
   const gateUrl = pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href;
   const runnersUrl = pathToFileURL(resolve(import.meta.dirname, '../src/runners.js')).href;
   const source = `import { withGateSlot } from ${JSON.stringify(gateUrl)};
+${executionServicesSource(gateUrl)}
 import { RunnerDropped } from ${JSON.stringify(runnersUrl)};
 const root = ${JSON.stringify(box.repo)};
 let remoteAttempts = 0;
 const result = await withGateSlot(root, async lease => {
   ${behavior}
   return lease.runner?.host ?? 'local';
-}, { remote: true, kind: 'runner-first-cursor-test' });
+}, { executionServices, remote: true, kind: 'runner-first-cursor-test' });
 process.stdout.write(result + '\\n');
 `;
   return runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env, encoding: 'utf8' });
@@ -72,7 +75,7 @@ export async function runnerFirstPolicyCase(e2e) {
       announce(lease.runner?.host ?? 'local');
       await new Promise(resolvePromise => { releaseHeld = resolvePromise; });
       return lease.runner?.host ?? 'local';
-    }, { remote: true, agent: 'runner-first-full-control', kind: 'runner-first-cursor-test' });
+    }, { executionServices, remote: true, agent: 'runner-first-full-control', kind: 'runner-first-cursor-test' });
     assert.equal(await admitted, 'a51', 'the first live runner lease occupies the next runner');
     assert.deepEqual([runPrivateGateLease(box), runPrivateGateLease(box)].map(result => {
       assert.equal(result.status, 0, result.context);

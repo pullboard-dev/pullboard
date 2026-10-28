@@ -1,4 +1,6 @@
 /** Fresh per-file main comparisons for inherited submit reds [V1]. */
+import { runnerExecutionServices } from './runners.js';
+import { landingExecutionServices } from './landing-shards.js';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
@@ -241,7 +243,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
           const failures = detailed ? run.isGreen ? [] : failureSignatures(run, checkout) : null;
           if (detailed && !run.isGreen && !failures) throw new Error('focused main output has no complete named failure account');
           return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}) };
-        }, { diagnostic: true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait });
+        }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait });
         // History a runner may not receive keeps the comparison on this machine, as it ran before runners.
         try { return await measure(true); }
         catch (error) { if (error?.code !== 'RUNNER_SECRET') throw error; return measure(false); }

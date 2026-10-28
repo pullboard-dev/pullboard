@@ -30,7 +30,7 @@ import { foreignNodeOptions, isolateTestMachine } from '../src/test-isolation.js
 import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../src/test-file-pool.js';
 import { optionTakesValue } from '../src/test-file-dispatch.js';
 import { knownNodeOption } from '../src/test-file-dispatch.js';
-import { COLLECTION_ID_ENV } from '../src/landing-collection-report.js';
+import { COLLECTION_ID_ENV } from '../src/gate-run-receipt.js';
 import { beginSuiteTiming, TIMING_RUN_ID_ENV } from '../src/run-timing.js';
 const runner = fileURLToPath(import.meta.url);
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
@@ -1153,7 +1153,7 @@ async function longestFilesFirst(args) {
     at.push(index);
   }
   if (at.length < 2) return args;
-  const { readFileTimes } = await import('../src/landing-shards.js');
+  const { readFileTimes } = await import('../src/test-value-timing.js');
   const times = readFileTimes(process.cwd());
   if (!Object.keys(times).length) return args;
   const ordered = longestFirst(at.map(index => args[index]), times, file => relative(process.cwd(), resolve(file)));
@@ -1248,7 +1248,10 @@ async function main(args) {
   try {
     if (!args.length && !process.env.PULLBOARD_GATE_SLOT_HELD && !process.env.PULLBOARD_GATE_SLOT_POOL
       && !process.env.PULLBOARD_GATE_SLOT_TOKEN && !process.env[LANDING_SHARD_ENV]) {
-      const direct = await (await import('../src/test-run.js')).runFullSuite(process.cwd(), runner);
+      const [{ runFullSuite }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
+        import('../src/test-run.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
+      ]);
+      const direct = await runFullSuite(process.cwd(), runner, { runners: runnerExecutionServices(), landing: landingExecutionServices() });
       if (direct) {
         if (direct.receiptId) await (await import('../src/native-flake-cli.js')).recordSuiteRun(process.cwd(), direct.receiptId, await import('../src/cli.js'));
         process.stdout.write(direct.output); process.exitCode = direct.isGreen ? 0 : 1; return;
@@ -1365,8 +1368,8 @@ async function main(args) {
     /** Acquire all required capabilities before creating the sandbox or starting test processes. */
     async function acquire() {
       // Direct runs use the public queue, requesting gate and browser capacity atomically when needed.
-      const [{ withGateSlot }, { loadMachineSettings }] = await Promise.all([
-        import('../src/gate-slot.js'), import('../src/settings.js'),
+      const [{ withGateSlot }, { loadMachineSettings }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
+        import('../src/gate-slot.js'), import('../src/settings.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
       ]);
       const capacity = loadMachineSettings().gateSlots;
       let announced = false;
@@ -1385,7 +1388,7 @@ async function main(args) {
         process.stdout.write(result.output);
         process.exitCode = result.exitCode;
       }, {
-        browser, gui, kind: fullSuite ? 'gate' : 'focused', shortEligible,
+        executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, kind: fullSuite ? 'gate' : 'focused', shortEligible,
         remote: Boolean(canShipRunner), runnerOnly,
         onWait: ({ holders, runnerUnavailable }) => {
           if (runnerUnavailable) {

@@ -1,4 +1,5 @@
 /** A genuinely checked main merge passes the complete native/relay reader oracle [C7,V4,H16]. */
+import { executionServices } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
@@ -59,7 +60,7 @@ export async function seedSourceAdvance({ board, box, store, exercise, agent, cl
   delete process.env.NODE_TEST_CONTEXT;
   try { await withSourceComposition(root, candidate, trunk, async (composition, custody) => {
     custody.started();
-    const gate = await runSubmitGate(composition.directory, mainPolicy(root).config, { base: candidate,
+    const gate = await runSubmitGate(composition.directory, mainPolicy(root).config, { executionServices, base: candidate,
       changed: composition.changed, check, agent: 'coordinator', item: String(id), sourceAdvance: true,
       proofContext: { item: id, frozenDigest: digest, seat: 'coordinator', kind: 'submit' } });
     assert.equal(gate.cleanupUnverified, undefined, 'the admitted child returned without unknown custody');

@@ -1,4 +1,8 @@
 /** The pullboard test command, in its own module so an item adding another command never edits these lines. */
+import { runnerExecutionServices } from '../runners.js';
+import { landingExecutionServices } from '../landing-shards.js';
+import { compareMainFailures } from '../main-red.js';
+import { withMainCheckout } from '../main-red.js';
 import { runTestFiles } from '../test-run.js';
 import {
   context,
@@ -10,7 +14,7 @@ import {
 export async function run(io, { first, second, rest, values }) {
   const ctx = context(io);
   const files = [first, second, ...rest].filter((file) => file !== undefined && file !== '');
-  const result = await runTestFiles(ctx.info.root, ctx.config, files, { affected: values.affected === true, agent: resourceAgent(ctx) ?? `pid-${process.pid}`, onWait: gateWaitReporter(io) });
+  const result = await runTestFiles(ctx.info.root, ctx.config, files, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, compareMainFailures, withMainCheckout, affected: values.affected === true, agent: resourceAgent(ctx) ?? `pid-${process.pid}`, onWait: gateWaitReporter(io) });
   io.result?.(result);
   if (!values.json && result.output) io.say(result.output.trimEnd());
   io.err(`pullboard test: ${result.green ? 'green' : 'red'} on ${result.runner} in ${result.seconds}s${result.local ? `: ${result.local}` : ''}`);

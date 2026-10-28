@@ -11,9 +11,9 @@ import {
   sep,
 } from 'node:path';
 
-import { COLLECTION_REPORT_PREFIX } from './landing-collection-report.js';
-import { formatCollectionReport } from './landing-collection-report.js';
-import { parseCollectionReports } from './landing-collection-report.js';
+import { COLLECTION_REPORT_PREFIX } from './gate-run-receipt.js';
+import { formatCollectionReport } from './gate-run-receipt.js';
+import { parseCollectionReports } from './gate-run-receipt.js';
 
 export const TIMING_RUN_ID_ENV = 'PULLBOARD_TIMING_RUN_ID';
 export const SUITE_TIMING_PREFIX = '# pullboard suite timing ';

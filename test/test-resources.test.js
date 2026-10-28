@@ -13,7 +13,6 @@ import { browserBoundFiles, checkNeedsBrowser, testsNeedBrowser } from '../src/b
 import { browserInCall } from '../src/browser-slot-guard.js';
 import { snapshotBrowserSourceFiles, withBrowserSourceFiles } from '../src/browser-source-files.js';
 
-const TEST_RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
 
 /** Create source files for a dependency graph whose modules must never execute during admission. */
 function sourceFixture(t, files) {
@@ -180,7 +179,7 @@ test('module launchers and dynamic builtins keep browser admission conservative 
   }
 
   // The reviewed parser has real local dependencies; preserve its actual source closure.
-  cpSync(resolve(import.meta.dirname, '../src'), join(root, 'src'), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
   writeFileSync(join(root, 'test/parser.test.js'), "import '../src/module-imports.js';\n");
   const parserFallbacks = [];
   const parserBrowser = await testsNeedBrowser(root, ['test/parser.test.js'], { onFallback: decision => parserFallbacks.push(decision) });
@@ -257,7 +256,7 @@ test('frozen checks classify only explicit source-backed test commands [C7]', as
   mkdirSync(runnerPath);
   assert.equal(await checkNeedsBrowser(root, command, { env: classifyEnv }), true, 'a directory runner fails closed');
   rmSync(runnerPath, { recursive: true, force: true });
-  copyFileSync(TEST_RUNNER, runnerPath);
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root, { files: ['bin/run-tests.js'] });
   for (const opaque of [
     'node bin/run-tests.js test/plain.test.js; touch side-effect',
     'node bin/run-tests.js test/*.test.js',
@@ -552,7 +551,6 @@ test('reviewed executor imports stay browser-free only at their exact call sites
   const root = sourceFixture(t, {});
   copyPackageFiles(repository, root);
   cpSync(join(repository, 'test'), join(root, 'test'), { recursive: true });
-  copyFileSync(join(repository, 'package.json'), join(root, 'package.json'));
   for (const [index, [file, name, call]] of entries.entries()) {
     const importer = `test/reviewed-executor-${index}.test.js`;
     const request = file.startsWith('src/') ? `../${file}` : `./${file.slice(5)}`;
