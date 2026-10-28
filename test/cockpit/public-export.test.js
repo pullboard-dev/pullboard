@@ -254,8 +254,8 @@ test('a clean public export renders offline with public work and no write path [
   box.git(alpha.repo, 'merge', '-q', '--no-ff', alpha.branch, '-m', 'chore: land public fixture');
   const tip = box.git(alpha.repo, 'rev-parse', 'HEAD'), base = box.git(alpha.repo, 'rev-parse', 'HEAD^1');
   const batchId = randomUUID();
-  // @pullboard-board-file journey: genuine native batch operations project this private Git merge.
   // The helper's synthetic acceptance is lifecycle setup only, never gate or landing assurance.
+  // @pullboard-board-file journey: genuine native batch operations project this private Git merge.
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const item = getItem(board, 2);
