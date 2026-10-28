@@ -5,6 +5,7 @@ import { renderNeedsRow } from './needs-list.js';
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
 export function pageRenderScript() {
   return `function render() {
+  renderIndexes = new WeakMap();
   // A refresh that moved the page to another board closes a confirmation opened on the last one.
   closeIfLeft();
   if (heldClickPointer !== null || pageDialogs.size) { deferredClickRender = true; return; }
@@ -54,7 +55,7 @@ export function pageRenderScript() {
   }).join('');
   const items = p.items.filter((i) => i.status !== 'withdrawn');
   const active = items.filter((i) => stateOf(i) !== 'verified');
-  const titles = new Map(p.items.map((i) => [String(i.id), i.title]));
+  const titles = renderIndex(p).titles;
   const lanes = p.lanes, working = lanes.filter((lane) => lane !== 'coordinator');
   const heldLanes = new Map(p.holds.map((hold) => [hold.hold_lane, hold]));
   const gatedOf = (item) => stateOf(item) === 'open' && (item.blockedBy.length > 0 || heldLanes.has(item.lane));
@@ -403,10 +404,12 @@ export function pageRenderScript() {
     if (!(view.tab === kind && view.addressDetail !== null) && !shownRows.some((r) => r.id === view.row[kind])) view.row[kind] = shownRows[0]?.id ?? null;
     const feedback = view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'list' ? view.specFeedback : null;
     const feedbackId = feedback && (shownRows.some((r) => r.id === feedback.id) ? feedback.id : shownRows.some((r) => r.id === feedback.next) ? feedback.next : shownRows[0]?.id);
+    const sectionCounts = new Map();
+    for (const row of shownRows) sectionCounts.set(row.section, (sectionCounts.get(row.section) || 0) + 1);
     let section = null;
     $(kind + '-list').innerHTML = shownRows.length ? shownRows.map((r) => {
       const sectionRows = !snapshot && (!readOnly || requests) && kind === 'spec' && r.section !== section ? rows.filter((entry) => entry.section === r.section && undecided(entry)) : [];
-      const sectionCount = shownRows.filter((entry) => entry.section === r.section).length;
+      const sectionCount = sectionCounts.get(r.section);
       const head = r.section !== section ? '<div class="spec-section-head"><h4>' + esc(r.section) + ' <span class="section-count">' + sectionCount + '</span></h4>' + (sectionRows.length ? '<button class="spec-section-approve" data-section-approve="' + esc(r.section) + '" type="button">Approve all ' + sectionRows.length + ' in this section</button>' : '') + '</div>' : '';
       section = r.section;
       const declined = kind === 'doctrine' && r.status === 'wont';
@@ -416,14 +419,14 @@ export function pageRenderScript() {
       const secondary = '<span class="rule-source" title="' + esc(source) + '">' + esc(source) + '</span>' + reason + (r.gate ? '<span class="gate" title="' + esc(r.gate) + '">' + esc(r.gate) + '</span>' : '');
       const statusShown = filter === 'all' || !!r.staleDecision || (filter === 'decide' && r.status !== 'draft');
       const badge = statusShown ? '<span class="chip ' + tone(r.status) + '">' + esc(r.stage || r.status) + '</span>' : r.tier ? '<span class="chip">' + esc(r.tier) + '</span>' : '';
-      const citations = p.items.filter((item) => item.specs.includes(r.id)).length;
+      const citations = renderIndex(p).citations.get(r.id)?.length || 0;
       return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + recordRow({ tag: 'div', classes: view.row[kind] === r.id ? 'on' : '', attributes: 'data-row="' + kind + ':' + esc(r.id) + '"', title: r.text,
         state: r.status === 'approved' ? 'verified' : r.status === 'wont' ? 'back' : 'open', primary: '<span class="row-id">' + esc(r.id) + '</span>' + text,
         secondary, rightTop: citations ? count(citations, 'item', 'items') : '', rightBottom: badge });
     }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No doctrine rows yet: they live in DOCTRINE.md.') + '</div>';
     if (feedback && !shownRows.length) $(kind + '-list').innerHTML += specFeedback(feedback);
     const row = rows.find((r) => r.id === view.row[kind]);
-    const citing = row ? p.items.filter((i) => i.specs.includes(row.id)) : [];
+    const citing = row ? renderIndex(p).citations.get(row.id) || [] : [];
     const declined = kind === 'doctrine' && row && row.status === 'wont';
     const text = row ? declined ? '<s>' + linked(row.standardText || row.text, titles) + '</s>' : linked(row.text, titles) : '';
     const source = kind === 'doctrine' && row ? '<span class="chip" title="' + esc(ruleSourceTitle(row)) + '">' + esc(ruleSource(row)) + '</span>' : '';

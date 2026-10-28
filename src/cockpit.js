@@ -804,14 +804,38 @@ function renderGroup(group) {
  * folder, as the roadmap resolves it: the same state, sent back included, and it opens there. An
  * item no listed board holds keeps the status the roadmap read for it, and opens nowhere.
  */
+let renderIndexes = new WeakMap();
+/** Index only the immutable board objects used during this synchronous render. */
+function renderIndex(project) {
+  if (!project) return { items: new Map(), titles: new Map(), releases: new Map(), citations: new Map() };
+  if (!renderIndexes.has(project)) {
+    const releases = new Map();
+    for (const milestone of project.milestones || []) {
+      for (const id of new Set(milestone.items.map(entry => entry.id))) {
+        if (!releases.has(id)) releases.set(id, []);
+        releases.get(id).push(milestone.name);
+      }
+    }
+    const citations = new Map();
+    for (const item of project.items || []) for (const id of new Set(item.specs || [])) {
+      if (!citations.has(id)) citations.set(id, []);
+      citations.get(id).push(item);
+    }
+    renderIndexes.set(project, { citations, items: new Map((project.items || []).map(item => [item.id, item])),
+      titles: new Map((project.items || []).map(item => [String(item.id), item.title])), releases });
+  }
+  return renderIndexes.get(project);
+}
+
+/** Resolve a milestone item from the current render's exact local or foreign board snapshot. */
 function milestoneItem(entry, p) {
   const local = typeof entry.id === 'number';
   const ref = local ? null : /^(.+)#([1-9]\\d*)$/.exec(String(entry.id));
   const named = ref ? data.projects.filter((x) => x.name === ref[1] || String(x.root).split('/').pop() === ref[1]) : [];
   const root = local ? view.root : named.length === 1 && named[0].ok ? named[0].root : null;
   const id = local ? entry.id : ref ? Number(ref[2]) : null;
-  const item = (root === view.root ? p.items : root ? named[0].items : []).find((i) => i.id === id) || null;
   const source = root === view.root ? p : root ? named[0] : null;
+  const item = renderIndex(source).items.get(id) || null;
   const label = local ? '#' + entry.id : String(entry.id);
   const expanded = view.tab === 'roadmap' && view.roadmapOpen.get(JSON.stringify([view.root, 'i:' + label])) === true;
   // A folded row holds whatever detail is already kept, so it opens in place whole (#1039).
@@ -823,13 +847,13 @@ function milestoneItem(entry, p) {
     label: local ? '#' + entry.id : String(entry.id),
     title: item ? item.title : read ? entry.title : '',
     root,
-    titles: new Map((root === view.root ? p.items : root ? named[0].items : []).map((i) => [String(i.id), i.title])),
+    titles: renderIndex(source).titles,
     state: read ? stateOf(read) : null,
     stale: item ? staleChip(item) : '', held: item ? heldNote(item, source, entry) : null,
     block: item ? roadmapBlock(detail?.item || item, {
       holds: root === view.root ? source.holds : source.laneHolds, itemHolds: source.itemHolds, items: source.items, agents: source.agents, state: stateOf,
       address: (id) => itemAddress(id, root), board: root === view.root ? null : root,
-      releases: (p.milestones || []).filter((milestone) => milestone.items.some((ref) => ref.id === entry.id)).map((milestone) => milestone.name),
+      releases: renderIndex(p).releases.get(entry.id) || [], summaryOnly: !expanded,
       error: expanded ? detail?.error : undefined,
     }) : null,
     // Until its omitted fields arrive, an expanded row paints what its summary holds and fills the rest in place (#1039).

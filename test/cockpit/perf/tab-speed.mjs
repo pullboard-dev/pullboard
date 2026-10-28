@@ -8,7 +8,11 @@ import { startView, stopView } from './run.mjs';
 /** Observe actual fetch/body/parse work before the page starts, without replacing its data. */
 function observationScript() {
   return `(() => {
-    const evidence = window.__tabSpeed = { fetch: [], parse: [], render: [], actions: [] };
+    const evidence = window.__tabSpeed = { fetch: [], parse: [], render: [], actions: [], tasks: [] };
+    try {
+      const observer = new PerformanceObserver(list => evidence.tasks.push(...list.getEntries().map(entry => ({ start: entry.startTime, durationMs: entry.duration }))));
+      observer.observe({ type: 'longtask', buffered: true }); evidence.longTasksAvailable = true;
+    } catch { evidence.longTasksAvailable = false; }
     const fetchOriginal = window.fetch;
     window.fetch = async function (...args) {
       const start = performance.now();
@@ -33,8 +37,9 @@ function inputScript() {
     render = function (...args) {
       const start = performance.now(), tab = view.tab;
       try { return original.apply(this, args); }
-      finally { evidence.render.push({ tab, durationMs: performance.now() - start }); }
+      finally { evidence.render.push({ tab, start, end: performance.now(), durationMs: performance.now() - start }); }
     };
+    addEventListener('click', event => { const sample = evidence.actions.at(-1); if (sample && event.target.closest('[data-tab]')?.dataset.tab === sample.tab) sample.clickAt = performance.now(); }, true);
     addEventListener('mousedown', event => {
       const button = event.target.closest('[data-tab]');
       if (!button || !evidence.next) return;
