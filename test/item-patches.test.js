@@ -6,6 +6,8 @@ import { appliedSequence, applyEngineMove, applyRelayMove, prepareEngineMove } f
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { parentSessionDigest } from '../src/parent-session.js';
 import { ITEM_PATCH_ENGINE } from '../src/item-patch-engine.js';
+import { PATCH_AUTHOR_IDENTITY_ENGINE } from '../src/patch-author-identity-engine.js';
+import { retainedVerifierIdentityProblem } from '../src/item-authors.js';
 import {
   itemPatches, itemPatchAuthors,
   itemPatchDigest, itemPatchReviewProblem, itemPatchSetDigest,
@@ -184,10 +186,32 @@ test('a companion author without session metadata cannot review active or remove
     assert.throws(() => store.verify(board, id, { agentId: author, decision: 'ACCEPT', head: COMMIT,
       digest: 'patch-frozen', policy: 'any', companionDigest: itemPatchDigest(board, id),
       note: 'Synthetic native author control; no runtime proof claimed.' }), { code: 'SELF_VERIFY' });
+    assert.equal(retainedVerifierIdentityProblem(board, store.getItem(board, id), author).code, 'SELF_VERIFY');
     assert.deepEqual(exportBoard(board), before, 'direct-author refusals preserve the item and history');
   }
   store.reserveReview(board, id, { agentId: reviewer, leaseMs: 60_000, policy: 'any' });
   store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', head: COMMIT, digest: 'patch-frozen',
     policy: 'any', companionDigest: itemPatchDigest(board, id), note: 'Synthetic unrelated reviewer positive control.' });
   assert.equal(store.getItem(board, id).item_status, 'verified');
+});
+
+test('ordered direct-companion author refusals retain their historical code and new explicit identity rule [V1,H16]', t => {
+  const { board: seed, id } = fixture(t);
+  const author = store.register(seed, { lane: 'api', path: '/patch-domain/ordered-author',
+    parent: 'ordered-companion-parent', session: 'ordered-companion-session' });
+  store.attachItemPatch(seed, id, input(author));
+  store.removeItemPatch(seed, id, { agentId: 'coordinator', key: 'fix' });
+  const move = prepareEngineMove(seed, 'reserveReview', [id, { agentId: author, leaseMs: 60_000, policy: 'any' }], { id: 'direct-patch-author-review' });
+  assert.ok(move.engine >= PATCH_AUTHOR_IDENTITY_ENGINE);
+  for (const engine of [PATCH_AUTHOR_IDENTITY_ENGINE - 1, PATCH_AUTHOR_IDENTITY_ENGINE]) {
+    const replica = store.openBoard(':memory:');
+    t.after(() => store.closeBoard(replica));
+    importBoard(replica, exportBoard(seed));
+    const before = store.getItem(replica, id);
+    const order = { sequence: 1, at: new Date().toISOString() };
+    const outcome = applyEngineMove(replica, { ...move, engine }, order);
+    assert.equal(outcome.error?.code, engine < PATCH_AUTHOR_IDENTITY_ENGINE ? 'SELF_SESSION_VERIFY' : 'SELF_VERIFY');
+    assert.deepEqual(store.getItem(replica, id), before, 'the refusal never reserves or changes the submitted item');
+    assert.deepEqual(applyEngineMove(replica, { ...move, engine }, order), outcome, 'a retry returns the recorded refusal');
+  }
 });
