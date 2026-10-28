@@ -7,7 +7,7 @@
 import { tryGit } from './git.js';
 import { mainCheckout } from './git.js';
 import { Refused } from './refused.js';
-import { originOf } from './decision-origin.js';
+import { originOf } from '../packages/commits/src/core/decision-origin.js';
 import {
   historicalPaths,
   mappedPath,

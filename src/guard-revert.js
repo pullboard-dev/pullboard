@@ -14,7 +14,6 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from './refused.js';
-import { checkAtCommit } from './trusted-policy.js';
 
 const GUARD = /\bguard:\s+(?:patch\s+(\S+)|(\S+?):(\d+)-(\d+))/u;
 
@@ -64,9 +63,10 @@ function revert(directory, guard) {
  * @param {string} root
  * @param {any} item - with item_commit and the frozen check
  * @param {object} [lease] - the held gate slot, shared with the restored run
+ * @param {{ checkAtCommit: Function }} ports - The caller owns trusted check execution.
  * @returns {string} the line the verdict note carries, or '' when no guard is named
  */
-export function guardRevertNote(root, item, lease) {
+export function guardRevertNote(root, item, lease, { checkAtCommit }) {
   const guard = guardOf(item);
   if (!guard) return '';
   let problem = '';
