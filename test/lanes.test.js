@@ -66,7 +66,7 @@ test('WRONG_LANE names a clean native lane checkout and the claim there retains 
   assert.equal(refused.code, 1);
   const hookRefusal = JSON.parse(refused.out).error;
   assert.equal(hookRefusal.code, 'COMMAND_FAILED', 'the native hook returns a nonzero command result rather than throwing a board refusal');
-  assert.match(hookRefusal.message, /outside the api lane: web\/forbidden\.js; shout its owner instead/u);
+  assert.match(hookRefusal.message, /outside the api lane: web\/forbidden\.js \(web's\); shout its owner instead/u);
 });
 
 test('a config with a bad lane refuses and names the field [L1]', () => {
