@@ -76,7 +76,7 @@ test('legacy bootstrap uses declared commit-date order, with held/published root
   pinSourceCacheJob(job, { repoId: box.repoId, commit: held });
   git(box.cache, ['update-ref', `refs/pullboard/published/${published}`, published]);
   const result = await pruneSourceCache({ ...box, roots: [requested], limit: 4 });
-  assert.equal(result.retained, 4);
+  assert.equal(result.retained, 6);
   assert.equal(result.protected, 3);
   assert.match(result.bootstrapOrder, /not observed last use/u);
   for (const head of [held, published, requested, box.commits.at(-2)]) {
@@ -84,33 +84,41 @@ test('legacy bootstrap uses declared commit-date order, with held/published root
   }
   assert.equal(git(box.cache, ['rev-parse', `refs/pullboard/published/${published}`]), published);
   for (const head of box.commits) assert.equal(git(box.cache, ['cat-file', '-t', head]), 'commit', 'pruning never removes committed objects');
-  assert.equal(JSON.parse(readFileSync(join(box.cache, 'pullboard-pruned-refs.jsonl'), 'utf8').trim()).pruned.length, 4);
+  assert.equal(JSON.parse(readFileSync(join(box.cache, 'pullboard-pruned-refs.jsonl'), 'utf8').trim()).pruned.length, 2);
   rmSync(job, { recursive: true });
   await pruneSourceCache({ ...box, roots: [held], limit: 4 });
   const observed = await pruneSourceCache({ ...box, roots: [requested], limit: 3 });
-  assert.equal(observed.retained, 3);
+  assert.equal(observed.retained, 4);
   assert.equal(git(box.cache, ['rev-parse', `refs/pullboard/candidates/${held}`]), held, 'observed use outranks a newer legacy commit after bootstrap');
+  await pruneSourceCache({ ...box, roots: [box.commits.at(-2)], limit: 3 });
   const next = await pruneSourceCache({ ...box, roots: [requested], limit: 2 });
-  assert.equal(next.retained, 2);
+  assert.equal(next.retained, 3);
   assert.ok(next.pruned.includes(`refs/pullboard/candidates/${held}`), 'a completed job no longer pins its old ref');
 });
 
-test('unknown/stale job pins protect candidates and protected overage never raises or evades the bound [C7]', async (t) => {
-  const box = await fixture(t, 6), job = join(box.runnerRoot, 'jobs', 'unknown');
-  mkdirSync(job);
-  writeFileSync(join(job, 'source-cache-pin.json'), '{not valid');
-  const unknown = await pruneSourceCache({ ...box, roots: [box.commits.at(-1)], limit: 2 });
-  assert.equal(unknown.unknownPins, true);
-  assert.equal(unknown.pruned.length, 0);
-  assert.equal(unknown.overage, 4);
-  rmSync(job, { recursive: true });
-  mkdirSync(job);
-  pinSourceCacheJob(job, { repoId: box.repoId, commit: box.commits[0], trunk: { commit: box.commits[1] },
+test('legacy leftovers cannot veto pruning, while every current spec root survives in addition to newest refs [C7]', async (t) => {
+  const box = await fixture(t, 8), jobs = join(box.runnerRoot, 'jobs');
+  const legacy = join(jobs, 'old-unpinned'), invalid = join(jobs, 'old-invalid'), held = join(jobs, 'held');
+  for (const directory of [legacy, invalid, held]) mkdirSync(directory);
+  writeFileSync(join(legacy, 'diagnostic.log'), 'retained worker diagnostics');
+  writeFileSync(join(invalid, 'source-cache-pin.json'), '{not valid');
+  pinSourceCacheJob(held, { repoId: box.repoId, commit: box.commits[0], trunk: { commit: box.commits[1] },
     trustedMode: { policyCommit: box.commits[2], trunk: { commit: box.commits[3] } } });
-  const pinned = await pruneSourceCache({ ...box, roots: [box.commits.at(-1)], limit: 2 });
-  assert.equal(pinned.protected, 5);
-  assert.equal(pinned.overage, 3);
-  assert.equal(pinned.pruned.length, 1);
+  const result = await pruneSourceCache({ ...box, roots: [box.commits.at(-1)], limit: 2 });
+  assert.equal(result.unknownPins, true, 'legacy and invalid metadata remain visible');
+  assert.equal(result.protected, 5);
+  assert.equal(result.retained, 6, 'newest two PLUS four older current-spec roots');
+  assert.equal(result.pruned.length, 2, 'old folders do not disable pruning');
+  assert.equal(result.overage, 4);
+  for (const head of [...box.commits.slice(0, 4), ...box.commits.slice(-2)]) {
+    assert.equal(git(box.cache, ['rev-parse', `refs/pullboard/candidates/${head}`]), head);
+  }
+  for (const head of box.commits.slice(4, 6)) assert.ok(result.pruned.includes(`refs/pullboard/candidates/${head}`));
+  assert.equal(readFileSync(join(legacy, 'diagnostic.log'), 'utf8'), 'retained worker diagnostics', 'no orphan cleanup');
+  rmSync(held, { recursive: true });
+  const completed = await pruneSourceCache({ ...box, roots: [box.commits.at(-1)], limit: 2 });
+  assert.equal(completed.retained, 2, 'finished job roots lose protection without proving orphan death');
+  assert.equal(completed.pruned.length, 4);
   assert.equal(SOURCE_CACHE_CANDIDATES, 300, 'protected roots do not alter the default bound');
 });
 
@@ -186,6 +194,9 @@ test('a real worker runs beyond 1024 legacy refs while another live job keeps it
     const runnerRoot = join(home, '.pullboard-runner');
     const repoId = createHash('sha256').update(git(repo, ['rev-parse', '--path-format=absolute', '--git-common-dir'])).digest('hex');
     const cache = join(runnerRoot, 'repos', `${repoId}.git`), lease = await cacheLease(runnerRoot, repoId);
+    const legacy = join(runnerRoot, 'jobs', 'old-unpinned-diagnostics');
+    mkdirSync(legacy);
+    writeFileSync(join(legacy, 'stderr.log'), 'old worker diagnostic, no live spec');
     try {
       git(cache, ['update-ref', '--stdin'], commits.map(head => `update refs/pullboard/candidates/${head} ${head}`).join('\n') + '\n');
       assert.equal(git(cache, ['for-each-ref', '--format=%(refname)', 'refs/pullboard/candidates']).split('\n').length, 1030);
@@ -198,6 +209,12 @@ test('a real worker runs beyond 1024 legacy refs while another live job keeps it
     assert.ok(retained.includes(commits.at(-1)), 'the second worker retains its requested exact source');
     assert.match(readFileSync(stderr, 'utf8'), /PULLBOARD_RUNNER_CACHE_PRUNE/u);
     assert.equal(git(repo, ['rev-parse', 'HEAD']), commits.at(-1), 'caller source stays exact');
+    assert.equal(readFileSync(join(legacy, 'stderr.log'), 'utf8'), 'old worker diagnostic, no live spec');
+    assert.ok(!retained.includes(commits[1]), 'an unprotected old candidate ref was actually pruned');
+    git(repo, ['checkout', '-q', '--detach', commits[1]]);
+    await execute(showHead, commits[1]);
+    assert.equal(git(cache, ['rev-parse', `refs/pullboard/candidates/${commits[1]}`]), commits[1],
+      'normal source delivery refetches an exact candidate after its cache ref was pruned');
     for (const head of [commits[0], commits.at(-1)]) assert.equal(git(cache, ['cat-file', '-t', head]), 'commit');
   } finally {
     writeFileSync(release, 'done');

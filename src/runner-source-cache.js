@@ -18,7 +18,7 @@ const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const REF = /^refs\/pullboard\/candidates\/(?:[^\s]+\/)?[a-f0-9]{40,64}$/u;
 const BOOTSTRAP = 'git-committer-date-then-refname; not observed last use';
 
-/** Keep accepted job roots protected until native descendant cleanup removes the entire job directory. */
+/** Publish the current spec roots before cache admission; no job lifecycle or orphan-death registry is needed. */
 export function pinSourceCacheJob(directory, spec) {
   const roots = [...new Set([spec.commit, ...(spec.trunk ? [spec.trunk.commit] : []),
     ...(spec.trustedMode ? [spec.trustedMode.policyCommit, spec.trustedMode.trunk.commit] : [])])];
@@ -29,7 +29,7 @@ export function pinSourceCacheJob(directory, spec) {
   return roots;
 }
 
-/** Unknown, legacy, stale or unreadable job ownership never authorizes deleting its possible roots. */
+/** Collect named current-spec roots; unrecognised leftovers are reported, never a global pruning veto. */
 function jobPins(runnerRoot, repoId) {
   const roots = new Set();
   let unknown = false;
@@ -45,7 +45,7 @@ function jobPins(runnerRoot, repoId) {
           || !pin.roots.length || pin.roots.length > 4 || pin.roots.some(root => !SHA.test(root))) throw new Error('unknown job pin');
         if (pin.repoId === repoId) for (const root of pin.roots) roots.add(root);
       } catch (error) {
-        // A job may finish between directory enumeration and pin read. Only its actual disappearance is safe.
+        // Missing legacy metadata does not name a root. Removing its cache ref only causes normal refetch.
         if (!existsSync(join(jobs, entry.name))) continue;
         unknown = true;
       }
@@ -111,12 +111,12 @@ export async function pruneSourceCache({ cache, runnerRoot, repoId, roots, lease
   }
   const candidates = refs.filter(ref => ref.kind === 'candidates');
   const protectedRefs = candidates.filter(ref => protectedRoots.has(ref.head));
-  const ordered = candidates.filter(ref => !protectedRoots.has(ref.head)).sort((left, right) => {
+  const ordered = [...candidates].sort((left, right) => {
     const leftUse = uses.get(left.name), rightUse = uses.get(right.name);
     if (leftUse !== undefined || rightUse !== undefined) return (rightUse ?? -1) - (leftUse ?? -1);
     return right.date - left.date || left.name.localeCompare(right.name, 'en');
   });
-  const remove = pins.unknown ? [] : ordered.slice(Math.max(0, limit - protectedRefs.length));
+  const remove = ordered.slice(limit).filter(ref => !protectedRoots.has(ref.head));
   if (remove.length) {
     // Git validates every old object ID and acquires all ref locks before committing any deletion.
     await git(cache, ['update-ref', '--stdin'], env,
