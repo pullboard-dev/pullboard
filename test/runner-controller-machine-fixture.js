@@ -30,6 +30,16 @@ export function assertRunnerControllerReachability({ codeProblems, codeWalk, edi
   for (const entry of ['runOnRunner', 'runOnRunnerAsync']) {
     assert.ok(walk.refusalsOf(`runners.js#${entry}`).has('RUNNER_CHILD_PROBE'), `${entry} returns the real child refusal`);
   }
+  for (const entry of ['runProfiledShell', 'runProfiledShellAsync']) {
+    assert.ok(walk.refusalsOf(`gate-execution.js#${entry}`).has('RUNNER_CHILD_PROBE'), `${entry} follows its canonical runner lease port`);
+  }
+  const otherPort = file => file === 'gate-execution.js'
+    ? childGuard(file).replaceAll('gateLease.executionServices.runners.', 'gateLease.unrelated.runners.')
+    : childGuard(file);
+  for (const entry of ['runProfiledShell', 'runProfiledShellAsync']) {
+    assert.equal(codeWalk(otherPort).refusalsOf(`gate-execution.js#${entry}`).has('RUNNER_CHILD_PROBE'), false,
+      'an unrelated property chain does not inherit a canonical runner operation');
+  }
   const otherExecutable = editedSource('runners.js', /const child = spawn\(process\.execPath, \[fileURLToPath\(new URL\('\.\.\/bin\/runner-controller\.js', import\.meta\.url\)\), '--pullboard-runner-controller'\]/,
     "const child = spawn('unrelated-worker', [fileURLToPath(new URL('../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller']");
   assert.equal(codeWalk(otherExecutable).refusalsOf('runners.js#runOnRunnerAsync').has('RUNNER_WORK_SPEC'), false,

@@ -125,6 +125,11 @@ const NON_MOVE_ENTRY_POINTS = [
 ];
 /** Board functions handed a function to call, and the one the CLI and the runner hand them. */
 const CALLBACKS = {
+  // Real higher command roots bind runnerExecutionServices; admission snapshots these functions onto the lease.
+  'gate-execution.js': {
+    'gateLease.executionServices.runners.runOnRunner': 'runners.js#runOnRunner',
+    'gateLease.executionServices.runners.runOnRunnerAsync': 'runners.js#runOnRunnerAsync',
+  },
   // Native verification ports retain these exact receipt and projection guards.
   'proof-cli.js': { proofRunReceipt: 'proof-receipts.js#proofRunReceipt' },
   'proof-counters.js': {
@@ -227,7 +232,7 @@ function codeWalk(read, { caught = false } = {}) {
       const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]));
       const callees = [
         ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
-        ...[...body.matchAll(/\b(\w+)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : undefined)),
+        ...[...body.matchAll(/\b(\w+(?:\.\w+)*)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : CALLBACKS[file]?.[`${space}.${callee}`])),
       ];
       callees.push(...runnerControllerCallees(file, body, source));
       facts = { codes, callees };
