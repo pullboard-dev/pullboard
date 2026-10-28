@@ -58,7 +58,7 @@ export async function proveSettingsApi() {
     const canary = ['fixture', 'credential', 'never-return-this'].join('-');
     const config = { ...defaults(), verify: { ...defaults().verify, composeAtAdmission: true }, gate: 'node --test', health: { sentinel: false }, testConcurrency: { files: 3, browser: 1 }, claim: { reopenFirstRefusalMinutes: 30 }, lanes: { app: { owns: ['app/'], specs: ['O5'], ignoredSecret: canary } } };
     writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(config));
-    writeFileSync(join(home, 'settings.json'), JSON.stringify({ gateSlots: 3, browserSlots: 2, gate: { queue: { reviewsFirst: true }, shortSlots: 1, runnersFirst: true }, relay: { offerAtInit: false }, unknown: { token: canary } }));
+    writeFileSync(join(home, 'settings.json'), JSON.stringify({ gateSlots: 3, browserSlots: 2, gate: { queue: { reviewsFirst: true }, shortSlots: 1, runnersFirst: true, runnersOnly: true }, relay: { offerAtInit: false }, unknown: { token: canary } }));
     mkdirSync(join(home, 'relay-machine'));
     writeFileSync(join(home, 'relay-machine', 'state.json'), JSON.stringify({ v: 1, autoLink: true, session: { token: canary, account: 'fixture', url: 'https://relay.example.invalid' }, approvals: [{ sealed: canary }], devices: [], excluded: [] }));
     writeFileSync(join(privateDir, 'relay.json'), JSON.stringify({ version: 1, board: id, url: 'https://relay.example.invalid', token: canary, agentTokens: { fixture: { token: canary } }, snapshot: canary }));
@@ -112,6 +112,8 @@ export async function proveSettingsApi() {
     assert.equal(find('machine', 'gate.queue.reviewsFirst').value, true);
     assert.equal(find('machine', 'gate.runnersFirst').value, true);
     assert.equal(find('machine', 'gate.runnersFirst').default, false);
+    assert.equal(find('machine', 'gate.runnersOnly').value, true);
+    assert.equal(find('machine', 'gate.runnersOnly').default, false);
     assert.equal(find('machine', 'gate.runnerWaitMs').value, 300_000, 'the runner admission deadline is discoverable through the read-only settings API');
     assert.equal(find('machine', 'gate.runnerWaitMs').default, 300_000);
     assert.equal(find('machine', 'gate.runnerWaitMs').origin, 'default');

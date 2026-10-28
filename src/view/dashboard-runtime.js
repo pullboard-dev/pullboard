@@ -54,10 +54,12 @@ export function dashboardRuntime({ model, html, api, boardPath, current, redraw,
     // Native details keep each Show-more/quiet disclosure open across live refreshes.
     const expanded = [...region.querySelectorAll('details[open]')].map(entry=>entry.dataset.dashboardDisclosure);
     const onFloor = Boolean(floor?.open());
+    // Browser preferences enter through this DOM adapter; pure renderers never discover host defaults.
+    const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions();
     const note = held.error?'<p class="muted" role="status">Dashboard history is unavailable; live work remains visible.</p>':'';
     let quietRows;
     const quietOpen = expanded.includes('quiet');
-    region.innerHTML = (onFloor ? floor.html(floor.model(state, held.events.filter(event=>event.event_id<=prefix)), { back: floor.href(null) }) : html(state, { needs, progress, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') }))+note;
+    region.innerHTML = (onFloor ? floor.html(floor.model(state, held.events.filter(event=>event.event_id<=prefix)), { back: floor.href(null), locale, timeZone }) : html(state, { needs, progress, locale, timeZone, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') }))+note;
     region.classList?.toggle('floor-page', onFloor);
     // Opening or leaving the floor starts at its top; a live redraw of the same page keeps the reader's place.
     if (drawnFloor !== null && drawnFloor !== onFloor) globalThis.scrollTo?.(0, 0);

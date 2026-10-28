@@ -198,7 +198,7 @@ export const ITEM_SLOTS = Object.freeze({
   // Rewriting an ID would corrupt that observation; stale snapshots are refused by their revision check.
   maintainStaleState: [],
   // Patch author metadata names no other item; both operations target their first argument.
-  attachItemPatch: [[0]], removeItemPatch: [[0]],
+  attachItemPatch: [[0]], removeItemPatch: [[0]], followItemPatches: [[0]],
   recordFlakeObservation: [], recordGateRun: [], recordProofRun: [[0, 'itemId'], [0, 'receipt', 'proof', 'item']], declareJob: [], recordJobRun: [], takeCoordinator: [], openHandoff: [], landingLeaseMove: [], setPersonSigning: [], proposePersonMove: [],
   recordActivityDelivery: [], actOnActivity: [], recordRowVerification: [], setBoardMembers: [],
   // Re-home IDs are acknowledged-only; foreign board/source IDs are never locally rewritten.
