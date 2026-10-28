@@ -84,7 +84,7 @@ test('timing is coordinator-only boolean bar data, corrected atomically and abse
   for (const options of [{ agentId: builder, checkTiming: true }, { agentId: 'coordinator', checkTiming: 'false' }]) {
     const before = exportBoard(board);
     assert.throws(() => store.editItem(board, id, options), { code: options.agentId === builder ? 'COORDINATOR_CHECK' : 'BAD_CHECK' });
-    assert.equal(exportBoard(board), before, 'refused declaration changes no event or state');
+    assert.deepEqual(exportBoard(board), before, 'refused declaration changes no event or state');
   }
   store.editItem(board, id, { agentId: 'coordinator', checkTiming: true });
   store.claim(board, id, { agentId: builder, head: 'a'.repeat(40), freeze });
@@ -92,7 +92,7 @@ test('timing is coordinator-only boolean bar data, corrected atomically and abse
   assert.equal(frozenCheckTiming(flagged), true);
   const before = exportBoard(board);
   assert.throws(() => store.editItem(board, id, { agentId: 'coordinator', checkTiming: false }), { code: 'BAR_REASON' });
-  assert.equal(exportBoard(board), before);
+  assert.deepEqual(exportBoard(board), before);
   store.editItem(board, id, { agentId: 'coordinator', checkTiming: false, reason: 'The measurement no longer has a timing budget', correction: true, freeze });
   const corrected = store.getItem(board, id);
   assert.notEqual(corrected.item_frozen_digest, flagged.item_frozen_digest);
