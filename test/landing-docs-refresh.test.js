@@ -73,7 +73,7 @@ function project(disableRefresh) {
     `test('merged shared documentation is current [B3,C7,V4]', () => { if (existsSync(${JSON.stringify(armed)})) assert.deepEqual(generatedDocDrift(process.cwd()), [], 'stale generated files: ' + generatedDocDrift(process.cwd()).join(', ')); });`,
   ].join('\n') + '\n');
   if (disableRefresh) {
-    const file = join(box.repo, 'src/land.js');
+    const file = join(box.repo, 'src/landing-step-merge.js');
     const source = readFileSync(file, 'utf8');
     const call = 'for (const file of refreshLandingDocs(batch.root)) if (!engines.files.includes(file)) engines.files.push(file);';
     assert.equal(source.split(call).length, 2, 'the private mutation removes exactly the actual landing refresh call');
