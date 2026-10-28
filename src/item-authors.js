@@ -2,13 +2,14 @@ import { committedItemAuthors } from './review-independence.js';
 import { strictReviewProblem } from './review-independence.js';
 import { twoTierReviews } from './review-independence.js';
 /** Review independence follows every claim and submit author, never just the latest owner [V1,B3]. */
-import { ENGINE_VERSION } from './machine.js';
+import { ENGINE_VERSION } from './engine-metadata.js';
 import { itemPatchAuthors } from './item-patch-state.js';
 import { HISTORICAL_AUTHORS_ENGINE } from './historical-authors-engine.js';
 import { Refused } from './refused.js';
 import { PARENT_SESSION_ENGINE } from './parent-session-engine.js';
-import { effectiveAgentParent } from './seats.js';
-import { standingProblem } from './seats.js';
+import { PATCH_AUTHOR_IDENTITY_ENGINE } from './patch-author-identity-engine.js';
+import { effectiveAgentParent } from './seat-review-read.js';
+import { standingProblem } from './seat-review-read.js';
 
 /** Read one item's indexed author history; older ordered moves retain their original current-builder rule. */
 export function itemAuthors(board, item) {
@@ -25,9 +26,12 @@ export function itemAuthors(board, item) {
 /** Compare immutable author and parent identities without borrowing the current sender’s verifier credential. */
 function authorIdentityProblem(board, item, reviewer, authors) {
   if (authors.includes(reviewer)) return new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must');
-  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= PARENT_SESSION_ENGINE) {
+  const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  const direct = engine >= PATCH_AUTHOR_IDENTITY_ENGINE ? itemPatchAuthors(board, item.item_id) : null;
+  if (direct?.some(author => author.agentId === reviewer)) return new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must');
+  if (engine >= PARENT_SESSION_ENGINE) {
     const parent = effectiveAgentParent(board, reviewer);
-    const snapshots = itemPatchAuthors(board, item.item_id);
+    const snapshots = direct ?? itemPatchAuthors(board, item.item_id);
     const session = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`agent_session:${reviewer}`)?.meta_value;
     if (authors.some(author => effectiveAgentParent(board, author) === parent)
         || snapshots.some(author => author.parentSession && author.parentSession === parent || session && author.session === session)) {

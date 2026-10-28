@@ -1,4 +1,5 @@
 /** Private-Git regression helper for a branch source whose unversioned DDL must not install [A5,A6,C7]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -18,7 +19,7 @@ export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
   const repo = join(directory, 'repo');
   const branch = join(directory, 'branch');
   mkdirSync(repo);
-  for (const name of ['bin', 'src', 'skills', 'package.json', 'CHANGELOG.md']) cpSync(resolve(sourceRoot, name), join(repo, name), { recursive: true });
+  copyPackageFiles(sourceRoot, repo);
   writeFileSync(join(repo, 'pullboard.json'), `${JSON.stringify({
     gate: 'true', spec: 'SPEC.md', practice: 'PRACTICE.md',
     lanes: { web: { owns: ['web/'], specs: [] } }, shared: [],

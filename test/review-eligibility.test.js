@@ -56,6 +56,40 @@ test("a helper's posted fact does not make a seat ineligible [V4,B26]", t => {
   assert.equal(f.reserve(id, 'core-3').item_review_by, 'core-3', 'a released claim without a commit is not Standard authorship');
 });
 
+test('one eligibility projection reads shared history once and the next sees new facts [C7,V4,B26]', t => {
+  const f = fixture(t), id = f.add({ sensitive: true }), item = f.submit(id);
+  const original = f.board.db;
+  let historyReads = 0;
+  const observed = { ...f.board, db: {
+    /** Forward real transaction control without changing persistent fixture rows. */
+    exec(sql) { return original.exec(sql); },
+    /** Count actual history reads while returning the real SQLite statement results. */
+    prepare(sql) {
+      const statement = original.prepare(sql);
+      return {
+        /** Preserve the exact native single-row result. */
+        get(...args) { return statement.get(...args); },
+        /** Count the shared submission query, never replace or cache its result here. */
+        all(...args) {
+          if (sql.includes("SELECT event_by,event_detail FROM event") && sql.includes("event_kind='submit'")) historyReads++;
+          return statement.all(...args);
+        },
+      };
+    },
+  } };
+  const before = exportBoard(f.board);
+  assert.deepEqual(reviewEligibility(observed, item, { familyPolicy: 'require' }).eligible, ['core-2', 'core-3', 'core-5']);
+  t.diagnostic(`submission history reads for one projection: ${historyReads}`);
+  assert.equal(historyReads, 1, 'every candidate shares the same item submission history');
+  assert.deepEqual(exportBoard(f.board), before, 'a projection changes no persistent row');
+  store.appendFact(f.board, id, { agentId: 'core-2', kind: 'note', text: 'New native fact between separate projections.' });
+  const changed = exportBoard(f.board);
+  historyReads = 0;
+  assert.deepEqual(reviewEligibility(observed, item, { familyPolicy: 'require' }).eligible, ['core-5']);
+  assert.equal(historyReads, 1, 'the next projection owns a fresh read');
+  assert.deepEqual(exportBoard(f.board), changed, 'freshness needs no persistent cache');
+});
+
 test('a strict item refuses any seat that touched it [V4,B26]', t => {
   const f = fixture(t), id = f.add({ sensitive: true });
   store.appendFact(f.board, id, { agentId: 'core-2', kind: 'note', text: 'A native diagnostic fact counts under Strict.' });

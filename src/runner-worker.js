@@ -256,12 +256,16 @@ async function readSpec() {
     tagNames.add(tag.name);
     if (tag.chain.length ? tag.chain[0] !== tag.object : tag.object !== tag.peeledCommit) throw new Error('invalid tag manifest');
   }
-  const runtimeNames = ['audit-coverage-reporter.js', 'runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'git-adapter.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js', 'runner-policy.js', 'runner-recovery.js', 'runner-transport.js', 'test-result-store.js'];
-  if (Object.keys(value.runtime.files).length !== runtimeNames.length
-    || runtimeNames.some(name => typeof value.runtime.files[name] !== 'string')) throw new Error('invalid work specification');
+  if (value.runtime.entry !== 'src/runner-worker.js' || Object.keys(value.runtime.files).length > 4096
+    || !Object.hasOwn(value.runtime.files, 'package.json')
+    || Object.entries(value.runtime.files).some(([name, source]) => !name || name.startsWith('/')
+      || name.split('/').some(part => !part || part === '.' || part === '..')
+      || /[\\\u0000-\u001f\u007f]/u.test(name) || typeof source !== 'string'
+      || name === value.runtime.entry)) throw new Error('invalid trusted runtime paths');
   if (createHash('sha256').update(JSON.stringify(value.runtime.files)).digest('hex') !== value.runtime.sha256) throw new Error('invalid trusted runtime');
   const workerSource = readFileSync(fileURLToPath(import.meta.url), 'utf8');
-  const toolingFiles = { ...value.runtime.files, 'runner-worker.js': workerSource };
+  const toolingFiles = Object.fromEntries(Object.entries({ ...value.runtime.files, [value.runtime.entry]: workerSource })
+    .sort(([a], [b]) => a.localeCompare(b)));
   if (!workerSource || !value.tooling || !['git-checkout', 'installed-package'].includes(value.tooling.kind)
     || value.tooling.name !== 'pullboard' || typeof value.tooling.version !== 'string'
     || createHash('sha256').update(JSON.stringify(toolingFiles)).digest('hex') !== value.tooling.sha256) {
@@ -316,7 +320,7 @@ function scopedEnvironment(home, temporary, machineHomePath, gateLease, resource
 
 /** Check that this already installed capsule matches the controller before using its static API. */
 function loadResourceApi(runtime) {
-  const sourceDirectory = dirname(fileURLToPath(import.meta.url));
+  const sourceDirectory = dirname(dirname(fileURLToPath(import.meta.url)));
   if (Object.entries(runtime.files).some(([name, source]) => readFileSync(join(sourceDirectory, name), 'utf8') !== source)) {
     throw new Error('trusted runtime cache does not match the request');
   }

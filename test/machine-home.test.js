@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Real machine-storage permission refusals preserve the shared queue location [I1,C7,Q4]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -88,7 +89,7 @@ function unlockBoard(folder) {
  */
 function installedCli(p) {
   const cli = join(p.dir, 'installed-pullboard');
-  for (const part of ['src', 'bin', 'skills', 'package.json', 'CHANGELOG.md']) cpSync(join(import.meta.dirname, '..', part), join(cli, part), { recursive: true });
+  copyPackageFiles(join(import.meta.dirname, '..'), cli);
   return (cwd, ...args) => {
     const result = runFixtureChild(process.execPath, [join(cli, 'bin', 'pullboard.js'), ...args], { cwd, env: p.env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr };
