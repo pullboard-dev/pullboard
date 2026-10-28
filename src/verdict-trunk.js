@@ -16,6 +16,11 @@ function changedBetween(root, from, to) {
   return git(root, ['diff', '--no-renames', '--name-only', '-z', from, to]).split('\0').filter(Boolean);
 }
 
+/** Count every landed change, including one later reverted; a merge contributes its first-parent change. */
+function changedBy(root, commit) {
+  return git(root, ['diff-tree', '--root', '--no-commit-id', '--no-renames', '--name-only', '--diff-merges=first-parent', '-r', '-z', commit]).split('\0').filter(Boolean);
+}
+
 /**
  * Judge a trunk that moved from `from` to `to` while an item was reviewed or proved. Returns the moved commits and, when
  * the move reaches the work, the first file that overlaps and why; `overlap` is null when every moved commit is
@@ -29,7 +34,7 @@ function changedBetween(root, from, to) {
  */
 export async function judgeTrunkMove(root, { from, to, item, checkedCommit, check }, { selectAffectedTests, explicitCheckFiles }, { all = false } = {}) {
   const moved = git(root, ['rev-list', '--reverse', `${from}..${to}`]).split('\n').filter(Boolean);
-  const movedFiles = changedBetween(root, from, to);
+  const movedFiles = all ? [...new Set(moved.flatMap(commit => changedBy(root, commit)))] : changedBetween(root, from, to);
   const overlaps = [];
   /** Keep one finding; outside `all` mode the first one decides. */
   const found = (text) => { overlaps.push(text); return !all; };
