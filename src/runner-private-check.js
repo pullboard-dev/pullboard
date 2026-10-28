@@ -10,6 +10,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { runOnRunner } from './runners.js';
+import { frozenCheckCeilingMs } from './config.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
 import { proofCounts } from './proof-provenance.js';
 import {
@@ -65,7 +66,7 @@ export function runnerPrivateCheck(root, item, command, policy, lease, guard, wa
   const directory = mkdtempSync(join(artifactRoot, 'private-runner-'));
   const ref = trunkRef(root);
   const mode = privateCheckEnvelope({ kind: 'private-check', version: 1, install: policy.config.check.install,
-    check: command, timeoutMs: policy.config.check.timeoutMs, policyCommit: policy.commit,
+    check: command, timeoutMs: frozenCheckCeilingMs(policy.config), policyCommit: policy.commit,
     trunk: { ref, commit: policyGit(root, ['rev-parse', `${ref}^{commit}`]).trim() }, guard });
   const checkedSource = { commit: item.item_commit, tree: policyGit(root, ['rev-parse', `${item.item_commit}^{tree}`]).trim() };
   const started = Date.now();

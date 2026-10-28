@@ -153,3 +153,61 @@ test('verify refuses a second main move after its one retry [V4,V8]', t => {
   assert.equal(after.item_status, 'submitted');
   assert.deepEqual(after.verdicts, []);
 });
+
+/**
+ * Submit and verify one frozen check whose duration the test sets. The check passes instantly during submit (unarmed),
+ * then sleeps delayMs when verify runs it (armed); delayMs of -1 hangs until its ceiling stops it.
+ */
+function frozenCheckCeiling(t, { checkTimeout, landingTimeout, delayMs }) {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const armed = join(box.dir, 'check-armed');
+  const script = join(box.dir, 'slow-check.cjs');
+  writeFileSync(script, `const fs = require('node:fs');
+const cell = new Int32Array(new SharedArrayBuffer(4));
+if (fs.existsSync(${JSON.stringify(armed)})) {
+  const delay = ${delayMs};
+  if (delay < 0) for (;;) Atomics.wait(cell, 0, 0, 1000);
+  Atomics.wait(cell, 0, 0, delay);
+}
+console.log('TAP version 13\\nok 1 - slow frozen check\\n1..1\\n# tests 1\\n# pass 1\\n# fail 0');
+`);
+  const configFile = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  config.check = { install: '', timeout: checkTimeout };
+  config.landing = { timeout: landingTimeout };
+  writeFileSync(configFile, JSON.stringify(config, null, 2));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: configure frozen check ceiling');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  document(box.run(box.repo, 'add', 'web', 'Verify a slow frozen check', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
+  document(box.run(box.web, 'claim', '1', '--json'));
+  assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'built\n', 'feat(web): build feature [G1]').status, 0);
+  document(box.run(box.web, 'submit', '1', '--json'));
+  const submitted = document(box.run(box.repo, 'show', '1', '--json'));
+  const reviewer = join(box.dir, 'reviewer');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted.item_commit);
+  document(box.run(reviewer, 'join', 'api', '--json'));
+  writeFileSync(armed, 'armed');
+  const result = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check against its configured ceiling.', '--json');
+  return { box, result };
+}
+
+test('verify runs a frozen check past the check timeout up to the configured landing.timeout [C7,V18]', t => {
+  // A 300ms check.timeout stands in for the default 5m; the 1s check runs past it and inside landing.timeout.
+  const { box, result } = frozenCheckCeiling(t, { checkTimeout: '300ms', landingTimeout: '20s', delayMs: 1000 });
+  assert.equal(result.code, 0, result.err || result.out);
+  assert.equal(document(box.run(box.repo, 'show', '1', '--json')).item_status, 'verified');
+});
+
+test('a frozen check that hangs stops at the configured ceiling and names the check and elapsed time [C7,V18]', t => {
+  const { result } = frozenCheckCeiling(t, { checkTimeout: '300ms', landingTimeout: '1s', delayMs: -1 });
+  assert.equal(result.code, 1, result.out);
+  const error = JSON.parse(result.out).error;
+  assert.equal(error.code, 'CHECK_UNVERIFIED');
+  assert.match(error.message, /check timed out after \d+ms against its 1000ms ceiling/);
+  assert.match(error.message, /slow-check\.cjs/);
+  const elapsed = Number(/check timed out after (\d+)ms/.exec(error.message)[1]);
+  assert.ok(elapsed >= 1000, `the hang is stopped at the ceiling, not earlier (${elapsed}ms)`);
+});
