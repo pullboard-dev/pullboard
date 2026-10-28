@@ -172,14 +172,21 @@ function openQueue(file) {
     // Older clients insert the default zero. A database trigger witnesses even short legacy
     // arrivals between the timing owner's polls; no old client has to understand the new flag.
     db.exec(`CREATE TABLE IF NOT EXISTS timing_client_observation (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, agent TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL);
-      CREATE TRIGGER IF NOT EXISTS timing_unaware_holder AFTER INSERT ON holder
-      WHEN NEW.name = 'gate' AND NEW.timing_aware = 0 BEGIN
-        INSERT INTO timing_client_observation(agent,pid,started) VALUES (NEW.agent,NEW.pid,NEW.started);
+      id INTEGER PRIMARY KEY AUTOINCREMENT, agent TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL);`);
+    if (!db.prepare('PRAGMA table_info(timing_client_observation)').all().some(({ name }) => name === 'name')) {
+      db.exec("ALTER TABLE timing_client_observation ADD COLUMN name TEXT NOT NULL DEFAULT 'gate'");
+    }
+    // Replace both old trigger definitions atomically, so no concurrent arrival is unwitnessed.
+    if (!db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='timing_unaware_holder'").get()?.sql.includes("runner:*")
+      || !db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='timing_unaware_waiter'").get()?.sql.includes("runner:*")) db.exec(`DROP TRIGGER IF EXISTS timing_unaware_holder;
+      DROP TRIGGER IF EXISTS timing_unaware_waiter;
+      CREATE TRIGGER timing_unaware_holder AFTER INSERT ON holder
+      WHEN (NEW.name = 'gate' OR NEW.name GLOB 'runner:*') AND NEW.timing_aware = 0 BEGIN
+        INSERT INTO timing_client_observation(agent,pid,started,name) VALUES (NEW.agent,NEW.pid,NEW.started,NEW.name);
       END;
-      CREATE TRIGGER IF NOT EXISTS timing_unaware_waiter AFTER INSERT ON waiter
-      WHEN NEW.name = 'gate' AND NEW.timing_aware = 0 BEGIN
-        INSERT INTO timing_client_observation(agent,pid,started) VALUES (NEW.agent,NEW.pid,NEW.started);
+      CREATE TRIGGER timing_unaware_waiter AFTER INSERT ON waiter
+      WHEN (NEW.name = 'gate' OR NEW.name GLOB 'runner:*') AND NEW.timing_aware = 0 BEGIN
+        INSERT INTO timing_client_observation(agent,pid,started,name) VALUES (NEW.agent,NEW.pid,NEW.started,NEW.name);
       END;`);
     // No live timing admission can need observations once its holder and waiter rows are gone.
     db.exec(`DELETE FROM timing_client_observation
@@ -943,12 +950,16 @@ export async function takeResource(options) {
   catch (error) { db.close(); throw error; }
   const awarenessCursor = db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM timing_client_observation').get().id;
   const unfenced = new Map();
+  const observedRunnerNames = new Set();
   /** Preserve every observed unfenced client throughout this admission and execution. */
   const timingEvidence = () => {
     if (!timing) return { exclusive: false, unfencedClients: [] };
-    const observations = db.prepare(`SELECT agent,pid,started FROM timing_client_observation WHERE id > ?
-      UNION SELECT agent,pid,started FROM holder WHERE name = 'gate' AND timing_aware = 0
-      UNION SELECT agent,pid,started FROM waiter WHERE name = 'gate' AND timing_aware = 0`).all(awarenessCursor);
+    for (const runner of runnerProvider ? validatedRunners(runnerProvider()) : []) observedRunnerNames.add(runnerResourceName(runner.host));
+    const observations = db.prepare(`SELECT name,agent,pid,started FROM timing_client_observation WHERE id > ?
+      UNION SELECT name,agent,pid,started FROM holder WHERE timing_aware = 0
+      UNION SELECT name,agent,pid,started FROM waiter WHERE timing_aware = 0`).all(awarenessCursor)
+      .filter(row => row.name === 'gate' || observedRunnerNames.has(row.name))
+      .map(({ agent, pid, started }) => ({ agent, pid, started }));
     for (const client of observations) unfenced.set(`${client.pid}:${client.started}:${client.agent}`, { ...client });
     return { exclusive: unfenced.size === 0, unfencedClients: [...unfenced.values()] };
   };
