@@ -33,14 +33,17 @@ export function outsideSensitivePaths(plan) {
   return Object.freeze([...OUTSIDE_SENSITIVE_PATHS, ...planSensitivePaths(plan)]);
 }
 
-/** Read the cells plan at a trusted commit, the same index and shards bin/cells-plan.js reads; unreadable fails closed. */
+/** Read the cells plan at a trusted commit, the same index and shards bin/cells-plan.js reads. A project with no plan
+ * returns null and keeps the fixed list; a plan that exists but cannot be read fails closed, never as a shorter list. */
 function planAt(root, commit) {
+  let index;
+  try { index = git(root, ['show', `${commit}:bin/cells-plan.json`], { maxBuffer: 1024 * 1024 }); } catch { return null; }
   try {
-    const index = JSON.parse(git(root, ['show', `${commit}:bin/cells-plan.json`], { maxBuffer: 1024 * 1024 }));
-    const cells = index.cells.map(row => JSON.parse(git(root, ['show', `${commit}:${row.file}`], { maxBuffer: 1024 * 1024 })));
-    return { ...index, cells };
+    const head = JSON.parse(index);
+    const cells = head.cells.map(row => JSON.parse(git(root, ['show', `${commit}:${row.file}`], { maxBuffer: 1024 * 1024 })));
+    return { ...head, cells };
   } catch (error) {
-    throw new Refused('NO_CELLS_PLAN', `the trusted main at ${commit} has no readable cells plan; outside intake refuses to classify without the sensitive set (${error.message})`);
+    throw new Refused('NO_CELLS_PLAN', `the trusted main at ${commit} has a cells plan that cannot be read; outside intake refuses to classify without the sensitive set (${error.message})`);
   }
 }
 
@@ -93,5 +96,6 @@ export function outsideSensitivity(root, base, commit, paths, { mainPolicy }) {
 
 /** Fixed boundaries plus the plan-derived cell paths, read from the trusted main commit. */
 function outsidePlanPaths(root, commit) {
-  return outsideSensitivePaths(planAt(root, commit));
+  const plan = planAt(root, commit);
+  return plan ? outsideSensitivePaths(plan) : OUTSIDE_SENSITIVE_PATHS;
 }

@@ -28,10 +28,9 @@ function expectedPlanPaths(plan) {
 
 test('the sensitive list is the fixed boundaries plus exactly the plan-derived cell paths [C7]', () => {
   const list = outsideSensitivePaths(PLAN);
-  const fixed = new Set(OUTSIDE_SENSITIVE_PATHS);
-  const derived = list.filter(path => !fixed.has(path));
-  assert.deepEqual([...new Set(derived)].sort(), [...expectedPlanPaths(PLAN)].sort());
-  assert.deepEqual([...list.slice(0, OUTSIDE_SENSITIVE_PATHS.length)], [...OUTSIDE_SENSITIVE_PATHS]);
+  const fixed = OUTSIDE_SENSITIVE_PATHS.length;
+  assert.deepEqual(list.slice(0, fixed), [...OUTSIDE_SENSITIVE_PATHS]);
+  assert.deepEqual(list.slice(fixed).sort(), [...expectedPlanPaths(PLAN)].sort());
 });
 
 test('gate and landing cells are named by the committed plan, so a move cannot drop them [C7]', () => {
