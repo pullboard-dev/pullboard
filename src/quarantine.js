@@ -26,6 +26,7 @@ import { COORDINATOR } from './config.js';
 import { flakeLedger } from './flakes.js';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
+import { QUARANTINE_CORE_ENGINE } from './quarantine-core-engine.js';
 
 const FAR_FUTURE = '9999-12-31T23:59:59.999Z';
 
@@ -45,20 +46,45 @@ export function gateRuns(board) {
 
 /**
  * Where a test's quarantine stands. Quarantined means its repair item is still being fixed; lifted means that item was
- * verified or withdrawn, so the test blocks again, and `since` is the event after which only newer runs count as proof.
+ * verified (or, for legacy events, withdrawn), or its native clean streak reaches 20. Only newer runs count after release.
  */
 export function flakeQuarantines(board) {
   const latest = new Map();
   for (const row of board.db.prepare("SELECT event_id, item_id, event_detail FROM event WHERE event_kind = 'test-quarantine' ORDER BY event_id").all()) {
     const detail = JSON.parse(row.event_detail);
-    latest.set(testKey(detail.file, detail.name), { file: detail.file, name: detail.name, item: row.item_id, tree: detail.tree, runs: detail.runs, eventId: row.event_id });
+    latest.set(testKey(detail.file, detail.name), { file: detail.file, name: detail.name, item: row.item_id, tree: detail.tree, runs: detail.runs, eventId: row.event_id,
+      ...(detail.engine >= QUARANTINE_CORE_ENGINE ? { nativeCore: true } : {}) });
   }
+  const nativeRuns = [...latest.values()].some(entry => entry.nativeCore) ? gateRuns(board) : [];
   return [...latest.values()].map(entry => {
     const state = getItem(board, entry.item).item_status;
-    const lifted = state === 'verified' || state === 'withdrawn';
+    const clean = entry.nativeCore ? cleanRunRelease(nativeRuns, entry) : null;
+    const lifted = state === 'verified' || !entry.nativeCore && state === 'withdrawn' || clean?.releasedAt !== null && clean?.releasedAt !== undefined;
     const closing = lifted ? board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id = ? AND event_kind IN ('accept','withdraw')").get(entry.item).id : null;
-    return { ...entry, status: lifted ? 'lifted' : 'quarantined', since: Math.max(entry.eventId, closing ?? 0) };
+    return { ...entry, ...(entry.nativeCore ? { cleanRuns: clean.count } : {}),
+      status: lifted ? 'lifted' : 'quarantined', since: Math.max(entry.eventId, closing ?? 0, clean?.releasedAt ?? 0) };
   });
+}
+
+/** Only executed, source-bound native per-test observations can advance the new quarantine core. */
+function structuredRun(run) {
+  return !['suite', 'main-red'].includes(run.kind) && Array.isArray(run.testOutcomes) && (run.version === 1 || run.version === 2
+    && run.proof?.sourceClean === true && [0, 1].includes(run.proof?.exitCode));
+}
+
+/** Count one identity's actual consecutive verdicts; missing, skipped and duplicate runs add nothing. */
+function cleanRunRelease(runs, entry) {
+  let count = 0;
+  const seen = new Set();
+  for (const run of runs) {
+    if (run.eventId <= entry.eventId || seen.has(run.id) || !structuredRun(run)) continue;
+    seen.add(run.id);
+    const outcome = run.testOutcomes.find(row => row.file === entry.file && row.name === entry.name);
+    if (!outcome || outcome.skipped) continue;
+    count = outcome.passed ? count + 1 : 0;
+    if (count === 20) return { count, releasedAt: run.eventId };
+  }
+  return { count, releasedAt: null };
 }
 
 /**
@@ -71,7 +97,7 @@ export function quarantineWaivers(board) {
   if (!quarantineOn(board)) return [];
   const store = boardReceiptStore(board);
   const runs = new Map(gateRuns(board).map(({ eventId, by, ...run }) => [run.id, run]));
-  return flakeQuarantines(board).filter(entry => entry.status === 'quarantined' && entry.runs.every(id => runs.has(id) && receiptBinds(store, runs.get(id))))
+  return flakeQuarantines(board).filter(entry => !entry.nativeCore && entry.status === 'quarantined' && entry.runs.every(id => runs.has(id) && receiptBinds(store, runs.get(id))))
     .map(entry => ({ id: `quarantine-${entry.item}`, test: entry.name, kind: 'name', until: FAR_FUTURE, by: 'quarantine', channel: 'board',
       reason: `flaky test, repair #${entry.item} is not verified yet`, quarantine: { file: entry.file, name: entry.name, item: entry.item } }));
 }
@@ -90,7 +116,7 @@ function existingRepair(board, file, name) {
  */
 export function runReceipt(receipt) {
   const fields = receiptFields(receipt);
-  if (!fields || fields.version !== 1) throw new Refused('GATE_RUN_EVIDENCE', 'a gate run needs its receipt: id, tree, command digest, result, failing tests and host load; run the gate again from a clean checkout');
+  if (!fields || fields.version !== 1 && !(fields.version === 2 && fields.testOutcomes)) throw new Refused('GATE_RUN_EVIDENCE', 'a gate run needs its receipt: id, tree, command digest, result, failing tests and host load; run the gate again from a clean checkout');
   return fields;
 }
 
@@ -104,14 +130,17 @@ export function requireBound(board, receipt) {
 
 /**
  * Append one gate run and, when it completes a proof, file the repair item and quarantine the test. A test is proven
- * flaky only by a tree the coordinator's gate ran red in one run and green in another for that same test; a rerun of a
- * different tree, a failure that never went green, or a seat's own run proves nothing and quarantines nothing.
+ * flaky by two actual structured verdicts for that test on one tree. Legacy receipts retain coordinator-only inference;
+ * a different tree, unrelated green case, skipped body or unbound run never supplies the missing verdict.
  *
  * @param {any} board
- * @param {{ agentId: string, receipt: object, lane: string }} request
+ * @param {{ agentId: string, receipt: object, lane: string, owners?: Record<string,string> }} request
  * @returns {{ run: object, duplicate?: boolean, quarantined: {file: string, name: string, item: number}[] }}
  */
-export function recordGateRun(board, { agentId, receipt, lane }) {
+export function recordGateRun(board, { agentId, receipt, lane, owners }) {
+  if (Object.hasOwn(receipt ?? {}, 'testOutcomes') && (board.executionEngineVersion ?? ENGINE_VERSION) < QUARANTINE_CORE_ENGINE) {
+    throw new Refused('ENGINE_VERSION', `structured quarantine outcomes require engine ${QUARANTINE_CORE_ENGINE}`);
+  }
   if ((Object.hasOwn(receipt ?? {}, 'timing') || Object.hasOwn(receipt ?? {}, 'full'))
     && (board.executionEngineVersion ?? ENGINE_VERSION) < RUN_TIMING_ENGINE) {
     throw new Refused('ENGINE_VERSION', `run phase timings require engine ${RUN_TIMING_ENGINE}`);
@@ -123,6 +152,7 @@ export function recordGateRun(board, { agentId, receipt, lane }) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < GATE_RUN_ENGINE) throw new Refused('ENGINE_VERSION', `gate runs require engine ${GATE_RUN_ENGINE}; upgrade Pullboard`);
   if (!listAgents(board).some(agent => agent.agent_id === agentId)) throw new Refused('NOT_JOINED', 'join this board before recording a gate run');
   const value = runReceipt(receipt);
+  if (value.version === 2 && value.proof.seat !== agentId) throw new Refused('GATE_RUN_UNBOUND', 'a native test outcome must be recorded by the seat that executed its proof');
   // A caller's own run must be the receipt its gate stored. A sealed move being replayed was checked where it was made
   // (prepareEngineMove), because another machine holds no copy of that receipt; quarantineWaivers checks again here.
   if (board.executionEngineVersion === undefined) requireBound(board, value);
@@ -141,10 +171,12 @@ export function recordGateRun(board, { agentId, receipt, lane }) {
       if (JSON.stringify(stored) !== JSON.stringify(value)) throw new Refused('GATE_RUN_CHANGED', 'a run id already binds different evidence; keep the original and use a new id');
       return { run: stored, duplicate: true, quarantined: [] };
     }
-    const engine = Math.max(Object.hasOwn(value, 'collection') ? MAIN_AUDIT_ENGINE : GATE_RUN_ENGINE,
+    const engine = Math.max(value.testOutcomes ? QUARANTINE_CORE_ENGINE : GATE_RUN_ENGINE,
+      Object.hasOwn(value, 'collection') ? MAIN_AUDIT_ENGINE : GATE_RUN_ENGINE,
       Object.hasOwn(value, 'environment') ? LANDING_ENVIRONMENT_ENGINE : GATE_RUN_ENGINE,
       Object.hasOwn(value, 'timing') ? RUN_TIMING_ENGINE : GATE_RUN_ENGINE);
     logEvent(board, agentId, 'gate-run', null, { engine, run: value });
+    if (value.testOutcomes) return { run: value, quarantined: recordStructuredQuarantines(board, agentId, value, lane, owners) };
     // Only the coordinator's runs prove a flake: its landing and main-checkout gates run accepted work, and no seat can
     // send a move as the coordinator. A seat's runs stay on the board as evidence of what it saw [C7,D1].
     const sameTree = gateRuns(board).filter(entry => entry.tree === value.tree && entry.by === COORDINATOR
@@ -171,4 +203,33 @@ export function recordGateRun(board, { agentId, receipt, lane }) {
     }
     return { run: value, quarantined: filed };
   });
+}
+
+/** File one owner-lane repair when two actual verdicts name the same test and immutable tree. */
+function recordStructuredQuarantines(board, agentId, value, lane, owners) {
+  if (!structuredRun(value)) return [];
+  const runs = gateRuns(board).filter(run => run.tree === value.tree && structuredRun(run));
+  const known = new Map(flakeQuarantines(board).map(row => [testKey(row.file, row.name), row]));
+  const filed = [];
+  for (const outcome of value.testOutcomes) {
+    if (outcome.skipped) continue;
+    const key = testKey(outcome.file, outcome.name), prior = known.get(key);
+    if (prior?.status === 'quarantined' && prior.nativeCore) continue;
+    const eligible = runs.filter(run => run.eventId > (prior?.since ?? 0)
+      && run.testOutcomes.some(row => !row.skipped && testKey(row.file, row.name) === key));
+    const red = eligible.find(run => run.testOutcomes.some(row => testKey(row.file, row.name) === key && !row.skipped && !row.passed));
+    const green = eligible.find(run => run.testOutcomes.some(row => testKey(row.file, row.name) === key && !row.skipped && row.passed));
+    if (!red || !green || red.id === green.id) continue;
+    const ownerLane = owners?.[outcome.file] ?? lane;
+    if (typeof ownerLane !== 'string' || !/^[a-z][a-z0-9-]*$/u.test(ownerLane)) throw new Refused('GATE_RUN_EVIDENCE', 'a quarantined test needs its recorded owner lane');
+    const item = (prior?.status === 'quarantined' ? prior.item : null) ?? existingRepair(board, outcome.file, outcome.name) ?? addItem(board, { by: agentId, lane: ownerLane, route: 'strong',
+      title: `Flaky test: ${outcome.file} :: ${outcome.name}`.slice(0, 240),
+      criterion: `Correct why ${outcome.file} :: ${outcome.name} gives contradictory verdicts on tree ${value.tree}; retain both runs and prove the correction.`,
+      brief: `Structured native quarantine. Test ${outcome.file} :: ${outcome.name}. Tree ${value.tree}. Red run ${red.id}; green run ${green.id}. The test still runs and is reported. Its actual exit code and blocking verdict are unchanged; 20 actual clean runs or verification of this item releases quarantine.` });
+    logEvent(board, agentId, 'test-quarantine', item, { engine: QUARANTINE_CORE_ENGINE,
+      file: outcome.file, name: outcome.name, tree: value.tree, runs: [red.id, green.id] });
+    filed.push({ file: outcome.file, name: outcome.name, item });
+    known.set(key, { status: 'quarantined' });
+  }
+  return filed;
 }

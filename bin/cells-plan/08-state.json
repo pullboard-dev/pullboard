@@ -6,7 +6,7 @@
  "frontDoor": "packages/state/index.js",
  "placedBy": {
   "seed": 110,
-  "rule": 45,
+  "rule": 46,
   "imports": 2
  },
  "paths": [
@@ -81,6 +81,7 @@
   ["src/pr-bridge-engine.js","packages/state/src/core/pr-bridge-engine.js","seed"],
   ["src/private-rehome-engine.js","packages/state/src/core/private-rehome-engine.js","rule"],
   ["src/proof-run-engine.js","packages/state/src/core/proof-run-engine.js","seed"],
+  ["src/quarantine-core-engine.js","packages/state/src/shell/quarantine-core-engine.js","rule"],
   ["src/quoted-landing-failure-engine.js","packages/state/src/core/quoted-landing-failure-engine.js","seed"],
   ["src/recorded-conflict-context.js","packages/state/src/core/recorded-conflict-context.js","seed"],
   ["src/recorded-move.js","packages/state/src/core/recorded-move.js","seed"],

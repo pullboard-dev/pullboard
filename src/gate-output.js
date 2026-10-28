@@ -1,4 +1,5 @@
 import { environmentProblem } from './config.js';
+import { testOutcomeFields } from './test-outcomes.js';
 /**
  * What a gate run leaves for people and agents: the digest of its output and its sanitized timing profile. Trusted
  * policy checks write both, so they live apart from the gate's queue and runners, which a board read never needs [C7].
@@ -103,6 +104,8 @@ export function writeTimingProfile(path, profile) {
     wallMs: validDuration(profile.wallMs) ? profile.wallMs : null,
     files,
     tests,
+    ...(testOutcomeFields(profile.testOutcomes) ? { testOutcomes: profile.testOutcomes.map(row => ({ ...row,
+      file: sanitize(row.file, 'test outcome file'), name: sanitize(row.name, 'test outcome name') })) } : {}),
     runner: sanitize(profile.runner ?? 'shell', 'runner'),
     format: sanitize(profile.format ?? 'none', 'format'),
     unavailable: sanitize(profile.unavailable ?? null, 'availability'),
