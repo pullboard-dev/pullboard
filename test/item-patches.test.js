@@ -87,7 +87,7 @@ test('patch mutation refuses forged authors, actors, malformed bytes and stale s
   assert.throws(() => store.removeItemPatch(board, id, { agentId: builder, key: 'fix' }), { code: 'COORDINATOR_ONLY' });
 });
 
-test('adding or removing verified inputs clears acceptance and reservations but preserves frozen criterion [V4,H16]', t => {
+test('changed inputs revoke acceptance, preserve the bar and retain a live reviewer [V4,V15,H16]', t => {
   const { board, id, builder, reviewer } = fixture(t);
   store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', head: COMMIT, digest: 'patch-frozen', policy: 'any', note: 'synthetic board-state acceptance; no runtime proof claimed' });
   assert.equal(store.getItem(board, id).item_status, 'verified');
@@ -100,6 +100,13 @@ test('adding or removing verified inputs clears acceptance and reservations but 
   assert.equal(changed.item_review_until, null);
   assert.equal(changed.item_frozen_digest, 'patch-frozen');
   assert.equal(changed.item_commit, COMMIT);
+  const reserved = store.reserveReview(board, id, { agentId: reviewer, leaseMs: 60_000, policy: 'any' });
+  const previousProof = itemPatchDigest(board, id);
+  store.attachItemPatch(board, id, input(builder, 'rebound'));
+  assert.equal(store.getItem(board, id).item_review_by, reviewer);
+  assert.equal(store.getItem(board, id).item_review_until, reserved.item_review_until);
+  assert.throws(() => store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', head: COMMIT,
+    digest: 'patch-frozen', policy: 'any', companionDigest: previousProof, note: 'synthetic stale input control' }), { code: 'ITEM_PATCH_CHANGED' });
   store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', head: COMMIT, digest: 'patch-frozen', policy: 'any', note: 'synthetic state control', companionDigest: itemPatchDigest(board, id) });
   store.removeItemPatch(board, id, { agentId: 'coordinator', key: 'fix' });
   assert.equal(store.getItem(board, id).item_status, 'submitted');
