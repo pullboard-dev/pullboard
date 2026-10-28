@@ -4,7 +4,7 @@
  * The item lifecycle's declaration (M1, M2, M4): sound on its own terms, each property shown
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
  */
-import { functionsIn } from './machine-source-functions.fixture.js';
+import { sourceFacts } from './machine-source-functions.fixture.js';
 import { assertMachineWalkMemo } from './machine-walk-memo.fixture.js';
 import * as fs from 'node:fs';
 import * as machineRules from '../src/machine.js';
@@ -12,7 +12,6 @@ import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
@@ -204,31 +203,22 @@ function codeWalk(read, { caught = false } = {}) {
   const files = new Map();
   const localFacts = new Map();
   const load = (file) => {
-    if (!files.has(file)) {
-      const source = read(file);
-      const named = new Map();
-      /** Resolve literal relative imports with their repository layout, including extracted packages. */
-      const under = (specifier) => posix.normalize(posix.join(posix.dirname(file), specifier));
-      for (const [, names, specifier] of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*'(\.{1,2}\/[^']+\.js)'/g)) {
-        const from = under(specifier);
-        if (!from) continue;
-        for (const part of names.split(',').map((text) => text.trim()).filter(Boolean)) {
-          const [original, local = original] = part.split(/\s+as\s+/);
-          named.set(local, `${from}#${original}`);
-        }
-      }
-      const spaces = new Map([...source.matchAll(/import \* as (\w+) from '(\.{1,2}\/[^']+\.js)'/g)].map(([, space, specifier]) => [space, under(specifier)]));
-      files.set(file, { bodies: functionsIn(source), named, spaces, source });
-    }
+    if (!files.has(file)) files.set(file, sourceFacts(read, file));
     return files.get(file);
   };
   const refusalsOf = (key, skip = new Set(), seen = new Set()) => {
     if (seen.has(key) || skip.has(key) || TRANSPORT_BOUNDARIES.has(key)) return new Set();
     seen.add(key);
     const [file, name] = key.split('#');
-    const { bodies, named, spaces, source } = load(file);
+    const { bodies, named, spaces, source, stars } = load(file);
     // A facade may import and re-export the helper; follow its real definition after extraction.
     if (!bodies.has(name) && named.has(name)) return refusalsOf(named.get(name), skip, seen);
+    // A public export-star front door retains every concrete provider's refusal path.
+    if (!bodies.has(name) && stars.length) {
+      const codes = new Set();
+      for (const from of stars) for (const code of refusalsOf(`${from}#${name}`, skip, seen)) codes.add(code);
+      return codes;
+    }
     // Loaded source is fixed within this walk; local scans do not depend on the caller's seen/skip sets.
     let facts = localFacts.get(key);
     if (!facts) {
@@ -1495,4 +1485,11 @@ test('lifecycle audit follows extracted package guards and catches a new refusal
   const planted = editedSource(file, /^export function requireHandoffActive\(board, actor, operation, args\) \{$/m,
     "$&\n  throw new Refused('STATE_PACKAGE_PROBE', 'planted package guard');");
   assert.ok(codeProblems(machineRules.MACHINE, planted).includes('STATE_PACKAGE_PROBE is raised by submit but not declared there'));
+});
+
+test('lifecycle source walks follow sync shims and catch a planted body refusal [M1,M4,H16]', () => {
+  assert.ok(codeWalk(fromDisk).refusalsOf('commands/sync.js#run').has('GIT_REPLACE_REFS'));
+  const planted = editedSource('../packages/sync/src/shell/sync.js', /^export async function syncGitBoard\(root, board, io, \{ settlePending = false \} = \{\}\) \{$/m,
+    "$&\n  throw new Refused('SYNC_PACKAGE_PROBE', 'planted sync body refusal');");
+  assert.ok(codeWalk(planted).refusalsOf('commands/sync.js#run').has('SYNC_PACKAGE_PROBE'));
 });

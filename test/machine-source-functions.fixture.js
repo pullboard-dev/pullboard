@@ -1,3 +1,4 @@
+import { posix } from 'node:path';
 /** A top-level function, or a top-level arrow function bound to a const. */
 const START = /^(?:export )?(?:(?:async )?function (\w+)\(|const (\w+) = (?:async )?(?:\([^)]*\)|\w+) =>)/;
 
@@ -32,3 +33,21 @@ export function functionsIn(source) {
   return bodies;
 }
 
+
+/** Read one source identity and preserve named import/re-export and public star-provider edges. */
+export function sourceFacts(read, file) {
+  const source = read(file), named = new Map();
+  /** Resolve literal relative operands against the actual provider's repository layout. */
+  const under = (specifier) => posix.normalize(posix.join(posix.dirname(file), specifier));
+  for (const [, names, , specifier] of source.matchAll(/(?:import|export)\s*\{([^}]*)\}\s*from\s*(['"])(\.{1,2}\/[^'"]+\.js)\2/g)) {
+    for (const part of names.split(',').map(text => text.trim()).filter(Boolean)) {
+      const [original, local = original] = part.split(/\s+as\s+/);
+      named.set(local, `${under(specifier)}#${original}`);
+    }
+  }
+  const spaces = new Map([...source.matchAll(/import \* as (\w+) from (['"])(\.{1,2}\/[^'"]+\.js)\2/g)]
+    .map(([, space, , specifier]) => [space, under(specifier)]));
+  const stars = [...source.matchAll(/export\s*\*\s*from\s*(['"])(\.{1,2}\/[^'"]+\.js)\1/g)]
+    .map(([, , specifier]) => under(specifier));
+  return { bodies: functionsIn(source), named, spaces, source, stars };
+}
