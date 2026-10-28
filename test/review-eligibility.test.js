@@ -442,7 +442,8 @@ test('the real withOpenedBoard installs the alias list from accepted main and th
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, families: { openai: ['codex'] } }, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: declare vendor aliases');
-  const f = fixture(t), id = f.add();
+  // The opener closes its board, so this one is not also closed by a test hook.
+  const f = fixture({ after() {} }), id = f.add();
   joinSeat(f.board, 'core-6', 'OpenAI', '6');
   const item = f.submit(id);
   assert.ok(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-6'), 'before opening, no alias index exists');
@@ -476,5 +477,5 @@ test('aliases and the strict builder rule apply only from their engine; an older
   older.board.executionEngineVersion = FAMILY_ALIAS_ENGINE - 1;
   joinSeat(older.board, 'core-8', null, '8');
   store.claim(older.board, strictId, { agentId: 'core-8', lane: 'core', leaseMs: LEASE, freeze });
-  assert.doesNotThrow(() => store.submit(older.board, strictId, { agentId: 'core-8', commit: 'c'.repeat(40), tree: 'd'.repeat(40), files: [] }));
+  assert.doesNotThrow(() => submitFixture(older.board, strictId, { agentId: 'core-8', commit: 'c'.repeat(40), tree: 'd'.repeat(40) }));
 });
