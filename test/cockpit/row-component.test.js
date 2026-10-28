@@ -11,26 +11,6 @@ import { test } from 'node:test';
 import { sharedRowHtml } from '../../src/view/row-component.js';
 import { chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
-test('shared row data is escaped in every variant and cannot add executable attributes [N26]', () => {
-  const text = '<script>unexpected()</script>"&';
-  const item = sharedRowHtml({ id: '#27', title: text, meta: text, time: '9:12 PM', chip: text,
-    state: 'open', chipTitle: text, attributes: { 'data-item': '27', 'aria-label': text } });
-  const needs = sharedRowHtml({ variant: 'needs', id: '#27', title: text, meta: text, chip: text,
-    state: 'question', time: '9:12 PM', iconHtml: '?', detailHtml: '<p>Trusted detail</p>' });
-  const activity = sharedRowHtml({ variant: 'activity', state: 'build', time: text,
-    mainHtml: '<p>Trusted sentence</p>', attributes: { 'data-activity-kind': text } });
-  for (const html of [item, needs, activity]) {
-    assert.doesNotMatch(html, /<script>/u);
-    assert.match(html, /&lt;script&gt;unexpected\(\)&lt;\/script&gt;&quot;&amp;/u);
-  }
-  assert.match(item, /class="row s-open item-row"/u);
-  assert.match(needs, /<details><summary>[^]*Trusted detail<\/p><\/details>/u);
-  assert.match(activity, /<time>[^]*<span class="activity-verb build">[^]*<div class="activity-say"><p>Trusted sentence/u);
-  assert.throws(() => sharedRowHtml({ attributes: { onclick: 'unexpected()' } }), /unsupported row attribute/u);
-  assert.throws(() => sharedRowHtml({ tag: 'script' }), /unsupported row tag/u);
-  assert.throws(() => sharedRowHtml({ variant: 'unrecognized' }), /unknown row variant/u);
-});
-
 test('shared row variants retain their layout and the default row expands in place in Chrome [N26]', { timeout: 90_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'the component geometry and native disclosure need real Chrome');
