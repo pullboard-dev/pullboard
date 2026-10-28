@@ -181,6 +181,31 @@ test('a committed src-to-cell path map preserves existing debt identities while 
   assert.ok(cellLintGrowth(box.report(), baseline).some(row => row.key.endsWith('#newlyUnused')));
 });
 
+test('sharded committed path maps activate ratchets while absent maps remain advisory [C7]', t => {
+  const box = fixture(t), run = mode => runFixtureChild(process.execPath, [BIN, mode, box.root], { encoding: 'utf8' });
+  const before = box.report(), baseline = cellLintBaseline(before);
+  assert.equal(before.transition.active, true, 'a repository with no committed map stays in the advisory transition');
+  box.put('src/advisory-rise.js', 'export const value = 1;\n');
+  assert.ok(cellLintGrowth(box.report(), baseline).some(row => row.key === 'src/advisory-rise.js' && row.advisory));
+
+  box.put('bin/cells-plan/path-map/git.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
+  box.git('add', '-A'); box.git('commit', '-qm', 'test: accept a sharded package migration map');
+  const moved = box.report();
+  assert.equal(moved.transition.active, false, 'the committed shard closes the transition without a root map');
+  assert.deepEqual(moved.transition.witness, ['src/previous.js', 'packages/sample/index.js']);
+  assert.ok(!moved.metrics.strays.findings.some(row => row.key === 'bin/cells-plan/path-map/git.json'), 'a path-map shard is tooling metadata, not a stray');
+  assert.ok(!moved.metrics.unreachable.findings.some(row => row.key === 'bin/cells-plan/path-map/git.json'), 'a path-map shard is not an application module');
+  const strictBaseline = cellLintBaseline(moved);
+  writeCellLintBaseline(box.root, strictBaseline, {
+    initialize: true,
+    verify: () => JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(strictBaseline),
+  });
+  box.put('src/strict-rise.js', 'export const value = 2;\n');
+  const strict = box.report(), rise = cellLintGrowth(strict, strictBaseline);
+  assert.ok(rise.some(row => row.key === 'src/strict-rise.js' && !row.advisory), 'post-migration source debt is enforced');
+  assert.notEqual(run('--check').status, 0, 'the actual CLI refuses a rise with only a committed shard map');
+});
+
 test('property keys and member spellings never prove imported binding reads; shorthand and calls do [C7,CD62]', t => {
   const box = fixture(t);
   box.put('packages/sample/index.js', 'export function hidden() { return 1; }\n');
