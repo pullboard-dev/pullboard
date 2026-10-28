@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { recordRowHtml } from '../../src/view/record-row.js';
 import { pipelineHtml } from '../../src/view/pipeline-render.js';
 import { selectItemsView } from '../../src/view/items-selection.js';
+import { timelineBodyHtml } from '../../src/view/timeline-body.js';
 import { timelineHtml } from '../../src/view/timeline-render.js';
 import { lifecycleDiagramHtml } from '../../src/view/lifecycle-diagram.js';
 import { needsEntries, renderNeedsRow } from '../../src/view/needs-list.js';
@@ -369,4 +370,32 @@ test('Roadmap item HTML retains blockers, provenance and escaped detail from exp
   assert.match(roadmapBlock(item, { ...context, error: '<unavailable>' }).detail, /&lt;unavailable&gt;/u);
   assert.equal(roadmapBlock(null), null);
   assert.deepEqual({ item, context }, before);
+});
+
+test('timeline text keeps quoted words, escapes markup and binds only detected references [N26,B23]', () => {
+  const sha = 'abcdef1234567890abcdef1234567890abcdef12';
+  const text = `A <script>ONE_CLAIM</script> says #2; src/example.js:2@${sha}; ${sha}; 2026-10-28T12:34:56Z. ../outside.js stays text.`;
+  const refs = [];
+  const html = timelineBodyHtml(text, { itemHref: id => '#items/' + id,
+    codeLink: ref => { refs.push(ref); return '<button data-code="' + ref + '">code</button>'; },
+    timeLabel: () => '7:34 AM', refusalTitles: { ONE_CLAIM: 'Finish or release the current claim.' } });
+  assert.match(html, /&lt;script&gt;/u);
+  assert.doesNotMatch(html, /<script>/u);
+  assert.match(html, /data-go="item:2" href="#items\/2"/u);
+  assert.deepEqual(refs, ['src/example.js:2@' + sha]);
+  assert.match(html, /title="Finish or release the current claim\."/u);
+  assert.match(html, new RegExp('title="' + sha + '" data-copy="' + sha + '">abcdef123456<'));
+  assert.match(html, />7:34 AM<\/time>/u);
+  assert.match(html, /\.\.\/outside\.js stays text\./u);
+  const at = '2026-10-28T12:00:00Z';
+  const moves = [1, 2].map(eventId => ({ type: 'move', eventId, kind: 'proof-run', by: 'web-1', at }));
+  const steps = moves.map(entry => ({ ...entry, from: 'claimed', move: null, model: 'Actual model', timeLabel: '7:00 AM' }));
+  const flow = { initial: 'open', states: [{ id: 'claimed', final: false }] };
+  const htmlPair = timelineHtml({ entries: moves, steps, flow });
+  assert.match(htmlPair, /ran the proof twice/u);
+  assert.match(htmlPair, /data-event-ids="1 2"/u);
+  assert.match(htmlPair, /title="Actual model">web-1/u);
+  assert.equal((htmlPair.match(/class="tl-claimed/g) ?? []).length, 1);
+  const separated = timelineHtml({ entries: [moves[0], { type: 'fact', id: 'note', eventId: 3, by: 'web-1', kind: 'note', text: 'Between proofs' }, moves[1]], steps, flow });
+  assert.doesNotMatch(separated, /ran the proof twice/u, 'a note prevents grouping non-consecutive moves');
 });

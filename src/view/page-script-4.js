@@ -842,6 +842,19 @@ document.addEventListener('click', (event) => {
     view.dashboardList = dashboardList.dataset.dashboardList; view.state = view.dashboardList === 'review' ? 'verify' : 'ready';
     view.lane = null; view.before = null; $('q').value = ''; openTab('items'); render(); return;
   }
+  const timelineMore = event.target.closest('[data-timeline-more]');
+  if (timelineMore) {
+    const key = JSON.stringify([view.root, view.item]);
+    view.timelineOpen ||= new Map();
+    const open = new Set(view.timelineOpen.get(key) || []), id = timelineMore.dataset.timelineMore;
+    if (open.has(id)) open.delete(id); else open.add(id);
+    view.timelineOpen.set(key, [...open]);
+    const expanded = open.has(id);
+    timelineMore.closest('.tl-note').classList.toggle('expanded', expanded);
+    timelineMore.setAttribute('aria-expanded', String(expanded));
+    timelineMore.textContent = expanded ? 'Show less' : 'Show all';
+    return;
+  }
   if (view.filterOpen && !event.target.closest('.filter-control')) { view.filterOpen = false; render(); }
   const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);

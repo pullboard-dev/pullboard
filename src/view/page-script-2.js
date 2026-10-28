@@ -14,6 +14,7 @@ import { itemListFields } from './pipeline-model.js';
 import { pipelineHtml } from './pipeline-render.js';
 import { lifecycleDiagramHtml } from './lifecycle-diagram.js';
 import { timelineHtml as renderTimelineHtml } from './timeline-render.js';
+import { timelineBodyHtml } from './timeline-body.js';
 /**
  * Part 2 of the hosted page's script, verbatim from src/cockpit.js lines 332-1298 (#745): its
  * text is what the page served before the split, with the values its ${} expressions read passed in as scope.
@@ -282,8 +283,8 @@ const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&am
 // is in columns, as a terminal counts them: CJK, full-width and emoji characters take two.
 const wideChar = (c) => { const p = c.codePointAt(0); return (p >= 0x1100 && p <= 0x115f) || (p >= 0x2e80 && p <= 0xa4cf) || (p >= 0xac00 && p <= 0xd7a3) || (p >= 0xf900 && p <= 0xfaff) || (p >= 0xfe30 && p <= 0xfe4f) || (p >= 0xff00 && p <= 0xff60) || (p >= 0xffe0 && p <= 0xffe6) || (p >= 0x1f300 && p <= 0x1faff) || (p >= 0x20000 && p <= 0x3fffd); };
 const columns = (text) => [...String(text)].reduce((n, c) => n + (wideChar(c) ? 2 : 1), 0);
-const codeChip = (text, kind = '') => kind === 'sha' && String(text).length > 10
-  ? '<code class="inline sha" title="' + esc(text) + '">' + esc(String(text).slice(0, 10)) + '</code>'
+const codeChip = (text, kind = '') => kind === 'sha' && String(text).length > 12
+  ? '<code class="inline sha" title="' + esc(text) + '">' + esc(String(text).slice(0, 12)) + '</code>'
   : '<code class="inline' + (kind ? ' ' + kind : '') + (columns(text) > 24 ? ' long" title="' + esc(text) : '') + '">' + esc(text) + '</code>';
 // An age said in words, as a shout's card shows it: now, 2m ago, 1h ago.
 const agoLong = (iso) => { const short = ago(iso); return short === 'now' ? 'now' : short + ' ago'; };
@@ -437,9 +438,9 @@ const codeRef = (ref, before, block = false) => {
       + (c.all ? '<button class="code-control" data-code-less="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' type="button">show less</button>' : '')
       + '</div>';
   // Its label is one piece: the path, cut short first where the line is narrow, then the lines and the commit's first
-  // ten characters; the whole reference is on hover.
+  // twelve characters; the whole reference is on hover.
   const colon = ref.indexOf(':'), at = ref.lastIndexOf('@');
-  const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at)) + '<span class="ref-sha">' + esc(ref.slice(at, at + 11)) + '</span></span>';
+  const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at)) + '<span class="ref-sha">' + esc(ref.slice(at, at + 13)) + '</span></span>';
   const button = (asBlock) => '<button class="ref' + (asBlock ? ' block' : '') + '" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' title="' + esc(ref) + '" aria-label="Open code reference ' + esc(ref) + '" type="button" aria-expanded="' + open + '">' + label + '</button>';
   // A reference on a line of its own is a block, collapsed until asked: a caret, the path and lines, the short commit.
   // One inside a sentence keeps its label, so the prose reads on, and opens that same block below it.
@@ -478,6 +479,7 @@ const FLOW = ${JSON.stringify(lifecycle()).replaceAll('<', '\\u003c')};
 const lifecycleEvent = (${lifecycleEvent.toString()});
 const lifecycleMove = (${lifecycleMove.toString()});
 const renderTimelineHtml = (${renderTimelineHtml.toString()});
+const timelineBodyHtml = (${timelineBodyHtml.toString()});
 
 /**
  * An item's history replayed through the lifecycle: each event with the state it found the item in
@@ -547,13 +549,22 @@ function timeline(item) {
     : entry);
   const moves = replayEntries.filter((entry) => entry.type === 'move');
   const steps = replay({ ...item, history: moves });
+  /** Resolve model metadata from this board without appending it to the seat address. */
+  const modelFor = by => {
+    const agent = data?.project?.agents?.find(row => row.agent_id === by);
+    const model = agent?.model || agent?.agent_model;
+    return model && String(model).toLowerCase() !== 'unknown' ? model : '';
+  };
   const presentedEntries = replayEntries.map((entry) => entry.type === 'fact'
-    ? { ...entry, timeLabel: when(entry.at), ageHtml: age(entry.at), agentLabel: agentName(entry.by),
+    ? { ...entry, timeLabel: when(entry.at), ageHtml: age(entry.at), model: modelFor(entry.by),
+      bodyHtml: timelineBodyHtml(entry.text, { itemHref: itemAddress, codeLink: ref => codeRef(ref, ''), timeLabel: when, commit: item.commit || item.head || '',
+        refusalTitles: { ONE_CLAIM: 'An agent can hold only one building claim at a time.' } }),
       hasCodeRef: Boolean(entry.ref), codeHtml: entry.ref ? codeRef(factCodeRef(entry.ref), '') : '' }
     : entry);
   const presentedSteps = steps.map((step) => ({ ...step, timeLabel: step.at ? when(step.at) : '',
-    ageHtml: step.at ? age(step.at) : '', agentLabel: agentName(step.by) }));
-  return renderTimelineHtml({ entries: presentedEntries, steps: presentedSteps, flow: FLOW });
+    ageHtml: step.at ? age(step.at) : '', model: modelFor(step.by) }));
+  return renderTimelineHtml({ entries: presentedEntries, steps: presentedSteps, flow: FLOW,
+    open: view.timelineOpen?.get(JSON.stringify([view.root, item.id])) || [] });
 }
 
 /**

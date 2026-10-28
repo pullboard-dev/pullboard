@@ -548,11 +548,11 @@ function productEntries(html) {
  * stay it began, with any running age read as its text.
  */
 function timelineRows(html) {
-  return [...html.matchAll(/<li class="([^"]*)"[^>]*><time>([^<]*)<\/time><span><b>([^<]*)<\/b> ([^<]*)<\/span>(?:<small>(.*?)<\/small>)?<\/li>/g)].map((match) => ({
+  return [...html.matchAll(/<li class="([^"]*)"[^>]*><span class="tl-marker [^]*?<span class="tl-sentence">([^]*?)<\/span><time>([^<]*)<\/time><\/div>(?:<small>([^]*?)<\/small>)?[^]*?<\/li>/g)].map((match) => ({
     dot: match[1],
-    time: match[2],
-    event: `${match[3]} ${match[4]}`,
-    stay: (match[5] ?? '').replace(/<time data-ago="[^"]+">([^<]*)<\/time>/, '$1'),
+    time: match[3],
+    event: match[2].replace(/<span class="tl-kind[^]*?<\/span>/g, '').replace(/<[^>]*>/g, '').trim(),
+    stay: (match[4] ?? '').replace(/<time data-ago="[^"]+">([^<]*)<\/time>/, '$1'),
   }));
 }
 /**
