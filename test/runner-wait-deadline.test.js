@@ -23,8 +23,15 @@ function fixture({ hold = '', runnerWaitMs = 60, dropFirst = !hold, healthDown =
   const requests = join(box.dir, 'requests.jsonl');
   const starts = join(box.dir, 'starts.jsonl');
   const stderrLog = join(box.dir, 'worker-stderr.log');
+  // The registration probe reads this machine's desktop; pin it to no desktop, as the runner's fixture host has (#1599).
+  const noDesktop = join(box.dir, 'no-desktop-preload.cjs');
+  writeFileSync(noDesktop, `const cp=require('node:child_process');const original=cp.spawnSync;
+cp.spawnSync=function(command,...args){ if(command!=='/bin/launchctl') return original.call(this,command,...args);
+  return {status:113,signal:null,stderr:'Could not find domain for fixture\\n'}; };
+require('node:module').syncBuiltinESMExports();\n`);
   installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths.remoteHome,
-    machineHome: paths.remoteMachine, requests, starts, hold, dropFirst, healthDown, stderrLog });
+    machineHome: paths.remoteMachine, requests, starts, hold, dropFirst, healthDown, stderrLog,
+    registrationNodeOptions: `--require=${noDesktop}` });
   box.env.PATH = paths.bin + ':' + box.env.PATH;
   const added = cli(box.repo, box.env, 'runner', 'add', HOST + '-drop', '--slots', '1', '--browser', '1');
   assert.equal(added.status, 0, fixtureResultContext(added));
