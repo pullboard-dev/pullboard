@@ -1,4 +1,4 @@
-import { withBoardRead } from '../board-read.js';
+import { withBoardRead as waitBoardRead } from '../board-read.js';
 import { retrySync } from '../cli-sync.js';
 import { boundedProofReason } from '../../packages/state/src/core/submission-proof.js';
 import { completeMoveHandoff } from '../post-move-handoff.js';
@@ -306,6 +306,6 @@ export async function run(io, { first, values }) {
   try { code = await submitHere(ctx, id, values.infra); }
   finally { io.onOrderedMove = previous; }
   if (code !== 0 || !values.wait) return code;
-  return waitForSubmissionVerdict(ctx, id, submissionResult.value, submissionResult.event, { withBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem });
+  return waitForSubmissionVerdict(ctx, id, submissionResult.value, submissionResult.event, { withBoardRead: waitBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem });
 }
 import { SUBMISSION_SIZE_METHOD } from '../../packages/state/src/core/submission-size.js';
