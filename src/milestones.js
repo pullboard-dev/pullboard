@@ -145,7 +145,7 @@ function normalizeMilestoneText(name, note = null) {
   return { name: name.trim(), note: note?.trim() || null };
 }
 
-export { canonicalMilestoneTarget } from '../packages/state/index.js';
+export { canonicalMilestoneTarget } from './state-milestone-target.js';
 
 /**
  * A target as ISO text, or null for `none`, which clears it. Applying a move accepts only a date or

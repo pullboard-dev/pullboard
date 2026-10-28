@@ -1,5 +1,5 @@
 /** Read replacement authority only from typed engine events, never from a person's prose [B3,H16]. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from './refused.js';
 
 /** Find this outgoing seat's one durable hand-off, retaining its first takeover. */
 export function agentHandoff(board, outgoing) {

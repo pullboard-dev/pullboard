@@ -349,9 +349,9 @@ export function listAgents(board) {
     LEFT JOIN board_meta parent ON parent.meta_key='agent_parent_session:' || agent.agent_id ORDER BY agent.rowid`).all());
 }
 
-export { decisionFields } from '../packages/state/index.js';
-export { factFromEvent } from '../packages/state/index.js';
-import { factFromEvent } from '../packages/state/index.js';
+export { decisionFields } from './state-fact-projection.js';
+export { factFromEvent } from './state-fact-projection.js';
+import { factFromEvent } from './state-fact-projection.js';
 
 export const KEY = 'spec_approval_baseline';
 

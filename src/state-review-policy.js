@@ -1,6 +1,6 @@
-import { REVIEW_ROUTING_ENGINE } from '../../../../src/review-routing-engine.js';
-import { REVIEW_INDEPENDENCE_ENGINE } from '../../../../src/review-independence-engine.js';
-import { Refused } from '../../../../src/refused.js';
+import { REVIEW_ROUTING_ENGINE } from './review-routing-engine.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from './review-independence-engine.js';
+import { Refused } from './refused.js';
 
 /** A declared vendor label is compared as text, never inferred from a model or diagnostic. */
 export function familyName(value) {

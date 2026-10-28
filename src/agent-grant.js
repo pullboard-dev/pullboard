@@ -3,8 +3,8 @@ import { AGENT_GRANT_ENGINE } from './agent-grant-engine.js';
 import { REVIEW_GRANT_ENGINE } from './review-grant-engine.js';
 import { BAR_SIGN_GRANT_ENGINE } from './bar-sign-grant-engine.js';
 import { Refused } from './refused.js';
-import { recordedGrantActivation } from '../packages/state/index.js';
-import { completesAdmittedSubmit } from '../packages/state/index.js';
+import { recordedGrantActivation } from './state-relay-activation.js';
+import { completesAdmittedSubmit } from './state-submit-admission.js';
 
 // Attributed append-only findings never confer authority over item state.
 const ADMINISTRATIVE = new Set(['shout', 'claim', 'release', 'reserveReview', 'appendFact', 'recordAttempt']);

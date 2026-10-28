@@ -1,6 +1,6 @@
 /** Pure relay sender judgments with explicit discovered-actor and stamp-validation ports [H16,C7]. */
-import { VERIFIER_STANDING_ENGINE } from '../../../../src/engine-metadata.js';
-import { Refused } from '../../../../src/refused.js';
+import { VERIFIER_STANDING_ENGINE } from './engine-metadata.js';
+import { Refused } from './refused.js';
 
 /** Bind the two pure provider definitions without loading the provider's runtime from state. */
 export function relaySenderPolicy({ declaredMoveActor, validPresence }) {

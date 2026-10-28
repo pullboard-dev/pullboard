@@ -1,5 +1,5 @@
 /** Validate the exact Git comparison observed by a submitting writer; readers never reconstruct it [R1,R2,H16]. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from './refused.js';
 
 const COMMIT = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 export const SUBMISSION_SIZE_METHOD = 'added-plus-deleted-no-renames';

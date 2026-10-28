@@ -1,12 +1,12 @@
-import { recordReviewPolicyActivation } from '../packages/state/index.js';
+import { recordReviewPolicyActivation } from './state-review-policy.js';
 import { agentGrantMinimum } from './agent-grant.js';
 import { requireAgentGrant } from './agent-grant.js';
-import { rejectedWorkReturns } from '../packages/state/index.js';
-import { handoffMoveProblem } from '../packages/state/index.js';
-import { requireHandoffActive } from '../packages/state/index.js';
-import { manualLandingFailureQuoted } from '../packages/state/index.js';
-import { submissionSize } from '../packages/state/index.js';
-import { lineSettings } from '../packages/state/index.js';
+import { rejectedWorkReturns } from './state-rejected-work-return.js';
+import { handoffMoveProblem } from './state-handoff-state.js';
+import { requireHandoffActive } from './state-handoff-state.js';
+import { manualLandingFailureQuoted } from './state-manual-landing-failure-quoted.js';
+import { submissionSize } from './state-submission-size.js';
+import { lineSettings } from './state-line-settings-read.js';
 /** Versioned, deterministic replay through the CLI's existing board engine [H3,H16]. */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
@@ -15,10 +15,10 @@ import { recordedRefusal } from './recorded-refusal.js';
 import { PEOPLE_ENGINE } from './people-engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { VERIFIER_STANDING_ENGINE } from './machine.js';
-import { canonicalMilestoneTarget } from '../packages/state/index.js';
+import { canonicalMilestoneTarget } from './state-milestone-target.js';
 import { Refused } from './refused.js';
-import { SUBMISSION_PROOF_ENGINE } from '../packages/state/index.js';
-import { submissionProof } from '../packages/state/index.js';
+import { SUBMISSION_PROOF_ENGINE } from './move-engine-constants.js';
+import { submissionProof } from './state-submission-proof.js';
 import { MERGE_ONLY_VERDICT_ENGINE } from './merge-only-verdict-engine.js';
 
 /** Require the explicit runtime ports supplied by the board owner, never a receiver-local loader. */
