@@ -1,0 +1,17 @@
+/** Preserve review wording and prepared note links without browser state [N26,C7]. */
+
+/** Omit only a duplicated leading verdict code, preserving the rest of the recorded note. */
+export function visibleVerdictNote(reason, note) {
+  const text = String(note ?? ''), code = String(reason ?? ''), remainder = text.slice(code.length);
+  return code && text.startsWith(code) && (!remainder || /^\s/u.test(remainder)) ? remainder.trimStart() : text;
+}
+
+/** Render a verdict with plain metadata and an explicitly prepared rich note. */
+export function verdictHtml({ verdict, agentLabel, timeLabel, noteHtml }) {
+  /** Only noteHtml is markup; metadata and the prepared time label remain plain text. */
+  const esc = text => String(text ?? '').replace(/[&<>"']/gu, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+  const { decision, reason, commit } = verdict;
+  return '<div class="verdict ' + (decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(decision) + ' ' + esc(reason)
+    + '</b><span class="by">' + esc(agentLabel) + ' · ' + esc(timeLabel) + ' · at ' + esc(String(commit || '').slice(0, 12))
+    + '</span><div class="note">' + noteHtml + '</div></div>';
+}

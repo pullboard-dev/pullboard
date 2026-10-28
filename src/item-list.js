@@ -1,5 +1,7 @@
 /** Shared local/relay item-list fields, derived once from the declared lifecycle [A2,N26,H17]. */
 import { MACHINE } from './machine.js';
+import { lifecycleMove } from './lifecycle-move.js';
+export { lifecycleMove } from './lifecycle-move.js';
 
 /** Match the first local milestone name exactly as the state list projection does. */
 export function milestoneNamesByItem(milestones) {
@@ -24,16 +26,6 @@ export function lifecycleEvent(event) {
   const projected = { kind: event.event_kind, by: event.event_by, at: event.event_at };
   if (event.event_kind === 'refreeze' && JSON.parse(event.event_detail).retainedClaim === true) projected.retainedClaim = true;
   return projected;
-}
-
-/** Match a recorded event to its declared move, including state-specific native aliases. */
-export function lifecycleMove(machine, state, event) {
-  const aliases = { renew: 'claim', 'merge-only-accept': 'submit-merge', rehome_import: 'rehomeImport', 'outside-intake': 'intake' };
-  const verb = ['item_patch_attach', 'item_patch_remove'].includes(event.kind)
-    ? state === 'claimed' ? 'patch-claimed' : 'patch' : aliases[event.kind] ?? event.kind;
-  return machine.moves.find(move => move.verb === verb && move.from.includes(state)
-    && (verb !== 'claim' || (event.kind === 'renew') === (move.to === state))
-    && (verb !== 'refreeze' || (event.retainedClaim === true) === (move.to === 'claimed')));
 }
 
 /**

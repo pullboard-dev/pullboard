@@ -141,3 +141,29 @@ test('a line setting change is a recorded move with its reason and its range [R1
     assert.equal(store.events(board).length, before, 'a refused value appends no successful setting event');
   }
 });
+
+/** The public opt-in persists only machine policy and validates both CLI and file inputs. */
+test('gate.runnersOnly defaults off and has a validated public on/off setting [C7,O5]', () => {
+  const home = mkdtempSync(join(tmpdir(), 'pullboard-runner-only-settings-'));
+  try {
+    const initial = settings(home);
+    assert.equal(initial.status, 0, initial.stderr);
+    assert.equal(JSON.parse(initial.stdout).settings.gate.runnersOnly, false);
+    const changed = settings(home, 'gate.runnersOnly', 'on');
+    assert.equal(changed.status, 0, changed.stderr);
+    assert.equal(JSON.parse(changed.stdout).settings.gate.runnersOnly, true);
+    const file = join(home, 'settings.json');
+    const saved = readFileSync(file, 'utf8');
+    const invalid = settings(home, 'gate.runnersOnly', 'yes');
+    assert.equal(invalid.status, 1);
+    assert.equal(JSON.parse(invalid.stdout).error.code, 'BAD_MACHINE_SETTINGS');
+    assert.equal(readFileSync(file, 'utf8'), saved);
+    const off = settings(home, 'gate.runnersOnly', 'off');
+    assert.equal(off.status, 0, off.stderr);
+    assert.equal(JSON.parse(off.stdout).settings.gate.runnersOnly, false);
+    writeFileSync(file, JSON.stringify({ gate: { runnersOnly: 'true' } }));
+    const malformed = settings(home);
+    assert.equal(malformed.status, 1);
+    assert.equal(JSON.parse(malformed.stdout).error.code, 'BAD_MACHINE_SETTINGS');
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
