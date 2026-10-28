@@ -72,6 +72,17 @@ test('the view shows what is new once after an upgrade [N26]', async () => {
       assert.ok(shown.cardBottom <= shown.itemTop && shown.itemBottom <= shown.viewport, `${width}/${scheme}: the card leaves the complete first item above the fold: ${JSON.stringify(shown)}`);
       assert.ok(shown.pageWidth <= shown.width, `${width}/${scheme}: the page never scrolls sideways`);
       assert.equal(shown.scheme, true, 'the actual browser uses the requested color scheme');
+      const reachable = JSON.parse(await chrome.stable(`JSON.stringify((() => {
+        const card = document.querySelector('#upgrade-note');
+        card.scrollTop = card.scrollHeight;
+        const bounds = card.getBoundingClientRect(), link = card.querySelector('footer a').getBoundingClientRect();
+        const result = { scrolled: card.scrollTop > 0, linkVisible: link.top >= bounds.top && link.bottom <= bounds.bottom };
+        card.scrollTop = 0;
+        return result;
+      })())`));
+      assert.equal(reachable.scrolled, true, `${width}/${scheme}: complete long release details remain scrollable`);
+      assert.equal(reachable.linkVisible, true, `${width}/${scheme}: full release notes stay reachable inside the notice`);
+
       if (process.env.PULLBOARD_UPGRADE_PROOF) {
         mkdirSync(process.env.PULLBOARD_UPGRADE_PROOF, { recursive: true });
         const shot = await chrome.send('Page.captureScreenshot', { format: 'png' });
