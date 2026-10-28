@@ -2,6 +2,7 @@
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { REVIEW_ROUTING_ENGINE } from './review-routing-engine.js';
 import { FAMILY_ALIAS_ENGINE } from './family-alias-engine.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from './review-independence-engine.js';
 import { familyName } from './review-policy.js';
 import { familyAliasesOf } from './review-policy.js';
 import { itemReviewPolicy } from './review-policy.js';
@@ -74,4 +75,18 @@ function companionFamilyProblem(board, item, family) {
     }
   }
   return null;
+}
+
+/** One declared spelling mapped to its canonical vendor family under the alias engine's rules [#1762]. */
+export function canonicalFamily(board, value) {
+  return familyName(value, familyAliasesOf(board));
+}
+
+/** From the alias engine on, a strict item's builder must have declared a vendor family; the fix is to join with one [#1762]. */
+export function requireStrictBuilderFamily(board, id, agentId) {
+  const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  if (engine < FAMILY_ALIAS_ENGINE || engine < REVIEW_INDEPENDENCE_ENGINE || board.db.prepare('SELECT item_owner FROM item WHERE item_id=?').get(id)?.item_owner !== agentId
+    || !strictReview(board, { item_id: id })) return;
+  const declared = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(agentId)?.agent_family;
+  if (!canonicalFamily(board, declared)) throw new Refused('UNDECLARED_BUILDER_FAMILY', `#${id} is strict and ${agentId} declared no vendor family; rejoin with: pullboard join <lane> --family <vendor>, then resubmit`);
 }

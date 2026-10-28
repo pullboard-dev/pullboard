@@ -9,7 +9,6 @@ import { Refused } from './refused.js';
 import { familyName } from './review-policy.js';
 import { familyAliasesOf } from './review-policy.js';
 import { itemReviewPolicy } from './review-policy.js';
-import { FAMILY_ALIAS_ENGINE } from './family-alias-engine.js';
 import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
 export { itemReviewPolicy } from './review-policy.js';
 
@@ -74,14 +73,6 @@ export function strictReviewProblem(board, item, reviewer) {
   const touched = board.db.prepare('SELECT event_id,event_by,event_kind,event_detail FROM event WHERE item_id=? ORDER BY event_id').all(item.item_id)
     .find(event => effectiveAgentParent(board, event.event_by) === session && !reviewProtocol(event));
   return touched ? new Refused('STRICT_REVIEW_TOUCHED', `Strict review refuses this session: it wrote ${touched.event_kind} event ${touched.event_id} on #${item.item_id}; ask a session that has not written to this item`) : null;
-}
-
-/** A strict item's builder must declare a vendor family, or no other vendor can review it; the fix is to join with one [#1762]. */
-export function strictBuilderFamilyProblem(board, item, builderId) {
-  if (!twoTierReviews(board) || (board.executionEngineVersion ?? ENGINE_VERSION) < FAMILY_ALIAS_ENGINE || itemReviewPolicy(board, item.item_id).tier !== 'strict') return null;
-  const declared = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(builderId)?.agent_family;
-  return familyName(declared, familyAliasesOf(board)) ? null
-    : new Refused('UNDECLARED_BUILDER_FAMILY', `#${item.item_id} is strict and ${builderId} declared no vendor family; rejoin with: pullboard join <lane> --family <vendor>, then resubmit`);
 }
 
 /** Preserve existing known-vendor policy; only the explicit board input adds unknown-family refusal. */
