@@ -83,7 +83,7 @@ export function sharpenRepeatedClause(board, item, detail, { holdItem, shout, lo
 /** Complete an authorized verdict inside the caller's atomic boundary, preserving its exact writer/event order. */
 export function finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
   agentId, code, cause, clauseDetail, companionDigest, note, check, environment, sandbox, newReview,
-  review, implies, impliesId, decision }, { firstRefusalDetail, deriveRigorCause, logEvent, holdItem,
+  review, implies, impliesId, decision, verb }, { firstRefusalDetail, deriveRigorCause, logEvent, holdItem,
   shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications,
   postRigorNotices, itemHold }) {
   const returnedAt = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE && reopenFirstRefusalMinutes > 0 && item.item_built_by ? board.clock.now() : undefined;

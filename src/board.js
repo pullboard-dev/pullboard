@@ -1440,7 +1440,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     if (isAccept && sandbox && outsideSource(board, id)) saveOutsideSource(board, id, { ...outsideSource(board, id), sandbox });
     return rejectClause.finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
       agentId, code, cause, clauseDetail, companionDigest, note, check, environment, sandbox, newReview,
-      review, implies, impliesId, decision }, { firstRefusalDetail, deriveRigorCause, logEvent, holdItem,
+      review, implies, impliesId, decision, verb }, { firstRefusalDetail, deriveRigorCause, logEvent, holdItem,
       shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications,
       postRigorNotices, itemHold });
   });
