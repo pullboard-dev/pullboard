@@ -11,6 +11,7 @@ import { doctrineReport } from '../src/doctrine-checks.js';
 import { loadConfig } from '../src/config.js';
 import { HELP } from '../src/cli.js';
 import { PULLBOARD_COMMANDS } from '../src/cockpit.js';
+import { viewPureGate } from './checks/view-pure.js';
 
 const root = process.cwd();
 let failed = false;
@@ -21,6 +22,10 @@ for (const row of importStyleViolations(sources)) {
 }
 for (const row of engineFolderProblems(root)) {
   console.error(`${row.file}:${row.line}: ${row.text}`);
+  failed = true;
+}
+for (const row of viewPureGate(root).failures) {
+  console.error(`${row.path}:${row.line}: ${row.text}`);
   failed = true;
 }
 const declared = [...declaredProseCommands(HELP)].sort();

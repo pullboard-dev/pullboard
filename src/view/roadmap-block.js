@@ -4,9 +4,13 @@ export function roadmapBlock(item, context = {}) {
   const escape = text => String(text ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
   const items = context.items || [], boardAgents = context.agents || [];
   // An agent's name: its display name with the model, or its name alone when the model is unknown (the display name would carry an "unknown" placeholder).
-  const name = context.name || (id => { const agent = boardAgents.find(entry => entry.agent_id === id), model = agent?.model || agent?.agent_model; return !model || model === 'unknown' ? id : agent.displayName || id + ' (' + model + ')'; });
-  // A time as the viewer's locale writes it with hours and minutes (7:09 PM in English), with the date first when it is not today.
-  const time = context.time || (iso => { const moment = new Date(iso), clock = moment.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); return moment.toDateString() === new Date().toDateString() ? clock : moment.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + clock; });
+  const name = id => {
+    if (context.names?.has(id)) return context.names.get(id);
+    const agent = boardAgents.find(entry => entry.agent_id === id), model = agent?.model || agent?.agent_model;
+    return !model || model === 'unknown' ? id : agent.displayName || id + ' (' + model + ')';
+  };
+  // The browser supplies its localized display boundary; isolated renders retain the supplied instant verbatim.
+  const time = iso => context.times?.get(iso) ?? String(iso ?? '');
   const waits = (item.blockedBy || []).map(id => items.find(other => other.id === id) || {id,status:'unavailable'});
   const hold = (context.holds || []).find(h => h.hold_lane === item.lane);
   // The item's own hold, held apart from its lane's (#1256).
@@ -26,7 +30,7 @@ export function roadmapBlock(item, context = {}) {
     Release:'<path d="M3 3h8l10 10-8 8L3 11z"/><circle cx="7" cy="7" r="1"/>',
   };
   const icon = field => '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' + paths[field] + '</svg>';
-  const state = other => context.state ? context.state(other) : other.status === 'claimed' ? 'building' : other.status === 'submitted' ? 'verify' : other.status === 'verified' ? 'verified' : other.verdict?.decision === 'REJECT' ? 'back' : 'open';
+  const state = other => context.states?.get(other.id) ?? (other.status === 'claimed' ? 'building' : other.status === 'submitted' ? 'verify' : other.status === 'verified' ? 'verified' : other.verdict?.decision === 'REJECT' ? 'back' : 'open');
   const words = {building:['building','busy'],verify:['to verify','warn'],verified:[null,'ok'],back:['sent back','no'],open:['unclaimed','free'],withdrawn:['withdrawn','']};
   const ref = other => {const [word,color] = words[state(other)] || [other.status,''];return '<span class="chip roadmap-ref '+color+'">#'+escape(other.id)+' '+escape(word || (other.merged || other.stage === 'merged' ? 'landed' : 'verified'))+'</span>';};
   const field = (key,value,extra='') => value ? '<dt>'+icon(key)+escape(key)+'</dt><dd'+(extra?' class="'+extra+'"':'')+'>'+value+'</dd>' : '';
@@ -72,8 +76,8 @@ export function roadmapBlock(item, context = {}) {
     +field('Waits on',waiting.join('<br>'))+field('Blocks',downstream.map(ref).join(' '))
     +field('Sent back',returned,'roadmap-return')+field('History',history,'roadmap-history')
     +field('Release',[releases,specs?'spec '+specs:''].filter(Boolean).join(' · '));
-  const address = context.address || (id => '#items/'+id);
+  const address = context.address ?? '#items/'+item.id;
   return {label,dot,
     detail:context.loading?'<span class="roadmap-loading muted">Loading detail…</span>':context.error?'<p class="muted">'+escape(context.error)+'</p>':
-      '<dl class="roadmap-detail">'+rows+'</dl><a class="ref roadmap-items" href="'+escape(address(item.id))+'" data-go="item:'+item.id+'"'+(context.board?' data-board="'+escape(context.board)+'"':'')+'>Open #'+item.id+' in Items <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 3h7v7m0-7L10 14M10 3H3v18h18v-7"/></svg></a>'};
+      '<dl class="roadmap-detail">'+rows+'</dl><a class="ref roadmap-items" href="'+escape(address)+'" data-go="item:'+item.id+'"'+(context.board?' data-board="'+escape(context.board)+'"':'')+'>Open #'+item.id+' in Items <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 3h7v7m0-7L10 14M10 3H3v18h18v-7"/></svg></a>'};
 }

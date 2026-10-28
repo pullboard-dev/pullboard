@@ -12,15 +12,18 @@ test('Dashboard refuses truncated history and isolates a replaced board at the s
   globalThis.document = { getElementById: () => region };
   t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; });
   let identity = 'first', reply = { events: [{ event_id: 2 }, { event_id: 3 }] };
-  const reads = [], observations = [], renderedNeeds = [];
+  const reads = [], observations = [], renderedNeeds = [], renderPreferences = [];
   const runtime = dashboardRuntime({
     model: (project, events, options) => { observations.push({ events, options }); return {}; },
-    html: (_state, options) => { renderedNeeds.push(options.needs); return ''; }, summary: () => null, current: () => '/private-fixture', redraw: () => {},
+    html: (_state, options) => { renderedNeeds.push(options.needs); renderPreferences.push(options); return ''; }, summary: () => null, current: () => '/private-fixture', redraw: () => {},
     boardPath: () => '/api/boards/' + identity,
     api: async path => { reads.push(path); return reply; },
   });
   const project = { root: '/private-fixture', sequence: 3, observedAt: '2026-10-27T12:00:00Z' };
   runtime.draw(project, ''); await delivered(); runtime.draw(project, '');
+  const preferences = new Intl.DateTimeFormat().resolvedOptions();
+  assert.equal(renderPreferences.at(-1).locale, preferences.locale, 'the browser adapter supplies the reader locale');
+  assert.equal(renderPreferences.at(-1).timeZone, preferences.timeZone, 'the browser adapter supplies the reader timezone');
   assert.equal(observations.at(-1).options.complete, false, 'an array response missing the initial prefix cannot certify zero counts');
   assert.match(region.innerHTML, /history is unavailable/u);
 

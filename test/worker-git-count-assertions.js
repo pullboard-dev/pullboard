@@ -34,8 +34,13 @@ export function assertWorkerTagBatches(rows, expectedRefs, report = () => {}) {
     'the measured fetch work delivers the exact selected ref set');
   assert.deepEqual(peels.flatMap(peeledRefs).map(ref => ref.slice(0, -3)).sort(), [...expectedRefs].sort(),
     'the measured peel work validates the exact selected ref set');
-  assert.equal(fetches.length, batches, 'tag delivery uses one actual Git fetch process per bounded batch');
-  assert.equal(peels.length, batches, 'tag peeling uses one actual Git process per bounded batch');
+  assert.ok(fetches.length <= batches, 'short tag names may use fewer fetches than fixed groups of 32');
+  assert.ok(peels.length <= batches, 'every fetched batch is peeled with no extra per-tag processes');
+  assert.equal(fetches.length, peels.length, 'each delivered batch has its own complete peel validation');
+  for (const row of [...fetches, ...peels]) {
+    assert.ok(row.args.reduce((sum, arg) => sum + Buffer.byteLength(arg) + 1, 4) <= 32_768,
+      'each actual Git launch stays within the UTF-8 argument byte budget');
+  }
   assert.equal(bodies.length, 1, 'annotation bodies use one real batch process instead of one process per object');
   return counts;
 }
