@@ -1,6 +1,5 @@
 import { MILESTONE_LIMIT_ENGINE } from "../../../../src/milestone-limit-engine.js";
 import { MILESTONE_SHIP_ENGINE } from "../../../../src/move-engine-constants.js";
-export { MILESTONE_SHIP_ENGINE };
 /**
  * The roadmap's milestones: ordered names, notes, targets and item references kept in one
  * board_meta value, and the moves that change them (N26). Only the coordinator changes them.
@@ -15,7 +14,6 @@ import {
   MILESTONE_RANK_ENGINE,
   WITHDRAW_MILESTONE_ENGINE,
 } from "../../../../src/machine.js";
-export { WITHDRAW_MILESTONE_ENGINE };
 import { Refused } from "../../../../src/refused.js";
 import { WORK_ORDER_ENGINE } from "../../../../src/work-order-engine.js";
 
