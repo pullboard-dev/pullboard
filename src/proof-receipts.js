@@ -44,6 +44,7 @@ export function proofRunReceipt(board, request) {
     seat: agentId, parentSession: seats.agentParent?.(board, agentId) ?? null, exitCode: run.proof.exitCode,
     counts: run.proof.counts, durationMs: run.proof.durationMs, sourceClean: run.proof.sourceClean, at: run.at,
     ...(Object.hasOwn(run.proof, 'testRuntimes') ? { testRuntimes: run.proof.testRuntimes } : {}) };
+  if (Object.hasOwn(run.proof, 'submitPhase')) { receipt.submitPhase = run.proof.submitPhase; receipt.command = run.command; }
   if (Object.hasOwn(run.proof, 'submitAdmission')) receipt.submitAdmission = run.proof.submitAdmission;
   const existing = proofReceipts(board, itemId).find(value => value.id === receipt.id);
   if (existing) {

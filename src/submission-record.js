@@ -18,7 +18,7 @@ export function submissionItemValues(board, found, { agentId, commit, tree, file
 }
 
 /** Append the original submit payload after the guarded mutation, preserving legacy omissions and field order. */
-export function recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, modern, gateGreen, carry, mergeOnly, recordedSize, engineVersion }) {
+export function recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, modern, gateGreen, companion, carry, mergeOnly, recordedSize, engineVersion }) {
   const criterionDigest = engineVersion >= 9 ? getItem(board, id).item_frozen_digest : null;
   logEvent(board, agentId, 'submit', id, {
     commit,
@@ -30,5 +30,6 @@ export function recordSubmissionEvent(board, id, { agentId, commit, tree, policy
     ...(modern && gateGreen !== undefined ? { gateGreen: gateGreen === true } : {}),
     ...(carry ? { mergeOnly } : {}),
     ...(recordedSize ? { submissionSize: recordedSize } : {}),
+    ...(companion ? { companion } : {}),
   });
 }
