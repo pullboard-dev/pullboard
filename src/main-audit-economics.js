@@ -9,8 +9,8 @@ import {
   join,
 } from 'node:path';
 import {
-  execFileSync,
-} from 'node:child_process';
+  gitExecFileSync,
+} from './git-adapter.js';
 import {
   gitChildEnv,
 } from './git.js';
@@ -67,7 +67,7 @@ export function measuredAuditCoverage(root, output) {
   for (const line of output.split(/\r?\n/u)) if (line.startsWith('# pullboard-audit-coverage ')) {
     samples.push(JSON.parse(line.slice('# pullboard-audit-coverage '.length)));
   }
-  const files = execFileSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: root, env: gitChildEnv(root), encoding: 'utf8' }).trim().split('\n');
+  const files = gitExecFileSync(['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: root, env: gitChildEnv(root), encoding: 'utf8' }).trim().split('\n');
   const expectedFiles = files.filter(file => /\.[cm]?js$/u.test(file) && !/(?:^|\/)(?:test|tests)\//u.test(file) && !/\.test\.[cm]?js$/u.test(file));
   const packages = [{ name: 'root', prefix: '' }, ...files.filter(file => file.endsWith('/package.json')).map(file => {
     const prefix = file.slice(0, -'/package.json'.length);
