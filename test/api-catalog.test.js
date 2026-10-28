@@ -824,7 +824,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   assert.deepEqual([lane.lane, lane.owns], ['catalog', ['catalog/']]);
   assert.deepEqual((await json(source, source.repo, 'lanes')).lanes.catalog, { owns: ['catalog/'] });
   const runner = await json(source, source.repo, 'runner', ['add', 'fixture-runner', '--slots', '2', '--browser', '1']);
-  assert.deepEqual(runner.runner, { host: 'fixture-runner', slots: 2, browser: 1 });
+  assert.deepEqual(runner.runner, { host: 'fixture-runner', slots: 2, browser: 1, gui: null });
   const projectGate = JSON.parse(readFileSync(join(source.repo, 'pullboard.json'), 'utf8')).gate;
   assert.equal((await json(source, source.repo, 'gate', ['set', projectGate], 'set')).gate, projectGate);
 
