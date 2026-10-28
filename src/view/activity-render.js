@@ -1,3 +1,4 @@
+import { segmentedToggle } from './seg-toggle.js';
 /** The approved Activity sentences, rendered once for live and exported views [N26].
  * Standalone because the page embeds this function's source text.
  */
@@ -47,8 +48,7 @@ export function activityHtml(model, { filter = 'all', words, itemHref = id => '#
     }
     return '<li class="activity-event" data-activity-kind="' + esc(entry.kind) + '"><time>' + esc(clock(entry.at)) + '</time><span class="activity-verb ' + tone + '">' + icon(glyph) + '</span><div class="activity-say">' + content + '</div></li>';
   };
-  const filters = '<div class="activity-bar"><div class="seg" role="group" aria-label="Activity filter">' + [['all', 'All'], ['work', 'Work'], ['sentinels', 'Sentinels'], ['shouts', 'Shouts']].map(([key, label]) =>
-    '<button type="button" data-activity-filter="' + key + '" aria-pressed="' + (filter === key) + '" class="' + (filter === key ? 'on' : '') + '">' + label + '<b>' + model.counts[key] + '</b></button>').join('') + '</div></div>';
+  const filters = '<div class="activity-bar">' + segmentedToggle({ label: 'Activity filter', attribute: 'data-activity-filter', value: filter, options: [['all', 'All'], ['work', 'Work'], ['sentinels', 'Sentinels'], ['shouts', 'Shouts']].map(([value, label]) => ({ value, label, count: model.counts[value] })) }) + '</div>';
   const rows = model.rows.filter(entry => filter === 'all' || entry.category === filter);
   let day = '';
   const days = rows.map(entry => {
