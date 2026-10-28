@@ -14,7 +14,12 @@ import {
 } from './focus-milestone.js';
 import { requireHandoffActive } from '../packages/state/src/core/handoff-state.js';
 import { requestedCommandMove } from './recorded-move.js';
-export { barActorForCommand } from './bar-actor.js';
+import { barActorForCommand as commandBarActor } from './bar-actor.js';
+
+/** Preserve the public command facade while supplying actual query and person-channel capabilities. */
+export function barActorForCommand(ctx, board, options = {}) {
+  return commandBarActor(ctx, board, options, { agentAt: store.agentAt, requirePersonChannel: personIdentity.requirePersonChannel });
+}
 import {
   barReadinessRequired,
   barReadiness,
@@ -664,7 +669,7 @@ export async function ordered(ctx, board, operation, args) {
 
 /** Order a claim on every route (claim, next, run) only after a check green on main is not held [V4]. */
 export async function claimOrdered(ctx, board, args) {
-  refuseClaimProvesNothing(ctx.info.root, board, args[0]);
+  refuseClaimProvesNothing(ctx.info.root, board, args[0], { mainPolicy });
   const adoptCorrection = store.pendingRefreeze(board, args[0]).length > 0;
   return await ordered(ctx, board, 'claim', [args[0], { ...args[1],
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),

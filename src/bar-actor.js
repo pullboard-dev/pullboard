@@ -1,6 +1,4 @@
-import { agentAt } from './board.js';
 import { COORDINATOR } from './config.js';
-import { requirePersonChannel } from './person.js';
 import { barReadySetting } from './bar-readiness.js';
 import { agentParent } from './seats.js';
 /** Current bar authorship survives native takeover without rewriting historical seats [V1,H16]. */
@@ -40,7 +38,7 @@ export function normalizeBarActor(value) {
 }
 
 /** Capture bar provenance only at author/sign commands, never during unrelated lifecycle dispatch. */
-export function barActorForCommand(ctx, board, { asPerson = false } = {}) {
+export function barActorForCommand(ctx, board, { asPerson = false } = {}, { agentAt, requirePersonChannel }) {
   if (!barReadySetting(board).enabled) return null;
   const actor = ctx.info.isMain ? COORDINATOR : agentAt(board, ctx.info.root)?.agent_id;
   const phone = ctx.io.personRequest?.phase === 'execute';

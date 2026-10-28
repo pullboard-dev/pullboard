@@ -8,7 +8,6 @@ import { createHash } from 'node:crypto';
 import { provingCheck } from './check-baseline-format.js';
 import { COORDINATOR } from './config.js';
 import { Refused } from './refused.js';
-import { mainPolicy } from './trusted-policy-read.js';
 
 
 /** The setting value that turns today's warning into a hold. */
@@ -102,7 +101,7 @@ export function refuseProvesNothing(mainConfig, board, item) {
  * @param {any} board
  * @param {number} id
  */
-export function refuseClaimProvesNothing(root, board, id) {
+export function refuseClaimProvesNothing(root, board, id, { mainPolicy }) {
   const { getItem } = board.nativePorts;
   const item = getItem(board, id);
   if (['open', 'claimed'].includes(item.item_status)) refuseProvesNothing(() => mainPolicy(root).config, board, item);
