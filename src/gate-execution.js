@@ -348,11 +348,12 @@ export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlo
     [LANDING_RUN_ENV]: landing ? '1' : '0',
     PULLBOARD_TEST_STAGE: gateLease?.receiptKind ?? (landing ? 'land' : 'gate'),
   };
-  const runtimes = captureTestRuntimes({ ...gitChildEnv(root), ...inherited });
+  const diagnostics = [];
+  const runtimes = captureTestRuntimes({ ...gitChildEnv(root, { report: diagnostics.push.bind(diagnostics) }), ...inherited });
   const env = runtimes.env;
   const environment = executionEnvironment();
   const child = spawn(`(\n${command}\n) 2>&1`, { cwd: root, env, shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  const chunks = [];
+  const chunks = [...diagnostics];
   let bytes = 0;
   let overflow = false;
   let failure = null;

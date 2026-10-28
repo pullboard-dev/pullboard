@@ -6,8 +6,9 @@
  * Claude Code, Codex and others read the repo's rules (AGENTS.md, skills) is the core's job.
  */
 import assert from 'node:assert/strict';
+import { workingSourceInventory } from '../bin/checks/scan.js';
 import { spawnSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -21,12 +22,10 @@ const SECRET_LABELS = /\['(Anthropic|OpenAI) key',/;
  * Every source file of the core, with its lines.
  */
 function sources() {
-  return ['src', 'bin', 'packages/sync/src/shell'].flatMap((dir) =>
-    readdirSync(join(ROOT, dir)).filter((name) => name.endsWith('.js')).map((name) => ({
-      file: `${dir}/${name}`,
-      lines: readFileSync(join(ROOT, dir, name), 'utf8').split('\n'),
-    })),
-  );
+  return workingSourceInventory(ROOT, ['src', 'bin']).map(({ file, body }) => ({
+    file,
+    lines: body.toString('utf8').split('\n'),
+  }));
 }
 
 test('the core names no model, engine or vendor; secret patterns may name the keys they catch [P5]', () => {

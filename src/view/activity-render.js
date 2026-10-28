@@ -3,7 +3,7 @@ import { segmentedToggle } from './seg-toggle.js';
 /** The approved Activity sentences, rendered once for live and exported views [N26].
  * Standalone because the page embeds this function's source text.
  */
-export function activityHtml(model, { filter = 'all', words, itemHref = id => '#item/' + id, open = [], dayLabel = value => new Date(value).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }), quote = null } = {}) {
+export function activityHtml(model, { filter = 'all', words, itemHref = id => '#item/' + id, open = [], dayLabel = value => new Date(value).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }), quote = null, controls = true } = {}) {
   const esc = value => String(value ?? '').replace(/[&<>"']/gu, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const clock = value => new Date(value).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   const localTimes = text => String(text ?? '').replace(/\b\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)\b/gu,
@@ -50,7 +50,7 @@ export function activityHtml(model, { filter = 'all', words, itemHref = id => '#
     return sharedRowHtml({ variant: 'activity', state: tone, time: clock(entry.at), iconHtml: icon(glyph), mainHtml: content,
       attributes: { 'data-activity-kind': entry.kind } });
   };
-  const filters = '<div class="activity-bar">' + segmentedToggle({ label: 'Activity filter', attribute: 'data-activity-filter', value: filter, options: [['all', 'All'], ['work', 'Work'], ['sentinels', 'Sentinels'], ['shouts', 'Shouts']].map(([value, label]) => ({ value, label, count: model.counts[value] })) }) + '</div>';
+
   const rows = model.rows.filter(entry => filter === 'all' || entry.category === filter);
   let day = '';
   const days = rows.map(entry => {
@@ -58,5 +58,10 @@ export function activityHtml(model, { filter = 'all', words, itemHref = id => '#
     const heading = key === day ? '' : '<li class="activity-day"><h4 class="day">' + esc(dayLabel(entry.at)) + '</h4></li>';
     day = key; return heading + row(entry);
   }).join('');
-  return filters + (rows.length ? '<ol class="activity-events">' + days + '</ol>' : '<p class="empty">No activity matches.</p>');
+  return (controls ? activityFilters(model, filter) : '') + (rows.length ? '<ol class="activity-events">' + days + '</ol>' : '<p class="empty">No activity matches.</p>');
+}
+
+/** Render the same Activity filters in the standalone feed or beside the chart toggle [N26]. */
+export function activityFilters(model, filter = 'all') {
+  return '<div class="activity-bar">' + segmentedToggle({ label: 'Activity filter', attribute: 'data-activity-filter', value: filter, options: [['all', 'All'], ['work', 'Work'], ['sentinels', 'Sentinels'], ['shouts', 'Shouts']].map(([value, label]) => ({ value, label, count: model.counts[value] })) }) + '</div>';
 }

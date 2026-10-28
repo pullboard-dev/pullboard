@@ -176,9 +176,9 @@ test('real board Activity has sentence rows, working filters, full quotes and an
     assert.match(lines, /holds #1 while #2 ranks above it and sits free/u);
     assert.doesNotMatch(lines, /\[[A-Z_]+\]|\d{4}-\d\d-\d\dT/u);
     for (const filter of ['work', 'sentinels', 'shouts', 'all']) {
-      await press(chrome, 'document.querySelector("#activity [data-activity-filter=' + filter + ']")');
-      await chrome.waitFor('document.querySelector("#activity [data-activity-filter=' + filter + ']").getAttribute("aria-pressed") === "true"');
-      const count = await chrome.stable('Number(document.querySelector("#activity [data-activity-filter=' + filter + '] b").textContent)');
+      await press(chrome, 'document.querySelector("#activity-filters [data-activity-filter=' + filter + ']")');
+      await chrome.waitFor('document.querySelector("#activity-filters [data-activity-filter=' + filter + ']").getAttribute("aria-pressed") === "true"');
+      const count = await chrome.stable('Number(document.querySelector("#activity-filters [data-activity-filter=' + filter + '] b").textContent)');
       assert.equal(await chrome.stable('document.querySelectorAll("#activity .activity-event").length'), count);
     }
     await press(chrome, run + '.querySelector("summary")');
