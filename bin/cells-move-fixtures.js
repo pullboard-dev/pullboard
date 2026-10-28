@@ -3,7 +3,7 @@ import { posix } from 'node:path';
 import { createHash } from 'node:crypto';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../src/cell-binding-uses.js';
-import { stringSuffixDisjoint } from './cells-move-fixture-suffix.js';
+import { stringSuffixDisjoint } from '../src/path-map-operands.js';
 
 const ID = '[A-Za-z_$][\\w$]*';
 const READS = new Set(['readFileSync', 'cpSync', 'copyFileSync']);
