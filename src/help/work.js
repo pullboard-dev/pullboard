@@ -17,6 +17,7 @@ export const workHelp = `Work
                                         with --criterion and a brief, --check is needed below strong
   pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."]
                 [--review-family <family>]   require the declared reviewer family
+                [--review-tier strict --reason "<risk>"]   coordinator marks additional Strict work; no downgrade
                 [--wait]                wait for a new check's baseline; otherwise it runs in the background
                 [--reason "what the old bar got wrong"]   needed to change the criterion or check of an item
                                         that was ever claimed; show and stats list each correction

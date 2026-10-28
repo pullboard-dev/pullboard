@@ -3,7 +3,7 @@ import { Refused } from './refused.js';
 import { validateRunner } from './runner-registration.js';
 import { relayCanaryProblem } from './relay-canary-config.js';
 import { validateRunnerWaitMs } from './runner-wait.js';
-import { machineSettingsFile } from './queue-settings.js';
+import { machineSettingsFile } from './machine-home.js';
 import { readMachineSettingsFile } from './queue-settings.js';
 import { validateGateQueue } from './queue-settings.js';
 const DEFAULT_GATE_SLOTS = 2;
