@@ -48,7 +48,8 @@ async function waitingVerdict(t, decision, { command = 'submit', json = false, b
   }
   onBoard(box, board => store.verify(board, 1, { agentId: 'coordinator', decision,
     digest: store.getItem(board, 1).item_frozen_digest, head: store.getItem(board, 1).item_commit,
-    reason: decision === 'ACCEPT' ? 'CRITERION_MET' : 'BEHAVIOR_MISMATCH', note, policy: 'any', check: 'green', reopenFirstRefusalMinutes: 30 }));
+    reason: decision === 'ACCEPT' ? 'CRITERION_MET' : 'BEHAVIOR_MISMATCH', note, policy: 'any', check: 'green', reopenFirstRefusalMinutes: 30,
+    ...(decision === 'REJECT' ? { clause: 'The fixture check passes.' } : {}) }));
   await helpers.waitFor(() => child.exitCode !== null, 'the verdict to end the attached submit');
   await child.closed;
   assert.equal(child.exitCode, decision === 'ACCEPT' ? 0 : 1, 'reject is actionable failure; accept succeeds');
@@ -141,7 +142,7 @@ test('a wait keeps its original receipt across a same-SHA refrozen resubmission 
   assert.equal(JSON.parse(resent.out).commit, submission.commit, 'the regression really resubmits the same SHA');
   /** End the later attempt through its real verifier, including cleanup if the old wait stalls. */
   const rejectLaterAttempt = () => onBoard(box, board => store.verify(board, 1, { agentId: 'coordinator', decision: 'REJECT',
-    reason: 'BEHAVIOR_MISMATCH', note: 'This verdict belongs only to the later attempt.', policy: 'any',
+    reason: 'BEHAVIOR_MISMATCH', note: 'This verdict belongs only to the later attempt.', policy: 'any', clause: 'The fixture check passes.',
     digest: store.getItem(board, 1).item_frozen_digest, head: submission.commit }));
   const io = { cwd: box.repo, say: () => {}, err: () => {} };
   let superseded;

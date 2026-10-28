@@ -329,7 +329,7 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   box.run(box.web, 'submit', '1');
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
-  box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note', 'no heading', '--as', 'coordinator');
+  box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'renders a heading', '--note', 'no heading', '--as', 'coordinator');
   box.git(box.repo, 'switch', '-q', 'main');
   const view = await startView(box, box.repo);
   try {
