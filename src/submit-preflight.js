@@ -11,7 +11,10 @@ import { Refused } from './refused.js';
 /** Bind placement to committed source, never an unstaged plan or the process working directory. */
 export function requirePlannedSource(root, base, commit) {
   const index = 'bin/cells-plan.json';
-  if (tryGit(root, ['cat-file', '-e', `${base}:${index}`]).status !== 0) return;
+  const accepted = tryGit(root, ['ls-tree', '-z', base, '--', index]);
+  if (accepted.status !== 0) throw new Refused('CELLS_PLAN_UNPLACED', 'the accepted cells-plan presence could not be read from Git');
+  if (!accepted.stdout) return;
+  if (!/^100(?:644|755) blob /u.test(accepted.stdout)) throw new Refused('CELLS_PLAN_UNPLACED', 'restore a regular cells-plan index on accepted main');
   /** Read only regular committed JSON blobs from the exact candidate. */
   const read = file => {
     const mode = tryGit(root, ['ls-tree', '-z', commit, '--', file]);

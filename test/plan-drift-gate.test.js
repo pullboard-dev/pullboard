@@ -104,6 +104,7 @@ test('placement rejects unknown cells, duplicate paths, symlinks and out-of-scop
 test('committed plan deletion and malformed shards refuse; an unstaged placement cannot authorize source [C7]', t => {
   const box = plannedProject(t);
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
+  assert.throws(() => requirePlannedSource(box.repo, '0'.repeat(40), base), /presence could not be read from Git/);
   mkdirSync(join(box.repo, 'src'), { recursive: true });
   writeFileSync(join(box.repo, 'src/plan-snapshot-only.js'), 'export const value = 3;\n');
   box.git(box.repo, 'add', 'src/plan-snapshot-only.js');
