@@ -3,6 +3,9 @@
 /** Actual automatic main movement retains assurance only after real nondeferred checks [C7,V4,H16]. */
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { setTimeout as pause } from 'node:timers/promises';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -69,6 +72,10 @@ test('a real source conflict reopens the same item with its exact file and leave
   assert.deepEqual(returned.conflict.files,['web/feature.js']);assert.equal(returned.conflict.trunk,box.trunk);
   assert.equal(returned.sourceAdvanceReturn.submitted,box.accepted);assert.deepEqual(now.verdicts,box.original.verdicts);
   assert.equal(now.proofs.length,0,'an actual source conflict does not invent or execute a merged proof');
+  const history = box.board(board => box.store.events(board));
+  const returnedAt = history.findIndex(row => row.event_kind === 'reopen' && row.item_id === box.id);
+  assert.ok(history.slice(0, returnedAt).some(row => row.event_kind === 'landing_lease' && JSON.parse(row.event_detail).action === 'request'), 'the conflict return takes the same actual completion lease');
+  assert.ok(history.slice(returnedAt + 1).some(row => row.event_kind === 'landing_lease' && JSON.parse(row.event_detail).action === 'release'), 'the conflict return releases only after its ordered mutation');
 });
 
 test('a named red rerun reopens while an infrastructure guess cannot become acceptance [C7,V4,H16]',{timeout:180000},async t=>{
@@ -194,5 +201,56 @@ test('source advance selectively checks only the changed project closure [C7,V4,
     const output=readFileSync(artifact.file,'utf8');
     assert.equal(output.split('SOURCE_ADVANCE_BODY').length-1,1);
     assert.ok(!output.includes('UNRELATED_BODY'));
+  }
+});
+
+/** Wait only for an actual private marker or native queue state, with a bounded failure diagnostic. */
+async function observeCompletion(predicate, message) {
+  const until = Date.now() + 30000;
+  while (!predicate()) {
+    assert.ok(Date.now() < until, message);
+    await pause(10);
+  }
+}
+
+for (const red of [false, true]) test(`an in-flight ${red ? 'red return' : 'green advance'} waits for the actual landing owner [C7,V4,H16]`, { timeout: 180000 }, async t => {
+  const box = await mainMovedFixture(t, { blocked: true, red });
+  box.trigger();
+  await observeCompletion(() => existsSync(box.gateEntered), 'the actual source-advance test body starts');
+  const { takeLandingResource } = await import(pathToFileURL(join(box.installed, 'src/landing-resource.js')));
+  // @pullboard-board-file journey: hold a real private landing lease while the separate source worker completes its real gate.
+  const board = box.store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { isMain: true });
+  let lease;
+  try {
+    lease = await takeLandingResource({ board, branch: 'refs/heads/main',
+      write: async (operation, args) => box.store[operation](board, ...args) });
+    writeFileSync(box.gateRelease, 'released');
+    await observeCompletion(() => box.store.landingLeaseState(board).line.length > 0
+      || box.store.events(board, { itemId: box.id }).some(row => ['source_advanced', 'reopen'].includes(row.event_kind)),
+      'the finished source check queues or exposes an actual raced native mutation');
+    assert.ok(box.store.landingLeaseState(board).line.length > 0, 'completion must queue instead of racing the held landing');
+    const waiting = state(box);
+    assert.equal(waiting.item.item_status, 'verified');
+    assert.equal(waiting.item.item_commit, box.accepted);
+    assert.equal(waiting.landing, box.accepted, 'no measured source substitutes for the held checked composition');
+    assert.deepEqual(waiting.verdicts, box.original.verdicts);
+    assert.equal(waiting.events.filter(row => ['source_advanced', 'reopen'].includes(row.event_kind)).length, 0);
+    const rows = readdirSync(box.directory).filter(name => /^[a-f0-9]{64}$/u.test(name));
+    assert.equal(rows.length, 1, 'the actual completed gate artifacts exist before completion admission');
+    const manifest = JSON.parse(readFileSync(join(box.directory, rows[0], 'manifest.json'), 'utf8'));
+    assert.ok(manifest.artifacts.some(row => row.roles.includes('criterion')));
+    if (!red) assert.ok(manifest.artifacts.some(row => row.roles.includes('affected')), 'both real green phases completed before waiting');
+    await lease.release(); lease = null;
+    const terminal = await box.settled();
+    const now = state(box);
+    assert.equal(terminal.item.item_status, red ? 'open' : 'verified', JSON.stringify(terminal.rows));
+    assert.equal(now.events.filter(row => row.event_kind === (red ? 'reopen' : 'source_advanced')).length, 1);
+    assert.deepEqual(now.verdicts, box.original.verdicts);
+    if (!red) assert.notEqual(now.landing, box.accepted);
+  } finally {
+    writeFileSync(box.gateRelease, 'released');
+    if (lease) await lease.release();
+    box.store.closeBoard(board);
+    await box.settled();
   }
 });

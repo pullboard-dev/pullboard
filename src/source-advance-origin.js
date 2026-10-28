@@ -1,3 +1,4 @@
+import { guardLandingWrite } from './landing-lease.js';
 import { effectiveItemHead } from './source-advance-state.js';
 import { itemPolicy } from './trusted-policy.js';
 import { requireTrunkMerge } from './trusted-policy.js';
@@ -98,6 +99,7 @@ export function prepareSourceAdvance(root, board, item, composition, gate, basis
 
 /** Convert private, exact origin custody into deterministic replay bytes immediately before native ordering. */
 export function sealSourceAdvance(board, id, request) {
+  guardLandingWrite(board, request?.landingFence);
   const prepared = request?.agentId === 'coordinator' && PREPARED.get(request.token);
   if (!prepared || prepared.board !== identity(board) || prepared.id !== id
     || mainPolicy(prepared.root).commit !== prepared.proof.trunk) {
@@ -153,7 +155,7 @@ export function prepareSourceAdvanceReturn(root, board, item, basis, { compositi
 
 /** Seal the exact ordinary reopen arguments together with their native episode and measured cause. */
 export function sealSourceAdvanceReturn(board, id, request) {
-  const sealed = sealSourceAdvance(board, id, { agentId: request?.agentId, token: request?.sourceAdvanceReturn });
+  const sealed = sealSourceAdvance(board, id, { agentId: request?.agentId, token: request?.sourceAdvanceReturn, landingFence: request?.landingFence });
   if (!['conflict','red'].includes(sealed.proof.outcome)) throw new Refused('SOURCE_ADVANCE_PROOF', 'the worker did not prepare a source return');
   return { agentId: 'coordinator', ...sealed.proof.action, sourceAdvanceReturn: sealed.proof };
 }

@@ -17,6 +17,7 @@ import { captureSourceAdvanceBasis } from './source-advance-origin.js';
 import { prepareSourceAdvance } from './source-advance-origin.js';
 import { prepareSourceAdvanceReturn } from './source-advance-origin.js';
 import { withSourceComposition } from './source-advance-compose.js';
+import { takeLandingResource } from './landing-resource.js';
 
 /** Read immutable Git facts with a bounded child; never execute repository hooks. */
 function git(root, args) {
@@ -37,6 +38,18 @@ function readBoard(info, work) {
 function writer(root, { context, ordered, withBoard }) {
   const ctx = context({ cwd: root, say() {}, err() {}, stderr: { write() {} } });
   return work => withBoard(ctx, board => work(board, (operation, args) => ordered(ctx, board, operation, args)));
+}
+
+/** Serialize only the final ordered source change with publication, never its gate execution. */
+function complete(root, write, action) {
+  return write(async (board, order) => {
+    const lease = await takeLandingResource({ board, branch: git(root, ['symbolic-ref', 'HEAD']),
+      write: order });
+    try {
+      await lease.assertHeld();
+      return await action(board, order, lease);
+    } finally { await lease.release(); }
+  });
 }
 
 /** Known process start identity prevents PID reuse from blocking or stealing an unrelated owner. */
@@ -128,12 +141,17 @@ async function advance(root, directory, job, write, services) {
         proofContext: { item: job.item.item_id, frozenDigest: job.basis.bar, seat: 'coordinator', kind: 'submit' } });
       if (!gate.cleanupUnverified && !(gate.profile?.landingShards?.unverified?.length > 0)) custody.terminal();
       const artifacts = retainArtifacts(directory, job, gate, composition, services);
-      const result = await write(async (board, order) => {
+      const result = await complete(root, write, async (board, order, lease) => {
         const request = gate.isGreen ? prepareSourceAdvance(root, board, job.item, composition, gate, job.basis)
           : prepareSourceAdvanceReturn(root, board, job.item, job.basis, { composition, gate });
-        for (const receiptId of gate.proofReceiptIds.filter(Boolean)) await order('recordProofRun', [{ agentId: 'coordinator', itemId: job.item.item_id, receiptId }]);
+        for (const receiptId of gate.proofReceiptIds.filter(Boolean)) {
+          await lease.assertHeld();
+          await order('recordProofRun', [{ agentId: 'coordinator', itemId: job.item.item_id, receiptId }]);
+        }
         git(root, ['update-ref', `refs/pullboard/items/${job.item.item_id}/${composition.head.slice(0,12)}`, composition.head]);
-        return gate.isGreen ? order('advanceItemSource', [job.item.item_id, request]) : order('reopen', [job.item.item_id, request]);
+        await lease.assertHeld();
+        const fenced = { ...request, landingFence: lease.fence };
+        return gate.isGreen ? order('advanceItemSource', [job.item.item_id, fenced]) : order('reopen', [job.item.item_id, fenced]);
       });
       saveMainAudit(file, { ...readMainAudit(file), state: gate.isGreen ? 'advanced' : 'returned', result,
         receiptIds: gate.proofReceiptIds.filter(Boolean), artifacts });
@@ -141,8 +159,11 @@ async function advance(root, directory, job, write, services) {
   } catch (error) {
     if (!entered && error.code === 'MERGE_CONFLICT' && error.files?.length) {
       try {
-        const result = await write((board, order) => order('reopen', [job.item.item_id,
-          prepareSourceAdvanceReturn(root, board, job.item, job.basis)]));
+        const result = await complete(root, write, async (board, order, lease) => {
+          const request = prepareSourceAdvanceReturn(root, board, job.item, job.basis);
+          await lease.assertHeld();
+          return order('reopen', [job.item.item_id, { ...request, landingFence: lease.fence }]);
+        });
         saveMainAudit(file, { ...readMainAudit(file), state: 'returned', files: error.files, result });
         return;
       } catch (returned) { error = returned; }
