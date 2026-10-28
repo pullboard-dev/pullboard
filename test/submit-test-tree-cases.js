@@ -1,9 +1,12 @@
-/** @pullboard-test-input packages/kernel/src/core/js-lex.js */
+/** @pullboard-test-input source-tree */
 /** Real private submissions keep declared test scanners even when other proofs defer [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { testClosures } from '../src/affected-tests.js';
+import { copyPackageFiles } from '../src/package-files.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const e2e = createE2eHelpers();
@@ -31,10 +34,10 @@ function fixture() {
   config.submitDeferAbove = 1;
   put(box.repo, 'pullboard.json', JSON.stringify(config));
   put(box.repo, 'package.json', '{"type":"module"}\n');
-  put(box.repo, 'src/js-lex.js', readFileSync(new URL('../packages/kernel/src/core/js-lex.js', import.meta.url), 'utf8'));
-  for (const file of ['board-files.js', 'board-file-baseline.js', 'scan.js']) {
-    put(box.repo, `bin/checks/${file}`, readFileSync(new URL(`../bin/checks/${file}`, import.meta.url), 'utf8'));
-  }
+  const toolRoot = fileURLToPath(new URL('../', import.meta.url));
+  const scanner = testClosures(toolRoot).closures.get('test/board-file-guard.test.js');
+  assert.ok(scanner?.files, scanner?.reason || 'the actual board-file scanner needs a complete committed closure');
+  copyPackageFiles(toolRoot, box.repo, { files: scanner.files.filter(file => !file.startsWith('test/')) });
   put(box.repo, 'test/board-file-guard.test.js', [
     '/** @pullboard-test-input test-tree */',
     "import assert from 'node:assert/strict';",

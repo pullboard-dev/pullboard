@@ -47,7 +47,8 @@ function unexplainedReject(board, id) {
  * @param {{ reason?: string }} options the move's reason, the only value taken from it
  * @returns {{ reason?: string, barCorrection?: { fields: string[], reject: object | null } }}
  */
-export function barCorrectionFields(board, item, next, { reason }) {
+export function barCorrectionFields(board, item, next, { reason, widened }) {
+  if (widened) return { reason: reason?.trim() || `added test files: ${widened.join(', ')}`, widenedCheck: widened };
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   if (engine < BAR_ENGINE) return {};
   if (reason !== undefined && typeof reason !== 'string') throw new Refused('USAGE', 'a reason is text: --reason "what the old bar got wrong"');
