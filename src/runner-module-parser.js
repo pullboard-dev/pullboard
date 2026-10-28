@@ -120,11 +120,8 @@ export function createRunnerModuleParser() {
   function start() {
     if (child) return;
     directory = mkdtempSync(join(tmpdir(), 'pullboard-runner-parser-'));
-    // Execute the module-load snapshot, never a path that can change after its freshness check.
-    const worker = join(directory, 'compiler-worker.mjs');
-    writeFileSync(worker, LOADED_COMPILER.worker, { mode: 0o400, flag: 'wx' });
     child = spawn(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning',
-      worker, directory, String(process.pid)],
+      WORKER_PATH, directory, String(process.pid)],
     { stdio: 'ignore' });
     // This prevents an unhandled late error; synchronous progress depends only on the bounded reply protocol.
     child.on('error', () => { childFailed = true; });
