@@ -200,14 +200,16 @@ function knownWork(graph, parameters) {
 function itemCost(item, parameters) {
   const route = parameters.routes.get(item.route);
   if (item.state === 'accepted') return { work: 0, path: 0, tail: 0 };
-  if (!route || route.q === null || route.q >= 1 || route.build === null || route.review === null || route.reviewWait === null || route.tail.cycle === null
-    || route.q > 0 && route.reworkGap === null) return null;
+  // A submitted item with no observed rejects needs only its review, so a missing build sample cannot make it unknown.
+  const needsBuild = item.state !== 'submitted' || route?.q > 0;
+  if (!route || route.q === null || route.q >= 1 || needsBuild && route.build === null || route.review === null
+    || route.reviewWait === null || route.tail.cycle === null || route.q > 0 && route.reworkGap === null) return null;
   const q = route.q;
-  const ordinaryWork = (route.build + route.review) / (1 - q);
-  const ordinaryPath = (route.build + route.review + route.reviewWait + q * (route.reworkGap ?? 0)) / (1 - q);
-  const startWork = item.state === 'submitted' ? (route.review + q * route.build) / (1 - q) : ordinaryWork;
+  const build = route.build ?? 0; // Only a submitted q=0 item reaches here without a build sample, where it has zero weight.
+  const startWork = item.state === 'submitted' ? (route.review + q * build) / (1 - q) : (build + route.review) / (1 - q);
   const startPath = item.state === 'submitted'
-    ? (route.review + route.reviewWait + q * (route.build + (route.reworkGap ?? 0))) / (1 - q) : ordinaryPath;
+    ? (route.review + route.reviewWait + q * (build + (route.reworkGap ?? 0))) / (1 - q)
+    : (build + route.review + route.reviewWait + q * (route.reworkGap ?? 0)) / (1 - q);
   // Whole first-claim→matching-accept cycles already include retries and idle rework gaps.
   // Their empirical p90 must not receive the geometric attempt multiplier a second time.
   return { work: startWork, path: startPath, tail: route.tail.cycle };

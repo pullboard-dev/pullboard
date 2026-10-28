@@ -162,6 +162,21 @@ test('submitted items preserve their shared builder identity in independent revi
 });
 
 
+test('a submitted item that needs only its review keeps its forecast without a build sample [R1,R2]', () => {
+  const items = [item(1, { state: 'submitted', builderId: 'builder' })];
+  const seats = { liveSeats: { total: 2, ids: ['builder', 'reviewer'] } };
+  const measured = plan(items, fit(samples()), seats);
+  const reviewOnly = plan(items, fit(samples().filter(row => row.kind !== 'build')), seats);
+  assert.equal(measured.available, true, 'the matched control with a measured build is available');
+  assert.equal(reviewOnly.available, true, 'q=0 review-only remaining work needs no build measurement');
+  for (const field of ['workHours', 'tInfinityHours', 'bounds', 'agents', 'finishHours']) {
+    assert.deepEqual(reviewOnly[field], measured[field], `${field} matches the measured-build control`);
+  }
+  assert.equal(reviewOnly.workHours, 1, 'only the one-hour review remains');
+  const reworked = plan(items, fit(samples({ reject: true }).filter(row => row.kind !== 'build')), seats);
+  assert.equal(reworked.tInfinityHours, null, 'with observed rejects a missing build sample still leaves the span unknown');
+});
+
 test('accepted work includes known typed landing-return repair labor but never invents failed gate time [R1,R2]', () => {
   const rows = samples({ reject: true, wait: 0 });
   rows.push({ at: AT, kind: 'landingOutcome', route: 'strong', sourceCommit: 'b'.repeat(40), acceptEvent: 2, failed: true, cause: 'conflict' },
