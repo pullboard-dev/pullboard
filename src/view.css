@@ -377,7 +377,6 @@ a.ghost { color: var(--ink); }
 /* The Items toolbar keeps its view, filters, and creation action together on one line. */
 .toolbar { display: flex; flex-wrap: nowrap; gap: var(--space-2); align-items: center; min-width: 0; padding: var(--space-4); }
 .toolbar .go { flex: none; margin-left: auto; }
-.items-view-switch button { padding-inline: var(--space-2); }
 /* Filter is a button sized to its words, beside List | Pipeline; a long choice gives way with an ellipsis, never the row.
    Its arrow points the way the menu goes, as the project switcher's does, switching at once. */
 .filter-control { position: relative; flex: 0 1 auto; min-width: 0; }
@@ -415,11 +414,12 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .chips button { flex: 0 0 auto; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius-pill); padding: var(--space-1) var(--space-3); cursor: pointer; font-size: var(--text-sm); }
 .chips button.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 .chips button b { font: 600 var(--text-2xs) var(--mono); color: var(--ink-faint); margin-left: var(--space-1); }
-.seg { display: inline-flex; gap: var(--space-0); padding: var(--space-0); border-radius: var(--radius-lg); background: var(--surface-2); box-shadow: 0 0 0 1px var(--line); }
-.seg button { border: 0; background: none; padding: var(--space-1) var(--space-3); border-radius: var(--radius-md); color: var(--ink-muted); cursor: pointer; font-size: var(--text-xs); white-space: nowrap; }
+/* One component for Items, Spec, Doctrine and Activity; the track matches its neighbouring Filter. */
+.seg { display: inline-flex; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none; height: var(--tap); gap: 2px; padding: 2px; border-radius: var(--radius-md); background: var(--surface-2); }
+.seg button { flex: none; height: calc(var(--tap) - 4px); min-height: 0; border: 0; background: none; padding: 0 var(--space-4); border-radius: var(--radius-sm); color: var(--ink-muted); cursor: pointer; font: var(--text-sm) var(--sans); white-space: nowrap; }
 .seg button:hover { color: var(--ink); }
-.seg button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(18, 26, 23, .08); }
-.seg button b { font: 600 var(--text-2xs) var(--mono); color: var(--ink-faint); margin-left: var(--space-2); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px var(--shade), 0 0 0 1px var(--line); }
+.seg button b { font: 400 var(--text-2xs) var(--mono); color: var(--ink-faint); margin-left: var(--space-2); }
 
 .chain { list-style: none; margin: 0; padding: var(--space-2); display: grid; gap: var(--space-0); }
 .row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: var(--space-4); align-items: center; padding: var(--space-3) var(--space-3); border-radius: var(--radius-lg); border: 1px solid transparent; cursor: pointer; }
@@ -671,6 +671,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* A long holder name ends in an ellipsis, the whole name on hover, rather than push Release off the card (#456). */
 .lane > span { min-width: 0; }
 .lane .chip { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+#spec-chips, #doctrine-chips { min-width: 0; max-width: 100%; }
 .rows-filter { display: flex; padding: var(--space-4) var(--space-4) var(--space-0); }
 .rows { padding: var(--space-1) var(--space-4) var(--space-4); }
 .section-count { margin-left: var(--space-2); color: var(--ink-faint); font: 500 var(--text-2xs) var(--mono); }
@@ -762,9 +763,9 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* A clickable row is never shorter than the target. */
 [data-item], [data-row] { min-height: var(--tap); }
 /* The Items toolbar's controls stand at the target, 32px under a mouse. */
-.seg button, .toolbar .go, .toolbar input, .filter-toggle, .filter-option { min-height: var(--tap); }
+.toolbar .go, .toolbar input, .filter-toggle, .filter-option { min-height: var(--tap); }
 .toolbar .go, .toolbar input { padding-block: 0; }
-.seg { flex-wrap: wrap; max-width: 100%; }
+.seg { max-width: 100%; }
 .inline > label { min-width: 0; }
 /* The label changes at 900px, while the control keeps its accessible name at every size. */
 @media (width < 900px) { .new-item-wide { display: none; } .new-item-narrow { display: inline; } }
@@ -1245,7 +1246,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .activity-lines .resolved > i { background: var(--accent); }
 .activity-lines .stuck > i { background: var(--warn); }
 .activity-next { color: var(--ink-faint); font-size: 12px; }
-@media (max-width: 600px) { .activity-event { grid-template-columns: 62px 22px minmax(0, 1fr); gap: 6px; padding-inline: 4px; } #activity > .activity-bar { padding-inline: 4px; } .activity-bar .seg { max-width: 100%; flex-wrap: wrap; } }
+@media (max-width: 600px) { .activity-event { grid-template-columns: 62px 22px minmax(0, 1fr); gap: 6px; padding-inline: 4px; } #activity > .activity-bar { padding-inline: 4px; } .activity-bar .seg { max-width: 100%; } }
 /* The agent floor (#dashboard/floor): the Dashboard's Agents card opened up to the whole board, in the same tokens.
  * Layout and type carry it; every bar width is an SVG attribute, so no inline style is needed. */
 .dashboard.floor-page { padding-bottom: 28px; }

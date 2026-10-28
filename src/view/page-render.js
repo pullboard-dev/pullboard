@@ -130,7 +130,7 @@ function render() {
   $('add-specs').placeholder = (approved.length ? approved : p.spec).slice(0, 2).map((r) => r.id).join(',') || 'none yet';
   const q = $('q').value.trim().toLowerCase();
   const pipeline = view.itemsView === 'pipeline';
-  $('items-view-switch').innerHTML = ['list', 'pipeline'].map((mode) => '<button type="button" data-items-view="' + mode + '" aria-pressed="' + (view.itemsView === mode) + '" class="' + (view.itemsView === mode ? 'on' : '') + '">' + (mode === 'list' ? 'List' : 'Pipeline') + '</button>').join('');
+  $('items-view-switch').innerHTML = segmentedToggle({ label: 'Items view', attribute: 'data-items-view', value: view.itemsView, options: [{ value: 'list', label: 'List' }, { value: 'pipeline', label: 'Pipeline' }] });
   $('item-list').hidden = pipeline;
   $('pipeline').hidden = !pipeline;
   // Each Show choice counts what it would show under the lane and the search. A search looks through every
@@ -410,7 +410,7 @@ function render() {
     /** Inherited defaults are reviewed in the repo's doctrine; only local proposals ask for a decision. */
     const undecided = (r) => (['pending', 'draft'].includes(r.status) && !r.decision || !!r.staleDecision || kind === 'spec' && agentApprovals.some(approval => approval.id === r.id)) && !(kind === 'doctrine' && r.origin === 'standard');
     const n = { decide: rows.filter(undecided).length, defaults: defaults.length, all: rows.length, approved: rows.filter((r) => r.status === 'approved').length };
-    $(kind + '-chips').innerHTML = Object.keys(labels).map((f) => '<button data-rows="' + kind + ':' + f + '" class="' + (filter === f ? 'on' : '') + '" type="button">' + labels[f] + '<b>' + n[f] + '</b></button>').join('');
+    $(kind + '-chips').innerHTML = segmentedToggle({ label: kind === 'spec' ? 'Spec rows' : 'Doctrine rows', attribute: 'data-rows', value: kind + ':' + filter, options: Object.keys(labels).map(key => ({ value: kind + ':' + key, label: labels[key], count: n[key] })) });
     const shownRows = rows.filter((r) => filter === 'all' || (filter === 'decide' ? undecided(r) : filter === 'defaults' ? r.origin === 'standard' : r.status === 'approved'));
     // With no row picked, or the pick filtered out, the detail opens on the first row shown, as Items does.
     if (!(view.tab === kind && view.addressDetail !== null) && !shownRows.some((r) => r.id === view.row[kind])) view.row[kind] = shownRows[0]?.id ?? null;
