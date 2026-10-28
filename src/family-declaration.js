@@ -1,5 +1,6 @@
 /** A declared vendor family is sticky: modern moves record it once, and an older engine cannot be sent to undo it [V4,B26,H16]. */
 import { FAMILY_DECLARE_ENGINE } from './family-declare-engine.js';
+import { createHash } from 'node:crypto';
 
 const ACTIVE = 'family_declare:active';
 const WITNESS = 'agent_family_declared:';
@@ -10,15 +11,35 @@ export function recordFamilyDeclareActivation(board, engine) {
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO NOTHING').run(ACTIVE, String(FAMILY_DECLARE_ENGINE));
 }
 
+/** The session digest a registration declares, null when it names none, or undefined when its value cannot be read. */
+function declaredSession(who) {
+  // The same digest domain and validation as parent-session.js, read without importing the registration module graph.
+  if (who?.sessionDigest != null) return typeof who.sessionDigest === 'string' && /^[a-f0-9]{64}$/u.test(who.sessionDigest) ? who.sessionDigest : undefined;
+  if (who?.session != null) {
+    if (typeof who.session !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(who.session)) return undefined;
+    return createHash('sha256').update(JSON.stringify(['parent-session', who.session])).digest('hex');
+  }
+  return null;
+}
+
 /**
- * The engine a fresh registration needs. Once a modern prefix is recorded, a registration that rejoins a seat with
- * a declared family must run the family rule, so an older engine cannot clear or replace it. Registrations of new
- * seats, and boards with no modern prefix, keep their recorded engine's rules.
+ * The engine a fresh registration needs. Once a modern prefix is recorded, a registration must run the family rule,
+ * so an older engine cannot clear or replace a declaration, whenever it touches a declared family by any key:
+ * it rejoins a seat (by path or named id) with a declared family, or it names a session whose seats already
+ * declared one, whatever path, seat id or parent it carries. An identity that cannot be read counts as declared.
+ * Registrations of genuinely new seats and sessions, and boards with no modern prefix, keep their engine's rules.
  */
 export function familyDeclareFloor(board, who) {
-  if (!board?.db?.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(ACTIVE) || typeof who?.path !== 'string') return 1;
-  const seat = board.db.prepare('SELECT agent_id FROM agent WHERE agent_path = ?').get(who.path);
-  return seat && declaredFamily(board, seat.agent_id) ? FAMILY_DECLARE_ENGINE : 1;
+  if (!board?.db?.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(ACTIVE)) return 1;
+  const seats = [
+    typeof who?.path === 'string' ? board.db.prepare('SELECT agent_id FROM agent WHERE agent_path = ?').get(who.path)?.agent_id : null,
+    typeof who?.id === 'string' ? board.db.prepare('SELECT agent_id FROM agent WHERE agent_id = ?').get(who.id)?.agent_id : null,
+  ].filter(Boolean);
+  if (seats.some(id => declaredFamily(board, id))) return FAMILY_DECLARE_ENGINE;
+  for (const id of seats) if (sessionDeclaredFamily(board, originalSession(board, id), id)) return FAMILY_DECLARE_ENGINE;
+  const session = declaredSession(who);
+  if (session === undefined || sessionDeclaredFamily(board, session, null)) return FAMILY_DECLARE_ENGINE;
+  return 1;
 }
 
 /** True for a family that names a vendor; null, empty and whitespace-only declare nothing. */

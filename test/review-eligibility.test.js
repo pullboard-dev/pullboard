@@ -21,6 +21,8 @@ import { minimumMoveEngine } from '../src/move-registry.js';
 import { familyIndex } from '../src/review-policy.js';
 import { FAMILY_ALIAS_ENGINE } from '../src/family-alias-engine.js';
 import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
+import { parentSessionDigest as parentSessionDigestOf } from '../src/parent-session.js';
+import { familyName } from '../src/review-policy.js';
 import { withOpenedBoard } from '../src/cli-read-context.js';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -734,4 +736,76 @@ test('a session declared through an ordered modern move is inherited by a new se
   const refused = applyEngineMove(f.board, prepareEngineMove(f.board, 'register', [{ lane: 'core', path: '/fixture/s-2', model: 'Synthetic fixture model', ...ids, family: 'Claude' }], { id: 'session-c' }), { sequence: 2, at: '2026-10-28T21:01:00.000Z' });
   assert.equal(refused.error?.code, 'FAMILY_DECLARED');
   assert.equal(store.agentAt(f.board, '/fixture/s-2'), undefined, 'no seat C was created');
+});
+
+/** An ordered-move board: a counter for sequences, and helpers that apply a fresh move at a chosen engine. */
+function orderedBoard(t) {
+  const f = fixture(t);
+  let sequence = 0;
+  const at = () => new Date(Date.parse('2026-10-28T22:00:00Z') + sequence * 1000).toISOString();
+  let n = 0;
+  /** Apply one fresh register move under a new move id; returns the outcome, or the refusal code thrown before it. */
+  const send = (who, { engine, cause } = {}) => {
+    const prepared = prepareEngineMove(f.board, 'register', cause === undefined ? [who] : [who, { cause }], { id: `sweep-${n++}` });
+    const move = engine === undefined ? prepared : { ...prepared, engine };
+    try {
+      const outcome = applyEngineMove(f.board, move, { sequence: sequence + 1, at: at() });
+      sequence += 1;
+      return outcome;
+    } catch (error) { if (error.code === 'RELAY_MOVE') return { thrown: 'RELAY_MOVE' }; throw error; }
+  };
+  return { ...f, send };
+}
+
+test('counterexample: a fresh older-engine registration at a NEW path from a declared session is refused [V4,B26,H16]', t => {
+  const f = orderedBoard(t);
+  const ids = { parentDigest: 'a'.repeat(64), sessionDigest: 'b'.repeat(64) };
+  assert.equal(f.send({ lane: 'core', path: '/fixture/pathA', model: 'Synthetic fixture model', ...ids, family: 'OpenAI' }).error, undefined);
+  const before = exportBoard(f.board);
+  assert.deepEqual(f.send({ lane: 'core', path: '/fixture/pathB', model: 'Synthetic fixture model', ...ids, family: 'Claude' }, { engine: FAMILY_DECLARE_ENGINE - 1 }), { thrown: 'RELAY_MOVE' }, 'core-716: the new path no longer gets floor 1');
+  assert.deepEqual(exportBoard(f.board), before);
+  assert.equal(store.agentAt(f.board, '/fixture/pathB'), undefined);
+});
+
+test('adversarial sweep: every key a registration can vary cannot give a declared seat or session another vendor [V4,B26,H16]', t => {
+  const f = orderedBoard(t);
+  const S = 'b'.repeat(64), P = 'a'.repeat(64), T = 'c'.repeat(64), Q = 'd'.repeat(64);
+  const raw = 'declaring-session-S2';
+  assert.equal(f.send({ lane: 'core', path: '/fixture/A', model: 'Synthetic fixture model', parentDigest: P, sessionDigest: S, family: 'OpenAI' }).error, undefined);
+  assert.equal(f.send({ lane: 'core', path: '/fixture/A2', model: 'Synthetic fixture model', parentDigest: P, session: raw, family: 'OpenAI' }).error, undefined);
+  const seatA = store.agentAt(f.board, '/fixture/A').agent_id;
+  const paths = ['/fixture/A', '/fixture/A/', '/fixture/B', '/fixture/brand-new'];
+  const sessions = [{ sessionDigest: S }, { session: raw }, { sessionDigest: parentSessionDigestOf(raw) }, { sessionDigest: 'not-a-digest' }, { session: 'bad session id!' }];
+  const parents = [{ parentDigest: P }, { parentDigest: Q }, {}];
+  const families = ['Claude', 'claude', ' Claude ', 'CLAUDE', 'Anthropic', null, '', 'OpenAI', 'openai'];
+  const engines = [FAMILY_DECLARE_ENGINE - 1, 1];
+  /** A cheap whole-board fingerprint: every agent, event and metadata row, so a refused move provably changed nothing. */
+  const fingerprint = () => JSON.stringify([f.board.db.prepare('SELECT * FROM agent ORDER BY agent_id').all(), f.board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n,
+    f.board.db.prepare('SELECT meta_key, meta_value FROM board_meta ORDER BY meta_key').all()]);
+  const claudeLike = family => typeof family === 'string' && family.trim() !== '' && family.trim().toLowerCase() !== 'openai';
+  let checked = 0;
+  for (const path of paths) for (const session of sessions) for (const parent of parents) for (const family of families) {
+    const who = { lane: 'core', path, model: 'Synthetic fixture model', ...parent, ...session, family };
+    // Every older engine, every cause shape and a named seat id: the activated floor refuses, changing nothing.
+    for (const engine of engines) for (const extra of [{}, { id: seatA }]) for (const cause of [undefined, 'conflict:sweep']) {
+      const before = fingerprint();
+      const outcome = f.send({ ...who, ...extra }, { engine, cause });
+      assert.deepEqual(outcome, { thrown: 'RELAY_MOVE' }, `engine ${engine} ${JSON.stringify({ ...who, ...extra, cause })} is refused`);
+      assert.equal(fingerprint(), before);
+      checked += 1;
+    }
+    // At the modern engine a Claude-like family is refused; every other value keeps or inherits OpenAI.
+    const modern = f.send(who);
+    if (claudeLike(family)) assert.ok(modern.error?.code === 'FAMILY_DECLARED' || modern.error?.code === 'PARENT_SESSION_CHANGED' || modern.error?.code === 'BAD_PARENT',
+      `modern ${JSON.stringify(who)} is refused: ${JSON.stringify(modern.error)}`);
+    const seat = store.agentAt(f.board, path);
+    if (seat) assert.notEqual(familyName(seat.agent_family), 'claude', `${path} never becomes Claude`);
+  }
+  assert.ok(checked > 3000, `the sweep covered ${checked} older-engine moves`);
+  for (const id of [seatA, store.agentAt(f.board, '/fixture/A2').agent_id]) assert.equal(familyName(familyOf(f.board, id)), 'openai', `${id} is still OpenAI`);
+  // Positive controls: a genuinely different session declares Claude, at the modern engine and below it.
+  assert.equal(f.send({ lane: 'core', path: '/fixture/T', model: 'Synthetic fixture model', parentDigest: P, sessionDigest: T, family: 'Claude' }).error, undefined);
+  assert.equal(familyOf(f.board, store.agentAt(f.board, '/fixture/T').agent_id), 'Claude', 'a different session T declares Claude');
+  const older = f.send({ lane: 'core', path: '/fixture/U', model: 'Synthetic fixture model', parentDigest: Q, sessionDigest: 'e'.repeat(64), family: 'Claude' }, { engine: FAMILY_DECLARE_ENGINE - 1 });
+  assert.equal(older.thrown, undefined, 'an older-engine registration of an undeclared new seat and session keeps its engine\'s rules');
 });
