@@ -729,12 +729,12 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
  * @param {number} id
  * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string, after?: (number | string)[] }} change
  */
-export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily }) {
+export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier }) {
   atomic(board, () => {
     const stored = itemById(board, id);
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
-    const { item, next, command, unfreeze, bar } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily });
-    const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, id, { sensitive, reviewFamily }) : null;
+    const { item, next, command, unfreeze, bar } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier });
+    const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, id, { sensitive, reviewFamily, reviewTier }) : null;
     const baseline = normalizeCheckBaseline(agentId, command, checkBaseline);
     const pendingFields = [
       ...(next.item_criterion !== item.item_criterion ? ['criterion'] : []),
@@ -806,17 +806,21 @@ function notifyFileGrowth(board, before, after) {
 }
 
 /** Validate an edit without side effects, so a refused change never starts a shell baseline; a bar correction needs a reason [B31]. */
-export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily }) {
+export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier }) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   if (after !== undefined && engine < 10) {
     throw new Refused('ENGINE_VERSION', `editing item dependencies requires engine 10; this board uses engine ${engine}; upgrade Pullboard before using --after`);
+  }
+  if (reviewTier !== undefined) {
+    if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator marks strict review; ask the coordinator to edit this item with --review-tier strict --reason');
+    if (typeof reason !== 'string' || !reason.trim()) throw new Refused('BAR_REASON', 'marking strict review needs --reason explaining the gate judgment or independence risk');
   }
   let item = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8 ? current(board, itemById(board, id)) : null;
   if (item?.item_status === 'claimed' && agentId !== COORDINATOR) {
     throw new Refused('HELD', `item #${id} is claimed; only the coordinator may edit it while held; shout coordinator`);
   }
   const command = coordinatorCheck(agentId, check);
-  if ([brief, route, criterion, check, after, sensitive, reviewFamily].every((value) => value === undefined)) {
+  if ([brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier].every((value) => value === undefined)) {
     throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>" or --after <ids|none>');
   }
   item ??= current(board, itemById(board, id));
@@ -826,8 +830,8 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
   if (['verified', 'withdrawn'].includes(item.item_status)) {
     throw new Refused('CLOSED', `item #${id} is ${item.item_status}`);
   }
-  const reviewPolicy = reviewPolicyChange(board, id, { sensitive, reviewFamily });
-  if (reviewPolicy && item.item_status !== 'open') throw new Refused('HELD', `item #${id} is ${item.item_status}; change its review policy only while it is open`);
+  const reviewPolicy = reviewPolicyChange(board, id, { sensitive, reviewFamily, reviewTier });
+  if ((sensitive !== undefined || reviewFamily !== undefined) && reviewPolicy && item.item_status !== 'open') throw new Refused('HELD', `item #${id} is ${item.item_status}; change its review policy only while it is open`);
   if (after !== undefined) {
     if (!Array.isArray(after)) {
       throw new Refused('BAD_DEPENDENCIES', 'item dependencies must be an array of positive integer item ids; use --after 1,2 or --after none');
@@ -853,7 +857,7 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
   }
   if (brief !== undefined && engine >= REFERENCE_ENGINE) validateReferences(brief, { actor: agentId, authors: referenceAuthors, authority: referenceAuthority, previous: item.item_brief });
   checkRouted({ brief: next.item_brief, route: next.item_route, criterion: next.item_criterion, check: next.item_check }, engine);
-  const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || Boolean(reviewPolicy);
+  const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || Boolean(reviewPolicy) && (sensitive !== undefined || reviewFamily !== undefined);
   return { item, next, command, unfreeze, bar: barCorrectionFields(board, item, next, { reason }) };
 }
 
