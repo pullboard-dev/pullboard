@@ -1,3 +1,4 @@
+import { landingPorts } from './landing-ports-fixture.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 import { fileURLToPath } from 'node:url';
 const candidateWorkerFile = fileURLToPath(new URL('../bin/landing-candidate.js', import.meta.url));
@@ -111,10 +112,10 @@ async function interruptedBranchControls(box) {
       box.git(box.repo, 'switch', '-q', '-c', 'alternate-trunk');
       invalidateGitFacts();
       assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), before, 'only the actual branch identity changes');
-      await assert.rejects(runLandingBatch({ checkAtCommit, candidateWorkerFile, ...options, adopt: true }), error => error.code === 'LAND_LEASE_LOST');
+      await assert.rejects(runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, ...options, adopt: true }), error => error.code === 'LAND_LEASE_LOST');
     });
     await withFixtureLease(box, 'refs/heads/alternate-trunk', async options => {
-      await assert.rejects(runLandingBatch({ checkAtCommit, candidateWorkerFile, ...options, adopt: true }), error => error.code === 'LAND_LEASE_LOST');
+      await assert.rejects(runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, ...options, adopt: true }), error => error.code === 'LAND_LEASE_LOST');
       assert.equal(store.landingBatches(options.board).length, 1, 'a branch mismatch creates no replacement batch');
     });
   } finally { box.git(box.repo, 'switch', '-q', 'main'); invalidateGitFacts(); }
@@ -127,13 +128,13 @@ async function repairedPolicyControls(box, batch) {
   try {
     box.git(box.repo, 'switch', '-q', '-c', 'alternate-repair');
     await withFixtureLease(box, 'refs/heads/alternate-repair', async options => {
-      await assert.rejects(runLandingBatch({ checkAtCommit, candidateWorkerFile, ...options }), error => error.code === 'LAND_LEASE_LOST');
+      await assert.rejects(runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, ...options }), error => error.code === 'LAND_LEASE_LOST');
       assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), batch.base, 'a foreign-branch recorded repair never moves Git before refusing');
     });
   } finally { box.git(box.repo, 'switch', '-q', 'main'); invalidateGitFacts(); }
   await withFixtureLease(box, 'refs/heads/main', async options => {
     const count = store.landingBatches(options.board).length;
-    const result = await runLandingBatch({ checkAtCommit, candidateWorkerFile, ...options });
+    const result = await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, ...options });
     assert.equal(result.batch, null, 'all items were already durably landed');
     assert.equal(box.git(box.repo, 'rev-parse', 'main'), batch.tip, 'the recorded landing repairs local Git');
     assert.equal(options.board.quarantineEnabled(), true, 'policy comes from the repaired accepted tip, not its old base');
@@ -142,7 +143,7 @@ async function repairedPolicyControls(box, batch) {
   const explicit = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
-    await runLandingBatch({ checkAtCommit, candidateWorkerFile, root: box.repo, board, config: { ...explicit, flakes: { quarantine: false } }, dryRun: true });
+    await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root: box.repo, board, config: { ...explicit, flakes: { quarantine: false } }, dryRun: true });
     assert.equal(board.quarantineEnabled(), false, 'explicit config and no-fence dry-run callers retain their behavior');
   } finally { store.closeBoard(board); }
 }

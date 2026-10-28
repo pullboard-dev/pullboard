@@ -39,7 +39,6 @@ import {
   repoInfo,
 } from './git.js';
 import { testsNeedGui } from './gui-admission.js';
-import { parseProcessCensus } from './process-census.js';
 import { loadMachineSettings } from './settings.js';
 import { localRunnerDescriptor } from './runner-load.js';
 import { guiSession } from './gui-session.js';
@@ -222,7 +221,7 @@ function word(value) {
 }
 
 /** One process census, or null when it cannot be taken; a missing census is never an empty machine. */
-function census() {
+function census(parseProcessCensus) {
   const result = spawnSync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,lstart=,stat=,comm='], {
     encoding: 'utf8', timeout: 5_000, maxBuffer: 16 * 1024 * 1024, env: { PATH: '/bin:/usr/bin', LANG: 'C', LC_ALL: 'C', TZ: 'UTC' } }); // budget: one bounded ps call.
   if (result.error || result.status !== 0 || typeof result.stdout !== 'string') return null;
@@ -234,7 +233,9 @@ function census() {
  * their own group or session, plus every member of their groups. Taken before any signal, while the
  * tree still links them, since an orphaned process loses its parent link.
  */
-export function shardProcesses(rootPid, rows = census()) {
+export function shardProcesses(rootPid, rows, parseProcessCensus) {
+  if (rows === undefined && typeof parseProcessCensus !== 'function') throw new TypeError('shard census needs its explicit process parser');
+  rows ??= census(parseProcessCensus);
   if (!rows) return null;
   const owned = new Map();
   const children = new Map();
@@ -256,8 +257,8 @@ export function shardProcesses(rootPid, rows = census()) {
 }
 
 /** The owned processes still alive with the same identity, or null when no census can tell. */
-function survivors(owned) {
-  const rows = census();
+function survivors(owned, parseProcessCensus) {
+  const rows = census(parseProcessCensus);
   if (!rows) return null;
   return [...owned.values()].filter(row => rows.get(row.pid)?.started === row.started);
 }
@@ -272,8 +273,8 @@ function signalOwned(row, name) {
  * custody, which drains every descendant it tracked; whatever the census still finds is signalled
  * here. Returns the processes that could not be shown gone, named by pid and command hash.
  */
-async function stopShard(child, closed) {
-  const owned = shardProcesses(child.pid);
+async function stopShard(child, closed, parseProcessCensus) {
+  const owned = shardProcesses(child.pid, undefined, parseProcessCensus);
   signalOwned({ pid: child.pid }, 'SIGTERM');
   let timer;
   const drained = await Promise.race([closed.then(() => true), new Promise(resolveWait => { timer = setTimeout(() => resolveWait(false), STOP_GRACE_MS); })]);
@@ -284,19 +285,19 @@ async function stopShard(child, closed) {
   }
   if (!owned) return ['process census unavailable'];
   for (const name of ['SIGTERM', 'SIGKILL']) {
-    const left = survivors(owned);
+    const left = survivors(owned, parseProcessCensus);
     if (!left) return ['process census unavailable'];
     if (!left.length) return [];
     for (const row of left) signalOwned(row, name);
     await new Promise(resolveWait => setTimeout(resolveWait, SWEEP_WAIT_MS));
   }
-  const left = survivors(owned);
+  const left = survivors(owned, parseProcessCensus);
   if (!left) return ['process census unavailable'];
   return left.map(row => `pid ${row.pid} (${row.processSha256.slice(0, 12)})`);
 }
 
 /** Run one shard's files in a local child run-tests that inherits the shard's own gate lease. */
-async function runLocalShard({ root, runner, files, label, lease, stop, collectAll, collectionId }) {
+async function runLocalShard({ root, runner, files, label, lease, stop, collectAll, collectionId, parseProcessCensus }) {
   const env = { ...withoutGateMarkers(process.env), ...gateSlotEnvironment(lease),
     PULLBOARD_LANDING_RUN: '1', [LANDING_SHARD_ENV]: label, [LANDING_COLLECT_ALL_ENV]: collectAll ? '1' : '0', [COLLECTION_ID_ENV]: collectionId ?? '' };
   // Its own process group, so a stop reaches the shard's test files and their children together.
@@ -309,7 +310,7 @@ async function runLocalShard({ root, runner, files, label, lease, stop, collectA
     child.once('close', (status, signal) => resolveClose({ status, signal }));
   });
   let stopping = null;
-  const onStop = () => { stopping = stopShard(child, closed).catch(error => [`stop failed: ${error.message}`]); };
+  const onStop = () => { stopping = stopShard(child, closed, parseProcessCensus).catch(error => [`stop failed: ${error.message}`]); };
   if (stop.aborted) onStop();
   else stop.addEventListener('abort', onStop, { once: true });
   const { status, signal } = await closed;
@@ -389,7 +390,8 @@ class NotNeeded extends Error {}
  *   holds; `write` receives the merged log.
  * @returns {Promise<{ isGreen: boolean, balance: string, shards: object[], files: object[] }>}
  */
-export async function runLandingShards({ root, runner, files, count, inherited = null, fullScope = true, needsBrowser = async () => true, needsGui = shardFiles => testsNeedGui(root, shardFiles), write = text => process.stdout.write(text), remoteRun, timing }) {
+export async function runLandingShards({ root, runner, files, count, inherited = null, fullScope = true, needsBrowser = async () => true, needsGui = shardFiles => testsNeedGui(root, shardFiles), write = text => process.stdout.write(text), remoteRun, timing, parseProcessCensus }) {
+  if (typeof parseProcessCensus !== 'function') throw new TypeError('landing shards need the explicit process census parser');
   const selectionAt = performance.now();
   const collectAll = process.env[LANDING_COLLECT_ALL_ENV] === '1';
   const collectionId = process.env[COLLECTION_ID_ENV];
@@ -455,7 +457,7 @@ export async function runLandingShards({ root, runner, files, count, inherited =
         return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SOURCE_CHANGED', output: '', wallMs: Math.round(performance.now() - started) };
       };
       if (drifted()) return sourceChanged('before');
-      const run = await runLocalShard({ root, runner, files: entry.shard.files, label: entry.label, lease, stop, collectAll, collectionId });
+      const run = await runLocalShard({ root, runner, files: entry.shard.files, label: entry.label, lease, stop, collectAll, collectionId, parseProcessCensus });
       if (run.unverified.length) {
         // Fail closed: name what may still run, as a runner's unverified cleanup does.
         write(`landing shard ${entry.label}: [LANDING_SHARD_CLEANUP_UNVERIFIED] the stopped shard's processes could not be shown gone: ${run.unverified.join(', ')}; inspect and stop them before another run\n`);
