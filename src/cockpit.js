@@ -1079,6 +1079,7 @@ function renderReleaseNotes(project) {
 
 /** Draw the board shown: the sidebar, then every tab's panes from the project's board. */
 ${pageRenderScript()}
+
 /**
  * Show or hide the lifecycle on Activity, and keep the choice: a person who closed it has learned
  * it, so it stays closed across reloads, and across restarts of the view, which serves from the
