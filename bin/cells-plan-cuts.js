@@ -2,6 +2,7 @@
 import { spawnSync } from 'node:child_process';
 import { cellInventory } from '../src/cell-lint-inventory.js';
 import { testFile } from '../src/cell-lint-inventory.js';
+import { temporaryCellEdges } from '../src/cell-lint-inventory.js';
 import { cutItemCommands } from '../src/cells-plan-cuts.js';
 import { cutTitle } from '../src/cells-plan-cuts.js';
 import { importCuts } from '../src/cells-plan-cuts.js';
@@ -34,8 +35,11 @@ export function checkCuts(root, plan, name) {
   const group = importCuts(plan).find(row => row.cell === name);
   if (!group) throw new Refused('CELLS_PLAN_CELL', `no import-cut group ${name}; use an importing cell from node bin/cells-plan.js --file-cuts`);
   const { files, edges, unknown } = cellInventory(root);
-  const owner = ownerFor(plan, readPathMap(root));
-  const forbidden = new Set(group.targets), problems = new Set(), seen = new Set();
+  const map = readPathMap(root);
+  const owner = ownerFor(plan, map);
+  const temporary = temporaryCellEdges(files);
+  const allowed = new Set(temporary.problems.length ? [] : temporary.edges.map(row => `${mappedPath(map, row.importer)}->${mappedPath(map, row.target)}`));
+  const forbidden = new Set(group.targets), problems = new Set(temporary.problems), seen = new Set();
   const pending = [...edges.keys()].filter(file => !testFile(file) && owner(file) === name);
   while (pending.length) {
     const file = pending.pop();
@@ -49,7 +53,7 @@ export function checkCuts(root, plan, name) {
     for (const { target } of edges.get(file) ?? []) {
       if (testFile(target)) continue;
       const cell = owner(target);
-      if (forbidden.has(cell)) problems.add(`${name} still imports later ${cell}: ${file} -> ${target}`);
+      if (forbidden.has(cell) && !allowed.has(`${file}->${target}`)) problems.add(`${name} still imports later ${cell}: ${file} -> ${target}`);
       else pending.push(target);
     }
   }
