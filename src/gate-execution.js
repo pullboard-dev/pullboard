@@ -285,8 +285,9 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
     const environment = testRuntimeEnvironment(testRuntimes);
     const remote = run.executionRunner ?? run.profile?.executionRunner;
     const localLoad = { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) };
-    let main = null;
-    try { main = mainPolicy(root).commit; } catch { /* An unavailable policy remains unknown in this execution record. */ }
+    // A submit's pinned main (lease.pinnedMain) is the only main its phases may record (#1777).
+    let main = lease?.pinnedMain ?? null;
+    if (main === null) try { main = mainPolicy(root).commit; } catch { /* An unavailable policy remains unknown in this execution record. */ }
     const receipt = receiptFields({ version: 2, id: randomUUID(), kind: context.kind,
       tree: before.tree, head: before.head, main, command: createHash('sha256').update(command).digest('hex'),
       green: run.isGreen ?? run.state === 'pass', failures: (run.isGreen ?? run.state === 'pass') ? []
