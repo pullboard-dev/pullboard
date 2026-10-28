@@ -1,6 +1,5 @@
 /** Known-main matching discards runtime noise without granting a file-wide exemption [V4,B3,C7]. */
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -100,7 +99,7 @@ test('runtime aliases preserve distinct paths and UUID relationships plus numeri
   const one = '/tmp/pullboard-fixture-AbCdEf/repo/a.json', two = '/tmp/pullboard-fixture-BcDeFg/repo/a.json';
   const identity = text => retainedRun([text], '/repo')[0].signature;
   assert.notEqual(identity(block(one, one)), identity(block(one, two)), 'distinct fixture roots cannot become the same path');
-  const id = randomUUID(), other = randomUUID();
+  const id = '12345678-abcd-4abc-8abc-123456789abc', other = '87654321-dcba-4cba-8cba-987654321cba';
   assert.notEqual(identity(block(id, id)), identity(block(id, other)), 'distinct random IDs retain their equality relationship');
   assert.notEqual(identity(block(id, id)), identity(block(id, id.toUpperCase())), 'UUID spelling remains distinct when asserted as a string');
   assert.notEqual(identity(block(one, two, 2)), identity(block(one, two, 3)), 'numeric expected values remain semantic');
