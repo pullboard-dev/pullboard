@@ -87,6 +87,10 @@ test('Dashboard renders populated release, chart, agents, landing and capped lis
     from: 'quiet-1', to: 'person', text: 'A recent dashboard fixture update.', lanes: ['web'],
   }));
 
+  earlier(alpha.repo, clockBase + 2 * 60_000, board => store.shout(board, {
+    from: 'sentinel', to: 'person', text: 'Dashboard fixture health notice.', lanes: ['web'],
+  }));
+
   box.run(alpha.repo, 'milestone', 'add', '0.1.0', '--items', Array.from({ length: 21 }, (_, index) => index + 1).join(','));
   box.run(alpha.repo, 'milestone', 'order', '0.1.0', Array.from({ length: 21 }, (_, index) => 21 - index).join(','));
   const view = await startView(box);
@@ -96,6 +100,8 @@ test('Dashboard renders populated release, chart, agents, landing and capped lis
     assert.equal(quietModel.agents.find(agent => agent.id === 'quiet-1')?.group, 'between items', '19 minutes since activity is not quiet');
     assert.equal(quietModel.agents.find(agent => agent.id === 'quiet-2')?.group, 'quiet', '21 minutes since activity folds the agent into Quiet');
     const quietHtml = dashboardHtml(quietModel);
+    const expiredWindow = dashboardModel(input.project, input.events, { now: clockBase + 5 * 60 * 60_000, complete: true });
+    assert.ok(!expiredWindow.agents.some(agent => agent.id === 'quiet-2'), 'a real seat with no activity in the four-hour window is excluded, rather than counted quiet');
     assert.match(section(quietHtml, 'Agents'), /1 quiet agents · nothing in the last 20 minutes/u);
     assert.match(section(quietHtml, 'Agents'), /quiet-1/u);
     assert.match(section(quietHtml, 'Agents'), /quiet-2/u);
@@ -144,6 +150,21 @@ test('Dashboard renders populated release, chart, agents, landing and capped lis
     assert.match(justLanded, /All landed in Activity/u);
 
     const agents = section(html, 'Agents');
+    assert.match(agents, /<span>Now<\/span><span>Build<\/span><span>Review<\/span><span>Shouts<\/span>/u, 'separate columns share the timeline header');
+    assert.match(agents, /BUILDING · 1/u, 'uppercase mono group labels include the real group count');
+    assert.match(agents, /data-dashboard-icon="build"/u);
+    assert.match(agents, /data-dashboard-icon="review"/u);
+    assert.match(agents, /data-dashboard-icon="back"/u, 'the sent-back legend retains its distinct symbol');
+    assert.ok(!model.agents.some(agent => agent.id === 'sentinel'), 'the sentinel is a service, not an agent row');
+    const builderRow = agents.match(/data-dashboard-agent="web-1"[\s\S]*?<\/div>/u)?.[0];
+    assert.ok(builderRow);
+    assert.match(builderRow, /<b title="web-1[^"]*">[\s\S]*?<\/svg>web-1<\/b>/u, 'the mono name contains only the actual seat name, with the model held in the tooltip');
+    assert.equal([...builderRow.matchAll(/class="dash-agent-number"/gu)].length, 3, 'build, review and shouts occupy separate columns');
+    for (const symbol of ['clock', 'land', 'pass', 'back', 'msg']) assert.match(html, new RegExp('data-dashboard-icon="'+symbol+'"', 'u'), 'headline icon '+symbol);
+    assert.match(chart, /3 in 24 h · busiest hour 3/u, 'the chart caption uses the actual seeded landing bins');
+    assert.match(chart, /class="dash-pace-tag"/u, 'today pace is labeled on the line');
+    assert.equal([...chart.matchAll(/<span>/gu)].length, 5, 'the chart has four six-hour labels and now');
+
     assert.match(agents, /aria-label="web-1 last four hours"/u);
     assert.match(agents, /aria-label="tests-1 last four hours"/u);
     const buildSegment = model.agents.find(agent => agent.id === 'web-1')?.segments.find(segment => segment.item === 21);
