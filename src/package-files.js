@@ -10,6 +10,7 @@ import {
   dirname,
   isAbsolute,
   join,
+  normalize,
   relative,
   resolve,
   sep,
@@ -87,6 +88,53 @@ function copyPath(value) {
   return value.replace(/^\.\//u, '');
 }
 
+/** The relative modules a pure re-export shim forwards to, or null when the text holds code. */
+export function shimTargets(text) {
+  const bare = text.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/gu, '').replace(/\s/gu, '');
+  if (!/^(?:export(?:\*|\{[^}]*\})from(?:'[^']*'|"[^"]*");)+$/u.test(bare)) return null;
+  return [...new Set([...bare.matchAll(/from(?:'([^']*)'|"([^"]*)");/gu)].map(match => match[1] ?? match[2]))];
+}
+
+/** Every module a shim forwards to, transitively, as root-relative paths; a file holding code has none. */
+function shimBodies(read, path, seen = new Set()) {
+  if (seen.has(path) || seen.size > 64) throw new Error(`cyclic or oversized shim chain at ${path}`);
+  seen.add(path);
+  let text;
+  try { text = read(path); } catch { return []; }
+  const targets = /\.[cm]?js$/u.test(path) ? shimTargets(text) : null;
+  if (!targets) return [];
+  const found = [];
+  for (const specifier of targets) {
+    if (!/^\.\.?\//u.test(specifier)) throw new Error(`shim ${path} forwards to a non-relative module: ${specifier}`);
+    const target = normalize(join(dirname(path), specifier)).split(sep).join('/');
+    if (target.startsWith('../') || isAbsolute(target)) throw new Error(`shim ${path} forwards outside the package: ${specifier}`);
+    found.push(target, ...shimBodies(read, target, seen));
+  }
+  return [...new Set(found)];
+}
+
+/**
+ * The file that holds the body of a tool source: the path itself when it holds code, otherwise the module its
+ * re-export shim chain ends at. Fixtures that read or edit a shipped tool source resolve it here, so the same
+ * test line is correct before and after a cells move.
+ * @param {string} root - The package or fixture directory.
+ * @param {string} path - A root-relative tool source path such as src/resources.js.
+ * @returns {string} The absolute path of the file that holds the code.
+ */
+export function toolSourcePath(root, path) {
+  const base = resolve(root);
+  const read = file => readFileSync(join(base, file), 'utf8');
+  let current = copyPath(path);
+  for (let hop = 0; hop < 16; hop++) {
+    const text = /\.[cm]?js$/u.test(current) ? read(current) : '';
+    const targets = shimTargets(text);
+    if (!targets) return join(base, current);
+    if (targets.length !== 1) throw new Error(`${current} is a shim over ${targets.length} modules; name the module that holds the code`);
+    current = normalize(join(dirname(current), targets[0])).split(sep).join('/');
+  }
+  throw new Error(`shim chain from ${path} is too long`);
+}
+
 /** Resolve every requested file before copying, so invalid subsets never leave a partly copied fixture. */
 function copySelection(available, files, pathMap) {
   if (files === undefined) return available.map(path => ({ source: path, destination: path }));
@@ -107,8 +155,24 @@ function copySelection(available, files, pathMap) {
     const destination = request.as === undefined ? source : copyPath(request.as);
     if (destinations.has(destination)) throw new Error(`duplicate package copy destination: ${destination}`);
     destinations.add(destination);
-    return { source, destination };
+    return { source, destination, follow: request.as === undefined };
   });
+}
+
+/** An explicit subset also carries the bodies behind any shim it names, so a moved source is never copied as a bare re-export. */
+function withShimBodies(source, available, selection) {
+  const shipped = new Set(available), have = new Set(selection.map(file => file.destination)), added = [];
+  const read = file => readFileSync(join(source, file), 'utf8');
+  for (const file of selection) {
+    if (!file.follow) continue;
+    for (const body of shimBodies(read, file.source)) {
+      if (!shipped.has(body)) throw new Error(`package copy shim body is not shipped: ${body} (from ${file.source})`);
+      if (have.has(body)) continue;
+      have.add(body);
+      added.push({ source: body, destination: body });
+    }
+  }
+  return [...selection, ...added];
 }
 
 /**
@@ -126,7 +190,9 @@ export function copyPackageFiles(root, destination, { files, pathMap = new Map()
   if (!nested || !nested.startsWith(`..${sep}`) && nested !== '..' && !isAbsolute(nested)) {
     throw new Error('package copy destination must be outside its source');
   }
-  const selection = copySelection(packageFiles(source), files, pathMap);
+  const available = packageFiles(source);
+  const requested = copySelection(available, files, pathMap);
+  const selection = files === undefined ? requested : withShimBodies(source, available, requested);
   for (const file of selection) {
     const output = join(target, file.destination);
     mkdirSync(dirname(output), { recursive: true });

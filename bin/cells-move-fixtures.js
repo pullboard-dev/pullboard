@@ -8,6 +8,7 @@ import { localFunctionCallSets } from '../src/cell-binding-uses.js';
 import { readOnlyMemberRanges } from '../src/cell-binding-uses.js';
 import { stringSuffixDisjoint } from '../src/path-map-operands.js';
 import { repositoryImport } from '../src/import-map.js';
+import { canonicalCopierPaths, operationalMentions } from './cells-move-mentions.js';
 
 const ID = '[A-Za-z_$][\\w$]*';
 const READS = new Set(['readFileSync', 'cpSync', 'copyFileSync']);
@@ -228,11 +229,30 @@ function imports(source, scanned, problems, file, { producer = false, dynamicPor
 }
 
 /** Return nonoverlapping source-only edits and explicit unsupported sites; never execute candidate code. */
-export function fixtureSourceEdits(source, { file, moves, readSource, dataReads = [] }) {
+export function fixtureSourceEdits(source, { file, moves, readSource, dataReads = [], mentionsOnly = false }) {
   const moved = new Map(moves), edits = [], problems = [], excluded = [];
   if (source.length > 1024 ** 2) return { edits, problems: [`${file}: fixture source analysis exceeds its byte budget`] };
   const scanned = lex(source);
   const { code, strings } = scanned;
+  // A file that only addresses a moved module (import, file URL, toolSourcePath) holds no read to repoint.
+  if (mentionsOnly && !dataReads.some(row => row.file === file)) {
+    // The copier exempts a mention only where its callee resolves to the imported binding, never a shadow or lookalike.
+    // Imports come from the lexed declarations (strings and comments blanked), never from raw text.
+    const real = imports(source, scanned, [], file);
+    const copierNames = new Set([...real.bindings].filter(([, row]) => row.module === 'source' && row.imported === 'toolSourcePath'
+      && canonicalCopierPaths().has(row.target)).map(([name]) => name));
+    let copierReads = null;
+    const provenCopier = (name, at) => {
+      if (!copierReads) {
+        try {
+          copierReads = bindingReadsForModules([{ file, source, body: real.body, bindings: [...copierNames].map(local => ({ local })) }]).get(file);
+        } catch { copierReads = new Map(); }
+      }
+      const row = copierReads.get(name);
+      return Boolean(row && !row.opaque && !row.potentialShadow && row.reads.includes(at));
+    };
+    if (!operationalMentions(source, scanned, moves.map(([from]) => posix.basename(from)), copierNames, provenCopier).length) return { edits, problems };
+  }
   const ports = sourceExportPorts(readSource);
   let sourcePortsUsed = false;
   const imported = imports(source, scanned, problems, file, { dynamicPort: target => {
@@ -473,6 +493,10 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
     const parsed = call(range);
     if (!parsed) return null;
     if (operation(parsed, 'fs', ['mkdtempSync'])) return { fixture: true };
+    // The canonical copier's resolver follows shims to the moved body in every fixture, for any move.
+    const copier = imported.bindings.get(parsed.name);
+    if (!parsed.member && copier?.module === 'source' && copier.imported === 'toolSourcePath'
+      && canonicalCopierPaths().has(copier.target) && proven(parsed.name, parsed.at)) return { fixture: true };
     if (operation(parsed, 'url', ['fileURLToPath']) && parsed.args.length === 1) {
       const arg = code.slice(parsed.args[0].start, parsed.args[0].end).replace(/\s/gu, '');
       if (arg === 'import.meta.url') return { path: posix.join(REPOSITORY, file), render: target => `${parsed.callee}(new URL(${JSON.stringify(posix.relative(moduleDirectory, target))}, import.meta.url))` };
