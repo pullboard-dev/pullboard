@@ -223,7 +223,7 @@ export async function submitHere(ctx, id, infra) {
   const failures = !gate.isGreen && gate.check?.green && !waived ? failureSignatures(gate, root) : null;
   if (failures && mainFailureBase) {
     try {
-      comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, fresh: true });
+      comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true });
       const matched = matchingMainFailures(failures, comparison, mainFailureBase);
       knownMainFailures = matched && withBoard(ctx, board => linkKnownMainReworks(matched, store.listItems(board, { all: true }), id));
     } catch { /* Unavailable exact-main proof never authorizes a red submission. */ }
