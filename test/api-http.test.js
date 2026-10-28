@@ -531,7 +531,7 @@ test('a repeated read through the view page spawns no process [A2,N26]', (t) => 
   // Keep the fixture's ordinary private Git config and identity; run-tests removes inherited repo/object selectors.
   const result = runFixtureChild(process.execPath, [
     '--input-type=module', '-e', REPEATED_READ_HARNESS,
-    resolve(import.meta.dirname, '../src/serve.js'), JSON.stringify(projects),
+    resolve(import.meta.dirname, '../src/cli-view.js'), JSON.stringify(projects),
   ], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.ok(result.stdout.trim(), result.failure ?? result.stderr);
   const lines = result.stdout.trim().split('\n');
