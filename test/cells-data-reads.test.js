@@ -82,6 +82,8 @@ test('malformed and duplicate data declarations fail closed [C7,CD64]', () => {
 
 test('an uncommitted manifest edit cannot supply data-read authority [C7,CD64]', t => {
   const p = project(t);
+  p.write(FILE, SOURCE + '// hooks.js keeps normal scan selection independent of the manifest.\n');
+  p.commit();
   p.write('bin/cells-plan/data-reads/commits.json', JSON.stringify({ version: 1, reads: [{ ...ROW, why: 'Uncommitted altered declaration.' }] }));
   const problems = p.check();
   assert.ok(problems.some(row => row.includes('manifest differs from its committed snapshot')));
@@ -90,6 +92,8 @@ test('an uncommitted manifest edit cannot supply data-read authority [C7,CD64]',
 
 test('an untracked manifest cannot supply data-read authority [C7,CD64]', t => {
   const p = project(t);
+  p.write(FILE, SOURCE + '// hooks.js keeps normal scan selection independent of the manifest.\n');
+  p.commit();
   p.git('rm', '--cached', 'bin/cells-plan/data-reads/commits.json');
   p.git('commit', '-q', '-m', 'chore: remove tracked declaration while retaining its untracked bytes');
   const problems = p.check();
