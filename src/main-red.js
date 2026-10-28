@@ -35,7 +35,11 @@ import { parseSpec } from './spec.js';
 import { listItems } from './board.js';
 import { takeResource } from './resources.js';
 import { Refused } from './refused.js';
-import { failureSignatures } from './main-failure-matches.js';
+import {
+  failureSignatures,
+  cachedFailureSignatures,
+  MAIN_FAILURE_SIGNATURE_VERSION,
+} from './main-failure-matches.js';
 import { testsNeedBrowser } from './browser-admission.js';
 import { testsNeedGui } from './gui-admission.js';
 import { browserFreeChecksEnabled } from './settings.js';
@@ -108,9 +112,8 @@ function readCache(file) {
       entries[commit] = {};
       for (const [path, outcome] of Object.entries(files)) {
         if (typeof path === 'string' && path && ['red', 'green'].includes(outcome?.result)) {
-          const failures = Array.isArray(outcome.failures) && outcome.failures.every(row => row?.file === path
-            && typeof row.name === 'string' && row.name && /^[a-f0-9]{64}$/u.test(row.signature)) ? outcome.failures : undefined;
-          entries[commit][path] = { result: outcome.result, ...(failures ? { failures } : {}) };
+          const failures = cachedFailureSignatures(outcome, path);
+          entries[commit][path] = { result: outcome.result, ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}) };
         }
       }
     }
@@ -210,7 +213,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
               : await runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs });
             const failures = detailed ? run.isGreen ? [] : failureSignatures(run, checkout) : null;
             if (detailed && !run.isGreen && !failures) throw new Error('focused main output has no complete named failure account');
-            return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures } : {}) };
+            return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}) };
           }, { diagnostic: true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait });
           // History a runner may not receive keeps the comparison on this machine, as it ran before runners.
           try { return await measure(true); }
