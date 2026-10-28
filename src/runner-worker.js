@@ -614,7 +614,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
       throw new Error('source history pack contains missing or unrelated objects');
     }
     const tagBodies = requestedTagObjects.length
-      ? new Map(await Promise.all(requestedTagObjects.map(async object => [object, (await gitBytes(cache, ['cat-file', '-p', object], env)).toString('utf8')])))
+      ? tagObjectBodies(requestedTagObjects, await gitBytes(cache, ['cat-file', '--batch'], env, `${requestedTagObjects.join('\n')}\n`))
       : new Map();
     const lightweight = [...new Set(spec.tags.filter(tag => !tag.chain.length).map(tag => tag.object))];
     if (lightweight.length) validateCacheTips(lightweight,
