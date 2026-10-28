@@ -171,10 +171,10 @@ export async function withMainCheckout(root, commit, run) {
  * @param {object} profile
  * @param {(state:object)=>void} [onWait]
  * @param {string} [output] - The failed phase's unchanged reporter output.
- * @param {{commit?: string, detailed?: boolean}} [options] - Capture the submit base and require exact test identities.
+ * @param {{commit?: string, detailed?: boolean, fresh?: boolean}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons.
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
  */
-export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false } = {}) {
+export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false } = {}) {
   const main = commit ? { commit } : mainCheckout(root);
   if (!main?.commit) return { main: null, files: [], unavailable: 'the primary checkout has no committed main snapshot' };
   const policy = policyAt(root, main.commit);
@@ -191,7 +191,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   });
   try {
     let cache = readCache(file);
-    const missing = files.filter(path => !['red', 'green'].includes(cache.entries[main.commit]?.[path]?.result)
+    const missing = files.filter(path => fresh || !['red', 'green'].includes(cache.entries[main.commit]?.[path]?.result)
       || detailed && !Array.isArray(cache.entries[main.commit][path].failures));
     let failed = null;
     for (const path of missing) {
@@ -203,7 +203,8 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
           const gui = testsNeedGui(checkout, [path]);
           /** Run main's copy of the file under one gate slot, retaining detailed identity when requested. */
           const measure = remote => withGateSlot(checkout, async lease => {
-            const command = `${policy.config.affectedTests.trimEnd()} ${shellWord('./' + path)}`;
+            // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
+            const command = `PULLBOARD_TEST_REUSE=0 ${policy.config.affectedTests.trimEnd()} ${shellWord('./' + path)}`;
             const run = detailed
               ? runProfiledShell(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true })
               : await runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs });

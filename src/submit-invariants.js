@@ -3,6 +3,7 @@ import { Refused } from './refused.js';
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { KNOWN_MAIN_FAILURES_ENGINE } from './known-main-failures-engine.js';
+import { KNOWN_MAIN_REWORKS_ENGINE } from './known-main-reworks-engine.js';
 
 export const SUBMISSION_PROOF_ENGINE = 38;
 const BUDGET_MS = 60_000;
@@ -16,7 +17,7 @@ function projectFile(value) {
 }
 
 /** Normalize the receipt required by modern submits; legacy replay skips this guard. */
-export function submissionProof(value, engine = KNOWN_MAIN_FAILURES_ENGINE) {
+export function submissionProof(value, engine = KNOWN_MAIN_REWORKS_ENGINE) {
   if (!value || value.version !== 1 || typeof value.full !== 'boolean'
     || typeof value.deferred !== 'boolean' || typeof value.reason !== 'string'
     || value.reason.length > 8192 || !Array.isArray(value.files) || value.files.some(file => !projectFile(file))
@@ -29,9 +30,14 @@ export function submissionProof(value, engine = KNOWN_MAIN_FAILURES_ENGINE) {
       || typeof row.name !== 'string' || !row.name || row.name.length > 8192 || !/^[a-f0-9]{64}$/u.test(row.signature ?? '')))) {
     throw new Refused('SUBMISSION_PROOF', 'known main failures need their exact main commit, project test files, names and failure signatures on a supporting engine');
   }
+  if (known && known.failures.some(row => engine >= KNOWN_MAIN_REWORKS_ENGINE
+    ? !Number.isSafeInteger(row.item) || row.item < 1 : row.item !== undefined)) {
+    throw new Refused('SUBMISSION_PROOF', 'known main failure repair links need positive item ids on a supporting engine; historical receipts keep their original format');
+  }
   return { version: 1, files: [...new Set(value.files)].sort(), full: value.full,
     deferred: value.deferred, reason: value.reason, ...(value.deferredFiles ? { deferredFiles: [...new Set(value.deferredFiles)].sort() } : {}),
-    ...(known ? { knownMainFailures: { main: known.main, failures: known.failures.map(({ file, name, signature }) => ({ file, name, signature })) } } : {}) };
+    ...(known ? { knownMainFailures: { main: known.main, failures: known.failures.map(({ file, name, signature, item }) => ({ file, name, signature,
+      ...(item === undefined ? {} : { item }) })) } } : {}) };
 }
 
 /** Accept only measured finite nonnegative durations; unavailable is always null. */
