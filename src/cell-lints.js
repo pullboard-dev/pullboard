@@ -28,6 +28,7 @@ export function cellLintReport(root) {
   unknown.push(...rootInfo.unknown);
   const graph = new Map(), reachable = new Set(), pending = [...rootInfo.roots];
   for (const file of files.keys()) {
+    const pathMapMetadata = /^bin\/cells-plan\/path-map\/[a-z][a-z0-9-]*\.json$/u.test(file);
     const cell = cellOf(file), tail = cell ? file.slice(cell.length + 1) : null;
     if (file.startsWith('src/')) add('legacySource', file);
     if (cell) {
@@ -37,7 +38,7 @@ export function cellLintReport(root) {
         || top === 'src' && !/^src\/(?:core|shell)\//u.test(tail)) add('strays', file, 1, 'outside accepted cell anatomy');
       if (/\.(?:md|mdx|rst|txt|adoc|html?)$/iu.test(file)) add('documents', file);
       if (!testFile(file)) graph.set(cell, graph.get(cell) ?? new Set());
-    } else if (!ROOT_FILES.has(file) && !/^(?:docs|\.github|src)\//u.test(file)) add('strays', file, 1, 'outside cells and explicit root allowlist');
+    } else if (!pathMapMetadata && !ROOT_FILES.has(file) && !/^(?:docs|\.github|src)\//u.test(file)) add('strays', file, 1, 'outside cells and explicit root allowlist');
     const source = files.get(file).toString('utf8');
     if (!files.get(file).includes(0) && Buffer.from(source).equals(files.get(file))) {
       const lines = source.split('\n').length - (source.endsWith('\n') ? 1 : 0);
@@ -62,7 +63,8 @@ export function cellLintReport(root) {
     reachable.add(file);
     for (const { target } of edges.get(file) ?? []) if (!testFile(target)) pending.push(target);
   }
-  for (const file of files.keys()) if ((cellOf(file) || /^(?:src|bin|relay)\//u.test(file)) && !testFile(file) && !reachable.has(file)) add('unreachable', file, 1, 'not reached from an app front door by known production imports');
+  for (const file of files.keys()) if (!/^bin\/cells-plan\/path-map\/[a-z][a-z0-9-]*\.json$/u.test(file)
+    && (cellOf(file) || /^(?:src|bin|relay)\//u.test(file)) && !testFile(file) && !reachable.has(file)) add('unreachable', file, 1, 'not reached from an app front door by known production imports');
   const packages = new Set([...files.keys()].map(cellOf).filter(cell => cell?.startsWith('packages/')));
   for (const cell of [...packages].sort()) if (!reachable.has(cell + '/index.js')) add('unreachablePackages', cell, 1, 'package front door is not reached from an app');
   const exports = exportReachability(files, edges, reachable);
@@ -70,7 +72,8 @@ export function cellLintReport(root) {
   unknown.push(...exports.unknown);
   for (const row of unknown) add('unknown', `${row.file}:${row.specifier ?? ''}:${row.reason}`, 1, row.reason);
   for (const value of Object.values(metrics)) value.findings.sort((a, b) => a.key.localeCompare(b.key));
-  const pathMap = files.has('path-map.json') ? Object.fromEntries(readPathMap(root)) : {};
+  const hasPathMap = files.has('path-map.json') || [...files.keys()].some(file => file.startsWith('bin/cells-plan/path-map/'));
+  const pathMap = hasPathMap ? Object.fromEntries(readPathMap(root)) : {};
   // Coordinator 38290: the first committed package migration ends #1527 without a runtime setting or board lookup.
   const witness = Object.entries(pathMap).find(([, target]) => target.startsWith('packages/')) ?? null;
   const transition = { item: 1527, until: 1395, active: witness === null, witness };
