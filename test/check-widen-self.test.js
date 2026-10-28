@@ -127,6 +127,11 @@ test('[C7,V4,H16] a holder adds test files to its own check; removing a file or 
   assert.equal(tryCheck(box, box.web, "test 'a  b' = 'a  b' && node bin/run-tests.js test/a.test.js test/c.test.js").code, 0, 'appending to the byte-identical frozen check is accepted');
   assert.equal(tryCheck(box, box.web, "test 'a  b' = 'a  b' && node bin/run-tests.js test/a.test.js test/c.test.js test/c.test.js").error?.code, 'CHECK_WIDEN_REFUSED', 'a file already present is refused');
 
+  box.json(box.repo, 'edit', '1', '--check', 'node bin/run-tests.js test/check-widen-self.test.js # review-control', '--reason', 'set up the comment case');
+  const commented = tryCheck(box, box.web, 'node bin/run-tests.js test/check-widen-self.test.js # review-control test/review-control-missing.test.js');
+  assert.equal(commented.error?.code, 'CHECK_WIDEN_REFUSED', 'a path appended after a shell comment never runs, so it is refused');
+  assert.match(commented.error.message, /not a plain node bin\/run-tests\.js part/);
+
   const criterion = box.run(box.web, 'edit', '1', '--criterion', 'easier', '--json');
   assert.notEqual(criterion.code, 0, 'a builder still cannot edit anything but the check');
 
