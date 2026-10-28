@@ -162,13 +162,24 @@ test('show prints the latest verdict in full and earlier ones as one line; --his
     const rounds = (title, notes, letters) => {
       const id = store.addItem(board, { by: 'coordinator', lane: 'web', title, criterion: 'greet("") says hello, stranger', specIds: ['G1'] });
       notes.forEach((note, round) => {
+        if (round === 2) {
+          assert.match(store.getItem(board, id).item_hold_reason ?? '', /bar.*sharpen/iu,
+            'the second rejection really holds this display-history fixture');
+          assert.equal(store.events(board, { itemId: id }).filter(event => event.event_kind === 'bar-sharpen').length, 1,
+            'the coordinator receives one real sharpening notice before acknowledging it');
+          store.releaseItemHold(board, id, { agentId: 'coordinator' });
+          assert.equal(store.getItem(board, id).item_hold_reason, null, 'native coordinator acknowledgment lifts the hold');
+        }
         const commit = letters[round].repeat(40);
         store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
         submitFixture(board, id, { agentId: 'web-1', commit, tree: 't' });
         const decision = round < notes.length - 1 ? 'REJECT' : 'ACCEPT';
         const reason = decision === 'REJECT' ? 'TEST_FAILURE' : undefined;
-        store.verify(board, id, { agentId: 'web-2', decision, reason, note, head: commit, digest: freeze(store.getItem(board, id)).digest, policy: 'any' });
+        store.verify(board, id, { agentId: 'web-2', decision, reason, note, head: commit, digest: freeze(store.getItem(board, id)).digest, policy: 'any',
+          ...(decision === 'REJECT' ? { clause: 'greet("") says hello, stranger' } : {}) });
       });
+      assert.equal(store.events(board, { itemId: id }).filter(event => event.event_kind === 'bar-sharpen').length,
+        notes.length > 2 ? 1 : 0, 'later note-history rounds do not duplicate the same-bar sharpening notice');
     };
     rounds('Greet', NOTES, ['a', 'b', 'c']);
     rounds('Greet fast', [EXACT, 'Accept: fast now.'], ['d', 'e']);

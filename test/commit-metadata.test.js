@@ -119,7 +119,7 @@ function twoClaims() {
     // Synthetic lifecycle input establishes rejection only; no gate execution or independent assurance is claimed.
     submitFixture(board, box.id, { agentId, commit: head, tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}') });
     store.reserveReview(board, box.id, { agentId: reviewer, leaseMs: 3600000, policy: 'any' });
-    store.verify(board, box.id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
+    store.verify(board, box.id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'the hook checks board state',
       note: 'Synthetic rejected-item state for commit association only.', head, digest, policy: 'any', familyPolicy: 'off' });
   } finally { store.closeBoard(board); }
   assert.equal(box.run(box.web, 'claim', String(box.id)).code, 0, 'the builder reclaims its rejected item');
