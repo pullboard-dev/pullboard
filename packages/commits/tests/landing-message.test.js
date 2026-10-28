@@ -1,10 +1,17 @@
 /** A real landing writes the shared header and trailers for an item citing 36 rows and for one refrozen after its claim (RFC 0005) [C7,B3,R3]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
-import { parseCommitMessage } from '../src/commit-message.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import {
+  after,
+  test,
+} from 'node:test';
+import { parseCommitMessage } from "../src/core/commit-message.js";
+import { createE2eHelpers } from "../../../test/e2e-helpers.js";
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);

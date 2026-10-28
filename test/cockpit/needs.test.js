@@ -12,7 +12,7 @@ import { BIN, SPEC, machine, project, build, sendBack, startView, styleOf, eleme
 import { cockpitPage } from '../../src/cockpit.js';
 import { runFixtureChild } from '../fixture-child.js';
 import { approvalAgentApi, approvalReadGate } from './agent-approval-fixture.js';
-import { personNeeds } from '../../src/needs.js';
+import { personNeeds } from '../../src/row-decision-text.js';
 
 /** Read the actual shared-panel summaries and controls, without translating them to legacy markup. */
 function needEntries(html) {
