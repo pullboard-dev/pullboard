@@ -34,7 +34,7 @@ function fixture() {
   for (const file of ['board-files.js', 'board-file-baseline.js', 'scan.js']) {
     put(box.repo, `bin/checks/${file}`, readFileSync(new URL(`../bin/checks/${file}`, import.meta.url), 'utf8'));
   }
-  put(box.repo, 'test/board-in-memory.test.js', [
+  put(box.repo, 'test/board-file-guard.test.js', [
     '/** @pullboard-test-input test-tree */',
     "import assert from 'node:assert/strict';",
     "import { test } from 'node:test';",
@@ -79,7 +79,7 @@ export function installSubmitTestTreeCases() {
       const exported = box.run(box.web, 'export', '--json');
       assert.equal(exported.code, 0, exported.err);
       const event = JSON.parse(exported.out).tables.event.findLast(row => row.event_kind === 'submit');
-      assert.ok(JSON.parse(event.event_detail).submissionProof.files.includes('test/board-in-memory.test.js'));
+      assert.ok(JSON.parse(event.event_detail).submissionProof.files.includes('test/board-file-guard.test.js'));
     });
   }
 }

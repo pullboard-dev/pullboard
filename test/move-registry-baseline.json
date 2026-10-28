@@ -6481,6 +6481,9 @@
     }
   ],
   "nextSteps": {
+    "CELL_BASELINE": "run node bin/cell-lints.js --report; restore the complete accepted bin/cell-lint-baselines descriptor and hash-bound shards, resolve reported inventory or ownership conflicts, then run node bin/cell-lints.js --check; initialize with --init only when no accepted baseline exists after explicit review",
+    "CELL_LINT_ROSE": "run node bin/cell-lints.js --report and node bin/cell-lints.js --check; repair every reported debt increase, then use node bin/cell-lints.js --update only to record falling allowances; never regenerate an accepted baseline to raise debt",
+    "PUBLIC_EXPORT_UNAVAILABLE": "upgrade Pullboard to a build whose view export declares the checked public filter, or run pullboard view --export <dir> without --public for a private snapshot",
     "BAD_REVIEW_FAMILY": "use --review-family with a nonempty declared reviewer family of at most 100 characters",
     "REQUIRED_REVIEW_FAMILY": "ask a reviewer whose declared family matches the item review-family requirement",
     "NO_PUSH_SMOKE": "record an explicit short pushReceiptCheck.smoke command in accepted pullboard.json, then retry the additive receipt check",
