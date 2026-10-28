@@ -544,8 +544,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
 
   const surfaceProbe = join(linked, '.schema-surface-probe.mjs');
   writeFileSync(surfaceProbe, `
-    import { serveApi } from './src/api.js';
-    import { refusalDocument } from './src/next-step-words.js';
+    import { serveApi } from './src/api.js'; import { refusalDocument } from './src/next-step-words.js';
     const root = process.env.PULLBOARD_FIXTURE_REPO;
     const project = { root, name: 'schema fixture', project: '', added: '2026-01-01T00:00:00.000Z' };
     const api = await serveApi({ refusalDocument, secret: 'api-probe', runCommand: async () => 0, projects: () => [project], isMain: true });
