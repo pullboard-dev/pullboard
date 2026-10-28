@@ -33,7 +33,7 @@ function commitFixture(box) {
   const flush = () => {
     if (!chunk.length) return;
     box.git(box.repo, 'add', '--', ...chunk);
-    box.git(box.repo, 'commit', '-q', '-m', `chore: import documentation fixture part ${++number} [B3,C7]`);
+    box.git(box.repo, 'commit', '-q', '-m', `chore: import documentation fixture part ${++number}`);
     chunk = []; bytes = 0;
   };
   for (const file of files) {
