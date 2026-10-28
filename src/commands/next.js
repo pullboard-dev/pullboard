@@ -32,6 +32,7 @@ import {
   refuseWhileBuilding,
   sayReviewOffer,
 } from '../next-say.js';
+import { sayMapSlice } from '../map-slice-say.js';
 
 /** Preview governing messages without acknowledging them or changing explicit watch audiences [B7,N2]. */
 function inboxReasons(ctx) {
@@ -113,6 +114,7 @@ export async function nextHere(io, values) {
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
         sayBrief(io, item.item_brief);
+        await sayMapSlice(io, ctx, item);
         io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id} --wait`);
       }
       return 0;
