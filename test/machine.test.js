@@ -6,6 +6,8 @@
  */
 import { sourceFacts } from './machine-source-functions.fixture.js';
 import { sourceReader } from './machine-source-functions.fixture.js';
+import { sourceDirectories } from './machine-source-functions.fixture.js';
+import { packageFiles } from '../src/package-files.js';
 import { assertSyncFacadeAudit } from './machine-source-functions.fixture.js';
 import { workingSourceInventory } from '../bin/checks/scan.js';
 import { fileURLToPath } from 'node:url';
@@ -253,7 +255,7 @@ function codeWalk(read, { caught = false } = {}) {
  * @param {string} file
  * @returns {string}
  */
-const fromDisk = sourceReader(workingSourceInventory(fileURLToPath(new URL('..', import.meta.url)), ['src', 'bin']));
+const fromDisk = sourceReader(workingSourceInventory(fileURLToPath(new URL('..', import.meta.url)), sourceDirectories(packageFiles(fileURLToPath(new URL('..', import.meta.url))))));
 
 /**
  * The refusal codes the named moves declare, or the whole declaration's when none is named: their

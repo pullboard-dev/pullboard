@@ -77,3 +77,9 @@ export function assertSyncFacadeAudit(codeWalk, fromDisk, editedSource) {
     "$&\n  throw new Refused('SYNC_PACKAGE_PROBE', 'planted sync body refusal');");
   assert.ok(codeWalk(planted).refusalsOf('commands/sync.js#run').has('SYNC_PACKAGE_PROBE'));
 }
+
+/** Enumerate actual shipped runtime source directories, including public cell fronts and nested command providers. */
+export function sourceDirectories(files) {
+  return [...new Set(files.filter(file => /^(?:src|bin|packages)\//u.test(file) && file.endsWith('.js'))
+    .map(file => posix.dirname(file)))].sort();
+}
