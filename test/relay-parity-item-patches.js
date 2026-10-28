@@ -1,7 +1,7 @@
 /** Real native companion mutations pass the complete HTTP/pinned API2 projection oracle [V4,H16,A2]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { git } from '../src/git.js';
@@ -52,21 +52,28 @@ export async function seedItemPatches({ board, box, store, exercise, agent, clai
   assert.ok(store.events(board, { itemId: item }).some(entry => entry.event_kind === 'item_patch_remove'));
   assert.equal(store.getItem(board, item).item_status, 'submitted');
   assert.equal(store.getItem(board, item).item_commit, commit, 'patch lifecycle never rewrites submitted source');
-  await seedPatchFollow({ board, box, store, exercise, claim, commit, tree, patch, digest });
+  await seedPatchFollow({ board, box, store, exercise, claim, commit, patch, digest });
 }
 
 /** Follow real ancestor-bound bytes from a clean registered private Git worktree, then compare every reader field. */
-async function seedPatchFollow({ board, box, store, exercise, claim, commit, tree, patch, digest }) {
+async function seedPatchFollow({ board, box, store, exercise, claim, commit, patch, digest }) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-parity-follow-'));
   const root = join(directory, 'builder');
   // A real descendant object is private fixture input, like the existing source-advance recipe.
-  const moved = git(box.root, ['commit-tree', tree, '-p', commit, '-m', 'fixture: advance parity companion source']);
-  git(box.root, ['worktree', 'add', '--detach', root, moved]);
+  git(box.root, ['worktree', 'add', '--detach', root, commit]);
   try {
+    // Commit the actual fixture's public policy before freezing its real source authority.
+    writeFileSync(join(root, 'pullboard.json'), readFileSync(join(box.root, 'pullboard.json')));
+    git(root, ['add', '--', 'pullboard.json']);
+    const policyTree = git(root, ['write-tree']);
+    const moved = git(root, ['commit-tree', policyTree, '-p', commit, '-m', 'fixture: commit parity follow policy']);
+    git(root, ['reset', '--hard', moved]);
     const builder = store.register(board, { lane: box.lane, path: root, family: 'Fixture Parity Follow Builder Vendor' });
     const item = store.addItem(board, { by: 'coordinator', lane: box.lane, title: 'Native companion follow parity',
       criterion: 'A genuine claimed companion follows its clean registered builder head through the complete reader oracle.' });
-    store.claim(board, item, { ...claim, agentId: builder });
+    const frozen = JSON.stringify({ policy: { version: 1, commit: moved, verify: { policy: 'any', family: 'off' } }, rows: [] });
+    store.claim(board, item, { ...claim, agentId: builder, head: moved,
+      freeze: () => ({ text: frozen, digest: createHash('sha256').update(frozen).digest('hex') }) });
     store.attachItemPatch(board, item, { agentId: 'coordinator', key: 'reader-parity-follow',
       commit, patch, author: 'coordinator' });
     const before = store.itemPatches(board, item)[0];
