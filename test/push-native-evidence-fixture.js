@@ -73,7 +73,7 @@ export async function assertNativePushEvidence(root) {
     hash: createHash('sha256').update(bytes).digest('hex'), blob: git(root, ['rev-parse', `${tip}:${failure.file}`]),
     trunkBlob: null, names: [failure.name], lane: 'web', batchId, branch: 'refs/heads/main', requireOpen: true }));
   assert.deepEqual(board(root, db => nativePushReceiptProblems(root, db, [tip])), []);
-  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...config, gate: 'node bin/run-tests.js --test-concurrency=1' }));
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...config, gate: `${config.gate} --test-concurrency=1` }));
   git(root, ['add', 'pullboard.json']);
   git(root, ['commit', '-q', '-m', 'chore: change future gate policy']);
   assert.deepEqual(board(root, db => nativePushReceiptProblems(root, db, [tip])), [],

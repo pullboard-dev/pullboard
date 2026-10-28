@@ -1,13 +1,10 @@
 /** @pullboard-test-input source-tree */
 /** A verdict survives a main move that touches nothing the review depends on (#928) [V4,C7]. */
-import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
-import { cpSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 
@@ -22,7 +19,6 @@ function reviewWithLanding(t, { setting, landing }) {
   const box = helpers.project('true');
   const armed = join(box.dir, 'landing-armed');
   const landed = join(box.dir, 'landing-done');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), box.repo);
   for (const folder of ['test', 'web', 'api']) mkdirSync(join(box.repo, folder), { recursive: true });
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ private: true, type: 'module' }) + '\n');
   writeFileSync(join(box.repo, 'web/shared.js'), 'export const shared = 1;\n');
@@ -48,13 +44,13 @@ test('page is built', () => {
 });
 `);
   const config = JSON.parse(String(execGitShow(box)));
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, verify: { ...(config.verify ?? {}), ...(setting === undefined ? {} : { unrelatedTrunkMoves: setting }) } }, null, 2));
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, gate: 'node --test --test-reporter=tap test/*.test.js', affectedTests: 'node --test --test-reporter=tap', verify: { ...(config.verify ?? {}), ...(setting === undefined ? {} : { unrelatedTrunkMoves: setting }) } }, null, 2));
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: a page item with a recorded landing [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   /** Demand real command success and its versioned result. */
   const json = (result) => { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
-  json(box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node bin/run-tests.js test/page.test.js', '--json'));
+  json(box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node --test --test-reporter=tap test/page.test.js', '--json'));
   json(box.run(box.web, 'claim', '1', '--json'));
   writeFileSync(join(box.web, 'web/lib.js'), "export const page = 'built';\n");
   box.git(box.web, 'add', 'web/lib.js');
