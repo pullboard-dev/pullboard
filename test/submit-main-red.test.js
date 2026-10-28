@@ -17,7 +17,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { AGENT_SHELL_MARKERS } from '../src/person.js';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
-import { submissionProof } from '../src/submit-invariants.js';
+import { submissionProof } from '../packages/state/src/core/submission-proof.js';
 import { KNOWN_MAIN_FAILURES_ENGINE } from '../src/known-main-failures-engine.js';
 import { matchingMainFailures } from '../src/main-failure-matches.js';
 import { failureSignatures } from '../src/main-failure-matches.js';

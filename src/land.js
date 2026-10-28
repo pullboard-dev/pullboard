@@ -1,4 +1,6 @@
 import { requirePublishGreen } from './publish-pause.js';
+import { runnerExecutionServices } from './runners.js';
+import { landingExecutionServices } from './landing-shards.js';
 import { runDeferredGuards } from './landing-deferred-run.js';
 import { refreshLandedCodeMap } from './landing-main-notices.js';
 import { cadenceDeferral } from './landing-cadence.js';
@@ -193,7 +195,7 @@ function landingEntry(item) {
 /** Select in verdict order; a read-only preflight may stop at its first eligible item [B3,R3]. */
 function candidates(board, root, base, maximum, { firstReady = false } = {}) {
   const all = store.listItems(board, { all: true });
-  const projector = verdictProjector(root, board, { main: base });
+  const projector = verdictProjector(root, board, { main: base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
   const pending = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit);
   const order = new Map();
   for (const event of store.events(board)) if (event.event_kind === 'accept') order.set(event.item_id, event.event_id);
@@ -277,7 +279,7 @@ async function mergeGroup(state, items) {
     if (item.item_status !== 'verified' || item.item_commit !== (entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} changed; rebuild the batch from current verified work`);
     const checked = store.checkedLandingCommit(state.board, item);
     if (checked !== (entry.reviewedCommit ?? entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} was re-reviewed; rebuild its landing from the checked commit`);
-    const stale = verdictProjector(state.root, state.board, { main: batch.base }).state(item);
+    const stale = verdictProjector(state.root, state.board, { main: batch.base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state(item);
     if (stale) throw staleVerdictRefusal(item, stale);
     // The body is the trailer paragraph alone: the header carries the title, and no lane branch is named [B3,R3].
     // merge.log is switched off on this call, so a local Git config cannot append a shortlog to the body.
@@ -474,7 +476,7 @@ async function gateGroup(state, label, options) {
   const logPath = join(directory, `${label}-${state.batch.revision}.log`);
   await save(state, { state: 'gating', tip: headCommit(state.batch.root), logPath });
   const pin = flakeSource(state.batch.root, { commit, main: state.batch.base });
-  const onFailure = Object.assign((run, { root, command, lease }) => observeNativeFailure({ root, config, pin, run, command, lease, kind: 'land',
+  const onFailure = Object.assign((run, { root, command, lease }) => observeNativeFailure({ root, config, pin, run, command, lease, kind: 'land', checkAtCommit: state.checkAtCommit,
     record: observation => {
       const owner = observation.file ? laneOf(state.config, observation.file) : 'coordinator';
       const lane = owner === 'coordinator' ? store.getItem(state.board, state.batch.items[0].id).item_lane : owner;
@@ -483,7 +485,7 @@ async function gateGroup(state, label, options) {
   const gate = subset
     ? await runLocalLandingGuard(state.batch.root, config, { files, directory, label, onWait: state.onWait,
       waivers: liveWaiverProjection(state.board), onFailure })
-    : await runGate(state.batch.root, config, { trustStamp: false, landing: true, agent: 'coordinator', onWait: state.onWait,
+    : await runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, agent: 'coordinator', onWait: state.onWait,
       stages: true, waivers: liveWaiverProjection(state.board), onFailure });
   copyFileSync(gate.log, logPath);
   if (gate.profilePath) copyFileSync(gate.profilePath, `${logPath}.profile.json`);
@@ -512,7 +514,7 @@ async function gateGroup(state, label, options) {
 }
 
 /** Merge and test one speculative prefix without giving its worker publication authority. */
-export async function runLandingCandidate({ root, board, config, batch, entries, write, say, onWait, checkLease, checkLeaseNow, claimGate, finishGate }) {
+export async function runLandingCandidate({ root, board, config, batch, entries, write, say, onWait, checkLease, checkLeaseNow, claimGate, finishGate, checkAtCommit }) {
   await checkLease();
   if (!existsSync(batch.root)) {
     mkdirSync(dirname(batch.root), { recursive: true });
@@ -520,7 +522,7 @@ export async function runLandingCandidate({ root, board, config, batch, entries,
     git(root, ['worktree', 'add', '--detach', batch.root, batch.base]);
   }
   board.quarantineEnabled = () => config.flakes?.quarantine === true;
-  const state = { root, board, config, batch, write, say, onWait, checkLease, checkLeaseNow,
+  const state = { root, board, config, batch, write, say, onWait, checkLease, checkLeaseNow, checkAtCommit,
     culprits: [], flaky: false, gates: new Map(), diagnosed: new Map() };
   const build = await mergeGroup(state, entries);
   await save(state, { ...build });
@@ -641,7 +643,7 @@ async function parallelPrefixes(state, entries) {
     try {
       const result = await runLandingCandidateWorker({ root: state.root, config: state.config, batch: descriptor.snapshot,
         entries: descriptor.snapshot.candidates, fence: state.fence }, {
-        write, checkLease: state.checkLease, say: state.say, onWait: state.onWait,
+        write, checkLease: state.checkLease, say: state.say, onWait: state.onWait, workerFile: state.candidateWorkerFile,
         onStart: pid => update(key, { workerPid: pid }),
       });
       await update(key, { complete: true, gate: candidateGateRecord(result.gate) });
@@ -790,7 +792,7 @@ async function diagnose(state, failures, gate) {
     const tree = headTree(state.batch.root);
     const result = await withLandingGateSlot(state.batch.root, (lease) => runProfiledShell(state.batch.root, `${runner} ${quote(file)}`, {
       waitMs: lease.waitMs, artifactDirectory: dirname(state.batch.logPath), artifactPrefix: 'diagnostic', persistLog: true, pipefail: true, gateLease: lease,
-    }), { landing: true, browser: true, agent: 'coordinator', kind: 'land-diagnostic', onWait: state.onWait });
+    }), { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser: true, agent: 'coordinator', kind: 'land-diagnostic', onWait: state.onWait });
     if (headCommit(state.batch.root) !== commit || headTree(state.batch.root) !== tree || !isClean(state.batch.root)) {
       throw new Refused('LAND_SOURCE_CHANGED', `the landing source changed during its whole-file diagnostic; inspect ${result.logPath} before adopting`);
     }
@@ -1136,7 +1138,7 @@ export function landsOnTrunk(config) {
  * guards remain a floor; an uncertain import graph requires the configured full gate before adoption.
  */
 async function quickGuards(state, label = 'local-trunk') {
-  await runStaticChecks(state.batch.root, state.config, { agent: 'coordinator', onWait: state.onWait });
+  await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
   const gate = await gateGroup(state, label, { localTrunk: true });
   if (!gate.isGreen && (!completeGate(gate) || !gate.accounted)) {
     throw new Refused('LAND_DIAGNOSTIC', 'the local-trunk guards have no complete accounted failure; inspect the recorded gate before adopting');
@@ -1322,7 +1324,7 @@ export async function land(options) {
       adopt: options.adopt, due: options.due, fence: lease.fence };
     if (batchOptions.maximum === null) delete batchOptions.maximum;
     return await runLandingWorker(batchOptions, { write, checkLease, checkLeaseNow: lease.assertCurrent,
-      bindWorker: lease.bindWorker, watchDeadline: lease.watchDeadline, onWait: options.onWait, say: options.say, signal: controller.signal });
+      bindWorker: lease.bindWorker, watchDeadline: lease.watchDeadline, onWait: options.onWait, say: options.say, signal: controller.signal, workerFile: options.landingWorkerFile });
   } catch (error) { failed = true; throw error; }
   finally {
     try { await lease.release(); }
@@ -1334,7 +1336,7 @@ export async function land(options) {
 }
 
 /** Select only after admission, retaining the existing batch, proof and adoption rules. */
-export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, due = false, onWait, checkLease, checkLeaseNow, fence }) {
+export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, candidateWorkerFile }) {
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
   if (!dryRun && trunk?.commit) requirePublishGreen(root, board, policyAt(root, trunk.commit).config);
@@ -1404,7 +1406,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     mkdirSync(directory, { recursive: true });
     git(root, ['worktree', 'add', '--detach', batch.root, batch.base]);
   }
-  const state = { root, board, config, write, say, onWait, checkLease, checkLeaseNow, fence, batch, culprits: batch.culprits ?? [], flaky: false, gates: new Map((batch.gateResults ?? []).map((result) => [result.tree, result])), diagnosed: new Map((batch.diagnostics ?? []).map((result) => [result.test, result.isGreen])) };
+  const state = { root, board, config, write, say, onWait, checkLease, checkLeaseNow, fence, batch, checkAtCommit, candidateWorkerFile, culprits: batch.culprits ?? [], flaky: false, gates: new Map((batch.gateResults ?? []).map((result) => [result.tree, result])), diagnosed: new Map((batch.diagnostics ?? []).map((result) => [result.test, result.isGreen])) };
   try {
     await save(state, { owner });
     await returnCulprits(state);

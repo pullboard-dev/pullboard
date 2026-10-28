@@ -8,7 +8,7 @@ import { tryGit } from '../src/git.js';
 import { barReadiness } from '../src/bar-readiness.js';
 import { revisionReference } from '../src/spec-revisions.js';
 import { receiptBody } from '../src/gate-run-receipt.js';
-import { requireHandoffActive } from '../src/handoff-state.js';
+import { requireHandoffActive } from '../packages/state/src/core/handoff-state.js';
 import { preparePersonRequest } from '../src/person-request.js';
 
 /** Outside metadata is synthetic fixture input; these calls make no GitHub or owner-authentication assurance claim. */
@@ -126,7 +126,7 @@ export async function seedBarSignature(context) {
     barActor: { session: 'a'.repeat(64), parent: 'a'.repeat(64) }, criterion: 'The projection witness names a mismatch', check,
     checkBaseline: { command: check, main: head, result: 'red', testEvidence: { failed: ['projection witness'], passed: [], noTestsMatched: false } },
     brief: 'Files: src/projection.js\nTest: projection witness asserts mismatch\nNamed test: projection witness\nMeasurements: no quantitative acceptance bounds\nReviewer edges: absent field and clock-only change' });
-  const { revision } = barReadiness(board, store.getItem(board, item));
+  const { revision } = barReadiness(board, store.getItem(board, item), {}, board.runtimePorts.verification);
   await exercise('signBar', () => store.signBar(board, item, { agentId: reviewer,
     barActor: { session: 'b'.repeat(64), parent: 'b'.repeat(64) }, revision: revision.revision, digest: revision.digest,
     note: 'Synthetic readiness signature for state projection only.', coverage: { version: 1, sourceMain: head, policyKey: 'd'.repeat(64),

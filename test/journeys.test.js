@@ -1199,7 +1199,7 @@ scenario('a long shout folds and stays open across a refresh', async ({ Given, W
 scenario('the person shouts with Enter and sees when the coordinator heard it', async ({ Given, When, Then, And, open, layouts }) => {
   const box = machine();
   const p = project(box, 'heard');
-  box.run(p.web, 'shout', 'coordinator', 'Starting on the greeting.');
+  box.run(p.web, 'shout', 'all', 'Starting on the greeting.');
   const { chrome } = await open(box);
   await Given('the shouts feed', () => openShouts(chrome, 1));
   /** The first card in the feed: its text, recipient and Heard line. */

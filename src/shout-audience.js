@@ -1,5 +1,6 @@
 /** Shared item-message addressing for the board's inbox, resume and live watch [B7,N19,A2]. */
 import { Refused } from './refused.js';
+import { shoutItemId } from '../packages/kernel/src/core/registry-guards.js';
 
 /** Reserved engine-93 address: '+' is forbidden in lane names and their derived seat ids. */
 export const COORDINATION_SHOUT = 'coordinator+person';
@@ -9,13 +10,6 @@ export function itemShoutTarget(db, value) {
   if (!Number.isSafeInteger(value) || value < 1) throw new Refused('BAD_SHOUT_ITEM', 'an item message needs an existing positive item id; run pullboard shout --item <id> "text"');
   if (!db.prepare('SELECT 1 FROM item WHERE item_id = ?').get(value)) throw new Refused('NO_ITEM', `no item #${value}; run pullboard list, then address an existing item`);
   return `item:${value}`;
-}
-
-/** Decode only the canonical item address; ordinary seats and lanes keep their old names. */
-export function shoutItemId(to) {
-  const match = /^item:([1-9]\d*)$/u.exec(String(to));
-  const id = match ? Number(match[1]) : null;
-  return Number.isSafeInteger(id) ? id : null;
 }
 
 /** Whether a seat currently builds or reviews this item, or coordinates its work. */
@@ -49,4 +43,23 @@ export const UNREAD_SHOUT_SQL = `FROM shout WHERE shout_id > ? AND shout_from !=
 /** Bind every positional identity occurrence explicitly, including item-role checks. */
 export function unreadShoutBindings(cursor, seat, lane) {
   return [cursor, seat, lane, seat, seat, seat, seat, seat, seat];
+}
+
+/** The kinds of evidence a shout can carry (B22): what was tried, or what was measured. */
+export const EVIDENCE_KINDS = ['attempt', 'receipt'];
+
+/**
+ * Refuse evidence that is not fields a reader can trust (B22): its kind, its outcome, an item on
+ * the board, and a full commit SHA, which the CLI resolves in the repo before it gets here.
+ *
+ * @param {any} board
+ * @param {{ kind: string, outcome: string, item: number, commit: string }} evidence
+ */
+export function checkEvidence(board, { kind, outcome, item, commit }) {
+  if (!EVIDENCE_KINDS.includes(kind)) throw new Refused('BAD_EVIDENCE', `the evidence kind is attempt or receipt, not "${kind ?? ''}": --evidence receipt`);
+  if (!String(outcome ?? '').trim()) throw new Refused('BAD_EVIDENCE', 'evidence names its outcome: --outcome measured');
+  if (!Number.isInteger(item) || !board.db.prepare('SELECT 1 FROM item WHERE item_id = ?').get(item)) {
+    throw new Refused('BAD_EVIDENCE', `evidence names an item on the board: --item <id> (saw ${item})`);
+  }
+  if (!/^[0-9a-f]{40}$/.test(commit ?? '')) throw new Refused('BAD_EVIDENCE', `evidence names a commit by its full SHA (saw "${commit ?? ''}")`);
 }

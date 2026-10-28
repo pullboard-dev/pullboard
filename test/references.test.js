@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/brief.js src/board.js src/engine.js src/machine.js src/relay-sender.js */
+/** @pullboard-test-loads src/brief.js src/board.js src/engine.js src/machine.js src/board-engine-ports.js */
 /** External references stay distinct from the board's requirement and dependency links [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -9,7 +9,8 @@ import * as store from '../src/board.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import { REFERENCE_ENGINE } from '../src/reference-engine.js';
 import { prepareEngineMove } from '../src/engine.js';
-import { relaySenderProblem } from '../src/relay-sender.js';
+import { boardEnginePorts } from '../src/board-engine-ports.js';
+const { relaySenderProblem } = boardEnginePorts();
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { referenceLines, referenceAcknowledged } from '../src/reference-lines.js';

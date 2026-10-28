@@ -584,7 +584,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
 
   const unguarded = join(box.dir, 'unguarded');
   box.git(repo, 'worktree', 'add', '-q', unguarded, '-b', 'schema/unguarded', 'schema/future');
-  const guardedSource = join(unguarded, 'src/board.js');
+  const guardedSource = join(unguarded, 'src/board-store.js');
   const guardedText = readFileSync(guardedSource, 'utf8');
   const unguardedText = guardedText.replace(
     "  isMain = sharedSchemaOwner(file, isMain);",
@@ -1153,7 +1153,7 @@ test('[A2,B25,B26,B27] HTTP decisions preserve routing, passing and explicit per
     body: JSON.stringify({ verb, args, ...(item === undefined ? {} : { item }), agent }),
   });
 
-  const askResponse = await move('shout', { text: 'May this ship?', decision: true }, undefined, 'app-1');
+  const askResponse = await move('shout', { text: 'May this ship?', kind: 'question', decision: true }, undefined, 'app-1');
   assert.equal(askResponse.status, 200);
   const ask = await askResponse.json();
   assert.equal(ask.version, 1);

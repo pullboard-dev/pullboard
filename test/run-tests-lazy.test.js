@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Ordinary runner loading stays light; full gates and truthful repository selection retain their inputs [C7,V4]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
@@ -137,7 +138,8 @@ test('the full gate still loads its proof modules and executes its configured ch
 () => {
   const box = fixture();
   const gate = pathToFileURL(join(ROOT, 'src/gate.js')).href;
-  const source = `const { runGate } = await import(${JSON.stringify(gate)}); const result = await runGate(process.cwd(), {gate:'node --test --test-reporter=tap web/plain.test.js'}, {trustStamp:false}); if (!result.isGreen) throw new Error(result.output); console.log('FULL_GATE_EXECUTED');`;
+  const source = `const { runGate } = await import(${JSON.stringify(gate)});
+${executionServicesSource(gate)} const result = await runGate(process.cwd(), {gate:'node --test --test-reporter=tap web/plain.test.js'}, { executionServices,trustStamp:false}); if (!result.isGreen) throw new Error(result.output); console.log('FULL_GATE_EXECUTED');`;
   const { child, urls } = observed(box, ['--input-type=module', '-e', source]);
   assert.equal(readFileSync(box.ran, 'utf8'), 'executed');
   assert.match(child.stdout, /FULL_GATE_EXECUTED/u);

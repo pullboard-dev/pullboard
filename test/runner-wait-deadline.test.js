@@ -1,4 +1,5 @@
 /** Runner deadlines retain ordinary local admission and never create disabled capacity [C7,Q1,Q2]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { closeSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, existsSync, writeFileSync } from 'node:fs';
@@ -110,7 +111,8 @@ test('disabled local capacity and runner-only work refuse by name at the runner 
     writeFileSync(box.settingsFile, JSON.stringify({ ...settings, gateSlots: runnerOnly ? 1 : 0, browserSlots: runnerOnly ? 1 : 0 }));
     const module = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
     const source = `import {withGateSlot} from ${JSON.stringify(module)};
-try { await withGateSlot(${JSON.stringify(box.repo)},()=>{throw Error('disabled execution ran')},{browser:true,gui:true,runnerOnly:${runnerOnly},agent:'deadline-refusal'}); process.exitCode=9; }
+${executionServicesSource(module)}
+try { await withGateSlot(${JSON.stringify(box.repo)},()=>{throw Error('disabled execution ran')},{ executionServices,browser:true,gui:true,runnerOnly:${runnerOnly},agent:'deadline-refusal'}); process.exitCode=9; }
 catch(error) { console.log(JSON.stringify({code:error.code,message:error.message})); process.exitCode=error.code==='RUNNER_WAIT_DEADLINE'?0:8; }`;
     const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
       cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 5_000 }); // budget: a missing 60ms private deadline is a bounded failure, not an immortal test.
@@ -305,8 +307,9 @@ test('a first runner freed after the queue deadline executes with its captured s
       const command = 'node -e "console.log(\'LATE_FIRST_DISPATCH_EXECUTED\')"';
       const script = `import {writeFileSync,existsSync} from 'node:fs';
 import {withGateSlot,runProfiledShell} from ${JSON.stringify(gate)};
+${executionServicesSource(gate)}
 let waited=false;
-const run=await withGateSlot(${JSON.stringify(box.repo)},lease=>runProfiledShell(${JSON.stringify(box.repo)},${JSON.stringify(command)},{gateLease:lease}),{
+const run=await withGateSlot(${JSON.stringify(box.repo)},lease=>runProfiledShell(${JSON.stringify(box.repo)},${JSON.stringify(command)},{gateLease:lease}),{ executionServices,
   browser:false,runnerOnly:true,item:'late-first',agent:'late-first-fixture',
   onWait:async state=>{if(state.admitted||waited)return;waited=true;
     await new Promise(done=>setTimeout(done,${runnerWaitMs + 50}));

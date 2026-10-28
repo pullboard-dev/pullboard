@@ -276,8 +276,8 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
   box.run(alpha.repo, 'add', 'web', 'Farewell page', '--specs', 'G1', '--criterion', 'renders');
   // Seven items match, so the Items group shows five of them and says how many there are.
   for (let n = 1; n <= 7; n += 1) box.run(alpha.repo, 'add', 'web', `Greeting variant ${n}`, '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.web, 'shout', 'coordinator', 'The greeting is ready for review.');
-  box.run(alpha.web, 'shout', 'coordinator', 'Should the greeting wave?', '--decision');
+  box.run(alpha.web, 'shout', 'all', 'The greeting is ready for review.');
+  box.run(alpha.web, 'shout', 'coordinator', 'Should the greeting wave?', '--decision', '--kind', 'question');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-finder-chrome-'));
   let chrome;

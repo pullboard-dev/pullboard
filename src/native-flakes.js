@@ -32,7 +32,6 @@ import {
   untracked,
 } from './git.js';
 import {
-  checkAtCommit,
   mainPolicy,
 } from './trusted-policy.js';
 import { fileURLToPath } from 'node:url';
@@ -127,7 +126,7 @@ function targetResult(run, root, name) {
 }
 
 /** Run an exact-target private source comparison, preserving the trusted check's full receipt. */
-function privateProbe(root, commit, command, lease, policyCommit) {
+function privateProbe(root, commit, command, lease, policyCommit, checkAtCommit) {
   const item = { item_id: 0, item_commit: commit, item_claim_head: policyCommit, item_frozen: JSON.stringify({ check: command }) };
   const check = checkAtCommit(root, item, { gateLease: lease });
   const output = check.outputPath ? readFileSync(check.outputPath, 'utf8') : '';
@@ -173,7 +172,7 @@ function diagnosticCode(error) {
 }
 
 /** Observe one red run, optionally run one pair, then persist typed results without changing its verdict. */
-async function observeFailure({ root, config, pin, run, command, lease, kind, record }) {
+async function observeFailure({ root, config, pin, run, command, lease, kind, record, checkAtCommit }) {
   if (run.isGreen || !pin.head || !pin.tree) return;
   const started = Date.now();
   const observedAt = new Date().toISOString();
@@ -201,7 +200,7 @@ async function observeFailure({ root, config, pin, run, command, lease, kind, re
     else if (config.flakes?.rerun === true && prefix && named && failure.indent === 0) {
       const pattern = '^' + failure.name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&') + '$';
       const selected = prefix + ' --test-name-pattern ' + word(pattern) + ' ' + word(failure.file);
-      const pairRun = pin.privateCheck ? privateProbe(root, pin.head, selected, lease, pin.main ?? pin.head)
+      const pairRun = pin.privateCheck ? privateProbe(root, pin.head, selected, lease, pin.main ?? pin.head, checkAtCommit)
         : runProfiledShell(root, selected, { gateLease: lease });
       paired = saveReceipt(directory, id, 'paired', pairRun);
       // Every remote receipt a classification rests on carries both facts, the paired rerun's and main's included; a
@@ -212,7 +211,7 @@ async function observeFailure({ root, config, pin, run, command, lease, kind, re
       const pairResult = pairRun.unverified || pairGap ? null : targetResult(pairRun, root, failure.name);
       let mainResult = pin.main === pin.head ? false : null;
       if (pin.main && pin.main !== pin.head && committedTest(root, pin.main, failure.file)) {
-        const mainRun = privateProbe(root, pin.main, selected, lease, pin.main);
+        const mainRun = privateProbe(root, pin.main, selected, lease, pin.main, checkAtCommit);
         mainReceipt = saveReceipt(directory, id, 'main', mainRun);
         const mainGap = mainRun.executionRunner ? remoteGap(mainRun, pin, 'main remote') : null;
         if (mainGap) gaps.push(mainGap);

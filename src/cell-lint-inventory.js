@@ -15,6 +15,25 @@ export function cellOf(file) { return /^(?:apps|packages)\/[^/]+\//u.exec(file)?
 /** Exclude test and contract modules from production reachability roots and edges. */
 export function testFile(file) { return /(?:^|\/)(?:test|tests|contract)\//u.test(file) || /\.test\.[cm]?js$/u.test(file); }
 
+/** Read only the exact committed migration marker; working-tree files and live board state grant nothing. */
+export function committedCellTransition(root) {
+  const file = 'bin/cells-plan/transition.json';
+  const options = { cwd: root, env: gitChildEnv(root), encoding: 'utf8' };
+  const entry = gitSpawnSync(['ls-tree', '-z', 'HEAD', '--', file], options);
+  if (entry.status !== 0 || !entry.stdout) return { present: false, active: false };
+  if (!/^100(?:644|755) blob [a-f0-9]+\tbin\/cells-plan\/transition\.json\0$/u.test(entry.stdout)) {
+    return { present: true, active: false, problem: 'transition marker must be a committed regular file' };
+  }
+  const source = gitSpawnSync(['show', `HEAD:${file}`], options);
+  let marker;
+  try { marker = JSON.parse(source.stdout); } catch { /* Invalid source is reported as named debt below. */ }
+  if (source.status !== 0 || !marker || Array.isArray(marker) || Object.keys(marker).sort().join() !== 'deleteItem,version'
+    || marker.version !== 1 || marker.deleteItem !== 1770) {
+    return { present: true, active: false, problem: 'transition marker must name deleteItem 1770 and version 1 only' };
+  }
+  return { present: true, active: true };
+}
+
 /** Inventory all ordinary repository files; symlinks remain visible unknowns rather than traversed boundaries. */
 export function cellInventory(root) {
   const files = new Map(), unknown = [];
@@ -66,4 +85,40 @@ export function cycleEdges(graph) {
   }
   for (const [from, targets] of graph) for (const target of targets) if (reaches(target, from)) result.push(`${from}->${target}`);
   return result.sort();
+}
+
+/** Validate explicit, time-bounded migration edges without evaluating code or consulting a live board. */
+export function temporaryCellEdges(files, now = Date.now()) {
+  const file = 'bin/cells-plan/temporary-edges.json';
+  if (!files.has(file)) return { edges: [], problems: [] };
+  let document;
+  try { document = JSON.parse(files.get(file).toString('utf8')); }
+  catch { return { edges: [], problems: [`${file}: invalid JSON`] }; }
+  if (document?.version !== 1 || !Array.isArray(document.edges)) {
+    return { edges: [], problems: [`${file}: expected version 1 and an edges array`] };
+  }
+  const edges = [], problems = [], seen = new Set();
+  for (const [index, row] of document.edges.entries()) {
+    const name = `${file}[${index}]: ${row?.importer ?? '?'} -> ${row?.target ?? '?'}`;
+    /** Accept canonical relative module names, never traversal or filesystem locations. */
+    const path = value => typeof value === 'string' && /^(?:[A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+\.[cm]?js$/u.test(value)
+      && !value.split('/').some(part => part === '.' || part === '..');
+    if (!row || !path(row.importer) || !path(row.target)) {
+      problems.push(`${name}: importer and target must name repository module paths`); continue;
+    }
+    if (!Number.isSafeInteger(row.contractItem) || row.contractItem < 1) {
+      problems.push(`${name}: a positive contract item is required`); continue;
+    }
+    const expiry = typeof row.expires === 'string' && /^\d{4}-\d{2}-\d{2}$/u.test(row.expires)
+      ? Date.parse(row.expires + 'T00:00:00.000Z') : NaN;
+    if (!Number.isFinite(expiry) || new Date(expiry).toISOString().slice(0, 10) !== row.expires) {
+      problems.push(`${name}: expires must be a real UTC date (YYYY-MM-DD)`); continue;
+    }
+    const key = `${row.importer}->${row.target}`;
+    if (seen.has(key)) { problems.push(`${name}: duplicate temporary edge`); continue; }
+    seen.add(key);
+    edges.push({ importer: row.importer, target: row.target, contractItem: row.contractItem, expires: row.expires });
+    if (expiry <= now) problems.push(`${name}: expired ${row.expires}; remove it through contract #${row.contractItem}`);
+  }
+  return { edges, problems };
 }

@@ -1,3 +1,10 @@
+import { runnerExecutionServices } from './runners.js';
+import { constrainedLandingHost } from './landing-host.js';
+import { captureReleaseQueue } from './release-queue.js';
+import { RELEASE_EXECUTORS_ENV } from './gate-run-receipt.js';
+import { RELEASE_PARTICIPATION_PREFIX } from './gate-run-receipt.js';
+import { fileTimesPath } from './test-value-timing.js';
+import { readFileTimes } from './test-value-timing.js';
 /**
  * The landing gate in shards [C7,V4]: split the tracked test files into balanced shards, run each on
  * a free local gate slot or a registered runner, and report one result. One red shard stops the rest,
@@ -52,7 +59,7 @@ import {
   COLLECTION_ID_ENV,
   formatCollectionReport,
   parseCollectionReports,
-} from './landing-collection-report.js';
+} from './gate-run-receipt.js';
 
 /** Environment variable naming the shard a nested run-tests process runs, as `<i>/<n>`. */
 export const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
@@ -60,11 +67,6 @@ export const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
 export const LANDING_FILE_TIMES_ENV = 'PULLBOARD_LANDING_FILE_TIMES';
 /** Prefix of the per-file wall-time lines a shard prints for its orchestrator. */
 export const FILE_TIME_LINE = '# landing-file-ms ';
-/** A release explicitly requests every registered executor; ordinary landings keep their policy. */
-export const RELEASE_EXECUTORS_ENV = 'PULLBOARD_RELEASE_EXECUTORS';
-/** One invocation-bound observation, emitted by the shard controller after its actual children finish. */
-export const RELEASE_PARTICIPATION_PREFIX = '# pullboard-release-participation ';
-
 /** Snapshot actual registered capacity without registering hosts or changing machine settings. */
 export function releaseExecutors(settings = loadMachineSettings()) {
   const local = localRunnerDescriptor(settings.gateSlots, settings.browserSlots > 0, guiSession());
@@ -122,39 +124,12 @@ export async function planReleaseShards(files, executors, times = {}, needsBrows
   return shards;
 }
 
-/** Read exactly one matching controller observation; a test's arbitrary output is never transport custody. */
-export function releaseParticipation(output, id) {
-  const matching = [];
-  for (const line of String(output).split(/\r?\n/u)) {
-    if (!line.startsWith(RELEASE_PARTICIPATION_PREFIX)) continue;
-    if (Buffer.byteLength(line) > 16 * 1024 * 1024) return null;
-    let value;
-    try { value = JSON.parse(line.slice(RELEASE_PARTICIPATION_PREFIX.length)); } catch { return null; }
-    if (value?.id === id) matching.push(value);
-  }
-  return matching.length === 1 ? matching[0] : null;
-}
-
 const GATE_MARKERS = [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV];
 // Budget: a stopped shard's run-tests drains its owned processes within its 12 s custody limit; past
 // this its group is killed.
 const STOP_GRACE_MS = 20_000;
 // Budget: each signal round of the final sweep waits this long for a process to go.
 const SWEEP_WAIT_MS = 1_000;
-
-/** Where the last landing's per-file wall times live, shared by every worktree of the repository. */
-export function fileTimesPath(root) {
-  return join(repoInfo(root).commonDir, 'pullboard', 'landing-file-times.json');
-}
-
-/** Read the last per-file wall times; a missing or unreadable record means none are known. */
-export function readFileTimes(root) {
-  try {
-    const value = JSON.parse(readFileSync(fileTimesPath(root), 'utf8'));
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-    return Object.fromEntries(Object.entries(value.files ?? {}).filter(([, ms]) => Number.isFinite(ms) && ms >= 0));
-  } catch { return {}; }
-}
 
 /** Keep the newest wall time for every file this landing measured, beside the older ones. */
 function writeFileTimes(root, measured) {
@@ -414,7 +389,8 @@ class NotNeeded extends Error {}
  *   holds; `write` receives the merged log.
  * @returns {Promise<{ isGreen: boolean, balance: string, shards: object[], files: object[] }>}
  */
-export async function runLandingShards({ root, runner, files, count, inherited = null, fullScope = true, needsBrowser = async () => true, needsGui = shardFiles => testsNeedGui(root, shardFiles), write = text => process.stdout.write(text), remoteRun }) {
+export async function runLandingShards({ root, runner, files, count, inherited = null, fullScope = true, needsBrowser = async () => true, needsGui = shardFiles => testsNeedGui(root, shardFiles), write = text => process.stdout.write(text), remoteRun, timing }) {
+  const selectionAt = performance.now();
   const collectAll = process.env[LANDING_COLLECT_ALL_ENV] === '1';
   const collectionId = process.env[COLLECTION_ID_ENV];
   const release = process.env[RELEASE_EXECUTORS_ENV] ? releasePlacement(process.env[RELEASE_EXECUTORS_ENV]) : null;
@@ -447,6 +423,8 @@ export async function runLandingShards({ root, runner, files, count, inherited =
   const floor = landingFloor(files, history);
   // The slowest single file bounds the gate however many shards there are.
   if (floor) write(`# landing floor: ${floor.ms} ms ${floor.path}\n`);
+  timing?.phase('selectionMs', selectionAt);
+  const setupAt = performance.now();
 
   let wake = () => {};
   let changed = new Promise(resolveChange => { wake = resolveChange; });
@@ -455,6 +433,8 @@ export async function runLandingShards({ root, runner, files, count, inherited =
   const entries = await Promise.all(plan.map(async (shard, index) => ({ shard, label: `${index + 1}/${total}`,
     browser: await needsBrowser(shard.files), gui: await needsGui(shard.files), claimed: false, localOnly: false, done: false, attempts: [], status: null })));
 
+  timing?.phase('setupMs', setupAt);
+
   /** A remote parent's slot cannot take a GUI file unless its own advertised capability permits it. */
   const inheritedCanRun = entry => (!entry.gui || !inherited?.runner || inherited.runner.gui === true)
     && (!entry.shard.executor || (inherited?.runner ? inherited.runner.host === entry.shard.executor.id
@@ -462,17 +442,17 @@ export async function runLandingShards({ root, runner, files, count, inherited =
 
   /** Run one attempt of a shard on a lease: a local child, or the runner it names. */
   const attempt = async (entry, lease) => {
-    const started = Date.now();
+    const started = performance.now();
     const number = entry.attempts.length + 1;
     if (!lease.runner) {
       if (release && cpuRunnerRequired(root, entry.shard.files)) {
-        return { attempt: number, host: 'local', outcome: 'refused', reason: 'CPU-runner work cannot prove local release participation', output: '', wallMs: Date.now() - started };
+        return { attempt: number, host: 'local', outcome: 'refused', reason: 'CPU-runner work cannot prove local release participation', output: '', wallMs: Math.round(performance.now() - started) };
       }
       const drifted = () => landingSource(root).fingerprint !== pinned.fingerprint;
       /** A local result on other source than the landing pinned is never a result for this landing. */
       const sourceChanged = when => {
         write(`landing shard ${entry.label}: [LANDING_SOURCE_CHANGED] the checkout changed from the landing's pinned source ${pinned.commit.slice(0, 12)} ${when} this shard ran; restore that commit with no other changes and run the landing again\n`);
-        return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SOURCE_CHANGED', output: '', wallMs: Date.now() - started };
+        return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SOURCE_CHANGED', output: '', wallMs: Math.round(performance.now() - started) };
       };
       if (drifted()) return sourceChanged('before');
       const run = await runLocalShard({ root, runner, files: entry.shard.files, label: entry.label, lease, stop, collectAll, collectionId });
@@ -480,9 +460,9 @@ export async function runLandingShards({ root, runner, files, count, inherited =
         // Fail closed: name what may still run, as a runner's unverified cleanup does.
         write(`landing shard ${entry.label}: [LANDING_SHARD_CLEANUP_UNVERIFIED] the stopped shard's processes could not be shown gone: ${run.unverified.join(', ')}; inspect and stop them before another run\n`);
       }
-      if (run.unverified.length) return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SHARD_CLEANUP_UNVERIFIED', output: run.output, wallMs: Date.now() - started };
+      if (run.unverified.length) return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SHARD_CLEANUP_UNVERIFIED', output: run.output, wallMs: Math.round(performance.now() - started) };
       if (!stop.aborted && drifted()) return sourceChanged('while');
-      return { attempt: number, host: 'local', outcome: run.isGreen ? 'green' : 'red', output: run.output, wallMs: Date.now() - started,
+      return { attempt: number, host: 'local', outcome: run.isGreen ? 'green' : 'red', output: run.output, wallMs: Math.round(performance.now() - started),
         ...(release ? { executor: localRunnerDescriptor(null, null).id, head: pinned.commit, tree: pinnedTree,
           command: createHash('sha256').update(JSON.stringify([process.execPath, runner, ...entry.shard.files])).digest('hex') } : {}) };
     }
@@ -490,12 +470,12 @@ export async function runLandingShards({ root, runner, files, count, inherited =
     try {
       const run = await runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source, browser: lease.browser,
         metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui, auditCoverage: Boolean(process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) }, signal: stop });
-      return { attempt: number, host: lease.runner.host, outcome: run.isGreen ? 'green' : 'red', output: run.output, wallMs: Date.now() - started,
+      return { attempt: number, host: lease.runner.host, outcome: run.isGreen ? 'green' : 'red', output: run.output, wallMs: Math.round(performance.now() - started),
         ...(release ? { executor: run.executionRunner, head: run.executionSource?.commit, tree: run.executionSource?.tree,
           command: createHash('sha256').update(command).digest('hex') } : {}) };
     } catch (error) {
       // A stop ends the runner's transport on purpose; that shard was stopped, not dropped.
-      if (stop.aborted) return { attempt: number, host: lease.runner.host, outcome: 'stopped', output: '', wallMs: Date.now() - started };
+      if (stop.aborted) return { attempt: number, host: lease.runner.host, outcome: 'stopped', output: '', wallMs: Math.round(performance.now() - started) };
       const failure = runnerFailureClass(error, { RunnerDropped, Refused });
       if (!failure) throw error;
       const host = lease.runner.host;
@@ -507,13 +487,13 @@ export async function runLandingShards({ root, runner, files, count, inherited =
       }
       // Infrastructure, not a test result: the runner could not give this shard a complete answer.
       return { attempt: number, host, outcome: failure.action === 'fail' ? 'refused' : 'infrastructure', reason: failure.reason,
-        output: error.runnerAttempt?.output ?? '', wallMs: Date.now() - started };
+        output: error.runnerAttempt?.output ?? '', wallMs: Math.round(performance.now() - started) };
     }
   };
 
   /** Record an attempt's outcome, stopping the landing at the first test failure. */
   const settle = (entry, record) => {
-    if(collectAll) {
+    if(collectionId) {
       const report=parseCollectionReports(record.output,{id:collectionId,scope:'shard',shard:entry.label,
         plannedFiles:entry.shard.files.map(collectionKey),requireComplete:false});
       record.collectionComplete=report?.complete===true;
@@ -566,7 +546,7 @@ export async function runLandingShards({ root, runner, files, count, inherited =
       if (lease.runner && quarantined.has(lease.runner.host)) return 'divert';
       entry.claimed = true;
       await runOnLease(entry, lease);
-    }, { landing: true, browser: entry.browser, gui: entry.gui, remote: !localOnly, kind: 'landing', item: `shard ${entry.label}`,
+    }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser: entry.browser, gui: entry.gui, remote: !localOnly, kind: 'landing', item: `shard ${entry.label}`,
       ...(entry.shard.executor ? { requiredExecutor: entry.shard.executor.kind === 'local'
         ? { kind: 'local' } : { kind: 'ssh', host: entry.shard.executor.host } } : {}),
       onWait: () => { if (entry.claimed || entry.done || stop.aborted) throw new NotNeeded(); } });
@@ -642,35 +622,10 @@ export async function runLandingShards({ root, runner, files, count, inherited =
   const isGreen = shards.every(entry => entry.status === 'green');
   write(`# landing result: ${isGreen ? 'green' : collectAll && !stop.aborted ? `red, ${shards.filter(entry => entry.status === 'red').length} failing shard(s); all test shards collected` : `red, first failure in shard ${firstFailure ?? shards.find(entry => entry.status !== 'green')?.label}`}\n`);
   if (Object.keys(measured).length) writeFileTimes(root, measured);
-  return { isGreen, balance,
+  return { isGreen, balance, full: fullScope && shards.every(entry => entry.attempts.at(-1)?.collectionComplete === true),
     shards: shards.map(entry => ({ shard: entry.label, status: entry.status,
       attempts: entry.attempts.map(({ output, ...record }) => record) })),
     files: merged };
-}
-
-/** Read the merged shard lines from a gate log into profile fields, or null for an unsharded run. */
-export function landingShardProfile(output) {
-  const shards = [];
-  const files = [];
-  let balance = null;
-  let floor = null;
-  const quarantined = [];
-  const unverified = [];
-  for (const line of String(output).split(/\r?\n/u)) {
-    const plan = /^# landing shards: \d+ balanced by (history|history and average|file count) \(/u.exec(line);
-    if (plan) balance = plan[1];
-    const leftover = /^landing shard (\d+\/\d+): \[LANDING_SHARD_CLEANUP_UNVERIFIED\] the stopped shard's processes could not be shown gone: (.*); inspect/u.exec(line);
-    if (leftover) unverified.push({ shard: leftover[1], processes: leftover[2] });
-    const held = /^landing runner (\S+) quarantined for the rest of this landing: (.*)$/u.exec(line);
-    if (held) quarantined.push({ host: held[1], message: held[2] });
-    const slowest = /^# landing floor: (\d+) ms (.+)$/u.exec(line);
-    if (slowest) floor = { path: slowest[2], ms: Number(slowest[1]) };
-    const shard = /^# landing shard (\d+\/\d+) attempt (\d+) on (\S+): (green|red|stopped|infrastructure|refused)(?: \(([^)]*)\))? in (\d+) ms$/u.exec(line);
-    if (shard) shards.push({ shard: shard[1], attempt: Number(shard[2]), host: shard[3], status: shard[4], reason: shard[5] ?? null, wallMs: Number(shard[6]) });
-    const file = /^# landing file (\d+\/\d+) (\S+) (\d+|-) (.+)$/u.exec(line);
-    if (file) files.push({ path: file[4], shard: file[1], host: file[2], durationMs: file[3] === '-' ? null : Number(file[3]) });
-  }
-  return shards.length ? { balance, floor, quarantined, unverified, shards, files } : null;
 }
 
 /** Print this shard's per-file wall times for its orchestrator; a missing record prints nothing. */
@@ -684,4 +639,9 @@ export function printShardFileTimes(path, write = text => process.stdout.write(t
     } catch { /* A torn last line from a killed file process carries no time. */ }
   }
   for (const [file, ms] of Object.entries(times)) write(`${FILE_TIME_LINE}${Math.round(ms)} ${file}\n`);
+}
+
+/** Supply canonical landing policy readers without moving their authority into the lower gate. */
+export function landingExecutionServices() {
+  return Object.freeze({ constrainedLandingHost, captureReleaseQueue, releaseExecutors });
 }

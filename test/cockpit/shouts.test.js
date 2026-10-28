@@ -7,7 +7,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { register, shout as shoutOnBoard } from '../../src/board.js';
-import { relaySenderProblem } from '../../src/relay-sender.js';
+import { boardEnginePorts } from '../../src/board-engine-ports.js';
+const { relaySenderProblem } = boardEnginePorts();
 import { BIN, fetchLive, boardOf, shoutNameText, tapTarget, SPEC, machine, project, build, startView, styleOf, element, storage, openPage, boardId, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, earlier, shoutsAt, press, pressedInto } from './fixture.js';
 import { assertFirstStateDelay, press as sharedPress } from './stable.js';
 
@@ -26,18 +27,18 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
     const page = await openPage(view, { store });
     assert.equal(count(page), '', 'the shouts there before the first look count as seen, not as 2');
 
-    box.run(alpha.web, 'shout', 'coordinator', 'web-1 is on it');
+    box.run(alpha.web, 'shout', 'all', 'web-1 is on it');
     await page.run('refresh()');
     assert.equal(count(page), '1', 'a shout since then counts');
     await page.click({ tab: 'shouts' });
     assert.equal(count(page), '', 'opening Shouts sees it');
-    box.run(alpha.web, 'shout', 'coordinator', 'and done');
+    box.run(alpha.web, 'shout', 'all', 'and done');
     await page.run('refresh()');
     assert.equal(count(page), '', 'a shout that arrives while Shouts is open is seen');
     await page.click({ tab: 'items' });
 
     // A shout lands while the page is closed: the reload counts it, and only it.
-    box.run(alpha.web, 'shout', 'coordinator', 'while you were away');
+    box.run(alpha.web, 'shout', 'all', 'while you were away');
     const reloaded = await openPage(view, { store });
     assert.equal(count(reloaded), '1', 'what was seen is remembered across a reload');
     await reloaded.click({ tab: 'shouts' });
@@ -45,7 +46,7 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
 
     // A burst larger than the forty shouts the page loads still counts in full, after a reload too.
     await reloaded.click({ tab: 'items' });
-    for (let n = 1; n <= 41; n += 1) box.run(alpha.web, 'shout', 'coordinator', `burst ${n}`);
+    for (let n = 1; n <= 41; n += 1) box.run(alpha.web, 'shout', 'all', `burst ${n}`);
     await reloaded.run('refresh()');
     assert.equal(count(reloaded), '41', 'every arrival counts, not just the forty loaded');
     const again = await openPage(view, { store });
@@ -118,7 +119,7 @@ test('a shout shows the evidence it carries [B22]', async () => {
 test('a shout from the view shows the person as its author [N26,A9]', { timeout: 60_000 }, async (t) => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.web, 'shout', 'coordinator', 'web-1 is on the greeting');
+  box.run(alpha.web, 'shout', 'all', 'web-1 is on the greeting');
   const view = await startView(box);
   // The standalone API an agent can start with pullboard serve: a board key, never the person.
   const serve = spawn(process.execPath, [BIN, 'serve', '--port', '0', '--json'], { cwd: alpha.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -138,7 +139,7 @@ test('a shout from the view shows the person as its author [N26,A9]', { timeout:
     assert.deepEqual(cards(), [
       ['you', 'web', 'Web, keep it short'],
       ['you', 'coordinator (unknown)', 'Hello from the person'],
-      ['web-1 (Test Model)', 'coordinator (unknown)', 'web-1 is on the greeting'],
+      ['web-1 (Test Model)', 'coordinator and you', 'web-1 is on the greeting'],
     ], 'the view reads "you" for the person, to the coordinator and to a lane, and an agent keeps its seat and model');
 
     const said = (events) => events.filter((event) => event.event_kind === 'shout').map((event) => event.event_by);
@@ -151,7 +152,7 @@ test('a shout from the view shows the person as its author [N26,A9]', { timeout:
     // standalone API with a board key, or through the relay.
     const id = await boardId(view, alpha.repo);
     const viewMove = await fetchLive(`${view.base}/api/v1/boards/${id}/moves`, { method: 'POST', headers: { 'x-pullboard-key': view.key, 'content-type': 'application/json' },
-      body: JSON.stringify({ verb: 'shout', agent: 'web-1', args: { to: 'coordinator', text: 'an agent under its own name' } }) });
+      body: JSON.stringify({ verb: 'shout', agent: 'web-1', args: { to: 'coordinator', text: 'an agent under its own name', kind: 'question' } }) });
     assert.equal(viewMove.status, 200, 'an agent named in a move speaks as itself');
     const forged = await fetchLive(`${view.base}/api/v1/boards/${id}/moves`, { method: 'POST', headers: { 'x-pullboard-key': view.key, 'content-type': 'application/json' },
       body: JSON.stringify({ verb: 'shout', from: 'person', args: { to: 'web', text: 'forged' } }) });
@@ -246,13 +247,13 @@ test('real Chrome styles shout code and item text without growing linked lines [
   const sample = 'Inline `code <b>safe</b>`; pullboard shout --decision; --flag; src/cockpit.js; 0123456789abcdef0123456789abcdef01234567.\nPreview SPEC.md:1-2@' + sourceHead + '. Invalid prefix:SPEC.md:1-2@' + sourceHead + '.\n```js\n<script>alert(1)</script>\n```\n$ pullboard claim 1\n<script>alert(1)</script>';
   const wrappedLinkedText = 'This deliberately long linked sample wraps across lines so text length does not define line height. '.repeat(3) + '#1';
   box.run(alpha.repo, 'shout', 'person', sample, '--decision');
-  box.run(alpha.web, 'shout', 'coordinator', 'A linked line #1');
-  box.run(alpha.web, 'shout', 'coordinator', 'A plain line here');
-  box.run(alpha.web, 'shout', 'coordinator', 'X #1');
-  box.run(alpha.web, 'shout', 'coordinator', 'X');
-  box.run(alpha.web, 'shout', 'coordinator', wrappedLinkedText);
-  box.run(alpha.web, 'shout', 'coordinator', 'OK');
-  box.run(alpha.web, 'shout', 'coordinator', '<script>alert(2)</script> outside code');
+  box.run(alpha.web, 'shout', 'all', 'A linked line #1');
+  box.run(alpha.web, 'shout', 'all', 'A plain line here');
+  box.run(alpha.web, 'shout', 'all', 'X #1');
+  box.run(alpha.web, 'shout', 'all', 'X');
+  box.run(alpha.web, 'shout', 'all', wrappedLinkedText);
+  box.run(alpha.web, 'shout', 'all', 'OK');
+  box.run(alpha.web, 'shout', 'all', '<script>alert(2)</script> outside code');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-shout-code-chrome-'));
   let chrome;
@@ -794,7 +795,7 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
   // A docs lane nobody has joined: a shout to it reaches no agent.
   const alpha = project(box, 'heard', SPEC, { lanes: { web: { owns: ['web/'], specs: ['G'] }, docs: { owns: ['docs/'], specs: ['G'] } } });
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.web, 'shout', 'coordinator', 'Starting on the greeting.');
+  box.run(alpha.web, 'shout', 'all', 'Starting on the greeting.');
   earlier(alpha.repo, Date.now(), (board) => shoutOnBoard(board, { from: 'person', to: 'docs', text: 'Docs, anyone?', lanes: ['web', 'docs'] }));
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-heard-chrome-'));
@@ -897,7 +898,7 @@ test("a waiting ask's who and when stay on one line with wide fonts [N26]", { ti
   assert.ok(executable, 'Chrome is required for the wide-font regression');
   const box = machine();
   const demo = project(box, 'wide-waiting-ask');
-  box.run(demo.web, 'shout', 'coordinator', 'Does this waiting ask fit with a wider font?', '--decision');
+  box.run(demo.web, 'shout', 'coordinator', 'Does this waiting ask fit with a wider font?', '--decision', '--kind', 'question');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-wide-ask-chrome-'));
   let chrome;

@@ -2,12 +2,13 @@
 /** @pullboard-test-loads src/machine.js */
 /** Two items adding different commands, or different engines, merge without conflict even at the same sorted spot [C7,V4]. */
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { copyPackageSubset } from './package-copy-fixture.js';
 
 const SOURCE = new URL('../src/', import.meta.url);
 
@@ -20,10 +21,7 @@ function registryRepo(t, files) {
     GIT_AUTHOR_NAME: 'Merge Fixture', GIT_AUTHOR_EMAIL: 'merge@example.invalid',
     GIT_COMMITTER_NAME: 'Merge Fixture', GIT_COMMITTER_EMAIL: 'merge@example.invalid' });
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
-  for (const file of files) {
-    mkdirSync(join(root, 'src', ...file.split('/').slice(0, -1)), { recursive: true });
-    cpSync(new URL(file, SOURCE), join(root, 'src', file));
-  }
+  copyPackageSubset(resolve(import.meta.dirname, '..'), root, files.map(file => ({ path: `src/${file}`, as: `src/${file}` })));
   git('init', '-q', '-b', 'main');
   git('add', 'src');
   git('commit', '-q', '-m', 'chore: registry fixture');

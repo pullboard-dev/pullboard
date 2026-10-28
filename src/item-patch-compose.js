@@ -2,7 +2,7 @@ import { itemPatchPaths } from './item-patch-paths.js';
 import { safeItemPatchPath as safePath } from './item-patch-paths.js';
 export { itemPatchPaths } from './item-patch-paths.js';
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { gitExecFileSync } from './git-adapter.js';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -18,7 +18,7 @@ function refuse(message) { throw new Refused('ITEM_PATCH', message); }
 /** Execute Git plumbing with an isolated index and no optional live-index locks. */
 function git(root, env, args, input) {
   try {
-    return execFileSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgSign=false', ...args],
+    return gitExecFileSync(['-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgSign=false', ...args],
       { cwd: root, env, input, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, stdio: ['pipe', 'pipe', 'pipe'] });
   } catch { refuse(`patch composition refused by Git (${args[0]}); resolve the patch against the exact submitted commit`); }
 }
@@ -74,7 +74,8 @@ export function composeItemPatches(root, item, patches, { trunk, baseCommit = it
     const applied = [];
     let previous = git(root, isolated, ['write-tree']).trim();
     for (const record of patches) {
-      git(root, isolated, ['apply', '--cached', '--3way', '--binary', '--whitespace=nowarn', '-'], record.patch);
+      try { git(root, isolated, ['apply', '--cached', '--3way', '--binary', '--whitespace=nowarn', '-'], record.patch); }
+      catch { refuse(`companion ${record.key} refused by Git (apply), no longer applies; replace it against the exact source`); }
       const next = git(root, isolated, ['write-tree']).trim();
       const changed = git(root, isolated, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', '--no-renames', previous, next]).split('\0').filter(Boolean);
       if (changed.some(path => !safePath(path) || !itemPatchPaths(record.patch).has(path))) refuse('patch changes an undeclared or unsafe path');

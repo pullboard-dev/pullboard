@@ -1,3 +1,4 @@
+import { AGENT_SESSION_IDS } from '../packages/kernel/src/core/discovery.js';
 import * as store from './board.js';
 import { repoInfo } from './git.js';
 import { isClean } from './git.js';
@@ -90,4 +91,12 @@ export async function laneSeatContext(ctx, board, me, item, seats, contextAt) {
   if (target.info.commonDir !== ctx.info.commonDir) throw new Refused('NOT_YOUR_CHECKOUT', 'the selected lane seat no longer belongs to this board; run pullboard next again');
   await bindLocalSession(target.info, { agent: agent.agent_id, digest: agentSessionDigest() });
   return { context: target, seat: { agent: agent.agent_id, lane: agent.agent_lane, path: target.info.root, created } };
+}
+
+/** A real runtime session may route across its own local seats; marker-only shells stay isolated. */
+export function nextSessionSeats(ctx, board) {
+  if (ctx.info.isMain || ctx.io.personChannel === 'view' || ctx.io.personRequest
+    || !AGENT_SESSION_IDS.some((name) => Boolean(process.env[name]))) return null;
+  const digest = agentSessionDigest();
+  return digest ? localSessionSeats(ctx.info, { agents: store.listAgents(board), digest }) : null;
 }

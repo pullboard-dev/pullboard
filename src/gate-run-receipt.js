@@ -5,23 +5,18 @@
  * never enters a commit. This module reads and checks receipts; nothing here writes one. Only the gate's private
  * writer in gate.js does, right after its child exits, so no caller can hand it a result to record.
  */
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import {
   dirname,
   join,
 } from 'node:path';
 import { tryGit } from './git.js';
-import { proofFields } from './proof-provenance.js';
-import { environmentProblem } from './execution-environment.js';
+import { receiptFields } from './proof-provenance.js';
+export { receiptFields };
 
 /** The folder beside the board that holds gate run receipts. */
 export const RECEIPT_FOLDER = 'gate-receipts';
-const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
-const DIGEST = /^[a-f0-9]{64}$/u;
 const ID = /^[a-f0-9-]{36}$/u;
-const MOST_FAILURES = 500;
-const MOST_COLLECTION_FILES = 100000;
 
 /**
  * Where this checkout's gate keeps its receipts: the common git directory's pullboard folder, the same folder that
@@ -45,78 +40,6 @@ export function receiptStore(root) {
 export function boardReceiptStore(board) {
   const file = board.db.prepare('PRAGMA database_list').all().find((row) => row.name === 'main')?.file;
   return file ? join(dirname(file), RECEIPT_FOLDER) : null;
-}
-
-/** Bounded single-line text, so a receipt never carries a log or a path outside the repo. */
-function line(value, limit) {
-  return typeof value === 'string' && value.length > 0 && value.length <= limit && !/[\r\n\0]/u.test(value);
-}
-
-/**
- * Check and normalize a receipt's fields, in one fixed key order, or null when any field is missing or malformed. A
- * green run names no failure; a red run names the committed tests it could identify. It never throws: the gate's writer
- * must not fail a run over its receipt, and the board names its own refusal.
- *
- * @param {any} value
- * @returns {object | null} A canonical legacy gate or native proof receipt.
- */
-export function receiptFields(value) {
-  try { return checkedFields(value); } catch { return null; }
-}
-
-/** Validate observed collection coverage independently from green/red gate quality. */
-function collectionFields(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || value.version !== 1 || value.mode !== 'all'
-    || !/^[a-zA-Z0-9_-]{1,80}$/u.test(value.batchId ?? '')
-    || typeof value.complete !== 'boolean' || typeof value.full !== 'boolean'
-    || !Array.isArray(value.files) || value.files.length > MOST_COLLECTION_FILES
-    || value.files.some(file => !line(file, 4096) || file.startsWith('/') || /^[a-zA-Z]:/u.test(file)
-      || file.includes('\\') || file.split('/').some(part => !part || part === '.' || part === '..'))
-    || !Number.isSafeInteger(value.plannedFiles) || value.plannedFiles < 0
-    || !Number.isSafeInteger(value.completedFiles) || value.completedFiles < 0
-    || !DIGEST.test(value.planDigest ?? '') || !DIGEST.test(value.completedDigest ?? '')) throw new TypeError('malformed collection receipt');
-  const files = [...value.files].sort();
-  if (files.length !== value.plannedFiles || new Set(files).size !== files.length
-    || JSON.stringify(files) !== JSON.stringify(value.files)
-    || createHash('sha256').update(JSON.stringify(files)).digest('hex') !== value.planDigest) throw new TypeError('collection plan does not match explicit files');
-  if (value.complete && !(value.plannedFiles > 0 && value.plannedFiles === value.completedFiles
-    && value.planDigest === value.completedDigest)) throw new TypeError('incomplete collection cannot claim completeness');
-  return { version: 1, mode: 'all', batchId: value.batchId, full: value.full, files, complete: value.complete,
-    plannedFiles: value.plannedFiles, completedFiles: value.completedFiles,
-    planDigest: value.planDigest, completedDigest: value.completedDigest };
-}
-
-/** The checks behind receiptFields; each malformed field throws, and receiptFields turns that into null. */
-function checkedFields(value) {
-  const bad = () => new TypeError('malformed gate receipt');
-  if (Object.hasOwn(value ?? {}, 'environment') && value.environment !== null && environmentProblem(value.environment)) throw bad();
-  const proof = value?.version === 2 ? proofFields(value.proof) : null;
-  const version = value?.version;
-  const hasParticipation = Object.hasOwn(value ?? {}, 'participationDigest');
-  if (hasParticipation && (version !== 1 || value.kind !== 'release' || !DIGEST.test(value.participationDigest ?? ''))
-    || value?.kind === 'release' && !hasParticipation) throw bad();
-  const hasCollection = Object.hasOwn(value ?? {}, 'collection');
-  if (hasCollection && (version !== 1 || !['land', 'release'].includes(value.kind))) throw bad();
-  const collection = hasCollection ? collectionFields(value.collection) : null;
-  const kinds = version === 2 ? ['check', 'submit', 'verdict'] : ['gate', 'land', 'submit', 'release'];
-  if (!value || ![1, 2].includes(version) || version === 2 && !proof || !ID.test(value.id ?? '') || !kinds.includes(value.kind)
-    || !(version === 2 && value.tree === null) && !SHA.test(value.tree ?? '')
-    || !(version === 2 && value.head === null) && !SHA.test(value.head ?? '')
-    || value.main !== null && !SHA.test(value.main ?? '') || !DIGEST.test(value.command ?? '')
-    || typeof value.green !== 'boolean' || !Array.isArray(value.failures) || value.failures.length > MOST_FAILURES
-    || value.green && value.failures.length > 0 || !line(value.at, 40) || !Number.isFinite(Date.parse(value.at))) throw bad();
-  const failures = value.failures.map((entry) => {
-    const file = entry?.file, name = entry?.name;
-    if (!line(file, 4096) || file.startsWith('/') || file.includes('\\') || file.split('/').some((part) => !part || part === '.' || part === '..') || !line(name, 8192)) throw bad();
-    return { file, name };
-  });
-  const load = value.load;
-  if (!(version === 2 && load === null) && (!load || !Array.isArray(load.average) || load.average.length !== 3 || load.average.some((number) => !Number.isFinite(number) || number < 0)
-    || !Number.isSafeInteger(load.cpus) || load.cpus < 1 || !Number.isSafeInteger(load.freeMB) || load.freeMB < 0)) throw bad();
-  return { version, id: value.id, kind: value.kind, tree: value.tree, head: value.head, main: value.main, command: value.command,
-    green: value.green, failures, load: load === null ? null : { average: [...load.average], cpus: load.cpus, freeMB: load.freeMB }, at: value.at,
-    ...(proof ? { proof } : {}), ...(Object.hasOwn(value, 'environment') ? { environment: value.environment } : {}),
-    ...(hasCollection ? { collection } : {}), ...(hasParticipation ? { participationDigest: value.participationDigest } : {}) };
 }
 
 /**
@@ -159,3 +82,83 @@ export function receiptBinds(store, receipt) {
   const stored = readGateReceipt(store, receipt?.id);
   return stored !== null && receiptBody(stored) === receiptBody(receipt);
 }
+
+/** Exact native collection reports bind completion to one gate invocation [C7,V4]. */
+export const COLLECTION_ID_ENV = 'PULLBOARD_LANDING_COLLECTION_ID';
+const COLLECTION_REPORT_PREFIX = '# pullboard-landing-collection ';
+/** Canonical report keys are relative source paths, never basename-only identities. */
+function files(values, empty = false) {
+  if (!Array.isArray(values) || (!empty && !values.length) || values.some(value => typeof value !== 'string' || !value || value.startsWith('/') || value.includes('\\') || value.split('/').includes('..'))) return null;
+  const normalized=values.map(value=>value.replace(/^\.\//u,''));
+  return normalized.every(value=>value&&value!=='.')&&new Set(normalized).size===normalized.length?normalized.sort():null;
+}
+/** Format one trusted runner observation; malformed inputs remain visibly incomplete. */
+export function formatCollectionReport({id,scope,shard=null,full=false,plannedFiles,completedFiles,complete,cleanupVerified}) {
+  return COLLECTION_REPORT_PREFIX+JSON.stringify({version:1,id,scope,shard,full:full===true,plannedFiles,completedFiles,complete:complete===true,cleanupVerified:cleanupVerified===true})+'\n';
+}
+/** Validate one unique matching report; optional expected plan is checked without weakening file identity. */
+export function parseCollectionReports(output,{id,scope,shard=null,plannedFiles,requireComplete=true}={}) {
+  if(typeof id!=='string'||!/^[a-f0-9-]{36}$/u.test(id)) return null;
+  const matching=[];
+  for(const line of String(output).split(/\r?\n/u)) {
+    if(!line.startsWith(COLLECTION_REPORT_PREFIX))continue;
+    let value;
+    try {value=JSON.parse(line.slice(COLLECTION_REPORT_PREFIX.length));}
+    catch {return null;} // A malformed protocol line cannot establish completion.
+    if(!value||typeof value!=='object'||Array.isArray(value))return null;
+    if(value.id===id&&value.scope===scope&&value.shard===shard)matching.push(value);
+  }
+  if(matching.length!==1)return null;
+  const report=matching[0],planned=files(report.plannedFiles),completed=files(report.completedFiles,true);
+  const wanted=plannedFiles===undefined?planned:files(plannedFiles);
+  if(report.version!==1||!['suite','shard'].includes(scope)||(scope==='suite'?shard!==null:typeof shard!=='string')||!planned||!completed||!wanted
+    ||JSON.stringify(planned)!==JSON.stringify(wanted)||completed.some(file=>!planned.includes(file))
+    ||typeof report.full!=='boolean'||typeof report.complete!=='boolean'||typeof report.cleanupVerified!=='boolean'
+    ||report.complete&&(JSON.stringify(planned)!==JSON.stringify(completed)||!report.cleanupVerified)
+    ||requireComplete&&report.complete!==true)return null;
+  return {...report,plannedFiles:planned,completedFiles:completed};
+}
+
+/** A release explicitly requests every registered executor; ordinary landings keep their policy. */
+export const RELEASE_EXECUTORS_ENV = 'PULLBOARD_RELEASE_EXECUTORS';
+/** One invocation-bound observation, emitted by the shard controller after its actual children finish. */
+export const RELEASE_PARTICIPATION_PREFIX = '# pullboard-release-participation ';
+
+/** Read exactly one matching controller observation; a test's arbitrary output is never transport custody. */
+export function releaseParticipation(output, id) {
+  const matching = [];
+  for (const line of String(output).split(/\r?\n/u)) {
+    if (!line.startsWith(RELEASE_PARTICIPATION_PREFIX)) continue;
+    if (Buffer.byteLength(line) > 16 * 1024 * 1024) return null;
+    let value;
+    try { value = JSON.parse(line.slice(RELEASE_PARTICIPATION_PREFIX.length)); } catch { return null; }
+    if (value?.id === id) matching.push(value);
+  }
+  return matching.length === 1 ? matching[0] : null;
+}
+
+/** Read the merged shard lines from a gate log into profile fields, or null for an unsharded run. */
+export function landingShardProfile(output) {
+  const shards = [];
+  const files = [];
+  let balance = null;
+  let floor = null;
+  const quarantined = [];
+  const unverified = [];
+  for (const line of String(output).split(/\r?\n/u)) {
+    const plan = /^# landing shards: \d+ balanced by (history|history and average|file count) \(/u.exec(line);
+    if (plan) balance = plan[1];
+    const leftover = /^landing shard (\d+\/\d+): \[LANDING_SHARD_CLEANUP_UNVERIFIED\] the stopped shard's processes could not be shown gone: (.*); inspect/u.exec(line);
+    if (leftover) unverified.push({ shard: leftover[1], processes: leftover[2] });
+    const held = /^landing runner (\S+) quarantined for the rest of this landing: (.*)$/u.exec(line);
+    if (held) quarantined.push({ host: held[1], message: held[2] });
+    const slowest = /^# landing floor: (\d+) ms (.+)$/u.exec(line);
+    if (slowest) floor = { path: slowest[2], ms: Number(slowest[1]) };
+    const shard = /^# landing shard (\d+\/\d+) attempt (\d+) on (\S+): (green|red|stopped|infrastructure|refused)(?: \(([^)]*)\))? in (\d+) ms$/u.exec(line);
+    if (shard) shards.push({ shard: shard[1], attempt: Number(shard[2]), host: shard[3], status: shard[4], reason: shard[5] ?? null, wallMs: Number(shard[6]) });
+    const file = /^# landing file (\d+\/\d+) (\S+) (\d+|-) (.+)$/u.exec(line);
+    if (file) files.push({ path: file[4], shard: file[1], host: file[2], durationMs: file[3] === '-' ? null : Number(file[3]) });
+  }
+  return shards.length ? { balance, floor, quarantined, unverified, shards, files } : null;
+}
+

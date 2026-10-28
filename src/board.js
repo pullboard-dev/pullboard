@@ -1,3 +1,17 @@
+import { agentById } from './seats.js';
+import { committedItemAuthors } from './review-independence.js';
+import { strictReviewProblem } from './review-independence.js';
+import { firstRefusal } from './board-item-read.js';
+import { verdictWithdrawalTarget } from './verdict-withdrawal.js';
+import { computedConflictProblem } from './computed-conflict-receipt.js';
+import {
+  holdUntilKind,
+  forgetHoldMaintenance,
+  rememberHoldCondition,
+} from './conditional-holds.js';
+import { STALE_STATE_ENGINE } from './stale-state-engine.js';
+import { sealItemPatchSubmit } from './item-patch-submit.js';
+import { checkItemPatchSubmit } from './item-patch-submit.js';
 import * as rejectClause from './reject-clause.js';
 import { requireSourceAdvanceReview } from './source-advance-state.js';
 import { SOURCE_ADVANCE_ENGINE } from './source-advance-engine.js';
@@ -9,7 +23,7 @@ import { reviewFamilyProblem } from './review-independence.js';
 import { reviewPolicyChange } from './review-independence.js';
 import { saveItemReviewPolicy } from './review-independence.js';
 import { twoTierReviews } from './review-independence.js';
-import { setItem } from './item-fields.js';
+import { setItem as writeItemFields } from './item-fields.js';
 import {
   idleReason,
   liveRouteProblem,
@@ -21,10 +35,12 @@ import {
   submissionItemValues,
   recordSubmissionEvent,
 } from './submission-record.js';
-import { foreignBlockers } from './cross-repo-dependencies.js';
+import { foreignBlockers as readForeignBlockers } from './cross-repo-dependencies.js';
+import { foreignDependencyStates as readForeignDependencyStates } from './cross-repo-dependencies.js';
+import { readReceivedBoardState } from './board-link-state.js';
 import * as itemDependencies from './item-dependencies.js';
 import { AGENT_GRANT_ENGINE } from './agent-grant-engine.js';
-import { submitAdmission as checkedSubmitAdmission } from './submit-admission.js';
+import { submitAdmission as checkedSubmitAdmission } from '../packages/state/src/core/submit-admission.js';
 import * as computedConflictEvidence from './computed-conflict-receipt.js';
 import { reopenAuthority } from './reopen-authority.js';
 import { applySpecRowDecisions } from './spec-row-apply.js';
@@ -52,7 +68,7 @@ import { companionPlan } from './companion.js';
 import { itemPatchReviewProblem } from './item-patches.js';
 import { applyItemPatchAttachment } from './item-patches.js';
 import { applyItemPatchRemoval } from './item-patches.js';
-import { itemPatchResetFields } from './item-patches.js';
+import { invalidateItemPatch as applyItemPatchInvalidation } from './item-patches.js';
 export { itemPatches, itemPatchDigest } from './item-patches.js';
 import { applyCompanionRequest } from './companion.js';
 export { readBoardMembers, setBoardMembers } from './board-members.js';
@@ -66,18 +82,12 @@ import {
   remainingPaths,
 } from './critical-path-order.js';
 import { activityNewsFlag } from './activity-news.js';
-import { migrateEventLogVersion } from './board-event-log-migrate.js';
-import {
-  configureBoardJournal,
-  closeBoardWrites,
-} from './board-write-lock.js';
 import {
   focusOrder,
   focusReasons,
   milestoneFocus,
 } from './focus-milestone.js';
 import { answerProvenance } from './decision-origin.js';
-import { ensureProofCounters } from './proof-counters.js';
 import { correctedNoVerdictReopen } from './reopen-history.js';
 import {
   getShout,
@@ -101,7 +111,7 @@ export {
   milestones,
   unverifiedSubmissions,
 } from './board-read-auxiliary.js';
-export { openHandoff, takeHandoff } from './handoff.js';
+import * as handoffMoves from './handoff.js';
 import { LAND_COLLISION_ENGINE } from './landing-collision-engine.js';
 import * as capacity from './line-capacity-board.js';
 import {
@@ -110,7 +120,8 @@ import {
   reviewerScarcity,
   barReadyForOrder,
 } from './line-order.js';
-export { lineSettings, setLineSetting } from './line-settings.js';
+export { lineSettings } from '../packages/state/src/core/line-settings-read.js';
+export { setLineSetting } from './line-settings.js';
 
 import {
   applyOutsideIntake,
@@ -146,21 +157,7 @@ import {
   saveCheckBaseline,
 } from './item-check-baseline.js';
 export { coordinatorCheck, completeCheckBaseline, itemCheckAuthor } from './item-check-baseline.js';
-import {
-  closeBoard,
-  openBoardForRead,
-  openBoardReadOnly,
-  readEventLogVersion,
-  systemClock,
-} from './board-read-open.js';
 import * as verdictWithdrawal from './verdict-withdrawal.js';
-import {
-  BOARD_BUSY_TIMEOUT_MS,
-  EVENT_LOG_VERSION,
-  SCHEMA,
-  SCHEMA_DIGEST,
-  SCHEMA_VERSION,
-} from './board-schema-source.js';
 import {
   PERSON,
   now,
@@ -189,11 +186,12 @@ import {
 import { ITEM_SHOUT_ENGINE } from './item-shout-engine.js';
 import {
   COORDINATION_SHOUT,
+  checkEvidence,
   itemShoutTarget,
   itemShoutReader,
-  shoutItemId,
   unreadShoutBindings,
 } from './shout-audience.js';
+import { shoutItemId } from '../packages/kernel/src/core/registry-guards.js';
 import { recordVerdict } from './verdict-assurance.js';
 import {
   mergeOnlyBasis,
@@ -225,60 +223,32 @@ export { landingTestDefects, recordLandingTestDefect } from './landing-test-defe
 export { landingLeaseMove, landingLeaseState } from './landing-lease.js';
 import { guardLandingWrite } from './landing-lease.js';
 import {
-  randomBytes,
   randomUUID,
 } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-} from 'node:fs';
-import { dirname } from 'node:path';
-import {
-  sharedSchemaOwner,
-  expectedBoardSchema,
-  sharedSchemaDiagnostic,
-  reportSharedSchema,
-} from './board-schema.js';
-import { DatabaseSync } from 'node:sqlite';
-import {
-  boardNotWritable,
-  boardBusyError,
-} from './board-access.js';
-import { ensureHotIndexes } from './board-hot.js';
-import { guardStore } from './board-store-guards.js';
-import { refreshStoreDeclarations } from './board-store-guards.js';
-import { ensureAdditiveIndexes } from './board-hot.js';
-import { missingAdditiveIndexes } from './board-hot.js';
 import {
   factIdentityExists,
   requireFactIdentityIndexes,
 } from './fact-identity.js';
 import { NEXT_STEPS } from './next-step-words.js';
 export { boardBusyError } from './board-access.js';
-import {
-  boardStanding,
-  migrate,
-  recordSchemaStamp,
-  reportDrift,
-} from './board-migrate.js';
 export { schemaMissing, writeRefused } from './board-migrate.js';
 import { checkRoute } from './item-routing.js';
 import { checkRouted } from './item-routing.js';
 import {
   itemFiles,
   itemFileCollisions,
-  addedFileCollisions,
+  notifyFileGrowth as applyFileGrowthNotice,
 } from './item-files.js';
 export { itemFiles };
 import { COORDINATOR } from './config.js';
 import {
   manualLandingFailure,
-  manualLandingFailureQuoted,
   firstRefusalProblem,
   firstRefusalReason,
   firstRefusalDetail,
   tellFirstRefusal,
 } from './claims.js';
+import { manualLandingFailureQuoted } from '../packages/state/src/core/manual-landing-failure-quoted.js';
 import {
   ENGINE_VERSION,
   QUOTED_LANDING_FAILURE_ENGINE,
@@ -292,7 +262,6 @@ import {
   UNKNOWN_MOVE,
   VERIFIER_STANDING_ENGINE,
   effectiveGuards,
-  storeTriggers,
 } from './machine.js';
 import { LOCAL_LANDING_ENGINE } from './land-engine.js';
 import { SPEC_REVISION_ENGINE } from './spec-revision-engine.js';
@@ -342,18 +311,16 @@ import {
 import { barCorrectionFields } from './bar-corrections.js';
 import {
   conflictDetail,
-  conflictNote,
   conflictProblem,
   returnedHeadNotice,
 } from './trunk-conflict.js';
+import { conflictNote } from '../packages/kernel/src/core/registry-guards.js';
 import { factReference } from './fact-reference.js';
-import {
-  factFromEvent,
-  requestAnswerRefusal,
-  tellAnswerImplications,
-  tellFactImplications,
-  tellVerdictImplications,
-} from './implies.js';
+import { factFromEvent } from '../packages/state/src/core/fact-projection.js';
+import { requestAnswerRefusal } from './implies.js';
+import { tellAnswerImplications } from './implies.js';
+import { tellFactImplications } from './implies.js';
+import { tellVerdictImplications } from './implies.js';
 import {
   landingFlakes,
   landingWaiverCovers,
@@ -362,14 +329,12 @@ import {
 import { parseSpec } from './spec.js';
 import { KNOWN_MAIN_REWORKS_ENGINE } from './known-main-reworks-engine.js';
 import { requireKnownMainReworks } from './known-main-reworks.js';
-import {
-  invariantEvidence,
-  preserveInvariantEvidence,
-  validateLandingBatch,
-  validateLandingRevision,
-  submissionProof,
-  SUBMISSION_PROOF_ENGINE,
-} from './submit-invariants.js';
+import { invariantEvidence } from './submit-invariants.js';
+import { preserveInvariantEvidence } from './submit-invariants.js';
+import { validateLandingBatch } from './submit-invariants.js';
+import { validateLandingRevision } from './submit-invariants.js';
+import { submissionProof } from '../packages/state/src/core/submission-proof.js';
+import { SUBMISSION_PROOF_ENGINE } from './move-engine-constants.js';
 import { landingBatches } from './landing-batch-history.js';
 import {
   NATIVE_FLAKE_ENGINE,
@@ -409,115 +374,11 @@ export const REJECT_REASONS = [
 
 export { systemClock } from './board-read-open.js';
 
-export { openBoardForRead } from './board-read-open.js';
+export { openBoardForRead } from './native-board.js';
 
 export { openBoardReadOnly } from './board-read-open.js';
-/**
- * Open, or create, the board at `file`. Tests pass `:memory:`.
- *
- * The busy timeout comes first, so a second process opening the board at the same moment waits for
- * the lock instead of failing.
- *
- * @param {string} file
- * @param {{ now: () => Date }} [clock]
- * @param {{ isMain?: boolean, onDiagnostic?: (message: string) => void, writeContext?: {command?:string, seat?:string, path?:string}, gitRoot?: string }} [options] Only main upgrades schema; gitRoot is a local verification port, never replicated metadata.
- * @returns {{ db: DatabaseSync, clock: { now: () => Date } }}
- */
-export function openBoard(file, clock = systemClock, { isMain, onDiagnostic, writeContext, gitRoot } = {}) {
-  isMain = sharedSchemaOwner(file, isMain);
-  if (file !== ':memory:' && isMain === false) {
-    let boardVersion = 0;
-    let logVersion = 0;
-    if (existsSync(file)) {
-      const startedAt = Date.now();
-      let current;
-      try {
-        current = openBoardReadOnly(file);
-        boardVersion = current.prepare('PRAGMA user_version').get().user_version;
-        logVersion = readEventLogVersion(current);
-      } catch (error) {
-        throw boardNotWritable(file, boardBusyError(file, startedAt, error));
-      } finally {
-        current?.close();
-      }
-      if (SCHEMA_VERSION > boardVersion) {
-        throw new Refused(
-          'UNMERGED_SCHEMA',
-          `this worktree expects board schema ${SCHEMA_VERSION}, newer than the shared board's version ${boardVersion}; merge this code into the main checkout first, or test it against a throwaway board`,
-        );
-      }
-      if (EVENT_LOG_VERSION > logVersion) {
-        throw new Refused('UNMERGED_SCHEMA', `this worktree expects event log ${EVENT_LOG_VERSION}, newer than the shared board's version ${logVersion}; merge this code into the main checkout first, or test it against a throwaway board`);
-      }
-    }
-  }
-  if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
-  const startedAt = Date.now();
-  let db;
-  try {
-    db = new DatabaseSync(file);
-    db.exec(`PRAGMA busy_timeout = ${BOARD_BUSY_TIMEOUT_MS}`);
-    if (file !== ':memory:' && isMain !== false) configureBoardJournal(db, writeContext);
-    const board = { db, clock, writeContext, gitRoot, onDiagnostic };
-    let warmCounters = true;
-    if (isMain !== false || file === ':memory:') {
-      // Migrate and audit only a board whose version is behind; a drifted shape is reported and left alone (#1047).
-      let standing = boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION, readEventLogVersion(db) < EVENT_LOG_VERSION);
-      if (standing === 'behind' || standing === 'unstamped') atomic(board, () => {
-        if (standing === 'behind') {
-          migrateEventLogVersion(db);
-          migrate(db);
-          ensureHotIndexes(db);
-          db.prepare('INSERT OR IGNORE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run('board_id', randomBytes(16).toString('hex'));
-          guardStore(board);
-        }
-        recordSchemaStamp(db, SCHEMA_DIGEST);
-      });
-      if (refreshStoreDeclarations(board)) standing = boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION);
-      // Index-only upgrades keep the data version/digest unchanged. Install and restamp together;
-      // drifted or read-only stores never take this path, and old clients accept the resulting stamp.
-      if (standing !== 'drifted' && missingAdditiveIndexes(db)) atomic(board, () => {
-        if (boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION) !== 'current') return;
-        ensureAdditiveIndexes(db);
-        recordSchemaStamp(db, SCHEMA_DIGEST);
-      });
-      if (standing === 'drifted') { warmCounters = false; reportDrift(file, onDiagnostic); }
-    } else {
-      // Read compatibility before any local effect; persistent schema belongs to trunk alone.
-      readEventLogVersion(db);
-      reportSharedSchema(file, sharedSchemaDiagnostic(db, expectedBoardSchema(SCHEMA, migrate, storeTriggers)), onDiagnostic);
-    }
-    guardMoves(board);
-    // Writable commands catch up old writers or missing local projections once. Read-only open
-    // never calls this path; drifted stores remain untouched, and invalid history stays invalid.
-    // Proof warming also preserves the Rigor projection, including after a proof-cache rebuild.
-    if (warmCounters) atomic(board, () => ensureProofCounters(board));
-    return board;
-  } catch (error) {
-    try { db?.close(); if (db) closeBoardWrites(db); } catch { /* Preserve the opening failure when SQLite cleanup also fails. */ }
-    throw boardNotWritable(file, boardBusyError(file, startedAt, error));
-  }
-}
-
-/**
- * Make this connection refuse any change to an item's status that does not come through moveItem
- * (M1). A TEMP trigger, which lives only in this process's connection, lets the status column
- * change only while moveItem holds a token in a TEMP table, so a status written anywhere else in
- * this code, however it is spelled, is refused by SQLite itself. Recursive triggers stay on, so a
- * REPLACE INTO, which deletes the old row first, meets the board file's own delete trigger. An
- * agent's own connection never sees these TEMP objects; the board file's triggers (M3) govern it.
- *
- * @param {any} board
- */
-function guardMoves(board) {
-  board.db.exec(`
-    PRAGMA recursive_triggers = ON;
-    CREATE TEMP TABLE IF NOT EXISTS moving (token INTEGER);
-    CREATE TEMP TRIGGER IF NOT EXISTS status_through_moves BEFORE UPDATE OF item_status ON main.item
-    WHEN NOT EXISTS (SELECT 1 FROM temp.moving)
-    BEGIN SELECT RAISE(ABORT, 'STATUS_OUTSIDE_MOVE: only moveItem in src/board.js changes an item''s status'); END;
-  `);
-}
+/** Temporary public compatibility; #1624 removes this edge after native-root callers compose. */
+export { openBoard } from './native-board.js';
 
 export { SCHEMA_VERSION } from './board-schema-source.js';
 
@@ -783,25 +644,9 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
   });
 }
 
-/** Persist both holder notices with the edit; a fixed system sender also reaches an editing holder's inbox. */
+/** Bind file-growth delivery to this board's canonical readers and event writers. */
 function notifyFileGrowth(board, before, after) {
-  if ((board.executionEngineVersion ?? ENGINE_VERSION) < FILE_GROWTH_NOTICE_ENGINE
-    || !['claimed', 'submitted'].includes(before.item_status)) return;
-  for (const collision of addedFileCollisions(before, after, listItems(board, { all: true }))) {
-    const recipients = new Map();
-    for (const item of [before, collision.item]) {
-      const holder = item.item_owner || item.item_built_by;
-      const to = holder && board.db.prepare('SELECT 1 FROM agent WHERE agent_id=?').get(holder) ? holder : COORDINATOR;
-      recipients.set(to, [...(recipients.get(to) ?? []), item.item_id]);
-    }
-    const text = `New file overlap: #${after.item_id} grew into #${collision.item.item_id} on ${collision.shared.join(', ')}. Coordinate both items; the edit is retained.`;
-    for (const [to, items] of recipients) {
-      const detail = { changedItem: after.item_id, otherItem: collision.item.item_id, files: collision.shared };
-      const shout = persistShout(board, { from: 'overlap', to, text, detail: { ...detail, item: items[0] } });
-      // One holder may own both items: deliver once while retaining the notice on both item threads.
-      for (const item of items.slice(1)) logEvent(board, 'overlap', 'shout', item, { ...detail, shout, to, text });
-    }
-  }
+  return applyFileGrowthNotice(board, before, after, { engineVersion: ENGINE_VERSION, noticeEngine: FILE_GROWTH_NOTICE_ENGINE, coordinator: COORDINATOR, listItems, persistShout, logEvent });
 }
 
 /** Validate an edit without side effects, so a refused change never starts a shell baseline; a bar correction needs a reason [B31]. */
@@ -930,27 +775,19 @@ function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}
   return item;
 }
 
-/** Return changed companion inputs to submitted through the same declared lifecycle as every status update. */
+/** Keep companion lifecycle changes on this board's canonical status writer. */
 function invalidateItemPatch(board, id, agentId) {
-  moveItem(board, id, 'patch', {
-    checks: {
-      joined: null,
-      [IN_STATE]: found => new Refused('ITEM_PATCH_STATE', `item #${id} is ${found.item_status}; attach only to submitted, unmerged work`),
-      coordinatorOnly: () => onlyCoordinator(agentId, 'changes companion inputs'),
-      notMerged: found => found.item_merged_commit ? new Refused('ALREADY_MERGED', 'file a follow-up for landed work') : null,
-    },
-    set: found => itemPatchResetFields(board, found),
-  });
+  return applyItemPatchInvalidation(board, id, agentId, { moveItem, onlyCoordinator, inState: IN_STATE, getItem, reviewHolder });
 }
 
 /** Attach native bytes atomically, with lifecycle mutation confined to moveItem. */
 export function attachItemPatch(board, id, options) {
-  return applyItemPatchAttachment(board, id, options, { invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
+  return applyItemPatchAttachment(board, id, options, { atomic, logEvent, getItem, invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
 }
 
 /** Stop applying native bytes without discarding their historical author exclusions. */
 export function removeItemPatch(board, id, options) {
-  return applyItemPatchRemoval(board, id, options, { invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
+  return applyItemPatchRemoval(board, id, options, { atomic, logEvent, getItem, invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
 }
 
 /**
@@ -1072,7 +909,7 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, 
           return null;
         },
         notHeldByAnother: (found) => (isHeld(board, found) && found.item_owner !== agentId ? new Refused('HELD', `item #${id} is held by ${found.item_owner} until ${found.item_lease_until}`) : null),
-        builderFirstRefusal: () => (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalProblem(board, id, agentId) : null,
+        builderFirstRefusal: () => (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalProblem(board, id, agentId, { firstRefusal }) : null,
         correctionRefrozen: () => adopts ? null : pendingRefreezeProblem(board, id),
         laneOpen: (found) => {
           // Declared: not checked when the caller renews its own live claim.
@@ -1161,9 +998,14 @@ export { prepareMergeOnlySubmit };
  * @param {{ agentId: string, commit: string, tree: string, files?: string[], policyCommit?: string, note?: string }} at - `files`: what the
  *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
-export function submit(board, id, { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, infra = null, gateGreen, mergeOnly: recordedCarry }) {
+export function submit(board, id, { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, infra = null, gateGreen, companion, mergeOnly: recordedCarry }) {
   let recordedProof;
   let recordedSize;
+  if (companion) {
+    const options = { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion };
+    if (board.executionEngineVersion === undefined) sealItemPatchSubmit(board, id, options);
+    else checkItemPatchSubmit(board, id, options);
+  }
   if (note !== undefined && (typeof note !== 'string' || !note.trim() || /[\r\n\u2028\u2029]/u.test(note))) {
     throw new Refused('USAGE', 'a submission note, when present, is one nonempty line');
   }
@@ -1171,7 +1013,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
     const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= MERGE_ONLY_VERDICT_ENGINE;
     const basis = modern && gateGreen === true ? mergeOnlyBasis(board, getItem(board, id), {}, { acceptedVerdict }) : null;
     const mergeOnly = modern ? board.executionEngineVersion === undefined
-      ? prepareMergeOnlySubmit(board, id, { commit, tree, policyCommit, gateGreen }, { getItem, acceptedVerdict })
+      ? prepareMergeOnlySubmit(board, id, { commit, tree, policyCommit, gateGreen }, { getItem, acceptedVerdict, identity: { committedItemAuthors, twoTierReviews } })
       : recordedCarry ?? null : null;
     const carry = Boolean(mergeOnly);
     const carriedProblem = found => mergeOnlyProblem(board, found, mergeOnly, { commit, tree, policyCommit }, { acceptedVerdict });
@@ -1201,7 +1043,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         ...(carry ? {
           mergeOnlyRecorded: carriedProblem,
           atSubmittedCommit: null, // The same post-gate HEAD check binds both submission paths.
-          notBuilder: found => retainedVerifierIdentityProblem(board, found, basis.by),
+          notBuilder: found => retainedVerifierIdentityProblem(board, found, basis.by, { committedItemAuthors, twoTierReviews }),
           proofNoted: () => typeof mergeOnly?.resolutionDiff === 'string' ? null : new Refused('PROOF_REQUIRED', 'record the actual merge resolution diff'),
         } : {}),
         submissionProofValid: () => {
@@ -1234,7 +1076,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
       set: found => submissionItemValues(board, found, { agentId, commit, tree, files, carry, basis }),
     });
     recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra,
-      modern, gateGreen, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION });
+      modern, gateGreen, companion, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION });
   });
 }
 
@@ -1295,7 +1137,7 @@ export function reviewOffer(board, who) {
 function reviewerChecks(board, { agentId, policy, familyPolicy = 'off' }) {
   const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
   return {
-    notBuilder: (found) => itemAuthorProblem(board, found, agentId),
+    notBuilder: (found) => itemAuthorProblem(board, found, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }),
     routeAllows: (found) => {
       const route = routeOf(board, agentId);
       return canTake(route, found.item_route) ? null : new Refused('ROUTE', `item #${found.item_id} needs a ${found.item_route} verifier; you joined on the ${route} route`);
@@ -1419,7 +1261,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
         ...reviewerChecks(board, { agentId, policy, familyPolicy }),
         criterionUnchanged: (found) =>
           digest === found.item_frozen_digest
-            ? isAccept ? itemPatchReviewProblem(board, found, companionDigest) : null
+            ? isAccept ? itemPatchReviewProblem(board, found, companionDigest, { getItem }) : null
             : new Refused('CRITERIA_CHANGED', `the criterion for #${id} changed after it was claimed; the coordinator runs: pullboard refreeze ${id}`),
         reasonIsMet: () => (reason && reason !== ACCEPT_REASON ? new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`) : null),
         trunkMergeClean: null,
@@ -1483,7 +1325,7 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
         joined: null,
         [IN_STATE]: (found) => new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, found).item_status}, not submitted`),
         reopenAuthority: (found) => reopenAuthority(board, found, agentId,
-          { forWithdrawal, forMerge, currentEngine, computedConflict, assertedConflict }, value => { withdrawnVerdict = value; }),
+          { forWithdrawal, forMerge, currentEngine, computedConflict, assertedConflict }, value => { withdrawnVerdict = value; }, { listAgents, verdictWithdrawalTarget, computedConflictProblem }),
         noteGiven: () => (forMerge || note.trim() ? null : new Refused('NOTE_REQUIRED', 'say why the criterion needs correction: --note "why"')),
         causeWellFormed: () => causeProblem(cause),
         notMerged: (found) => found.item_status !== 'verified' || !found.item_merged_commit
@@ -1673,7 +1515,7 @@ export { getItem } from './board-query.js';
  */
 function insertShout(board, { from, to, text, lanes, item, decision = false, answers = null, evidence = null, request = false, news = false, channel = 'terminal', detail = {}, options, effects }) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
-  const validatedDecision = itemDecisions.itemDecisionDetail(board, { options, decision, item, from, effects }, engine);
+  const validatedDecision = itemDecisions.itemDecisionDetail(board, { options, decision, item, from, effects }, { itemShoutReader }, engine);
   detail = { ...detail, ...validatedDecision };
   if (item !== undefined) {
     if (engine < ITEM_SHOUT_ENGINE) throw new Refused('ENGINE_VERSION', 'item messages require engine 93; upgrade every linked device before sending one');
@@ -1820,24 +1662,7 @@ export function answerDecision(board, id, { agentId, text, lanes, asPerson = fal
   });
 }
 
-/** The kinds of evidence a shout can carry (B22): what was tried, or what was measured. */
-export const EVIDENCE_KINDS = ['attempt', 'receipt'];
-
-/**
- * Refuse evidence that is not fields a reader can trust (B22): its kind, its outcome, an item on
- * the board, and a full commit SHA, which the CLI resolves in the repo before it gets here.
- *
- * @param {any} board
- * @param {{ kind: string, outcome: string, item: number, commit: string }} evidence
- */
-function checkEvidence(board, { kind, outcome, item, commit }) {
-  if (!EVIDENCE_KINDS.includes(kind)) throw new Refused('BAD_EVIDENCE', `the evidence kind is attempt or receipt, not "${kind ?? ''}": --evidence receipt`);
-  if (!String(outcome ?? '').trim()) throw new Refused('BAD_EVIDENCE', 'evidence names its outcome: --outcome measured');
-  if (!Number.isInteger(item) || !board.db.prepare('SELECT 1 FROM item WHERE item_id = ?').get(item)) {
-    throw new Refused('BAD_EVIDENCE', `evidence names an item on the board: --item <id> (saw ${item})`);
-  }
-  if (!/^[0-9a-f]{40}$/.test(commit ?? '')) throw new Refused('BAD_EVIDENCE', `evidence names a commit by its full SHA (saw "${commit ?? ''}")`);
-}
+export { EVIDENCE_KINDS } from './shout-audience.js';
 
 export { openDecisions } from './board-query.js';
 
@@ -1900,14 +1725,14 @@ function postRigorNotices(board, trigger) {
 export function buildOrder(board, { warm = [], agentId, readiness = barReadyForOrder, releasedClaims = [], tierFirst = false, priority } = {}) {
   const milestonePriority = priority ?? milestonePriorities(board);
   const items = listItems(board, { all: true });
-  const rank = milestoneRanks(board, milestonePriority);
+  const rank = milestoneRanks(board, milestonePriority, { milestones });
   const recent = new Set(warm);
   const shared = entry => itemFiles(entry).filter(path => recent.has(path)).length;
   const focus = milestoneFocus(board);
   const group = item => focus?.ids.has(item.item_id) ? -1 : milestonePriority(item);
   const paths = criticalPathEnabled(board) ? remainingPaths(items, group) : new Map();
   const tieBreak = (first, second) => (paths.get(second.item_id) ?? 0) - (paths.get(first.item_id) ?? 0);
-  const fallback = workOrderCompare(board, { priority: milestonePriority, rank, shared, tierFirst, tieBreak }) ?? ((first, second) => milestonePriority(first) - milestonePriority(second)
+  const fallback = workOrderCompare(board, { priority: milestonePriority, rank, shared, tierFirst, tieBreak }, { milestones, listItems, foreignBlockers }) ?? ((first, second) => milestonePriority(first) - milestonePriority(second)
     || rank(first) - rank(second)
     || ROUTES.indexOf(second.item_route) - ROUTES.indexOf(first.item_route)
     || shared(second) - shared(first) || first.item_id - second.item_id);
@@ -1945,9 +1770,9 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
     const hasDifferentFamily = (entry) => Boolean(family && entry.item_builder_family && family !== entry.item_builder_family);
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
-    const standingRefusal = unrelated.map((entry) => itemAuthorProblem(board, entry, agentId) ?? reviewFamilyProblem(board, entry, agentId, familyPolicy)).find(Boolean);
+    const standingRefusal = unrelated.map((entry) => itemAuthorProblem(board, entry, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }) ?? reviewFamilyProblem(board, entry, agentId, familyPolicy)).find(Boolean);
     const requiredRefusals = unrelated.map(entry => reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId)).filter(Boolean);
-    let reviewable = unrelated.filter((entry) => !itemAuthorProblem(board, entry, agentId) && !reviewFamilyProblem(board, entry, agentId, familyPolicy) && !reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId) && !reviewRouting.strictReviewProblem(board, entry, agentId));
+    let reviewable = unrelated.filter((entry) => !itemAuthorProblem(board, entry, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }) && !reviewFamilyProblem(board, entry, agentId, familyPolicy) && !reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId) && !reviewRouting.strictReviewProblem(board, entry, agentId));
     if (policy === COORDINATOR && agentId !== COORDINATOR) reviewable = reviewable.filter((entry) => entry.item_lane === COORDINATOR);
     if (familyPolicy === 'require') reviewable = reviewable.filter(hasDifferentFamily);
     if (familyPolicy === 'prefer') reviewable.sort((first, second) => Number(hasDifferentFamily(second)) - Number(hasDifferentFamily(first)));
@@ -1961,7 +1786,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const presenceProblem = liveRouteProblem(board, agentId);
     if (presenceProblem) return { item: null, reasons: [presenceProblem] };
     const milestonePriority = milestonePriorities(board);
-    const rank = milestoneRanks(board, milestonePriority);
+    const rank = milestoneRanks(board, milestonePriority, { milestones });
     const scarcity = lineOrderEnabled(board) ? reviewerScarcity(board, candidates.map(candidate => candidate.entry), (entry, reviewer) =>
       Object.values(reviewerChecks(board, { agentId: reviewer, policy, familyPolicy })).every(guard => !guard(entry))) : null;
     const lineCompare = scarcity ? buildOrder(board, { agentId }) : null;
@@ -2015,7 +1840,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
       // Explicit coordinator order leads automatic rework; never-ranked boards retain their old path.
       if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MILESTONE_RANK_ENGINE && milestones(board).some(entry => entry.order?.length)) {
         const position = milestonePriorities(board);
-        const rank = milestoneRanks(board, position);
+        const rank = milestoneRanks(board, position, { milestones });
         const first = mine[firstTierItem].entry;
         const selectedItem = mine[selected].entry;
         if (position(first) !== position(selectedItem) || rank(first) !== rank(selectedItem)) continue;
@@ -2029,7 +1854,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const waiting = itemDependencies.localDependencyIds(entry)
       .map((id) => current(board, itemById(board, id)))
       .filter((before) => before.item_status !== 'verified');
-    const reserved = firstRefusalReason(board, entry.item_id, agentId);
+    const reserved = firstRefusalReason(board, entry.item_id, agentId, { firstRefusal });
     if (reserved) { reasons.push(reserved); continue; }
     const collisions = itemFileCollisions(entry, inFlight);
     if (collisions.length) { reasons.push(...collisions); continue; }
@@ -2112,12 +1937,12 @@ export { itemHold } from './board-query.js';
 
 /** Hold an item through the unchanged coordinator transaction. */
 export function holdItem(board, id, options) {
-  return applyItemHold(board, id, options, { coordinatorOnly, atomic, getItem, setItem, now, logEvent, postRigorNotices, itemHold });
+  return applyItemHold(board, id, options, { coordinatorOnly, atomic, getItem, setItem, now, logEvent, postRigorNotices, itemHold, holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: STALE_STATE_ENGINE });
 }
 
 /** Lift an item hold through its existing native operation. */
 export function releaseItemHold(board, id, options) {
-  return applyItemHoldRelease(board, id, options, { coordinatorOnly, atomic, itemHold, setItem, logEvent });
+  return applyItemHoldRelease(board, id, options, { coordinatorOnly, atomic, itemHold, setItem, logEvent, forgetHoldMaintenance });
 }
 
 /** Apply one captured stale-state plan under authenticated coordinator authority. */
@@ -2129,7 +1954,8 @@ export function maintainStaleState(board, options) {
 export { draftSpecRow, rowDrafts } from './row-drafts.js';
 export { recordSpecApprovalBaseline, specApprovalBaseline, specApprovalBaselineExists } from './spec-approval-baseline.js';
 // The roadmap's moves live in milestones.js; the board keeps exporting them so the engine replays them.
-export { addMilestone, canonicalMilestoneTarget, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone } from './milestones.js';
+export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone } from './milestones.js';
+export { canonicalMilestoneTarget } from '../packages/state/src/core/milestone-target.js';
 
 export { rowDecisions } from './board-query.js';
 
@@ -2311,7 +2137,7 @@ export function intakeOutside(board, options) { return applyOutsideIntake(board,
 
 /** Apply a source move once, retaining its source MOVEID receipt [E15,H16]. */
 export function applyRehomeItem(board, record, options) {
-  return applyRehomeRecord(board, { record, ...options }, { atomic, boardId, logEvent, moveItem, validateItemAddition, now });
+  return applyRehomeRecord(board, { record, ...options }, { atomic, boardId, logEvent, moveItem, validateItemAddition, now, reviewPolicyChange, saveItemReviewPolicy });
 }
 
 /** Record the person's exact-commit owner approval. */
@@ -2340,6 +2166,21 @@ export function actOnActivity(board, options) {
   return activityDeliveryStore.actOnActivity(board, options, { atomic, logEvent });
 }
 import { FLOW_SIZE_ENGINE } from './flow-size-engine.js';
-import { submissionSize } from './submission-size.js';
+import { submissionSize } from '../packages/state/src/core/submission-size.js';
 
 export { fileTypedRequest, typedRequests, answerTypedRequests } from './typed-requests.js';
+
+/** Bind handoff creation to the native board writer and the same transaction [B3,N19,H16]. */
+export function openHandoff(board, options) { return handoffMoves.openHandoff(board, options, { atomic, addItem, agentById, logEvent }); }
+
+/** Bind handoff takeover to native reads, writes and fact custody [B3,N19,H16]. */
+export function takeHandoff(board, options) { return handoffMoves.takeHandoff(board, options, { atomic, agentById, logEvent, appendFact }); }
+
+/** Supply the native event clock to the generic item-field writer [M1,C7]. */
+function setItem(board, id, fields, at) { return writeItemFields(board, id, fields, at, now); }
+
+/** Bind foreign blockers to authenticated native received state, never caller status [B24,E32,H16]. */
+export function foreignBlockers(board, item) { return readForeignBlockers(board, item, { readReceivedBoardState }); }
+
+/** Project canonical foreign dependency state through the same native receiving reader [B24,E32,H16]. */
+export function foreignDependencyStates(board, item) { return readForeignDependencyStates(board, item, { readReceivedBoardState }); }

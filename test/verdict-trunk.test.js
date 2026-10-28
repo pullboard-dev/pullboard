@@ -1,13 +1,10 @@
 /** @pullboard-test-input source-tree */
 /** A verdict survives a main move that touches nothing the review depends on (#928) [V4,C7]. */
-import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
-import { cpSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 
@@ -20,11 +17,20 @@ function reviewWithLanding(t, { setting, landing }) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  // This independent CLI launches a new test runner, not the outer worker's internal child context.
+  delete box.env.NODE_TEST_CONTEXT;
   const armed = join(box.dir, 'landing-armed');
   const landed = join(box.dir, 'landing-done');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), box.repo);
-  for (const folder of ['test', 'web', 'api']) mkdirSync(join(box.repo, folder), { recursive: true });
+  for (const folder of ['test', 'web', 'api', 'bin']) mkdirSync(join(box.repo, folder), { recursive: true });
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ private: true, type: 'module' }) + '\n');
+  // This is the fixture project's real runner; the installed CLI remains outside the project.
+  writeFileSync(join(box.repo, 'bin/run-tests.js'), `import { spawnSync } from 'node:child_process';
+const child = spawnSync(process.execPath, ['--test', ...process.argv.slice(2)], { stdio: 'inherit' });
+if (child.error) throw child.error;
+if (child.signal) process.kill(process.pid, child.signal);
+else process.exitCode = child.status ?? 1;
+`);
+
   writeFileSync(join(box.repo, 'web/shared.js'), 'export const shared = 1;\n');
   writeFileSync(join(box.repo, 'web/lib.js'), "export const page = 'draft';\n");
   writeFileSync(join(box.repo, 'api/other.js'), 'export const other = 1;\n');
@@ -65,7 +71,7 @@ test('page is built', () => {
   json(box.run(reviewer, 'join', 'api', '--json'));
   writeFileSync(armed, 'armed');
   const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'the page builds', '--json');
-  assert.ok(existsSync(landed), 'main really moved while the review ran');
+  assert.ok(existsSync(landed), 'main really moved while the review ran: ' + verdict.out + verdict.err);
   return { box, verdict, json };
 }
 

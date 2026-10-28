@@ -5,6 +5,11 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { relayOutboxSetting } from '../src/cli.js';
 import { settingsInventory } from '../src/settings-inventory.js';
+import { performanceCores } from '../src/gate.js';
+import {
+  defaultViewPort,
+  DEFAULT_VIEW_PORT,
+} from '../src/config.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Return the effective relay.outbox row from the production settings inventory. */
@@ -13,7 +18,7 @@ function relaySettingRow(root, env) {
   try {
     process.env.PULLBOARD_HOME = env.PULLBOARD_HOME;
     process.env.PULLBOARD_MACHINE_HOME = env.PULLBOARD_MACHINE_HOME;
-    return settingsInventory([{ root }]).settings.find(row => row.scope === 'repo' && row.key === 'relay.outbox');
+    return settingsInventory([{ root }], null, { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }).settings.find(row => row.scope === 'repo' && row.key === 'relay.outbox');
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];

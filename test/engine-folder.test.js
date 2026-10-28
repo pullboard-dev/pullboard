@@ -20,21 +20,22 @@ import { assignEngineNumbers } from '../src/engine-numbers.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
+import { copyPackageSubset } from './package-copy-fixture.js';
 
 test('the repository keeps historical engine markers in its existing src folder [C7]', () => {
   assert.deepEqual(engineFolderProblems(resolve(import.meta.dirname, '..')), []);
 });
 
 /** Build a real private repository with a move and a separately owned engine declaration. */
-function fixture(t) {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-engine-folder-'));
+function fixture(t, root = mkdtempSync(join(tmpdir(), 'pullboard-engine-folder-'))) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, 'src'));
   mkdirSync(join(root, 'packages', 'sample', 'src'), { recursive: true });
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(root, 'src', 'sample-engine.js'), '/** The sample move engine. */\nexport const SAMPLE_ENGINE = 17;\n');
   writeFileSync(join(root, 'src', 'move.js'), "import { SAMPLE_ENGINE } from './sample-engine.js';\nexport function move() { return { operation: 'sample', engine: SAMPLE_ENGINE }; }\n");
-  for (const file of ['engine-numbers.js', 'engine-next.js', 'discovery.js']) cpSync(new URL(`../src/${file}`, import.meta.url), join(root, 'src', file));
+  copyPackageSubset(resolve(import.meta.dirname, '..'), root,
+    ['engine-numbers.js', 'engine-next.js', 'discovery.js'].map(file => ({ path: `src/${file}`, as: `src/${file}` })));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
   runFixtureGit(['add', '.'], { cwd: root });
   return root;
@@ -66,7 +67,8 @@ test('moving a fixture package keeps its move engine number and marker in the on
 });
 
 test('a moved or duplicated engine leaf is refused while fixture strings and imports remain allowed [C7]', t => {
-  const root = fixture(t);
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-private-engine-copy-'));
+  fixture(t, root);
   const misplaced = join(root, 'packages', 'sample', 'src', 'sample-engine.js');
   cpSync(join(root, 'src', 'sample-engine.js'), misplaced);
   assert.match(engineFolderProblems(root)[0].text, /SAMPLE_ENGINE must stay in src\//u);

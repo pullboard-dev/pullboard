@@ -1,5 +1,5 @@
 /** Retained trunk identity uses only Git state, below committed policy parsing [B34,V6]. */
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from './git-adapter.js';
 import {
   cleanGitEnvironment,
   gitConfig,
@@ -16,7 +16,7 @@ export function trunkRef(root, branch) {
   if (read.status !== 0 && read.status !== 1) throw new Refused('NO_POLICY', 'the retained trunk cannot be read; restore the local Git configuration and retry');
   const current = read.status === 0 ? read.stdout.trim() : null;
   if (branch === undefined || branch === current) return current;
-  const saved = spawnSync('git', ['--no-replace-objects', 'config', '--local', '--replace-all', 'pullboard.trunk', branch], {
+  const saved = gitSpawnSync(['--no-replace-objects', 'config', '--local', '--replace-all', 'pullboard.trunk', branch], {
     cwd: root, env: cleanGitEnvironment(), encoding: 'utf8',
   });
   invalidateGitFacts();

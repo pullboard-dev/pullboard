@@ -1,3 +1,5 @@
+import * as queueStore from '../src/board.js';
+import { eligibilityProblem as queueEligibility } from '../src/review-eligibility.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 /** Local release completion and deterministic ordering boundaries [C7,V4]. */
 import assert from 'node:assert/strict';
@@ -115,7 +117,7 @@ test('the queue ranks unblockers and quick wins first and keeps coordinator over
   addMilestone(board, { agentId: 'coordinator', name: 'later', items: waiting });
   /** The milestone's items in queue order, and the queue rows by id. */
   const queue = () => {
-    const shown = workQueue(board);
+    const shown = workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility });
     return { ids: shown.releases[0].items.map((item) => item.id), rows: new Map(shown.releases[0].items.map((item) => [item.id, item])), shown };
   };
   /** Accept one item through the ordinary claim, submit and verify moves. */

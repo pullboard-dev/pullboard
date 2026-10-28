@@ -1,4 +1,5 @@
 /** Real receipt-writer/component integration, not a CLI landing or lease assurance claim [C7]. */
+import { executionServices } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import {
@@ -31,7 +32,7 @@ function board(root, action) {
 
 /** Run actual gates and record their real private receipts through the native operation. */
 async function receipt(root, config, options = {}) {
-  const run = await runGate(root, config, { trustStamp: false, landing: true, agent: 'coordinator', ...options });
+  const run = await runGate(root, config, { executionServices, trustStamp: false, landing: true, agent: 'coordinator', ...options });
   const value = readGateReceipt(receiptStore(root), run.receiptId);
   assert.ok(value, run.output);
   board(root, db => recordGateRun(db, { agentId: 'coordinator', lane: 'web', receipt: value }));

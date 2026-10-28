@@ -12,7 +12,7 @@ import { join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { chooseViewPort, takeDefaultViewPort } from './view-port-fixture.js';
-import { DEFAULT_VIEW_PORT, defaultViewPort } from '../src/view-port.js';
+import { DEFAULT_VIEW_PORT, defaultViewPort } from '../src/config.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { fetchFresh } from './http-fixture.js';
 import { fetchPrintedViewLink } from './view-link-fixture.js';

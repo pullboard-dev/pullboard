@@ -1,3 +1,7 @@
+import { lifecycleEvent } from './item-list.js';
+import { lifecycleMove } from './item-list.js';
+import { revealSegmentedChoices } from './view/seg-toggle.js';
+import { segmentedToggle } from './view/seg-toggle.js';
 import { activityWords } from './view/activity-words.js';
 import { sharedRowHtml } from './view/row-component.js';
 import { activityModel } from './view/activity-model.js';
@@ -108,7 +112,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   const releaseInfo = hostedReleaseInfo(hostedReleaseVersion, hostedReleaseVersions, releaseHosted);
   const css = stylesheet ?? (snapshot ? 'view.css' : transportModule ? '/view.css' : '/view.css?k=' + encodeURIComponent(key));
   const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-  const pageScope = { sharedRowHtml, activityWords, activityModel, activityHtml, dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, closePageDialog, connection, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeRules, hostedState, lifecycle, moduleOption, openPageDialog, pageStartup, paths, personNeeds, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
+  const pageScope = { sharedRowHtml, activityWords, activityModel, activityHtml, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, closePageDialog, connection, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeRules, hostedState, lifecycle, lifecycleEvent, lifecycleMove, moduleOption, openPageDialog, pageStartup, paths, personNeeds, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -181,7 +185,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <div class="primary">
       <section class="card-panel proof-stats" id="proof-stats" aria-label="Board proof stats" hidden></section>
       <div class="card-panel toolbar" id="items-toolbar">
-        <div class="items-view-switch seg" id="items-view-switch" role="group" aria-label="Items view"></div>
+        <div class="items-view-switch" id="items-view-switch"></div>
         <div class="filter-control"><button class="filter-toggle" id="filter-toggle" data-filter-toggle type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="filter-menu"><span class="filter-label" id="filter-label">Filter</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="filter-menu" id="filter-menu" role="menu" aria-label="Filter" hidden></div></div>
         <button class="go" id="new-item" type="button" aria-label="New item"><span class="new-item-wide">New item</span><span class="new-item-narrow" aria-hidden="true">New</span></button>
       </div>
@@ -213,11 +217,11 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     </aside>
   </section>
   <section data-pane="spec" class="two">
-    <div class="primary"><div class="card-panel rows-card"><div id="spec-fit" class="fit"></div><div class="rows-filter"><div class="seg" id="spec-chips" role="group" aria-label="Show"></div></div><div class="rows" id="spec-list" tabindex="0" aria-label="Spec rows"></div></div></div>
+    <div class="primary"><div class="card-panel rows-card"><div id="spec-fit" class="fit"></div><div class="rows-filter"><div id="spec-chips"></div></div><div class="rows" id="spec-list" tabindex="0" aria-label="Spec rows"></div></div></div>
     <aside class="card-panel detail" aria-label="Spec row"><div id="spec-detail"></div></aside>
   </section>
   <section data-pane="doctrine" class="two">
-    <div class="primary"><div class="card-panel rows-card"><div class="rows-filter"><div class="seg" id="doctrine-chips" role="group" aria-label="Show"></div></div><div class="rows" id="doctrine-list" tabindex="0" aria-label="Doctrine rows"></div></div></div>
+    <div class="primary"><div class="card-panel rows-card"><div class="rows-filter"><div id="doctrine-chips"></div></div><div class="rows" id="doctrine-list" tabindex="0" aria-label="Doctrine rows"></div></div></div>
     <aside class="card-panel detail" aria-label="Practice row"><div id="doctrine-detail"></div></aside>
   </section>
   <section data-pane="activity">
@@ -558,9 +562,10 @@ function replayProject(index) {
     item.merged = null;
     let verdicts = 0;
     for (const event of history) {
+      const projectedEvent = lifecycleEvent(event);
       const verb = event.event_kind === 'renew' ? 'claim' : event.event_kind;
       /** Find a declared move, distinguishing a renewed claim from a new one. */
-      const fits = (at) => FLOW.moves.find((move) => move.verb === verb && move.from.includes(at) && (verb !== 'claim' || (event.event_kind === 'renew') === (move.to === at)));
+      const fits = at => lifecycleMove(FLOW, at, projectedEvent);
       const lapse = fits(state) ? null : FLOW.moves.find((move) => move.by.includes('clock') && move.from.includes(state) && fits(move.to));
       if (lapse) state = lapse.to;
       const move = fits(state);
@@ -576,7 +581,7 @@ function replayProject(index) {
       if (verb === 'merged') item.merged = detail.commit;
     }
     item.status = state;
-    item.history = history.map((event) => ({ kind: event.event_kind, by: event.event_by, at: event.event_at }));
+    item.history = history.map(lifecycleEvent);
     item.updatedAt = history.at(-1).event_at;
     item.verdicts = item.verdicts.slice(0, verdicts);
     item.verdict = item.verdicts.at(-1) ?? null;
@@ -941,7 +946,10 @@ function readMilestone(milestone, p) {
   const visible = milestone.items.map((entry) => milestoneItem(entry, p)).filter((row) => row.state !== 'withdrawn');
   const verified = visible.filter((row) => row.state === 'verified');
   /** Group work in the legend's shipping order; stable sorting preserves milestone order within each group. */
-  const rank = (row) => row.stage === 'merged' ? 5 : row.stage === 'accepted' ? 0 : row.stage === 'submitted' ? 1 : row.held ? 4 : row.stage === 'claimed' ? 2 : row.state === 'verified' ? 5 : 3;
+  const rank = (row) => row.stage === 'merged' ? 6
+    : row.stage === 'accepted' ? 0 : row.stage === 'submitted' ? 1
+      : row.held ? 5 : row.stage === 'claimed' ? 2
+        : row.state === 'verified' ? 6 : row.state === 'back' ? 3 : 4;
   const rows = [...visible].sort((a, b) => rank(a) - rank(b));
   // Current API milestones own their landed count and explicit shipment. Old exports retain their old count.
   /** Reject malformed snapshot counts before they reach numeric HTML attributes. */

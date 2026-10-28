@@ -1,3 +1,4 @@
+import { operationIntent } from '../packages/state/src/core/relay-sender-policy.js';
 /**
  * The ordered outbox (#922): board moves made on an accepted relay link while the relay is unavailable, sealed on
  * this machine with the board as the relay last ordered it, until they replay in relay order.
@@ -38,11 +39,6 @@ import {
   seatReceipt,
   withSeatName,
 } from './relay-seats.js';
-import {
-  credentialActor,
-  operationIntent,
-  relayMoveActor,
-} from './relay-sender.js';
 import {
   seal,
   unseal,
@@ -399,7 +395,7 @@ function bumpGeneration(linkFile) {
  * refuses is refused now and never queued. `quiet` is a local-first move, which says nothing: queuing is normal.
  */
 export async function queueMove(link, { operation, args, command, move, error, applyLocally, quiet = false }) {
-  const { root, file, state, io, localRecords, safePauseCode, safePauseMessage } = link;
+  const { root, file, state, io, senderPolicy, localRecords, safePauseCode, safePauseMessage } = link;
   if (ACKNOWLEDGED_OPERATIONS.includes(operation)) {
     throw new Refused('RELAY_OUTBOX_UNBOUND', 'this move needs the relay to acknowledge its IDs and result; retry it when the relay answers');
   }
@@ -410,10 +406,10 @@ export async function queueMove(link, { operation, args, command, move, error, a
     ?? { version: 3, baseSequence: localRecords(root, appliedSequence), restored: false, moves: [] };
   if (!move) {
     const sent = withSeatName(root, operation, args);
-    move = stampCoordinatorHolder(localRecords(root, (board) => prepareEngineMove(board, operation, sent)), state.machine, state.computerName);
-    move.actor = relayMoveActor(move) ?? credentialActor(move);
+    move = stampCoordinatorHolder(localRecords(root, (board) => prepareEngineMove(board, operation, sent)), state.machine, state.computerName, senderPolicy);
+    move.actor = senderPolicy.relayMoveActor(move) ?? senderPolicy.credentialActor(move);
   }
-  refuseRevokedSeat(state, credentialActor(move));
+  refuseRevokedSeat(state, senderPolicy.credentialActor(move));
   const stray = strayItemRefs(outbox, move);
   if (stray.length) {
     throw new Refused('RELAY_OUTBOX_UNBOUND', `this move names #${stray[0]}, which this machine added while the relay was down, in a field the outbox cannot follow if the relay renumbers it; run it again once the relay answers`);

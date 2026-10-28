@@ -12,7 +12,6 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { Refused } from './refused.js';
-import { parseProcessCensus } from './process-census.js';
 import { sentinels } from './sentinels.js';
 import { gitChildEnv } from './git.js';
 import { mainCheckout } from './git.js';
@@ -40,7 +39,7 @@ function outputTail(previous, chunk) {
 }
 
 /** Read a locale-stable POSIX census; an unavailable census never means an empty owned group. */
-function watchCensus() {
+function watchCensus(parseProcessCensus) {
   const read = spawnSync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,lstart=,stat=,comm='], {
     encoding: 'utf8', timeout: 3_000, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, LC_ALL: 'C' },
   }); // budget: bounded process-identity inspection, independent of checker throughput.
@@ -50,8 +49,8 @@ function watchCensus() {
 }
 
 /** Read only the detached session captured before its approved command was allowed to start. */
-function watchMembers(pgid, anchor) {
-  const rows = watchCensus(), leader = rows.get(pgid);
+function watchMembers(pgid, anchor, parseProcessCensus) {
+  const rows = watchCensus(parseProcessCensus), leader = rows.get(pgid);
   if (!anchor || leader && leader.started !== anchor.started) {
     throw new Refused('SENTINEL_DRAIN', 'the watch process-group identity changed; no replacement process was touched');
   }
@@ -59,23 +58,23 @@ function watchMembers(pgid, anchor) {
 }
 
 /** Signal individual owned members only after rechecking PID, start, group and executable. */
-function signalWatch(pgid, anchor, signal) {
-  for (const member of watchMembers(pgid, anchor)) {
-    const now = watchCensus().get(member.pid);
+function signalWatch(pgid, anchor, signal, parseProcessCensus) {
+  for (const member of watchMembers(pgid, anchor, parseProcessCensus)) {
+    const now = watchCensus(parseProcessCensus).get(member.pid);
     if (!now || now.pgid !== member.pgid || now.started !== member.started || now.processSha256 !== member.processSha256) continue;
     try { process.kill(member.pid, signal); } catch (error) { if (error.code !== 'ESRCH') throw error; }
   }
 }
 
 /** Retain custody through normal exit too: redirected, unreferenced children still need shutdown. */
-async function drainWatch(pgid, anchor) {
+async function drainWatch(pgid, anchor, parseProcessCensus) {
   if (process.platform === 'win32' || !pgid) return;
   for (const signal of ['SIGTERM', 'SIGKILL']) {
-    if (!watchMembers(pgid, anchor).length) return;
-    signalWatch(pgid, anchor, signal);
+    if (!watchMembers(pgid, anchor, parseProcessCensus).length) return;
+    signalWatch(pgid, anchor, signal, parseProcessCensus);
     const deadline = Date.now() + 2_000; // budget: owned-group shutdown grace, not a performance threshold.
     do {
-      if (!watchMembers(pgid, anchor).length) return;
+      if (!watchMembers(pgid, anchor, parseProcessCensus).length) return;
       await new Promise(resolve => setTimeout(resolve, 25));
     } while (Date.now() < deadline);
   }
@@ -83,8 +82,12 @@ async function drainWatch(pgid, anchor) {
 }
 
 /** Run one owned process group in the approved directory, with a bounded hang and drained shutdown. */
-export function executeSentinel(root, row, { signal, environment = process.env } = {}) {
+export function executeSentinel(root, row, { signal, environment = process.env, parseProcessCensus } = {}) {
   return new Promise((settle, reject) => {
+    if (typeof parseProcessCensus !== 'function') {
+      reject(new Refused('SENTINEL_DRAIN', 'supply the process census parser from the sentinel command owner before running a watch'));
+      return;
+    }
     let directory;
     try {
       const base = realpathSync(root);
@@ -113,7 +116,7 @@ export function executeSentinel(root, row, { signal, environment = process.env }
     const send = signalName => {
       if (!Number.isSafeInteger(child.pid)) return;
       try {
-        if (group && anchor) signalWatch(child.pid, anchor, signalName);
+        if (group && anchor) signalWatch(child.pid, anchor, signalName, parseProcessCensus);
         else child.kill(signalName); // Before the start handshake, only this direct child can exist.
       } catch (error) {
         drainError ||= error;
@@ -141,7 +144,7 @@ export function executeSentinel(root, row, { signal, environment = process.env }
       child.stdin.on('error', error => { startupError ||= error; stop(); });
       child.once('spawn', () => {
         try {
-          anchor = watchCensus().get(child.pid);
+          anchor = watchCensus(parseProcessCensus).get(child.pid);
           if (!anchor || anchor.pgid !== child.pid) throw new Refused('SENTINEL_DRAIN', 'the watch did not start in its own process group');
           child.stdin.end('start\n');
         } catch (error) { startupError ||= error; stop(); }
@@ -154,7 +157,7 @@ export function executeSentinel(root, row, { signal, environment = process.env }
     });
     child.once('close', async (code, stoppedBy) => {
       try {
-        if (group && anchor) await drainWatch(child.pid, anchor);
+        if (group && anchor) await drainWatch(child.pid, anchor, parseProcessCensus);
         if (startupError || drainError) throw startupError || drainError;
         const aborted = interrupted || Boolean(signal?.aborted);
         settle({ green: code === 0 && !timedOut && !aborted, code, timedOut,
@@ -166,7 +169,8 @@ export function executeSentinel(root, row, { signal, environment = process.env }
 }
 
 /** Claim through the ordinary ordered engine, execute without a lock, then publish its exact result. */
-export async function runDueSentinels({ root, board, agentId, ordered, signal, execute = executeSentinel }) {
+export async function runDueSentinels({ root, board, agentId, ordered, signal, execute = executeSentinel, parseProcessCensus }) {
+  if (typeof parseProcessCensus !== 'function') throw new Refused('SENTINEL_DRAIN', 'supply the process census parser from the sentinel command owner before claiming a watch');
   const results = [];
   for (const row of sentinels(board).filter(entry => entry.status === 'approved')) {
     if (signal?.aborted) break;
@@ -177,7 +181,7 @@ export async function runDueSentinels({ root, board, agentId, ordered, signal, e
     if (!claimed) continue;
     let result;
     const began = performance.now();
-    try { result = await execute(root, claimed, { signal }); }
+    try { result = await execute(root, claimed, { signal, parseProcessCensus }); }
     catch (error) {
       result = { green: false, code: null, timedOut: false, signal: null,
         aborted: Boolean(signal?.aborted) || error?.code === 'SENTINEL_ABORTED', durationMs: performance.now() - began,

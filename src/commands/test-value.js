@@ -1,3 +1,5 @@
+import { flakeLedger } from '../flakes.js';
+import { eventCauses } from '../rigor.js';
 /** The requested fourteen-day test economics report [C7]. */
 import {
   context,
@@ -15,7 +17,7 @@ export function run(io, { first, second, rest, values }) {
   const ctx = context(io);
   const report = withBoardRead(ctx, board => {
     board.db.exec('SAVEPOINT test_value_read');
-    try { return testValueReport(board, { root: ctx.info.root, costs: ctx.config.testEconomics, now: ctx.clock.now().getTime() }); }
+    try { return testValueReport(board, { root: ctx.info.root, costs: ctx.config.testEconomics, now: ctx.clock.now().getTime() }, { flakeLedger, eventCauses }); }
     finally { board.db.exec('RELEASE test_value_read'); }
   });
   report.placement = readPlacementReport(ctx.info.root);

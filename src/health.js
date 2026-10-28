@@ -1,8 +1,8 @@
-import { lineSettings } from './line-settings-read.js';
+import { eligibilityProblem } from './review-eligibility.js';
+import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
 import { withLocalSeatPresence } from './seat-presence.js';
 import { mechanicalConflictFiles } from './mechanical-merge.js';
 import { localDependencyIds } from './item-dependencies.js';
-import { dispatchHealth } from './dispatch-health.js';
 /**
  * `pullboard health`: every stuck item on the board, why it is stuck, since when, the one next step
  * and who takes it [A6]. Doctor checks a board's integrity; health checks its flow, so nobody has
@@ -26,6 +26,9 @@ import { gateControlFindings } from './gate-control.js';
 import {
   boardBusyError,
   buildOrder,
+  foreignBlockers,
+  milestonePriorities,
+  milestones,
   canTake,
   listItems,
   listAgents,
@@ -66,16 +69,16 @@ export function healthThresholds(config = {}) {
  * Scan a board file read-only. A missing board has nothing on it, so nothing is stuck.
  *
  * @param {string} file
- * @param {{ root: string, config?: any, now: Date }} options
+ * @param {{ root: string, config?: any, now: Date, dispatchHealth: Function }} options Explicit upper-layer dispatch observation.
  * @returns {ReturnType<typeof healthReport>}
  */
-export function boardHealth(file, { root, config, now }) {
-  if (!existsSync(file)) return healthReport({ db: null, root, config, now });
+export function boardHealth(file, { root, config, now, dispatchHealth }) {
+  if (!existsSync(file)) return healthReport({ db: null, root, config, now, dispatchHealth });
   const startedAt = Date.now();
   let db;
   try {
     db = openBoardReadOnly(file);
-    return healthReport({ db, root, config, now });
+    return healthReport({ db, root, config, now, dispatchHealth });
   } catch (error) {
     throw boardBusyError(file, startedAt, error);
   } finally {
@@ -86,10 +89,10 @@ export function boardHealth(file, { root, config, now }) {
 /**
  * Every stuck finding on an open board connection, and the rework that waits for a later release.
  *
- * @param {{ db: any, root: string, config?: any, now: Date }} options
+ * @param {{ db: any, root: string, config?: any, now: Date, dispatchHealth: Function }} options Explicit upper-layer dispatch observation.
  * @returns {{ asOf: string, thresholds: { stuck: string, holds: string, release: string }, stuck: Finding[], waiting: Finding[] }}
  */
-export function healthReport({ db, root, config, now }) {
+export function healthReport({ db, root, config, now, dispatchHealth }) {
   const limits = healthThresholds(config);
   const asOf = now.toISOString();
   const report = { asOf, thresholds: { stuck: limits.stuck, holds: limits.holds, release: limits.release }, stuck: [], waiting: [] };
@@ -112,6 +115,7 @@ export function healthReport({ db, root, config, now }) {
     }));
   }
   if (!db) return report;
+  if (typeof dispatchHealth !== 'function') throw new TypeError('healthReport requires its dispatchHealth observation port');
   const at = now.getTime();
   const age = (iso) => at - Date.parse(iso);
   const board = { db, clock: { now: () => now } };
@@ -310,7 +314,7 @@ const QUEUE_ACTIVE_MS = 30 * 60_000;
  * @returns {Finding[]}
  */
 function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
-  const queue = workQueue(board);
+  const queue = workQueue(board, { buildOrder, canTake, listItems, milestonePriorities, milestones, roadmap, ROUTES, foreignBlockers, eligibilityProblem });
   const current = (queue.releases.find((release) => release.landed < release.total)?.items ?? queue.unreleased)
     .filter((entry) => entry.status === 'open' && !entry.waits.length);
   const waiting = [...queue.releases.flatMap((release) => release.items), ...queue.unreleased]

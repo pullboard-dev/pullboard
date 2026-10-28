@@ -1,3 +1,9 @@
+import { checkNeedsBrowser } from '../browser-admission.js';
+import { runnerExecutionServices } from '../runners.js';
+import { landingExecutionServices } from '../landing-shards.js';
+import { checkNeedsGui } from '../gui-admission.js';
+import { runProfiledShellAsync } from '../gate.js';
+import { withGateSlot } from '../gate.js';
 /** Additive receipt check; the existing pre-push hook remains the only active hook [C7]. */
 import {
   context,
@@ -33,7 +39,8 @@ export async function run(io) {
     for (const problem of problems) io.err(problem);
     return 1;
   }
-  const smoke = await runPushReceiptSmoke(root, { agent: resourceAgent(ctx), onWait: gateWaitReporter(io) });
+  const smoke = await runPushReceiptSmoke(root, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: resourceAgent(ctx), onWait: gateWaitReporter(io) },
+    { checkNeedsBrowser, checkNeedsGui, runProfiledShellAsync, withGateSlot });
   if (headCommit(root) !== head || headTree(root) !== tree || !isClean(root)
     || mainPolicy(root).commit !== policy.commit || smoke.policyCommit !== policy.commit) {
     throw new Refused('PUSH_SOURCE_CHANGED', 'source or accepted policy changed during the smoke; inspect it and check the push again');

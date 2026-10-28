@@ -2,24 +2,7 @@
 import { landingBatches } from './landing-batch-history.js';
 import { acceptedVerdict } from './verdict-reviews.js';
 
-const DURATION = /^(\d+)(ms|s|m|h|d)$/u;
-const UNITS = { ms: 1, s: 1_000, m: 60_000, h: 3_600_000, d: 86_400_000 };
-
-/** Parse the existing bounded duration syntax without changing its timeout-compatible range. */
-export function cadenceMilliseconds(value) {
-  const match = typeof value === 'string' && DURATION.exec(value);
-  const ms = match ? Number(match[1]) * UNITS[match[2]] : NaN;
-  return Number.isFinite(ms) && ms > 0 && ms <= 2_147_483_647 ? ms : null;
-}
-
-/** Validate only the new object form; unknown keys cannot silently create a scheduling policy. */
-export function cadenceProblem(value) {
-  if (value === undefined || cadenceMilliseconds(value) !== null) return null;
-  if (value && typeof value === 'object' && !Array.isArray(value)
-    && Object.keys(value).every(key => ['every', 'accepted'].includes(key))
-    && cadenceMilliseconds(value.every) !== null && Number.isSafeInteger(value.accepted) && value.accepted > 0) return null;
-  return '"landing.cadence" is a positive duration, or {every: "10m", accepted: 5} with a positive whole accepted count';
-}
+import { cadenceMilliseconds } from './config.js';
 
 /** Observe pending native acceptances using their recorded verdict time, never a mutable item update time. */
 export function landingCadenceStatus(board, config, now = board.clock.now()) {

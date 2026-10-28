@@ -1,3 +1,8 @@
+import { effectiveItemHead } from './source-advance-state.js';
+import { itemPolicy } from './trusted-policy.js';
+import { requireTrunkMerge } from './trusted-policy.js';
+import { retryReviewCommit } from './verdict-retry.js';
+import { getItem } from './board-query.js';
 /** Seal only gate-owned receipts on a composition produced by the trusted worker [C7,V4,H16]. */
 import { sourceAdvanceReviewEpisode } from './source-advance-state.js';
 import { realpathSync } from 'node:fs';
@@ -15,9 +20,6 @@ import { sourceAdvanceEpisode } from './source-advance-state.js';
 import { sourceAdvanceChain } from './source-advance-state.js';
 import { sourceAdvanceVerdict } from './source-advance.js';
 import { itemPatchDigest } from './item-patch-state.js';
-import { boardReceiptStore } from './gate-run-receipt.js';
-import { readGateReceipt } from './gate-run-receipt.js';
-import { receiptBody } from './gate-run-receipt.js';
 import { mainPolicy } from './trusted-policy-read.js';
 import { frozenCheck } from './trusted-policy.js';
 import { git } from './git.js';
@@ -50,7 +52,7 @@ export function captureSourceAdvanceBasis(root, board, item) {
   if (outsideSource(board, item.item_id)) throw new Refused('OUTSIDE_SANDBOX_REQUIRED', 'outside sources retain their isolated sandbox path; automatic native main merging is unavailable');
   const verdict = sourceAdvanceVerdict(board, item);
   const inputHead = sourceAdvanceChain(board, item).at(-1)?.head ?? verdict?.review?.head
-    ?? prepareItemPatchReview(root, board, item, { mergeMain: false }).commit;
+    ?? prepareItemPatchReview(root, board, item, { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem }, { mergeMain: false }).commit;
   const basis = Object.freeze({ version: 1, board: identity(board), submitted: item.item_commit, status: item.item_status,
     previous: sourceAdvanceChain(board, item).at(-1)?.head ?? verdict?.review?.head ?? item.item_commit,
     inputHead, trunk: mainPolicy(root).commit, bar: item.item_frozen_digest, patchDigest: itemPatchDigest(board, item.item_id),
@@ -71,6 +73,7 @@ export function prepareSourceAdvance(root, board, item, composition, gate, basis
   const roles = [...(plan.criterion ? ['criterion'] : []), 'affected'];
   const ids = gate.proofReceiptIds.filter(Boolean);
   if (ids.length !== roles.length) throw new Refused('SOURCE_ADVANCE_PROOF', 'retain every actual frozen and affected phase receipt');
+  const { boardReceiptStore, readGateReceipt } = board.runtimePorts.sourceAdvanceReceipts;
   const phases = ids.map((id, index) => {
     const receipt = readGateReceipt(boardReceiptStore(board), id);
     const role = roles[index];
@@ -101,6 +104,7 @@ export function sealSourceAdvance(board, id, request) {
     throw new Refused('SOURCE_ADVANCE_STALE', 'the exact checked main changed or its native worker custody is unavailable');
   }
   requireNativeRoot(board, prepared.root);
+  const { boardReceiptStore, readGateReceipt, receiptBody } = board.runtimePorts.sourceAdvanceReceipts;
   for (const phase of prepared.proof.phases ?? []) {
     const stored = readGateReceipt(boardReceiptStore(board), phase.receipt.id);
     if (!stored || receiptBody(stored) !== receiptBody(phase.receipt)) throw new Refused('SOURCE_ADVANCE_PROOF', 'restore the unchanged gate-owned receipt before completing this source advance');
@@ -126,6 +130,7 @@ export function prepareSourceAdvanceReturn(root, board, item, basis, { compositi
     }
     const plan = sourceAdvancePlan(composition.directory, mainPolicy(root).config, { base: basis.inputHead, changed: composition.changed, check: frozenCheck(item) });
     const commands = [plan.criterion, plan.affected].filter(Boolean).map(sourceAdvanceHash);
+    const { boardReceiptStore, readGateReceipt } = board.runtimePorts.sourceAdvanceReceipts;
     const phases = (gate.proofReceiptIds ?? []).filter(Boolean).map(id => ({ receipt: readGateReceipt(boardReceiptStore(board), id) }));
     const failed = phases.map(phase => phase.receipt).find(receipt => receipt?.version === 2 && receipt.head === composition.head
       && receipt.tree === composition.tree && receipt.main === basis.trunk && receipt.proof.sourceClean

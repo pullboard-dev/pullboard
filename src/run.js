@@ -362,7 +362,7 @@ async function tryItem(ctx, item, { command, attempts, minutes, deps, me, start,
     } else {
       const isDirty = !isClean(root) || untracked(root).length > 0;
       const committed = isDirty ? commitWork(root, item, ctx.config, changedSince(root, start)) : { ok: true, output: '' };
-      const gate = committed.ok ? await runGate(root, ctx.config, { onWait: gateWaitReporter(ctx.io) }) : { isGreen: false, output: committed.output };
+      const gate = committed.ok ? await runGate(root, ctx.config, { executionServices: deps.executionServices, onWait: gateWaitReporter(ctx.io) }) : { isGreen: false, output: committed.output };
       if (!gate.isGreen) {
         result = committed.ok ? 'gate-red' : 'commit-refused';
         digest = `${reverted}The check passed, but ${committed.ok ? "the repo's gate" : 'the commit'} failed:\n${digestOf(gate.output)}`;

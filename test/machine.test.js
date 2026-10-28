@@ -12,6 +12,7 @@ import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
@@ -116,6 +117,7 @@ const ENTRY_POINTS = [
 ];
 /** Setup refusals have no item move, but stay in the same reachability audit. */
 const NON_MOVE_ENTRY_POINTS = [
+  'native-board.js#openBoard', // Physical storage is composed before any item move.
   'cli.js#refuseRemoteCoordinatorModel',
   // Child-process commands may be serialized into scripts, so audit this exported setup guard directly.
   'resources.js#gateSlotEnvironment',
@@ -123,6 +125,27 @@ const NON_MOVE_ENTRY_POINTS = [
 ];
 /** Board functions handed a function to call, and the one the CLI and the runner hand them. */
 const CALLBACKS = {
+  // Real higher command roots bind runnerExecutionServices; admission snapshots these functions onto the lease.
+  'gate-execution.js': {
+    'gateLease.executionServices.runners.runOnRunner': 'runners.js#runOnRunner',
+    'gateLease.executionServices.runners.runOnRunnerAsync': 'runners.js#runOnRunnerAsync',
+  },
+  // Explicit item ports preserve these canonical authority and sandbox refusal paths.
+  'reopen-authority.js': { verdictWithdrawalTarget: 'verdict-withdrawal.js#verdictWithdrawalTarget' },
+  'outside-verify.js': { verifyOutsideSandbox: 'sandbox-verify.js#verifyOutsideSandbox' },
+  'item-authors.js': { strictReviewProblem: 'review-independence.js#strictReviewProblem' },
+  // Native verification ports retain these exact receipt and projection guards.
+  'proof-cli.js': { proofRunReceipt: 'proof-receipts.js#proofRunReceipt' },
+  'proof-counters.js': {
+    appendRigorCounter: 'rigor-counters.js#appendRigorCounter',
+    ensureRigorCounters: 'rigor-counters.js#ensureRigorCounters',
+  },
+  // The native root supplies these setup guards through the physical store's explicit ports.
+  'board-store.js': {
+    readEventLogVersion: 'board-read-open.js#readEventLogVersion',
+    boardNotWritable: 'board-access.js#boardNotWritable',
+    boardBusyError: 'board-access.js#boardBusyError',
+  },
   'board.js': { freeze: 'cli.js#freezer' },
   'line-capacity-board.js': {
     nextFor: 'board.js#nextFor',
@@ -138,7 +161,7 @@ const CALLBACKS = {
  */
 const CAUGHT = {
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
-  'cross-repo-dependencies.js#stateFor': ['board-link-format.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
+  'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   'line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
   'commands/submit.js#submitHere': ['native-flakes.js#observeFailure', 'cli.js#freezer', 'main-red.js#compareMainFailures', 'main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
@@ -184,17 +207,17 @@ function codeWalk(read, { caught = false } = {}) {
     if (!files.has(file)) {
       const source = read(file);
       const named = new Map();
-      /** Resolve a relative import to its path under src/, from a file in src/ or src/commands/. */
-      const under = (dots, name) => (file.startsWith('commands/') ? (dots === '..' ? name : `commands/${name}`) : (dots === '.' ? name : null));
-      for (const [, names, dots, name] of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*'(\.\.?)\/([\w-]+\.js)'/g)) {
-        const from = under(dots, name);
+      /** Resolve literal relative imports with their repository layout, including extracted packages. */
+      const under = (specifier) => posix.normalize(posix.join(posix.dirname(file), specifier));
+      for (const [, names, specifier] of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*'(\.{1,2}\/[^']+\.js)'/g)) {
+        const from = under(specifier);
         if (!from) continue;
         for (const part of names.split(',').map((text) => text.trim()).filter(Boolean)) {
           const [original, local = original] = part.split(/\s+as\s+/);
           named.set(local, `${from}#${original}`);
         }
       }
-      const spaces = new Map([...source.matchAll(/import \* as (\w+) from '(\.\.?)\/([\w-]+\.js)'/g)].map(([, space, dots, name]) => [space, under(dots, name)]).filter(([, from]) => from));
+      const spaces = new Map([...source.matchAll(/import \* as (\w+) from '(\.{1,2}\/[^']+\.js)'/g)].map(([, space, specifier]) => [space, under(specifier)]));
       files.set(file, { bodies: functionsIn(source), named, spaces, source });
     }
     return files.get(file);
@@ -213,7 +236,7 @@ function codeWalk(read, { caught = false } = {}) {
       const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]));
       const callees = [
         ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
-        ...[...body.matchAll(/\b(\w+)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : undefined)),
+        ...[...body.matchAll(/\b(\w+(?:\.\w+)*)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : CALLBACKS[file]?.[`${space}.${callee}`])),
       ];
       callees.push(...runnerControllerCallees(file, body, source));
       facts = { codes, callees };
@@ -455,7 +478,7 @@ test('the declared lifecycle is sound: reachable, no traps, no second door, ever
   assert.deepEqual(machineRules.machineProblems(), []);
   assert.deepEqual(machineRules.MACHINE.states.map((state) => state.id), ['open', 'claimed', 'submitted', 'verified', 'withdrawn']);
   assert.deepEqual(machineRules.MACHINE.states.filter((state) => state.final).map((state) => state.id), ['withdrawn']);
-  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['patch', 'rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
+  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['patch-claimed', 'patch', 'rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
   assert.deepEqual(machineRules.MACHINE.moves.find((move) => move.verb === 'rehomeImport').sets, ['item_verified_by', 'item_commit']);
 });
 
@@ -551,14 +574,14 @@ test('a broken copy of the declaration fails the check against the code, both wa
 
 test('a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
   for (const [file, pattern] of [
-    ['board-link-format.js', /^export function boardLinkRecord\(value\) \{$/m],
+    ['../packages/kernel/src/core/registry-guards.js', /^export function boardLinkRecord\(value\) \{$/m],
     ['board-link-state.js', /^export function readReceivedBoardState\(board, .*$/m],
   ]) {
     const inForeignReader = editedSource(file, pattern,
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignReader), [], 'only the exact foreign evidence reader is caught as unavailable');
   }
-  const inForeignCaller = editedSource('cross-repo-dependencies.js', /^function stateFor\(board, ref\) \{$/m,
+  const inForeignCaller = editedSource('cross-repo-dependencies.js', /^function stateFor\(board, ref, readReceivedBoardState\) \{$/m,
     "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignCaller).sort(), [
     'MOON_PHASE is raised by claim but not declared there',
@@ -1399,7 +1422,7 @@ test('only moveItem writes an item\'s status, and a write anywhere else fails th
   assert.deepEqual(statusWriters(lowercase), ['board.js#reopenByHand']);
   const computed = editedSource('board.js', /^export function recordAttempt/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport function recordAttempt");
   assert.deepEqual(statusWriters(computed), ['board.js#reopenByKey']);
-  const besideCatalog = editedSource('json.js', /^export function commandOutput/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport function commandOutput");
+  const besideCatalog = editedSource('json.js', /^export const JSON_SHAPES =/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport const JSON_SHAPES =");
   assert.deepEqual(statusWriters(besideCatalog), ['json.js#reopenByKey'], 'the output catalog exemption never covers a writer beside it');
 });
 
@@ -1462,4 +1485,14 @@ test('Rigor historical data boundaries do not hide a new projection refusal [M1,
 
 test('a source walk scans local facts once while retaining caller-specific refusal traversal [C7,M1]', () => {
   assertMachineWalkMemo(codeWalk);
+});
+
+
+test('lifecycle audit follows extracted package guards and catches a new refusal [M1,M4,H16]', () => {
+  const file = '../packages/state/src/core/handoff-state.js';
+  const walk = codeWalk(fromDisk);
+  assert.ok(walk.refusalsOf(`${file}#requireHandoffActive`).has('AGENT_REPLACED'));
+  const planted = editedSource(file, /^export function requireHandoffActive\(board, actor, operation, args\) \{$/m,
+    "$&\n  throw new Refused('STATE_PACKAGE_PROBE', 'planted package guard');");
+  assert.ok(codeProblems(machineRules.MACHINE, planted).includes('STATE_PACKAGE_PROBE is raised by submit but not declared there'));
 });

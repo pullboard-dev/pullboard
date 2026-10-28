@@ -1,4 +1,13 @@
-import { boundedProofReason } from '../submit-invariants.js';
+import { withBoardRead as waitBoardRead } from '../board-read.js';
+import { retrySync } from '../cli-sync.js';
+import { checkAtCommit } from '../runner-private-check.js';
+import { runnerExecutionServices } from '../runners.js';
+import { landingExecutionServices } from '../landing-shards.js';
+import { submitGateConfig } from '../gate-submit.js';
+import { createHash } from 'node:crypto';
+import { prepareItemPatchSubmit } from '../item-patch-submit.js';
+import { withItemPatchSubmit } from '../item-patch-submit.js';
+import { boundedProofReason } from '../../packages/state/src/core/submission-proof.js';
 import { completeMoveHandoff } from '../post-move-handoff.js';
 import {
   barReadySetting,
@@ -21,6 +30,7 @@ import {
 } from '../doctrine-checks.js';
 import * as gateReceipt from '../gate-receipt.js';
 import { recordNativeProof } from '../proof-cli.js';
+import { proofRunReceipt } from '../proof-receipts.js';
 import {
   gateWaitReporter,
 } from '../gate-wait.js';
@@ -70,10 +80,13 @@ import {
   frozenCheck,
   itemPolicy,
   mainPolicy,
+  policyAt,
   requireTrunkMerge,
   submissionPaths,
 } from '../trusted-policy.js';
 import {
+  nextOnce,
+  withBoardRead,
   CHECKOUT_LEASES,
   browserAdmissionReporter,
   context,
@@ -192,40 +205,42 @@ export async function submitHere(ctx, id, infra) {
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   // A trunk checkout can have advanced since the claim; comparing it with itself would bless its own new red test.
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : acceptedMain.commit;
-  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }));
+  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }, { atomic: store.atomic, submit: store.submit }));
   const trunk = requireTrunkMerge(root, commit);
+  const companion = withBoard(ctx, board => prepareItemPatchSubmit(root, board, held, commit));
   if (requireComposition) requireSubmitComposition(root, commit, trunk, acceptedMain.commit);
   withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
   const doctrine = hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
-    ? await withGateSlot(root, () => holdDoctrine(root, { mainCommit: acceptedMain.commit, commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }),
-      { itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceipt.receiptLine(receipt)}`) })
+    ? await withGateSlot(root, () => holdDoctrine(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }),
+      { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceipt.receiptLine(receipt)}`) })
     : [];
   for (const rule of doctrine) ctx.io.say(`doctrine: ${ruleLine(rule)}`);
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
-  const submitConfig = { ...ctx.config, gate: ctx.config.gate.trim() ? ctx.config.gate : acceptedMain.config.gate, submitGate: acceptedMain.config.submitGate, staticChecks: acceptedMain.config.staticChecks,
-    submitInvariants: acceptedMain.config.submitInvariants, submitDeferAbove: acceptedMain.config.submitDeferAbove,
-    registryGuards: acceptedMain.config.registryGuards,
-    // The accepted project runner interprets its current invariant files; candidate config cannot replace it.
-    ...(acceptedMain.config.submitInvariants.length || acceptedMain.config.registryGuards.length ? { affectedTests: acceptedMain.config.affectedTests } : {}) };
-  const admission = { commit, tree: headTree(root) };
-  const gate = await runSubmitGate(root, submitConfig, { base: claimHead, trunk: acceptedMain.commit, check: frozenCheck(held), agent: me.id, item: String(id), onWait: queuedItemLease(ctx, held, me.id, 'build', admission), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
-    proofContext: { item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission },
-    onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, config: submitConfig }, { ordered, withBoard, resourceAgent }) });
+  const submitConfig = submitGateConfig(companion ? policyAt(root, companion.commit).config : ctx.config, acceptedMain.config);
+  const admission = { commit: companion?.commit ?? commit, tree: companion?.tree ?? headTree(root) };
+  const gate = await withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, outputRoot: root, base: claimHead, trunk: acceptedMain.commit, check: frozenCheck(held), agent: me.id, item: String(id), onWait: queuedItemLease(ctx, held, me.id, 'build', admission), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
+    proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission },
+    onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
-    await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent });
+    await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt });
+  }
+  if (companion) {
+    companion.receiptIds = gate.proofReceiptIds.filter(id => typeof id === 'string');
+    companion.phases = gate.phasePlan.map(({ role, command }) => ({ role, command: createHash('sha256').update(command).digest('hex') }));
   }
   // Only fully accounted exact-main failures or live person waivers pass a red proof; the item check stays mandatory [B3].
   const waived = !gate.isGreen && gate.check?.green ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, root))) : null;
+  const onMeasuredReceipt = receiptId => nativeFlakes.recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent });
   let comparison;
   let knownMainFailures;
   const failures = !gate.isGreen && gate.check?.green && !waived ? failureSignatures(gate, root) : null;
-  if (failures && mainFailureBase) {
+  if (failures && mainFailureBase && !companion) {
     try {
-      comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true });
+      comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, onMeasuredReceipt });
       const matched = matchingMainFailures(failures, comparison, mainFailureBase);
       knownMainFailures = matched && withBoard(ctx, board => linkKnownMainReworks(matched, store.listItems(board, { all: true }), id));
     } catch { /* Unavailable exact-main proof never authorizes a red submission. */ }
@@ -237,8 +252,8 @@ export async function submitHere(ctx, id, infra) {
     CHECKOUT_LEASES.get(ctx.io)?.release();
     CHECKOUT_LEASES.delete(ctx.io);
     comparison ??= { main: null, files: [], unavailable: 'main comparison could not be completed' };
-    if (!failures && mainFailureBase) {
-      try { comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase }); } catch { /* Keep the original gate refusal if main evidence is unavailable. */ }
+    if (!failures && mainFailureBase && !companion) {
+      try { comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, onMeasuredReceipt }); } catch { /* Keep the original gate refusal if main evidence is unavailable. */ }
     }
     const mainNote = withBoard(ctx, board => mainRedMessage(root, board, gate.profile, comparison));
     throw new Refused('GATE_RED', `${message}${mainNote ? `\n${mainNote}` : ''}`, 'fix the reported test or gate, commit the change, and run pullboard submit <id> again');
@@ -264,6 +279,7 @@ export async function submitHere(ctx, id, infra) {
     return await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...(infraRecord ? { infra: infraRecord } : {}),
       gateGreen: gate.isGreen && !waived,
       ...(size ? { submissionSize: size } : {}),
+      ...(companion ? { companion } : {}),
       submissionProof: { version: 1, files: gate.files, full: gate.full, deferred: gate.deferred, reason: boundedProofReason(gate.reason), ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), ...(knownMainFailures ? { knownMainFailures } : {}) },
       ...(gate.deferred ? { note: gate.deferredFiles ? deferredSelectionNote(gate.deferredFiles) : 'full suite deferred to the landing gate' } : {}) }]);
   });
@@ -278,6 +294,7 @@ export async function submitHere(ctx, id, infra) {
     : submitGateReport(gate);
   return reportSubmission(ctx, id, commit, { green: gate.isGreen, report, files: gate.files, full: gate.full, deferred: gate.deferred, deferFullFallback: gate.deferFullFallback, ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), reason: gate.reason, check: gate.check,
     log: gate.log, profile: gate.profile, profilePath: gate.profilePath, proofLog: gate.proofLog, proofProfilePath: gate.proofProfilePath,
+    ...(companion ? { companion } : {}),
     ...(knownMainFailures ? { knownMainFailures } : {}),
     ...(knownMainFailures ? { knownMainReworks: knownMainFailures.failures.map(({ file, name, item }) => ({ file, name, item })) } : {}),
     ...(waived ? { waived: waived.map(({ file, name, waiver }) => ({ file, name, waiver: waiver.id, reason: waiver.reason, until: waiver.until })) } : {}) }, doctrine);
@@ -289,7 +306,7 @@ export async function run(io, { first, values }) {
   const ctx = { ...context(io), submissionResult };
   const id = idArg(first);
   /** Dispatch before optional verdict waiting, retaining this exact submission document. */
-  ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission);
+  ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems });
   const previous = io.onOrderedMove;
   io.onOrderedMove = receipt => {
     previous?.(receipt);
@@ -301,6 +318,6 @@ export async function run(io, { first, values }) {
   try { code = await submitHere(ctx, id, values.infra); }
   finally { io.onOrderedMove = previous; }
   if (code !== 0 || !values.wait) return code;
-  return waitForSubmissionVerdict(ctx, id, submissionResult.value, submissionResult.event);
+  return waitForSubmissionVerdict(ctx, id, submissionResult.value, submissionResult.event, { withBoardRead: waitBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem });
 }
-import { SUBMISSION_SIZE_METHOD } from '../submission-size.js';
+import { SUBMISSION_SIZE_METHOD } from '../../packages/state/src/core/submission-size.js';

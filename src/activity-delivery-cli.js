@@ -2,7 +2,7 @@
 import * as store from './board.js';
 import { budgetInbox } from './inbox-budget.js';
 import { readActivityDelivery } from './activity-delivery-read.js';
-import { handoffMoveProblem } from './handoff-state.js';
+import { handoffMoveProblem } from '../packages/state/src/core/handoff-state.js';
 import { Refused } from './refused.js';
 import {
   activityMainFiles,
@@ -10,16 +10,9 @@ import {
   readActivityCursor,
   saveActivityCursor,
 } from './activity-inbox.js';
-import {
-  agentDisplayName,
-  evidenceLine,
-  ordered,
-  whoAmI,
-  withBoard,
-} from './cli.js';
 
-/** Render digest counts, actionable references and direct coordination without expanding digest bodies. */
-export function activityDeliveryLines({ shouts, agents, activity, budget }, config) {
+/** Render bounded groups using the caller-owned actor and evidence presentation ports. */
+export function activityDeliveryLines({ shouts, agents, activity, budget }, config, { agentDisplayName, evidenceLine } = {}) {
   const lines = [];
   for (const shout of shouts) {
     const ask = shout.shout_decision ? `asks for a decision (#${shout.shout_id}; pullboard answer ${shout.shout_id} "..."): ` : '';
@@ -38,7 +31,7 @@ export function activityDeliveryLines({ shouts, agents, activity, budget }, conf
 }
 
 /** Persist bounded batches without advancing past an interrupt that a later batch has not yet recorded. */
-async function recordIncluded(ctx, board, agentId, observation) {
+async function recordIncluded(ctx, board, agentId, observation, { ordered }) {
   const groups = [];
   for (let offset = 0; offset < observation.fresh.length; offset += 1000) groups.push(observation.fresh.slice(offset, offset + 1000));
   if (!groups.length) groups.push([]);
@@ -51,8 +44,9 @@ async function recordIncluded(ctx, board, agentId, observation) {
   }
 }
 
-/** Delivery records included interrupts; explicit recipient acknowledgement is a separate move. */
-export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false, directShouts = true } = {}) {
+/** Delivery records included interrupts through caller-owned CLI ports; explicit acknowledgement stays separate. */
+export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false, directShouts = true } = {}, ports) {
+  const { withBoard, whoAmI, ordered } = ports;
   const delivered = await withBoard(ctx, async board => {
     const me = whoAmI(ctx, board);
     if (actedIds.length) await ordered(ctx, board, 'actOnActivity', [{ agentId: me.id, ids: actedIds }]);
@@ -71,7 +65,7 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
     const diagnostic = 'activity cursor could not be saved; activity may repeat when you read inbox again';
     /** Reserve the possible persistence warning while selecting complete public groups. */
     const bound = () => budgetInbox({ shouts, agents, activity }, ctx.config.inbox.tokenBudget,
-      result => activityDeliveryLines(result, ctx.config), [diagnostic]);
+      result => activityDeliveryLines(result, ctx.config, ports), [diagnostic]);
     let bounded = bound();
     const included = new Set(bounded.activity.interrupts.map(interrupt => interrupt.id));
     const withheld = observation.fresh.filter(interrupt => !included.has(interrupt.id))
@@ -79,7 +73,7 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
     const selected = { ...observation, fresh: observation.fresh.filter(interrupt => included.has(interrupt.id)),
       through: withheld.length ? Math.min(observation.through, Math.min(...withheld) - 1) : observation.through };
     if (!retired) {
-      try { await recordIncluded(ctx, board, me.id, selected); }
+      try { await recordIncluded(ctx, board, me.id, selected, ports); }
       catch (error) {
         if (!(error instanceof Refused) || !['RELAY_RECOVERY_PENDING', 'RELAY_KEY_MISSING', 'AUTH_REQUIRED'].includes(error.code)) throw error;
         // A read remains available while canonical writes are fenced; its obligations remain unrecorded.

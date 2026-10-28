@@ -1,4 +1,5 @@
 /** Real board, roadmap and queue scenarios for release admission [C7,V4]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -10,12 +11,13 @@ const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href;
 const RELEASE_WORKER = `
 import { withGateSlot } from ${JSON.stringify(GATE_MODULE)};
+${executionServicesSource(GATE_MODULE)}
 const [root, agent, item, kind, landing] = process.argv.slice(1);
 let said = false;
 await withGateSlot(root, async () => {
   console.log(JSON.stringify({ acquired: agent }));
   for await (const line of process.stdin) if (String(line).trim() === 'release') break;
-}, { agent, item, kind, landing: landing === 'true', remote: false, onWait: state => {
+}, { executionServices, agent, item, kind, landing: landing === 'true', remote: false, onWait: state => {
   if (!said || state.rejoined) { said = true; console.log(JSON.stringify({ queued: state })); }
 } });
 `;

@@ -1,4 +1,4 @@
-import { lineSettings } from './line-settings-read.js';
+import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
 import { withLocalSeatPresence } from './seat-presence.js';
 /** Observe eligible work beside live free seats without claiming from a read [N2,A6]. */
 import { existsSync } from 'node:fs';
@@ -38,7 +38,7 @@ export function dispatchHealth(board, config = {}) {
     let info, skipIds;
     try {
       info = repoInfo(seat.agent_path);
-      skipIds = ownSessionReviews(info, board, localSeatSessionDigest(info, seat.agent_id));
+      skipIds = ownSessionReviews(info, board, localSeatSessionDigest(info, seat.agent_id), { listItems: store.listItems });
     } catch (error) {
       if (error instanceof Refused) continue; // An unresolvable local seat cannot take work yet.
       throw error;

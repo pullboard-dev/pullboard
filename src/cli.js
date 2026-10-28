@@ -1,4 +1,6 @@
+import { itemCheckBaseline } from './board-query.js';
 import { laneSeatContext } from './seat-checkout.js';
+import { nextSessionSeats } from './seat-checkout.js';
 import { mainRedReviewItems } from './main-red.js';
 import { createQueuedItemLease } from './queued-item-lease.js';
 export { resourceRunLabel } from './cli-resource-display.js';
@@ -12,9 +14,14 @@ import {
   focusReviewFirst,
   focusReasons,
 } from './focus-milestone.js';
-import { requireHandoffActive } from './handoff-state.js';
+import { requireHandoffActive } from '../packages/state/src/core/handoff-state.js';
 import { requestedCommandMove } from './recorded-move.js';
-export { barActorForCommand } from './bar-actor.js';
+import { barActorForCommand as commandBarActor } from './bar-actor.js';
+
+/** Preserve the public command facade while supplying actual query and person-channel capabilities. */
+export function barActorForCommand(ctx, board, options = {}) {
+  return commandBarActor(ctx, board, options, { agentAt: store.agentAt, requirePersonChannel: personIdentity.requirePersonChannel });
+}
 import {
   barReadinessRequired,
   barReadiness,
@@ -133,12 +140,10 @@ import {
 } from './doctrine-checks.js';
 
 import { signedMoveProblem } from './person-signing.js';
-import { personAuthority } from './relay-sender.js';
 import {
   bindLocalSession,
   HOOK_CHECKOUT_WAIT_MS,
   localSessionMatches,
-  localSessionSeats,
 } from './agent-session.js';
 import {
   decisionAnswer,
@@ -221,7 +226,7 @@ import {
   parseImplies,
   takeDecisionNotices,
 } from './implies.js';
-import { defaultViewPort } from './view-port.js';
+import { defaultViewPort } from './config.js';
 export { VERSION };
 import { productProblems } from './products.js';
 import {
@@ -349,7 +354,6 @@ import {
   itemPolicy,
   submissionPaths,
   frozenCheck,
-  checkAtCommit,
   dependencySnapshots,
   requireTrunkMerge,
   trunkMerge,
@@ -572,7 +576,7 @@ export async function reserveRow(ctx, row, written) {
 }
 
 /** Note the session behind a claim or submit (#921): its ledger must be writable before the move, and record after it. */
-async function withItemSession(info, operation, args, move) { const noted = operation === 'claim' || operation === 'submit'; if (noted) itemSessions.requireLedger(info); const result = await move(); if (noted) itemSessions.recordItemSession(info, args[0], operation); return result; }
+async function withItemSession(info, operation, args, move) { const noted = operation === 'claim' || operation === 'submit'; if (noted) itemSessions.requireLedger(info, personIdentity.agentSessionDigest()); const result = await move(); if (noted) itemSessions.recordItemSession(info, args[0], operation, personIdentity.agentSessionDigest()); return result; }
 
 /**
  * Whether the board's committed relay.outbox setting queues moves while the relay is down (#922, H21).
@@ -584,7 +588,7 @@ export function relayOutboxSetting(root) {
 
 export async function ordered(ctx, board, operation, args) {
   // With signed person moves on, a person-only move counts only as a passkey-confirmed request [E22].
-  const unsigned = signedMoveProblem(board, personAuthority({ operation, args }), ctx.io.personRequest, { strict: true });
+  const unsigned = signedMoveProblem(board, board.enginePorts.personAuthority({ operation, args }), ctx.io.personRequest, { strict: true });
   if (unsigned) throw unsigned;
   const initialBaseline = initialSpecApprovalBaseline(ctx, board, operation);
   // Only a reject or a reopen can open a builder's first-refusal window (#954), so an accept never reads the coordinator's policy.
@@ -664,7 +668,7 @@ export async function ordered(ctx, board, operation, args) {
 
 /** Order a claim on every route (claim, next, run) only after a check green on main is not held [V4]. */
 export async function claimOrdered(ctx, board, args) {
-  refuseClaimProvesNothing(ctx.info.root, board, args[0]);
+  refuseClaimProvesNothing(ctx.info.root, board, args[0], { mainPolicy });
   const adoptCorrection = store.pendingRefreeze(board, args[0]).length > 0;
   return await ordered(ctx, board, 'claim', [args[0], { ...args[1],
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
@@ -785,7 +789,7 @@ export function freezer(ctx, { captureVerifyPolicy = false, board } = {}) {
     if (board) refuseAgentApprovedRows(ctx.info.root, { board, config, item });
     const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item, doctrine);
     if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
-    const signed = board && barReadinessRequired(board, item) ? barReadiness(board, item).signed : null;
+    const signed = board && barReadinessRequired(board, item) ? barReadiness(board, item, {}, { itemCheckBaseline }).signed : null;
     const coverage = signed?.coverage ? barCoverageForPolicy(ctx.info.root, item, signed.coverage, { commit: policy.commit, config }) : null;
     const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), policy });
     return { text, digest: createHash('sha256').update(text).digest('hex') };
@@ -1300,9 +1304,9 @@ export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   if (ctx.submissionResult) ctx.submissionResult.value = submission;
   try {
     const { deliverActivity, activityDeliveryLines } = await import('./activity-delivery-cli.js');
-    const delivery = await deliverActivity(ctx, { afterSubmit: true, directShouts: false });
+    const delivery = await deliverActivity(ctx, { afterSubmit: true, directShouts: false }, { agentDisplayName, evidenceLine, ordered, whoAmI, withBoard });
     submission.activity = { ...delivery.activity, budget: delivery.budget };
-    for (const line of activityDeliveryLines(delivery, ctx.config)) ctx.io.say(line);
+    for (const line of activityDeliveryLines(delivery, ctx.config, { agentDisplayName, evidenceLine })) ctx.io.say(line);
   } catch (error) {
     submission.activity = { receipt: { recorded: false, code: error.code ?? 'ACTIVITY_DELIVERY_FAILED', message: error.message } };
     ctx.io.err(`submitted #${id}, but its activity delivery failed: ${error.message}; read pullboard inbox to retry delivery`);
@@ -1516,13 +1520,6 @@ export function primaryCheckoutRoot(info) {
   return found.length === 1 ? found[0] : null;
 }
 
-/** A real runtime session may route across its own local seats; marker-only shells stay isolated. */
-function nextSessionSeats(ctx, board) {
-  if (ctx.info.isMain || ctx.io.personChannel === 'view' || ctx.io.personRequest
-    || !personIdentity.AGENT_SESSION_IDS.some((name) => Boolean(process.env[name]))) return null;
-  const digest = personIdentity.agentSessionDigest();
-  return digest ? localSessionSeats(ctx.info, { agents: store.listAgents(board), digest }) : null;
-}
 
 /** Enrich the ordinary lane refusal with a clean destination owned by this session; never widen claim authority. */
 export async function wrongLaneGuidance(ctx, board, me, id, error) {
@@ -1551,7 +1548,7 @@ export async function nextOnce(ctx, values) {
   if (!looked.claim) return looked;
   return await withBoard(ctx, async (board) => {
     if (values.verify) checkMainVerifier(ctx, board, values);
-    if (values.verify) return nextReview(ctx, board, whoAmI(ctx, board), values, { ordered: (operation, args) => ordered(ctx, board, operation, operation === 'reopen' ? computedReturnArgs(board, args) : args), idArg, trunkMerge });
+    if (values.verify) return nextReview(ctx, board, whoAmI(ctx, board), values, { ordered: (operation, args) => ordered(ctx, board, operation, operation === 'reopen' ? computedReturnArgs(board, args) : args), idArg, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem, mainRedReviewItems });
     const picked = nextPick(ctx, board, values);
     if (!picked.claim) return picked;
     const { me, item, held, shared, reasons, reviewSkipped, seats } = picked;
@@ -1588,7 +1585,7 @@ function nextPick(ctx, board, values) {
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
   const findOffer = () => store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
     familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
-    omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board), priority: mainRedReviewItems(ctx.info.root, board) });
+    omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   const offer = held ? null : relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
   if (offer && !values.build && (offer.urgent || focusReviewFirst(board, offer.item, item))) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item) };
   if (!item) return { reasons, laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };

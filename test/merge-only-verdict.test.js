@@ -1,3 +1,6 @@
+import { checkAtCommit } from '../src/runner-private-check.js';
+import { fileURLToPath } from 'node:url';
+const candidateWorkerFile = fileURLToPath(new URL('../bin/landing-candidate.js', import.meta.url));
 /** Real public submission, Git conflict resolution and immutable verdict coverage [V1,V4,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -14,7 +17,7 @@ import { runFixtureGit, runFixtureChild } from './fixture-child.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { prepareEngineMove, applyEngineMove, applyRelayMove } from '../src/engine.js';
 import { MERGE_ONLY_VERDICT_ENGINE } from '../src/merge-only-verdict-engine.js';
-import { operationIntent } from '../src/relay-sender.js';
+import { operationIntent } from '../packages/state/src/core/relay-sender-policy.js';
 import { capturePrProof } from '../src/pr-proof-snapshot.js';
 
 const e2e = createE2eHelpers();
@@ -239,7 +242,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
         root: box.web, branch: 'refs/heads/main', owner: 'private-adopter', logPath: join(box.repo, '.git', 'private-adoption.log'),
         items: [{ id, commit: extraHead, merge: extraHead }] };
       store.recordLandingBatch(adoption, { agentId: 'coordinator', batch });
-      await assert.rejects(runLandingBatch({ root: box.repo, board: adoption, adopt: true,
+      await assert.rejects(runLandingBatch({ checkAtCommit, candidateWorkerFile, root: box.repo, board: adoption, adopt: true,
         config: { landing: { publish: 'separate' } }, owner: 'private-adopter', say: () => {},
         write: async (operation, args) => store[operation](adoption, ...args), checkLease: async () => {} }),
       error => error.code === 'STALE_VERDICT' && /recorded merge-only acceptance/u.test(error.message),

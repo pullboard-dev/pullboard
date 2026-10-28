@@ -12,6 +12,9 @@ import { browserBoundFiles } from '../src/browser-admission.js';
 import { testsNeedGui } from '../src/gui-admission.js';
 import { importsIn } from '../src/module-imports.js';
 import { lex } from '../src/js-lex.js';
+import { copyPackageFiles } from '../src/package-files.js';
+import { packageFiles } from '../src/package-files.js';
+import { copyPackageSubset } from './package-copy-fixture.js';
 import * as affectedTests from '../src/affected-tests.js';
 import { installSubmitTestTreeCases } from './submit-test-tree-cases.js';
 
@@ -189,13 +192,14 @@ test('a test that spawns the CLI is selected by what the CLI imports [C7]', (t) 
 
 test('the browser launch guard keeps affected selection exact [C7,O5]', (t) => {
   const box = graph(t);
-  const guard = readFileSync(new URL('../src/browser-slot-guard.js', import.meta.url), 'utf8');
-  box.put('src/browser-slot-guard.js', guard);
-  box.put('src/refused.js', readFileSync(new URL('../src/refused.js', import.meta.url), 'utf8'));
+  copyPackageSubset(fileURLToPath(new URL('../', import.meta.url)), box.root,
+    [{ path: 'src/browser-slot-guard.js', as: 'src/browser-slot-guard.js' },
+      { path: 'packages/kernel/src/core/refused.js', as: 'src/refused.js' }]);
+  const guard = readFileSync(join(box.root, 'src/browser-slot-guard.js'), 'utf8');
   box.put('test/browser-guard.test.js', "import '../src/browser-slot-guard.js';\n");
   box.put('test/guard-consumer.test.js', "import './browser-guard.test.js';\n");
   const base = box.commit();
-  box.put('src/browser-slot-guard.js', guard + '\n// A committed change to the actual guard.\n');
+  writeFileSync(join(box.root, 'src/browser-slot-guard.js'), guard + '\n// A committed change to the actual guard.\n');
   const commit = box.commit();
   const selected = selectAffectedTests(box.root, { base, commit });
   assert.equal(selected.full, false, selected.reason);
@@ -374,15 +378,14 @@ test('a src change selects only its importers despite run-tests.js [V4,C7]', (t)
   const box = graph(t);
   const sourceRoot = fileURLToPath(new URL('../', import.meta.url));
   // Real source modules declare committed data inputs too; copy their complete tracked source/input tree.
-  const sourceInputs = runFixtureGit(['ls-files', '-z', '--', 'src', 'bin'], { cwd: sourceRoot })
-    .split('\0').filter(Boolean);
-  for (const path of sourceInputs) box.put(path, readFileSync(new URL('../' + path, import.meta.url), 'utf8'));
+  const sourceInputs = packageFiles(sourceRoot).filter(path => /^(?:src|bin|packages)\//u.test(path) && !/(?:^|\/)tests?\//u.test(path));
+  copyPackageFiles(sourceRoot, box.root, { files: sourceInputs });
   box.put('test/api.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
   box.put('test/person.test.js', "import '../src/person.js';\n");
   box.put('test/runner-reader.test.js', "import '../bin/run-tests.js';\n");
   box.put('test/unrelated.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
   const base = box.commit();
-  box.put('src/person.js', readFileSync(new URL('../src/person.js', import.meta.url), 'utf8') + '\n// ordinary source change\n');
+  writeFileSync(join(box.root, 'src/person.js'), readFileSync(join(box.root, 'src/person.js'), 'utf8') + '\n// ordinary source change\n');
   const commit = box.commit();
   const selected = selectAffectedTests(box.root, { base, commit, changed: ['src/person.js'] });
   assert.equal(selected.full, false, selected.reason);

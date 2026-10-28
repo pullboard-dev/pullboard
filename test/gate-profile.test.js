@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { listResources } from '../src/resources.js';
-import { checkAtCommit } from '../src/trusted-policy.js';
+import { checkAtCommit } from '../src/runner-private-check.js';
 import * as store from '../src/board.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -376,7 +376,6 @@ function waitProfileCleanup(ms) {
 function copyProfileRunner(box) {
   const source = resolve(import.meta.dirname, '..');
   mkdirSync(join(box.repo, 'bin'), { recursive: true });
-  writeFileSync(join(box.repo, 'bin/run-tests.js'), readFileSync(join(source, 'bin/run-tests.js')));
   const fixtureSource = join(box.repo, 'src');
   if (existsSync(fixtureSource)) {
     assert.deepEqual(readdirSync(fixtureSource), [], 'the profile fixture has no local source files to overwrite');

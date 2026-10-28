@@ -1,4 +1,6 @@
 /** Publish proven GitHub proposal branches without pushing or merging the protected trunk [B3,R3]. */
+import { runnerExecutionServices } from './runners.js';
+import { landingExecutionServices } from './landing-shards.js';
 import {
   createHash,
   randomUUID,
@@ -130,7 +132,7 @@ async function proveProposal({ root, config, remote, candidate, branch, onWait, 
   mkdirSync(join(directory, '..'), { recursive: true });
   git(root, ['worktree', 'add', '--detach', directory, candidate]);
   try {
-    const gate = await runGate(directory, config, { trustStamp: false, landing: true, agent: 'coordinator', onWait, onFailure });
+    const gate = await runGate(directory, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, agent: 'coordinator', onWait, onFailure });
     if (!gate.isGreen) return gate;
     const pushed = tryGit(directory, ['push', remote, `HEAD:refs/heads/${branch}`]);
     if (pushed.status !== 0) throw new Refused('LAND_PUSH', 'the proven proposal branch could not be pushed; inspect its remote history before publishing again');

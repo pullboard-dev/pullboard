@@ -1,7 +1,3 @@
-import { itemReviewPolicy } from './review-independence.js';
-import { reviewPolicyChange } from './review-independence.js';
-import { saveItemReviewPolicy } from './review-independence.js';
-import { twoTierReviews } from './review-independence.js';
 /** Durable source tombstones and idempotent destination application for cross-board re-homing [E15,H16]. */
 import { createHash } from 'node:crypto';
 import { IN_STATE } from './machine.js';
@@ -182,7 +178,7 @@ export function rehomeDestinationItemId(board, sourceBoardId, sourceItemId, boar
 }
 
 /** Write one source-ordered tombstone while retaining enough source content for a safe retry. */
-export function rehomeItem(board, id, options, { atomic, boardId, current, itemById, logEvent }) {
+export function rehomeItem(board, id, options, { atomic, boardId, current, itemById, logEvent, itemReviewPolicy, twoTierReviews }) {
   if (!options || typeof options !== 'object' || !/^[A-Za-z0-9_-]{1,80}$/u.test(options.sourceMoveId ?? '')
       || !/^[0-9a-f]{32}$/u.test(options.destinationBoardId ?? '')
       || !Number.isSafeInteger(options.destinationItemId) || options.destinationItemId < 1) {
@@ -232,7 +228,7 @@ export function rehomeItem(board, id, options, { atomic, boardId, current, itemB
 }
 
 /** Apply one source record once; replay returns the original destination ID without another item. */
-export function applyRehomeItem(board, request, { atomic, boardId, logEvent, moveItem, validateItemAddition, now }) {
+export function applyRehomeItem(board, request, { atomic, boardId, logEvent, moveItem, validateItemAddition, now, reviewPolicyChange, saveItemReviewPolicy }) {
   const record = request?.record;
   const agentId = request?.destinationAgentId ?? request?.agentId;
   if (!record || record.version !== 1 || !/^[A-Za-z0-9_-]{1,80}$/u.test(record.moveId ?? '')

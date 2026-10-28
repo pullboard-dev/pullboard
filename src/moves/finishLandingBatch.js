@@ -8,7 +8,7 @@ import { LANDING_ENVIRONMENT_ENGINE } from '../landing-environment-engine.js';
 import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { landingTestDefects } from '../landing-test-defect-history.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
-import { SUBMISSION_PROOF_ENGINE } from '../submit-invariants.js';
+import { SUBMISSION_PROOF_ENGINE } from '../move-engine-constants.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function minimumEngine(args, board, at) {

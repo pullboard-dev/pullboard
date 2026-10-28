@@ -28,6 +28,7 @@ import {
   gitLaunches,
   gitLaunchGrowth,
   gitLaunchReport,
+  loweredGitLaunchBaseline,
 } from '../src/git-launch-ratchet.js';
 import {
   cleanGitEnvironment,
@@ -306,4 +307,10 @@ test('literal Git launch ratchet counts code and aliases, rejects growth, and re
   assert.deepEqual(gitLaunchGrowth(added, baseline.files), [{ file: 'src/new-stray.js', actual: 1, allowed: 0 }]);
   const first = Object.keys(report.files)[0];
   assert.equal(gitLaunchGrowth({ files: { [first]: [...report.files[first], { api: 'spawn', line: 1 }] } }, baseline.files)[0].actual, baseline.files[first] + 1);
+  assert.deepEqual(loweredGitLaunchBaseline(report, baseline), { growth: [], baseline }, 'the committed allowance is what the writer records');
+  assert.deepEqual(loweredGitLaunchBaseline(added, baseline), { growth: [{ file: 'src/new-stray.js', actual: 1, allowed: 0 }] });
+  const { [first]: _migrated, ...rest } = report.files;
+  const lowered = loweredGitLaunchBaseline({ ...report, files: rest }, baseline).baseline;
+  assert.equal(lowered.files[first], undefined);
+  assert.equal(lowered.originalTotal, 89);
 });

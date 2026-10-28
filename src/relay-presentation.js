@@ -35,7 +35,7 @@ function readRelayPresentation(root, providedBoard, observedAt) {
     const config = loadConfig(root);
     const projects = () => [{ root: info.root, name: config.name, project: config.project }];
     // Staged caller boards retain fresh reads; only ordinary owned reads reuse committed verdict state.
-    const freshnessReader = providedBoard ? null : cachedVerdictStates(root, board, info);
+    const freshnessReader = providedBoard ? null : cachedVerdictStates(root, board, info, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, boardId: store.boardId });
     /** Preserve a single authorized board, including existing unavailable external milestone entries. */
     const project = (clock) => {
       const built = buildLocalBoardState(root, boardId, board, isMain, { projects, scopeCommonDir: info.commonDir, observedAt: clock, freshnessReader });
@@ -47,7 +47,10 @@ function readRelayPresentation(root, providedBoard, observedAt) {
     // Exact source bytes also retain expired/hidden business inputs that a fixed-clock view may omit.
     // The comparison projects every person-visible block. Private agent recovery lines are not sealed inputs.
     const files = stateFileInputs(root, config).filter(file => file.name !== 'blocks:blocks.jsonl').map(fileRevision);
-    const inputs = { native: exportBoard(board), files,
+    // Heartbeats are sealed observations even when the fixed-clock view hides their seats.
+    // Keep their exact values, excluding clock-derived presence and activity-window membership.
+    const heartbeats = store.listAgents(board).map(({ agent_id, heartbeatAt }) => ({ agent_id, heartbeatAt }));
+    const inputs = { native: exportBoard(board), files, heartbeats,
       head: resolveCommit(root, 'HEAD'), trunk: trunkRevisionReader(info)(), config };
     const changeFingerprint = createHash('sha256').update(JSON.stringify({ inputs, comparison })).digest('hex');
     return { version: 1, state, config, shouts: store.allShouts(board), changeFingerprint };

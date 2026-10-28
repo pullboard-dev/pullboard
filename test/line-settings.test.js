@@ -13,6 +13,11 @@ import * as store from '../src/board.js';
 import { configFromSource } from '../src/config.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { settingsInventory } from '../src/settings-inventory.js';
+import { performanceCores } from '../src/gate.js';
+import {
+  defaultViewPort,
+  DEFAULT_VIEW_PORT,
+} from '../src/config.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { LAND_COLLISION_ENGINE } from '../src/landing-collision-engine.js';
 import { BAR_CHECK_ENGINE } from '../src/bar-check-engine.js';
@@ -71,7 +76,7 @@ test('the settings inventory exposes board line values and defaults without audi
   let rows;
   try {
     for (const key of Object.keys(previous)) process.env[key] = box.env[key];
-    rows = settingsInventory([{ root: box.repo }]).settings.filter(row => row.scope === 'board' && row.key.startsWith('line.'));
+    rows = settingsInventory([{ root: box.repo }], null, { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }).settings.filter(row => row.scope === 'board' && row.key.startsWith('line.'));
   } finally {
     for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
   }
@@ -105,7 +110,7 @@ test('the settings inventory accepts numeric submitDeferAbove and isolates one i
   const inventory = () => {
     try {
       for (const key of Object.keys(previous)) process.env[key] = box.env[key];
-      return settingsInventory([{ root: box.repo }]).settings;
+      return settingsInventory([{ root: box.repo }], null, { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }).settings;
     } finally {
       for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
     }

@@ -4,7 +4,7 @@ import { submitFixture as submitBoardStateFixture } from './board-submit-fixture
 /** Two independent Git/SQLite replicas derive verdict freshness without rewriting proof [E8]. */
 import { memberHandoverCase } from './handover-membership-case.js';
 import { signedBoard, consent, linkRelay } from './board-link-fixture.js';
-import { submitFixture } from './board-submit-fixture.js';
+import { submitFixture, staleVerdictCheckFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
@@ -266,8 +266,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   const box = helpers.project();
   assert.equal(helpers.commitFile(box, box.repo, 'web/feature.js', 'feature = 0\nmain = 0\n', 'feat(web): baseline [G1]').status, 0);
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const checkedHeads = join(box.dir, 'checked-heads');
-  const check = `grep -q '^feature = 1$' web/feature.js && git rev-parse HEAD >> '${checkedHeads}'`;
+  const { check, readCheckedHeads } = staleVerdictCheckFixture(box.dir);
   run(box, box.repo, 'add', 'web', 'Feature', '--specs', 'G1', '--check', check, '--wait');
   run(box, box.web, 'claim', '1');
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'feature = 1\nmain = 0\n', 'feat(web): feature [G1]').status, 0);
@@ -415,10 +414,10 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   box.git(box.repo, 'revert', '-m', '1', '--no-edit', movingCommit);
   syncTrunk();
   assert.ok(items().every(item => item.item_verdict_state?.commit === movingCommit), 'a revert cannot turn an old review into a new review');
-  const priorChecks = readFileSync(checkedHeads, 'utf8');
+  const priorChecks = readCheckedHeads();
   const oldHead = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Trying the old candidate is insufficient.');
   assert.equal(oldHead.code, 1);
-  assert.equal(readFileSync(checkedHeads, 'utf8'), priorChecks, 'old candidate is refused before running its check');
+  assert.equal(readCheckedHeads(), priorChecks, 'old candidate is refused before running its check');
   box.git(reviewer, 'merge', '-q', '--no-edit', 'main');
   const composed = box.git(reviewer, 'rev-parse', 'HEAD');
   assert.notEqual(composed, submitted);
@@ -433,7 +432,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
     assert.equal(result.code, 0, holder.failure ?? holder.stderrText);
   }
   assert.ok(landingGuidance.includes('git merge --no-ff ' + composed), 'the new-main manual landing hint names the checked composition, not the original submission');
-  assert.equal(readFileSync(checkedHeads, 'utf8').trim().split('\n').at(-1), composed, 'the frozen check ran on the reviewed composition');
+  assert.equal(readCheckedHeads().trim().split('\n').at(-1), composed, 'the frozen check ran on the reviewed composition');
   const reviewed = withBoard(box.repo, board => store.verdictsFor(board, 1));
   assert.deepEqual(reviewed.slice(0, original.length), original);
   assert.equal(reviewed.length, original.length + 1, 're-review appends independent proof');
@@ -677,13 +676,13 @@ async function relayCall(box, token, method, path, body) {
 
 /** Seal one phone request the way the paired view does and send it with this person's session. */
 async function phoneRequest(box, session, move) {
-  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const link = JSON.parse(box.readLink());
   const head = await relayCall(box, session, 'GET', '/api/v2/boards/' + link.board + '/state');
   assert.equal(head.status, 200, `this person reads the board: ${JSON.stringify(head.document)}`);
   const events = await relayCall(box, session, 'GET', `/api/v1/boards/${link.board}/events?after=${head.document.state.sequence}`);
   const sequence = Math.max(head.document.state.sequence, ...(events.document.events ?? []).map((event) => event.event_id)) + 1;
   const document = { version: 1, type: 'person-request', id: randomUUID(), move };
-  const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
+  const key = decodeBoardKey(box.readKey().trim());
   const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(document)), { boardId: link.board, kind: 'request', sequence })).toString('base64url');
   const sent = await relayCall(box, session, 'POST', `/api/v1/boards/${link.board}/requests`, { sequence, sealed });
   assert.equal(sent.status, 200, `the relay stores the sealed request: ${JSON.stringify(sent.document)}`);
@@ -713,7 +712,7 @@ async function teamBoard(t, approvers) {
 
 test('the board knows its people: events name them, approvers decide [E3,E4,E20]', { timeout: 180_000 }, async (t) => { // budget: hang ceiling for two people's real CLI runs and relay calls; not a speed target.
   const box = await teamBoard(t, ['alice']);
-  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const link = JSON.parse(box.readLink());
   const alice = await personSession(box, 'alice');
   const bob = await personSession(box, 'bob');
   assert.deepEqual((await relayCall(box, alice, 'GET', `/api/v1/boards/${link.board}/approvers`)).document.approvers, ['alice'], 'relay on gave the relay the approvers pullboard.json names');
@@ -806,7 +805,7 @@ test('the board knows its people: a phone move names the phone’s person, refus
 
 test('a board that names no approvers takes person moves as before [E4]', { timeout: 120_000 }, async (t) => { // budget: hang ceiling for real CLI runs and relay calls; not a speed target.
   const box = await teamBoard(t, null);
-  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const link = JSON.parse(box.readLink());
   const bob = await personSession(box, 'bob');
   assert.equal((await relayCall(box, bob, 'GET', `/api/v1/boards/${link.board}/approvers`)).document.approvers, null, 'the relay holds no approvers for this board');
   const asked = await box.cli('shout', 'person', 'Plain text or JSON?', '--decision');
@@ -873,7 +872,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
   box.env.PULLBOARD_SSH_KEY = aliceKey;
   const alicePublic = readFileSync(aliceKey + '.pub', 'utf8').trim().split(' ').slice(0, 2).join(' ');
   box.providerState.sshKeys = { alice: [alicePublic] };
-  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const link = JSON.parse(box.readLink());
   const config = join(box.root, 'pullboard.json');
   assert.equal(JSON.parse(readFileSync(config, 'utf8')).relay?.board, link.board, 'relay on writes the board’s id into pullboard.json');
   assert.equal((await box.cli('add', box.lane, 'Health endpoint')).code, 0);
@@ -944,7 +943,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
 
 test('a relink turns the old link off with its receipt, so a repository keeps one active board [E12]', { timeout: 120_000 }, async (t) => { // budget: hang ceiling for real relay calls; not a speed target.
   const box = await teamBoard(t, null);
-  const old = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;
+  const old = JSON.parse(box.readLink()).board;
   const alice = await personSession(box, 'alice');
   const next = randomBytes(16).toString('hex');
   await assert.rejects(box.auth.linkBoard(alice, next, 'fixture/repository'), { code: 'BOARD_REPO_LINKED' }, 'a second board without replaces is refused');
@@ -1012,7 +1011,7 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
   assert.equal(joined.code, 0, `the person gives CI its own seat: ${JSON.stringify(joined.document?.error ?? null)}`);
   const seat = (await box.cliAt(seatRoot, 'whoami')).document;
   assert.equal((await box.cliAt(seatRoot, 'shout', 'all', 'the CI seat is ready')).code, 0, 'the seat moves once, which mints its token');
-  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const link = JSON.parse(box.readLink());
   const token = link.agentTokens?.[seat.id]?.token;
   assert.match(token ?? '', /^pa_/u, 'the seat holds its own agent token');
   const ciRoot = join(box.root, '..', 'ci-clone');
@@ -1020,7 +1019,7 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
   sessionGit(['remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git'], { cwd: ciRoot, env: box.env });
   const ciHome = join(box.root, '..', 'ci-home');
   mkdirSync(ciHome, { mode: 0o700 });
-  const key = readFileSync(box.keyFile, 'utf8').trim();
+  const key = box.readKey().trim();
   // The CI machine also has a keychain holding a legacy copy of the key; the session must not move it into a file.
   const ciKeychainBin = join(ciHome, 'keychain-bin');
   mkdirSync(ciKeychainBin, { mode: 0o700 });
@@ -1097,7 +1096,7 @@ test('one coordinator per board across machines [E19]', { timeout: relayWorkBudg
   const second = await other.cli('add', box.lane, 'Planned on the second machine');
   assert.notEqual(second.code, 0, 'a second coordinator is refused');
   assert.equal(refusal(second).code, 'COORDINATOR_HELD');
-  const firstName = `computer ${JSON.parse(readFileSync(box.linkFile, 'utf8')).machine.slice(-8)}`;
+  const firstName = `computer ${JSON.parse(box.readLink()).machine.slice(-8)}`;
   const secondName = `computer ${other.machine.slice(-8)}`;
   assert.notEqual(firstName, secondName, 'the two linked computers have different names');
   assert.ok(refusal(second).message.includes(firstName), `the refusal names the holding computer: ${refusal(second).message}`);
@@ -1172,11 +1171,11 @@ test('a landing lease renewal or waiter poll writes no board event [Q1,Q2,Q3]', 
 
 /** Send one sealed person request with its passkey presence, returning the relay's answer. */
 async function passkeyRequest(box, session, document, presence) {
-  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const link = JSON.parse(box.readLink());
   const head = await relayCall(box, session, 'GET', '/api/v2/boards/' + link.board + '/state');
   const events = await relayCall(box, session, 'GET', `/api/v1/boards/${link.board}/events?after=${head.document.state.sequence}`);
   const sequence = Math.max(head.document.state.sequence, ...(events.document.events ?? []).map((event) => event.event_id)) + 1;
-  const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
+  const key = decodeBoardKey(box.readKey().trim());
   const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(document)), { boardId: link.board, kind: 'request', sequence })).toString('base64url');
   return relayCall(box, session, 'POST', `/api/v1/boards/${link.board}/requests`, { sequence, sealed, ...(presence ? { presence } : {}) });
 }

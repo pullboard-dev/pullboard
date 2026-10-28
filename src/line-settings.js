@@ -15,7 +15,6 @@ import { LIVE_ROUTE_ENGINE } from './live-route-engine.js';
 
 const PREFIX = 'line_setting:';
 
-export { lineSettings } from './line-settings-read.js';
 
 /** Keep the triggering window as finite numeric observations; null retains an explicitly unknown measurement. */
 function windowNumbers(value) {

@@ -10,7 +10,8 @@ import { test } from 'node:test';
 import { ROLES, installSkills, promptFor, withoutFrontMatter } from '../src/skills.js';
 import { lintSpec, parseSpec } from '../src/spec.js';
 import { standardDoctrine } from '../src/doctrine.js';
-import { agentsBlock, practiceTemplate } from '../src/templates.js';
+import { practiceTemplate } from '../src/templates.js';
+import { agentsBlock } from '../src/doctrine.js';
 
 test('the standard practice lints clean, and every approved must-row names its enforcer [S6]', () => {
   const practice = parseSpec(practiceTemplate());

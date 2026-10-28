@@ -6,7 +6,7 @@ import {
 } from 'node:fs';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
-import { ENGINE_OPERATIONS } from '../src/engine.js';
+import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../src/move-registry.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import {
   decodeBoardKey,
@@ -34,7 +34,8 @@ test('every current operation selects its native actor credential without a seco
       key: 'credential-companion', title: 'credential actor fixture' }];
     if (operation === 'shout') args = [{ from: actor, to: 'all', text: 'credential actor fixture', lanes: [box.lane] }];
     if (operation === 'release') args = [999999, actor];
-    if (['claim', 'refreeze'].includes(operation)) args = [box.before.tables.item[0].item_id, options];
+    // State-bound companion sealing reads the real item before choosing its replay protocol.
+    if (['claim', 'refreeze', 'attachItemPatch', 'removeItemPatch'].includes(operation)) args = [box.before.tables.item[0].item_id, options];
     if (operation === 'reserveNextReview') args = [options];
     if (operation === 'reserveRehomeItemId') args = ['a'.repeat(32), 'credential-rehome-reservation', { agentId: actor }];
     if (operation === 'setLineSetting') args = [{ agentId: actor, key: 'reviewsFirst', value: true, reason: 'credential fixture', window: { windowMinutes: 60, activeReviewers: 1 } }];

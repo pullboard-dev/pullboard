@@ -1,4 +1,5 @@
 /** Real Git ranges and native gate receipts for receipt-based pre-push decisions [C7]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { configFromSource } from '../src/config.js';
@@ -73,8 +74,9 @@ test('push ranges check first parents, direct commits, new refs and all ref reco
 function nativeReceipt(box, { landing = false, red = false, unparsed = false } = {}) {
   const module = new URL('../src/gate.js', import.meta.url).href;
   const source = `import {readFileSync} from 'node:fs'; import {runGate} from ${JSON.stringify(module)};
+${executionServicesSource(module)}
 const config=JSON.parse(readFileSync('pullboard.json','utf8'));
-const result=await runGate(process.cwd(),config,{trustStamp:false,landing:${landing},agent:'coordinator'});
+const result=await runGate(process.cwd(),config,{ executionServices,trustStamp:false,landing:${landing},agent:'coordinator'});
 console.log(JSON.stringify({receiptId:result.receiptId,green:result.isGreen,output:result.output}));`;
   const ran = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
     cwd: box.repo, env: { ...box.env, PULLBOARD_FIXTURE_AUDIT_RED: unparsed ? '2' : red ? '1' : '0' }, encoding: 'utf8',
@@ -127,7 +129,12 @@ test('push evidence refuses missing landings and unfiled newest audit failures w
 function nativeSmoke(box) {
   const module = new URL('../src/push-receipt-smoke.js', import.meta.url).href;
   const source = `import {runPushReceiptSmoke} from ${JSON.stringify(module)};
-try { const run=await runPushReceiptSmoke(process.cwd(),{agent:'coordinator'});
+import {checkNeedsBrowser} from ${JSON.stringify(new URL('../src/browser-admission.js', import.meta.url).href)};
+import {checkNeedsGui} from ${JSON.stringify(new URL('../src/gui-admission.js', import.meta.url).href)};
+import {runProfiledShellAsync,withGateSlot} from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};
+${executionServicesSource(new URL('../src/gate.js', import.meta.url).href)}
+try { const run=await runPushReceiptSmoke(process.cwd(),{executionServices,agent:'coordinator'},
+{checkNeedsBrowser,checkNeedsGui,runProfiledShellAsync,withGateSlot});
 console.log(JSON.stringify({green:run.isGreen,policy:run.policyCommit,output:run.output})); }
 catch(error) { console.log(JSON.stringify({code:error.code,message:error.message})); process.exitCode=1; }`;
   return runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
