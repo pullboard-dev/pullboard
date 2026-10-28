@@ -16,6 +16,7 @@ import { runCliInProcess } from './cli-in-process-fixture.js';
 import { prepareEngineMove } from '../src/engine.js';
 import { applyEngineMove } from '../src/engine.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
+import { familyIndex } from '../src/review-policy.js';
 
 const LEASE = 3_600_000;
 const freeze = () => ({ text: '{}', digest: 'synthetic-review-bar' });
@@ -372,4 +373,24 @@ test('routing activation fences vendor-rule downgrades while genuine historical 
     assert.equal(f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value, receipt);
     assert.deepEqual(exportBoard(f.board), replayBefore, 'genuine old receipt keeps its exact outcome and bytes');
   }
+});
+
+test('an explicit alias makes one vendor one family, while a true cross-family reviewer stays eligible [#1762]', t => {
+  const f = fixture(t), id = f.add();
+  store.register(f.board, { id: 'core-6', lane: 'core', path: '/fixture/core-6', family: 'OpenAI', parentDigest: 'f'.repeat(64), model: 'Synthetic fixture model' });
+  const item = f.submit(id);
+  assert.ok(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-6'), 'without an alias, OpenAI and codex are distinct spellings');
+  f.board.familyAliases = familyIndex({ openai: ['codex'] });
+  const projected = reviewEligibility(f.board, item, { familyPolicy: 'require' });
+  assert.equal(projected.eligible.includes('core-6'), false, 'an aliased spelling of the builder family is the same vendor');
+  assert.ok(projected.ineligible.some(row => row.agent === 'core-6' && row.code === 'O2_FAMILY_MATCH'));
+  assert.ok(projected.eligible.includes('core-2'), 'a reviewer from a different vendor remains eligible');
+});
+
+test('a strict submit whose builder declared no vendor family is refused with the join fix [#1762]', t => {
+  const f = fixture(t), id = f.add({ sensitive: true });
+  store.register(f.board, { id: 'core-7', lane: 'core', path: '/fixture/core-7', parentDigest: 'g'.repeat(64), model: 'Synthetic fixture model' });
+  store.claim(f.board, id, { agentId: 'core-7', lane: 'core', leaseMs: LEASE, freeze });
+  assert.throws(() => store.submit(f.board, id, { agentId: 'core-7', commit: 'c'.repeat(40), tree: 'd'.repeat(40), files: [] }), error => error.code === 'UNDECLARED_BUILDER_FAMILY'
+    && /pullboard join <lane> --family <vendor>/u.test(error.message));
 });

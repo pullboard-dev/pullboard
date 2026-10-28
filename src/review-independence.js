@@ -74,21 +74,29 @@ export function strictReviewProblem(board, item, reviewer) {
   return touched ? new Refused('STRICT_REVIEW_TOUCHED', `Strict review refuses this session: it wrote ${touched.event_kind} event ${touched.event_id} on #${item.item_id}; ask a session that has not written to this item`) : null;
 }
 
+/** A strict item's builder must declare a vendor family, or no other vendor can review it; the fix is to join with one [#1762]. */
+export function strictBuilderFamilyProblem(board, item, builderId) {
+  if (!twoTierReviews(board) || itemReviewPolicy(board, item.item_id).tier !== 'strict') return null;
+  const declared = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(builderId)?.agent_family;
+  return familyName(declared, board.familyAliases) ? null
+    : new Refused('UNDECLARED_BUILDER_FAMILY', `#${item.item_id} is strict and ${builderId} declared no vendor family; rejoin with: pullboard join <lane> --family <vendor>, then resubmit`);
+}
+
 /** Preserve existing known-vendor policy; only the explicit board input adds unknown-family refusal. */
 export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off') {
   if (!twoTierReviews(board)) return null;
   const policy = itemReviewPolicy(board, item.item_id);
   const declared = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(reviewer)?.agent_family;
-  const family = familyName(declared);
-  const builder = familyName(item.item_builder_family);
+  const family = familyName(declared, board.familyAliases);
+  const builder = familyName(item.item_builder_family, board.familyAliases);
   if (lineSettings(board).requireReviewFamilies === true && (!family || !builder)) {
     return new Refused('O2_FAMILY_MATCH', 'this board requires declared vendor families for fresh reviews; declare --family when starting each seat, then resubmit if the submitted builder family was unknown');
   }
-  // off/prefer/require keeps its original declared-label comparison, including old optional unknowns.
-  if (familyPolicy === 'require' && (!declared || !item.item_builder_family || declared === item.item_builder_family)) {
+  // One canonical family per declared spelling [#1762]; the comparison stays case-insensitive.
+  if (familyPolicy === 'require' && (!family || !builder || family === builder)) {
     return new Refused('O2_FAMILY_MATCH', `#${item.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`);
   }
-  if (policy.reviewFamily && family !== familyName(policy.reviewFamily)) {
+  if (policy.reviewFamily && family !== familyName(policy.reviewFamily, board.familyAliases)) {
     return new Refused('O2_FAMILY_MATCH', `Strict review requires declared vendor family ${policy.reviewFamily}; ask a reviewer from that family`);
   }
   return null;

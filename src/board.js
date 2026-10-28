@@ -11,6 +11,8 @@ import { reviewFamilyProblem } from './review-independence.js';
 import { reviewPolicyChange } from './review-independence.js';
 import { saveItemReviewPolicy } from './review-independence.js';
 import { twoTierReviews } from './review-independence.js';
+import { strictBuilderFamilyProblem } from './review-independence.js';
+import { familyName } from './review-policy.js';
 import { setItem } from './item-fields.js';
 import {
   idleReason,
@@ -1010,6 +1012,12 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
   if (note !== undefined && (typeof note !== 'string' || !note.trim() || /[\r\n\u2028\u2029]/u.test(note))) {
     throw new Refused('USAGE', 'a submission note, when present, is one nonempty line');
   }
+  // A strict item's builder must have declared a vendor family before its submit can be reviewed [#1762].
+  const declaring = getItem(board, id);
+  if (declaring?.item_owner === agentId) {
+    const familyProblem = strictBuilderFamilyProblem(board, declaring, agentId);
+    if (familyProblem) throw familyProblem;
+  }
   atomic(board, () => {
     const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= MERGE_ONLY_VERDICT_ENGINE;
     const basis = modern && gateGreen === true ? mergeOnlyBasis(board, getItem(board, id), {}, { acceptedVerdict }) : null;
@@ -1785,8 +1793,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;
   if (verify) {
-    const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
-    const hasDifferentFamily = (entry) => Boolean(family && entry.item_builder_family && family !== entry.item_builder_family);
+    const family = familyName(board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family, board.familyAliases);
+    const hasDifferentFamily = (entry) => Boolean(family && entry.item_builder_family && family !== familyName(entry.item_builder_family, board.familyAliases));
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
     const standingRefusal = unrelated.map((entry) => itemAuthorProblem(board, entry, agentId) ?? reviewFamilyProblem(board, entry, agentId, familyPolicy)).find(Boolean);
     const requiredRefusals = unrelated.map(entry => reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId)).filter(Boolean);

@@ -31,6 +31,7 @@ import {
 } from './git.js';
 import { Refused } from './refused.js';
 import { mainPolicy } from './trusted-policy-read.js';
+import { familyIndex } from './review-policy.js';
 import { MAIN_MERGE_LABEL } from './trunk-conflict.js';
 
 /**
@@ -230,6 +231,9 @@ export function withOpenedBoard(ctx, work, board) {
   // Whether a proven flake stops blocking a landing is the coordinator's setting, read from accepted main on first use.
   let quarantine;
   board.quarantineEnabled = () => quarantine ??= mainPolicy(ctx.info.root).config.flakes?.quarantine === true;
+  // The explicit vendor alias list comes from accepted main, as quarantine does; it is read on first family comparison [#1762].
+  let aliases;
+  Object.defineProperty(board, 'familyAliases', { configurable: true, get: () => aliases ??= familyIndex(mainPolicy(ctx.info.root).config.families) });
   const firstEvent = board.emittedEvents?.length ?? 0;
   /** Forward committed events before releasing either synchronous or asynchronous work. */
   const finish = () => {
