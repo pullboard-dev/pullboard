@@ -37,8 +37,10 @@ test(${JSON.stringify(name)}, () => {
   runFixtureGit(['init', '-q'], { cwd: root });
   runFixtureGit(['-c', 'user.name=Private Fixture', '-c', 'user.email=fixture@example.invalid', 'add', '.'], { cwd: root });
   runFixtureGit(['-c', 'user.name=Private Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--signoff', '-qm', 'test: private known main fixture'], { cwd: root });
-  const run = runFixtureChild(process.execPath, ['--test', '--test-reporter=tap', 'test/failure.test.js'], { cwd: root, encoding: 'utf8' });
-  assert.equal(run.status, 1, 'the actual assertion fails rather than an import or setup problem');
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  const run = runFixtureChild(process.execPath, ['--test', '--test-reporter=tap', 'test/failure.test.js'], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(run.status, 1, 'the actual assertion fails rather than an import or setup problem\n' + run.stdout + run.stderr);
   const failures = failureSignatures({ isGreen: false, stages: [{ status: run.status, output: run.stdout }] }, root);
   assert.equal(failures?.length, 1, run.stdout + run.stderr);
   assert.equal(failures[0].name, name);
