@@ -25,9 +25,10 @@ export function itemPatches(board, id) { return structuredClone(itemPatchRecords
 /** No-history legacy items have no new digest; a removed set still has an explicit digest. */
 export function itemPatchDigest(board, id, source = null) {
   const history = itemPatchRecords(board, id);
+  if (!history.length) return null;
   const item = board.db.prepare('SELECT item_status,item_commit,item_claim_head FROM item WHERE item_id=?').get(id);
   const base = source ?? (item?.item_status === 'claimed' ? history.find(record => record.active)?.commit ?? item.item_commit ?? item.item_claim_head : item?.item_commit);
-  return history.length ? itemPatchSetDigest(base, history.filter(record => record.active)) : null;
+  return itemPatchSetDigest(base, history.filter(record => record.active));
 }
 /** Removed patches retain all recorded author identities for independent-review checks. */
 export function itemPatchAuthors(board, id) {
