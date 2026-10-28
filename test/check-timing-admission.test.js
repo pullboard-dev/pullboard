@@ -105,3 +105,26 @@ test('timing is coordinator-only boolean bar data, corrected atomically and abse
   assert.equal(Object.hasOwn(JSON.parse(freeze(store.getItem(board, historic)).text), 'checkTiming'), false);
   assert.throws(() => store.editItem(board, historic, { agentId: 'coordinator', checkTiming: true }), { code: 'ENGINE_VERSION' });
 });
+
+import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
+import { minimumMoveEngine } from '../src/move-registry.js';
+
+test('older ordered edits cannot strip timing from a modern bar while historical receipts replay unchanged [C7,V4,H16]', t => {
+  const board = fixtureBoard(t);
+  store.ensureCoordinator(board, '/fixture/main');
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'ordered timing bar', check: 'true' });
+  const historical = { ...prepareEngineMove(board, 'editItem', [id, { agentId: 'coordinator', criterion: 'old criterion' }], { id: 'historical-unflagged-timing-edit' }), engine: CHECK_TIMING_ENGINE - 1 };
+  const first = applyEngineMove(board, historical, { sequence: 1, at: '2026-10-28T00:01:00.000Z' });
+  assert.equal(first.error, undefined, 'the real older unflagged edit records normally');
+  const receipt = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${historical.id}`).meta_value;
+  store.editItem(board, id, { agentId: 'coordinator', checkTiming: true });
+  const next = { ...prepareEngineMove(board, 'editItem', [id, { agentId: 'coordinator', criterion: 'new old-client criterion' }], { id: 'fresh-old-client-timing-edit' }), engine: CHECK_TIMING_ENGINE - 1 };
+  const before = exportBoard(board);
+  assert.throws(() => applyEngineMove(board, next, { sequence: 2, at: '2026-10-28T00:02:00.000Z' }), { code: 'RELAY_MOVE' });
+  assert.deepEqual(exportBoard(board), before, 'refused old client changes neither cursor, state nor events');
+  assert.equal(minimumMoveEngine('rehomeItem', [id, { agentId: 'coordinator' }], board), CHECK_TIMING_ENGINE);
+  assert.equal(minimumMoveEngine('applyRehomeItem', [{ item: { item_frozen: JSON.stringify({ checkTiming: true }) } }, {}], board), CHECK_TIMING_ENGINE, 'preserved source frozen flag alone fences the destination');
+  assert.deepEqual(applyEngineMove(board, historical, { sequence: 1, at: '2026-10-28T00:01:00.000Z' }), first);
+  assert.equal(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${historical.id}`).meta_value, receipt);
+  assert.deepEqual(exportBoard(board), before, 'an existing historical receipt remains byte-identical after activation');
+});
