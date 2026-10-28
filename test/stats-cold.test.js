@@ -1,4 +1,6 @@
 /** Counter availability selects the real proof-statistics path without changing historical results [R1,R2,C7]. */
+import { events as readStatsEvents } from '../src/board.js';
+import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -10,6 +12,10 @@ import { addItem, closeBoard, openBoard, openBoardForRead, register } from '../s
 import { clearProofCounters, currentProofCounters, proofCounter } from '../src/proof-counters.js';
 import { proofStats } from '../src/stats.js';
 import { proofStats as legacyProofStats } from './fixtures/proof-stats-legacy.js';
+
+/** Native read operations explicitly supplied to the statistics under test. */
+const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
+
 
 /** Record actual prepared statements while preserving native SQLite receiver bindings. */
 function recordingBoard(board, statements) {
@@ -60,7 +66,7 @@ for (const state of ['current', 'stale', 'absent']) {
       const notices = [];
       const changes = reader.db.prepare('SELECT total_changes() AS n').get().n;
       expected = legacyProofStats(reader, options);
-      assert.deepEqual(proofStats(recordingBoard(reader, statements), { ...options, onFallback: () => notices.push('legacy') }), expected);
+      assert.deepEqual(proofStats(recordingBoard(reader, statements), { ...options, onFallback: () => notices.push('legacy') }, statsReadPorts), expected);
       assert.equal(notices.length, state === 'current' ? 0 : 1, 'only an actual legacy read announces fallback');
       assert.equal(statements.some(sql => /^SELECT \* FROM event ORDER BY event_id$/u.test(sql)), state !== 'current');
       assert.equal(reader.db.prepare('SELECT total_changes() AS n').get().n, changes, 'readonly statistics never warm the counters');
@@ -74,7 +80,7 @@ for (const state of ['current', 'stale', 'absent']) {
       assert.ok(currentProofCounters(warmed), 'the next writable open automatically builds or catches up counters');
       const statements = [];
       let notices = 0;
-      assert.deepEqual(proofStats(recordingBoard(warmed, statements), { ...options, onFallback: () => { notices += 1; } }), expected);
+      assert.deepEqual(proofStats(recordingBoard(warmed, statements), { ...options, onFallback: () => { notices += 1; } }, statsReadPorts), expected);
       assert.equal(notices, 0);
       assert.equal(statements.some(sql => /^SELECT \* FROM event ORDER BY event_id$/u.test(sql)), false, 'the repaired hot path never replays the whole event table');
     } finally { closeBoard(warmed); }

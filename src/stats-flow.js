@@ -7,7 +7,7 @@ import { advanceReport } from './stats-flow-report.js';
 import { recordReport } from './stats-flow-report.js';
 import { recordReportPolicy } from './stats-flow-report.js';
 import { projectReport } from './stats-flow-report.js';
-import { proofEventDetail } from './proof-event-detail.js';
+import { proofEventDetail } from '../packages/kernel/src/core/event-detail.js';
 import {
   newWindowTrace,
   observeFlowStage,

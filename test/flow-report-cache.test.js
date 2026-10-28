@@ -1,4 +1,6 @@
 /** Report capability migration preserves existing indexed read-only statistics [R1,R2]. */
+import { events as readStatsEvents } from '../src/board.js';
+import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -11,6 +13,10 @@ import { flowStats } from '../src/stats-flow.js';
 import { ensureProofCounters } from '../src/proof-counters.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
+
+/** Native read operations explicitly supplied to the statistics under test. */
+const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
+
 
 /** Construct a native board whose append path maintains current report shards. */
 function fixture(t, { item = true, now } = {}) {
@@ -25,7 +31,7 @@ function fixture(t, { item = true, now } = {}) {
 
 test('an empty indexed board has a measured empty report rather than a missing capability [R1,R2]', t => {
   const board = fixture(t, { item: false });
-  const report = proofStats(board).flow.report;
+  const report = proofStats(board, {}, statsReadPorts).flow.report;
   assert.deepEqual(report.items, []);
   assert.deepEqual(report.lanes, []);
   assert.deepEqual(report.milestones, []);
@@ -37,15 +43,15 @@ test('flow report indexed projection matches canonical replay without hot raw hi
   const board = fixture(t);
   const now = Date.now() + 60_000;
   const history = store.events(board);
-  const stats = proofStats(board, { now });
+  const stats = proofStats(board, { now }, statsReadPorts);
   assert.deepEqual(stats.flow.report, flowStats(history, null, now, stats).report);
   const prepare = board.db.prepare.bind(board.db);
   const reads = [];
   board.db.prepare = sql => { reads.push(sql); return prepare(sql); };
   t.after(() => { board.db.prepare = prepare; });
-  assert.deepEqual(proofStats(board, { now }).flow.report, stats.flow.report);
+  assert.deepEqual(proofStats(board, { now }, statsReadPorts).flow.report, stats.flow.report);
   assert.ok(!reads.some(sql => /SELECT\s+\*\s+FROM\s+event\b/i.test(sql)), 'current report reads indexed facts, never raw event history');
-  assert.equal(proofStats(board, { now, since: '2026-10-01' }).flow.report.scope, 'all-time', 'a date-filtered legacy summary visibly labels the report scope');
+  assert.equal(proofStats(board, { now, since: '2026-10-01' }, statsReadPorts).flow.report.scope, 'all-time', 'a date-filtered legacy summary visibly labels the report scope');
 });
 
 test('old v2 counters retain fast metrics and explicitly unavailable reports until a writer rebuilds [R1,R2]', t => {
@@ -54,14 +60,14 @@ test('old v2 counters retain fast metrics and explicitly unavailable reports unt
   const prepare = board.db.prepare.bind(board.db);
   const reads = [];
   board.db.prepare = sql => { reads.push(sql); return prepare(sql); };
-  const old = proofStats(board);
+  const old = proofStats(board, {}, statsReadPorts);
   assert.deepEqual(old.flow.report, { available: false });
   assert.equal(old.flow.queues.open.size, 1);
   assert.ok(!reads.some(sql => /SELECT\s+\*\s+FROM\s+event\b/i.test(sql)), 'missing optional report capability does not force raw fallback');
   board.db.prepare = prepare;
   const before = store.events(board);
   ensureProofCounters(board);
-  assert.ok(proofStats(board).flow.report.items);
+  assert.ok(proofStats(board, {}, statsReadPorts).flow.report.items);
   assert.deepEqual(store.events(board), before, 'writer backfill changes only local derived counters');
 });
 
@@ -73,7 +79,7 @@ test('an older writer cannot make retained report capability look current [R1,R2
   // Emulate an older writer's exact derived-state boundary: ordinary counters advance; report shards do not.
   board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(reportKeys);
   for (const row of retained) board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(row.meta_key, row.meta_value);
-  const stale = proofStats(board);
+  const stale = proofStats(board, {}, statsReadPorts);
   assert.equal(stale.flow.queues.open.size, 2, 'existing native counters remain usable');
   assert.deepEqual(stale.flow.report, { available: false }, 'retained version alone cannot certify intervening older-writer events');
   const before = store.events(board);
@@ -81,7 +87,7 @@ test('an older writer cannot make retained report capability look current [R1,R2
   board.onProofStatsEvent = event => proofEvents.push(event.event_id);
   board.onFlowReportEvent = event => reportEvents.push(event.event_id);
   ensureProofCounters(board);
-  assert.equal(proofStats(board).flow.report.items.length, 2);
+  assert.equal(proofStats(board, {}, statsReadPorts).flow.report.items.length, 2);
   assert.deepEqual(proofEvents, [], 'report catch-up never rebuilds or recounts the existing proof statistics');
   assert.deepEqual(reportEvents, [before.at(-1).event_id], 'only the one missed native event is folded into the report');
   assert.deepEqual(store.events(board), before, 'repair changes derived counters only');
@@ -147,7 +153,7 @@ test('cached flow retains every native milestone membership through edits remova
   const observe = () => {
     const now = base + minute * 60_000;
     const history = store.events(board);
-    const stats = proofStats(board, { now });
+    const stats = proofStats(board, { now }, statsReadPorts);
     assert.deepEqual(stats.flow.report, flowStats(history, null, now, stats).report);
     assert.deepEqual(store.events(board), history, 'observation never changes native history');
     assert.equal(stats.flow.report.overall.firstTry.unknown, 1, 'multiple groups do not duplicate the overall item');
@@ -208,11 +214,11 @@ test('repeated native landing receipts preserve the first measured landing inter
     note: 'Private native lifecycle fixture; no gate execution claimed.' });
   minute = 10;
   store.merged(board, 1, { agentId: 'coordinator', commit });
-  const first = proofStats(board, { now: base + minute * 60_000 }).flow.report;
+  const first = proofStats(board, { now: base + minute * 60_000 }, statsReadPorts).flow.report;
   assert.deepEqual(first.items[0].stages.mergeWait, { minutes: 6, unknown: 0 });
   minute = 20;
   store.merged(board, 1, { agentId: 'coordinator', commit });
-  const repeated = proofStats(board, { now: base + minute * 60_000 }).flow.report;
+  const repeated = proofStats(board, { now: base + minute * 60_000 }, statsReadPorts).flow.report;
   assert.deepEqual(repeated, first, 'another valid receipt cannot turn measured history into a gap or double its elapsed time');
   assert.deepEqual(repeated, flowStats(store.events(board), null, base + minute * 60_000, { submissions: 1, rejections: 0, rejectionShare: 0 }).report);
 });

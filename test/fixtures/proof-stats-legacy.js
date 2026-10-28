@@ -2,7 +2,7 @@
 import { events } from '../../src/board.js';
 import { Refused } from '../../src/refused.js';
 import { flowStats } from '../../src/stats-flow.js';
-import { barStats } from '../../src/bar-corrections.js';
+import { barStats } from '../../packages/stats/src/core/bar-stats.js';
 import { caughtFrom } from '../../src/caught.js';
 
 /** Parse an inclusive UTC date boundary, refusing malformed or impossible dates. */

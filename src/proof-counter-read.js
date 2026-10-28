@@ -1,7 +1,7 @@
 /** Read small proof aggregates and projected facts without replaying the native event log [R1,R2]. */
-import { barStats } from './bar-corrections.js';
+import { barStats } from '../packages/stats/src/core/bar-stats.js';
 import { caughtFrom } from './caught.js';
-import { decodedProofEvent } from './proof-event-detail.js';
+import { decodedProofEvent } from '../packages/kernel/src/core/event-detail.js';
 import { proofCounter } from './proof-counters.js';
 import { currentProofCounters } from './proof-counters.js';
 import { proofCounterRows } from './proof-counters.js';
