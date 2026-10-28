@@ -1,3 +1,10 @@
+import { sealSourceAdvanceReturn } from './source-advance-origin.js';
+import { conflictValue } from './computed-conflict-receipt.js';
+import { NEXT_STEPS } from './next-step-words.js';
+import * as landingEnvironment from './landing-environment-guards.js';
+import { deriveRigorCause, recordAutomaticRigorDrafts } from './rigor-auto.js';
+import { normalizedDispatch } from './dispatch-health.js';
+import { rejectedWorkReturns } from './rejected-work-return.js';
 import { recordRowVerification as applyRowVerification } from './spec-verdicts.js';
 import { decideSpecRevisions as applySpecRevisionDecisions } from './spec-revisions.js';
 import { draftSpecRow as applySpecRowDraft } from './row-drafts.js';
@@ -117,6 +124,7 @@ export { closeBoard } from './board-read-open.js';
 export function nativeBoardPorts() {
   const nativePorts = Object.freeze({
     sourceAdvanceCASProblem, beginCommandPhase, exportedMeta, guardRestore,
+    sealSourceAdvanceReturn, conflictValue, nextSteps: NEXT_STEPS, landingEnvironment, deriveRigorCause, recordAutomaticRigorDrafts, normalizedDispatch, rejectedWorkReturns,
     atomic, logEvent, rowDrafts: store.rowDrafts, rowDecisions: store.rowDecisions, PERSON: store.PERSON,
     recordRowDecisions: store.recordRowDecisions, now,
     committedItemAuthors, twoTierReviews, strictReviewProblem,
