@@ -41,6 +41,8 @@ function copyDockerSource(source, destinationPath, omitted) {
     mkdirSync(join(destinationPath, '..'), { recursive: true });
     if (SHIPPED.has(source)) {
       copyPackageFiles(ROOT, dirname(destinationPath), { files: [{ path: source, as: basename(destinationPath) }] });
+    } else if (/^packages\/[^/]+\/tests\//u.test(source)) {
+      return; // package test folders are deliberately left out of the manifest (70e02358) and are not tool sources
     } else {
       assert.ok(!/^(?:src|bin|packages)\//u.test(source), 'Docker tool sources must be shipped by the manifest');
       copyFileSync(sourcePath, destinationPath);
