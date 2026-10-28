@@ -11,6 +11,8 @@ import {
   existsSync,
   readFileSync,
   readdirSync,
+  mkdirSync,
+  lstatSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -62,7 +64,7 @@ export function assignEngineNumbers(root) {
   if (!existsSync(directory)) return { files: [], assigned: [] };
   // Only a leaf that imports the placeholder is Pullboard's to number. Any other project may have its own
   // src/*-engine.js files that follow none of these rules; they are never read as leaves, so a land never fails on them.
-  const texts = readdirSync(directory).filter((file) => ENGINE_CANDIDATE.test(file))
+  const texts = readdirSync(directory).filter((file) => ENGINE_CANDIDATE.test(file)).sort()
     .map((file) => ({ file, text: readFileSync(join(directory, file), 'utf8') }));
   const leaves = texts.map(({ file, text }) => {
     const lines = text.split('\n').filter((line) => /^export const /u.test(line));
@@ -80,10 +82,19 @@ export function assignEngineNumbers(root) {
   for (const leaf of unlanded) {
     next += 1;
     const path = join(directory, leaf.file);
-    const text = readFileSync(path, 'utf8').split('\n').filter((line) => line !== UNASSIGNED_IMPORT).join('\n')
+    const before = readFileSync(path, 'utf8');
+    const text = before.split('\n').filter((line) => line !== UNASSIGNED_IMPORT).join('\n')
       .replace(/^(export const [A-Z][A-Z0-9_]*_ENGINE = )unassignedEngine\(\);$/mu, `$1${next};`);
     writeFileSync(path, text);
-    files.push(`src/${leaf.file}`);
+    leaf.number = next;
+    let history;
+    try { history = appendRegistryHistory(root, leaf, leaves); } catch (error) {
+      // A refused source or existing record must leave the placeholder available for an ordinary retry.
+      writeFileSync(path, before);
+      leaf.number = null;
+      throw error;
+    }
+    files.push(`src/${leaf.file}`, ...history);
     assigned.push({ name: leaf.name, number: next });
   }
   const formats = join(root, 'docs', 'formats.md');
@@ -93,4 +104,26 @@ export function assignEngineNumbers(root) {
     if (updated !== text) { writeFileSync(formats, updated); files.push('docs/formats.md'); }
   }
   return { files, assigned };
+}
+
+/**
+ * Freeze source metadata at allocation, without importing or executing the candidate tree.
+ * The legacy record opts Pullboard itself into this format; unrelated projects are untouched.
+ * Each landing writes a new path, never a shared manifest or a previously shipped record.
+ */
+function appendRegistryHistory(root, engine, leaves) {
+  const directory = join(root, 'src', 'move-history');
+  if (!existsSync(join(directory, 'legacy.json'))) return [];
+  const moves = join(root, 'src', 'moves');
+  if (![join(root, 'src'), directory, moves].every(path => lstatSync(path).isDirectory())
+      || !lstatSync(join(directory, 'legacy.json')).isFile()) throw new Error('registry history requires regular source directories and a regular legacy record');
+  const moveFiles = discovered(readdirSync(moves), /\.js$/u, /^[\w-]+\.js$/u, 'move');
+  for (const file of moveFiles) if (!lstatSync(join(moves, file)).isFile()) throw new Error(`${file} must be a regular move declaration, never a source symlink`);
+  const declarations = Object.fromEntries(moveFiles.map(file => [file, readFileSync(join(moves, file), 'utf8')]));
+  const record = { version: 1, engine: engine.number, name: engine.name,
+    engines: leaves.filter(leaf => leaf.number !== null).map(({ file, name, number }) => ({ file, name, number })), declarations };
+  const relative = `src/move-history/${engine.number}.json`;
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(root, relative), `${JSON.stringify(record, null, 2)}\n`, { flag: 'wx' });
+  return [relative];
 }
