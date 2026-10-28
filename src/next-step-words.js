@@ -1,5 +1,6 @@
 import { JSON_SHAPES } from './json.js';
 import { commandOutput as collectCommandOutput } from './json-output.js';
+import { versionedRefusal } from './json-output.js';
 import { withMoveNextSteps } from './move-registry.js';
 import { DEFAULT_NEXT_STEPS } from './next-step-defaults.js';
 /** Pure refusal guidance shared by JSON and CLI output without loading ledger or Git [P4,W4,C7]. */
@@ -59,7 +60,7 @@ export function nextStepFor(error, message, options = {}) {
 export function refusalDocument(error, options = {}) {
   const message = String(error.message).replace(/^\[[A-Z][A-Z0-9_]*\] /, '');
   const code = error.code ?? 'INTERNAL';
-  return { version: JSON_SHAPES.version, error: { code, message: personRequestGuidance(message, options), next: nextStepFor({ code, next: error.next }, message, options) } };
+  return versionedRefusal({ code, message: personRequestGuidance(message, options), next: nextStepFor({ code, next: error.next }, message, options) }, { version: JSON_SHAPES.version });
 }
 
 /** Collect output with the already-loaded synchronous public refusal renderer [A1]. */
