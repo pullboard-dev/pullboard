@@ -102,7 +102,9 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
     for (;;) {
       const rows=existsSync(directory)?readdirSync(directory).filter(name=>name.endsWith('.json')&&!['wake.json','owner.json','settled.json'].includes(name)).map(name=>JSON.parse(readFileSync(join(directory,name),'utf8'))):[];
       const ownerFile=join(directory,'owner.json');
-      const owner=existsSync(ownerFile)?JSON.parse(readFileSync(ownerFile,'utf8')):null;
+      let owner=null;
+      try { owner=JSON.parse(readFileSync(ownerFile,'utf8')); }
+      catch (error) { if(error.code!=='ENOENT') throw error; }
       const signature=JSON.stringify(rows.map(row=>[row.state,row.head,row.reason]));
       if(signature!==last){last=signature;quietSince=Date.now();}
       const current=board(db=>store.getItem(db,id));
