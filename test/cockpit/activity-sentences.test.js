@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { activityModel } from '../../src/view/activity-model.js';
+import { activityFilters } from '../../src/view/activity-render.js';
 import { activityHtml } from '../../src/view/activity-render.js';
 import { activityWords } from '../../src/view/activity-words.js';
 import { now, at, items, agents, event, scannedBoard } from './activity-data.js';
@@ -160,4 +161,13 @@ test('sentinel rejection reasons become words while the reviewer note keeps its 
     assert.ok(html.includes('Next: Inspect ' + label), 'machine guidance uses the same reason words');
     assert.ok(!html.includes('rejected by core-728 (' + reason + '):'), 'raw rejection reason does not leak from the machine prefix');
   }
+});
+
+test('Activity filters keep explicit counts and the feed can omit duplicated controls [N26,C7]', () => {
+  const model = { rows: [], counts: { all: 9, work: 4, sentinels: 2, shouts: 3 } };
+  const html = activityFilters(model, 'shouts');
+  assert.match(html, /data-activity-filter="shouts"[^>]*aria-pressed="true"|aria-pressed="true"[^>]*data-activity-filter="shouts"/u);
+  for (const count of [9, 4, 2, 3]) assert.ok(html.includes('<b>' + count + '</b>'));
+  assert.doesNotMatch(activityHtml(model, { controls: false }), /data-activity-filter=/u);
+  assert.match(activityHtml(model, { controls: false }), /No activity matches/u);
 });

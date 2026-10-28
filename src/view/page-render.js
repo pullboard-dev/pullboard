@@ -452,7 +452,8 @@ function render() {
   }
 
   if (view.tab === 'activity') {
-  if (keep('pb.flow') !== 'hidden') $('flow').innerHTML = flowSvg(p);
+  if (keep('pb.flow') === 'shown') $('flow').innerHTML = lifecycleChart(p, p.moveCounts ? new Map(Object.entries(p.moveCounts)) : moveCounts(p.items), p.items.filter(item => stateOf(item) === 'back').length);
+  $('activity-filters').innerHTML = activityFilters(activityModel(p), view.activityFilter || 'all');
   const activity = $('activity');
   const activityOpen = activity.dataset.boardRoot === p.root ? [...activity.querySelectorAll('[data-activity-run][open]')].map(entry => entry.dataset.activityRun) : [];
   activity.dataset.boardRoot = p.root;
@@ -480,7 +481,7 @@ function render() {
       findings: entry.findings?.map(prepareFinding), stillStuck: entry.stillStuck?.map(prepareFinding),
     };
   });
-  activity.innerHTML = activityHtml({ ...activityModelData, rows: activityRows }, { filter: view.activityFilter || 'all', open: activityOpen });
+  activity.innerHTML = activityHtml({ ...activityModelData, rows: activityRows }, { controls: false, filter: view.activityFilter || 'all', open: activityOpen });
   }
   showTab();
   revealPlace();

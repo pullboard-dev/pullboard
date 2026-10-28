@@ -1,5 +1,13 @@
 /** Explicit test roles are an inventory, not completion evidence or a browser-admission exemption [N26,C7]. */
 export const VIEW_TEST_ROLES = Object.freeze({
+  "test/cockpit/lifecycle-chart-pure.test.js": {
+    "kind": "logic",
+    "reason": "Original declared-route labels and exact count assertions call lifecycleChart with data; native receipt and Chrome journeys remain separate."
+  },
+  "test/cockpit/row-component.test.js": {
+    "kind": "journey",
+    "reason": "A real local HTTP page and Chrome verify shared row geometry, clipping, mouse disclosure and keyboard collapse; plain HTML assertions live in row-component-pure."
+  },
   "test/cockpit/row-component-pure.test.js": {
     "kind": "logic",
     "reason": "Original shared-row escaping, attributes and variant assertions invoke the real HTML function without the separate Chrome geometry journey."

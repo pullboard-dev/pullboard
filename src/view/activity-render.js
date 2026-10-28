@@ -3,7 +3,7 @@ import { segmentedToggle } from './segmented-control.js';
 /** The approved Activity sentences, rendered once for live and exported views [N26].
  * Standalone because the page embeds this function's source text.
  */
-export function activityHtml(model, { filter = 'all', open = [] } = {}) {
+export function activityHtml(model, { filter = 'all', open = [], controls = true } = {}) {
   const esc = value => String(value ?? '').replace(/[&<>"']/gu, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   /** Missing model metadata is not a model name; retain real models only as hover titles. */
   const who = (id, agent) => {
@@ -47,7 +47,7 @@ export function activityHtml(model, { filter = 'all', open = [] } = {}) {
     return sharedRowHtml({ variant: 'activity', state: tone, time: entry.timeLabel, iconHtml: icon(glyph), mainHtml: content,
       attributes: { 'data-activity-kind': entry.kind } });
   };
-  const filters = '<div class="activity-bar">' + segmentedToggle({ label: 'Activity filter', attribute: 'data-activity-filter', value: filter, options: [['all', 'All'], ['work', 'Work'], ['sentinels', 'Sentinels'], ['shouts', 'Shouts']].map(([value, label]) => ({ value, label, count: model.counts[value] })) }) + '</div>';
+
   const rows = model.rows.filter(entry => filter === 'all' || entry.category === filter);
   let day = '';
   const days = rows.map(entry => {
@@ -55,5 +55,10 @@ export function activityHtml(model, { filter = 'all', open = [] } = {}) {
     const heading = key === day ? '' : '<li class="activity-day"><h4 class="day">' + esc(entry.dayLabel) + '</h4></li>';
     day = key; return heading + row(entry);
   }).join('');
-  return filters + (rows.length ? '<ol class="activity-events">' + days + '</ol>' : '<p class="empty">No activity matches.</p>');
+  return (controls ? activityFilters(model, filter) : '') + (rows.length ? '<ol class="activity-events">' + days + '</ol>' : '<p class="empty">No activity matches.</p>');
+}
+
+/** Render the same Activity filters in the standalone feed or beside the chart toggle [N26]. */
+export function activityFilters(model, filter = 'all') {
+  return '<div class="activity-bar">' + segmentedToggle({ label: 'Activity filter', attribute: 'data-activity-filter', value: filter, options: [['all', 'All'], ['work', 'Work'], ['sentinels', 'Sentinels'], ['shouts', 'Shouts']].map(([value, label]) => ({ value, label, count: model.counts[value] })) }) + '</div>';
 }
