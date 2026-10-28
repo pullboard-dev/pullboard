@@ -44,7 +44,7 @@ function fixture(t) {
     submitFixture(board, id, { agentId: builder, commit, tree: 'b'.repeat(40) });
   };
   submit('a'.repeat(40));
-  store.verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'Fixture rejects the first attempt.', head: 'a'.repeat(40), digest: 'frozen', policy: 'any' });
+  store.verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'Fixture rejects the first attempt.', clause: 'Proof fixture', head: 'a'.repeat(40), digest: 'frozen', policy: 'any' });
   submit('c'.repeat(40));
   store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', note: 'Fixture rework meets its bar.', head: 'c'.repeat(40), digest: 'frozen', policy: 'any' });
   store.merged(board, id, { agentId: 'coordinator', commit: 'd'.repeat(40) });
@@ -60,7 +60,7 @@ function addCorrectedRepeat(board, builder, reviewer, setNow) {
   const first = store.claim(board, id, { agentId: builder, lane: 'web', leaseMs: 3_600_000, freeze });
   submitFixture(board, id, { agentId: builder, commit, tree });
   store.verify(board, id, {
-    agentId: reviewer, decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH', note: 'the heading is missing',
+    agentId: reviewer, decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH', note: 'the heading is missing', clause: 'the heading is visible',
     head: commit, digest: first.digest, policy: 'any',
   });
   setNow('2026-10-09T12:00:00.000Z');
@@ -70,7 +70,7 @@ function addCorrectedRepeat(board, builder, reviewer, setNow) {
   submitFixture(board, id, { agentId: builder, commit, tree });
   store.verify(board, id, {
     agentId: reviewer, decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH',
-    note: 'the corrected criterion still fails\nThe accessible heading is absent.',
+    note: 'the corrected criterion still fails\nThe accessible heading is absent.', clause: 'the heading is accessible',
     head: commit, digest: corrected.after, policy: 'any',
   });
   return id;

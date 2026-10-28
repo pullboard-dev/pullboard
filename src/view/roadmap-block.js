@@ -13,6 +13,9 @@ export function roadmapBlock(item, context = {}) {
   const own = (Array.isArray(context.itemHolds) ? context.itemHolds : []).find(h => h.item === item.id);
   const blocked = item.status === 'open' && Boolean(waits.length || hold || own);
   const label = blocked ? 'Blocked: ' + [waits.length ? 'waits on ' + waits.map(w => '#' + w.id + ' (' + w.status + ')').join(', ') : '',own ? 'held: ' + own.reason : '',hold ? 'lane ' + item.lane + ' held' : ''].filter(Boolean).join('; ') : '';
+  const dot = blocked ? '<span class="block-dot" role="img" aria-label="'+escape(label)+'" title="'+escape(label)+'"></span>' : '';
+  // A collapsed row needs its real blocked state, while full detail is rendered on explicit expansion.
+  if (context.summaryOnly === true) return { label, dot, detail: '' };
   const paths = {
     Criterion:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="M12 9v6m-3-3h6"/>',
     Agents:'<circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m1-17a3 3 0 0 1 0 6m2 4a5 5 0 0 1 3 4v3"/>',
@@ -70,7 +73,7 @@ export function roadmapBlock(item, context = {}) {
     +field('Sent back',returned,'roadmap-return')+field('History',history,'roadmap-history')
     +field('Release',[releases,specs?'spec '+specs:''].filter(Boolean).join(' · '));
   const address = context.address || (id => '#items/'+id);
-  return {label,dot:blocked?'<span class="block-dot" role="img" aria-label="'+escape(label)+'" title="'+escape(label)+'"></span>':'',
+  return {label,dot,
     detail:context.loading?'<span class="roadmap-loading muted">Loading detail…</span>':context.error?'<p class="muted">'+escape(context.error)+'</p>':
       '<dl class="roadmap-detail">'+rows+'</dl><a class="ref roadmap-items" href="'+escape(address(item.id))+'" data-go="item:'+item.id+'"'+(context.board?' data-board="'+escape(context.board)+'"':'')+'>Open #'+item.id+' in Items <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 3h7v7m0-7L10 14M10 3H3v18h18v-7"/></svg></a>'};
 }
