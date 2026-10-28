@@ -33,7 +33,7 @@ import { exportView } from '../src/serve.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { discoverEngines } from '../src/engine-metadata.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { appliedSequence, applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import {
   ACCEPT_REASON,
   actOnActivity,
@@ -363,6 +363,12 @@ function recordEventContract() {
   applyRowDecisions(board, { agentId: coordinator, events: decisions.map((record) => record.event), refreezes: [] });
   draftSpecRow(board, { agentId: builder, row: { id: 'A2', text: 'A lane drafted row.', gate: 'review', tier: 'must', section: 'A · Fixture' } });
   const freeze = (digest) => () => ({ text: `criterion-${digest}`, digest });
+  // Real historical ordered envelopes retain the 142 field shape, not modern policy defaults.
+  const legacyAdd = { ...prepareEngineMove(board, 'addItem', [{ by: coordinator, lane: 'docs', title: 'Historical family event', reviewFamily: 'Fixture Review' }]), engine: 142 };
+  const legacyAdded = applyEngineMove(board, legacyAdd, { sequence: 1, at: '2026-10-17T19:58:00.000Z' });
+  assert.equal(legacyAdded.error, undefined);
+  const legacyEdit = { ...prepareEngineMove(board, 'editItem', [legacyAdded.result, { agentId: coordinator, reviewFamily: 'Fixture Review' }]), engine: 142 };
+  assert.equal(applyEngineMove(board, legacyEdit, { sequence: 2, at: '2026-10-17T19:59:00.000Z' }).error, undefined);
   const first = addItem(board, { by: coordinator, lane: 'docs', title: 'Accepted example', criterion: 'Initial', specIds: ['A1'], route: 'strong', reviewFamily: 'Fixture Review' });
   const fact = appendFact(board, first, { agentId: builder, kind: 'note', text: 'Captured evidence', ref: 'docs/formats.md:1-3@' + 'a'.repeat(40) });
   appendFact(board, first, { agentId: coordinator, kind: 'measurement', text: 'Corrected evidence', supersedes: fact.id });
@@ -405,7 +411,7 @@ function recordEventContract() {
   // Exercise the new event's historical-engine semantics here; team-engine.test.js
   // separately prepares and compares this path with the actual released engine 12.
   const olderFinish = { ...prepareEngineMove(board, 'finishLandingBatch', [{ agentId: coordinator, id: batch.id, tip: batch.tip }]), engine: 12 };
-  assert.equal(applyEngineMove(board, olderFinish, { sequence: 1, at: '2026-10-17T20:00:00.000Z' }).error, undefined);
+  assert.equal(applyEngineMove(board, olderFinish, { sequence: 3, at: '2026-10-17T20:00:00.000Z' }).error, undefined);
 
   const rejected = addItem(board, { by: coordinator, lane: 'docs', title: 'Rejected example' });
   claim(board, rejected, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('rejected') });
@@ -481,6 +487,18 @@ function recordEventContract() {
   finishSentinelRun(board, { agentId: coordinator, name: watch.name, digest: watch.digest, run: 'format-run',
     result: { green: false, code: 1, timedOut: false, durationMs: 0, output: 'synthetic format receipt' } });
   recordRelayExclusionIntent(board, 'view'); // Synthetic person format fixture, not a real settings opt-out.
+  // Exercise the optional omission through native decisions and replay validation, not a fabricated event.
+  const omitted = addItem(board, { by: coordinator, lane: 'docs', title: 'Unfrozen draft citation format',
+    criterion: 'A stored format example.', check: 'true', specIds: ['Z1', 'Z2'] });
+  const omissionDecisions = recordRowDecisions(board, { agentId: PERSON, channel: 'terminal', decisions: [
+    { kind: 'spec', file: 'SPEC.md', id: 'Z1', source: '- Z1 [approved] Original format promise. | gate: true',
+      replacement: '- Z1 [approved] Corrected format promise. | gate: true', text: 'Corrected format promise.', decision: 'approve', reason: '' },
+    { kind: 'spec', file: 'SPEC.md', id: 'Z2', source: '- Z2 [draft] Optional draft promise. | gate: true',
+      replacement: '- Z2 [wont] Optional draft promise. | gate: true', text: 'Optional draft promise.', decision: 'decline', reason: 'Not needed.' },
+  ] });
+  const omissionMove = prepareEngineMove(board, 'applyRowDecisions', [{ agentId: coordinator,
+    events: omissionDecisions.map(record => record.event), refreezes: [], skippedDrafts: [omitted] }]);
+  assert.equal(applyEngineMove(board, omissionMove, { sequence: appliedSequence(board) + 1, at: board.clock.now().toISOString() }).error, undefined);
   const rows = events(board).map((row) => ({ ...row, detail: JSON.parse(row.event_detail) }));
   closeBoard(board);
   return { rows, actors: { [coordinator]: 'coordinator', [builder]: 'builder', [returnedBuilder]: 'builder', [unattendedBuilder]: 'builder', [reviewer]: 'reviewer', [PERSON]: 'person', board: 'board', rigor: 'rigor' } };

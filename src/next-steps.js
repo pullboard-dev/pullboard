@@ -24,15 +24,6 @@ import {
 } from './blocks.js';
 import { repoInfo } from './git.js';
 
-/** Describe the queue's actual outstanding reviews and submission age [Q1,V15]. */
-export function reviewQueueLine(ctx, queue, span) {
-  const age = queue.oldestSubmittedAt ? `${span(ctx, queue.oldestSubmittedAt)} ago` : 'none';
-  if (queue.awaitingFirstReview !== undefined) {
-    const released = queue.releasedItems?.map((item) => `#${item.item} released ${item.releases} ${item.releases === 1 ? 'time' : 'times'}: ${item.reason}`).join('; ');
-    return `review queue: ${queue.pending} submitted; ${queue.awaitingFirstReview} waiting for a first reviewer, ${queue.releasedWithoutVerdict} released without a verdict${released ? ` (${released})` : ''}, ${queue.reviewing} agents reviewing; oldest submission ${age}`;
-  }
-  return `review queue: ${queue.pending} awaiting, ${queue.reviewing} agents reviewing; oldest submission ${age}`;
-}
 
 
 /** Name open build lanes without claiming their work as the coordinator [N2,B26]. */
@@ -82,8 +73,8 @@ export function reviewerStartup(root, config, id) {
   let number = 1;
   while (existsSync(location(number))) number++;
   const path = location(number);
-  const command = `cd ${quote(root)} && mkdir -p ${quote(dirname(path))} && git worktree add --detach ${quote(path)} HEAD && cd ${quote(path)} && pullboard join ${lane} --model "<model name>" && pullboard next --verify${id ? ' ' + id : ''}`;
-  return `Use a different agent session; the reviewer must not be the builder. Run: ${command}`;
+  const command = `cd ${quote(root)} && mkdir -p ${quote(dirname(path))} && git worktree add --detach ${quote(path)} HEAD && cd ${quote(path)} && pullboard join ${lane} --model "<model name>" --family "<vendor family>" && pullboard next --verify${id ? ' ' + id : ''}`;
+  return `Use a different agent session; the reviewer must not be the builder and must declare a different vendor family. Run: ${command}`;
 }
 
 /** Refusals no move recovers from by itself: a typo is not Pullboard blocking anyone. */

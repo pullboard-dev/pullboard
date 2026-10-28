@@ -10,5 +10,5 @@ import {
 export function run(io, { first, second, rest }) {
   const ctx = context(io);
   return queueView.queueCommand(io, [first, second, ...rest], (work) => withBoard(ctx, work),
-    board => agentAt(board, ctx.info.root)?.agent_id ?? null);
+    board => agentAt(board, ctx.info.root)?.agent_id ?? null, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family });
 }

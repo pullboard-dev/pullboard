@@ -8,6 +8,7 @@ import {
   memoryAdmission,
   readMachineMemory,
   takeResource,
+  requiredExecutorOf,
 } from './resources.js';
 import {
   browserFreeChecksEnabled,
@@ -63,13 +64,13 @@ export function settleReceipt(lease) {
  * hold (gate.memoryFloorMB) holds short slots too, since a short run uses the same machine memory.
  *
  * @param {(lease: { waitMs: number, token?: string, pool?: string, browser?: boolean, slotClass?: 'gate'|'short', release: () => void }) => any | Promise<any>} action - Work to perform while holding a slot.
- * @param {{ landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, gui?: boolean, remote?: boolean, runnerOnly?: boolean, timing?: boolean, agent?: string, item?: string|number, kind?: string, onWait?: (state: object) => void, onReceipt?: (receipt: object) => void, readMemory?: typeof readMachineMemory }} [options] - Queue class, short-slot eligibility, remote eligibility, progress reporter, the run's receipt once its slot is released (#836) and, for tests, the machine memory reader.
+ * @param {{ landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, gui?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string}, runnerOnly?: boolean, timing?: boolean, agent?: string, item?: string|number, kind?: string, onWait?: (state: object) => void, onReceipt?: (receipt: object) => void, readMemory?: typeof readMachineMemory }} [options] - Queue class, short-slot eligibility, remote eligibility, progress reporter, the run's receipt once its slot is released (#836) and, for tests, the machine memory reader.
  * @returns {Promise<any>} The action's result after releasing its lease.
  */
 export async function withGateSlot(root, action, options = {}) {
   try { return await withOneGateSlot(root, action, options); }
   catch (error) {
-    if (!['RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED'].includes(error?.code) || options.remote === false || options.runnerOnly) throw error;
+    if (!['RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED'].includes(error?.code) || options.remote === false || options.runnerOnly || options.requiredExecutor?.kind === 'ssh') throw error;
     // The runner's red attempt stays on record beside the local rerun.
     const attempt = error.runnerAttempt ?? { host: '', exitCode: null, output: '' };
     const required = error.code === 'RUNNER_GUI_SESSION_REQUIRED' ? 'a GUI session' : 'a browser slot';
@@ -81,7 +82,8 @@ export async function withGateSlot(root, action, options = {}) {
 }
 
 /** One gate admission and its action; withGateSlot may call it again for a local rerun. */
-async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, timing = false, agent, item = '', kind = '', onWait, onReceipt, readMemory = readMachineMemory } = {}) {
+async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, readMemory = readMachineMemory } = {}) {
+  const restriction = requiredExecutorOf(requiredExecutor);
   const tracker = startReceipt();
   const receiptKind = kind || (landing ? 'landing' : 'gate');
   /** Hand the run its receipt tracker and slot, then record its receipt once the slot is released (#836). */
@@ -96,7 +98,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     onReceipt?.(receipt);
   };
   const inherited = inheritedGateSlot({ root, browser, namedFiles: shortEligible, timing });
-  if (inherited && (!runnerOnly || inherited.runnerExecution)) {
+  if (inherited && restriction?.kind !== 'ssh' && !(restriction?.kind === 'local' && inherited.runnerExecution) && (!runnerOnly || inherited.runnerExecution)) {
     timed(Object.assign(inherited, { inherited: true }));
     try {
       await onWait?.({ admitted: true });
@@ -140,6 +142,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     allowIdleCapacityUpdate: true,
     remote: remote && Boolean(source),
     runnerOnly,
+    ...(restriction ? { requiredExecutor: restriction } : {}),
     runnerProvider: () => loadMachineSettings().runners ?? [],
     runnersFirstProvider: gateRunnersFirstEnabled,
     runnerWaitMs: gateRunnerWaitMs(),
@@ -179,9 +182,9 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
             : admissionDeadline ? 'worker readiness is checked and the host is re-registered'
               : health.healthy ? 'the original ticket is readmitted' : 'the next successful automatic health observation' };
         if (onWait) await onWait({ holders: [], line: [], position: 0, runnerUnavailable });
-        else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly ? 'rerunning it locally' : 'requeueing the run'}\n`);
+        else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly && restriction?.kind !== 'ssh' ? 'rerunning it locally' : 'requeueing the run'}\n`);
         lease = await lease.requeueRunner(cleanup ? 'cleanup-unverified' : admissionDeadline ? 'worker-unresponsive' : 'transport-lost', {
-          local: cleanup && !runnerOnly, quarantine: !health?.healthy, diagnostic });
+          local: cleanup && !runnerOnly && restriction?.kind !== 'ssh', quarantine: !health?.healthy, diagnostic });
       }
     }
   } finally {

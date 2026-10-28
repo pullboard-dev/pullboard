@@ -23,7 +23,7 @@ function showTab() {
 
 /** Read the selected repo, tab and detail from a path or the hosted page's fragment. */
 function placeAtAddress(page = data) {
-  const tabs = ['home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings'];
+  const tabs = ['dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings'];
   const hash = location.hash || '';
   let path = routed ? location.pathname || '/' : hash.slice(1);
   if (hash === '#items/pipeline' || hash === '#roadmap') path = hash.slice(1);
@@ -738,6 +738,27 @@ function fold(open) {
   $('proj-switch').setAttribute('aria-expanded', String(open));
 }
 
+/** Retain the brief release-jump mark when a native refresh redraws its node. */
+function restoreRoadmapArrival() {
+  const arrival = view.roadmapArrival;
+  if (!arrival || arrival.root !== view.root || arrival.until <= Date.now()) return;
+  $('roadmap-list')?.querySelector('[data-key="' + CSS.escape(arrival.key) + '"]')?.classList.add('roadmap-arrival');
+}
+
+/** A redraw retains the original expiry; it never restarts the highlight's lifetime. */
+function markRoadmapArrival(key, target) {
+  const arrival = { root: view.root, key, until: Date.now() + 1300 };
+  view.roadmapArrival = arrival;
+  for (const marked of $('roadmap-list')?.querySelectorAll('.roadmap-arrival') ?? []) marked.classList.remove('roadmap-arrival');
+  void target.offsetWidth;
+  restoreRoadmapArrival();
+  setTimeout(() => {
+    if (view.roadmapArrival !== arrival) return;
+    view.roadmapArrival = null;
+    $('roadmap-list')?.querySelector('[data-key="' + CSS.escape(key) + '"]')?.classList.remove('roadmap-arrival');
+  }, 1300);
+}
+
 /** Show another project and its item; history restores keep the tab their entry named. */
 function switchTo(root, target = null, record = true) {
   // Switching board or project closes Approve all's confirmation and the decline dialog; neither records on either board.
@@ -795,6 +816,11 @@ $('shout-text').addEventListener('keydown', (event) => { if (event.key === 'Ente
 document.addEventListener('click', (event) => {
   // The open-board screens name their state in data-state and handle their own presses (#764).
   if (event.target.closest('#local-note')) return;
+  const dashboardList = event.target.closest('[data-dashboard-list]');
+  if (dashboardList) {
+    view.dashboardList = dashboardList.dataset.dashboardList; view.state = view.dashboardList === 'review' ? 'verify' : 'ready';
+    view.lane = null; view.before = null; $('q').value = ''; openTab('items'); render(); return;
+  }
   if (view.filterOpen && !event.target.closest('.filter-control')) { view.filterOpen = false; render(); }
   const t = event.target.closest('[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);

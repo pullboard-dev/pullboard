@@ -1,3 +1,7 @@
+import { itemReviewPolicy } from './review-independence.js';
+import { reviewPolicyChange } from './review-independence.js';
+import { saveItemReviewPolicy } from './review-independence.js';
+import { twoTierReviews } from './review-independence.js';
 /** Durable source tombstones and idempotent destination application for cross-board re-homing [E15,H16]. */
 import { createHash } from 'node:crypto';
 import { IN_STATE } from './machine.js';
@@ -208,6 +212,11 @@ export function rehomeItem(board, id, options, { atomic, boardId, current, itemB
     const record = { version: 1, moveId: options.sourceMoveId, sourceBoardId, sourceItemId: id,
       destinationBoardId: options.destinationBoardId, destinationItemId: options.destinationItemId,
       agentId: options.agentId, item: content };
+    const reviewPolicy = itemReviewPolicy(board, id);
+    if (twoTierReviews(board) && reviewPolicy.tier === 'strict') {
+      const { tier, ...storedPolicy } = reviewPolicy;
+      record.reviewPolicy = storedPolicy;
+    }
     const referenceProof = checkedReferenceReceipt(board, id, item);
     if (referenceProof) record.referenceProof = referenceProof;
     if (typeof options.destinationHandle === 'string') record.destinationHandle = options.destinationHandle;
@@ -288,7 +297,9 @@ export function applyRehomeItem(board, request, { atomic, boardId, logEvent, mov
     if (source.item_parent_id !== null && !parentId || after.some(id => id === null || id === undefined)) {
       throw new Refused('REHOME_LINKS', 'move each parent or wait item to this destination first, then retry the same source MOVEID');
     }
-    const addition = { by: agentId, lane: source.item_lane, title: source.item_title,
+    if (record.reviewPolicy && record.reviewPolicy.version !== 1) throw new Refused('REHOME_FORMAT', 'use a destination supporting the exact source review policy version');
+    const importedReviewPolicy = record.reviewPolicy ? reviewPolicyChange(board, null, record.reviewPolicy) : null;
+    const addition = { by: agentId, ...(importedReviewPolicy ? { sensitive: importedReviewPolicy.sensitive, reviewFamily: importedReviewPolicy.reviewFamily } : {}), lane: source.item_lane, title: source.item_title,
       criterion: source.item_criterion, parentId, after, brief: destinationBrief,
       route: source.item_route, check: source.item_check, referenceAuthors, referenceAuthority };
     const { command, cleanTitle } = validateItemAddition(board, { ...addition, parentId: null, after: [], by: agentId }, {
@@ -333,6 +344,7 @@ export function applyRehomeItem(board, request, { atomic, boardId, logEvent, mov
         source.item_frozen, source.item_frozen_digest, source.item_built_by, source.item_builder_family,
         source.item_commit, source.item_tree, source.item_verdict, source.item_verified_by);
     if (Number(result.lastInsertRowid) !== record.destinationItemId) throw new Refused('REHOME_ID', 'the reserved destination item ID is no longer available');
+    saveItemReviewPolicy(board, record.destinationItemId, importedReviewPolicy);
     const inserted = itemByIdForRehome(board, record.destinationItemId);
     if (accepted) moveItem(board, record.destinationItemId, 'rehomeImport', {
       transition: REHOME_IMPORT_MOVE,

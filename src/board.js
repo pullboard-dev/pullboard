@@ -1,3 +1,8 @@
+import * as reviewRouting from './review-routing.js';
+import { reviewFamilyProblem } from './review-independence.js';
+import { reviewPolicyChange } from './review-independence.js';
+import { saveItemReviewPolicy } from './review-independence.js';
+import { twoTierReviews } from './review-independence.js';
 import { setItem } from './item-fields.js';
 import { releaseClaim } from './release-claim.js';
 import { REFERENCE_ENGINE } from './reference-engine.js';
@@ -344,6 +349,8 @@ import {
   landingWaiverKind,
 } from './landing-exceptions.js';
 import { parseSpec } from './spec.js';
+import { KNOWN_MAIN_REWORKS_ENGINE } from './known-main-reworks-engine.js';
+import { requireKnownMainReworks } from './known-main-reworks.js';
 import {
   invariantEvidence,
   preserveInvariantEvidence,
@@ -505,7 +512,6 @@ export { SCHEMA_VERSION } from './board-schema-source.js';
 
 export { readEventLogVersion } from './board-read-open.js';
 
-
 export { boardId } from './board-query.js';
 
 export { closeBoard } from './board-read-open.js';
@@ -647,9 +653,9 @@ function checkRoute(route) {
  * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: (number | string)[], brief?: string, route?: string, check?: string }} item
  * @returns {number} The new item's id.
  */
-export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check, checkBaseline, barActor, referenceAuthors, referenceAuthority, reviewFamily }) {
+export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily }) {
   return atomic(board, () => {
-    const item = { by, lane, title, criterion, specIds, parentId, after, brief, route, check, checkBaseline, barActor, referenceAuthors, referenceAuthority, reviewFamily };
+    const item = { by, lane, title, criterion, specIds, parentId, after, brief, route, check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily };
     return insertItem(board, item, validateItemAddition(board, item));
   });
 }
@@ -668,8 +674,10 @@ function insertItem(board, item, { command, cleanTitle }) {
     .run(parentId, lane, cleanTitle, criterion.trim(), specIds.join(','), after.join(','), brief.trim(), route, command, by, at, at);
   const id = Number(result.lastInsertRowid);
   saveCheckBaseline(board, id, baseline);
+  const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, null, item) : null;
+  saveItemReviewPolicy(board, id, reviewPolicy);
   reviewFamilies.saveReviewFamily(board, id, reviewFamily);
-  logEvent(board, by, 'add', id, { lane, specIds, after, route, ...(reviewFamily !== undefined ? { reviewFamily: reviewFamily.trim() } : {}), ...(baseline ? { checkBaseline: baseline } : {}) });
+  logEvent(board, by, 'add', id, { lane, specIds, after, route, ...(reviewFamily !== undefined && !twoTierReviews(board) ? { reviewFamily: reviewFamily.trim() } : {}), ...(baseline ? { checkBaseline: baseline } : {}), ...(reviewPolicy ? { reviewPolicy } : {}) });
   recordBarRevision(board, itemById(board, id), by, null, barActor);
   return id;
 }
@@ -683,11 +691,11 @@ export function requestCompanion(board, options) {
 }
 
 /** Validate an addition before its sender runs a new check, and again when the ordered move applies. */
-export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check, referenceAuthors, referenceAuthority, reviewFamily }, { sourceMove = null } = {}) {
-  reviewFamilies.validateReviewFamily(reviewFamily);
+export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check, referenceAuthors, referenceAuthority, sensitive, reviewFamily }, { sourceMove = null } = {}) {
   const command = sourceMove
     ? validateRehomeCheck(by, check, sourceMove)
     : coordinatorCheck(by, check) ?? '';
+  reviewPolicyChange(board, null, { sensitive, reviewFamily });
   const cleanTitle = title.trim();
   if (!cleanTitle) throw new Refused('NO_TITLE', 'an item needs a title');
   checkRoute(route);
@@ -720,11 +728,12 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
  * @param {number} id
  * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string, after?: (number | string)[] }} change
  */
-export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, reviewFamily }) {
+export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily }) {
   atomic(board, () => {
     const stored = itemById(board, id);
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
-    const { item, next, command, unfreeze, bar } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, reviewFamily });
+    const { item, next, command, unfreeze, bar } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily });
+    const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, id, { sensitive, reviewFamily }) : null;
     const baseline = normalizeCheckBaseline(agentId, command, checkBaseline);
     const pendingFields = [
       ...(next.item_criterion !== item.item_criterion ? ['criterion'] : []),
@@ -741,8 +750,10 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
     setItem(board, id, { ...next, ...(frozen ? { item_frozen: frozen.text, item_frozen_digest: frozen.digest } : {}), ...(clearFrozen ? { item_frozen: null, item_frozen_digest: null } : {}) });
     reviewFamilies.saveReviewFamily(board, id, reviewFamily);
     if (baseline || next.item_check !== item.item_check) saveCheckBaseline(board, id, baseline);
+    saveItemReviewPolicy(board, id, reviewPolicy);
     logEvent(board, agentId, 'edit', id, {
-      ...(reviewFamily !== undefined ? { reviewFamily: reviewFamily.trim() } : {}),
+      ...(reviewFamily !== undefined && !twoTierReviews(board) ? { reviewFamily: reviewFamily.trim() } : {}),
+      ...(reviewPolicy ? { reviewPolicy } : {}),
       ...(next.item_brief !== item.item_brief ? { brief: `${next.item_brief.length} characters` } : {}),
       ...(next.item_route !== item.item_route ? { route: next.item_route } : {}),
       ...(next.item_criterion !== item.item_criterion ? { criterion: next.item_criterion } : {}),
@@ -794,8 +805,7 @@ function notifyFileGrowth(board, before, after) {
 }
 
 /** Validate an edit without side effects, so a refused change never starts a shell baseline; a bar correction needs a reason [B31]. */
-export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, reviewFamily }) {
-  reviewFamilies.validateReviewFamily(reviewFamily);
+export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily }) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   if (after !== undefined && engine < 10) {
     throw new Refused('ENGINE_VERSION', `editing item dependencies requires engine 10; this board uses engine ${engine}; upgrade Pullboard before using --after`);
@@ -805,8 +815,8 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
     throw new Refused('HELD', `item #${id} is claimed; only the coordinator may edit it while held; shout coordinator`);
   }
   const command = coordinatorCheck(agentId, check);
-  if ([brief, route, criterion, check, after, reviewFamily].every((value) => value === undefined)) {
-    throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>" or --after <ids|none>, --review-family <family>');
+  if ([brief, route, criterion, check, after, sensitive, reviewFamily].every((value) => value === undefined)) {
+    throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>" or --after <ids|none>');
   }
   item ??= current(board, itemById(board, id));
   if (agentId !== COORDINATOR && agentId !== item.item_created_by) {
@@ -815,6 +825,8 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
   if (['verified', 'withdrawn'].includes(item.item_status)) {
     throw new Refused('CLOSED', `item #${id} is ${item.item_status}`);
   }
+  const reviewPolicy = reviewPolicyChange(board, id, { sensitive, reviewFamily });
+  if (reviewPolicy && item.item_status !== 'open') throw new Refused('HELD', `item #${id} is ${item.item_status}; change its review policy only while it is open`);
   if (after !== undefined) {
     if (!Array.isArray(after)) {
       throw new Refused('BAD_DEPENDENCIES', 'item dependencies must be an array of positive integer item ids; use --after 1,2 or --after none');
@@ -840,7 +852,7 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
   }
   if (brief !== undefined && engine >= REFERENCE_ENGINE) validateReferences(brief, { actor: agentId, authors: referenceAuthors, authority: referenceAuthority, previous: item.item_brief });
   checkRouted({ brief: next.item_brief, route: next.item_route, criterion: next.item_criterion, check: next.item_check }, engine);
-  const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check;
+  const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || Boolean(reviewPolicy);
   return { item, next, command, unfreeze, bar: barCorrectionFields(board, item, next, { reason }) };
 }
 
@@ -1191,6 +1203,9 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         } : {}),
         submissionProofValid: () => {
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= SUBMISSION_PROOF_ENGINE) recordedProof = submissionProof(proof, board.executionEngineVersion ?? ENGINE_VERSION);
+          if ((board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_REWORKS_ENGINE && recordedProof?.knownMainFailures) {
+            requireKnownMainReworks(recordedProof.knownMainFailures, listItems(board, { all: true }), id);
+          }
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= FLOW_SIZE_ENGINE) recordedSize = submissionSize(size, commit);
           return null;
         },
@@ -1285,9 +1300,9 @@ function reviewerChecks(board, { agentId, policy, familyPolicy = 'off' }) {
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
     requiredReviewFamily: found => reviewFamilies.requiredReviewFamilyProblem(board, found, agentId),
-    familyAllows: (found) => familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
+    familyAllows: (found) => reviewRouting.strictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
-      : null,
+      : null),
     reviewFree: (found) => {
       const holder = reviewHolder(board, found);
       return holder && holder !== agentId
@@ -1318,9 +1333,9 @@ export function reserveReview(board, id, who) {
  * @param {{ agentId: string, lane: string, leaseMs: number, policy: string, familyPolicy?: string, runnable?: boolean, routes?: string[], skipIds?: number[] }} who - skipIds: items the caller's own session built, never offered (verify refuses them too)
  * @returns {{ item: any | null, reasons: string[] }}
  */
-export function reserveNextReview(board, { agentId, lane, leaseMs, policy, familyPolicy = 'off', runnable, routes, skipIds = [] }) {
+export function reserveNextReview(board, { agentId, lane, leaseMs, policy, familyPolicy = 'off', runnable, routes, skipIds = [], priority = [] }) {
   return atomic(board, () => {
-    const { item, reasons } = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, skipIds });
+    const { item, reasons } = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, skipIds, priority });
     return item ? { item: reserveWithin(board, item.item_id, { agentId, leaseMs, policy, familyPolicy }), reasons } : { item: null, reasons };
   });
 }
@@ -1638,12 +1653,9 @@ export function refreeze(board, id, { agentId, freeze, [SPEC_REFREEZE]: specCorr
   });
 }
 
-
-
 export { listItems } from './board-query.js';
 
 export { itemsInStatus } from './board-query.js';
-
 
 export { getItem } from './board-query.js';
 
@@ -1822,11 +1834,7 @@ function checkEvidence(board, { kind, outcome, item, commit }) {
   if (!/^[0-9a-f]{40}$/.test(commit ?? '')) throw new Refused('BAD_EVIDENCE', `evidence names a commit by its full SHA (saw "${commit ?? ''}")`);
 }
 
-
-
-
 export { openDecisions } from './board-query.js';
-
 
 export { inbox } from './inbox-store.js';
 
@@ -1839,7 +1847,6 @@ const FACT_JUDGEMENTS = new Set(['decision', 'rejection', 'supersession', 'root-
 export { factReference };
 
 export { itemThread } from './board-query.js';
-
 
 /** Append a typed fact atomically; a correction never edits the original event [B29,B30,B31,B32].
  * The internal factId is set from a sealed move's identity during replay, rather than replica-local sequence ids; a never-again with its cause is the person's alone, and rigor lists it at once (#713) [D1].
@@ -1884,7 +1891,6 @@ function postRigorNotices(board, trigger) {
   }
 }
 
-
 /** Share milestone policy, primary computed order and equal-score path ties across queue and health. */
 export function buildOrder(board, { warm = [], agentId, readiness = barReadyForOrder, releasedClaims = [], tierFirst = false, priority } = {}) {
   const milestonePriority = priority ?? milestonePriorities(board);
@@ -1917,10 +1923,10 @@ export function buildOrder(board, { warm = [], agentId, readiness = barReadyForO
  * and `shared` names them (N20). A held lane offers nothing new (N22). A verifier is never offered `skipIds` (#973; engine 69, so older replays carry none).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[] }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[], afterRelease?: number }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [] }) {
+export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease }) {
   const focusCompare = focusOrder(board, () => 0);
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
@@ -1934,9 +1940,9 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
     const hasDifferentFamily = (entry) => Boolean(family && entry.item_builder_family && family !== entry.item_builder_family);
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
-    const standingRefusal = unrelated.map((entry) => itemAuthorProblem(board, entry, agentId)).find(Boolean);
+    const standingRefusal = unrelated.map((entry) => itemAuthorProblem(board, entry, agentId) ?? reviewFamilyProblem(board, entry, agentId, familyPolicy)).find(Boolean);
     const requiredRefusals = unrelated.map(entry => reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId)).filter(Boolean);
-    let reviewable = unrelated.filter((entry) => !itemAuthorProblem(board, entry, agentId) && !reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId));
+    let reviewable = unrelated.filter((entry) => !itemAuthorProblem(board, entry, agentId) && !reviewFamilyProblem(board, entry, agentId, familyPolicy) && !reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId) && !reviewRouting.strictReviewProblem(board, entry, agentId));
     if (policy === COORDINATOR && agentId !== COORDINATOR) reviewable = reviewable.filter((entry) => entry.item_lane === COORDINATOR);
     if (familyPolicy === 'require') reviewable = reviewable.filter(hasDifferentFamily);
     if (familyPolicy === 'prefer') reviewable.sort((first, second) => Number(hasDifferentFamily(second)) - Number(hasDifferentFamily(first)));
@@ -1959,7 +1965,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const group = item => focus?.ids.has(item.item_id) ? -1 : milestonePriority(item);
     const order = criticalPathEnabled(board) ? criticalPathOrder({ items: listItems(board, { all: true }), group, fallback: previousOrder }) : previousOrder;
     candidates.sort((first, second) => order(first.entry, second.entry));
-    candidates.sort((a, b) => focusCompare(a.entry, b.entry));
+    reviewRouting.prioritizeReviews(board, candidates, priority, focusCompare);
     const item = candidates.find((candidate) => !candidate.holder && !candidate.cooldown)?.entry;
     if (item) return { item, reasons: focusReasons(board, item) };
     const held = candidates.filter((candidate) => candidate.holder && candidate.holder !== agentId)
@@ -1970,7 +1976,9 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
       ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] };
   }
   const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
-  if (held) return { item: held, reasons: [] };
+  // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
+  const plannedRelease = held && held.item_id === afterRelease ? held.item_id : null;
+  if (held && plannedRelease === null) return { item: held, reasons: [] };
   const selectedLanes = new Set(lanes ?? [lane]);
   const reasons = allItems.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane) && entry.item_hold_reason)
     .map((entry) => `#${entry.item_id} is held by coordinator: ${entry.item_hold_reason}`);
@@ -1981,7 +1989,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     if (hold) { selectedLanes.delete(name); reasons.push(`${hold.hold_by} holds the ${name} lane: ${hold.hold_reason}`); }
   }
   const compare = buildOrder(board, { warm, agentId, tierFirst: true });
-  const inFlight = listItems(board, { all: true });
+  const inFlight = listItems(board, { all: true }).filter(entry => entry.item_id !== plannedRelease);
   const recent = new Set(warm);
   const mainRed = new Set(priority);
   const laneItems = items.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane));
@@ -2181,7 +2189,6 @@ export function recordRowDecisions(board, { agentId, channel, decisions }) {
 export function applyRowDecisions(board, options) {
   return applySpecRowDecisions(board, options, { refreeze, writeRowDecisions, notice: message => insertShout(board, message) });
 }
-
 
 export { recentShouts, eventsOfKinds, recentEvents, lastMoves, decisionAndEvidenceShouts, submitInvariantEvents } from './board-hot.js';
 

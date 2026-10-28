@@ -198,6 +198,11 @@ export const ITEM_SLOTS = Object.freeze({
   recordRowDecisions: [], decideSpecRevisions: [], applyRowDecisions: [], draftSpecRow: [], recordSpecApprovalBaseline: [],
   recordLandingBatch: [], recordLandingWaiver: [], recordLandingFlake: [], recordLandingTestDefect: [], finishLandingBatch: [],
   recordHealthFindings: [], decideSentinel: [], beginSentinelRun: [], finishSentinelRun: [],
+  // Maintenance snapshots bind item/lane IDs to an exact native event prefix, not provisional item references.
+  // Rewriting an ID would corrupt that observation; stale snapshots are refused by their revision check.
+  maintainStaleState: [],
+  // Patch author metadata names no other item; both operations target their first argument.
+  attachItemPatch: [[0]], removeItemPatch: [[0]],
   recordFlakeObservation: [], recordGateRun: [], recordProofRun: [[0, 'itemId'], [0, 'receipt', 'proof', 'item']], declareJob: [], recordJobRun: [], takeCoordinator: [], openHandoff: [], landingLeaseMove: [], setPersonSigning: [], proposePersonMove: [],
   recordActivityDelivery: [], actOnActivity: [], recordRowVerification: [], setBoardMembers: [],
   // Re-home IDs are acknowledged-only; foreign board/source IDs are never locally rewritten.
@@ -209,7 +214,7 @@ export const ITEM_SLOTS = Object.freeze({
   verify: [[0], [1, 'implies', '*']],
   appendFact: [[0], [1, 'implies', '*']],
   answerDecision: [[1, 'implies', '*']],
-  reserveNextReview: [[0, 'skipIds', '*']],
+  reserveNextReview: [[0, 'skipIds', '*'], [0, 'priority', '*']],
   addMilestone: [[0, 'items', '*']],
   editMilestoneItems: [[1, 'add', '*'], [1, 'remove', '*']],
   orderMilestoneItems: [[1, 'items', '*']],

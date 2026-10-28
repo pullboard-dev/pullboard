@@ -65,7 +65,7 @@ test('a landing batch writes ids that fit then +N, and every frozen row in spec 
   const refrozen = claimedItem(box, 'Refrozen after the claim', ['Z9', 'Z3', 'G1'], 'web/refrozen.txt');
   const edited = box.run(box.repo, 'edit', String(refrozen.id), '--criterion', `${refrozen.file} exists after the correction`, '--reason', 'the old bar named the file without the correction');
   assert.equal(edited.code, 0, edited.err);
-  const again = box.run(refrozen.path, 'refreeze', String(refrozen.id));
+  const again = box.run(box.repo, 'refreeze', String(refrozen.id));
   assert.equal(again.code, 0, again.err);
   const frozenRows = JSON.parse(JSON.parse(box.run(box.repo, 'show', String(refrozen.id), '--json').out).item_frozen).rows.map((row) => row.id);
   assert.deepEqual([...frozenRows].sort(), ['G1', 'Z3', 'Z9'], 'the refreeze froze the corrected bar with its rows');

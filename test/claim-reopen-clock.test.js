@@ -1,3 +1,4 @@
+import { requireFixtureReviewFamilies } from './review-family-fixture.js';
 /** @pullboard-test-loads src/board.js src/claims.js */
 /** Advancing clocks preserve the entire opt-in builder window [B13,B5]. */
 import assert from 'node:assert/strict';
@@ -17,8 +18,9 @@ function fixture(t) {
   const board = store.openBoard(join(directory, 'board.sqlite'), { now: () => new Date(at) });
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: '/repo' });
-  const builder = store.register(board, { lane: 'core', path: '/builder', route: 'mid' });
-  const other = store.register(board, { lane: 'core', path: '/other', route: 'mid' });
+  const builder = store.register(board, { lane: 'core', path: '/builder', family: 'Fixture Clock Builder Vendor', route: 'mid' });
+  const other = store.register(board, { lane: 'core', path: '/other', family: 'Fixture Clock Reviewer Vendor', route: 'mid' });
+  requireFixtureReviewFamilies(board);
   return { board, directory, builder, other, advance: (minutes) => { at += minutes * 60_000; } };
 }
 /** Claim the item with a frozen bar and a bounded lease. */

@@ -1,4 +1,3 @@
-/** @pullboard-test-input test-tree */
 /** @pullboard-test-input source-tree */
 /**
  * Pullboard's first Rigor checks (D1, C7): bin/checks/ holds four scripts a doctrine row's

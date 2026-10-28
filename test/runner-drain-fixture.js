@@ -5,11 +5,20 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { takeResource } from '../src/resources.js';
 import { runFixtureChild } from './fixture-child.js';
-import { HOST, installSshStandIn, shellQuote } from './runner-ssh-fixture.js';
+import {
+  HOST,
+  installRegistrationProbeStandIn,
+  installSshStandIn,
+  shellQuote,
+} from './runner-ssh-fixture.js';
 
 /** Preserve unrelated settings and the established immediate-removal contract for idle runners. */
 export function runnerRemoveKeepsSettings(t, e2e) {
   const box = e2e.project();
+  const probeBin = join(box.dir, 'registration-bin');
+  mkdirSync(probeBin);
+  installRegistrationProbeStandIn({ bin: probeBin });
+  box.env.PATH = `${probeBin}:${box.env.PATH}`;
   const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const removed = { host: 'runner-one.example.invalid', slots: 2, browser: 1, node: 'node', root: '/srv/runner-one' };
   const remaining = { host: 'runner-two.example.invalid', slots: 1, browser: 0 };
@@ -18,10 +27,14 @@ export function runnerRemoveKeepsSettings(t, e2e) {
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   writeFileSync(settingsFile, JSON.stringify(original, null, 2));
   const firstAdded = box.run(box.repo, 'runner', 'add', removed.host, '--slots', String(removed.slots), '--browser', String(removed.browser),
-    '--node', removed.node, '--root', removed.root);
+    '--node', removed.node, '--root', removed.root, '--json');
   assert.equal(firstAdded.code, 0, firstAdded.err);
-  const secondAdded = box.run(box.repo, 'runner', 'add', remaining.host, '--slots', String(remaining.slots), '--browser', String(remaining.browser));
+  const secondAdded = box.run(box.repo, 'runner', 'add', remaining.host, '--slots', String(remaining.slots), '--browser', String(remaining.browser), '--json');
   assert.equal(secondAdded.code, 0, secondAdded.err);
+  removed.gui = JSON.parse(firstAdded.out).runner.gui;
+  remaining.gui = JSON.parse(secondAdded.out).runner.gui;
+  assert.ok([true, false, null].includes(removed.gui));
+  assert.ok([true, false, null].includes(remaining.gui));
   const registered = { ...original, runners: [removed, remaining] };
   assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')), registered);
 

@@ -59,10 +59,10 @@ async function project(t, ratio = 3) {
   }
   box.board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(box.board));
-  box.builderId = store.register(box.board, { lane: 'web', path: box.builder });
-  box.peerId = store.register(box.board, { lane: 'web', path: box.peer });
-  box.reviewerId = store.register(box.board, { lane: 'review', path: box.reviewer });
-  box.reviewer2Id = store.register(box.board, { lane: 'review', path: box.reviewer2 });
+  box.builderId = store.register(box.board, { lane: 'web', path: box.builder, family: 'Fixture-Builder' });
+  box.peerId = store.register(box.board, { lane: 'web', path: box.peer, family: 'Fixture-Peer' });
+  box.reviewerId = store.register(box.board, { lane: 'review', path: box.reviewer, family: 'Fixture-Reviewer' });
+  box.reviewer2Id = store.register(box.board, { lane: 'review', path: box.reviewer2, family: 'Fixture-Reviewer-Two' });
   return box;
 }
 
@@ -122,6 +122,14 @@ test('[Q1,V15,A1] below the configured ratio next claims normally and status rep
   const box = await project(t, 4);
   submitted(box); submitted(box); submitted(box);
   const id = build(box);
+  const claimed = await run(box, box.builder, ['next', '--json']);
+  assert.equal(claimed.code, 0, claimed.stderr);
+  assert.equal(claimed.data.item.item_id, id);
+  assert.equal(claimed.data.offer, undefined);
+  assert.equal(JSON.parse(store.events(box.board, { itemId: id }).at(-1).event_detail).reviewSkipped, undefined);
+  const released = await run(box, box.builder, ['release', String(id), '--note', 'check aged review routing', '--json']);
+  assert.equal(released.code, 0, released.stderr);
+  assert.equal(store.getItem(box.board, id).item_status, 'open');
   box.clock.advance(2 * HOUR);
   const status = await run(box, box.builder, ['status', '--json']);
   assert.equal(status.code, 0, status.stderr);
@@ -130,11 +138,11 @@ test('[Q1,V15,A1] below the configured ratio next claims normally and status rep
     awaitingFirstReview: 3, releasedWithoutVerdict: 0, releasedItems: [] });
   const prose = await run(box, box.builder, ['status']);
   assert.match(prose.stdout, /review queue: 3 submitted; 3 waiting for a first reviewer, 0 released without a verdict, 0 agents reviewing; oldest submission 2h ago/u);
-  const claimed = await run(box, box.builder, ['next', '--json']);
-  assert.equal(claimed.code, 0, claimed.stderr);
-  assert.equal(claimed.data.item.item_id, id);
-  assert.equal(claimed.data.offer, undefined);
-  assert.equal(JSON.parse(store.events(box.board, { itemId: id }).at(-1).event_detail).reviewSkipped, undefined);
+  const aged = await run(box, box.builder, ['next', '--json']);
+  assert.equal(aged.code, 0, aged.stderr);
+  assert.ok(aged.data.offer, 'a two-hour wait overrides the configured review ratio');
+  assert.equal(aged.data.build.item_id, id);
+  assert.equal(store.getItem(box.board, id).item_status, 'open', 'the aged review offer does not claim the build');
 });
 
 test('[V1,R1] a review released without a verdict waits an hour for the same reviewer and resets on resubmit', async (t) => {

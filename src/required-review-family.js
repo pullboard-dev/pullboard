@@ -17,6 +17,7 @@ export function requiredReviewFamily(board, id) {
 /** Persist inside the caller's item transaction, never inventing a family from a model. */
 export function saveReviewFamily(board, id, value) {
   if (value === undefined) return;
+  if (value === null) { board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`item_review_family:${id}`); return; }
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
     .run(`item_review_family:${id}`, value.trim());
 }

@@ -1,3 +1,5 @@
+import { runDeferredGuards } from './landing-deferred-run.js';
+import { refreshLandedCodeMap } from './landing-main-notices.js';
 import { cadenceDeferral } from './landing-cadence.js';
 import {
   requireLocalGuardClassification,
@@ -1122,17 +1124,6 @@ async function publish(state) {
   return state.batch;
 }
 
-/** Refresh the derived source map after the landing receipt and main fast-forward have completed. */
-async function refreshLandedCodeMap(state) {
-  try {
-    const { refreshLandedCodeMap: refresh } = await import('./code-map.js');
-    const map = refresh(state.root);
-    if (map) state.say('code map refreshed for main ' + map.mainCommit.slice(0, 12));
-  } catch (error) {
-    state.say('code map refresh deferred: ' + error.message);
-  }
-}
-
 /** Whether this project lands in two tiers: on the local trunk at once, and on the remote only through publish (#801). */
 export function landsOnTrunk(config) {
   return config?.landing?.publish === 'separate';
@@ -1167,31 +1158,7 @@ function deferredSelections(state) {
  * A red sends back each item whose own deferred selection holds a failing file, the way a red submit would.
  */
 async function deferredGuards(state) {
-  const root = state.batch.root;
-  const deferred = deferredSelections(state);
-  if (!deferred.length) return;
-  const files = [...new Set(deferred.flatMap((row) => row.files))].sort();
-  const tree = headTree(root);
-  const commit = headCommit(root);
-  const browser = !browserFreeChecksEnabled() || await testsNeedBrowser(root, files);
-  const run = await withLandingGateSlot(root, lease => runProfiledShell(root, `${state.config.affectedTests} ${files.map(quote).join(' ')}`, { waitMs: lease.waitMs, gateLease: lease, stages: true }),
-    { agent: 'coordinator', kind: 'gate', landing: true, browser, onWait: state.onWait });
-  // The same pin as the full landing gate: a result only counts for the exact merged tree it ran on.
-  if (headCommit(root) !== commit || headTree(root) !== tree || !isClean(root)) {
-    throw new Refused('LAND_SOURCE_CHANGED', 'the landing source changed while the deferred affected tests ran; restore the recorded batch before adopting');
-  }
-  state.say(`deferred affected tests: ${files.length} file(s) ${run.isGreen ? 'green' : 'red'} on the merged tree`);
-  if (run.isGreen) return;
-  const failures = landingFailures(run.output, root);
-  const failed = new Set(failures.map((failure) => failure.file).filter(Boolean));
-  for (const { entry, files: own } of deferred) {
-    if (!own.some((file) => failed.has(file)) || state.culprits.some((culprit) => culprit.id === entry.id)) continue;
-    state.culprits.push({ id: entry.id, commit: entry.commit, ...(entry.reviewedCommit ? { reviewedCommit: entry.reviewedCommit } : {}),
-      mergeCommit: state.batch.tip, tests: failures.filter((failure) => own.includes(failure.file)) });
-  }
-  await save(state, { culprits: state.culprits });
-  await returnCulprits(state);
-  throw new Refused('GATE_RED', `the deferred affected tests are red on the merged tree: ${[...failed].join(', ') || 'no failing file was named; inspect the merged tree'}`);
+  return runDeferredGuards(state, { deferredSelections, landingFailures, save, returnCulprits });
 }
 
 /** Run the deferred affected tests before an inline landing's gate; false when they are red and nothing may land. */

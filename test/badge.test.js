@@ -1,3 +1,4 @@
+import { requireFixtureReviewFamilies } from './review-family-fixture.js';
 /** Board-record badge counts use actual private Git/SQLite projects [B3,V1]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -23,9 +24,10 @@ function badgeProject(total, outside, { independent = outside } = {}) {
   let document;
   try {
     store.register(source, { lane: 'coordinator', path: box.dir });
-    const builder = store.register(source, { lane: 'web', path: join(box.dir, 'builder'), parent: 'badge-parent-P' });
-    const reviewer = store.register(source, { lane: 'web', path: join(box.dir, 'reviewer'), parent: 'badge-parent-Q' });
-    const procedural = store.register(source, { lane: 'web', path: join(box.dir, 'procedural-reviewer') });
+    const builder = store.register(source, { lane: 'web', path: join(box.dir, 'builder'), family: 'Fixture Badge Builder Vendor', parent: 'badge-parent-P' });
+    const reviewer = store.register(source, { lane: 'web', path: join(box.dir, 'reviewer'), family: 'Fixture Badge Reviewer Vendor', parent: 'badge-parent-Q' });
+    const procedural = store.register(source, { lane: 'web', path: join(box.dir, 'procedural-reviewer'), family: 'Fixture Badge Procedural Vendor' });
+    requireFixtureReviewFamilies(source);
     for (let index = 0; index < total; index++) {
       const id = store.addItem(source, { by: 'coordinator', lane: 'web', title: `Finished ${index}` });
       store.claim(source, id, { agentId: builder, lane: 'web', leaseMs: 3_600_000,
