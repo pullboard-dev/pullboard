@@ -174,7 +174,7 @@ try {
       reads++;
     }
   });
-  process.stdout.write(JSON.stringify({ phaseMs: performance.now() - started, reads }) + '\n');
+  process.stdout.write(JSON.stringify({ phaseMs: performance.now() - started, reads }) + '\\n');
 } finally { progress.stop(); await monitor.close(); db.close(); }
 `);
   const chunks = [], started = performance.now();
