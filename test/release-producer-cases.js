@@ -88,7 +88,7 @@ function fixture(t, { red = false, hosts = 7 } = {}) {
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const entry=fileURLToPath(new URL('../.tooling/bin/run-tests.js',import.meta.url));
-const child=spawnSync(process.execPath,[entry,...process.argv.slice(2)],{stdio:'inherit'});
+const child=spawnSync(process.execPath,[...process.execArgv,entry,...process.argv.slice(2)],{stdio:'inherit'});
 if(child.error)throw child.error;
 if(child.signal)process.kill(process.pid,child.signal);
 else process.exitCode=child.status??1;
