@@ -1,4 +1,5 @@
 /** Real CLI scenario for a review, submit or check that keeps its item lease while queued [C7,V4]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -15,6 +16,39 @@ import { runFixtureChild } from './fixture-child.js';
 
 /** Build the resource test's child programs with the importing test's absolute module URLs. */
 export function resourceWorkerSources({ resourcesModule: MODULE, gateModule: GATE_MODULE, settingsModule: SETTINGS_MODULE }) {
+  /** A gate run whose memory reading comes from a fixture file through the Linux reader's own parsing. */
+  const MEMORY_WORKER = `
+import { readFileSync } from 'node:fs';
+import { withGateSlot } from ${JSON.stringify(GATE_MODULE)};
+${executionServicesSource(GATE_MODULE)}
+import { readMachineMemory } from ${JSON.stringify(MODULE)};
+const [root, agent, source] = process.argv.slice(1);
+const ps = ['  6161   512000 /bin/zsh', '  4242 25165824 /usr/bin/python3', '    77     1024 /sbin/launchd',
+  '  5151  2097152 /usr/local/bin/node', '  4343 24117248 /opt/homebrew/bin/python3.12'].join('\\n');
+const cwds = { '/proc/4242/cwd': '/work/journal-reader', '/proc/4343/cwd': '/work/other-reader', '/proc/5151/cwd': '/work/pullboard' };
+let reads = 0;
+/** Read the fixture's current machine state as Linux would present it, counting every reading. */
+const readMemory = (options) => (reads += 1, source === 'win32') ? readMachineMemory({ ...options, platform: 'win32' }) : readMachineMemory({
+  ...options, platform: 'linux',
+  readText: async (file) => {
+    const reading = JSON.parse(readFileSync(source, 'utf8'));
+    if (file === '/proc/meminfo') return reading.meminfo;
+    if (file === '/proc/pressure/memory') return reading.psi;
+    throw new Error('unexpected file ' + file);
+  },
+  run: async (file) => { if (file === '/bin/ps') return ps; throw new Error('unexpected command ' + file); },
+  readLink: async (path) => { if (cwds[path]) return cwds[path]; throw new Error('EACCES'); },
+});
+let last = '';
+await withGateSlot(root, async () => {
+  console.log(JSON.stringify({ acquired: agent, reads }));
+  for await (const line of process.stdin) if (String(line).trim() === 'release') break;
+}, { executionServices, agent, kind: 'gate', readMemory, onWait: ({ position, memory }) => {
+  const state = JSON.stringify({ waiting: position, memory: memory ?? null });
+  if (state !== last) { last = state; console.log(state); }
+} });
+`;
+
   const POOL_MODULE_WORKER = `
 import { takeResource } from ${JSON.stringify(MODULE)};
 import { loadMachineSettings } from ${JSON.stringify(SETTINGS_MODULE)};
@@ -38,8 +72,9 @@ try {
 `;
   const SUBMIT_CHECK = `
 import { runSubmitGate } from ${JSON.stringify(GATE_MODULE)};
+${executionServicesSource(GATE_MODULE)}
 const [root, base, check] = process.argv.slice(1);
-const result = await runSubmitGate(root, { gate: 'true', affectedTests: 'node bin/run-tests.js test/cpu-check.test.js' }, {
+const result = await runSubmitGate(root, { gate: 'true', affectedTests: 'node bin/run-tests.js test/cpu-check.test.js' }, { executionServices,
   base, changed: ['test/cpu-check.test.js'], check, agent: 'submit-check', item: '636',
 });
 process.stdout.write(JSON.stringify({ green: result.isGreen, full: result.full, reason: result.reason, files: result.files, checkGreen: result.check.green }) + '\\n');
@@ -73,7 +108,7 @@ for await (const line of process.stdin) {
   if (line.trim() === 'release') { lease.release(); secondLease?.release(); break; }
 }
 `;
-  return { POOL_MODULE_WORKER, SUBMIT_CHECK, WORKER };
+  return { POOL_MODULE_WORKER, SUBMIT_CHECK, WORKER, MEMORY_WORKER };
 }
 
 /** Read private resource names without changing the database used by the caller. */
@@ -253,6 +288,7 @@ function inheritedAdmissionProof(box) {
 import assert from 'node:assert/strict';
 import { takeResource, gateSlotEnvironment } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/resources.js')).href)};
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href)};
+${executionServicesSource(pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href)}
 const root = process.cwd();
 const lease = await takeResource({ name: 'gate', capacity: 2, scope: 'machine', root, agent: 'inherited-admission-control' });
 Object.assign(process.env, gateSlotEnvironment(lease));
@@ -261,9 +297,9 @@ try {
   await withGateSlot(root, inherited => {
     assert.equal(inherited.inherited, true);
     assert.equal(renewed, true, 'renewal finishes before inherited work starts');
-  }, { onWait: async state => { assert.equal(state.admitted, true); await Promise.resolve(); renewed = true; } });
+  }, { executionServices, onWait: async state => { assert.equal(state.admitted, true); await Promise.resolve(); renewed = true; } });
   const lost = new Error('private item lease lost');
-  await assert.rejects(withGateSlot(root, () => assert.fail('lost admission must not run'), {
+  await assert.rejects(withGateSlot(root, () => assert.fail('lost admission must not run'), { executionServices,
     onWait: async () => { throw lost; },
   }), error => error === lost);
 } finally { lease.release(); }

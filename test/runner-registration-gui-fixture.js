@@ -1,5 +1,6 @@
 /** @pullboard-module-loads src/gate.js src/config.js */
 /** Real private SSH/worker fixtures for registration-time desktop observations [C7,V4]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import {
   existsSync,
@@ -92,9 +93,10 @@ test('first GUI-marked body actually executes [C7]',()=>writeFileSync(${JSON.str
     const gate = pathToFileURL(join(tooling, 'src/gate.js')).href;
     const config = pathToFileURL(join(tooling, 'src/config.js')).href;
     const source = `import {runGate} from ${JSON.stringify(gate)};
+${executionServicesSource(gate)}
 import {loadConfig} from ${JSON.stringify(config)};
 const root=${JSON.stringify(paths.repo)};
-const result=await runGate(root,loadConfig(root),{trustStamp:false});
+const result=await runGate(root,loadConfig(root),{ executionServices,trustStamp:false});
 process.stdout.write(result.output);
 process.stdout.write('PULLBOARD_RUN_RESULT '+JSON.stringify({isGreen:result.isGreen,runner:result.profile.executionRunner,profile:result.profile})+'\\n');
 process.exitCode=result.isGreen?0:1;

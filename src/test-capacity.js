@@ -3,7 +3,6 @@ import { testClosures } from './affected-tests.js';
 import { events } from './board.js';
 import { boardReceiptStore } from './gate-run-receipt.js';
 import { receiptFields } from './gate-run-receipt.js';
-import { gateRuns } from './quarantine.js';
 import { readTestValueTimings } from './test-value-timing.js';
 import { testValueReport } from './test-value.js';
 import { capacitySummary } from './capacity-summary.js';
@@ -11,8 +10,10 @@ import { declaredTestBoundary } from './capacity-summary.js';
 import { testConversionPlan } from './test-conversion.js';
 
 /** Read one complete native collection in native event order, retaining a red complete audit as red. */
-export function testCapacityReport(board, { root, costs, now = Date.now() }) {
-  const value = testValueReport(board, { root, costs, now });
+export function testCapacityReport(board, { root, costs, now = Date.now() }, services) {
+  if (typeof services?.gateRuns !== 'function') throw new TypeError('test capacity needs an explicit native gate-run reader');
+  const { gateRuns } = services;
+  const value = testValueReport(board, { root, costs, now }, services);
   const history = events(board);
   const graph = testClosures(root);
   const inventory = [...graph.closures.keys()].map(file => ({ file,

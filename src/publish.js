@@ -4,6 +4,8 @@
  * run and, for each failing file, the items landed since the last published head whose merges touched it. The same
  * red head is not run again; publish waits for a new head.
  */
+import { runnerExecutionServices } from './runners.js';
+import { landingExecutionServices } from './landing-shards.js';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -89,7 +91,7 @@ export async function publishTrunk({ root, board, config, say, onWait, onFailure
   git(root, ['worktree', 'add', '--detach', directory, head]);
   let gate;
   try {
-    gate = await runGate(directory, config, { trustStamp: false, landing: true, agent: 'coordinator', onWait, onFailure });
+    gate = await runGate(directory, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, agent: 'coordinator', onWait, onFailure });
     // Push from the worktree that ran the suite, so the pre-push hook reads that run's green stamp instead of rerunning it.
     if (gate.isGreen) {
       // Landing depends on the full-suite verdict, independently of whether the subsequent network push succeeds.

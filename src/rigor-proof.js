@@ -1,4 +1,6 @@
 /** Commit-bound, observed proof for a noticed failure cause; uncertain execution proves no rule [D1,D3,S1]. */
+import { runnerExecutionServices } from './runners.js';
+import { landingExecutionServices } from './landing-shards.js';
 import {
   spawn,
   spawnSync,
@@ -251,7 +253,7 @@ export async function proveCauseCheck(root, cause, request, { agent, parseProces
   const prepared = await prepareCauseProof(root, cause, request);
   if (typeof parseProcessCensus !== 'function') throw new Refused('RIGOR_UNPROVEN', 'supply the process census parser from the proof command owner before acquiring its machine lease');
   return await withGateSlot(root, lease => provePreparedCheck(root, cause, prepared, gateSlotEnvironment(lease), parseProcessCensus),
-    { browser: true, remote: false, agent, kind: 'rigor-proof' });
+    { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser: true, remote: false, agent, kind: 'rigor-proof' });
 }
 
 /** Run only an already validated cause proof while its real machine lease remains held. */

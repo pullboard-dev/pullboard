@@ -1,4 +1,5 @@
 /** Prove concurrent landing gates against actual private Git, SQLite and gate subprocesses [B3,V4]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -241,7 +242,8 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
   ].join('\n');
   const controller = [
     "import assert from 'node:assert/strict';",
-    `import { withGateSlot } from ${JSON.stringify(url('gate.js'))};`,
+    `import { withGateSlot } from ${JSON.stringify(url('gate.js'))};
+${executionServicesSource(url('gate.js'))}`,
     `import { gateSlotEnvironment, holdsLease } from ${JSON.stringify(url('resources.js'))};`,
     `import { runFixtureChild } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'fixture-child.js')).href)};`,
     'const [root, bin] = process.argv.slice(1); let owned;',
@@ -253,7 +255,7 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
     `const api = runFixtureChild(process.execPath, ["--input-type=module", "-e", ${JSON.stringify(direct)}, root], { cwd: root, env, encoding: "utf8" });`,
     'assert.equal(api.status, 0, api.stderr); assert.equal(JSON.parse(api.stdout).code, "LAND_PARALLEL_NESTED_GATE");',
     'assert.equal(holdsLease(lease), true, "the API refusal cannot release its caller grant");',
-    '}, { browser: false, remote: false, agent: "coordinator", kind: "check" });',
+    '}, { executionServices, browser: false, remote: false, agent: "coordinator", kind: "check" });',
     'assert.equal(holdsLease(owned), false, "only the actual owner releases the grant when its action ends");',
     'console.log(JSON.stringify({ cli: "LAND_PARALLEL_NESTED_GATE", api: "LAND_PARALLEL_NESTED_GATE", ownerReleased: true }));',
   ].join('\n');
