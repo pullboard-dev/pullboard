@@ -42,11 +42,11 @@ test('[C7] a report shout right after the same agent verdict is refused naming t
   assert.equal(viaItem.code, 1, 'naming the item with --item is the same report');
   assert.equal(shouts(box), before, 'refusals record no shout');
 
-  for (const args of [['Should #1 land now?', '--kind', 'question'], ['#1 blocked on the runner', '--kind', 'blocker'], ['Pick for #1', '--kind', 'decision']]) {
+  for (const args of [['Should #1 land now?', '--kind', 'question'], ['#1 blocked on the runner', '--kind', 'blocker'], ]) {
     const sent = box.run(box.web, 'shout', 'coordinator', ...args, '--json');
     assert.equal(sent.code, 0, `${args.join(' ')}: ${sent.out}`);
   }
-  assert.equal(shouts(box), before + 3, 'questions, blockers and decisions are delivered after an accept');
+  assert.equal(shouts(box), before + 2, 'questions and blockers are delivered after an accept');
 
   const unrelated = box.run(box.web, 'shout', 'coordinator', 'An unrelated idea about review receipts', '--kind', 'idea', '--json');
   assert.equal(unrelated.code, 0, 'a shout naming no item with a recent event is delivered');
@@ -65,6 +65,8 @@ test('[C7] the refusal covers only the sender, only the last ten minutes and onl
     store.logEvent(board, 'web-1', 'submit', id, {}, new Date(now - 9 * 60_000));
     assert.throws(() => refuseRestatedReport(board, shout, now), { code: 'REPORT_RESTATES_EVENT' });
     assert.doesNotThrow(() => refuseRestatedReport(board, { ...shout, from: 'web-2' }, now), 'another agent restates nothing of its own');
+    for (const kind of ['question', 'blocker', 'decision']) assert.doesNotThrow(() => refuseRestatedReport(board, { ...shout, kind }, now), `a ${kind} after a submit is delivered`);
+    assert.doesNotThrow(() => refuseRestatedReport(board, { ...shout, kind: 'idea', decision: true }, now), 'a decision request is delivered');
     assert.doesNotThrow(() => refuseRestatedReport(board, { ...shout, to: 'api' }, now), 'only coordinator shouts are covered');
     assert.doesNotThrow(() => refuseRestatedReport(board, { ...shout, from: 'person' }, now), 'the person is exempt');
   } finally { store.closeBoard(board); }
