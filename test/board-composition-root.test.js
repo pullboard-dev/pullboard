@@ -1,4 +1,3 @@
-// @pullboard-board-file persistence: invalid ports must refuse before creating storage; migration failure must close it.
 /** Native construction binds all capabilities before guards and preserves the public board API [C7,B1,B2]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -96,6 +95,7 @@ test('raw storage refuses absent providers before filesystem effects and closes 
   assert.throws(() => openBoardStore(file, clock), /explicit runtime ports/u);
   assert.equal(existsSync(join(directory, 'never-created')), false);
   const ports = native.nativeBoardPorts();
+  // @pullboard-board-file persistence: missing auth must refuse before creating the database directory.
   assert.throws(() => native.openBoard(file, clock, { ports: { ...ports, auth: {} } }), /auth.boardNotWritable/u);
   assert.equal(existsSync(join(directory, 'never-created')), false);
   let captured, reported = 0;
@@ -123,6 +123,7 @@ test('incomplete engine capabilities refuse before storage exists [C7,B1]', t =>
     const enginePorts = { ...ports.enginePorts };
     delete enginePorts[key];
     assert.throws(() => {
+      // @pullboard-board-file persistence: incomplete engine capabilities must refuse before storage exists.
       const board = native.openBoard(file, undefined, { ports: { ...ports, enginePorts } });
       native.closeBoard(board);
     }, error => error.code === 'NO_POLICY' && error.message.includes(`enginePorts.${key}`));
@@ -138,6 +139,7 @@ test('missing native person identity refuses before storage exists [C7,B1]', t =
   const nativePorts = { ...ports.nativePorts };
   delete nativePorts.PERSON;
   assert.throws(() => {
+    // @pullboard-board-file persistence: absent native identity must refuse before storage exists.
     const board = native.openBoard(file, undefined, { ports: { ...ports, nativePorts } });
     native.closeBoard(board);
   }, error => error.code === 'NO_POLICY' && error.message.includes('nativePorts.PERSON'));
@@ -149,6 +151,7 @@ test('native read wrappers carry explicit capabilities while SQLite remains read
   const file = join(directory, 'board.sqlite');
   let read;
   t.after(() => { try { if (read) native.closeBoard(read); } finally { rmSync(directory, { recursive: true, force: true }); } });
+  // @pullboard-board-file persistence: read-only reopening must preserve the actual SQLite schema and deny writes.
   const written = native.openBoard(file);
   native.closeBoard(written);
   const ports = native.nativeBoardPorts();

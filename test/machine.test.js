@@ -116,6 +116,7 @@ const ENTRY_POINTS = [
 ];
 /** Setup refusals have no item move, but stay in the same reachability audit. */
 const NON_MOVE_ENTRY_POINTS = [
+  'native-board.js#openBoard', // Physical storage is composed before any item move.
   'cli.js#refuseRemoteCoordinatorModel',
   // Child-process commands may be serialized into scripts, so audit this exported setup guard directly.
   'resources.js#gateSlotEnvironment',
@@ -123,6 +124,12 @@ const NON_MOVE_ENTRY_POINTS = [
 ];
 /** Board functions handed a function to call, and the one the CLI and the runner hand them. */
 const CALLBACKS = {
+  // The native root supplies these setup guards through the physical store's explicit ports.
+  'board-store.js': {
+    readEventLogVersion: 'board-read-open.js#readEventLogVersion',
+    boardNotWritable: 'board-access.js#boardNotWritable',
+    boardBusyError: 'board-access.js#boardBusyError',
+  },
   'board.js': { freeze: 'cli.js#freezer' },
   'line-capacity-board.js': {
     nextFor: 'board.js#nextFor',
