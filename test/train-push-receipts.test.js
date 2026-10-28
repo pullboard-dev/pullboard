@@ -67,7 +67,7 @@ async function finishAudits(box, waitFor) {
       for (const name of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN',
         'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_CHECKOUT_SESSION_TOKEN']) delete env[name];
       box.auditTokens.set(batch.id, token); // A failed or unobserved job is inspected, never silently executed again.
-      const result = runFixtureChild(process.execPath, [join(box.repo, 'bin/main-audit.js'), box.repo, token, '--release'],
+      const result = runFixtureChild(process.execPath, [join(box.repo, '.tooling/bin/main-audit.js'), box.repo, token, '--release'],
         { cwd: box.repo, env, encoding: 'utf8' });
       assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
     }
@@ -87,11 +87,17 @@ function onBoard(box, action) {
 /** Prepare real private source and policy; all gate receipts are produced by actual native executions. */
 function fixture(t, required = true) {
   const helpers = createE2eHelpers();
-  const box = helpers.project('node bin/run-tests.js', undefined, { withWorktree: false });
+  const box = helpers.project('node .tooling/bin/run-tests.js', undefined, { withWorktree: false });
   box.auditTokens = new Map();
   t.after(async () => { await finishAudits(box, helpers.waitFor); helpers.cleanup(); });
   delete box.env.NODE_TEST_CONTEXT;
-  for (const name of ['src', 'bin', 'package.json']) cpSync(new URL(`../${name}`, import.meta.url), join(box.repo, name), { recursive: true });
+  const tooling = join(box.repo, '.tooling');
+  mkdirSync(tooling);
+  const published = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  for (const name of new Set(['package.json', ...published.files])) {
+    cpSync(new URL(`../${name}`, import.meta.url), join(tooling, name), { recursive: true });
+  }
+  writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'native-train-fixture', private: true, type: 'module' }));
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/train.test.js'), "import {test} from 'node:test'; import assert from 'node:assert/strict'; test('the actual train body [C7]',()=>assert.notEqual(process.env.TRAIN_RED,'1'));\n");
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
@@ -312,7 +318,7 @@ test('a native train landing records ordered bound evidence and an audit permits
   const range = pushedFirstParentCommits(box.repo, `refs/heads/main ${tip} refs/heads/main ${box.base}\n`);
   assert.deepEqual(range, [tip]);
   assert.deepEqual(onBoard(box, board => nativePushReceiptProblems(box.repo, board, range)), []);
-  const positive = runFixtureChild(process.execPath, [join(box.repo, 'bin/pullboard.js'), 'push-receipts', '--json'],
+  const positive = runFixtureChild(process.execPath, [join(box.repo, '.tooling/bin/pullboard.js'), 'push-receipts', '--json'],
     { cwd: box.repo, env: box.env, encoding: 'utf8',
       input: `refs/heads/main ${tip} refs/heads/main ${box.base}\n` });
   assert.equal(positive.status, 0, `${positive.stdout}${positive.stderr}`);
@@ -324,7 +330,7 @@ test('a native train landing records ordered bound evidence and an audit permits
   box.git(box.repo, 'add', '-A'); box.git(box.repo, 'commit', '-q', '-m', 'chore: bypass the native train');
   const bypass = box.git(box.repo, 'rev-parse', 'HEAD').trim();
   assert.match(onBoard(box, board => nativePushReceiptProblems(box.repo, board, [tip, bypass])).join('\n'), /lacks its exact native green landing receipt/u);
-  const negative = runFixtureChild(process.execPath, [join(box.repo, 'bin/pullboard.js'), 'push-receipts', '--json'],
+  const negative = runFixtureChild(process.execPath, [join(box.repo, '.tooling/bin/pullboard.js'), 'push-receipts', '--json'],
     { cwd: box.repo, env: box.env, encoding: 'utf8',
       input: `refs/heads/main ${bypass} refs/heads/main ${box.base}\n` });
   assert.equal(negative.status, 1, `${negative.stdout}${negative.stderr}`);
