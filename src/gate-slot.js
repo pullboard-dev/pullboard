@@ -144,6 +144,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     runnerOnly,
     ...(restriction ? { requiredExecutor: restriction } : {}),
     runnerProvider: () => loadMachineSettings().runners ?? [],
+    runnerHealthProbe: async (runner, previous) => (await import('./runners.js')).probeRunnerHealth(runner, previous),
     runnersFirstProvider: gateRunnersFirstEnabled,
     runnerWaitMs: gateRunnerWaitMs(),
     releaseContext,
@@ -178,8 +179,8 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         const runnerUnavailable = { host: lease.runner.host,
           reason: cleanup ? error.message : admissionDeadline ? 'worker did not become ready before its admission deadline'
             : health.healthy ? 'transient failure; confirming SSH and Node observation succeeded' : 'failed call and confirming transport observation failed',
-          diagnostic, until: cleanup ? 'cleanup is verified and the host is re-registered'
-            : admissionDeadline ? 'worker readiness is checked and the host is re-registered'
+          diagnostic, until: cleanup ? 'the pinned worker verifies exact-job cleanup on its next health probe'
+            : admissionDeadline ? 'the pinned worker proves readiness and exact-job cleanup on its next health probe'
               : health.healthy ? 'the original ticket is readmitted' : 'the next successful automatic health observation' };
         if (onWait) await onWait({ holders: [], line: [], position: 0, runnerUnavailable });
         else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly && restriction?.kind !== 'ssh' ? 'rerunning it locally' : 'requeueing the run'}\n`);

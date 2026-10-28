@@ -45,6 +45,11 @@ import { createDescendantTracker } from './runner-custody.js';
 import { pinSourceCacheJob } from './runner-source-cache.js';
 import { pruneSourceCache } from './runner-source-cache.js';
 import { Refused } from './refused.js';
+import {
+  recordRunnerCompletion,
+  recoveryIdentity,
+  runnerHealthReply,
+} from './runner-transport.js';
 import { guiSession } from './gui-session.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
 import { RUNNER_POLICY_FILE } from './runner-policy.js';
@@ -221,6 +226,7 @@ async function readSpec() {
     || (value.browserByLaunch !== undefined && typeof value.browserByLaunch !== 'boolean')
     || !value.runtime || typeof value.runtime !== 'object' || !value.runtime.files || typeof value.runtime.files !== 'object'
     || typeof value.runtime.sha256 !== 'string') throw new Error('invalid work specification');
+  if (value.recovery !== undefined && (!recoveryIdentity(value.recovery) || value.recovery.request !== value.id || value.recovery.tooling !== value.tooling?.sha256)) throw new Error('invalid recovery identity');
   if (value.trustedMode !== undefined) {
     const mode = privateCheckEnvelope(value.trustedMode);
     if (mode.policyCommit.length !== value.commit.length || value.command !== mode.check || value.landing === true || value.stageMarker !== undefined) throw new Error('invalid trusted private-check source');
@@ -977,12 +983,14 @@ async function main() {
   let tracker = null;
   let runtimeCapture = null;
   let runDirectory;
+  let recoveryRoot;
   let setupStep = 'runner directories';
   let gui = null;
   let final = { code: 1, signal: null, root: '' };
   try {
     const runnerHome = isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir;
     const runnerRoot = spec.root ?? join(runnerHome, '.pullboard-runner');
+    recoveryRoot = runnerRoot;
     setupPrivatePaths.add(runnerRoot);
     mkdirSync(runnerRoot, { recursive: true, mode: 0o700 });
     setupPrivatePaths.add(realpathSync(runnerRoot));
@@ -1092,6 +1100,14 @@ async function main() {
     cleanupStage = 'job files';
     if (runDirectory && !cleanupTimedOut) { try { rmSync(runDirectory, { recursive: true, force: true }); } catch {} }
   }
+  const custody = tracker?.cleanupState();
+  if (recoveryRoot && ownedChildren.size === 0 && (!custody || !custody.uncertain && !custody.censusFailure && !custody.pending.length && !custody.live.length)) {
+    try {
+      // A late but fully verified drain can finish its own files; uncertain custody retains its diagnostic directory.
+      if (runDirectory) rmSync(runDirectory, { recursive: true, force: true });
+      recordRunnerCompletion(recoveryRoot, spec.recovery);
+    } catch { /* Missing durable custody keeps recovery unavailable. */ }
+  }
   if (transportLost || cleanupTimedOut) { clearTimeout(cleanupTimer); clearTimeout(phaseCleanupTimer); process.exitCode = 1; stopReading(); return; }
   cleanupStage = 'result receipt';
   final.executionPhases = phases.finish();
@@ -1115,4 +1131,11 @@ function failedWorker() {
   stopReading();
 }
 
-main().catch(failedWorker);
+if (process.argv[2] === '--health') {
+  try {
+    const request = JSON.parse(Buffer.from(process.argv[3] ?? '', 'base64').toString('utf8'));
+    if (!/^[a-f0-9-]{36}$/u.test(request.nonce ?? '') || request.root !== undefined && !isAbsolute(request.root)) throw new Error('invalid health request');
+    const root = request.root ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard-runner');
+    process.stdout.write(JSON.stringify(runnerHealthReply(root, request)) + '\n');
+  } catch { process.exitCode = 1; }
+} else main().catch(failedWorker);

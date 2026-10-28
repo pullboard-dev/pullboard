@@ -618,7 +618,7 @@ export function runnerResourceStatus(runners) {
         try { if (transport) transportFailure = { at: transport.at, ...JSON.parse(transport.diagnostic) }; } catch { /* Malformed legacy diagnostics remain unreported, never guessed. */ }
         const observed = db.prepare('SELECT gui, observed_at FROM runner_gui WHERE host = ?').get(runner.host);
         return [{ ...runner, gui: runner.gui ?? null, ...(observed ? { gui: observed.gui === null ? null : observed.gui === 1, guiObservedAt: observed.observed_at } : {}), inUse: holders.length, browserInUse: holders.filter(holder => holder.browser === 1).length,
-          unavailable: Boolean(unavailable), ...(unavailable ? { unavailableSince: unavailable.since, unavailableReason: unavailable.detail } : {}),
+          unavailable: Boolean(unavailable), ...(unavailable ? { unavailableSince: unavailable.since, unavailableReason: unavailable.detail, recoveryFailure: (() => { try { return JSON.parse(unavailable.failure).latestProbe ?? null; } catch { return { step: 'cleanup', reason: 'missing exact request ID or completion record' }; } })() } : {}),
           ...(transportFailure ? { transportFailure } : {}), holders }];
       });
     });
@@ -1145,7 +1145,7 @@ export async function takeResource(options) {
       }
       if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
       await keepItemLease(acquired.state, 'waiter');
-      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()))) continue;
+      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), { probe: options.runnerHealthProbe })) continue;
       await pause(POLL_MS);
     }
   } catch (error) {

@@ -8,7 +8,7 @@ import { Refused } from './refused.js';
 /** Explain each registered runner from the same local facts used by admission; no network probe. */
 export function runnerWaitReasons(db, runners, waiter, unavailable) {
   return runners.map(runner => {
-    const recorded = db.prepare('SELECT detail FROM runner_unavailable WHERE host = ?').get(runner.host);
+    const recorded = db.prepare('SELECT detail,failure FROM runner_unavailable WHERE host = ?').get(runner.host);
     const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(runner.host);
     const gui = observed ? observed.gui === 1 : runner.gui === true;
     const holders = db.prepare('SELECT browser, timing FROM holder WHERE name = ?').all(`runner:${runner.host}`);
@@ -21,6 +21,9 @@ export function runnerWaitReasons(db, runners, waiter, unavailable) {
     else if (holders.length >= runner.slots || holders.some(holder => holder.timing === 1)
       || waiter.timing === 1 && holders.length > 0
       || waiter.browser === 1 && holders.filter(holder => holder.browser === 1).length >= runner.browser) reason = 'busy';
+    if (unavailable.has(runner.host) && recorded) {
+      try { const probe = JSON.parse(recorded.failure).latestProbe; if (probe) reason += `; ${probe.step ?? 'health'}: ${probe.reason}`; } catch { /* Legacy rows retain the named original hold. */ }
+    }
     return { host: runner.host, reason };
   });
 }

@@ -1,4 +1,5 @@
 /** Registered SSH runner execution stays inside a committed, secret-free worker checkout [C7]. */
+import { runnerRecoveryTests } from './runner-recovery-fixture.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import { copyCommittedPackageFiles } from './package-copy-fixture.js';
 import { runnerPackage } from '../src/runner-package.js';
@@ -1491,3 +1492,5 @@ test('the runner round trip deadline holds under a loaded test machine and still
 test('fixture context forwarding is not a CPU-load declaration [C7]', fixtureContextCpuCase);
 
 test('a GUI test with no GUI runner stays local [C7]', guiCpuPolicyCase);
+
+runnerRecoveryTests();

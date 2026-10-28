@@ -109,7 +109,7 @@ function transportText(value) {
 function runnerFailure(request, result, reason) {
   return new RunnerDropped(request.runner.host, { reason: request.admissionDeadlineExceeded ? 'admission-deadline' : reason, request: request.spec?.id ?? null,
     source: request.spec?.commit ?? null, tree: request.spec?.tree ?? null,
-    tooling: request.spec?.tooling?.sha256 ?? null, phase: request.phase ?? 'connect',
+    tooling: request.spec?.tooling?.sha256 ?? null, recovery: request.spec?.recovery ?? null, phase: request.phase ?? 'connect',
     command: ['ssh', ...(request.args ?? []).slice(0, -1), '[pinned Pullboard worker]'],
     exitCode: result.status ?? null, signal: result.signal ?? null,
     error: result.error ? { code: result.error.code ?? result.error.name, message: transportText(result.error.message) } : null,
@@ -469,7 +469,7 @@ function trustedTooling() {
 }
 
 /** Install pinned bytes first, then replace the SSH shell with the file-based worker. */
-function remoteWorkerCommand(runner, worker, tooling, runtime) {
+function remoteWorkerCommand(runner, worker, tooling, runtime, extra = '') {
   const files = Object.fromEntries(Object.entries({ ...runtime.files, [runtime.entry]: worker }).sort(([a], [b]) => a.localeCompare(b)));
   const payload = gzipSync(Buffer.from(JSON.stringify(files))).toString('base64');
   const installer = `import { chmodSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, renameSync, rmSync } from 'node:fs';
@@ -481,7 +481,7 @@ installRunnerPackage(${JSON.stringify(payload)}, ${JSON.stringify(tooling.sha256
   const node = shellWord(runner.node ?? 'node');
   const suffix = `/runtime/${tooling.sha256}/src/runner-worker.js`;
   const entry = runner.root ? shellWord(runner.root + suffix) : `"$HOME"${shellWord('/.pullboard-runner' + suffix)}`;
-  return `${node} --input-type=module -e ${shellWord(installer)} && exec ${node} ${entry}`;
+  return `${node} --input-type=module -e ${shellWord(installer)} && exec ${node} ${entry}${extra}`;
 }
 
 /** Use only a credential-free anonymous HTTPS origin; SSH authentication is never forwarded. */
@@ -542,7 +542,8 @@ async function requestFor(root, command, { runner, source, browser = false, byLa
     const projection = metadata.landing === true && Array.isArray(waivers) ? waivers.filter(entry => ['file', 'name'].includes(entry?.kind) && typeof entry.test === 'string' && entry.test).map(({ kind, test }) => ({ kind, test })) : [];
     if (secretsIn([{ path: 'runner continuation', line: 1, text: JSON.stringify(projection) }]).length) throw new Refused('RUNNER_SECRET', 'the continuation projection contains a possible secret; keep this run local');
     const stage = /^[a-z][a-z0-9-]{0,63}$/u.test(metadata.testStage ?? '') ? metadata.testStage : metadata.landing ? 'land' : 'focused';
-    const spec = { version: 1, id: randomUUID(), repoId, ...(originBase ? { origin, originBase } : {}), runtime, tooling, tags, commit: selected.commit, tree: selected.tree, command, pipefail, slots: runner.slots,
+    const id = randomUUID();
+    const spec = { version: 1, id, recovery: { version: 1, request: id, nonce: randomUUID(), tooling: tooling.sha256 }, repoId, ...(originBase ? { origin, originBase } : {}), runtime, tooling, tags, commit: selected.commit, tree: selected.tree, command, pipefail, slots: runner.slots,
       ...(reuse ? { testResults: { inputKeys: exchange?.inputKeys ?? [], packet: exchange?.packet ?? null, stage, origin: runner.host } } : {}),
       ...(trustedMode ? { trustedMode } : {}),
       ...(!trustedMode && metadata.trunk ? { trunk: { ...metadata.trunk } } : {}),
@@ -844,6 +845,7 @@ async function runInController(root, command, options) {
         if (line.startsWith(cleanupPrefix)) cleanupReason = line.slice(cleanupPrefix.length, cleanupPrefix.length + 240);
         if (line === `PULLBOARD_RUNNER_CLEANUP_TIMEOUT ${request.spec.id}`) {
           error = new Refused('RUNNER_CLEANUP_TIMEOUT', `runner ${request.runner.host} could not verify cleanup within 30 seconds${cleanupReason ? ': ' + cleanupReason : ''}; inspect job ${request.spec.id} under its runner namespace before another run`);
+          error.diagnostic = runnerFailure(request, { status: null, stderr: '' }, 'cleanup-unverified').diagnostic;
           child.stdin.destroy(); child.kill('SIGTERM'); return;
         }
         const prefix = `PULLBOARD_RUNNER_NEED ${request.spec.id} `;
@@ -888,3 +890,31 @@ function isRunnerControllerEntry() {
 }
 
 if (isRunnerControllerEntry()) serveRunnerController().catch(error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
+
+/** Ask the pinned real worker to prove readiness plus the exact failed job's completed cleanup. */
+export async function probeRunnerHealth(runner, previous) {
+  runner = validateRunner(runner);
+  const { worker, tooling, runtime } = trustedTooling();
+  const nonce = randomUUID();
+  const request = { nonce, previous, ...(runner.root ? { root: runner.root } : {}) };
+  const remote = remoteWorkerCommand(runner, worker, tooling, runtime,
+    ' --health ' + shellWord(Buffer.from(JSON.stringify(request)).toString('base64')));
+  const args = ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
+    '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=2', '--', runner.host, remote];
+  const child = spawn('ssh', args, { env: sshEnvironment(), stdio: ['ignore', 'pipe', 'pipe'] });
+  let output = '', timedOut = false, error = null, kill;
+  /** Bound the health connection and fully observe its close before releasing recovery ownership. */
+  const stop = () => { child.kill('SIGTERM'); kill ??= setTimeout(() => child.kill('SIGKILL'), 500); };
+  const timer = setTimeout(() => { timedOut = true; stop(); }, 5_000);
+  child.stdout.on('data', bytes => { output = (output + bytes).slice(0, 4097); if (output.length > 4096) stop(); });
+  child.stderr.resume();
+  child.once('error', failure => { error = failure.code ?? failure.name; });
+  const result = await new Promise(resolve => child.once('close', (code, signal) => resolve({ code, signal })));
+  clearTimeout(timer); clearTimeout(kill);
+  let reply;
+  try { reply = JSON.parse(output); } catch { /* Unknown or foreign replies do not attest health. */ }
+  const workerReady = !error && !timedOut && result.code === 0 && !result.signal
+    && reply?.version === 1 && reply.nonce === nonce && reply.worker === true;
+  return { healthy: Boolean(workerReady && reply.cleanup === true), step: !workerReady ? 'worker readiness' : 'cleanup',
+    reason: workerReady ? reply.reason : 'pinned worker did not answer health request', ...result, timedOut, error };
+}
