@@ -1,4 +1,7 @@
 /** A holder adds test files to its own check; anything not provably a superset stays the coordinator's [C7,V4,H16]. */
+import { CHECK_WIDEN_SELF_ENGINE } from './check-widen-self-engine.js';
+import { COORDINATOR } from './config.js';
+import { ENGINE_VERSION } from './engine-metadata.js';
 import { Refused } from './refused.js';
 
 const RUNNER = ['node', 'bin/run-tests.js'];
@@ -43,4 +46,13 @@ export function widenedCheckFiles(oldCheck, newCheck) {
   });
   if (!added.length) throw refuse('it adds no test file');
   return added;
+}
+
+/** The test files a claim holder adds to its own frozen check, or null when the edit is not that move; a check that is no provable superset is refused by name. */
+export function selfWidenedFiles(board, item, agentId, change) {
+  if (agentId === COORDINATOR || change.check === undefined || typeof change.check !== 'string') return null;
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < CHECK_WIDEN_SELF_ENGINE) return null;
+  if (item.item_status !== 'claimed' || item.item_owner !== agentId) return null;
+  if (Object.entries(change).some(([key, value]) => key !== 'check' && value !== undefined)) return null;
+  return widenedCheckFiles(item.item_check, change.check.trim());
 }

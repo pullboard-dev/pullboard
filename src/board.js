@@ -313,8 +313,7 @@ import {
   requireNeverAgain,
 } from './rigor.js';
 import { barCorrectionFields } from './bar-corrections.js';
-import { CHECK_WIDEN_SELF_ENGINE } from './check-widen-self-engine.js';
-import { widenedCheckFiles } from './check-widen.js';
+import { selfWidenedFiles } from './check-widen.js';
 import {
   conflictDetail,
   conflictProblem,
@@ -710,16 +709,6 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
   const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_check_timing !== item.item_check_timing || Boolean(reviewPolicy) && (sensitive !== undefined || reviewFamily !== undefined);
   const bar = widened ? { reason: reason?.trim() || `added test files: ${widened.join(', ')}`, widenedCheck: widened } : barCorrectionFields(board, item, next, { reason });
   return { item, next, command, unfreeze, bar, widened: widened || null };
-}
-
-/** The test files a claim holder adds to its own frozen check, or null when this edit is not that move; a check that is no provable superset is refused by name [C7,V4,H16]. */
-function selfWidenedFiles(board, item, agentId, change) {
-  if (agentId === COORDINATOR || change.check === undefined) return null;
-  if ((board.executionEngineVersion ?? ENGINE_VERSION) < CHECK_WIDEN_SELF_ENGINE) return null;
-  if (item.item_status !== 'claimed' || item.item_owner !== agentId) return null;
-  if (Object.entries(change).some(([key, value]) => key !== 'check' && value !== undefined)) return null;
-  if (typeof change.check !== 'string') return null;
-  return widenedCheckFiles(item.item_check, change.check.trim());
 }
 
 /**
