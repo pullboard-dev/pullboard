@@ -156,6 +156,7 @@ test('native rare lifecycle routes retain source receipts and render in Chrome a
   assert.ok(executable, 'real Chrome is required for rare lifecycle routes');
   const box = machine();
   const demo = project(box, 'lifecycle-native-rare');
+  // @pullboard-board-file journey: this private native board supplies the real receipts compared with its authenticated HTTP state and Chrome chart.
   const board = store.openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
   let view, chrome;
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-lifecycle-rare-chrome-'));
