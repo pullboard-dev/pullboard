@@ -34,6 +34,7 @@ test('the agents panel says what each agent holds [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    await page.click({ tab: 'shouts' });
     assert.deepEqual(agentEntries(page.show('agents')).map((agent) => agent.id), ['web-1', 'web-2'], 'an agent holding nothing waits in the idle fold, closed');
     assert.match(page.show('agents'), /<button class="fold-line" data-fold="idle" type="button" aria-expanded="false" title="coordinator \(unknown\)"><span>1 idle<\/span>/);
     page.run('view.open.idle = true; render();');
@@ -231,6 +232,7 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
   };
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.stable(`(() => {
       const nativeFetch = window.fetch.bind(window);
       window.__modelDetailDelay = { started: 0, completed: 0, milliseconds: 5000 };
@@ -402,6 +404,9 @@ test('staged and exported boards carry API model display names [O8,N26,A10]', as
 
 test('local agents panel inventories and phone-revokes a scoped credential [H2,H9,H16,B26,N26]', { timeout: 180_000 }, async (t) => {
   assert.ok(chromeExecutable(), 'this security proof requires actual Chrome');
+  /** Retain the exact real setup or security action reached if the unchanged test ceiling expires. */
+  const stage = name => t.diagnostic('credential inventory stage: ' + name);
+  stage('fixture');
   const box = await relayClientFixture(t);
   const personEnv = { ...box.env };
   for (const key of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete personEnv[key];
@@ -430,9 +435,12 @@ test('local agents panel inventories and phone-revokes a scoped credential [H2,H
     do { const value = await read(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 25)); } while (Date.now() < deadline);
     assert.fail(message);
   };
+  stage('enrollment pending');
   const pending = await waitFixture(() => existsSync(machineFile) && JSON.parse(readFileSync(machineFile, 'utf8')).pending,
     'foreground pairing publishes the one-use device enrollment');
+  stage('phone session');
   const phone = await box.phoneSession();
+  stage('phone Chrome');
   const phoneChrome = await stableChrome(await startChrome());
   t.after(() => phoneChrome.close());
   const localChrome = await stableChrome(await startChrome());
@@ -440,14 +448,17 @@ test('local agents panel inventories and phone-revokes a scoped credential [H2,H
   assert.equal((await phoneChrome.send('Network.setCookie', {
     name: 'pb_session', value: phone.token, url: box.origin, httpOnly: true, sameSite: 'Lax',
   })).success, true);
+  stage('device confirmation');
   await phoneChrome.navigate(`${box.origin}/#device=${pending.locator}.${pending.secret}`);
   assert.equal((await setupDone).code, 0, 'the real phone session pairs the machine');
   await phoneChrome.waitFor("document.querySelector('#phone-approvals') !== null");
 
+  stage('first agent');
   const joined = await box.cli('worktree', box.lane);
   assert.equal(joined.code, 0, joined.failure ?? 'a real agent worktree joins with machine credentials');
   const agentRoot = joined.document.path;
   const agentId = joined.document.agent;
+  stage('second agent');
   const other = await box.cli('worktree', box.lane);
   assert.equal(other.code, 0, other.failure ?? 'a second agent receives its own credential');
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -466,6 +477,7 @@ test('local agents panel inventories and phone-revokes a scoped credential [H2,H
   assert.deepEqual(listed.document.tokens.map(row => row.agent).sort(), expectedAgents, 'both independent agent credentials are listed');
   assert.equal(JSON.stringify(listed.document).includes(oldPA.token), false, 'the native inventory contains no PA value');
 
+  stage('local view');
   const view = await startView({ dir: box.root, env: personEnv });
   try {
     await localChrome.navigate(view.link.href);
@@ -474,6 +486,7 @@ test('local agents panel inventories and phone-revokes a scoped credential [H2,H
     const tap = async (selector) => {
       await press(localChrome, `document.querySelector(${JSON.stringify(selector)})`);
     };
+  stage('inventory pane');
     await tap('[data-tab="shouts"]');
     for (const scheme of ['light', 'dark']) for (const width of [375, 1280]) {
       await localChrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -504,6 +517,7 @@ test('local agents panel inventories and phone-revokes a scoped credential [H2,H
       }
     }
 
+  stage('revoke');
     const authorizationsBefore = box.calls.filter(call => call.path.endsWith('/authorize')).length;
     await tap(`[data-revoke-token="${expected.id}"]`);
     await localChrome.waitFor("document.querySelector('#credentials [role=status]')?.textContent.includes('Approve revocation on your phone…')");
@@ -522,6 +536,7 @@ test('local agents panel inventories and phone-revokes a scoped credential [H2,H
     assert.equal(box.calls.filter(call => call.path.endsWith('/authorize')).length, authorizationsBefore + 1,
       'one real phone tap authorizes exactly one revoke');
 
+  stage('negative controls');
     const mintsBefore = box.calls.filter(call => call.method === 'POST' && call.path === '/auth/tokens').length;
     const stale = await runFixtureChildAsync(process.execPath, [BIN, 'add', box.lane, 'must refuse revoked scoped credential', '--json'], {
       cwd: agentRoot, encoding: 'utf8', env: {
