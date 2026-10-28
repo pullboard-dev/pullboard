@@ -2,6 +2,7 @@
  * The gate's digest (V10): what an agent reads of a red run. And submit's own run of the gate (V16):
  * no stamp stands in for it, and the tree must hold still while it runs.
  */
+import { executionServices } from './gate-execution-fixture.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit, startFixtureChild as spawn } from './fixture-child.js';
@@ -763,7 +764,7 @@ test('a hand-recorded run never quarantines a test [C7,D1]', async (t) => {
   const fake = `printf 'TAP version 13\\nnot ok 1 - flaky target\\n  ---\\n  location: ${join(box.root, FLAKY.file)}:4:1\\n  ...\\n1..1\\n'; exit 1`;
   const observed = [];
   const observer = Object.assign(async () => {}, { recordRun: async (id) => observed.push(id) });
-  for (const _ of [1, 2]) await runGate(box.root, { ...mainPolicy(box.root).config, gate: fake }, { trustStamp: false, onFailure: observer });
+  for (const _ of [1, 2]) await runGate(box.root, { ...mainPolicy(box.root).config, gate: fake }, { executionServices, trustStamp: false, onFailure: observer });
   assert.deepEqual(observed, [], 'a command other than the accepted gate leaves no receipt to record');
   assert.equal(existsSync(box.receipts), false, 'and nothing in the receipt store');
   // A real receipt cannot be reused to say something else: each altered field breaks the binding.

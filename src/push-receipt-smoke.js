@@ -3,7 +3,7 @@ import { mainPolicy } from './trusted-policy-read.js';
 import { Refused } from './refused.js';
 
 /** Run only the accepted policy's explicit smoke command through ordinary native admission. */
-export async function runPushReceiptSmoke(root, { agent, onWait } = {}, { checkNeedsBrowser, checkNeedsGui, runProfiledShellAsync, withGateSlot }) {
+export async function runPushReceiptSmoke(root, { agent, onWait, executionServices } = {}, { checkNeedsBrowser, checkNeedsGui, runProfiledShellAsync, withGateSlot }) {
   const policy = mainPolicy(root);
   const command = policy.config.pushReceiptCheck?.smoke;
   if (typeof command !== 'string' || !command.trim()) {
@@ -12,6 +12,6 @@ export async function runPushReceiptSmoke(root, { agent, onWait } = {}, { checkN
   const browser = await checkNeedsBrowser(root, command);
   const gui = await checkNeedsGui(root, command);
   const run = await withGateSlot(root, lease => runProfiledShellAsync(root, command,
-    { gateLease: lease, waitMs: lease.waitMs }), { browser, gui, agent, kind: 'test', onWait });
+    { gateLease: lease, waitMs: lease.waitMs }), { executionServices, browser, gui, agent, kind: 'test', onWait });
   return { policyCommit: policy.commit, command, ...run };
 }

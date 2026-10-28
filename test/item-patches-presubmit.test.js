@@ -1,4 +1,5 @@
 /** Claimed companions are real source inputs, never permission for a builder's off-lane edits [C7,V4,H16]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -109,6 +110,7 @@ async function repeatNativePhases(f, binding) {
   const script = join(f.box.dir, 'repeat-phases.mjs');
   writeFileSync(script, `import * as store from ${JSON.stringify(module('board.js'))};
 import { runSubmitGate, submitGateConfig } from ${JSON.stringify(module('gate-submit.js'))};
+${executionServicesSource(module('gate-submit.js'))}
 import { withItemPatchSubmit } from ${JSON.stringify(module('item-patch-submit.js'))};
 import { policyAt, frozenCheck, mainPolicy } from ${JSON.stringify(module('trusted-policy.js'))};
 const root = process.cwd();
@@ -119,7 +121,7 @@ try {
   const main = mainPolicy(root);
   const config = submitGateConfig(policyAt(root, ${JSON.stringify(binding.commit)}).config, main.config);
   const gate = await withItemPatchSubmit(root, ${JSON.stringify(binding)}, checkout => runSubmitGate(checkout, config,
-    { base: item.item_claim_head, trunk: main.commit, check: frozenCheck(item), agent: ${JSON.stringify(f.builder.id)}, item: item.item_id,
+    { executionServices, base: item.item_claim_head, trunk: main.commit, check: frozenCheck(item), agent: ${JSON.stringify(f.builder.id)}, item: item.item_id,
       proofContext: { companion: true, item: item.item_id, frozenDigest: item.item_frozen_digest, seat: ${JSON.stringify(f.builder.id)} } }));
   if (!gate.isGreen) throw new Error(gate.output);
   for (const id of gate.proofReceiptIds) store.recordProofRun(board, { agentId: ${JSON.stringify(f.builder.id)}, itemId: item.item_id, receiptId: id });

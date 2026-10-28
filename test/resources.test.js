@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/cli.js */
 /** Real-process resource queue and lease coverage [Q1,Q2,Q3]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import { awaitNestedRun } from '../src/test-file-pool.js';
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn, runFixtureChild as spawnSync, reportFixtureChildFailure, runFixtureChild, runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
@@ -32,7 +33,7 @@ const TEST_RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
 const PROCESS_INFO_POLICY = '(version 1)(allow default)(deny process-info*)';
 const SANDBOX_EXEC = process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec');
 const PERL_FORK = process.platform === 'darwin' && existsSync('/usr/bin/perl');
-const { POOL_MODULE_WORKER, SUBMIT_CHECK, WORKER } = resourceWorkerSources({ resourcesModule: MODULE, gateModule: GATE_MODULE, settingsModule: SETTINGS_MODULE });
+const { POOL_MODULE_WORKER, SUBMIT_CHECK, WORKER, MEMORY_WORKER } = resourceWorkerSources({ resourcesModule: MODULE, gateModule: GATE_MODULE, settingsModule: SETTINGS_MODULE });
 
 /** Create isolated machine storage and a pair of real Git repositories. */
 function fixture() {
@@ -1451,37 +1452,6 @@ test('[Q2,Q3] a SIGKILLed waiter is skipped while the next live waiter advances'
 });
 
 const CLI_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/cli.js')).href;
-/** A gate run whose memory reading comes from a fixture file through the Linux reader's own parsing. */
-const MEMORY_WORKER = `
-import { readFileSync } from 'node:fs';
-import { withGateSlot } from ${JSON.stringify(GATE_MODULE)};
-import { readMachineMemory } from ${JSON.stringify(MODULE)};
-const [root, agent, source] = process.argv.slice(1);
-const ps = ['  6161   512000 /bin/zsh', '  4242 25165824 /usr/bin/python3', '    77     1024 /sbin/launchd',
-  '  5151  2097152 /usr/local/bin/node', '  4343 24117248 /opt/homebrew/bin/python3.12'].join('\\n');
-const cwds = { '/proc/4242/cwd': '/work/journal-reader', '/proc/4343/cwd': '/work/other-reader', '/proc/5151/cwd': '/work/pullboard' };
-let reads = 0;
-/** Read the fixture's current machine state as Linux would present it, counting every reading. */
-const readMemory = (options) => (reads += 1, source === 'win32') ? readMachineMemory({ ...options, platform: 'win32' }) : readMachineMemory({
-  ...options, platform: 'linux',
-  readText: async (file) => {
-    const reading = JSON.parse(readFileSync(source, 'utf8'));
-    if (file === '/proc/meminfo') return reading.meminfo;
-    if (file === '/proc/pressure/memory') return reading.psi;
-    throw new Error('unexpected file ' + file);
-  },
-  run: async (file) => { if (file === '/bin/ps') return ps; throw new Error('unexpected command ' + file); },
-  readLink: async (path) => { if (cwds[path]) return cwds[path]; throw new Error('EACCES'); },
-});
-let last = '';
-await withGateSlot(root, async () => {
-  console.log(JSON.stringify({ acquired: agent, reads }));
-  for await (const line of process.stdin) if (String(line).trim() === 'release') break;
-}, { agent, kind: 'gate', readMemory, onWait: ({ position, memory }) => {
-  const state = JSON.stringify({ waiting: position, memory: memory ?? null });
-  if (state !== last) { last = state; console.log(state); }
-} });
-`;
 
 /** Write what /proc would say: total and available memory, and the pressure stall averages. */
 function writeMemoryReading(file, { availableMB, fullAvg10 = 0, someAvg10 = 0, broken = false }) {
@@ -1688,8 +1658,9 @@ test('[Q4] a red gate releases its lease before the same process starts another 
   const gateCommand = `${JSON.stringify(process.execPath)} ${JSON.stringify(command)} ${JSON.stringify(counter)} ${JSON.stringify(eventsFile)}`;
   const worker = `
     import { runGate } from ${JSON.stringify(GATE_MODULE)};
-    const first = await runGate(process.cwd(), { gate: process.argv[1] });
-    const second = await runGate(process.cwd(), { gate: process.argv[1] });
+${executionServicesSource(GATE_MODULE)}
+    const first = await runGate(process.cwd(), { gate: process.argv[1] }, { executionServices });
+    const second = await runGate(process.cwd(), { gate: process.argv[1] }, { executionServices });
     console.log(JSON.stringify({ firstGreen: first.isGreen, secondGreen: second.isGreen }));
   `;
   const child = spawn(process.execPath, ['--input-type=module', '-e', worker, gateCommand], {
