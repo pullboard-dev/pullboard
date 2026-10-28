@@ -1,12 +1,18 @@
 /** @pullboard-test-input source-tree */
 /** Coordinator-authored frozen timing reaches real submit/review leases and durable receipts [C7,V4,H16]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { recentReceipts } from '../src/gate-receipt.js';
-import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV } from '../src/resources.js';
+import {
+  GATE_SLOT_HELD_ENV,
+  GATE_SLOT_POOL_ENV,
+  GATE_SLOT_TOKEN_ENV,
+  BROWSER_SLOT_HELD_ENV,
+} from '../src/resources.js';
 
 /** Require genuine native success before treating a fixture as admission evidence. */
 function document(result) {
@@ -62,8 +68,10 @@ for (const timing of [true, false]) {
 
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
-import { frozenCriterion, parseSpec } from '../src/spec.js';
-import { parseCheckTiming, frozenCheckTiming } from '../src/check-timing.js';
+import { frozenCriterion } from '../src/spec.js';
+import { parseSpec } from '../src/spec.js';
+import { parseCheckTiming } from '../src/check-timing.js';
+import { frozenCheckTiming } from '../src/check-timing.js';
 import { CHECK_TIMING_ENGINE } from '../src/check-timing-engine.js';
 import { exportBoard } from '../src/exchange.js';
 
@@ -106,7 +114,8 @@ test('timing is coordinator-only boolean bar data, corrected atomically and abse
   assert.throws(() => store.editItem(board, historic, { agentId: 'coordinator', checkTiming: true }), { code: 'ENGINE_VERSION' });
 });
 
-import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
+import { prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove } from '../src/engine.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 
 test('older ordered edits cannot strip timing from a modern bar while historical receipts replay unchanged [C7,V4,H16]', t => {
