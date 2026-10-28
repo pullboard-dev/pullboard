@@ -1,7 +1,39 @@
 /** Callable evidence must not hide executable options in another binding [C7]. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {
+  existsSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { cpuLoadOptionsIn } from '../src/module-imports.js';
+import { testsNeedCpuRunner } from '../src/cpu-load-admission.js';
+
+test('batched literals retain escaped registration and option authority [C7]', () => {
+  const sources = [
+    String.raw`import { "t\u0065st" as register } from 'node:t\u0065st'; register('busy', { 'cpuL\u006fad': true }, () => {});`,
+    String.raw`import test from 'node:test'; test('ordinary', { 'cpuL\u006fad': false }, () => {});`,
+    String.raw`import { register } from './ordinary.js'; register('ordinary', { cpuLoad: true }, () => {});`,
+  ];
+  assert.deepEqual(cpuLoadOptionsIn(sources), [true, false, false]);
+});
+
+test('literal-cache overflow preserves late CPU options without executing source [C7]', (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-cpu-literal-overflow-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const marker = join(directory, 'executed');
+  const fields = Array.from({ length: 1030 }, (_value, index) => `'metadata${index}': 0`).join(',');
+  const prefix = `import test from 'node:test'; import { writeFileSync } from 'node:fs'; const metadata = { ${fields} }; writeFileSync(${JSON.stringify(marker)}, 'executed');`;
+  const sources = [
+    `${prefix} test('busy', { 'cpuL\u006fad': true }, () => {});`,
+    `${prefix} test('ordinary', { 'cpuL\u006fad': false }, () => {});`,
+  ];
+  assert.deepEqual(cpuLoadOptionsIn(sources), [true, false]);
+  assert.equal(existsSync(marker), false);
+});
 
 for (const [kind, statement] of [
   ['object binding', "{ const { callback } = opaque; test('pending', callback); }"],
@@ -59,4 +91,26 @@ test('a string-concatenated title is a title, while a conditional first argument
   assert.equal(cpuLoadOptionsIn(["import test from 'node:test'; test('x' + flag ? options : 'y', () => {});"])[0], true,
     'a top-level conditional could still pass an options object');
   assert.equal(cpuLoadOptionsIn(["import test from 'node:test'; test({ cpuLoad: true }, async () => {});"])[0], true);
+});
+
+test('batched classification preserves exact selected files across real registration graphs [C7]', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-cpu-selection-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const marker = join(directory, 'executed');
+  const modules = {
+    'registration.js': "export { test as register } from 'node:test'; export const execute = () => {};",
+    'busy.test.js': String.raw`import { register, execute } from './registration.js'; register('busy', { 'cpuL\u006fad': true }, execute);`,
+    'ordinary.test.js': "import { register, execute } from './registration.js'; register('ordinary', { cpuLoad: false }, execute);",
+    'opaque.test.js': "import { register, execute } from './registration.js'; register('unknown', settings, execute);",
+    'lookalike.test.js': "function register() {} register('ordinary', { cpuLoad: true }, () => {});",
+    'data.test.js': "import test from 'node:test'; const metadata = { cpuLoad: true }; export { metadata };",
+    'never-run.test.js': `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'executed');`,
+  };
+  for (const [file, source] of Object.entries(modules)) writeFileSync(join(directory, file), source);
+  const files = Object.keys(modules).filter(file => file.endsWith('.test.js'));
+  const selected = files.filter(file => testsNeedCpuRunner(directory, [file]));
+  assert.deepEqual(selected, ['busy.test.js', 'opaque.test.js'], 'real CPU registrations and unresolved options retain the same selected files');
+  assert.equal(testsNeedCpuRunner(directory, files), true);
+  assert.equal(testsNeedCpuRunner(directory, files.filter(file => !selected.includes(file))), false);
+  assert.equal(existsSync(marker), false, 'selection only reads source; fixture programs never execute');
 });
