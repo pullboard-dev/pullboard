@@ -393,3 +393,15 @@ test('an item records the tokens and cost its seats spent with an empty native u
     assert.equal(zero.outputTokens, 0, `${provider}: actual native zero remains known`);
   }
 });
+
+test('usage totals use existing stats and show surfaces without a separate cost root [N2,A1]', () => {
+  const box = helpers.project('true');
+  const result = box.run(box.repo, 'stats', '--json');
+  assert.equal(result.code, 0, result.out);
+  const document = JSON.parse(result.out);
+  assert.ok(document.usage, 'stats exposes recorded usage alongside its existing proof counters');
+  assert.deepEqual(Object.keys(document.usage).sort(), ['items', 'lanes', 'milestones', 'models', 'seats', 'sharedSessions'].sort());
+  for (const values of Object.values(document.usage)) assert.deepEqual(values, [], 'a fresh board invents no usage');
+  const separate = box.run(box.repo, 'cost', '--json');
+  assert.notEqual(separate.code, 0, 'the small CLI has no separate cost command');
+});
