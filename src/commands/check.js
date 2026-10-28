@@ -1,3 +1,5 @@
+import { checkAtCommit } from '../runner-private-check.js';
+import { requirePersonChannel } from '../person.js';
 /** The pullboard check command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import {
@@ -47,7 +49,7 @@ import {
 
 /** Run `pullboard check` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
-  if (first === 'accept') return checkAcceptCommand(io, second, rest, { context, withBoard, whoAmI, ordered, idArg });
+  if (first === 'accept') return checkAcceptCommand(io, second, rest, { context, withBoard, whoAmI, ordered, idArg, requirePersonChannel });
   const ctx = context(io);
   const { item, author, caller, agents } = withBoard(ctx, (board) => {
     const me = first ? (ctx.info.isMain ? { id: COORDINATOR } : { id: store.agentAt(board, ctx.info.root)?.agent_id }) : whoAmI(ctx, board);
@@ -75,7 +77,7 @@ export async function run(io, { first, second, rest, values }) {
   await runStaticChecks(ctx.info.root, (item.item_claim_head ? itemPolicy(ctx.info.root, item) : mainPolicy(ctx.info.root)).config, { agent: caller, item: String(item.item_id), onWait: queuedItemLease(ctx, item, caller, 'build'), onBrowserFallback: browserAdmissionReporter(io, values.json) });
   const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(ctx.info.root, check, { onFallback: browserAdmissionReporter(io, values.json) });
   const shortEligible = Boolean(await explicitCheckFiles(ctx.info.root, check));
-  const run = await withGateSlot(ctx.info.root, nativeFlakes.check(ctx, item, check, { ordered, withBoard, resourceAgent }), { browser, agent: caller, item: String(item.item_id), kind: 'check', itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, caller, 'build') });
+  const run = await withGateSlot(ctx.info.root, nativeFlakes.check(ctx, item, check, { ordered, withBoard, resourceAgent, checkAtCommit }), { browser, agent: caller, item: String(item.item_id), kind: 'check', itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, caller, 'build') });
   refuseSandboxBlocked(run);
   io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check, by, receipt: run.profile?.receipt, report: run.isGreen ? '' : digestOf(run.output) });
   const timings = timingDigest(run.profile);

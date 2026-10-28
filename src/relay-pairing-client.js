@@ -37,16 +37,9 @@ import {
   sealPairingBundle,
 } from './pairing.js';
 import { terminalQr } from './qr.js';
-import {
-  DEFAULT_RELAY,
-  originRepository,
-  relayPersonCoordinator,
-  syncRelay,
-} from './relay.js';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
 import { requirePersonChannel } from './person.js';
-import { updateRelayMachine } from './relay-machine.js';
 import { listApiProjects } from './projects.js';
 
 const TOKEN = /^pm_[A-Za-z0-9_-]{43}$/;
@@ -138,8 +131,8 @@ function localSnapshot(root) {
   finally { store.closeBoard(board); }
 }
 
-/** Create a one-use code and publish only an encrypted board package to the relay. */
-export async function relayPair(root, io) {
+/** Create an encrypted one-use package using the native caller’s relay synchronization and origin ports. */
+export async function relayPair(root, io, { DEFAULT_RELAY, originRepository, syncRelay }) {
   const file = linkFile(root);
   loadState(file);
   // Freeze the native event boundary before asynchronous sync; retry if it changes during pairing.
@@ -221,8 +214,9 @@ function requireMissingKey(board) {
   }
 }
 
-/** Consume a printed one-time code, restore the board and save this device's own link. */
-export async function relayJoin(root, code, address, io, { name: labelInput } = {}) {
+/** Consume a printed code and save this device’s link using native caller-owned relay and machine ports. */
+export async function relayJoin(root, code, address, io, { name: labelInput } = {},
+  { DEFAULT_RELAY, originRepository, relayPersonCoordinator, syncRelay, updateRelayMachine }) {
   const label = computerName(labelInput);
   requirePersonChannel(io.personChannel);
   const parsed = parsePairingCode(code);

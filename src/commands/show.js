@@ -1,3 +1,4 @@
+import { trunkRef } from '../trusted-policy-read.js';
 import { reviewEligibility } from '../review-eligibility.js';
 import { withBoardRead } from '../cli-board-read.js';
 import {
@@ -45,7 +46,7 @@ export async function run(io, { first, values }) {
   const ctx = context(io);
   const id = idArg(first);
   const { item, verdicts, moves, thread, related, reviewer, agents, mainMerge, infra, approval, proofReceipts, independence } = await withBoardRead(ctx, (board) => {
-    const item = verdictProjector(ctx.info.root, board).project(store.getItem(board, id));
+    const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
     const result = { item, independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
       approval: specApprovalState(ctx.info.root, { board, config: ctx.config }) };

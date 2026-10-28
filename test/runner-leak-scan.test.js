@@ -16,7 +16,9 @@ const PRIVATE = ['ordinary', 'credential', 'value', '123456789'].join('-');
 function findings(text) { return secretsIn([{ path: 'fixture.js', line: 1, text }]); }
 
 test('only the exact public assigned-secret sentinel is safe [C7,S1]', () => {
-  assert.deepEqual(findings(`secret: '${SENTINEL}'`), []);
+  assert.deepEqual(findings(`const record = { secret: '${SENTINEL}' };`), []);
+  assert.deepEqual(findings(`const record = { secret: "${SENTINEL}" };`), []);
+  assert.deepEqual(findings(`writeFileSync(sessionPath, JSON.stringify({ ...JSON.parse(sessionBytes), secret: '${SENTINEL}' }));`), []);
   for (const value of [PRIVATE, SENTINEL + 'x', 'x' + SENTINEL]) {
     assert.deepEqual(findings(`secret: '${value}'`), ['assigned secret at fixture.js:1']);
   }
@@ -24,6 +26,15 @@ test('only the exact public assigned-secret sentinel is safe [C7,S1]', () => {
     `password: '${PRIVATE}'; secret: '${SENTINEL}'`]) {
     assert.deepEqual(findings(line), ['assigned secret at fixture.js:1']);
   }
+  for (const value of [`'${SENTINEL}' + '${PRIVATE}'`, `"${SENTINEL}" + "${PRIVATE}"`,
+    `'${SENTINEL}' /* continuation */ + '${PRIVATE}'`, `'${SENTINEL}'\n + '${PRIVATE}'`,
+    `'${SENTINEL}' || '${PRIVATE}'`, `'${SENTINEL}'.concat('${PRIVATE}')`,
+    `'${SENTINEL}'[0]`, `'${SENTINEL}' , '${PRIVATE}'`, `'${SENTINEL}"`,
+    `'${SENTINEL}'\n}`, `'${SENTINEL}'`]) {
+    assert.deepEqual(findings(`const record = { secret: ${value}`), ['assigned secret at fixture.js:1']);
+  }
+  assert.deepEqual(findings(`const secret = '${SENTINEL}';`), ['assigned secret at fixture.js:1']);
+  assert.deepEqual(findings(`const record = { secret: '${SENTINEL}', token: '${PRIVATE}' };`), ['assigned secret at fixture.js:1']);
   const providerKey = ['sk', 'ant', 'a'.repeat(32)].join('-');
   assert.deepEqual(findings(`secret: '${SENTINEL}'; key: '${providerKey}'`), ['Anthropic key at fixture.js:1']);
   assert.deepEqual(findings(`FIXTURE_SECRET=${SENTINEL}`), ['env-style secret at fixture.js:1']);
@@ -36,7 +47,7 @@ function git(root, env, ...args) {
   return result.stdout.trim();
 }
 
-for (const kind of ['current-sentinel', 'historical-sentinel', 'historical-secret']) {
+for (const kind of ['current-sentinel', 'historical-sentinel', 'historical-secret', 'current-concatenation', 'historical-concatenation']) {
   test(`runner transfer scans ${kind} with full Git history [C7,S1]`, t => {
     const dir = mkdtempSync(join(tmpdir(), 'pullboard-leak-scan-'));
     t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -53,11 +64,13 @@ for (const kind of ['current-sentinel', 'historical-sentinel', 'historical-secre
     for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_CONFIG_PARAMETERS']) delete env[name];
     git(root, env, 'init', '-q', '-b', 'main');
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
-    const value = kind === 'historical-secret' ? PRIVATE : SENTINEL;
-    writeFileSync(join(root, 'fixture.js'), `const record = { secret: '${value}' };\n`);
+    const refused = kind === 'historical-secret' || kind.endsWith('concatenation');
+    const value = kind.endsWith('concatenation') ? `'${SENTINEL}' + '${PRIVATE}'`
+      : `'${kind === 'historical-secret' ? PRIVATE : SENTINEL}'`;
+    writeFileSync(join(root, 'fixture.js'), `const record = { secret: ${value} };\n`);
     git(root, env, 'add', '.'); git(root, env, 'commit', '-qm', 'test: public source history fixture');
     const oldBlob = git(root, env, 'rev-parse', 'HEAD:fixture.js');
-    if (kind !== 'current-sentinel') {
+    if (kind.startsWith('historical-')) {
       writeFileSync(join(root, 'fixture.js'), 'export const clean = true;\n');
       git(root, env, 'add', '.'); git(root, env, 'commit', '-qm', 'test: clean current source');
     }
@@ -76,12 +89,12 @@ catch (error) { process.stdout.write(JSON.stringify({ code: error.code ?? error.
     assert.equal(result.status, 0, result.context);
     const outcome = JSON.parse(result.stdout);
     const code = outcome.code;
-    if (kind === 'historical-secret') {
+    if (refused) {
       assert.equal(code, 'RUNNER_SECRET');
       assert.equal(existsSync(marker), false, 'historical-secret refusal happens before the requested command');
       const repositories = join(remoteHome, '.pullboard-runner', 'repos');
-      assert.ok(existsSync(repositories), 'the actual worker reached its cache inventory before the refusal');
-      for (const name of readdirSync(repositories).filter(name => name.endsWith('.git'))) {
+      if (kind.startsWith('historical-')) assert.ok(existsSync(repositories), 'historical refusal follows the actual cache inventory');
+      for (const name of (existsSync(repositories) ? readdirSync(repositories) : []).filter(name => name.endsWith('.git'))) {
         const probe = runFixtureChild('git', ['--git-dir', join(repositories, name), 'cat-file', '-e', oldBlob], { env, encoding: 'utf8' });
         assert.notEqual(probe.status, 0, 'the secret-bearing historical blob was never transferred');
       }

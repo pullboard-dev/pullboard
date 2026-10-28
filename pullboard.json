@@ -78,6 +78,7 @@
   ],
   "spec": "SPEC.md",
   "verify": { "policy": "any", "unrelatedTrunkMoves": true, "composeAtAdmission": true },
+  "check": { "timeout": "30m" },
   "lease": "2h",
   "lanes": {
     "core": {

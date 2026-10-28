@@ -120,6 +120,17 @@ export function checkMoved(root, plan, name) {
       if (!/^(?:export(?:\*|\{[^}]*\})from(?:'[^']*'|"[^"]*");)+$/u.test(code)) problems.push(`${from} still holds code; leave only a re-export shim`);
     } else if (existsSync(join(root, from))) problems.push(`${from} still exists; move the asset to ${to}`);
   }
+  const snapshot = tryGit(root, ['rev-parse', 'HEAD']);
+  /** Bind producer bytes to the current regular tracked snapshot; symlink ancestors never supply analysis authority. */
+  function readSource(file) {
+    if (snapshot.status !== 0 || !/^[\w./-]+$/u.test(file) || file.split('/').some(part => !part || part === '.' || part === '..')) return null;
+    let path = root;
+    for (const part of file.split('/')) { path = join(path, part); if (lstatSync(path).isSymbolicLink()) return null; }
+    if (!lstatSync(path).isFile()) return null;
+    const row = tryGit(root, ['ls-tree', '-z', snapshot.stdout, '--', file]);
+    const object = /^100(?:644|755) blob ([a-f0-9]+)\t/u.exec(row.stdout)?.[1];
+    return row.status === 0 && object ? { source: readFileSync(path, 'utf8'), object } : null;
+  }
   const listed = tryGit(root, ['ls-files', '-z', '--', 'test', 'docs']);
   if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot inventory tracked fixture readers');
   for (const file of listed.stdout.split('\0').filter(file => /\.[cm]?js$/u.test(file))) {
@@ -133,7 +144,7 @@ export function checkMoved(root, plan, name) {
     if (!stat.isFile() || stat.isSymbolicLink()) { problems.push(`cannot prove fixture source through ${file}`); continue; }
     const source = readFileSync(path, 'utf8');
     if (!cell.paths.some(([from]) => source.includes(from.split('/').at(-1)))) continue;
-    const uses = fixtureSourceEdits(source, { file, moves: cell.paths.map(([from, to]) => [from, to]) });
+    const uses = fixtureSourceEdits(source, { file, moves: cell.paths.map(([from, to]) => [from, to]), readSource });
     problems.push(...uses.problems);
     for (const edit of uses.edits) {
       const line = source.slice(0, edit.start).split('\n').length;

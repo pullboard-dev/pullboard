@@ -1,3 +1,4 @@
+import { trunkRef } from '../trusted-policy-read.js';
 import { withBoardRead } from '../cli-board-read.js';
 /** The pullboard list command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board-query.js';
@@ -18,7 +19,7 @@ export async function run(io, { first, values }) {
   const ctx = context(io);
   const { items, agents, merging } = await withBoardRead(ctx, (board) => {
     const rows = store.listItems(board, { lane: first, all: values.all });
-    const items = rows.map(verdictProjector(ctx.info.root, board).project);
+    const items = rows.map(verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project);
     // JSON returns these complete rows; agent names and merge labels belong only to the text rendering.
     if (values.json) return { items };
     return { items, agents: store.listAgents(board),

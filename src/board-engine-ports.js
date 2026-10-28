@@ -1,3 +1,4 @@
+import { sealItemPatchSubmit } from './item-patch-submit.js';
 /** Compose the store's explicit runtime ports for deterministic state execution [C7,H16]. */
 import * as store from './board.js';
 import { withSeatPresence } from './seat-presence.js';
@@ -26,7 +27,7 @@ import { validRelaySender } from './relay-sender.js';
 /** Supply native providers once when a writable board is opened; only values enter sealed moves. */
 export function boardEnginePorts() {
   return Object.freeze({ store, withSeatPresence, registry: MOVE_REGISTRY, operations: MOVE_OPERATIONS,
-    minimumOperationEngine: minimumMoveEngine, sealSourceAdvanceReturn, sealSourceAdvance,
+    minimumOperationEngine: minimumMoveEngine, sealItemPatchSubmit, sealSourceAdvanceReturn, sealSourceAdvance,
     computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict, boundProofReceipt,
     requireOutsideReceipt, signedMoveProblem, requireCoordinatorHold, requireBound,
     requestMoveProblem, recordRequestMove, relayPerson, requestPerson,

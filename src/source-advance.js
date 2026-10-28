@@ -4,7 +4,7 @@ import { atomic } from './board-event-log.js';
 import { logEvent } from './board-event-log.js';
 import { itemById } from './board-item-read.js';
 import { itemPatchDigest } from './item-patch-state.js';
-import { receiptFields } from './gate-run-receipt.js';
+import { receiptFields } from './proof-provenance.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { SOURCE_ADVANCE_ENGINE } from './source-advance-engine.js';
 import { sourceAdvanceChain } from './source-advance-state.js';
