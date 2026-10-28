@@ -17,6 +17,7 @@ import { main } from '../src/cli.js';
 import { boardHealth, healthReport } from '../src/health.js';
 import { fixture as dispatchFixture, cli as dispatchCli } from './next-take-fixture.js';
 import { readDigest } from '../src/digest.js';
+import { heartbeatSeat } from '../src/seat-presence.js';
 import { recurringJobs } from '../src/recurring-jobs.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { loadConfig } from '../src/config.js';
@@ -32,6 +33,9 @@ const freeze = (item) => ({ text: item.item_title, digest: `digest:${item.item_t
 test('health upper bindings retain actual dispatch findings without changing the observed board [A6,N2,C7]', async t => {
   const box = await dispatchFixture(t);
   box.add('Ready work for a real free fixture seat');
+  // Digest intentionally uses the host date; keep this private cohort on that date while advancing its boundary explicitly.
+  box.advance(Date.now() - 300000 - box.clock.now().getTime());
+  for (const seat of Object.values(box.seats)) heartbeatSeat(box.board, seat.id);
   box.scan();
   box.advance(300000);
   const expected = dispatchHealth(box.board, box.config).findings;
