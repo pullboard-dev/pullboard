@@ -14,6 +14,7 @@ import {
   claimOrdered,
   idArg,
   whoAmI,
+  wrongLaneGuidance,
 } from '../cli.js';
 
 /** Run `pullboard claim` and return its exit code. */
@@ -27,7 +28,7 @@ export async function run(io, { first }) {
       result = await claimOrdered(ctx, board, [id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root) }]);
       break;
     } catch (error) {
-      if (!(error instanceof MainSpecMerged)) throw error;
+      if (!(error instanceof MainSpecMerged)) throw await wrongLaneGuidance(ctx, board, me, id, error);
       io.say(`merged main before claiming #${id}: added spec rows ${error.rows.join(', ')}`);
       me = whoAmI(ctx, board);
     }

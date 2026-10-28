@@ -1,12 +1,9 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-input test/move-registry-baseline.json */
+/** @pullboard-test-input test/move-registry-baseline.json src/move-history/** */
 /** @pullboard-test-loads src/move-registry.js src/moves/*.js */
 /** Move-only registry discovery preserves a pinned historical resolution and real replay [C7,V4,H3,H16]. */
-import { STALE_STATE_OPERATIONS, STALE_STATE_STEPS, installStaleStateRegistryCases } from './stale-state-registry-cases.js';
-import attachItemPatch from '../src/moves/attachItemPatch.js';
-import removeItemPatch from '../src/moves/removeItemPatch.js';
-import { DEFAULT_NEXT_STEPS } from '../src/next-step-defaults.js';
-import { TYPED_REQUEST_OPERATIONS, TYPED_REQUEST_STEPS } from './typed-request-registry.test.js';
+import { installStaleStateRegistryCases } from './stale-state-registry-cases.js';
+import './typed-request-registry.test.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -30,6 +27,10 @@ import { readdirSync } from 'node:fs';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import { SPEC_REVISION_ENGINE } from '../src/spec-revision-engine.js';
 import { PRIVATE_REHOME_ENGINE } from '../src/private-rehome-engine.js';
+import { registryProblems } from './move-registry-invariants.js';
+import { readEngineLeaves } from '../src/engine-numbers.js';
+import { historyProblems } from './move-registry-history.js';
+import { installRegistryMergeCase } from './move-registry-merge-cases.js';
 
 const SNAPSHOT = JSON.parse(readFileSync(new URL('./move-registry-baseline.json', import.meta.url), 'utf8'));
 const CONSUMERS = ['src/engine.js', 'src/relay-sender.js', 'src/next-step-words.js'];
@@ -40,27 +41,7 @@ const CLAUSE_STEPS = Object.freeze({
   CHECK_RED: 'reject with what failed: pullboard verify <id> reject --reason TEST_FAILURE --clause "<frozen wording>" --note "<what failed>"',
   GUARD_CANNOT_FAIL: 'reject: the check does not test the guard; ask for one that fails with the guard reverted: pullboard verify <id> reject --reason TEST_FAILURE --clause "<frozen wording>" --note "<what the check missed>"',
 });
-const ITEM_PATCH_OPERATIONS = ['attachItemPatch', 'removeItemPatch'];
-const ITEM_PATCH_STEPS = { ...attachItemPatch.nextSteps, ...removeItemPatch.nextSteps, ITEM_PATCH: DEFAULT_NEXT_STEPS.ITEM_PATCH };
-const SUBMISSION_WAIT_STEPS = { SUBMISSION_CHANGED: 'run pullboard show <id> to inspect its current submission attempt and verdict; do not resubmit an acknowledged attempt' };
 const REHOME_OPERATIONS = ['reserveRehomeItemId', 'rehomeItem', 'applyRehomeItem'];
-const REVIEW_STEPS = Object.freeze({ BAD_REVIEW_POLICY: 'restore the native review policy before reviewing this item', STRICT_REVIEW_TOUCHED: 'ask a session that has not written to this strict item' });
-const REHOME_STEPS = Object.freeze({
-  BAD_ITEM_ID: 'use owner/repo#id, ~owner/repo#id, or one safe positive item number on the current board',
-  PRIVATE_BOARD_NOT_FOUND: "run pullboard add <lane> <title> --private from that repo's checkout before using its private handle",
-  PRIVATE_BOARD_IDENTITY: 'open the original repo checkout under its recorded GitHub login; keep the existing private board files and identity intact',
-  ITEM_MOVED: 'use the recorded destination reference shown in the refusal; do not move the old ID again',
-  REHOME_PENDING: 'retry the same move ID and destination to finish delivery; do not allocate another destination ID',
-  REHOME_FORMAT: 'restore the exact source move record and retry it with an authorized destination handle',
-  REHOME_LINKS: 'move each parent or wait item to this destination first, then retry the same source MOVEID',
-  REHOME_SAME_BOARD: 'choose a different local board',
-  REHOME_STATE: 'open or verified items can move; keep other items on their current board',
-  REHOME_CHECK: 'keep the source check unchanged and choose a destination board whose policy accepts it',
-  REHOME_DESTINATION: 'apply the source move on its named destination board',
-  REHOME_CONFLICT: 'keep the original source move ID and resolve the destination board conflict before retrying',
-  REHOME_ID: 'preserve the source MOVEID and its reserved destination ID; resolve the item-ID conflict before retrying',
-  REHOME_VERDICT: 'keep the source board acceptance intact and inspect its exact commit, digest and verifier reference',
-});
 
 /** Hash the real consumer bytes so seed declarations cannot quietly edit a central list. */
 function consumerHashes(root) {
@@ -86,15 +67,21 @@ export default { operation: ${JSON.stringify(name)}, order: ${engine + 1000}, en
 `;
 }
 
-test('today\'s move order, actors, refusal recovery text and recorded SQLite prefix are unchanged [C7,V4,H3,H16]', t => {
-  assert.deepEqual(ENGINE_OPERATIONS.filter(operation => !REHOME_OPERATIONS.includes(operation) && !TYPED_REQUEST_OPERATIONS.includes(operation) && !ITEM_PATCH_OPERATIONS.includes(operation) && !STALE_STATE_OPERATIONS.includes(operation)), SNAPSHOT.operations);
-  assert.deepEqual(NEXT_STEPS, { ...SNAPSHOT.nextSteps, ...REHOME_STEPS, ...TYPED_REQUEST_STEPS, ...ITEM_PATCH_STEPS, ...STALE_STATE_STEPS, ...SUBMISSION_WAIT_STEPS, ...REVIEW_STEPS, ...CLAUSE_STEPS });
+test('live registry invariants and historical actors, order and SQLite replay hold [C7,V4,H3,H16]', t => {
+  assert.deepEqual(ENGINE_OPERATIONS.filter(operation => SNAPSHOT.operations.includes(operation)), SNAPSHOT.operations, 'historical operation order is retained while new declarations append independently');
+  const root = fileURLToPath(new URL('../src/', import.meta.url));
+  const sources = readdirSync(root, { recursive: true }).filter(file => file.endsWith('.js'))
+    .map(file => readFileSync(join(root, file), 'utf8'));
+  assert.deepEqual(registryProblems({ registry: MOVE_REGISTRY, leaves: readEngineLeaves(root), sources, nextSteps: NEXT_STEPS }), []);
+  assert.deepEqual(ENGINE_OPERATIONS, Object.keys(MOVE_REGISTRY), 'engine routing derives every operation from its declaration');
+  for (const [code, step] of Object.entries(CLAUSE_STEPS)) assert.equal(NEXT_STEPS[code], step, `${code} retains exact clause recovery`);
   assert.equal(minimumMoveEngine('recordProofRun', [{ landingFence: {}, receipt: { environment: {} } }, { cause: 'conflict:new' }]), PROOF_RUN_ENGINE);
   assert.equal(MOVE_REGISTRY.recordProofRun.engine, PROOF_RUN_ENGINE);
   assert.equal(MOVE_REGISTRY.recordProofRun.itemIdFirstArgument, false);
   assert.equal(relayMoveActor({ operation: 'recordProofRun', args: [{ agentId: 'proof-seat' }] }), 'proof-seat');
   assert.equal(relayMoveActor({ operation: 'recordProofRun', args: [] }), null);
   for (const operation of SNAPSHOT.operations) {
+    assert.equal(MOVE_REGISTRY[operation].itemIdFirstArgument, SNAPSHOT.itemIdFirstArgument.includes(operation), `${operation} retains its exact historical slot flag`);
     assert.deepEqual(SNAPSHOT.actorVectors.map(vector => relayMoveActor({ operation, ...vector })), SNAPSHOT.actors[operation], operation);
   }
   assert.equal(relayMoveActor({ operation: 'reserveRehomeItemId', args: ['0'.repeat(32), 'move-1', { agentId: 'destination' }] }), 'destination');
@@ -150,7 +137,6 @@ test('two new board moves declared in two files need no edit to engine.js, relay
   run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'commit', '-m', 'fixture: two independent declarations']);
   const child = `
 import {ENGINE_OPERATIONS} from './src/engine.js';
-const STALE_STATE_OPERATIONS=${JSON.stringify(STALE_STATE_OPERATIONS)};
 import {relayMoveActor} from './src/relay-sender.js';
 import {NEXT_STEPS} from './src/next-step-words.js';
 import {readFileSync,mkdirSync,writeFileSync,readdirSync} from 'node:fs';
@@ -210,13 +196,14 @@ process.stdout.write(JSON.stringify(result));`;
   const result = JSON.parse(run(root, process.execPath, ['--input-type=module', '-e', child]));
   assert.ok(result.operations.includes('seedAlpha'), 'the first independent operation file is discovered');
   assert.ok(result.operations.includes('seedBeta'), 'the second independent operation file is discovered');
-  assert.deepEqual(result.operations.filter(name => !name.startsWith('seed') && !REHOME_OPERATIONS.includes(name) && !TYPED_REQUEST_OPERATIONS.includes(name) && !ITEM_PATCH_OPERATIONS.includes(name) && !STALE_STATE_OPERATIONS.includes(name)), SNAPSHOT.operations, 'existing order does not move');
+  assert.deepEqual(result.operations.filter(name => SNAPSHOT.operations.includes(name)), SNAPSHOT.operations, 'existing order does not move');
   assert.deepEqual(result.seedFloors, [9, 11]);
   assert.equal(result.pureImportClosure, true, 'routing metadata never imports its consumers, board writers or Git/process launchers');
   assert.equal(result.alphaActor, 'seed-agent');
   assert.equal(result.alphaStep, 'repair the first seeded move');
   assert.equal(result.betaStep, 'repair the second seeded move');
-  assert.deepEqual(result.itemIds.filter(name => !name.startsWith('seed') && !ITEM_PATCH_OPERATIONS.includes(name)).sort(), [...SNAPSHOT.itemIdFirstArgument, 'rehomeItem'].sort());
+  assert.deepEqual(result.itemIds.filter(name => SNAPSHOT.operations.includes(name)).sort(), [...SNAPSHOT.itemIdFirstArgument].sort(), 'historical true and false slot flags stay exact');
+  assert.ok(result.itemIds.includes('rehomeItem'), 're-home retains its item slot');
   assert.ok(result.itemIds.includes('seedAlpha'));
   assert.ok(!result.itemIds.includes('seedBeta'));
   assert.deepEqual(result.floors, SNAPSHOT.floorCases.map(entry => entry.expected), 'all historical first-match floor vectors retain their results');
@@ -257,3 +244,27 @@ test('move import closure stays process-free on a seeded revision board [C7,V4,H
 });
 
 installStaleStateRegistryCases();
+
+/** Exercise each live invariant without mutating the accepted source or a historical oracle. */
+test('registry invariants reject missing recovery, slots and allocation collisions [C7,V4]', () => {
+  const declaration = { operation: 'sample', engine: 1, itemIdFirstArgument: true, nextSteps: { SAMPLE: 'repair the sample' } };
+  const input = { registry: { sample: declaration }, leaves: [{ name: 'SAMPLE_ENGINE', number: 1 }],
+    sources: ["throw new Refused('SAMPLE', 'repair it');"], nextSteps: declaration.nextSteps };
+  assert.deepEqual(registryProblems(input), []);
+  assert.deepEqual(registryProblems({ ...input, leaves: [...input.leaves, { name: 'PENDING_ENGINE', number: null }, { name: 'OTHER_PENDING_ENGINE', number: null }] }), [], 'unallocated leaves do not collide');
+  assert.match(registryProblems({ ...input, registry: { sample: { ...declaration, itemIdFirstArgument: undefined } } }).join(), /missing item slots/u);
+  assert.match(registryProblems({ ...input, registry: { wrong: declaration } }).join(), /mismatched operation/u);
+  assert.match(registryProblems({ ...input, leaves: [...input.leaves, { name: 'SAMPLE_ENGINE', number: 2 }] }).join(), /duplicate engine name/u);
+  assert.match(registryProblems({ ...input, leaves: [...input.leaves, { name: 'OTHER_ENGINE', number: 1 }] }).join(), /duplicate or invalid engine number/u);
+  assert.match(registryProblems({ ...input, nextSteps: {} }).join(), /missing recovery entry SAMPLE/u);
+  assert.match(registryProblems({ ...input, sources: ["throw new Refused('UNDECLARED', 'repair it');"] }).join(), /missing recovery entry UNDECLARED/u);
+});
+
+
+test('shipped engine records and the legacy replay retain their first committed bytes [C7,V4]', () => {
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const git = (...args) => run(root, 'git', args);
+  assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, 'src')), git), []);
+});
+
+installRegistryMergeCase();
