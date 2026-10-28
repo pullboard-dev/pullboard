@@ -279,14 +279,14 @@ function documentationInputs(path, source, imports, changedDocs = []) {
 }
 
 /**
- * Admit only exact named builtin-export synchronization or TypeScript stripping, neither of which loads modules.
+ * Admit only exact named builtin-export synchronization, TypeScript stripping or the name predicate isBuiltin, none of which loads modules.
  * Rewrite that exact import and ask V8 whether another node:module edge remains. Text in comments
  * or strings cannot hide a real unknown import. Keep dynamic builtin loaders and CommonJS unknown.
  */
 function knownBuiltinUtilities(sources, imports) {
   const indices = sources.flatMap((_source, index) => imports[index].includes('node:module') ? [index] : []);
   if (!indices.length) return new Set();
-  const utility = /\bimport\s*\{\s*(?:syncBuiltinESMExports|stripTypeScriptTypes)\s*,?\s*\}\s*from\s*(['"])node:module\1/gu;
+  const utility = /\bimport\s*\{\s*(?:syncBuiltinESMExports|stripTypeScriptTypes|isBuiltin)\s*,?\s*\}\s*from\s*(['"])node:module\1/gu;
   const rewritten = indices.map(index => sources[index].replace(utility,
     (_match, quote) => `import { syncBuiltinESMExports } from ${quote}node:fs${quote}`));
   const remaining = importsIn(rewritten);
