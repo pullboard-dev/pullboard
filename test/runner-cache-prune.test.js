@@ -75,7 +75,12 @@ test('legacy bootstrap uses declared commit-date order, with held/published root
   mkdirSync(job);
   pinSourceCacheJob(job, { repoId: box.repoId, commit: held });
   git(box.cache, ['update-ref', `refs/pullboard/published/${published}`, published]);
-  const result = await pruneSourceCache({ ...box, roots: [requested], limit: 4 });
+  const inventory = new Map([['stale caller entry', requested]]);
+  const result = await pruneSourceCache({ ...box, roots: [requested], limit: 4, inventory });
+  assert.deepEqual([...inventory].sort(), git(box.cache, ['for-each-ref', '--format=%(refname) %(objectname)',
+    'refs/pullboard/candidates', 'refs/pullboard/published']).split('\n').map(line => line.split(' ')).sort(),
+  'the output inventory replaces caller entries with actual retained Git refs, including published refs');
+  for (const ref of result.pruned) assert.equal(inventory.has(ref), false, 'deleted refs are never announced');
   assert.equal(result.retained, 6);
   assert.equal(result.protected, 3);
   assert.match(result.bootstrapOrder, /not observed last use/u);
@@ -120,6 +125,11 @@ test('legacy leftovers cannot veto pruning, while every current spec root surviv
   assert.equal(completed.retained, 2, 'finished job roots lose protection without proving orphan death');
   assert.equal(completed.pruned.length, 4);
   assert.equal(SOURCE_CACHE_CANDIDATES, 300, 'protected roots do not alter the default bound');
+  const requested = box.commits.at(-1), inventory = new Map();
+  git(box.cache, ['update-ref', '-d', `refs/pullboard/candidates/${requested}`]);
+  await pruneSourceCache({ ...box, roots: [requested], limit: 2, inventory });
+  assert.equal(inventory.has(`refs/pullboard/candidates/${requested}`), false,
+    'a requested root without a Git ref is not invented in the negotiation inventory');
 });
 
 test('native cache lease serializes peers and Git CAS refuses a changed ref without partial pruning [C7]', async (t) => {

@@ -1,5 +1,6 @@
 /** Project the Dashboard from one authoritative item snapshot and its complete ordered event prefix [N26]. */
-export function dashboardModel(project, history, { now = Date.now(), complete = true } = {}) {
+export function dashboardModel(project, history, { now, complete = true } = {}) {
+  if (!Number.isFinite(now)) throw new TypeError('Dashboard projection requires an explicit clock reading');
   const hour = 3_600_000, start = now - 4 * hour;
   const items = (project.items ?? []).map(item => ({ ...item,
     owner: item.status === 'claimed' ? item.claim?.by : null,
