@@ -72,7 +72,7 @@ test('shared row variants retain their layout and the default row expands in pla
     await chrome.click("document.querySelector('#item-row')");
     await chrome.waitFor("document.querySelector('#item-row').parentElement.open && document.querySelector('#expanded-content').getBoundingClientRect().height > 0");
     await chrome.stable("document.querySelector('#item-row').focus()");
-    await chrome.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await chrome.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' });
     await chrome.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
     await chrome.waitFor("!document.querySelector('#item-row').parentElement.open");
     assert.deepEqual(chrome.exceptions, [], 'row rendering and expansion produce no browser exception');
