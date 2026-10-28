@@ -409,7 +409,7 @@ export const REJECT_REASONS = [
 
 export { systemClock } from './board-read-open.js';
 
-export { openBoardForRead } from './board-read-open.js';
+export { openBoardForRead } from './native-board.js';
 
 export { openBoardReadOnly } from './board-read-open.js';
 /** Temporary public compatibility; #1624 removes this edge after native-root callers compose. */

@@ -14,7 +14,7 @@ import {
 } from './board-schema-source.js';
 
 /** Require connection-local dependencies before creating or touching any SQLite file; never infer a global root. */
-function requireRuntimePorts(ports) {
+export function requireRuntimePorts(ports) {
   if (!ports || typeof ports !== 'object' || Array.isArray(ports)) throw new Refused('NO_POLICY', 'Open a native board through its composition root with explicit runtime ports.');
   for (const group of ['guards', 'query', 'auth', 'lifecycle', 'nativePorts', 'enginePorts']) {
     if (!ports[group] || typeof ports[group] !== 'object' || Array.isArray(ports[group])) throw new Refused('NO_POLICY', `The native board root must supply its ${group} port group.`);

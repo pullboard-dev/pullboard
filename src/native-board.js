@@ -2,6 +2,7 @@
 import * as store from './board.js';
 import {
   openBoardStore,
+  requireRuntimePorts,
 } from './board-store.js';
 import {
   boardEnginePorts,
@@ -43,6 +44,7 @@ import {
 } from './board-migrate.js';
 import {
   openBoardReadOnly,
+  openBoardForRead as readBoard,
   readEventLogVersion,
   systemClock,
 } from './board-read-open.js';
@@ -88,7 +90,7 @@ import {
 } from './review-policy.js';
 
 export * from './board.js';
-export { openBoardForRead, openBoardReadOnly, closeBoard, systemClock } from './board-read-open.js';
+export { openBoardReadOnly, closeBoard, systemClock } from './board-read-open.js';
 
 /** Build immutable native capabilities once per connection, without a registry or cross-connection defaults. */
 export function nativeBoardPorts() {
@@ -116,10 +118,21 @@ export function nativeBoardPorts() {
   });
 }
 
+/** Freeze explicit provider bags without changing the function or canonical operation identities. */
+function freezeRuntimePorts(ports) {
+  requireRuntimePorts(ports);
+  for (const name of ['nativePorts', 'enginePorts', 'guards', 'lifecycle', 'query', 'auth']) Object.freeze(ports[name]);
+  return Object.freeze(ports);
+}
+
 /** Open the physical store with fully composed providers before migrations, guards or proof warming run. */
 export function openBoard(file, clock = systemClock, { ports = nativeBoardPorts(), ...options } = {}) {
-  for (const name of ['nativePorts', 'enginePorts', 'guards', 'lifecycle', 'query', 'auth']) {
-    if (ports?.[name] && typeof ports[name] === 'object') Object.freeze(ports[name]);
-  }
-  return openBoardStore(file, clock, { ...options, ports: ports && Object.freeze(ports) });
+  return openBoardStore(file, clock, { ...options, ports: freezeRuntimePorts(ports) });
+}
+
+/** Give native read consumers the same capabilities without migrating or changing the light CLI read path. */
+export function openBoardForRead(file, clock = systemClock, { ports = nativeBoardPorts() } = {}) {
+  const runtimePorts = freezeRuntimePorts(ports);
+  const board = readBoard(file, clock);
+  return board && Object.assign(board, { runtimePorts, nativePorts: runtimePorts.nativePorts, enginePorts: runtimePorts.enginePorts });
 }

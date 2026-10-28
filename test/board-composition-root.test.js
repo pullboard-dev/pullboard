@@ -99,6 +99,7 @@ test('raw storage refuses absent providers before filesystem effects and closes 
   assert.equal(existsSync(join(directory, 'never-created')), false);
   let captured, reported = 0;
   const failure = new Error('NATIVE_MIGRATION_SENTINEL');
+  /** Capture the actual connection so failed migration cleanup can be observed. */
   const atomic = (board, work) => { captured = board; return ports.nativePorts.atomic(board, work); };
   const broken = { ...ports,
     nativePorts: { ...ports.nativePorts, atomic },
@@ -109,4 +110,24 @@ test('raw storage refuses absent providers before filesystem effects and closes 
   assert.throws(() => native.openBoard(':memory:', clock, { ports: broken }), error => error === failure);
   assert.equal(reported, 1);
   assert.throws(() => captured.db.prepare('SELECT 1'), /closed|not open/u);
+});
+
+
+test('native read wrappers carry explicit capabilities while SQLite remains read-only and schema-preserving [C7,A5,A6]', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-native-read-'));
+  const file = join(directory, 'board.sqlite');
+  let read;
+  t.after(() => { try { if (read) native.closeBoard(read); } finally { rmSync(directory, { recursive: true, force: true }); } });
+  const written = native.openBoard(file);
+  native.closeBoard(written);
+  const ports = native.nativeBoardPorts();
+  read = native.openBoardForRead(file, undefined, { ports });
+  assert.equal(read.readOnly, true);
+  assert.equal(read.nativePorts, ports.nativePorts);
+  assert.equal(read.enginePorts, ports.enginePorts);
+  assert.deepEqual(read.nativePorts.rowDrafts(read), []);
+  assert.throws(() => read.db.exec('CREATE TABLE forbidden (id INTEGER)'), /readonly|read.only/u);
+  assert.equal(read.db.prepare("SELECT name FROM sqlite_master WHERE name='forbidden'").get(), undefined);
+  assert.equal(native.openBoardForRead(join(directory, 'absent.sqlite')), null);
+  assert.equal(legacy.openBoardForRead, native.openBoardForRead);
 });
