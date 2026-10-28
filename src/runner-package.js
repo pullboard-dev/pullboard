@@ -85,6 +85,7 @@ function derivePackage(root, entry, previous, parse) {
     manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
   } catch (error) { unavailable('package.json', error.message); }
   const files = {};
+  let serializedBytes = 2; // The empty JSON object includes both braces.
   const analyses = new Map();
   let pending = [entry, 'package.json'];
   while (pending.length) {
@@ -94,8 +95,12 @@ function derivePackage(root, entry, previous, parse) {
     for (const file of level) {
       if (!allowed.has(file)) unavailable(file, 'the import closure leaves package.json files');
       files[file] = readFileSync(join(root, file), 'utf8');
-      if (Object.keys(files).length > 4096) unavailable(file, 'the import closure exceeds its file-count bound');
-      if (Buffer.byteLength(JSON.stringify(files)) > 1_048_576) unavailable(file, 'the import closure exceeds the 1 MiB transfer bound');
+      const count = Object.keys(files).length;
+      if (count > 4096) unavailable(file, 'the import closure exceeds its file-count bound');
+      // Only own entries enter JSON; preserve the plain object's inherited-key behavior.
+      if (Object.hasOwn(files, file)) serializedBytes += Buffer.byteLength(JSON.stringify(file))
+        + 1 + Buffer.byteLength(JSON.stringify(files[file])) + (count > 1 ? 1 : 0);
+      if (serializedBytes > 1_048_576) unavailable(file, 'the import closure exceeds the 1 MiB transfer bound');
     }
     const modules = level.filter(file => /\.[cm]?js$/u.test(file));
     const changed = modules.filter(file => previous.get(file)?.source !== files[file]);
