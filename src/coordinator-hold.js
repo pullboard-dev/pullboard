@@ -17,7 +17,6 @@ import {
 import { COORDINATOR } from './config.js';
 import { COORDINATOR_HOLD_ENGINE } from './coordinator-hold-engine.js';
 import { Refused } from './refused.js';
-import { credentialActor } from './relay-sender.js';
 import { computerName } from './computer-name.js';
 import { COMPUTER_NAME_ENGINE } from './computer-name-engine.js';
 import { ENGINE_VERSION } from './machine.js';
@@ -53,7 +52,7 @@ function machineOf(machine) {
  * @param {unknown} machine the sending link's relay machine id
  * @returns {any} the same move
  */
-export function stampCoordinatorHolder(move, machine, name) {
+export function stampCoordinatorHolder(move, machine, name, { credentialActor }) {
   if (credentialActor(move) === COORDINATOR && typeof machine === 'string' && MACHINE.test(machine)) {
     move.holder = machine;
     if (move.engine >= COMPUTER_NAME_ENGINE && name !== undefined) move.holderName = computerName(name);

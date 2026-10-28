@@ -109,22 +109,23 @@ export function relaySenderPolicy({ declaredMoveActor, validPresence }) {
     return relayMoveActor(move);
   }
 
-  /** Compare caller intent without executing frozen callbacks or allocating another operation id. */
-  function operationIntent(operation, args) {
-    const values = Array.isArray(args) ? args.map((value, index) => {
-      if (!['claim', 'refreeze', 'submit'].includes(operation) || index !== 1 || !value || typeof value !== 'object') return value;
-      const options = { ...value };
-      if (operation === 'submit') {
-        // Native proof is derived after caller intent is saved, and is not a different retry.
-        delete options.mergeOnly;
-        return options;
-      }
-      delete options.freeze;
-      delete options.frozen;
-      delete options.freezeError;
-      return options;
-    }) : args;
-    return JSON.stringify({ operation, args: values }, (_key, value) => typeof value === 'function' ? undefined : value);
-  }
   return Object.freeze({ relayMoveActor, validRelaySender, personAuthority, relaySenderProblem, credentialActor, operationIntent });
+}
+
+/** Compare caller intent without executing frozen callbacks or allocating another operation id. */
+export function operationIntent(operation, args) {
+  const values = Array.isArray(args) ? args.map((value, index) => {
+    if (!['claim', 'refreeze', 'submit'].includes(operation) || index !== 1 || !value || typeof value !== 'object') return value;
+    const options = { ...value };
+    if (operation === 'submit') {
+      // Native proof is derived after caller intent is saved, and is not a different retry.
+      delete options.mergeOnly;
+      return options;
+    }
+    delete options.freeze;
+    delete options.frozen;
+    delete options.freezeError;
+    return options;
+  }) : args;
+  return JSON.stringify({ operation, args: values }, (_key, value) => typeof value === 'function' ? undefined : value);
 }

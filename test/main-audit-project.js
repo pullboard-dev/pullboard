@@ -7,10 +7,11 @@ import { startFixtureChild as spawn, runFixtureChild as spawnSync } from './fixt
 import { once } from 'node:events';
 import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as pause } from 'node:timers/promises';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyPackageFiles, packageFiles } from '../src/package-files.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 const SOURCE=new URL('../',import.meta.url);
 /** Run actual Git in the private fixture and retain failures. */
 function git(root,env,...args){const ran=spawnSync('git',args,{cwd:root,env,encoding:'utf8'});assert.equal(ran.status,0,ran.stderr);return ran.stdout.trim();}
@@ -20,7 +21,9 @@ async function observed(read,name){const deadline=Date.now()+30_000;while(Date.n
 export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   const scratch=mkdtempSync(join(tmpdir(),'pullboard main audit ')),installed=join(scratch,'installed tooling'),repo=join(scratch,'repo'),machine=join(scratch,'machine');
   mkdirSync(installed);mkdirSync(repo);mkdirSync(machine);
-  for(const folder of [installed,repo])for(const name of ['src','bin','package.json'])cpSync(new URL(name,SOURCE),join(folder,name),{recursive:true});
+  // This full-audit project deliberately has only its three test files; copied documentation tests are not its suite.
+  const source=fileURLToPath(SOURCE),files=packageFiles(source).filter(file=>file==='package.json'||/^(?:src|bin|packages)\//u.test(file)&&!/(?:^|\/)tests?\//u.test(file));
+  for(const folder of [installed,repo])copyPackageFiles(source,folder,{files});
   assert.equal(existsSync(join(installed,'.git')),false);
   const env={...process.env,HOME:join(scratch,'home'),PULLBOARD_HOME:join(scratch,'pullboard'),PULLBOARD_MACHINE_HOME:machine,
     GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1',GIT_AUTHOR_NAME:'Fixture',GIT_AUTHOR_EMAIL:'fixture@example.invalid',GIT_COMMITTER_NAME:'Fixture',GIT_COMMITTER_EMAIL:'fixture@example.invalid'};
@@ -39,7 +42,12 @@ export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   const actors=board(db=>{db.executionEngineVersion=1;try{return[store.register(db,{lane:'coordinator',path:repo}),store.register(db,{lane:'alpha',path:join(scratch,'builder')}),store.register(db,{lane:'beta',path:join(scratch,'reviewer')})];}finally{delete db.executionEngineVersion;}});
   const identity=board(db=>({id:store.boardId(db),after:store.events(db).at(-1).event_id}));await activateMainAudits(repo,identity.after,identity.id);
   const candidate=join(scratch,'candidate');git(repo,env,'worktree','add','--detach',candidate,base);
-  const marker=join(scratch,'green-body-ran'), unitMarker=join(scratch,'unchanged-unit-ran');
+  const marker=join(scratch,'green-body-ran');
+  const unitMarker=join(scratch,'unchanged-unit-ran');
+  /** Preserve the actual unchanged-unit marker bytes without exposing its path as an inferred object capability. */
+  function readUnitMarker() {
+    return readFileSync(unitMarker, 'utf8');
+  }
   writeFileSync(join(candidate,'test/a.test.js'),"import {test} from 'node:test';test('audit failure alpha',()=>{throw new Error('actual alpha');});\n");
   writeFileSync(join(candidate,'test/b.test.js'),"import {test} from 'node:test';test('audit failure beta',()=>{throw new Error('actual beta');});\n");
   writeFileSync(join(candidate,'test/c.test.js'),`import {test} from 'node:test';import {appendFileSync} from 'node:fs';test('later green body',()=>appendFileSync(${JSON.stringify(marker)},'ran'));\n`);
@@ -101,6 +109,6 @@ export async function mainAuditFixture(t, { initialGreen = false } = {}) {
     return {tip:nextTip,tree:nextTree,batchId:nextBatch,item:nextItem,marker:nextMarker,key:mainAuditKey({board:identity.id,batchId:nextBatch,tip:nextTip,tree:nextTree})};
   }
   t.after(async()=>{for(const child of children)if(child.exitCode===null&&child.signalCode===null){try{process.kill(-child.pid,'SIGTERM');}catch{child.kill('SIGTERM');}}await Promise.all(children.map(child=>child.exitCode!==null||child.signalCode!==null?Promise.resolve():once(child,'close')));rmSync(scratch,{recursive:true,force:true});});
-  return {repo,env,base,tip,tree,batchId,item,marker,unitMarker,directory,key,board,store,runWorker,startWorker,holdBoth,appendBatch,queue,readGateReceipt,receiptStore};
+  return {repo,env,base,tip,tree,batchId,item,marker,unitMarker,readUnitMarker,directory,key,board,store,runWorker,startWorker,holdBoth,appendBatch,queue,readGateReceipt,receiptStore};
 }
 

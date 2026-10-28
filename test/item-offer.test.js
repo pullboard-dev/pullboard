@@ -34,7 +34,7 @@ test('an accepted offer makes at most one child and a receipt carries no text [B
   const resolveBoardRef = id => boards.some(entry => entry.id === id) ? { boardId: id } : null;
   // The consumer's explicit authority port binds intent; this fixture never claims native person presence.
   let allowed = true;
-  const ports = { boardId: destination.id, resolveBoardRef, authorize: () => allowed,
+  const ports = { atomic: store.atomic, itemById: store.itemById, readBoardId: store.boardId, boardId: destination.id, resolveBoardRef, authorize: () => allowed,
     createChild: content => store.addItem(destination.board, { by: 'coordinator', ...content }) };
   assert.throws(() => api.acceptItemOffer(source.board, offer, ports), { code: 'OFFER_AUTHORITY' });
   const accepted = api.acceptItemOffer(destination.board, offer, ports);

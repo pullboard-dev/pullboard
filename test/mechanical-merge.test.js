@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Real Git conflict inspection and landing share conservative mechanical resolutions [B3,R3,C7]. */
+import { execPath as nodeExecutable } from 'node:process';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -22,7 +23,7 @@ import { MECHANICAL_MERGE_ENGINE } from '../src/mechanical-merge-engine.js';
 import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
 
 console.log('# MECHANICAL_RUNTIME ' + JSON.stringify({ node: process.version, execPath: process.execPath,
-  platform: process.platform, arch: process.arch, host: hostname(), binarySha256: createHash('sha256').update(readFileSync(process.execPath)).digest('hex') }));
+  platform: process.platform, arch: process.arch, host: hostname(), binarySha256: createHash('sha256').update(readFileSync(nodeExecutable)).digest('hex') }));
 
 const directories = [];
 after(() => directories.forEach(root => rmSync(root, { recursive: true, force: true })));
