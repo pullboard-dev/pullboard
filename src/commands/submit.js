@@ -1,13 +1,3 @@
-import { privateCheckEnvelope } from '../runner-private-mode.js';
-import { trunkRef } from '../trusted-policy-read.js';
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
-import { join } from 'node:path';
 import { gateRunnerAdmission } from '../settings.js';
 import { withBoardRead as waitBoardRead } from '../board-read.js';
 import { retrySync } from '../cli-sync.js';
@@ -53,8 +43,6 @@ import {
 } from '../gate.js';
 import {
   contains,
-  git,
-  gitPath,
   headCommit,
   headTree,
   isClean,
@@ -122,71 +110,6 @@ import { matchingMainFailures } from '../main-failure-matches.js';
 import { linkKnownMainReworks } from '../known-main-reworks.js';
 import { submitReferenceReminders } from '../reference-lines.js';
 import { waitForSubmissionVerdict } from '../submit-wait.js';
-
-/** Bind both doctrine check sources to the actual leased worker, retaining authenticated per-rule observations. */
-function doctrineRunnerChecks(root, mainCommit, lease) {
-  if (!lease.runner || typeof lease.executionServices?.runners?.runOnRunner !== 'function') throw new Refused('RUNNER_SOURCE', 'runner-only doctrine needs its actual registered runner lease; restore runner admission and retry');
-  const parent = gitPath(root, 'pullboard-doctrine-output');
-  mkdirSync(parent, { recursive: true, mode: 0o700 });
-  const observations = [];
-  let attempts = 0;
-  lease.tracker?.mark('runAt');
-  return {
-    /** Execute exactly one approved rule at its candidate or merge-base source; exit 1 is a counted result. */
-    runCheck(commit, command, timeoutMs) {
-      attempts++;
-      const started = performance.now();
-      const directory = mkdtempSync(join(parent, 'rule-'));
-      const shell = `(\n${command}\n) 2>&1`;
-      const checkedSource = { commit, tree: git(root, ['rev-parse', `${commit}^{tree}`]).trim() };
-      const policy = privateCheckEnvelope({ kind: 'private-check', version: 1, install: '', check: shell, timeoutMs,
-        policyCommit: mainCommit, trunk: { ref: trunkRef(root), commit: mainCommit } });
-      let result;
-      try {
-        result = lease.executionServices.runners.runOnRunner(root, shell, { runner: lease.runner, source: lease.source,
-          runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser, checkedSource, privateCheck: policy,
-          metadata: { ...lease.runMetadata, testStage: 'doctrine' }, rawOutputPath: join(directory, 'raw.log') });
-      } catch (error) {
-        writeFileSync(join(directory, 'failure.json'), JSON.stringify({ version: 1, policySha256: policy.sha256, checkedSource,
-          code: error?.code ?? error?.name ?? 'unknown', rawOutputPath: join(directory, 'raw.log') }) + '\n', { mode: 0o600 });
-        throw error;
-      }
-      const receipt = result.privateCheck?.receipt;
-      const phase = receipt?.phases?.check;
-      const observed = { version: 1, policyCommit: mainCommit, commandSha256: createHash('sha256').update(command).digest('hex'),
-        privateCheckSha256: policy.sha256, checkedSource, executionSource: result.executionSource ?? null,
-        runner: result.executionRunner ?? null, environment: result.environment ?? null,
-        executionAdmission: result.executionAdmission ?? null, executionPhases: result.executionPhases ?? null,
-        privateCheck: receipt ?? null, rawOutputPath: result.rawOutputPath ?? null, rawOutputSha256: result.rawOutputSha256 ?? null };
-      writeFileSync(join(directory, 'observation.json'), JSON.stringify(observed) + '\n', { mode: 0o600 });
-      observations.push(observed);
-      if (result.executionRunner !== lease.runner.host || result.executionSource?.commit !== checkedSource.commit
-        || result.executionSource?.tree !== checkedSource.tree || receipt?.requestSha256 !== policy.sha256) {
-        throw new Refused('RUNNER_RESULT_INVALID', 'doctrine runner result does not bind its admitted source and approved policy; inspect the retained observation before retrying');
-      }
-      const seconds = Math.round((performance.now() - started) / 1000);
-      const broken = !receipt.sourceUnchanged ? 'changed its private source' : receipt.problem ? receipt.problem.message
-        : !phase ? 'has no complete check phase' : phase.timedOut ? `timed out after ${Math.round(timeoutMs / 1000)}s`
-          : phase.signal ? `was killed by ${phase.signal}` : ![0, 1].includes(phase.code) ? `exited ${phase.code}` : '';
-      if (broken) return { problems: [], broken, seconds };
-      if (phase.offset !== 0 || !Number.isSafeInteger(phase.length) || phase.length < 0 || phase.length > 64 * 1024 * 1024
-        || statSync(result.rawOutputPath).size !== phase.length) return { problems: [], broken: 'exceeded the complete bounded check output', seconds };
-      const bytes = readFileSync(result.rawOutputPath);
-      if (bytes.length !== phase.length || createHash('sha256').update(bytes).digest('hex') !== phase.sha256) {
-        throw new Refused('RUNNER_RESULT_INVALID', 'doctrine check bytes do not match the authenticated phase; inspect the retained observation before retrying');
-      }
-      return { problems: bytes.toString('utf8').split(/\r?\n/u).map(line => line.trimEnd()).filter(line => line.trim()), broken: '', seconds };
-    },
-    /** A multi-check hold has no measured aggregate runner interval; individual actual phases stay in its observations. */
-    finish() {
-      lease.tracker?.mark('ranAt');
-      const single = attempts === 1 && observations.length === 1 ? observations[0] : null;
-      lease.environment = observations.length && attempts === observations.length && observations.every(row => JSON.stringify(row.environment) === JSON.stringify(observations[0].environment)) ? observations[0].environment : null;
-      lease.executionAdmission = single?.executionAdmission ?? null;
-      lease.executionPhases = single?.executionPhases ?? null;
-    },
-  };
-}
 
 /**
  * Submit: a clean tree, nothing untracked, the gate green at HEAD, then the board (V4).
@@ -293,12 +216,7 @@ export async function submitHere(ctx, id, infra) {
   const infraRecord = infraNotes.infraNote({ root, claimHead, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
   const doctrine = hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
-    ? await withGateSlot(root, lease => {
-      const remote = runnerAdmission.runnerOnly ? doctrineRunnerChecks(root, acceptedMain.commit, lease) : null;
-      try { return holdDoctrine(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit,
-        practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, ...(remote ? { runCheck: remote.runCheck } : {}) }); }
-      finally { remote?.finish(); }
-    },
+    ? await withGateSlot(root, () => holdDoctrine(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }),
       { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...runnerAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceipt.receiptLine(receipt)}`) })
     : [];
   for (const rule of doctrine) ctx.io.say(`doctrine: ${ruleLine(rule)}`);

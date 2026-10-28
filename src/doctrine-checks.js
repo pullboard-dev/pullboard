@@ -225,10 +225,10 @@ function runAtCommit(root, commit, command, timeoutMs) {
  * Refuses RATCHET_ROSE with the rule, its counts and the new problem lines.
  *
  * @param {string} root - The clean submitting checkout, at `commit`.
- * @param {{ mainCommit: string, commit: string, practice?: string, timeoutMs?: number, runCheck?: (commit:string, command:string, timeoutMs:number) => ReturnType<typeof runRuleCheck> }} options
+ * @param {{ mainCommit: string, commit: string, practice?: string, timeoutMs?: number }} options
  * @returns {ReturnType<typeof doctrineReport>}
  */
-export function holdDoctrine(root, { mainCommit, commit, practice = DOCTRINE_FILE, timeoutMs = DEFAULT_TIMEOUT_MS, runCheck }) {
+export function holdDoctrine(root, { mainCommit, commit, practice = DOCTRINE_FILE, timeoutMs = DEFAULT_TIMEOUT_MS }) {
   const rules = checkRulesAt(root, mainCommit, practice).filter((rule) => rule.runs === 'submit');
   if (!rules.length) return [];
   const lowered = new Map(checkRulesAt(root, commit, practice).map((rule) => [rule.id, rule.count]));
@@ -240,7 +240,7 @@ export function holdDoctrine(root, { mainCommit, commit, practice = DOCTRINE_FIL
   for (const rule of rules) {
     if (!changed.some((path) => inScope(rule.files, path))) continue;
     const committed = Math.min(rule.count, lowered.get(rule.id) ?? rule.count);
-    const run = runCheck ? runCheck(commit, rule.command, timeoutMs) : runRuleCheck(root, rule.command, timeoutMs);
+    const run = runRuleCheck(root, rule.command, timeoutMs);
     const count = run.problems.length;
     const state = ruleState(rule, count, committed, run.broken);
     const result = { id: rule.id, text: rule.text, command: rule.command, count, committed,
@@ -254,7 +254,7 @@ export function holdDoctrine(root, { mainCommit, commit, practice = DOCTRINE_FIL
     }
     if (rule.mode === 'watch') continue;
     const touched = changed.filter((path) => run.problems.some((line) => namesFile(line, path)));
-    const before = touched.length ? (runCheck ? runCheck(base, rule.command, timeoutMs) : runAtCommit(root, base, rule.command, timeoutMs)) : { problems: [], broken: '' };
+    const before = touched.length ? runAtCommit(root, base, rule.command, timeoutMs) : { problems: [], broken: '' };
     if (count > committed) {
       const fresh = newLines(before.broken ? [] : before.problems, run.problems);
       refusals.push(`${name} rose to ${count}, was ${committed}; new problems:\n${(fresh.length ? fresh : run.problems).map((line) => `  ${line}`).join('\n')}`);
