@@ -19,12 +19,12 @@
   },
   "totals": {
     "cells": 43,
-    "movedPaths": 1284,
-    "stays": 39,
+    "movedPaths": 1292,
+    "stays": 40,
     "placedBy": {
       "seed": 894,
-      "rule": 308,
-      "imports": 83
+      "rule": 314,
+      "imports": 84
     },
     "shims": 656,
     "cutImports": 364,
@@ -402,6 +402,10 @@
     },
     {
       "path": "bin/cells-data-reads.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/cells-move-mentions.js",
       "reason": "bin/ stays in place during the move (dry run section 1)"
     }
   ]
