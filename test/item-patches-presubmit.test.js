@@ -229,7 +229,7 @@ test('coordinator removal during the actual gate prevents sealing its superseded
     [fileURLToPath(new URL('../bin/pullboard.js', import.meta.url)), 'submit', String(f.id), '--no-next', '--json']); }
   finally { if (previous === undefined) delete f.box.env.CODEX_THREAD_ID; else f.box.env.CODEX_THREAD_ID = previous; }
   try {
-    await f.helpers.waitFor(() => existsSync(f.entered), 'the actual frozen companion check', 60000);
+    await f.helpers.waitFor(() => existsSync(f.entered), 'the actual frozen companion check', 60000); // budget: failure hang ceiling for admitted child startup; no elapsed-time assertion.
     document(run(f.box, f.coordinator, 'patch', 'remove', String(f.id), 'approved-view'));
   } finally { writeFileSync(f.release, 'released'); }
   const completed = await child.closed;
