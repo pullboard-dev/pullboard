@@ -4,6 +4,7 @@ import {
   gitChildEnv,
 } from './git.js';
 import { randomUUID } from 'node:crypto';
+import { runTimingFields } from './proof-provenance.js';
 import {
   relative,
   resolve,
@@ -14,12 +15,6 @@ export const TIMING_RUN_ID_ENV = 'PULLBOARD_TIMING_RUN_ID';
 export const SUITE_TIMING_PREFIX = '# pullboard suite timing ';
 const ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u;
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
-const NODE = /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/u;
-
-/** Accept only measured finite milliseconds; null explicitly means the phase was not observed. */
-function measured(value, nullable = false) {
-  return nullable && value === null || typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER;
-}
 
 /** Capture a clean committed source through the same native Git facts used by the gate. */
 export function timingSource(root) {
@@ -39,25 +34,6 @@ export function timingSource(root) {
 /** A missing source or an actual revision change cannot be converted into a bound timing observation. */
 export function sameTimingSource(before, after) {
   return Boolean(before && after && before.head === after.head && before.tree === after.tree);
-}
-
-/** Normalize one attempt at a named shard; concurrent attempts are retained separately, never summed as wall time. */
-function shardFields(value) {
-  return value && typeof value.shard === 'string' && /^[A-Za-z0-9_/-]{1,80}$/u.test(value.shard)
-    && Number.isSafeInteger(value.attempt) && value.attempt > 0 && measured(value.wallMs)
-    ? { shard: value.shard, attempt: value.attempt, wallMs: value.wallMs } : null;
-}
-
-/** Keep every phase explicit; missing, unsupported and legacy measurements remain unknown rather than zero. */
-export function runTimingFields(value) {
-  if (!value || value.version !== 1 || !(value.node === null || typeof value.node === 'string' && NODE.test(value.node))
-    || !measured(value.wallMs) || !['selectionMs', 'setupMs', 'compareMs'].every(key => measured(value[key], true))
-    || !(value.shards === null || Array.isArray(value.shards) && value.shards.length <= 1024)) return null;
-  const shards = value.shards === null ? null : value.shards.map(shardFields);
-  if (shards?.some(row => row === null)) return null;
-  if (shards && new Set(shards.map(row => `${row.shard}:${row.attempt}`)).size !== shards.length) return null;
-  return { version: 1, node: value.node, wallMs: value.wallMs, selectionMs: value.selectionMs,
-    setupMs: value.setupMs, shards, compareMs: value.compareMs };
 }
 
 /** A suite's frame binds its actual Node process and phase observations to one source and invocation. */
@@ -95,7 +71,6 @@ export function suiteTimingFromOutput(output, id, source) {
 /** Describe the controller's actual wall duration alongside only the suite phases it really observed. */
 export function observedRunTiming(run, suite = null) {
   const wallMs = run.profile?.wallMs ?? run.remoteWallMs;
-  if (!measured(wallMs)) return null;
   return runTimingFields({ version: 1, node: suite?.node ?? null, wallMs,
     selectionMs: suite?.selectionMs ?? null, setupMs: suite?.setupMs ?? null,
     shards: suite?.shards ?? null, compareMs: suite?.compareMs ?? null });

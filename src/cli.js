@@ -1,3 +1,4 @@
+import { itemCheckBaseline } from './board-query.js';
 import { laneSeatContext } from './seat-checkout.js';
 import { mainRedReviewItems } from './main-red.js';
 import { createQueuedItemLease } from './queued-item-lease.js';
@@ -14,7 +15,12 @@ import {
 } from './focus-milestone.js';
 import { requireHandoffActive } from '../packages/state/src/core/handoff-state.js';
 import { requestedCommandMove } from './recorded-move.js';
-export { barActorForCommand } from './bar-actor.js';
+import { barActorForCommand as commandBarActor } from './bar-actor.js';
+
+/** Preserve the public command facade while supplying actual query and person-channel capabilities. */
+export function barActorForCommand(ctx, board, options = {}) {
+  return commandBarActor(ctx, board, options, { agentAt: store.agentAt, requirePersonChannel: personIdentity.requirePersonChannel });
+}
 import {
   barReadinessRequired,
   barReadiness,
@@ -664,7 +670,7 @@ export async function ordered(ctx, board, operation, args) {
 
 /** Order a claim on every route (claim, next, run) only after a check green on main is not held [V4]. */
 export async function claimOrdered(ctx, board, args) {
-  refuseClaimProvesNothing(ctx.info.root, board, args[0]);
+  refuseClaimProvesNothing(ctx.info.root, board, args[0], { mainPolicy });
   const adoptCorrection = store.pendingRefreeze(board, args[0]).length > 0;
   return await ordered(ctx, board, 'claim', [args[0], { ...args[1],
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
@@ -785,7 +791,7 @@ export function freezer(ctx, { captureVerifyPolicy = false, board } = {}) {
     if (board) refuseAgentApprovedRows(ctx.info.root, { board, config, item });
     const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item, doctrine);
     if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
-    const signed = board && barReadinessRequired(board, item) ? barReadiness(board, item).signed : null;
+    const signed = board && barReadinessRequired(board, item) ? barReadiness(board, item, {}, { itemCheckBaseline }).signed : null;
     const coverage = signed?.coverage ? barCoverageForPolicy(ctx.info.root, item, signed.coverage, { commit: policy.commit, config }) : null;
     const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), policy });
     return { text, digest: createHash('sha256').update(text).digest('hex') };
@@ -1551,7 +1557,7 @@ export async function nextOnce(ctx, values) {
   if (!looked.claim) return looked;
   return await withBoard(ctx, async (board) => {
     if (values.verify) checkMainVerifier(ctx, board, values);
-    if (values.verify) return nextReview(ctx, board, whoAmI(ctx, board), values, { ordered: (operation, args) => ordered(ctx, board, operation, operation === 'reopen' ? computedReturnArgs(board, args) : args), idArg, trunkMerge });
+    if (values.verify) return nextReview(ctx, board, whoAmI(ctx, board), values, { ordered: (operation, args) => ordered(ctx, board, operation, operation === 'reopen' ? computedReturnArgs(board, args) : args), idArg, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem, mainRedReviewItems });
     const picked = nextPick(ctx, board, values);
     if (!picked.claim) return picked;
     const { me, item, held, shared, reasons, reviewSkipped, seats } = picked;
@@ -1588,7 +1594,7 @@ function nextPick(ctx, board, values) {
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
   const findOffer = () => store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
     familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
-    omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board), priority: mainRedReviewItems(ctx.info.root, board) });
+    omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   const offer = held ? null : relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
   if (offer && !values.build && (offer.urgent || focusReviewFirst(board, offer.item, item))) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item) };
   if (!item) return { reasons, laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };

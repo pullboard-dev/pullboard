@@ -7,7 +7,7 @@ import {
   proofCounterRows,
 } from './proof-counters.js';
 import { proofCoverageFingerprint } from './rule-proof-coverage.js';
-import { receiptFields } from './gate-run-receipt.js';
+import { receiptFields } from './proof-provenance.js';
 const WEEK = 7 * 86_400_000;
 const FILE = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.(?:[cm]?js|cts)$/u;
 

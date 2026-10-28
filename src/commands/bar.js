@@ -1,3 +1,4 @@
+import { itemCheckBaseline } from '../board-query.js';
 import {
   confirmBarEffect,
   executingBarEffect,
@@ -36,7 +37,7 @@ export async function run(io, { first, second, rest, values }) {
     if (rest.length || !sign && second) throw new Refused('USAGE', 'pullboard bar <id> | sign <id> --note "can a builder meet it, and would two reviewers grade it the same?"');
     const id = idArg(sign ? second : first);
     const item = getItem(board, id);
-    const status = barReadiness(board, item, { signature: !sign });
+    const status = barReadiness(board, item, { signature: !sign }, { itemCheckBaseline });
     if (!sign) {
       io.result?.({ id, ...status });
       io.say(status.missing.length ? `#${id} needs: ${status.missing.join('; ')}` : `#${id}'s bar is ready`);

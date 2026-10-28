@@ -12,9 +12,6 @@ import {
 } from './git.js';
 import { Refused } from './refused.js';
 import {
-  requireTrunkMerge,
-} from './trusted-policy.js';
-import {
   captureVerdictReview,
   staleVerdictRefusal,
 } from './verdict-freshness.js';
@@ -41,14 +38,14 @@ export function composesAtAdmission(config) {
  * @param {{ reReview: boolean, head: string, stale: any, refuseUnverifiedStack: (root: string, board: any, item: any, commit: string, trunk: any) => void }} options
  * @returns {{ trunk: any, review: any }}
  */
-export function composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack }) {
+export function composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge, events }) {
   const trunk = requireTrunkMerge(root, checkedCommit);
   if (reReview) {
     if (!isClean(root)) throw new Refused('DIRTY', 'commit the reviewed composition before re-reviewing the stale verdict');
     if (untracked(root).length) throw new Refused('UNTRACKED', 'commit or ignore untracked files before re-reviewing the stale verdict');
     if (!contains(root, trunk.commit, head)) throw staleVerdictRefusal(item, stale);
   }
-  const review = captureVerdictReview(root, board, item, trunk.commit, checkedCommit);
+  const review = captureVerdictReview(root, board, item, trunk.commit, checkedCommit, { events });
   refuseUnverifiedStack(root, board, item, checkedCommit, trunk);
   return { trunk, review };
 }

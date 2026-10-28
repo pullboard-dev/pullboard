@@ -14,6 +14,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { fileURLToPath } from 'node:url';
 import { bindRefs, resolveMove, strayItemRefs } from '../src/relay-outbox.js';
 import { recordNativeProof } from '../src/proof-cli.js';
+import { proofRunReceipt } from '../src/proof-receipts.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 test('a real failed native check records its exit without invented runtime or counters [C7,H16]', (t) => {
@@ -230,7 +231,7 @@ test('proof counters retain explicit totals and do not invent success from missi
 
 test('an executed run without its receipt cannot publish an outcome [C7,H16]', async () => {
   let moves = 0;
-  const services = { ordered: () => { moves += 1; }, withBoard: () => { moves += 1; }, resourceAgent: () => 'web-1' };
+  const services = { ordered: () => { moves += 1; }, withBoard: () => { moves += 1; }, resourceAgent: () => 'web-1', proofRunReceipt };
   await assert.rejects(recordNativeProof({}, { item_id: 1 }, { proofReceiptId: null }, services),
     error => error.code === 'PROOF_RUN_UNAVAILABLE');
   await recordNativeProof({}, { item_id: 1 }, { executed: false }, services);

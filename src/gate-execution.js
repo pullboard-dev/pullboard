@@ -531,7 +531,7 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
     const receipt = receiptFields({ version: 1, id: randomUUID(), kind, tree: before, head, main: policy.commit, command: createHash('sha256').update(config.gate).digest('hex'),
       green: run.isGreen, failures: [...failures.values()], load: Array.isArray(run.executionLoad?.average) ? run.executionLoad : local, at: receiptAt, environment: run.environment ?? null, ...(collection ? { collection } : {}),
       full: kind === 'main-red' ? false : run.suiteTiming?.full ?? null,
-      timing: kind === 'main-red' ? { version: 1, node: run.environment?.node ?? null,
+      timing: kind === 'main-red' ? { version: 1, node: run.suiteTiming?.node ?? run.environment?.node ?? null,
         wallMs: comparison.compareMs, selectionMs: null, setupMs: null, shards: null, compareMs: comparison.compareMs }
         : observedRunTiming(run, run.suiteTiming),
       ...(releaseRequest ? { participationDigest: releaseParticipationDigest(run.releaseParticipation) } : {}) });
