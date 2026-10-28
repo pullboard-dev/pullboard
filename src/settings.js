@@ -57,6 +57,29 @@ export function gateRunnerWaitMs() {
   return loadMachineSettings().gate?.runnerWaitMs ?? DEFAULT_RUNNER_WAIT_MS;
 }
 
+/** Parse the person's budget, such as 40/day or 200/week: seat-hours over a declared window. */
+export function parseWorkerBudget(text) {
+  const match = /^(\d+(?:\.\d+)?)\/(day|week)$/u.exec(String(text));
+  const seatHours = match ? Number(match[1]) : NaN;
+  if (!match || !Number.isFinite(seatHours) || seatHours < 0) {
+    throw new Refused('BAD_MACHINE_SETTINGS', 'workers.budget is seat-hours per day or week, such as 40/day or 200/week; 0/day turns it off');
+  }
+  return { seatHours, window: match[2] };
+}
+
+/** The seat-hours pullboard run --scale may spend per day or week on this machine, or null when unset (off). */
+export function workerBudget() {
+  return loadMachineSettings().workers?.budget ?? null;
+}
+
+/** Set the seat-hour budget; a lower budget stops only idle workers, so it never interrupts a claim or a review. */
+export function setWorkerBudget(budget) {
+  const current = loadMachineSettings();
+  const next = { ...current, workers: { ...current.workers, budget: { seatHours: budget.seatHours, window: budget.window } } };
+  writeMachineSettings(next);
+  return next;
+}
+
 /** Set the runner deadline for new work without changing any admitted or queued run. */
 export function setGateRunnerWaitMs(milliseconds) {
   validateRunnerWaitMs(milliseconds);
