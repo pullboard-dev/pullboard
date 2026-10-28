@@ -1,9 +1,7 @@
 import { ROUTES } from './route-escalation.js';
 /** Validate the brief and check required for an item's declared route [B10,B14]. */
-import {
-  briefFiles,
-  briefSections,
-} from './brief.js';
+import { briefFiles } from './brief.js';
+import { briefSections } from './reference-lines.js';
 import { refuseMaskedExit } from '../packages/kernel/src/core/literal-shell-words.js';
 import { REFERENCE_ENGINE } from './reference-engine.js';
 import { Refused } from './refused.js';

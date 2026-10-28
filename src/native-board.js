@@ -1,3 +1,6 @@
+import { recordRowVerification as applyRowVerification } from './spec-verdicts.js';
+import { decideSpecRevisions as applySpecRevisionDecisions } from './spec-revisions.js';
+import { draftSpecRow as applySpecRowDraft } from './row-drafts.js';
 /** One native board composition root supplies connection-local runtime providers [C7]. */
 import * as store from './board.js';
 import { boardReceiptStore } from './gate-run-receipt.js';
@@ -151,3 +154,11 @@ export function openBoardForRead(file, clock = systemClock, { ports = nativeBoar
   return board && Object.assign(board, { runtimePorts, nativePorts: runtimePorts.nativePorts, enginePorts: runtimePorts.enginePorts });
 }
 
+/** Execute an authenticated draft with the native composition root's explicit store ports. */
+export function draftSpecRow(board, options) { return applySpecRowDraft(board, options, board.nativePorts); }
+
+/** Execute a person revision decision without changing its native engine operation shape. */
+export function decideSpecRevisions(board, options) { return applySpecRevisionDecisions(board, options, board.nativePorts); }
+
+/** Record a row verdict through the same native query, transaction and event capabilities. */
+export function recordRowVerification(board, options) { return applyRowVerification(board, options, board.nativePorts); }

@@ -1,4 +1,5 @@
 /** Approved requirements change only through a visible person decision [P6,B23,N39]. */
+import { loadDoctrine } from '../src/doctrine.js';
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
@@ -149,14 +150,14 @@ test('[P6,B23] revision plans preserve omitted fields and refuse formatting-only
   writeFileSync(file, source);
   const config = loadConfig(box.repo);
   const unchanged = { revises: 'G1', reason: 'Explain a change.', taken: [] };
-  assert.throws(() => planSpecRevision(box.repo, config, unchanged), error => error.code === 'SPEC_REVISION' && /unchanged/u.test(error.message));
-  const text = planSpecRevision(box.repo, config, { ...unchanged, text: 'The page renders accessibly.' });
+  assert.throws(() => planSpecRevision(box.repo, config, unchanged, { loadDoctrine }), error => error.code === 'SPEC_REVISION' && /unchanged/u.test(error.message));
+  const text = planSpecRevision(box.repo, config, { ...unchanged, text: 'The page renders accessibly.' }, { loadDoctrine });
   assert.equal(text.replacement, text.source.replace('The page renders.', 'The page renders accessibly.'));
   assert.ok(validSpecRevision(text));
-  const gate = planSpecRevision(box.repo, config, { ...unchanged, gate: 'true' });
+  const gate = planSpecRevision(box.repo, config, { ...unchanged, gate: 'true' }, { loadDoctrine });
   assert.equal(gate.replacement, gate.source.replace('check node old | grep ok', 'true'));
   assert.ok(validSpecRevision(gate));
-  const status = planSpecRevision(box.repo, config, { ...unchanged, status: 'retired' });
+  const status = planSpecRevision(box.repo, config, { ...unchanged, status: 'retired' }, { loadDoctrine });
   assert.equal(status.replacement, status.source.replace('[approved]', '[retired]'));
   assert.ok(validSpecRevision(status));
   assert.equal(validSpecRevision({ ...text, status: 'bogus',

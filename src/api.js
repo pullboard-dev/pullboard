@@ -1,4 +1,5 @@
 import { lifecycleEvent } from './item-list.js';
+import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import { gitSpawnSync } from './git-adapter.js';
 import { counterProofStats } from './proof-counter-read.js';
 import { viewFlowSummary } from './view-state-summary.js';
@@ -143,8 +144,8 @@ function boardStateRevision(root, id, isMain, { projects = listApiProjects, scop
     const hasExternalMilestones = inputs.milestones.some((milestone) => milestone.items.some((item) => typeof item !== 'number'));
     return { ...inputs, externalMilestones: hasExternalMilestones
       ? scopeCommonDir === null
-        ? milestoneRoadmap(info.root, board)
-        : milestoneRoadmap(info.root, board, { projects, hideOutOfScope: true })
+        ? milestoneRoadmap(info.root, board, { ports: store })
+        : milestoneRoadmap(info.root, board, { projects, hideOutOfScope: true, ports: store })
       : null };
   }, isMain);
   const inputs = {
@@ -975,7 +976,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     const cacheId = JSON.stringify([info.commonDir, root]);
     const cached = approvalCache.get(cacheId);
     if (cached?.key === key) return cached.approval;
-    const approval = specApprovalState(root, { board: currentBoard, config });
+    const approval = specApprovalState(root, { board: currentBoard, config }, { store, verifiedPasskeyRowDecision });
     approvalCache.delete(cacheId);
     approvalCache.set(cacheId, { key, approval });
     while (approvalCache.size > 32) approvalCache.delete(approvalCache.keys().next().value);

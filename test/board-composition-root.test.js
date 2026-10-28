@@ -11,6 +11,35 @@ import * as legacy from '../src/board.js';
 import { board as library } from '../src/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { openBoardStore } from '../src/board-store.js';
+import { recordRowDraft } from '../src/row-draft-store.js';
+
+test('native spec operations retain their public identity and explicit draft providers fail before mutation [C7,S1,D1]', t => {
+  for (const name of ['draftSpecRow', 'decideSpecRevisions', 'recordRowVerification']) {
+    assert.equal(legacy[name], native[name], 'the public board API names the one native operation definition');
+  }
+  const board = fixtureBoard(t);
+  const agentId = legacy.register(board, { lane: 'core', path: '/fixture/spec-port-author' });
+  const options = { agentId, row: { id: 'G1', text: 'Keep the exact native draft.', gate: 'review', tier: 'must', section: 'G' } };
+  const before = legacy.events(board);
+  const refusal = new Error('owned fixture draft provider refused');
+  let reads = 0;
+  const ports = { ...board.nativePorts,
+    /** Refuse the supplied read at the real atomic boundary; no hidden default may replace it. */
+    rowDrafts() { reads++; throw refusal; },
+  };
+  assert.throws(() => recordRowDraft(board, options, ports), error => error === refusal);
+  assert.equal(reads, 1);
+  assert.deepEqual(legacy.events(board), before, 'a refused provider appends no native event');
+  assert.deepEqual(legacy.rowDrafts(board), [], 'a refused provider reserves no row identity');
+  const draft = legacy.draftSpecRow(board, options);
+  assert.equal(draft.id, 'G1');
+  assert.equal(draft.text, options.row.text);
+  assert.equal(draft.by, agentId);
+  assert.equal(legacy.events(board).at(-1).event_kind, 'row_draft');
+  const after = legacy.events(board);
+  assert.deepEqual(legacy.draftSpecRow(board, options), draft, 'the native wrapper keeps the existing exact-draft idempotency');
+  assert.deepEqual(legacy.events(board), after, 'an unchanged native draft records no second event');
+});
 
 /** Wrap actual providers so migration observes per-connection bindings before its first callback. */
 function observedPorts(label, calls) {

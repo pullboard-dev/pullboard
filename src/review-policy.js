@@ -2,11 +2,41 @@ import { classifiedStrict } from './review-tier.js';
 import { reviewTierFloor } from './review-tier.js';
 import { REVIEW_ROUTING_ENGINE } from './review-routing-engine.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from './review-independence-engine.js';
+import { ENGINE_VERSION } from './engine-metadata.js';
+import { FAMILY_ALIAS_ENGINE } from './family-alias-engine.js';
 import { Refused } from './refused.js';
 
-/** A declared vendor label is compared as text, never inferred from a model or diagnostic. */
-export function familyName(value) {
-  return typeof value === 'string' && value.trim() ? value.trim().toLowerCase() : null;
+/** Index the explicit alias list once: each declared spelling, lowercased, names its canonical family [#1762]. */
+export function familyIndex(families) {
+  const index = new Map();
+  for (const [canonical, aliases] of Object.entries(families ?? {})) {
+    for (const name of [canonical, ...aliases]) index.set(name.trim().toLowerCase(), canonical.trim().toLowerCase());
+  }
+  return index;
+}
+
+/** The alias index applies only at or above its engine, so sealed older moves keep the comparison they were recorded under [#1762]. */
+export function aliasEngineOn(board) {
+  return (board.executionEngineVersion ?? ENGINE_VERSION) >= FAMILY_ALIAS_ENGINE;
+}
+
+/** The explicit alias index, or null below its engine so older recorded moves compare as they did [#1762]. */
+export function familyAliasesOf(board) {
+  return aliasEngineOn(board) ? board.familyAliases ?? null : null;
+}
+
+/** Both families are declared and differ; below the alias engine this is the original raw-label comparison, byte for byte [#1762]. */
+export function familiesDiffer(board, first, second) {
+  if (!aliasEngineOn(board)) return Boolean(first && second && first !== second);
+  const left = familyName(first, board.familyAliases), right = familyName(second, board.familyAliases);
+  return Boolean(left && right && left !== right);
+}
+
+/** A declared vendor label is compared as text, never inferred from a model or diagnostic; only the explicit alias index maps spellings to one family. */
+export function familyName(value, aliases = null) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const name = value.trim().toLowerCase();
+  return aliases?.get(name) ?? name;
 }
 
 /** Read policy from native snapshot metadata; damaged policy cannot silently downgrade a strict item. */
