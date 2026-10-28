@@ -451,3 +451,53 @@ await assert.rejects(runOnRunnerAsync(process.cwd(),'true',{runner:{host:'privat
     assert.equal(result.status, 0, result.context);
   });
 }
+
+
+/** Exercise the actual closure reader while observing only its whole-files serialization work. */
+test('runner closure byte accounting preserves escaped bytes without growing-object serialization [C7,P3]', t => {
+  const f = fixture(t, ['src']);
+  const names = ["apostrophe'key.txt", 'quote"key.txt', 'é🧩.txt', 'e\u0301.txt', 'separator\u2028.txt', ...Array.from({length:64},(_,i)=>`data-${i}.txt`)];
+  const source = names.map(name=>`import ${JSON.stringify('./'+name)};`).join('\n');
+  f.write('src/entry.js',source);
+  for(const name of names) f.write('src/'+name, 'quote" slash\\ newline\n tab\t astral🧩');
+  const stringify = JSON.stringify;
+  let dictionaries=0;
+  JSON.stringify = function(value,...args) {
+    if(value&&typeof value==='object'&&Object.hasOwn(value,'src/entry.js')&&Object.values(value).every(part=>typeof part==='string')) dictionaries++;
+    return Reflect.apply(stringify,this,[value,...args]);
+  };
+  let runtime;
+  try { runtime=runnerPackage(f.root,'src/entry.js'); }
+  finally { JSON.stringify=stringify; }
+  const expected=Object.fromEntries(['package.json','src/entry.js',...names.map(name=>'src/'+name)].sort().map(file=>[file,readFileSync(join(f.root,file),'utf8')]));
+  assert.deepEqual(runtime.files,expected);
+  assert.equal(Buffer.byteLength(JSON.stringify(runtime.files)),Buffer.byteLength(JSON.stringify(expected)));
+  assert.equal(dictionaries,0,'derive encodes each new key/value without reserializing the growing files dictionary');
+});
+
+test('runner closure preserves the exact JSON byte transfer boundary for ASCII and Unicode [C7,P3]', t => {
+  for(const unicode of [false,true]) {
+    const f=fixture(t,['src']);
+    f.write('src/entry.js',"import './payload.txt';\n");
+    const bytes=value=>Buffer.byteLength(JSON.stringify({'package.json':readFileSync(join(f.root,'package.json'),'utf8'),'src/entry.js':readFileSync(join(f.root,'src/entry.js'),'utf8'),'src/payload.txt':value}));
+    const prefix=unicode?'🧩é"\\\n\t':'';
+    const exact=prefix+'x'.repeat(1_048_576-bytes(prefix));
+    assert.equal(bytes(exact),1_048_576);
+    f.write('src/payload.txt',exact);
+    assert.equal(Buffer.byteLength(JSON.stringify(runnerPackage(f.root,'src/entry.js').files)),1_048_576);
+    f.write('src/payload.txt',exact+'x');
+    assert.throws(()=>runnerPackage(f.root,'src/entry.js'),error=>error.code==='RUNNER_TOOLING_FILES'&&error.message.includes('1 MiB'));
+  }
+});
+
+test('runner closure retains the 4096 file cap independently of byte accounting [C7,P3]', t => {
+  const f=fixture(t,['src']);
+  const names=Array.from({length:4094},(_,i)=>`data-${i}.txt`);
+  for(const name of names) f.write('src/'+name,'');
+  const source=names.map(name=>`import './${name}';`).join('\n');
+  f.write('src/entry.js',source);
+  assert.equal(Object.keys(runnerPackage(f.root,'src/entry.js').files).length,4096);
+  f.write('src/extra.txt','');
+  f.write('src/entry.js',source+"\nimport './extra.txt';");
+  assert.throws(()=>runnerPackage(f.root,'src/entry.js'),error=>error.code==='RUNNER_TOOLING_FILES'&&error.message.includes('file-count bound'));
+});
