@@ -1,5 +1,5 @@
 /** Exercise CPU-test placement with a real committed repo, SSH worker, and private machine leases [C7]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyFixtureRunner } from './fixture-runner-copy.js';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -26,7 +26,7 @@ export function cpuLoadFixture(e2e, { declaration = '{ cpuLoad: true }', binding
   const remoteMachineHome = join(remoteHome, '.pullboard');
   const requests = join(box.dir, 'ssh-requests.jsonl');
   for (const path of [bin, join(box.dir, 'worker'), remoteMachineHome, join(box.repo, 'test')]) mkdirSync(path, { recursive: true });
-  copyPackageFiles(SOURCE, box.repo);
+  copyFixtureRunner(SOURCE, box.repo);
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '1.0.0', type: 'module' }) + '\n');
   if (registrationHelper) {
     writeFileSync(join(box.repo, 'test', 'registrations.js'), registrationHelper === 'wrapper'

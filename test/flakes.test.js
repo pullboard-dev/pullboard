@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyFixtureRunner } from './fixture-runner-copy.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -183,7 +183,7 @@ test('an unsupported Node reporter stays unclassified rather than guessing a sel
 test('the pinned bundled runner selects one target and skips unrelated bodies [C7,H16]', t => {
   const box = flakyProject(t);
   const unrelated = join(box.scratch, 'bundled-unrelated-runs');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), box.root);
+  copyFixtureRunner(resolve(import.meta.dirname, '..'), box.root);
   writeFileSync(join(box.root, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(box.root, 'test/unrelated.test.mjs'), `import { test } from 'node:test';
 import { appendFileSync } from 'node:fs';
