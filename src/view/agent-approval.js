@@ -1,16 +1,14 @@
+import { agentApprovalActionsHtml } from './needs-actions.js';
 import { specRevisionScript } from './spec-revision.js';
 /** Render core-projected agent approval calls without inferring who approved a row [S1,B26,P6,N26]. */
 
 /** Embed a Needs-you row renderer that reuses the existing person decision pipeline. */
 export function agentApprovalScript() {
   return `
-/** Reuse only core-advertised person moves on either approval surface. */
+const agentApprovalActionsHtml = (${agentApprovalActionsHtml.toString()});
+/** Supply browser authority explicitly before rendering the snapshot's advertised actions. */
 function agentApprovalActions(row, detail = false) {
-  const person = !snapshot && (!readOnly || requests);
-  const allowed = verb => person && Array.isArray(row.actions) && row.actions.some(action => action.verb === verb && action.args?.ids === row.id);
-  const button = (decision, label) => '<button class="' + (decision === 'approve' ? 'approve-row' : 'decline-row') + '" type="button" data-row-kind="spec" data-row-id="' + esc(row.id) + '" data-row-decision="' + decision + '">' + label + '</button>';
-  const controls = (allowed('spec-approve') ? button('approve', 'Confirm') : '') + (allowed('spec-decline') ? button('decline', 'Decline') : '');
-  return controls ? '<div class="spec-decision-actions actions' + (detail ? ' detail-decision-actions' : '') + '">' + controls + '</div>' : '';
+  return agentApprovalActionsHtml(row, { person: !snapshot && (!readOnly || requests), detail });
 }
 /** Show Git provenance plainly without treating a Git author as a confirmed person. */
 function agentApprovalAttribution(approval) {

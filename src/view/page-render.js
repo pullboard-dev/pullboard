@@ -1,4 +1,5 @@
 /** Render only the selected board pane while preserving shared navigation and status [N26]. */
+import { needsActionsHtml } from './needs-actions.js';
 import { needsPanelHtml } from './needs-panel.js';
 import { agentsPanelModel } from './agents-panel-model.js';
 import { agentsPanelHtml } from './agents-panel-render.js';
@@ -14,6 +15,7 @@ const agentsPanelHtml = (${agentsPanelHtml.toString()});
 const ruleListModel = (${ruleListModel.toString()});
 const selectItemsView = (${selectItemsView.toString()});
 const needsPanelModel = (${needsPanelModel.toString()});
+const needsActionsHtml = (${needsActionsHtml.toString()});
 
 function render() {
   renderIndexes = new WeakMap();
@@ -100,16 +102,10 @@ function render() {
   const person = !snapshot && (!readOnly || requests);
   const expandedNeeds = [...document.querySelectorAll('details[data-needs-key][open]')].filter(entry => !entry.closest('[hidden]')).map(entry => entry.dataset.needsKey);
   /** Actions retain the existing person/request handlers and advertised row identities. */
-  const needsControls = row => {
-    if (!person) return '';
-    if (row.kind === 'agent-approved') return agentApprovalActions(row);
-    if (row.kind === 'sentinel-draft') return sentinelDraftActions(row);
-    if (row.kind === 'relay-health' || row.kind === 'block') return '';
-    if (row.kind === 'spec-revision') return '<div class="actions">'+(row.actions??[]).filter(action => ['spec-approve','spec-decline'].includes(action.verb) && action.args?.ids===row.id).map(action => '<button type="button" class="'+(action.verb==='spec-approve'?'approve-row':'decline-row')+'" data-row-kind="spec" data-row-id="'+esc(row.id)+'" data-row-decision="'+(action.verb==='spec-approve'?'approve':'decline')+'">'+(action.verb==='spec-approve'?'Approve':'Decline')+'</button>').join('')+'</div>';
-    const target = row.kind==='decision' ? 'decide:'+row.id : row.kind==='pending' ? 'spec:'+row.id : row.kind==='hold' ? 'tab:shouts' : row.target;
-    if (!target || row.unproved && !row.materialized) return '';
-    return '<div class="actions"><button type="button" class="approve-row" data-go="'+esc(target)+'">'+(row.kind==='decision'?'Decide':'Review')+'</button></div>';
-  };
+  const needsControls = row => needsActionsHtml(row, { person,
+    approvalHtml: row.kind === 'agent-approved' ? agentApprovalActions(row) : '',
+    sentinelHtml: row.kind === 'sentinel-draft' ? sentinelDraftActions(row) : '',
+  });
   const needsFeedback = row => view.specFeedback?.root===view.root && view.specFeedback.kind==='spec' && view.specFeedback.id===row.id ? specFeedback(view.specFeedback) : '';
   const approvalDateLabel = value => {
     const date = new Date(value), hour = date.getHours();
