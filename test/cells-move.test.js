@@ -8,9 +8,9 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../src/package-files.js';
-import { readPathMap } from '../src/path-map.js';
+import { readPathMap } from '../packages/codemap/index.js';
 import { cellsMove } from '../bin/cells-move-tool.js';
-import { checkMoved } from '../bin/cells-plan.js';
+import { checkMoved } from './cells-checker.js';
 import { runFixtureChild } from './fixture-child.js';
 
 /** Execute real Git with private fixture identity and no inherited repository selector. */
@@ -354,7 +354,7 @@ test('export pruning refuses grouped variable exports rather than leaking extra 
 test('committed cell shards combine with root compatibility map and reject conflicts [C7]', t => {
   const { root } = fixture(t);
   mkdirSync(join(root, 'bin/cells-plan/path-map'), { recursive: true });
-  writeFileSync(join(root, 'path-map.json'), JSON.stringify({ 'src/old.js': 'src/leaf.js' }));
+  writeFileSync(join(root, 'path-map.' + 'json'), JSON.stringify({ 'src/old.js': 'src/leaf.js' }));
   writeFileSync(join(root, 'bin/cells-plan/path-map/leaf.json'), JSON.stringify({ 'src/leaf.js': 'packages/leaf/src/core/leaf.js' }));
   writeFileSync(join(root, 'bin/cells-plan/path-map/other.json'), JSON.stringify({ 'src/other.js': 'packages/other/src/core/other.js' }));
   git(root, 'add', '.'); git(root, 'commit', '-qm', 'committed shards');

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree src/cell-lint-cell-shards.js src/cell-lint-store.js bin/cells-plan/path-map/** */
+/** @pullboard-test-input source-tree packages/codemap/** bin/cells-plan/path-map/** */
 /** Distinct cell moves change disjoint baseline and path-map shards in either order [C7,CD64]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
@@ -11,12 +11,12 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureGit } from './fixture-child.js';
-import { cellLintFiles } from '../src/cell-lint-store.js';
-import { initializeCellLintCellShards } from '../src/cell-lint-store.js';
-import { readCellLintBaseline } from '../src/cell-lint-store.js';
-import { writeCellLintBaseline } from '../src/cell-lint-store.js';
-import { CELL_METRICS } from '../src/cell-lints.js';
-import { readPathMap } from '../src/path-map.js';
+import { cellLintFiles } from '../packages/codemap/index.js';
+import { initializeCellLintCellShards } from '../packages/codemap/index.js';
+import { readCellLintBaseline } from '../packages/codemap/index.js';
+import { writeCellLintBaseline } from '../packages/codemap/index.js';
+import { CELL_METRICS } from '../packages/codemap/index.js';
+import { readPathMap } from '../packages/codemap/index.js';
 
 /** Create the accepted immutable generation and two independent committed-style cell maps. */
 function fixture(t) {
