@@ -12,6 +12,7 @@ import { serveApi } from '../src/api.js';
 import { main } from '../src/cli.js';
 import { proofStats } from '../src/stats.js';
 import { ensureProofCounters } from '../src/proof-counters.js';
+import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fetchFresh } from './http-fixture.js';
 
@@ -19,8 +20,52 @@ import { fetchFresh } from './http-fixture.js';
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
 
 
+/** Generate distinct ordinary work titles without copying any real board content. */
+function generatedTitle(index) {
+  const verbs = ['Retain', 'Validate', 'Render', 'Load', 'Record', 'Resolve', 'Preserve', 'Explain'];
+  const areas = ['the state reader', 'review evidence', 'the roadmap', 'queued requests', 'item details', 'summary counters', 'native history'];
+  const contexts = ['after an accepted main move', 'when a lease expires', 'on a cache hit', 'after a retry', 'for a changed milestone'];
+  return `${verbs[index % verbs.length]} ${areas[index % areas.length]} ${contexts[index % contexts.length]} (generated ${index})${index % 19 === 0 ? ' — café 一🙂' : ''}`;
+}
+
+/** Seed varied native lifecycle data; synthetic submissions describe state, not an executed gate. */
+function seedVariedItems(board, ids, agents, now, setAt) {
+  for (let group = 0; group < 12; group += 1) store.addMilestone(board, {
+    agentId: 'coordinator', name: `Generated milestone ${group}`, note: 'Generated size fixture only',
+    items: ids.filter((id, index) => index % 7 !== 0 && index % 12 === group),
+  });
+  ids.forEach((id, index) => {
+    let at = now - 2 * 3_600_000 + index * 3_001;
+    setAt(at);
+    const held = index >= ids.length - 16;
+    const builder = agents[held ? 64 + index % 16 : index % 64];
+    const reviewer = agents[(index + 4) % 64];
+    const lane = ['web', 'api', 'core', 'docs'][index % 4];
+    const kind = index % 20;
+    const digest = `digest:generated-size-${id}`;
+    if (held || kind < 14 || kind === 15 || kind === 16) {
+      store.claim(board, id, { agentId: builder, lane, leaseMs: 3_600_000,
+        freeze: item => ({ text: item.item_criterion, digest }) });
+      if (!held) {
+        setAt(at += 137);
+        submitFixture(board, id, { agentId: builder, commit: 'a'.repeat(40), tree: `tree:generated-size-${id}` });
+        if (kind !== 16) {
+          setAt(at += 239);
+          store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', head: 'a'.repeat(40), digest,
+            policy: 'any', note: 'Generated state fixture only; no gate execution is claimed.' });
+          if (kind < 14) { setAt(at += 347); store.merged(board, id, { agentId: 'coordinator', commit: 'b'.repeat(40) }); }
+        }
+      }
+    } else if (kind === 14) store.withdraw(board, id, { agentId: 'coordinator', reason: 'Generated retired-work fixture' });
+    for (let count = 0; count < index % 9; count += 1) {
+      setAt(at += 53);
+      store.appendFact(board, id, { agentId: builder, kind: 'note', text: `Generated observation ${count} for item ${id}; fixture data only.` });
+    }
+  });
+}
+
 /** Initialize an actual Git/SQLite project and expose a controlled observation clock over HTTP. */
-async function fixture(t, { items = 1, seats = 1, shouts = 0, recentAge = 0 } = {}) {
+async function fixture(t, { items = 1, seats = 1, shouts = 0, recentAge = 0, varied = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
@@ -29,15 +74,22 @@ async function fixture(t, { items = 1, seats = 1, shouts = 0, recentAge = 0 } = 
   // @pullboard-board-file journey: the API and actual moves share the private CLI-initialized board.
   const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'), { now: () => new Date(at) });
   t.after(() => store.closeBoard(board));
-  const agents = [];
+  const agents = [], ids = [];
+  const lanes = ['web', 'api', 'core', 'docs'];
   atomic(board, () => {
     for (let index = 0; index < seats; index += 1) agents.push(store.register(board, {
-      lane: 'web', path: join(box.dir, `seat-${index}`), model: 'Fixture model', family: 'Fixture vendor',
+      lane: varied ? lanes[index % lanes.length] : 'web', path: join(box.dir, `seat-${index}`), model: 'Fixture model', family: 'Fixture vendor',
     }));
-    for (let index = 0; index < items; index += 1) store.addItem(board, {
-      by: 'coordinator', lane: 'web', title: `Scale item ${index}`, criterion: 'The specified behavior is observable.',
-      check: 'true', brief: 'Files: web/page.js\nTest: the specified behavior is observable.', specIds: ['G1'],
-    });
+    for (let index = 0; index < items; index += 1) {
+      if (varied) at = now - 14 * 86_400_000 + index * 307_123;
+      ids.push(store.addItem(board, {
+        by: 'coordinator', lane: varied ? lanes[index % lanes.length] : 'web',
+        title: varied ? generatedTitle(index) : `Scale item ${index}`, criterion: 'The specified behavior is observable.',
+        check: 'true', brief: 'Files: web/page.js\nTest: the specified behavior is observable.',
+        specIds: varied ? [['C7'], ['N26'], ['A2'], ['C7', 'N26']][index % 4] : ['G1'],
+      }));
+    }
+    if (varied) seedVariedItems(board, ids, agents, now, value => { at = value; });
     for (let index = 0; index < shouts; index += 1) store.shout(board, {
       from: agents[index % agents.length], to: 'coordinator', text: `Recorded activity ${index}`, lanes: ['web', 'api'],
     });
@@ -108,6 +160,28 @@ test('[N26,A2] 1600 items, 1150 seats and 40000 shouts yield a sub-600KB authent
   assert.equal(Object.hasOwn(cached.document.state.proofStats.flow.report, 'items'), false);
   assert.equal(box.builds(), 1, 'summary shaping survives the existing dynamic flow cache path');
   t.diagnostic(`state=${first.bytes} bytes; fullProofStats=${Buffer.byteLength(JSON.stringify(box.fullStats))} bytes`);
+});
+
+test('[N26,A2] varied generated native items use at most 40 percent of ordinary item bytes with the whole saving retained', async t => {
+  const box = await fixture(t, { items: 1849, seats: 1150, shouts: 40_000, varied: true });
+  const ordinary = await box.request(box.path + '/state');
+  const wire = await box.request(box.path + '/state?items=compact');
+  assert.equal(ordinary.status, 200);
+  assert.equal(wire.status, 200);
+  const rows = ordinary.document.state.items;
+  assert.equal(rows.length, 1849);
+  for (const key of ['lane', 'status', 'milestone']) assert.ok(new Set(rows.map(row => row[key])).size >= 4, key + ' genuinely varies');
+  for (const key of ['updatedAt', 'since']) assert.ok(new Set(rows.map(row => row[key])).size > 1500, key + ' uses distinct native timestamps');
+  assert.ok(new Set(rows.map(row => JSON.stringify(row.counts))).size >= 9, 'fact and verdict counts genuinely vary');
+  assert.ok(new Set(rows.map(row => row.claim?.by).filter(Boolean)).size >= 8, 'distinct live holders are represented');
+  const ordinaryBytes = Buffer.byteLength(JSON.stringify({ items: rows }));
+  const compactBytes = Buffer.byteLength(JSON.stringify({ items: wire.document.state.items, itemEncoding: wire.document.state.itemEncoding }));
+  const saving = ordinaryBytes - compactBytes;
+  t.diagnostic(`variedItems=${rows.length}; ordinaryItemContainer=${ordinaryBytes}; compactItemContainer=${compactBytes}; ratio=${compactBytes / ordinaryBytes}; ordinaryState=${ordinary.bytes}; compactState=${wire.bytes}`);
+  assert.ok(compactBytes <= ordinaryBytes * 0.4, `varied items ratio is ${compactBytes / ordinaryBytes}; compact=${compactBytes}, ordinary=${ordinaryBytes}`);
+  assert.ok(ordinary.bytes - wire.bytes >= saving, 'the complete state retains at least the entire measured item saving');
+  assert.deepEqual(expandItemSummaries(wire.document.state), ordinary.document.state, 'every varied JSON field survives exact decoding');
+  assert.equal((await box.request(box.path + '/items/1')).status, 200);
 });
 
 test('[N26,A2] active-seat expiry rebuilds the cached state at the inclusive four-hour boundary and retains a three-hour-old seat', async t => {
