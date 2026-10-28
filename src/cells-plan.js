@@ -21,6 +21,8 @@ export const EXISTING_ITEMS = Object.freeze({ mcp: 1395 });
 const RULES = [
   // Plan additions for families newer than the dry run that no production import places (only tests, bin or strings use them).
   [/^(git-memory|git-adapter|git-launch-.*)$/u, 'git'],
+  [/^native-board$/u, 'app:lib'],
+  [/^(release-version|release-headlines)$/u, 'config'],
   [/^(audit-coverage.*|main-audit.*|release-gate.*)$/u, 'gate'],
   [/^(cell-.*|cells-.*|source-inventory|import-map|path-map.*)$/u, 'codemap'],
   // A repeated prefix is a folder [CD63]: the stale-state family stays together with the other upkeep sweeps.

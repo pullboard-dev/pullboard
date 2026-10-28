@@ -10,6 +10,7 @@ import { after, test } from 'node:test';
 import { performance } from 'node:perf_hooks';
 import { press, stableChrome } from './stable.js';
 import { createJourneyDeadline, drainJourneyTasks } from './journey-deadline.js';
+import { journeyDeferred } from './journey-deadline.js';
 import { readPathMap } from '../../src/path-map.js';
 import { mappedPath } from '../../src/path-map.js';
 import { cockpitPage } from '../../src/cockpit.js';
@@ -1617,14 +1618,6 @@ test('the hosted journey names its phase and stops within its own deadline [N26,
   } finally { ordinaryDeadline.dispose(); }
 });
 
-/** A fixture handshake and release, independent of elapsed-time guesses. */
-function journeyDeferred() {
-  let resolve;
-  let reject;
-  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
-  return { promise, resolve, reject };
-}
-
 test('the hosted page lists linked and local boards together [N26,H5]', {
   timeout: relayWorkBudgetMs() * 4 + 60_000,
   skip: !findChromeExecutable() && 'Chrome is not installed',
@@ -2217,11 +2210,13 @@ process.stdout.write(JSON.stringify({other}));
 test('view sign-in keeps its key and intents inside the authenticated machine view [H5,N26]', { timeout: relayWorkBudgetMs() * 3 }, async (t) => {
   const box = await relayClientFixture(t);
   box.providerState.deviceAuthorized = false;
-  const serveModule = new URL('../../src/serve.js', import.meta.url).href;
+  const serveModule = new URL('../../src/commands/view.js', import.meta.url).href;
+  const viewModule = new URL('../../src/serve.js', import.meta.url).href;
   const machineModule = new URL('../../src/relay-machine.js', import.meta.url).href;
   const result = await box.script(`
 import { request } from 'node:http';
-import { serveView, HOSTED_ORIGIN } from ${JSON.stringify(serveModule)};
+import { serveView } from ${JSON.stringify(serveModule)};
+import { HOSTED_ORIGIN } from ${JSON.stringify(viewModule)};
 import { updateRelayMachine } from ${JSON.stringify(machineModule)};
 updateRelayMachine(state => { state.owner = {account:'7',url:${JSON.stringify(box.origin)}}; });
 const observations = [];

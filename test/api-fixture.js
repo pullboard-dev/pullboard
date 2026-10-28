@@ -4,6 +4,11 @@ import { performance } from 'node:perf_hooks';
 import { JSON_SHAPES } from '../src/json.js';
 import { fetchFresh } from './http-fixture.js';
 
+/** Quote a literal executable path for the fixture hook's POSIX shim. */
+export function shellWord(value) {
+  return "'" + value.replace(/'/g, "'\\''") + "'";
+}
+
 /** Match one catalog field to its declared JSON value type. */
 function hasType(value, type) {
   if (type.includes('|')) return type.split('|').some((part) => hasType(value, part));
