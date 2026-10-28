@@ -132,7 +132,9 @@ test('Roadmap references stay inline and rows expand before opening Items [N26,N
       await chrome.click("document.querySelector('#detail .verdict .note .ref')");
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local target')");
       await chooseFilter(chrome, 'state:active');
-      await chrome.click("document.querySelector('#needs .row[data-go^=\"decide:\"]')");
+      const decision = "document.querySelector('#needs details[data-needs-key^=\"decision:\"]')";
+      if (await chrome.stable(`${decision}.open`) !== true) await chrome.click(`${decision}.querySelector('summary')`);
+      await chrome.click(`${decision}.querySelector('button[data-go^="decide:"]')`);
       assert.equal(await chrome.stable("document.querySelectorAll('#answering-q .ref').length"), 1, 'the answering question keeps its inline item reference');
       await chrome.click("document.querySelector('#answering-q .ref')");
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local target') && document.querySelector('[data-tab=items].on')");
