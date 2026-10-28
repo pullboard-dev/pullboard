@@ -162,6 +162,8 @@ export async function seedBaselineReceipts(context) {
 /** seedActivityReceipts uses real operations; synthetic records retain their original explicit labels. */
 export async function seedActivityReceipts(context) {
   const { board, box, store, milestones, exercise, submitFixture, syntheticFlakeObservation, agent, reviewer, item, other, claim } = context;
+  const idleSeat = store.register(board, { lane: box.lane, path: join(box.root, 'idle-observer') });
+  await exercise('recordNextIdle', () => store.recordNextIdle(board, { agentId: idleSeat, reason: 'nothing-eligible' }));
   const answered = board.db.prepare("SELECT MAX(event_id) AS n FROM event WHERE event_kind='answer'").get().n;
   const through = board.db.prepare('SELECT MAX(event_id) AS n FROM event').get().n;
   await exercise('recordActivityDelivery', () => store.recordActivityDelivery(board, { agentId: agent, through, digestThrough: through,

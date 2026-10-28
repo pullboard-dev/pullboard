@@ -1,3 +1,4 @@
+import { withDerivedFamily } from './family-declaration.js';
 /** Read-only auxiliary projections keep the write store bounded without changing its public API [C7]. */
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { Refused } from './refused.js';
@@ -58,7 +59,7 @@ export function openRequests(board) {
  * @returns {any[]}
  */
 export function peekShouts(board, agentId, limit = 2) {
-  const agent = board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(agentId);
+  const agent = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(agentId));
   if (!agent) return [];
   const query = workerInboxQuery(board, agent);
   return board.db

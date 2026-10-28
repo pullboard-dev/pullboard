@@ -160,7 +160,7 @@ export function checkMoved(root, plan, name) {
     if (!stat.isFile() || stat.isSymbolicLink()) { problems.push(`cannot prove fixture source through ${file}`); continue; }
     const source = readFileSync(path, 'utf8');
     if (!data.reads.some(row => row.file === file) && !cell.paths.some(([from]) => source.includes(from.split('/').at(-1)))) continue;
-    const uses = fixtureSourceEdits(source, { file, moves: cell.paths.map(([from, to]) => [from, to]), readSource, dataReads: data.reads });
+    const uses = fixtureSourceEdits(source, { file, moves: cell.paths.map(([from, to]) => [from, to]), readSource, dataReads: data.reads, mentionsOnly: true });
     matchedDataReads.push(...uses.matchedDataReads ?? []);
     problems.push(...uses.problems);
     for (const edit of uses.edits) {

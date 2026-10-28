@@ -7,6 +7,7 @@ import { advanceReport } from './stats-flow-report.js';
 import { recordReport } from './stats-flow-report.js';
 import { recordReportPolicy } from './stats-flow-report.js';
 import { projectReport } from './stats-flow-report.js';
+import { projectReportWindows } from './stats-flow-report.js';
 import { proofEventDetail } from '../packages/kernel/src/core/event-detail.js';
 import {
   newWindowTrace,
@@ -15,6 +16,8 @@ import {
   observeFlowGap,
   frozenWindowTrace,
   projectFlowWindow,
+  comparisonBounds,
+  projectWindowComparison,
 } from './stats-flow-window.js';
 /** Flow times, queues and recommendations from recorded lifecycle evidence [R1,R2]. */
 const MINUTE = 60_000;
@@ -187,7 +190,7 @@ function recommendation(stage, { activeAgents, queues, openByLane, accepted, cou
 }
 
 /** Compile immutable lifecycle facts once so API cache hits only need a time-specific projection. */
-export function prepareFlowHistory(history, { window = false } = {}) {
+export function prepareFlowHistory(history, { window = false, comparisonWindows } = {}) {
   const items = new Map();
   const actors = new Map();
   const dailyEvents = [];
@@ -206,7 +209,7 @@ export function prepareFlowHistory(history, { window = false } = {}) {
     const reporting = reportEvent(event, detail);
     for (const id of reporting ? affectedReportItems(reportPolicy, event, detail) : []) {
       const affected = items.get(id);
-      if (affected) advanceReport(affected, reportPolicy, at);
+      if (affected) advanceReport(affected, reportPolicy, at, comparisonWindows);
     }
     if (reporting) recordReportPolicy(reportPolicy, event, detail, items.get(event.item_id));
     if (event.item_id === null || event.item_id === undefined) continue;
@@ -214,7 +217,7 @@ export function prepareFlowHistory(history, { window = false } = {}) {
     const item = items.get(event.item_id);
     if (event.event_kind === 'add') dailyEvents.push({ at, kind: 'added' });
     if (event.event_kind === 'merged' && item.mergeAt === undefined) dailyEvents.push({ at, kind: 'merged' });
-    if (reporting) { advanceReport(item, reportPolicy, at); prepareReportMove(item, event, detail); }
+    if (reporting) { advanceReport(item, reportPolicy, at, comparisonWindows); prepareReportMove(item, event, detail); }
     if (reporting) moveFlowItem(item, event, detail, at);
     if (reporting) { recordReport(item, event, detail); indexReportItem(reportPolicy, item); }
   }
@@ -227,6 +230,17 @@ export function prepareFlowHistory(history, { window = false } = {}) {
   const frozenActors = [...actors.values()].map((actor) => Object.freeze({ ...actor }));
   const frozenDailyEvents = dailyEvents.map((event) => Object.freeze(event));
   return Object.freeze({ reportPolicy: frozenReport(reportPolicy), items: Object.freeze(frozenItems), actors: Object.freeze(frozenActors), dailyEvents: Object.freeze(frozenDailyEvents) });
+}
+
+/** Compare one complete native event prefix at an explicit observation clock; absent history is not fabricated. */
+export function compareFlowWindows(history, { now, windowMinutes, complete } = {}) {
+  const bounds = comparisonBounds(windowMinutes, now);
+  if (complete !== true) return { version: 1, available: false, reason: 'complete event history is required for comparison' };
+  const selected = history.filter(event => Number.isFinite(Date.parse(event.event_at)) && Date.parse(event.event_at) <= now)
+    .sort((a, b) => a.event_id - b.event_id);
+  const prepared = prepareFlowHistory(selected, { comparisonWindows: bounds });
+  const reports = projectReportWindows(prepared.items, prepared.reportPolicy, now, bounds);
+  return projectWindowComparison(selected, prepared, bounds, reports);
 }
 
 /** Project current queues and time windows from compiled facts without mutating the cached snapshot. */

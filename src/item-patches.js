@@ -8,6 +8,9 @@ import { PATCH_FOLLOW_ENGINE } from './patch-follow-engine.js';
 import { itemPatchSetDigest } from './item-patch-state.js';
 import { getItem } from './board-query.js';
 import { Refused } from './refused.js';
+import { NO_ELIGIBLE_REVIEWER_ENGINE } from './no-eligible-reviewer-engine.js';
+import { asSubmitted } from './review-reachability.js';
+import { refuseUnreviewable } from './review-reachability.js';
 import { outsideSource } from './outside-source.js';
 import { itemPatchRecords as records } from './item-patch-state.js';
 import { itemPatchDigest } from './item-patch-state.js';
@@ -99,6 +102,28 @@ function authorIdentity(board, author) {
   const identity = key => board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key + author)?.meta_value ?? null;
   return { agentId: author, parentSession: identity('agent_parent_session:'), session: identity('agent_session:') };
 }
+const PREVIEWED = Symbol('item patch author preview');
+/**
+ * Before a live command applies the move, refuse an author who would leave a strict item no ACTIVE reviewer.
+ * The author is written inside a transaction that always rolls back, so nothing is recorded; the ordered move
+ * keeps its own deterministic check against every registered seat so replay never reads local heartbeats [C7,V4].
+ */
+export function refuseLiveAttach(board, item, { key, author, commit, patch = '' }, { atomic, review }) {
+  try {
+    atomic(board, () => {
+      const patches = records(board, item.item_id);
+      if (!patches.some(record => record.key === key)) {
+        patches.push({ key, commit: commit ?? item.item_commit, source: { commit: commit ?? item.item_commit }, patch, digest: hash(patch), author: authorIdentity(board, author), active: true });
+        save(board, item.item_id, patches);
+      }
+      refuseUnreviewable(board, asSubmitted(board, item), review);
+      throw PREVIEWED;
+    });
+  } catch (error) {
+    // Any other refusal (a stale source, a bad patch) belongs to the ordered move that runs next and reports it by its own code.
+    if (error !== PREVIEWED && error?.code === 'NO_ELIGIBLE_REVIEWER') throw error;
+  }
+}
 /** Check exact bounded git diff bytes; application/path safety is enforced by the composition consumer. */
 function patchBytes(patch) {
   if (typeof patch !== 'string' || !patch || Buffer.byteLength(patch, 'utf8') > MAX_BYTES || patch.includes('\0')
@@ -123,7 +148,10 @@ export function applyItemPatchAttachment(board, id, options, ports) {
     }
     const record = { key: options.key, commit: options.commit, source: { commit: options.commit }, patch, digest, author, active: true,
       ...(item.item_status === 'claimed' ? { presubmit: true } : {}) };
-    patches.push(record); save(board, id, patches); ports.invalidate(id);
+    patches.push(record); save(board, id, patches);
+    // The new author may leave no seat able to review a strict item; the throw rolls this whole move back.
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= NO_ELIGIBLE_REVIEWER_ENGINE) refuseUnreviewable(board, asSubmitted(board, item), { registered: true });
+    ports.invalidate(id);
     ports.logEvent(board, options.agentId, 'item_patch_attach', id, { key: record.key, commit: record.commit, digest, author });
     return { item: id, key: options.key, digest: itemPatchDigest(board, id), changed: true };
   });

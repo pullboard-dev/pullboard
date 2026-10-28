@@ -91,6 +91,9 @@ import {
   submitPreflight,
 } from '../submit-preflight.js';
 import {
+  refuseUnreviewable,
+} from '../review-reachability.js';
+import {
   changedLines,
   oversizeNote,
 } from '../submit-size.js';
@@ -290,7 +293,7 @@ export async function submitHere(ctx, id, infra) {
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   // A trunk checkout can have advanced since the claim; comparing it with itself would bless its own new red test.
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : acceptedMain.commit;
-  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }, { atomic: store.atomic, submit: store.submit }));
+  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }, { atomic: store.atomic, submit: store.submit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }) }));
   const trunk = requireTrunkMerge(root, commit);
   const companion = await withBoard(ctx, async board => {
     if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
