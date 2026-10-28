@@ -570,7 +570,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
   ], 'the caller is not exempt: only the exact reader call is inside its catch');
 
   for (const helper of ['automaticDecisionSource', 'rigorDecisionKey']) {
-    const inHistoricalCaller = editedSource('rigor-auto-source.js',
+    const inHistoricalCaller = editedSource('board-rigor-auto-source.js',
       new RegExp(`^export function ${helper}\\(record\\) \\{$`, 'm'),
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inHistoricalCaller).sort(), [
