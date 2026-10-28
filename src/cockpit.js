@@ -38,8 +38,7 @@ import {
 import { roadmapBlock } from './view/roadmap-block.js';
 import { openPageDialog } from './view/page-dialog.js';
 import { closePageDialog } from './view/page-dialog.js';
-import { needsEntries } from './view/needs-list.js';
-import { renderNeedsRow } from './view/needs-list.js';
+import { needsPanelHtml } from './view/needs-panel.js';
 import { applyStateDelta } from './api-http.js';
 import { pageScriptPart1 } from './view/page-script-1.js';
 import { pageScriptPart2 } from './view/page-script-2.js';
@@ -1116,33 +1115,30 @@ function render() {
   // questions in the spec, held lanes, then draft rows. Work waiting for a verdict or sent back shows
   // on the board with who holds it; it is the agents' to move.
   const personalNeeds = personNeeds(p);
-  // Adapt display targets and the existing hold age without reimplementing which calls belong here.
-  const needs = (${needsEntries.toString()})(personalNeeds, p.holds);
-  const drafts = personalNeeds.find((row) => row.kind === 'draft')?.count ?? 0;
-  const rigorDrafts = personalNeeds.filter((row) => row.kind === 'rigor-draft');
-  const sentinelDrafts = personalNeeds.filter((row) => row.kind === 'sentinel-draft');
-  const agentApprovals = personalNeeds.filter((row) => row.kind === 'agent-approved');
-  // Each of the person's calls is a row at the head of Active, shaped like an item: what it is first, then NEEDS YOU and
-  // its kind where an item has its lane, and what to do at the right. Every call is a row; the draft rows are one row
-  // with their count. Read-only, a row is its words, opening nothing.
-  $('needs').hidden = (!needs.length && !drafts && !rigorDrafts.length && !sentinelDrafts.length && !agentApprovals.length) || view.state !== 'active' || Boolean(view.lane);
-  const needRow = ([target, ref, text, what, at], kind, action) => '<li class="row ask"' + (readOnly || !target ? '' : ' data-go="' + esc(target) + '"') + '><span class="dot ask"></span><div><div class="t">' + (ref ? '<span>' + esc(ref) + '</span>' : '') + rich(text, titles, !readOnly) + '</div>'
-    + (at ? '<span class="row-age">' + age(at) + '</span>' : '') + '<div class="meta"><span class="why"><b>NEEDS YOU</b> ' + esc(kind) + '</span></div></div><span class="chip warn">' + esc(action) + '</span></li>';
-  const needKind = (${renderNeedsRow.toString()}).bind(null, needRow, specRevisionRow);
-  const needsHtml = needs.map(needKind).join('')
-    + rigorDrafts.map(row => needRow([row.unproved && !row.materialized ? null : row.target, row.ref,
-      row.unproved && !row.materialized ? row.text + ' ' + row.what : row.text],
-    row.unproved ? 'an unproved Rigor proposal' + (row.evidence?.occurrences ? ', repeated ' + row.evidence.occurrences + (row.evidence.occurrences === 1 ? ' time' : ' times') : '') : 'a proved Rigor draft',
-    row.unproved && !row.materialized ? 'prepare review' : 'Approve or Decline')).join('')
-    + sentinelDrafts.map(row => sentinelDraftRow(row)).join('')
-    + agentApprovals.map(row => agentApprovalRow(row)).join('')
-    + (drafts ? needRow(['tab:spec', String(drafts), 'draft spec rows to approve or drop'], 'Spec rows waiting on you', 'review') : '');
+  const agentApprovals = personalNeeds.filter(row => row.kind === 'agent-approved');
+  const person = !snapshot && (!readOnly || requests);
+  const expandedNeeds = [...document.querySelectorAll('details[data-needs-key][open]')].map(entry => entry.dataset.needsKey);
+  /** Actions retain the existing person/request handlers and advertised row identities. */
+  const needsControls = row => {
+    if (!person) return '';
+    if (row.kind === 'agent-approved') return agentApprovalActions(row);
+    if (row.kind === 'sentinel-draft') return sentinelDraftActions(row);
+    if (row.kind === 'spec-revision') return '<div class="actions">'+(row.actions??[]).filter(action => ['spec-approve','spec-decline'].includes(action.verb) && action.args?.ids===row.id).map(action => '<button type="button" class="'+(action.verb==='spec-approve'?'approve-row':'decline-row')+'" data-row-kind="spec" data-row-id="'+esc(row.id)+'" data-row-decision="'+(action.verb==='spec-approve'?'approve':'decline')+'">'+(action.verb==='spec-approve'?'Approve':'Decline')+'</button>').join('')+'</div>';
+    const target = row.kind==='decision' ? 'decide:'+row.id : row.kind==='pending' ? 'spec:'+row.id : row.kind==='hold' ? 'tab:shouts' : row.target;
+    if (!target || row.unproved && !row.materialized) return '';
+    return '<div class="actions"><button type="button" class="approve-row" data-go="'+esc(target)+'">'+(row.kind==='decision'?'Decide':'Review')+'</button></div>';
+  };
+  const needsFeedback = row => view.specFeedback?.root===view.root && view.specFeedback.kind==='spec' && view.specFeedback.id===row.id ? specFeedback(view.specFeedback) : '';
+  const needsOptions = { person, expanded: expandedNeeds, controls: needsControls, feedback: needsFeedback, rich: text => rich(text,titles,!readOnly), age };
+  const needsPanel = ${needsPanelHtml.toString()};
+  const needsHtml = needsPanel(personalNeeds,p,needsOptions);
+  $('needs').hidden = !personalNeeds.length || view.state !== 'active' || Boolean(view.lane);
+  $('needs').tabIndex = -1;
   $('needs').innerHTML = needsHtml;
-  // Home reads the rules first, then the same calls (#967).
   $('home-rules').innerHTML = homeRules(p.spec);
   $('home-needs').innerHTML = needsHtml;
   $('home-calm').hidden = Boolean(needsHtml);
-  if (view.tab === 'dashboard') dashboardView.draw(p, needsHtml);
+  if (view.tab === 'dashboard') dashboardView.draw(p,needsPanel(personalNeeds,p,{...needsOptions,compact:true}));
 
   const lanes = p.lanes;
   const working = lanes.filter((l) => l !== 'coordinator');

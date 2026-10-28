@@ -23,6 +23,7 @@ test('agent approvals show full rows and styled actions at narrow width and reso
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 375 && document.querySelectorAll("#needs [data-agent-approved]").length === 2');
     await chrome.click("document.querySelector('[data-tab=items]')");
+    for (const row of before.spec) await chrome.click(`document.querySelector('#needs [data-agent-approved="${row.id}"] summary')`);
     await chrome.waitFor(`view.tab === 'items' && [...document.querySelectorAll('#needs [data-agent-approved], #needs [data-row-decision]')].every(element => {
       const box = element.getBoundingClientRect();
       return !element.closest('[hidden]') && getComputedStyle(element).visibility === 'visible' && box.width > 0 && box.height > 0;
@@ -34,8 +35,8 @@ test('agent approvals show full rows and styled actions at narrow width and reso
         const row = document.querySelector('#needs [data-agent-approved="${row.id}"]');
         const buttons = [...row.querySelectorAll('[data-row-decision]')];
         const boxes = buttons.map(button => button.getBoundingClientRect());
-        const commit = row.querySelector('code');
-        const title = row.querySelector('.t');
+        const commit = row.querySelector('[data-needs-field=commit] code');
+        const title = row.querySelector('.needs-detail p');
         return { text: row.textContent, commit: commit.textContent, full: commit.title, at: row.querySelector('time')?.dateTime,
           tab: view.tab, boxes: boxes.map(box => ({ x: box.x, y: box.y, width: box.width, height: box.height })),
           unclipped: getComputedStyle(title).whiteSpace !== 'nowrap' && title.scrollHeight <= title.clientHeight,
