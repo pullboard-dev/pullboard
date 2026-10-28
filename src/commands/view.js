@@ -25,7 +25,7 @@ import {
 import {
   exportView,
   serveView,
-} from '../serve.js';
+} from '../cli-view.js';
 import {
   defaultViewPort,
 } from '../config.js';

@@ -29,7 +29,8 @@ import * as apiExports from '../src/api.js';
 import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, closeBoard, events as boardEvents, openBoard, verdictsFor } from '../src/board.js';
 import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
 import { JSON_SHAPES } from '../src/json.js';
-import { projectState, serveView } from '../src/serve.js';
+import { projectState } from '../src/serve.js';
+import { serveView } from '../src/cli-view.js';
 import { registerProject } from '../src/projects.js';
 import { SSH_SHELL_MARKERS } from '../src/person.js';
 import {

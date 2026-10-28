@@ -14,7 +14,7 @@ import { serveRelay, createRelayHandler } from '../relay/service.js';
 import { createRelayAuth } from '../relay/auth.js';
 import { createGitHubClient } from '../relay/github.js';
 import { githubFixture } from './relay-fixture.js';
-import { serveView } from '../src/serve.js';
+import { serveView } from '../src/cli-view.js';
 import { registerProject } from '../src/projects.js';
 import * as store from '../src/board.js';
 
