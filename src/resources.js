@@ -140,6 +140,8 @@ function openQueue(file) {
       CREATE TABLE IF NOT EXISTS runner_rotation (pool TEXT PRIMARY KEY, next_host TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS runner_gui (host TEXT PRIMARY KEY, gui INTEGER, observed_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS runner_draining (host TEXT PRIMARY KEY, runner TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS runner_timing_drain (singleton INTEGER PRIMARY KEY CHECK(singleton=1), token TEXT NOT NULL, host TEXT NOT NULL, since TEXT NOT NULL, wait_ms INTEGER NOT NULL, stage TEXT NOT NULL, agent TEXT NOT NULL, item TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS runner_timing_event (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, kind TEXT NOT NULL, host TEXT NOT NULL, agent TEXT NOT NULL, item TEXT NOT NULL, wait_ms INTEGER NOT NULL, reason TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS waiter_name_ticket ON waiter(name, ticket);`);
     initializeRunnerRecovery(db);
     for (const table of ['holder', 'waiter']) {
@@ -170,14 +172,21 @@ function openQueue(file) {
     // Older clients insert the default zero. A database trigger witnesses even short legacy
     // arrivals between the timing owner's polls; no old client has to understand the new flag.
     db.exec(`CREATE TABLE IF NOT EXISTS timing_client_observation (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, agent TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL);
-      CREATE TRIGGER IF NOT EXISTS timing_unaware_holder AFTER INSERT ON holder
-      WHEN NEW.name = 'gate' AND NEW.timing_aware = 0 BEGIN
-        INSERT INTO timing_client_observation(agent,pid,started) VALUES (NEW.agent,NEW.pid,NEW.started);
+      id INTEGER PRIMARY KEY AUTOINCREMENT, agent TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL);`);
+    if (!db.prepare('PRAGMA table_info(timing_client_observation)').all().some(({ name }) => name === 'name')) {
+      db.exec("ALTER TABLE timing_client_observation ADD COLUMN name TEXT NOT NULL DEFAULT 'gate'");
+    }
+    // Replace both old trigger definitions atomically, so no concurrent arrival is unwitnessed.
+    if (!db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='timing_unaware_holder'").get()?.sql.includes("runner:*")
+      || !db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='timing_unaware_waiter'").get()?.sql.includes("runner:*")) db.exec(`DROP TRIGGER IF EXISTS timing_unaware_holder;
+      DROP TRIGGER IF EXISTS timing_unaware_waiter;
+      CREATE TRIGGER timing_unaware_holder AFTER INSERT ON holder
+      WHEN (NEW.name = 'gate' OR NEW.name GLOB 'runner:*') AND NEW.timing_aware = 0 BEGIN
+        INSERT INTO timing_client_observation(agent,pid,started,name) VALUES (NEW.agent,NEW.pid,NEW.started,NEW.name);
       END;
-      CREATE TRIGGER IF NOT EXISTS timing_unaware_waiter AFTER INSERT ON waiter
-      WHEN NEW.name = 'gate' AND NEW.timing_aware = 0 BEGIN
-        INSERT INTO timing_client_observation(agent,pid,started) VALUES (NEW.agent,NEW.pid,NEW.started);
+      CREATE TRIGGER timing_unaware_waiter AFTER INSERT ON waiter
+      WHEN (NEW.name = 'gate' OR NEW.name GLOB 'runner:*') AND NEW.timing_aware = 0 BEGIN
+        INSERT INTO timing_client_observation(agent,pid,started,name) VALUES (NEW.agent,NEW.pid,NEW.started,NEW.name);
       END;`);
     // No live timing admission can need observations once its holder and waiter rows are gone.
     db.exec(`DELETE FROM timing_client_observation
@@ -365,7 +374,7 @@ function queueOrder(scope) {
 
 /** Read the complete resource line with the metadata every admission view orders identically. */
 function queuedWaiters(db, name) {
-  return db.prepare('SELECT ticket, pid, agent, repo, since, landing, item_check AS itemCheck, diagnostic, browser, gui, remote, runner_only AS runnerOnly, required_executor AS requiredExecutor, item, kind, lease_until AS leaseUntil, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible AS shortEligible, timing, memory_held AS memoryHeld, runner_deadline AS runnerDeadlineAt, runner_wait_branch AS runnerWaitBranch, runner_wait_reasons AS runnerWaitReasons FROM waiter WHERE name = ?').all(name);
+  return db.prepare('SELECT ticket, token, pid, agent, repo, since, landing, item_check AS itemCheck, diagnostic, browser, gui, remote, runner_only AS runnerOnly, required_executor AS requiredExecutor, item, kind, lease_until AS leaseUntil, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible AS shortEligible, timing, memory_held AS memoryHeld, runner_deadline AS runnerDeadlineAt, runner_wait_branch AS runnerWaitBranch, runner_wait_reasons AS runnerWaitReasons FROM waiter WHERE name = ?').all(name);
 }
 
 /** Current holders and the waiting line in admission order, each waiter naming its class (aged only while class order is on). */
@@ -390,12 +399,14 @@ function snapshot(db, name, order = ARRIVAL_ORDER, now = Date.now()) {
   const ageMs = order.reviewsFirst ? order.ageMs : Infinity;
   const line = orderedWaiters(queued, now, order)
     .filter(entry => name !== 'browser' || entry.browser === 1)
-    .map(({ ticket, pid, classed, release_aware, board_key, release_rank, queue_ticket, ...entry }) => {
+    .map(({ ticket, token, pid, classed, release_aware, board_key, release_rank, queue_ticket, ...entry }) => {
       const current = queueClass(entry, now, ageMs);
       return { ...project(entry), queueClass: current.name, ...(current.effective < current.base ? { agedFrom: current.declared } : {}) };
     });
   // With reviews first on, an older pullboard in the line means everyone admits in arrival order until it leaves.
-  return { holders, line, ...((order.reviewsFirst || order.currentReleaseFirst) && !classOrderInEffect(queued, order) && queued.some((waiter) => waiter.release_aware !== 1 || (!order.currentReleaseFirst && waiter.classed !== 1)) ? { order: 'arrival' } : {}) };
+  const timingDrain = sourceName === 'gate' ? timingDrainSnapshot(db) : null;
+  const timingEvents = sourceName === 'gate' ? timingDrainEvents(db) : [];
+  return { holders, line, ...(timingDrain ? { timingDrain } : {}), ...(timingEvents.length ? { timingEvents } : {}), ...((order.reviewsFirst || order.currentReleaseFirst) && !classOrderInEffect(queued, order) && queued.some((waiter) => waiter.release_aware !== 1 || (!order.currentReleaseFirst && waiter.classed !== 1)) ? { order: 'arrival' } : {}) };
 }
 
 /** Count reported or admissible queue position separately so blocked work cannot distort the visible line. */
@@ -497,6 +508,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     }];
   }));
   const unavailable = unavailableRunnerHosts(db, now);
+  let drain = currentTimingDrain(db, waiters, runners, unavailable, now);
   /** Keep an already holding process from taking another slot ahead of a different landing. */
   const blockedByLanding = waiter => holders.some(holder => holder.pid === waiter.pid)
     && waiters.some(other => other.landing === 1 && other.pid !== waiter.pid);
@@ -512,6 +524,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       const compatible = ordered.filter(runner => {
         if (waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor).host !== runner.host) return false;
         if (!runnerCompatible(db, runner, waiter, unavailable)) return false;
+        if (drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host)) return false;
         const used = usage.get(runner.host);
         return !used.timing && (waiter.timing !== 1 || used.slots === 0)
           && used.slots < runner.slots && (waiter.browser !== 1 || used.browsers < runner.browser);
@@ -533,7 +546,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       return null;
     }
     const remote = runnerSlot();
-    if (waiter.runnerOnly === 1 && runners.length) return remote;
+    if (waiter.runnerOnly === 1) return remote;
     if (runnersFirst) {
       if (remote) return remote;
       const local = localSlot();
@@ -561,10 +574,30 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       db.prepare('UPDATE resource SET capacity = ? WHERE name = ?').run(runner.slots, resourceName);
     }
   }
+  if (!drain) {
+    for (const waiter of waiters) {
+      const waited = now - Date.parse(waiter.since);
+      if (waiter.timing !== 1 || waiter.remote !== 1 || !Number.isFinite(waited) || waited < 120_000
+        || blockedByLanding(waiter) || available(waiter)) continue;
+      const candidates = runners.filter(runner => (!waiter.requiredExecutor || JSON.parse(waiter.requiredExecutor).kind === 'ssh'
+        && JSON.parse(waiter.requiredExecutor).host === runner.host) && runnerCompatible(db, runner, waiter, unavailable)
+        && !usage.get(runner.host).timing).sort((a, b) => usage.get(a.host).slots - usage.get(b.host).slots);
+      if (!candidates.length) continue;
+      drain = { token: waiter.token, host: candidates[0].host, since: new Date(now).toISOString(), wait_ms: waited, stage: 'draining', agent: waiter.agent, item: waiter.item };
+      db.prepare("INSERT INTO runner_timing_drain VALUES(1,?,?,?,?,?,?,?)").run(drain.token, drain.host, drain.since, waited, drain.stage, drain.agent, drain.item);
+      timingDrainEvent(db, 'drain-start', drain, waiter, now);
+      break;
+    }
+  }
   for (const waiter of waiters) {
     const executor = available(waiter);
     if (executor) {
       if (waiter.ticket !== ticket) return null;
+      if (drain?.token === waiter.token) {
+        timingDrainEvent(db, executor.host === drain.host ? 'exclusive-admitted' : 'drain-cancel', drain, waiter, now, executor.host === drain.host ? '' : 'another executor admitted');
+        if (executor.host === drain.host) db.prepare("UPDATE runner_timing_drain SET stage='exclusive' WHERE singleton=1").run();
+        else db.prepare('DELETE FROM runner_timing_drain WHERE singleton=1').run();
+      }
       if (runnersFirst && executor.host) {
         const selected = runners.findIndex(runner => runner.host === executor.host);
         const nextHost = runners[(selected + 1) % runners.length]?.host ?? '';
@@ -574,6 +607,44 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     }
   }
   return null;
+}
+
+/** Append queue-local audit evidence; it grants no board or runner authority. */
+function timingDrainEvent(db, kind, drain, owner, now, reason = '') {
+  db.prepare('INSERT INTO runner_timing_event(at,kind,host,agent,item,wait_ms,reason) VALUES(?,?,?,?,?,?,?)')
+    .run(new Date(now).toISOString(), kind, drain.host, owner?.agent ?? drain.agent, owner?.item ?? drain.item, drain.wait_ms, reason);
+}
+
+/** Keep one reservation through its exclusive hold; cancellation and configuration changes never strand a host. */
+function currentTimingDrain(db, waiters, runners, unavailable, now) {
+  const drain = db.prepare('SELECT * FROM runner_timing_drain WHERE singleton=1').get();
+  if (!drain) return null;
+  const owner = waiters.find(waiter => waiter.token === drain.token);
+  const held = db.prepare("SELECT agent,item FROM holder WHERE token=? AND name=? AND timing=1").get(drain.token, runnerResourceName(drain.host));
+  if (held) return drain;
+  const runner = runners.find(runner => runner.host === drain.host);
+  if (owner?.timing === 1 && owner.remote === 1 && runner
+    && (!owner.requiredExecutor || JSON.parse(owner.requiredExecutor).kind === 'ssh' && JSON.parse(owner.requiredExecutor).host === runner.host)
+    && runnerCompatible(db, runner, owner, unavailable)) return drain;
+  timingDrainEvent(db, drain.stage === 'exclusive' ? 'exclusive-finished' : 'drain-cancel', drain, owner, now,
+    owner ? 'executor no longer compatible' : 'request or holder left the queue');
+  db.prepare('DELETE FROM runner_timing_drain WHERE singleton=1').run();
+  return null;
+}
+
+/** Project only live owner metadata, never a lease token, and bound the displayed queue-local event history. */
+function timingDrainSnapshot(db) {
+  const drain = db.prepare('SELECT host,since,wait_ms AS waitMs,stage,token FROM runner_timing_drain WHERE singleton=1').get();
+  if (!drain) return null;
+  const owner = db.prepare('SELECT agent,item FROM waiter WHERE token=? UNION ALL SELECT agent,item FROM holder WHERE token=? LIMIT 1').get(drain.token, drain.token);
+  if (!owner) return null;
+  const { token, ...visible } = drain;
+  return { ...visible, ...owner };
+}
+
+/** Keep completed drain evidence readable after its live reservation disappears, without exposing tokens. */
+function timingDrainEvents(db) {
+  return db.prepare('SELECT at,kind,host,agent,item,wait_ms AS waitMs,reason FROM runner_timing_event ORDER BY id DESC LIMIT 8').all().reverse();
 }
 
 /** Start due health work on its own connection so a free executor never waits for another host's probe. */
@@ -827,7 +898,7 @@ export function requiredExecutorOf(value) {
 /**
  * Join the queue in its admission class (landing, review, submit, other), aging up over time; FIFO by ticket within a class.
  *
- * @param {{ name: string, capacity: number, capacityProvider?: () => number, shortCapacityProvider?: () => number, browserCapacityProvider?: () => number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string}, runnerOnly?: boolean, runnerExecution?: boolean, timing?: boolean, runnerProvider?: () => Array<{host:string,slots:number,browser:number}>, item?: string, kind?: string, onWait?: (state: object) => any | Promise<any>, allowIdleCapacityUpdate?: boolean, memory?: () => Promise<{ checked: boolean, held: boolean, line: string, warning?: string }>, _resume?: object }} options - Resource identity, queue class, short-slot eligibility, optional remote executor pool and memory check. An awaited wait callback may return {leaseUntil} and then receives a final {admitted:true} callback before work starts.
+ * @param {{ name: string, capacity: number, capacityProvider?: () => number, shortCapacityProvider?: () => number, browserCapacityProvider?: () => number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string}, runnerOnly?: boolean, runnerDeadlineAt?: number, runnerExecution?: boolean, timing?: boolean, runnerProvider?: () => Array<{host:string,slots:number,browser:number}>, item?: string, kind?: string, onWait?: (state: object) => any | Promise<any>, allowIdleCapacityUpdate?: boolean, memory?: () => Promise<{ checked: boolean, held: boolean, line: string, warning?: string }>, _resume?: object }} options - Resource identity, queue class, short-slot eligibility, optional remote executor pool and memory check. An awaited wait callback may return {leaseUntil} and then receives a final {admitted:true} callback before work starts.
  *   memory, when given, is read before each admission: a held verdict blocks ordinary and short local
  *   executors while compatible remote slots remain eligible; an unchecked one is passed to onWait once
  *   so the caller can warn.
@@ -847,6 +918,7 @@ export async function takeResource(options) {
   const gui = options.gui === true;
   const remote = options.remote === true;
   const runnerOnly = options.runnerOnly === true;
+  if (options.runnerDeadlineAt !== undefined && (!Number.isSafeInteger(options.runnerDeadlineAt) || options.runnerDeadlineAt <= 0 || !runnerOnly)) throw new Refused('BAD_RESOURCE_METADATA', 'runnerDeadlineAt must be a positive captured runner-only deadline');
   const restriction = requiredExecutorOf(options.requiredExecutor);
   const requiredExecutor = restriction ? JSON.stringify(restriction) : '';
   if (restriction && (name !== 'gate' || scope !== 'machine' || restriction.kind === 'ssh' && !remote
@@ -879,12 +951,16 @@ export async function takeResource(options) {
   catch (error) { db.close(); throw error; }
   const awarenessCursor = db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM timing_client_observation').get().id;
   const unfenced = new Map();
+  const observedRunnerNames = new Set();
   /** Preserve every observed unfenced client throughout this admission and execution. */
   const timingEvidence = () => {
     if (!timing) return { exclusive: false, unfencedClients: [] };
-    const observations = db.prepare(`SELECT agent,pid,started FROM timing_client_observation WHERE id > ?
-      UNION SELECT agent,pid,started FROM holder WHERE name = 'gate' AND timing_aware = 0
-      UNION SELECT agent,pid,started FROM waiter WHERE name = 'gate' AND timing_aware = 0`).all(awarenessCursor);
+    for (const runner of runnerProvider ? validatedRunners(runnerProvider()) : []) observedRunnerNames.add(runnerResourceName(runner.host));
+    const observations = db.prepare(`SELECT name,agent,pid,started FROM timing_client_observation WHERE id > ?
+      UNION SELECT name,agent,pid,started FROM holder WHERE timing_aware = 0
+      UNION SELECT name,agent,pid,started FROM waiter WHERE timing_aware = 0`).all(awarenessCursor)
+      .filter(row => row.name === 'gate' || observedRunnerNames.has(row.name))
+      .map(({ agent, pid, started }) => ({ agent, pid, started }));
     for (const client of observations) unfenced.set(`${client.pid}:${client.started}:${client.agent}`, { ...client });
     return { exclusive: unfenced.size === 0, unfencedClients: [...unfenced.values()] };
   };
@@ -893,7 +969,7 @@ export async function takeResource(options) {
   const token = resume?.token ?? randomUUID();
   const requestedAt = resume?.requestedAt ?? Date.now();
   // Capture once: requeueing or editing the machine setting cannot restart this run's clock.
-  let runnerDeadlineAt = resume?.runnerDeadlineAt ?? 0;
+  let runnerDeadlineAt = resume?.runnerDeadlineAt ?? options.runnerDeadlineAt ?? 0;
   let runnerDispatched = resume?.runnerDispatched === true;
   let lateAdmissionClosed = resume?.lateAdmissionClosed === true;
   let lateRunnerDispatch = resume?.lateRunnerDispatch ?? null;
@@ -978,7 +1054,7 @@ export async function takeResource(options) {
         const runners = runnerProvider ? validatedRunners(runnerProvider()) : [];
         if (restriction?.kind === 'ssh' && !runners.some(runner => runner.host === restriction.host)) throw new Refused('BAD_RUNNER_POOL', 'the required SSH executor is not registered');
         const runnersFirst = runnersFirstProvider?.() === true;
-        if (!runnerDeadlineAt && remote && runners.length && options.runnerWaitMs) runnerDeadlineAt = requestedAt + options.runnerWaitMs;
+        if (!runnerDeadlineAt && remote && (runnerOnly || runners.length) && options.runnerWaitMs) runnerDeadlineAt = requestedAt + options.runnerWaitMs;
         const runnerDeadlinePassed = runnerDeadlineAt > 0 && now >= runnerDeadlineAt;
         const waiter = db.prepare('SELECT ticket, remote, browser, gui, runner_wait_branch AS runnerWaitBranch FROM waiter WHERE token = ?').get(token);
         if (!waiter) {
@@ -1029,7 +1105,7 @@ export async function takeResource(options) {
         if (runnerDeadlinePassed && !executor?.host) {
           db.prepare('UPDATE waiter SET remote = 0 WHERE token = ?').run(token);
           if (!executor && (runnerOnly || restriction?.kind === 'ssh' || runnerDeadline.branch === 'no local capacity')) {
-            throw new Refused('RUNNER_WAIT_DEADLINE', `${runnerDeadlineLine(runnerDeadline)}; restore safe local capacity or check the named runners, then retry`);
+            throw new Refused('RUNNER_WAIT_DEADLINE', `${runnerDeadlineLine(runnerDeadline)}; ${runnerOnly ? 'register or restore a compatible runner' : 'restore safe local capacity or check the named runners'}, then retry`, runnerOnly ? 'restore or register a compatible runner with pullboard runner add, then retry' : undefined);
           }
         }
         if (executor) {

@@ -1,5 +1,6 @@
 /** General CLI recovery text; operation-owned codes live in src/moves/ [P4,C7]. */
 export const DEFAULT_NEXT_STEPS = Object.freeze({
+  NEXT_TIMEOUT: 'read the named phase and item, inspect your current claim or review with pullboard whoami and pullboard show <id>, then retry next after resolving that blocker',
   CHECK_REQUIRED: 'intake a pull request with --criterion "behavior" --check "command" from the trusted coordinator checkout',
   ROW_VERIFY_RECEIPT: 'run pullboard spec verify <id> accepted|rejected --reason "why" before applying its verdict',
   LAN_UNAVAILABLE: 'connect to a local IPv4 network, then run pullboard view --lan; ordinary pullboard view remains available on this machine',
@@ -211,6 +212,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "FIT_TARGET": "pick a target the message lists, or read the waiting batch with pullboard spec fit",
   "NO_FIT_PROPOSALS": "have a seat record proposals with pullboard blueprint fit <name or file> <target> keep|adapt|drop|answer",
   "BAD_SHOUT_ITEM": "name an existing positive item: pullboard shout --item <id> \"<text>\"",
+  "REPORT_RESTATES_EVENT": "the board already recorded it: pullboard show <id>; shout the coordinator only a question, blocker or decision with --kind",
   "COORDINATOR_STATUS_FACT": "record progress or results on the item: pullboard fact <id> note \"<progress or result>\"; use --kind question, blocker, decision, exception or idea when shouting the coordinator",
   "EMPTY_SIGNERS": "restore the signer list from Git: git restore --source=HEAD -- .pullboard/signers",
   "EVENT_LOG_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
@@ -417,6 +419,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "RUNNER_CLEANUP_TIMEOUT": "inspect the named job under that runner's namespace and confirm its cleanup before starting another run",
   "RUNNER_NOT_REGISTERED": "choose a host already registered in this machine's runner settings, then run pullboard runner remove <ssh-host> again",
   "RUNNER_WAIT_DEADLINE": "check the runners the message names, or restore local gate capacity with pullboard settings, then retry",
+  "SCALE_FROM_MAIN": "cd to the main checkout, then run pullboard run --scale --lane <lane> --model \"<model name>\" --agent \"<command>\" there",
+  "WORKER_BUDGET_UNSET": "set the seat-hours this machine may spend with pullboard settings workers.budget 40/day (or /week), then rerun pullboard run --scale",
   "RUNNER_REQUIRED_FOR_ZERO_CAPACITY": "restore positive gateSlots and browserSlots with pullboard settings before removing the last registered runner",
   "RUNNER_OUTPUT_LIMIT": "reduce the command output, or keep the run local",
   "RUNNER_REQUEST_LIMIT": "keep the run local, or reduce the runner request before retrying",

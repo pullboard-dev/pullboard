@@ -203,7 +203,7 @@ function retainComparisonReceipt(root, checkout, id) {
  * @param {{commit?: string, detailed?: boolean, fresh?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts.
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
  */
-export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, onMeasuredReceipt } = {}) {
+export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, onMeasuredReceipt, runnerAdmission = {} } = {}) {
   const main = commit ? { commit } : mainCheckout(root);
   if (!main?.commit) return { main: null, files: [], unavailable: 'the primary checkout has no committed main snapshot' };
   const policy = policyAt(root, main.commit);
@@ -243,10 +243,14 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
           const failures = detailed ? run.isGreen ? [] : failureSignatures(run, checkout) : null;
           if (detailed && !run.isGreen && !failures) throw new Error('focused main output has no complete named failure account');
           return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}) };
-        }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait });
+        }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission });
         // History a runner may not receive keeps the comparison on this machine, as it ran before runners.
         try { return await measure(true); }
-        catch (error) { if (error?.code !== 'RUNNER_SECRET') throw error; return measure(false); }
+        catch (error) {
+          if (error?.code !== 'RUNNER_SECRET') throw error;
+          if (runnerAdmission.runnerOnly) throw new Refused('RUNNER_SECRET', `${error.message}; gate.runnersOnly forbids local retry; correct the source privacy refusal and retry submit`);
+          return measure(false);
+        }
       });
       if (measured.unavailable) throw new Error(measured.unavailable);
       await withComparisonCache(root, onWait, () => {
@@ -265,7 +269,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   }
   cache = await snapshot();
   const incomplete = files.some(path => !usable(cache.entries[main.commit]?.[path]));
-  if (failed && (fresh || incomplete)) return { main: main.commit, files: [], unavailable: failed.message ?? 'main comparison could not be completed' };
+  if (failed && (fresh || incomplete)) return { main: main.commit, files: [], unavailable: failed.message ?? 'main comparison could not be completed', ...(runnerAdmission.runnerOnly ? { runnerOnly: true } : {}) };
   if (incomplete) return { main: main.commit, files: [], unavailable: 'main comparison cache changed before the completed results could be read' };
   return { main: main.commit, files: files.map(path => ({ file: path, ...(detailed
     ? cache.entries[main.commit][path] : { result: cache.entries[main.commit][path].result }) })) };
@@ -292,7 +296,7 @@ export function mainRedMessage(root, board, profile, comparison) {
   if (comparison.unavailable === 'could not read which tests failed') {
     return 'main not checked: could not read which tests failed';
   }
-  if (!comparison.files.length) return '';
+  if (!comparison.files.length) return comparison.runnerOnly && comparison.unavailable ? `main not checked: ${comparison.unavailable}` : '';
   const attribution = mainRedAttribution(root, board, comparison);
   const names = (profile?.tests ?? []).filter(test => test.passed === false)
     .map(test => test.name ? `${test.file ?? 'unknown file'} (${test.name})` : test.file)

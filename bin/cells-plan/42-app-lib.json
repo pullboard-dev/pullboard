@@ -6,10 +6,13 @@
  "frontDoor": "apps/lib/index.js",
  "placedBy": {
   "seed": 1,
-  "rule": 0,
+  "rule": 1,
   "imports": 0
  },
- "paths": [["src/index.js","apps/lib/src/core/index.js","seed"]],
+ "paths": [
+  ["src/index.js","apps/lib/src/core/index.js","seed"],
+  ["src/native-board.js","apps/lib/src/core/native-board.js","rule"]
+ ],
  "reexports": [],
  "imports": [
   {"cell":"kernel","imports":1,"before":true},

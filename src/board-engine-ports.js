@@ -30,6 +30,7 @@ import { prepareTrainLanding } from './train-landing.js';
 import { prepareNativeTrainLanding } from './train-landing.js';
 
 import { sealItemPatchSubmit } from './item-patch-submit.js';
+import { sealItemPatchFollow } from './item-patch-submit.js';
 /** Compose the store's explicit runtime ports for deterministic state execution [C7,H16]. */
 import * as rawStore from './board.js';
 import { withSeatPresence } from './seat-presence.js';
@@ -60,7 +61,7 @@ export function boardEnginePorts() {
   const { personAuthority, relayMoveActor, relaySenderProblem, validRelaySender, credentialActor } =
     relaySenderPolicy({ declaredMoveActor, validPresence });
   return Object.freeze({ store, withSeatPresence, registry: MOVE_REGISTRY, operations: MOVE_OPERATIONS,
-    minimumOperationEngine: minimumMoveEngine, prepareTrainLanding, prepareNativeTrainLanding, sealItemPatchSubmit, sealSourceAdvanceReturn, sealSourceAdvance,
+    minimumOperationEngine: minimumMoveEngine, prepareTrainLanding, prepareNativeTrainLanding, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn, sealSourceAdvance,
     computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict, boundProofReceipt,
     requireOutsideReceipt, signedMoveProblem, requireCoordinatorHold, requireBound,
     requestMoveProblem, recordRequestMove, relayPerson, requestPerson,

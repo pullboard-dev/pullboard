@@ -20,9 +20,9 @@ export function coordinatorCheck(agentId, command) {
 }
 
 /** Validate captured baseline data without asking a replica to run Git or a shell [V2,H16]. */
-export function normalizeCheckBaseline(agentId, command, baseline) {
+export function normalizeCheckBaseline(agentId, command, baseline, { authorized = false } = {}) {
   if (baseline === undefined) return undefined;
-  coordinatorCheck(agentId, command ?? '');
+  coordinatorCheck(authorized ? COORDINATOR : agentId, command ?? '');
   if (!command || !baseline || typeof baseline !== 'object' || Array.isArray(baseline)
     || baseline.command !== command || !['green', 'red', 'unavailable', 'pending'].includes(baseline.result)
     || !(baseline.main === null || typeof baseline.main === 'string' && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(baseline.main))

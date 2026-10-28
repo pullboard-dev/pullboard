@@ -7,8 +7,8 @@
  "dryRunName": "runner-client",
  "placedBy": {
   "seed": 4,
-  "rule": 7,
-  "imports": 0
+  "rule": 15,
+  "imports": 1
  },
  "paths": [
   ["src/run.js","packages/runners/src/shell/run.js","seed"],
@@ -21,7 +21,16 @@
   ["src/runner-transport.js","packages/runners/src/shell/runner-transport.js","rule"],
   ["src/runner-utilization.js","packages/runners/src/shell/runner-utilization.js","rule"],
   ["src/runner-wait.js","packages/runners/src/shell/runner-wait.js","seed"],
-  ["src/runners.js","packages/runners/src/shell/runners.js","seed"]
+  ["src/runners.js","packages/runners/src/shell/runners.js","seed"],
+  ["src/package-files.js","packages/runners/src/shell/package-files.js","imports"],
+  ["src/runner-module-parser-worker.js","packages/runners/src/shell/runner-module-parser-worker.js","rule"],
+  ["src/runner-module-parser.js","packages/runners/src/shell/runner-module-parser.js","rule"],
+  ["src/runner-package-install.js","packages/runners/src/shell/runner-package-install.js","rule"],
+  ["src/runner-package.js","packages/runners/src/shell/runner-package.js","rule"],
+  ["src/runner-runtime-urls.js","packages/runners/src/core/runner-runtime-urls.js","rule"],
+  ["src/runner-source-cache.js","packages/runners/src/shell/runner-source-cache.js","rule"],
+  ["src/runner-stage-model.js","packages/runners/src/core/runner-stage-model.js","rule"],
+  ["src/runner-tooling-snapshot.js","packages/runners/src/shell/runner-tooling-snapshot.js","rule"]
  ],
  "reexports": [
   "src/run.js",

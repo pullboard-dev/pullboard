@@ -127,6 +127,41 @@ export function runCheck(meta, find) {
   if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(meta.url))) report(find(rootOf()));
 }
 
+/** Preserve every selected working source file, including both compatibility shims and their mapped bodies. */
+export function workingSourceInventory(root, directories) {
+  if (!Array.isArray(directories) || !directories.length) throw new Error('working source directories must be explicit');
+  const canonicalRoot = realpathSync(root);
+  const head = tryGit(root, ['rev-parse', '--verify', 'HEAD^{commit}']);
+  if (head.status !== 0) throw new Error('working source inventory needs a committed map');
+  const commit = head.stdout.trim(), map = readPathMap(root, { commit });
+  const identities = new Set(), selected = new Set();
+  for (const directory of directories) {
+    if (typeof directory !== 'string' || !directory || /[\\:\x00-\x1f\x7f]/u.test(directory)
+      || directory.split('/').some(part => !part || part === '.' || part === '..')) throw new Error('invalid working source directory');
+    const path = join(canonicalRoot, directory), stat = lstatSync(path);
+    if (!stat.isDirectory() || stat.isSymbolicLink() || !realpathSync(path).startsWith(canonicalRoot + sep)) {
+      throw new Error('working source directory must be contained and regular');
+    }
+    selected.add(directory);
+    for (const name of readdirSync(path)) if (name.endsWith('.js')) identities.add(directory + '/' + name);
+  }
+  // A private old source may have no shim. Its committed identity still belongs to this original directory scan.
+  for (const from of map.keys()) if (from.endsWith('.js') && selected.has(from.slice(0, from.lastIndexOf('/')))) identities.add(from);
+  const rows = mappedWorkingSources(canonicalRoot, [...identities]);
+  if (rows.some(row => row.commit !== commit)) throw new Error('working source map changed during its inventory');
+  const files = new Map();
+  /** Keep actual Buffer bytes once per physical path; duplicate aliases cannot hide an inconsistent read. */
+  function add(file, body) {
+    if (files.has(file) && !files.get(file).body.equals(body)) throw new Error('working source changed during its inventory');
+    if (!files.has(file)) files.set(file, Object.freeze({ file, body }));
+  }
+  for (const row of rows) {
+    if (row.shimPath && row.shimBody !== null) add(row.shimPath, row.shimBody);
+    add(row.implementationPath, row.body);
+  }
+  return [...files.values()];
+}
+
 /**
  * Print problems sorted by path, then line number, then text, and set the exit status: 0 with no
  * problems, 1 with some. One line each, as `path:line: text`.

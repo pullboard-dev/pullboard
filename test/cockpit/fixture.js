@@ -2,10 +2,25 @@ import { chromeLaunchArgs } from '../chrome-launch-args.js';
 /** Shared real-board, VM and Chrome fixtures for the cockpit checks [N26]. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer, request } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import {
+  join,
+  resolve,
+  sep,
+} from 'node:path';
 import { after, test } from 'node:test';
 import vm from 'node:vm';
 import { stableChrome, press, tapTouch } from './stable.js';
@@ -66,7 +81,43 @@ function machine() {
   };
   /** Run the CLI with the machine environment used by later agent commands. */
   const run = (cwd, ...args) => runWithEnv(cwd, env, ...args);
-  return { dir, env, git, run, runWithEnv, invocations };
+  /** Produce a fresh private snapshot through the actual CLI; no existing or caller-supplied root is adopted. */
+  function exportSnapshot(cwd, leaf) {
+    assert.match(leaf, /^[A-Za-z0-9][A-Za-z0-9_-]*$/u, 'snapshot output has one private leaf');
+    assert.ok(realpathSync(cwd).startsWith(dir + sep), 'snapshot project belongs to this actual machine');
+    const root = join(dir, leaf);
+    assert.ok(!existsSync(root), 'snapshot output is fresh, never an adopted directory');
+    run(cwd, 'view', '--export', root);
+    const exported = lstatSync(root);
+    assert.ok(exported.isDirectory() && !exported.isSymbolicLink() && realpathSync(root) === root,
+      'the actual export produced its private directory');
+    /** Read actual post-export bytes, preserving every Buffer and refusing unknown or escaping paths. */
+    function readFile(file) {
+      assert.equal(typeof file, 'string', 'snapshot file is explicit');
+      assert.ok(file.startsWith(root + sep) && !file.slice(root.length + 1).split(sep).some(part => !part || part === '.' || part === '..'),
+        'snapshot file belongs to this output');
+      const stat = lstatSync(file);
+      assert.ok(stat.isFile() && !stat.isSymbolicLink() && realpathSync(file).startsWith(root + sep),
+        'snapshot file is an actual contained regular file');
+      return readFileSync(file);
+    }
+    /** Include every recursive file and extension; unexpected subtrees never disappear from privacy assertions. */
+    function files() {
+      /** Refuse symbolic directories instead of following or silently skipping them. */
+      function visit(directory) {
+        const stat = lstatSync(directory);
+        assert.ok(stat.isDirectory() && !stat.isSymbolicLink() && (directory === root || realpathSync(directory).startsWith(root + sep)),
+          'snapshot traversal stays in its actual output');
+        return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+          const file = join(directory, entry.name);
+          return entry.isDirectory() ? visit(file) : [{ file, body: readFile(file) }];
+        });
+      }
+      return visit(root);
+    }
+    return Object.freeze({ root, readFile, files });
+  }
+  return { dir, env, git, run, runWithEnv, invocations, exportSnapshot };
 }
 
 /**
