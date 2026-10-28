@@ -33,6 +33,8 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
       assert.match(await chrome.stable('document.querySelector("#needs").textContent'), /Rows approved in Git, waiting for you · 4/u);
       assert.equal(await chrome.stable('document.querySelector("#needs [data-needs-confirm]").dataset.needsConfirm'), 'G1 G2 G3 G4', 'Confirm all captures every eligible row, including rows beyond the summary');
       assert.equal(await chrome.stable('document.querySelectorAll("#needs .needs-drafts").length'), 1);
+      assert.equal(await chrome.stable('document.querySelectorAll("#needs .needs-age time[data-ago]").length > 0'), true, 'dated calls retain the live time element instead of escaped markup');
+      assert.equal(await chrome.stable('document.querySelector("#needs").textContent.includes("<time")'), false, 'trusted age markup is not shown as text');
       const selector = '#needs [data-agent-approved="G1"]';
       await press(chrome, `document.querySelector(${JSON.stringify(selector + ' summary')})`);
       await chrome.waitFor(`document.querySelector(${JSON.stringify(selector + ' details')}).open`);
