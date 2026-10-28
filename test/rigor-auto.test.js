@@ -1,6 +1,6 @@
+/** @pullboard-test-loads src/board.js src/engine.js src/machine.js */
 import { recordFlakeObservation as nativeRecordFlakeObservation } from '../src/flakes.js';
 import { digestNativePorts } from './digest-native-ports.fixture.js';
-/** @pullboard-test-loads src/board.js src/engine.js src/machine.js */
 /** Automatic Rigor proposals retain evidence, never invent proof or person approval [D1,D3,H16]. */
 import { loadDoctrine } from '../src/doctrine.js';
 import assert from 'node:assert/strict';
