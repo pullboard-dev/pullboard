@@ -35,9 +35,9 @@ export function functionsIn(source) {
 }
 
 
-/** Read one source identity and preserve named import/re-export and public star-provider edges. */
-export function sourceFacts(read, file) {
-  const source = read(file), named = new Map();
+/** Parse actual source bytes and preserve named import/re-export and public star-provider edges. */
+export function sourceFacts(source, file) {
+  const named = new Map();
   // Match the move check's closed shim grammar; mixed implementation modules keep their existing audit semantics.
   const code = source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/gu, '').replace(/\s/gu, '');
   const facade = /^(?:export(?:\*|\{[^}]*\})from(?:'[^']*'|"[^"]*");)+$/u.test(code);

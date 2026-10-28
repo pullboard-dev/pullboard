@@ -12,6 +12,7 @@ import { assertSyncFacadeAudit } from './machine-source-functions.fixture.js';
 import { workingSourceInventory } from '../bin/checks/scan.js';
 import { fileURLToPath } from 'node:url';
 import { functionsIn } from './machine-source-functions.fixture.js';
+import { assertCommitShimRefusals, machineSourceModule } from './commits-machine-fixture.js';
 import { assertMachineWalkMemo } from './machine-walk-memo.fixture.js';
 import * as fs from 'node:fs';
 import * as machineRules from '../src/machine.js';
@@ -98,6 +99,7 @@ const NOT_MOVES = {
   REMOTE_COORDINATOR_MODEL: 'a linked replica cannot redeclare the coordinator model; use the coordinator checkout',
   EVENT_LOG_VERSION: 'the local board format is checked before opening it for an item move',
   BOARD_BUSY: 'the board connection is opened or read before an item move can begin',
+  NO_ELIGIBLE_REVIEWER: 'the submit command checks, before any item move, that some active seat could review a strict item; the move itself decides nothing new',
   BOARD_NOT_WRITABLE: 'the board folder must be writable before a command opens it for an item move',
   NOT_YOUR_CHECKOUT: 'the caller owns the checkout session, checked before any item move',
   CHECKOUT_SESSION: 'the checkout-local session binding is readable before any item move',
@@ -166,6 +168,7 @@ const CALLBACKS = {
  * reads committed doctrine rules leniently: a doctrine it cannot parse carries no check [D1].
  */
 const CAUGHT = {
+  'review-reachability.js#unreviewableStrict': ['review-eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
@@ -188,8 +191,7 @@ const CAUGHT = {
   'rigor-source.js#readRigorSource': ['rigor.js#causeProblem'],
   'rigor-auto-source.js#readAutomaticRigorSource': ['rigor.js#causeProblem'],
   // Only an unsupported historical grammar is ignored; new caller refusals remain audited below.
-  'rigor-auto-source.js#automaticDecisionSource': ['spec.js#parseSpec'],
-  'rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec'],
+  'rigor-auto-source.js#automaticDecisionSource': ['spec.js#parseSpec'], 'rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec'],
   'person-row-proof.js#signedRowDecisionsMatch': ['spec.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
 };
 /**
@@ -210,7 +212,10 @@ function codeWalk(read, { caught = false } = {}) {
   const files = new Map();
   const localFacts = new Map();
   const load = (file) => {
-    if (!files.has(file)) files.set(file, sourceFacts(read, file));
+    if (!files.has(file)) {
+      const { sourceFile, source } = machineSourceModule(file, read);
+      files.set(file, sourceFacts(source, sourceFile));
+    }
     return files.get(file);
   };
   const refusalsOf = (key, skip = new Set(), seen = new Set()) => {
@@ -1486,6 +1491,7 @@ test('a source walk scans local facts once while retaining caller-specific refus
 
 
 test('lifecycle audit follows extracted package guards and catches a new refusal [M1,M4,H16]', () => {
+  assertCommitShimRefusals(codeWalk, fromDisk, editedSource, codeProblems, machineRules.MACHINE);
   const file = '../packages/state/src/core/handoff-state.js';
   const walk = codeWalk(fromDisk);
   assert.ok(walk.refusalsOf(`${file}#requireHandoffActive`).has('AGENT_REPLACED'));

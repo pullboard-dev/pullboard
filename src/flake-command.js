@@ -61,7 +61,7 @@ export function flakesCommand(ctx, { first, second, rest }, withBoard, services 
       const repairs = row.repairs ?? (row.item ? [row.item] : []);
       ctx.io.say(`${row.status}: ${row.file ?? '(unclassified gate)'}${row.name ? ' :: ' + row.name : ''}; count ${row.count}; first ${row.firstSeen}; last ${row.lastSeen}${repairs.length ? '; repair ' + repairs.map(id => '#' + id).join(', ') : ''}`);
     }
-    for (const entry of quarantined) ctx.io.say(`quarantined: ${entry.file} :: ${entry.name}; still runs and reports, does not block a landing until repair #${entry.item} is verified`);
+    for (const entry of quarantined) ctx.io.say(`quarantined: ${entry.file} :: ${entry.name}; still runs and reports, ${entry.nativeCore ? `blocking verdict unchanged; repair #${entry.item}, ${entry.cleanRuns}/20 clean runs` : `does not block a landing until repair #${entry.item} is verified`}`);
     if (!rows.length && !quarantined.length) ctx.io.say('no recorded test failures; paired diagnostics are off unless this board opts in with pullboard flakes rerun on');
     return 0;
   });
