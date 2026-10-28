@@ -67,21 +67,12 @@ function enclosingCalls(code, at) {
  * @param {string} source - The fixture module text.
  * @param {{code: string, strings: Array<{start: number, end: number, text: string}>}} scanned - Its lexed form.
  * @param {string[]} basenames - File names of the moved sources.
- * @param {string} file - The fixture's repository path, which resolves its relative import specifiers.
+ * @param {Set<string>} copierNames - Local names of real import declarations that resolve to the canonical copier.
  * @param {(name: string, at: number) => boolean} provenCopier - True only when the callee at an offset is the imported, unshadowed binding.
  * @returns {Array<{start: number, end: number, text: string}>} The operational mentions.
  */
-export function operationalMentions(source, scanned, basenames, provenCopier = () => false, file = '') {
+export function operationalMentions(source, scanned, basenames, copierNames = new Set(), provenCopier = () => false) {
   const { code, strings } = scanned;
-  const copierNames = new Set();
-  for (const match of source.matchAll(/\bimport\s*\{([^}]*)\}\s*from\s*['"](\.\.?\/[^'"]*)['"]/gu)) {
-    // Only the repository's canonical copier counts: the specifier must resolve from this file to src/package-files.js.
-    if (!canonicalCopierPaths().has(posix.normalize(posix.join(posix.dirname(file), match[2])))) continue;
-    for (const entry of match[1].split(',')) {
-      const named = /^\s*toolSourcePath(?:\s+as\s+([\w$]+))?\s*$/u.exec(entry);
-      if (named) copierNames.add(named[1] ?? 'toolSourcePath');
-    }
-  }
   const ending = new RegExp(`(?:^|[/\\\\])(?:${basenames.map(escaped).join('|')})$`, 'u');
   const templates = strings.filter(row => source[row.start] === '`');
   return strings.filter(row => ending.test(row.text)).filter(row => {

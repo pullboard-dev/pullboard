@@ -157,3 +157,16 @@ test('the copier is also accepted at the cells-plan target of src/package-files.
   const wrongPackage = as(posix.relative(posix.dirname(from), posix.join('packages/other', posix.relative('packages/runners', target))), from);
   assert.ok(wrongPackage.edits.length + wrongPackage.problems.length > 0);
 });
+
+test('only real import declarations make a copier; quoted text and comments never do [C7]', () => {
+  const head = "import { readFileSync } from 'node:fs'; import { join } from 'node:path';\nimport { toolSourcePath } from './private/package-files.js';\n";
+  const read = "const a = readFileSync(toolSourcePath(dir, 'src/foo.js'));\nconst other = readFileSync(somewhere);\n";
+  const fake = "import { toolSourcePath } from '../src/package-files.js'";
+  for (const decoy of [`const text = "${fake}";\n`, `const text = '${fake}';\n`, `const text = \`${fake}\`;\n`, `// ${fake}\n`, `/* ${fake} */\n`]) {
+    const result = fixtureSourceEdits(head + decoy + read, options);
+    assert.ok(result.edits.length + result.problems.length > 0, decoy);
+  }
+  const real = fixtureSourceEdits("import { readFileSync } from 'node:fs';\nimport { toolSourcePath as copy } from '../src/package-files.js';\n"
+    + "const a = readFileSync(copy(dir, 'src/foo.js'));\nconst other = readFileSync(somewhere);\n", options);
+  assert.deepEqual(real, { edits: [], problems: [] }, 'a real aliased import still counts');
+});
