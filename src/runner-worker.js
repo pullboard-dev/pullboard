@@ -44,7 +44,12 @@ import { fileURLToPath } from 'node:url';
 import * as resourceApi from './resources.js';
 import { createDescendantTracker } from './runner-custody.js';
 import { pinSourceCacheJob } from './runner-source-cache.js';
-import { pruneSourceCache } from './runner-source-cache.js';
+import {
+  pruneSourceCache,
+  restoreSourceTree,
+  rememberSourceTree,
+  checkSourceTagNames,
+} from './runner-source-cache.js';
 import { Refused } from './refused.js';
 import {
   recordRunnerCompletion,
@@ -87,6 +92,7 @@ let workerId = 'starting';
 let workSpecAccepted = false;
 let rejectPendingFrame = null;
 let activeDescendantTracker = null;
+let sourcePreparation = null;
 // Budget: report a named failure within 30 seconds after command exit or transport cancellation.
 const CLEANUP_BUDGET_MS = 30_000;
 let cleanupDeadline = Infinity;
@@ -485,6 +491,7 @@ function gitSetupFailure(root, args, env, result, stderr, overflow, inputError) 
 
 /** Invoke bounded Git in an owned group, retaining stderr if it fails instead of erasing the cause. */
 async function gitBytes(root, args, env, input) {
+  const started = performance.now();
   const owned = spawnOwned('git', args, { cwd: root, env, stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
   const output = [];
   let stderr = Buffer.alloc(0);
@@ -508,6 +515,12 @@ async function gitBytes(root, args, env, input) {
   await inputDone;
   await drainOwned(owned);
   if (overflow || inputError || result.error || result.code !== 0 || result.signal) throw gitSetupFailure(root, args, env, result, stderr.toString('utf8'), overflow, inputError);
+  if (sourcePreparation) {
+    const operation = args.find(arg => new Set(['init', 'fetch', 'checkout', 'index-pack', 'cat-file', 'rev-parse', 'rev-list', 'for-each-ref', 'update-ref', 'merge-base', 'verify-pack', 'check-ref-format', 'config', 'status']).has(arg)) ?? 'unknown';
+    const row = sourcePreparation.git[operation] ??= { calls: 0, ms: 0 };
+    row.calls++;
+    row.ms += Math.round(performance.now() - started);
+  }
   return Buffer.concat(output);
 }
 
@@ -523,6 +536,16 @@ async function receivePack(packFile) {
 
 /** Receive only missing ancestry, validate the full graph, then copy the exact commit into a clean job repository. */
 async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
+  const started = performance.now();
+  const measured = { version: 1, git: {}, stages: {} };
+  sourcePreparation = measured;
+  let boundary = started;
+  /** Record disjoint source phases from the worker's monotonic clock. */
+  const mark = name => {
+    const now = performance.now();
+    measured.stages[name] = Math.round(now - boundary);
+    boundary = now;
+  };
   const repositories = join(runnerRoot, 'repos');
   mkdirSync(repositories, { recursive: true, mode: 0o700 });
   chmodSync(repositories, 0o700);
@@ -535,6 +558,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     if (error && typeof error === 'object') error.runnerSetupStep = 'source cache admission';
     throw error;
   });
+  mark('cacheWaitMs');
   const deliveryRefs = [];
   try {
     if (!existsSync(cache)) {
@@ -562,29 +586,18 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
         renameSync(staged, cache);
       } finally { rmSync(build, { recursive: true, force: true }); }
     }
-    if (await git(cache, ['rev-parse', '--is-bare-repository'], env) !== 'true'
-      || await git(cache, ['rev-parse', '--show-object-format'], env) !== (spec.commit.length === 64 ? 'sha256' : 'sha1')
+    const cacheShape = await git(cache, ['rev-parse', '--is-bare-repository', '--show-object-format'], env);
+    if (cacheShape !== `true\n${spec.commit.length === 64 ? 'sha256' : 'sha1'}`
       || existsSync(join(cache, 'shallow')) || existsSync(join(cache, 'objects', 'info', 'alternates'))) {
       throw new Error('source history cache has an incompatible format');
     }
     const roots = [...new Set([spec.commit, ...(spec.trunk ? [spec.trunk.commit] : []), ...(spec.trustedMode ? [spec.trustedMode.policyCommit, spec.trustedMode.trunk.commit] : [])])];
     /** Log exact ref deletions without reporting candidate source or credentials. */
     const logPrune = result => process.stderr.write(`PULLBOARD_RUNNER_CACHE_PRUNE ${spec.id} ${JSON.stringify(result)}\n`);
-    const proven = new Set();
-    await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune, proven });
-    const refLines = await git(cache, ['for-each-ref', '--format=%(refname) %(objectname)', 'refs/pullboard/candidates', 'refs/pullboard/published'], env);
-    const tips = [];
-    if (refLines) for (const line of refLines.split(/\r?\n/u)) {
-      const split = /^(refs\/pullboard\/(?:candidates|published)\/.+) ([a-f0-9]{40,64})$/u.exec(line);
-      if (!split || split[2].length !== spec.commit.length) {
-        throw new Error('source history cache contains an invalid candidate ref');
-      }
-      if (split[1].slice(split[1].lastIndexOf('/') + 1) !== split[2]) {
-        throw new Error('source history cache contains an invalid candidate ref');
-      }
-      tips.push(split[2]);
-    }
-    const uniqueTips = [...new Set(tips)];
+    const proven = new Set(), inventory = new Map();
+    await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune, proven, inventory });
+    const uniqueTips = [...new Set(inventory.values())];
+    if (uniqueTips.some(tip => tip.length !== spec.commit.length)) throw new Error('source history cache contains an invalid candidate ref');
     if (uniqueTips.length > 1_024) throw new Error('source history cache needs maintenance');
     if (uniqueTips.some(tip => !proven.has(tip))) throw new Error('source history cache contains a missing or non-commit tip');
     const requestedTagObjects = [...new Set(spec.tags.flatMap(tag => tag.chain))];
@@ -601,25 +614,27 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
         }
       }
     }
+    mark('inventoryMs');
     await new Promise((resolveWrite, rejectWrite) => process.stderr.write(
       `PULLBOARD_RUNNER_NEED ${spec.id} ${Buffer.from(JSON.stringify({ tips: uniqueTips, tagObjects: knownTagObjects })).toString('base64')}\n`,
       error => error ? rejectWrite(error) : resolveWrite()));
     await receivePack(packFile);
+    measured.packBytes = statSync(packFile).size;
+    mark('transferMs');
 
     const priorIndexes = new Set(readdirSync(join(cache, 'objects', 'pack')).filter(name => name.endsWith('.idx')));
     if (statSync(packFile).size < 12 + spec.commit.length / 2) throw new Error('source history pack is incomplete');
     await git(cache, ['index-pack', '--stdin'], env, createReadStream(packFile));
-    const objectType = await git(cache, ['cat-file', '-t', spec.commit], env);
-    if (objectType !== 'commit' || await git(cache, ['rev-parse', `${spec.commit}^{tree}`], env) !== spec.tree) {
+    const checks = (await git(cache, ['cat-file', '--batch-check'], env,
+      `${roots.join('\n')}\n${spec.commit}^{tree}\n`)).split(/\r?\n/u);
+    if (checks.length !== roots.length + 1 || !new RegExp(`^${spec.tree} tree (0|[1-9][0-9]*)$`, 'u').test(checks.at(-1))) {
       throw new Error('source history does not match the requested commit and tree');
     }
+    validateCacheTips(roots, checks.slice(0, roots.length).join('\n') + '\n');
+    for (const commit of roots) proven.add(commit);
     const candidateHistory = new Set((await git(cache, ['rev-list', spec.commit], env)).split(/\r?\n/u).filter(Boolean));
     if (!candidateHistory.size) throw new Error('source history is incomplete');
-    if (spec.originBase) await git(cache, ['merge-base', '--is-ancestor', spec.originBase, spec.commit], env);
-    for (const commit of roots) {
-      if (await git(cache, ['cat-file', '-t', commit], env) !== 'commit') throw new Error('trusted policy history is incomplete');
-      proven.add(commit);
-    }
+    if (spec.originBase && !candidateHistory.has(spec.originBase)) throw new Error('source history does not contain its origin base');
     const closure = new Set((await git(cache, ['rev-list', '--objects', ...roots], env)).split(/\r?\n/u)
       .map(line => line.match(/^([a-f0-9]{40,64})(?:\s|$)/u)?.[1]).filter(Boolean));
     closure.add(spec.commit);
@@ -642,8 +657,8 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     const lightweight = [...new Set(spec.tags.filter(tag => !tag.chain.length).map(tag => tag.object))];
     if (lightweight.length) validateCacheTips(lightweight,
       await git(cache, ['cat-file', '--batch-check'], env, `${lightweight.join('\n')}\n`));
+    await checkSourceTagNames({ cache, tags: spec.tags, id: spec.id, lease: cacheLease, git, env, objectLength: spec.commit.length });
     for (const tag of spec.tags) {
-      await git(cache, ['check-ref-format', tag.name], env);
       if (tag.chain.length) {
         let target = tag.object;
         for (let index = 0; index < tag.chain.length; index++) {
@@ -667,14 +682,22 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
       }
       if (!candidateHistory.has(tag.peeledCommit)) throw new Error('source tag is not an ancestor of the candidate');
     }
-    for (const commit of roots) await git(cache, ['update-ref', `refs/pullboard/candidates/${commit}`, commit], env);
+    await git(cache, ['update-ref', '--stdin'], env, roots.map(commit => `update refs/pullboard/candidates/${commit} ${commit}\n`).join(''));
     await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git, env, log: logPrune, proven });
-    await git(root, ['init', '-q', `--object-format=${spec.commit.length === 64 ? 'sha256' : 'sha1'}`], env);
-    await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, `refs/pullboard/candidates/${spec.commit}`], env);
-    await git(root, ['checkout', '--detach', 'FETCH_HEAD'], env);
+    mark('validateMs');
+    const sourceTree = join(repositories, `${spec.repoId}.checkout`);
+    measured.reusedCommit = await restoreSourceTree({ directory: sourceTree, root, commit: spec.commit,
+      history: candidateHistory, lease: cacheLease, git, env });
+    if (!measured.reusedCommit) await git(root, ['init', '-q', `--object-format=${spec.commit.length === 64 ? 'sha256' : 'sha1'}`], env);
+    if (measured.reusedCommit !== spec.commit) {
+      await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, `refs/pullboard/candidates/${spec.commit}`], env);
+      await git(root, ['checkout', '--detach', 'FETCH_HEAD'], env);
+      rememberSourceTree({ directory: sourceTree, root, commit: spec.commit, tree: spec.tree, lease: cacheLease });
+    }
     if (spec.trunk) {
       await git(root, ['check-ref-format', spec.trunk.ref], env);
-      await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache,
+      if (candidateHistory.has(spec.trunk.commit)) await git(root, ['update-ref', spec.trunk.ref, spec.trunk.commit], env);
+      else await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache,
         `refs/pullboard/candidates/${spec.trunk.commit}:${spec.trunk.ref}`], env);
       await git(root, ['config', '--local', '--replace-all', 'pullboard.trunk', spec.trunk.ref], env);
       writeFileSync(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(runnerPolicyRecord(spec)), { mode: 0o600 });
@@ -682,7 +705,9 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     if (spec.trustedMode) {
       const mode = spec.trustedMode;
       await git(root, ['check-ref-format', mode.trunk.ref], env);
-      await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache,
+      if (candidateHistory.has(mode.policyCommit) && candidateHistory.has(mode.trunk.commit)) {
+        await git(root, ['update-ref', '--stdin'], env, `update refs/pullboard/trusted-policy ${mode.policyCommit}\nupdate ${mode.trunk.ref} ${mode.trunk.commit}\n`);
+      } else await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache,
         `refs/pullboard/candidates/${mode.policyCommit}:refs/pullboard/trusted-policy`,
         `refs/pullboard/candidates/${mode.trunk.commit}:${mode.trunk.ref}`], env);
       await git(root, ['config', '--local', '--replace-all', 'pullboard.trunk', mode.trunk.ref], env);
@@ -695,20 +720,28 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
         return `update ${deliveryRef} ${tag.object}`;
       });
       await git(cache, ['update-ref', '--stdin'], env, `${updates.join('\n')}\n`);
-      // Bound argv while delivering all already-validated tag refs in a few owned Git invocations.
-      for (let index = 0; index < spec.tags.length; index += 32) {
-        const tags = spec.tags.slice(index, index + 32);
-        const refspecs = tags.map((tag, offset) => `${deliveryRefs[index + offset]}:${tag.name}`);
-        await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, ...refspecs], env);
+      // Bound actual UTF-8 argv bytes, so short tags do not require needless fixed-count batches.
+      const fetchArgs = ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache];
+      for (let index = 0; index < spec.tags.length;) {
+        const tags = [], refspecs = [];
+        let bytes = fetchArgs.reduce((sum, arg) => sum + Buffer.byteLength(arg) + 1, 4);
+        while (index < spec.tags.length) {
+          const tag = spec.tags[index], refspec = `${deliveryRefs[index]}:${tag.name}`;
+          const size = Buffer.byteLength(refspec) + 1;
+          if (bytes + size > 32_768) {
+            if (!tags.length) throw new Error('source tag ref exceeds the safe argument limit');
+            break;
+          }
+          tags.push(tag); refspecs.push(refspec); bytes += size; index++;
+        }
+        await git(root, [...fetchArgs, ...refspecs], env);
         const peeled = (await git(root, ['rev-parse', '--revs-only', '--end-of-options', ...tags.map(tag => `${tag.name}^{}`)], env)).split(/\r?\n/u);
         if (peeled.length !== tags.length || tags.some((tag, offset) => peeled[offset] !== tag.peeledCommit)) {
           throw new Error('isolated source checkout has an invalid tag ref');
         }
       }
     }
-    if (await git(root, ['rev-parse', 'HEAD'], env) !== spec.commit
-      || await git(root, ['rev-parse', 'HEAD^{tree}'], env) !== spec.tree
-      || await git(root, ['rev-parse', '--is-shallow-repository'], env) !== 'false'
+    if (await git(root, ['rev-parse', '--is-shallow-repository', 'HEAD', 'HEAD^{tree}'], env) !== `false\n${spec.commit}\n${spec.tree}`
       || existsSync(join(root, '.git', 'objects', 'info', 'alternates'))) {
       throw new Error('isolated source checkout does not contain the complete requested history');
     }
@@ -717,9 +750,13 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
       try { await git(cache, ['update-ref', '--stdin'], env, `${deliveryRefs.map(ref => `delete ${ref}`).join('\n')}\n`); }
       catch { /* Leave cache refs only if Git refuses safe removal. */ }
     }
+    mark('materializeMs');
+    measured.totalMs = Math.round(performance.now() - started);
+    sourcePreparation = null;
     try { cacheLease.release(); } catch { /* Retaining the lease on cleanup error is safer than speculative deletion. */ }
   }
   rmSync(packFile, { force: true });
+  return measured;
 }
 
 /** Install committed npm dependencies through an isolated content-addressed cache, refusing unknown lock managers. */
@@ -790,7 +827,7 @@ async function stopOwnedGroup(pid, closed, tracker) {
       await new Promise(resolvePause => setTimeout(resolvePause, 250));
     }
   };
-  await signal('SIGTERM');
+  if (await signal('SIGTERM') === false) { await closed; return; }
   // Give the whole owned group two seconds to handle TERM, even if its leader exits first.
   const graceUntil = Date.now() + 2_000;
   while (Date.now() < graceUntil) {
@@ -937,6 +974,7 @@ async function receipt(spec, fields, sink) {
   const body = { id: spec.id, commit: spec.commit, tree: spec.tree, code: fields.code, signal: fields.signal,
     environment: executionEnvironment(), testRuntimes: fields.testRuntimes ?? null, gui: fields.gui ?? null, timing: spec.timing === true, executionAdmission: fields.executionAdmission ?? null,
     executionPhases: fields.executionPhases,
+    ...(fields.sourcePreparation ? { sourcePreparation: fields.sourcePreparation } : {}),
     runtimeSha256: spec.runtime.sha256, toolingSha256: spec.tooling.sha256, root: fields.root ?? '', outputSha256: sink.hash.digest('hex'), wallMs: Math.max(0, Date.now() - sink.wallStart),
     // The execution host's load and the pinned main this run used, so a paired rerun here can be judged (#925).
     main: typeof spec.main === 'string' ? spec.main : null, load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) },
@@ -990,6 +1028,7 @@ async function main() {
   let lease = null;
   let tracker = null;
   let runtimeCapture = null;
+  let sourceMetrics = null;
   let runDirectory;
   let recoveryRoot;
   let setupStep = 'runner directories';
@@ -1052,7 +1091,7 @@ async function main() {
     const env = runtimeCapture.env;
     setupStep = 'source history checkout';
     phases.mark('sourceMs');
-    await checkoutHistory(api, runnerRoot, root, packFile, spec, env);
+    sourceMetrics = await checkoutHistory(api, runnerRoot, root, packFile, spec, env);
     phases.mark('dependenciesMs');
     if (!spec.trustedMode) {
       setupStep = 'committed dependencies';
@@ -1119,6 +1158,7 @@ async function main() {
   if (transportLost || cleanupTimedOut) { clearTimeout(cleanupTimer); clearTimeout(phaseCleanupTimer); process.exitCode = 1; stopReading(); return; }
   cleanupStage = 'result receipt';
   final.executionPhases = phases.finish();
+  final.sourcePreparation = sourceMetrics;
   await receipt(spec, { ...final, gui }, sink);
   clearTimeout(cleanupTimer);
   clearTimeout(phaseCleanupTimer);

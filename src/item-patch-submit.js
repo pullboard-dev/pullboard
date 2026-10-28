@@ -51,6 +51,34 @@ export function prepareItemPatchSubmit(root, board, item, source) {
     commit: composed.commit, tree: git(root, ['rev-parse', `${composed.commit}^{tree}`]), digest };
 }
 
+/** Seal applicability at the registered origin; replay receives values and never probes local Git. */
+export function sealItemPatchFollow(board, id, options) {
+  const item = getItem(board, id);
+  if (item.item_status !== 'claimed' || item.item_owner !== options?.agentId
+    || !(item.item_lease_until > board.clock.now().toISOString())) {
+    throw new Refused('NOT_YOURS', 'claim this item before following its companions');
+  }
+  const root = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(options.agentId)?.agent_path;
+  const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
+  if (!SHA.test(options.commit ?? '') || !root || !file
+    || realpathSync(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) !== realpathSync(file)
+    || git(root, ['rev-parse', 'HEAD']) !== options.commit || git(root, ['status', '--porcelain'])) {
+    throw new Refused('ITEM_PATCH_SOURCE', 'follow companions only on the clean registered builder head of this board');
+  }
+  const patches = itemPatches(board, id);
+  if (!patches.length) throw new Refused('NO_ITEM_PATCH', 'list the current item patches and select an existing key');
+  const policy = itemPolicy(root, item);
+  for (const patch of patches) {
+    if (patch.source?.commit !== patch.commit) throw new Refused('ITEM_PATCH_CHANGED', 'restore the exact companion source binding before following it');
+    git(root, ['merge-base', '--is-ancestor', patch.commit, options.commit]);
+    validateItemPatchInput(board, policy.config, patch.author.agentId, patch.patch, policy.commit);
+  }
+  const rebound = patches.map(patch => ({ ...patch, commit: options.commit, source: { commit: options.commit } }));
+  const composed = composeItemPatches(root, { ...item, item_commit: options.commit }, rebound);
+  return { agentId: options.agentId, commit: options.commit, digest: itemPatchDigest(board, id),
+    previous: patches.map(({ key, commit, digest }) => ({ key, commit, digest })), nextDigest: composed.digest };
+}
+
 /** Validate replayable source identity and require the exact native proof rows already recorded on this item. */
 export function checkItemPatchSubmit(board, id, options) {
   const binding = options.companion;

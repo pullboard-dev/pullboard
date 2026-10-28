@@ -186,22 +186,20 @@ test('claimed companion submits the real core command and records exact composed
   assert.equal(f.box.git(f.builder.root, 'worktree', 'list', '--porcelain').includes('pullboard-companion-submit-'), false);
 });
 
-test('moved builder head names the stale companion until explicit removal and new source binding [C7,V4]', t => {
+test('an ordinary builder commit follows its unchanged companion without coordinator rebinding [C7,V4]', t => {
   const f = fixture(t);
   attach(f);
   writeFileSync(join(f.builder.root, 'core/second.cjs'), 'module.exports = 2;\n');
   f.box.git(f.builder.root, 'add', 'core/second.cjs');
   actorGit(f.box, f.builder, 'commit', '-m', 'feat(core): advance real builder head [G1]');
   const moved = f.box.git(f.builder.root, 'rev-parse', 'HEAD');
-  const rejected = run(f.box, f.builder, 'submit', String(f.id));
-  assert.equal(rejected.code, 1);
-  assert.match(rejected.out + rejected.err, /ITEM_PATCH_SOURCE.*approved-view|approved-view.*ITEM_PATCH_SOURCE/su);
-  assert.equal(store.getItem(f.board, f.id).item_status, 'claimed');
-  assert.equal(store.proofReceipts(f.board, f.id).length, 0, 'stale source refuses before execution');
-  document(run(f.box, f.coordinator, 'patch', 'remove', String(f.id), 'approved-view'));
-  attach(f, 'rebound-view', moved);
+  document(run(f.box, f.builder, 'submit', String(f.id)));
+  assert.equal(store.getItem(f.board, f.id).item_status, 'submitted');
+  assert.ok(store.proofReceipts(f.board, f.id).length > 0, 'the followed composition actually executes');
+  assert.equal(store.itemPatches(f.board, f.id)[0].key, 'approved-view');
+  assert.equal(store.events(f.board).filter(event => event.item_id === f.id && event.event_kind === 'item_patch_follow').length, 1);
   assert.equal(prepareItemPatchSubmit(f.builder.root, f.board, store.getItem(f.board, f.id), moved).source, moved);
-  assert.equal(itemPatchAuthors(f.board, f.id).length, 1, 'rebinding never removes original author custody');
+  assert.equal(itemPatchAuthors(f.board, f.id).length, 1, 'following never removes original author custody');
 });
 
 test('a nonapplying claimed companion refuses by key without mutating builder source [C7,V4]', t => {
