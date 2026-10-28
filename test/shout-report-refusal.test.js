@@ -12,6 +12,7 @@ after(fixtures.cleanup);
 
 /** Record one event by web-1 on item 1 at the given time, in the fixture's persisted board. */
 function record(box, kind, at) {
+  // @pullboard-board-file persistence: the real CLI processes that follow must read this exact event row
   const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { store.logEvent(board, 'web-1', kind, 1, {}, at); } finally { store.closeBoard(board); }
 }
