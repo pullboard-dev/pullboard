@@ -140,12 +140,19 @@ test('ready capacity reads current items and lane holds once per projection [C7,
   const expected = before.filter(item => item.item_status === 'open' && !itemWaits(box.board, item, before).length);
   const reads = { items: 0, holds: 0, families: 0 };
   const observed = { ...box.board, db: {
-    /** Count actual production SQLite reads while returning each untouched native statement. */
+    /** Count actual production SQLite reads while forwarding exact parameters and native results. */
     prepare(sql) {
       if (/SELECT item\.\*, imported\.meta_value/u.test(sql)) reads.items++;
       if (/SELECT \* FROM hold\b/u.test(sql)) reads.holds++;
-      if (sql === 'SELECT meta_value FROM board_meta WHERE meta_key=?') reads.families++;
-      return box.board.db.prepare(sql);
+      const statement = box.board.db.prepare(sql);
+      if (sql !== 'SELECT meta_value FROM board_meta WHERE meta_key=?') return statement;
+      return {
+        /** Separate reviewer-family keys from redirects sharing this same native SQL text. */
+        get(...args) {
+          if (args[0]?.startsWith('item_review_family:')) reads.families++;
+          return statement.get(...args);
+        },
+      };
     },
   } };
   assert.deepEqual(readyItems(observed), expected, 'ordinary hold and dependency blockers retain exact rows and order');
