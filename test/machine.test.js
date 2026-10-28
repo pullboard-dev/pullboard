@@ -4,8 +4,14 @@
  * The item lifecycle's declaration (M1, M2, M4): sound on its own terms, each property shown
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
  */
+import { sourceFacts } from './machine-source-functions.fixture.js';
+import { sourceReader } from './machine-source-functions.fixture.js';
+import { sourceDirectories } from './machine-source-functions.fixture.js';
+import { packageFiles } from '../src/package-files.js';
+import { assertSyncFacadeAudit } from './machine-source-functions.fixture.js';
+import { workingSourceInventory } from '../bin/checks/scan.js';
+import { fileURLToPath } from 'node:url';
 import { functionsIn } from './machine-source-functions.fixture.js';
-import { declaredCodes } from './machine-source-functions.fixture.js';
 import { assertMachineWalkMemo } from './machine-walk-memo.fixture.js';
 import * as fs from 'node:fs';
 import * as machineRules from '../src/machine.js';
@@ -13,7 +19,6 @@ import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
@@ -205,27 +210,7 @@ function codeWalk(read, { caught = false } = {}) {
   const files = new Map();
   const localFacts = new Map();
   const load = (file) => {
-    if (!files.has(file)) {
-      const source = read(file);
-      const named = new Map();
-      // Reuse the move check's closed shim grammar; mixed implementation exports retain their existing semantics.
-      const code = source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/gu, '').replace(/\s/gu, '');
-      const facade = /^(?:export(?:\*|\{[^}]*\})from(?:'[^']*'|"[^"]*");)+$/u.test(code);
-      /** Resolve literal relative imports with their repository layout, including extracted packages. */
-      const under = (specifier) => posix.normalize(posix.join(posix.dirname(file), specifier));
-      for (const [, kind, names, , specifier] of source.matchAll(/(import|export)\s*\{([^}]*)\}\s*from\s*(['"])(\.{1,2}\/[^'"]+\.js)\3/g)) {
-        if (kind === 'export' && !facade) continue;
-        const from = under(specifier);
-        if (!from) continue;
-        for (const part of names.split(',').map((text) => text.trim()).filter(Boolean)) {
-          const [original, local = original] = part.split(/\s+as\s+/);
-          named.set(local, `${from}#${original}`);
-        }
-      }
-      const spaces = new Map([...source.matchAll(/import \* as (\w+) from (['"])(\.{1,2}\/[^'"]+\.js)\2/g)].map(([, space, , specifier]) => [space, under(specifier)]));
-      const stars = facade ? [...source.matchAll(/export\s*\*\s*from\s*(['"])(\.{1,2}\/[^'"]+\.js)\1/g)].map(([, , specifier]) => under(specifier)) : [];
-      files.set(file, { bodies: functionsIn(source), named, spaces, source, stars });
-    }
+    if (!files.has(file)) files.set(file, sourceFacts(read, file));
     return files.get(file);
   };
   const refusalsOf = (key, skip = new Set(), seen = new Set()) => {
@@ -235,7 +220,7 @@ function codeWalk(read, { caught = false } = {}) {
     const { bodies, named, spaces, source, stars } = load(file);
     // A facade may import and re-export the helper; follow its real definition after extraction.
     if (!bodies.has(name) && named.has(name)) return refusalsOf(named.get(name), skip, seen);
-    // A pure public front door retains each concrete provider's refusal paths.
+    // A public export-star front door retains every concrete provider's refusal path.
     if (!bodies.has(name) && stars.length) {
       const codes = new Set();
       for (const from of stars) for (const code of refusalsOf(`${from}#${name}`, skip, seen)) codes.add(code);
@@ -270,7 +255,25 @@ function codeWalk(read, { caught = false } = {}) {
  * @param {string} file
  * @returns {string}
  */
-const fromDisk = (file) => fs.readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
+const fromDisk = sourceReader(workingSourceInventory(fileURLToPath(new URL('..', import.meta.url)), sourceDirectories(packageFiles(fileURLToPath(new URL('..', import.meta.url))))));
+
+/**
+ * The refusal codes the named moves declare, or the whole declaration's when none is named: their
+ * guards' codes, exit guards included, their wrong-state codes, and the unknown move's.
+ *
+ * @param {any} machine
+ * @param {string[]} [verbs]
+ * @returns {Set<string>}
+ */
+function declaredCodes(machine, verbs) {
+  const moves = verbs ? machine.moves.filter((move) => verbs.includes(move.verb)) : machine.moves;
+  const used = new Set(moves.flatMap((move) => machineRules.effectiveGuards(move, machine)));
+  return new Set([
+    ...machine.guards.filter((guard) => !verbs || used.has(guard.id)).flatMap((guard) => [guard.refuse, ...(guard.alsoRefuses ?? []).map((entry) => entry.code)]),
+    ...moves.flatMap((move) => [move.refuse, ...(move.alsoRefuses ?? []).map((entry) => entry.code)]),
+    machine.unknownMove.refuse,
+  ].filter(Boolean));
+}
 
 /**
  * Where a declaration and the code disagree: a refusal a move raises today that the move does not
@@ -1492,8 +1495,5 @@ test('lifecycle audit follows extracted package guards and catches a new refusal
 });
 
 test('lifecycle source walks follow sync shims and catch a planted body refusal [M1,M4,H16]', () => {
-  assert.ok(codeWalk(fromDisk).refusalsOf('commands/sync.js#run').has('GIT_REPLACE_REFS'));
-  const planted = editedSource('../packages/sync/src/shell/sync.js', /^export async function syncGitBoard\(root, board, io, \{ settlePending = false \} = \{\}\) \{$/m,
-    "$&\n  throw new Refused('SYNC_PACKAGE_PROBE', 'planted sync body refusal');");
-  assert.ok(codeWalk(planted).refusalsOf('commands/sync.js#run').has('SYNC_PACKAGE_PROBE'));
+  assertSyncFacadeAudit(codeWalk, fromDisk, editedSource);
 });

@@ -1,4 +1,5 @@
-import * as machineRules from '../src/machine.js';
+import assert from 'node:assert/strict';
+import { posix } from 'node:path';
 /** A top-level function, or a top-level arrow function bound to a const. */
 const START = /^(?:export )?(?:(?:async )?function (\w+)\(|const (\w+) = (?:async )?(?:\([^)]*\)|\w+) =>)/;
 
@@ -33,20 +34,52 @@ export function functionsIn(source) {
   return bodies;
 }
 
-/**
- * The refusal codes the named moves declare, or the whole declaration's when none is named: their
- * guards' codes, exit guards included, their wrong-state codes, and the unknown move's.
- *
- * @param {any} machine
- * @param {string[]} [verbs]
- * @returns {Set<string>}
- */
-export function declaredCodes(machine, verbs) {
-  const moves = verbs ? machine.moves.filter((move) => verbs.includes(move.verb)) : machine.moves;
-  const used = new Set(moves.flatMap((move) => machineRules.effectiveGuards(move, machine)));
-  return new Set([
-    ...machine.guards.filter((guard) => !verbs || used.has(guard.id)).flatMap((guard) => [guard.refuse, ...(guard.alsoRefuses ?? []).map((entry) => entry.code)]),
-    ...moves.flatMap((move) => [move.refuse, ...(move.alsoRefuses ?? []).map((entry) => entry.code)]),
-    machine.unknownMove.refuse,
-  ].filter(Boolean));
+
+/** Read one source identity and preserve named import/re-export and public star-provider edges. */
+export function sourceFacts(read, file) {
+  const source = read(file), named = new Map();
+  // Match the move check's closed shim grammar; mixed implementation modules keep their existing audit semantics.
+  const code = source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/gu, '').replace(/\s/gu, '');
+  const facade = /^(?:export(?:\*|\{[^}]*\})from(?:'[^']*'|"[^"]*");)+$/u.test(code);
+  /** Resolve literal relative operands against the actual provider's repository layout. */
+  const under = (specifier) => posix.normalize(posix.join(posix.dirname(file), specifier));
+  for (const [, kind, names, , specifier] of source.matchAll(/(import|export)\s*\{([^}]*)\}\s*from\s*(['"])(\.{1,2}\/[^'"]+\.js)\3/g)) {
+    if (kind === 'export' && !facade) continue;
+    for (const part of names.split(',').map(text => text.trim()).filter(Boolean)) {
+      const [original, local = original] = part.split(/\s+as\s+/);
+      named.set(local, `${under(specifier)}#${original}`);
+    }
+  }
+  const spaces = new Map([...source.matchAll(/import \* as (\w+) from (['"])(\.{1,2}\/[^'"]+\.js)\2/g)]
+    .map(([, space, , specifier]) => [space, under(specifier)]));
+  const stars = facade ? [...source.matchAll(/export\s*\*\s*from\s*(['"])(\.{1,2}\/[^'"]+\.js)\1/g)]
+    .map(([, , specifier]) => under(specifier)) : [];
+  return { bodies: functionsIn(source), named, spaces, source, stars };
+}
+
+/** Consume only the exact working-source capability; unknown identities never cause another file read. */
+export function sourceReader(rows) {
+  const sources = new Map(rows.map(({ file, body }) => [file, Buffer.from(body)]));
+  return (file) => {
+    const identity = posix.normalize(posix.join('src', file));
+    const source = sources.get(identity);
+    if (!source) throw new Error(`source identity is outside the closed inventory: ${file}`);
+    return source.toString('utf8');
+  };
+}
+
+/** Keep actual shim/body reachability and unknown-path failures beside the source parser's fixture helpers. */
+export function assertSyncFacadeAudit(codeWalk, fromDisk, editedSource) {
+  assert.throws(() => fromDisk('../../outside.js'), /outside the closed inventory/u);
+  assert.throws(() => fromDisk('unknown-source-file.js'), /outside the closed inventory/u);
+  assert.ok(codeWalk(fromDisk).refusalsOf('commands/sync.js#run').has('GIT_REPLACE_REFS'));
+  const planted = editedSource('../packages/sync/src/shell/sync.js', /^export async function syncGitBoard\(root, board, io, \{ settlePending = false \} = \{\}\) \{$/m,
+    "$&\n  throw new Refused('SYNC_PACKAGE_PROBE', 'planted sync body refusal');");
+  assert.ok(codeWalk(planted).refusalsOf('commands/sync.js#run').has('SYNC_PACKAGE_PROBE'));
+}
+
+/** Enumerate actual shipped runtime source directories, including public cell fronts and nested command providers. */
+export function sourceDirectories(files) {
+  return [...new Set(files.filter(file => /^(?:src|bin|packages)\//u.test(file) && file.endsWith('.js'))
+    .map(file => posix.dirname(file)))].sort();
 }
