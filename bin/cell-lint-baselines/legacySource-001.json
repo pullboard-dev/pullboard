@@ -347,7 +347,6 @@
     "src/fact-identity.js": 1,
     "src/fact-reference.js": 1,
     "src/file-growth-notice-engine.js": 1,
-    "src/first-refusal-window.js": 1,
     "src/flake-command.js": 1,
     "src/flake-engine.js": 1,
     "src/flakes.js": 1,
@@ -401,6 +400,7 @@
     "src/handoff-engine.js": 1,
     "src/handoff.js": 1,
     "src/health-cap-engine.js": 1,
-    "src/health-receipts.js": 1
+    "src/health-receipts.js": 1,
+    "src/health-sentinel.js": 1
   }
 }

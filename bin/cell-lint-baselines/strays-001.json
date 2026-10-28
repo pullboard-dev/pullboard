@@ -111,6 +111,8 @@
     "bin/checks/test-inputs.js": 1,
     "bin/checks/test-names.js": 1,
     "bin/checks/ui-sizes.js": 1,
+    "bin/landing-candidate.js": 1,
+    "bin/landing-worker.js": 1,
     "bin/main-audit.js": 1,
     "bin/pullboard.js": 1,
     "bin/release-gate.js": 1,
@@ -399,8 +401,6 @@
     "test/fixtures/proof-stats-legacy.js": 1,
     "test/fixtures/resources-pre-runners.js": 1,
     "test/fixtures/skills-0.8.1/pullboard-decompose/SKILL.md": 1,
-    "test/fixtures/skills-0.8.1/pullboard-plan/SKILL.md": 1,
-    "test/fixtures/skills-0.8.1/pullboard-spec-review/SKILL.md": 1,
-    "test/fixtures/skills-0.8.1/pullboard-verify/SKILL.md": 1
+    "test/fixtures/skills-0.8.1/pullboard-plan/SKILL.md": 1
   }
 }

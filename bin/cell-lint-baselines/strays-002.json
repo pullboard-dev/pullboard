@@ -2,6 +2,8 @@
   "version": 1,
   "metric": "strays",
   "allowances": {
+    "test/fixtures/skills-0.8.1/pullboard-spec-review/SKILL.md": 1,
+    "test/fixtures/skills-0.8.1/pullboard-verify/SKILL.md": 1,
     "test/fixtures/view-person-pty.py": 1,
     "test/flake-observation-fixture.js": 1,
     "test/flakes-ledger.test.js": 1,
@@ -369,6 +371,7 @@
     "test/run-tests-timeout.test.js": 1,
     "test/run-tests-worker-identity.test.js": 1,
     "test/run-tests.test.js": 1,
+    "test/run-timing-receipts.test.js": 1,
     "test/runner-browser-free-fixture.js": 1,
     "test/runner-browser-free-sources.js": 1,
     "test/runner-cache-prune.test.js": 1,
@@ -398,9 +401,6 @@
     "test/runner-source-refusal-fixture.js": 1,
     "test/runner-source-setup-fixture.js": 1,
     "test/runner-ssh-fixture.js": 1,
-    "test/runner-stage-fixture.js": 1,
-    "test/runner-stage.test.js": 1,
-    "test/runner-timing.test.js": 1,
-    "test/runner-tooling-fixture.js": 1
+    "test/runner-stage-fixture.js": 1
   }
 }

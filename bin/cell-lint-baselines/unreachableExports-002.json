@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "unreachableExports",
   "allowances": {
+    "src/cells-plan.js#backWeight": 1,
     "src/cells-plan.js#buildCellsPlan": 1,
     "src/cells-plan.js#CELL_NAMES": 1,
     "src/cells-plan.js#cellRoot": 1,
@@ -247,6 +248,7 @@
     "src/land.js#runLandingCandidate": 1,
     "src/land.js#tapFailures": 1,
     "src/landing-cadence.js#landingCadenceStatus": 1,
+    "src/landing-candidates.js#landingCandidateEntry": 1,
     "src/landing-collection-report.js#COLLECTION_REPORT_PREFIX": 1,
     "src/landing-deferred-run.js#runDeferredAffectedTests": 1,
     "src/landing-failure-report.js#landingFailureReport": 1,
@@ -282,6 +284,7 @@
     "src/landing-test-policy.js#publishLandingCollection": 1,
     "src/landing-waivers.js#landingWaiverFor": 1,
     "src/landing-waivers.js#landingWaivers": 1,
+    "src/landing-worker.js#landingWorkerEntry": 1,
     "src/landing-worker.js#stop": 1,
     "src/landing-worktree-prune.js#parseWorkingDirectoryCensus": 1,
     "src/landing-worktree-prune.js#pruneRetiredWorktrees": 1,
@@ -398,9 +401,6 @@
     "src/moves/setBoardMembers.js#default": 1,
     "src/moves/setLaneLead.js#default": 1,
     "src/moves/setLineSetting.js#default": 1,
-    "src/moves/setPersonSigning.js#default": 1,
-    "src/moves/shipMilestone.js#default": 1,
-    "src/moves/shout.js#default": 1,
-    "src/moves/signBar.js#default": 1
+    "src/moves/setPersonSigning.js#default": 1
   }
 }

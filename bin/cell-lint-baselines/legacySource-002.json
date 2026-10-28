@@ -2,7 +2,6 @@
   "version": 1,
   "metric": "legacySource",
   "allowances": {
-    "src/health-sentinel.js": 1,
     "src/health.js": 1,
     "src/help-version.js": 1,
     "src/help.js": 1,
@@ -149,6 +148,7 @@
     "src/move-history/158.json": 1,
     "src/move-history/159.json": 1,
     "src/move-history/160.json": 1,
+    "src/move-history/161.json": 1,
     "src/move-history/legacy.json": 1,
     "src/move-registry.js": 1,
     "src/moves/acceptCheck.js": 1,

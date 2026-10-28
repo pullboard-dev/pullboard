@@ -175,6 +175,7 @@
     "src/api-http.js#readApiBody": 1,
     "src/api.js#apiBoardListing": 1,
     "src/api.js#apiBoards": 1,
+    "src/api.js#codeAt": 1,
     "src/api.js#createLocalApiHandler": 1,
     "src/api.js#moveArgs": 1,
     "src/audit-coverage-reporter.js#default": 1,
@@ -400,7 +401,6 @@
     "src/cells-plan-cuts.js#cutBrief": 1,
     "src/cells-plan-cuts.js#cutItemCommands": 1,
     "src/cells-plan-cuts.js#cutTitle": 1,
-    "src/cells-plan-cuts.js#importCuts": 1,
-    "src/cells-plan.js#backWeight": 1
+    "src/cells-plan-cuts.js#importCuts": 1
   }
 }

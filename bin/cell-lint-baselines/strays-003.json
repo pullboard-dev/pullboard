@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "strays",
   "allowances": {
+    "test/runner-stage.test.js": 1,
+    "test/runner-timing.test.js": 1,
+    "test/runner-tooling-fixture.js": 1,
     "test/runner-transport-lost.test.js": 1,
     "test/runner-wait-deadline.test.js": 1,
     "test/runners.test.js": 1,
