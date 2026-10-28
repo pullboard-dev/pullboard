@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
+import { REVIEW_ROUTING_ENGINE } from '../src/review-routing-engine.js';
 import { reviewEligibility } from '../src/review-eligibility.js';
 import { itemReviewPolicy } from '../src/review-independence.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../src/review-independence-engine.js';
@@ -273,5 +274,68 @@ test('ordered activation protects legacy family items and preserves genuine engi
   assert.deepEqual(applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-27T00:01:00.000Z' }), first);
   assert.equal(f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value, receipt);
   assert.deepEqual(exportBoard(f.board), replayBefore, 'already recorded old receipt replays byte-identically after activation');
+  }
+});
+
+
+test('strict vendor eligibility and native reservation agree while historical reviews retain their policy [C7,V4,B26,H16]', t => {
+  for (const historical of [true, false]) {
+    const f = fixture(t, { requireFamilies: false });
+    const id = f.add({ sensitive: true, reviewFamily: null });
+    const item = f.submit(id);
+    if (historical) f.board.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
+    const eligibility = reviewEligibility(f.board, item, { familyPolicy: 'off' });
+    assert.equal(eligibility.tier, 'strict');
+    assert.equal(eligibility.eligible.includes('core-4'), historical, 'same-vendor untouched session follows the recorded routing engine');
+    assert.ok(eligibility.eligible.includes('core-5'), 'a different-vendor untouched session stays eligible');
+    const options = { agentId: 'core-4', leaseMs: LEASE, policy: 'any', familyPolicy: 'off' };
+    if (historical) assert.equal(store.reserveReview(f.board, id, options).item_review_by, 'core-4');
+    else {
+      assert.equal(eligibility.ineligible.find(entry => entry.agent === 'core-4').code, 'O2_FAMILY_MATCH');
+      const before = exportBoard(f.board);
+      assert.throws(() => store.reserveReview(f.board, id, options), { code: 'O2_FAMILY_MATCH' });
+      assert.deepEqual(exportBoard(f.board), before, 'refusal changes no native state');
+      assert.equal(store.reserveReview(f.board, id, { ...options, agentId: 'core-5' }).item_review_by, 'core-5');
+    }
+  }
+});
+
+
+
+test('routing activation fences vendor-rule downgrades while genuine historical receipts replay unchanged [C7,V4,B26,H16]', t => {
+  for (const operation of ['reserveReview', 'reserveNextReview', 'verify']) {
+    const f = fixture(t, { requireFamilies: false });
+    f.board.clock = { now: () => new Date('2026-10-27T00:02:00.000Z') };
+    const id = f.add({ sensitive: true, reviewFamily: null });
+    store.claim(f.board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE,
+      freeze: () => ({ text: JSON.stringify({ policy: { version: 1, commit: 'a'.repeat(40), verify: { policy: 'any', family: 'off' } } }), digest: 'synthetic-routing-bar' }) });
+    submitFixture(f.board, id, { agentId: 'core-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
+    const item = store.getItem(f.board, id);
+    const options = { agentId: 'core-4', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'off' };
+    const old = { ...prepareEngineMove(f.board, 'reserveReview', [id, options], { id: 'genuine-pre-routing-reservation' }), engine: REVIEW_ROUTING_ENGINE - 1 };
+    const first = applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-27T00:01:00.000Z' });
+    assert.equal(first.error, undefined, 'the historical known-vendor policy allowed this untouched session');
+    const receipt = f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value;
+    store.release(f.board, id, 'core-4', 'Release the historical review before routing activation.');
+    assert.throws(() => store.reserveReview(f.board, id, options), { code: 'REVIEW_COOLDOWN' });
+    // Honor the real release cooldown before asking the independent vendor guard to decide.
+    f.board.clock = { now: () => new Date('2026-10-27T01:03:00.000Z') };
+    const activate = prepareEngineMove(f.board, 'appendFact', [id, { agentId: 'coordinator', kind: 'note', text: 'Activate the modern recorded routing prefix.' }]);
+    assert.equal(applyEngineMove(f.board, activate, { sequence: 2, at: '2026-10-27T01:03:00.000Z' }).error, undefined);
+    const args = operation === 'reserveNextReview' ? [options] : [id, operation === 'verify'
+      ? { agentId: 'core-4', decision: 'ACCEPT', note: 'Synthetic vendor-downgrade control.', head: item.item_commit,
+        digest: item.item_frozen_digest, policy: 'any', check: 'none' } : options];
+    const fresh = prepareEngineMove(f.board, operation, args);
+    const before = exportBoard(f.board);
+    assert.throws(() => applyEngineMove(f.board, { ...fresh, engine: REVIEW_ROUTING_ENGINE - 1 },
+      { sequence: 3, at: '2026-10-27T01:04:00.000Z' }), { code: 'RELAY_MOVE' }, operation);
+    assert.deepEqual(exportBoard(f.board), before, 'downgrade refusal changes no state or cursor');
+    const current = applyEngineMove(f.board, fresh, { sequence: 3, at: '2026-10-27T01:04:00.000Z' });
+    assert.equal(operation === 'reserveNextReview' ? current.result?.item ?? null : current.error?.code,
+      operation === 'reserveNextReview' ? null : 'O2_FAMILY_MATCH');
+    const replayBefore = exportBoard(f.board);
+    assert.deepEqual(applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-27T00:01:00.000Z' }), first);
+    assert.equal(f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value, receipt);
+    assert.deepEqual(exportBoard(f.board), replayBefore, 'genuine old receipt keeps its exact outcome and bytes');
   }
 });

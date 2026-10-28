@@ -12,7 +12,7 @@ import * as store from './board.js';
  * @param {{ policy?: string, familyPolicy?: string, skipIds?: number[], assignedIds?: number[] }} [options]
  * @returns {{ item: any | null, review: boolean, held: boolean, reasons: string[] }}
  */
-export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy = 'off', skipIds = [], assignedIds = [] } = {}) {
+export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy = 'off', skipIds = [], assignedIds = [], priority = [] } = {}) {
   const agentId = nativeSeat.agent_id;
   const lane = nativeSeat.agent_lane;
 
@@ -22,7 +22,7 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   const heldReview = store.listItems(board).find(item => item.item_status === 'submitted'
     && store.reviewHolder(board, item) === agentId);
   if (heldReview) return { item: heldReview, review: true, held: true, reasons: [] };
-  const review = store.nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, skipIds, omitIds: assignedIds });
+  const review = store.nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, skipIds, omitIds: assignedIds, priority });
   if (review.item) {
     return { item: review.item, review: true, held: store.reviewHolder(board, review.item) === agentId, reasons: review.reasons };
   }

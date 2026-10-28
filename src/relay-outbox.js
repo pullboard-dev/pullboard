@@ -214,7 +214,7 @@ export const ITEM_SLOTS = Object.freeze({
   verify: [[0], [1, 'implies', '*']],
   appendFact: [[0], [1, 'implies', '*']],
   answerDecision: [[1, 'implies', '*']],
-  reserveNextReview: [[0, 'skipIds', '*']],
+  reserveNextReview: [[0, 'skipIds', '*'], [0, 'priority', '*']],
   addMilestone: [[0, 'items', '*']],
   editMilestoneItems: [[1, 'add', '*'], [1, 'remove', '*']],
   orderMilestoneItems: [[1, 'items', '*']],
