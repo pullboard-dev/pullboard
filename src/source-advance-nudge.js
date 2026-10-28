@@ -8,14 +8,12 @@ import { repoInfo } from './git.js';
 
 /** The higher-layer caller supplies the literal worker URL; this Git wake owns no application dependency.
  * Never borrow the caller's test or checkout admission, and never wait for the actual gate. */
-export async function nudgeSourceAdvances(root, { workerUrl }) {
+export async function nudgeSourceAdvances(root, { workerUrl, eligible }) {
   const info = repoInfo(root);
   if (!info.isMain || !codeIsFromMain()) return null;
-  // Decide from the same readonly native snapshot before spawning an unjoined child.
-  // The worker repeats this check and still takes its normal serialized snapshot for real work.
-  try {
-    if (!(await import('./source-advance-worker.js')).hasSourceAdvanceJobs(root, info)) return null;
-  } catch { /* Unknown state keeps the normal worker path, which records incomplete work. */ }
+  // The higher-layer caller owns the application eligibility probe; this Git cell only
+  // accepts its explicit decision and leaves real work to the normal worker.
+  if (eligible !== true) return null;
   const env = gitChildEnv(root);
   for (const key of ['PULLBOARD_GATE_SLOT_HELD','PULLBOARD_GATE_SLOT_POOL','PULLBOARD_GATE_SLOT_TOKEN',
     'PULLBOARD_BROWSER_SLOT_HELD','PULLBOARD_CHECKOUT_SESSION_TOKEN']) delete env[key];

@@ -67,10 +67,14 @@ test('empty automatic wakes leave no advisory state in a private repository [C7,
   const box = flakyProject(t);
   const { repoInfo } = await import('../src/git.js');
   const pullboard = join(repoInfo(box.root).commonDir, 'pullboard');
-  assert.equal(await nudgeSourceAdvances(box.root, { workerUrl: new URL('../bin/source-advance.js', import.meta.url) }), null,
+  assert.equal(await nudgeSourceAdvances(box.root, { workerUrl: new URL('../bin/source-advance.js', import.meta.url), eligible: false }), null,
     'the foreground skips spawning a source worker when its exact native snapshot has no work');
   assert.equal(await nudgeMainAudit(box.root), null,
     'the foreground skips spawning an audit worker before explicit activation');
+  assert.equal(box.cli('sentinel', 'run', '--health-only').code, 0,
+    'the real higher-layer CLI path completes a successful health-only command');
+  assert.equal(existsSync(join(pullboard, 'source-advances')), false,
+    "the real caller's explicit empty eligibility result avoids creating advisory state");
   await Promise.all([
     runSourceAdvances(box.root, randomUUID()),
     runMainAudits(box.root, randomUUID()),
