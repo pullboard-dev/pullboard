@@ -2,7 +2,7 @@
 /** Private native queue and CLI controls for opt-in submit/review runner-only admission [C7,Q1]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -159,6 +159,68 @@ for(const attempt of [1,2]) {
     const calls = readFileSync(requests, 'utf8').trim().split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
     assert.ok(calls.length > 0 && calls.every(call => call.host === HOST && call.workerStarted && !call.remoteHasSecret),
       'the actual private SSH stand-in executed the worker; this is no physical-fleet assurance');
+  });
+
+  test('runner-only doctrine counts candidate and baseline only in their real registered worker [C7,D1,D3]', () => {
+    const box = helpers.project('true');
+    const marker = join(box.dir, 'doctrine-bodies.jsonl');
+    const paths = Object.fromEntries(['bin', 'worker', 'remoteHome', 'remoteMachine'].map(name => [name, join(box.dir, name)]));
+    for (const path of Object.values(paths)) mkdirSync(path, { recursive: true });
+    const requests = join(box.dir, 'doctrine-requests.jsonl');
+    installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths.remoteHome, machineHome: paths.remoteMachine, requests });
+    box.env.PATH = `${paths.bin}:${box.env.PATH}`;
+    succeeded(box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1'));
+    mkdirSync(join(box.repo, 'bin'), { recursive: true });
+    mkdirSync(join(box.repo, 'web'), { recursive: true });
+    const body = `const fs=require('node:fs'),cp=require('node:child_process');
+fs.appendFileSync(${JSON.stringify(marker)},JSON.stringify({cwd:process.cwd(),commit:cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()})+'\\n');
+if(fs.readFileSync('web/mode.txt','utf8').trim()==='broken')process.exit(3);
+const lines=fs.readFileSync('web/a.txt','utf8').split(/\\r?\\n/).map((line,i)=>line.includes('TODO')?'web/a.txt:'+(i+1)+':'+line:null).filter(Boolean);
+if(lines.length)console.log(lines.join('\\n'));
+process.exit(lines.length?1:0);
+`;
+    writeFileSync(join(box.repo, 'bin/doctrine-check.cjs'), body);
+    writeFileSync(join(box.repo, 'web/a.txt'), 'TODO old\n');
+    writeFileSync(join(box.repo, 'web/mode.txt'), 'count\n');
+    appendFileSync(join(box.repo, 'DOCTRINE.md'), '\n## Q · Quality\n- Q7 [approved, must] Web problems only fall. | gate: check node bin/doctrine-check.cjs | count: 1 | files: web\n');
+    box.git(box.repo, 'add', '-A');
+    box.git(box.repo, 'commit', '-q', '-m', 'chore: add private doctrine runner control');
+    const base = box.git(box.repo, 'rev-parse', 'HEAD');
+    box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+    const added = JSON.parse(succeeded(box.run(box.repo, 'add', 'web', 'Leased doctrine control', '--specs', 'G1',
+      '--criterion', 'The ordinary submission keeps doctrine counts.', '--check', 'true', '--wait', '--json')).out);
+    const id = added.item.item_id;
+    succeeded(box.run(box.web, 'claim', String(id)));
+    succeeded(box.run(box.repo, 'settings', 'gate.runnersOnly', 'on'));
+    rmSync(marker, { force: true });
+    const roseCommit = helpers.commitFile(box, box.web, 'web/a.txt', 'TODO old\nTODO new\n', 'feat(web): private rising count [G1]');
+    assert.equal(roseCommit.status, 0, roseCommit.failure ?? roseCommit.stderr);
+    const rose = box.run(box.web, 'submit', String(id), '--no-next', '--json');
+    assert.notEqual(rose.code, 0, rose.out);
+    assert.equal(JSON.parse(rose.out).error.code, 'RATCHET_ROSE', rose.err || rose.out);
+    const brokenCommit = helpers.commitFile(box, box.web, 'web/mode.txt', 'broken\n', 'feat(web): private uncountable control [G1]');
+    assert.equal(brokenCommit.status, 0, brokenCommit.failure ?? brokenCommit.stderr);
+    const broken = box.run(box.web, 'submit', String(id), '--no-next', '--json');
+    assert.notEqual(broken.code, 0, broken.out);
+    assert.equal(JSON.parse(broken.out).error.code, 'RATCHET_UNCOUNTED', broken.err || broken.out);
+    writeFileSync(join(box.web, 'web/a.txt'), 'TODO old\nchanged\n');
+    writeFileSync(join(box.web, 'web/mode.txt'), 'count\n');
+    box.git(box.web, 'add', '-A');
+    box.git(box.web, 'commit', '-q', '-m', 'feat(web): preserve private count [G1]');
+    const commit = box.git(box.web, 'rev-parse', 'HEAD');
+    succeeded(box.run(box.web, 'submit', String(id), '--no-next', '--json'));
+    const observations = readFileSync(marker, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    assert.ok(observations.some(row => row.commit === commit), 'candidate command really ran');
+    assert.ok(observations.some(row => row.commit === base), 'touched existing problem really exercised the baseline command');
+    assert.ok(observations.every(row => row.cwd.startsWith(paths.remoteHome + '/')), 'no current or baseline doctrine shell ran on the controller');
+    const output = resolve(box.web, box.git(box.web, 'rev-parse', '--git-path', 'pullboard-doctrine-output'));
+    const receipts = readdirSync(output).map(name => join(output, name, 'observation.json')).filter(existsSync)
+      .map(file => JSON.parse(readFileSync(file, 'utf8')));
+    assert.ok(receipts.some(row => row.checkedSource.commit === commit && row.privateCheck.phases.check.code === 1), 'exit one remains a counted current result');
+    assert.ok(receipts.some(row => row.checkedSource.commit === base && row.privateCheck.phases.check.code === 1), 'the baseline has its own actual source-bound receipt');
+    assert.ok(receipts.some(row => row.privateCheck.phases.check.code === 3), 'the uncountable exit is retained rather than a passing empty count');
+    assert.ok(receipts.every(row => row.runner === HOST && row.checkedSource.commit === row.executionSource.commit
+      && row.checkedSource.tree === row.executionSource.tree && row.privateCheck.sourceUnchanged), 'all counted observations bind actual unchanged source');
   });
 
   test('native verify runner-only refuses before the actual check and opt-out still verifies [C7,V4]', t => {
