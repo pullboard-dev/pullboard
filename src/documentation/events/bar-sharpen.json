@@ -1,0 +1,10 @@
+{
+  "kind": "bar-sharpen",
+  "entries": [
+    {
+      "order": 19,
+      "actor": "coordinator",
+      "detail": "`clause`, `clauseText`, `barKey`, `to`, `digest`"
+    }
+  ]
+}
