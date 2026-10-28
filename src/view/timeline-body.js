@@ -4,13 +4,17 @@
 export function timelineBodyHtml(text, { itemHref, codeLink, timeLabel, commit = '', refusalTitles = {} } = {}) {
   /** Escape literal user text and every attribute supplied by a native reference. */
   const esc = value => String(value ?? '').replace(/[&<>"']/gu, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-  const pattern = /\b\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)\b|[A-Za-z0-9_.-]+\.[A-Za-z0-9]+:\d+(?:-\d+)?@[0-9a-f]{7,40}|(?:[A-Za-z0-9_.-]+\/)+[A-Za-z0-9_.-]+(?::\d+(?:-\d+)?)?(?:@[0-9a-f]{7,64})?|#[1-9]\d*\b|\b[0-9a-f]{12,64}\b|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/gu;
+  // Consume external references whole, before their path, fragment or hash can look repository-relative.
+  const literalReference = /\b[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s<>"']+|\bmailto:[^\s<>"']+|(?<![A-Za-z0-9_.\/-])(?:~\/|\/|[A-Za-z]:[\\/])[^\s<>"']+/u;
+  const detectedReference = /\b\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)\b|[A-Za-z0-9_.-]+\.[A-Za-z0-9]+:\d+(?:-\d+)?@[0-9a-f]{7,40}|(?:[A-Za-z0-9_.-]+\/)+[A-Za-z0-9_.-]+(?::\d+(?:-\d+)?)?(?:@[0-9a-f]{7,64})?|#[1-9]\d*\b|\b[0-9a-f]{12,64}\b|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/u;
+  const pattern = new RegExp(literalReference.source + '|' + detectedReference.source, 'gu');
   const source = String(text ?? '');
   let html = '', at = 0;
   for (const match of source.matchAll(pattern)) {
     const value = match[0];
     html += esc(source.slice(at, match.index));
-    if (/^\d{4}-/u.test(value) && Number.isFinite(Date.parse(value))) {
+    if (literalReference.test(value)) html += esc(value);
+    else if (/^\d{4}-/u.test(value) && Number.isFinite(Date.parse(value))) {
       html += '<time datetime="' + esc(value) + '" title="' + esc(value) + '">' + esc(timeLabel ? timeLabel(value) : value) + '</time>';
     } else if (value.startsWith('#') && itemHref) {
       const id = Number(value.slice(1));
