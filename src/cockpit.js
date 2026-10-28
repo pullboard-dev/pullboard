@@ -855,12 +855,24 @@ function milestoneItem(entry, p) {
   // A status the lifecycle declares; the roadmap says unavailable or missing for an item it could not read.
   const read = item || (FLOW.states.some((state) => state.id === entry.status) ? { status: entry.status, verdict: null } : null);
   /** Build one row's real summary detail only when opened, before its first painted frame. */
-  const block = summaryOnly => item ? roadmapBlock(detail?.item || item, {
-    holds: root === view.root ? source.holds : source.laneHolds, itemHolds: source.itemHolds, items: source.items, agents: source.agents, state: stateOf,
-    address: (id) => itemAddress(id, root), board: root === view.root ? null : root,
-    releases: renderIndex(p).releases.get(entry.id) || [], summaryOnly,
-    error: expanded ? detail?.error : undefined,
-  }) : null;
+  const block = summaryOnly => {
+    if (!item) return null;
+    const shown = detail?.item || item;
+    // Local dates and canonical state/routing observations cross into HTML as values, never callbacks.
+    const instants = summaryOnly ? [] : [
+      ...source.items.filter(other => (shown.blockedBy || []).includes(other.id) && other.since).map(other => other.since),
+      ...(shown.history || []).map(event => event.at), ...(shown.verdicts || []).filter(v => v.at).map(v => v.at),
+      ...(shown.verdict?.at ? [shown.verdict.at] : []),
+    ];
+    return roadmapBlock(shown, {
+      times: new Map([...new Set(instants)].map(at => [at, roadmapTime(at)])),
+      states: new Map(summaryOnly ? [] : source.items.map(other => [other.id, stateOf(other)])),
+      holds: root === view.root ? source.holds : source.laneHolds, itemHolds: source.itemHolds, items: source.items, agents: source.agents,
+      address: itemAddress(shown.id, root), board: root === view.root ? null : root,
+      releases: renderIndex(p).releases.get(entry.id) || [], summaryOnly,
+      error: expanded ? detail?.error : undefined,
+    });
+  };
   if (item) roadmapDetails.set(JSON.stringify([view.root, 'i:' + label]), () => block(false).detail);
   return {
     label: local ? '#' + entry.id : String(entry.id),
@@ -990,7 +1002,17 @@ function roadmapCards(p, titles) {
   const isOpen = (key, first) => view.roadmapOpen.has(JSON.stringify([view.root, key])) ? view.roadmapOpen.get(JSON.stringify([view.root, key])) : first;
   const caret = '<svg class="caret" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>'; // The view's stroke chevron, set inside the title to centre on its first line (#870).
   const next = coming.find((m) => m.rows.length) || null;
-  const headerFor = roadmapHeaders(roadmapSummary, { time: when, address: itemAddress, root: view.root, held: view.roadmapHeld });
+  const targetLabels = new Map(), addresses = new Map(), prepared = new Set();
+  const headers = roadmapHeaders({ targetLabels, addresses, root: view.root, held: view.roadmapHeld });
+  /** Prepare each exact milestone read once, preserving the existing lazy per-render cache. */
+  const headerFor = entry => {
+    if (entry && !prepared.has(entry)) {
+      prepared.add(entry);
+      if (entry.milestone.target) targetLabels.set(entry, when(entry.milestone.target));
+      for (const row of entry.rows) if (row.open) addresses.set(row, itemAddress(row.open.id, row.open.root));
+    }
+    return headers(entry);
+  };
   const stages = [['open', 'Open'], ['claimed', 'Building'], ['submitted', 'In review'], ['accepted', 'Accepted'], ['merged', 'Landed']];
   const counts = headerFor(next) ? null : Object.fromEntries(stages.map(([stage]) => [stage, next ? next.rows.filter((row) => row.stage === stage).length : 0]));
   const shippingCounts = headerFor(next)
