@@ -159,8 +159,8 @@ function selectionGit(root, args) {
   return result.stdout;
 }
 
-/** Read all committed module blobs in one Git batch, preserving exact names and source bytes; `blobs` maps every tracked path to its object id. */
-function modulesAt(root, commit) {
+/** Read all committed module blobs in one Git batch, preserving exact names and source bytes; a header-only scan passes `completeGraph: false`, since it reads text and needs no ES-module import graph; `blobs` maps every tracked path to its object id. */
+function modulesAt(root, commit, { completeGraph = true } = {}) {
   const tracked = selectionGit(root, ['ls-tree', '-r', '-z', commit]).split('\0').filter(Boolean).map(record => {
     const tab = record.indexOf('\t');
     const [mode, type, hash] = record.slice(0, tab).split(' ');
@@ -171,7 +171,7 @@ function modulesAt(root, commit) {
   const manifest = tracked.find(entry => entry.path === 'package.json');
   if (manifest && (manifest.type !== 'blob' || manifest.mode === '120000')) throw new Error('the root package policy is not a regular tracked file');
   const policy = manifest ? JSON.parse(selectionGit(root, ['show', `${commit}:package.json`])) : {};
-  if (entries.some(entry => entry.path.endsWith('.js'))) {
+  if (completeGraph && entries.some(entry => entry.path.endsWith('.js'))) {
     if (policy.type !== 'module' || tracked.some(entry => entry.path.endsWith('/package.json'))) {
       throw new Error('CommonJS or nested package scopes cannot supply a complete ES-module import graph');
     }
@@ -466,7 +466,7 @@ export function selectTestTreeGuards(root, { base, trunk, commit = 'HEAD', chang
   if (!testChanged && !sourceChanged) return [];
   const guards = new Set();
   for (const revision of [...new Set([base, commit].filter(Boolean))]) {
-    for (const [path, source] of modulesAt(root, revision).modules) {
+    for (const [path, source] of modulesAt(root, revision, { completeGraph: false }).modules) {
       if (!TEST.test(path)) continue;
       const headers = headerLines(source);
       if (headers.includes(TEST_TREE_INPUT)) guards.add(path);

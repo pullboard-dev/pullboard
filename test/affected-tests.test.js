@@ -471,3 +471,19 @@ test('gate source changes still select the static failure regression [C7]', () =
   assert.ok(selection.files.includes('test/submit-gate.test.js'),
     'the test that imports refuseSandboxBlocked stays selected for gate changes');
 });
+
+test('repo-wide test guards are found in a CommonJS project while affected tests still fall back to the full suite [C7]', t => {
+  const box = graph(t);
+  box.put('package.json', JSON.stringify({ name: 'plain-commonjs-project' }));
+  box.put('src/api.js', 'module.exports = { value: 1 };\n');
+  box.put('test/scanner.test.js', '/** @pullboard-test-input test-tree */\nrequire("../src/api.js");\n');
+  box.put('test/other.test.js', 'require("../src/api.js");\n');
+  const base = box.commit();
+  box.put('src/api.js', 'module.exports = { value: 2 };\n');
+  const commit = box.commit();
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'],
+    'a header scan needs no ES-module graph, so a plain project is not refused');
+  const selected = selectAffectedTests(box.root, { base, commit, changed: ['src/api.js'] });
+  assert.equal(selected.full, true, 'the import-graph selection still refuses to guess for CommonJS');
+  assert.match(selected.reason, /CommonJS/u);
+});
