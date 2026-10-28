@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { cleanGitEnvironment } from './git.js';
 import { mainCheckout } from './git.js';
-import { trunkRef } from './trusted-policy-read.js';
+import { trunkRef } from './git-trunk-ref.js';
 import { Refused } from './refused.js';
 import { mechanicalConflictFiles } from './mechanical-merge.js';
 
