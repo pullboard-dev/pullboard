@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "shims",
   "allowances": {
+    "src/mcp.js": 1,
     "src/train-mechanical-merge.js": 1
   }
 }
