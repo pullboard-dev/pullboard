@@ -1369,3 +1369,11 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
   .floor-queue .dash-list { max-height: 360px; }
 }
 .floor-queue .dash-list li:last-child { border-bottom: 0; }
+
+
+/* Canonical window comparisons retain every figure in a readable four-column table on phones. */
+.dash-comparison table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: var(--space-4); font-size: var(--text-xs); }
+.dash-comparison th, .dash-comparison td { padding: var(--space-2); border-bottom: 1px solid var(--line); overflow-wrap: anywhere; vertical-align: top; }
+.dash-comparison th { text-align: left; }
+.dash-comparison th:first-child { width: 43%; }
+.dash-comparison td { text-align: right; font-variant-numeric: tabular-nums; }
