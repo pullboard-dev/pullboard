@@ -6,6 +6,7 @@ import { addressedSeat } from '../seat-address.js';
 import * as store from '../board.js';
 import { requireReadableShout } from '../shout-readable.js';
 import { requireCoordinatorShoutPurpose } from '../coordinator-shout-purpose.js';
+import { handoffMoveProblem } from '../../packages/state/index.js';
 import {
   COORDINATOR,
 } from '../config.js';
@@ -51,6 +52,9 @@ export async function run(io, { first, second, rest, values }) {
   const text = [hasRecipient ? second : first, ...(hasRecipient ? rest : [second, ...rest])].filter(Boolean).join(' ');
   if (!text.trim()) throw new Refused('EMPTY_SHOUT', 'a shout needs text');
   requireReadableShout(text);
+  // A replaced seat is refused before the shout-kind rule: AGENT_REPLACED is the answer, not COORDINATOR_STATUS_FACT (#1764).
+  const retired = handoffMoveProblem(board, personShout(io, me) ? store.PERSON : me.id, 'shout', [{ item: values.item === undefined ? undefined : Number(values.item) }]);
+  if (retired) throw retired;
   requireCoordinatorShoutPurpose({ from: personShout(io, me) ? store.PERSON : me.id, to, kind: values.kind });
   const id = await ordered(ctx, board, 'shout', [{ from: personShout(io, me) ? store.PERSON : me.id, to, text, ...(values.item !== undefined ? { item: Number(values.item) } : {}), lanes: laneNames(ctx.config), decision: Boolean(values.decision), ...(options !== undefined ? { options } : {}), ...(effects === undefined ? {} : { effects }), ...(values.kind === undefined ? {} : { kind: values.kind }), ...(values.news ? { news: true } : {}), evidence }]);
   io.result?.({ id, decision: Boolean(values.decision), ...(ruling ? { ruling } : {}) });

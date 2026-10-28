@@ -1,3 +1,4 @@
+import { requirePersonChannel } from '../person.js';
 /** The pullboard check command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import {
@@ -47,7 +48,7 @@ import {
 
 /** Run `pullboard check` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
-  if (first === 'accept') return checkAcceptCommand(io, second, rest, { context, withBoard, whoAmI, ordered, idArg });
+  if (first === 'accept') return checkAcceptCommand(io, second, rest, { context, withBoard, whoAmI, ordered, idArg, requirePersonChannel });
   const ctx = context(io);
   const { item, author, caller, agents } = withBoard(ctx, (board) => {
     const me = first ? (ctx.info.isMain ? { id: COORDINATOR } : { id: store.agentAt(board, ctx.info.root)?.agent_id }) : whoAmI(ctx, board);

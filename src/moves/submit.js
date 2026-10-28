@@ -1,3 +1,5 @@
+import { itemPatchRecords } from '../item-patch-state.js';
+import { ITEM_PATCH_SUBMIT_ENGINE } from '../item-patch-submit-engine.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 import { MERGE_ONLY_VERDICT_ENGINE } from '../merge-only-verdict-engine.js';
 import { FLOW_SIZE_ENGINE } from '../flow-size-engine.js';
@@ -27,7 +29,8 @@ function existingEngine(args, board, at) {
 /** Keep outside-source isolation as the original maximum over the older engine rule. */
 function minimumEngine(args, board, at) {
   const outside = board && Boolean(outsideSource(board, args[0]));
-  return Math.max(args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
+  const presubmit = board && itemPatchRecords(board, args[0]).some(record => record.presubmit === true);
+  return Math.max(args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
     Array.isArray(args[1]?.submissionProof?.knownMainFailures?.failures)
       && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined) ? KNOWN_MAIN_REWORKS_ENGINE : 1,
     args[1]?.submissionSize !== undefined ? FLOW_SIZE_ENGINE : 1,
@@ -82,6 +85,10 @@ export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   "SLOT_DB_LOCKED": "the run never started, so it is not a red; rerun the same command once the named process releases the slot database",
   "SPEC_BEHIND_MAIN": "git merge main",
   "STACKED_ON_UNVERIFIED": "wait for the earlier item to be accepted, or rebuild on main without its commits",
+  "ITEM_PATCH": "inspect the native patches with pullboard patch list <item>; ask the coordinator to replace unsafe or conflicting input",
+  "ITEM_PATCH_SOURCE": "bind patches to the exact submitted commit and compose them before review",
+  "ITEM_PATCH_CHANGED": "read and compose the current patch set before reviewing",
+  "ITEM_PATCH_AUTHOR": "name an existing native author seat",
   "SUBMISSION_PROOF": "rerun pullboard submit <id> with the current CLI so its selected files and fallback are recorded",
   "TIMING_SLOT_REQUIRED": "start the timing check outside its inherited ordinary lease and acquire the machine gate with timing true",
   "UNTRACKED": "commit or ignore the untracked files, then run the command again",
