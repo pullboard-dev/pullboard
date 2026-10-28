@@ -32,7 +32,7 @@
     "src/run.js": 4,
     "src/runners.js": 4,
     "src/sentinel-runner.js": 2,
-    "src/serve.js": 5,
+    "src/serve.js": 1,
     "src/signature.js": 1,
     "src/spec-gate-renames.js": 1,
     "src/spec.js": 4,
@@ -40,8 +40,7 @@
     "src/test-action-cache.js": 1,
     "src/test-run.js": 2,
     "src/trunk-merge.js": 3,
-    "src/trusted-policy-read.js": 2,
-    "src/trusted-policy.js": 6,
+    "src/trusted-policy-read.js": 1,
     "src/verdict-freshness.js": 2,
     "src/verdict-trunk.js": 1
   }

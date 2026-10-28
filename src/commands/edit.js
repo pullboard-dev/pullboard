@@ -1,3 +1,5 @@
+import { requirePersonChannel } from '../person.js';
+import { githubPullClient } from '../pr-github.js';
 import {
   confirmBarEffect,
   executingBarEffect,
@@ -70,9 +72,9 @@ export async function run(io, args) {
     args: { as: 'person', ...(values.wait ? { wait: true } : {}) } }, change, asPerson);
   if (confirmed !== null) return confirmed;
   if (change.brief !== undefined) {
-    const authority = referenceAuthority(ctx, me.id, change.brief, store.getItem(board, id).item_brief);
+    const authority = referenceAuthority(ctx, me.id, change.brief, store.getItem(board, id).item_brief, { requirePersonChannel });
     if (authority) change.referenceAuthority = authority;
-    const authors = referenceAuthors(ctx.info.root, change.brief);
+    const authors = referenceAuthors(ctx.info.root, change.brief, { githubPullClient });
     if (authors.length) change.referenceAuthors = authors;
   }
   const { item, next, command } = store.validateItemEdit(board, id, change);

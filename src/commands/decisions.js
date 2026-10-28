@@ -32,7 +32,7 @@ export function run(io, { values }) {
     const me = whoAmI(ctx, board);
     const asPerson = personMode(ctx, me, values);
     if (asPerson && siblings.length) {
-      return { project: projectPersonDecisions(ctx.info.root, labels.get(self.root), board, siblings), asPerson };
+      return { project: projectPersonDecisions(ctx.info.root, labels.get(self.root), board, siblings, undefined, store), asPerson };
     }
     return { asks: projectRulingOwners(store.openDecisions(board, asPerson ? 'person' : [me.id, me.lane]), { root: ctx.info.root, config: ctx.config }), agents: store.listAgents(board), asPerson };
   });

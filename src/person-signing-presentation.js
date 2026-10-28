@@ -20,7 +20,7 @@ export function personSigningPresentation(root, board, config) {
   const personProposals = store.personProposals(board).filter((proposal) => !requested.has(proposal.id));
   const signed = store.personSigning(board).signed;
   const ids = signed ? [...loadSpec(root, config).rows.map(row => row.id), ...loadDoctrine(root, config).repo.rows.map(row => `doctrine:${row.id}`)] : [];
-  const personRows = signed ? shownDecisionRows(root, config, ids) : [];
+  const personRows = signed ? shownDecisionRows(root, config, ids, { loadDoctrine }) : [];
   let personBars = [];
   if (signed) {
     const entries = store.listItems(board, { all: true }).map(item => ({ item, status: barReadiness(board, item, { signature: false }, { itemCheckBaseline }) }));

@@ -1,8 +1,8 @@
 /** Read-only validation of optional row approvals, without importing the mutable board or CLI graph [E22,H16]. */
+import { answerQuestion } from './spec.js';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { parseSpec } from './spec.js';
-import { answerQuestion } from './blueprints.js';
 import {
   presenceSigned,
   validPresence,

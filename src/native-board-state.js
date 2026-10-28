@@ -1,5 +1,6 @@
 /** @pullboard-test-input src/standard-doctrine.md */
 /** One complete native state builder for local HTTP and sealed relay projections [A2,H5,H16]. */
+import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import { counterProofStats } from './proof-counter-read.js';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -94,8 +95,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       requests: store.openRequests(board),
       personRequests: personRequestStatuses(board),
       milestones: scopeCommonDir === null
-        ? milestoneRoadmap(root, board)
-        : milestoneRoadmap(root, board, { projects, hideOutOfScope: true }),
+        ? milestoneRoadmap(root, board, { ports: store })
+        : milestoneRoadmap(root, board, { projects, hideOutOfScope: true, ports: store }),
       rowDecisions: store.rowDecisions(board),
       proofStats: viewProofSummary(proofStats(board, { now: observedAt }, { events: store.events, counterProofStats })),
     };
@@ -107,7 +108,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     state.blocks = personBlockWords(repoInfo(root).commonDir, board.clock.now()); // Needs you below is recomputed with them [C6].
     // Only the local HTTP host supplies its private telemetry; sealed projections omit it entirely.
     if (localRelayHealth !== null) state.relayHealthAlerts = localRelayHealth;
-    const decorated = projectSpecApprovals(projectFit(pendingFit(repoInfo(root).commonDir), projectRowDecisions(projectData.rowDecisions, state)), specApprovalState(root, { board, config }));
+    const decorated = projectSpecApprovals(projectFit(pendingFit(repoInfo(root).commonDir), projectRowDecisions(projectData.rowDecisions, state)), specApprovalState(root, { board, config }, { store, verifiedPasskeyRowDecision }));
     decorated.ruleCounts = ruleProofCounts(root, board, decorated.spec);
     const bases = new Map(decorated.items.map((item) => [item.id, item]));
     for (const id of dirtyIds) {

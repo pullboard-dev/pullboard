@@ -5,8 +5,6 @@
  */
 import { decisionProjection } from './row-decisions.js';
 import { rowDecisionContext } from './row-decision-state.js';
-import { nextFor } from './board.js';
-import { proposeLanes } from './init.js';
 
 /** Include stale decisions even when the current file row was already marked approved. */
 export function setupDecisionRows(root, config, records, rows) {
@@ -16,7 +14,7 @@ export function setupDecisionRows(root, config, records, rows) {
 }
 
 /** Show available starter work beside undecided rows, without changing any approval or apply move [S1,B26]. */
-export function withStarterWork(setup, { board, me, main, config, root, seat }) {
+export function withStarterWork(setup, { board, me, main, config, root, seat, nextFor, proposeLanes }) {
   if (setup?.waitingOn !== 'person-approval') return setup;
   const meanwhile = seat
     ? 'While waiting, review independent approved work or send questions to the coordinator with pullboard shout coordinator --kind question "<what is needed>" --decision.'

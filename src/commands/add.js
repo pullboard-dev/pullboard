@@ -1,3 +1,5 @@
+import { requirePersonChannel } from '../person.js';
+import { githubPullClient } from '../pr-github.js';
 import {
   confirmBarEffect,
   executingBarEffect,
@@ -94,9 +96,9 @@ export async function run(io, args) {
   } }, item, asPerson);
   if (confirmed !== null) return confirmed;
   buildInFilelessLane(ctx.config, item.lane, item.after);
-  const authority = referenceAuthority(ctx, me.id, item.brief);
+  const authority = referenceAuthority(ctx, me.id, item.brief, undefined, { requirePersonChannel });
   if (authority) item.referenceAuthority = authority;
-  const authors = referenceAuthors(ctx.info.root, item.brief);
+  const authors = referenceAuthors(ctx.info.root, item.brief, { githubPullClient });
   if (authors.length) item.referenceAuthors = authors;
   const { command } = store.validateItemAddition(board, item);
   if (command) refuseCheckSyntax(command);

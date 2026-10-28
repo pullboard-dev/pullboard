@@ -4,9 +4,6 @@ import { AUTOMATIC_DISPATCH_ENGINE } from './automatic-dispatch-engine.js';
 import { SPEC_DRAFT_REFREEZE_ENGINE } from './spec-draft-refreeze-engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
-import { atomic } from './board-event-log.js';
-import { logEvent } from './board-event-log.js';
-import { now } from './board-query.js';
 import { rowDecisions } from './row-decisions-query.js';
 import { markAppliedRevisions } from './spec-revisions.js';
 import {
@@ -18,7 +15,7 @@ import {
 export const SPEC_REFREEZE = Symbol('validated cited spec correction');
 
 /** Keep historical row-apply bytes unchanged unless the new correction marker is present. */
-export function applySpecRowDecisions(board, options, { refreeze, writeRowDecisions, notice }) {
+export function applySpecRowDecisions(board, options, { refreeze, writeRowDecisions, notice, atomic, logEvent, now, rowDrafts }) {
   const { agentId, events } = options;
   if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator applies row decisions; ask your coordinator to run pullboard spec apply');
   if (!Array.isArray(events) || events.some(event => !Number.isSafeInteger(event) || event < 1)) throw new Refused('ROW_DECISION', 'apply needs current decision event ids; use pullboard spec apply');
@@ -44,7 +41,7 @@ export function applySpecRowDecisions(board, options, { refreeze, writeRowDecisi
     if (!applied.length) return [];
     const at = now(board);
     writeRowDecisions(board, records.map(record => events.includes(record.event) ? { ...record, applied: true, appliedAt: at } : record));
-    markAppliedRevisions(board, applied, at);
+    markAppliedRevisions(board, applied, at, { rowDrafts });
     for (const { item, frozen } of updates) {
       const result = refreeze(board, item.item_id, { agentId, freeze: () => frozen, [SPEC_REFREEZE]: true });
       if (result.retainedClaim) notice({ from: COORDINATOR, to: item.item_owner, lanes: [],

@@ -2,7 +2,7 @@ import { itemPatchPaths } from './item-patch-paths.js';
 import { safeItemPatchPath as safePath } from './item-patch-paths.js';
 export { itemPatchPaths } from './item-patch-paths.js';
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { gitExecFileSync } from './git-adapter.js';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -18,7 +18,7 @@ function refuse(message) { throw new Refused('ITEM_PATCH', message); }
 /** Execute Git plumbing with an isolated index and no optional live-index locks. */
 function git(root, env, args, input) {
   try {
-    return execFileSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgSign=false', ...args],
+    return gitExecFileSync(['-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgSign=false', ...args],
       { cwd: root, env, input, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, stdio: ['pipe', 'pipe', 'pipe'] });
   } catch { refuse(`patch composition refused by Git (${args[0]}); resolve the patch against the exact submitted commit`); }
 }

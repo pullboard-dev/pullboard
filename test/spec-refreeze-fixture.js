@@ -74,7 +74,7 @@ export function assertSpecCorrectionRefreezesCitations(t) {
   const decision = prepareRowDecisions(box.repo, config, {
     ids: ['G1'], decision: 'approve', text: 'The revised page renders.', by: 'person',
     on: new Date().toISOString(), commit: box.git(box.repo, 'rev-parse', 'HEAD'),
-  });
+  }, { loadDoctrine });
   store.recordRowDecisions(board, { agentId: store.PERSON, channel: 'terminal', decisions: decision });
 
   const applied = box.run(box.repo, 'spec', 'apply', '--json');
@@ -121,7 +121,7 @@ export function assertSpecCorrectionRefreezesCitations(t) {
 function correctionMove(box, board, id) {
   const config = loadConfig(box.root);
   const records = rowDecisions(board);
-  const plan = planRowApply(box.root, config, records);
+  const plan = planRowApply(box.root, config, records, undefined, { loadDoctrine });
   writeRowApply(box.root, plan);
   const ctx = { info: { root: box.root, isMain: true }, config, doctrine: loadDoctrine(box.root, config), clock: box.clock };
   const refreezes = prepareSpecRefreezes(plan.records, store.listItems(board, { all: true }),
@@ -164,7 +164,7 @@ export async function assertSpecRefreezeReplay(t, { fixture, cli }) {
   const decision = prepareRowDecisions(box.root, box.config, {
     ids: ['G1'], decision: 'approve', text: 'The replayed page renders.', by: 'person',
     on: box.clock.now().toISOString(), commit: box.git(box.root, 'rev-parse', 'HEAD'),
-  });
+  }, { loadDoctrine });
   store.recordRowDecisions(box.board, { agentId: store.PERSON, channel: 'terminal', decisions: decision });
 
   const move = correctionMove(box, box.board, 'spec-refreeze-replay-valid');
@@ -246,7 +246,7 @@ export async function assertSpecRefreezeReplay(t, { fixture, cli }) {
   const emptyDecision = prepareRowDecisions(box.root, box.config, {
     ids: ['G2'], decision: 'approve', text: 'An approved row with no citations.', by: 'person',
     on: box.clock.now().toISOString(), commit: box.git(box.root, 'rev-parse', 'HEAD'),
-  });
+  }, { loadDoctrine });
   store.recordRowDecisions(box.board, { agentId: store.PERSON, channel: 'terminal', decisions: emptyDecision });
   const emptyMove = correctionMove(box, box.board, 'spec-refreeze-replay-empty');
   assert.deepEqual(emptyMove.args[0].refreezes, [], 'a changed approved row with zero cited items still carries the protocol marker');
