@@ -65,7 +65,10 @@ process.stdout.write(JSON.stringify({ green: result.isGreen, calls }));`;
 test('a GUI-marked shard waits for a local slot when runner GUI capability is unknown [C7,V4]', t => {
   const box = fixture({ runner: true });
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
-  const script = `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
+  const script = `import { recordRunnerGui } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/resources.js')).href)};
+// This scenario seeds its capability after registration, whose real desktop probe may report true.
+recordRunnerGui(${JSON.stringify(HOST)}, null);
+import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 let release;
@@ -99,7 +102,10 @@ test('a no-GUI remote parent gives its first GUI shard to a compatible local slo
   const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
   settings.runners = settings.runners.map(runner => ({ ...runner, gui: false }));
   writeFileSync(settingsPath, JSON.stringify(settings));
-  const script = `import assert from 'node:assert/strict';
+  const script = `import { recordRunnerGui } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/resources.js')).href)};
+// This scenario seeds its capability after registration, whose real desktop probe may report true.
+recordRunnerGui(${JSON.stringify(HOST)}, false);
+import assert from 'node:assert/strict';
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
 const root = ${JSON.stringify(box.repo)};
