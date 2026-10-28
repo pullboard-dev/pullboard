@@ -267,7 +267,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   }
   cache = await snapshot();
   const incomplete = files.some(path => !usable(cache.entries[main.commit]?.[path]));
-  if (failed && (fresh || incomplete)) return { main: main.commit, files: [], unavailable: failed.message ?? 'main comparison could not be completed' };
+  if (failed && (fresh || incomplete)) return { main: main.commit, files: [], unavailable: failed.message ?? 'main comparison could not be completed', ...(runnerAdmission.runnerOnly ? { runnerOnly: true } : {}) };
   if (incomplete) return { main: main.commit, files: [], unavailable: 'main comparison cache changed before the completed results could be read' };
   return { main: main.commit, files: files.map(path => ({ file: path, ...(detailed
     ? cache.entries[main.commit][path] : { result: cache.entries[main.commit][path].result }) })) };
@@ -294,7 +294,7 @@ export function mainRedMessage(root, board, profile, comparison) {
   if (comparison.unavailable === 'could not read which tests failed') {
     return 'main not checked: could not read which tests failed';
   }
-  if (!comparison.files.length) return comparison.unavailable ? `main not checked: ${comparison.unavailable}` : '';
+  if (!comparison.files.length) return comparison.runnerOnly && comparison.unavailable ? `main not checked: ${comparison.unavailable}` : '';
   const attribution = mainRedAttribution(root, board, comparison);
   const names = (profile?.tests ?? []).filter(test => test.passed === false)
     .map(test => test.name ? `${test.file ?? 'unknown file'} (${test.name})` : test.file)

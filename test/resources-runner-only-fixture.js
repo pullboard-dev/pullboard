@@ -1,3 +1,4 @@
+/** @pullboard-module-loads src/resources.js src/settings.js */
 /** Private native queue and CLI controls for opt-in submit/review runner-only admission [C7,Q1]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
@@ -7,6 +8,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runFixtureChild } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 
 const RESOURCES = pathToFileURL(resolve(import.meta.dirname, '../src/resources.js')).href;
 const SETTINGS = pathToFileURL(resolve(import.meta.dirname, '../src/settings.js')).href;
@@ -126,6 +128,37 @@ for(const attempt of [1,2]) {
     policy(box, false);
     succeeded(box.run(box.web, 'submit', String(id), '--no-next', '--json'));
     assert.equal(readFileSync(marker, 'utf8'), 'ran', 'opt-out still runs the actual frozen check');
+  });
+
+  test('opt-in native submit uses a real registered worker even with free local capacity [C7,V4]', () => {
+    const box = helpers.project('true');
+    const paths = Object.fromEntries(['bin', 'worker', 'remoteHome', 'remoteMachine'].map(name => [name, join(box.dir, name)]));
+    for (const path of Object.values(paths)) mkdirSync(path, { recursive: true });
+    const requests = join(box.dir, 'runner-only-requests.jsonl');
+    installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths.remoteHome, machineHome: paths.remoteMachine, requests });
+    box.env.PATH = `${paths.bin}:${box.env.PATH}`;
+    succeeded(box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1'));
+    const added = succeeded(box.run(box.repo, 'add', 'web', 'Registered runner-only submission', '--specs', 'G1',
+      '--criterion', 'The native frozen check executes in its admitted registered worker.',
+      '--check', 'printf RUNNER_ONLY_FROZEN_BODY', '--wait', '--json'));
+    const id = JSON.parse(added.out).item.item_id;
+    succeeded(box.run(box.web, 'claim', String(id), '--json'));
+    const built = helpers.commitFile(box, box.web, 'web/registered.txt', 'actual worker control\n', 'feat(web): registered runner-only control [G1]');
+    assert.equal(built.status, 0, built.failure ?? built.stderr);
+    succeeded(box.run(box.repo, 'settings', 'gate.runnersOnly', 'on'));
+    const settings = JSON.parse(succeeded(box.run(box.repo, 'settings', '--json')).out).settings;
+    assert.ok(settings.gateSlots > 0, 'local capacity remains available throughout this control');
+    assert.equal(settings.gate.runnersFirst, false, 'runner-only does not depend on runner-first preference');
+    const commit = box.git(box.web, 'rev-parse', 'HEAD');
+    const submitted = JSON.parse(succeeded(box.run(box.web, 'submit', String(id), '--no-next', '--json')).out);
+    const profile = JSON.parse(readFileSync(submitted.gate.check.profilePath, 'utf8'));
+    assert.equal(profile.executionRunner, HOST);
+    assert.equal(profile.executionSource?.commit, commit);
+    assert.equal(profile.receipt?.runner?.id, HOST);
+    assert.match(readFileSync(submitted.gate.check.log, 'utf8'), /RUNNER_ONLY_FROZEN_BODY/u);
+    const calls = readFileSync(requests, 'utf8').trim().split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
+    assert.ok(calls.length > 0 && calls.every(call => call.host === HOST && call.workerStarted && !call.remoteHasSecret),
+      'the actual private SSH stand-in executed the worker; this is no physical-fleet assurance');
   });
 
   test('native verify runner-only refuses before the actual check and opt-out still verifies [C7,V4]', t => {
