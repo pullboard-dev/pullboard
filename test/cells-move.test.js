@@ -3,13 +3,15 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, chmodSync, statSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, chmodSync, statSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../src/package-files.js';
 import { readPathMap } from '../src/path-map.js';
 import { cellsMove } from '../bin/cells-move-tool.js';
+import { checkMoved } from '../bin/cells-plan.js';
+import { runFixtureChild } from './fixture-child.js';
 
 /** Execute real Git with private fixture identity and no inherited repository selector. */
 function git(root, ...args) {
@@ -65,6 +67,176 @@ test('leaf move and independent journal inverse restore exact tree and modes [C7
   assert.deepEqual(readFileSync(join(root, input.from)), original);
   assert.equal(existsSync(join(root, 'packages')), false);
   assert.equal(existsSync(join(root, 'bin')), false);
+});
+
+test('a move rewrites actual fixture read operands, preserves destinations and undoes every test byte [C7]', t => {
+  const { root, custody, input } = fixture(t, 'export const value = 42;\n');
+  mkdirSync(join(root, 'test'));
+  const source = [
+    "import assert from 'node:assert/strict';",
+    "import { readFileSync, writeFileSync, mkdirSync, cpSync, copyFileSync } from 'node:fs';",
+    "mkdirSync(new URL('../copied/', import.meta.url));",
+    "/** The destination remains a fixture identity, independent of production source relocation. */",
+    "function put(path, bytes) { writeFileSync(new URL('../copied/' + path, import.meta.url), bytes); }",
+    "put('leaf.js', readFileSync(new URL('../src/leaf.js', import.meta.url)));",
+    "cpSync(new URL('../src/leaf.js', import.meta.url), new URL('../copied/cp.js', import.meta.url));",
+    "copyFileSync(new URL('../src/leaf.js', import.meta.url), new URL('../copied/copy.js', import.meta.url));",
+    "assert.equal(readFileSync(new URL('../copied/leaf.js', import.meta.url), 'utf8'), 'export const value = 42;\\n');",
+    "assert.equal(readFileSync(new URL('../copied/cp.js', import.meta.url), 'utf8'), 'export const value = 42;\\n');",
+    "assert.equal(readFileSync(new URL('../copied/copy.js', import.meta.url), 'utf8'), 'export const value = 42;\\n');",
+    "console.log('fixture copies actual body');",
+  ].join('\n') + '\n';
+  const file = 'test/copy-case.test.js';
+  writeFileSync(join(root, file), source); chmodSync(join(root, file), 0o755);
+  git(root, 'add', '.'); git(root, 'commit', '-qm', 'real copy fixture');
+  const tree = git(root, 'write-tree');
+  const result = cellsMove.apply(cellsMove.plan(input), custody);
+  assert.deepEqual(result.rewrittenTests, [file]);
+  const rewritten = readFileSync(join(root, file), 'utf8');
+  assert.ok(rewritten.includes("put('leaf.js', readFileSync("), 'fixture destination is unchanged');
+  assert.ok(rewritten.includes("new URL('../copied/cp.js', import.meta.url)"), 'copy destination is unchanged');
+  assert.equal(rewritten.split('export const value = 42;\\n').length, 4, 'every original assertion byte remains');
+  const plan = { cells: [{ name: 'leaf', frontDoor: input.frontDoor, paths: [[input.from, input.to]] }] };
+  assert.deepEqual(checkMoved(root, plan, 'leaf'), []);
+  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+  const child = runFixtureChild(process.execPath, [join(root, file)], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(child.status, 0, child.context);
+  assert.match(child.stdout, /fixture copies actual body/u);
+  rmSync(join(root, 'copied'), { recursive: true });
+  writeFileSync(join(root, file), source);
+  assert.ok(checkMoved(root, plan, 'leaf').some(problem => problem.includes(file)), 'skipping the rewrite fails by test file');
+  writeFileSync(join(root, file), rewritten);
+  cellsMove.undo(result.record);
+  assert.equal(git(root, 'write-tree'), tree);
+  assert.equal(git(root, 'status', '--porcelain'), '');
+  assert.equal(readFileSync(join(root, file), 'utf8'), source);
+  assert.equal(statSync(join(root, file)).mode & 0o777, 0o755);
+});
+
+test('fixture rewrite custody refuses an unexpected test edit and preserves its journal [C7]', t => {
+  const { root, custody, input } = fixture(t, 'export const value = 42;\n');
+  mkdirSync(join(root, 'test'));
+  const file = 'test/read.test.js';
+  writeFileSync(join(root, file), "import { readFileSync } from 'node:fs';\nreadFileSync(new URL('../src/leaf.js', import.meta.url));\n");
+  git(root, 'add', '.'); git(root, 'commit', '-qm', 'tracked read fixture');
+  const result = cellsMove.apply(cellsMove.plan(input), custody);
+  writeFileSync(join(root, file), '// unexpected concurrent edit\n');
+  assert.throws(() => cellsMove.undo(result.record), /changed after apply/u);
+  assert.equal(readFileSync(join(root, file), 'utf8'), '// unexpected concurrent edit\n');
+  assert.ok(existsSync(result.record));
+  rmSync(join(root, file));
+  symlinkSync('missing-private-reader.js', join(root, file));
+  const plan = { cells: [{ name: 'leaf', frontDoor: input.frontDoor, paths: [[input.from, input.to]] }] };
+  assert.ok(checkMoved(root, plan, 'leaf').some(problem => problem.includes(file) && problem.includes('cannot prove')),
+    'a dangling tracked reader is reported before attempting to read through it');
+});
+
+for (const shape of ['braced constant', 'unbraced inline']) test(`a ${shape} fixture list preserves destinations while its copy source moves [C7]`, t => {
+  const { root, custody, input } = fixture(t, 'export const value = 42;\n');
+  mkdirSync(join(root, 'test'));
+  const file = 'test/list-copy.test.js';
+  const source = [
+    "import { copyFileSync as copy, mkdirSync, readFileSync } from 'node:fs';",
+    "mkdirSync(new URL('../copied/', import.meta.url));",
+    ...(shape === 'braced constant' ? ["const files = ['leaf.js', 'number.js'];", 'for (const file of files) {']
+      : ["for (const file of ['leaf.js', 'number.js'])"]),
+    '  copy(new URL(`../src/${file}`, import.meta.url), new URL(`../copied/${file}`, import.meta.url));',
+    ...(shape === 'braced constant' ? ['}'] : []),
+    "console.log(readFileSync(new URL('../copied/leaf.js', import.meta.url), 'utf8'));",
+    "console.log(readFileSync(new URL('../copied/number.js', import.meta.url), 'utf8'));",
+  ].join('\n') + '\n';
+  writeFileSync(join(root, file), source);
+  git(root, 'add', '.'); git(root, 'commit', '-qm', 'finite shared fixture list');
+  const result = cellsMove.apply(cellsMove.plan(input), custody);
+  const rewritten = readFileSync(join(root, file), 'utf8');
+  assert.ok(rewritten.includes(shape === 'braced constant' ? "const files = ['leaf.js', 'number.js'];"
+    : "for (const file of ['leaf.js', 'number.js'])"));
+  assert.ok(rewritten.includes('new URL(`../copied/${file}`, import.meta.url)'), 'the shared destination expression remains exact');
+  const plan = { cells: [{ name: 'leaf', frontDoor: input.frontDoor, paths: [[input.from, input.to]] }] };
+  assert.deepEqual(checkMoved(root, plan, 'leaf'), [], 'the independent proof recognizes the rewritten finite source table');
+  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+  const child = runFixtureChild(process.execPath, [join(root, file)], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(child.status, 0, child.context);
+  assert.match(child.stdout, /export const value = 42/u);
+  assert.match(child.stdout, /export const number = 41/u);
+  rmSync(join(root, 'copied'), { recursive: true });
+  cellsMove.undo(result.record);
+  assert.equal(readFileSync(join(root, file), 'utf8'), source);
+  assert.equal(git(root, 'status', '--porcelain'), '');
+});
+
+test('historical four-file v2 custody remains reversible after fixture-aware moves [C7]', t => {
+  const { root, custody, input } = fixture(t);
+  const tree = git(root, 'write-tree');
+  const result = cellsMove.apply(cellsMove.plan(input), custody);
+  const current = JSON.parse(readFileSync(result.record, 'utf8'));
+  const { digest: _digest, testFiles: _testFiles, ...legacy } = current;
+  legacy.version = 2;
+  const record = join(custody, 'historical-v2.json');
+  writeFileSync(record, JSON.stringify({ ...legacy, digest: createHash('sha256').update(JSON.stringify(legacy)).digest('hex') }));
+  cellsMove.undo(record);
+  assert.equal(git(root, 'write-tree'), tree);
+  assert.equal(git(root, 'status', '--porcelain'), '');
+});
+
+test('lookalike calls, comments, assertions and synthetic fixture code are not production source copies [C7]', t => {
+  const { root, custody, input } = fixture(t, 'export const value = 42;\n');
+  mkdirSync(join(root, 'test'));
+  const file = 'test/lookalike.test.js';
+  const source = [
+    "import assert from 'node:assert/strict';",
+    '/** This lookalike receives text; it never reads the filesystem. */',
+    'function readFileSync(path) { return path; }',
+    "assert.equal(readFileSync('../src/leaf.js'), '../src/leaf.js');",
+    "// readFileSync(new URL('../src/leaf.js', import.meta.url));",
+    'const fixtureCode = "readFileSync(new URL(\'../src/leaf.js\', import.meta.url));";',
+    "assert.ok(fixtureCode.includes('../src/leaf.js'));",
+  ].join('\n') + '\n';
+  writeFileSync(join(root, file), source);
+  git(root, 'add', '.'); git(root, 'commit', '-qm', 'non-copy source spellings');
+  const result = cellsMove.apply(cellsMove.plan(input), custody);
+  assert.deepEqual(result.rewrittenTests, []);
+  assert.equal(readFileSync(join(root, file), 'utf8'), source);
+  const plan = { cells: [{ name: 'leaf', frontDoor: input.frontDoor, paths: [[input.from, input.to]] }] };
+  assert.deepEqual(checkMoved(root, plan, 'leaf'), []);
+  cellsMove.undo(result.record);
+  assert.equal(git(root, 'status', '--porcelain'), '');
+});
+
+test('fixture joins retain rooted later segments while resolve keeps its absolute reset [C7]', t => {
+  const { root, custody, input } = fixture(t, 'export const value = 42;\n');
+  mkdirSync(join(root, 'test'));
+  const file = 'test/join-copy.test.js';
+  const external = "function external() { return fs.readFileSync(path.resolve(import.meta.dirname, '..', '/src/leaf.js')); }";
+  const source = [
+    "import assert from 'node:assert/strict';",
+    "import * as fs from 'node:fs';",
+    "import * as path from 'node:path';",
+    "const body = fs.readFileSync(path.join(import.meta.dirname, '..', '/src/leaf.js'), 'utf8');",
+    "assert.equal(body, 'export const value = 42;\\n');",
+    "assert.equal(path.resolve(import.meta.dirname, '..', '/src/leaf.js'), '/src/leaf.js');",
+    '/** An external absolute read is deliberately outside the repository move. */',
+    external,
+    "console.log('joined copy reads actual body');",
+  ].join('\n') + '\n';
+  writeFileSync(join(root, file), source);
+  git(root, 'add', '.'); git(root, 'commit', '-qm', 'native join versus resolve fixture');
+  const result = cellsMove.apply(cellsMove.plan(input), custody);
+  assert.deepEqual(result.rewrittenTests, [file]);
+  const rewritten = readFileSync(join(root, file), 'utf8');
+  assert.ok(rewritten.includes(external), 'an actual absolute resolve read is unchanged');
+  const plan = { cells: [{ name: 'leaf', frontDoor: input.frontDoor, paths: [[input.from, input.to]] }] };
+  assert.deepEqual(checkMoved(root, plan, 'leaf'), []);
+  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+  const child = runFixtureChild(process.execPath, [join(root, file)], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(child.status, 0, child.context);
+  assert.match(child.stdout, /joined copy reads actual body/u);
+  writeFileSync(join(root, file), source);
+  assert.ok(checkMoved(root, plan, 'leaf').some(problem => problem.includes(file)), 'the missed join is independently refused');
+  writeFileSync(join(root, file), rewritten);
+  cellsMove.undo(result.record);
+  assert.equal(readFileSync(join(root, file), 'utf8'), source);
+  assert.equal(git(root, 'status', '--porcelain'), '');
 });
 
 for (const [label, source] of [

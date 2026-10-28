@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Write, check or file the cells move plan, or check one cell's move against it [D3,CD60,CD64]. */
 import { existsSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -23,6 +24,7 @@ import { tryGit } from '../src/git.js';
 import { Refused } from '../src/refused.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { fileCuts } from './cells-plan-cuts.js';
+import { fixtureSourceEdits } from './cells-move-fixtures.js';
 
 export const PLAN_FILE = 'bin/cells-plan.json';
 export const PLAN_DIR = 'bin/cells-plan';
@@ -117,6 +119,26 @@ export function checkMoved(root, plan, name) {
       const code = readFileSync(join(root, from), 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/gu, '').replace(/\s/gu, '');
       if (!/^(?:export(?:\*|\{[^}]*\})from(?:'[^']*'|"[^"]*");)+$/u.test(code)) problems.push(`${from} still holds code; leave only a re-export shim`);
     } else if (existsSync(join(root, from))) problems.push(`${from} still exists; move the asset to ${to}`);
+  }
+  const listed = tryGit(root, ['ls-files', '-z', '--', 'test', 'docs']);
+  if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot inventory tracked fixture readers');
+  for (const file of listed.stdout.split('\0').filter(file => /\.[cm]?js$/u.test(file))) {
+    const path = join(root, file);
+    let stat;
+    try { stat = lstatSync(path); }
+    catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      problems.push(`missing tracked fixture reader ${file}`); continue;
+    }
+    if (!stat.isFile() || stat.isSymbolicLink()) { problems.push(`cannot prove fixture source through ${file}`); continue; }
+    const source = readFileSync(path, 'utf8');
+    if (!cell.paths.some(([from]) => source.includes(from.split('/').at(-1)))) continue;
+    const uses = fixtureSourceEdits(source, { file, moves: cell.paths.map(([from, to]) => [from, to]) });
+    problems.push(...uses.problems);
+    for (const edit of uses.edits) {
+      const line = source.slice(0, edit.start).split('\n').length;
+      problems.push(`${file}:${line} still hand-copies or reads a moved source path; repoint its source operand before submitting the move`);
+    }
   }
   if (existsSync(join(root, CELL_BASELINE_DESCRIPTOR))) {
     for (const row of cellLintGrowth(cellLintReport(root), readCellLintBaseline(root), { enforcedOnly: true })) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
