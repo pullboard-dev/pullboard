@@ -5,63 +5,46 @@ import { coordinatorCheck } from './item-check-baseline.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { Refused } from './refused.js';
 
-const RUNNER = ['node', 'bin/run-tests.js'];
-const SAFE_FILE = /^(?!\/)(?!.*\.\.)[\w./-]+\.m?js$/u;
+const RUNNER = 'node bin/run-tests.js';
+const APPENDED = /^(?: [A-Za-z0-9_./-]+\.test\.js)+$/u;
+const SHELL_SYNTAX = /['"`\\$;|<>()&]/u;
 const REFUSAL = 'CHECK_WIDEN_REFUSED';
 
-/** Split a check on `&&` into segments of words, or null when any shell syntax beyond words is present. */
-function segments(command) {
-  return command.split('&&').map((part) => part.trim().split(/\s+/u).filter(Boolean));
-}
-
-/** Flags that take no value; every other flag binds the next word as its value, so an option is never mistaken for a file. */
-const BOOLEAN_FLAGS = new Set(['--test-force-exit']);
-
-/** Split runner words into option strings (a flag with its bound value, in order) and the selected files. */
-function parseRunnerWords(words) {
-  const options = [];
-  const files = [];
-  for (let at = 0; at < words.length; at += 1) {
-    const word = words[at];
-    if (!word.startsWith('-')) files.push(word);
-    else if (BOOLEAN_FLAGS.has(word) || word.includes('=')) options.push(word);
-    else options.push(at + 1 < words.length ? `${word} ${words[++at]}` : word);
-  }
-  return { options, files };
-}
-
 /**
- * The test files a new check adds to the frozen one, or a refusal naming what stops it being a superset.
- * Only `node bin/run-tests.js <flags> <files>` segments may grow; every other segment, the flags and the order must match exactly.
+ * The test files a new check adds to the frozen one, or a refusal naming the first position where they differ.
+ * The new check must be the frozen one byte for byte, with plain `.test.js` paths appended, single-space separated,
+ * at the end of one or more `node bin/run-tests.js` parts of a ` && ` chain; no parsing of options or quoting is attempted.
  *
  * @param {string} oldCheck the frozen check
  * @param {string} newCheck the proposed check
  * @returns {string[]} the added files, never empty
  */
 export function widenedCheckFiles(oldCheck, newCheck) {
-  const refuse = (why) => new Refused(REFUSAL, `only the coordinator changes a check beyond adding test files to node bin/run-tests.js: ${why}; shout the coordinator with the exact --check`);
+  const refuse = (why) => new Refused(REFUSAL, `only the coordinator changes a check beyond appending test files to a node bin/run-tests.js part: ${why}; shout the coordinator with the exact --check`);
   if (typeof oldCheck !== 'string' || !oldCheck.trim()) throw refuse('the item has no frozen check to widen');
-  const before = segments(oldCheck);
-  const after = segments(newCheck);
-  if (before.length !== after.length) throw refuse(`the command changed from ${before.length} part(s) to ${after.length}`);
+  const before = oldCheck.split(' && ');
+  const after = newCheck.split(' && ');
+  let offset = 0;
   const added = [];
-  before.forEach((old, index) => {
-    const next = after[index];
-    const runner = RUNNER.every((word, at) => old[at] === word);
-    if (!runner) {
-      if (old.join(' ') !== next.join(' ')) throw refuse(`the command changed: "${old.join(' ')}" became "${next.join(' ')}"`);
-      return;
+  const present = new Set(oldCheck.split(' '));
+  for (let index = 0; index < Math.max(before.length, after.length); index += 1) {
+    const [was, now] = [before[index], after[index]];
+    if (was === undefined || now === undefined) throw refuse(`the chain of commands differs at part ${index + 1}`);
+    if (was !== now) {
+      const tail = now.startsWith(was) ? now.slice(was.length) : null;
+      let at = 0;
+      while (at < was.length && at < now.length && was[at] === now[at]) at += 1;
+      const where = `the check differs at character ${offset + at + 1}`;
+      if (tail === null || !APPENDED.test(tail)) throw refuse(where);
+      if (!(was === RUNNER || was.startsWith(`${RUNNER} `)) || SHELL_SYNTAX.test(was)) throw refuse(`${where}, in a part that is not a plain ${RUNNER} part`);
+      if (/^-/u.test(was.split(' ').at(-1)) && was.split(' ').at(-1) !== '--test-force-exit') throw refuse(`${where}, after an option that may take the next word as its value`);
+      for (const file of tail.slice(1).split(' ')) {
+        if (present.has(file) || added.includes(file)) throw refuse(`${file} is already in the check`);
+        added.push(file);
+      }
     }
-    if (!RUNNER.every((word, at) => next[at] === word)) throw refuse(`the runner changed: "${old.join(' ')}" became "${next.join(' ')}"`);
-    const parsed = (words) => parseRunnerWords(words.slice(RUNNER.length));
-    const [was, now] = [parsed(old), parsed(next)];
-    if (was.options.join(' ') !== now.options.join(' ')) throw refuse(`the options changed: "${was.options.join(' ')}" became "${now.options.join(' ')}"`);
-    const files = (found) => found.files;
-    for (const file of [...files(was), ...files(now)]) if (!SAFE_FILE.test(file)) throw refuse(`${file} is not a plain test file path`);
-    const kept = new Set(files(now));
-    for (const file of files(was)) if (!kept.has(file)) throw refuse(`${file} was removed`);
-    for (const file of kept) if (!files(was).includes(file) && !added.includes(file)) added.push(file);
-  });
+    offset += was.length + 4;
+  }
   if (!added.length) throw refuse('it adds no test file');
   return added;
 }
