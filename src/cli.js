@@ -323,7 +323,7 @@ import {
 import {
   exportView,
   serveView,
-} from './serve.js';
+} from './commands/view.js';
 import {
   forgetView,
   busyViewPortRefusal,
