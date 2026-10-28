@@ -5,8 +5,15 @@ import {
 import {
   context,
 } from '../cli.js';
+import { healthReport } from '../health.js';
+import { dispatchHealth } from '../dispatch-health.js';
+
+/** Bind the upper dispatch operation while preserving the digest reader's exact SQLite snapshot. */
+function digestHealth(options) {
+  return healthReport({ ...options, dispatchHealth });
+}
 
 /** Run `pullboard digest` and return its exit code. */
 export function run(io, { first, second, rest, values }) {
-  return digestCommand(io, { first, second, rest, values }, context(io));
+  return digestCommand(io, { first, second, rest, values }, context(io), { healthReport: digestHealth });
 }

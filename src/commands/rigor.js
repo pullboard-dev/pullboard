@@ -1,5 +1,6 @@
 /** The pullboard rigor command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
+import { parseProcessCensus } from '../process-census.js';
 import {
   COORDINATOR,
 } from '../config.js';
@@ -36,7 +37,7 @@ import {
 export async function run(io, { first, second, rest, values }) {
   if ((values['draft-splits'] || values['draft-quality']) && first) throw new Refused('USAGE', 'use pullboard rigor --draft-splits or --draft-quality without a subcommand');
   if (first === 'quality') { if (second || rest.length) throw new Refused('USAGE', 'pullboard rigor quality [--base <commit>] [--rule <key>] [--budget <lines>]'); const ctx = context(io); return rigorQualityCommand(io, { values }, { root: ctx.info.root, config: ctx.config }); }
-  if (first === 'draft') { const ctx = context(io); return rigorDraftCommand(io, { second, rest, values }, { root: ctx.info.root, config: ctx.config, read: () => withBoard(ctx, (board) => ({ events: store.events(board), actor: whoAmI(ctx, board).id })), reserve: (row) => reserveRow(ctx, row, true), propose: (row, evidence) => withBoard(ctx, async (board) => ordered(ctx, board, 'proposeSentinel', [{ agentId: whoAmI(ctx, board).id, row, evidence }])) }); }
+  if (first === 'draft') { const ctx = context(io); return rigorDraftCommand(io, { second, rest, values }, { root: ctx.info.root, config: ctx.config, parseProcessCensus, read: () => withBoard(ctx, (board) => ({ events: store.events(board), actor: whoAmI(ctx, board).id })), reserve: (row) => reserveRow(ctx, row, true), propose: (row, evidence) => withBoard(ctx, async (board) => ordered(ctx, board, 'proposeSentinel', [{ agentId: whoAmI(ctx, board).id, row, evidence }])) }); }
   if (first || second || rest.length) throw new Refused('USAGE', 'pullboard rigor takes no arguments; to draft a rule: pullboard rigor draft <key> "<rule>" --check "<command>" --red <commit> --green <commit>');
   const ctx = context(io);
   const report = withBoard(ctx, (board) => { const history = store.events(board); return { ...rigorReport(history, { person: store.PERSON, root: ctx.info.root }), ...conflictReport(history) }; });

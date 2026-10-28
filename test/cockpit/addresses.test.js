@@ -141,7 +141,7 @@ test('item text links every item reference [N38,N26]', { timeout: 90_000 }, asyn
     assert.deepEqual(waits, [['#2', '/items/2']], 'waits-on references link to the waited item');
     await press(chrome, `document.querySelector('[data-tab="activity"]')`);
     const activity = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity a.ref[data-go]')].map(node=>[node.textContent,new URL(node.href).pathname]))`));
-    const activityCites = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity .act')]
+    const activityCites = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity .activity-event')]
       .filter(node=>node.textContent.includes('Activity cites #1 and waits on #2'))
       .flatMap(node=>[...node.querySelectorAll('a.ref[data-go]')].map(link=>[link.textContent,new URL(link.href).pathname])))`));
     assert.deepEqual(activityCites, [['#1', '/items/1'], ['#2', '/items/2']], 'the Activity citation and wait prose link to their exact item targets');

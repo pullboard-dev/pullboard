@@ -7,7 +7,7 @@ import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by claim, discovered without a shared registry edit [C7,V4,H16]. */
 import { BAR_READY_ENGINE } from '../bar-ready-engine.js';
 import { barReadySetting } from '../bar-ready-setting.js';
-import { firstRefusal } from '../first-refusal-window.js';
+import { firstRefusal } from '../board-item-read.js';
 import { REOPEN_FIRST_REFUSAL_ENGINE } from '../engine-metadata.js';
 import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { OUTSIDE_INTAKE_ENGINE } from '../outside-intake-engine.js';
