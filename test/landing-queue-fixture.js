@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { mainAuditKey } from '../src/main-audit-state.js';
+import { readAuditJob } from './main-audit-project.js';
 import {
   readGateReceipt,
   receiptStore,
@@ -161,7 +162,7 @@ function landingPolicyCalls(box, batches, records) {
     const key = basename(record.cwd).slice('source-'.length);
     assert.equal(audits.has(key), false, 'a duplicate audit invocation cannot disappear from the policy count');
     audits.add(key);
-    const job = JSON.parse(readFileSync(join(directory, key + '.json'), 'utf8'));
+    const job = readAuditJob(directory, key);
     const batch = batches.find(candidate => candidate.id === job.batchId);
     assert.ok(batch, 'only an audit of this exact native landed batch is independent of its foreground run');
     assert.equal(job.board, board);

@@ -20,6 +20,8 @@ import { runFixtureGit } from './fixture-child.js';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../src/cell-binding-uses.js';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
+import { mainAuditKey } from '../src/main-audit-state.js';
+import { readAuditJob } from './main-audit-project.js';
 
 const IMPORT = "import { join } from 'node:path';\n";
 
@@ -72,6 +74,25 @@ test('native receipt input retains exact bytes and rejects missing or changed fo
     writeFileSync(file, changed);
     assert.equal(readGateReceipt(directory, value.id), null, 'same JSON value with altered bytes is not a bound receipt');
   }
+});
+
+test('native audit journal input refuses missing, malformed and mismatched identities [C7]', (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'pb-audit-format-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const job = { version: 1, board: 'format-only-board', batchId: 'format-only-batch',
+    tip: 'a'.repeat(40), tree: 'b'.repeat(40), state: 'running' };
+  const key = mainAuditKey(job);
+  const file = join(directory, `${key}.json`);
+  assert.throws(() => readAuditJob(directory, key), /actual native audit journal exists/u);
+  assert.throws(() => readAuditJob(directory, '../untrusted'), /audit journal identity/u);
+  writeFileSync(file, JSON.stringify(job));
+  assert.deepEqual(readAuditJob(directory, key), job, 'synthetic schema control makes no runtime-proof claim');
+  writeFileSync(file, '{malformed');
+  assert.throws(() => readAuditJob(directory, key), SyntaxError);
+  writeFileSync(file, JSON.stringify({ ...job, tree: 'c'.repeat(40) }));
+  assert.throws(() => readAuditJob(directory, key), /journal binds/u);
+  writeFileSync(file, JSON.stringify({ ...job, version: 2 }));
+  assert.throws(() => readAuditJob(directory, key), /journal schema/u);
 });
 
 /** Hide only this actual import declaration, just as the production callers do; every other spelling stays visible. */
