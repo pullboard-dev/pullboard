@@ -1,8 +1,10 @@
+import { submitGateConfig } from './gate-submit.js';
+import { submitGatePlan } from './gate-submit.js';
+import { policyAt } from './trusted-policy-read.js';
 import { createHash } from 'node:crypto';
 import { boardReceiptStore } from './gate-run-receipt.js';
 import { readGateReceipt } from './gate-run-receipt.js';
 import { frozenCheck } from './trusted-policy.js';
-import { mappedCheck } from './path-map.js';
 /** Claimed companions bind their original author source to actual native composed proof [C7,V4,H16]. */
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -53,7 +55,7 @@ export function checkItemPatchSubmit(board, id, options) {
   const binding = options.companion;
   if (!binding) return null;
   const item = getItem(board, id);
-  const keys = ['version', 'source', 'sourceTree', 'commit', 'tree', 'digest', 'receiptIds'];
+  const keys = ['version', 'source', 'sourceTree', 'commit', 'tree', 'digest', 'receiptIds', 'phases'];
   if (board.executionEngineVersion !== undefined && board.executionEngineVersion < ITEM_PATCH_SUBMIT_ENGINE
     || !binding || typeof binding !== 'object' || Array.isArray(binding)
     || Object.keys(binding).sort().join(',') !== [...keys].sort().join(',') || binding.version !== 1
@@ -62,14 +64,20 @@ export function checkItemPatchSubmit(board, id, options) {
     || !/^[a-f0-9]{64}$/u.test(binding.digest ?? '')
     || binding.digest !== itemPatchDigest(board, id, binding.source)
     || !itemPatches(board, id).length || itemPatches(board, id).some(patch => patch.commit !== binding.source || patch.source?.commit !== binding.source)
-    || !Array.isArray(binding.receiptIds) || binding.receiptIds.length < 1 || binding.receiptIds.length > 2
-    || new Set(binding.receiptIds).size !== binding.receiptIds.length) {
+    || !Array.isArray(binding.receiptIds) || binding.receiptIds.length > 2
+    || new Set(binding.receiptIds).size !== binding.receiptIds.length
+    || !Array.isArray(binding.phases) || binding.phases.length !== binding.receiptIds.length
+    || binding.phases.some(phase => !phase || Object.keys(phase).sort().join(',') !== 'command,role'
+      || !['criterion', 'proof'].includes(phase.role) || !/^[a-f0-9]{64}$/u.test(phase.command ?? ''))
+    || new Set(binding.phases.map(phase => phase.role)).size !== binding.phases.length) {
     throw new Refused('ITEM_PATCH_CHANGED', 'the source or companion set changed; compose and prove the current exact inputs before submitting');
   }
   const receipts = proofReceipts(board, id);
-  for (const receiptId of binding.receiptIds) {
+  for (const [index, receiptId] of binding.receiptIds.entries()) {
     const receipt = receipts.find(row => row.id === receiptId);
+    const phase = binding.phases[index];
     if (!receipt || receipt.kind !== 'submit' || receipt.commit !== binding.commit || receipt.tree !== binding.tree
+      || receipt.submitPhase !== phase.role || receipt.command !== phase.command
       || receipt.seat !== options.agentId || receipt.frozenDigest !== item.item_frozen_digest || receipt.sourceClean !== true
       || !Number.isSafeInteger(receipt.exitCode) || options.gateGreen === true && receipt.exitCode !== 0) {
       throw new Refused('ITEM_PATCH_CHANGED', 'the composed source needs its own recorded green native submit receipts');
@@ -96,10 +104,20 @@ export function sealItemPatchSubmit(board, id, options) {
       || options.gateGreen === true && !receipt.green
       || receipt.proof.seat !== options.agentId || receipt.proof.item !== id
       || receipt.proof.frozenDigest !== item.item_frozen_digest || !receipt.proof.sourceClean)) throw new Error('unbound native proof');
-    const criterion = mappedCheck(root, frozenCheck(item), { commit: binding.commit });
-    if (criterion && (!receipts[0]?.green || receipts[0]?.command !== createHash('sha256').update(criterion).digest('hex'))) throw new Error('different frozen command');
+    const config = submitGateConfig(policyAt(root, binding.commit).config, policyAt(root, options.policyCommit).config);
+    const plan = submitGatePlan(root, config, { base: item.item_claim_head, trunk: options.policyCommit,
+      check: frozenCheck(item), commit: binding.commit });
+    const phases = plan.phases.map(({ role, command }) => ({ role, command: createHash('sha256').update(command).digest('hex') }));
+    if (JSON.stringify(binding.phases) !== JSON.stringify(phases)
+      || receipts.some((receipt, index) => receipt.proof.submitPhase !== phases[index]?.role || receipt.command !== phases[index]?.command)
+      || plan.check && !receipts[0]?.green) throw new Error('missing or substituted required phase');
+    const summary = options.submissionProof;
+    if (!summary || JSON.stringify(summary.files) !== JSON.stringify(plan.proofFiles) || summary.full !== plan.selection.full
+      || summary.deferred !== plan.deferred || JSON.stringify(summary.deferredFiles ?? []) !== JSON.stringify(plan.deferSelection ? plan.selection.files : [])) {
+      throw new Error('different required selection');
+    }
     const expected = prepareItemPatchSubmit(root, board, item, options.commit);
-    const { receiptIds, ...source } = binding;
+    const { receiptIds, phases: _phases, ...source } = binding;
     if (JSON.stringify(source) !== JSON.stringify(expected)) throw new Error('changed composition');
   } catch (error) {
     if (error instanceof Refused) throw error;

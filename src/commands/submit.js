@@ -1,3 +1,5 @@
+import { submitGateConfig } from '../gate-submit.js';
+import { createHash } from 'node:crypto';
 import { prepareItemPatchSubmit } from '../item-patch-submit.js';
 import { withItemPatchSubmit } from '../item-patch-submit.js';
 import { boundedProofReason } from '../../packages/state/src/core/submission-proof.js';
@@ -72,6 +74,7 @@ import {
   frozenCheck,
   itemPolicy,
   mainPolicy,
+  policyAt,
   requireTrunkMerge,
   submissionPaths,
 } from '../trusted-policy.js';
@@ -209,19 +212,18 @@ export async function submitHere(ctx, id, infra) {
   for (const rule of doctrine) ctx.io.say(`doctrine: ${ruleLine(rule)}`);
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
-  const submitConfig = { ...ctx.config, gate: ctx.config.gate.trim() ? ctx.config.gate : acceptedMain.config.gate, submitGate: acceptedMain.config.submitGate, staticChecks: acceptedMain.config.staticChecks,
-    submitInvariants: acceptedMain.config.submitInvariants, submitDeferAbove: acceptedMain.config.submitDeferAbove,
-    registryGuards: acceptedMain.config.registryGuards,
-    // The accepted project runner interprets its current invariant files; candidate config cannot replace it.
-    ...(acceptedMain.config.submitInvariants.length || acceptedMain.config.registryGuards.length ? { affectedTests: acceptedMain.config.affectedTests } : {}) };
+  const submitConfig = submitGateConfig(companion ? policyAt(root, companion.commit).config : ctx.config, acceptedMain.config);
   const admission = { commit: companion?.commit ?? commit, tree: companion?.tree ?? headTree(root) };
   const gate = await withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { outputRoot: root, base: claimHead, trunk: acceptedMain.commit, check: frozenCheck(held), agent: me.id, item: String(id), onWait: queuedItemLease(ctx, held, me.id, 'build', admission), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
-    proofContext: { item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission },
+    proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission },
     onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, config: submitConfig }, { ordered, withBoard, resourceAgent }) }));
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
     await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent });
   }
-  if (companion) companion.receiptIds = gate.proofReceiptIds.filter(id => typeof id === 'string');
+  if (companion) {
+    companion.receiptIds = gate.proofReceiptIds.filter(id => typeof id === 'string');
+    companion.phases = gate.phasePlan.map(({ role, command }) => ({ role, command: createHash('sha256').update(command).digest('hex') }));
+  }
   // Only fully accounted exact-main failures or live person waivers pass a red proof; the item check stays mandatory [B3].
   const waived = !gate.isGreen && gate.check?.green ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, root))) : null;
   let comparison;

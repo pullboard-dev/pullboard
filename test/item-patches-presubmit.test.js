@@ -54,12 +54,13 @@ function actorGit(box, actor, ...args) {
 }
 
 /** Build real Git and persistent SQLite state with a core command requiring its view companion. */
-function fixture(t, { hold = false } = {}) {
+function fixture(t, { hold = false, deferred = false, check = 'node core/cli.cjs' } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  if (deferred) config.submitGate = 'landing';
   config.lanes.core = { owns: ['core/'], specs: ['G1'] };
   config.lanes.view = { owns: ['view/'], specs: ['G2'] };
   writeFileSync(configFile, JSON.stringify(config, null, 2) + '\n');
@@ -70,7 +71,7 @@ function fixture(t, { hold = false } = {}) {
   const author = seat(box, 'presubmit-author', 'view');
   const id = document(run(box, coordinator, 'add', 'core', 'Core command needs its view import',
     '--specs', 'G1', '--criterion', 'The real core command imports the approved view module.',
-    '--check', 'node core/cli.cjs')).item.item_id;
+    '--check', check)).item.item_id;
   document(run(box, builder, 'claim', String(id)));
   mkdirSync(join(builder.root, 'core'));
   const entered = join(box.dir, 'entered'), release = join(box.dir, 'release');
@@ -97,7 +98,40 @@ function attach(f, key = 'approved-view', source = f.source, file = f.patchFile,
     '--key', key, '--author', author, '--source', source));
 }
 
-test('claimed companion submits the real core command and records exact composed native proof [C7,V4,H16]', t => {
+/** Produce a second genuine phase pair on the same private item, retaining native admission and receipt writing. */
+async function repeatNativePhases(f, binding) {
+  const module = name => new URL('../src/' + name, import.meta.url).href;
+  const script = join(f.box.dir, 'repeat-phases.mjs');
+  writeFileSync(script, `import * as store from ${JSON.stringify(module('board.js'))};
+import { runSubmitGate, submitGateConfig } from ${JSON.stringify(module('gate-submit.js'))};
+import { withItemPatchSubmit } from ${JSON.stringify(module('item-patch-submit.js'))};
+import { policyAt, frozenCheck, mainPolicy } from ${JSON.stringify(module('trusted-policy.js'))};
+const root = process.cwd();
+// @pullboard-board-file journey: record actual native proof receipts on the same persistent CLI fixture board
+const board = store.openBoard(${JSON.stringify(join(f.box.repo, '.git/pullboard/board.sqlite'))});
+try {
+  const item = store.getItem(board, ${f.id});
+  const main = mainPolicy(root);
+  const config = submitGateConfig(policyAt(root, ${JSON.stringify(binding.commit)}).config, main.config);
+  const gate = await withItemPatchSubmit(root, ${JSON.stringify(binding)}, checkout => runSubmitGate(checkout, config,
+    { base: item.item_claim_head, trunk: main.commit, check: frozenCheck(item), agent: ${JSON.stringify(f.builder.id)}, item: item.item_id,
+      proofContext: { companion: true, item: item.item_id, frozenDigest: item.item_frozen_digest, seat: ${JSON.stringify(f.builder.id)} } }));
+  if (!gate.isGreen) throw new Error(gate.output);
+  for (const id of gate.proofReceiptIds) store.recordProofRun(board, { agentId: ${JSON.stringify(f.builder.id)}, itemId: item.item_id, receiptId: id });
+  console.log(JSON.stringify(gate.proofReceiptIds));
+} finally { store.closeBoard(board); }
+`);
+  const before = f.box.env.CODEX_THREAD_ID;
+  f.box.env.CODEX_THREAD_ID = f.builder.session;
+  let child;
+  try { child = f.helpers.launch(f.box, f.builder.root, process.execPath, [script]); }
+  finally { if (before === undefined) delete f.box.env.CODEX_THREAD_ID; else f.box.env.CODEX_THREAD_ID = before; }
+  const result = await child.closed;
+  assert.equal(result.code, 0, child.stdoutText + child.stderrText);
+  return JSON.parse(child.stdoutText.trim().split('\n').at(-1));
+}
+
+test('claimed companion submits the real core command and records exact composed native proof [C7,V4,H16]', async t => {
   const f = fixture(t);
   attach(f);
   const claimed = store.getItem(f.board, f.id);
@@ -109,14 +143,26 @@ test('claimed companion submits the real core command and records exact composed
   assert.equal(store.getItem(f.board, f.id).item_status, 'submitted');
   assert.equal(store.getItem(f.board, f.id).item_commit, f.source);
   const event = store.events(f.board).filter(row => row.event_kind === 'submit' && row.item_id === f.id).at(-1);
-  const binding = JSON.parse(event.event_detail).companion;
+  const detail = JSON.parse(event.event_detail);
+  const binding = detail.companion;
   assert.equal(binding.source, f.source);
   assert.notEqual(binding.commit, f.source);
   assert.equal(binding.sourceTree, f.box.git(f.builder.root, 'rev-parse', `${f.source}^{tree}`));
   assert.equal(binding.tree, f.box.git(f.builder.root, 'rev-parse', `${binding.commit}^{tree}`));
   assert.equal(prepareItemPatchReview(f.builder.root, f.board, store.getItem(f.board, f.id)).commit, binding.commit,
     'submit and verifier share the actual deterministic composition');
-  assert.ok(binding.receiptIds.length > 0);
+  assert.deepEqual(binding.phases.map(phase => phase.role), ['criterion', 'proof']);
+  const options = { ...detail, agentId: f.builder.id };
+  assert.equal(sealItemPatchSubmit(f.board, f.id, options), options);
+  for (const index of [0, 1]) {
+    const incomplete = { ...binding, receiptIds: [binding.receiptIds[index]], phases: [binding.phases[index]] };
+    assert.throws(() => sealItemPatchSubmit(f.board, f.id, { ...options, companion: incomplete }), { code: 'ITEM_PATCH_CHANGED' });
+  }
+  const repeated = await repeatNativePhases(f, binding);
+  const substitute = { ...binding, receiptIds: [binding.receiptIds[0], repeated[0]] };
+  assert.notEqual(substitute.receiptIds[0], substitute.receiptIds[1]);
+  for (const id of substitute.receiptIds) assert.equal(store.proofReceipts(f.board, f.id).find(row => row.id === id).submitPhase, 'criterion');
+  assert.throws(() => sealItemPatchSubmit(f.board, f.id, { ...options, companion: substitute }), { code: 'ITEM_PATCH_CHANGED' });
   for (const id of binding.receiptIds) {
     const receipt = store.proofReceipts(f.board, f.id).find(row => row.id === id);
     assert.equal(receipt.commit, binding.commit);
@@ -239,4 +285,17 @@ test('coordinator removal during the actual gate prevents sealing its superseded
   assert.equal(store.events(f.board).filter(event => event.item_id === f.id && event.event_kind === 'submit').length, 0);
   assert.ok(store.proofReceipts(f.board, f.id).some(receipt => receipt.exitCode === 0),
     'the actual superseded gate completed; it was not relabeled as a valid current submit');
+});
+
+
+test('companion phases preserve zero, criterion-only deferred and blank-check proof-only policy [C7,V4,H16]', t => {
+  for (const mode of [{ deferred: true }, { check: '' }, { deferred: true, check: '' }]) {
+    const f = fixture(t, mode);
+    attach(f);
+    document(run(f.box, f.builder, 'submit', String(f.id)));
+    const detail = JSON.parse(store.events(f.board).filter(row => row.event_kind === 'submit' && row.item_id === f.id).at(-1).event_detail);
+    assert.deepEqual(detail.companion.phases.map(phase => phase.role), mode.deferred && mode.check === '' ? [] : [mode.deferred ? 'criterion' : 'proof']);
+    const options = { ...detail, agentId: f.builder.id };
+    assert.equal(sealItemPatchSubmit(f.board, f.id, options), options);
+  }
 });

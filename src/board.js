@@ -1157,7 +1157,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
   let recordedProof;
   let recordedSize;
   if (companion) {
-    const options = { agentId, commit, tree, gateGreen, policyCommit, companion };
+    const options = { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion };
     if (board.executionEngineVersion === undefined) sealItemPatchSubmit(board, id, options);
     else checkItemPatchSubmit(board, id, options);
   }
