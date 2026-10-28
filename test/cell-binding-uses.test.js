@@ -27,6 +27,7 @@ import { bindingReadsForModules } from '../src/cell-binding-uses.js';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
 import { mainAuditKey } from '../src/main-audit-state.js';
 import { readAuditJob } from './main-audit-project.js';
+import { relayClientFixture } from './relay-client-fixture.js';
 import { mappedWorkingSource } from '../bin/checks/scan.js';
 import { importsIn } from '../src/module-imports.js';
 
@@ -166,6 +167,37 @@ test('mechanical fixture input owns its origin and reads actual post-component b
   assert.throws(() => inputs.write('src/actual.js', 'no'), /not owned/u);
   symlinkSync(join(inputs.root, 'src'), join(inputs.root, 'linked'));
   assert.throws(() => inputs.write('linked/new.txt', 'no'), /ancestor/u);
+});
+
+test('relay fixture inputs retain every metadata/source byte and reject foreign roots and keys [C7]', async (t) => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  const boardId = box.before.tables.board_meta.find(row => row.meta_key === 'board_id').meta_value;
+  const destination = join(box.root, '..', 'input-copy');
+  mkdirSync(join(destination, '.git'), { recursive: true });
+  const metadata = join(box.root, '.git', 'pullboard');
+  const metadataSecret = 'ps_' + 'M'.repeat(43), sourceSecret = 'pg_' + 'S'.repeat(43);
+  writeFileSync(join(metadata, 'planted-credential.txt'), metadataSecret);
+  writeFileSync(join(metadata, 'excluded.lock'), 'the original copy excludes lock files');
+  box.copyOwnBoardMetadata(destination);
+  mkdirSync(join(destination, 'copied-source', 'nested'), { recursive: true });
+  writeFileSync(join(destination, 'copied-source', 'nested', 'body.js'), sourceSecret);
+  const bytes = box.privateTreeBytes(destination);
+  assert.ok(bytes.some(value => value.equals(Buffer.from(metadataSecret))), 'metadata credentials remain covered');
+  assert.ok(bytes.some(value => value.equals(Buffer.from(sourceSecret))), 'copied source subtree credentials remain covered');
+  assert.ok(!bytes.some(value => value.equals(Buffer.from('the original copy excludes lock files'))), 'copy retains exactly its original lock exclusion');
+  const home = join(box.root, '..', 'input-copy-home');
+  mkdirSync(join(home, 'relay-keys'), { recursive: true });
+  box.copyOwnKey(home, boardId);
+  const keyHash = createHash('sha256').update(box.readKey()).digest('hex');
+  assert.ok(box.privateTreeBytes(home).some(value => createHash('sha256').update(value).digest('hex') === keyHash), 'key copy retains exact actual bytes without printing the secret');
+  assert.throws(() => box.copyOwnKey(home, (boardId[0] === 'f' ? 'e' : 'f') + boardId.slice(1)), /exactly this fixture board/u);
+  assert.throws(() => box.copyOwnKey(home, '../unknown'), /canonical board/u);
+  assert.throws(() => box.copyOwnBoardMetadata(tmpdir()), /fixture origin/u);
+  assert.throws(() => box.copyOwnKey(tmpdir(), boardId), /fixture origin/u);
+  assert.throws(() => box.privateTreeBytes(tmpdir()), /fixture origin/u);
+  symlinkSync(tmpdir(), join(destination, 'escaping-link'));
+  assert.throws(() => box.privateTreeBytes(destination), /escaping symlink/u);
 });
 
 /** Hide only this actual import declaration, just as the production callers do; every other spelling stays visible. */
