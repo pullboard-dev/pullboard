@@ -58,11 +58,11 @@ function parents(root, file) {
   }
 }
 /** Construct the narrowly supported transaction using controller-loaded accepted tools, never candidate evaluation. */
-export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolations, readPathMap, cleanGitEnvironment }) {
+export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolations, readPathMap, cleanGitEnvironment, fixtureSourceEdits }) {
   /** Run immutable Git selectors with ambient selectors removed, or ordinary scoped mutations. */
-  function git(root, args, encoding = 'utf8') {
+  function git(root, args, encoding = 'utf8', input = undefined) {
     const result = spawnSync('git', ['--no-replace-objects', '--literal-pathspecs', ...args], {
-      cwd: root, env: cleanGitEnvironment(), encoding, maxBuffer: 64 * 1024 * 1024,
+      cwd: root, env: cleanGitEnvironment(), encoding, input, maxBuffer: 64 * 1024 * 1024,
     });
     requireThat(result.status === 0, `git ${args[0]} failed: ${String(result.stderr ?? result.error ?? '')}`);
     return result.stdout;
@@ -71,6 +71,44 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
   function tracked(root, commit, file) {
     const row = git(root, ['ls-tree', '-z', commit, '--', file]);
     requireThat(/^100(?:644|755) blob [a-f0-9]+\t/u.test(row) && row.endsWith(`\t${file}\0`), `${file} is not a regular committed file`);
+  }
+  /** Read immutable test blobs in one bounded Git batch; fixture edits belong to the same reversible custody. */
+  function fixtureImages(root, head, from, to) {
+    const rows = git(root, ['ls-tree', '-rz', head, '--', 'test', 'docs']).split('\0').filter(Boolean)
+      .map(row => /^(100(?:644|755)) blob ([a-f0-9]+)\t(.+)$/u.exec(row))
+      .filter(row => row && /\.[cm]?js$/u.test(row[3]));
+    if (!rows.length) return [];
+    const batch = git(root, ['cat-file', '--batch'], null, rows.map(row => row[2]).join('\n') + '\n');
+    const result = [];
+    let offset = 0;
+    for (const row of rows) {
+      const end = batch.indexOf(10, offset);
+      const header = new RegExp(`^${row[2]} blob (\\d+)$`, 'u').exec(batch.subarray(offset, end).toString());
+      requireThat(end >= offset && header, `invalid immutable test blob ${row[3]}`);
+      const size = Number(header[1]), bytes = batch.subarray(end + 1, end + 1 + size);
+      requireThat(bytes.length === size && batch[end + 1 + size] === 10, `truncated immutable test blob ${row[3]}`);
+      offset = end + size + 2;
+      const source = bytes.toString('utf8');
+      if (!source.includes(posix.basename(from))) continue;
+      requireThat(Buffer.from(source).equals(bytes), `${row[3]} is not exact UTF-8`);
+      filePath(row[3]); parents(root, row[3]);
+      const { edits, problems } = fixtureSourceEdits(source, { file: row[3], moves: [[from, to]] });
+      requireThat(!problems.length, problems.join('\n'));
+      if (!edits.length) continue;
+      let next = source, boundary = source.length;
+      for (const edit of [...edits].sort((a, b) => b.start - a.start)) {
+        requireThat(Number.isSafeInteger(edit.start) && Number.isSafeInteger(edit.end)
+          && edit.start >= 0 && edit.start < edit.end && edit.end <= boundary && typeof edit.text === 'string',
+        `invalid fixture rewrite at ${row[3]}`);
+        next = next.slice(0, edit.start) + edit.text + next.slice(edit.end); boundary = edit.start;
+      }
+      importsIn([next]); // Compile changed test bytes without linking or evaluating them.
+      const mode = row[1] === '100755' ? 0o755 : 0o644;
+      result.push({ file: row[3], before: { bytes: bytes.toString('base64'), mode },
+        after: { bytes: Buffer.from(next).toString('base64'), mode } });
+    }
+    requireThat(offset === batch.length, 'unexpected immutable test batch bytes');
+    return result;
   }
   /** Relocate only plain static module literals; V8 verifies the complete recognized import set. */
   function relocate(root, commit, from, to, source, keepExports) {
@@ -130,8 +168,8 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
     importsIn([next]); // Compile, never link/evaluate.
     return next;
   }
-  /** Capture a closed four-file preimage before any mutation; old importers keep their shim. */
-  function derive({ root, from, to, frontDoor, purpose, keepExports = null }, recordedHead = null) {
+  /** Capture closed source and fixture preimages before mutation; historical v2 custody keeps its original scope. */
+  function derive({ root, from, to, frontDoor, purpose, keepExports = null }, recordedHead = null, version = 3) {
     root = realpathSync(root);
     [from, to, frontDoor].forEach(filePath);
     requireThat(/^packages\/[a-z][a-z0-9-]*\/index\.js$/u.test(frontDoor), 'front door must be one package index');
@@ -186,12 +224,15 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
       [frontDoor]: textImage(`/** ${purpose.trim()} */\nexport * from ${JSON.stringify(bodyTarget)};\n`),
       [mapFile]: textImage(JSON.stringify(mapping, null, 2) + '\n', before[mapFile]?.mode),
     };
+    const fixtures = version === 3 ? fixtureImages(root, head, from, to) : [];
+    for (const row of fixtures) { before[row.file] = row.before; after[row.file] = row.after; }
     const directories = [...new Set([to, frontDoor, mapFile].flatMap(file => {
       const result = []; let directory = posix.dirname(file);
       while (directory !== '.' && !existsSync(join(root, directory))) { result.unshift(directory); directory = posix.dirname(directory); }
       return result;
     }))].sort((a, b) => a.split('/').length - b.split('/').length);
-    const value = { version: 2, directories, root, head, from, to, frontDoor, mapFile, purpose, keepExports, before, after };
+    const value = { version, directories, root, head, from, to, frontDoor, mapFile, purpose, keepExports, before, after,
+      ...(version === 3 ? { testFiles: fixtures.map(row => row.file) } : {}) };
     return Object.freeze({ ...value, digest: digest(value) });
   }
   /** Plan only from a clean current checkout; inverse validation derives from immutable Git instead. */
@@ -199,7 +240,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
   /** Validate a serialized envelope's digest; this is custody, not executable or board authority. */
   function validate(value) {
     const { digest: claimed, ...payload } = value;
-    requireThat(payload.version === 2 && digest(payload) === claimed, 'transaction custody digest changed');
+    requireThat([2, 3].includes(payload.version) && digest(payload) === claimed, 'transaction custody digest changed');
     requireThat(realpathSync(payload.root) === payload.root
       && git(payload.root, ['rev-parse', '--show-toplevel']).trim() === payload.root, 'custody root must be the actual Git root');
     [payload.from, payload.to, payload.frontDoor].forEach(filePath);
@@ -211,9 +252,11 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
       filePath(directory);
       return [payload.to, payload.frontDoor, payload.mapFile].some(file => file.startsWith(directory + '/'));
     }), 'invalid directory custody');
-    const expected = [payload.from, payload.to, payload.frontDoor, payload.mapFile].sort();
-    requireThat(new Set(expected).size === 4 && JSON.stringify(Object.keys(payload.before).sort()) === JSON.stringify(expected)
+    const canonical = derive(payload, payload.head, payload.version);
+    const expected = Object.keys(canonical.before).sort();
+    requireThat(JSON.stringify(Object.keys(payload.before).sort()) === JSON.stringify(expected)
       && JSON.stringify(Object.keys(payload.after).sort()) === JSON.stringify(expected), 'custody scope changed');
+    requireThat(same(canonical.testFiles, payload.testFiles), 'fixture custody list changed');
     requireThat(payload.before[payload.from] && !payload.before[payload.to] && !payload.before[payload.frontDoor], 'invalid source preimage');
     for (const file of expected) {
       for (const state of [payload.before[file], payload.after[file]]) {
@@ -231,7 +274,6 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
         requireThat(row.startsWith(payload.before[file].mode === 0o755 ? '100755 ' : '100644 '), `preimage mode differs for ${file}`);
       }
     }
-    const canonical = derive(payload, payload.head);
     requireThat(same(canonical.before, payload.before) && same(canonical.after, payload.after),
       'custody postimages differ from immutable canonical derivation');
     return payload;
@@ -295,7 +337,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
       git(value.root, ['mv', '--', value.from, value.to]);
       for (const [file, postimage] of Object.entries(value.after)) put(value.root, file, postimage, created);
       git(value.root, ['add', '--', ...Object.keys(value.after)]);
-      return { record, digest: value.digest, created };
+      return { record, digest: value.digest, created, rewrittenTests: value.testFiles ?? [] };
     } catch (error) {
       try { restore(value, created); }
       catch (recovery) { throw new AggregateError([error, recovery], `retain exact custody ${record}; partial transaction needs manual recovery`); }
