@@ -1,5 +1,6 @@
 /** File moves preserve frozen checks and read-only engineering history [C7]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
@@ -11,6 +12,8 @@ import { rigorReport } from '../src/board-rigor.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
 import { coChangedPaths, historicalPaths, mappedCheck, readPathMap } from '../src/path-map.js';
 import { prepareCauseProof, runCheckAt } from '../src/rigor-proof.js';
+import { parseProcessCensus } from '../src/process-census.js';
+import { proveCauseCheck } from '../src/rigor-proof.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 
@@ -105,6 +108,21 @@ test('native check, submit and independent verification execute the old frozen p
   assert.equal(json(web, 'show', '1').item_frozen, before);
 });
 
+test('Rigor requires its census provider before starting a proof or acquiring its lease [C7,D1]', async () => {
+  const box = e2e.project('true', undefined, { withWorktree: false });
+  const commit = box.git(box.repo, 'rev-parse', 'HEAD');
+  const marker = join(box.dir, 'unexpected-proof');
+  const before = box.git(box.repo, 'worktree', 'list', '--porcelain');
+  await assert.rejects(runCheckAt(box.repo, commit, 'unused', {
+    executable: process.execPath, args: ['-e', `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran')`],
+  }), error => error.code === 'RIGOR_UNPROVEN' && /census parser/u.test(error.message));
+  const cause = { key: 'work:missing-census', items: [{ id: 1, commits: [commit] }] };
+  await assert.rejects(proveCauseCheck(box.repo, cause, { check: 'true', red: commit, green: commit }),
+    error => error.code === 'RIGOR_UNPROVEN' && /census parser/u.test(error.message));
+  assert.equal(existsSync(marker), false, 'a missing custody provider cannot execute the real proof child');
+  assert.equal(box.git(box.repo, 'worktree', 'list', '--porcelain'), before, 'the missing provider leaves no proof worktree');
+});
+
 test('a named Rigor proof checks the actual old red file and moved green file [C7]', async () => {
   const box = e2e.project('true', undefined, { withWorktree: false });
   const title = 'mapped proof [C7]';
@@ -123,8 +141,8 @@ test('a named Rigor proof checks the actual old red file and moved green file [C
   const prepared = await prepareCauseProof(box.repo, cause, { check: `node --test ${NEW}`, red, green });
   assert.equal(prepared.runner.filesAt[red], OLD);
   assert.equal(prepared.runner.filesAt[green], NEW);
-  const failed = await runCheckAt(box.repo, red, prepared.check, prepared.runner);
-  const passed = await runCheckAt(box.repo, green, prepared.check, prepared.runner);
+  const failed = await runCheckAt(box.repo, red, prepared.check, prepared.runner, { parseProcessCensus });
+  const passed = await runCheckAt(box.repo, green, prepared.check, prepared.runner, { parseProcessCensus });
   assert.equal(failed.exit, 1);
   assert.equal(passed.exit, 0);
   assert.match(failed.stdout, /not ok 1 - mapped proof/u);
