@@ -19,5 +19,5 @@ export default Object.freeze({ operation: "declareJob", order: 56, engine: 1,
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
   "BAD_JOB": "name the job and a cadence like 10m, 2h or daily: pullboard loop declare <name> --every 10m --owner <seat or lane>",
-  "JOB_CADENCE_COORDINATOR_ONLY": "ask the coordinator to change the cadence: pullboard shout coordinator \"<job> needs cadence <every>\" --decision"
+  "JOB_CADENCE_COORDINATOR_ONLY": "ask the coordinator to change the cadence: pullboard shout coordinator --kind question \"<job> needs cadence <every>\" --decision"
 }) });

@@ -5,6 +5,7 @@ import { addressedSeat } from '../seat-address.js';
 /** The pullboard shout command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import { requireReadableShout } from '../shout-readable.js';
+import { requireCoordinatorShoutPurpose } from '../coordinator-shout-purpose.js';
 import {
   COORDINATOR,
 } from '../config.js';
@@ -48,7 +49,9 @@ export async function run(io, { first, second, rest, values }) {
   const hasRecipient = first && (addressed || recipients.includes(first)) && (values.item === undefined || second !== undefined);
   const to = values.item !== undefined ? `item:${values.item}` : hasRecipient ? recipient : values.decision ? (me.id === COORDINATOR ? 'person' : COORDINATOR) : first ?? '';
   const text = [hasRecipient ? second : first, ...(hasRecipient ? rest : [second, ...rest])].filter(Boolean).join(' ');
+  if (!text.trim()) throw new Refused('EMPTY_SHOUT', 'a shout needs text');
   requireReadableShout(text);
+  requireCoordinatorShoutPurpose({ from: personShout(io, me) ? store.PERSON : me.id, to, kind: values.kind });
   const id = await ordered(ctx, board, 'shout', [{ from: personShout(io, me) ? store.PERSON : me.id, to, text, ...(values.item !== undefined ? { item: Number(values.item) } : {}), lanes: laneNames(ctx.config), decision: Boolean(values.decision), ...(options !== undefined ? { options } : {}), ...(effects === undefined ? {} : { effects }), ...(values.kind === undefined ? {} : { kind: values.kind }), ...(values.news ? { news: true } : {}), evidence }]);
   io.result?.({ id, decision: Boolean(values.decision), ...(ruling ? { ruling } : {}) });
   if (ruling) io.say(`computed call: ${ruling.owner}; execution guards still apply`);
