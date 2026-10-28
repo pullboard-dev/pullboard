@@ -1,18 +1,19 @@
 /** Observe in-flight heads after a landing without changing any peer checkout [N2,B3]. */
-import { listAgents } from './board.js';
-import { listItems } from './board.js';
 import { headCommit } from './git.js';
 import { repoInfo } from './git.js';
 import { mechanicalConflictFiles } from './mechanical-merge.js';
 
 /** Compare each recorded submission or live registered builder HEAD with one immutable landed tip. */
-export function mainMovedWarnings({ root, board, trunk }) {
+export function mainMovedWarnings({ root, board, trunk }, reads) {
+  if (typeof reads?.listAgents !== 'function' || typeof reads?.listItems !== 'function') {
+    throw new TypeError('main-move warnings require explicit listAgents and listItems read ports');
+  }
   const common = repoInfo(root).commonDir;
-  const agents = new Map(listAgents(board).map(agent => [agent.agent_id, agent]));
+  const agents = new Map(reads.listAgents(board).map(agent => [agent.agent_id, agent]));
   const observations = new Map();
   const merges = new Map();
   const warnings = [];
-  for (const item of listItems(board, { all: true })) {
+  for (const item of reads.listItems(board, { all: true })) {
     if (item.item_merged_commit || !['claimed', 'submitted', 'verified'].includes(item.item_status)) continue;
     let head = item.item_status === 'verified' ? item.item_checked_commit ?? item.item_commit : item.item_commit;
     if (item.item_status === 'claimed') {
@@ -34,8 +35,8 @@ export function mainMovedWarnings({ root, board, trunk }) {
 }
 
 /** Deliver one bounded board warning per conflicting path; retries do not repeat an identical observation. */
-export async function warnMainMoved({ root, board, trunk, write, say }) {
-  const warnings = mainMovedWarnings({ root, board, trunk });
+export async function warnMainMoved({ root, board, trunk, write, say }, reads) {
+  const warnings = mainMovedWarnings({ root, board, trunk }, reads);
   for (const warning of warnings) {
     if (warning.unavailable) { say(`#${warning.item}: main-move observation unavailable: ${warning.unavailable}; submit still checks the actual source`); continue; }
     for (const file of warning.files) {

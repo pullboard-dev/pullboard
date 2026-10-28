@@ -97,7 +97,7 @@ export function verdictProjector(root, board, { main } = {}) {
     if (item.item_status !== 'verified') return null;
     if (item.item_rehome_import?.sourceStatus === 'verified') return null;
     const accepted = store.acceptedVerdict(board, item);
-    const carryProblem = !item.item_merged_commit && mergeOnlyLandingProblem(root, board, item);
+    const carryProblem = !item.item_merged_commit && mergeOnlyLandingProblem(root, board, item, { acceptedVerdict: store.acceptedVerdict });
     if (carryProblem) return { code: 'STALE_VERDICT', reason: carryProblem.message, main: tip ?? null };
     const mismatch = item.item_merged_commit && store.events(board, { itemId: item.item_id }).findLast(event => {
       if (event.event_kind !== 'landing-review-moved') return false;
