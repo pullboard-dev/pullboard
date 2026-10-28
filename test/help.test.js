@@ -156,3 +156,23 @@ test('help spec lists every spec subcommand and who runs it [N32]', t => {
   assert.match(result.out, /spec decline <ids> — person: decide from their own terminal or Pullboard View/u);
   assert.match(result.out, /spec apply — coordinator: apply recorded row decisions to the files/u);
 });
+
+test('full help is assembled from the independently editable command groups [C7,N26]', async () => {
+  const { HELP } = await import('../src/help.js');
+  const { HELP_SECTIONS } = await import('../src/help/sections.js');
+  const graph = helpGraph();
+  let offset = 0;
+  for (const section of HELP_SECTIONS) {
+    assert.ok(graph.has(resolve(ROOT, `src/help/${section.name}.js`)), `${section.name} has its own declaration module`);
+    assert.equal(HELP.all.slice(offset, offset + section.text.length), section.text,
+      `${section.name} contributes its unchanged text in declaration order`);
+    offset += section.text.length;
+  }
+  assert.equal(offset, HELP.all.length, 'no centralized usage text is left outside the command groups');
+  for (const [group, command] of [['setup', 'view'], ['work', 'claim'], ['coordinator', 'land'], ['spec', 'spec'], ['gate', 'gate']]) {
+    const declaration = HELP_SECTIONS.find(section => section.name === group);
+    assert.ok(declaration.text.includes(`  pullboard ${command} `), `${command} is owned by its command group`);
+    assert.ok(Object.keys(HELP.commands).some(name => name === command || name.startsWith(command + ' ')),
+      `${command}'s group also supplies individual command help`);
+  }
+});
