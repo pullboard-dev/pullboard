@@ -25,7 +25,6 @@ import {
   resolveCommit,
   tryGit,
 } from './git.js';
-import { parseProcessCensus } from './process-census.js';
 import { withGateSlot } from './gate.js';
 import { gateSlotEnvironment } from './resources.js';
 import { Refused } from './refused.js';
@@ -100,7 +99,7 @@ export async function prepareCauseProof(root, cause, { check, red, green }) {
 }
 
 /** Read one positively owned detached process group; an unavailable census is never empty. */
-function processCensus() {
+function processCensus(parseProcessCensus) {
   const read = spawnSync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,lstart=,stat=,comm='], { encoding: 'utf8', timeout: 3000, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, LC_ALL: 'C' } });
   const rows = read.status === 0 ? parseProcessCensus(read.stdout) : null;
   if (!rows) throw new Refused('RIGOR_UNPROVEN', 'the proof process census is unavailable; preserve its worktree and check the owned process before retrying');
@@ -108,30 +107,30 @@ function processCensus() {
 }
 
 /** Read live members of one detached group from a locale-stable, validated census. */
-function groupMembers(pgid) {
-  return [...processCensus().values()].filter(row => row.pgid === pgid && !row.state.startsWith('Z'));
+function groupMembers(pgid, parseProcessCensus) {
+  return [...processCensus(parseProcessCensus).values()].filter(row => row.pgid === pgid && !row.state.startsWith('Z'));
 }
 
 /** Stop and drain only a group whose leader still matches the identity captured at spawn. */
-async function drainGroup(pgid, anchor) {
+async function drainGroup(pgid, anchor, parseProcessCensus) {
   if (!pgid || process.platform === 'win32') {
     if (pgid) throw new Refused('RIGOR_UNPROVEN', 'owned proof process-group drain is unavailable on this platform; the worktree is retained');
     return;
   }
   for (const signal of ['SIGTERM', 'SIGKILL']) {
-    const members = groupMembers(pgid);
+    const members = groupMembers(pgid, parseProcessCensus);
     if (!members.length) return;
     if (!anchor) {
       throw new Refused('RIGOR_UNPROVEN', `owned proof group ${pgid} remains without a captured leader identity; preserve the worktree and recover only after ownership is re-established`);
     }
-    const current = processCensus().get(anchor.pid);
+    const current = processCensus(parseProcessCensus).get(anchor.pid);
     if (!current || current.pgid !== pgid || current.started !== anchor.started || current.processSha256 !== anchor.processSha256) {
       throw new Refused('RIGOR_UNPROVEN', `owned proof group ${pgid} remains but its captured leader identity changed; preserve the worktree and recover only after ownership is re-established`);
     }
     try { process.kill(-pgid, signal); } catch (error) { if (error.code !== 'ESRCH') throw error; }
     const deadline = Date.now() + 2000;
     do {
-      if (!groupMembers(pgid).length) return;
+      if (!groupMembers(pgid, parseProcessCensus).length) return;
       await new Promise(resolve => setTimeout(resolve, 25));
     } while (Date.now() < deadline);
   }
@@ -139,7 +138,7 @@ async function drainGroup(pgid, anchor) {
 }
 
 /** Run one bounded direct child (or a work scanner shell), retaining full output for proof evaluation. */
-async function runOwnedCheck(tree, check, runner, timeoutMs, gateEnvironment, recoveryPath) {
+async function runOwnedCheck(tree, check, runner, timeoutMs, gateEnvironment, recoveryPath, parseProcessCensus) {
   if (process.platform === 'win32') throw new Refused('RIGOR_UNPROVEN', 'this proof runner needs POSIX process-group ownership; no proof command was started');
   const environment = { ...cleanGitEnvironment(), ...gateEnvironment };
   // Proof of a named test uses the verified Node executable without externally injected preload code.
@@ -151,7 +150,7 @@ async function runOwnedCheck(tree, check, runner, timeoutMs, gateEnvironment, re
   });
   const stdout = [], stderr = [];
   let anchor = null;
-  try { anchor = processCensus().get(child.pid) ?? null; } catch { /* Without a validated identity, cleanup fails closed and retains the worktree. */ }
+  try { anchor = processCensus(parseProcessCensus).get(child.pid) ?? null; } catch { /* Without a validated identity, cleanup fails closed and retains the worktree. */ }
   let bytes = 0, failure = null, stopped = null;
   let resolveInterrupted;
   const interrupted = new Promise(resolve => { resolveInterrupted = resolve; });
@@ -159,7 +158,7 @@ async function runOwnedCheck(tree, check, runner, timeoutMs, gateEnvironment, re
   const stop = reason => {
     failure ??= new Error(reason);
     if (!stopped) {
-      stopped = drainGroup(child.pid, anchor);
+      stopped = drainGroup(child.pid, anchor, parseProcessCensus);
       stopped.then(() => resolveInterrupted({ stopped: true }), error => resolveInterrupted({ cleanupError: error }));
     }
   };
@@ -183,7 +182,7 @@ async function runOwnedCheck(tree, check, runner, timeoutMs, gateEnvironment, re
     try {
       // A close event may beat the interruption; still finish the drain before worktree removal.
       if (stopped) await stopped;
-      else await drainGroup(child.pid, anchor);
+      else await drainGroup(child.pid, anchor, parseProcessCensus);
     } catch (error) {
       // Preserve captured output, then release only our own pipes/handle so refusal cannot hang the CLI.
       child.stdout.destroy(); child.stderr.destroy(); child.unref();
@@ -201,7 +200,8 @@ async function runOwnedCheck(tree, check, runner, timeoutMs, gateEnvironment, re
 }
 
 /** Run an immutable commit's check, draining its child group before removing only this owned worktree. */
-export async function runCheckAt(root, commit, check, runner = null, { timeoutMs = CHECK_TIMEOUT_MS, gateEnvironment = {} } = {}) {
+export async function runCheckAt(root, commit, check, runner = null, { timeoutMs = CHECK_TIMEOUT_MS, gateEnvironment = {}, parseProcessCensus } = {}) {
+  if (typeof parseProcessCensus !== 'function') throw new Refused('RIGOR_UNPROVEN', 'supply the process census parser from the proof command owner before preparing its worktree');
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-rigor-proof-'));
   const tree = join(dir, 'tree');
   const added = tryGit(root, ['worktree', 'add', '--detach', '--quiet', tree, commit]);
@@ -210,7 +210,7 @@ export async function runCheckAt(root, commit, check, runner = null, { timeoutMs
     if (added.status !== 0) throw unproven(`cannot check out ${commit}`, 'unknown');
     const selectedRunner = runner?.filesAt?.[commit] ? { ...runner,
       args: runner.args.map((arg, index) => index === runner.fileIndex ? runner.filesAt[commit] : arg) } : runner;
-    const run = await runOwnedCheck(tree, runner ? check : mappedCheck(tree, check), selectedRunner, timeoutMs, gateEnvironment, tree);
+    const run = await runOwnedCheck(tree, runner ? check : mappedCheck(tree, check), selectedRunner, timeoutMs, gateEnvironment, tree, parseProcessCensus);
     drained = true;
     return { commit, ...run, problems: run.stdout.split(/\r?\n/u).filter(line => line.trim()).length };
   } catch (error) {
@@ -249,17 +249,18 @@ function observedTest(run, title, expected) {
 }
 
 /** Prove this key's exact noticed failure, retaining only summaries in the returned public draft result. */
-export async function proveCauseCheck(root, cause, request, { agent } = {}) {
+export async function proveCauseCheck(root, cause, request, { agent, parseProcessCensus } = {}) {
   const prepared = await prepareCauseProof(root, cause, request);
-  return await withGateSlot(root, lease => provePreparedCheck(root, cause, prepared, gateSlotEnvironment(lease)),
+  if (typeof parseProcessCensus !== 'function') throw new Refused('RIGOR_UNPROVEN', 'supply the process census parser from the proof command owner before acquiring its machine lease');
+  return await withGateSlot(root, lease => provePreparedCheck(root, cause, prepared, gateSlotEnvironment(lease), parseProcessCensus),
     { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser: true, remote: false, agent, kind: 'rigor-proof' });
 }
 
 /** Run only an already validated cause proof while its real machine lease remains held. */
-async function provePreparedCheck(root, cause, prepared, gateEnvironment) {
+async function provePreparedCheck(root, cause, prepared, gateEnvironment, parseProcessCensus) {
   const refuse = why => { throw unproven(why, cause.key, prepared.receipts); };
   const runs = [];
-  for (const commit of prepared.commits) runs.push(await runCheckAt(root, commit, prepared.check, prepared.runner, { gateEnvironment }));
+  for (const commit of prepared.commits) runs.push(await runCheckAt(root, commit, prepared.check, prepared.runner, { gateEnvironment, parseProcessCensus }));
   const [red, green] = runs;
   if (runs.some(run => run.timedOut || run.exit === null)) refuse('the check did not complete at both commits');
   if (prepared.runner) {

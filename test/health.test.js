@@ -3,6 +3,7 @@
  * real SQLite board in a real git repo with an injected clock, and never changes either [A6].
  */
 import { executionServices } from './gate-execution-fixture.js';
+import { dispatchHealth } from '../src/dispatch-health.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -14,7 +15,10 @@ import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
 import * as store from '../src/board.js';
 import { main } from '../src/cli.js';
-import { boardHealth } from '../src/health.js';
+import { boardHealth, healthReport } from '../src/health.js';
+import { fixture as dispatchFixture, cli as dispatchCli } from './next-take-fixture.js';
+import { readDigest } from '../src/digest.js';
+import { heartbeatSeat } from '../src/seat-presence.js';
 import { recurringJobs } from '../src/recurring-jobs.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { loadConfig } from '../src/config.js';
@@ -26,6 +30,42 @@ const HOUR = 3_600_000;
 const NOW = Date.parse('2026-10-17T12:00:00.000Z');
 const ago = (ms) => new Date(NOW - ms).toISOString();
 const freeze = (item) => ({ text: item.item_title, digest: `digest:${item.item_title}` });
+
+test('health upper bindings retain actual dispatch findings without changing the observed board [A6,N2,C7]', async t => {
+  const box = await dispatchFixture(t);
+  box.add('Ready work for a real free fixture seat');
+  // Digest intentionally uses the host date; keep this private cohort on that date while advancing its boundary explicitly.
+  box.advance(Date.now() - 300000 - box.clock.now().getTime());
+  for (const seat of Object.values(box.seats)) heartbeatSeat(box.board, seat.id);
+  box.scan();
+  box.advance(300000);
+  const expected = dispatchHealth(box.board, box.config).findings;
+  assert.ok(expected.length > 0, 'the native five-minute dispatch boundary is actually reached');
+  const before = store.events(box.board);
+  let called = 0;
+  const report = healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now(),
+    dispatchHealth(observed, config) {
+      called++;
+      assert.equal(observed.db, box.board.db, 'the port sees this exact native read snapshot');
+      assert.equal(observed.clock.now().getTime(), box.clock.now().getTime());
+      assert.equal(config, box.config);
+      return dispatchHealth(observed, config);
+    } });
+  assert.equal(called, 1);
+  assert.deepEqual(report.stuck.filter(entry => entry.cause === 'UNPAIRED_WORK'), expected);
+  const read = boardHealth(box.file, { root: box.root, config: box.config, now: box.clock.now(), dispatchHealth });
+  assert.deepEqual(read.stuck.filter(entry => entry.cause === 'UNPAIRED_WORK'), expected);
+  const command = await dispatchCli(box, box.root, ['health']);
+  assert.equal(command.code, 1, command.err);
+  assert.deepEqual(command.document.stuck.filter(entry => entry.cause === 'UNPAIRED_WORK'), expected);
+  const digest = await dispatchCli(box, box.root, ['digest']);
+  assert.equal(digest.code, 0, digest.err);
+  for (const finding of expected) assert.ok(digest.document.markdown.includes(finding.title), 'the actual digest CLI retains dispatch health');
+  assert.doesNotThrow(() => readDigest(box.file), 'a root-free digest still needs no health operation');
+  assert.deepEqual(store.events(box.board), before, 'health observation is read-only');
+  assert.throws(() => healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now() }),
+    /requires its dispatchHealth observation port/u, 'an omitted port never silently drops findings');
+});
 
 /** A private repo, git identity and Pullboard home, so neither git nor the CLI reads this machine. */
 function repo(t) {
@@ -219,13 +259,13 @@ test('health names each stuck cause with its next step and owner [A6]', async (t
   assert.ok(!report.waiting.some(entry => entry.item === later), 'an unattended reject interrupts even when its release is later');
   for (const id of [parentItem, conflictHold, shipped]) assert.ok(![...byKey.values()].some((entry) => entry.item === id && !entry.key.startsWith('CONFLICT_HOLD')), `#${id} is moving, not stuck`);
 
-  const patient = boardHealth(box.file, { root: box.root, config: { health: { stuck: '3h', holds: '2d' } }, now: new Date(NOW) });
+  const patient = boardHealth(box.file, { dispatchHealth, root: box.root, config: { health: { stuck: '3h', holds: '2d' } }, now: new Date(NOW) });
   assert.deepEqual(patient.thresholds, { stuck: '3h', holds: '2d', release: '1d' }, 'pullboard.json health thresholds replace the defaults');
   assert.ok(!patient.stuck.some((entry) => ['NO_REVIEWER', 'HOLD_STALE'].includes(entry.cause)
     || entry.cause === 'REWORK_UNCLAIMED' && entry.item === reopened), 'longer thresholds clear ordinary younger waits');
   for (const id of [rejected, later]) assert.ok(patient.stuck.some(entry => entry.item === id && entry.cause === 'REWORK_UNCLAIMED'),
     'the approved ten-minute rejection deadline is independent of the configurable ordinary health threshold');
-  assert.throws(() => boardHealth(box.file, { root: box.root, config: { health: { stuck: 'soon' } }, now: new Date(NOW) }), /BAD_CONFIG|health\.stuck/u);
+  assert.throws(() => boardHealth(box.file, { dispatchHealth, root: box.root, config: { health: { stuck: 'soon' } }, now: new Date(NOW) }), /BAD_CONFIG|health\.stuck/u);
 
   const text = await cli(box.root, ['health']);
   assert.equal(text.code, 1);
@@ -411,13 +451,13 @@ test('health models only its named release when a child claim keeps the preferre
     store.claim(board, child, { agentId: builder, lane: 'core', leaseMs: 2 * HOUR, freeze });
     assert.equal(store.getItem(board, held).item_owner, builder);
     assert.equal(store.getItem(board, child).item_owner, builder, 'the second claim uses the normal child exception');
-    const before = boardHealth(box.file, { root: box.root, now: new Date(NOW) });
+    const before = boardHealth(box.file, { dispatchHealth, root: box.root, now: new Date(NOW) });
     assert.ok(!before.stuck.some(entry => entry.key === `RANK_INVERSION:item:${held}`),
       'releasing only the parent would leave the child overlap; the older free item does not rank ahead');
 
     store.release(board, child, builder);
     assert.equal(store.getItem(board, held).item_status, 'claimed', 'the control releases exactly one claim');
-    const after = boardHealth(box.file, { root: box.root, now: new Date(NOW) });
+    const after = boardHealth(box.file, { dispatchHealth, root: box.root, now: new Date(NOW) });
     const advice = after.stuck.find(entry => entry.key === `RANK_INVERSION:item:${held}`);
     assert.ok(advice, 'once the child occupancy is actually removed, older free work ranks ahead');
     assert.equal(advice.detail.ahead, earlier);

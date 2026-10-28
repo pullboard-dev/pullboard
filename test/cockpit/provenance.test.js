@@ -1,9 +1,10 @@
 /** @pullboard-test-loads src/serve.js */
 /** View projection refuses migrations from linked source and borrows staged boards without owning them [A5,A6,A2]. */
+import { copyPackageFiles } from '../../src/package-files.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -25,9 +26,7 @@ function fixture(t) {
   writeFileSync(join(executables, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "$(git rev-parse --show-toplevel)/bin/pullboard.js" "$@"\n`);
   chmodSync(join(executables, 'pullboard'), 0o755);
   mkdirSync(root);
-  for (const name of ['bin', 'src', 'skills', 'package.json', 'CHANGELOG.md']) {
-    cpSync(resolve(source, name), join(root, name), { recursive: true });
-  }
+  copyPackageFiles(source, root);
   const env = {
     ...process.env,
     HOME: join(dir, 'home'),
