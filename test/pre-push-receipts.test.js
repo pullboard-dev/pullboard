@@ -1,6 +1,6 @@
 /** Real Git ranges and native gate receipts for receipt-based pre-push decisions [C7]. */
+import { shellWord } from '../src/cli-read-context.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
-import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { configFromSource } from '../src/config.js';
 import {
@@ -177,8 +177,8 @@ test('additive smoke config is retained and validated without activating the rep
 
 
 test('native push adapter checks real ordered receipts and exact open audit repairs [C7]', { timeout: 120_000 }, () => {
-  const box = e2e.project('node bin/run-tests.js', undefined, { withWorktree: false });
-  copyPackageFiles(resolve(import.meta.dirname, '..'), box.repo);
+  const installedRunner = resolve(import.meta.dirname, '../bin/run-tests.js');
+  const box = e2e.project(`node ${shellWord(installedRunner)}`, undefined, { withWorktree: false });
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/audit.test.js'), [
     "import {test} from 'node:test'; import assert from 'node:assert/strict';",
