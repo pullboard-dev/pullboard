@@ -252,7 +252,7 @@ test('Needs HTML keeps grouped calls, exact confirmation identities and compact 
     agentApproval: { agent: 'core-1', approvedAt: at, commit: 'a'.repeat(40) } })) };
   const before = JSON.stringify({ calls, project });
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-  const localDateLabel = value => { const date = new Date(value), hour = date.getHours(); return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][date.getMonth()] + ' ' + date.getDate() + ', ' + (hour % 12 || 12) + ':' + String(date.getMinutes()).padStart(2, '0') + ' ' + (hour < 12 ? 'AM' : 'PM'); };
+  const localDateLabel = value => value === at ? 'Prepared approval date' : 'Date unknown';
   const present = model => new Map([...model.questions,...model.approvals].map(row => [row.key, {
     ageHtml: row.ageAt ? '<time data-ago="' + row.ageAt + '">2m</time>' : '',
     bodyHtml: row.body ? escape(row.body) : '',
@@ -267,6 +267,7 @@ test('Needs HTML keeps grouped calls, exact confirmation identities and compact 
   assert.match(html, /data-needs-confirm="G1 G2 G3 G4">Confirm all 4/u);
   assert.match(html, /data-needs-key="agent-approved:G1"[^>]* open/u);
   assert.match(html, /G1 &lt;full requirement&gt;/u);
+  assert.match(html, /Prepared approval date<\/time>/u);
   assert.match(html, /Choose &lt;words&gt; &amp; keep the full question\./u);
   assert.match(html, /<time data-ago="2026-10-28T12:00:00Z">2m<\/time>/u);
   assert.match(html, new RegExp('title="' + 'a'.repeat(40) + '">aaaaaaaaaaaa</code>', 'u'));
@@ -280,6 +281,9 @@ test('Needs HTML keeps grouped calls, exact confirmation identities and compact 
   invalidAction.find(row => row.id === 'G4').actions[0].args.ids = 'G1';
   const invalidModel = needsPanelModel(invalidAction, project, options);
   assert.match(needsPanelHtml(invalidModel, present(invalidModel)), /data-needs-confirm="G1 G2 G3">Confirm all 3/u);
+  const declineOnly = structuredClone(calls);
+  for (const row of declineOnly.filter(row => row.kind === 'agent-approved')) row.actions = [{ verb: 'spec-decline', args: { ids: row.id } }];
+  assert.doesNotMatch(needsPanelHtml(needsPanelModel(declineOnly, project, options)), /data-needs-confirm=/u);
   assert.equal(JSON.stringify({ calls, project }), before, 'sorting, expansion and confirmation do not rewrite supplied calls');
   const hiddenCommand = { kind: 'block', id: 'refused-secret-command', ref: '#8', text: 'A blocked command', what: 'Resolve it', at };
   const blockModel = needsPanelModel([hiddenCommand], { holds: [] });

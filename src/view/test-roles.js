@@ -1,5 +1,17 @@
 /** Explicit test roles are an inventory, not completion evidence or a browser-admission exemption [N26,C7]. */
 export const VIEW_TEST_ROLES = Object.freeze({
+  "test/cockpit/needs-data.test.js": {
+    "kind": "logic",
+    "reason": "Explicit board-shaped values exercise person-only obligations, proposal eligibility, held clocks and HTML without a native board or browser."
+  },
+  "test/cockpit/lifecycle-chart.test.js": {
+    "kind": "journey",
+    "reason": "Actual native boards, authenticated API state and Chrome prove chart toggles, storage and every route at desktop and phone widths."
+  },
+  "test/cockpit/lifecycle-returns.test.js": {
+    "kind": "journey",
+    "reason": "Native release, escalation, retained and expired refreeze and lapse receipts are checked through API counts and real Chrome chart words at two widths."
+  },
   "test/cockpit/lifecycle-chart-pure.test.js": {
     "kind": "logic",
     "reason": "Original declared-route labels and exact count assertions call lifecycleChart with data; native receipt and Chrome journeys remain separate."

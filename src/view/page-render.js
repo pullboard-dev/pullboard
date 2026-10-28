@@ -201,7 +201,7 @@ function render() {
   // While another project loads, the item picked there waits for its own board.
 
   // An open item's chip, the same in its row and its detail: gated, its lane held, or unclaimed.
-  const openChip = (i) => (p.itemHolds || []).some((h) => h.item === i.id) ? heldChip(heldNote(i, p)) : i.blockedBy.length || heldLanes.has(i.lane) ? '<span class="chip gate">' + (i.blockedBy.length ? 'gated' : 'lane held') + '</span>' : chip('open');
+  const openChip = (i) => (p.itemHolds || []).some((h) => h.item === i.id) ? heldChip(heldNote(i, p, undefined, Date.now())) : i.blockedBy.length || heldLanes.has(i.lane) ? '<span class="chip gate">' + (i.blockedBy.length ? 'gated' : 'lane held') + '</span>' : chip('open');
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
     // What an open item waits on, if anything: items not yet verified, or a hold on its lane.

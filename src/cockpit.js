@@ -882,7 +882,7 @@ function milestoneItem(entry, p) {
     root,
     titles: renderIndex(source).titles,
     state: read ? stateOf(read) : null,
-    stale: item ? staleChip(item) : '', held: item ? heldNote(item, source, entry) : null,
+    stale: item ? staleChip(item) : '', held: item ? heldNote(item, source, entry, Date.now()) : null,
     block: block(!expanded && !Array.isArray(detail?.item?.history)),
     // Until its omitted fields arrive, an expanded row paints what its summary holds and fills the rest in place (#1039).
     pending: expanded && Boolean(detail?.loading),
