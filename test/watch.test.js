@@ -242,7 +242,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const claimObserved = lastSequence(box);
   await watch.line((line) => JSON.parse(line).sequence === claimObserved && JSON.parse(line).kind === 'check_accept',
     5_000, 'event after the claim work check'); // budget: hang ceiling for an exact event, not a latency claim.
-  box.cli(builder.path, 'release', String(waiting.item_id));
+  box.cli(builder.path, 'release', String(waiting.item_id), '--no-next');
   const releaseSequence = lastSequence(box);
   await watch.line((line) => JSON.parse(line).kind === 'release' && JSON.parse(line).sequence === releaseSequence,
     5_000, 'release event'); // budget: hang ceiling for an exact event, not a latency claim.
@@ -258,7 +258,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   writeFileSync(join(builder.path, 'app', 'work.txt'), 'built\n');
   runFixtureGit(['add', '-A'], { cwd: builder.path, env: box.env, stdio: 'pipe' });
   runFixtureGit(['commit', '-q', '-m', 'feat(app): fresh work [G1]'], { cwd: builder.path, env: box.env, stdio: 'pipe' });
-  const firstSubmission = box.cli(builder.path, 'submit', String(added.item_id));
+  const firstSubmission = box.cli(builder.path, 'submit', String(added.item_id), '--no-next');
   const firstCommit = firstSubmission.commit;
   const submitted = lastSequence(box);
   const review = JSON.parse((await watch.line((line) => JSON.parse(line).kind === 'review-wait', 10_000, 'review-wait notice')).line); // budget: hang ceiling for a 1.2 s review threshold, not a latency claim.
@@ -271,7 +271,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   box.git('worktree', 'add', '-q', '--detach', reviewer, firstCommit);
   box.cli(reviewer, 'join', 'docs', '--model', 'watch-reviewer');
   box.cli(reviewer, 'next', '--verify', String(added.item_id));
-  box.cli(reviewer, 'verify', String(added.item_id), 'accept', '--note', 'read the fixture file');
+  box.cli(reviewer, 'verify', String(added.item_id), 'accept', '--no-next', '--note', 'read the fixture file');
   const unblocked = JSON.parse((await watch.line((line) => JSON.parse(line).kind === 'claimable' && JSON.parse(line).item === blocked.item_id, 5_000, 'claimable notice after its wait was verified')).line); // budget: hang ceiling for one line, not a latency claim.
   assert.equal(unblocked.detail, 'app: Waits for the fresh work');
 
@@ -280,7 +280,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   writeFileSync(join(builder.path, 'app', 'waiting.txt'), 'built\n');
   runFixtureGit(['add', '-A'], { cwd: builder.path, env: box.env, stdio: 'pipe' });
   runFixtureGit(['commit', '-q', '-m', 'feat(app): waiting work [G1]'], { cwd: builder.path, env: box.env, stdio: 'pipe' });
-  const secondSubmission = box.cli(builder.path, 'submit', String(waiting.item_id));
+  const secondSubmission = box.cli(builder.path, 'submit', String(waiting.item_id), '--no-next');
   const secondCommit = secondSubmission.commit;
   runFixtureGit(['switch', '-q', '--detach', secondCommit], { cwd: reviewer, env: box.env, stdio: 'pipe' });
   box.cli(reviewer, 'next', '--verify', String(waiting.item_id));
@@ -288,7 +288,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const submissionObserved = lastSequence(box);
   await watch.line((line) => JSON.parse(line).sequence === submissionObserved && JSON.parse(line).kind === 'reserve',
     5_000, 'event after the submit work check'); // budget: hang ceiling for an exact event, not a latency claim.
-  box.cli(reviewer, 'verify', String(waiting.item_id), 'reject', '--reason', 'TEST_FAILURE', '--note', 'the fixture sends it back');
+  box.cli(reviewer, 'verify', String(waiting.item_id), 'reject', '--no-next', '--reason', 'TEST_FAILURE', '--clause', 'waits', '--note', 'the fixture sends it back');
   const rejectSequence = lastSequence(box);
   await watch.line((line) => JSON.parse(line).kind === 'reject' && JSON.parse(line).sequence === rejectSequence, 5_000, 'reject line'); // budget: hang ceiling for one line, not a latency claim.
   const again = await watch.line((line) => JSON.parse(line).kind === 'claimable' && JSON.parse(line).item === waiting.item_id

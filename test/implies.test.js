@@ -81,7 +81,7 @@ function occurrences(text, needle) {
 test('[B29,B31,N29] a decision reaches the items it implies', () => {
   const box = fixture();
   assert.equal(box.json(box.web, 'claim', '1').id, 1);
-  const ask = box.json(box.web, 'shout', 'coordinator', 'Which engine ships in 0.8.8?', '--decision').id;
+  const ask = box.json(box.web, 'shout', 'coordinator', 'Which engine ships in 0.8.8?', '--kind', 'question', '--decision').id;
   const answer = box.json(box.repo, 'answer', String(ask), 'Ship engine 9 in 0.8.8\nso #1 and #2 move to engine 10', '--implies', '1,#2');
 
   for (const id of [1, 2]) {
@@ -106,7 +106,7 @@ test('[B29,B31,N29] a decision reaches the items it implies', () => {
   assert.equal(second.code, 0, second.err);
   assert.equal(occurrences(second.out, notice), 0, `a later resume does not repeat it:\n${second.out}`);
 
-  const ask2 = box.json(box.web, 'shout', 'coordinator', 'Engine 9 slipped; what now?', '--decision').id;
+  const ask2 = box.json(box.web, 'shout', 'coordinator', 'Engine 9 slipped; what now?', '--kind', 'question', '--decision').id;
   const replacement = box.json(box.repo, 'answer', String(ask2), 'Ship engine 10 in 0.8.9 instead', '--supersedes', String(answer.id));
   for (const id of [1, 2]) {
     const told = facts(box, id).filter((fact) => fact.supersededBy);
@@ -135,15 +135,15 @@ test('[B29,B31,N29] a decision reaches the items it implies', () => {
 test('[B29,B31] verdicts and facts carry --implies; a later verdict or a superseding fact tells the items; unknown ids are refused by name', () => {
   const box = fixture();
   box.json(box.web, 'claim', '1');
-  box.json(box.web, 'submit', '1');
+  box.json(box.web, 'submit', '1', '--no-next');
   const review = box.json(box.repo, 'worktree', 'web', '--route', 'strong').path;
   box.json(review, 'next', '--verify');
-  const refused = box.run(review, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note', 'x', '--implies', '2,99', '--json');
+  const refused = box.run(review, 'verify', '1', 'reject', '--no-next', '--reason', 'TEST_FAILURE', '--note', 'x', '--implies', '2,99', '--json');
   assert.notEqual(refused.code, 0);
   assert.equal(JSON.parse(refused.out).error.code, 'NO_ITEM');
   assert.match(JSON.parse(refused.out).error.message, /#99/, 'the refusal names the unknown id');
   assert.equal(box.json(box.repo, 'show', '1').item_status, 'submitted', 'a refused --implies records no verdict');
-  box.json(review, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note', 'the fixture fails\nsecond line', '--implies', '2');
+  box.json(review, 'verify', '1', 'reject', '--no-next', '--reason', 'TEST_FAILURE', '--clause', 'The feature works.', '--note', 'the fixture fails\nsecond line', '--implies', '2');
   const fromVerdict = facts(box, 2).filter((fact) => fact.decision);
   assert.equal(fromVerdict.length, 1);
   assert.equal(fromVerdict[0].decision.source, 'verdict');
@@ -153,10 +153,10 @@ test('[B29,B31] verdicts and facts carry --implies; a later verdict or a superse
   box.json(box.web, 'claim', '1');
   writeFileSync(join(box.web, 'web', 'shared.txt'), 'fixed\n');
   runFixtureGit(['commit', '-q', '-am', 'fix: the fixture passes [G1]'], { cwd: box.web, env: box.env });
-  const resubmitted = box.json(box.web, 'submit', '1').commit;
+  const resubmitted = box.json(box.web, 'submit', '1', '--no-next').commit;
   box.json(review, 'next', '--verify');
   runFixtureGit(['switch', '-q', '--detach', resubmitted], { cwd: review, env: box.env });
-  box.json(review, 'verify', '1', 'accept', '--note', 'ran the fixture check');
+  box.json(review, 'verify', '1', 'accept', '--no-next', '--note', 'ran the fixture check');
   const told = facts(box, 2).filter((fact) => fact.supersededBy);
   assert.equal(told.length, 1, 'a later verdict on the same item supersedes the earlier one for the items it implied');
   assert.equal(told[0].supersededBy.source, 'verdict');

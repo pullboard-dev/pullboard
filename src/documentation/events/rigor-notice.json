@@ -1,0 +1,10 @@
+{
+  "kind": "rigor-notice",
+  "entries": [
+    {
+      "order": 35,
+      "actor": "rigor",
+      "detail": "`cause`, `items`, `occurrences`, `neverAgain`, `engine`, automatic-Rigor `drafts`"
+    }
+  ]
+}

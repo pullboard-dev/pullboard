@@ -1,4 +1,5 @@
 /** Exercise the public no-options board opener from branch code on shared and private files [A5,A6,C7]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -24,9 +25,7 @@ export function assertDirectOpenBoardIsolation(t, sourceRoot) {
   const main = join(directory, 'repo');
   const branch = join(directory, 'branch');
   mkdirSync(main);
-  for (const name of ['bin', 'src', 'skills', 'package.json', 'CHANGELOG.md']) {
-    cpSync(resolve(sourceRoot, name), join(main, name), { recursive: true });
-  }
+  copyPackageFiles(sourceRoot, main);
   writeFileSync(join(main, 'pullboard.json'), `${JSON.stringify({
     gate: 'true',
     spec: 'SPEC.md',

@@ -1,0 +1,10 @@
+{
+  "kind": "sentinel-decision",
+  "entries": [
+    {
+      "order": 47,
+      "actor": "person",
+      "detail": "`name`, `digest`, `decision`, `reason`, `channel`, `engine`"
+    }
+  ]
+}

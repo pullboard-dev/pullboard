@@ -87,15 +87,15 @@ test('the board stamps every proof receipt and show prints the chain [C7,H16]', 
   const before = board.db.prepare('SELECT count(*) AS n FROM shout').get().n;
   const longText = Array(67).fill('proof').join(' ');
   assert.equal(longText.length, 401, 'the readable message crosses the exact length boundary');
-  const long = box.run(box.web, 'shout', 'coordinator', longText, '--json');
+  const long = box.run(box.web, 'shout', 'coordinator', longText, '--kind', 'question', '--json');
   assert.equal(long.code, 1, long.out);
   const refusal = JSON.parse(long.out).error;
   assert.equal(refusal.code, 'SHOUT_TOO_LONG');
   assert.match(`${refusal.message} ${refusal.next}`, /receipt|pullboard show/u);
   assert.equal(board.db.prepare('SELECT count(*) AS n FROM shout').get().n, before);
-  const unspaced = box.run(box.web, 'shout', 'coordinator', 'x'.repeat(401), '--json');
+  const unspaced = box.run(box.web, 'shout', 'coordinator', 'x'.repeat(401), '--kind', 'question', '--json');
   assert.equal(JSON.parse(unspaced.out).error.code, 'SHOUT_SPACES', 'the accepted readability rule remains enforced');
-  proofDocument(box.run(box.web, 'shout', 'coordinator', longText.slice(0, 400), '--json'));
+  proofDocument(box.run(box.web, 'shout', 'all', longText.slice(0, 400), '--json'));
 });
 
 /** A family emoji: five code points, eight UTF-16 units, one character to a reader. */
@@ -162,13 +162,24 @@ test('show prints the latest verdict in full and earlier ones as one line; --his
     const rounds = (title, notes, letters) => {
       const id = store.addItem(board, { by: 'coordinator', lane: 'web', title, criterion: 'greet("") says hello, stranger', specIds: ['G1'] });
       notes.forEach((note, round) => {
+        if (round === 2) {
+          assert.match(store.getItem(board, id).item_hold_reason ?? '', /bar.*sharpen/iu,
+            'the second rejection really holds this display-history fixture');
+          assert.equal(store.events(board, { itemId: id }).filter(event => event.event_kind === 'bar-sharpen').length, 1,
+            'the coordinator receives one real sharpening notice before acknowledging it');
+          store.releaseItemHold(board, id, { agentId: 'coordinator' });
+          assert.equal(store.getItem(board, id).item_hold_reason, null, 'native coordinator acknowledgment lifts the hold');
+        }
         const commit = letters[round].repeat(40);
         store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
         submitFixture(board, id, { agentId: 'web-1', commit, tree: 't' });
         const decision = round < notes.length - 1 ? 'REJECT' : 'ACCEPT';
         const reason = decision === 'REJECT' ? 'TEST_FAILURE' : undefined;
-        store.verify(board, id, { agentId: 'web-2', decision, reason, note, head: commit, digest: freeze(store.getItem(board, id)).digest, policy: 'any' });
+        store.verify(board, id, { agentId: 'web-2', decision, reason, note, head: commit, digest: freeze(store.getItem(board, id)).digest, policy: 'any',
+          ...(decision === 'REJECT' ? { clause: 'greet("") says hello, stranger' } : {}) });
       });
+      assert.equal(store.events(board, { itemId: id }).filter(event => event.event_kind === 'bar-sharpen').length,
+        notes.length > 2 ? 1 : 0, 'later note-history rounds do not duplicate the same-bar sharpening notice');
     };
     rounds('Greet', NOTES, ['a', 'b', 'c']);
     rounds('Greet fast', [EXACT, 'Accept: fast now.'], ['d', 'e']);

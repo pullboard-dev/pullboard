@@ -1,0 +1,10 @@
+{
+  "kind": "guards",
+  "entries": [
+    {
+      "order": 34,
+      "actor": "board",
+      "detail": "`missing`, `changed`, `stale`"
+    }
+  ]
+}

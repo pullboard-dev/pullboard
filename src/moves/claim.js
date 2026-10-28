@@ -63,6 +63,6 @@ export default Object.freeze({ operation: "claim", order: 13, engine: 1,
   "ROUTE": "take an item your route covers: pullboard next",
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again",
   "SPEC_BEHIND_MAIN": "git merge main",
-  "UNKNOWN_SPEC": "ask the coordinator to restore the named spec rows or withdraw the item: pullboard shout coordinator \"please fix the rows cited by #<id>\"",
+  "UNKNOWN_SPEC": "ask the coordinator to restore the named spec rows or withdraw the item: pullboard shout coordinator --kind question \"please fix the rows cited by #<id>\"",
   "WRONG_LANE": "create a worktree in the required lane with pullboard worktree <lane> --model \"<model name>\", or take an item in your lane with pullboard next"
 }) });

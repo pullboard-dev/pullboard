@@ -266,7 +266,7 @@ test('an agent exhausts ready own-lane work before pulling another lane [N2,B13]
   const own = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
   assert.equal(own.item.item_id, later, 'ready own-lane work precedes an earlier release in another lane');
   assert.equal(own.item.item_owner, web.agent);
-  box.json(box.runAs(box.session, box.web, 'release', String(later), '--json'));
+  box.json(box.runAs(box.session, box.web, 'release', String(later), '--no-next', '--json'));
   box.json(box.run(box.repo, 'hold', String(later), '--reason', 'Own-lane work is intentionally blocked', '--json'));
   const next = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
   assert.equal(next.item.item_id, first, 'an idle lane falls back to the earlier eligible foreign release');
@@ -766,7 +766,7 @@ test('line order sends a send-back home first and gives the scarcest review firs
   const returned = submitted(home.board, home.builder, 'a later send-back belongs home', 'strong', 1);
   const returnedItem = store.getItem(home.board, returned);
   store.verify(home.board, returned, { agentId: home.reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
-    note: 'Synthetic rejected lifecycle record; no gate execution claimed.', head: returnedItem.item_commit,
+    clause: returnedItem.item_title, note: 'Synthetic rejected lifecycle record; no gate execution claimed.', head: returnedItem.item_commit,
     digest: returnedItem.item_frozen_digest, policy: 'any', reopenFirstRefusalMinutes: 15 });
   store.addMilestone(home.board, { agentId: 'coordinator', name: 'first', items: [older] });
   assert.equal(store.nextFor(home.board, { agentId: home.builder, lane: 'core' }).item.item_id, older, 'off retains release order before rework');
@@ -784,7 +784,7 @@ test('line order sends a send-back home first and gives the scarcest review firs
   const limited = submitted(scarce.board, scarce.builder, 'newer review shares its author parent with two seats', 'strong', 3);
   const prior = store.getItem(scarce.board, limited);
   store.verify(scarce.board, limited, { agentId: scarce.reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
-    note: 'Synthetic historical-author lifecycle record; no gate execution claimed.', head: prior.item_commit, digest: prior.item_frozen_digest, policy: 'any' });
+    clause: prior.item_title, note: 'Synthetic historical-author lifecycle record; no gate execution claimed.', head: prior.item_commit, digest: prior.item_frozen_digest, policy: 'any' });
   store.claim(scarce.board, limited, { agentId: otherAuthor, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
   submitFixture(scarce.board, limited, { agentId: otherAuthor, commit: '4'.repeat(40), tree: '4'.repeat(40) });
   assert.equal(store.nextFor(scarce.board, { agentId: scarce.reviewer, lane: 'review', verify: true }).item.item_id, abundant, 'off retains oldest review');
@@ -848,7 +848,7 @@ test('line capacity offers reviews before builds when reviews pile up [N2,B13,H1
   const foreign = store.register(board, { lane: 'core', path: join(root, 'takeover'), route: 'strong', parent: 'takeover-T', session: 'takeover-child' });
   const returned = store.getItem(board, waiting[0]);
   store.verify(board, returned.item_id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
-    note: 'Synthetic lifecycle refusal; no gate execution claimed.', head: returned.item_commit,
+    clause: returned.item_title, note: 'Synthetic lifecycle refusal; no gate execution claimed.', head: returned.item_commit,
     digest: returned.item_frozen_digest, policy: 'any', reopenFirstRefusalMinutes: 60 });
   setting('wipPerReviewer', false);
   setting('takeoverMinutes', 15);

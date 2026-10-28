@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Timing profiles parse the caller's unchanged TAP or JUnit output [C7,V10]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
@@ -143,11 +144,10 @@ test('a gate receipt splits waiting from running [C7,V10]', async t => {
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   // A check the runner can classify: this repo's own runner and one named file that never launches a browser.
-  cpSync(resolve(import.meta.dirname, '../bin'), join(box.repo, 'bin'), { recursive: true });
-  cpSync(resolve(import.meta.dirname, '../src'), join(box.repo, 'src'), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), box.repo);
   mkdirSync(join(box.repo, 'test'));
   writeFileSync(join(box.repo, 'test/quick.test.js'), "import { test } from 'node:test'; test('quick', () => new Promise(done => setTimeout(done, 200)));\n");
-  box.git(box.repo, 'add', 'bin', 'src', 'test');
+  box.git(box.repo, 'add', '.');
   box.git(box.repo, 'commit', '-q', '-m', 'test: add a browser-free named check');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });

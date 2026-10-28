@@ -1,0 +1,10 @@
+{
+  "kind": "landing-review-moved",
+  "entries": [
+    {
+      "order": 23,
+      "actor": "coordinator",
+      "detail": "`code`, `batch`, `verdict`, `checked`, `landed`"
+    }
+  ]
+}

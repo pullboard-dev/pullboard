@@ -1,3 +1,4 @@
+import { REJECT_CLAUSE_ENGINE } from '../reject-clause-engine.js';
 import { SOURCE_ADVANCE_ENGINE } from '../source-advance-engine.js';
 import { itemReviewPolicyEngine } from '../review-policy.js';
 import { ITEM_PATCH_ENGINE } from '../item-patch-engine.js';
@@ -34,7 +35,8 @@ function minimumEngine(args, board, at) {
   const sourceAdvance = args[1]?.sourceAdvanceHead !== undefined ? SOURCE_ADVANCE_ENGINE : 1;
   const outside = args[1]?.sandbox !== undefined || board && Boolean(outsideSource(board, args[0]));
   const patches = args[1]?.companionDigest !== undefined || board && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`item_patches:${args[0]}`);
-  return Math.max(sourceAdvance, itemReviewPolicyEngine(board, args[0]), requiredReviewFamilyEngine(board, args[0]), patches ? ITEM_PATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at));
+  return Math.max(sourceAdvance, itemReviewPolicyEngine(board, args[0]), requiredReviewFamilyEngine(board, args[0]), patches ? ITEM_PATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at),
+    args[1] && Object.hasOwn(args[1], 'clause') ? REJECT_CLAUSE_ENGINE : 1);
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */
@@ -49,24 +51,27 @@ export default Object.freeze({ operation: "verify", order: 18, engine: 1,
   "RUNNER_BROWSER_SLOT_REQUIRED": "nothing to do: the run reruns on a local gate slot; if it repeats, set gate.browserByLaunch the same on this machine and that runner",
   "A5_GRAMMAR_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "ALREADY_MERGED": "file the follow-up as a new item: pullboard add <lane> \"<title>\"",
+  "BAR_CLAUSE_REQUIRED": "add --clause \"exact wording from the frozen criterion or spec row\"",
+  "BAR_CLAUSE_UNKNOWN": "read pullboard show <id>, then quote the failing requirement with --clause",
+  "LINE_SETTING_RANGE": "read the allowed range with pullboard settings line, then record an in-range value or off with its reason and window numbers",
   "BAD_CAUSE": "name the cause as test:<file>::<title>, refusal:<CODE>, row:<id> or doctrine:<id>, or leave --cause out",
   "BAD_CONFIG": "fix pullboard.json as the message says, then commit it: git commit -m \"chore: fix pullboard config\" pullboard.json",
-  "BAD_DECISION": "choose accept or reject with a supported reason: pullboard verify <id> reject --reason TEST_FAILURE --note \"<what failed>\"",
+  "BAD_DECISION": "choose accept or reject with a supported reason: pullboard verify <id> reject --reason TEST_FAILURE --clause \"<frozen wording>\" --note \"<what failed>\"",
   "BAD_REASON": "accept with --note \"how you proved it\", or reject with --reason TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD or OTHER",
   "BAD_VERDICT_REVIEW": "restore the submitted commit and reviewed Git objects, then re-review the clean composition with current Pullboard",
   "CHECK_NO_PROOF": "strengthen the trusted criterion so it fails before the outside change, then ask the coordinator to refreeze it",
-  "CHECK_RED": "reject with what failed: pullboard verify <id> reject --reason TEST_FAILURE --note \"<what failed>\"",
+  "CHECK_RED": "reject with what failed: pullboard verify <id> reject --reason TEST_FAILURE --clause \"<frozen wording>\" --note \"<what failed>\"",
   "CHECK_UNVERIFIED": "restore the install or check environment, then run pullboard verify <id> again",
   "CLOSED": "read its state with pullboard show <id>, then take open work: pullboard next",
-  "COORDINATOR_VERIFIES": "leave the review to the coordinator; shout it when the item is ready: pullboard shout coordinator \"#<id> is ready to verify\"",
-  "CRITERIA_CHANGED": "ask the coordinator to refreeze it: pullboard shout coordinator \"please refreeze #<id>\"",
+  "COORDINATOR_VERIFIES": "leave the review to the coordinator; record readiness on the item: pullboard fact <id> note \"ready for coordinator review\"",
+  "CRITERIA_CHANGED": "ask the coordinator to refreeze it: pullboard shout coordinator --kind question \"please refreeze #<id>\"",
   "DIRTY": "commit your changes, then run the command again",
   "ENGINE_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
-  "GIT_GRAFTS": "ask the coordinator to remove the git graft file: pullboard shout coordinator \"please remove .git/info/grafts\"",
-  "GUARD_CANNOT_FAIL": "reject: the check does not test the guard; ask for one that fails with the guard reverted: pullboard verify <id> reject --reason TEST_FAILURE --note \"<what the check missed>\"",
-  "GUARD_NOT_FOUND": "reject: the named guard is not in the submitted commit; fix the guard line in the criterion with the coordinator: pullboard shout coordinator --decision \"<id> guard does not match the commit\"",
+  "GIT_GRAFTS": "ask the coordinator to remove the git graft file: pullboard shout coordinator --kind question \"please remove .git/info/grafts\"",
+  "GUARD_CANNOT_FAIL": "reject: the check does not test the guard; ask for one that fails with the guard reverted: pullboard verify <id> reject --reason TEST_FAILURE --clause \"<frozen wording>\" --note \"<what the check missed>\"",
+  "GUARD_NOT_FOUND": "reject: the named guard is not in the submitted commit; fix the guard line in the criterion with the coordinator: pullboard shout coordinator --kind question --decision \"<id> guard does not match the commit\"",
   "ITEM_LEASE_LOST": "read pullboard show <id>; if the item is free, claim it again for a build or reserve it with pullboard next --verify <id> for a review, then retry",
-  "LAND_HEADER": "shout the coordinator: pullboard shout coordinator \"#<id> landing message fails its check\"",
+  "LAND_HEADER": "shout the coordinator: pullboard shout coordinator --kind exception \"#<id> landing message fails its check\"",
   "MAIN_IS_COORDINATOR": "use an independent agent checkout for agent work, or run person-only actions from the main checkout as the coordinator",
   "MERGE_CHECK_FAILED": "use Git 2.38 or newer (git --version), then retry",
   "MERGE_CONFLICT": "merge main into your branch, resolve the conflicts, commit, and run the command again",
@@ -75,12 +80,12 @@ export default Object.freeze({ operation: "verify", order: 18, engine: 1,
   "NOT_A_REPO": "cd into a git repo, or make one: git init",
   "NOT_JOINED": "join a lane from this worktree: pullboard join <lane> --model \"<model name>\" (see: pullboard lanes)",
   "NOT_SUBMITTED": "see its state with pullboard show <id>; verify only submitted items: pullboard next --verify",
-  "NOT_YOURS": "shout its holder or the coordinator: pullboard shout coordinator \"<what you need>\"",
+  "NOT_YOURS": "shout its holder or the coordinator: pullboard shout coordinator --kind question \"<what you need>\"",
   "NO_CONFIG": "run pullboard init in the main checkout and commit pullboard.json",
   "NO_ITEM": "find the item id: pullboard list --all",
   "NO_POLICY": "restore and commit pullboard.json, then run the command again",
   "NO_TRUNK": "in the main checkout, switch to the repository’s trunk branch and run pullboard inbox",
-  "O2_FAMILY_MATCH": "ask the coordinator for a verifier from another family: pullboard shout coordinator \"#<id> needs a verifier from another family\"",
+  "O2_FAMILY_MATCH": "ask the coordinator for a verifier from another family: pullboard shout coordinator --kind question \"#<id> needs a verifier from another family\"",
   "OUTSIDE_LANE": "move those changes out of this commit, and shout the lane that owns them: pullboard shout <lane> \"<text>\"",
   "OUTSIDE_SANDBOX_REQUIRED": "read the exact PR diff, then run pullboard verify <id> accept --sandbox with the configured container provider",
   "PROOF_REQUIRED": "say how you proved it: --note \"what you broke or which edge you tried, and what happened\"",

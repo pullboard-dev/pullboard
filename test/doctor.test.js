@@ -1,4 +1,5 @@
 /** Integrity checks use throwaway git repositories and real board databases (A6). */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -58,7 +59,7 @@ function boardBox({ initialize = true, repoName = 'repo', lanes = {} } = {}) {
 function runRelease(box, ...args) {
   const release = join(box.dir, 'installed-release');
   mkdirSync(release, { recursive: true });
-  for (const name of ['bin', 'src', 'package.json']) cpSync(resolve(import.meta.dirname, '..', name), join(release, name), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), release);
   return runFixtureChild(process.execPath, [join(release, 'bin/pullboard.js'), ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
 }
 

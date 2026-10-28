@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+import { copyPackageFiles } from '../src/package-files.js';
 import './main-audit-cases.js';
 import './main-audit-receipt.test.js';
 /** The landing gate splits its test files into shards across local slots and runners [C7,V4]. */
@@ -20,6 +21,9 @@ const SOURCE = resolve(import.meta.dirname, '..');
 const BIN = join(SOURCE, 'bin', 'pullboard.js');
 const HOST = 'fixture-host';
 const NAMES = ['a', 'b', 'c', 'd', 'e', 'f'];
+
+/** The full published copy contains unrelated docs tests; this fixture gates exactly its original probe universe. */
+function fixtureGate(names = NAMES) { return 'node bin/run-tests.js ' + names.map(name => `test/${name}.test.js`).join(' '); }
 
 test('GUI-marked landing files use only a runner with a GUI session [C7,V4]', (t) => {
   const box = fixture({ runner: false });
@@ -65,7 +69,10 @@ process.stdout.write(JSON.stringify({ green: result.isGreen, calls }));`;
 test('a GUI-marked shard waits for a local slot when runner GUI capability is unknown [C7,V4]', t => {
   const box = fixture({ runner: true });
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
-  const script = `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
+  const script = `import { recordRunnerGui } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/resources.js')).href)};
+// This scenario seeds its capability after registration, whose real desktop probe may report true.
+recordRunnerGui(${JSON.stringify(HOST)}, null);
+import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 let release;
@@ -99,7 +106,10 @@ test('a no-GUI remote parent gives its first GUI shard to a compatible local slo
   const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
   settings.runners = settings.runners.map(runner => ({ ...runner, gui: false }));
   writeFileSync(settingsPath, JSON.stringify(settings));
-  const script = `import assert from 'node:assert/strict';
+  const script = `import { recordRunnerGui } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/resources.js')).href)};
+// This scenario seeds its capability after registration, whose real desktop probe may report true.
+recordRunnerGui(${JSON.stringify(HOST)}, false);
+import assert from 'node:assert/strict';
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
 const root = ${JSON.stringify(box.repo)};
@@ -265,11 +275,9 @@ function fixture({ runner = true, repoNames = ['repo'] } = {}) {
     if (/^PULLBOARD_(GATE_SLOT|BROWSER_SLOT|LANDING)/u.test(key) || ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'].includes(key)) delete env[key];
   }
   for (const path of repos) {
-    copyFileSync(join(SOURCE, 'package.json'), join(path, 'package.json'));
-    cpSync(join(SOURCE, 'src'), join(path, 'src'), { recursive: true });
-    cpSync(join(SOURCE, 'bin'), join(path, 'bin'), { recursive: true });
+    copyPackageFiles(SOURCE, path);
     for (const name of NAMES) writeFileSync(join(path, 'test', `${name}.test.js`), fixtureTestFile(name, { markers, mode }));
-    writeFileSync(join(path, 'pullboard.json'), JSON.stringify({ gate: 'node bin/run-tests.js', landingShards: 3 }));
+    writeFileSync(join(path, 'pullboard.json'), JSON.stringify({ gate: fixtureGate(), landingShards: 3 }));
     git(path, env, 'init', '-q', '-b', 'main');
     git(path, env, 'add', '.');
     git(path, env, 'commit', '-q', '-m', 'test: landing shards fixture');
@@ -606,7 +614,7 @@ test('own a detached child', async () => {
   for (const name of NAMES.slice(2)) rmSync(join(box.repo, 'test', `${name}.test.js`));
   writeFileSync(join(box.repo, 'test', 'a.test.js'), failing);
   writeFileSync(join(box.repo, 'test', 'b.test.js'), owner);
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ gate: 'node bin/run-tests.js', landingShards: 2 }));
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ gate: fixtureGate(NAMES.slice(0, 2)), landingShards: 2 }));
   git(box.repo, box.env, 'add', '-A');
   git(box.repo, box.env, 'commit', '-q', '-m', 'test: a shard owns a detached descendant');
   let pid = null;
@@ -630,7 +638,7 @@ test('own a detached child', async () => {
 for (const count of [1, 3]) test(`collect-all retains two real failures and later green files with ${count} shard(s) [C7,V4]`, { timeout: 90_000 }, async t => {
   const box=fixture({runner:false});
   t.after(()=>rmSync(box.dir,{recursive:true,force:true}));
-  writeFileSync(join(box.repo,'pullboard.json'),JSON.stringify({gate:'node bin/run-tests.js',landingShards:count}));
+  writeFileSync(join(box.repo,'pullboard.json'),JSON.stringify({gate:fixtureGate(),landingShards:count}));
   if(git(box.repo,box.env,'status','--porcelain','pullboard.json').trim()) {
     git(box.repo,box.env,'add','pullboard.json');git(box.repo,box.env,'commit','-q','-m','test: collect-all shard count');
   }

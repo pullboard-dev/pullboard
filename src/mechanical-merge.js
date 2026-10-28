@@ -1,4 +1,6 @@
 /** Shared conservative data-only conflict decisions; candidate generators run only during landing [B3,R3,C7]. */
+import { generatedDocResolution } from './generated-doc-conflicts.js';
+import { generatedDocCommand } from './generated-doc-conflicts.js';
 import {
   mkdtempSync,
   rmSync,
@@ -180,8 +182,12 @@ function additiveSource(base, ours, theirs) {
 }
 
 /** Resolve only declared generated output, structural JSON or genuine additions; never execute candidate code. */
-function sourceResolution(path, base, ours, theirs) {
+function sourceResolution(path, base, ours, theirs, version = 3) {
   if (GENERATED.has(path)) return { kind: 'generated', keys: [] };
+  if (version >= 3) {
+    const generated = generatedDocResolution(path, base, ours, theirs);
+    if (generated) return generated;
+  }
   if (path.endsWith('.json')) {
     try {
       const merged = jsonValue(snapshot(base), snapshot(ours), snapshot(theirs));
@@ -207,13 +213,13 @@ function gitData(root, args, gitDirectory) {
 }
 
 /** Read exactly three regular-file stages with identical modes and valid UTF-8, refusing deletes and symlinks. */
-function stageResolution(root, path, records, gitDirectory) {
+function stageResolution(root, path, records, gitDirectory, version = 3) {
   if (records.length !== 3 || records.some((record, index) => record.stage !== index + 1 || record.mode !== records[0].mode)
     || !['100644', '100755'].includes(records[0].mode)) return null;
   const sources = records.map(record => gitData(root, ['cat-file', 'blob', record.hash], gitDirectory));
   if (sources.some(result => result.status !== 0 || !Buffer.isBuffer(result.stdout)
     || !Buffer.from(result.stdout.toString('utf8'), 'utf8').equals(result.stdout))) return null;
-  return sourceResolution(path, ...sources.map(result => result.stdout.toString('utf8')));
+  return sourceResolution(path, ...sources.map(result => result.stdout.toString('utf8')), version);
 }
 
 /** Parse Git's stage records using NUL framing, retaining unusual path bytes and original conflict order. */
@@ -229,7 +235,7 @@ function stages(output) {
 }
 
 /** Classify the same virtual merge for health and immutable replay without touching any index or checkout. */
-export function mechanicalConflictFiles(root, trunk, head, { gitDirectory } = {}) {
+export function mechanicalConflictFiles(root, trunk, head, { gitDirectory, version = 3 } = {}) {
   const result = gitData(root, ['merge-tree', '--write-tree', '-z', trunk, head], gitDirectory);
   const output = result.stdout?.toString('utf8').split('\0') ?? [];
   if (![0, 1].includes(result.status) || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(output[0]?.trim() ?? '')) return null;
@@ -237,7 +243,7 @@ export function mechanicalConflictFiles(root, trunk, head, { gitDirectory } = {}
   const end = output.indexOf('', 1);
   const entries = stages(output.slice(1, end < 0 ? undefined : end));
   if (!entries.size) return null;
-  return [...entries].filter(([path, records]) => !stageResolution(root, path, records, gitDirectory)).map(([path]) => path);
+  return [...entries].filter(([path, records]) => !stageResolution(root, path, records, gitDirectory, version)).map(([path]) => path);
 }
 
 /** Resolve a landing index using the identical decisions; generators execute only in this about-to-be-gated tree. */
@@ -251,12 +257,13 @@ export function resolveMechanicalIndex(root, files) {
     else remaining.push(path);
   }
   if (remaining.length) return { files: remaining, entries: [] };
-  for (const entry of resolutions.filter(entry => entry.kind !== 'generated')) writeFileSync(join(root, entry.path), entry.source);
+  for (const entry of resolutions.filter(entry => entry.source !== undefined)) writeFileSync(join(root, entry.path), entry.source);
   for (const entry of resolutions.filter(entry => entry.kind === 'generated')) {
-    const generated = spawnSync(process.execPath, GENERATED.get(entry.path),
+    const command = GENERATED.get(entry.path) ?? generatedDocCommand(entry.path);
+    const generated = spawnSync(process.execPath, command,
       { cwd: root, env: cleanGitEnvironment(), timeout: 30_000, maxBuffer: 32 * 1024 * 1024 });
     if (generated.status !== 0) return { files: [], entries: [], failed: {
-      path: entry.path, generator: GENERATED.get(entry.path).join(' '), status: generated.status,
+      path: entry.path, generator: command.join(' '), status: generated.status,
     } };
     writeFileSync(join(root, entry.path), generated.stdout);
   }

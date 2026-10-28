@@ -1,0 +1,10 @@
+{
+  "kind": "strong-rejection-notice",
+  "entries": [
+    {
+      "order": 19,
+      "actor": "coordinator",
+      "detail": "`engine`, `route`, `builder`, `rejections`"
+    }
+  ]
+}

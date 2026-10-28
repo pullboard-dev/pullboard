@@ -44,7 +44,7 @@ function fixture(t) {
     submitFixture(board, id, { agentId: builder, commit, tree: 'b'.repeat(40) });
   };
   submit('a'.repeat(40));
-  store.verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'Fixture rejects the first attempt.', head: 'a'.repeat(40), digest: 'frozen', policy: 'any' });
+  store.verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'Fixture rejects the first attempt.', clause: 'Proof fixture', head: 'a'.repeat(40), digest: 'frozen', policy: 'any' });
   submit('c'.repeat(40));
   store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', note: 'Fixture rework meets its bar.', head: 'c'.repeat(40), digest: 'frozen', policy: 'any' });
   store.merged(board, id, { agentId: 'coordinator', commit: 'd'.repeat(40) });
@@ -60,7 +60,7 @@ function addCorrectedRepeat(board, builder, reviewer, setNow) {
   const first = store.claim(board, id, { agentId: builder, lane: 'web', leaseMs: 3_600_000, freeze });
   submitFixture(board, id, { agentId: builder, commit, tree });
   store.verify(board, id, {
-    agentId: reviewer, decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH', note: 'the heading is missing',
+    agentId: reviewer, decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH', note: 'the heading is missing', clause: 'the heading is visible',
     head: commit, digest: first.digest, policy: 'any',
   });
   setNow('2026-10-09T12:00:00.000Z');
@@ -70,7 +70,7 @@ function addCorrectedRepeat(board, builder, reviewer, setNow) {
   submitFixture(board, id, { agentId: builder, commit, tree });
   store.verify(board, id, {
     agentId: reviewer, decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH',
-    note: 'the corrected criterion still fails\nThe accessible heading is absent.',
+    note: 'the corrected criterion still fails\nThe accessible heading is absent.', clause: 'the heading is accessible',
     head: commit, digest: corrected.after, policy: 'any',
   });
   return id;
@@ -134,10 +134,18 @@ test('[R1,R2,A2] local HTTP state exposes exactly the command statistics', async
   assert.equal(command.code, 0, command.stderr);
   assert.equal(document.version, 1);
   const observed = Date.parse(document.state.proofStats.flow.asOf);
-  assert.deepEqual(document.state.proofStats, proofStats(board, { now: observed }));
+  /** The public view keeps totals and grouped flow, while detailed CLI collections remain on demand. */
+  const publicSummary = stats => {
+    const { agents: _agents, bars: _bars, caught: _caught, ...summary } = stats;
+    const { items: _items, ...report } = summary.flow.report;
+    return { ...summary, flow: { ...summary.flow, report } };
+  };
+  assert.deepEqual(document.state.proofStats, publicSummary(proofStats(board, { now: observed })));
+  for (const key of ['agents', 'bars', 'caught']) assert.equal(Object.hasOwn(document.state.proofStats, key), false);
+  assert.equal(Object.hasOwn(document.state.proofStats.flow.report, 'items'), false);
   assert.deepEqual(command.data.stats, proofStats(board, { now: Date.parse(command.data.stats.flow.asOf) }));
   assert.deepEqual({ ...document.state.proofStats, flow: { ...document.state.proofStats.flow, asOf: command.data.stats.flow.asOf } },
-    command.data.stats, 'the two observations retain every invariant field exactly');
+    publicSummary(command.data.stats), 'the public projection retains every exposed command invariant exactly');
 });
 
 /** Add one catch of every other kind to the fixture board, through the events the board already records. */

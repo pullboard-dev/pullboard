@@ -7,15 +7,27 @@ export function dashboardModel(project, history, { now = Date.now(), complete = 
   const byId = new Map(items.map(item => [item.id, item]));
   const merged = new Map((project.dashboardLanded ?? []).map(entry => [entry.id, entry]));
   const prefix = project.sequence ?? Infinity;
-  const events = [...history].filter(event => event.event_id <= prefix && Date.parse(event.event_at) <= now)
+  const events = history.filter(event => event.event_id <= prefix && Date.parse(event.event_at) <= now)
     .sort((a, b) => a.event_id - b.event_id);
   /** Parse only native event JSON; malformed history cannot create activity. */
   const detail = event => { try { return JSON.parse(event.event_detail || '{}'); } catch { return {}; } };
   const latest = new Map(), landed = new Map(), work = new Map(), rows = new Map();
-  /** One row per registered agent, also retaining actors present in this historical prefix. */
+  const seats = new Set((project.agents ?? []).map(agent => agent.agent_id));
+  const joined = new Map();
+  // The API's recent-seat list can omit a real seat whose latest move is outside its clock.
+  // Native joins in this same bounded history establish membership without promoting automation.
+  for (const event of events) if (event.event_kind === 'join') {
+    const lane = detail(event).lane;
+    if (typeof lane === 'string' && lane && lane !== 'coordinator' && event.event_by) {
+      seats.add(event.event_by);
+      if (!joined.has(event.event_by)) joined.set(event.event_by, Date.parse(event.event_at));
+    }
+  }
+  /** Attribute history only to registered seats; board automation is not an agent. */
   const row = id => {
-    if (!id || id === 'coordinator' || id === 'person' || id === 'clock' || id === 'sentinel') return null;
-    if (!rows.has(id)) rows.set(id, { id, name: id, segments: [], build: 0, review: 0, idle: 0, shouts: 0, last: 0, current: [], sentBack: [] });
+    if (!seats.has(id) || id === 'coordinator') return null;
+    if (!rows.has(id)) rows.set(id, { id, name: id, segments: [], build: 0, review: 0, idle: 0, shouts: 0, last: 0, current: [], sentBack: [],
+      ...(joined.has(id) ? { start: Math.max(start, joined.get(id)) } : {}) });
     return rows.get(id);
   };
   for (const agent of project.agents ?? []) {
@@ -30,10 +42,17 @@ export function dashboardModel(project, history, { now = Date.now(), complete = 
     if (actor && at > start && held.start < now) actor.segments.push({ ...held, start: Math.max(start, held.start), end: Math.min(now, at) });
     work.delete(key);
   };
+  let passed = 0, sentBack = 0, personShouts = 0;
   for (const event of events) {
     const at = Date.parse(event.event_at), d = detail(event), id = event.item_id, actor = row(event.event_by);
     if (!Number.isFinite(at)) continue;
-    for (const [key, held] of [...work]) if (held.until <= at) close(key, held.until);
+    // Count the same bounded native prefix while its date and payload are already decoded.
+    if (at > start) {
+      if (event.event_kind === 'accept') passed++;
+      if (['reject', 'reopen'].includes(event.event_kind)) sentBack++;
+      if (event.event_kind === 'shout' && d.to === 'person') personShouts++;
+    }
+    for (const [key, held] of work) if (held.until <= at) close(key, held.until);
     if (actor && ['reject', 'reopen'].includes(event.event_kind) && at > start) actor.sentBack.push({ at, item: id });
     if (actor) { actor.last = Math.max(actor.last, at); if (event.event_kind === 'shout' && at > start) actor.shouts++; }
     latest.set(event.event_kind + ':' + id, event);
@@ -58,9 +77,13 @@ export function dashboardModel(project, history, { now = Date.now(), complete = 
   }
   const claims = items.filter(item => item.status === 'claimed' && item.claim?.by && item.claim.by === item.owner && Date.parse(item.claim.until) > now);
   const reviewing = items.filter(item => item.status === 'submitted');
-  for (const [key, held] of [...work]) close(key, now);
-  for (const item of claims) row(item.owner)?.current.push({ kind: 'build', item });
-  for (const item of reviewing) if (item.reviewer && Date.parse(item.reviewUntil) > now) row(item.reviewer)?.current.push({ kind: 'review', item });
+  // A live hold keeps its own unclipped start, apart from the per-minute union below, so a seat holding a review and
+  // a build at once still reports each one's age; null means the history holds no open stay for this holder.
+  /** When this holder's still-open stay on the item began, or null. */
+  const since = (kind, item, by) => { const held = work.get(kind + ':' + item.id); return held?.actor === by ? held.start : null; };
+  for (const item of claims) row(item.owner)?.current.push({ kind: 'build', item, since: since('build', item, item.owner) });
+  for (const item of reviewing) if (item.reviewer && Date.parse(item.reviewUntil) > now) row(item.reviewer)?.current.push({ kind: 'review', item, since: since('review', item, item.reviewer) });
+  for (const [key] of [...work]) close(key, now);
   const agents = [...rows.values()].filter(agent => agent.last > start || agent.current.length || agent.segments.length);
   for (const agent of agents) {
     // Union overlapping intervals: a minute is counted once, with building taking precedence.
@@ -101,8 +124,8 @@ export function dashboardModel(project, history, { now = Date.now(), complete = 
       allTime: merged.size,
       day: pace?.last24h ?? (complete ? times.filter(at => at > now-24*hour).length : null),
       recent: complete ? times.filter(at => at > start).length : null,
-      passed: complete ? events.filter(event => event.event_kind === 'accept' && Date.parse(event.event_at) > start).length : null,
-      sentBack: complete ? events.filter(event => ['reject','reopen'].includes(event.event_kind) && Date.parse(event.event_at) > start).length : null,
-      shouts: complete ? events.filter(event => event.event_kind === 'shout' && Date.parse(event.event_at) > start && detail(event).to === 'person').length : null },
+      passed: complete ? passed : null,
+      sentBack: complete ? sentBack : null,
+      shouts: complete ? personShouts : null },
   };
 }

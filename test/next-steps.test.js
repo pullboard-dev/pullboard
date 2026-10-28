@@ -14,7 +14,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 test('agents are never told to ask the person [B26]', () => {
-  const route = 'ask the coordinator to bring it to the person: pullboard shout coordinator "<what is needed>" --decision';
+  const route = 'ask the coordinator to bring it to the person: pullboard shout coordinator --kind question "<what is needed>" --decision';
   for (const code of Object.keys(NEXT_STEPS)) {
     const refusal = { code, message: 'This operation was refused.' };
     const original = refusalDocument(refusal).error.next;

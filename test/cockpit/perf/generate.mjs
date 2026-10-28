@@ -9,7 +9,7 @@ import { loadDoctrine } from '../../../src/doctrine.js';
 import { STATUSES, frozenCriterion, loadSpec } from '../../../src/spec.js';
 import {
   ACCEPT_REASON, addItem, addMilestone, allShouts, appendFact, atomic, claim, closeBoard,
-  ensureCoordinator, events, listAgents, listItems, milestones, openBoard, recordAttempt,
+  ensureCoordinator, events, getItem, listAgents, listItems, milestones, openBoard, recordAttempt,
   register, reopen, shout, verify, withdraw,
 } from '../../../src/board.js';
 import { submitFixture } from '../../board-submit-fixture.js';
@@ -129,8 +129,8 @@ function lanePlan(size) {
 }
 
 /** Register a stable pool of builders, a reviewer, and the live idle writer through board APIs. */
-function registerAgents(board, root, size) {
-  const target = Math.min(354, Math.max(12, Math.round(size * 354 / 605)));
+function registerAgents(board, root, size, count) {
+  const target = count ?? Math.min(354, Math.max(12, Math.round(size * 354 / 605)));
   const byLane = Object.fromEntries(LANES.map((lane) => [lane, lane === 'coordinator' ? ['coordinator'] : []]));
   const builderCount = Math.max(0, target - 3);
   const builderLanes = ['core', 'view', 'docs'];
@@ -166,7 +166,7 @@ function exerciseReopen(board, id, seed, lane, builder, reviewer, freezer) {
   reopen(board, id, { agentId: 'coordinator', note: 'Exercise the reopened submission path in the generated board.' });
   const second = submitItem(board, id, seed, lane, builder, 2, freezer);
   verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH',
-    note: 'Exercise a reject before the final generated acceptance.', head: second.commit, digest: second.digest,
+    note: 'Exercise a reject before the final generated acceptance.', clause: JSON.parse(getItem(board, id).item_frozen).criterion, head: second.commit, digest: second.digest,
     policy: 'any', familyPolicy: 'off' });
   const final = submitItem(board, id, seed, lane, builder, 3, freezer);
   verify(board, id, { agentId: reviewer, decision: 'ACCEPT', reason: ACCEPT_REASON,
@@ -216,9 +216,11 @@ function boardSnapshot(board, seed, source, baselineEventId) {
 }
 
 /** Generate a reproducible fixture in a disposable repository without writing its SQLite file directly. */
-export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, parent = tmpdir() } = {}) {
+export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, parent = tmpdir(), agents: agentCount, shouts: requestedShouts } = {}) {
   if (typeof seed !== 'string' || !seed.trim()) throw new TypeError('seed must be a nonempty string');
   if (!Number.isSafeInteger(size) || size < 5 || size > 100_000) throw new RangeError('size must be an integer from 5 through 100000');
+  if (agentCount !== undefined && (!Number.isSafeInteger(agentCount) || agentCount < 12 || agentCount > 10000)) throw new RangeError('agents must be an integer from 12 through 10000');
+  if (requestedShouts !== undefined && (!Number.isSafeInteger(requestedShouts) || requestedShouts < 1 || requestedShouts > 100000)) throw new RangeError('shouts must be an integer from 1 through 100000');
   const workspace = mkdtempSync(join(parent, 'pullboard-stress-'));
   let board = null;
   let keepWorkspace = false;
@@ -250,7 +252,7 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
     // This isolated fixture has no readers until return; retain every native move and commit
     // the generated population together, instead of paying an outer transaction per record.
     const manifest = atomic(board, () => {
-      const agents = registerAgents(board, root, size);
+      const agents = registerAgents(board, root, size, agentCount);
       const statuses = lifecyclePlan(size);
       const firstOpenIndex = statuses.indexOf('open');
       const longestHistoryIndex = statuses.indexOf('claimed');
@@ -314,7 +316,7 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
         const targetHistory = id === longestHistoryItemId ? 168 : index % 100 === 0 ? 37 : index % 10 === 0 ? 18 : 8;
         fillHistory(board, id, seed, builder, targetHistory, usedEvents, id === longestHistoryItemId ? 8 : index % 12 === 0 ? 2 : 0);
       }
-      const shoutCount = Math.round(7_289 * size / 605);
+      const shoutCount = requestedShouts ?? Math.round(7_289 * size / 605);
       for (let index = 0; index < shoutCount; index += 1) {
         const text = index === 0 ? textOf(seed, 'Longest generated shout', 14_000) : textOf(seed, `Generated board update ${index + 1}`, 410);
         historicalShout(board, { seed, index, from: agents.writer, text });

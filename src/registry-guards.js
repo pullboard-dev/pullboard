@@ -1,5 +1,4 @@
 /** Accepted project registry obligations survive import-selection deferral [C7,V4,V16]. */
-import { git } from './git.js';
 
 /** A literal repository path, or an input glob using only *, ** and ?. */
 function projectPath(value, glob = false) {
@@ -27,8 +26,8 @@ function matches(path, glob) {
   return new RegExp(`^${source}$`, 'u').test(path);
 }
 
-/** Select from the same merge base as affected tests, retaining deletions and both sides of renames. */
-export function selectRegistryGuards(root, rules = [], { base, trunk, commit = 'HEAD', changed } = {}) {
+/** Select from the same merge base as affected tests; the caller supplies its Git operation [C7,D3]. */
+export function selectRegistryGuards(root, rules = [], { base, trunk, commit = 'HEAD', changed, git } = {}) {
   if (!rules.length) return [];
   if (trunk) {
     const mergeBase = git(root, ['merge-base', trunk, commit]).trim();

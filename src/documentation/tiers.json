@@ -1,0 +1,10 @@
+[
+  [
+    "`must`",
+    "An approved must row names a gate. Other statuses may omit it."
+  ],
+  [
+    "`aim`",
+    "An aim; no gate is required."
+  ]
+]

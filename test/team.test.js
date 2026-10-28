@@ -1011,7 +1011,7 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
   const joined = await box.cliAt(seatRoot, 'join', box.lane, '--model', 'fixture-model');
   assert.equal(joined.code, 0, `the person gives CI its own seat: ${JSON.stringify(joined.document?.error ?? null)}`);
   const seat = (await box.cliAt(seatRoot, 'whoami')).document;
-  assert.equal((await box.cliAt(seatRoot, 'shout', 'coordinator', 'the CI seat is ready')).code, 0, 'the seat moves once, which mints its token');
+  assert.equal((await box.cliAt(seatRoot, 'shout', 'all', 'the CI seat is ready')).code, 0, 'the seat moves once, which mints its token');
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const token = link.agentTokens?.[seat.id]?.token;
   assert.match(token ?? '', /^pa_/u, 'the seat holds its own agent token');

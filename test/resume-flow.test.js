@@ -1,4 +1,5 @@
 /** Coordinator flow alerts reuse the real Git/SQLite statistics and documented thresholds [N32,R1,R2]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -26,9 +27,7 @@ function releaseFixture(t, { previous = null, version = '0.8.7', changelog = PRI
   mkdirSync(cli);
   mkdirSync(repo);
   if (!freshSetup) writeFileSync(join(repo, 'SPEC.md'), '# Release fixture\n\n## N · Resume\n- N19 [approved, must] Resume announces released headlines once per checkout. | gate: review\n');
-  cpSync(join(import.meta.dirname, '../src'), join(cli, 'src'), { recursive: true });
-  cpSync(join(import.meta.dirname, '../bin'), join(cli, 'bin'), { recursive: true });
-  cpSync(join(import.meta.dirname, '../skills'), join(cli, 'skills'), { recursive: true });
+  copyPackageFiles(join(import.meta.dirname, '..'), cli);
   symlinkSync(join(cli, 'bin/pullboard.js'), join(cli, 'bin/pullboard'));
   const packageData = JSON.parse(readFileSync(join(import.meta.dirname, '../package.json'), 'utf8'));
   writeFileSync(join(cli, 'package.json'), JSON.stringify({ ...packageData, version }));
@@ -280,11 +279,11 @@ function fixture(t, { wait = null, age = null, reservation = null, otherAge = nu
   store.register(board, { lane: 'coordinator', path: root });
   const builder = store.register(board, { lane: 'web', path: web });
   const reviewer = store.register(board, { lane: 'review', path: join(root, 'reviewer') });
-  const freeze = () => ({ text: JSON.stringify({ rows: [] }), digest: 'frozen' });
+  const freeze = () => ({ text: JSON.stringify({ criterion: 'Flow fixture', rows: [] }), digest: 'frozen' });
   /** Add and submit an item at exact recorded minute offsets. */
   function submit(start, submitted) {
     at = start;
-    const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Flow fixture' });
+    const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Flow fixture', criterion: 'Flow fixture' });
     store.claim(board, id, { agentId: builder, lane: 'web', leaseMs: 1000 * MINUTE, freeze });
     at = submitted;
     submitFixture(board, id, { agentId: builder, commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
@@ -311,7 +310,7 @@ function fixture(t, { wait = null, age = null, reservation = null, otherAge = nu
         store.release(board, waiting, reviewer, 'Fixture releases its review.');
       } else if (reservation === 'verdict') {
         at = 450;
-        store.verify(board, waiting, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'Fixture rejection.', head: 'a'.repeat(40), digest: 'frozen', policy: 'any' });
+        store.verify(board, waiting, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'Fixture rejection.', clause: 'Flow fixture', head: 'a'.repeat(40), digest: 'frozen', policy: 'any' });
       }
     }
   }
@@ -463,12 +462,12 @@ test('resume shows the coordinator its unread shouts through the SessionStart ho
   const lane = Object.keys(JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')).lanes)[0];
   const joined = box.run(other, 'join', lane, '--model', 'Fixture');
   assert.equal(joined.status, 0, joined.failure || joined.stderr || joined.stdout);
-  const shouted = box.run(other, 'shout', 'coordinator', 'The hook shows this shout');
+  const shouted = box.run(other, 'shout', 'coordinator', 'Can the hook show this shout?', '--kind', 'question');
   assert.equal(shouted.status, 0, shouted.failure || shouted.stderr || shouted.stdout);
   const hook = runFixtureChild('sh', ['-c', RESUME_HOOK], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(hook.status, 0, hook.failure || hook.stderr || hook.stdout);
   assert.match(hook.stdout, /^inbox: 1 unread shout, 0 open decisions for you; read them with pullboard inbox$/mu, hook.stdout);
-  assert.match(hook.stdout, /^ {2}newest #\d+ from .+ \(\d+m ago\): The hook shows this shout$/mu, hook.stdout);
+  assert.match(hook.stdout, /^ {2}newest #\d+ from .+ \(\d+m ago\): Can the hook show this shout\?$/mu, hook.stdout);
 });
 
 test('spec draft adds draft rows and resume names them [N32]', t => {
