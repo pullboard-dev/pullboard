@@ -6,6 +6,7 @@ import { fixtureBoard } from './board-fixture.js';
 import { submitPreflight } from '../src/submit-preflight.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
 import { refuseUnreviewable } from '../src/review-reachability.js';
+import { refuseLiveAttach } from '../src/item-patches.js';
 import { healthReport } from '../src/health.js';
 
 const LEASE = 3_600_000;
@@ -109,4 +110,21 @@ test('attaching a Claude-credited companion to a claimed OpenAI-built strict ite
     && error.message.includes('builder core-1 (openai)') && error.message.includes('companion author core-2 (claude)'));
   assert.deepEqual(store.events(f.board), before, 'the refused attach recorded nothing');
   assert.equal(attach(f, id, 'companion', 'core-4').changed, true, 'an OpenAI-credited companion still attaches');
+});
+
+test('a live attach is refused when the only eligible reviewer is gone, while replaying the recorded move succeeds [C7,V4]', t => {
+  let ms = Date.parse('2026-10-28T12:00:00Z');
+  const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b'], ['core-3', 'openai', 'c']], { now: () => new Date(ms) });
+  const id = f.claimed('core-1');
+  ms += 40 * 60_000;
+  heartbeatSeat(f.board, 'core-1');
+  heartbeatSeat(f.board, 'core-3');
+  const item = store.getItem(f.board, id);
+  const before = store.events(f.board);
+  const live = () => refuseLiveAttach(f.board, item, { key: 'companion', author: 'core-3' }, { atomic: store.atomic, review: REVIEW });
+  assert.throws(live, error => error.code === 'NO_ELIGIBLE_REVIEWER' && error.message.includes('companion author core-3 (openai)'));
+  assert.deepEqual(store.events(f.board), before, 'the live preview records nothing');
+  assert.equal(attach(f, id, 'companion', 'core-3').changed, true, 'the ordered move counts registered seats, so replay succeeds');
+  heartbeatSeat(f.board, 'core-2');
+  assert.doesNotThrow(() => refuseLiveAttach(f.board, store.getItem(f.board, id), { key: 'other', author: 'core-3' }, { atomic: store.atomic, review: REVIEW }), 'once the reviewer is active again the live check passes');
 });

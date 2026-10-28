@@ -102,6 +102,27 @@ function authorIdentity(board, author) {
   const identity = key => board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key + author)?.meta_value ?? null;
   return { agentId: author, parentSession: identity('agent_parent_session:'), session: identity('agent_session:') };
 }
+const PREVIEWED = Symbol('item patch author preview');
+/**
+ * Before a live command applies the move, refuse an author who would leave a strict item no ACTIVE reviewer.
+ * The author is written inside a transaction that always rolls back, so nothing is recorded; the ordered move
+ * keeps its own deterministic check against every registered seat so replay never reads local heartbeats [C7,V4].
+ */
+export function refuseLiveAttach(board, item, { key, author }, { atomic, review }) {
+  try {
+    atomic(board, () => {
+      const patches = records(board, item.item_id);
+      if (!patches.some(record => record.key === key)) {
+        patches.push({ key, commit: item.item_commit ?? 'preview', source: { commit: item.item_commit ?? 'preview' }, patch: '', digest: '', author: authorIdentity(board, author), active: true });
+        save(board, item.item_id, patches);
+      }
+      refuseUnreviewable(board, asSubmitted(board, item), review);
+      throw PREVIEWED;
+    });
+  } catch (error) {
+    if (error !== PREVIEWED) throw error;
+  }
+}
 /** Check exact bounded git diff bytes; application/path safety is enforced by the composition consumer. */
 function patchBytes(patch) {
   if (typeof patch !== 'string' || !patch || Buffer.byteLength(patch, 'utf8') > MAX_BYTES || patch.includes('\0')

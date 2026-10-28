@@ -6,6 +6,7 @@ import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import * as store from '../board.js';
 import { Refused } from '../refused.js';
+import { refuseLiveAttach } from '../item-patches.js';
 import { validateItemPatchInput } from '../item-patch-review.js';
 import { relayCommandReceipt } from '../relay.js';
 import { relayCommandReceiptReported } from '../relay.js';
@@ -86,6 +87,7 @@ export async function run(io, { first, second, rest, values }) {
       if (item.item_status === 'claimed' && (!source || builderHead && builderHead !== source)) {
         throw new Refused('ITEM_PATCH_SOURCE', 'attach against the current builder head; name --source when its checkout is unavailable');
       }
+      refuseLiveAttach(board, item, { key: values.key, author: values.author }, { atomic: store.atomic, review: { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family } });
       result = await ordered(ctx, board, 'attachItemPatch', [id, {
         agentId: me.id,
         key: values.key,
