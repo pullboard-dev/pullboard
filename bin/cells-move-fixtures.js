@@ -1,4 +1,5 @@
 /** Recognize fixture source reads without editing destinations, oracles or unevaluated fixture programs [C7]. */
+import { matchingDataRead } from './cells-data-reads.js';
 import { posix } from 'node:path';
 import { createHash } from 'node:crypto';
 import { lex } from '../packages/kernel/index.js';
@@ -227,7 +228,7 @@ function imports(source, scanned, problems, file, { producer = false, dynamicPor
 }
 
 /** Return nonoverlapping source-only edits and explicit unsupported sites; never execute candidate code. */
-export function fixtureSourceEdits(source, { file, moves, readSource }) {
+export function fixtureSourceEdits(source, { file, moves, readSource, dataReads = [] }) {
   const moved = new Map(moves), edits = [], problems = [], excluded = [];
   if (source.length > 1024 ** 2) return { edits, problems: [`${file}: fixture source analysis exceeds its byte budget`] };
   const scanned = lex(source);
@@ -270,6 +271,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
   if (![...imported.bindings.values()].some(binding => binding.module === 'fs'
     && (binding.imported === '*' || READS.has(binding.imported)))) return { edits, problems };
   const declarations = new Map(), loops = [], consumed = new Set(), scopedReads = new Map(), producers = new Map();
+  const matchedDataReads = [];
   const literalStarts = new Map(strings.map(value => [value.start, value]));
   const { close, parts } = expressions(code, strings);
   const moduleDirectory = posix.dirname(posix.join(REPOSITORY, file));
@@ -814,10 +816,10 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
     if (argumentsAt) {
       const key = `${range.start}:${range.end}`;
       if (flowing.has(key) || flowing.size >= 8) { unsupported(range.start, 'recursive local source flow'); return; }
-      const before = { edits: edits.length, problems: problems.length, excluded: excluded.length };
+      const before = { edits: edits.length, problems: problems.length, excluded: excluded.length, matched: matchedDataReads.length };
       for (const argument of argumentsAt) sourceArgument(argument, reader, regularFile, new Set([...flowing, key]));
       if (problems.length > before.problems) {
-        edits.length = before.edits; problems.length = before.problems; excluded.length = before.excluded;
+        edits.length = before.edits; problems.length = before.problems; excluded.length = before.excluded; matchedDataReads.length = before.matched;
         unsupported(range.start, 'mixed or unproven local helper arguments');
       }
       return;
@@ -854,6 +856,12 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
       const data = dataRoot(range);
       if (data) {
         excluded.push(`${file}:${source.slice(0, range.start).split('\n').length}: excluded data read ${code.slice(range.start, range.end).replace(/\s+/gu, '')}: declared as data file ${data}, not a tracked source path`);
+        return;
+      }
+      const declared = matchingDataRead(dataReads, file, source, range);
+      if (declared) {
+        matchedDataReads.push(declared);
+        excluded.push(`${file}:${declared.line}: manifest ${declared.kind} data read ${JSON.stringify(declared.expression)}: ${declared.why}`);
         return;
       }
       unsupported(range.start, 'unproven input expression or root'); return;
@@ -896,5 +904,5 @@ export function fixtureSourceEdits(source, { file, moves, readSource }) {
   for (let at = 1; at < edits.length; at++) {
     if (edits[at].start < edits[at - 1].end) return { edits: [], problems: [...new Set([...problems, `${file}: overlapping fixture source edits`])] };
   }
-  return { edits, problems: [...new Set(problems)], ...excluded.length ? { excluded } : {} };
+  return { edits, problems: [...new Set(problems)], ...excluded.length ? { excluded } : {}, ...matchedDataReads.length ? { matchedDataReads } : {} };
 }
