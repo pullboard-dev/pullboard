@@ -87,13 +87,13 @@ test('the board stamps every proof receipt and show prints the chain [C7,H16]', 
   const before = board.db.prepare('SELECT count(*) AS n FROM shout').get().n;
   const longText = Array(67).fill('proof').join(' ');
   assert.equal(longText.length, 401, 'the readable message crosses the exact length boundary');
-  const long = box.run(box.web, 'shout', 'coordinator', longText, '--json');
+  const long = box.run(box.web, 'shout', 'coordinator', longText, '--kind', 'question', '--json');
   assert.equal(long.code, 1, long.out);
   const refusal = JSON.parse(long.out).error;
   assert.equal(refusal.code, 'SHOUT_TOO_LONG');
   assert.match(`${refusal.message} ${refusal.next}`, /receipt|pullboard show/u);
   assert.equal(board.db.prepare('SELECT count(*) AS n FROM shout').get().n, before);
-  const unspaced = box.run(box.web, 'shout', 'coordinator', 'x'.repeat(401), '--json');
+  const unspaced = box.run(box.web, 'shout', 'coordinator', 'x'.repeat(401), '--kind', 'question', '--json');
   assert.equal(JSON.parse(unspaced.out).error.code, 'SHOUT_SPACES', 'the accepted readability rule remains enforced');
   proofDocument(box.run(box.web, 'shout', 'all', longText.slice(0, 400), '--json'));
 });
