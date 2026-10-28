@@ -401,8 +401,7 @@ test('native import observes committed and rolled-back write ownership without c
       import { DatabaseSync } from 'node:sqlite';
       import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
       import { exportBoard, importBoard } from ${JSON.stringify(new URL('../src/exchange.js', import.meta.url).href)};
-      import { mappedWorkingSource } from '../bin/checks/scan.js';
-import { boardWriteHolderText } from ${JSON.stringify(new URL('../src/board-write-lock.js', import.meta.url).href)};
+      import { boardWriteHolderText } from ${JSON.stringify(new URL('../src/board-write-lock.js', import.meta.url).href)};
       const file = process.argv[1];
       const document = JSON.parse(readFileSync(process.argv[2], 'utf8'));
       const board = store.openBoard(file, undefined, { writeContext: { command: 'private-import', seat: 'coordinator' } });
@@ -557,8 +556,7 @@ test('a standalone native attempt and nested rollback each observe only their ac
       import { DatabaseSync } from 'node:sqlite';
       import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
       import { exportBoard } from ${JSON.stringify(new URL('../src/exchange.js', import.meta.url).href)};
-      import { mappedWorkingSource } from '../bin/checks/scan.js';
-import { boardWriteHolderText } from ${JSON.stringify(new URL('../src/board-write-lock.js', import.meta.url).href)};
+      import { boardWriteHolderText } from ${JSON.stringify(new URL('../src/board-write-lock.js', import.meta.url).href)};
       const file = process.argv[1];
       const board = store.openBoard(file, undefined, { writeContext: { command: 'private-attempt', seat: 'coordinator' } });
       const before = exportBoard(board);

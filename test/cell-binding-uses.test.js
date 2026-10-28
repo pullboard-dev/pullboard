@@ -18,7 +18,10 @@ import {
 } from '../src/gate-run-receipt.js';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { runFixtureGit } from './fixture-child.js';
+import {
+  privateFixtureFiles,
+  runFixtureGit,
+} from './fixture-child.js';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../src/cell-binding-uses.js';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
@@ -141,6 +144,28 @@ test('mapped working source preserves implementation, shim and exact Buffer obli
   writeFileSync(join(root, 'bin', 'cells-plan', 'path-map', 'duplicate.json'), JSON.stringify({ [oldPath]: bodyPath }));
   git('add', '-A'); git('commit', '-q', '-m', 'chore: ambiguous map format control');
   assert.throws(() => mappedWorkingSource(root, oldPath), { code: 'NO_POLICY' });
+});
+
+test('mechanical fixture input owns its origin and reads actual post-component bytes [C7]', (t) => {
+  const inputs = privateFixtureFiles('pb-private-input-');
+  t.after(() => rmSync(inputs.root, { recursive: true, force: true }));
+  const original = Buffer.from([0xff, 0x00, 0x41]);
+  inputs.write('src/actual.js', original);
+  assert.deepEqual(inputs.read('src/actual.js'), original);
+  const changed = Buffer.from("throw new Error('actual component output');\n");
+  writeFileSync(join(inputs.root, 'src/actual.js'), changed);
+  assert.deepEqual(inputs.read('src/actual.js'), changed, 'the port reads working bytes rather than its own seed or Git/index');
+  assert.throws(() => inputs.read('src/unknown.js'), /not owned/u);
+  writeFileSync(join(inputs.root, 'unowned.txt'), 'existing unowned input');
+  assert.throws(() => inputs.write('unowned.txt', 'replacement'), /not owned/u);
+  assert.throws(() => inputs.write('../escape', 'no'), /invalid private fixture file/u);
+  assert.throws(() => privateFixtureFiles(inputs.root), /invalid private fixture prefix/u);
+  rmSync(join(inputs.root, 'src/actual.js'));
+  symlinkSync(join(inputs.root, 'unowned.txt'), join(inputs.root, 'src/actual.js'));
+  assert.throws(() => inputs.read('src/actual.js'), /not regular/u);
+  assert.throws(() => inputs.write('src/actual.js', 'no'), /not owned/u);
+  symlinkSync(join(inputs.root, 'src'), join(inputs.root, 'linked'));
+  assert.throws(() => inputs.write('linked/new.txt', 'no'), /ancestor/u);
 });
 
 /** Hide only this actual import declaration, just as the production callers do; every other spelling stays visible. */
