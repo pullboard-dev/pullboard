@@ -294,7 +294,6 @@ import {
   storeTriggers,
 } from './machine.js';
 import { LOCAL_LANDING_ENGINE } from './land-engine.js';
-import { SPEC_APPROVAL_ENGINE } from './spec-approval-engine.js';
 import { SPEC_REVISION_ENGINE } from './spec-revision-engine.js';
 import {
   validRevisionApproval,
@@ -1439,25 +1438,11 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
     });
     if (isAccept && sandbox && outsideSource(board, id)) saveOutsideSource(board, id, { ...outsideSource(board, id), sandbox });
-    const returnedAt = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE && reopenFirstRefusalMinutes > 0 && item.item_built_by ? board.clock.now() : undefined;
-    const reservation = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalDetail(board, item, reopenFirstRefusalMinutes, returnedAt) : {};
-    const derivedCause = !isAccept && engine >= RIGOR_AUTO_ENGINE
-      ? deriveRigorCause(board, item, { cause, reason: code, agentId }) : !isAccept && cause != null ? { cause } : {};
-    const detail = { ...reservation, reason: code, commit: item.item_commit, ...derivedCause, ...clauseDetail,
-      ...(companionDigest ? { companionDigest } : {}) };
-    if (isAccept && engine >= SPEC_APPROVAL_ENGINE) detail.note = note.trim();
-    if (isAccept && check !== undefined) detail.check = check;
-    if (environment !== undefined) detail.environment = environment;
-    if (sandbox !== undefined) detail.sandbox = sandbox;
-    if (newReview) detail.review = { commit: review.commit, ...(Object.hasOwn(review, 'head') ? { head: review.head } : {}), trunk: review.trunk, paths: [...review.paths] };
-    const trigger = logEvent(board, agentId, verb, id, implies?.length ? { ...detail, implies } : detail, returnedAt);
-    if (!isAccept) rejectClause.sharpenRepeatedClause(board, item, clauseDetail, { holdItem, shout, logEvent });
-    tellFirstRefusal(board, item, reservation, persistShout);
-    if (!isAccept) recordRejectedItemRoute(board, id, engine, item, { escalate, shout, logEvent });
-    tellVerdictImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), id, { seed: impliesId, implies });
-    if (!isAccept) postRigorNotices(board, trigger);
-    return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}),
-      ...(clauseDetail.clause ? { clause: clauseDetail.clause, held: Boolean(itemHold(board, id)) } : {}) };
+    return rejectClause.finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
+      agentId, code, cause, clauseDetail, companionDigest, note, check, environment, sandbox, newReview,
+      review, implies, impliesId, decision }, { firstRefusalDetail, deriveRigorCause, logEvent, holdItem,
+      shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications,
+      postRigorNotices, itemHold });
   });
 }
 

@@ -2,6 +2,9 @@
 import { createHash } from 'node:crypto';
 import { Refused } from './refused.js';
 import { REJECT_CLAUSE_ENGINE } from './reject-clause-engine.js';
+import { REOPEN_FIRST_REFUSAL_ENGINE } from './reopen-first-refusal-engine.js';
+import { RIGOR_AUTO_ENGINE } from './rigor-auto-engine.js';
+import { SPEC_APPROVAL_ENGINE } from './spec-approval-engine.js';
 import { validateKnownLineSetting } from './queue-settings.js';
 
 /** Normalize presentation whitespace without changing the quoted requirement's wording. */
@@ -75,4 +78,31 @@ export function sharpenRepeatedClause(board, item, detail, { holdItem, shout, lo
   logEvent(board, 'coordinator', 'bar-sharpen', item.item_id, { ...detail, to, digest: item.item_frozen_digest });
   shout(board, { from: to === 'person' ? 'coordinator' : 'sentinel', to, lanes: ['coordinator'], decision: to === 'person',
     text: `#${item.item_id} needs a sharper bar after two rejects of “${detail.clauseText}”. Clarify the criterion, refreeze it, and lift the item hold before another build round.` });
+}
+
+/** Complete an authorized verdict inside the caller's atomic boundary, preserving its exact writer/event order. */
+export function finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
+  agentId, code, cause, clauseDetail, companionDigest, note, check, environment, sandbox, newReview,
+  review, implies, impliesId, decision }, { firstRefusalDetail, deriveRigorCause, logEvent, holdItem,
+  shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications,
+  postRigorNotices, itemHold }) {
+  const returnedAt = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE && reopenFirstRefusalMinutes > 0 && item.item_built_by ? board.clock.now() : undefined;
+  const reservation = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalDetail(board, item, reopenFirstRefusalMinutes, returnedAt) : {};
+  const derivedCause = !isAccept && engine >= RIGOR_AUTO_ENGINE
+    ? deriveRigorCause(board, item, { cause, reason: code, agentId }) : !isAccept && cause != null ? { cause } : {};
+  const detail = { ...reservation, reason: code, commit: item.item_commit, ...derivedCause, ...clauseDetail,
+    ...(companionDigest ? { companionDigest } : {}) };
+  if (isAccept && engine >= SPEC_APPROVAL_ENGINE) detail.note = note.trim();
+  if (isAccept && check !== undefined) detail.check = check;
+  if (environment !== undefined) detail.environment = environment;
+  if (sandbox !== undefined) detail.sandbox = sandbox;
+  if (newReview) detail.review = { commit: review.commit, ...(Object.hasOwn(review, 'head') ? { head: review.head } : {}), trunk: review.trunk, paths: [...review.paths] };
+  const trigger = logEvent(board, agentId, verb, id, implies?.length ? { ...detail, implies } : detail, returnedAt);
+  if (!isAccept) sharpenRepeatedClause(board, item, clauseDetail, { holdItem, shout, logEvent });
+  tellFirstRefusal(board, item, reservation, persistShout);
+  if (!isAccept) recordRejectedItemRoute(board, id, engine, item, { escalate, shout, logEvent });
+  tellVerdictImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), id, { seed: impliesId, implies });
+  if (!isAccept) postRigorNotices(board, trigger);
+  return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}),
+    ...(clauseDetail.clause ? { clause: clauseDetail.clause, held: Boolean(itemHold(board, id)) } : {}) };
 }
