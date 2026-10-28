@@ -1301,7 +1301,7 @@ export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   try {
     const { deliverActivity, activityDeliveryLines } = await import('./activity-delivery-cli.js');
     const delivery = await deliverActivity(ctx, { afterSubmit: true, directShouts: false });
-    submission.activity = delivery.activity;
+    submission.activity = { ...delivery.activity, budget: delivery.budget };
     for (const line of activityDeliveryLines(delivery, ctx.config)) ctx.io.say(line);
   } catch (error) {
     submission.activity = { receipt: { recorded: false, code: error.code ?? 'ACTIVITY_DELIVERY_FAILED', message: error.message } };

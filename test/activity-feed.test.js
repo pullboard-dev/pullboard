@@ -592,6 +592,11 @@ test('interrupt receipts replay once and only their recipient can acknowledge de
 
 test('pullboard inbox answers in under a second on a 40,000-shout backlog and matches the inbox API [B26,C7]', t => {
   const box = e2e.project();
+  // This raw inbox-API comparison explicitly requests room for the whole directed backlog.
+  const configPath = join(box.web, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.inbox = { tokenBudget: 1_048_576 };
+  writeFileSync(configPath, JSON.stringify(config));
   // An in-memory-style fixture board with a declared persistence purpose; the CLI reads a copy of its file.
   const board = fixtureBoard(t, { storage: 'file', purpose: 'persistence' });
   const boardFile = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main').file;
@@ -705,4 +710,47 @@ test('inbox budgets retain small deliveries and bound text without clipping mess
   const invalid = box.run(box.web, 'inbox', '--json');
   assert.equal(invalid.code, 1);
   assert.equal(JSON.parse(invalid.out).error.code, 'BAD_CONFIG');
+});
+
+test('inbox budgets withhold interrupt receipts until the whole interrupt is rendered [R2,N26,H16]', () => {
+  const box = e2e.project();
+  const configPath = join(box.web, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.inbox = { tokenBudget: 1024 };
+  writeFileSync(configPath, JSON.stringify(config));
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const question = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'Which bounded path?',
+    decision: true, lanes: ['web', 'api'] });
+  store.answerDecision(board, question, { agentId: 'coordinator', text: '界'.repeat(350), lanes: ['web', 'api'] });
+  const answer = store.events(board).findLast(event => event.event_kind === 'answer');
+  const id = `event:${answer.event_id}`;
+  const bodies = exportBoard(board).tables.shout;
+  store.closeBoard(board);
+  const small = box.run(box.web, 'inbox', '--json');
+  assert.equal(small.code, 0, small.err);
+  assert.ok(Buffer.byteLength(small.out) <= 1024);
+  const withheld = JSON.parse(small.out);
+  assert.deepEqual(withheld.activity.interrupts, []);
+  assert.equal(withheld.budget.omitted.interrupt, 1);
+  assert.match(withheld.budget.summary, /1 interrupt/u);
+  const recorded = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  assert.ok(store.events(recorded).filter(event => event.event_kind === 'activity-delivered')
+    .every(event => !JSON.parse(event.event_detail).interrupts.includes(id)), 'a summary is not an interrupt delivery receipt');
+  assert.deepEqual(exportBoard(recorded).tables.shout, bodies, 'canonical source bodies stay intact');
+  store.closeBoard(recorded);
+  const premature = box.run(box.web, 'inbox', '--acted-on', id, '--json');
+  assert.equal(JSON.parse(premature.out).error?.code, 'ACTIVITY_NOT_DELIVERED');
+  config.inbox.tokenBudget = 8192;
+  writeFileSync(configPath, JSON.stringify(config));
+  const enlarged = box.run(box.web, 'inbox', '--json');
+  assert.equal(enlarged.code, 0, enlarged.err);
+  assert.ok(Buffer.byteLength(enlarged.out) <= 8192);
+  assert.deepEqual(JSON.parse(enlarged.out).activity.interrupts.map(interrupt => interrupt.id), [id],
+    'a withheld fresh obligation survives both canonical and local cursor advancement');
+  const repeat = box.run(box.web, 'inbox', '--json');
+  assert.deepEqual(JSON.parse(repeat.out).activity.interrupts.map(interrupt => interrupt.id), [id],
+    'delivery still grants no acted-on authority');
+  const acted = box.run(box.web, 'inbox', '--acted-on', id, '--json');
+  assert.equal(acted.code, 0, acted.err);
+  assert.deepEqual(JSON.parse(acted.out).activity.interrupts, []);
 });
