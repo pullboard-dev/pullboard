@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { createJourneyDeadline, drainJourneyTasks } from './journey-deadline.js';
 import { machine, startView, startSnapshotChrome } from './fixture.js';
-import { JOURNEY_HOSTED, interceptJourneyOrigins, journeyDeferred } from './relay-hosted-fixture.js';
+import { JOURNEY_HOSTED, interceptJourneyOrigins } from './relay-hosted-fixture.js';
 
 test('the hosted journey owns startup resources before readiness [N26,C7]', { timeout: 5_000 }, async () => {
   const box = machine();
@@ -142,3 +142,9 @@ test('the hosted journey names its phase and stops within its own deadline [N26,
 });
 
 /** A fixture handshake and release, independent of elapsed-time guesses. */
+function journeyDeferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}

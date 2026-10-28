@@ -498,10 +498,3 @@ export async function interceptJourneyOrigins(chrome, site, view, { deadline: cu
   stop.trace = safeTrace;
   return stop;
 }
-
-export function journeyDeferred() {
-  let resolve;
-  let reject;
-  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
-  return { promise, resolve, reject };
-}
