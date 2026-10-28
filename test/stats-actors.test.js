@@ -1,9 +1,15 @@
 /** Event statistics attribute only recorded actor-family evidence, never current declarations [R1,R2]. */
+import { events as readStatsEvents } from '../src/board.js';
+import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { addItem, claim, closeBoard, events, openBoard, register, release } from '../src/board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { eventCounts, proofStats } from '../src/stats.js';
+
+/** Native read operations explicitly supplied to the statistics under test. */
+const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
+
 
 /** Create a private in-memory board with a controllable clock and its two real actors. */
 function fixture(t) {
@@ -86,7 +92,7 @@ function appendSystemEvent(document, event) {
 
 /** Keep the pre-existing event counts identical when actor dimensions are added. */
 function assertCountsUnchanged(board, stats, options) {
-  const counts = eventCounts(board, options);
+  const counts = eventCounts(board, options, statsReadPorts);
   for (const key of ['since', 'submissions', 'rejections', 'rejectionShare', 'merged', 'mergedWithoutAccept', 'firstEventAt', 'lastEventAt']) {
     assert.deepEqual(stats[key], counts[key], `${key} stays the same as eventCounts`);
   }
@@ -94,7 +100,7 @@ function assertCountsUnchanged(board, stats, options) {
 
 test('[R1,R2] legacy family declarations are unknown until a family event and do not backfill', (t) => {
   const { board } = familyHistory(t);
-  const stats = proofStats(board);
+  const stats = proofStats(board, {}, statsReadPorts);
   assert.equal(board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get('web-1').agent_family, 'new-family',
     'the current declaration is newer than the initial events');
   assert.deepEqual(stats.agents, [
@@ -113,7 +119,7 @@ test('[R1,R2] legacy family declarations are unknown until a family event and do
 test('[R1,R2] a window keeps earlier family evidence but excludes earlier unknown-family moves', (t) => {
   const { board } = familyHistory(t);
   const since = '2026-02-04';
-  const stats = proofStats(board, { since });
+  const stats = proofStats(board, { since }, statsReadPorts);
   assert.equal(stats.since, '2026-02-04T00:00:00.000Z');
   assert.equal(stats.agentCount, 2);
   assert.deepEqual(stats.agents, [
@@ -150,7 +156,7 @@ test('[R1,R2] explicit snapshots override prior state, null clears it, and syste
     event_at: '2026-02-06T00:01:00.000Z', event_by: 'person', event_kind: 'row_decision', event_detail: JSON.stringify({ family: 'ignored-person' }),
   });
   const imported = importedBoard(t, document);
-  const stats = proofStats(imported);
+  const stats = proofStats(imported, {}, statsReadPorts);
   assert.deepEqual(stats.agents, [
     { id: 'coordinator', moves: 4, families: ['unknown'] },
     { id: 'web-1', moves: 8, families: ['join-snapshot', 'move-snapshot', 'new-family', 'third-snapshot', 'unknown'] },
@@ -172,7 +178,7 @@ test('[R1,R2] explicit snapshots override prior state, null clears it, and syste
 test('[R1,R2] an empty board reports no agents or family buckets', (t) => {
   const board = openBoard(':memory:');
   t.after(() => closeBoard(board));
-  const { flow, ...historical } = proofStats(board);
+  const { flow, ...historical } = proofStats(board, {}, statsReadPorts);
   assert.deepEqual(historical, {
     since: null,
     submissions: 0,

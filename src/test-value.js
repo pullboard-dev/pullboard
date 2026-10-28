@@ -3,7 +3,7 @@ import { readFileTimes } from './landing-shards.js';
 import { bindTestValueSources } from './test-value-source.js';
 import { readdirSync } from 'node:fs';
 import { events } from './board.js';
-import { proofEventDetail } from './proof-event-detail.js';
+import { proofEventDetail } from '../packages/kernel/src/core/event-detail.js';
 import {
   boardReceiptStore,
   readGateReceipt,

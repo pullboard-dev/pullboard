@@ -1,4 +1,6 @@
 /** Event-derived submission, rejection and merge counts preserve historical acceptance proof [R1,R2]. */
+import { events as readStatsEvents } from '../src/board.js';
+import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdtempSync } from 'node:fs';
@@ -25,6 +27,10 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import { proofStats as legacyProofStats } from './fixtures/proof-stats-legacy.js';
 import { proofStats } from '../src/stats.js';
 import { eventCounts } from '../src/stats.js';
+
+/** Native read operations explicitly supplied to the statistics under test. */
+const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
+
 
 const COMMIT_ONE = '1'.repeat(40);
 const COMMIT_TWO = '2'.repeat(40);
@@ -142,9 +148,9 @@ function concurrentCounterRead(t) {
     },
   });
   reader.db.exec('PRAGMA query_only=ON');
-  assert.deepEqual(proofStats({ ...reader, db }, options), before, 'one response must use one SQLite read snapshot');
+  assert.deepEqual(proofStats({ ...reader, db }, options, statsReadPorts), before, 'one response must use one SQLite read snapshot');
   assert.equal(injected, true, 'the second connection actually committed between the reader queries');
-  assert.deepEqual(proofStats(reader, options), legacyProofStats(writer, options), 'the next response observes the committed event');
+  assert.deepEqual(proofStats(reader, options, statsReadPorts), legacyProofStats(writer, options), 'the next response observes the committed event');
 }
 
 /** Re-number an edited private event history and its SQLite AUTOINCREMENT counter. */
@@ -158,7 +164,7 @@ function resequenceEvents(document, history) {
 
 test('[R1,R2] repeated submissions and rejections count attempts while merges count distinct items', (t) => {
   const { board } = rejectedThenMerged(t);
-  const counts = eventCounts(board);
+  const counts = eventCounts(board, {}, statsReadPorts);
   assert.deepEqual(counts, {
     since: null,
     submissions: 2,
@@ -174,7 +180,7 @@ test('[R1,R2] repeated submissions and rejections count attempts while merges co
 
 test('[R1,R2] date and timestamp windows are inclusive and earlier acceptance still proves a merge', (t) => {
   const { board } = rejectedThenMerged(t);
-  assert.deepEqual(eventCounts(board, { since: '2026-01-05' }), {
+  assert.deepEqual(eventCounts(board, { since: '2026-01-05' }, statsReadPorts), {
     since: '2026-01-05T00:00:00.000Z',
     submissions: 1,
     rejections: 0,
@@ -184,7 +190,7 @@ test('[R1,R2] date and timestamp windows are inclusive and earlier acceptance st
     firstEventAt: '2026-01-05T10:00:00.000Z',
     lastEventAt: '2026-01-08T10:00:00.000Z',
   });
-  assert.deepEqual(eventCounts(board, { since: '2026-01-07T10:00:00Z' }), {
+  assert.deepEqual(eventCounts(board, { since: '2026-01-07T10:00:00Z' }, statsReadPorts), {
     since: '2026-01-07T10:00:00.000Z',
     submissions: 0,
     rejections: 0,
@@ -198,7 +204,7 @@ test('[R1,R2] date and timestamp windows are inclusive and earlier acceptance st
 
 test('[R1,R2] empty windows normalize cleanly and invalid dates refuse', (t) => {
   const { board } = rejectedThenMerged(t);
-  assert.deepEqual(eventCounts(board, { since: '2026-02-01' }), {
+  assert.deepEqual(eventCounts(board, { since: '2026-02-01' }, statsReadPorts), {
     since: '2026-02-01T00:00:00.000Z',
     submissions: 0,
     rejections: 0,
@@ -208,8 +214,8 @@ test('[R1,R2] empty windows normalize cleanly and invalid dates refuse', (t) => 
     firstEventAt: null,
     lastEventAt: null,
   });
-  assert.throws(() => eventCounts(board, { since: '2026-02-30' }), { code: 'BAD_SINCE' });
-  assert.throws(() => eventCounts(board, { since: '2026-01-07T10:00:00+00:00' }), { code: 'BAD_SINCE' });
+  assert.throws(() => eventCounts(board, { since: '2026-02-30' }, statsReadPorts), { code: 'BAD_SINCE' });
+  assert.throws(() => eventCounts(board, { since: '2026-01-07T10:00:00+00:00' }, statsReadPorts), { code: 'BAD_SINCE' });
 });
 
 test('[R1,R2] imported historical merges without a matching current acceptance remain anomalies', (t) => {
@@ -222,14 +228,14 @@ test('[R1,R2] imported historical merges without a matching current acceptance r
   missingAccept.tables.event = missingAccept.tables.event.filter((event) => !(event.item_id === id && event.event_kind === 'accept'));
   const missingBoard = importedBoard(t, missingAccept);
   assert.equal(getItem(missingBoard, id).item_status, 'verified', 'the historical item row still says verified');
-  assert.equal(eventCounts(missingBoard).mergedWithoutAccept, 1, 'the merge is anomalous when its accept event is absent');
+  assert.equal(eventCounts(missingBoard, {}, statsReadPorts).mergedWithoutAccept, 1, 'the merge is anomalous when its accept event is absent');
 
   const wrongAccept = structuredClone(original);
   const wrongEvent = wrongAccept.tables.event.find((event) => event.item_id === id && event.event_kind === 'accept');
   wrongEvent.event_detail = JSON.stringify({ ...JSON.parse(wrongEvent.event_detail), commit: 'f'.repeat(40) });
   const wrongBoard = importedBoard(t, wrongAccept);
   assert.equal(getItem(wrongBoard, id).item_status, 'verified');
-  assert.equal(eventCounts(wrongBoard).mergedWithoutAccept, 1, 'a different accepted commit does not prove the merged submission');
+  assert.equal(eventCounts(wrongBoard, {}, statsReadPorts).mergedWithoutAccept, 1, 'a different accepted commit does not prove the merged submission');
 
   const staleAccept = structuredClone(original);
   const itemHistory = staleAccept.tables.event.filter((event) => event.item_id === id);
@@ -245,7 +251,7 @@ test('[R1,R2] imported historical merges without a matching current acceptance r
   resequenceEvents(staleAccept, [...oldHistory, firstSubmit, oldAccept, secondSubmit, mergedEvent]);
   const staleBoard = importedBoard(t, staleAccept);
   assert.equal(getItem(staleBoard, id).item_status, 'verified');
-  assert.equal(eventCounts(staleBoard).mergedWithoutAccept, 1,
+  assert.equal(eventCounts(staleBoard, {}, statsReadPorts).mergedWithoutAccept, 1,
     'a new submit invalidates a previously accepted commit even when the current row remains verified');
 });
 
@@ -260,7 +266,7 @@ test('[R1,R2,C7] proof stats counters match a full re-parse after every event', 
   const same = current => {
     const now = Date.parse('2026-02-01T00:00:00Z');
     for (const since of [undefined, '2026-01-04', '2026-01-20']) {
-      assert.deepEqual(proofStats(current, { since, now }), legacyProofStats(current, { since, now }));
+      assert.deepEqual(proofStats(current, { since, now }, statsReadPorts), legacyProofStats(current, { since, now }));
     }
   };
   const steps = [
@@ -312,11 +318,11 @@ test('[R1,R2,C7] proof stats counters match a full re-parse after every event', 
   board.db.exec('PRAGMA query_only=ON');
   try { same(board); }
   finally { board.db.exec('PRAGMA query_only=OFF'); }
-  const before = proofStats(board, { now: 1_770_000_000_000 });
+  const before = proofStats(board, { now: 1_770_000_000_000 }, statsReadPorts);
   assert.throws(() => atomic(board, () => {
     logEvent(board, 'web-1', 'submit', id, { commit: 'f'.repeat(40) });
     throw new Error('rollback fixture');
   }), /rollback fixture/u);
-  assert.deepEqual(proofStats(board, { now: 1_770_000_000_000 }), before, 'rollback preserves the prior projection');
+  assert.deepEqual(proofStats(board, { now: 1_770_000_000_000 }, statsReadPorts), before, 'rollback preserves the prior projection');
   concurrentCounterRead(t);
 });
