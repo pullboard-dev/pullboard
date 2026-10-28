@@ -1150,7 +1150,7 @@ function reviewerChecks(board, { agentId, policy, familyPolicy = 'off' }) {
     },
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
-    requiredReviewFamily: found => reviewFamilies.requiredReviewFamilyProblem(board, found, agentId),
+    requiredReviewFamily: found => reviewFamilies.requiredReviewFamilyProblem(board, found, agentId) ?? routingRuleProblem(board, found, agentId, 'review'),
     familyAllows: (found) => reviewRouting.strictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
       : null),
@@ -1777,8 +1777,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, entry.item_builder_family);
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
     const standingRefusal = unrelated.map((entry) => itemAuthorProblem(board, entry, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }) ?? reviewFamilyProblem(board, entry, agentId, familyPolicy)).find(Boolean);
-    const requiredRefusals = unrelated.map(entry => reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId)).filter(Boolean);
-    let reviewable = unrelated.filter((entry) => !itemAuthorProblem(board, entry, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }) && !reviewFamilyProblem(board, entry, agentId, familyPolicy) && !reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId) && !reviewRouting.strictReviewProblem(board, entry, agentId));
+    const requiredRefusals = unrelated.map(entry => reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId) ?? routingRuleProblem(board, entry, agentId, 'review')).filter(Boolean);
+    let reviewable = unrelated.filter((entry) => !itemAuthorProblem(board, entry, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }) && !reviewFamilyProblem(board, entry, agentId, familyPolicy) && !reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId) && !routingRuleProblem(board, entry, agentId, 'review') && !reviewRouting.strictReviewProblem(board, entry, agentId));
     if (policy === COORDINATOR && agentId !== COORDINATOR) reviewable = reviewable.filter((entry) => entry.item_lane === COORDINATOR);
     if (familyPolicy === 'require') reviewable = reviewable.filter(hasDifferentFamily);
     if (familyPolicy === 'prefer') reviewable.sort((first, second) => Number(hasDifferentFamily(second)) - Number(hasDifferentFamily(first)));

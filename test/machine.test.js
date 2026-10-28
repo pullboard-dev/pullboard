@@ -1029,7 +1029,11 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.setBarReady(board, { agentId: 'coordinator', enabled: false });
     fired.push(claimAs(target, light, 'api'));
     store.releaseItemHold(board, target, { agentId: 'coordinator' });
-    fired.push(claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web'));
+    fired.push(claimAs(target, light, 'api'), claimAs(target, light, 'web'));
+    const barring = store.setRoutingRule(board, { agentId: 'coordinator', act: 'build', scope: { item: target }, effect: 'bar-seat', value: strong, source: 1 });
+    fired.push(claimAs(target, strong, 'web'));
+    store.setRoutingRule(board, { agentId: 'coordinator', revoke: barring });
+    fired.push(claimAs(target, strong, 'web'));
     verdictOn(board, dependency, 'web-2', 'ACCEPT');
     fired.push(claimAs(target, strong, 'web'), claimAs(returned, strong, 'web'));
     store.editItem(board, target, { agentId: 'coordinator', criterion: 'Pending correction before the lane guard.' });
@@ -1046,7 +1050,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.release(board, spare, strong);
     fired.push(claimAs(target, strong, 'web'), claimAs(target, strong, 'web', freeze));
     assert.deepEqual(fired, [...declaredBoardOrder('claim'), 'ok']);
-    assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'BAR_NOT_READY', 'ITEM_HELD', 'WRONG_LANE', 'ROUTE', 'BLOCKED', 'HELD', 'REOPEN_HELD_FOR_BUILDER', 'PENDING_REFREEZE', 'LANE_HELD', 'LINE_WIP_LIMIT', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
+    assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'BAR_NOT_READY', 'ITEM_HELD', 'WRONG_LANE', 'ROUTE', 'ROUTING_RULE', 'BLOCKED', 'HELD', 'REOPEN_HELD_FOR_BUILDER', 'PENDING_REFREEZE', 'LANE_HELD', 'LINE_WIP_LIMIT', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
   } finally {
     lab.done();
   }

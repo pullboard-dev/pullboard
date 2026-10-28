@@ -42,6 +42,7 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'reserveRehomeItemId') args = ['a'.repeat(32), 'credential-rehome-reservation', { agentId: actor }];
     if (operation === 'setLineSetting') args = [{ agentId: actor, key: 'reviewsFirst', value: true, reason: 'credential fixture', window: { windowMinutes: 60, activeReviewers: 1 } }];
     if (operation === 'setLaneLead') args = [{ agentId: actor, lane: box.lane, seat: null, lanes: [box.lane] }];
+    if (operation === 'setRoutingRule') args = [{ agentId: actor, act: 'review', scope: { item: 999999 }, effect: 'bar-seat', value: 'credential-fixture', source: 1 }];
     if (operation === 'fileTypedRequest') args = [{ agentId: actor, verb: 'hold', itemId: 999999, cause: 'routing-assignment', note: 'credential fixture' }];
     if (operation === 'answerTypedRequests') args = [{ agentId: actor, answers: [{ requestId: 999999, outcome: 'declined', note: 'credential fixture' }] }];
     if (operation === 'setBoardMembers') args = [{ agentId: actor, document: null }]; // Native format refusal still exercises the authenticated credential.
@@ -107,6 +108,7 @@ test('every current operation selects its native actor credential without a seco
     // Native preparation checks claim authority before actorTransport; no implicit actor is supplied.
     { operation: 'followItemPatches', args: [box.before.tables.item[0].item_id, { commit: '0'.repeat(40) }],
       kind: 'agent', sent: false, expected: 'NOT_YOURS', label: 'followItemPatches missing actor' },
+    { operation: 'setRoutingRule', args: [{ act: 'review', scope: { item: 999999 }, effect: 'bar-seat', value: 'x', source: 1 }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'fileTypedRequest', args: [{ verb: 'hold', itemId: 999999, cause: 'routing-assignment' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'answerTypedRequests', args: [{ answers: [{ requestId: 999999, outcome: 'declined', note: 'missing actor' }] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'requestCompanion', args: [{ parentId: 999999, lane: box.lane, key: 'missing-actor', title: 'Missing actor' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },

@@ -4,7 +4,6 @@ import { familyName } from './review-policy.js';
 import { familyAliasesOf } from './review-policy.js';
 import { aliasEngineOn } from './review-policy.js';
 import { Refused } from './refused.js';
-import { routingRuleProblem } from './routing-rules.js';
 import { routingRulesEngine } from './routing-rules-floor.js';
 
 /** Validate only explicitly supplied metadata; omission preserves legacy move bytes. */
@@ -35,11 +34,6 @@ export function projectReviewFamily(board, item) {
 
 /** One shared refusal for selection, reservation and verdicts; old recorded moves retain their meaning. */
 export function requiredReviewFamilyProblem(board, item, agentId) {
-  return itemFamilyProblem(board, item, agentId) ?? routingRuleProblem(board, item, agentId, 'review');
-}
-
-/** The item's own review-family requirement, before any recorded routing rule. */
-function itemFamilyProblem(board, item, agentId) {
   if (board.executionEngineVersion !== undefined && board.executionEngineVersion < AUTOMATIC_DISPATCH_ENGINE) return null;
   const required = requiredReviewFamily(board, item.item_id);
   if (!required) return null;

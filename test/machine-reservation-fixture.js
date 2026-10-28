@@ -8,7 +8,7 @@ import { join } from 'node:path';
 export function assertLifecycleReservation(machineRules, HELP) {
   const page = machineRules.lifecycleMarkdown();
   assert.match(page, /^\| reserve \| submitted \| submitted \| agent, coordinator \| .*reviewFree \(REVIEW_HELD\), result \(SOURCE_ADVANCE_STATE\), result \(BAD_DEPENDENCIES\) \|$/m);
-  for (const verb of ['accept', 'reject']) assert.match(page, new RegExp(`^\\| ${verb} \\| submitted, verified \\| .*policyAllows \\(COORDINATOR_VERIFIES\\), requiredReviewFamily \\(REQUIRED_REVIEW_FAMILY\\), familyAllows \\(O2_FAMILY_MATCH or LINE_SETTING_RANGE\\), reviewFree \\(REVIEW_HELD\\), criterionUnchanged`, 'm'));
+  for (const verb of ['accept', 'reject']) assert.match(page, new RegExp(`^\\| ${verb} \\| submitted, verified \\| .*policyAllows \\(COORDINATOR_VERIFIES\\), requiredReviewFamily \\(REQUIRED_REVIEW_FAMILY or ROUTING_RULE\\), familyAllows \\(O2_FAMILY_MATCH or LINE_SETTING_RANGE\\), reviewFree \\(REVIEW_HELD\\), criterionUnchanged`, 'm'));
   assert.match(page, /^\| REVIEW_HELD \| no other agent holds its review under a live lease \| pullboard next --verify/m);
   assert.match(HELP.all, /^ {2}agent +rehomeImport, intake, claim, release, submit, reserve, accept, reject, reopen, escalate, submit-merge \(when only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created\), refreeze \(when a live claim has a pending coordinator correction or a validated cited-spec correction\)$/m);
   assert.match(HELP.all, /pullboard next --verify +reserve the next submitted item you can check/);

@@ -277,6 +277,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await json(box, repo, 'help');
   await json(box, repo, 'lifecycle');
   await json(box, repo, 'request', ['list']);
+  await json(box, repo, 'rule', ['list']);
   await json(box, repo, 'prompt', ['signoff']);
   await json(box, repo, 'hooks');
   await json(box, repo, 'whoami');

@@ -8,6 +8,7 @@ import { reviewFamilyProblem } from './review-independence.js';
 import { twoTierReviews } from './review-independence.js';
 import { canTake } from './route-escalation.js';
 import { requiredReviewFamilyProblem } from './required-review-family.js';
+import { routingRuleProblem } from './routing-rules.js';
 import { familiesDiffer } from './review-policy.js';
 import { Refused } from './refused.js';
 
@@ -17,7 +18,7 @@ export function eligibilityProblem(board, item, agent, { policy = 'any', familyP
   if (identity) return identity;
   if (!canTake(agent.agent_route ?? 'strong', item.item_route)) return new Refused('ROUTE', 'this seat route does not cover the item');
   if (policy === 'coordinator' && item.item_lane !== 'coordinator' && agent.agent_id !== 'coordinator') return new Refused('COORDINATOR_VERIFIES', 'this board has the coordinator verify lane work');
-  const required = requiredReviewFamilyProblem(board, item, agent.agent_id);
+  const required = requiredReviewFamilyProblem(board, item, agent.agent_id) ?? routingRuleProblem(board, item, agent.agent_id, 'review');
   if (required) return required;
   const strict = strictReviewProblem(board, item, agent.agent_id);
   if (strict) return strict;
