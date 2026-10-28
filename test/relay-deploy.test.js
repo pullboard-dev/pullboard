@@ -5,7 +5,8 @@ import { startFixtureChild as spawn, reportFixtureChildFailure, safeFixtureDiagn
 import { performance } from 'node:perf_hooks';
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, copyFileSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
+import { copyPackageFiles, packageFiles } from '../src/package-files.js';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
@@ -25,6 +26,7 @@ const SERVER = resolve(import.meta.dirname, '../relay/server.mjs');
 const DOCKERFILE = resolve(import.meta.dirname, '../relay/Dockerfile');
 const README = resolve(import.meta.dirname, '../relay/README.md');
 const ROOT = resolve(import.meta.dirname, '..');
+const SHIPPED = new Set(packageFiles(ROOT));
 const DAMAGED_SERVER_FAILURE_FLOOR_MS = 5000;
 
 /** Copy one declared Docker source to its Dockerfile destination, optionally omitting a runtime file. */
@@ -36,7 +38,12 @@ function copyDockerSource(source, destinationPath, omitted) {
     for (const entry of readdirSync(sourcePath)) copyDockerSource(join(source, entry), join(destinationPath, entry), omitted);
   } else {
     mkdirSync(join(destinationPath, '..'), { recursive: true });
-    copyFileSync(sourcePath, destinationPath);
+    if (SHIPPED.has(source)) {
+      copyPackageFiles(ROOT, dirname(destinationPath), { files: [{ path: source, as: basename(destinationPath) }] });
+    } else {
+      assert.ok(!/^(?:src|bin|packages)\//u.test(source), 'Docker tool sources must be shipped by the manifest');
+      copyFileSync(sourcePath, destinationPath);
+    }
   }
 }
 

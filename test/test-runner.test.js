@@ -2,7 +2,7 @@
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync } from './fixture-child.js';
-import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -107,8 +107,7 @@ function copyRunnerImports(sourceRoot, root) {
     const imports = importsIn(sources);
     for (const [index, file] of files.entries()) {
       copied.add(file);
-      mkdirSync(dirname(join(root, file)), { recursive: true });
-      copyFileSync(join(sourceRoot, file), join(root, file));
+      copyPackageFiles(sourceRoot, root, { files: [file] });
       for (const request of imports[index]) {
         if (!request.startsWith('./') && !request.startsWith('../')) continue;
         const target = relative(sourceRoot, resolve(sourceRoot, dirname(file), request));

@@ -20,6 +20,7 @@ import { assignEngineNumbers } from '../src/engine-numbers.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
+import { copyPackageSubset } from './package-copy-fixture.js';
 
 test('the repository keeps historical engine markers in its existing src folder [C7]', () => {
   assert.deepEqual(engineFolderProblems(resolve(import.meta.dirname, '..')), []);
@@ -34,10 +35,8 @@ function fixture(t) {
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(root, 'src', 'sample-engine.js'), '/** The sample move engine. */\nexport const SAMPLE_ENGINE = 17;\n');
   writeFileSync(join(root, 'src', 'move.js'), "import { SAMPLE_ENGINE } from './sample-engine.js';\nexport function move() { return { operation: 'sample', engine: SAMPLE_ENGINE }; }\n");
-  for (const file of ['engine-numbers.js', 'engine-next.js', 'discovery.js']) {
-    const source = file === 'discovery.js' ? '../packages/kernel/src/core/discovery.js' : `../src/${file}`;
-    cpSync(new URL(source, import.meta.url), join(root, 'src', file));
-  }
+  copyPackageSubset(resolve(import.meta.dirname, '..'), root,
+    ['engine-numbers.js', 'engine-next.js', 'discovery.js'].map(file => ({ path: `src/${file}`, as: `src/${file}` })));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
   runFixtureGit(['add', '.'], { cwd: root });
   return root;

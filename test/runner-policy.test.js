@@ -2,7 +2,6 @@
 /** @pullboard-test-loads src/gate.js src/trusted-policy-read.js */
 /** Real detached fake-SSH jobs carry admitted policy into nested shards [C7,V4]. */
 import assert from 'node:assert/strict';
-import { cpSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -30,6 +29,7 @@ import { gateResult } from './runner-tooling-fixture.js';
 import { runThroughGate } from './runner-tooling-fixture.js';
 import { committedToolingSnapshot } from './runner-tooling-fixture.js';
 import { runFixtureChildAsync } from './fixture-child.js';
+import { copyPackageFiles } from '../src/package-files.js';
 
 after(cleanupToolingSnapshots);
 
@@ -50,8 +50,7 @@ function fixture(t) {
     GIT_COMMITTER_NAME: 'Policy Fixture', GIT_COMMITTER_EMAIL: 'policy@example.invalid' };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_') && !['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'].includes(key)) delete env[key];
   writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { runnersFirst: true } }));
-  for (const path of ['src', 'bin']) cpSync(new URL(`../${path}/`, import.meta.url), join(repo, path), { recursive: true });
-  cpSync(new URL('../package.json', import.meta.url), join(repo, 'package.json'));
+  copyPackageFiles(resolve(import.meta.dirname, '..'), repo);
   mkdirSync(join(repo, 'test'));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'candidate gate', landingShards: 2, protect: { allowed: ['*.example'] } }));
   writeFileSync(join(repo, '.env.example'), 'harmless allowed example\n');

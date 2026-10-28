@@ -4,7 +4,7 @@ import { runFixtureGit } from './fixture-child.js';
 /** Private real-file fixtures prove falling cell debt without moving any repository source [C7,CD64]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
-import { cpSync } from 'node:fs';
+import { copyPackageFiles, packageFiles } from '../src/package-files.js';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -391,10 +391,10 @@ test('the pre-cell transition keeps real cycles strict and reports every other f
 
 test('the actual discovered command loader reaches command run and its literal helper without excusing unused exports [C7,CD62]', t => {
   const box = fixture(t);
-  box.put('src/commands/index.js', readFileSync(new URL('../src/commands/index.js', import.meta.url), 'utf8'));
-  box.put('src/discovery.js', readFileSync(new URL('../src/discovery.js', import.meta.url), 'utf8'));
-  box.put('packages/kernel/index.js', readFileSync(new URL('../packages/kernel/index.js', import.meta.url), 'utf8'));
-  cpSync(new URL('../packages/kernel/src/', import.meta.url), join(box.root, 'packages/kernel/src'), { recursive: true });
+  const source = fileURLToPath(new URL('../', import.meta.url));
+  copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
+    ['src/commands/index.js', 'src/discovery.js', 'packages/kernel/index.js'].includes(file)
+      || file.startsWith('packages/kernel/src/')) });
   box.put('apps/demo/index.js', "import { COMMANDS } from '../../src/commands/index.js'; COMMANDS.next();\n");
   box.put('src/commands/next.js', "import { routing } from '../routing.js'; export function run() { return routing(); } export const unused = 1;\n");
   box.put('src/routing.js', 'export function routing() { return 1; }\n');

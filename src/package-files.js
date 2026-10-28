@@ -68,19 +68,59 @@ export function packageFiles(root) {
   return files.sort();
 }
 
-/** Copy the exact declared source list to an independent private directory; no tests, Git or account files leak in. */
-export function copyPackageFiles(root, destination) {
+/** Validate one exact manifest identity or explicit private-fixture destination, never a glob or parent escape. */
+function copyPath(value) {
+  packagePattern(value);
+  if (/[?*]/u.test(value) || value.split('/').some(part => part === '.git' || part === 'node_modules')) {
+    throw new Error('package copy paths must name exact regular files');
+  }
+  return value.replace(/^\.\//u, '');
+}
+
+/** Resolve every requested file before copying, so invalid subsets never leave a partly copied fixture. */
+function copySelection(available, files, pathMap) {
+  if (files === undefined) return available.map(path => ({ source: path, destination: path }));
+  if (!Array.isArray(files) || files.length > 100_000 || !(pathMap instanceof Map)) throw new Error('invalid package copy subset');
+  const shipped = new Set(available), destinations = new Set();
+  return files.map(value => {
+    const request = typeof value === 'string' ? { path: value } : value;
+    if (!request || typeof request !== 'object' || Array.isArray(request)
+      || Object.keys(request).some(key => !['path', 'as'].includes(key))) throw new Error('invalid package copy file');
+    let source = copyPath(request.path);
+    const visited = new Set();
+    while (pathMap.has(source)) {
+      if (visited.has(source)) throw new Error('cyclic package copy path map');
+      visited.add(source);
+      source = copyPath(pathMap.get(source));
+    }
+    if (!shipped.has(source)) throw new Error(`package copy source is not shipped: ${source}`);
+    const destination = request.as === undefined ? source : copyPath(request.as);
+    if (destinations.has(destination)) throw new Error(`duplicate package copy destination: ${destination}`);
+    destinations.add(destination);
+    return { source, destination };
+  });
+}
+
+/**
+ * Copy the manifest, or an explicit manifest-validated subset, into an independent private directory.
+ * A caller-owned path map resolves moved sources; `as` retains an intentional synthetic fixture layout.
+ * @param {string} root - The package source directory.
+ * @param {string} destination - A private directory outside the source.
+ * @param {{files?: Array<string|{path:string,as?:string}>,pathMap?: Map<string,string>}} [options] - Exact subset identities and a captured path map.
+ * @returns {string[]} The copied paths relative to the destination.
+ */
+export function copyPackageFiles(root, destination, { files, pathMap = new Map() } = {}) {
   const source = resolve(root);
   const target = resolve(destination);
   const nested = relative(source, target);
   if (!nested || !nested.startsWith(`..${sep}`) && nested !== '..' && !isAbsolute(nested)) {
     throw new Error('package copy destination must be outside its source');
   }
-  const files = packageFiles(source);
-  for (const file of files) {
-    const output = join(target, file);
+  const selection = copySelection(packageFiles(source), files, pathMap);
+  for (const file of selection) {
+    const output = join(target, file.destination);
     mkdirSync(dirname(output), { recursive: true });
-    copyFileSync(join(source, file), output);
+    copyFileSync(join(source, file.source), output);
   }
-  return files;
+  return selection.map(file => file.destination);
 }
