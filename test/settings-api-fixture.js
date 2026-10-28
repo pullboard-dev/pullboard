@@ -200,16 +200,23 @@ export async function proveSettingsApi() {
       assert.deepEqual(snapshot(root), saved, 'reading legacy or default verification settings changes no durable bytes');
     }
     writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(config));
-    // Supported fields containing nested canary objects must refuse safely, not become raw JSON.
-    for (const invalid of [
-      { ...config, products: { app: [{ token: canary }] } },
-      { ...config, lanes: { app: { owns: ['app/'], starts: { token: canary } } } },
+    // Supported fields containing nested canary objects report only their own safe row errors.
+    for (const [key, invalid] of [
+      ['products', { ...config, products: { app: [{ token: canary }] } }],
+      ['lanes', { ...config, lanes: { app: { owns: ['app/'], starts: { token: canary } } } }],
     ]) {
       writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(invalid));
       const saved = snapshot(root);
-      const refused = await fetch(address + '?board=' + id, { headers: { 'x-pullboard-key': 'api-fixture' } });
-      assert.equal(refused.status, 400);
-      assert.ok(!(await refused.text()).includes(canary));
+      const isolated = await fetch(address + '?board=' + id, { headers: { 'x-pullboard-key': 'api-fixture' } });
+      assert.equal(isolated.status, 200);
+      const text = await isolated.text();
+      assert.ok(!text.includes(canary));
+      const rows = JSON.parse(text).settings;
+      const errors = rows.filter(row => row.error);
+      assert.deepEqual(errors.map(row => row.key), [key]);
+      assert.match(errors[0].error.fix, new RegExp(key, 'u'));
+      assert.ok(rows.some(row => row.scope === 'repo' && row.key === 'gate' && row.value === 'node --test'),
+        'healthy repo settings remain available with one bad structured value');
       assert.deepEqual(snapshot(root), saved);
     }
     writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(config));

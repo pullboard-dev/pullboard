@@ -870,7 +870,7 @@ async function everyBoardJourney(t, slow = null, { restart = false } = {}) {
     assert.equal(linkedSetup.code, 0, 'A completes the real relay on --all after phone pairing');
     assert.equal(linkedSetup.document.linked.length, 1, 'the one registered A board links through the CLI');
     assert.equal(linkedSetup.document.paired, true, 'the fixture phone completes the actual device enrollment');
-    await chromeB.waitFor("location.hash === '' && document.querySelector('#chain')?.textContent.includes('linked machine A board')", 45_000); // budget: bounded setup wait within this journey test’s declared outer timeout (5x relay-work budget plus 180 seconds).
+    await chromeB.waitFor("!/(?:^|[&#])(?:device|key|pullboard-local)=/u.test(location.hash) && data?.project?.items?.some(item => item.title === 'linked machine A board')", 45_000); // budget: bounded setup wait within this journey test’s declared outer timeout (5x relay-work budget plus 180 seconds).
     await stopRoutes.navigate('about:blank');
     journeyTrace.begin();
     networkAtStart = networkServicePids(profileB);
@@ -970,11 +970,13 @@ async function everyBoardJourney(t, slow = null, { restart = false } = {}) {
 
     // A's real local view is kept open for the measured move; linking happened through the CLI above.
     chromeA = await openSnapshotChrome(executable, viewA.link.href, profileA);
+    await press(chromeA, "document.querySelector('[data-tab=items]')");
     await chromeA.waitFor("document.querySelector('#chain')?.textContent.includes('linked machine A board')", 30_000); // budget: bounded local-view setup wait within this journey test’s declared outer timeout (5x relay-work budget plus 180 seconds).
 
     // A user action in A produces a real board move; B receives it through the live relay event stream.
     const remoteRow = "Array.from(document.querySelectorAll('#proj-list .proj.repo')).find(row => row.textContent.includes('fixture/repository'))";
     await pickProject(chromeB, remoteRow);
+    await press(chromeB, "document.querySelector('[data-tab=items]')");
     await chromeB.waitFor("view.root === data.projects.find(row => row.id === " + JSON.stringify(boardAId) + ").root && document.querySelector('#chain')?.textContent.includes('linked machine A board')");
     const updatedTitle = 'A live move visible on B';
     await chromeB.stable(`(() => { const chain = document.querySelector('#chain'); window.__journeyUpdateAt = null; window.__journeyUpdateObserver = new MutationObserver(() => { if (chain.textContent.includes(${JSON.stringify(updatedTitle)})) { window.__journeyUpdateAt = performance.timeOrigin + performance.now(); window.__journeyUpdateObserver.disconnect(); } }); window.__journeyUpdateObserver.observe(chain, { childList: true, subtree: true, characterData: true }); return true; })()`);
@@ -995,6 +997,7 @@ async function everyBoardJourney(t, slow = null, { restart = false } = {}) {
     // B's already-loaded 40-item local board opens one selected item's real detail under the 250ms bar.
     const localRow = "Array.from(document.querySelectorAll('#proj-list .proj.repo')).find(row => row.textContent.includes('local-machine-b'))";
     await pickProject(chromeB, localRow);
+    await press(chromeB, "document.querySelector('[data-tab=items]')");
     await chromeB.waitFor("view.root === data.projects.find(row => row.name === 'local-machine-b')?.root && data.project.items.length === 40 && document.querySelector('#chain')?.textContent.includes('local B item 40')");
     const selectedItem = JSON.parse(await chromeB.stable(`JSON.stringify((() => { const first = document.querySelector('#chain [data-item]')?.dataset.item; const row = [...document.querySelectorAll('#chain [data-item]')].find(node => node.dataset.item !== String(view.item) && node.dataset.item !== first); const item = data.project.items.find(candidate => String(candidate.id) === row?.dataset.item); return row && item ? { id: row.dataset.item, title: item.title } : null; })())`));
     assert.ok(selectedItem?.id && selectedItem?.title, 'the 40-item board has an unopened item row');

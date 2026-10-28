@@ -33,7 +33,7 @@ import { exportView } from '../src/serve.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { discoverEngines } from '../src/engine-metadata.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { appliedSequence, applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import {
   ACCEPT_REASON,
   actOnActivity,
@@ -487,6 +487,18 @@ function recordEventContract() {
   finishSentinelRun(board, { agentId: coordinator, name: watch.name, digest: watch.digest, run: 'format-run',
     result: { green: false, code: 1, timedOut: false, durationMs: 0, output: 'synthetic format receipt' } });
   recordRelayExclusionIntent(board, 'view'); // Synthetic person format fixture, not a real settings opt-out.
+  // Exercise the optional omission through native decisions and replay validation, not a fabricated event.
+  const omitted = addItem(board, { by: coordinator, lane: 'docs', title: 'Unfrozen draft citation format',
+    criterion: 'A stored format example.', check: 'true', specIds: ['Z1', 'Z2'] });
+  const omissionDecisions = recordRowDecisions(board, { agentId: PERSON, channel: 'terminal', decisions: [
+    { kind: 'spec', file: 'SPEC.md', id: 'Z1', source: '- Z1 [approved] Original format promise. | gate: true',
+      replacement: '- Z1 [approved] Corrected format promise. | gate: true', text: 'Corrected format promise.', decision: 'approve', reason: '' },
+    { kind: 'spec', file: 'SPEC.md', id: 'Z2', source: '- Z2 [draft] Optional draft promise. | gate: true',
+      replacement: '- Z2 [wont] Optional draft promise. | gate: true', text: 'Optional draft promise.', decision: 'decline', reason: 'Not needed.' },
+  ] });
+  const omissionMove = prepareEngineMove(board, 'applyRowDecisions', [{ agentId: coordinator,
+    events: omissionDecisions.map(record => record.event), refreezes: [], skippedDrafts: [omitted] }]);
+  assert.equal(applyEngineMove(board, omissionMove, { sequence: appliedSequence(board) + 1, at: board.clock.now().toISOString() }).error, undefined);
   const rows = events(board).map((row) => ({ ...row, detail: JSON.parse(row.event_detail) }));
   closeBoard(board);
   return { rows, actors: { [coordinator]: 'coordinator', [builder]: 'builder', [returnedBuilder]: 'builder', [unattendedBuilder]: 'builder', [reviewer]: 'reviewer', [PERSON]: 'person', board: 'board', rigor: 'rigor' } };

@@ -1,10 +1,16 @@
 /** Line controls retain board authority, typed evidence and read-only inventory boundaries [R1,R2,H16,O5,O6]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { configFromSource } from '../src/config.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { settingsInventory } from '../src/settings-inventory.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -82,6 +88,49 @@ test('the settings inventory exposes board line values and defaults without audi
   assert.equal(rows.find(row => row.key === 'line.reviewsFirst').origin, 'default');
   assert.doesNotMatch(JSON.stringify(rows), /PRIVATE_REASON_CANARY|activeReviewers|reviewMedianMinutes/u);
   assert.equal(store.events(board).length, before, 'inventory is a read, not a line-setting change');
+});
+
+test('the settings inventory accepts numeric submitDeferAbove and isolates one invalid repo row [O5,O6,R1]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const file = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(file, 'utf8'));
+  config.submitGate = 'landing';
+  config.submitDeferAbove = 20;
+  writeFileSync(file, JSON.stringify(config));
+  const previous = Object.fromEntries(['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME'].map(key => [key, process.env[key]]));
+  /** Read with this fixture's own machine settings and restore the caller's environment. */
+  const inventory = () => {
+    try {
+      for (const key of Object.keys(previous)) process.env[key] = box.env[key];
+      return settingsInventory([{ root: box.repo }]).settings;
+    } finally {
+      for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+    }
+  };
+  const valid = inventory();
+  const threshold = valid.find(row => row.scope === 'repo' && row.key === 'submitDeferAbove');
+  assert.equal(threshold.value, 20);
+  assert.equal(threshold.default, null);
+  assert.equal(threshold.origin, 'configured');
+  assert.equal(threshold.error, undefined);
+
+  config.submitDeferAbove = 'twenty';
+  const invalidSource = JSON.stringify(config);
+  writeFileSync(file, invalidSource);
+  const rows = inventory();
+  const bad = rows.filter(row => row.error);
+  assert.deepEqual(bad.map(row => row.key), ['submitDeferAbove']);
+  assert.equal(bad[0].value, null, 'the invalid input is not returned as a setting value');
+  assert.match(bad[0].error.message, /submitDeferAbove/u);
+  assert.match(bad[0].error.fix, /whole number.*submitGate/u);
+  assert.equal(rows.length, valid.length, 'one bad value does not remove any other row');
+  assert.equal(rows.find(row => row.scope === 'repo' && row.key === 'submitGate').value, 'landing');
+  assert.ok(rows.some(row => row.scope === 'board' && row.key === 'line.reviewsFirst'));
+  assert.throws(() => configFromSource(invalidSource), error => error.code === 'BAD_CONFIG',
+    'the ordinary config parser still refuses the bad setting');
+  assert.equal(readFileSync(file, 'utf8'), invalidSource, 'inventory only reads the invalid source');
 });
 
 test('collision-free batch policy stays off until a current authenticated coordinator records it [R1,R2,H16]', t => {

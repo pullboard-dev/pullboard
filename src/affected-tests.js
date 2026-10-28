@@ -449,7 +449,7 @@ function closuresInGraph(graph) {
 }
 
 /**
- * Select explicit test-tree or source-tree scanners independently of ordinary affected-test deferral.
+ * Select explicit test-tree repo guards on source or test changes, independently of affected-test deferral.
  * Both committed trees bind the obligation: removing a declaration cannot drop an accepted guard.
  * Missing bases retain every scanner; unreadable Git inputs refuse instead of silently omitting one.
  */
@@ -469,7 +469,7 @@ export function selectTestTreeGuards(root, { base, trunk, commit = 'HEAD', chang
     for (const [path, source] of modulesAt(root, revision).modules) {
       if (!TEST.test(path)) continue;
       const headers = headerLines(source);
-      if (testChanged && headers.includes(TEST_TREE_INPUT) || sourceChanged && headers.includes(SOURCE_TREE_INPUT)) guards.add(path);
+      if (headers.includes(TEST_TREE_INPUT)) guards.add(path);
     }
   }
   return [...guards].sort();

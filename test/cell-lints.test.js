@@ -1,4 +1,3 @@
-/** @pullboard-test-input test-tree */
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-input ** */
 import { runFixtureGit } from './fixture-child.js';
