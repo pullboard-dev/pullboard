@@ -389,7 +389,7 @@ test('an explicit alias makes one vendor one family, while a true cross-family r
 
 test('a strict submit whose builder declared no vendor family is refused with the join fix [#1762]', t => {
   const f = fixture(t), id = f.add({ sensitive: true });
-  store.register(f.board, { id: 'core-7', lane: 'core', path: '/fixture/core-7', parentDigest: 'g'.repeat(64), model: 'Synthetic fixture model' });
+  store.register(f.board, { id: 'core-7', lane: 'core', path: '/fixture/core-7', parentDigest: '7'.repeat(64), model: 'Synthetic fixture model' });
   store.claim(f.board, id, { agentId: 'core-7', lane: 'core', leaseMs: LEASE, freeze });
   assert.throws(() => store.submit(f.board, id, { agentId: 'core-7', commit: 'c'.repeat(40), tree: 'd'.repeat(40), files: [] }), error => error.code === 'UNDECLARED_BUILDER_FAMILY'
     && /pullboard join <lane> --family <vendor>/u.test(error.message));
