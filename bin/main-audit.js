@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { flakeLedger } from '../src/flakes.js';
+import { eventCauses } from '../src/rigor.js';
 /** Independent scheduled/manual main audit; no foreground lease or identity is borrowed [C7]. */
 import { context } from '../src/cli.js';
 import { ordered } from '../src/cli.js';
@@ -18,5 +20,5 @@ if ((args.length && !(args.length === 1 && (scheduled || forceFull)) && !wakeAt)
   throw new Error('main-audit requires an explicit root and native UUID token, optionally --scheduled or --release');
 }
 if (!wakeAt || await waitMainAudit(mainAuditDirectory(repoInfo(root)), token, wakeAt)) {
-  await runMainAudits(root, token, { scheduled, forceFull }, { context, ordered, withBoard });
+  await runMainAudits(root, token, { scheduled, forceFull }, { context, ordered, withBoard, testValue: { flakeLedger, eventCauses } });
 }

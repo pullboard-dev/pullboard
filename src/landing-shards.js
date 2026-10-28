@@ -1,3 +1,5 @@
+import { fileTimesPath } from './test-value-timing.js';
+import { readFileTimes } from './test-value-timing.js';
 /**
  * The landing gate in shards [C7,V4]: split the tracked test files into balanced shards, run each on
  * a free local gate slot or a registered runner, and report one result. One red shard stops the rest,
@@ -141,20 +143,6 @@ const GATE_MARKERS = [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_EN
 const STOP_GRACE_MS = 20_000;
 // Budget: each signal round of the final sweep waits this long for a process to go.
 const SWEEP_WAIT_MS = 1_000;
-
-/** Where the last landing's per-file wall times live, shared by every worktree of the repository. */
-export function fileTimesPath(root) {
-  return join(repoInfo(root).commonDir, 'pullboard', 'landing-file-times.json');
-}
-
-/** Read the last per-file wall times; a missing or unreadable record means none are known. */
-export function readFileTimes(root) {
-  try {
-    const value = JSON.parse(readFileSync(fileTimesPath(root), 'utf8'));
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-    return Object.fromEntries(Object.entries(value.files ?? {}).filter(([, ms]) => Number.isFinite(ms) && ms >= 0));
-  } catch { return {}; }
-}
 
 /** Keep the newest wall time for every file this landing measured, beside the older ones. */
 function writeFileTimes(root, measured) {

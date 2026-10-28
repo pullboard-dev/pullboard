@@ -169,7 +169,7 @@ async function routeFailures(source, job, receipt, config, write, sinceEventId) 
   if (!receipt.green && !files.length) throw new Error('red main audit has no named failing file; not complete');
 }
 /** Run or finish routing one job; a durable complete receipt avoids rerunning an already observed suite. */
-async function audit(root, directory, job, write, options) {
+async function audit(root, directory, job, write, options, testValueServices) {
   const key = mainAuditKey(job) + (options.forceFull ? `-release-${options.runId}` : ''), file = join(directory, `${key}.json`);
   const source = join(directory, `source-${key}`);
   let saved = readMainAudit(file);
@@ -206,7 +206,7 @@ async function audit(root, directory, job, write, options) {
       git(root, ['worktree', 'add', '--detach', source, job.tip]); created = true;
       if (git(source, ['rev-parse', 'HEAD']).trim() !== job.tip || git(source, ['rev-parse', 'HEAD^{tree}']).trim() !== job.tree
         || git(source, ['status', '--porcelain', '--untracked-files=all']) !== '') throw new Error('audit source is not the exact clean landed tree');
-      const plan = await readBoard(repoInfo(root), board => planMainAudit(source, board, directory, job, config, options));
+      const plan = await readBoard(repoInfo(root), board => planMainAudit(source, board, directory, job, config, options, testValueServices));
       if (!plan.run.length) {
         const previous = lastGreenAudit(root, directory);
         if (!previous) throw new Error('all-reused plan lost its complete green origin');
@@ -298,7 +298,7 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
         const key = mainAuditKey(job);
         if (visited.has(key)) continue;
         visited.add(key);
-        try { await audit(root, directory, job, write, { forceFull, runId: token }); }
+        try { await audit(root, directory, job, write, { forceFull, runId: token }, services.testValue); }
         catch (error) {
           const file = join(directory, `${key}.json`);
           const saved = readMainAudit(file) ?? job;

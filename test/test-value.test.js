@@ -1,4 +1,6 @@
 /** Synthetic historical receipts exercise report arithmetic; they are not engineering proof [C7]. */
+import { flakeLedger } from '../src/flakes.js';
+import { eventCauses } from '../src/rigor.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -133,7 +135,7 @@ test('[C7] broad red, missing exact green, changed oracle, ambiguous flakes and 
   f.event('reject', 1, '2026-10-14T00:00:01Z', { commit: f.red, cause: `test:${file}::target` });
   f.run(file, '2026-10-15T00:00:00Z', { commit: f.green, names: ['target'] });
   f.event('accept', 1, '2026-10-15T00:00:01Z', { commit: f.green });
-  let report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
+  let report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) }, { flakeLedger, eventCauses });
   assert.equal(report.files.find(row => row.file === file).realCatches, 0, 'executing the file is not the named failure');
   assert.equal(report.files.find(row => row.file === file).unattributedFailures, 1);
   assert.equal(report.files.find(row => row.file === file).catchRate, null, 'an unresolved known failure is not a measured zero catch rate');
@@ -144,7 +146,7 @@ test('[C7] broad red, missing exact green, changed oracle, ambiguous flakes and 
     observation: { id: 'ambiguous', file: beta, name: 'target', head: f.red,
       at: '2026-10-14T02:00:02Z', classification: 'flake', original: { sha256: 'b'.repeat(64) } } });
   f.event('proof-run', 3, '2026-10-17T00:00:00Z', { receipt: { id: randomUUID(), at: '2026-10-17T00:00:00Z', testRuntimes: null } });
-  report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
+  report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) }, { flakeLedger, eventCauses });
   const row = report.files.find(value => value.file === beta);
   assert.equal(row.flakes, 1);
   assert.equal(row.unmatchedFlakes, 1);
@@ -155,7 +157,7 @@ test('[C7] broad red, missing exact green, changed oracle, ambiguous flakes and 
   f.event('reject', 5, '2026-10-16T00:00:01Z', { commit: f.red, cause: 'test:test/unknown.test.js::target' });
   f.run('test/unknown.test.js', '2026-10-16T00:00:02Z', { commit: f.green, names: ['another case'], item: 5 });
   f.event('accept', 5, '2026-10-16T00:00:03Z', { commit: f.green });
-  report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
+  report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) }, { flakeLedger, eventCauses });
   assert.equal(report.files.find(value => value.file === 'test/unknown.test.js').realCatches, 0,
     'a different named green case cannot close the original failure');
   // A different item's exact failure followed by a test rewrite is not a product-code catch.
@@ -165,7 +167,7 @@ test('[C7] broad red, missing exact green, changed oracle, ambiguous flakes and 
   const changed = f.commit('2026-10-19T00:00:00Z', 'test: rewrite oracle');
   f.run('test/unknown.test.js', '2026-10-19T00:00:01Z', { commit: changed, item: 4 });
   f.event('accept', 4, '2026-10-19T00:00:02Z', { commit: changed });
-  report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
+  report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) }, { flakeLedger, eventCauses });
   assert.equal(report.files.find(value => value.file === 'test/unknown.test.js').realCatches, 0);
 });
 
@@ -218,7 +220,7 @@ test('[C7] nested fixture names and unavailable commits cannot become project te
     testRuntimes: [{ pid: 100, file: 'test/alpha.test.js', environment: ENVIRONMENT }] } });
   f.run('test/alpha.test.js', '2026-10-19T00:00:00Z');
   const before = store.events(f.board);
-  const report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
+  const report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) }, { flakeLedger, eventCauses });
   assert.deepEqual(report.files.map(row => row.file).sort(), ['test/alpha.test.js', 'test/beta.test.js', 'test/idle.test.js', 'test/unknown.test.js']);
   assert.equal(report.files.find(row => row.file === 'test/alpha.test.js').runs, 1);
   assert.equal(report.coverage.unknownCommitReceipts, 1);
@@ -233,7 +235,7 @@ test('[C7] existing landing file times give a labelled last-observed estimate, n
   const path = join(f.root, '.git', 'pullboard', 'landing-file-times.json');
   writeFileSync(path, JSON.stringify({ version: 1, files: { [file]: 4321, '.timed/fixture.test.js': 99 } }));
   const before = readFileSync(path, 'utf8');
-  const report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
+  const report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) }, { flakeLedger, eventCauses });
   const row = report.files.find(row => row.file === file);
   assert.equal(row.runs, 1);
   assert.equal(row.runtimeMs, null);
@@ -260,7 +262,7 @@ test('[C7] a single-file native receipt supplies observed wall time, never aggre
   f.event('proof-run', 1, '2026-10-26T01:00:00Z', { receipt: { id: randomUUID(), at: '2026-10-26T01:00:00Z',
     commit: f.red, sourceClean: true, exitCode: 0, durationMs: 99999,
     testRuntimes: [{ pid: 101, file: 'test/beta.test.js', environment: ENVIRONMENT }, { pid: 102, file: 'test/idle.test.js', environment: ENVIRONMENT }] } });
-  const report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
+  const report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) }, { flakeLedger, eventCauses });
   const row = report.files.find(row => row.file === file);
   assert.deepEqual(row.lastObservedRuntime, { durationMs: 2500, source: 'native-single-file-receipt', receiptId: id, ageMs: 86400000 });
   assert.equal(row.runtimeMs, null);
@@ -281,7 +283,7 @@ test('[C7] one unbound named outcome cannot cover two same-file worker execution
     tests: [{ file, name: 'target', passed: false }],
   }), true);
   f.run('test/beta.test.js', '2026-10-15T00:00:00Z', { duration: 1000 });
-  let report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
+  let report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) }, { flakeLedger, eventCauses });
   const row = report.files.find(row => row.file === file);
   assert.equal(row.runs, 2);
   assert.equal(row.timedRuns, 2);
@@ -297,7 +299,7 @@ test('[C7] one unbound named outcome cannot cover two same-file worker execution
   f.event('flake-observation', null, '2026-10-14T00:00:01Z', { engine: NATIVE_FLAKE_ENGINE,
     observation: { id: 'ambiguous-workers', file, name: 'target', head: f.red,
       at: '2026-10-14T00:00:01Z', classification: 'flake', original: { sha256: 'c'.repeat(64) } } });
-  report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
+  report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) }, { flakeLedger, eventCauses });
   assert.equal(report.files.find(row => row.file === file).flakeRate, null);
   assert.equal(report.files.find(row => row.file === file).unmatchedFlakes, 1,
     'a unique receipt still has two possible failing worker attempts');
