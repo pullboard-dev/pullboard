@@ -1,3 +1,4 @@
+import { seatFamily } from './family-declaration.js';
 /** Record the existing submitted item fields and native event without changing transaction ownership [V4,H16]. */
 import { getItem } from './board-query.js';
 import { logEvent } from './board-event-log.js';
@@ -6,7 +7,7 @@ import { logEvent } from './board-event-log.js';
 export function submissionItemValues(board, found, { agentId, commit, tree, files, carry, basis }) {
   return {
     item_built_by: agentId,
-    item_builder_family: board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null,
+    item_builder_family: seatFamily(board, agentId),
     item_commit: commit,
     item_tree: tree,
     item_lease_until: null,
