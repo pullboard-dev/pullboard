@@ -1030,7 +1030,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     const source = store.getItem(currentBoard, id);
     const base = projectItemSpecApprovals(projectItemState(currentBoard, source, status), approval);
     // The projector owns this transaction's connection; only derived values cross requests.
-    const verdictState = verdictProjector(board.root, currentBoard, { main: tip }).state(source);
+    const verdictState = verdictProjector(board.root, currentBoard, { main: tip }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state(source);
     const projected = {
       ...base,
       ...(verdictState ? { verdictState } : {}),

@@ -1,3 +1,9 @@
+import {
+  sameEnvironment,
+  testRuntimeRows,
+  testRuntimeEnvironment,
+} from './proof-provenance.js';
+export { sameEnvironment, testRuntimeRows, testRuntimeEnvironment };
 import { environmentProblem } from './config.js';
 import {
   lstatSync,
@@ -27,12 +33,6 @@ export function executionEnvironment() {
   return { platform: process.platform, arch: process.arch, node: process.versions.node };
 }
 
-
-/** Require all three exact fields; unknown historical environments never match by inference. */
-export function sameEnvironment(left, right) {
-  return !environmentProblem(left) && !environmentProblem(right)
-    && ['platform', 'arch', 'node'].every(key => left[key] === right[key]);
-}
 
 /** Name an executor when an old verdict differs from its landing host. */
 export function environmentLabel(value) {
@@ -146,31 +146,6 @@ export function bindTestRuntime(pid, file) {
     writeFileSync(join(directory, 'binding-' + pid + '.json'), JSON.stringify({ pid, file: bound.file }), { flag: 'wx', mode: 0o600 });
     return true;
   } catch { return false; /* A missing child report cannot be replaced by the parent's identity. */ }
-}
-
-/** Validate bounded self-reported child rows; historical absence remains unknown. */
-export function testRuntimeRows(value) {
-  if (value === null) return null;
-  if (!Array.isArray(value) || !value.length || value.length > 100_000) return null;
-  const rows = [];
-  const pids = new Set();
-  for (const row of value) {
-    if (!row || Object.keys(row).sort().join(',') !== 'environment,file,pid'
-      || !Number.isSafeInteger(row.pid) || row.pid < 1 || pids.has(row.pid) || environmentProblem(row.environment)
-      || row.file !== null && (typeof row.file !== 'string' || !row.file || row.file.length > 4096 || /[\r\n\0\\]/u.test(row.file) || row.file.startsWith('/') || /^[A-Za-z]:/u.test(row.file)
-        || row.file.split('/').some(part => !part || part === '.' || part === '..'))) return null;
-    pids.add(row.pid);
-    rows.push({ pid: row.pid, environment: { ...row.environment }, file: row.file });
-  }
-  return rows;
-}
-
-/** Keep the common actual test-child identity only when every selected child agrees; otherwise unknown. */
-export function testRuntimeEnvironment(rows) {
-  const checked = testRuntimeRows(rows);
-  if (!checked) return null;
-  const first = checked[0].environment;
-  return checked.every(row => sameEnvironment(first, row.environment)) ? { ...first } : null;
 }
 
 /** Capture actual Node children in a private run directory without changing test output or the machine pool. */

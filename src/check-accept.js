@@ -5,22 +5,27 @@ export { CHECK_ACCEPT_ENGINE };
  * until the person accepts that exact check [V2,V4,B26].
  */
 import { createHash } from 'node:crypto';
-import { provingCheck } from './check-baseline-format.js';
-import {
-  PERSON,
-  atomic,
-  getItem,
-  itemById,
-  logEvent,
-} from './board.js';
 import { COORDINATOR } from './config.js';
-import { requirePersonChannel } from './person.js';
 import { Refused } from './refused.js';
-import { mainPolicy } from './trusted-policy-read.js';
 
 
 /** The setting value that turns today's warning into a hold. */
 export const PROVES_NOTHING_HOLD = 'hold';
+
+/**
+ * A check that would prove the work (#917): one that runs the item's new test file. The file is the one the
+ * criterion or brief names, or one named after the item; the runner is the item's own Node test runner when it uses
+ * one, and node --test otherwise, so an agent that set `npm test` gets a command it can paste.
+ *
+ * @param {{ item_title?: string, item_check?: string|null, item_criterion?: string|null, item_brief?: string|null }} item
+ * @returns {string}
+ */
+export function provingCheck(item) {
+  const named = /\b(test\/[\w./-]+\.test\.[cm]?js)\b/u.exec(`${item.item_criterion ?? ''}\n${item.item_brief ?? ''}`)?.[1];
+  const slug = String(item.item_title ?? '').toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/^-+|-+$/gu, '').slice(0, 48) || 'the-work';
+  const runner = /^node\s+bin\/run-tests\.js\b/u.test(item.item_check ?? '') ? 'node bin/run-tests.js' : 'node --test';
+  return `${runner} ${named ?? `test/${slug}.test.js`}`;
+}
 
 /**
  * Digest one check's exact text. An acceptance names this digest, so it binds to the words the
@@ -44,6 +49,8 @@ export function checkDigest(command) {
  * @returns {{ id: number, digest: string, check: string }}
  */
 export function acceptCheck(board, id, { agentId, channel, digest }) {
+  const { PERSON, atomic, logEvent } = board.nativePorts;
+  const { itemById } = board.runtimePorts.verification;
   if (agentId !== PERSON) throw new Refused('CHECK_ACCEPT_PERSON_ONLY', 'only the person accepts a check that already passes on main; ask the coordinator to bring it to the person');
   if (!['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'a check acceptance uses the person’s terminal or view; run pullboard view');
   return atomic(board, () => {
@@ -68,6 +75,7 @@ export function acceptCheck(board, id, { agentId, channel, digest }) {
  */
 export function checkAcceptance(board, item) {
   if (!item?.item_check) return null;
+  const { PERSON } = board.nativePorts;
   const digest = checkDigest(item.item_check);
   const rows = board.db.prepare("SELECT event_id, event_by, event_kind, event_detail FROM event WHERE item_id = ? AND event_kind IN ('check_accept', 'edit') ORDER BY event_id").all(item.item_id);
   let accepted = null;
@@ -107,7 +115,8 @@ export function refuseProvesNothing(mainConfig, board, item) {
  * @param {any} board
  * @param {number} id
  */
-export function refuseClaimProvesNothing(root, board, id) {
+export function refuseClaimProvesNothing(root, board, id, { mainPolicy }) {
+  const { getItem } = board.nativePorts;
   const item = getItem(board, id);
   if (['open', 'claimed'].includes(item.item_status)) refuseProvesNothing(() => mainPolicy(root).config, board, item);
 }
@@ -121,14 +130,15 @@ export function refuseClaimProvesNothing(root, board, id) {
  * @param {any} io
  * @param {string | undefined} first - the item id
  * @param {string[]} rest
- * @param {{ context: Function, withBoard: Function, whoAmI: Function, ordered: Function, idArg: Function }} cli
+ * @param {{ context: Function, withBoard: Function, whoAmI: Function, ordered: Function, idArg: Function, requirePersonChannel: Function }} cli
  * @returns {Promise<number>}
  */
-export async function checkAcceptCommand(io, first, rest, { context, withBoard, whoAmI, ordered, idArg }) {
+export async function checkAcceptCommand(io, first, rest, { context, withBoard, whoAmI, ordered, idArg, requirePersonChannel }) {
   requirePersonChannel(io.personChannel);
   if (!/^#?\d+$/u.test(first ?? '') || rest.length) throw new Refused('USAGE', 'pullboard check accept <id>');
   const ctx = context(io);
   return withBoard(ctx, async (board) => {
+    const { getItem, PERSON } = board.nativePorts;
     if (!ctx.info.isMain || whoAmI(ctx, board).id !== COORDINATOR) throw new Refused('B26_PERSON_APPROVAL', 'only the person accepts a check, from the main checkout or the view', 'ask the person to accept it in pullboard view, or in their own terminal at the main checkout');
     const item = getItem(board, idArg(first));
     if (!item.item_check) throw new Refused('NO_CHECK', `#${item.item_id} has no check command to accept; its proof is the project gate: pullboard gate`);

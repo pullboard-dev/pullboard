@@ -1,3 +1,4 @@
+import { itemCheckBaseline } from './board-query.js';
 /** Preserve the signing item's device-facing fields in the shared native/relay projection [E22,H16]. */
 import * as store from './board.js';
 import { loadSpec } from './spec.js';
@@ -22,7 +23,7 @@ export function personSigningPresentation(root, board, config) {
   const personRows = signed ? shownDecisionRows(root, config, ids) : [];
   let personBars = [];
   if (signed) {
-    const entries = store.listItems(board, { all: true }).map(item => ({ item, status: barReadiness(board, item, { signature: false }) }));
+    const entries = store.listItems(board, { all: true }).map(item => ({ item, status: barReadiness(board, item, { signature: false }, { itemCheckBaseline }) }));
     // A board with no committed policy yet still shows its bars, only without their coverage preview.
     let policy = null;
     try { policy = mainPolicy(root); } catch (error) { if (!(error instanceof Refused)) throw error; }
