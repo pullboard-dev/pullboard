@@ -176,6 +176,21 @@ function proof(body) {
   return bindingReadsForModules([{ file: 'fixture.js', source, body: probeBody, bindings: [{ local: 'join' }] }]).get('fixture.js').get('join');
 }
 
+test('qualified property spellings do not consume binding probes or conceal actual shadow and spread [C7]', () => {
+  const properties = Array.from({ length: 240 }, () => "const object = { value: [] }; object.value.join(',');").map(line => `{ ${line} }`).join('\n');
+  const body = properties + "\nconst result = join(root, 'actual.json');";
+  const row = proof(body);
+  assert.equal(row.opaque, null);
+  assert.equal(row.potentialShadow, false);
+  assert.equal(row.reads.length, 1, 'only the actual imported identifier contributes a read');
+  const spread = proof(properties + '\nconst values = [...join];');
+  assert.ok(spread.reads.length, 'spread remains an actual binding read');
+  const shadow = proof(properties + "\nfunction nested(join) { return join(root, 'unknown'); }");
+  assert.equal(shadow.potentialShadow, true);
+  const write = proof(properties + '\njoin = replacement;');
+  assert.ok(write.potentialShadow || write.opaque, 'an actual write cannot acquire immutable import authority');
+});
+
 /** Produce enough real expression calls to exceed the old full-source variant budget without any candidate evaluation. */
 function manyCalls() {
   return Array.from({ length: 300 }, (_, index) => `const output${index} = join(root, 'leaf-${index}');`).join('\n');
