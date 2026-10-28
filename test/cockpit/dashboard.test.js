@@ -1,8 +1,8 @@
+/** @pullboard-test-gui */
 import './dashboard-render.test.js';
 import './dashboard-runtime.test.js';
 import './dashboard-clock.test.js';
 import './dashboard-model.test.js';
-/** @pullboard-test-gui */
 /** The approved Dashboard opens a real board and presents its live state [N26]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';

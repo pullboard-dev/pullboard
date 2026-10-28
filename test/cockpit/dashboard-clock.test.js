@@ -1,3 +1,4 @@
+/** @pullboard-test-gui */
 /** A real cached native HTTP board refreshes Dashboard pace even when it has no milestone [N26,A2]. */
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';

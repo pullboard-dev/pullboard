@@ -1,3 +1,4 @@
+/** @pullboard-test-gui */
 /** Exercise populated Dashboard rendering from a private native API fixture [N26]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';

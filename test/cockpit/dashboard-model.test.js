@@ -1,3 +1,4 @@
+/** @pullboard-test-gui */
 /** Dashboard model checks use real local API state and board events, not hand-built receipt rows [N26]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
