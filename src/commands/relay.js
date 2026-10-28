@@ -11,6 +11,10 @@ import {
   Refused,
 } from '../refused.js';
 import * as relayOutput from '../relay-output.js';
+import { DEFAULT_RELAY } from '../relay.js';
+import { originRepository } from '../relay.js';
+import { relayPersonCoordinator } from '../relay.js';
+import { updateRelayMachine } from '../relay-machine.js';
 import { prepareBoardMembers } from '../relay-membership.js';
 import { githubKeys } from '../relay-handover.js';
 import {
@@ -118,12 +122,13 @@ export async function run(io, { first, second, rest, values }) {
     if (second || rest.length || values.url) throw new Refused('USAGE', 'pullboard relay pair');
     const ctx = context(io);
     if (values['new-browser']) return await relayOnAllCommand(undefined, io, { pairAdditional: true });
-    return await relayPair(ctx.info.root, io);
+    return await relayPair(ctx.info.root, io, { DEFAULT_RELAY, originRepository, syncRelay });
   }
   if (first === 'join') {
     if (!second || rest.length) throw new Refused('USAGE', 'pullboard relay join <code> [--url <address>]');
     const ctx = context(io);
-    return await relayJoin(ctx.info.root, second, values.url, io, { name: values.name });
+    return await relayJoin(ctx.info.root, second, values.url, io, { name: values.name },
+      { DEFAULT_RELAY, originRepository, relayPersonCoordinator, syncRelay, updateRelayMachine });
   }
   if (second || rest.length || (first && !['on', 'off', 'status'].includes(first)) || (values.url && first !== 'on')) throw new Refused('USAGE', 'pullboard relay [status|on|off] [--url <address>]');
   const ctx = context(io);
