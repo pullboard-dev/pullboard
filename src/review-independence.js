@@ -1,3 +1,4 @@
+import { seatFamily } from './family-declaration.js';
 /** Native review policy and explanations replace prose lineage screening [V4,B26,H16]. */
 import { REVIEW_TIER_ENGINE } from './review-tier-engine.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
@@ -80,7 +81,7 @@ export function strictReviewProblem(board, item, reviewer) {
 export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off') {
   if (!twoTierReviews(board)) return null;
   const policy = itemReviewPolicy(board, item.item_id);
-  const declared = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(reviewer)?.agent_family;
+  const declared = seatFamily(board, reviewer);
   const family = familyName(declared, familyAliasesOf(board));
   const builder = familyName(item.item_builder_family, familyAliasesOf(board));
   if (lineSettings(board).requireReviewFamilies === true && (!family || !builder)) {
