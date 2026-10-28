@@ -1,6 +1,6 @@
 /** Coordinator capacity uses local authenticated activity and canonical ready-item blockers [B3,N2]. */
 import { COORDINATOR } from './config.js';
-import { lineSettings } from './line-settings-read.js';
+import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
 import { withLocalSeatPresence } from './seat-presence.js';
 import { readyItems } from './queue-readiness.js';
 

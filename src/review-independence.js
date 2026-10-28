@@ -8,7 +8,7 @@ import { validateReviewFamily } from './required-review-family.js';
 import { Refused } from './refused.js';
 import { familyName } from './review-policy.js';
 import { itemReviewPolicy } from './review-policy.js';
-import { lineSettings } from './line-settings-read.js';
+import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
 export { itemReviewPolicy } from './review-policy.js';
 
 /** Old sealed moves keep their recorded authorship and family semantics. */

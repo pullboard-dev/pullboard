@@ -1,0 +1,25 @@
+/** Shared state definitions without later-cell runtime imports [C7,H16]. */
+export { decisionFields } from './src/core/fact-projection.js';
+export { factFromEvent } from './src/core/fact-projection.js';
+export { agentHandoff } from './src/core/handoff-state.js';
+export { itemHandoff } from './src/core/handoff-state.js';
+export { handoffMoveProblem } from './src/core/handoff-state.js';
+export { requireHandoffActive } from './src/core/handoff-state.js';
+export { lineSettings } from './src/core/line-settings-read.js';
+export { manualLandingFailureQuoted } from './src/core/manual-landing-failure-quoted.js';
+export { canonicalMilestoneTarget } from './src/core/milestone-target.js';
+export { IMPLYING_OPERATIONS } from './src/core/move-implies.js';
+export { carriesImplies } from './src/core/move-implies.js';
+export { rejectedWorkReturns } from './src/core/rejected-work-return.js';
+export { GRANT_ACTIVATION_INDEX } from './src/core/relay-activation.js';
+export { missingGrantActivationIndex } from './src/core/relay-activation.js';
+export { ensureGrantActivationIndex } from './src/core/relay-activation.js';
+export { recordedGrantActivation } from './src/core/relay-activation.js';
+export { relaySenderPolicy } from './src/core/relay-sender-policy.js';
+export { recordReviewPolicyActivation } from './src/core/review-policy.js';
+export { boundedProofReason } from './src/core/submission-proof.js';
+export { submissionProof } from './src/core/submission-proof.js';
+export { SUBMISSION_SIZE_METHOD } from './src/core/submission-size.js';
+export { submissionSize } from './src/core/submission-size.js';
+export { submitAdmission } from './src/core/submit-admission.js';
+export { completesAdmittedSubmit } from './src/core/submit-admission.js';

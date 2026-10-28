@@ -1,7 +1,7 @@
 /** Board-owned capacity uses recorded review work, never a seat's lane as its permanent role [N2,B13,H16]. */
 import { ENGINE_VERSION } from './machine.js';
 import { LINE_CAPACITY_ENGINE } from './line-capacity-engine.js';
-import { lineSettings } from './line-settings.js';
+import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
 import { flowWindowBounds } from './stats-flow-window.js';
 import { Refused } from './refused.js';
 import {

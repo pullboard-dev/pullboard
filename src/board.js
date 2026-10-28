@@ -1,3 +1,4 @@
+import { boardEnginePorts } from './board-engine-ports.js';
 import * as rejectClause from './reject-clause.js';
 import { requireSourceAdvanceReview } from './source-advance-state.js';
 import { SOURCE_ADVANCE_ENGINE } from './source-advance-engine.js';
@@ -24,7 +25,7 @@ import {
 import { foreignBlockers } from './cross-repo-dependencies.js';
 import * as itemDependencies from './item-dependencies.js';
 import { AGENT_GRANT_ENGINE } from './agent-grant-engine.js';
-import { submitAdmission as checkedSubmitAdmission } from './submit-admission.js';
+import { submitAdmission as checkedSubmitAdmission } from '../packages/state/src/core/submit-admission.js';
 import * as computedConflictEvidence from './computed-conflict-receipt.js';
 import { reopenAuthority } from './reopen-authority.js';
 import { applySpecRowDecisions } from './spec-row-apply.js';
@@ -110,7 +111,8 @@ import {
   reviewerScarcity,
   barReadyForOrder,
 } from './line-order.js';
-export { lineSettings, setLineSetting } from './line-settings.js';
+export { lineSettings } from '../packages/state/src/core/line-settings-read.js';
+export { setLineSetting } from './line-settings.js';
 
 import {
   applyOutsideIntake,
@@ -347,13 +349,11 @@ import {
   returnedHeadNotice,
 } from './trunk-conflict.js';
 import { factReference } from './fact-reference.js';
-import {
-  factFromEvent,
-  requestAnswerRefusal,
-  tellAnswerImplications,
-  tellFactImplications,
-  tellVerdictImplications,
-} from './implies.js';
+import { factFromEvent } from '../packages/state/src/core/fact-projection.js';
+import { requestAnswerRefusal } from './implies.js';
+import { tellAnswerImplications } from './implies.js';
+import { tellFactImplications } from './implies.js';
+import { tellVerdictImplications } from './implies.js';
 import {
   landingFlakes,
   landingWaiverCovers,
@@ -362,14 +362,12 @@ import {
 import { parseSpec } from './spec.js';
 import { KNOWN_MAIN_REWORKS_ENGINE } from './known-main-reworks-engine.js';
 import { requireKnownMainReworks } from './known-main-reworks.js';
-import {
-  invariantEvidence,
-  preserveInvariantEvidence,
-  validateLandingBatch,
-  validateLandingRevision,
-  submissionProof,
-  SUBMISSION_PROOF_ENGINE,
-} from './submit-invariants.js';
+import { invariantEvidence } from './submit-invariants.js';
+import { preserveInvariantEvidence } from './submit-invariants.js';
+import { validateLandingBatch } from './submit-invariants.js';
+import { validateLandingRevision } from './submit-invariants.js';
+import { submissionProof } from '../packages/state/src/core/submission-proof.js';
+import { SUBMISSION_PROOF_ENGINE } from './move-engine-constants.js';
 import { landingBatches } from './landing-batch-history.js';
 import {
   NATIVE_FLAKE_ENGINE,
@@ -458,7 +456,7 @@ export function openBoard(file, clock = systemClock, { isMain, onDiagnostic, wri
     db = new DatabaseSync(file);
     db.exec(`PRAGMA busy_timeout = ${BOARD_BUSY_TIMEOUT_MS}`);
     if (file !== ':memory:' && isMain !== false) configureBoardJournal(db, writeContext);
-    const board = { db, clock, writeContext, gitRoot, onDiagnostic };
+    const board = { db, clock, writeContext, gitRoot, onDiagnostic, enginePorts: boardEnginePorts() };
     let warmCounters = true;
     if (isMain !== false || file === ':memory:') {
       // Migrate and audit only a board whose version is behind; a drifted shape is reported and left alone (#1047).
@@ -2129,7 +2127,8 @@ export function maintainStaleState(board, options) {
 export { draftSpecRow, rowDrafts } from './row-drafts.js';
 export { recordSpecApprovalBaseline, specApprovalBaseline, specApprovalBaselineExists } from './spec-approval-baseline.js';
 // The roadmap's moves live in milestones.js; the board keeps exporting them so the engine replays them.
-export { addMilestone, canonicalMilestoneTarget, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone } from './milestones.js';
+export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone } from './milestones.js';
+export { canonicalMilestoneTarget } from '../packages/state/src/core/milestone-target.js';
 
 export { rowDecisions } from './board-query.js';
 
@@ -2340,6 +2339,6 @@ export function actOnActivity(board, options) {
   return activityDeliveryStore.actOnActivity(board, options, { atomic, logEvent });
 }
 import { FLOW_SIZE_ENGINE } from './flow-size-engine.js';
-import { submissionSize } from './submission-size.js';
+import { submissionSize } from '../packages/state/src/core/submission-size.js';
 
 export { fileTypedRequest, typedRequests, answerTypedRequests } from './typed-requests.js';

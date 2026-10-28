@@ -1,4 +1,4 @@
-import { lineSettings } from './line-settings-read.js';
+import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
 import { withLocalSeatPresence } from './seat-presence.js';
 /** Observe eligible work beside live free seats without claiming from a read [N2,A6]. */
 import { existsSync } from 'node:fs';

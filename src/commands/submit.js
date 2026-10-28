@@ -1,4 +1,4 @@
-import { boundedProofReason } from '../submit-invariants.js';
+import { boundedProofReason } from '../../packages/state/src/core/submission-proof.js';
 import { completeMoveHandoff } from '../post-move-handoff.js';
 import {
   barReadySetting,
@@ -303,4 +303,4 @@ export async function run(io, { first, values }) {
   if (code !== 0 || !values.wait) return code;
   return waitForSubmissionVerdict(ctx, id, submissionResult.value, submissionResult.event);
 }
-import { SUBMISSION_SIZE_METHOD } from '../submission-size.js';
+import { SUBMISSION_SIZE_METHOD } from '../../packages/state/src/core/submission-size.js';

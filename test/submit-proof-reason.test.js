@@ -1,8 +1,8 @@
 /** A submit's long selection reason fits its proof and says what it cut [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { boundedProofReason } from '../src/submit-invariants.js';
-import { submissionProof } from '../src/submit-invariants.js';
+import { boundedProofReason } from '../packages/state/src/core/submission-proof.js';
+import { submissionProof } from '../packages/state/src/core/submission-proof.js';
 
 test('a selection reason longer than a proof holds is cut and names what it elided [C7]', () => {
   const reason = 'selected because '.concat('test/cockpit/example.test.js reads src/view/page-render.js; '.repeat(800));
