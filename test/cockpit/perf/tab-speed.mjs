@@ -46,7 +46,8 @@ function inputScript() {
         const targets = { spec: '#spec-list .row', doctrine: '#doctrine-list .row', items: '#chain .row',
           roadmap: '#roadmap .milestone-head', dashboard: '#dashboard .dash-hero' };
         const content = pane?.querySelector(targets[sample.tab]);
-        if (view.tab === sample.tab && pane && !pane.hidden && content && box.width > 0 && box.height > 0) sample.end = performance.now();
+        sample.ready = Boolean(view.tab === sample.tab && pane && !pane.hidden && content && box.width > 0 && box.height > 0);
+        if (sample.ready) sample.end = performance.now();
       }));
     }, true);
   })()`;
@@ -71,7 +72,7 @@ export async function measureTabSpeed(board) {
       for (const tab of ['spec', 'doctrine', 'items', 'roadmap', 'dashboard']) {
         await chrome.stable(`window.__tabSpeed.next = { repeat: ${repeat} }`);
         await press(chrome, `document.querySelector('[data-tab="${tab}"]')`);
-        await chrome.waitFor(`window.__tabSpeed.actions.at(-1)?.tab === '${tab}' && Number.isFinite(window.__tabSpeed.actions.at(-1)?.end)`);
+        await chrome.waitFor(`window.__tabSpeed.actions.at(-1)?.tab === '${tab}' && typeof window.__tabSpeed.actions.at(-1)?.ready === 'boolean'`);
       }
     }
     return await chrome.stable(`({ ...window.__tabSpeed, next: undefined,

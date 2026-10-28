@@ -18,6 +18,8 @@ test('first and repeated tab clicks paint in under 100 ms on the real large boar
     assert.ok(report.fetch.length > 0, 'actual browser fetch time is observed');
     assert.ok(report.render.length >= 10, 'every click retains its real render duration');
     for (const sample of report.actions) {
+      assert.equal(sample.ready, true, `${sample.tab} paints its actual content after the click`);
+      assert.ok(Number.isFinite(sample.end), `${sample.tab} has a real painted timestamp`);
       assert.ok(sample.end - sample.start < 100,
         `${sample.tab} ${sample.repeat ? 'repeat' : 'first'} click painted in ${sample.end - sample.start} ms (bar <100 ms)`);
     }
