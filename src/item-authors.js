@@ -2,14 +2,14 @@ import { committedItemAuthors } from './review-independence.js';
 import { strictReviewProblem } from './review-independence.js';
 import { twoTierReviews } from './review-independence.js';
 /** Review independence follows every claim and submit author, never just the latest owner [V1,B3]. */
-import { ENGINE_VERSION } from './machine.js';
+import { ENGINE_VERSION } from './engine-metadata.js';
 import { itemPatchAuthors } from './item-patch-state.js';
 import { HISTORICAL_AUTHORS_ENGINE } from './historical-authors-engine.js';
 import { Refused } from './refused.js';
 import { PARENT_SESSION_ENGINE } from './parent-session-engine.js';
 import { PATCH_AUTHOR_IDENTITY_ENGINE } from './patch-author-identity-engine.js';
-import { effectiveAgentParent } from './seats.js';
-import { standingProblem } from './seats.js';
+import { effectiveAgentParent } from './seat-review-read.js';
+import { standingProblem } from './seat-review-read.js';
 
 /** Read one item's indexed author history; older ordered moves retain their original current-builder rule. */
 export function itemAuthors(board, item) {

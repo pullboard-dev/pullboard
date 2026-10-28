@@ -168,5 +168,8 @@ test('a read command loads only its own modules [C7]', async (t) => {
   box.gitAt(box.repo, 'switch', '--quiet', '--orphan', 'unborn');
   assert.deepEqual(box.facts(box.worktree).scoped.primary, { branch: 'refs/heads/unborn', commit: null },
     'an unborn primary is a known branch without an invented commit');
+});
+
+test('startup budget keeps fresh read medians under 100 ms [C7]', async (t) => {
   await assertStartupBudgets(t);
 });

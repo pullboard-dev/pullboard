@@ -59,10 +59,12 @@ export function isHeld(board, item) {
  *
  * @param {any} board
  * @param {any} item
+ * @param {string | null | undefined} reviewFamily Native joined metadata; undefined requests the ordinary lookup.
  * @returns {any}
  */
-export function current(board, item) {
-  item = projectReviewFamily(board, item);
+export function current(board, item, reviewFamily = undefined) {
+  item = reviewFamily === undefined ? projectReviewFamily(board, item)
+    : reviewFamily === null ? item : { ...item, item_review_family: reviewFamily };
   if (item.item_status !== 'claimed' || isHeld(board, item)) return { ...item };
   return { ...item, item_status: 'open', item_owner: null, item_lease_until: null };
 }
@@ -142,12 +144,14 @@ export function itemHold(board, id) {
 export function listItems(board, { lane, all = false } = {}) {
   const hasLane = lane !== undefined && lane !== null;
   const rows = board.db
-    .prepare(`SELECT item.*, imported.meta_value AS imported_rehome FROM item LEFT JOIN board_meta imported
-      ON imported.meta_key='rehome_import:' || item.item_id
+    .prepare(`SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family
+      FROM item LEFT JOIN board_meta imported ON imported.meta_key='rehome_import:' || item.item_id
+      LEFT JOIN board_meta family ON family.meta_key='item_review_family:' || item.item_id
       WHERE NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)
       AND ${all ? '1' : "item_status NOT IN ('verified','withdrawn')"}${hasLane ? ' AND item_lane=?' : ''} ORDER BY item_id DESC`)
     .all(...(hasLane ? [lane] : []));
-  const items = rows.map(({ imported_rehome: imported, ...item }) => ({ ...current(board, item),
+  const items = rows.map(({ imported_rehome: imported, review_family: family, ...item }) => ({
+    ...current(board, item, family),
     ...(imported ? { item_rehome_import: JSON.parse(imported) } : {}) }));
   return items;
 }
