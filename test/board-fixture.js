@@ -2,7 +2,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openBoard, closeBoard } from '../src/board.js';
+import { openBoard, closeBoard } from '../src/native-board.js';
 import { Refused } from '../src/refused.js';
 
 const FILE_PURPOSES = new Set(['persistence', 'locking', 'migration']);
