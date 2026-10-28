@@ -1,3 +1,4 @@
+import { saveCheckTiming } from './check-timing.js';
 /** Durable source tombstones and idempotent destination application for cross-board re-homing [E15,H16]. */
 import { createHash } from 'node:crypto';
 import { IN_STATE } from './machine.js';
@@ -293,6 +294,7 @@ export function applyRehomeItem(board, request, { atomic, boardId, logEvent, mov
     if (source.item_parent_id !== null && !parentId || after.some(id => id === null || id === undefined)) {
       throw new Refused('REHOME_LINKS', 'move each parent or wait item to this destination first, then retry the same source MOVEID');
     }
+    if (source.item_check_timing !== undefined && typeof source.item_check_timing !== 'boolean') throw new Refused('REHOME_FORMAT', 'source check timing must retain its exact boolean declaration');
     if (record.reviewPolicy && record.reviewPolicy.version !== 1) throw new Refused('REHOME_FORMAT', 'use a destination supporting the exact source review policy version');
     const importedReviewPolicy = record.reviewPolicy ? reviewPolicyChange(board, null, record.reviewPolicy) : null;
     const addition = { by: agentId, ...(importedReviewPolicy ? { sensitive: importedReviewPolicy.sensitive, reviewFamily: importedReviewPolicy.reviewFamily } : {}), lane: source.item_lane, title: source.item_title,
@@ -340,6 +342,7 @@ export function applyRehomeItem(board, request, { atomic, boardId, logEvent, mov
         source.item_frozen, source.item_frozen_digest, source.item_built_by, source.item_builder_family,
         source.item_commit, source.item_tree, source.item_verdict, source.item_verified_by);
     if (Number(result.lastInsertRowid) !== record.destinationItemId) throw new Refused('REHOME_ID', 'the reserved destination item ID is no longer available');
+    saveCheckTiming(board, record.destinationItemId, source.item_check_timing);
     saveItemReviewPolicy(board, record.destinationItemId, importedReviewPolicy);
     const inserted = itemByIdForRehome(board, record.destinationItemId);
     if (accepted) moveItem(board, record.destinationItemId, 'rehomeImport', {

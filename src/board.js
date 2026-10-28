@@ -47,7 +47,11 @@ import { applySpecRowDecisions } from './spec-row-apply.js';
 import { SPEC_REFREEZE } from './spec-row-apply.js';
 import * as reviewFamilies from './required-review-family.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from './automatic-dispatch-engine.js';
-import { correctedBar } from './corrected-bar.js';
+import { itemEditBar } from './item-edit-bar.js';
+import {
+  saveCheckTiming,
+  validateCheckTiming,
+} from './check-timing.js';
 import { UNCHANGED_REFREEZE_ENGINE } from './unchanged-refreeze-engine.js';
 import { applyLaneLead } from './lane-lead-policy.js';
 import { applyHealthFindings } from './board-health.js';
@@ -510,12 +514,12 @@ export function ensureCoordinator(board, path) {
  * ids (B6).
  *
  * @param {any} board
- * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: (number | string)[], brief?: string, route?: string, check?: string }} item
+ * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: (number | string)[], brief?: string, route?: string, check?: string, checkTiming?: boolean }} item
  * @returns {number} The new item's id.
  */
-export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily }) {
+export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming }) {
   return atomic(board, () => {
-    const item = { by, lane, title, criterion, specIds, parentId, after, brief, route, check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily };
+    const item = { by, lane, title, criterion, specIds, parentId, after, brief, route, check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming };
     return insertItem(board, item, validateItemAddition(board, item));
   });
 }
@@ -534,10 +538,11 @@ function insertItem(board, item, { command, cleanTitle }) {
     .run(parentId, lane, cleanTitle, criterion.trim(), specIds.join(','), after.join(','), brief.trim(), route, command, by, at, at);
   const id = Number(result.lastInsertRowid);
   saveCheckBaseline(board, id, baseline);
+  saveCheckTiming(board, id, item.checkTiming);
   const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, null, item) : null;
   saveItemReviewPolicy(board, id, reviewPolicy);
   reviewFamilies.saveReviewFamily(board, id, reviewFamily);
-  logEvent(board, by, 'add', id, { lane, specIds, after, route, ...(reviewFamily !== undefined && !twoTierReviews(board) ? { reviewFamily: reviewFamily.trim() } : {}), ...(baseline ? { checkBaseline: baseline } : {}), ...(reviewPolicy ? { reviewPolicy } : {}) });
+  logEvent(board, by, 'add', id, { lane, specIds, after, route, ...(item.checkTiming === undefined ? {} : { checkTiming: item.checkTiming }), ...(reviewFamily !== undefined && !twoTierReviews(board) ? { reviewFamily: reviewFamily.trim() } : {}), ...(baseline ? { checkBaseline: baseline } : {}), ...(reviewPolicy ? { reviewPolicy } : {}) });
   recordBarRevision(board, itemById(board, id), by, null, barActor);
   return id;
 }
@@ -551,10 +556,11 @@ export function requestCompanion(board, options) {
 }
 
 /** Validate an addition before its sender runs a new check, and again when the ordered move applies. */
-export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check, referenceAuthors, referenceAuthority, sensitive, reviewFamily }, { sourceMove = null } = {}) {
+export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming }, { sourceMove = null } = {}) {
   const command = sourceMove
     ? validateRehomeCheck(by, check, sourceMove)
     : coordinatorCheck(by, check) ?? '';
+  validateCheckTiming(board, by, checkTiming);
   reviewPolicyChange(board, null, { sensitive, reviewFamily });
   const cleanTitle = title.trim();
   if (!cleanTitle) throw new Refused('NO_TITLE', 'an item needs a title');
@@ -588,26 +594,20 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
  * @param {number} id
  * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string, after?: (number | string)[] }} change
  */
-export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier }) {
+export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming }) {
   atomic(board, () => {
     const stored = itemById(board, id);
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
-    const { item, next, command, unfreeze, bar } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier });
+    const { item, next, command, unfreeze, bar } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming });
     const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, id, { sensitive, reviewFamily, reviewTier }) : null;
     const baseline = normalizeCheckBaseline(agentId, command, checkBaseline);
-    const pendingFields = [
-      ...(next.item_criterion !== item.item_criterion ? ['criterion'] : []),
-      ...(command !== undefined && next.item_check !== item.item_check ? ['check'] : []),
-      ...(next.item_after !== item.item_after ? ['after'] : []),
-    ];
-    const frozen = correctedBar(board, item, next, { correction, freeze });
-    const pendingRefreeze = !frozen && (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
-      && item.item_status === 'claimed' && agentId === COORDINATOR && pendingFields.length > 0;
-    const clearFrozen = !frozen && ((unfreeze && !pendingRefreeze) || Boolean(expiredHolder));
+    const { pendingFields, frozen, pendingRefreeze, clearFrozen } = itemEditBar(board, item, next, { command, agentId, correction, freeze, unfreeze, expiredHolder });
     if (expiredHolder) {
       moveItem(board, id, 'lapse', { checks: {}, set: () => ({ item_owner: null, item_lease_until: null }) });
     }
-    setItem(board, id, { ...next, ...(frozen ? { item_frozen: frozen.text, item_frozen_digest: frozen.digest } : {}), ...(clearFrozen ? { item_frozen: null, item_frozen_digest: null } : {}) });
+    const { item_check_timing, ...storedNext } = next;
+    saveCheckTiming(board, id, checkTiming);
+    setItem(board, id, { ...storedNext, ...(frozen ? { item_frozen: frozen.text, item_frozen_digest: frozen.digest } : {}), ...(clearFrozen ? { item_frozen: null, item_frozen_digest: null } : {}) });
     reviewFamilies.saveReviewFamily(board, id, reviewFamily);
     if (baseline || next.item_check !== item.item_check) saveCheckBaseline(board, id, baseline);
     saveItemReviewPolicy(board, id, reviewPolicy);
@@ -618,6 +618,7 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
       ...(next.item_route !== item.item_route ? { route: next.item_route } : {}),
       ...(next.item_criterion !== item.item_criterion ? { criterion: next.item_criterion } : {}),
       ...(command !== undefined ? { check: next.item_check } : {}),
+      ...(checkTiming === undefined ? {} : { checkTiming }),
       ...(next.item_after !== item.item_after ? { after: itemDependencies.dependencyValues(next) } : {}),
       ...(baseline ? { checkBaseline: baseline } : {}),
       ...(pendingRefreeze ? { pendingRefreeze: pendingFields } : {}),
@@ -649,8 +650,9 @@ function notifyFileGrowth(board, before, after) {
 }
 
 /** Validate an edit without side effects, so a refused change never starts a shell baseline; a bar correction needs a reason [B31]. */
-export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier }) {
+export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming }) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  validateCheckTiming(board, agentId, checkTiming);
   if (after !== undefined && engine < 10) {
     throw new Refused('ENGINE_VERSION', `editing item dependencies requires engine 10; this board uses engine ${engine}; upgrade Pullboard before using --after`);
   }
@@ -663,7 +665,7 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
     throw new Refused('HELD', `item #${id} is claimed; only the coordinator may edit it while held; shout coordinator`);
   }
   const command = coordinatorCheck(agentId, check);
-  if ([brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier].every((value) => value === undefined)) {
+  if ([brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming].every((value) => value === undefined)) {
     throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>" or --after <ids|none>');
   }
   item ??= current(board, itemById(board, id));
@@ -687,20 +689,21 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
     item_route: route ?? item.item_route,
     item_criterion: criterion === undefined ? item.item_criterion : criterion.trim(),
     item_check: command === undefined ? item.item_check : command,
+    ...(checkTiming === undefined && item.item_check_timing === undefined ? {} : { item_check_timing: checkTiming ?? item.item_check_timing }),
     item_after: after === undefined ? item.item_after : after.join(','),
   };
   checkRoute(next.item_route);
-  const moved = ['item_route', 'item_criterion', 'item_check', 'item_after'].filter((key) => next[key] !== item[key]);
+  const moved = ['item_route', 'item_criterion', 'item_check', 'item_after', 'item_check_timing'].filter((key) => next[key] !== item[key]);
   const routeChanged = next.item_route !== item.item_route;
   const correctionWhileClaimed = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
     && item.item_status === 'claimed' && agentId === COORDINATOR
-    && (next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_after !== item.item_after);
+    && (next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_after !== item.item_after || next.item_check_timing !== item.item_check_timing);
   if (moved.length && item.item_status !== 'open' && (routeChanged || !correctionWhileClaimed)) {
     throw new Refused('HELD', `item #${id} is ${item.item_status}; change its route, criterion or check only while it is open`);
   }
   if (brief !== undefined && engine >= REFERENCE_ENGINE) validateReferences(brief, { actor: agentId, authors: referenceAuthors, authority: referenceAuthority, previous: item.item_brief });
   checkRouted({ brief: next.item_brief, route: next.item_route, criterion: next.item_criterion, check: next.item_check }, engine);
-  const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || Boolean(reviewPolicy) && (sensitive !== undefined || reviewFamily !== undefined);
+  const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_check_timing !== item.item_check_timing || Boolean(reviewPolicy) && (sensitive !== undefined || reviewFamily !== undefined);
   return { item, next, command, unfreeze, bar: barCorrectionFields(board, item, next, { reason }) };
 }
 
