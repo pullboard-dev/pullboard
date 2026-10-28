@@ -98,7 +98,8 @@ before(async () => {
   box.run(reviewer, 'verify', '6', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--note', 'the floor fixture sends it back');
   box.git(reviewer, 'switch', '-q', '--detach', 'main');
   earlier(alpha.repo, Date.now(), board => store.reserveReview(board, 4, { agentId: 'tests-1', leaseMs: 3 * 60 * MINUTE, policy: 'any' }));
-  // Submitting #6 handed web-1 its next ready item, which it is building now.
+  // web-1 claims its next ready item, which it is building now.
+  box.run(alpha.web, 'claim', '7');
   for (const index of [1, 2]) {
     const path = join(box.dir, `agent-floor-quiet-${index}`);
     box.git(alpha.repo, 'worktree', 'add', '-q', '-b', `tests/agent-floor-quiet-${index}`, path, 'main');
@@ -168,11 +169,14 @@ test('every agent has a four-hour line with what it holds, its times and shouts,
   assert.ok(builder && reviewer && between && quiet, 'all four seats have a line');
   const held = floor.groups[0].agents[0].holding[0];
   assert.equal(held.item.id, seeded.held.id);
-  assert.match(builder, new RegExp(`#${seeded.held.id} building ${age(seeded.now - held.since)}</span>`, 'u'), 'the builder shows its item and how long it has held it');
+  /** When the board wrote this seat's latest move of a kind on an item. */
+  const moved = (kind, id, by) => Date.parse(seeded.input.events.findLast(event => event.event_kind === kind && event.item_id === id && event.event_by === by).event_at);
+  assert.equal(held.since, moved('claim', seeded.held.id, 'web-1'), 'the hold counts from the board\'s claim');
+  assert.match(builder, new RegExp(`#${seeded.held.id} building ${age(seeded.now - moved('claim', seeded.held.id, 'web-1'))}</span>`, 'u'), 'the builder shows its item and how long it has held it');
   assert.ok(builder.includes(`<b>${seeded.held.title}</b>`), 'and that item\'s title');
   assert.match(builder, /<rect class="build" /u, 'its building time is drawn');
   assert.match(builder, /class="floor-landed"/u, 'landings in the window are marked');
-  assert.match(reviewer, /#4 reviewing \d+m<\/span>/u);
+  assert.match(reviewer, new RegExp(`#4 reviewing ${age(seeded.now - moved('reserve', 4, 'tests-1'))}</span>`, 'u'), 'the review counts from its reservation');
   assert.match(reviewer, /<rect class="review" /u);
   assert.match(reviewer, /class="floor-back"[^>]*><title>#6 sent back<\/title>/u, 'the sent-back mark sits on the reviewer who sent it');
   assert.match(between, /class="floor-shout"/u, 'a shout is marked on the line');
@@ -193,16 +197,61 @@ test('the four queues list every item in full, each with its age [N26]', () => {
   const cases = [
     ['In review', [[4, at('submit', 4)], [5, at('submit', 5)]]],
     ['Accepted, waiting to land', [[3, at('accept', 3)]]],
-    ['Ready, nobody building', null],
+    ['Ready, nobody building', [[6, at('reject', 6)], [8, at('add', 8)], [9, at('add', 9)]]],
     ['Landed · 24 h', [[2, at('merged', 2)], [1, at('merged', 1)]]],
   ];
   for (const [name, rows] of cases) {
     const queue = section(html, name);
     const shown = [...queue.matchAll(/data-go="item:(\d+)"[\s\S]*?data-floor-age>([^<]+)</gu)].map(match => [Number(match[1]), match[2]]);
-    if (rows) assert.deepEqual(shown, rows.map(([id, when]) => [id, age(seeded.now - when)]), `${name} lists each item with its age`);
-    else assert.deepEqual(shown.map(([id]) => id).sort(), [6, 7, 8, 9].filter(id => id !== seeded.held.id), 'ready lists the sent-back item and every open one nobody holds');
+    assert.deepEqual(shown, rows.map(([id, when]) => [id, age(seeded.now - when)]), `${name} lists each item with its age`);
     assert.match(queue, new RegExp(`<b>${shown.length}</b></h2>`, 'u'), `${name} counts its rows`);
   }
+});
+
+/**
+ * Render the floor for a hand-built board through the production path, so each age case sets its own clock.
+ * `moves` are [kind, by, item, minutes before now, detail] in board order.
+ */
+function floorFor(items, moves, now = Date.parse('2026-10-28T12:00:00Z')) {
+  const events = moves.map(([kind, by, item, ago, detail = {}], index) => ({ event_id: index + 1, event_kind: kind, event_by: by,
+    item_id: item, event_at: new Date(now - ago * MINUTE).toISOString(), event_detail: JSON.stringify(detail) }));
+  const project = { items: items.map(([id, status, by, untilAgo]) => ({ id, title: `Item ${id}`, lane: 'web', status,
+    claim: by ? { by, until: new Date(now - untilAgo * MINUTE).toISOString() } : null, updatedAt: new Date(now).toISOString() })),
+  agents: [{ agent_id: 'web-1', agent_created_at: new Date(now - 10 * 60 * MINUTE).toISOString() }] };
+  const floor = agentFloorModel(dashboardModel(project, events, { now, complete: true }), events);
+  return { floor, html: agentFloorHtml(floor), at: ago => new Date(now - ago * MINUTE).toISOString() };
+}
+
+test('every hold age counts from that hold\'s own claim or reservation, even when the seat holds two at once [N26]', () => {
+  const lease = ago => ({ leaseUntil: new Date(Date.parse('2026-10-28T12:00:00Z') - ago * MINUTE).toISOString() });
+  const until = ago => ({ until: lease(ago).leaseUntil });
+  const both = floorFor([[1, 'submitted', 'web-1', -120], [2, 'claimed', 'web-1', -120]], [
+    ['add', 'person', 1, 90], ['add', 'person', 2, 90], ['claim', 'web-2', 1, 80, lease(-60)], ['submit', 'web-2', 1, 40],
+    ['reserve', 'web-1', 1, 20, until(-120)], ['claim', 'web-1', 2, 5, lease(-120)],
+  ]);
+  assert.match(both.html, /#2 building 5m<\/span>/u, 'the build counts from its own claim');
+  assert.match(both.html, /#1 reviewing 20m<\/span>/u, 'the review still counts from its reservation while the seat also builds');
+  const survived = floorFor([[1, 'submitted', 'web-1', -120], [2, 'submitted', null, 0]], [
+    ['add', 'person', 1, 90], ['add', 'person', 2, 90], ['claim', 'web-2', 1, 80, lease(-60)], ['submit', 'web-2', 1, 40],
+    ['reserve', 'web-1', 1, 30, until(-120)], ['claim', 'web-1', 2, 20, lease(-120)], ['submit', 'web-1', 2, 10],
+  ]);
+  assert.match(survived.html, /#1 reviewing 30m<\/span>/u, 'a review outlives the build that overlapped it');
+  const renewed = floorFor([[1, 'claimed', 'web-1', -60]], [
+    ['add', 'person', 1, 400], ['claim', 'web-1', 1, 300, lease(180)], ['claim', 'web-1', 1, 200, lease(60)], ['claim', 'web-1', 1, 100, lease(-60)],
+  ]);
+  assert.match(renewed.html, /#1 building 5\.0h<\/span>/u, 'a renewed hold that began before the window reads its whole age');
+});
+
+test('a ready item\'s age counts from the moment it came free, lapsed leases included [N26]', () => {
+  const now = Date.parse('2026-10-28T12:00:00Z'), lease = ago => ({ leaseUntil: new Date(now - ago * MINUTE).toISOString() });
+  const { floor } = floorFor([[1, 'open', null, 0], [2, 'open', null, 0], [3, 'open', null, 0]], [
+    ['add', 'person', 1, 300], ['add', 'person', 2, 300], ['add', 'person', 3, 300],
+    ['claim', 'web-1', 1, 180, lease(60)],
+    ['claim', 'web-1', 2, 170, lease(150)], ['claim', 'web-1', 2, 150, lease(30)],
+    ['claim', 'web-1', 3, 120, lease(-60)], ['release', 'web-1', 3, 45],
+  ]);
+  const ready = floor.queues.find(entry => entry.key === 'ready').rows.map(({ item, at }) => [item.id, (now - at) / MINUTE]);
+  assert.deepEqual(ready, [[1, 60], [2, 30], [3, 45]], 'free since the lease ran out, the renewed lease ran out, or the release');
 });
 
 test('the Dashboard\'s Agents card ends with the link to the floor at its own address [N26,N38]', () => {

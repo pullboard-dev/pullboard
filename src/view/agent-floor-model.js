@@ -20,24 +20,24 @@ export function agentFloorModel(model, history) {
       if (!shoutsBy.has(event.event_by)) shoutsBy.set(event.event_by, []);
       shoutsBy.get(event.event_by).push(at);
     }
-    // An item is ready again from the move that freed it: added, sent back, released or let lapse.
-    if (['add', 'reopen', 'reject', 'release', 'lapse'].includes(event.event_kind) && event.item_id) readySince.set(event.item_id, at);
+    if (!event.item_id) continue;
+    let detail = {};
+    try { detail = JSON.parse(event.event_detail || '{}'); } catch { /* malformed detail carries no lease */ }
+    // An item is ready again from the move that freed it: added, sent back, released, unheld or lapsed. A claim frees
+    // it again when its lease runs out, so the latest lease end stands in for a lapse the board never wrote down.
+    if (['add', 'reopen', 'reject', 'lapse', 'escalate', 'unhold_item'].includes(event.event_kind)
+      || event.event_kind === 'release' && !detail.review || event.event_kind === 'refreeze' && !detail.retainedClaim) readySince.set(event.item_id, at);
+    if (['claim', 'renew'].includes(event.event_kind) && Date.parse(detail.leaseUntil)) readySince.set(event.item_id, Date.parse(detail.leaseUntil));
   }
   /**
-   * When the agent's current hold began: the run of its timeline that reaches now on this item. A run that starts
-   * at the window's edge began earlier, so `before` says the age is at least the window.
+   * When the agent's current hold began. The Dashboard keeps each live hold's own start apart from the timeline it
+   * draws, where a minute held twice shows as building; reading the timeline would lose a review the seat still holds.
+   * Without that start, the latest claim or reservation on the item stands in.
    */
-  const heldSince = (agent, held) => {
-    let since = now;
-    for (const segment of [...agent.segments].reverse()) {
-      if (segment.item !== held.item.id || segment.kind !== held.kind || segment.end < since) break;
-      since = segment.start;
-    }
-    return { since, before: since <= start };
-  };
+  const heldSince = held => ({ since: held.since ?? model.last(held.item, held.kind === 'build' ? 'claim' : 'reserve') });
   const order = { building: 0, reviewing: 1, 'between items': 2, quiet: 3 };
   const agents = model.agents.map(agent => ({ ...agent, shoutTimes: shoutsBy.get(agent.id) ?? [],
-    holding: agent.current.map(held => ({ ...held, ...heldSince(agent, held) })) }))
+    holding: agent.current.map(held => ({ ...held, ...heldSince(held) })) }))
     .sort((a, b) => order[a.group] - order[b.group] || b.current.length - a.current.length || a.id.localeCompare(b.id, undefined, { numeric: true }));
   const groups = [['building', 'Building'], ['reviewing', 'Reviewing'], ['between items', 'Between items'], ['quiet', 'Quiet for 20 min or more']]
     .map(([key, label]) => ({ key, label, agents: agents.filter(agent => agent.group === key) }));
