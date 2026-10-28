@@ -64,7 +64,9 @@ test('WRONG_LANE names a clean native lane checkout and the claim there retains 
   box.git(api.root, 'add', 'web/forbidden.js');
   const refused = box.runAs(box.session, api.root, 'hook', 'pre-commit', '--json');
   assert.equal(refused.code, 1);
-  assert.equal(JSON.parse(refused.out).error.code, 'OUTSIDE_LANE');
+  const hookRefusal = JSON.parse(refused.out).error;
+  assert.equal(hookRefusal.code, 'COMMAND_FAILED', 'the native hook returns a nonzero command result rather than throwing a board refusal');
+  assert.match(hookRefusal.message, /outside the api lane: web\/forbidden\.js; shout its owner instead/u);
 });
 
 test('a config with a bad lane refuses and names the field [L1]', () => {
