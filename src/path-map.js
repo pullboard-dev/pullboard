@@ -9,7 +9,7 @@ import { Refused } from './refused.js';
 
 /** Explain an unreadable rename map without accepting a partial or guessed identity. */
 function invalidMap() {
-  return new Refused('NO_POLICY', 'path-map.json must be a committed old-path to new-path object with relative file paths and no cycles; correct the map and retry');
+  return new Refused('NO_POLICY', 'the root path-map.json and bin/cells-plan/path-map/*.json shards must be committed old-path to new-path objects with relative file paths and no cycles; correct the map and retry');
 }
 
 /** Maps name complete repository-relative POSIX files, never directories outside the checkout. */
@@ -18,19 +18,24 @@ function relativeFile(value) {
     && value.split('/').every(part => part && part !== '.' && part !== '..');
 }
 
-/** Read the exact selected tree's plain old-to-new object and flatten each complete rename chain. */
+/** Combine the exact selected tree's root compatibility map and per-cell shards, then flatten complete rename chains. */
 export function readPathMap(root, { commit = 'HEAD' } = {}) {
-  const entry = tryGit(root, ['ls-tree', '-z', commit, '--', 'path-map.json']);
-  if (entry.status !== 0) throw invalidMap();
-  if (!entry.stdout) return new Map();
-  if (!/^100(?:644|755) blob [a-f0-9]+\tpath-map\.json\0$/u.test(entry.stdout)) throw invalidMap();
-  const source = tryGit(root, ['show', `${commit}:path-map.json`]);
-  if (source.status !== 0) throw invalidMap();
-  let data;
-  try { data = JSON.parse(source.stdout); } catch { throw invalidMap(); }
-  if (!data || typeof data !== 'object' || Array.isArray(data)) throw invalidMap();
-  const map = new Map(Object.entries(data));
-  for (const [from, to] of map) if (!relativeFile(from) || !relativeFile(to)) throw invalidMap();
+  const listed = tryGit(root, ['ls-tree', '-r', '-z', commit, '--', 'path-map.json', 'bin/cells-plan/path-map']);
+  if (listed.status !== 0) throw invalidMap();
+  const map = new Map();
+  for (const entry of listed.stdout.split('\0').filter(Boolean)) {
+    const match = /^100(?:644|755) blob [a-f0-9]+\t(.+)$/u.exec(entry);
+    if (!match || !(match[1] === 'path-map.json' || /^bin\/cells-plan\/path-map\/[a-z][a-z0-9-]*\.json$/u.test(match[1]))) throw invalidMap();
+    const source = tryGit(root, ['show', `${commit}:${match[1]}`]);
+    if (source.status !== 0) throw invalidMap();
+    let data;
+    try { data = JSON.parse(source.stdout); } catch { throw invalidMap(); }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw invalidMap();
+    for (const [from, to] of Object.entries(data)) {
+      if (!relativeFile(from) || !relativeFile(to) || map.has(from)) throw invalidMap();
+      map.set(from, to);
+    }
+  }
   const resolved = new Map();
   for (const from of map.keys()) {
     let path = from;

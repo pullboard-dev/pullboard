@@ -18,6 +18,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
+import { copyPackageFiles } from '../src/package-files.js';
 import { HELP } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
 import { Refused } from '../src/refused.js';
@@ -1425,17 +1426,10 @@ test('the board refuses a status written outside moveItem at run time, however i
 test('a helper added to the board that changes a status outside moveItem is refused when it runs [M1]', async () => {
   const dir = fs.mkdtempSync(join(tmpdir(), 'pullboard-planted-'));
   try {
-    for (const directory of ['src', 'packages']) {
-      const base = new URL(`../${directory}/`, import.meta.url);
-      if (!fs.existsSync(base)) continue;
-      for (const name of fs.readdirSync(base, { recursive: true }).filter((name) => name.endsWith('.js'))) {
-        const file = `${directory}/${name}`, source = fs.readFileSync(new URL(name, base), 'utf8');
-        fs.mkdirSync(dirname(join(dir, file)), { recursive: true });
-        fs.writeFileSync(join(dir, file), file === 'src/board.js' ? `${source}\nexport function reopenByHand(board, id) {\n  board.db.prepare("update item set item_status = 'open', item_owner = null, item_lease_until = null where item_id = ?").run(id);\n}\n` : source);
-      }
-    }
-    fs.copyFileSync(new URL('../package.json', import.meta.url), join(dir, 'package.json'));
-    const copy = await import(pathToFileURL(join(dir, 'src/board.js')).href);
+    copyPackageFiles(dirname(import.meta.dirname), dir);
+    const boardFile = join(dir, 'src', 'board.js');
+    fs.appendFileSync(boardFile, `\nexport function reopenByHand(board, id) {\n  board.db.prepare("update item set item_status = 'open', item_owner = null, item_lease_until = null where item_id = ?").run(id);\n}\n`);
+    const copy = await import(pathToFileURL(boardFile).href);
     const board = copy.openBoard(':memory:');
     copy.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
     copy.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
