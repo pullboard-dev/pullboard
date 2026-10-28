@@ -6,6 +6,7 @@ import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import * as store from '../src/board.js';
 import { nextProgress } from '../src/next-take.js';
+import { startNextProgressMonitor } from '../src/next-progress-monitor.js';
 import { fixture } from './next-take-fixture.js';
 import {
   privateFixtureFiles,
@@ -195,4 +196,17 @@ try {
   assert.ok(Number(line[1]) >= 10_000, 'the real production threshold was not shortened');
   assert.ok(Number(line[1]) < completed.phaseMs - 1_000, 'the line precedes completion by a full second; the old completion-time fallback cannot pass');
   assert.ok(chunks.some(chunk => chunk.text.includes(lines[0]) && chunk.atMs < result.elapsedMs), 'the observing parent received progress before child completion');
+});
+
+
+test('embedded stderr adapters retain captured progress even when they expose a real descriptor [C7]', async t => {
+  let captured = '';
+  const io = { stderr: { fd: 2, write: text => { captured += text; } } };
+  const monitor = await startNextProgressMonitor(io);
+  assert.equal(monitor, null, 'descriptor spelling cannot authorize bypassing the supplied stream adapter');
+  // Budget: the embedded adapter retains its existing short private timer control, not the real CLI threshold.
+  const progress = nextProgress(io, { monitor, phaseMs: 20, timeoutMs: 2_000 });
+  t.after(progress.stop);
+  await progress.run('embedded review', 74, () => pause(60));
+  assert.match(captured, /^next phase embedded review; item #74; \d+ ms\n$/u);
 });

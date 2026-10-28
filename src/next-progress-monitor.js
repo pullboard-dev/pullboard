@@ -42,8 +42,9 @@ if (!isMainThread && workerData?.kind === 'next-progress') observePhases();
 
 /** Start one acknowledged diagnostic worker before native routing; callers await close only after ordered work settles. */
 export async function startNextProgressMonitor(io, { phaseMs = 10_000 } = {}) {
-  // Embedded callers with an in-memory writer retain their existing timer; the real CLI has descriptor 2.
-  const fd = io.stderr?.fd;
+  // Only the actual CLI stream permits descriptor writes; an adapter can expose fd 2 while capturing write().
+  if (io.stderr !== process.stderr) return null;
+  const fd = io.stderr.fd;
   if (!Number.isSafeInteger(fd) || fd < 0) return null;
   const shared = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT), state = new Int32Array(shared);
   const worker = new Worker(new URL('./next-progress-monitor.js', import.meta.url),
