@@ -5,7 +5,7 @@ import {
   apiStatus,
   readApiBody,
 } from '../src/api-http.js';
-import { refusalDocument } from '../src/json.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { Refused } from '../src/refused.js';
 
 /**

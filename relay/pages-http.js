@@ -1,7 +1,7 @@
 /** Authenticated relay API2 snapshot objects; stored data remains opaque to the relay [H15,H17]. */
 import { createHash } from 'node:crypto';
 import { apiJson, apiRefusal, apiStatus, readApiBody } from '../src/api-http.js';
-import { refusalDocument } from '../src/json.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { Refused } from '../src/refused.js';
 import { PAGE_BYTES, PAGE_CIPHER_BYTES, PAGE_FANOUT, pageReference } from '../src/sealed-pages.js';
 
