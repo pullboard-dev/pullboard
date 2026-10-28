@@ -20,12 +20,22 @@ import { storedCellLintFiles } from '../src/cell-lint-store.js';
 import { writeCellLintBaseline } from '../src/cell-lint-store.js';
 import { planCellLintBaseline } from '../src/cell-lint-baseline-plan.js';
 import { cellLintReport } from '../src/cell-lints.js';
+import { CELL_METRICS } from '../src/cell-lints.js';
 import { cellLintBaseline } from '../src/cell-lint-ratchet.js';
 import { cellLintGrowth } from '../src/cell-lint-ratchet.js';
 import { lowerCellLintBaseline } from '../src/cell-lint-ratchet.js';
 import { runFixtureChild } from './fixture-child.js';
 
 const BIN = fileURLToPath(new URL('../bin/cell-lints.js', import.meta.url));
+/** Build a report-shaped value for exact identity-collision controls without filesystem side effects. */
+function identityReport(pathMap, { boundaries = [], unreachableExports = [] } = {}) {
+  const selected = { boundaries, unreachableExports };
+  const metrics = Object.fromEntries(CELL_METRICS.map(metric => {
+    const findings = selected[metric] ?? [];
+    return [metric, { count: findings.reduce((sum, finding) => sum + finding.count, 0), findings }];
+  }));
+  return { pathMap, metrics };
+}
 /** Create actual files and an explicit root import map; no source modules execute during reports. */
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-cell-lints-'));
@@ -178,7 +188,46 @@ test('a committed src-to-cell path map preserves existing debt identities while 
   assert.ok(after.metrics.fileSize.count < before.metrics.fileSize.count);
   assert.deepEqual(cellLintGrowth(after, baseline), []);
   box.put('packages/sample/index.js', 'export const value = 1; export const unused = 2; export const newlyUnused = 3;\n');
-  assert.ok(cellLintGrowth(box.report(), baseline).some(row => row.key.endsWith('#newlyUnused')));
+  assert.ok(cellLintGrowth(box.report(), baseline).some(row => row.metric === 'unreachableExports'
+    && row.key === 'packages/sample/index.js#newlyUnused'));
+});
+
+test('normalized aliases preserve collision growth and keep unrelated identities separate [C7,CD64]', () => {
+  const map = { 'src/legacy-edge.js': 'packages/sample/index.js', 'src/legacy.js': 'packages/sample/index.js' };
+  const before = identityReport(map, {
+    boundaries: [{ key: 'apps/demo/index.js->src/legacy-edge.js', count: 1 }],
+    unreachableExports: [{ key: 'src/legacy.js#unused', count: 1 }],
+  });
+  const snapshot = cellLintBaseline(before);
+  assert.deepEqual(cellLintGrowth(before, snapshot), [], 'a normalized generation consumes no debt twice');
+
+  const duplicate = identityReport(map, {
+    boundaries: [
+      { key: 'apps/demo/index.js->src/legacy-edge.js', count: 1 },
+      { key: 'apps/demo/index.js->packages/sample/index.js', count: 1 },
+    ],
+    unreachableExports: [
+      { key: 'src/legacy.js#unused', count: 1 },
+      { key: 'packages/sample/index.js#unused', count: 1 },
+    ],
+  });
+  const duplicateGrowth = cellLintGrowth(duplicate, snapshot);
+  assert.ok(duplicateGrowth.some(row => row.metric === 'boundaries'
+    && row.key === 'apps/demo/index.js->packages/sample/index.js' && row.actual === 2 && row.allowed === 1));
+  assert.ok(duplicateGrowth.some(row => row.metric === 'unreachableExports'
+    && row.key === 'packages/sample/index.js#unused' && row.actual === 2 && row.allowed === 1));
+  assert.equal(cellLintBaseline(duplicate).metrics.boundaries.count, 2, 'normalization leaves raw boundary totals intact');
+  assert.equal(cellLintBaseline(duplicate).metrics.unreachableExports.count, 2, 'normalization leaves raw export totals intact');
+
+  const unrelated = identityReport(map, {
+    boundaries: [{ key: 'apps/demo/index.js->packages/other/index.js', count: 1 }],
+    unreachableExports: [{ key: 'packages/sample/index.js#newName', count: 1 }],
+  });
+  const unrelatedGrowth = cellLintGrowth(unrelated, snapshot);
+  assert.ok(unrelatedGrowth.some(row => row.metric === 'boundaries'
+    && row.key === 'apps/demo/index.js->packages/other/index.js' && row.allowed === 0));
+  assert.ok(unrelatedGrowth.some(row => row.metric === 'unreachableExports'
+    && row.key === 'packages/sample/index.js#newName' && row.allowed === 0));
 });
 
 test('sharded committed path maps activate ratchets while absent maps remain advisory [C7]', t => {
@@ -200,6 +249,7 @@ test('sharded committed path maps activate ratchets while absent maps remain adv
     initialize: true,
     verify: () => JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(strictBaseline),
   });
+  assert.deepEqual(cellLintGrowth(moved, strictBaseline), [], 'a same-generation snapshot does not remap its own debt twice');
   box.put('src/strict-rise.js', 'export const value = 2;\n');
   const strict = box.report(), rise = cellLintGrowth(strict, strictBaseline);
   assert.ok(rise.some(row => row.key === 'src/strict-rise.js' && !row.advisory), 'post-migration source debt is enforced');
