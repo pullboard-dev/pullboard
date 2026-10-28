@@ -1,5 +1,8 @@
 /** General CLI recovery text; operation-owned codes live in src/moves/ [P4,C7]. */
 export const DEFAULT_NEXT_STEPS = Object.freeze({
+  CHECK_REQUIRED: 'intake a pull request with --criterion "behavior" --check "command" from the trusted coordinator checkout',
+  ROW_VERIFY_RECEIPT: 'run pullboard spec verify <id> accepted|rejected --reason "why" before applying its verdict',
+  LAN_UNAVAILABLE: 'connect to a local IPv4 network, then run pullboard view --lan; ordinary pullboard view remains available on this machine',
   CELL_BASELINE: 'run node bin/cell-lints.js --report; restore the complete accepted bin/cell-lint-baselines descriptor and hash-bound shards, resolve reported inventory or ownership conflicts, then run node bin/cell-lints.js --check; initialize with --init only when no accepted baseline exists after explicit review',
   CELL_LINT_ROSE: 'run node bin/cell-lints.js --report and node bin/cell-lints.js --check; repair every reported debt increase, then use node bin/cell-lints.js --update only to record falling allowances; never regenerate an accepted baseline to raise debt',
   CELLS_UNPLACED: 'add a name rule for the reported paths in src/cells-plan.js, then regenerate the plan with node bin/cells-plan.js --write',

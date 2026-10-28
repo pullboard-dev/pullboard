@@ -1,4 +1,5 @@
 /** Concern-specific gate stage; public callers keep the gate facade. */
+import { sourceAdvancePlan } from './source-advance-plan.js';
 import {
   withGateSlot,
 } from './gate-slot.js';
@@ -67,19 +68,20 @@ import {
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, agent, item = '', kind = 'submit', onWait, onBrowserFallback, onFailure, proofContext }) {
+export async function runSubmitGate(root, config, { base, trunk, changed, check, agent, item = '', kind = 'submit', onWait, onBrowserFallback, onFailure, proofContext, sourceAdvance = false }) {
   if (!config.gate.trim()) throw missingGate(root);
   await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback });
-  check = check ? mappedCheck(root, check) : check;
-  const selection = config.affectedTests
+  const advancePlan = sourceAdvance ? sourceAdvancePlan(root, config, { base, changed, check }) : null;
+  check = advancePlan ? advancePlan.criterion : check ? mappedCheck(root, check) : check;
+  const selection = advancePlan?.selection ?? (config.affectedTests
     ? placementSubmitSelection(root, selectAffectedTests(root, { base, trunk, changed }), changed ?? [])
-    : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
-  const deferred = config.submitGate === 'landing';
+    : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] });
+  const deferred = !sourceAdvance && config.submitGate === 'landing';
   const deferFullFallback = deferred && selection.full;
   // A selection over submitDeferAbove files moves to the landing gate, which runs every recorded file before the item lands.
   const deferSelection = deferred && !selection.full && Number.isSafeInteger(config.submitDeferAbove) && selection.files.length > config.submitDeferAbove;
-  const invariants = deferred ? [...new Set(config.submitInvariants ?? [])].sort() : [];
-  const registryGuards = [...new Set([...selectRegistryGuards(root, config.registryGuards, { base, trunk, changed }),
+  const invariants = advancePlan?.invariants ?? (deferred ? [...new Set(config.submitInvariants ?? [])].sort() : []);
+  const registryGuards = advancePlan?.registryGuards ?? [...new Set([...selectRegistryGuards(root, config.registryGuards, { base, trunk, changed }),
     ...selectTestTreeGuards(root, { base, trunk, changed })])].sort();
   if ((invariants.length || registryGuards.length) && !config.affectedTests?.trim()) {
     throw new Refused('BAD_CONFIG', 'submitInvariants and repository guards require the project affectedTests runner');
@@ -129,7 +131,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
           executionSource: profiles.find(value => value.executionSource)?.executionSource } : {}),
       });
       refuseSandboxBlocked(proof);
-      return { ...proof, log, seconds: criterion.seconds + proof.seconds, ...selection, files: proofFiles, registryGuards, ...(deferred ? { submitInvariants: invariants } : {}),
+      return { ...proof, ...(criterion.cleanupUnverified || proof.cleanupUnverified ? { cleanupUnverified: true } : {}), log, seconds: criterion.seconds + proof.seconds, ...selection, files: proofFiles, registryGuards, ...(deferred ? { submitInvariants: invariants } : {}),
         ...(deferSelection ? { deferredFiles: selection.files, deferAbove: config.submitDeferAbove } : {}), deferred, deferFullFallback, check: receipt,
         profile, profilePath, proofProfilePath: proof.profilePath, proofLog: proof.log,
         proofReceiptIds: [...(check ? [criterion.proofReceiptId ?? null] : []),
