@@ -338,7 +338,7 @@ function submitItem(box, entry, contents = 'PASS\n') {
   const committed = commitFile(box, entry.path, entry.file, contents, `feat(web): build land fixture ${entry.item} [G1]`);
   assert.equal(committed.status, 0, committed.stderr);
   entry.commit = box.git(entry.path, 'rev-parse', 'HEAD');
-  const submitted = box.run(entry.path, 'submit', String(entry.item));
+  const submitted = box.run(entry.path, 'submit', String(entry.item), '--no-next');
   assert.equal(submitted.code, 0, submitted.err);
   return entry;
 }
@@ -487,7 +487,7 @@ test('land bisects a real red, blocks stale proof and refuses an unverified stac
   box.git(entries[3].path, 'merge', '--no-ff', hiddenSha, '-m', 'feat(web): include ancestor [G1]');
   submitItem(box, entries[3]);
   for (const entry of entries) acceptItem(box, entry);
-  assert.equal(box.run(hidden.path, 'submit', String(hidden.item)).code, 0);
+  assert.equal(box.run(hidden.path, 'submit', String(hidden.item), '--no-next').code, 0);
   delete box.env.LAND_SUPPRESS_RED;
   assert.equal(commitFile(box, box.repo, FILES[1], 'different main content\n', 'chore: create a merge conflict').status, 0);
   const base = box.git(box.repo, 'rev-parse', 'main');
@@ -793,13 +793,13 @@ test("a person's waiver lets a submit and a landing gate through only the waived
   };
   const waived = itemWorktree(box, 1);
   assert.equal(commitFile(box, waived.path, waived.file, 'RED\n', `feat(web): build land fixture ${waived.item} [G1]`).status, 0);
-  const unwaived = box.run(waived.path, 'submit', String(waived.item), '--json');
+  const unwaived = box.run(waived.path, 'submit', String(waived.item), '--no-next', '--json');
   assert.equal(JSON.parse(unwaived.out).error?.code, 'GATE_RED', 'an unwaived failure refuses the submission');
   onBoard(box, (board) => {
     store.recordLandingWaiver(board, { agentId: 'person', channel: 'terminal', id: 'expired-submit', test: FILES[0], until: '2000-01-02', reason: 'expired submit fixture' });
     store.recordLandingWaiver(board, { agentId: 'person', channel: 'terminal', id: 'expired-landing', test: FILES[1], until: '2000-01-02', reason: 'expired landing fixture' });
   }, past);
-  const expired = box.run(waived.path, 'submit', String(waived.item), '--json');
+  const expired = box.run(waived.path, 'submit', String(waived.item), '--no-next', '--json');
   assert.equal(JSON.parse(expired.out).error?.code, 'GATE_RED', 'an expired waiver covers nothing');
   assert.equal(JSON.parse(box.run(waived.path, 'land', '--waive', FILES[0], '--until', '2099-01-01', '--reason', 'agent attempt', '--json').out).error?.code, 'COORDINATOR_ONLY', 'an agent seat cannot waive');
   box.env.CLAUDECODE = '1';
@@ -818,11 +818,11 @@ test("a person's waiver lets a submit and a landing gate through only the waived
   const mixed = itemWorktree(box, 2);
   assert.equal(commitFile(box, mixed.path, FILES[0], 'RED\n', `feat(web): build land fixture ${mixed.item} [G1]`).status, 0);
   assert.equal(commitFile(box, mixed.path, mixed.file, 'RED\n', `feat(web): build land fixture ${mixed.item} again [G1]`).status, 0);
-  const partial = box.run(mixed.path, 'submit', String(mixed.item), '--json');
+  const partial = box.run(mixed.path, 'submit', String(mixed.item), '--no-next', '--json');
   assert.equal(JSON.parse(partial.out).error?.code, 'GATE_RED', 'a waiver for one test never passes another failure');
   assert.equal(json(box, box.repo, 'show', String(mixed.item)).item_status, 'claimed');
 
-  const submitted = box.run(waived.path, 'submit', String(waived.item));
+  const submitted = box.run(waived.path, 'submit', String(waived.item), '--no-next');
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   assert.match(submitted.out, line, 'the submission names the waiver, its reason and its expiry');
   assert.match(submitted.out, /waived, not green/u);
@@ -863,7 +863,7 @@ test("a person's waiver lets a submit and a landing gate through only the waived
   assert.doesNotMatch(staged.out, /waived, not green/u);
   const stagedItem = itemWorktree(box, 4);
   assert.equal(commitFile(box, stagedItem.path, stagedItem.file, 'PASS\n', `feat(web): build land fixture ${stagedItem.item} [G1]`).status, 0);
-  const stagedSubmit = box.run(stagedItem.path, 'submit', String(stagedItem.item), '--json');
+  const stagedSubmit = box.run(stagedItem.path, 'submit', String(stagedItem.item), '--no-next', '--json');
   assert.equal(JSON.parse(stagedSubmit.out).error?.code, 'GATE_RED', 'a waived test plus a separate failing stage refuses the submission');
   assert.equal(readFileSync(runs, 'utf8').length, 2, 'the submission ran the failing setup stage');
   assert.ok(!events(box).some((event) => event.event_kind === 'fact' && event.item_id === stagedItem.item), 'a refused submission records nothing as waived');
@@ -896,12 +896,12 @@ test("a person's waiver lets a submit and a landing gate through only the waived
     assert.equal(JSON.parse(failingPipe.out).waived, undefined, 'a refused pipeline names no waived failures');
     const pipeItem = itemWorktree(box, 3);
     assert.equal(commitFile(box, pipeItem.path, pipeItem.file, 'PASS\n', `feat(web): build land fixture ${pipeItem.item} [G1]`).status, 0);
-    const failingPipeSubmit = box.run(pipeItem.path, 'submit', String(pipeItem.item), '--json');
+    const failingPipeSubmit = box.run(pipeItem.path, 'submit', String(pipeItem.item), '--no-next', '--json');
     assert.equal(JSON.parse(failingPipeSubmit.out).error?.code, 'GATE_RED', 'a failing producer piped into the waived tests refuses the submission');
     assert.equal(readFileSync(runs, 'utf8').length, producerRuns + 2, 'the submission ran the failing producer');
     assert.ok(!events(box).some((event) => event.event_kind === 'fact' && event.item_id === pipeItem.item), 'a refused pipeline submission records nothing as waived');
     rmSync(broken);
-    const healthyPipeSubmit = box.run(pipeItem.path, 'submit', String(pipeItem.item));
+    const healthyPipeSubmit = box.run(pipeItem.path, 'submit', String(pipeItem.item), '--no-next');
     assert.equal(healthyPipeSubmit.code, 0, `${healthyPipeSubmit.err}\n${healthyPipeSubmit.out}`);
     assert.match(healthyPipeSubmit.out, line, 'a healthy producer leaves only the waived test at submit');
     assert.match(healthyPipeSubmit.out, /waived, not green/u);
@@ -921,7 +921,7 @@ test("a person's waiver lets a submit and a landing gate through only the waived
     assert.equal(JSON.parse(forwarded.out).waived, undefined, 'a forwarded account names no waived failures');
     const forwardItem = itemWorktree(box, 5, FILES[3]);
     assert.equal(commitFile(box, forwardItem.path, forwardItem.file, 'PASS\n', `feat(web): build land fixture ${forwardItem.item} [G1]`).status, 0);
-    const forwardedSubmit = box.run(forwardItem.path, 'submit', String(forwardItem.item), '--json');
+    const forwardedSubmit = box.run(forwardItem.path, 'submit', String(forwardItem.item), '--no-next', '--json');
     assert.equal(JSON.parse(forwardedSubmit.out).error?.code, 'GATE_RED', 'a forwarded account refuses the submission');
     assert.equal(readFileSync(runs, 'utf8').length, forwardRuns + 2, 'the submission ran the failing setup producer');
     assert.ok(!events(box).some((event) => event.event_kind === 'fact' && event.item_id === forwardItem.item), 'a refused forwarded submission records nothing as waived');
@@ -933,7 +933,7 @@ test("a person's waiver lets a submit and a landing gate through only the waived
     assert.deepEqual(JSON.parse(throughCat.out).waived.map((entry) => [entry.file, entry.waiver]), [[FILES[0], waiver.id]], 'the TAP producer explains its own failure');
     const catItem = itemWorktree(box, 6, FILES[3]);
     assert.equal(commitFile(box, catItem.path, catItem.file, 'PASS\n', `feat(web): build land fixture ${catItem.item} [G1]`).status, 0);
-    const catSubmit = box.run(catItem.path, 'submit', String(catItem.item));
+    const catSubmit = box.run(catItem.path, 'submit', String(catItem.item), '--no-next');
     assert.equal(catSubmit.code, 0, `${catSubmit.err}\n${catSubmit.out}`);
     assert.match(catSubmit.out, line, 'a TAP producer piped through cat is waived at submit');
     assert.match(catSubmit.out, /waived, not green/u);
@@ -948,7 +948,7 @@ test("a person's waiver lets a submit and a landing gate through only the waived
     assert.equal(readFileSync(runs, 'utf8'), setupRuns, 'an unsupported landing pipeline never starts');
     const refusedItem = itemWorktree(box, 3);
     assert.equal(commitFile(box, refusedItem.path, refusedItem.file, 'PASS\n', `feat(web): build land fixture ${refusedItem.item} [G1]`).status, 0);
-    const refusedSubmit = box.run(refusedItem.path, 'submit', String(refusedItem.item), '--json');
+    const refusedSubmit = box.run(refusedItem.path, 'submit', String(refusedItem.item), '--no-next', '--json');
     assert.equal(refusedSubmit.code, 1, 'a waiver never enables an unsupported submission pipeline');
     assert.equal(JSON.parse(refusedSubmit.out).error?.code, 'PIPEFAIL_UNAVAILABLE');
     assert.equal(readFileSync(runs, 'utf8'), setupRuns, 'an unsupported submission pipeline never starts');
@@ -1343,7 +1343,7 @@ test('an item with no spec rows lands under a header its commit hook accepts [B3
   box.git(path, 'add', '-A');
   box.git(path, 'commit', '-q', '-m', 'docs(docs): describe the docs fixture');
   const entry = { path, item, file: 'docs/land-1.test.js', commit: box.git(path, 'rev-parse', 'HEAD') };
-  assert.equal(box.run(path, 'submit', String(item)).code, 0, 'the docs commit submits');
+  assert.equal(box.run(path, 'submit', String(item), '--no-next').code, 0, 'the docs commit submits');
   acceptItem(box, entry);
   const base = box.git(box.repo, 'rev-parse', 'main');
   const result = json(box, box.repo, 'land', '--max', '1');
