@@ -456,7 +456,7 @@ await assert.rejects(runOnRunnerAsync(process.cwd(),'true',{runner:{host:'privat
 /** Exercise the actual closure reader while observing only its whole-files serialization work. */
 test('runner closure byte accounting preserves escaped bytes without growing-object serialization [C7,P3]', t => {
   const f = fixture(t, ['src']);
-  const names = ["apostrophe'key.txt", 'quote"key.txt', 'é🧩.txt', 'e\u0301.txt', 'separator\u2028.txt', ...Array.from({length:64},(_,i)=>`data-${i}.txt`)];
+  const names = ["apostrophe'key.txt", 'quote"key.txt', 'é🧩.txt', 'e\u0301.txt', ...Array.from({length:64},(_,i)=>`data-${i}.txt`)];
   const source = names.map(name=>`import ${JSON.stringify('./'+name)};`).join('\n');
   f.write('src/entry.js',source);
   for(const name of names) f.write('src/'+name, 'quote" slash\\ newline\n tab\t astral🧩');
@@ -473,6 +473,9 @@ test('runner closure byte accounting preserves escaped bytes without growing-obj
   assert.deepEqual(runtime.files,expected);
   assert.equal(Buffer.byteLength(JSON.stringify(runtime.files)),Buffer.byteLength(JSON.stringify(expected)));
   assert.equal(dictionaries,0,'derive encodes each new key/value without reserializing the growing files dictionary');
+  f.write('src/separator\u2028.txt','existing unsupported path');
+  f.write('src/entry.js',source+"\nimport './separator\\u2028.txt';");
+  assert.throws(()=>runnerPackage(f.root,'src/entry.js'),error=>error.code==='RUNNER_TOOLING_FILES'&&error.message.includes('leaves package.json files'),'existing line-separator path refusal is preserved');
 });
 
 test('runner closure preserves the exact JSON byte transfer boundary for ASCII and Unicode [C7,P3]', t => {
