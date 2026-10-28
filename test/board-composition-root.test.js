@@ -67,7 +67,7 @@ test('the single native root supplies every port before migration and keeps lega
   native.register(board, { lane: 'coordinator', path: '/private/native-root-test' });
   ports.nativePorts.atomic(board, () => ports.nativePorts.logEvent(board, 'coordinator', 'native-root-proof', null, { exact: true }));
   const event = board.db.prepare("SELECT * FROM event WHERE event_kind='native-root-proof'").get();
-  assert.deepEqual(JSON.parse(event.event_detail), { exact: true });
+  assert.deepEqual(JSON.parse(event.event_detail), { exact: true, model: 'unknown' });
   assert.ok(calls.includes('one:event'));
   const fixture = fixtureBoard(t);
   assert.ok(fixture.nativePorts);
