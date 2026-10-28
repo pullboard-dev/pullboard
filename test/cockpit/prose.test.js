@@ -1,6 +1,7 @@
 /** @pullboard-test-gui */
 /** @pullboard-test-loads test/relay-client-fixture.js */
 /** Cockpit prose checks, using the shared real-board fixtures [N26]. */
+import { copyPackageFiles } from '../../src/package-files.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -80,7 +81,9 @@ test('the view chips a command the CLI adds [N26]', async (t) => {
   const demo = project(box, 'help-copy');
   const cli = join(box.dir, 'cli-copy');
   mkdirSync(cli);
-  for (const entry of ['bin', 'src', 'relay', 'test', 'skills', 'package.json', 'CHANGELOG.md']) {
+  copyPackageFiles(resolve(import.meta.dirname, '../..'), cli);
+  // These unpublished browser/test fixtures are deliberately additional to the installed tool.
+  for (const entry of ['relay', 'test']) {
     cpSync(resolve(import.meta.dirname, '../..', entry), join(cli, entry), { recursive: true });
   }
   const helpFile = join(cli, 'src', 'help.js');
