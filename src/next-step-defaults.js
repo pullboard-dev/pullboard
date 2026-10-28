@@ -1,5 +1,6 @@
 /** General CLI recovery text; operation-owned codes live in src/moves/ [P4,C7]. */
 export const DEFAULT_NEXT_STEPS = Object.freeze({
+  BAD_IDLE_REASON: 'run next again and use its structured idle observation',
   CHECK_REQUIRED: 'intake a pull request with --criterion "behavior" --check "command" from the trusted coordinator checkout',
   ROW_VERIFY_RECEIPT: 'run pullboard spec verify <id> accepted|rejected --reason "why" before applying its verdict',
   LAN_UNAVAILABLE: 'connect to a local IPv4 network, then run pullboard view --lan; ordinary pullboard view remains available on this machine',
