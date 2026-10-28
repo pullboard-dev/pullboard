@@ -1,6 +1,7 @@
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 import { MERGE_ONLY_VERDICT_ENGINE } from '../merge-only-verdict-engine.js';
 import { FLOW_SIZE_ENGINE } from '../flow-size-engine.js';
+import { KNOWN_MAIN_REWORKS_ENGINE } from '../known-main-reworks-engine.js';
 /** Routing metadata owned by submit, discovered without a shared registry edit [C7,V4,H16]. */
 import { BAR_READY_ENGINE } from '../bar-ready-engine.js';
 import { barReadySetting } from '../bar-ready-setting.js';
@@ -29,6 +30,8 @@ function existingEngine(args, board, at) {
 function minimumEngine(args, board, at) {
   const outside = board && Boolean(outsideSource(board, args[0]));
   return Math.max(args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
+    Array.isArray(args[1]?.submissionProof?.knownMainFailures?.failures)
+      && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined) ? KNOWN_MAIN_REWORKS_ENGINE : 1,
     args[1]?.submissionSize !== undefined ? FLOW_SIZE_ENGINE : 1,
     outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at));
 }
