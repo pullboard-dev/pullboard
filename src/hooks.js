@@ -67,8 +67,7 @@ const MAX_SECRET_DIFF_BYTES = 8 * 1024 * 1024;
 const SECRETS = [
   ['Anthropic key', /sk-ant-[A-Za-z0-9_-]{20,}/],
   ['OpenAI key', /sk-proj-[A-Za-z0-9_-]{32,}/],
-  ['OpenAI key', /(?<![A-Za-z0-9-])sk-(?:svcacct|admin)-[A-Za-z0-9_-]{32,}/],
-  ['OpenAI key', /(?<![A-Za-z0-9-])sk-[A-Za-z0-9]{32,}/],
+  ['OpenAI key', /(?<![A-Za-z0-9-])sk-(?:None-|svcacct-|admin-)?[A-Za-z0-9_-]{32,}/],
   ['AWS access key', /AKIA[0-9A-Z]{16}/],
   ['private key', /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
   ['GitHub token', /gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}/],

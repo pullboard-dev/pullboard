@@ -26,3 +26,14 @@ test('a planted OpenAI or Anthropic key is still refused by name in transferred 
   assert.match(findings[0], /^OpenAI key at src\/config\.js:4$/u);
   assert.match(findings[1], /^Anthropic key at src\/client\.js:9$/u);
 });
+
+test('legacy and None-prefixed OpenAI key shapes are still refused by name [C7,S1]', () => {
+  // Assembled at run time: the 'None' shape and a legacy key with an underscore in its first 32 characters.
+  const none = ['sk-None', 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKL'].join('-');
+  const legacyUnderscore = ['sk', 'abcdef_ghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKL'].join('-');
+  const findings = secretsIn([
+    { path: 'src/none.js', line: 1, text: `const k = "${none}";` },
+    { path: 'src/legacy.js', line: 2, text: `const k = "${legacyUnderscore}";` },
+  ]);
+  assert.deepEqual(findings, ['OpenAI key at src/none.js:1', 'OpenAI key at src/legacy.js:2']);
+});
