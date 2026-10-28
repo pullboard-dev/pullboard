@@ -454,7 +454,8 @@ export function register(board, who) {
           if (error.code !== 'PARENT_SESSION_CHANGED') throw error;
         }
       } else saveJoinedSession(board, existing.agent_id, who);
-      if (family !== undefined && family !== existing.agent_family) {
+      // From the declare engine a declared family is final: another spelling of it is the same declaration, not an update.
+      if (family !== undefined && family !== existing.agent_family && !(declaring && existing.agent_family)) {
         board.db.prepare('UPDATE agent SET agent_family = ? WHERE agent_id = ?').run(family, existing.agent_id);
         logEvent(board, existing.agent_id, 'family', null, { family });
       }
