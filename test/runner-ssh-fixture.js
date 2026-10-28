@@ -17,7 +17,7 @@ export function shellQuote(value) {
  * `stderrLog` also copies the worker's stderr, so a test can read its result receipt, and `nodeOptions` reaches the
  * worker's own Node process, so a test can force an ordering inside it.
  */
-export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false }) {
+export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false, healthFailures = 0, deferFirstWorker = '', deferredFrame = '' }) {
   const ssh = join(bin, 'ssh');
   const source = `#!/usr/bin/env node
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -28,14 +28,15 @@ const divider = argv.indexOf('--');
 const host = divider >= 0 ? argv[divider + 1] : '';
 const remoteCommand = divider >= 0 ? argv[divider + 2] : '';
 const registrationGuiProbe = remoteCommand.includes('/* pullboard registration GUI probe */');
+const workerHealthProbe = remoteCommand.includes(' --health ');
 // Registration observations are real transports, recorded separately from job/dispatch statistics.
-const requests = ${JSON.stringify(requests)} + (registrationGuiProbe ? '.gui-probes' : '');
-const starts = registrationGuiProbe ? '' : ${JSON.stringify(starts ?? '')};
+const requests = ${JSON.stringify(requests)} + (registrationGuiProbe ? '.gui-probes' : workerHealthProbe ? '.health-probes' : '');
+const starts = registrationGuiProbe || workerHealthProbe ? '' : ${JSON.stringify(starts ?? '')};
 const worker = ${JSON.stringify(worker)};
 const home = ${JSON.stringify(home)};
 const machineHome = ${JSON.stringify(machineHome)};
 const configuredNode = ${JSON.stringify(`${shellQuote(nodeCommand)} --input-type=module -e `)};
-const dropAfterMarker = registrationGuiProbe ? '' : ${JSON.stringify(dropAfterMarker ?? '')};
+const dropAfterMarker = registrationGuiProbe || workerHealthProbe ? '' : ${JSON.stringify(dropAfterMarker ?? '')};
 const secret = ${JSON.stringify(SECRET)};
 const call = existsSync(requests) ? readFileSync(requests, 'utf8').split('\\n').filter(Boolean).length + 1 : 1;
 const stdinHash = createHash('sha256');
@@ -75,14 +76,31 @@ if (host !== ${JSON.stringify(HOST)} && host !== ${JSON.stringify(`${HOST}-drop`
 if (${JSON.stringify(healthDown)} && !remoteCommand.startsWith(configuredNode)) {
   record({ healthProbeFailed: true, stdinBytes }); process.exit(255);
 }
+if (workerHealthProbe && call <= ${JSON.stringify(healthFailures)}) { record({ healthProbeFailed: true, stdinBytes }); process.exit(255); }
+if (!registrationGuiProbe && !workerHealthProbe && ${JSON.stringify(deferFirstWorker)} && call === 1) {
+  writeFileSync(${JSON.stringify(deferFirstWorker)}, remoteCommand);
+  await new Promise(resolve => {
+    let frame = Buffer.alloc(0);
+    process.stdin.on('data', part => {
+      frame = Buffer.concat([frame, part]);
+      const newline = frame.indexOf(10);
+      if (newline < 0) return;
+      const size = Number(frame.subarray(0,newline).toString('ascii'));
+      if (!Number.isSafeInteger(size) || size < 1 || size > 1048576) process.exit(255);
+      if (frame.length >= newline+1+size) { writeFileSync(${JSON.stringify(deferredFrame)},frame.subarray(0,newline+1+size)); resolve(); }
+    });
+    process.stdin.resume();
+  });
+  record({ deferredBeforeLaunch: true, stdinBytes }); process.exit(255);
+}
 if (starts) appendFileSync(starts, JSON.stringify({ call, host }) + '\\n');
 const phases = requests + '.phases';
-const hold = registrationGuiProbe ? '' : ${JSON.stringify(hold)};
+const hold = registrationGuiProbe || workerHealthProbe ? '' : ${JSON.stringify(hold)};
 const holdHere = () => new Promise(() => { setInterval(() => {}, 60_000); });
 if (hold === 'dispatch') await holdHere();
 appendFileSync(phases, 'dispatched\\n');
 if (hold === 'run') await holdHere();
-${dropFirst ? `if (!registrationGuiProbe && host.endsWith('-drop') && call === 1) {
+${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && host.endsWith('-drop') && call === 1) {
   process.stdin.once('data', () => {
     record({ dropped: true, stdinBytes, stdinSha256: stdinHash.digest('hex') }); process.exit(255);
   });
@@ -90,14 +108,14 @@ ${dropFirst ? `if (!registrationGuiProbe && host.endsWith('-drop') && call === 1
 } else` : ''} {
   const env = { PATH: process.env.PATH, HOME: home, TMPDIR: process.env.TMPDIR,
     PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, LANG: 'C', LC_ALL: 'C', TZ: 'UTC',
-    ...((registrationGuiProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)})
-      ? { NODE_OPTIONS: registrationGuiProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)} } : {}) };
+    ...((registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)})
+      ? { NODE_OPTIONS: registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)} } : {}) };
   // Replace the marker-driven shell so the injected HUP reaches the actual worker process.
   const child = spawn('/bin/sh', ['-c', remoteCommand], { cwd: worker, env,
     stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdout.pipe(process.stdout);
   child.stderr.pipe(process.stderr);
-${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe) appendFileSync(${JSON.stringify(stderrLog)}, part); });\n` : ''}${invalidSpec ? `  if (!registrationGuiProbe) {
+${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe && !workerHealthProbe) appendFileSync(${JSON.stringify(stderrLog)}, part); });\n` : ''}${invalidSpec ? `  if (!registrationGuiProbe && !workerHealthProbe) {
     child.stdin.write('2\\n{}'); // Keep this owned pipe open: a refused worker must close it itself.
     process.stdin.resume();
   } else child.stdin.end();` : '  process.stdin.pipe(child.stdin);'}
