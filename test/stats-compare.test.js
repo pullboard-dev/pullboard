@@ -156,7 +156,13 @@ test('ordinary next records its structured observation but stats reads add no id
   assert.equal(observed.length, 1, result.stdout + result.stderr);
   assert.equal(observed[0].event_by, 'coordinator');
   assert.deepEqual(JSON.parse(observed[0].event_detail), { ...idle('nothing-eligible'), model: 'unknown' });
-  assert.deepEqual(box.history().filter(row => row.event_kind !== 'next-idle'), before);
+  assert.deepEqual(box.history().slice(0, before.length), before);
+  const added = box.history().slice(before.length);
+  assert.deepEqual(added.map(row => row.event_kind), ['spec_approval_baseline', 'next-idle'],
+    'the first writable CLI also records its ordinary immutable spec baseline');
+  const anchor = runFixtureGit(['rev-parse', 'HEAD'], { cwd: box.root, encoding: 'utf8' }).stdout.trim();
+  assert.equal(added[0].event_by, 'coordinator');
+  assert.deepEqual(JSON.parse(added[0].event_detail), { version: 1, file: 'SPEC.md', anchor, rows: [], model: 'unknown' });
   const after = box.history();
   const stats = await cli(box.root, box.clock, ['stats', '--window', '1h', '--compare', '--json']);
   assert.equal(stats.code, 0, stats.stderr);
