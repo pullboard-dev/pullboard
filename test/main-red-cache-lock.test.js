@@ -16,7 +16,7 @@ function put(root, file, source) { mkdirSync(dirname(join(root, file)), { recurs
 /** Preserve real CLI output and fail setup at its actual refusal. */
 function cli(box, root, ...args) {
   const run = runFixtureChild(process.execPath, [BIN, ...args, '--json'], { cwd: root, env: box.env, encoding: 'utf8' });
-  assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
+  assert.equal(run.status, 0, (run.context ?? '') + '\n' + run.stdout + run.stderr);
   return JSON.parse(run.stdout);
 }
 /** Commit genuine fixture source with isolated identity. */
@@ -59,7 +59,7 @@ function fixture(t) {
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
   cli(box, root, 'init');
   put(root, 'package.json', '{"type":"module"}\n');
-  put(root, 'pullboard.json', JSON.stringify({ gate: 'node test/runner.js', affectedTests: 'node test/runner.js', lanes: { core: { owns: ['changes/'], specs: ['G'] } } }));
+  put(root, 'pullboard.json', JSON.stringify({ gate: 'node test/runner.js', affectedTests: 'node test/runner.js', lanes: { core: { owns: ['changes/', 'test/'], specs: ['G'] } } }));
   put(root, 'SPEC.md', '# Fixture\n\n## G · Goals\n- G1 [approved, must] Configured checks describe this fixture. | gate: test/runner.js\n');
   for (const name of ['a', 'b']) put(root, `test/${name}.test.js`, `import assert from 'node:assert/strict';import {test} from 'node:test';test('${name} actual inherited assertion [G1]',()=>assert.equal(1,2));\n`);
   put(root, 'test/runner.js', [
