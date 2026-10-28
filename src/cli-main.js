@@ -34,6 +34,7 @@ export function traceServeStartup(phase) {
 const OPTIONS = {
   criterion: { type: 'string' },
   sensitive: { type: 'boolean' },
+  'review-tier': { type: 'string' },
   'review-family': { type: 'string' },
   sandbox: { type: 'boolean' },
   lane: { type: 'string' },

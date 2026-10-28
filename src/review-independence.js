@@ -1,4 +1,5 @@
 /** Native review policy and explanations replace prose lineage screening [V4,B26,H16]. */
+import { REVIEW_TIER_ENGINE } from './review-tier-engine.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from './review-independence-engine.js';
 import { effectiveAgentParent } from './seat-review-read.js';
@@ -16,9 +17,13 @@ export function twoTierReviews(board) {
 }
 
 /** Validate optional policy fields before a move, refusing richer fields under historical engines. */
-export function reviewPolicyChange(board, id, { sensitive, reviewFamily } = {}) {
-  const present = sensitive !== undefined || reviewFamily !== undefined;
+export function reviewPolicyChange(board, id, { sensitive, reviewFamily, reviewTier } = {}) {
+  const present = sensitive !== undefined || reviewFamily !== undefined || reviewTier !== undefined;
   if (!present) return null;
+  if (reviewTier !== undefined) {
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) < REVIEW_TIER_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before marking a review tier');
+    if (reviewTier !== 'strict') throw new Refused('BAD_REVIEW_POLICY', 'review-tier accepts only strict; classified and coordinator-marked work cannot be downgraded');
+  }
   if (!twoTierReviews(board)) {
     if (sensitive !== undefined) throw new Refused('ENGINE_VERSION', 'sensitive review policy requires a newer engine');
     validateReviewFamily(reviewFamily);
@@ -31,6 +36,7 @@ export function reviewPolicyChange(board, id, { sensitive, reviewFamily } = {}) 
   }
   const before = id === null ? { sensitive: false, reviewFamily: null } : itemReviewPolicy(board, id);
   return { version: 1, sensitive: sensitive ?? before.sensitive,
+    ...(reviewTier === 'strict' || before.reviewTier === 'strict' ? { reviewTier: 'strict' } : {}),
     reviewFamily: reviewFamily === undefined ? before.reviewFamily : reviewFamily === null ? null : reviewFamily.trim() };
 }
 

@@ -1,3 +1,6 @@
+import { itemPatchPaths } from './item-patch-paths.js';
+import { safeItemPatchPath as safePath } from './item-patch-paths.js';
+export { itemPatchPaths } from './item-patch-paths.js';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
@@ -12,40 +15,12 @@ function sha(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
 /** Refuse unsupported composition inputs without executing candidate code. */
 function refuse(message) { throw new Refused('ITEM_PATCH', message); }
 
-/** Accept only portable repository paths, excluding Git control directories. */
-function safePath(path) {
-  return typeof path === 'string' && path.length <= 4096 && !/[\\\s\x00-\x1f\x7f]/.test(path)
-    && !path.startsWith('/') && !path.includes(':')
-    && path.split('/').every(part => part && part !== '.' && part !== '..' && part.toLowerCase() !== '.git');
-}
-
 /** Execute Git plumbing with an isolated index and no optional live-index locks. */
 function git(root, env, args, input) {
   try {
     return execFileSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgSign=false', ...args],
       { cwd: root, env, input, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, stdio: ['pipe', 'pipe', 'pipe'] });
   } catch { refuse(`patch composition refused by Git (${args[0]}); resolve the patch against the exact submitted commit`); }
-}
-
-/** Validate a deliberately bounded ordinary Git patch; all declared paths must be safe. */
-export function itemPatchPaths(patch) {
-  const paths = new Set();
-  for (const line of patch.split('\n')) {
-    if (line.startsWith('diff --git ')) {
-      const match = /^diff --git a\/(\S+) b\/(\S+)$/.exec(line);
-      if (!match || match[1] !== match[2] || !safePath(match[1])) refuse('unsupported or unsafe patch path');
-      paths.add(match[1]);
-    }
-    if (/^(?:rename |copy |similarity index |dissimilarity index )/.test(line)) refuse('rename and copy patches are unsupported');
-    const mode = /^(?:old mode|new mode|new file mode|deleted file mode) (\d+)$/.exec(line);
-    if (mode && !['100644', '100755'].includes(mode[1])) refuse('only regular-file patch modes are supported');
-    if (line.startsWith('--- ') || line.startsWith('+++ ')) {
-      const path = line.slice(4);
-      if (path !== '/dev/null' && (!/^[ab]\//.test(path) || !safePath(path.slice(2)))) refuse('unsafe patch file header');
-    }
-  }
-  if (!paths.size) refuse('patch has no supported file changes');
-  return paths;
 }
 
 /** Validate the native author snapshot, without inventing or resolving session authority. */
