@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
+import { copyPackageFiles } from '../src/package-files.js';
 
 test('the repository static style command enforces its source rules [C7]', () => {
   const before = performance.now();
@@ -21,11 +22,10 @@ test('the static checks read every source file for one import binding per line [
   const root = mkdtempSync(join(tmpdir(), 'pullboard-static-style-recursive-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const repository = resolve(import.meta.dirname, '..');
-  cpSync(join(repository, 'src'), join(root, 'src'), { recursive: true });
-  for (const directory of ['bin', 'test']) mkdirSync(join(root, directory), { recursive: true });
-  for (const file of ['static-style-checks.js']) cpSync(join(repository, 'bin', file), join(root, 'bin', file));
+  copyPackageFiles(repository, root);
+  mkdirSync(join(root, 'test'), { recursive: true });
   cpSync(join(repository, 'test/wall-clock-budgets.js'), join(root, 'test/wall-clock-budgets.js'));
-  for (const file of ['package.json', 'pullboard.json']) cpSync(join(repository, file), join(root, file));
+  cpSync(join(repository, 'pullboard.json'), join(root, 'pullboard.json'));
 
   const nested = 'src/commands/nested/import-style-fixture.js';
   mkdirSync(join(root, 'src/commands/nested'), { recursive: true });
