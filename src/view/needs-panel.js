@@ -49,15 +49,22 @@ export function needsPanelHtml(model, presentation = new Map()) {
   const rowHtml = row => {
     const shown = presentation.get(row.key) || {};
     const attributes = row.attribute ? { [row.attribute[0]]: row.attribute[1] } : {};
-    const detailHtml = '<div class="needs-detail">' + (row.body ? '<p>' + (shown.bodyHtml ?? escape(row.body)) + '</p>' : '') + (row.fields.length ? '<dl>' + row.fields.map(([label, value, code, meta]) => '<dt>' + escape(label) + '</dt><dd data-needs-field="' + escape(label.toLowerCase().replace(/ /g,'-')) + '">' + (code ? '<code'+(meta?.title?' title="'+escape(meta.title)+'"':'')+'>' + escape(value) + '</code>' : escape(value)) + (label==='Approved in Git' ? ' · '+(Number.isFinite(Date.parse(meta?.date))?'<time datetime="'+escape(meta.date)+'" title="'+escape(meta.date)+'">'+escape(shown.approvalDateLabel || 'Date unknown')+'</time>':'Date unknown'):'') + '</dd>').join('') + '</dl>' : '')
+    const revision = row.source.kind === 'spec-revision';
+    const comparison = revision ? '<div class="revision-columns"><section data-revision-before><h3>Current row</h3><pre>'
+      + escape(row.source.source) + '</pre></section><section data-revision-after><h3>Proposed row</h3><pre>'
+      + escape(row.source.replacement) + '</pre></section></div><p class="revision-reason">' + escape(row.source.reason) + '</p>' : '';
+    const detailHtml = '<div class="needs-detail">' + (revision ? comparison : (row.body ? '<p>' + (shown.bodyHtml ?? escape(row.body)) + '</p>' : '') + (row.fields.length ? '<dl>' + row.fields.map(([label, value, code, meta]) => '<dt>' + escape(label) + '</dt><dd data-needs-field="' + escape(label.toLowerCase().replace(/ /g,'-')) + '">' + (code ? '<code'+(meta?.title?' title="'+escape(meta.title)+'"':'')+'>' + escape(value) + '</code>' : escape(value)) + (label==='Approved in Git' ? ' · '+(Number.isFinite(Date.parse(meta?.date))?'<time datetime="'+escape(meta.date)+'" title="'+escape(meta.date)+'">'+escape(shown.approvalDateLabel || 'Date unknown')+'</time>':'Date unknown'):'') + '</dd>').join('') + '</dl>' : ''))
       + (shown.feedbackHtml || '') + (shown.controlsHtml || '') + '</div>';
     return sharedRowHtml({ variant: 'needs', state: row.kind, id: row.id, title: row.title, meta: row.context, chip: row.action,
       iconHtml: ({ question: '?', sentinel: '◉', approval: '✓', draft: '≡' })[row.kind], timeHtml: row.ageAt ? shown.ageHtml || '' : '',
-      className: row.source.kind === 'agent-approved' ? 'agent-approval' : '', attributes,
+      className: row.source.kind === 'agent-approved' ? 'agent-approval' : revision ? 'spec-revision' : '', attributes,
       detailsAttributes: { 'data-needs-key': row.key, 'data-dashboard-disclosure': 'needs:' + row.key },
       open: model.expanded.includes(row.key), detailHtml });
   };
-  const draftRow = model.drafts ? '<li class="needs-call needs-drafts"><button type="button" data-go="tab:spec">' + icon('draft') + '<span class="needs-copy"><b>' + model.drafts + ' draft spec rows to approve or drop</b><small>In the Spec tab, one by one or a section at a time</small></span><span class="needs-action">Review</span></button></li>' : '';
+  const draftCopy = icon('draft') + '<span class="needs-copy"><b>' + model.drafts + ' draft spec rows to approve or drop</b><small>In the Spec tab, one by one or a section at a time</small></span><span class="needs-action">Review</span>';
+  const draftRow = model.drafts ? '<li class="needs-call needs-drafts">' + (model.person
+    ? '<button type="button" data-go="tab:spec">' + draftCopy + '</button>'
+    : '<span>' + draftCopy + '</span>') + '</li>' : '';
   if (model.compact) {
     const shown = [...model.questions, ...model.approvals].slice(0, 3), more = model.sortedCount - shown.length;
     return shown.map(rowHtml).join('') + (more || model.drafts ? '<li class="needs-more"><button type="button" data-needs-list>' + more + ' more' + (model.drafts ? ' and ' + model.drafts + ' draft rows' : '') + ' in Needs you</button></li>' : '');

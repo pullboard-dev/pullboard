@@ -6,8 +6,8 @@
  "frontDoor": "packages/items/index.js",
  "placedBy": {
   "seed": 41,
-  "rule": 10,
-  "imports": 1
+  "rule": 13,
+  "imports": 3
  },
  "paths": [
   ["src/blocks.js","packages/items/src/shell/blocks.js","seed"],
@@ -61,7 +61,12 @@
   ["src/work-order.js","packages/items/src/core/work-order.js","seed"],
   ["test/bar-native-session.test.js","packages/items/tests/bar-native-session.test.js","seed"],
   ["test/decision-handoff.test.js","packages/items/tests/decision-handoff.test.js","seed"],
-  ["test/item-offer.test.js","packages/items/tests/item-offer.test.js","seed"]
+  ["test/item-offer.test.js","packages/items/tests/item-offer.test.js","seed"],
+  ["src/check-timing.js","packages/items/src/core/check-timing.js","imports"],
+  ["src/item-edit-bar.js","packages/items/src/core/item-edit-bar.js","rule"],
+  ["src/item-patch-paths.js","packages/items/src/core/item-patch-paths.js","rule"],
+  ["src/item-patch-submit.js","packages/items/src/shell/item-patch-submit.js","rule"],
+  ["src/lifecycle-move.js","packages/items/src/core/lifecycle-move.js","imports"]
  ],
  "reexports": [
   "src/blocks.js",
