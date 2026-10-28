@@ -1,6 +1,7 @@
 /** Normalize execution facts without inventing missing runtime identities or test counts [C7,H16]. */
 import { createHash } from 'node:crypto';
 import { environmentProblem } from './config.js';
+import { testOutcomeFields } from './test-outcomes.js';
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;
 const ID = /^[a-f0-9-]{36}$/u;
@@ -81,6 +82,9 @@ function collectionFields(value) {
 /** The checks behind receiptFields; each malformed field throws, and receiptFields turns that into null. */
 function checkedFields(value) {
   const bad = () => new TypeError('malformed gate receipt');
+  const hasTestOutcomes = Object.hasOwn(value ?? {}, 'testOutcomes');
+  const testOutcomes = hasTestOutcomes ? testOutcomeFields(value.testOutcomes) : null;
+  if (hasTestOutcomes && !testOutcomes) throw bad();
   if (Object.hasOwn(value ?? {}, 'environment') && value.environment !== null && environmentProblem(value.environment)) throw bad();
   const proof = value?.version === 2 ? proofFields(value.proof) : null;
   const version = value?.version;
@@ -114,6 +118,7 @@ function checkedFields(value) {
   return { version, id: value.id, kind: value.kind, tree: value.tree, head: value.head, main: value.main, command: value.command,
     green: value.green, failures, load: load === null ? null : { average: [...load.average], cpus: load.cpus, freeMB: load.freeMB }, at: value.at,
     ...(proof ? { proof } : {}), ...(Object.hasOwn(value, 'environment') ? { environment: value.environment } : {}),
+    ...(hasTestOutcomes ? { testOutcomes } : {}),
     ...(hasCollection ? { collection } : {}), ...(hasParticipation ? { participationDigest: value.participationDigest } : {}),
     ...(hasTiming ? { full: value.full, timing } : {}) };
 }

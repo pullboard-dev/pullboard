@@ -35,9 +35,16 @@ import { optionTakesValue } from '../src/test-file-dispatch.js';
 import { knownNodeOption } from '../src/test-file-dispatch.js';
 import { COLLECTION_ID_ENV } from '../src/gate-run-receipt.js';
 import { beginSuiteTiming, TIMING_RUN_ID_ENV } from '../src/run-timing.js';
+import { hasTestFiles as selectedFilesPresent } from '../src/test-selection.js';
+import { explicitTestFiles as selectedFiles } from '../src/test-selection.js';
+import { formatTestOutcomes } from '../src/test-outcomes.js';
 import { removeGitRepositorySelectors } from '../src/git-child-selectors.js';
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.
 removeGitRepositorySelectors(process.env, process.stderr.write.bind(process.stderr));
+/** Keep selected path parsing on the same native option-arity contract. */
+const explicitTestFiles = args => selectedFiles(args, optionTakesValue);
+/** Distinguish actual files from option values before admission. */
+const hasTestFiles = args => selectedFilesPresent(args, optionTakesValue);
 const runner = fileURLToPath(import.meta.url);
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
 const LANDING_WORKER_STARTS_ENV = 'PULLBOARD_LANDING_WORKER_STARTS';
@@ -724,6 +731,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   const { landingWaiverProjection, landingFailureWaived, publishLandingCollection } = await import('../src/landing-test-policy.js');
   const retainedFailure = landingFailureReport();
   const waivers = landingWaiverProjection(process.env[LANDING_WAIVERS_ENV]);
+  let testOutcomes = null;
   const waivedFiles = new Map();
   const { dispatchTestFiles, legacyFileMode } = await import('../src/test-file-dispatch.js');
   const { run } = await import('node:test');
@@ -1056,6 +1064,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     if (streamErrored && !streamClosed) await closed;
     await abortPromise;
     await Promise.all(reporterEnds);
+    testOutcomes = stream.testOutcomes ?? null;
     runFinished = true;
     for (const receipt of landingWorkerReceipts(workerStartsPath)) {
       if (receipt.attempt === attempt && ['worker', 'worker-identity-unavailable'].includes(receipt.type)
@@ -1100,42 +1109,9 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     process.exitCode = 1;
     return { status: 1, signal: null };
   }
-  return { status: successful && !firstFailure ? 0 : 1, signal: null, completedFiles: [...completedFiles],
+  return { status: successful && !firstFailure ? 0 : 1, signal: null, testOutcomes, completedFiles: [...completedFiles],
     collectionComplete: !stoppedByLanding && !collectionCancelled && !cleanupUnverifiedReported && selectedFiles?.length > 0
       && selectedFiles.every(file => completedFiles.has(file)) };
-}
-
-/** Distinguish file selection from option values so filtered discovery still takes a full-suite slot. */
-function hasTestFiles(args) {
-  let takesValue = false;
-  for (let index = 0; index < args.length; index += 1) {
-    const argument = args[index];
-    if (takesValue) { takesValue = false; continue; }
-    if (argument === '--') return index < args.length - 1;
-    if (argument.startsWith('-')) {
-      if (!argument.includes('=')) takesValue = optionTakesValue(argument);
-      continue;
-    }
-    return true;
-  }
-  return false;
-}
-
-/** Extract explicit test paths while skipping option values, returning an empty list for discovery. */
-function explicitTestFiles(args) {
-  const files = [];
-  let takesValue = false;
-  for (let index = 0; index < args.length; index += 1) {
-    const argument = args[index];
-    if (takesValue) { takesValue = false; continue; }
-    if (argument === '--') { files.push(...args.slice(index + 1)); break; }
-    if (argument.startsWith('-')) {
-      if (!argument.includes('=')) takesValue = optionTakesValue(argument);
-      continue;
-    }
-    files.push(argument);
-  }
-  return files;
 }
 
 /**
@@ -1239,6 +1215,7 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, 
     ? await runLandingTests(selectedArgs, env, concurrency, fullSuite && patterns.length === 0)
     : await runTests(selectedArgs, env, concurrency);
   if (result.error) throw result.error;
+  process.stdout.write(formatTestOutcomes(timing.id, result.testOutcomes));
   timing.complete(result, explicitTestFiles(selectedArgs), performance.now() - attemptAt);
   return selectedTestResult(result, env.PULLBOARD_TEST_SELECTION, patterns, explicitTestFiles(selectedArgs));
 }
