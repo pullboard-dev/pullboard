@@ -137,14 +137,15 @@ function dynamicLiteralAt(source, at) {
  * or object, still reads as a call: the scan errs toward a false alarm, never a miss.
  *
  * @param {string[]} sources - Each one a module that compiles.
+ * @param {(sources: string[]) => Array<{compiles: boolean, imports: string[]}>} [parse] - Private compile-only batches; ordinary callers retain the isolated parser.
  * @returns {string[][]}
  */
-export function importsIn(sources) {
+export function importsIn(sources, parse = look) {
   const calls = sources.map((source) => [...source.matchAll(IMPORT)].map((match) => match.index).filter((at) => pastGap(source, at + 'import'.length)[0] === '('));
   const variants = sources.flatMap((source, index) =>
     calls[index].flatMap((at) => [`${source.slice(0, at)}\u0000${source.slice(at)}`, `${source.slice(0, at)}1${source.slice(at + 'import'.length)}`]),
   );
-  const looks = look([...sources, ...variants]);
+  const looks = parse([...sources, ...variants]);
   let next = sources.length;
   const edges = sources.map((source, index) => {
     if (!looks[index].compiles) throw new Error('source does not compile as an ES module');
@@ -157,7 +158,7 @@ export function importsIn(sources) {
     return { imports: looks[index].imports, literals: dynamic.map(at => dynamicLiteralAt(source, at)) };
   });
   const literals = [...new Set(edges.flatMap(edge => edge.literals.filter(Boolean)))];
-  const decoded = literals.length ? look(literals.map(literal => `import ${literal};`)) : [];
+  const decoded = literals.length ? parse(literals.map(literal => `import ${literal};`)) : [];
   const values = new Map(literals.map((literal, index) => [literal, decoded[index].imports[0] ?? COMPUTED]));
   return edges.map(edge => [...edge.imports, ...edge.literals.map(literal => values.get(literal) ?? COMPUTED)]);
 }
@@ -165,9 +166,10 @@ export function importsIn(sources) {
 /** Detect actual CommonJS loader words without executing source; invalid modules are conservatively unknown.
  *
  * @param {string[]} sources
+ * @param {(sources: string[]) => Array<{compiles: boolean, imports: string[]}>} [parse] - Private compile-only batches; ordinary callers retain the isolated parser.
  * @returns {boolean[]}
  */
-export function commonJsIn(sources) {
+export function commonJsIn(sources, parse = look) {
   const occurrences = sources.map((source) => [...new Set([
     ...[...source.matchAll(COMMON_JS)].map((match) => match.index),
     ...[...source.matchAll(UNICODE_ESCAPE)].map((match) => match.index),
@@ -180,7 +182,7 @@ export function commonJsIn(sources) {
       return `${source.slice(0, cut)}\u0000${source.slice(cut)}`;
     }),
   );
-  const looks = look([...sources, ...variants]);
+  const looks = parse([...sources, ...variants]);
   let next = sources.length;
   return sources.map((source, index) => {
     if (!looks[index].compiles) return true;

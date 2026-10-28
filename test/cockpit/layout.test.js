@@ -65,7 +65,7 @@ test('the Dashboard and retained tabs fit two rows on a phone [N26]', async () =
     assert.doesNotMatch(style, /max-width: 480px/, 'at 480px itself the tabs keep their row');
     assert.match(phone, /\.tabs \{ flex: 1 1 100%; display: grid; grid-template-columns: repeat\(4, minmax\(0, 1fr\)\); grid-auto-flow: row;/, 'under 480px eight full labels share two rows of four');
     assert.match(phone, /\.tab \{ display: grid; justify-items: center; align-content: center;/, 'each tab centres its label in its share');
-    assert.match(style, /\n\.tabs \{ display: flex; flex-wrap: wrap; gap: 2px; \}\n/, 'wider, the tabs keep the row they have');
+    assert.match(style, /\n\.tabs \{ display: flex; flex-wrap: wrap; gap: var\(--space-0\); \}\n/, 'wider, the tabs keep the row they have');
     const tabs = [...html.matchAll(/<button class="tab" data-tab="([a-z]+)" type="button">([A-Za-z]+)<\/button>/g)];
     assert.deepEqual(tabs.map((match) => match[2]), ['Dashboard', 'Home', 'Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap'], 'Dashboard leads the retained tabs, each its label alone: their counts are in the status bar');
   } finally {
@@ -164,8 +164,8 @@ test("the view's styles live in their own file [N26]", async () => {
     const style = await styleOf(view);
     assert.match(page.show('detail'), /<\/h2><div class="meta spaced">/);
     assert.match(page.show('spec-detail'), /<\/h2><div class="meta">/);
-    assert.match(style, /\n\.meta \{ [^}]*margin-top: 2px; \}\n/);
-    assert.match(style, /\n\.meta\.spaced \{ margin-top: 6px; \}\n/);
+    assert.match(style, /\n\.meta \{ [^}]*margin-top: var\(--space-0\); \}\n/);
+    assert.match(style, /\n\.meta\.spaced \{ margin-top: var\(--space-2\); \}\n/);
     assert.doesNotMatch(style, /h2 \+ \.meta/, 'no rule reaches past the item into a spec row');
     for (const id of [...page.html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1])) {
       assert.doesNotMatch(page.show(id), /style=/, `#${id} holds no style`);
@@ -184,7 +184,7 @@ test('the status bar holds one line under no pointer [N26]', { timeout: 120_000 
   for (let index = 1; index <= 3; index += 1) {
     box.run(demo.repo, 'add', 'web', `Status item ${index}`, '--specs', 'G1', '--criterion', 'visible on the board');
   }
-  box.run(demo.web, 'shout', 'coordinator', 'Which status label should we use?');
+  box.run(demo.web, 'shout', 'coordinator', 'Which status label should we use?', '--kind', 'question');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-status-none-'));
   const wrapper = join(profile, 'chrome-pointer-none');
@@ -255,9 +255,9 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
   const second = join(box.dir, 'glance-web-2');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/glance2');
   box.run(second, 'join', 'web');
-  box.run(second, 'shout', 'coordinator', 'Free when you need me.');
+  box.run(second, 'shout', 'all', 'Free when you need me.');
   box.run(alpha.repo, 'shout', 'web', 'Pages first, then the footer.');
-  box.run(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision');
+  box.run(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision', '--kind', 'question');
 
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-glance-chrome-'));
@@ -459,7 +459,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     await click('[data-tab=items]');
     const alreadyRead = await chrome.stable('data.project.shouts.length');
     assert.ok(alreadyRead >= 2, `shouts the person has already read: ${alreadyRead}`);
-    box.run(alpha.web, 'shout', 'coordinator', 'web-1 is on it');
+    box.run(alpha.web, 'shout', 'all', 'web-1 is on it');
     await chrome.waitFor("!document.querySelector('#status-unread')?.hidden && document.querySelector('#status-unread')?.textContent === '1 unread'", 15_000); // budget: hang ceiling for the unread bar after the native shout; no throughput claim.
     await click('#status-unread');
     await chrome.waitFor("view.tab === 'shouts' && document.querySelector('#status-unread')?.hidden === true");
@@ -606,9 +606,9 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   box.run(alpha.repo, 'add', 'api', 'Endpoint', '--specs', 'G1', '--criterion', 'answers');
   box.run(alpha.web, 'claim', '1');
-  box.run(alpha.web, 'shout', 'coordinator', 'Greeting is under way; see #2 after.');
+  box.run(alpha.web, 'shout', 'all', 'Greeting is under way; see #2 after.');
   // A shout that is only a reference: nothing shares its line, so it is a target like any button.
-  box.run(alpha.web, 'shout', 'coordinator', '#2');
+  box.run(alpha.web, 'shout', 'all', '#2');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-targets-chrome-'));
   let chrome;

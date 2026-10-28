@@ -1,4 +1,5 @@
 /** Coordinator flow alerts reuse the real Git/SQLite statistics and documented thresholds [N32,R1,R2]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -26,9 +27,7 @@ function releaseFixture(t, { previous = null, version = '0.8.7', changelog = PRI
   mkdirSync(cli);
   mkdirSync(repo);
   if (!freshSetup) writeFileSync(join(repo, 'SPEC.md'), '# Release fixture\n\n## N · Resume\n- N19 [approved, must] Resume announces released headlines once per checkout. | gate: review\n');
-  cpSync(join(import.meta.dirname, '../src'), join(cli, 'src'), { recursive: true });
-  cpSync(join(import.meta.dirname, '../bin'), join(cli, 'bin'), { recursive: true });
-  cpSync(join(import.meta.dirname, '../skills'), join(cli, 'skills'), { recursive: true });
+  copyPackageFiles(join(import.meta.dirname, '..'), cli);
   symlinkSync(join(cli, 'bin/pullboard.js'), join(cli, 'bin/pullboard'));
   const packageData = JSON.parse(readFileSync(join(import.meta.dirname, '../package.json'), 'utf8'));
   writeFileSync(join(cli, 'package.json'), JSON.stringify({ ...packageData, version }));

@@ -1,9 +1,10 @@
 /** @pullboard-test-input source-tree */
 /** A test file whose inputs did not change reuses its green result; a changed import, a red result or a bad entry runs it [C7]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { delimiter, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
@@ -49,8 +50,7 @@ function makeFixture(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-test-actions-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const folder of ['bin', 'lib', 'test']) mkdirSync(join(root, folder));
-  copyFileSync(runner, join(root, 'bin', 'run-tests.js'));
-  cpSync(source, join(root, 'src'), { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
   writeFileSync(join(root, '.gitignore'), 'bin/\nsrc/\nmachine/\n');
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   writeFileSync(join(root, 'lib', 'shared.js'), "export const shared = 'green';\n");
