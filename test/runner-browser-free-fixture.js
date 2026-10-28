@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** A runner registered with no browser slots runs browser-free test files and never browser-bound ones [C7]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import { awaitNestedRun } from '../src/test-file-pool.js';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -49,12 +50,11 @@ async function withNoBrowserRunner(t, { cli, git }, body) {
   assert.equal(initialized.status, 0, initialized.context);
   writeFileSync(join(repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '0.0.0-fixture', private: true, type: 'module' }) + '\n');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
-  cpSync(join(SOURCE, 'src'), join(repo, 'src'), { recursive: true });
-  cpSync(join(SOURCE, 'bin'), join(repo, 'bin'), { recursive: true });
+  copyPackageFiles(SOURCE, repo);
   writeFileSync(join(repo, 'test', 'free.test.js'), FREE);
   writeFileSync(join(repo, 'test', 'chrome.test.js'), CHROME);
   writeFileSync(join(repo, 'test', 'marker.test.js'), MARKER);
-  git(repo, env, 'add', 'package.json', 'pullboard.json', 'src', 'bin', 'test');
+  git(repo, env, 'add', '.');
   git(repo, env, 'commit', '-q', '-m', 'test: commit a browser-free runner fixture');
   installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests });
   const added = cli(repo, env, 'runner', 'add', HOST, '--slots', '1', '--browser', '0', '--json');

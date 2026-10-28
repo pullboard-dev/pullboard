@@ -1,6 +1,6 @@
+/** @pullboard-test-input source-tree */
 /** Cell tool prerequisites use real committed graphs and the actual CLI catalogs [C7]. */
 import assert from 'node:assert/strict';
-import { cpSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -18,6 +18,7 @@ import { selectAffectedTests } from '../src/affected-tests.js';
 import { testClosures } from '../src/affected-tests.js';
 import { repositoryImport } from '../src/import-map.js';
 import { styleSources } from '../src/source-inventory.js';
+import { copyPackageFiles } from '../src/package-files.js';
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));
 const MAP = { '#*': './packages/*/index.js', '#*.js': './packages/*.js' };
@@ -94,8 +95,7 @@ test('source style inventories package tests and apps alongside legacy source [C
 
 test('actual CLI help and API catalog work through a named cell command front door [C7]', t => {
   const box = fixture(t);
-  cpSync(join(REPO, 'src'), join(box.root, 'src'), { recursive: true });
-  cpSync(join(REPO, 'bin'), join(box.root, 'bin'), { recursive: true });
+  copyPackageFiles(REPO, box.root);
   const manifest = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8'));
   box.put('package.json', JSON.stringify({ ...manifest, imports: MAP }));
   box.put('packages/sample/index.js', readFileSync(join(REPO, 'src/commands/version.js'), 'utf8'));
@@ -126,8 +126,7 @@ test('an installed cell resolver upgrade invalidates memo keys outside the candi
   const commit = box.commit();
   const tool = mkdtempSync(join(tmpdir(), 'pullboard-installed-cell-tool-'));
   t.after(() => rmSync(tool, { recursive: true, force: true }));
-  cpSync(join(REPO, 'src'), join(tool, 'src'), { recursive: true });
-  cpSync(join(REPO, 'package.json'), join(tool, 'package.json'));
+  copyPackageFiles(REPO, tool);
   const module = pathToFileURL(join(tool, 'src/test-action-cache.js')).href;
   const script = `import {testActionKeys} from ${JSON.stringify(module)}; const keys = await testActionKeys(${JSON.stringify(box.root)}, {commit:${JSON.stringify(commit)}}); console.log(JSON.stringify(keys.get('packages/sample/tests/value.test.js')));`;
   /** Fresh processes reload the private installed analyzer while the candidate's Git tree stays fixed. */

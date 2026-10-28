@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-input .github/workflows/gate.yml .github/workflows/dco.yml */
 /** Check that main CI shards work without hiding failures or cancelling unrelated runs [C7]. */
+import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -133,7 +134,7 @@ function dcoWorkflowFixture(box) {
   const workspace = join(box.dir, 'dco-tamper-workspace');
   const repo = join(workspace, checkoutPath(steps[0]));
   mkdirSync(repo, { recursive: true });
-  for (const path of ['bin', 'src', 'package.json']) cpSync(join(ROOT, path), join(repo, path), { recursive: true });
+  copyPackageFiles(ROOT, repo);
   box.git(repo, 'init', '-q', '-b', 'main');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ maintainers: ['maintainer@example.test'] }));
   box.git(repo, 'add', '-A');
