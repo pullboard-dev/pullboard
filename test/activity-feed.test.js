@@ -782,7 +782,7 @@ test('inbox omission metadata stays bounded across many digest event kinds [R2,N
 test('activity delivery uses its caller actor and evidence presentation ports [R2,N26,H16]', () => {
   const document = { agents: [], shouts: [{ shout_id: 4, shout_at: '2026-10-28T10:00:00.000Z',
     shout_from: 'web-1', shout_to: 'coordinator', shout_text: 'A concrete blocker.',
-    shout_evidence_kind: 'test', shout_evidence_outcome: 'red', shout_evidence_item: 3 }],
+    shout_evidence_kind: 'test', shout_evidence_outcome: 'red', shout_evidence_item: 3, shout_evidence_commit: 'a'.repeat(40) }],
   activity: { interrupts: [{ id: 'event:7', text: 'The actual obligation text.' }],
     entries: [], digests: [{ text: 'Two routine updates.' }] }, budget: { summary: 'One group withheld.' } };
   const before = structuredClone(document);
@@ -792,7 +792,8 @@ test('activity delivery uses its caller actor and evidence presentation ports [R
     /** The caller owns the existing evidence presentation contract. */
     evidenceLine(row) { return `${row.shout_evidence_kind}:${row.shout_evidence_outcome}:#${row.shout_evidence_item}`; },
   };
-  assert.deepEqual(activityDeliveryLines(document, {}, ports), [
+  const config = { lanes: {}, agents: { names: 'suffix' } };
+  assert.deepEqual(activityDeliveryLines(document, config, ports), [
     '2026-10-28T10:00  caller(web-1) -> caller(coordinator): A concrete blocker.',
     '  test:red:#3', 'interrupt event:7: The actual obligation text.',
     'Two routine updates.', 'One group withheld.',
