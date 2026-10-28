@@ -1,5 +1,6 @@
 /** Finite autonomous main-merge work uses ordinary admission, native receipts and ordered writes [C7,V4,H16]. */
 import { copyFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -87,7 +88,17 @@ function snapshot(root, info) {
 
 /** Exact readonly eligibility probe used by the foreground nudge before it spawns a worker. */
 export function hasSourceAdvanceJobs(root, info = repoInfo(root)) {
-  return snapshot(root, info).length > 0;
+  if (snapshot(root, info).length > 0) return true;
+  const directory = sourceAdvanceDirectory(info);
+  if (!existsSync(directory)) return false;
+  const ownerFile = join(directory, 'owner.json'), wakeFile = join(directory, 'wake.json');
+  // An empty current snapshot does not erase an already-issued wake. Let the
+  // serialized owner settle that generation before treating the repository as idle.
+  if (existsSync(ownerFile)) return true;
+  if (!existsSync(wakeFile)) return false;
+  const wake = readMainAudit(wakeFile), settled = readMainAudit(join(directory, 'settled.json'));
+  if (!Number.isSafeInteger(wake?.generation) || wake.generation < 0) return true;
+  return !Number.isSafeInteger(settled?.generation) || settled.generation < wake.generation;
 }
 
 /** Signal incomplete work once through the ordinary item thread without a self-shout or fabricated authority. */

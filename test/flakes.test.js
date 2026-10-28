@@ -15,7 +15,7 @@ import { land } from '../src/land.js';
 import { nudgeMainAudit } from '../src/main-audit-nudge.js';
 import { nudgeSourceAdvances } from '../src/source-advance-nudge.js';
 import { runMainAudits } from '../src/main-audit-worker.js';
-import { runSourceAdvances } from '../src/source-advance-worker.js';
+import { hasSourceAdvanceJobs, runSourceAdvances } from '../src/source-advance-worker.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TITLE = 'a controlled intermittent assertion [C7]';
@@ -79,6 +79,17 @@ test('empty automatic wakes leave no advisory state in a private repository [C7,
     'a source worker with no eligible submissions leaves no lock or wake files');
   assert.equal(existsSync(join(pullboard, 'main-audits')), false,
     'an audit worker without the explicit activation leaves no directory');
+
+  const sourceAdvances = join(pullboard, 'source-advances');
+  mkdirSync(sourceAdvances, { recursive: true });
+  writeFileSync(join(sourceAdvances, 'wake.json'), JSON.stringify({ generation: 1 }) + '\n');
+  assert.equal(hasSourceAdvanceJobs(box.root), true,
+    'an already-issued wake remains work even when its current item snapshot is empty');
+  await runSourceAdvances(box.root, randomUUID());
+  assert.deepEqual(JSON.parse(readFileSync(join(sourceAdvances, 'settled.json'), 'utf8')).generation, 2,
+    'the worker drains the preexisting generation and its own wake before returning');
+  assert.equal(existsSync(join(sourceAdvances, 'owner.json')), false,
+    'settled generations release their exact private owner');
 });
 
 /** Keep the exact same test identity on main and a candidate, with independently controlled behavior. */
