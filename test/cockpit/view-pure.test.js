@@ -395,6 +395,17 @@ test('timeline references keep URLs and absolute paths as literal prose [N26,B23
   }
 });
 
+test('timeline prose ratios and diff prefixes stay text while a hash beside a slash stays a hash [N26,B23]', () => {
+  const sha = 'abcdef1234567890abcdef1234567890abcdef12';
+  const refs = [];
+  const text = `2/2 Items24/25 clamp/words/grouping/references a/test/cockpit/agents.test.js ${sha}/tree${sha}`;
+  const html = timelineBodyHtml(text, { commit: sha,
+    codeLink: ref => { refs.push(ref); return '<button data-code="' + ref + '">code</button>'; } });
+  assert.deepEqual(refs, [], 'slash-separated prose and diff prefixes name no repository file');
+  assert.ok(html.startsWith('2/2 Items24/25 clamp/words/grouping/references a/test/cockpit/agents.test.js '), 'original prose stays intact');
+  assert.ok(html.includes('data-copy="' + sha + '">' + sha.slice(0, 12) + '</code>/tree' + sha), 'a commit followed by a slash retains its hash chip');
+});
+
 test('timeline text keeps quoted words, escapes markup and binds only detected references [N26,B23]', () => {
   const sha = 'abcdef1234567890abcdef1234567890abcdef12';
   const text = `A <script>ONE_CLAIM</script> says #2; src/example.js:2@${sha}; README.md:1@${sha}; ${sha}; 2026-10-28T12:34:56Z. ../outside.js stays text.`;
