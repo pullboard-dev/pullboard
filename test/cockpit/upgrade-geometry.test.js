@@ -1,7 +1,8 @@
 /** @pullboard-test-gui */
 /** Real private CLI restart and upgrade presentation journey, registered by the Items and geometry checks [N26]. */
+import { copyPackageFiles } from '../../src/package-files.js';
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, pickProject, press } from './fixture.js';
@@ -16,7 +17,7 @@ test('the view shows what is new once after an upgrade [N26]', async () => {
     for (const board of [alpha, beta]) box.run(board.repo, 'add', 'web', 'First visible item', '--specs', 'G1');
     const cli = join(box.dir, 'upgrade-cli');
     mkdirSync(cli);
-    for (const entry of ['bin', 'src', 'packages', 'skills', 'package.json']) cpSync(resolve(import.meta.dirname, '../..', entry), join(cli, entry), { recursive: true });
+    copyPackageFiles(resolve(import.meta.dirname, '../..'), cli);
     const packagePath = join(cli, 'package.json');
     const packageData = JSON.parse(readFileSync(packagePath, 'utf8'));
     const releases = ['0.8.10', '0.8.9', '0.8.8', '0.8.7', '0.8.4'];

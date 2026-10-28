@@ -12,7 +12,8 @@ const readers = new WeakMap();
 /** Capture the worker closure and actual controller bytes at module load, not at first dispatch. */
 export function captureRunnerTooling(root) {
   const read = runnerPackageReader(root);
-  const loaded = { ...read(), controller: readFileSync(join(root, 'src/runners.js'), 'utf8') };
+  const loaded = { ...read(), controller: readFileSync(join(root, 'src/runners.js'), 'utf8'),
+    controllerEntry: readFileSync(join(root, 'bin/runner-controller.js'), 'utf8') };
   readers.set(loaded, { root: resolve(root), read });
   return loaded;
 }
@@ -26,6 +27,7 @@ export function currentRunnerTooling(root, loaded, { rescan = true } = {}) {
   if (!loaded) return refuse();
   try {
     if (readFileSync(join(root, 'src/runners.js'), 'utf8') !== loaded.controller
+      || readFileSync(join(root, 'bin/runner-controller.js'), 'utf8') !== loaded.controllerEntry
       || Object.entries(loaded.files).some(([name, source]) => readFileSync(join(root, name), 'utf8') !== source)) return refuse();
   } catch { return refuse(); }
   if (!rescan) return { entry: loaded.entry, files: loaded.files };
