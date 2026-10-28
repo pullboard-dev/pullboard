@@ -46,6 +46,8 @@ export function failureSignatures(run, root) {
 export function matchingMainFailures(failures, comparison, main) {
   if (!failures?.length || comparison.main !== main || comparison.unavailable) return null;
   for (const failure of failures) {
+    if (typeof failure.file !== 'string' || !failure.file || /[:\\\p{Cc}]/u.test(failure.file)
+      || failure.file.split('/').some(part => !part || part === '.' || part === '..')) return null;
     const file = comparison.files.find(row => row.file === failure.file);
     const matches = file?.failures?.filter(row => row.file === failure.file && row.name === failure.name);
     if (file?.result !== 'red' || matches?.length !== 1 || matches[0].signature !== failure.signature) return null;
