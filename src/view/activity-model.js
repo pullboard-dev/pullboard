@@ -8,6 +8,14 @@ export function activityModel(project) {
   const agents = new Map((project.agents ?? []).map(agent => [agent.agent_id, agent]));
   const shouts = new Map((project.shouts ?? []).map(shout => [shout.shout_id, shout]));
   const rows = [], consumed = new Set();
+  const handoffKey = event => JSON.stringify([event.event_by, Math.floor(Date.parse(event.event_at) / 60_000)]);
+  const releases = new Map();
+  for (const event of events) {
+    if (event.event_kind !== 'release' || parse(event).review) continue;
+    const key = handoffKey(event);
+    if (!releases.has(key)) releases.set(key, []);
+    releases.get(key).push(event);
+  }
   let previous = [], pending = [];
   const isNotice = event => {
     if (event.event_by !== 'sentinel' || !['shout', 'shout_news'].includes(event.event_kind)) return false;
@@ -69,8 +77,7 @@ export function activityModel(project) {
     if (!event.item_id || !verbs[event.event_kind] || consumed.has(event.event_id)) continue;
     let released = null;
     if (event.event_kind === 'claim') {
-      released = events.find(other => other.event_kind === 'release' && other.event_by === event.event_by && other.item_id !== event.item_id
-        && !consumed.has(other.event_id) && Math.floor(Date.parse(other.event_at) / 60_000) === Math.floor(Date.parse(event.event_at) / 60_000) && !parse(other).review);
+      released = releases.get(handoffKey(event))?.find(other => other.item_id !== event.item_id && !consumed.has(other.event_id));
       if (released) consumed.add(released.event_id);
     }
     rows.push({ id: event.event_id, at: event.event_at, category: 'work', kind: event.event_kind, verb: verbs[event.event_kind],

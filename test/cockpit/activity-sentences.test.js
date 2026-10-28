@@ -128,7 +128,7 @@ test('real board Activity has sentence rows, working filters, full quotes and an
       assert.equal(result.error, undefined, JSON.stringify(result));
     }
     scanId = store.events(board).findLast(entry => entry.event_kind === 'health-scan').event_id;
-    assert.equal(store.allShouts(board).filter(entry => entry.shout_text.startsWith('Stuck: #1 a free item')).length, 2, 'native recording really sends the same notice to agent and coordinator');
+    assert.equal(store.allShouts(board).filter(entry => entry.shout_text.startsWith('Stuck:') && entry.shout_text.includes('[RANK_INVERSION]')).length, 2, 'native recording really sends the same notice to agent and coordinator');
   } finally { store.closeBoard(board); }
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-activity-sentences-'));
   let chrome;

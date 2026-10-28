@@ -116,7 +116,7 @@ function build(box, p, id, file) {
   writeFileSync(join(p.web, 'web', file), `${file}\n`);
   box.git(p.web, 'add', '-A');
   box.git(p.web, 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
-  box.run(p.web, 'submit', String(id));
+  box.run(p.web, 'submit', String(id), '--no-next');
 }
 
 /**
