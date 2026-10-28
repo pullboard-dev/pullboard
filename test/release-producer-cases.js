@@ -1,10 +1,11 @@
-/** @pullboard-test-input src/** bin/** package.json */
+/** @pullboard-test-input source-tree */
 /** Real private native execution through fake SSH capsules; never evidence of eight physical machines [C7,V4]. */
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
+import { copyPackageFiles } from '../src/package-files.js';
 import { awaitNestedRun } from '../src/test-file-pool.js';
 import { runFixtureChild, runFixtureChildAsync } from './fixture-child.js';
 import { installRegistrationProbeStandIn } from './runner-ssh-fixture.js';
@@ -78,9 +79,9 @@ function fixture(t, { red = false, hosts = 7 } = {}) {
   // Accepted fake-runner fixture isolation: these nested runs acquire their own actual private leases.
   for (const key of Object.keys(box.env)) if (/^PULLBOARD_(GATE|BROWSER|TEST|LANDING|RELEASE)_/u.test(key)
     || ['NODE_OPTIONS', 'NODE_TEST_CONTEXT', 'GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'].includes(key)) delete box.env[key];
-  cpSync(join(SOURCE, 'src'), join(box.repo, 'src'), { recursive: true });
-  cpSync(join(SOURCE, 'bin'), join(box.repo, 'bin'), { recursive: true });
-  writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '0.0.0-fixture', private: true, type: 'module' }) + '\n');
+  copyPackageFiles(SOURCE, box.repo);
+  const shippedManifest = JSON.parse(readFileSync(join(box.repo, 'package.json'), 'utf8'));
+  writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ ...shippedManifest, name: 'pullboard', version: '0.0.0-fixture', private: true, type: 'module' }) + '\n');
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ gate: 'node bin/run-tests.js', landingShards: 1 }));
   for (const name of NAMES) writeFileSync(join(box.repo, 'test', `${name}.test.js`), tinyTest(name, box, red));
   git(box, 'init', '-q', '-b', 'main');
