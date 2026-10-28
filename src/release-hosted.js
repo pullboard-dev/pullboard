@@ -9,18 +9,9 @@ import {
 import {
   policyAt,
 } from './trusted-policy-read.js';
-import {
-  releaseReceiptFields,
-  releaseReceiptProblem,
-} from './release-gate-receipt.js';
-import {
-  latestGitHubReleaseRun,
-  readGitHubReleaseReceipt,
-  ReleaseTransportError,
-} from './release-transport.js';
 
 /** Bind authenticated artifact content to independently read tagged Git objects and accepted command policy. */
-export function hostedReleaseFields(root, downloaded, { repository, head }) {
+export function hostedReleaseFields(root, downloaded, { repository, head }, { releaseReceiptFields, releaseReceiptProblem, ReleaseTransportError }) {
   const provenance = downloaded?.provenance;
   if (provenance?.authenticatedTransport !== true || provenance.repository !== repository || provenance.head !== head
     || provenance.workflow !== '.github/workflows/release-gate.yml') throw new ReleaseTransportError('release evidence has no authenticated producer transport');
@@ -35,8 +26,9 @@ export function hostedReleaseFields(root, downloaded, { repository, head }) {
 }
 
 /** Use the real authenticated GitHub transport; test injection never becomes production publishing authority. */
-export async function verifyHostedRelease(root, { repository, head, runId }) {
+export async function verifyHostedRelease(root, { repository, head, runId }, services) {
+  const { latestGitHubReleaseRun, readGitHubReleaseReceipt } = services;
   const selected = runId ?? latestGitHubReleaseRun({ repository, head });
   const downloaded = await readGitHubReleaseReceipt({ repository, head, runId: selected });
-  return { receipt: hostedReleaseFields(root, downloaded, { repository, head }), provenance: downloaded.provenance };
+  return { receipt: hostedReleaseFields(root, downloaded, { repository, head }, services), provenance: downloaded.provenance };
 }

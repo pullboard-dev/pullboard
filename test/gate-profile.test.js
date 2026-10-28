@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { listResources } from '../src/resources.js';
-import { checkAtCommit } from '../src/trusted-policy.js';
+import { checkAtCommit } from '../src/runner-private-check.js';
 import * as store from '../src/board.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
