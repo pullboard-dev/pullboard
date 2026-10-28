@@ -2127,15 +2127,8 @@ export function maintainStaleState(board, options) {
 export { draftSpecRow, rowDrafts } from './row-drafts.js';
 export { recordSpecApprovalBaseline, specApprovalBaseline, specApprovalBaselineExists } from './spec-approval-baseline.js';
 // The roadmap's moves live in milestones.js; the board keeps exporting them so the engine replays them.
-export { addMilestone } from './milestones.js';
+export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone } from './milestones.js';
 export { canonicalMilestoneTarget } from '../packages/state/src/core/milestone-target.js';
-export { editMilestone } from './milestones.js';
-export { editMilestoneItems } from './milestones.js';
-export { orderMilestoneItems } from './milestones.js';
-export { moveMilestone } from './milestones.js';
-export { removeMilestone } from './milestones.js';
-export { roadmap } from './milestones.js';
-export { shipMilestone } from './milestones.js';
 
 export { rowDecisions } from './board-query.js';
 
