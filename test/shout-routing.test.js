@@ -7,6 +7,13 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import * as store from '../src/board.js';
+import { applyEngineMove } from '../src/engine.js';
+import { prepareEngineMove } from '../src/engine.js';
+import { exportBoard } from '../src/exchange.js';
+import { importBoard } from '../src/exchange.js';
+import { minimumMoveEngine } from '../src/move-registry.js';
+import { LANE_LEAD_ENGINE } from '../src/lane-lead-engine.js';
 
 const fixtures = createE2eHelpers();
 after(fixtures.cleanup);
@@ -75,4 +82,46 @@ test('coordinator shouts require explicit kinds while status uses item facts [C7
   const afterShouts = box.run(box.repo, 'export', '--json');
   assert.equal(afterShouts.code, 0, afterShouts.err);
   assert.equal(JSON.parse(afterShouts.out).tables.shout.length, count + 8, 'person, peer and all shouts remain untyped');
+});
+
+test('new coordinator kinds have a distinct replay floor and converge on replicas [C7,H16]', t => {
+  const boards = Array.from({ length: 3 }, () => store.openBoard(':memory:'));
+  t.after(() => { for (const board of boards) store.closeBoard(board); });
+  const [source, left, right] = boards;
+  store.register(source, { lane: 'coordinator', path: '/fixture/kinds-main' });
+  store.register(source, { lane: 'web', path: '/fixture/kinds-worker' });
+  const initial = exportBoard(source);
+  for (const board of [left, right]) importBoard(board, initial);
+  const at = '2026-10-28T00:00:00.000Z';
+  for (const [index, kind] of ['exception', 'idea'].entries()) {
+    const args = [{ from: 'web-1', to: 'coordinator', text: `Declared ${kind}`, kind, lanes: ['web'] }];
+    const floor = minimumMoveEngine('shout', args, source, new Date(at));
+    assert.ok(floor > LANE_LEAD_ENGINE, `${kind} must not advertise the old lane protocol`);
+    const move = prepareEngineMove(source, 'shout', args);
+    const before = exportBoard(left);
+    assert.throws(() => applyEngineMove(left, { ...move, engine: floor - 1 }, { sequence: index + 1, at }),
+      error => error.code === 'RELAY_MOVE');
+    assert.deepEqual(exportBoard(left), before, 'a downgraded envelope changes no receipt, cursor or shout');
+    const results = boards.map(board => applyEngineMove(board, move, { sequence: index + 1, at }));
+    assert.equal(results[0].error, undefined);
+    assert.deepEqual(results[1], results[2]);
+    assert.equal(store.getShout(left, results[1].result).shout_to, 'coordinator');
+    assert.deepEqual(exportBoard(left), exportBoard(right));
+  }
+  assert.equal(minimumMoveEngine('shout', [{ from: 'web-1', to: 'coordinator', text: 'Legacy question', kind: 'question' }], source), LANE_LEAD_ENGINE);
+  assert.equal(minimumMoveEngine('shout', [{ from: 'web-1', to: 'coordinator', text: 'Legacy untyped' }], source), 1);
+});
+
+test('historical lane execution keeps its original message-kind validator [C7,H16]', t => {
+  const board = store.openBoard(':memory:');
+  t.after(() => store.closeBoard(board));
+  store.register(board, { lane: 'coordinator', path: '/fixture/legacy-kinds-main' });
+  store.register(board, { lane: 'web', path: '/fixture/legacy-kinds-worker' });
+  board.executionEngineVersion = LANE_LEAD_ENGINE;
+  const before = exportBoard(board);
+  for (const kind of ['exception', 'idea']) {
+    assert.throws(() => store.shout(board, { from: 'web-1', to: 'coordinator', text: 'New kind on old protocol', kind, lanes: ['web'] }),
+      error => error.code === 'BAD_MESSAGE_KIND');
+  }
+  assert.deepEqual(exportBoard(board), before);
 });
