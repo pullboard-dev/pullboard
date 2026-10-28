@@ -203,7 +203,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
           const gui = testsNeedGui(checkout, [path]);
           /** Run main's copy of the file under one gate slot, retaining detailed identity when requested. */
           const measure = remote => withGateSlot(checkout, async lease => {
-            const command = `${policy.config.affectedTests.trimEnd()} ${shellWord('./' + path)}`;
+            const command = `${fresh ? 'PULLBOARD_TEST_REUSE=0 ' : ''}${policy.config.affectedTests.trimEnd()} ${shellWord('./' + path)}`;
             const run = detailed
               ? runProfiledShell(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true })
               : await runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs });

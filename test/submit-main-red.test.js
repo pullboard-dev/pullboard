@@ -163,6 +163,38 @@ test('known main receipts preserve exact identities and refuse unsupported histo
   assert.equal(matchingMainFailures([{ ...failure, file: 'test/other.test.js' }], compared, main), null);
   assert.equal(matchingMainFailures([{ ...failure, signature: 'd'.repeat(64) }], compared, main), null);
   assert.equal(matchingMainFailures([failure], { main, files: [{ file: failure.file, result: 'red', failures: [failure, failure] }] }, main), null);
+  assert.equal(matchingMainFailures([], compared, main), null, 'zero candidate cases cannot authorize a known main red');
+  assert.equal(matchingMainFailures([failure], { main, files: [] }, main), null, 'an empty comparison proves no case');
+  assert.equal(matchingMainFailures([failure], { main, files: [{ file: failure.file, result: 'red', failures: [] }] }, main), null,
+    'a red process with zero matched cases is not a known main failure');
+  assert.equal(matchingMainFailures([failure], { ...compared, unavailable: 'NO_TESTS_MATCHED' }, main), null);
+  for (const file of ['../outside.test.js', '/tmp/outside.test.js', 'file:///tmp/outside.test.js', 'test/../outside.test.js']) {
+    const unbound = { ...failure, file };
+    assert.equal(matchingMainFailures([unbound], { main, files: [{ file, result: 'red', failures: [unbound] }] }, main), null,
+      'matching unbound strings cannot establish a project test identity');
+  }
+});
+
+test('repair links retain historical receipts and reject closed, stale or ambiguous repairs [V4,B3,H16]', async () => {
+  const { KNOWN_MAIN_REWORKS_ENGINE } = await import('../src/known-main-reworks-engine.js');
+  const { linkKnownMainReworks, requireKnownMainReworks } = await import('../src/known-main-reworks.js');
+  const row = { file: 'test/one.test.js', name: 'one failure [V4]', signature: 'a'.repeat(64) };
+  const known = { main: 'b'.repeat(40), failures: [row] };
+  const repair = { item_id: 7, item_status: 'claimed', item_title: 'Main red: one assertion',
+    item_frozen: JSON.stringify({ check: "node bin/run-tests.js './test/one.test.js'" }), item_check: 'node wrong.test.js' };
+  const linked = linkKnownMainReworks(known, [repair], 1);
+  assert.equal(linked.failures[0].item, 7);
+  assert.doesNotThrow(() => requireKnownMainReworks(linked, [repair], 1));
+  for (const items of [[], [{ ...repair, item_status: 'withdrawn' }], [{ ...repair, item_merged_commit: 'c'.repeat(40) }],
+    [{ ...repair, item_frozen: JSON.stringify({ check: 'node test/other.test.js' }) }], [repair, { ...repair, item_id: 8 }]]) {
+    assert.throws(() => requireKnownMainReworks(linked, items, 1), { code: 'SUBMISSION_PROOF' });
+  }
+  assert.throws(() => requireKnownMainReworks({ ...linked, failures: [{ ...linked.failures[0], item: 8 }] }, [repair], 1), { code: 'SUBMISSION_PROOF' });
+  assert.equal(linkKnownMainReworks(known, [repair], 7), null, 'a submission cannot sponsor its own known failure');
+  const proof = { version: 1, files: [row.file], full: false, deferred: false, reason: '', knownMainFailures: linked };
+  assert.deepEqual(submissionProof(proof, KNOWN_MAIN_REWORKS_ENGINE).knownMainFailures, linked);
+  assert.throws(() => submissionProof(proof, KNOWN_MAIN_FAILURES_ENGINE), { code: 'SUBMISSION_PROOF' });
+  assert.throws(() => submissionProof({ ...proof, knownMainFailures: known }, KNOWN_MAIN_REWORKS_ENGINE), { code: 'SUBMISSION_PROOF' });
 });
 
 test('an exact main red needs an open repair and its reviewer sees the repair link [V4,B3]', t => {
