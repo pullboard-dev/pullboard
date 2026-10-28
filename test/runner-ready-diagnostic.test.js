@@ -81,6 +81,8 @@ function instrument(root) {
   add('const { worker, tooling, runtime } = trustedTooling();','tooling.begin');
   add('const { worker, tooling, runtime } = trustedTooling();','tooling.end',true);
   add("const child = spawn('ssh', request.args,",'ssh.spawn');
+  add('diagnostics.push(chunk);','bridge.stderr',true);
+  source=source.replace("diagnostics.push(chunk);\n"+marker.replace('PLACEHOLDER',JSON.stringify('bridge.stderr')),"diagnostics.push(chunk); process.stderr.write(chunk);");
   const scan=source.includes('const { entry, files } = loadedToolingFiles();')?'const { entry, files } = loadedToolingFiles();':'const files = loadedToolingFiles();';
   if(source.includes(scan)) add(scan,'tooling.loaded',true);
   add("const manifest = JSON.parse(readFileSync(join(TOOL_ROOT, 'package.json'), 'utf8'));",'tooling.secret-scan.end');
@@ -106,12 +108,10 @@ for(const [index,version] of ['accepted','candidate','candidate','accepted'].ent
     t.diagnostic(JSON.stringify({index,version,order:'accepted/candidate/candidate/accepted',cold:'fresh installed bytes and controller process for every case'}));
     const implementation=mkdtempSync(join(tmpdir(),'pullboard-ready-timing-'));
     t.after(()=>rmSync(implementation,{recursive:true,force:true}));
-    if(version==='candidate') copyPackageFiles(new URL('../',import.meta.url).pathname,implementation);
-    else {
-      const archive=execFileSync('git',['archive','8738fa3dc22a42a3b26dc17121558ec34772b5eb'],{cwd:new URL('../',import.meta.url),maxBuffer:256*1024*1024});
-      const extraction=spawnSync('tar',['-x','-C',implementation],{input:archive,encoding:'utf8'});
-      assert.equal(extraction.status,0,extraction.stderr);
-    }
+    const selected=version==='candidate'?'f884f1e38':'8738fa3dc22a42a3b26dc17121558ec34772b5eb';
+    const archive=execFileSync('git',['archive',selected],{cwd:new URL('../',import.meta.url),maxBuffer:256*1024*1024});
+    const extraction=spawnSync('tar',['-x','-C',implementation],{input:archive,encoding:'utf8'});
+    assert.equal(extraction.status,0,extraction.stderr);
     instrument(implementation);
     const gitEnv={...process.env,GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1',GIT_AUTHOR_NAME:'Diagnostic',GIT_AUTHOR_EMAIL:'diagnostic@example.invalid',GIT_COMMITTER_NAME:'Diagnostic',GIT_COMMITTER_EMAIL:'diagnostic@example.invalid'};
     for(const args of [['init','-q'],['add','.'],['commit','-q','-m','diagnostic immutable installed source']]) execFileSync('git',args,{cwd:implementation,env:gitEnv,stdio:'pipe'});
