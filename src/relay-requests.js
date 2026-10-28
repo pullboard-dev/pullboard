@@ -1,15 +1,15 @@
 import { itemCheckBaseline } from './board-query.js';
 /** Durable sealed request intake and ordinary-move receipts; no replica executes CLI intent [H12,H16]. */
+import { answerQuestion } from './spec.js';
 import * as store from './board.js';
 import { createHash } from 'node:crypto';
 import { recordedRefusal } from './recorded-refusal.js';
 import { Refused } from './refused.js';
-import { answerQuestion } from './blueprints.js';
+
 import { personSigning } from './person-signing.js';
 import { signedRowDecisionsMatch } from './person-row-proof.js';
 import { parseImplies } from './implies.js';
 import { validatePersonRequest } from './person-request.js';
-import { relayMoveActor } from './relay-sender.js';
 import {
   barDigest,
   barReadiness,
@@ -104,7 +104,7 @@ export function receivePersonRequest(board, document, { sequence, at, sender }) 
       if (error) {
         const clock = board.clock;
         board.clock = { now: () => new Date(at) };
-        try { store.recordRelayRefusal(board, { by: sender?.kind === 'agent' ? sender.agent : 'person', sequence, kind: 'request', operation: document?.operation ?? null, actor: relayMoveActor(document), code: error.code, person: relayPerson(sender) }); }
+        try { store.recordRelayRefusal(board, { by: sender?.kind === 'agent' ? sender.agent : 'person', sequence, kind: 'request', operation: document?.operation ?? null, actor: board.enginePorts.relayMoveActor(document), code: error.code, person: relayPerson(sender) }); }
         finally { board.clock = clock; }
       }
     }
@@ -259,7 +259,7 @@ export function requestMoveProblem(board, move, { checkExecutorLease = true } = 
     if ((tag.phase === 'execute' && Object.hasOwn(record, 'resultSequence')) ||
         (tag.phase === 'repo-request' && Object.hasOwn(record, 'coordinatorRequest'))) return new Refused('PERSON_REQUEST_CLOSED', 'this phone request already has its execution receipt; read the original result');
   }
-  const actor = relayMoveActor(move);
+  const actor = board.enginePorts.relayMoveActor(move);
   if (!['coordinator', 'person'].includes(actor)) return new Refused('PERSON_REQUEST_RECEIPT', 'only the coordinator fulfils an authenticated person request');
   if (tag.phase === 'execute') {
     const expected = { add: 'addItem', shout: 'shout', answer: 'answerDecision', hold: record.move.args.off ? 'releaseLane' : 'holdLane', 'spec-approve': 'recordRowDecisions', 'spec-decline': 'recordRowDecisions', 'spec-answer': 'recordRowDecisions', fact: 'appendFact', 'sentinel-approve': 'decideSentinel', 'sentinel-decline': 'decideSentinel', 'land-waive': 'recordLandingWaiver', signing: 'setPersonSigning', edit: 'editItem', 'bar-sign': 'signBar' }[record.move.verb];

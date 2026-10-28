@@ -19,6 +19,23 @@ const SUMMARY_FIELDS = Object.freeze(['id', 'title', 'lane', 'status', 'route', 
 export const SUMMARY_KEYS = new Set(SUMMARY_FIELDS);
 const CLOCK_MOVES = MACHINE.moves.filter((move) => move.by.includes('clock'));
 
+/** Preserve the lifecycle facts recorded by the board without exposing unrelated event details. */
+export function lifecycleEvent(event) {
+  const projected = { kind: event.event_kind, by: event.event_by, at: event.event_at };
+  if (event.event_kind === 'refreeze' && JSON.parse(event.event_detail).retainedClaim === true) projected.retainedClaim = true;
+  return projected;
+}
+
+/** Match a recorded event to its declared move, including state-specific native aliases. */
+export function lifecycleMove(machine, state, event) {
+  const aliases = { renew: 'claim', 'merge-only-accept': 'submit-merge', rehome_import: 'rehomeImport' };
+  const verb = ['item_patch_attach', 'item_patch_remove'].includes(event.kind)
+    ? state === 'claimed' ? 'patch-claimed' : 'patch' : aliases[event.kind] ?? event.kind;
+  return machine.moves.find(move => move.verb === verb && move.from.includes(state)
+    && (verb !== 'claim' || (event.kind === 'renew') === (move.to === state))
+    && (verb !== 'refreeze' || (event.retainedClaim === true) === (move.to === 'claimed')));
+}
+
 /**
  * Replay an item's recorded events through the declared lifecycle, as the view's timeline does
  * (M1). The board logs a claim on a claimed item as renew, and never the clock's lapse, so a move
@@ -38,10 +55,8 @@ function lifecycleSteps(history, status) {
     if (move) at = move.to;
   };
   for (const event of history) {
-    const verb = event.kind === 'renew' ? 'claim' : event.kind;
-    /** The declared move this event makes from a state; a renew is the claim that stays claimed. */
-    const fits = (state) => MACHINE.moves.find((move) => move.verb === verb && move.from.includes(state)
-      && (verb !== 'claim' || (event.kind === 'renew') === (move.to === state)));
+    /** Use the same native-event matcher as snapshot replay. */
+    const fits = state => lifecycleMove(MACHINE, state, event);
     const lapse = fits(at) ? null : CLOCK_MOVES.find((move) => move.from.includes(at) && fits(move.to));
     if (lapse) step(lapse, null);
     step(fits(at) || null, event);

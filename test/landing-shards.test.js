@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import './main-audit-cases.js';
 import './main-audit-receipt.test.js';
@@ -42,6 +43,7 @@ test('GUI-marked landing files use only a runner with a GUI session [C7,V4]', (t
   const script = `import {recordRunnerGui} from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/resources.js')).href)};
 for(const host of ${JSON.stringify(hosts)}) recordRunnerGui(host,host==='fixture-gui');
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
+${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 const calls = [];
@@ -53,7 +55,7 @@ const remoteRun = async (_root, _command, options) => {
 const result = await withGateSlot(root, () => withGateSlot(root, () => runLandingShards({ root,
   runner: ${JSON.stringify(join(box.repo, 'bin/run-tests.js'))}, files: ['./test/a.test.js'], count: 1,
   needsBrowser: async () => true, needsGui: async () => true, remoteRun, write: () => {},
-}), { remote: false, kind: 'check' }), { remote: false, kind: 'check' });
+}), { executionServices, remote: false, kind: 'check' }), { executionServices, remote: false, kind: 'check' });
 process.stdout.write(JSON.stringify({ green: result.isGreen, calls }));`;
   const env = { ...box.env };
   delete env.NODE_TEST_CONTEXT;
@@ -73,6 +75,7 @@ test('a GUI-marked shard waits for a local slot when runner GUI capability is un
 // This scenario seeds its capability after registration, whose real desktop probe may report true.
 recordRunnerGui(${JSON.stringify(HOST)}, null);
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
+${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 let release;
@@ -80,7 +83,7 @@ let entered;
 const ready = new Promise(resolve => { entered = resolve; });
 const freed = new Promise(resolve => { release = resolve; });
 const result = await withGateSlot(root, async () => {
-  const held = withGateSlot(root, async () => { entered(); await freed; }, { remote: false });
+  const held = withGateSlot(root, async () => { entered(); await freed; }, { executionServices, remote: false });
   await ready;
   const timer = setTimeout(release, 250);
   try {
@@ -88,7 +91,7 @@ const result = await withGateSlot(root, async () => {
       files: ['./test/a.test.js'], count: 1, needsBrowser: async () => false, needsGui: async () => true,
       remoteRun: async () => { throw new Error('an unknown GUI runner must not execute this shard'); }, write: () => {} });
   } finally { clearTimeout(timer); release(); await held; }
-}, { remote: false });
+}, { executionServices, remote: false });
 process.stdout.write(JSON.stringify(result));`;
   const env = { ...box.env };
   delete env.NODE_TEST_CONTEXT;
@@ -111,6 +114,7 @@ test('a no-GUI remote parent gives its first GUI shard to a compatible local slo
 recordRunnerGui(${JSON.stringify(HOST)}, false);
 import assert from 'node:assert/strict';
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
+${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 let release;
@@ -118,7 +122,7 @@ let entered;
 const ready = new Promise(resolve => { entered = resolve; });
 const freed = new Promise(resolve => { release = resolve; });
 const result = await withGateSlot(root, async () => {
-  const held = withGateSlot(root, async () => { entered(); await freed; }, { remote: false });
+  const held = withGateSlot(root, async () => { entered(); await freed; }, { executionServices, remote: false });
   await ready;
   try {
     return await withGateSlot(root, async inherited => {
@@ -129,9 +133,9 @@ const result = await withGateSlot(root, async () => {
         files: ['./test/a.test.js'], count: 1, needsBrowser: async () => false, needsGui: async () => true,
         remoteRun: async () => { throw new Error('a no-GUI inherited runner must not execute this shard'); }, write: () => {} }); }
       finally { clearTimeout(timer); }
-    });
+    }, { executionServices });
   } finally { release(); await held; }
-}, { remote: false });
+}, { executionServices, remote: false });
 process.stdout.write(JSON.stringify(result));`;
   const env = { ...box.env };
   delete env.NODE_TEST_CONTEXT;
@@ -152,6 +156,7 @@ test('six shards land on six different runners [C7,V4]', (t) => {
     assert.equal(added.status, 0, added.context);
   }
   const script = `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
+${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 const calls = [];
@@ -167,7 +172,7 @@ const remoteRun = async (_root, _command, options) => {
 const result = await withGateSlot(root, () => withGateSlot(root, () => runLandingShards({ root,
   runner: ${JSON.stringify(join(box.repo, 'bin/run-tests.js'))},
   files: ${JSON.stringify(NAMES.map(name => `./test/${name}.test.js`))}, count: 6, remoteRun, write: () => {},
-}), { remote: false, kind: 'check' }), { remote: false, kind: 'check' });
+}), { executionServices, remote: false, kind: 'check' }), { executionServices, remote: false, kind: 'check' });
 process.stdout.write(JSON.stringify({ green: result.isGreen, calls }));`;
   const env = { ...box.env };
   delete env.NODE_TEST_CONTEXT;
@@ -312,9 +317,10 @@ function startLandingGate(box, label, deadlineMs, repo = box.repo) {
   const gateUrl = pathToFileURL(join(repo, 'src', 'gate.js')).href;
   const configUrl = pathToFileURL(join(repo, 'src', 'config.js')).href;
   const script = `const { runGate } = await import(${JSON.stringify(gateUrl)});
+${executionServicesSource(gateUrl)}
 const { loadConfig } = await import(${JSON.stringify(configUrl)});
 const root = ${JSON.stringify(repo)};
-const gate = await runGate(root, loadConfig(root), { landing: true, trustStamp: false, agent: 'landing-shards-fixture', collectAll: ${box.collectAll === true} });
+const gate = await runGate(root, loadConfig(root), { executionServices, landing: true, trustStamp: false, agent: 'landing-shards-fixture', collectAll: ${box.collectAll === true} });
 process.stdout.write(JSON.stringify({ isGreen: gate.isGreen, collectAllComplete: gate.collectAllComplete, output: gate.output, profile: gate.profile }));`;
   const child = spawn(process.execPath, ['--input-type=module', '-e', script], { cwd: repo, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '';
@@ -464,7 +470,8 @@ test('a landing gate split into shards reports one result [C7,V4]', { timeout: 3
 async function landingWithRunnerAnswer(box, answer, count, deadlineMs) {
   const url = name => JSON.stringify(pathToFileURL(join(SOURCE, 'src', name)).href);
   const files = NAMES.map(name => `./test/${name}.test.js`);
-  const script = `const { runLandingShards, landingShardProfile } = await import(${url('landing-shards.js')});
+  const script = `const { runLandingShards } = await import(${url('landing-shards.js')});
+const { landingShardProfile } = await import(${url('gate-run-receipt.js')});
 const { Refused } = await import(${url('refused.js')});
 const { RunnerDropped } = await import(${url('runners.js')});
 const { appendFileSync } = await import('node:fs');
@@ -672,10 +679,11 @@ test('a collect-all shard cancelled by its owner reports drained but incomplete 
   git(box.repo,box.env,'add','-A');git(box.repo,box.env,'commit','-q','-m','test: real collect-all cancellation');
   const gateUrl=pathToFileURL(join(box.repo,'src/gate.js')).href;
   const resourceUrl=pathToFileURL(join(box.repo,'src/resources.js')).href;
-  const reportUrl=pathToFileURL(join(box.repo,'src/landing-collection-report.js')).href;
+  const reportUrl=pathToFileURL(join(box.repo,'src/gate-run-receipt.js')).href;
   const id='11111111-1111-4111-8111-111111111111';
   const program=`import {spawn} from 'node:child_process';import {once} from 'node:events';
-import {withGateSlot} from ${JSON.stringify(gateUrl)};import {gateSlotEnvironment} from ${JSON.stringify(resourceUrl)};
+import {withGateSlot} from ${JSON.stringify(gateUrl)};
+${executionServicesSource(gateUrl)}import {gateSlotEnvironment} from ${JSON.stringify(resourceUrl)};
 import {parseCollectionReports} from ${JSON.stringify(reportUrl)};
 await withGateSlot(process.cwd(),async lease=>{
  const child=spawn(process.execPath,['bin/run-tests.js','test/a.test.js'],{cwd:process.cwd(),env:{...process.env,...gateSlotEnvironment(lease),PULLBOARD_LANDING_RUN:'1',PULLBOARD_LANDING_SHARD:'1/1',PULLBOARD_LANDING_COLLECT_ALL:'1',PULLBOARD_LANDING_COLLECTION_ID:${JSON.stringify(id)}},stdio:['ignore','pipe','pipe']});
@@ -686,7 +694,7 @@ await withGateSlot(process.cwd(),async lease=>{
  const[code,signal]=await closed;
  const report=parseCollectionReports(output,{id:${JSON.stringify(id)},scope:'shard',shard:'1/1',plannedFiles:['test/a.test.js'],requireComplete:false});
  process.send({terminal:true,code,signal,report,output});
-},{remote:false,browser:true,agent:'collect-cancel-fixture'});process.disconnect();`;
+},{ executionServices,remote:false,browser:true,agent:'collect-cancel-fixture'});process.disconnect();`;
   const child=spawn(process.execPath,['--input-type=module','-e',program],{cwd:box.repo,env:box.env,detached:true,stdio:['ignore','pipe','pipe','ipc']});
   const messages=[];child.on('message',m=>messages.push(m));child.stdout.resume();let stderr='';child.stderr.on('data',b=>stderr+=b);const closed=new Promise(resolve=>child.once('close',(code,signal)=>resolve({code,signal})));
   try {

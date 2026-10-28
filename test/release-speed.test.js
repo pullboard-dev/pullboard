@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Release placement and receipt boundaries; synthetic models do not claim a real eight-node timed release [C7,I15]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -8,7 +9,9 @@ import { installReleaseReceiptCases } from './release-receipt-cases.js';
 import { installReleaseTransportCases } from './release-transport-cases.js';
 import { installReleaseProducerCases } from './release-producer-cases.js';
 import './executor-affinity-cases.js';
-import { planReleaseShards, releasePlacement, releaseParticipation, RELEASE_PARTICIPATION_PREFIX } from '../src/landing-shards.js';
+import { planReleaseShards, releasePlacement } from '../src/landing-shards.js';
+import { releaseParticipation } from '../src/gate-run-receipt.js';
+import { RELEASE_PARTICIPATION_PREFIX } from '../src/gate-run-receipt.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 
@@ -58,8 +61,9 @@ test('a release request with no executors refuses before running or leaving a gr
   const box = helpers.project('node -e "process.exit(99)"', undefined, { withWorktree: false });
   const source = `import assert from 'node:assert/strict';
 import {runGate} from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};
+${executionServicesSource(new URL('../src/gate.js', import.meta.url).href)}
 await assert.rejects(runGate(process.cwd(),{gate:'node -e "process.exit(99)"'},
- {trustStamp:false,landing:true,collectAll:true,releaseRequest:{version:1,id:'6af8c70a-65f0-4a61-8040-3f1f278d9a10',executors:[]}}),
+ { executionServices,trustStamp:false,landing:true,collectAll:true,releaseRequest:{version:1,id:'6af8c70a-65f0-4a61-8040-3f1f278d9a10',executors:[]}}),
  error=>error.code==='GATE_RUN_EVIDENCE');`;
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env });
   assert.equal(result.status, 0, result.failure);

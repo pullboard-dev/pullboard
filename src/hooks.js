@@ -66,7 +66,8 @@ const MAX_SECRET_DIFF_BYTES = 8 * 1024 * 1024;
  */
 const SECRETS = [
   ['Anthropic key', /sk-ant-[A-Za-z0-9_-]{20,}/],
-  ['OpenAI key', /sk-(proj-)?[A-Za-z0-9_-]{32,}/],
+  ['OpenAI key', /sk-proj-[A-Za-z0-9_-]{32,}/],
+  ['OpenAI key', /(?<![A-Za-z0-9-])sk-(?:None-|svcacct-|admin-)?[A-Za-z0-9_-]{32,}/],
   ['AWS access key', /AKIA[0-9A-Z]{16}/],
   ['private key', /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
   ['GitHub token', /gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}/],
@@ -350,10 +351,10 @@ export function blockedPaths(paths, protect) {
  * changes outside its folders. The main checkout is the coordinator's and may change anything; any
  * other worktree must have joined a lane.
  *
- * @param {{ root: string, isMain: boolean, config: any, agent: any, boardFile?: string, preMergeHook?: boolean, onNotice?: (message: string) => void }} context
+ * @param {{ root: string, isMain: boolean, config: any, agent: any, boardFile?: string, preMergeHook?: boolean, onNotice?: (message: string) => void, approvedRowPorts: any }} context
  * @returns {string[]}
  */
-export function preCommitProblems({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice }) {
+export function preCommitProblems({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts }) {
   if (!isMain) refuseGrafts(root);
   const { touched, written } = stagedPaths(root);
   const problems = blockedPaths(written, config.protect).map(
@@ -371,7 +372,7 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile, preM
   }
   problems.push(...deletedRowProblems(root, [config.spec, config.practice]));
   problems.push(...deletedGateProblems(root, config));
-  problems.push(...approvedRowProblems(root, config, boardFile));
+  problems.push(...approvedRowProblems(root, config, boardFile, approvedRowPorts));
   if (isMain) return problems;
   if (!agent) {
     problems.push('this worktree has not joined a lane: pullboard join <lane> --model "<model name>"');

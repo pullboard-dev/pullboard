@@ -1,3 +1,5 @@
+import { committedItemAuthors } from './review-independence.js';
+import { strictReviewProblem as strictAuthorProblem } from './review-independence.js';
 /** The show command and review queue use the native rules rather than an agent's lineage notes [V4,B26]. */
 import { strictReviewProblem } from './review-routing.js';
 import { itemAuthorProblem } from './item-authors.js';
@@ -6,11 +8,12 @@ import { reviewFamilyProblem } from './review-independence.js';
 import { twoTierReviews } from './review-independence.js';
 import { canTake } from './route-escalation.js';
 import { requiredReviewFamilyProblem } from './required-review-family.js';
+import { familiesDiffer } from './review-policy.js';
 import { Refused } from './refused.js';
 
 /** Return the first rule failing in the same order as the native review guards. */
 export function eligibilityProblem(board, item, agent, { policy = 'any', familyPolicy = 'off' } = {}) {
-  const identity = itemAuthorProblem(board, item, agent.agent_id);
+  const identity = itemAuthorProblem(board, item, agent.agent_id, { committedItemAuthors, twoTierReviews, strictReviewProblem: strictAuthorProblem });
   if (identity) return identity;
   if (!canTake(agent.agent_route ?? 'strong', item.item_route)) return new Refused('ROUTE', 'this seat route does not cover the item');
   if (policy === 'coordinator' && item.item_lane !== 'coordinator' && agent.agent_id !== 'coordinator') return new Refused('COORDINATOR_VERIFIES', 'this board has the coordinator verify lane work');
@@ -19,7 +22,7 @@ export function eligibilityProblem(board, item, agent, { policy = 'any', familyP
   const strict = strictReviewProblem(board, item, agent.agent_id);
   if (strict) return strict;
   const family = twoTierReviews(board) ? reviewFamilyProblem(board, item, agent.agent_id, familyPolicy)
-    : familyPolicy === 'require' && (!agent.agent_family || !item.item_builder_family || agent.agent_family === item.item_builder_family)
+    : familyPolicy === 'require' && !familiesDiffer(board, agent.agent_family, item.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', 'legacy policy requires different declared families') : null;
   if (family) return family;
   if (item.item_review_by && item.item_review_by !== agent.agent_id && item.item_review_until > board.clock.now().toISOString()) return new Refused('REVIEW_HELD', `${item.item_review_by} currently holds the review`);
@@ -54,7 +57,8 @@ function withReviewFacts(board, work) {
   };
   // A read-only savepoint also keeps peer writes from mixing different snapshots inside one result.
   board.db.exec('SAVEPOINT review_eligibility');
-  try { return work({ ...board, db }); }
+  // The spread copies only enumerable properties, so the explicit alias index is carried across the snapshot [#1762].
+  try { return work({ ...board, db, familyAliases: board.familyAliases }); }
   finally { board.db.exec('RELEASE review_eligibility'); }
 }
 

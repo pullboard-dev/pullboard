@@ -2,12 +2,13 @@
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync } from './fixture-child.js';
-import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { importsIn } from '../src/module-imports.js';
+import { commandDocs } from '../src/command-docs.js';
 
 test('tests run without inherited Git identity or config and refuse ambient pullboard [C7, S13]', (t) => {
   assert.equal(process.env.GIT_CONFIG_GLOBAL, '/dev/null');
@@ -97,7 +98,8 @@ test('reports its sandbox and person-terminal markers', () => writeFileSync(${JS
 /** Copy the runner and its transitive local imports without evaluating their code. */
 function copyRunnerImports(sourceRoot, root) {
   const copied = new Set();
-  let pending = ['bin/run-tests.js'];
+  // The source-owned catalog validates its actual command files without importing them.
+  let pending = ['bin/run-tests.js', ...commandDocs(sourceRoot).map(entry => `src/commands/${entry.name.split(' ')[0]}.js`)];
   while (pending.length) {
     const files = [...new Set(pending)].filter((file) => !copied.has(file));
     pending = [];
@@ -107,8 +109,7 @@ function copyRunnerImports(sourceRoot, root) {
     const imports = importsIn(sources);
     for (const [index, file] of files.entries()) {
       copied.add(file);
-      mkdirSync(dirname(join(root, file)), { recursive: true });
-      copyFileSync(join(sourceRoot, file), join(root, file));
+      copyPackageFiles(sourceRoot, root, { files: [file] });
       for (const request of imports[index]) {
         if (!request.startsWith('./') && !request.startsWith('../')) continue;
         const target = relative(sourceRoot, resolve(sourceRoot, dirname(file), request));
@@ -119,6 +120,7 @@ function copyRunnerImports(sourceRoot, root) {
       pending.push(...declaredRunnerModules(sources[index], sourceRoot));
     }
   }
+  return copied;
 }
 
 /** Expand leading module-load declarations for runtime-discovered runner modules, while excluding optional reporters. */
@@ -187,8 +189,15 @@ function discoveryFixture(t, sourceRoot = fileURLToPath(new URL('../', import.me
   const tests = join(root, 'test');
   mkdirSync(bin);
   mkdirSync(tests);
+  // Keep shipped runtime data, including assets read by imported modules at initialization.
+  const shipped = copyPackageFiles(sourceRoot, root);
+  const copied = copyRunnerImports(sourceRoot, root);
+  // JavaScript stays limited to the actual import closure: pre-copying an undiscovered
+  // dependency must never make the transitive-import test pass, or add real shipped tests.
+  for (const file of shipped) {
+    if (/\.[cm]?js$/u.test(file) && !copied.has(file)) rmSync(join(root, file));
+  }
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
-  copyRunnerImports(sourceRoot, root);
   const marker = join(root, 'ran-once');
   writeFileSync(join(tests, 'one.test.js'), `import { test } from 'node:test';
 import { appendFileSync } from 'node:fs';
@@ -219,10 +228,12 @@ test('discovery follows a new runner src import and its transitive dependency [C
   t.after(() => rmSync(source, { recursive: true, force: true }));
   mkdirSync(join(source, 'bin'));
   copyPackageFiles(resolve(import.meta.dirname, '..'), source);
-  const runner = readFileSync(fileURLToPath(new URL('../bin/run-tests.js', import.meta.url)), 'utf8');
+  const runner = readFileSync(join(source, 'bin/run-tests.js'), 'utf8');
   writeFileSync(join(source, 'bin/run-tests.js'), runner.replace('\n', "\nimport '../src/discovery-extra.js';\n"));
   writeFileSync(join(source, 'src/discovery-extra.js'), "import { value } from './discovery-nested.js';\nif (value !== 'closure') throw new Error('transitive import failed');\n");
   writeFileSync(join(source, 'src/discovery-nested.js'), "export const value = 'closure';\n");
+  writeFileSync(join(source, 'src/unreferenced.test.js'),
+    "throw new Error('an unreferenced shipped test must stay outside the discovery fixture');\n");
   runDiscovery(discoveryFixture(t, source));
 });
 

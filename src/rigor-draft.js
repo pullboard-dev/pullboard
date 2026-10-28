@@ -5,6 +5,7 @@
  * proof is the check run on real commits: red on the bad one, green on the fix. Nothing here
  * approves or applies a row.
  */
+import { loadDoctrine } from './doctrine.js';
 import { PERSON } from './board.js';
 import {
   historyPathMap,
@@ -57,8 +58,8 @@ export async function rigorDraft({ root, config, events, person, agent, parsePro
   const source = rigorSource(cause, proof);
   /** Plan a row, reserve its id on the board, then write it at the reserved id. */
   const write = async (request) => {
-    const planned = draftRow(root, config, { ...request, write: false });
-    return draftRow(root, config, { ...request, id: (await reserve({ ...planned.row, target: request.target })).id });
+    const planned = draftRow(root, config, { ...request, write: false }, { loadDoctrine });
+    return draftRow(root, config, { ...request, id: (await reserve({ ...planned.row, target: request.target })).id }, { loadDoctrine });
   };
   const drafts = [];
   if (cause.reads !== 'product') drafts.push(await write({ target: 'doctrine', text: rowText, gate: `check ${proof.countCheck}`, fields: ['count: 0', `source: ${source}`], section }));

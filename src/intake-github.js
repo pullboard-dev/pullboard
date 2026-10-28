@@ -1,3 +1,4 @@
+import { mainPolicy } from './trusted-policy.js';
 import { outsideSensitivity } from './outside-sensitive.js';
 /** Read GitHub public source metadata; never post, execute PR programs or use its executable settings. */
 import { githubPullClient } from './pr-github.js';
@@ -33,6 +34,6 @@ export function githubSource(root, url) {
   if (paths.some(path => typeof path !== 'string' || path.includes('\n') || path.startsWith('/') || path.split('/').includes('..'))) throw new Refused('OUTSIDE_FETCH', 'GitHub returned an invalid changed path; restore its file metadata');
   const changed = git(root, ['diff', '--no-ext-diff', '--no-textconv', '--no-renames', '--name-only', '-z', `${data.base.sha}...${fetched}`]).split('\0').filter(Boolean);
   if (changed.length !== paths.length || changed.some(path => !paths.includes(path))) throw new Refused('OUTSIDE_FETCH', 'the changed-file list differs from the fetched exact commit; refresh GitHub metadata');
-  const sensitivity = outsideSensitivity(root, data.base.sha, fetched, paths);
+  const sensitivity = outsideSensitivity(root, data.base.sha, fetched, paths, { mainPolicy });
   return { ...common, commit: fetched, tree: git(root, ['rev-parse', `${fetched}^{tree}`]).trim(), base: data.base.sha, files: paths, sensitivity, sensitive: sensitivity.length > 0 };
 }

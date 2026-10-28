@@ -2,6 +2,8 @@ import {
   dirname,
   join,
 } from 'node:path';
+import { runnerExecutionServices } from './runners.js';
+import { landingExecutionServices } from './landing-shards.js';
 import {
   headCommit,
   headTree,
@@ -55,7 +57,7 @@ export async function runDeferredAffectedTests(root, config, files, { directory,
   const run = await withLandingGateSlot(root, lease => runProfiledShell(root,
     `${config.affectedTests} ${files.map(quote).join(' ')}`, { waitMs: lease.waitMs, gateLease: lease,
       stages: true, landing: true, persistLog: true, artifactDirectory: directory, artifactPrefix: 'deferred', timeoutMs: config.landing?.timeoutMs }),
-  { agent: 'coordinator', kind: 'gate', landing: true, browser, gui: testsNeedGui(root, files), onWait });
+  { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', kind: 'gate', landing: true, browser, gui: testsNeedGui(root, files), onWait });
   refuseSandboxBlocked(run);
   if (run.timedOut) throw new Refused('LAND_GATE_TIMEOUT', `the deferred landing command timed out; no file is blamed; inspect ${run.logPath}`);
   if (!run.isGreen) {

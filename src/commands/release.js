@@ -1,3 +1,4 @@
+import { relayRecovered } from '../relay.js';
 import { completeMoveHandoff } from '../post-move-handoff.js';
 import { prepareStaleObservation } from '../stale-state-command.js';
 import { staleReleaseNote } from '../board-stale-state-policy.js';
@@ -25,7 +26,7 @@ export async function run(io, args) {
   if (values.stale) {
     if (me.id !== 'coordinator') throw new Refused('NOT_YOURS', 'only the coordinator releases another holder with --stale');
     staleReleaseNote(args[2]);
-    const snapshot = await prepareStaleObservation(ctx, board, ordered);
+    const snapshot = await prepareStaleObservation(ctx, board, ordered, { relayRecovered, specApprovalBaselineExists: store.specApprovalBaselineExists });
     const row = snapshot.claims.find(entry => entry.id === args[0]);
     if (!row) throw new Refused('NOT_YOURS', 'this item has no current claim to release as stale');
     args.push({ staleClaim: row, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: ctx.config.health ?? {} });

@@ -17,10 +17,12 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from './git-adapter.js';
 import { tmpdir } from 'node:os';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
 import { runOnRunner } from './runners.js';
+import { frozenCheckCeilingMs } from './config.js';
 import {
   privateCheckEnvelope,
   privateGuard,
@@ -97,7 +99,7 @@ export function runnerPrivateCheck(root, item, command, policy, lease, guard, wa
   const directory = mkdtempSync(join(artifactRoot, 'private-runner-'));
   const ref = trunkRef(root);
   const mode = privateCheckEnvelope({ kind: 'private-check', version: 1, install: policy.config.check.install,
-    check: command, timeoutMs: policy.config.check.timeoutMs, policyCommit: policy.commit,
+    check: command, timeoutMs: frozenCheckCeilingMs(policy.config), policyCommit: policy.commit,
     trunk: { ref, commit: policyGit(root, ['rev-parse', `${ref}^{commit}`]).trim() }, guard });
   const checkedSource = { commit: item.item_commit, tree: policyGit(root, ['rev-parse', `${item.item_commit}^{tree}`]).trim() };
   const started = Date.now();
@@ -169,7 +171,7 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
     return runnerPrivateCheck(root, item, command, policy, gateLease, descriptor, waitMs, checkResult);
   }
   const install = config.check.install;
-  const timeout = config.check.timeoutMs;
+  const timeout = frozenCheckCeilingMs(config);
   // Retain the physical root before cleanup; Node TAP resolves symlinks in test locations.
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-criterion-')));
   const copy = join(scratch, 'repo');
@@ -202,27 +204,27 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
   };
   try {
     const common = policyGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
-    const clone = spawnSync('git', ['clone', '--quiet', '--shared', '--no-checkout', common, copy], { env, stdio: 'ignore' });
+    const clone = gitSpawnSync(['clone', '--quiet', '--shared', '--no-checkout', common, copy], { env, stdio: 'ignore' });
     if (clone.status === 0) {
       const retainedTrunk = trunkRef(root);
       if (retainedTrunk) {
-        const savedTrunk = spawnSync('git', ['config', '--local', '--replace-all', 'pullboard.trunk', retainedTrunk], {
+        const savedTrunk = gitSpawnSync(['config', '--local', '--replace-all', 'pullboard.trunk', retainedTrunk], {
           cwd: copy, env, stdio: 'ignore',
         });
         if (savedTrunk.status !== 0) return finish('unverified', 'retained trunk could not be copied into the private clone');
         // Cloning a detached primary HEAD omits its local trunk branch, even when the source has it.
-        const retainedTip = spawnSync('git', ['--no-replace-objects', 'rev-parse', '--verify', '--quiet', `${retainedTrunk}^{commit}`], {
+        const retainedTip = gitSpawnSync(['--no-replace-objects', 'rev-parse', '--verify', '--quiet', `${retainedTrunk}^{commit}`], {
           cwd: root, env, encoding: 'utf8',
         });
         if (retainedTip.status === 0 && retainedTrunk.startsWith('refs/heads/')) {
-          const savedTip = spawnSync('git', ['update-ref', retainedTrunk, retainedTip.stdout.trim()], {
+          const savedTip = gitSpawnSync(['update-ref', retainedTrunk, retainedTip.stdout.trim()], {
             cwd: copy, env, stdio: 'ignore',
           });
           if (savedTip.status !== 0) return finish('unverified', 'retained trunk tip could not be copied into the private clone');
         }
       }
     }
-    const checkout = clone.status === 0 && spawnSync('git', ['checkout', '--quiet', '--detach', item.item_commit], { cwd: copy, env, stdio: 'ignore' });
+    const checkout = clone.status === 0 && gitSpawnSync(['checkout', '--quiet', '--detach', item.item_commit], { cwd: copy, env, stdio: 'ignore' });
     if (!checkout || checkout.status !== 0) return finish('unverified', 'clone or checkout could not start');
     if (mutate) {
       const reason = mutate(copy);
@@ -240,15 +242,16 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
       if (run.status !== 0) return finish('unverified', 'install failed');
     }
     const remaining = deadline - Date.now();
-    if (remaining <= 0) return finish('unverified', 'check timed out');
+    if (remaining <= 0) return finish('unverified', `check timed out before it started against its ${(timeout / 1000).toFixed(1)} second ceiling: ${frozenCommand}`);
     checkLogPath = join(scratch, 'check.log');
+    const checkRunStartedAt = Date.now();
     const run = runPrivateCommand(copy, env, command, remaining, checkLogPath);
     executed = run.executed === true;
     exitCode = run.status ?? null;
     environment = environmentProblem(run.environment) ? null : run.environment;
     testRuntimes = run.testRuntimes ?? null;
     checkOutput = run.output;
-    if (run.error?.code === 'ETIMEDOUT') return finish('unverified', 'check timed out');
+    if (run.error?.code === 'ETIMEDOUT') return finish('unverified', `check timed out after ${((Date.now() - checkRunStartedAt) / 1000).toFixed(1)} seconds against its ${(timeout / 1000).toFixed(1)} second ceiling: ${frozenCommand}`);
     if (run.error) return finish('unverified', `check could not start (${run.error.code})`);
     if (run.logError) return finish('unverified', `check output could not be saved (${run.logError.code})`);
     if (run.status === null) return finish('unverified', 'check could not start (CHECK_RUNNER)');
@@ -403,7 +406,7 @@ function streamSanitizedLog(path, fallback, label, writeArtifact, onLine = () =>
 
 /** Capture the private clone before cleanup, so a diagnostic cannot call edited source an unchanged-head measurement. */
 function privateSourceUnchanged(root, commit, env) {
-  const state = spawnSync('git', ['--no-replace-objects', 'status', '--porcelain=v2', '--branch', '--untracked-files=normal'], { cwd: root, env, encoding: 'utf8' });
+  const state = gitSpawnSync(['--no-replace-objects', 'status', '--porcelain=v2', '--branch', '--untracked-files=normal'], { cwd: root, env, encoding: 'utf8' });
   if (state.status !== 0) return false;
   const lines = state.stdout.split('\n').filter(Boolean);
   return lines.includes('# branch.oid ' + commit) && lines.every(line => line.startsWith('# '));

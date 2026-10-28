@@ -1,5 +1,5 @@
 /** Read the economics of recorded test executions without changing test admission [C7]. */
-import { readFileTimes } from './landing-shards.js';
+import { readFileTimes } from './test-value-timing.js';
 import { bindTestValueSources } from './test-value-source.js';
 import { readdirSync } from 'node:fs';
 import { events } from './board.js';
@@ -10,8 +10,6 @@ import {
   receiptFields,
 } from './gate-run-receipt.js';
 import { readTestValueTimings } from './test-value-timing.js';
-import { flakeLedger } from './flakes.js';
-import { eventCauses } from './board-rigor.js';
 import { tryGit } from './git.js';
 
 const DAY = 86_400_000;
@@ -119,7 +117,7 @@ function codeRepair(root, red, green, file) {
 }
 
 /** Extract only typed, non-conflict test identities; free-text reviewer notes are never parsed. */
-function failureTests(event) {
+function failureTests(event, eventCauses) {
   const value = detail(event);
   if (!['reject', 'reopen'].includes(event.event_kind) || value.conflict) return [];
   let causes;
@@ -154,14 +152,14 @@ function auditCatches(root, history, runs, flaky, from, until) {
 }
 
 /** Identify linked code repairs and routed audit catches, preserving each evidence source without inventing a repair. */
-function catches(root, history, runs, flaky, from, until) {
+function catches(root, history, runs, flaky, from, until, eventCauses) {
   const found = auditCatches(root, history, runs, flaky, from, until);
   const unresolved = new Map();
   const repairCache = new Map();
   for (const event of history) {
     const at = Date.parse(event.event_at);
     if (at < from || at > until || !Number.isFinite(at)) continue;
-    for (const test of failureTests(event)) {
+    for (const test of failureTests(event, eventCauses)) {
       const value = detail(event);
       const head = value.commit ?? value.landingFailure?.commit;
       const red = runs.find(run => run.clean && run.exit !== null && run.exit !== undefined && run.exit !== 0
@@ -197,7 +195,9 @@ function catches(root, history, runs, flaky, from, until) {
 }
 
 /** Project a consistent fourteen-day board snapshot; unknown measurements stay unknown. */
-export function testValueReport(board, { root, costs, now = Date.now() }) {
+export function testValueReport(board, { root, costs, now = Date.now() }, services) {
+  if (!['flakeLedger', 'eventCauses'].every(name => typeof services?.[name] === 'function')) throw new TypeError('test value needs explicit flake ledger and cause readers');
+  const { flakeLedger, eventCauses } = services;
   const until = Number(now);
   const from = until - 14 * DAY;
   const since = new Date(from).toISOString();
@@ -210,7 +210,7 @@ export function testValueReport(board, { root, costs, now = Date.now() }) {
   const source = sourceHistory(root, since, asOf);
   const observations = flakeLedger(board).flatMap(row => row.observations)
     .filter(row => row.classification === 'flake' && Date.parse(row.at) >= from && Date.parse(row.at) <= until);
-  const repairs = catches(root, history, runs, observations, from, until);
+  const repairs = catches(root, history, runs, observations, from, until, eventCauses);
   const rows = new Map();
   /** Initialize every tracked or observed file, including files with no measured run. */
   const entry = file => {

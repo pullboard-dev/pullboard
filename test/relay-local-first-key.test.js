@@ -15,7 +15,7 @@ import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
-const WORKER = fileURLToPath(new URL('../src/relay-sender-worker.js', import.meta.url));
+const WORKER = fileURLToPath(new URL('../src/relay-sender-main.js', import.meta.url));
 const MAIN = new URL('../src/cli.js', import.meta.url).href;
 
 /** Read only the PID/start/command identity of this fixture's already identified worker. */

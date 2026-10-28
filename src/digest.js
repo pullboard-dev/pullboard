@@ -1,9 +1,8 @@
-import { foreignBlockers } from './cross-repo-dependencies.js';
 import {
   localDependencyIds,
   dependencyLabel,
 } from './item-dependencies.js';
-import { counterCaught } from './proof-counter-read.js';
+
 /**
  * `pullboard digest`: a short Markdown briefing of one board, for a person or a chat assistant
  * that can read the repo but never the board [A2,N26].
@@ -34,26 +33,16 @@ import {
   sep,
 } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
-import {
-  milestones,
-  openBoardReadOnly,
-} from './board.js';
+
 import {
   CAUGHT_KINDS,
   caughtFrom,
 } from './caught.js';
+
 import { secretsIn } from './hooks.js';
 import { Refused } from './refused.js';
-import {
-  rowDrafts,
-  rowDecisions,
-} from './board-query.js';
-import {
-  automaticDecisionSource,
-  automaticSourceFromText,
-  rigorDecisionKey,
-  readAutomaticRigorSource,
-} from './board-rigor-auto-source.js';
+
+
 import {
   rowDecisionContext,
   staleRowDecision,
@@ -130,12 +119,13 @@ function section(title, entries, total, budget, empty) {
  *   pullboard health's stuck findings join the briefing
  * @returns {{ markdown: string, sequence: number, sections: { title: string, shown: number, total: number }[], bytes: number }}
  */
-export function readDigest(file, { name = 'this project', now = new Date(), root, config, healthReport } = {}) {
+export function readDigest(file, { name = 'this project', now = new Date(), root, config, healthReport } = {}, ports) {
+  const { openBoardReadOnly } = ports;
   if (!existsSync(file)) throw new Refused('NO_BOARD', 'this repository has no board yet; run pullboard init in the main checkout first');
   const db = openBoardReadOnly(file);
   try {
     db.exec('BEGIN DEFERRED');
-    const result = render(db, { name, now, root, config, healthReport });
+    const result = render(db, { name, now, root, config, healthReport }, ports);
     db.exec('COMMIT');
     return result;
   } finally { db.close(); }
@@ -147,7 +137,8 @@ export function readDigest(file, { name = 'this project', now = new Date(), root
  * @param {any} db
  * @param {{ name: string, now: Date, root?: string, config?: any }} options
  */
-function render(db, { name, now, root, config, healthReport }) {
+function render(db, { name, now, root, config, healthReport }, ports) {
+  const { foreignBlockers, counterCaught, milestones, rowDrafts, rowDecisions, automaticDecisionSource, automaticSourceFromText, rigorDecisionKey, readAutomaticRigorSource } = ports;
   const cut = { count: 0 };
   const at = now.toISOString();
   /** One field of board text, bounded. */
@@ -356,7 +347,8 @@ export function writeDigest(path, markdown, commonDir) {
  * @param {string} path
  * @param {{ name: string, root?: string, config?: any, healthReport?: Function, commonDir: string, signal: AbortSignal, interval?: number, onWrite?: (result: any) => void }} options
  */
-export async function watchDigest(file, path, { name, root, config, healthReport, commonDir, signal, interval = 250, onWrite = () => {} }) {
+export async function watchDigest(file, path, { name, root, config, healthReport, commonDir, signal, interval = 250, onWrite = () => {} }, ports) {
+  const { openBoardReadOnly } = ports;
   let db;
   let identity;
   let seen = -1;
@@ -373,7 +365,7 @@ export async function watchDigest(file, path, { name, root, config, healthReport
       }
       const version = db.prepare('PRAGMA data_version').get().data_version;
       if (version !== seen) {
-        const result = readDigest(file, { name, root, config, healthReport });
+        const result = readDigest(file, { name, root, config, healthReport }, ports);
         onWrite({ ...result, path: writeDigest(path, result.markdown, commonDir) });
         seen = version;
       }
@@ -392,7 +384,8 @@ export async function watchDigest(file, path, { name, root, config, healthReport
  * @param {{healthReport: Function}} services Actual upper-layer health observation bound to dispatch.
  * @returns {Promise<number>}
  */
-export async function digestCommand(io, { first, second, rest, values }, ctx, { healthReport }) {
+export async function digestCommand(io, { first, second, rest, values }, ctx, ports) {
+  const { healthReport } = ports;
   const usage = 'pullboard digest [--out <file>] [--watch]; --watch needs --out';
   if (first || second || rest.length || Object.keys(values).some((key) => !['out', 'watch', 'json'].includes(key))) throw new Refused('USAGE', usage);
   if (values.out === '' || (values.watch && (!values.out || values.json))) throw new Refused('USAGE', usage);
@@ -406,11 +399,11 @@ export async function digestCommand(io, { first, second, rest, values }, ctx, { 
     process.once('SIGTERM', stop);
     try {
       await watchDigest(ctx.file, out, { name, root: ctx.info.root, config: ctx.config, healthReport, commonDir: ctx.info.commonDir, signal: controller.signal,
-        onWrite: (result) => io.say(`wrote the briefing to ${result.path} (board move ${result.sequence}); Ctrl-C stops watching`) });
+        onWrite: (result) => io.say(`wrote the briefing to ${result.path} (board move ${result.sequence}); Ctrl-C stops watching`) }, ports);
     } finally { process.off('SIGINT', stop); process.off('SIGTERM', stop); }
     return 0;
   }
-  const result = readDigest(ctx.file, { name, root: ctx.info.root, config: ctx.config, healthReport });
+  const result = readDigest(ctx.file, { name, root: ctx.info.root, config: ctx.config, healthReport }, ports);
   const path = out === undefined ? undefined : writeDigest(out, result.markdown, ctx.info.commonDir);
   io.result?.({ markdown: result.markdown, bytes: result.bytes, sequence: result.sequence, sections: result.sections, ...(path ? { path } : {}) });
   io.say(path ? `wrote the briefing to ${path}; share that file with any chat assistant` : result.markdown.trimEnd());

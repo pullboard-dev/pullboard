@@ -1,4 +1,5 @@
-import { setItem } from './item-fields.js';
+import { setItem as writeItemFields } from './item-fields.js';
+import { now } from './board-query.js';
 import { liftConditionalHold } from './board-conditional-holds.js';
 import { requireHandoffActive } from '../packages/state/src/core/handoff-state.js';
 /** Append native events and their rebuildable proof projection in the same transaction [R2]. */
@@ -115,3 +116,6 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
   }
 }
 
+
+/** Preserve the native clock fallback when conditional holds write item fields [M1,C7]. */
+function setItem(board, id, fields, at) { return writeItemFields(board, id, fields, at, now); }

@@ -9,8 +9,8 @@ import {
   join,
 } from 'node:path';
 import {
-  execFileSync,
-} from 'node:child_process';
+  gitExecFileSync,
+} from './git-adapter.js';
 import {
   gitChildEnv,
 } from './git.js';
@@ -51,8 +51,8 @@ export function lastGreenAudit(root, directory) {
 }
 
 /** Discover the full suite during audit work, publishing placement once and selecting exact changed action keys. */
-export async function planMainAudit(root, board, directory, job, config, { forceFull = false } = {}) {
-  refreshTestPlacement(board, { root, head: job.tip, config });
+export async function planMainAudit(root, board, directory, job, config, { forceFull = false } = {}, services) {
+  refreshTestPlacement(board, { root, head: job.tip, config }, services);
   const keys = await testActionKeys(root, { commit: job.tip, options: ['scheduled-audit-coverage-v1', semantics(config)] });
   if (!keys.size) throw new Error('audit inventory contains no committed test files');
   const previous = lastGreenAudit(root, directory);
@@ -67,7 +67,7 @@ export function measuredAuditCoverage(root, output) {
   for (const line of output.split(/\r?\n/u)) if (line.startsWith('# pullboard-audit-coverage ')) {
     samples.push(JSON.parse(line.slice('# pullboard-audit-coverage '.length)));
   }
-  const files = execFileSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: root, env: gitChildEnv(root), encoding: 'utf8' }).trim().split('\n');
+  const files = gitExecFileSync(['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: root, env: gitChildEnv(root), encoding: 'utf8' }).trim().split('\n');
   const expectedFiles = files.filter(file => /\.[cm]?js$/u.test(file) && !/(?:^|\/)(?:test|tests)\//u.test(file) && !/\.test\.[cm]?js$/u.test(file));
   const packages = [{ name: 'root', prefix: '' }, ...files.filter(file => file.endsWith('/package.json')).map(file => {
     const prefix = file.slice(0, -'/package.json'.length);

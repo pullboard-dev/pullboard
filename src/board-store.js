@@ -50,7 +50,7 @@ export function requireRuntimePorts(ports) {
     'computedReturnArgs', 'requirePreparedComputedConflict', 'preflightComputedConflict', 'boundProofReceipt',
     'requireOutsideReceipt', 'signedMoveProblem', 'requireCoordinatorHold', 'requireBound',
     'requestMoveProblem', 'recordRequestMove', 'relayPerson', 'requestPerson',
-    'personAuthority', 'relayMoveActor', 'relaySenderProblem', 'validRelaySender']) {
+    'personAuthority', 'relayMoveActor', 'relaySenderProblem', 'validRelaySender', 'credentialActor']) {
     if (typeof ports.enginePorts[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply enginePorts.${name}.`);
   }
   if (ports.nativePorts.atomic !== ports.lifecycle.atomic || ports.nativePorts.logEvent !== ports.logEvent

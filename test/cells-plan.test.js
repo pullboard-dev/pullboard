@@ -1,14 +1,6 @@
 /** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** The committed cells move plan places each path once and orders cells leaf-first by real imports [D3,CD60,CD64]. */
 import assert from 'node:assert/strict';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -23,19 +15,13 @@ import { itemCommands } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { runFixtureChild } from './fixture-child.js';
-import { runFixtureGit } from './fixture-child.js';
 import { installCutCases } from './cells-plan-cut-cases.js';
+import { fixture } from './cells-plan-fixture.js';
+import { git } from './cells-plan-fixture.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const BIN = fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url));
 const PLAN = readPlan(ROOT);
-
-/** Git for this checkout or a fixture, never steered by a caller's GIT_* variables. */
-function git(cwd, ...args) {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
-  return runFixtureGit(args, { cwd, encoding: 'utf8', env: { ...env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'Cells plan fixture', GIT_AUTHOR_EMAIL: 'cells@example.invalid', GIT_COMMITTER_NAME: 'Cells plan fixture', GIT_COMMITTER_EMAIL: 'cells@example.invalid' } });
-}
 
 /** Map every file the plan names, at its old path, its target or its committed path-map path, to its cell. */
 function cellIndex(plan, map) {
@@ -93,28 +79,6 @@ test('no cell is ordered ahead of a cell it imports, computed from the real sour
   }
 });
 
-/** Build a small real repository: three packages in a chain, a two-cell cycle and one module newer than the seed. */
-function fixture(t) {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-cells-plan-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  /** Write one file beneath the fixture. */
-  const put = (file, source) => { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); };
-  put('package.json', JSON.stringify({ type: 'module' }));
-  put('src/refused.js', 'export class Refused extends Error {}\n');
-  put('src/board.js', "import { Refused } from './refused.js';\nimport { claims } from './claims.js';\nexport const board = () => [Refused, claims];\n");
-  put('src/claims.js', "import { board } from './board.js';\nexport const claims = () => board;\n");
-  put('src/stats.js', "import { board } from './board.js';\nimport { readFileSync } from 'node:fs';\nexport const stats = () => [board, readFileSync];\n");
-  put('src/stats-flow.js', "import { stats } from './stats.js';\nexport const flow = () => stats;\n");
-  put('src/cli.js', "import { stats } from './stats.js';\nimport { flow } from './stats-flow.js';\nconsole.log(stats, flow);\n");
-  put('bin/tool.js', "import '../src/cli.js';\n");
-  put('bin/cells-plan/seed.json', JSON.stringify({ source: 'fixture', sha256: 'none', order: ['kernel', 'store', 'items', 'stats', 'app:cli'],
-    cells: { kernel: ['src/refused.js'], store: ['src/board.js'], items: ['src/claims.js'], stats: ['src/stats.js'], 'app:cli': ['src/cli.js'] }, tests: {} }));
-  git(root, 'init', '-q', '-b', 'main');
-  git(root, 'add', '-A');
-  git(root, 'commit', '-q', '-m', 'fixture');
-  return { root, put };
-}
-
 test('a plan built from real files orders leaves first, cuts the cycle and places a newer module by name [D3,CD60,CD64]', t => {
   const { root } = fixture(t);
   const plan = computePlan(root);
@@ -159,18 +123,51 @@ test('a move item\'s frozen check passes only when the cell moved behind shims [
 });
 
 
-test('plan --write preserves exact temporary edge contracts while removing stale plan shards [C7,D3,CD64]', t => {
+installCutCases({ PLAN, BIN, fixture, git });
+
+
+test('a bounded single-entry write derives index and shard counts from the same paths [C7,D3,CD60]', t => {
   const { root, put } = fixture(t);
-  const file = 'bin/cells-plan/temporary-edges.json';
-  const contracts = JSON.stringify({ version: 1, edges: [{ importer: 'src/board.js', target: 'src/claims.js', contractItem: 1624, expires: '2099-01-01' }] }, null, 2) + '\n';
-  put(file, contracts);
-  put('bin/cells-plan/99-obsolete.json', '{}\n');
-  const run = runFixtureChild(process.execPath, [BIN, '--write'], { cwd: root, encoding: 'utf8' });
-  assert.equal(run.status, 0, run.stderr);
-  assert.equal(existsSync(join(root, file)), true, 'regeneration retains the live migration contract file');
-  assert.equal(readFileSync(join(root, file), 'utf8'), contracts, 'regeneration neither drops nor rewrites contract bytes');
-  assert.equal(existsSync(join(root, 'bin/cells-plan/99-obsolete.json')), false, 'obsolete generated shards are still pruned');
-  assert.deepEqual(readPlan(root), JSON.parse(JSON.stringify(computePlan(root))), 'the generated plan remains complete');
+  writePlan(root, computePlan(root));
+  const before = readPlan(root);
+  const bounded = readPlan(root);
+  const cell = bounded.cells.find(row => row.name === 'app:cli');
+  const path = 'src/added-command.js';
+  put(path, 'export const bounded = true;\n');
+  cell.paths.push([path, 'apps/cli/src/core/added-command.js', 'seed']);
+  // Deliberately leave both cached summaries unchanged, as the real #1632 bounded caller did.
+  assert.equal(bounded.totals.movedPaths, before.totals.movedPaths);
+  assert.deepEqual(cell.placedBy, before.cells.find(row => row.name === cell.name).placedBy);
+  writePlan(root, bounded);
+  const after = readPlan(root);
+  assert.equal(after.totals.movedPaths, before.totals.movedPaths + 1);
+  assert.equal(after.totals.movedPaths, after.cells.reduce((sum, row) => sum + row.paths.length, 0));
+  assert.equal(after.totals.placedBy.seed, before.totals.placedBy.seed + 1);
+  assert.equal(after.cells.find(row => row.name === cell.name).placedBy.seed, cell.placedBy.seed + 1);
+  assert.deepEqual(after.cells.find(row => row.name === cell.name).paths, cell.paths, 'path order and exact targets survive');
+  for (const row of after.cells) {
+    const original = before.cells.find(previous => previous.name === row.name);
+    const { paths, placedBy, ...semantics } = row;
+    const { paths: oldPaths, placedBy: oldPlacement, ...oldSemantics } = original;
+    assert.deepEqual(semantics, oldSemantics, 'cuts, ratchets, item contracts and ordering are not regenerated');
+    if (row.name !== cell.name) assert.deepEqual(row, original, 'unrelated shards remain unchanged');
+  }
+  for (const field of ['base', 'seed', 'names', 'stays']) assert.deepEqual(after[field], before[field], `${field} provenance is retained`);
+  writePlan(root, after);
+  assert.deepEqual(readPlan(root), after, 'the normalized writer is idempotent');
 });
 
-installCutCases({ PLAN, BIN, fixture, git });
+test('an asset a placed reader lists joins that reader cell, and an asset nothing reads is still refused by name [D3,CD60]', t => {
+  const { root, put } = fixture(t);
+  put('src/stats-docs/heartbeat.json', '{}\n');
+  put('src/stats-docs-reader.js', "import { readdirSync, readFileSync } from 'node:fs';\nimport { join } from 'node:path';\nexport const docs = (root = '.') => [readdirSync(join(root, 'src', 'stats-docs')), readFileSync];\n");
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'directory reader');
+  const plan = computePlan(root);
+  const row = plan.cells.find(cell => cell.name === 'stats').paths.find(([from]) => from === 'src/stats-docs/heartbeat.json');
+  assert.equal(row?.[2], 'rule', 'the asset joins the stats cell that lists its directory');
+  put('src/orphan/unread.json', '{}\n');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'unread asset');
+  assert.throws(() => computePlan(root), error => error.code === 'CELLS_UNPLACED' && error.message.includes('src/orphan/unread.json'));
+});

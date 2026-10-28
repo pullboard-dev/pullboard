@@ -1,5 +1,7 @@
 import { itemCheckBaseline } from './board-query.js';
+import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import { laneSeatContext } from './seat-checkout.js';
+import { nextSessionSeats } from './seat-checkout.js';
 import { mainRedReviewItems } from './main-red.js';
 import { createQueuedItemLease } from './queued-item-lease.js';
 export { resourceRunLabel } from './cli-resource-display.js';
@@ -139,12 +141,10 @@ import {
 } from './doctrine-checks.js';
 
 import { signedMoveProblem } from './person-signing.js';
-import { personAuthority } from './relay-sender.js';
 import {
   bindLocalSession,
   HOOK_CHECKOUT_WAIT_MS,
   localSessionMatches,
-  localSessionSeats,
 } from './agent-session.js';
 import {
   decisionAnswer,
@@ -244,7 +244,7 @@ import {
   setupDecisionRows,
   withStarterWork,
 } from './setup-rows.js';
-import { personNeeds } from './needs.js';
+import { personNeeds } from './row-decision-text.js';
 import { personNeedsState } from './needs-state.js';
 import { startServeSentinel } from './serve-sentinel.js';
 import {
@@ -269,7 +269,6 @@ import {
   initialSpecApprovalBaseline,
 } from './spec-approval-bootstrap.js';
 import {
-  answerQuestion,
   landBlueprint,
   planBlueprint,
   starterCheck,
@@ -577,7 +576,7 @@ export async function reserveRow(ctx, row, written) {
 }
 
 /** Note the session behind a claim or submit (#921): its ledger must be writable before the move, and record after it. */
-async function withItemSession(info, operation, args, move) { const noted = operation === 'claim' || operation === 'submit'; if (noted) itemSessions.requireLedger(info); const result = await move(); if (noted) itemSessions.recordItemSession(info, args[0], operation); return result; }
+async function withItemSession(info, operation, args, move) { const noted = operation === 'claim' || operation === 'submit'; if (noted) itemSessions.requireLedger(info, personIdentity.agentSessionDigest()); const result = await move(); if (noted) itemSessions.recordItemSession(info, args[0], operation, personIdentity.agentSessionDigest()); return result; }
 
 /**
  * Whether the board's committed relay.outbox setting queues moves while the relay is down (#922, H21).
@@ -589,9 +588,9 @@ export function relayOutboxSetting(root) {
 
 export async function ordered(ctx, board, operation, args) {
   // With signed person moves on, a person-only move counts only as a passkey-confirmed request [E22].
-  const unsigned = signedMoveProblem(board, personAuthority({ operation, args }), ctx.io.personRequest, { strict: true });
+  const unsigned = signedMoveProblem(board, board.enginePorts.personAuthority({ operation, args }), ctx.io.personRequest, { strict: true });
   if (unsigned) throw unsigned;
-  const initialBaseline = initialSpecApprovalBaseline(ctx, board, operation);
+  const initialBaseline = initialSpecApprovalBaseline(ctx, board, operation, { relayRecovered, specApprovalBaselineExists: store.specApprovalBaselineExists });
   // Only a reject or a reopen can open a builder's first-refusal window (#954), so an accept never reads the coordinator's policy.
   if (operation === 'reopen' || operation === 'verify' && args[1]?.decision === 'REJECT') args = firstRefusalArgs(operation, args, configFromSource(coordinatorFile(ctx.info.root, CONFIG_FILE).stdout));
   ctx.io.relayOutbox ??= () => relayOutboxSetting(ctx.info.root);
@@ -620,7 +619,7 @@ export async function ordered(ctx, board, operation, args) {
     };
     const actor = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id;
     requireHandoffActive(board, actor, operation, args);
-    ensureSpecApprovalCoordinator(ctx, board, initialBaseline);
+    ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered, gitSyncLinked, ensureCoordinator: store.ensureCoordinator });
     const write = () => store.atomic(board, () => {
       requireHandoffActive(board, actor, operation, args);
       requireAgentGrant(board, { operation, args, engine: NATIVE_ENGINE }); // A native write applies current semantics.
@@ -787,7 +786,7 @@ export function freezer(ctx, { captureVerifyPolicy = false, board } = {}) {
       config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
     }
     const doctrine = board ? agentDoctrine(ctx, board) : loadDoctrine(ctx.info.root, config);
-    if (board) refuseAgentApprovedRows(ctx.info.root, { board, config, item });
+    if (board) refuseAgentApprovedRows(ctx.info.root, { board, config, item }, { store, verifiedPasskeyRowDecision });
     const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item, doctrine);
     if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
     const signed = board && barReadinessRequired(board, item) ? barReadiness(board, item, {}, { itemCheckBaseline }).signed : null;
@@ -1521,13 +1520,6 @@ export function primaryCheckoutRoot(info) {
   return found.length === 1 ? found[0] : null;
 }
 
-/** A real runtime session may route across its own local seats; marker-only shells stay isolated. */
-function nextSessionSeats(ctx, board) {
-  if (ctx.info.isMain || ctx.io.personChannel === 'view' || ctx.io.personRequest
-    || !personIdentity.AGENT_SESSION_IDS.some((name) => Boolean(process.env[name]))) return null;
-  const digest = personIdentity.agentSessionDigest();
-  return digest ? localSessionSeats(ctx.info, { agents: store.listAgents(board), digest }) : null;
-}
 
 /** Enrich the ordinary lane refusal with a clean destination owned by this session; never widen claim authority. */
 export async function wrongLaneGuidance(ctx, board, me, id, error) {
@@ -1595,7 +1587,7 @@ function nextPick(ctx, board, values) {
     familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
     omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   const offer = held ? null : relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
-  if (offer && !values.build && (offer.urgent || focusReviewFirst(board, offer.item, item))) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item) };
+  if (offer && !values.build && (offer.urgent || focusReviewFirst(board, offer.item, item, { milestones: store.milestones }))) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item, [], { milestones: store.milestones }) };
   if (!item) return { reasons, laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;

@@ -19,7 +19,6 @@ import {
 import { isLane } from './lanes.js';
 import { fetchLocal } from './local-fetch.js';
 import { Refused } from './refused.js';
-import { runningView } from './view-session.js';
 
 /** The kinds that carry a shout, so --to can match their addressee. */
 const SHOUT_KINDS = new Set(['shout', 'shout_news', 'answer', 'pass']);
@@ -122,7 +121,7 @@ async function openStream(base, key, boardId, after, signal) {
 }
 
 /** The person's running view as a stream source: its loopback origin and its session secret. */
-async function viewSource(commonDir) {
+async function viewSource(commonDir, runningView) {
   const view = await runningView(0, null) ?? await runningView(0, commonDir);
   if (!view) return null;
   const address = new URL(view.url);
@@ -206,9 +205,10 @@ function laneWork(file, lane, reviewWaitMs, nowMs) {
  *
  * @param {{ file: string, mainRoot: string, commonDir: string, config: any, isMain: boolean, runCommand: Function,
  *   serveApi: Function, options: ReturnType<typeof watchOptions>, start: ReturnType<typeof watchStart>,
- *   write: (text: string) => void, note: (text: string) => void, signal: AbortSignal, now?: () => number }} watch
+ *   write: (text: string) => void, note: (text: string) => void, signal: AbortSignal, now?: () => number, runningView: Function }} watch
  */
-export async function followBoard({ file, mainRoot, commonDir, config, isMain, runCommand, serveApi, options, start, write, note, signal, now = Date.now }) {
+export async function followBoard({ file, mainRoot, commonDir, config, isMain, runCommand, serveApi, options, start, write, note, signal, runningView, now = Date.now }) {
+  if (typeof runningView !== 'function') throw new TypeError('watch requires the caller-owned runningView operation');
   let cursor = options.since ?? start.sequence;
   const direct = directSource({ mainRoot, config, isMain, runCommand, serveApi });
   /** Print one record as a plain line or as one JSON object, immediately. */
@@ -266,7 +266,7 @@ export async function followBoard({ file, mainRoot, commonDir, config, isMain, r
     await checkWork();
     while (!both.aborted) {
       let body = null;
-      const view = await viewSource(commonDir).catch(() => null);
+      const view = await viewSource(commonDir, runningView).catch(() => null);
       if (view) body = await openStream(view.base, view.key, start.id, cursor, both).catch((error) => { if (both.aborted) throw error; return null; });
       const name = body ? view.name : direct.name;
       if (!body) {
@@ -322,7 +322,7 @@ export async function followBoard({ file, mainRoot, commonDir, config, isMain, r
  * Run pullboard watch for one checkout until Ctrl-C (SIGINT or SIGTERM), or until `io.signal` aborts.
  * Each line is its own document, so --json never adds an end-of-command envelope.
  */
-export async function watchCommand({ io, values, words, ctx, primaryCheckoutRoot, runCommand }) {
+export async function watchCommand({ io, values, words, ctx, primaryCheckoutRoot, runCommand, runningView }) {
   const { info, config, file, allowSchemaUpgrade: isMain } = ctx;
   const mainRoot = primaryCheckoutRoot(info) ?? info.root;
   if (words.some((word) => word !== undefined)) throw new Refused('USAGE', 'pullboard watch takes flags only, such as pullboard watch --to core; run pullboard help watch');
@@ -342,7 +342,7 @@ export async function watchCommand({ io, values, words, ctx, primaryCheckoutRoot
   if (io.signal?.aborted) stop();
   io.jsonMode?.(false);
   try {
-    return await followBoard({ file, mainRoot, commonDir: info.commonDir, config, isMain, runCommand, serveApi, options, start,
+    return await followBoard({ file, mainRoot, commonDir: info.commonDir, config, isMain, runCommand, serveApi, options, start, runningView,
       write: (text) => io.stdout.write(text), note: (text) => io.stderr.write(text + '\n'), signal: abort.signal });
   } finally {
     process.off('SIGINT', stop);

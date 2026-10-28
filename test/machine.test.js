@@ -125,6 +125,15 @@ const NON_MOVE_ENTRY_POINTS = [
 ];
 /** Board functions handed a function to call, and the one the CLI and the runner hand them. */
 const CALLBACKS = {
+  // Real higher command roots bind runnerExecutionServices; admission snapshots these functions onto the lease.
+  'gate-execution.js': {
+    'gateLease.executionServices.runners.runOnRunner': 'runners.js#runOnRunner',
+    'gateLease.executionServices.runners.runOnRunnerAsync': 'runners.js#runOnRunnerAsync',
+  },
+  // Explicit item ports preserve these canonical authority and sandbox refusal paths.
+  'reopen-authority.js': { verdictWithdrawalTarget: 'verdict-withdrawal.js#verdictWithdrawalTarget' },
+  'outside-verify.js': { verifyOutsideSandbox: 'sandbox-verify.js#verifyOutsideSandbox' },
+  'item-authors.js': { strictReviewProblem: 'review-independence.js#strictReviewProblem' },
   // Native verification ports retain these exact receipt and projection guards.
   'proof-cli.js': { proofRunReceipt: 'proof-receipts.js#proofRunReceipt' },
   'proof-counters.js': {
@@ -152,7 +161,7 @@ const CALLBACKS = {
  */
 const CAUGHT = {
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
-  'cross-repo-dependencies.js#stateFor': ['board-link-format.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
+  'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   'line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
   'commands/submit.js#submitHere': ['native-flakes.js#observeFailure', 'cli.js#freezer', 'main-red.js#compareMainFailures', 'main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
@@ -175,7 +184,7 @@ const CAUGHT = {
   // Only an unsupported historical grammar is ignored; new caller refusals remain audited below.
   'board-rigor-auto-source.js#automaticDecisionSource': ['spec.js#parseSpec'],
   'board-rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec'],
-  'person-row-proof.js#signedRowDecisionsMatch': ['blueprints.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
+  'person-row-proof.js#signedRowDecisionsMatch': ['spec.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
 };
 /**
  * Encrypted transport authenticates/orders a move; its board operation is walked separately above.
@@ -227,7 +236,7 @@ function codeWalk(read, { caught = false } = {}) {
       const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]));
       const callees = [
         ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
-        ...[...body.matchAll(/\b(\w+)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : undefined)),
+        ...[...body.matchAll(/\b(\w+(?:\.\w+)*)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : CALLBACKS[file]?.[`${space}.${callee}`])),
       ];
       callees.push(...runnerControllerCallees(file, body, source));
       facts = { codes, callees };
@@ -565,14 +574,14 @@ test('a broken copy of the declaration fails the check against the code, both wa
 
 test('a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
   for (const [file, pattern] of [
-    ['board-link-format.js', /^export function boardLinkRecord\(value\) \{$/m],
+    ['../packages/kernel/src/core/registry-guards.js', /^export function boardLinkRecord\(value\) \{$/m],
     ['board-link-state.js', /^export function readReceivedBoardState\(board, .*$/m],
   ]) {
     const inForeignReader = editedSource(file, pattern,
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignReader), [], 'only the exact foreign evidence reader is caught as unavailable');
   }
-  const inForeignCaller = editedSource('cross-repo-dependencies.js', /^function stateFor\(board, ref\) \{$/m,
+  const inForeignCaller = editedSource('cross-repo-dependencies.js', /^function stateFor\(board, ref, readReceivedBoardState\) \{$/m,
     "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignCaller).sort(), [
     'MOON_PHASE is raised by claim but not declared there',
@@ -590,7 +599,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
   ], 'the caller is not exempt: only the exact reader call is inside its catch');
 
   for (const helper of ['automaticDecisionSource', 'rigorDecisionKey']) {
-    const inHistoricalCaller = editedSource('board-rigor-auto-source.js',
+    const inHistoricalCaller = editedSource('rigor-auto-source.js',
       new RegExp(`^export function ${helper}\\(record\\) \\{$`, 'm'),
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inHistoricalCaller).sort(), [

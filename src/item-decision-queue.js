@@ -1,15 +1,12 @@
-import { normalizeRulingEffects } from './ruling-owner.js';
+import { normalizeRulingEffects } from './ruling-owner-context.js';
 import { RULING_OWNER_ENGINE } from './ruling-owner-engine.js';
 /** Structured choices on the existing append-only decision/answer stream [B21,B27]. */
 import { DECISION_QUEUE_ENGINE } from './decision-queue-engine.js';
 import { Refused } from './refused.js';
-import {
-  itemShoutReader,
-  shoutItemId,
-} from './board-shout-audience.js';
+import { shoutItemId } from '../packages/kernel/src/core/registry-guards.js';
 
 /** Validate new decision metadata before any message is persisted, without changing legacy shouts. */
-export function itemDecisionDetail(board, message, engine) {
+export function itemDecisionDetail(board, message, { itemShoutReader }, engine) {
   const { options, decision, item, from, effects } = message;
   const detail = {};
   if (effects !== undefined) {

@@ -56,6 +56,8 @@ export function defaults() {
     reviewLease: '30m',
     worktrees: 'beside',
     verify: { policy: 'any', family: 'off', reviewRatio: 3 },
+    // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
+    families: {},
     // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
     map: { slice: false },
     agents: { names: 'suffix' },
@@ -282,6 +284,21 @@ export function configProblems(config) {
   if (!['off', 'prefer', 'require'].includes(config.verify?.family)) {
     problems.push('"verify.family" is "off", "prefer" or "require"');
   }
+  if (!config.families || typeof config.families !== 'object' || Array.isArray(config.families)
+    || Object.entries(config.families).some(([name, aliases]) => !name.trim() || name.length > 80
+      || !Array.isArray(aliases) || aliases.some(alias => typeof alias !== 'string' || !alias.trim() || alias.length > 80))) {
+    problems.push('"families" maps each canonical vendor family to a list of declared alias names');
+  } else {
+    // One spelling names one family: an alias listed under two canonical families is refused, never guessed.
+    const owners = new Map();
+    for (const [canonical, aliases] of Object.entries(config.families)) {
+      for (const name of [canonical, ...aliases]) {
+        const key = name.trim().toLowerCase(), owner = canonical.trim().toLowerCase();
+        if (owners.has(key) && owners.get(key) !== owner) problems.push(`family alias "${name}" maps to both "${owners.get(key)}" and "${owner}"`);
+        owners.set(key, owner);
+      }
+    }
+  }
   if (typeof config.check !== 'object' || config.check === null || Array.isArray(config.check)) {
     problems.push('"check" is an object with optional "install" and "timeout" fields');
   }
@@ -377,6 +394,9 @@ export function doctrineFile(root, name = DOCTRINE_FILE) {
   }
   return current ? DOCTRINE_FILE : legacy ? LEGACY_DOCTRINE_FILE : name;
 }
+
+/** The ceiling for a frozen check: a configured landing.timeout when set, else check.timeout (#1760). */
+export function frozenCheckCeilingMs(config) { return config.landing?.timeoutMs ?? config.check.timeoutMs; }
 
 /** Parse committed coordinator settings with the same defaults and validation as local settings. */
 export function configFromSource(source) {

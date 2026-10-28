@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Verification carries the gate's explicit desktop requirement into real admission [C7,V4]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -73,7 +74,8 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
     const release = join(box.dir, 'holder-release');
     const holderSource = join(box.dir, 'holder.mjs');
     const gate = new URL('../src/gate.js', import.meta.url).href;
-    writeFileSync(holderSource, `import { withGateSlot } from ${JSON.stringify(gate)};\nimport { existsSync, writeFileSync } from 'node:fs';\nawait withGateSlot(process.cwd(), async () => { writeFileSync(${JSON.stringify(ready)}, 'ready'); while (!existsSync(${JSON.stringify(release)})) await new Promise(resolve => setTimeout(resolve, 20)); }, { remote: false, agent: 'private-holder', kind: 'check' });\n`);
+    writeFileSync(holderSource, `import { withGateSlot } from ${JSON.stringify(gate)};
+${executionServicesSource(gate)}\nimport { existsSync, writeFileSync } from 'node:fs';\nawait withGateSlot(process.cwd(), async () => { writeFileSync(${JSON.stringify(ready)}, 'ready'); while (!existsSync(${JSON.stringify(release)})) await new Promise(resolve => setTimeout(resolve, 20)); }, { executionServices, remote: false, agent: 'private-holder', kind: 'check' });\n`);
     const holder = helpers.launch(box, reviewer, process.execPath, [holderSource]);
     let verification;
     let queued;

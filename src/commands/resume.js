@@ -1,6 +1,12 @@
 import { trunkRef } from '../trusted-policy-read.js';
+import { agentDoctrine } from '../doctrine-rulings.js';
+import { appliedDoctrine } from '../doctrine.js';
+import { doctrineFromSource } from '../doctrine.js';
+import { loadDoctrine } from '../doctrine.js';
+import { primaryCheckoutRoot } from '../cli.js';
+import { relayRecovered } from '../relay.js';
+import { proposeLanes } from '../init.js';
 import { counterProofStats } from '../proof-counter-read.js';
-import { foreignBlockers } from '../cross-repo-dependencies.js';
 import { localDependencyIds } from '../item-dependencies.js';
 /** The pullboard resume command, in its own module so an item adding another command never edits these lines. */
 import {
@@ -41,9 +47,7 @@ import {
 import {
   resumeNeeds,
 } from '../resume-needs.js';
-import {
-  personNeeds,
-} from '../needs.js';
+import { personNeeds } from '../row-decision-text.js';
 import {
   Refused,
 } from '../refused.js';
@@ -144,7 +148,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   const initialBaseline = withBoardRead(ctx, board => {
     whoAmI(ctx, board);
     requireBoardWriteAccess(ctx.file);
-    return initialSpecApprovalBaseline(ctx, board, 'recordHealthFindings');
+    return initialSpecApprovalBaseline(ctx, board, 'recordHealthFindings', { relayRecovered, specApprovalBaselineExists: store.specApprovalBaselineExists });
   });
   if (initialBaseline) {
     const baselineIo = ctx.io.personRequest || ctx.io.personRequestMoveId
@@ -164,7 +168,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   let foreignBlocked;
   const card = await withBoardRead(ctx, async (board) => {
     setupScope = diagnostics ? setupIdentity(board) : null;
-    sources = await readResumeSources(ctx, board, { compareBranch: !json, includeHeadDoctrine: diagnostics });
+    sources = await readResumeSources(ctx, board, { agentDoctrine, appliedDoctrine, doctrineFromSource, loadDoctrine, primaryCheckoutRoot, rowDecisions: store.rowDecisions }, { compareBranch: !json, includeHeadDoctrine: diagnostics });
     setupDecisions = diagnostics ? store.rowDecisions(board) : undefined;
     doctrine = sources.doctrine;
     if (diagnostics) {
@@ -175,7 +179,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
     const me = whoAmI(ctx, board);
     const projector = diagnostics ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }) : null;
     const all = store.listItems(board, { all: true }).map(item => projector ? projector.project(item) : item);
-    foreignBlocked = new Set(all.filter(item => foreignBlockers(board, item).length).map(item => item.item_id));
+    foreignBlocked = new Set(all.filter(item => store.foreignBlockers(board, item).length).map(item => item.item_id));
     const pendingMerges = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit)
       .map(item => ({ ...item, item_checked_commit: store.checkedLandingCommit(board, item) }));
     const toMerge = pendingMerges.filter(item => !item.item_verdict_state);
@@ -215,7 +219,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       holds: store.laneHolds(board),
       unread: store.unreadCount(board, me.id),
       newest: store.peekShouts(board, me.id, 1),
-      ...(me.id === COORDINATOR ? { inbox: coordinatorInbox(board, me.id, decisions.openDecisions ?? store.openDecisions(board, COORDINATOR)) } : {}),
+      ...(me.id === COORDINATOR ? { inbox: coordinatorInbox(board, me.id, decisions.openDecisions ?? store.openDecisions(board, COORDINATOR), { unreadCount: store.unreadCount, peekShouts: store.peekShouts }) } : {}),
       agents: store.listAgents(board),
       ...(diagnostics ? { viewOpened: viewSetupComplete(ctx, board) } : {}),
     };
@@ -260,7 +264,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   if (view.state !== 'running' && backgroundViewLine(view)) say(backgroundViewLine(view));
   if (diagnostics) {
     say(`New agent worktrees: ${card.newWorktreeLocation}`);
-    card.setup = withBoardRead(ctx, board => withStarterWork(boardSetup(ctx, card, setupScope, { decisions: setupDecisions }), { board, me, main: isMain, config: ctx.config, root, seat: ctx.io.callerRole() === 'seat' }));
+    card.setup = withBoardRead(ctx, board => withStarterWork(boardSetup(ctx, card, setupScope, { decisions: setupDecisions }), { board, me, main: isMain, config: ctx.config, root, seat: ctx.io.callerRole() === 'seat', nextFor: store.nextFor, proposeLanes }));
   } else say('Setup, hook and stale-work diagnostics: pullboard resume --diagnostics.');
   if (!loadSpec(root, ctx.config).rows.length && card.all.length) say('Spec rows are optional; add a requirement later: pullboard spec draft "<text>".');
   if (card.setup) {

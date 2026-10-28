@@ -1,4 +1,5 @@
 /** Real private runner dispatch and public status under controlled memory readings [C7]. */
+import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
@@ -41,7 +42,8 @@ export async function assertRunnerMemoryAdmission() {
     const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
     const cli = join(import.meta.dirname, '../bin/pullboard.js');
     const source = [
-      `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};`,
+      `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
+${executionServicesSource(gate)}`,
       "import {execFileSync} from 'node:child_process';",
       "import {DatabaseSync} from 'node:sqlite';",
       'const root=process.cwd(); const output={};',
@@ -51,7 +53,7 @@ export async function assertRunnerMemoryAdmission() {
       'const readMemory=async()=>({checked:true,platform:process.platform,pressure:recovered?"normal":"critical",',
       'availableBytes:(recovered?8192:64)*1024**2,totalBytes:16*1024**3,processes:[]});',
       'const result=await withGateSlot(root,lease=>runProfiledShellAsync(root,"node memory-probe.cjs",{gateLease:lease,waitMs:lease.waitMs}),',
-      '{remote,agent,kind:"focused",readMemory,onWait(state){waited+=1;',
+      '{executionServices,remote,agent,kind:"focused",readMemory,onWait(state){waited+=1;',
       `status=JSON.parse(execFileSync(process.execPath,[${JSON.stringify(cli)},"status","--json"],{cwd:root,encoding:"utf8"}));`,
       `runnerStatus=JSON.parse(execFileSync(process.execPath,[${JSON.stringify(cli)},"resources","--json"],{cwd:root,encoding:"utf8"})).runners.find(row=>row.host===${JSON.stringify(HOST)});`,
       'if(state.memory?.held){held.push(state.memory);recovered=true;} releaseOccupied?.();}});',
@@ -60,7 +62,7 @@ export async function assertRunnerMemoryAdmission() {
       'const ready=new Promise(resolve=>{markOccupied=resolve;});',
       'const release=new Promise(resolve=>{releaseOccupied=resolve;});',
       'const occupied=withGateSlot(root,async lease=>{if(!lease.runner)throw new Error("occupying run did not reserve a runner");markOccupied();await release;},',
-      '{agent:"occupied-runner",kind:"focused",readMemory:async()=>({checked:true,pressure:"normal",availableBytes:8*1024**3,totalBytes:16*1024**3,processes:[]})});',
+      '{executionServices,agent:"occupied-runner",kind:"focused",readMemory:async()=>({checked:true,pressure:"normal",availableBytes:8*1024**3,totalBytes:16*1024**3,processes:[]})});',
       'await Promise.race([ready,occupied.then(()=>{throw new Error("occupying run ended before the queue control");})]);',
       '// A past transport hold is retry-eligible under the accepted runner policy, even while its slot is busy.',
       'const queue=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+"/resources.sqlite");',

@@ -1,4 +1,5 @@
 /** Exact signed-request provenance must replace optional SSH signing at native apply, never named identity [E22,H16]. */
+import { loadDoctrine } from '../src/doctrine.js';
 import assert from 'node:assert/strict';
 import {
   createHash,
@@ -82,7 +83,7 @@ export async function optionalPasskeyApply(t, { throughCli = false, fabricatedMe
   const intake = personRequestRecords(board).find(entry => entry.id === document.id);
   execute('shout', [{ from: 'person', to: 'coordinator', text: requestStageText(intake, 'claim'), lanes: Object.keys(loadConfig(box.root).lanes) }], 'claim');
   const decisions = prepareRowDecisions(box.root, loadConfig(box.root), { ids: ['G21'], decision: 'approve', by: 'person',
-    sshSign: false, passkeyRequest: document.id, on: at, commit: runFixtureGit(['rev-parse', 'HEAD'], { cwd: box.root, env: box.env }) });
+    sshSign: false, passkeyRequest: document.id, on: at, commit: runFixtureGit(['rev-parse', 'HEAD'], { cwd: box.root, env: box.env }) }, { loadDoctrine });
   // Keep this explicit even before prepareRowDecisions retains the new provenance option.
   decisions.forEach(record => { record.passkeyRequest = document.id; });
   assert.equal(decisions[0].signature, undefined, 'optional passkey approval does not invoke SSH signing');
@@ -139,7 +140,7 @@ export async function optionalPasskeyApply(t, { throughCli = false, fabricatedMe
   }
   const plan = planRowApply(box.root, loadConfig(box.root), store.rowDecisions(board), {
     passkeyDecision: record => signing.verifiedPasskeyRowDecision(board, record),
-  });
+  }, { loadDoctrine });
   assert.equal(plan.files.length, 1);
   assert.match(plan.files[0].after, /- G21 \[approved, must\] An optional SSH row approved by its exact passkey request\./u);
   assert.equal(readFileSync(specFile, 'utf8').includes('G21 [draft'), true, 'planning does not write before the caller commits its ordered apply');
