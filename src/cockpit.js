@@ -1,3 +1,6 @@
+import { activityWords } from './view/activity-words.js';
+import { activityModel } from './view/activity-model.js';
+import { activityHtml } from './view/activity-render.js';
 import { dashboardModel } from './view/dashboard-model.js';
 import { dashboardHtml } from './view/dashboard-render.js';
 import { dashboardRuntime } from './view/dashboard-runtime.js';
@@ -105,7 +108,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   const releaseInfo = hostedReleaseInfo(hostedReleaseVersion, hostedReleaseVersions, releaseHosted);
   const css = stylesheet ?? (snapshot ? 'view.css' : transportModule ? '/view.css' : '/view.css?k=' + encodeURIComponent(key));
   const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-  const pageScope = { dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, closePageDialog, connection, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeRules, hostedState, lifecycle, moduleOption, openPageDialog, pageStartup, paths, personNeeds, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
+  const pageScope = { activityWords, activityModel, activityHtml, dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, closePageDialog, connection, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeRules, hostedState, lifecycle, moduleOption, openPageDialog, pageStartup, paths, personNeeds, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -1461,18 +1464,10 @@ function render() {
   }
 
   if (keep('pb.flow') !== 'hidden') $('flow').innerHTML = flowSvg(p);
-  // A shout or an answer says what it said: who to whom, then its first line, from the shouts on hand.
-  // One older than those still names who it went to.
-  const said = new Map(p.shouts.map((x) => [x.shout_id, x]));
-  const spoke = (e) => {
-    let detail = {};
-    try { detail = JSON.parse(e.event_detail || '{}') || {}; } catch { /* an unreadable detail names the sender alone */ }
-    const x = said.get(detail.shout) || { shout_to: detail.to, shout_decision: detail.decision, shout_answers: detail.answers };
-    const verb = e.event_kind === 'answer' || x.shout_answers ? 'answered' : x.shout_decision ? 'asked' : 'shouted to';
-    const line = firstLine(x.shout_text);
-    return '<b>' + esc(agentName(e.event_by)) + '</b> ' + verb + (x.shout_to ? ' <b>' + esc(agentName(x.shout_to)) + '</b>' : '') + (line ? '<span class="said" title="' + esc(line) + '">' + inline(line, titles) + '</span>' : '');
-  };
-  $('activity').innerHTML = p.events.length ? byDay(p.events, (e) => e.event_at, (e) => '<div><time>' + clock(e.event_at) + '</time><div class="act">' + (e.event_kind === 'shout' || e.event_kind === 'shout_news' || e.event_kind === 'answer' ? spoke(e) : '<b>' + esc(agentName(e.event_by)) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' <a class="ref" href="' + esc(itemAddress(e.item_id)) + '" data-go="item:' + e.item_id + '">#' + e.item_id + '</a>' + (titles.has(String(e.item_id)) ? ' <span class="what">' + rich(titles.get(String(e.item_id)), titles) + '</span>' : '') : '')) + '</div></div>') : '<div class="empty">No activity yet.</div>';
+  const activity = $('activity');
+  const activityOpen = activity.dataset.boardRoot === p.root ? [...activity.querySelectorAll('[data-activity-run][open]')].map(entry => entry.dataset.activityRun) : [];
+  activity.dataset.boardRoot = p.root;
+  activity.innerHTML = activityHtml(activityModel(p), { words: activityWords, filter: view.activityFilter || 'all', itemHref: itemAddress, open: activityOpen, dayLabel: dayName, quote: text => inline(text, titles) });
   showTab();
   revealPlace();
   updateRoadmapPanel();

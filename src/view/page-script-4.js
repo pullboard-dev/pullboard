@@ -816,6 +816,8 @@ $('shout-text').addEventListener('keydown', (event) => { if (event.key === 'Ente
 document.addEventListener('click', (event) => {
   // The open-board screens name their state in data-state and handle their own presses (#764).
   if (event.target.closest('#local-note')) return;
+  const activityFilter = event.target.closest('[data-activity-filter]');
+  if (activityFilter) { view.activityFilter = activityFilter.dataset.activityFilter; render(); return; }
   const dashboardList = event.target.closest('[data-dashboard-list]');
   if (dashboardList) {
     view.dashboardList = dashboardList.dataset.dashboardList; view.state = view.dashboardList === 'review' ? 'verify' : 'ready';
