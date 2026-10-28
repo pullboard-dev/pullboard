@@ -30,10 +30,10 @@ import { runSubmitGate } from '../src/gate.js';
 import { withFileLock } from '../src/relay-outbox-guard.js';
 import { readMainAudit } from '../src/main-audit-state.js';
 import { saveMainAudit } from '../src/main-audit-state.js';
-import { landingLeaseState } from '../src/landing-lease.js';
+import { landingLeaseState } from '../src/board-landing-lease.js';
 import { executionServices } from './gate-execution-fixture.js';
 import { flakeLedger } from '../src/flakes.js';
-import { eventCauses } from '../src/rigor.js';
+import { eventCauses } from '../src/board-rigor.js';
 const workerServices = Object.freeze({ executionServices, context, ordered, withBoard, runSubmitGate, withFileLock,
   readMainAudit, saveMainAudit, landingLeaseState, selectors: { selectAffectedTests, selectTestTreeGuards },
   testValue: { flakeLedger, eventCauses } });
