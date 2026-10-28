@@ -55,9 +55,11 @@ test('a review in progress names its reviewer [N26]', async () => {
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip warn" title="reviewing until [^"]+">web-2 \(Test Model\) reviewing<\/span><\/li>$/, 'the row names who holds the review');
     assert.doesNotMatch(page.show('needs'), /Greeting/, "a review is the agents' work, so it stays out of Needs-you");
     page.run('view.open.idle = true; render();');
+    await page.click({ tab: 'shouts' });
     const holds = (id) => agentEntries(page.show('agents')).find((agent) => agent.id === id).holds;
     assert.deepEqual(holds('web-2'), ['#1 Greeting: reviewing'], 'the reviewer holds it');
     assert.deepEqual(holds('web-1'), ['#1 Greeting: to verify'], 'the builder waits on it');
+    await page.click({ tab: 'items' });
     // A name is board text, so it is escaped: give the board on hand a reviewer with markup and redraw.
     page.run('data.project.items.find((i) => i.id === 1).claim.by = "web<b>"; render();');
     assert.match(itemRow(page.show('chain'), 1), />web&lt;b&gt; reviewing<\/span><\/li>$/);
@@ -104,7 +106,8 @@ test('a stale verdict shows a stale chip [N26,V4]', async () => {
     await page.click({ go: 'item:3' });
     assert.equal(marks(page.show('detail')), '', 'a merged item carries no mark');
     page.run('view.tab = "roadmap"; render();');
-    assert.deepEqual(rows(page.show('roadmap'), (id) => `data-go="item:${id}"`), [stale, '', '', legacy], 'the Roadmap marks the same rows');
+    assert.deepEqual(rows(page.show('roadmap'), (id) => `data-roadmap-key="i:#${id}"`), [stale, '', '', legacy], 'the Roadmap marks the same rows');
+    await page.click({ tab: 'shouts' });
     page.run('view.agent = "web-1"; render();');
     assert.deepEqual(rows(page.show('agents').replaceAll('<div class="agent-work"', '<li'), (id) => `data-item="${id}"`), [stale, '', '', legacy], 'the builder holds its stale verdicts in the agent rows');
   } finally { await view.stop(); }
@@ -658,6 +661,7 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
     assert.match(page.show('filter-menu'), /<span class="filter-option-label">Active<\/span><b>0<\/b>/, 'a withdrawn item is not active');
     await page.type('q', '');
 
+    await page.click({ tab: 'shouts' });
     const feed = page.show('feed');
     assert.ok(feed.includes(`<a class="ref" href="/items/1" data-go="item:1" title="Greeting">#1</a> is next;`), feed);
     assert.ok(feed.includes(`<a class="ref" href="/items/2" data-go="item:2" title="Farewell banner">#2</a> shipped`));
@@ -671,9 +675,11 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
     assert.equal(page.element('detail').scrolled, 0, 'side by side, the detail is already in view');
 
     const narrow = await openPage(view, { width: 600 });
+    await narrow.click({ tab: 'items' });
     await narrow.click({ item: '1', classes: 'row' });
     assert.match(narrow.show('detail'), /Greeting/);
     assert.equal(narrow.element('detail').scrolled, 1, 'under 900px, picking an item brings its detail into view');
+    await narrow.click({ tab: 'shouts' });
     await narrow.click({ go: 'item:2', classes: 'ref' });
     assert.equal(narrow.element('detail').scrolled, 2, 'and so does a link to one');
   } finally {
@@ -1029,7 +1035,8 @@ test('in-text item references stay inline and open their target at phone and des
       await chrome.click(`document.querySelector('#chain .row[data-item="2"] .t a.ref[data-go]')`);
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Target item')");
       await chooseFilter(chrome, 'state:active');
-      await chrome.click(`document.querySelector('#needs .row .t a.ref[data-go]')`);
+      if (await chrome.stable(`${decision}.open`) !== true) await chrome.click(`${decision}.querySelector('summary')`);
+      await chrome.click(`${decision}.querySelector('.needs-detail p a.ref[data-go]')`);
       await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
 
       await chrome.click(`document.querySelector('[data-tab="activity"]')`);

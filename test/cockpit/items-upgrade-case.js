@@ -69,7 +69,7 @@ test('the view shows what is new once after an upgrade [N26]', async () => {
       assert.deepEqual(shown.paragraphs, [paragraph, paragraph, paragraph], 'each complete headline paragraph comes through the real board API');
       assert.match(shown.more, /^\+1 more/, 'remaining releases are counted');
       assert.equal(shown.notes, 'https://github.com/pullboard-dev/pullboard/blob/main/CHANGELOG.md', 'the card links to the full notes');
-      assert.ok(shown.cardBottom <= shown.itemTop && shown.itemBottom <= shown.viewport, `${width}/${scheme}: the card leaves the complete first item above the fold`);
+      assert.ok(shown.cardBottom <= shown.itemTop && shown.itemBottom <= shown.viewport, `${width}/${scheme}: the card leaves the complete first item above the fold: ${JSON.stringify(shown)}`);
       assert.ok(shown.pageWidth <= shown.width, `${width}/${scheme}: the page never scrolls sideways`);
       assert.equal(shown.scheme, true, 'the actual browser uses the requested color scheme');
       if (process.env.PULLBOARD_UPGRADE_PROOF) {

@@ -276,8 +276,8 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         await press(chrome, 'document.querySelector("#chain [data-item=\\"1\\"]")');
         await settled(chrome, `view.item === 1 && !!document.querySelector("#detail h2") && !document.querySelector('#detail [aria-busy="true"]')`);
         assert.ok((await text('#detail')).includes(expected.builder), `${at}: held item detail`);
-        assert.equal(await text('#needs .row[data-go^="decide:"] .meta'), 'NEEDS YOU a decision, asked by ' + expected.reviewer, `${at}: Needs-you decision author`);
-        assert.ok((await text('#needs .row[data-go="tab:shouts"] .meta')).includes('lane held by ' + expected.reviewer), `${at}: Needs-you lane holder`);
+        assert.equal(await text('#needs details[data-needs-key^="decision:"] [data-needs-field="asked-by"]'), expected.reviewer, `${at}: Needs-you decision author`);
+        assert.ok((await text('#needs details[data-needs-key^="hold:"] .needs-copy small')).includes('lane held by ' + expected.reviewer), `${at}: Needs-you lane holder`);
         await chooseFilter(chrome, 'state:verified');
         await settled(chrome, '!!document.querySelector("#chain [data-item=\\"2\\"]")');
         await press(chrome, 'document.querySelector("#chain [data-item=\\"2\\"]")');
@@ -450,6 +450,7 @@ test('local agents panel inventories and phone-revokes a scoped credential [H2,H
   })).success, true);
   stage('device confirmation');
   await phoneChrome.navigate(`${box.origin}/#device=${pending.locator}.${pending.secret}`);
+  stage('device navigation returned');
   assert.equal((await setupDone).code, 0, 'the real phone session pairs the machine');
   await phoneChrome.waitFor("document.querySelector('#phone-approvals') !== null");
 
