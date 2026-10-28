@@ -9,7 +9,7 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { serveView } from '../../src/serve.js';
+import { serveView } from '../../src/commands/view.js';
 import { chromeExecutable, closeSnapshotChrome, openSnapshotChrome } from './fixture.js';
 
 /**
