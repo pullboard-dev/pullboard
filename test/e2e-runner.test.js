@@ -282,10 +282,10 @@ test('next takes work near your recent files; submit records them; show names re
   commitFile(box, box.web, 'web/nav.html', '<nav>', 'feat(web): nav in the header [G1]');
   commitFile(box, box.repo, 'docs/notes.md', 'main moves on', 'docs: notes on main');
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
-  assert.equal(box.run(box.web, 'submit', '2').code, 0);
+  assert.equal(box.run(box.web, 'submit', '2', '--no-next').code, 0);
   assert.equal(JSON.parse(box.run(box.web, 'show', '2', '--json').out).item_files, 'web/header.html\nweb/nav.html', 'only the item\'s own commits, not the merge');
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
-  box.run(box.repo, 'verify', '2', 'accept', '--note', 'emptied the header; the page lost it', '--as', 'coordinator');
+  box.run(box.repo, 'verify', '2', 'accept', '--no-next', '--note', 'emptied the header; the page lost it', '--as', 'coordinator');
   box.git(box.repo, 'switch', '-q', 'main');
   const verifiedCommit = JSON.parse(box.run(box.repo, 'show', '2', '--json').out).item_commit;
   box.git(box.repo, 'merge', '--no-ff', verifiedCommit, '-m', 'chore(merge): land #2 [G1]');
