@@ -6,9 +6,9 @@ import { atomic } from './board.js';
 import { logEvent } from './board.js';
 import { HANDOFF_ENGINE } from './handoff-engine.js';
 import { ENGINE_VERSION } from './machine.js';
-import { agentHandoff } from './handoff-state.js';
-import { itemHandoff } from './handoff-state.js';
-import { requireHandoffActive } from './handoff-state.js';
+import { agentHandoff } from '../packages/state/src/core/handoff-state.js';
+import { itemHandoff } from '../packages/state/src/core/handoff-state.js';
+import { requireHandoffActive } from '../packages/state/src/core/handoff-state.js';
 import { Refused } from './refused.js';
 
 /** Only a registered worktree seat can give up or take an agent's role. */

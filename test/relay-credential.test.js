@@ -6,7 +6,7 @@ import {
 } from 'node:fs';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
-import { ENGINE_OPERATIONS } from '../src/engine.js';
+import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../src/move-registry.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import {
   decodeBoardKey,

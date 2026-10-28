@@ -2,7 +2,7 @@
 import * as store from './board.js';
 import { budgetInbox } from './inbox-budget.js';
 import { readActivityDelivery } from './activity-delivery-read.js';
-import { handoffMoveProblem } from './handoff-state.js';
+import { handoffMoveProblem } from '../packages/state/src/core/handoff-state.js';
 import { Refused } from './refused.js';
 import {
   activityMainFiles,

@@ -1,7 +1,7 @@
 import { ensureFactIdentityIndexes } from './fact-identity.js';
 import { missingFactIdentityIndexes } from './fact-identity.js';
-import { ensureGrantActivationIndex } from './relay-activation.js';
-import { missingGrantActivationIndex } from './relay-activation.js';
+import { ensureGrantActivationIndex } from '../packages/state/src/core/relay-activation.js';
+import { missingGrantActivationIndex } from '../packages/state/src/core/relay-activation.js';
 
 /**
  * The indexes and bounded reads behind the board's hot queries [C7]. Status, list, show, next, resume,

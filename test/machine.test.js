@@ -12,6 +12,7 @@ import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
@@ -191,17 +192,17 @@ function codeWalk(read, { caught = false } = {}) {
     if (!files.has(file)) {
       const source = read(file);
       const named = new Map();
-      /** Resolve a relative import to its path under src/, from a file in src/ or src/commands/. */
-      const under = (dots, name) => (file.startsWith('commands/') ? (dots === '..' ? name : `commands/${name}`) : (dots === '.' ? name : null));
-      for (const [, names, dots, name] of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*'(\.\.?)\/([\w-]+\.js)'/g)) {
-        const from = under(dots, name);
+      /** Resolve literal relative imports with their repository layout, including extracted packages. */
+      const under = (specifier) => posix.normalize(posix.join(posix.dirname(file), specifier));
+      for (const [, names, specifier] of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*'(\.{1,2}\/[^']+\.js)'/g)) {
+        const from = under(specifier);
         if (!from) continue;
         for (const part of names.split(',').map((text) => text.trim()).filter(Boolean)) {
           const [original, local = original] = part.split(/\s+as\s+/);
           named.set(local, `${from}#${original}`);
         }
       }
-      const spaces = new Map([...source.matchAll(/import \* as (\w+) from '(\.\.?)\/([\w-]+\.js)'/g)].map(([, space, dots, name]) => [space, under(dots, name)]).filter(([, from]) => from));
+      const spaces = new Map([...source.matchAll(/import \* as (\w+) from '(\.{1,2}\/[^']+\.js)'/g)].map(([, space, specifier]) => [space, under(specifier)]));
       files.set(file, { bodies: functionsIn(source), named, spaces, source });
     }
     return files.get(file);
@@ -1469,4 +1470,14 @@ test('Rigor historical data boundaries do not hide a new projection refusal [M1,
 
 test('a source walk scans local facts once while retaining caller-specific refusal traversal [C7,M1]', () => {
   assertMachineWalkMemo(codeWalk);
+});
+
+
+test('lifecycle audit follows extracted package guards and catches a new refusal [M1,M4,H16]', () => {
+  const file = '../packages/state/src/core/handoff-state.js';
+  const walk = codeWalk(fromDisk);
+  assert.ok(walk.refusalsOf(`${file}#requireHandoffActive`).has('AGENT_REPLACED'));
+  const planted = editedSource(file, /^export function requireHandoffActive\(board, actor, operation, args\) \{$/m,
+    "$&\n  throw new Refused('STATE_PACKAGE_PROBE', 'planted package guard');");
+  assert.ok(codeProblems(machineRules.MACHINE, planted).includes('STATE_PACKAGE_PROBE is raised by submit but not declared there'));
 });

@@ -2,7 +2,11 @@
 /** @pullboard-test-loads src/engine.js src/machine.js */
 /** In-memory SQLite tests for the deterministic, sequence-ordered move engine [H3,H16]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -10,10 +14,24 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { exportBoard, importBoard, restoreRelaySnapshot } from '../src/exchange.js';
-import { applyEngineMove, applyRelayMove, prepareEngineMove, appliedSequence, engineReceipt, refuseRelayMove, startRelayEpoch, checkpointSequence, ENGINE_OPERATIONS } from '../src/engine.js';
-import { COMMAND_CANDIDATE, COMMAND_FILE, discovered } from '../src/discovery.js';
-import { ENGINE_REGISTRY, ENGINE_VERSION, discoverEngines } from '../src/machine.js';
+import { exportBoard } from '../src/exchange.js';
+import { importBoard } from '../src/exchange.js';
+import { restoreRelaySnapshot } from '../src/exchange.js';
+import { applyEngineMove } from '../src/engine.js';
+import { applyRelayMove } from '../src/engine.js';
+import { prepareEngineMove } from '../src/engine.js';
+import { appliedSequence } from '../src/engine.js';
+import { engineReceipt } from '../src/engine.js';
+import { refuseRelayMove } from '../src/engine.js';
+import { startRelayEpoch } from '../src/engine.js';
+import { checkpointSequence } from '../src/engine.js';
+import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../src/move-registry.js';
+import { COMMAND_CANDIDATE } from '../src/discovery.js';
+import { COMMAND_FILE } from '../src/discovery.js';
+import { discovered } from '../src/discovery.js';
+import { ENGINE_REGISTRY } from '../src/machine.js';
+import { ENGINE_VERSION } from '../src/machine.js';
+import { discoverEngines } from '../src/machine.js';
 import { Refused } from '../src/refused.js';
 import { unpackRelease } from './release-archive.js';
 
@@ -748,4 +766,43 @@ test('outside author facts and exact owner approval replay without manufacturing
   const imported = fixtureBoard(t);
   importBoard(imported, exportBoard(one));
   assert.deepEqual(store.getItem(imported, id).outside, store.getItem(one, id).outside, 'public facts and approval survive the native export boundary');
+});
+
+
+test('state runtime ports preserve native events and duplicate receipts [C7,H16]', (t) => {
+  const control = fixtureBoard(t);
+  const supplied = fixtureBoard(t);
+  const calls = [];
+  const nativePorts = supplied.enginePorts;
+  const board = { ...supplied, enginePorts: Object.freeze({ ...nativePorts,
+    /** Observe the explicit provider call while retaining its real authorization judgment. */
+    requireCoordinatorHold(...args) {
+      calls.push('coordinator-hold');
+      return nativePorts.requireCoordinatorHold(...args);
+    },
+  }) };
+  const move = prepareEngineMove(board, 'ensureCoordinator', ['/explicit-state-port'], { id: 'explicit-runtime-port' });
+  assert.deepEqual(Object.keys(move).sort(), ['args', 'engine', 'id', 'operation', 'version']);
+  const record = { sequence: 1, at: CLAIM_AT };
+  const expected = applyEngineMove(control, move, record);
+  const actual = applyEngineMove(board, move, record);
+  assert.equal(actual.error, undefined);
+  assert.deepEqual(actual, expected, 'ports preserve the original native outcome and recorded events');
+  assert.deepEqual(calls, ['coordinator-hold']);
+  assert.deepEqual(applyEngineMove(board, move, record), actual, 'duplicate receipt is returned without execution');
+  assert.deepEqual(calls, ['coordinator-hold'], 'receipt replay never repeats the provider operation');
+  assert.deepEqual(engineReceipt(board, move.id), engineReceipt(control, move.id));
+});
+
+test('state refuses a missing runtime port before invoking origin callbacks [C7,H16]', (t) => {
+  const board = fixtureBoard(t);
+  const unbound = { ...board, enginePorts: undefined };
+  let called = false;
+  assert.throws(() => prepareEngineMove(unbound, 'claim', [1, {
+    /** An unbound store must refuse before any caller-supplied freezing effect. */
+    freeze() { called = true; },
+  }]), { code: 'RELAY_MOVE' });
+  assert.equal(called, false);
+  assert.equal(appliedSequence(board), 0);
+  assert.deepEqual(store.events(board), []);
 });

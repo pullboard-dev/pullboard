@@ -5,7 +5,7 @@ import {
   ordered,
   withBoardRead,
 } from './cli.js';
-import { lineSettings } from './line-settings.js';
+import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
 import { LINE_SETTING_DEFINITIONS } from './queue-settings.js';
 import { Refused } from './refused.js';
 
