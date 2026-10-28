@@ -1206,6 +1206,46 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
   .dash-agent-axis > span:nth-child(2) > span:not(:first-child):not(:last-child) { display: none; }
 }
 
+/* Activity's approved sentence rows and one expandable row per sentinel run [N26]. */
+#activity.feed { padding: 12px 6px 6px; display: block; }
+#activity > .activity-bar { display: flex; padding: 0 8px 8px; border: 0; }
+.activity-events { list-style: none; margin: 0; padding: 0; }
+.activity-day { padding: 8px 8px 4px; font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
+.activity-event { display: grid; grid-template-columns: 68px 22px minmax(0, 1fr); gap: 8px; padding: 6px 8px; border-radius: 8px; align-items: start; }
+.activity-event + .activity-event { border-top: 1px solid var(--line); }
+.activity-event:hover { background: var(--surface-2); }
+.activity-event > time { padding-top: 3px; white-space: nowrap; }
+.activity-verb { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2); color: var(--ink-muted); }
+.activity-verb svg { width: 14px; height: 14px; }
+.activity-verb.build { background: var(--accent-soft); color: var(--accent-strong); }
+.activity-verb.review { background: var(--blue-soft); color: var(--blue); }
+.activity-verb.back { background: var(--reject-soft); color: var(--reject); }
+.activity-verb.shout { background: var(--violet-soft); color: var(--violet); }
+.activity-verb.sentinel { background: var(--warn-soft); color: var(--warn); }
+.activity-say { min-width: 0; }
+.activity-say p { margin: 0; }
+.activity-who { font-weight: 600; }
+.activity-who[title] { text-decoration: underline dotted var(--line); text-underline-offset: 3px; }
+.activity-item { display: block; margin-top: 1px; font-size: 13px; color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-item a { font: 12px var(--mono); margin-right: 6px; }
+.activity-quote { margin: 4px 0 0; padding: 6px 8px; background: var(--surface-2); border-radius: 6px; font-size: 13px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.activity-run summary { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; cursor: pointer; list-style: none; }
+.activity-run summary::-webkit-details-marker { display: none; }
+.activity-run summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.activity-pill { display: inline-flex; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.activity-pill.failing { background: var(--reject-soft); color: var(--reject); }
+.activity-pill.resolved { background: var(--accent-soft); color: var(--accent-strong); }
+.activity-pill.stuck { background: var(--warn-soft); color: var(--warn); }
+.activity-pill.quiet { background: var(--surface-2); color: var(--ink-muted); }
+.activity-caret { width: 14px; height: 14px; fill: none; stroke: var(--ink-faint); stroke-width: 1.8; transition: transform .15s; }
+.activity-run[open] .activity-caret { transform: rotate(90deg); }
+.activity-lines { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.activity-lines li { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 6px; align-items: baseline; }
+.activity-lines i { width: 8px; height: 8px; border-radius: 50%; background: var(--reject); }
+.activity-lines .resolved > i { background: var(--accent); }
+.activity-lines .stuck > i { background: var(--warn); }
+.activity-next { color: var(--ink-faint); font-size: 12px; }
+@media (max-width: 600px) { .activity-event { grid-template-columns: 62px 22px minmax(0, 1fr); gap: 6px; padding-inline: 4px; } #activity > .activity-bar { padding-inline: 4px; } .activity-bar .seg { max-width: 100%; flex-wrap: wrap; } }
 /* The agent floor (#dashboard/floor): the Dashboard's Agents card opened up to the whole board, in the same tokens.
  * Layout and type carry it; every bar width is an SVG attribute, so no inline style is needed. */
 .dashboard.floor-page { padding-bottom: 28px; }
