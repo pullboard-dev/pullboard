@@ -351,6 +351,55 @@ function blob(source) {
   return { source, object: createHash('sha1').update(`blob ${Buffer.byteLength(source)}\0`).update(source).digest('hex') };
 }
 
+test('lazy API imports require exact declared origins and never authorize returned filesystem capabilities [C7]', () => {
+  const consumer = "import {readFileSync} from 'node:fs'; const api = await import('../src/api.js'); api.health(); readFileSync('config.json');";
+  const options = { file: 'test/lazy-api.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']] };
+  const body = "throw new Error('analysis must never execute this');\nexport function health() { return {ok:true}; }\n";
+  const sources = { 'src/api.js': "export {health} from './body.js';\n", 'src/body.js': body };
+  const inspect = (source = consumer, values = sources) => fixtureSourceEdits(source, { ...options,
+    readSource: file => typeof values[file] === 'string' ? blob(values[file]) : null });
+  assert.deepEqual(inspect(), { edits: [], problems: [] });
+  assert.deepEqual(inspect(consumer, { ...sources, 'src/api.js': "export * from './body.js';\n" }), { edits: [], problems: [] });
+  for (const provider of [
+    "export {readFileSync as health} from 'node:fs';\n",
+    "export * as health from 'node:fs';\n",
+    "export const health = unknown;\n",
+    "import {readFileSync} from 'node:fs';\nexport function health(file) { return readFileSync(file); }\n",
+    "export {health} from './missing.js';\n",
+    "export {health} from './cycle.js';\n",
+  ]) assert.ok(inspect(consumer, { ...sources, 'src/api.js': provider,
+    'src/cycle.js': "export {health} from './api.js';\n" }).problems.length, provider);
+  const returned = "export function health() { return unknownCapability; }\n";
+  for (const use of [
+    "api.health().readFileSync(input);",
+    "const fs = api.health(); fs?.readFileSync(input);",
+    "api.health()['readFileSync'](input);",
+    "const {readFileSync: read} = api.health(); read(input);",
+    "api.health().copyFileSync(input, output);",
+    "const key = unknown; api.health()[key](input);",
+    "Reflect.get(api.health(), unknown)(input);",
+    "const {[unknown]: read} = api.health(); read(input);",
+  ]) assert.ok(inspect(consumer + use, { 'src/api.js': returned }).problems.length, use);
+  const forged = fixtureSourceEdits(consumer, { ...options, readSource: () => ({ source: body, object: '0'.repeat(40) }) });
+  assert.ok(forged.problems.length);
+  assert.ok(inspect(consumer, { 'src/api.js': 'export function health( {' }).problems.length, 'malformed exact blobs remain refused');
+  const common = fixtureSourceEdits("const api = require('../src/api.js'); api.health();", { ...options, readSource: file => blob(body) });
+  assert.ok(common.problems.length, 'CommonJS never acquires ESM source-origin authority');
+});
+
+test('fixed-leaf producers follow canonical named shims but refuse unresolved or ambiguous star origins [C7]', () => {
+  const consumer = "import {readFileSync} from 'node:fs'; import {locate} from '../src/shim.js'; readFileSync(locate(info));";
+  const sources = { 'src/shim.js': "export {leaf as locate} from '../packages/git/index.js';\n",
+    'packages/git/index.js': "export * from './body.js';\n",
+    'packages/git/body.js': "import {join} from 'node:path';\nexport function leaf(info) { return join(info.commonDir, 'settings.json'); }\n" };
+  const options = { file: 'test/shim-producer.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']] };
+  const inspect = values => fixtureSourceEdits(consumer, { ...options, readSource: file => values[file] ? blob(values[file]) : null });
+  assert.deepEqual(inspect(sources), { edits: [], problems: [] });
+  assert.ok(inspect({ ...sources, 'packages/git/index.js': "export * from './body.js';\nexport * from './missing.js';\n" }).problems.length);
+  assert.ok(inspect({ ...sources, 'packages/git/index.js': "export * from './body.js';\nexport * from './other.js';\n",
+    'packages/git/other.js': sources['packages/git/body.js'] }).problems.length);
+});
+
 test('imported producers need exact source identity and a proven native join return leaf [C7]', () => {
   const consumer = "import { readFileSync } from 'node:fs';\nimport { locate as local } from '../src/producer.js';\nreadFileSync(local());";
   const valid = "import { join } from 'node:path';\nexport function locate() { return join(unknownRoot, 'config.json'); }\n";
