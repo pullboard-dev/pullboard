@@ -942,7 +942,16 @@ document.addEventListener('click', (event) => {
   }
   else if (t.dataset.codeAll) showAllCode(t.dataset.codeAll, t.dataset.before || '');
   else if (t.dataset.codeLess) showLessCode(t.dataset.codeLess, t.dataset.before || '');
-  else if (t.dataset.code) code(t.dataset.code, t.dataset.before || '');
+  else if (t.dataset.code) {
+    const note = t.closest('.tl-note');
+    if (note) {
+      view.timelineOpen ||= new Map();
+      const key = JSON.stringify([view.root, view.item]), open = new Set(view.timelineOpen.get(key) || []);
+      open.add(note.querySelector('[data-timeline-more]').dataset.timelineMore);
+      view.timelineOpen.set(key, [...open]);
+    }
+    code(t.dataset.code, t.dataset.before || '');
+  }
   else if (t.dataset.release) act('release', { lane: t.dataset.release }, t);
   else if (t.dataset.shout) { answer(null); addressTo(t.dataset.shout); $('shout-text').value = '#' + t.dataset.about + ': '; openTab('shouts'); showTab(); $('shout-text').focus(); }
   else if (t.dataset.new !== undefined) { view.adding = true; render(); $('add-title').focus(); }

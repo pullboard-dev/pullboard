@@ -45,7 +45,7 @@ export function timelineHtml({ entries, steps, flow, open = [] }) {
     const previous = steps.slice(0, index).findLast(row => row.move);
     const waited = step.kind === 'reserve' && previous?.at && step.at
       ? 'it had waited ' + Math.max(0, Math.round((Date.parse(step.at) - Date.parse(previous.at)) / 60000)) + ' minutes for a reviewer' : '';
-    rows.push({ type: 'move', kind: step.kind, by: step.by, model: step.model, state, enters,
+    rows.push({ type: 'move', kind: step.kind, by: step.by, model: step.model, state, enters, from: step.from,
       classes: 'tl-' + state + (step.kind === 'reject' ? ' tl-back' : '') + (enters ? '' : ' tl-quiet'),
       eventIds: event ? [event.eventId] : [], time: step.timeLabel, lastTime: step.timeLabel,
       sentence: who(step) + ' ' + esc(verbs[step.kind] ?? step.kind.replaceAll('-', ' ')),
@@ -61,10 +61,10 @@ export function timelineHtml({ entries, steps, flow, open = [] }) {
     const verb = kind === 'measurement' ? 'recorded a measurement' : kind === 'proof' ? 'recorded proof' : kind === 'note' ? 'added a note' : 'recorded a fact';
     const body = '<div class="tl-note' + (expanded ? ' expanded' : '') + '"><div class="tl-body">' + (fact.bodyHtml ?? esc(fact.text))
       + '</div><button type="button" data-timeline-more="' + esc(key) + '" aria-expanded="' + expanded + '">' + (expanded ? 'Show less' : 'Show all') + '</button></div>';
-    rows.push({ type: 'fact', kind, by: fact.by, state: kind === 'measurement' ? 'measure' : kind === 'proof' ? 'proof' : 'note',
+    rows.push({ type: 'fact', kind, by: fact.by, state: judgement ? 'back' : kind === 'measurement' ? 'measure' : kind === 'proof' ? 'proof' : 'note',
       classes: 'tl-fact' + (judgement ? ' tl-judgement' : '') + (replacement ? ' tl-superseded' : ''),
       id: key, eventIds: [fact.eventId], time: fact.timeLabel,
-      sentence: who(fact) + ' ' + verb + ' <span class="tl-kind tl-kind-' + kind + '">' + esc(kind) + '</span>',
+      sentence: who(fact) + ' ' + verb + ' <span class="tl-kind tl-kind-' + kind + '">' + esc(fact.kind) + '</span>' + (kind === 'fact' ? ' <span class="tl-kind-type">fact</span>' : ''),
       stay: fact.ageHtml + (replacement ? ' · <a class="thread-replacement" href="#fact-' + esc(replacement.id) + '">replaced by ' + esc(replacement.kind) + '</a>' : ''),
       body: body + (fact.hasCodeRef ? '<div class="tl-code">' + (fact.codeHtml || '') + '</div>' : '') });
   };
@@ -80,7 +80,7 @@ export function timelineHtml({ entries, steps, flow, open = [] }) {
   const grouped = [];
   for (const row of rows) {
     const previous = grouped.at(-1);
-    if (row.type === 'move' && previous?.type === 'move' && !row.enters && !previous.enters
+    if (row.type === 'move' && previous?.type === 'move' && row.from === previous.from && row.enters === previous.enters
       && row.kind === previous.kind && row.by === previous.by && row.state === previous.state && row.model === previous.model) {
       previous.count += 1; previous.lastTime = row.time; previous.eventIds.push(...row.eventIds);
     } else grouped.push({ ...row, eventIds: [...row.eventIds] });

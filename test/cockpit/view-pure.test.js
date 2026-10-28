@@ -374,7 +374,7 @@ test('Roadmap item HTML retains blockers, provenance and escaped detail from exp
 
 test('timeline text keeps quoted words, escapes markup and binds only detected references [N26,B23]', () => {
   const sha = 'abcdef1234567890abcdef1234567890abcdef12';
-  const text = `A <script>ONE_CLAIM</script> says #2; src/example.js:2@${sha}; ${sha}; 2026-10-28T12:34:56Z. ../outside.js stays text.`;
+  const text = `A <script>ONE_CLAIM</script> says #2; src/example.js:2@${sha}; README.md:1@${sha}; ${sha}; 2026-10-28T12:34:56Z. ../outside.js stays text.`;
   const refs = [];
   const html = timelineBodyHtml(text, { itemHref: id => '#items/' + id,
     codeLink: ref => { refs.push(ref); return '<button data-code="' + ref + '">code</button>'; },
@@ -382,7 +382,7 @@ test('timeline text keeps quoted words, escapes markup and binds only detected r
   assert.match(html, /&lt;script&gt;/u);
   assert.doesNotMatch(html, /<script>/u);
   assert.match(html, /data-go="item:2" href="#items\/2"/u);
-  assert.deepEqual(refs, ['src/example.js:2@' + sha]);
+  assert.deepEqual(refs, ['src/example.js:2@' + sha, 'README.md:1@' + sha]);
   assert.match(html, /title="Finish or release the current claim\."/u);
   assert.match(html, new RegExp('title="' + sha + '" data-copy="' + sha + '">abcdef123456<'));
   assert.match(html, />7:34 AM<\/time>/u);
@@ -398,4 +398,9 @@ test('timeline text keeps quoted words, escapes markup and binds only detected r
   assert.equal((htmlPair.match(/class="tl-claimed/g) ?? []).length, 1);
   const separated = timelineHtml({ entries: [moves[0], { type: 'fact', id: 'note', eventId: 3, by: 'web-1', kind: 'note', text: 'Between proofs' }, moves[1]], steps, flow });
   assert.doesNotMatch(separated, /ran the proof twice/u, 'a note prevents grouping non-consecutive moves');
+  const renewals = moves.map(entry => ({ ...entry, kind: 'renew' }));
+  const renewSteps = steps.map(entry => ({ ...entry, kind: 'renew', move: { verb: 'renew', to: 'claimed' } }));
+  const renewed = timelineHtml({ entries: renewals, steps: renewSteps, flow });
+  assert.match(renewed, /continued building twice/u, 'identical native self loops group too');
+  assert.match(renewed, /data-event-ids="1 2"/u);
 });

@@ -4,7 +4,7 @@
 export function timelineBodyHtml(text, { itemHref, codeLink, timeLabel, commit = '', refusalTitles = {} } = {}) {
   /** Escape literal user text and every attribute supplied by a native reference. */
   const esc = value => String(value ?? '').replace(/[&<>"']/gu, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-  const pattern = /\b\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)\b|(?:[A-Za-z0-9_.-]+\/)+[A-Za-z0-9_.-]+(?::\d+(?:-\d+)?)?(?:@[0-9a-f]{7,64})?|#[1-9]\d*\b|\b[0-9a-f]{12,64}\b|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/gu;
+  const pattern = /\b\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)\b|[A-Za-z0-9_.-]+\.[A-Za-z0-9]+:\d+(?:-\d+)?@[0-9a-f]{7,40}|(?:[A-Za-z0-9_.-]+\/)+[A-Za-z0-9_.-]+(?::\d+(?:-\d+)?)?(?:@[0-9a-f]{7,64})?|#[1-9]\d*\b|\b[0-9a-f]{12,64}\b|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/gu;
   const source = String(text ?? '');
   let html = '', at = 0;
   for (const match of source.matchAll(pattern)) {
@@ -15,7 +15,7 @@ export function timelineBodyHtml(text, { itemHref, codeLink, timeLabel, commit =
     } else if (value.startsWith('#') && itemHref) {
       const id = Number(value.slice(1));
       html += Number.isSafeInteger(id) ? '<a class="ref" data-go="item:' + id + '" href="' + esc(itemHref(id)) + '">' + value + '</a>' : esc(value);
-    } else if (value.includes('/') && codeLink) {
+    } else if ((value.includes('/') || /:\d+(?:-\d+)?@[0-9a-f]{7,40}$/u.test(value)) && codeLink) {
       const parts = /^(.*?)(?::(\d+)(?:-(\d+))?)?(?:@([0-9a-f]{7,64}))?$/u.exec(value);
       const path = parts[1], safe = !path.split('/').some(part => !part || part === '.' || part === '..');
       const sha = parts[4] || commit;

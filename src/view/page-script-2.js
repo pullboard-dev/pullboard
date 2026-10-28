@@ -283,8 +283,8 @@ const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&am
 // is in columns, as a terminal counts them: CJK, full-width and emoji characters take two.
 const wideChar = (c) => { const p = c.codePointAt(0); return (p >= 0x1100 && p <= 0x115f) || (p >= 0x2e80 && p <= 0xa4cf) || (p >= 0xac00 && p <= 0xd7a3) || (p >= 0xf900 && p <= 0xfaff) || (p >= 0xfe30 && p <= 0xfe4f) || (p >= 0xff00 && p <= 0xff60) || (p >= 0xffe0 && p <= 0xffe6) || (p >= 0x1f300 && p <= 0x1faff) || (p >= 0x20000 && p <= 0x3fffd); };
 const columns = (text) => [...String(text)].reduce((n, c) => n + (wideChar(c) ? 2 : 1), 0);
-const codeChip = (text, kind = '') => kind === 'sha' && String(text).length > 12
-  ? '<code class="inline sha" title="' + esc(text) + '">' + esc(String(text).slice(0, 12)) + '</code>'
+const codeChip = (text, kind = '') => kind === 'sha' && String(text).length > 10
+  ? '<code class="inline sha" title="' + esc(text) + '">' + esc(String(text).slice(0, 10)) + '</code>'
   : '<code class="inline' + (kind ? ' ' + kind : '') + (columns(text) > 24 ? ' long" title="' + esc(text) : '') + '">' + esc(text) + '</code>';
 // An age said in words, as a shout's card shows it: now, 2m ago, 1h ago.
 const agoLong = (iso) => { const short = ago(iso); return short === 'now' ? 'now' : short + ' ago'; };
@@ -428,7 +428,7 @@ function highlightCodeLine(line, path, state = {}) {
 }
 // A shout or thread fact's path:lines@commit reference: keep only the reference in this button until
 // the person opens it. The text before a shout ref is retained so ambiguous paths can be refused.
-const codeRef = (ref, before, block = false) => {
+const codeRef = (ref, before, block = false, hashLength = 10) => {
   const c = view.code[view.root + '\\n' + before + '\\n' + ref];
   const open = Boolean(c && c.open);
   const shownLines = c?.all ? c.allLines : c?.lines, carry = {};
@@ -438,9 +438,9 @@ const codeRef = (ref, before, block = false) => {
       + (c.all ? '<button class="code-control" data-code-less="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' type="button">show less</button>' : '')
       + '</div>';
   // Its label is one piece: the path, cut short first where the line is narrow, then the lines and the commit's first
-  // twelve characters; the whole reference is on hover.
+  // ten characters by default; the timeline explicitly requests twelve. The whole reference is on hover.
   const colon = ref.indexOf(':'), at = ref.lastIndexOf('@');
-  const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at)) + '<span class="ref-sha">' + esc(ref.slice(at, at + 13)) + '</span></span>';
+  const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at)) + '<span class="ref-sha">' + esc(ref.slice(at, at + 1 + hashLength)) + '</span></span>';
   const button = (asBlock) => '<button class="ref' + (asBlock ? ' block' : '') + '" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' title="' + esc(ref) + '" aria-label="Open code reference ' + esc(ref) + '" type="button" aria-expanded="' + open + '">' + label + '</button>';
   // A reference on a line of its own is a block, collapsed until asked: a caret, the path and lines, the short commit.
   // One inside a sentence keeps its label, so the prose reads on, and opens that same block below it.
@@ -557,9 +557,9 @@ function timeline(item) {
   };
   const presentedEntries = replayEntries.map((entry) => entry.type === 'fact'
     ? { ...entry, timeLabel: when(entry.at), ageHtml: age(entry.at), model: modelFor(entry.by),
-      bodyHtml: timelineBodyHtml(entry.text, { itemHref: itemAddress, codeLink: ref => codeRef(ref, ''), timeLabel: when, commit: item.commit || item.head || '',
+      bodyHtml: timelineBodyHtml(entry.text, { itemHref: itemAddress, codeLink: ref => codeRef(ref, '', false, 12), timeLabel: when, commit: item.commit || item.head || '',
         refusalTitles: { ONE_CLAIM: 'An agent can hold only one building claim at a time.' } }),
-      hasCodeRef: Boolean(entry.ref), codeHtml: entry.ref ? codeRef(factCodeRef(entry.ref), '') : '' }
+      hasCodeRef: Boolean(entry.ref), codeHtml: entry.ref ? codeRef(factCodeRef(entry.ref), '', false, 12) : '' }
     : entry);
   const presentedSteps = steps.map((step) => ({ ...step, timeLabel: step.at ? when(step.at) : '',
     ageHtml: step.at ? age(step.at) : '', model: modelFor(step.by) }));

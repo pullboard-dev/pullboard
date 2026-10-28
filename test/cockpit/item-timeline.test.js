@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { openBoard, closeBoard, events, recordHealthFindings } from '../../src/board.js';
-import { machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
+import { machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, sendBack } from './fixture.js';
 
 test('the native item timeline reads as sentences with clamped notes and working references at desktop and phone widths [N26,B23]', { timeout: 240_000 }, async () => {
   const executable = chromeExecutable();
@@ -28,6 +28,13 @@ test('the native item timeline reads as sentences with clamped notes and working
     box.run(demo.web, 'fact', '1', kind, text);
   }
   box.run(demo.web, 'submit', '1', '--no-next');
+  sendBack(box, demo, 1, 'Exercise the actual sent-back timeline sentence.');
+  box.run(demo.web, 'claim', '1');
+  writeFileSync(join(demo.web, 'web/timeline.js'), 'export const timelineFixture = true;\n// Corrected after the real review.\n');
+  box.git(demo.web, 'add', 'web/timeline.js');
+  box.git(demo.web, 'commit', '-m', 'test(web): correct real timeline source after review [G1]');
+  const correctedHead = box.git(demo.web, 'rev-parse', 'HEAD');
+  box.run(demo.web, 'submit', '1', '--no-next');
   const board = openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const finding = { key: 'timeline-fixture-observation', cause: 'NO_REVIEWER', item: 1, subject: '#1',
@@ -35,7 +42,7 @@ test('the native item timeline reads as sentences with clamped notes and working
     recordHealthFindings(board, { agentId: 'coordinator', observedRevision: events(board).at(-1).event_id, findings: [finding] });
     recordHealthFindings(board, { agentId: 'coordinator', observedRevision: events(board).at(-1).event_id, findings: [] });
   } finally { closeBoard(board); }
-  box.git(demo.repo, 'switch', '--detach', head);
+  box.git(demo.repo, 'switch', '--detach', correctedHead);
   box.run(demo.repo, 'verify', '1', 'accept', '--note', 'The real fixture module parses.', '--as', 'coordinator', '--no-next');
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-item-timeline-'));
   let chrome;
@@ -53,7 +60,7 @@ test('the native item timeline reads as sentences with clamped notes and working
       const result = await chrome.stable(`(() => {
         const rows = [...document.querySelectorAll('#detail .tl > li')], note = rows.find(row => row.dataset.timelineKind === 'note');
         const text = note.querySelector('.tl-body'), rect = text.getBoundingClientRect(), style = getComputedStyle(text);
-        return { sentences: rows.map(row => row.querySelector('.tl-sentence').textContent),
+        return { sentences: rows.map(row => { const sentence = row.querySelector('.tl-sentence').cloneNode(true); for (const kind of sentence.querySelectorAll('.tl-kind,.tl-kind-type')) kind.remove(); return sentence.textContent.trim(); }),
           body: (() => { const copy = text.cloneNode(true); for (const ref of copy.querySelectorAll('[data-code]')) ref.replaceWith(ref.dataset.code); for (const hash of copy.querySelectorAll('code.sha')) hash.replaceWith(hash.title); for (const time of copy.querySelectorAll('time[datetime]')) time.replaceWith(time.getAttribute('datetime')); return copy.textContent; })(), clamp: style.webkitLineClamp, height: rect.height, lineHeight: parseFloat(style.lineHeight),
           models: [...document.querySelectorAll('#detail .tl-who[title]')].map(row => ({ text: row.textContent, title: row.title })),
           kinds: rows.filter(row => row.classList.contains('tl-fact')).map(row => row.querySelector('.tl-kind').textContent),
@@ -66,10 +73,10 @@ test('the native item timeline reads as sentences with clamped notes and working
       })()`);
       assert.equal(result.body, body, width + ': all original note words remain in the DOM');
       assert.equal(result.clamp, '3');
-      assert.ok(result.height <= result.lineHeight * 3 + 1);
-      assert.deepEqual(result.kinds, ['note', 'measurement', 'fact']);
-      assert.ok(result.pair, 'actual consecutive checks merge, retaining both event identities');
-      for (const sentence of ['web-1 claimed it', 'web-1 recorded a measurement', 'Sentinels found this item failing', 'Sentinels found this item passing again', 'coordinator started reviewing', 'coordinator passed it']) assert.ok(result.sentences.includes(sentence), `${width}: ${sentence}`);
+      assert.ok(result.height <= result.lineHeight * 3 + 1, width + ': clamped geometry ' + JSON.stringify(result));
+      assert.deepEqual(result.kinds, ['note', 'measurement', 'capture']);
+      assert.ok(result.pair, JSON.stringify(result) + ': actual consecutive checks merge, retaining both event identities');
+      for (const sentence of ['web-1 claimed it', 'web-1 recorded a measurement', 'Sentinels found this item failing', 'Sentinels found this item passing again', 'coordinator started reviewing', 'coordinator passed it', 'coordinator sent it back']) assert.ok(result.sentences.includes(sentence), `${width}: ${sentence}`);
       assert.ok(result.models.some(row => row.text === 'web-1' && row.title === 'Test Model'));
       assert.ok(result.models.every(row => !row.text.includes('(')));
       assert.ok(result.refs.includes('web/timeline.js:1@' + head));
@@ -81,8 +88,10 @@ test('the native item timeline reads as sentences with clamped notes and working
       await press(chrome, "document.querySelector('#detail [data-timeline-more]')");
       assert.equal(await chrome.stable("document.querySelector('#detail .tl-note').classList.contains('expanded')"), false);
     }
+    await press(chrome, "document.querySelector('#detail [data-timeline-more]')");
     await press(chrome, "document.querySelector('#detail .tl [data-code]')");
     await chrome.waitFor("document.querySelector('#detail .tl .code-wrap')?.textContent.includes('timelineFixture')");
+    assert.ok(await chrome.stable("document.querySelector('#detail .tl .code-wrap').getBoundingClientRect().height > 0"), 'the actual source preview is visible, not only present in hidden DOM');
     await press(chrome, "document.querySelector('#detail .tl [data-go=\"item:2\"]')");
     await chrome.waitFor("view.item === 2 && document.querySelector('#detail h2')?.textContent.includes('Reference target')");
     assert.deepEqual(chrome.exceptions, []);
