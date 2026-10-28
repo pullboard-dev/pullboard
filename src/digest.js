@@ -138,7 +138,7 @@ export function readDigest(file, { name = 'this project', now = new Date(), root
  * @param {{ name: string, now: Date, root?: string, config?: any }} options
  */
 function render(db, { name, now, root, config, healthReport }, ports) {
-  const { foreignBlockers, counterCaught, milestones, rowDrafts, rowDecisions, automaticDecisionSource, automaticSourceFromText, rigorDecisionKey, readAutomaticRigorSource } = ports;
+  const { foreignBlockers, counterCaught, readCapacity, capacityLines, milestones, rowDrafts, rowDecisions, automaticDecisionSource, automaticSourceFromText, rigorDecisionKey, readAutomaticRigorSource } = ports;
   const cut = { count: 0 };
   const at = now.toISOString();
   /** One field of board text, bounded. */
@@ -244,6 +244,7 @@ function render(db, { name, now, root, config, healthReport }, ports) {
         && record.kind === draft.target && (record.id === draft.id && automaticDecisionSource(record) === source
           || record.event > draft.event && rigorDecisionKey(record) === readAutomaticRigorSource(source).key));
   }).map(draft => `- Rigor draft ${text(draft.id, 40)}: ${text(draft.text.slice(0, draft.text.lastIndexOf(' Source: ')), 700)}\n  Unproved ${text(draft.target, 20)} proposal still waiting on the person; materialize with pullboard spec apply, then approve or decline.`);
+  const capacity = readCapacity({ db }, now.getTime());
   const sections = [
     section('Stuck and who moves it', stuck, stuck.length, 4_000, 'Nothing is stuck.'),
     section('Open work', open.slice(0, ROW_LIMIT).map(work), open.length, 8_000, 'Nothing is open.'),
@@ -256,6 +257,7 @@ function render(db, { name, now, root, config, healthReport }, ports) {
     section('Milestones', roadmap, roadmap.length, 4_000, 'No milestones are set.'),
     section(`What the board caught, last ${CAUGHT_DAYS} days`, caughtEntries, caught.total, 4_000, 'Nothing was caught in this window.'),
     section('Unanswered Rigor drafts', unansweredRigor, unansweredRigor.length, 2_000, 'No automatic draft is overdue.'),
+    section('Capacity forecast', capacityLines(capacity), 1, 3_000, 'Capacity measurements are unavailable.'),
   ];
   // The per-kind counts sit under the heading, before the lines they count.
   if (caught.total) sections[9].text = sections[9].text.replace('\n\n', `\n\n${caughtCounts}.\n\n`);
@@ -275,7 +277,7 @@ function render(db, { name, now, root, config, healthReport }, ports) {
   const bytes = Buffer.byteLength(markdown);
   // The section budgets sum well under the cap, so this refusal marks a bug in those budgets.
   if (bytes >= DIGEST_MAX_BYTES) throw new Refused('DIGEST_SIZE', 'the briefing outgrew its 50 KB budget; shout the coordinator with the board size so the budgets get fixed');
-  return { markdown, sequence, bytes, sections: sections.map(({ title, shown, total }) => ({ title, shown, total })) };
+  return { markdown, sequence, bytes, capacity, sections: sections.map(({ title, shown, total }) => ({ title, shown, total })) };
 }
 
 /**
@@ -405,7 +407,7 @@ export async function digestCommand(io, { first, second, rest, values }, ctx, po
   }
   const result = readDigest(ctx.file, { name, root: ctx.info.root, config: ctx.config, healthReport }, ports);
   const path = out === undefined ? undefined : writeDigest(out, result.markdown, ctx.info.commonDir);
-  io.result?.({ markdown: result.markdown, bytes: result.bytes, sequence: result.sequence, sections: result.sections, ...(path ? { path } : {}) });
+  io.result?.({ capacityForecast: result.capacity, markdown: result.markdown, bytes: result.bytes, sequence: result.sequence, sections: result.sections, ...(path ? { path } : {}) });
   io.say(path ? `wrote the briefing to ${path}; share that file with any chat assistant` : result.markdown.trimEnd());
   return 0;
 }

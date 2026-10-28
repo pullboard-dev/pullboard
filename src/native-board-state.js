@@ -18,6 +18,7 @@ import { listApiProjects } from './projects.js';
 import { nativeStateClockWindow } from './native-state-clock.js';
 import { milestoneRoadmap } from './roadmap.js';
 import { proofStats } from './stats.js';
+import { readCapacity } from './capacity-read.js';
 import { activeViewAgents } from './view-state-summary.js';
 import { viewProofSummary } from './view-state-summary.js';
 import { ruleProofCounts } from './rule-proof-counts.js';
@@ -40,7 +41,7 @@ import {
 } from './item-dependencies.js';
 
 /** Build the complete local API state, including fields that the shared project snapshot omits. */
-export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, fullItemRebuild = true, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null } = {}) {
+export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, fullItemRebuild = true, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null, localCapacity = false } = {}) {
   if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new TypeError('native projection needs an observation timestamp');
   board = Object.assign(Object.create(board), { clock: { ...board.clock, now: () => new Date(observedAt) } });
   board.db.exec('BEGIN');
@@ -108,6 +109,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     state.blocks = personBlockWords(repoInfo(root).commonDir, board.clock.now()); // Needs you below is recomputed with them [C6].
     // Only the local HTTP host supplies its private telemetry; sealed projections omit it entirely.
     if (localRelayHealth !== null) state.relayHealthAlerts = localRelayHealth;
+    // The forecast reads this machine's derived proof-counter index, which sealed exports omit, so only the local host adds it.
+    if (localCapacity) state.capacityForecast = readCapacity(board, observedAt);
     const decorated = projectSpecApprovals(projectFit(pendingFit(repoInfo(root).commonDir), projectRowDecisions(projectData.rowDecisions, state)), specApprovalState(root, { board, config }, { store, verifiedPasskeyRowDecision }));
     decorated.ruleCounts = ruleProofCounts(root, board, decorated.spec);
     const bases = new Map(decorated.items.map((item) => [item.id, item]));

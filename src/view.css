@@ -93,6 +93,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .home-counts dt { color: var(--ink-muted); font-size: var(--text-sm); }
 .home-counts dd { margin: var(--space-0) 0 0; font-size: var(--text-3xl); font-weight: 600; font-variant-numeric: tabular-nums; }
 .home-needs { margin: 0; padding: 0; border-bottom: 0; }
+.home-capacity p { margin: var(--space-2) 0; overflow-wrap: anywhere; }
+.capacity-main strong { font-size: var(--text-3xl); font-variant-numeric: tabular-nums; }
+.capacity-note, .capacity-curve figcaption { color: var(--ink-muted); font-size: var(--text-xs); }
+.capacity-warning { color: var(--warn); }
+.capacity-curve { max-width: 300px; margin: var(--space-4) 0 0; }
+.capacity-curve svg { display: block; width: 100%; height: 72px; }
+.capacity-curve polyline { fill: none; stroke: var(--accent-strong); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .group-need { display: grid; grid-template-columns: minmax(90px, auto) auto minmax(0, 1fr) auto; align-items: baseline; gap: var(--space-2) var(--space-4); width: 100%; padding: var(--space-3) 0; text-align: left; border: 0; border-top: 1px solid var(--line); background: none; }
 .group-need:hover { background: var(--surface-2); }
 .group-need > b { color: var(--ink-muted); }
