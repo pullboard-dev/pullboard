@@ -106,13 +106,14 @@ export function applyItemPatchAttachment(board, id, options, ports) {
   return ports.atomic(board, () => {
     const item = target(board, id, options, ['agentId', 'key', 'commit', 'patch', 'author', 'presubmit'], ports);
     if (outsideSource(board, id)) throw new Refused('ITEM_PATCH_OUTSIDE', 'outside PR changes remain with their source author; attach patches only to native items');
-    const patch = patchBytes(options.patch), author = authorIdentity(board, options.author), digest = hash(patch);
     const patches = records(board, id), existing = patches.find(record => record.key === options.key);
+    const originalRetry = (board.executionEngineVersion ?? ENGINE_VERSION) >= PATCH_FOLLOW_ENGINE && existing?.attachedCommit === options.commit;
+    if (!COMMIT.test(options.commit ?? '') || !originalRetry && item.item_status !== 'claimed' && options.commit !== item.item_commit) throw new Refused('ITEM_PATCH_SOURCE', 'attach against the exact builder head (or submitted commit)');
+    const patch = patchBytes(options.patch), author = authorIdentity(board, options.author), digest = hash(patch);
     if (existing) {
       if ((existing.attachedCommit ?? existing.commit) !== options.commit || existing.patch !== patch || existing.author.agentId !== author.agentId) throw new Refused('ITEM_PATCH_CONFLICT', 'this immutable patch key already names different bytes, source or author');
       return { item: id, key: options.key, digest: itemPatchDigest(board, id), changed: false };
     }
-    if (!COMMIT.test(options.commit ?? '') || item.item_status !== 'claimed' && options.commit !== item.item_commit) throw new Refused('ITEM_PATCH_SOURCE', 'attach against the exact builder head (or submitted commit)');
     const record = { key: options.key, commit: options.commit, source: { commit: options.commit }, patch, digest, author, active: true,
       ...(item.item_status === 'claimed' ? { presubmit: true } : {}) };
     patches.push(record); save(board, id, patches); ports.invalidate(id);
