@@ -3,8 +3,8 @@ import {
   buildCommitMessage,
   commitMessageProblems,
   parseCommitMessage,
-  specOrder,
 } from './commit-message.js';
+import { landingRows } from '../packages/commits/src/core/landing-rows.js';
 import { tryGit } from './git.js';
 import { Refused } from './refused.js';
 import { loadSpec } from './spec.js';
@@ -31,23 +31,6 @@ export function itemCommitType(root, base, commit) {
   if (listed.status !== 0) return null;
   const types = new Set(listed.stdout.split('\n').map((subject) => parseCommitMessage(subject).type).filter(Boolean));
   return TYPE_RANK.find((type) => types.has(type)) ?? null;
-}
-
-/**
- * The rows a landing names: the item's final frozen set when it has one, since a refreeze after the
- * claim is what the verdict checked, else its cited ids; in spec order when the spec is at hand.
- *
- * @param {any} item
- * @param {{ rows: { id: string }[] } | null} [spec]
- * @returns {string[]}
- */
-export function landingRows(item, spec = null) {
-  let frozen = null;
-  try { frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null; } catch { frozen = null; }
-  const ids = Array.isArray(frozen?.rows)
-    ? frozen.rows.map((row) => row.id)
-    : String(item.item_spec_ids ?? '').split(/[\s,]+/u);
-  return specOrder(ids.filter(Boolean), spec);
 }
 
 /**
