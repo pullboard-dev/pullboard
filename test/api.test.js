@@ -38,6 +38,7 @@ import {
   apiFetch,
   assertRequiredShape,
   nextSseEvent,
+  shellWord,
   timedMs,
 } from './api-fixture.js';
 
@@ -167,11 +168,6 @@ test('local API admits only configured literal IPv4 hosts at their own origin [H
     secret: randomUUID(), getPort: () => 1, runCommand: main, projects: () => [], allowedHosts: [invalid],
   }), TypeError, `invalid LAN host ${invalid} is rejected`);
 });
-
-/** Quote a literal executable path for the fixture hook's POSIX shim. */
-function shellWord(value) {
-  return "'" + value.replace(/'/g, "'\\''") + "'";
-}
 
 /** Make a disposable home and a real repo with isolated git settings. */
 function sandbox() {
