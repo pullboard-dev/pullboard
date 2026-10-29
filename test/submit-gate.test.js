@@ -1075,7 +1075,7 @@ test('a source change selects the tests that scan sources [C7,B3]', (t) => {
 
   const repository = resolve(import.meta.dirname, '..');
   const actual = privateRepo(t);
-  const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'bin/', 'test/'], {
+  const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'bin/', 'test/', 'packages/'], {
     cwd: repository, encoding: 'utf8',
   }).split('\0').filter(path => /\.[cm]?js$/u.test(path));
   const actualBase = copyRepositoryFixture(actual, repository, tracked);
