@@ -44,6 +44,8 @@ for (const decision of ['accept', 'reject']) {
 
 test('a detached old candidate cannot hide a changed approved row on accepted main [V4,B6]', t => {
   const box = submitted(t);
+  // A person-approved Git edit can arrive without spec apply's atomic native refreeze.
+  success(box, box.repo, 'spec', 'approve', 'G1', '--text', 'The page renders a new heading.');
   const spec = join(box.repo, 'SPEC.md');
   writeFileSync(spec, readFileSync(spec, 'utf8').replace('The page renders.', 'The page renders a new heading.'));
   box.git(box.repo, 'add', 'SPEC.md');
