@@ -6,6 +6,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -51,12 +52,16 @@ function success(box, cwd, ...args) {
 test('native submit names an unplanned source before its check, then the same placed source submits [C7]', t => {
   const box = plannedProject(t);
   const id = success(box, box.repo, 'add', 'web', 'Place the new source', '--specs', 'G1',
-    '--criterion', 'the added source is planned', '--check', 'node check.cjs').item.item_id;
+    '--criterion', 'the added source is planned', '--check', 'node check.cjs', '--wait').item.item_id;
+  assert.equal(existsSync(box.marker), true, 'the real add baseline completed its check');
   success(box, box.web, 'claim', String(id));
   mkdirSync(join(box.web, 'src'), { recursive: true });
   writeFileSync(join(box.web, 'src/plan-gate-added.js'), 'export const value = 1;\n');
   box.git(box.web, 'add', 'src/plan-gate-added.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): add the real source [G1]');
+  // The completed add baseline is setup; observe only check executions caused by this submit.
+  rmSync(box.marker);
+  assert.equal(existsSync(box.marker), false, 'the submit observation starts without the setup marker');
   const refused = box.run(box.web, 'submit', String(id), '--no-next', '--json');
   assert.equal(JSON.parse(refused.out).error.code, 'CELLS_PLAN_UNPLACED', refused.out + refused.err);
   assert.match(refused.out, /src\/plan-gate-added\.js/);
