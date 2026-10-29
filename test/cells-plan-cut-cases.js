@@ -164,6 +164,36 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
     assert.ok(checkCuts(root, plan, group.cell).some(problem => problem.includes('cannot prove')), 'a computed loader cannot claim the cut is proven');
   });
 
+  test('declared loaders retain lower and later edges through transitive forwarding shims [C7,D3,CD64]', t => {
+    const { root, put } = fixture(t), plan = computePlan(root), group = importCuts(plan)[0], edge = group.edges[0];
+    const lower = plan.cells.find(cell => cell.order < group.order);
+    const shared = `${lower.root}/src/core/loader.js`, bridge = `${lower.root}/src/core/bridge.js`;
+    const leaf = `${lower.root}/src/core/leaf.js`, lowerGlob = `${lower.root}/src/core/leaf*.js`;
+    put(leaf, 'export const value = true;\n');
+    put(edge.from, `/** @pullboard-module-loads ${lowerGlob} */\nexport async function load(name) { return import(name); }\n`);
+    assert.deepEqual(checkCuts(root, plan, group.cell), [], 'a declared own loader into a lower cell passes');
+    put(edge.from, `/** @pullboard-module-loads ${edge.to} */\nexport async function load(name) { return import(name); }\n`);
+    assert.ok(checkCuts(root, plan, group.cell).some(problem => problem.includes(`${edge.from} -> ${edge.to}`)), 'a declared later-cell edge is reported');
+    put(edge.from, 'export async function load(name) { return import(name); }\n');
+    assert.ok(checkCuts(root, plan, group.cell).some(problem => problem.includes('cannot prove')), 'an undeclared loader stays unknown');
+    put(edge.from, `import ${JSON.stringify('../' + shared)}; export const value = true;\n`);
+    put(shared, `/** @pullboard-module-loads ${edge.to} */\nawait import(name);\n`);
+    assert.ok(checkCuts(root, plan, group.cell).some(problem => problem.includes(`${shared} -> ${edge.to}`)), 'the rejected lower-cell declared forwarding counterexample remains visible');
+    put(shared, `/** @pullboard-module-loads ${bridge} */\nawait import(name);\n`);
+    put(bridge, `export * from ${JSON.stringify('../../../../' + edge.to)};\n`);
+    assert.ok(checkCuts(root, plan, group.cell).some(problem => problem.includes(`${bridge} -> ${edge.to}`)), 'declared then literal forwarding retains the transitive later edge');
+    put(bridge, `/** @pullboard-module-loads ${edge.to} */\nawait import(name);\n`);
+    assert.ok(checkCuts(root, plan, group.cell).some(problem => problem.includes(`${bridge} -> ${edge.to}`)), 'two declared forwarding hops retain the later edge');
+    put(bridge, `/** @pullboard-module-loads ${leaf} */\nawait import(name);\n`);
+    assert.deepEqual(checkCuts(root, plan, group.cell), [], 'a transitive lower-only declared chain passes');
+    for (const declaration of ['src/missing/*.js', '../outside.js', `${leaf} src/missing.js`]) {
+      put(bridge, `/** @pullboard-module-loads ${declaration} */\nawait import(name);\n`);
+      assert.ok(checkCuts(root, plan, group.cell).some(problem => problem.includes('cannot prove')), `invalid declaration remains unknown: ${declaration}`);
+    }
+    put(edge.from, `/** @pullboard-module-loads ${leaf} */\nimport './missing.js'; export async function load(name) { return import(name); }\n`);
+    assert.ok(checkCuts(root, plan, group.cell).some(problem => problem.includes('cannot prove')), 'a declaration cannot erase an unrelated unresolved literal import');
+  });
+
   test('closed historical cuts accept exact lower ownership while higher or missing placement still refuses [C7,D3,CD64]', t => {
     const { root, put } = fixture(t), plan = computePlan(root), group = importCuts(plan)[0], edge = group.edges[0];
     const importer = plan.cells.find(cell => cell.name === group.cell);
