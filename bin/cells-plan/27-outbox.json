@@ -18,7 +18,6 @@
   ["src/relay-outbox-undo.js","packages/outbox/src/core/relay-outbox-undo.js","seed"],
   ["src/relay-outbox.js","packages/outbox/src/shell/relay-outbox.js","seed"],
   ["src/relay-sender-worker.js","packages/outbox/src/shell/relay-sender-worker.js","seed"],
-  ["src/relay-sender.js","packages/outbox/src/core/relay-sender.js","seed"],
   ["test/relay-checkpoint.test.js","packages/outbox/tests/relay-checkpoint.test.js","seed"],
   ["test/relay-outbox-format.test.js","packages/outbox/tests/relay-outbox-format.test.js","seed"],
   ["test/relay-outbox-guard.test.js","packages/outbox/tests/relay-outbox-guard.test.js","seed"],
@@ -34,8 +33,7 @@
   "src/relay-outbox-guard.js",
   "src/relay-outbox-summary.js",
   "src/relay-outbox-undo.js",
-  "src/relay-outbox.js",
-  "src/relay-sender.js"
+  "src/relay-outbox.js"
  ],
  "imports": [
   {"cell":"kernel","imports":5,"before":true},
@@ -52,25 +50,20 @@
   {"cell":"app:cli","imports":2,"before":false}
  ],
  "cuts": [
-  {"cell":"state","imports":1,"edges":["src/engine.js->src/relay-sender.js"]},
-  {"cell":"seats","imports":1,"edges":["src/coordinator-hold.js->src/relay-sender.js"]},
   {"cell":"sandbox","imports":1,"edges":["src/source-advance-worker.js->src/relay-outbox-guard.js"]},
-  {"cell":"person","imports":2,"edges":["src/person-signing-cli.js->src/relay-sender.js","src/person-signing.js->src/relay-sender.js"]},
   {
    "cell": "link",
-   "imports": 11,
+   "imports": 9,
    "edges": [
     "src/relay-canary-needs.js->src/relay-outbox-summary.js",
     "src/relay-output.js->src/relay-outbox.js",
-    "src/relay-requests.js->src/relay-sender.js",
     "src/relay.js->src/relay-baseline-settle.js",
     "src/relay.js->src/relay-checkpoint-publish.js",
     "src/relay.js->src/relay-checkpoint.js",
     "src/relay.js->src/relay-conflict-record.js",
     "src/relay.js->src/relay-ordering.js",
     "src/relay.js->src/relay-outbox-guard.js",
-    "src/relay.js->src/relay-outbox.js",
-    "src/relay.js->src/relay-sender.js"
+    "src/relay.js->src/relay-outbox.js"
    ]
   }
  ],

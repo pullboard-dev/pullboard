@@ -6,12 +6,10 @@
  "frontDoor": "packages/link/index.js",
  "dryRunName": "relay-client",
  "paths": [
-  ["src/relay-activation.js","packages/link/src/core/relay-activation.js","seed"],
   ["src/relay-approval.js","packages/link/src/core/relay-approval.js","seed"],
   ["src/relay-approvers.js","packages/link/src/shell/relay-approvers.js","seed"],
   ["src/relay-board-config.js","packages/link/src/shell/relay-board-config.js","seed"],
   ["src/relay-canary-command.js","packages/link/src/shell/relay-canary-command.js","seed"],
-  ["src/relay-canary-config.js","packages/link/src/core/relay-canary-config.js","seed"],
   ["src/relay-canary-health.js","packages/link/src/shell/relay-canary-health.js","seed"],
   ["src/relay-canary-needs.js","packages/link/src/shell/relay-canary-needs.js","seed"],
   ["src/relay-canary-probe.js","packages/link/src/shell/relay-canary-probe.js","seed"],
@@ -58,11 +56,9 @@
   ["test/relay-sync.test.js","packages/link/tests/relay-sync.test.js","seed"]
  ],
  "reexports": [
-  "src/relay-activation.js",
   "src/relay-approval.js",
   "src/relay-board-config.js",
   "src/relay-canary-command.js",
-  "src/relay-canary-config.js",
   "src/relay-canary-health.js",
   "src/relay-canary-needs.js",
   "src/relay-canary-probe.js",
@@ -111,19 +107,10 @@
   {"cell":"app:cli","imports":4,"before":false}
  ],
  "cuts": [
-  {"cell":"config","imports":2,"edges":["src/settings-read.js->src/relay-canary-config.js","src/settings.js->src/relay-canary-config.js"]},
-  {"cell":"state","imports":2,"edges":["src/agent-grant.js->src/relay-activation.js","src/engine.js->src/relay-requests.js"]},
+  {"cell":"state","imports":1,"edges":["src/engine.js->src/relay-requests.js"]},
   {"cell":"seats","imports":1,"edges":["src/projects.js->src/relay-setup.js"]},
   {"cell":"spec","imports":1,"edges":["src/spec-approval-bootstrap.js->src/relay.js"]},
-  {
-   "cell": "store",
-   "imports": 3,
-   "edges": [
-    "src/board-hot.js->src/relay-activation.js",
-    "src/board-link-relay.js->src/relay.js",
-    "src/native-board-state.js->src/relay-requests.js"
-   ]
-  },
+  {"cell":"store","imports":2,"edges":["src/board-link-relay.js->src/relay.js","src/native-board-state.js->src/relay-requests.js"]},
   {
    "cell": "person",
    "imports": 9,
