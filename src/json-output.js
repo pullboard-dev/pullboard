@@ -109,6 +109,10 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
       document = native && !Array.isArray(native) && typeof native.version === 'number'
         ? { ...native, ...(diagnostics.length ? { diagnostics } : {}) } : { version: version, messages, ...(diagnostics.length ? { diagnostics } : {}) };
     }
+    if (refusal?.testOutput) {
+      const { counts, failures, omittedFailures, logPath } = refusal.testOutput;
+      Object.assign(document, { counts, failures, omittedFailures, logPath });
+    }
     if (remote) document.remote = remote;
     streams.stdout.write(`${JSON.stringify(document, null, 2)}\n`);
   };
