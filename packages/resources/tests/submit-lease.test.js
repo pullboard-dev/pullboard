@@ -1,9 +1,19 @@
 /** Board-only commands must stay responsive without weakening checkout ownership [V4,C7]. */
 import assert from 'node:assert/strict';
-import { after, test } from 'node:test';
+import {
+  after,
+  test,
+} from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import {
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  join,
+  resolve,
+} from 'node:path';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { listResources } from '../src/shell/resources.js';
 

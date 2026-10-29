@@ -1,9 +1,17 @@
 /** Scoped machine-lease inheritance checks [Q1,Q2,Q3]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import {
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
+import {
+  after,
+  test,
+} from 'node:test';
 import {
   BROWSER_SLOT_HELD_ENV,
   GATE_SLOT_HELD_ENV,

@@ -1,10 +1,19 @@
 /** Nonblocking process diagnostics preserve their target and safe failure information [C7,N26]. */
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
-import { readMachineMemory, memoryVerdict } from '../src/shell/resources.js';
+import {
+  readMachineMemory,
+  memoryVerdict,
+} from '../src/shell/resources.js';
 import { toolSourcePath } from '../../../src/package-files.js';
 import { cleanupFailureReport } from '../../../test/cleanup-diagnostics.js';
 

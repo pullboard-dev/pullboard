@@ -1,15 +1,45 @@
 /** Runner deadlines retain ordinary local admission and never create disabled capacity [C7,Q1,Q2]. */
 import { executionServicesSource } from '../../../test/gate-execution-fixture.js';
 import assert from 'node:assert/strict';
-import { after, test } from 'node:test';
-import { closeSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, existsSync, writeFileSync } from 'node:fs';
+import {
+  after,
+  test,
+} from 'node:test';
+import {
+  closeSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  existsSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
-import { cleanupFixtureChildren, runFixtureChild, runFixtureChildAsync } from '../../../test/fixture-child.js';
-import { cleanupToolingSnapshots, cli, committedToolingSnapshot, fixtureResultContext, gateResult, runThroughGate } from '../../../test/runner-tooling-fixture.js';
-import { HOST, installSshStandIn, shellQuote } from '../../../test/runner-ssh-fixture.js';
-import { listResources, takeResource } from '../src/shell/resources.js';
+import {
+  cleanupFixtureChildren,
+  runFixtureChild,
+  runFixtureChildAsync,
+} from '../../../test/fixture-child.js';
+import {
+  cleanupToolingSnapshots,
+  cli,
+  committedToolingSnapshot,
+  fixtureResultContext,
+  gateResult,
+  runThroughGate,
+} from '../../../test/runner-tooling-fixture.js';
+import {
+  HOST,
+  installSshStandIn,
+  shellQuote,
+} from '../../../test/runner-ssh-fixture.js';
+import {
+  listResources,
+  takeResource,
+} from '../src/shell/resources.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
