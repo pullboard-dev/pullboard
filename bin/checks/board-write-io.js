@@ -11,7 +11,8 @@ const WRITE_PUBLICATION = new Map([
 ]);
 // Coordinator44559: these independently owned repairs are composed before the final guard proof.
 export const PENDING_WRITE_REPAIRS = Object.freeze({
-  'src/board.js#submit': 1863,
+  // Coordinator44727: after1863, only the exact remaining merge-only preparation belongs to1878.
+  'src/merge-only-submit.js#prepareMergeOnlySubmit': 1878,
   'src/cost-checkpoint.js#publishUsage': 1867,
   // Coordinator44638, follow-up1878: these exact old I/O providers remain visible and temporary.
   'src/rule-proof-index.js#appendRuleProof': 1878,
