@@ -441,7 +441,7 @@ test('the roadmap leads with the next release and folds shipped ones [N26]', { t
       parts: [...document.querySelectorAll('#roadmap-list > [data-key]')].map((d) => ({ key: d.dataset.key, open: open(d), summary: words(head(d)), height: box(head(d)).height,
         rows: rows(d), empty: body(d).querySelector('.milestone-empty')?.textContent ?? null, note: body(d).querySelector('.milestone-note')?.textContent ?? null,
         shipped: [...body(d).querySelectorAll(':scope > .shipped-one[data-key]')].map((one) => ({ key: one.dataset.key, open: open(one), summary: words(head(one)), height: box(head(one)).height,
-          rows: rows(one), commit: one.querySelector('.roadmap-shipped-commit')?.title })) })),
+          rows: rows(one), commit: one.querySelector('.roadmap-shipped-commit')?.title, copySeparate: !!one.querySelector('.hash-copy') && !one.querySelector('.hash-copy').closest('[role="button"]') })) })),
     };
   })())`));
   /** Activate a disclosure or item through the shared native pointer helper. */
@@ -478,7 +478,7 @@ test('the roadmap leads with the next release and folds shipped ones [N26]', { t
           ['m:0.2', false, '0.2 | Shipped on Tuesday. | 1 item'],
           ['m:0.1', false, '0.1 | The first page. | 1 item'],
         ], at + ': shipped names, first note line and counts in reverse roadmap order');
-        assert.ok(history.shipped.every((one) => one.commit === shippedCommit), at + ': each shipment displays its real commit');
+        assert.ok(history.shipped.every((one) => one.commit === shippedCommit && one.copySeparate), at + ': each shipment displays its real commit with a copy control outside the disclosure');
         assert.ok(history.shipped.every((one) => one.height >= 44), at + ': shipped targets are at least 44px');
         assert.ok(expanded.page.scroll <= expanded.page.width && expanded.page.body <= expanded.page.width, at + ': expanded history has no sideways scroll');
         await click('#roadmap .shipped-one[data-key="m:0.2"] > .milestone-head');

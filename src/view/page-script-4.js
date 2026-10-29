@@ -1169,7 +1169,7 @@ $('local-note').addEventListener('click', async (event) => {
 });
 /** Copy a displayed short hash through the same clipboard path used by hosted notes. */
 document.addEventListener('click', async (event) => {
-  const button = event.target instanceof Element ? event.target.closest('button.hash-copy[data-copy]') : null;
+  const button = event.target?.closest?.('button.hash-copy[data-copy]');
   if (!button) return;
   const fullHash = button.dataset.copy;
   const originalTitle = fullHash;
