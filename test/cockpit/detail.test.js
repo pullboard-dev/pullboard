@@ -66,26 +66,31 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
     try {
       chrome = await openSnapshotChrome(executable, 'about:blank', join(box.dir, 'detail-chrome'));
       await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: OBSERVE });
-      await chrome.send('Page.navigate', { url: view.link.href });
-      await chrome.waitFor("typeof data === 'object' && !!data?.project && document.querySelectorAll('#chain .row').length === 2 && document.querySelectorAll('#roadmap .milestone-item').length === 2");
+      const shoutsAddress = new URL(view.link.href);
+      shoutsAddress.pathname = '/shouts';
+      await chrome.send('Page.navigate', { url: shoutsAddress.href });
+      await chrome.waitFor("typeof data === 'object' && !!data?.project && view.tab === 'shouts'");
 
-      // The page starts on Shouts. Its lists, roadmap and counts are drawn from summaries, with no item read.
+      // Start on the explicit Shouts route; live boards now default to Dashboard.
       const listed = await chrome.stable(`({
         tab: view.tab,
         summaries: data.project.items.every((item) => !('history' in item) && !('criterion' in item) && !('thread' in item)),
-        rows: [...document.querySelectorAll('#chain .row')].map((row) => row.dataset.item),
-        roadmap: [...document.querySelectorAll('#roadmap .milestone-item')].map((row) => row.querySelector('.id').textContent + ' ' + row.querySelector('.chip').textContent),
         reads: window.__pbReads,
       })`);
       assert.equal(listed.tab, 'shouts');
       assert.equal(listed.summaries, true, 'the view sends item summaries: no history, criterion or thread');
-      assert.deepEqual(listed.rows.sort(), ['2', '3'], 'the Active list shows the submitted and the open item');
+      // Lazy panes render when opened; Roadmap still needs no item-detail request.
+      await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+      await chrome.waitFor("document.querySelectorAll('#roadmap .milestone-item').length === 2");
+      listed.roadmap = await chrome.stable("[...document.querySelectorAll('#roadmap .milestone-item')].map((row) => row.querySelector('.id').textContent + ' ' + row.querySelector('.chip').textContent)");
       assert.deepEqual([...listed.roadmap].sort(), ['#1 accepted', '#2 to verify'], 'the roadmap reads every member and its exact state from summaries');
       // Shipping groups follow the approved legend order, independently of item IDs or milestone membership order.
       const group = { accepted: 0, 'to verify': 1, building: 2, unclaimed: 3, 'sent back': 3, held: 4, verified: 5 };
       const ranks = listed.roadmap.map((row) => group[row.slice(row.indexOf(' ') + 1)]);
       assert.ok(ranks.every((rank, index) => Number.isInteger(rank) && (!index || ranks[index - 1] <= rank)), `the roadmap groups accepted, review, building, waiting, held, then landed: ${JSON.stringify(listed.roadmap)}`);
-      assert.deepEqual(itemReads(listed.reads), [], 'the list renders with no item detail fetched');
+      assert.deepEqual(itemReads(listed.reads), [], 'Shouts renders the board summaries with no item detail fetched');
+      assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), [], 'opening Roadmap renders summaries without fetching item detail');
+      await press(chrome, "document.querySelector('[data-tab=shouts]')");
 
       // Search asks the API, which matches the criterion the summaries leave out, and its result opens the item.
       await chrome.stable('window.__pbHold = true');
@@ -107,6 +112,9 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
 
       // The verified item opens with its criterion, check, brief, verdicts and thread from one more request.
       await chrome.stable("(() => { const q = document.querySelector('#q'); q.value = ''; q.dispatchEvent(new Event('input', { bubbles: true })); q.blur(); })()");
+      await chrome.waitFor("document.querySelectorAll('#chain .row').length === 2");
+      listed.rows = await chrome.stable("[...document.querySelectorAll('#chain .row')].map((row) => row.dataset.item)");
+      assert.deepEqual(listed.rows.sort(), ['2', '3'], 'the Active list shows the submitted and the open item');
       await chooseFilter(chrome, 'state:all');
       await press(chrome, "document.querySelector('#chain .row[data-item=\"1\"]')");
       await chrome.waitFor("view.item === 1 && !document.querySelector('#detail [aria-busy]') && !!document.querySelector('#detail .tl')");
@@ -212,7 +220,7 @@ test('a failed criterion-only search can be retried without changing the board [
         };
       })()` });
       await chrome.send('Page.navigate', { url: view.link.href });
-      await chrome.waitFor("typeof data === 'object' && !!data?.project && document.querySelectorAll('#chain .row').length === 1");
+      await chrome.waitFor("typeof data === 'object' && !!data?.project");
       const boardBefore = await chrome.stable(`JSON.stringify(data.project.items.map((item) => ({ id: item.id, title: item.title, status: item.status, updatedAt: item.updatedAt })))`);
 
       await searchFor(chrome, 'moonstone', 15_000); // budget: hang-only ceiling for the first search response.
@@ -238,6 +246,9 @@ test('a failed criterion-only search can be retried without changing the board [
       assert.match(parsed.attempts[0], /\/items\?q=moonstone$/u);
       assert.deepEqual(parsed.board, JSON.parse(boardBefore), 'search and retry leave the board state unchanged');
       assert.match(parsed.hit, /A searchable item/u);
+      // Keep the one-row condition on its visible pane after proving the retry.
+      await press(chrome, "document.querySelector('[data-tab=items]')");
+      await chrome.waitFor("document.querySelectorAll('#chain .row').length === 1");
       assert.deepEqual(chrome.exceptions, [], 'the failed search can be retried without a browser exception');
       await view.stop();
     } finally {

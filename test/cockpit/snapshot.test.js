@@ -14,6 +14,7 @@ import { events } from '../../src/board.js';
 import { openBoardForRead } from '../../src/board-read-open.js';
 import { proofStats } from '../../src/stats.js';
 import { portableSnapshot } from '../../src/serve.js';
+import { viewProofSummary } from '../../src/view-state-summary.js';
 import { exportView } from '../../src/commands/view.js';
 import { machine, project, build, sendBack, fetchLive, startView, accept, boardId, boardOf, chromeExecutable, browserPause, openSnapshotChrome, closeSnapshotChrome, press, travel, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, serveFolder, proofShot } from './fixture.js';
 
@@ -24,12 +25,12 @@ const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCo
 
 /** Compare every projection field, evaluating running statistics at each real observation clock. */
 function assertSnapshotObservation(expected, actual, board, root, message) {
-  /** Read the entire public statistics projection at its recorded observation time. */
+  /** Apply the public view's compact projection at its recorded observation time. */
   const statisticsAt = (observation) => {
     const now = Date.parse(observation.proofStats.flow.asOf);
     assert.ok(Number.isFinite(now), 'the projection records a valid observation clock');
     assert.equal(observation.observedAt, new Date(now).toISOString(), 'the root read stamp matches its statistics observation clock');
-    return portableSnapshot(JSON.parse(JSON.stringify(proofStats(board, { now }, statsReadPorts))), root);
+    return portableSnapshot(JSON.parse(JSON.stringify(viewProofSummary(proofStats(board, { now }, statsReadPorts)))), root);
   };
   assert.deepEqual(expected.proofStats, statisticsAt(expected), 'the live projection matches the public statistics reader at its clock');
   const actualStatistics = statisticsAt(actual);
