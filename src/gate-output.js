@@ -1,5 +1,6 @@
 import { environmentProblem } from './config.js';
 import { testOutcomeFields } from './test-outcomes.js';
+import { sourcePreparationFields } from './runner-overhead.js';
 /**
  * What a gate run leaves for people and agents: the digest of its output and its sanitized timing profile. Trusted
  * policy checks write both, so they live apart from the gate's queue and runners, which a board read never needs [C7].
@@ -98,6 +99,7 @@ export function writeTimingProfile(path, profile) {
     .map(file => ({ path: sanitize(file.path, 'file path'), durationMs: file.durationMs }));
   const tests = (profile.tests ?? []).filter(test => (typeof test?.file === 'string' || test?.file === null) && typeof test?.name === 'string' && validDuration(test.durationMs))
     .map(test => ({ file: sanitize(test.file, 'test file'), name: sanitize(test.name, 'test name'), durationMs: test.durationMs, passed: test.passed === true }));
+  const sourcePreparation = sourcePreparationFields(profile.sourcePreparation);
   const sanitized = {
     version: 1,
     waitMs: validDuration(profile.waitMs) ? profile.waitMs : 0,
@@ -111,6 +113,7 @@ export function writeTimingProfile(path, profile) {
     unavailable: sanitize(profile.unavailable ?? null, 'availability'),
     ...(Object.hasOwn(profile, 'environment') ? { environment: environmentProblem(profile.environment) ? null : profile.environment } : {}),
     ...(profile.executionRunner ? { executionRunner: sanitize(profile.executionRunner, 'execution runner') } : {}),
+    ...(sourcePreparation ? { sourcePreparation } : {}),
     ...(profile.receipt ? { receipt: { ...profile.receipt, slot: { kind: sanitize(profile.receipt.slot?.kind, 'slot kind'), reason: sanitize(profile.receipt.slot?.reason, 'slot reason') } } } : {}),
     ...(profile.landingShards ? { landingShards: {
       balance: sanitize(String(profile.landingShards.balance ?? 'unknown'), 'landing balance'),

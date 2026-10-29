@@ -1,4 +1,5 @@
 import { mainCheckout } from './git.js';
+import { sourcePreparationFields } from './runner-overhead.js';
 /** Machine admission and receipts without eagerly loading board or full proof execution [Q1,Q2,Q3,C7]. */
 import { Refused } from './refused.js';
 import {
@@ -52,10 +53,12 @@ export function settleReceipt(lease) {
   const admittedAt = local ? lease.admittedAt ?? new Date(lease.tracker.marks.admittedAt ?? lease.tracker.marks.requestedAt).toISOString() : executor?.admittedAt ?? null;
   const finishedAt = local ? new Date().toISOString() : executor?.finishedAt ?? null;
   const load = local ? { start: lease.startLoad ?? sampleRunnerLoad(), end: sampleRunnerLoad() } : executor?.load ?? null;
+  const sourcePreparation = sourcePreparationFields(lease.sourcePreparation);
   lease.receipt = { ...receiptOf(lease.tracker, { kind: lease.receiptKind, slot: lease.slot }), environment: lease.environment ?? null,
     runner: descriptor, admittedAt, finishedAt, timing: lease.timing === true, inherited: lease.inherited === true,
     occupiedSlots: lease.timing ? descriptor.slots.current : 1, load,
     executionPhases: lease.executionPhases ?? null,
+    ...(sourcePreparation ? { sourcePreparation } : {}),
     ...(lease.lateRunnerDispatch ? { lateRunnerDispatch: { ...lease.lateRunnerDispatch } } : {}),
     ...(local ? lease.timingEvidence?.() ?? { exclusive: false, unfencedClients: [] }
       : { exclusive: executor?.exclusive === true, unfencedClients: executor?.unfencedClients ?? [] }) };
