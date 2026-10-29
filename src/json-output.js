@@ -57,6 +57,43 @@ export function versionedRefusal({ code, message, next }, { version = 1 } = {}) 
   return { version, error: { code, message, next } };
 }
 
+/** About 2k tokens of default text, in UTF-8 bytes: what a reader acts on next [#1885]. */
+export const DEFAULT_OUTPUT_BUDGET = 8192;
+
+/**
+ * Each command's declared default-text budget in UTF-8 bytes. Long-running streams (view, watch, relay, serve) and
+ * the reference pages (help, tour) and the board data dump (export) are declared unbounded; every other command gets the default. Why: default
+ * output is what lands in an agent's context, so a list of hundreds of rows belongs behind --detail or --json.
+ */
+export const OUTPUT_BUDGETS = Object.freeze({ view: Infinity, watch: Infinity, relay: Infinity, serve: Infinity,
+  mcp: Infinity, hook: Infinity, help: Infinity, tour: Infinity, export: Infinity });
+
+/** The command a CLI argument list runs: its first positional before any `--`. */
+export function commandName(argv) {
+  const flags = argv.slice(0, argv.indexOf('--') < 0 ? argv.length : argv.indexOf('--'));
+  return flags.find(arg => !arg.startsWith('-')) ?? null;
+}
+
+/** The longest single default-text line in UTF-8 bytes; one agents: line once ran to 54 KB [#1885]. */
+export const LINE_BUDGET = 1024;
+
+/** Cut one over-long default-text line at a character boundary, saying where the rest is. */
+export function cutLine(line) {
+  if (Buffer.byteLength(line) <= LINE_BUDGET) return line;
+  const marker = ' … (cut; --detail shows the whole line)';
+  let kept = '';
+  for (const character of line) {
+    if (Buffer.byteLength(kept + character) > LINE_BUDGET - Buffer.byteLength(marker)) break;
+    kept += character;
+  }
+  return kept + marker;
+}
+
+/** One command's declared default-text budget in UTF-8 bytes. */
+export function outputBudget(command) {
+  return Object.hasOwn(OUTPUT_BUDGETS, command ?? '') ? OUTPUT_BUDGETS[command] : DEFAULT_OUTPUT_BUDGET;
+}
+
 /** The keys named by --fields a,b,c or --fields=a,b,c before any `--`, or null when the flag is absent. */
 export function requestedFields(argv) {
   const flags = argv.slice(0, argv.indexOf('--') < 0 ? argv.length : argv.indexOf('--'));
@@ -108,6 +145,12 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     return renderer(error, options);
   }
   let enabled = argv.slice(0, argv.indexOf('--') < 0 ? argv.length : argv.indexOf('--')).includes('--json');
+  // Default text stops at the command's budget; --detail prints everything, as --json always does [#1885].
+  const flagArgs = argv.slice(0, argv.indexOf('--') < 0 ? argv.length : argv.indexOf('--'));
+  const budget = flagArgs.includes('--detail') ? Infinity : outputBudget(commandName(argv));
+  // Room kept for the closing count line and a final next step, itself cut to one line, inside the budget.
+  const notice = LINE_BUDGET + 256;
+  let printed = 0, withheld = 0, withheldNext = null;
   const fields = requestedFields(argv);
   let result;
   let refusal;
@@ -121,7 +164,31 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     if (enabled) lines.push(String(line));
     else target.write(`${line}\n`);
   };
+  /** Write one default-text line within the budget, keeping only a count (and a final next step) of the rest. */
+  const say = (line) => {
+    if (enabled) return emit(streams.stdout, messages, line);
+    // A whole JSON document printed as text (export) is machine-readable: cutting it would only corrupt it.
+    if (budget === Infinity || /^\s*[[{]/u.test(String(line))) return streams.stdout.write(`${line}\n`);
+    // One message may hold many lines, such as a red gate's output; each printed line is cut and counted alone.
+    for (const part of String(line).split('\n')) {
+      const text = `${cutLine(part)}\n`;
+      const size = Buffer.byteLength(text);
+      if (withheld || printed + size > budget - notice) {
+        withheld += 1;
+        if (/^next:/u.test(part)) withheldNext = cutLine(part);
+        continue;
+      }
+      printed += size;
+      streams.stdout.write(text);
+    }
+  };
   const flush = (code) => {
+    if (!enabled && withheld && !written) {
+      written = true;
+      streams.stdout.write(`${withheld} more lines withheld to keep this output within ${budget} bytes; add --detail for all of it, or --json\n`);
+      if (withheldNext) streams.stdout.write(`${withheldNext}\n`);
+      return;
+    }
     if (!enabled || written) return;
     written = true;
     let document;
@@ -155,7 +222,7 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     recordedMove: false,
     physicalStdoutIsTTY: Boolean(streams.stdout.isTTY),
     stdout: { get isTTY() { return enabled ? false : streams.stdout.isTTY; }, write: (text) => streams.stdout.write(text) },
-    say: (line) => emit(streams.stdout, messages, line),
+    say,
     err: (line) => emit(streams.stderr, diagnostics, line),
     result: (value) => { result = value; },
     refusal: (error) => { refusal = error; },
