@@ -102,7 +102,13 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
   for (const { file, source } of sources) {
     if (!/^(?:src\/|packages\/[^/]+\/src\/|apps\/[^/]+\/)/u.test(file) || !/\.[cm]?js$/u.test(file)) continue;
     const facts = scanSource(file, source), { code } = lex(source);
-    const imports = new Map(facts.imports.flatMap(row => row.names.filter(name => name.local)
+    // code-map's inventory is line-oriented; valid adjacent import declarations still need binding coverage.
+    const importRows = [...facts.imports];
+    for (const match of code.matchAll(/\bimport\s+(?=[\w*{])/gu)) {
+      const end = code.indexOf(';', match.index);
+      if (end >= 0) importRows.push(...scanSource(file, source.slice(match.index, end + 1)).imports);
+    }
+    const imports = new Map(importRows.flatMap(row => row.names.filter(name => name.local)
       .map(name => [name.local, { from: row.from, imported: name.imported }])));
     const aliases = new Map();
     for (const match of code.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*;/gu)) aliases.set(match[1], match[2]);

@@ -158,7 +158,7 @@ const CALLBACKS = {
     boardBusyError: 'board-access.js#boardBusyError',
   },
   'board.js': { freeze: 'cli.js#freezer' },
-  'board-claim.js': { freeze: 'cli.js#freezer' },
+  'board-claim.js': { freeze: 'cli.js#freezer', foreignBlockers: 'board.js#foreignBlockers' },
   'line-capacity-board.js': {
     nextFor: 'board.js#nextFor',
     reviewerChecks: 'board.js#reviewerChecks',
