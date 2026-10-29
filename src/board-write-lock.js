@@ -15,13 +15,12 @@ import { writeSync } from 'node:fs';
 import { constants } from 'node:fs';
 import { join } from 'node:path';
 import { parseProcessCensus } from './process-census.js';
-import { BOARD_HOLD_MS } from './board-hold-log.js';
 import { recordBoardHold } from './board-hold-log.js';
 
 const pending = new WeakMap();
 let ownIdentity;
 let identityPrepared = false;
-const LONG_WRITE_MS = BOARD_HOLD_MS;
+const LONG_WRITE_MS = 2_000;
 
 /** Run one bounded PID-only query, without reading or changing any other process's arguments or state. */
 function identities(pids) {

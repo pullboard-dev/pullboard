@@ -83,9 +83,9 @@ function declaredLoads(source, modulePaths, declaration = LOADS, strict = false)
   return loads;
 }
 
-/** Resolve explicit committed data inputs; reserved tree declarations keep their existing meaning. */
+/** Resolve tag-led committed inputs; prose quotations stay inert and malformed annotations stay unknown. */
 function declaredInputs(source, paths) {
-  const declarations = headerLines(source).filter(line => line.includes('@pullboard-test-input'));
+  const declarations = headerLines(source).filter(line => /^\s*(?:\/\*+|\*|\/\/)\s*@pullboard-test-input\b/u.test(line));
   const inputs = new Set();
   for (const line of declarations) {
     const match = /^\/\*\* @pullboard-test-input (.+?) \*\/$/u.exec(line.trim());
