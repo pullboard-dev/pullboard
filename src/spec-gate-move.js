@@ -34,7 +34,7 @@ export function specGateMoveOnly(root, file, before = 'HEAD', after = '') {
   const lines = original.stdout.split('\n');
   for (const row of parseSpec(original.stdout).rows) {
     if (!row.gate) continue;
-    const gate = row.gate.split(/(\s+)/u).map(token => moves.get(token)
+    const gate = row.gate.split(/(\s+|,)/u).map(token => moves.get(token)
       ?? (token.startsWith('./') && moves.has(token.slice(2)) ? './' + moves.get(token.slice(2)) : token)).join('');
     if (gate !== row.gate) lines[row.line - 1] = replaceRowGate(lines[row.line - 1], gate);
   }

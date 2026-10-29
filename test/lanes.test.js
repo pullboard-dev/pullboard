@@ -51,7 +51,8 @@ test('a lane commits only exact gate paths for its staged test rename [L3,B34]',
   const box = helpers.project('true');
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/old.test.js'), 'export const fixture = true;\n');
-  const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8').replace('gate: web test', 'gate: node web/old.test.js');
+  writeFileSync(join(box.repo, 'web/kept.test.js'), 'export const kept = true;\n');
+  const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8').replace('gate: web test', 'gate: node web/old.test.js,  web/kept.test.js');
   writeFileSync(join(box.repo, 'SPEC.md'), spec);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: seed renamed gate fixture');
