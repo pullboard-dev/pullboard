@@ -331,5 +331,3 @@ Each move checks its guards in this order and refuses with the first one that do
 | BAD_DECISION | a verdict is accept or reject | pullboard verify <id> accept, or reject --reason CODE --clause "<frozen wording>" --note "..." |
 
 For check diagnostics, a refusal from a failed or unverifiable check includes an output digest, sanitized tail, and a private full-output path in the CLI message (also `error.message` in JSON). The artifact is owner-readable only. If it cannot be saved, the tail remains available and the message names the storage error instead of claiming a path.
-
-Review reservations with active companions compose them in native patch-list order and safely check out that exact source before returning it. The result names the companion keys, composed commit and patch-set digest. Preserve dirty or untracked checkout files before retrying a reservation. Both verdicts bind the digest and refuse `NOT_AT_COMMIT` with missing keys when the actual review tree lacks companion content, including a descendant that removed it.
