@@ -1,6 +1,6 @@
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** @pullboard-test-gui */
 /** Compression stays inside the device seal while both clients retain legacy snapshot reads [H5,H15,H17]. */
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';

@@ -15,6 +15,9 @@ export { assertReaderParity } from './relay-parity-reader.js';
 import { createParityReader } from './relay-parity-reader.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
+
 /** Seed actual native writes, keeping the operation receipts available for the fail-closed coverage inventory. */
 export function seedParityBoard(root, lane) {
   const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
@@ -98,9 +101,6 @@ export async function parityRoundtrip(t, { foreign = false, localHealth = false 
     try {
       const running = runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', `import { readFileSync } from 'node:fs';
 import { exerciseOperationParity } from ${JSON.stringify(module)};
-
-/** Bind the real canonical presentation providers once for this fixture module. */
-const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 try { console.log(JSON.stringify(await exerciseOperationParity(JSON.parse(readFileSync(${JSON.stringify(file)}, 'utf8'))))); } catch (error) { console.log(JSON.stringify({ error: error.message })); process.exitCode = 1; }`], { cwd: box.root, env: box.env, signal: t.signal });
       t.after(async () => {
         if (running.child.exitCode === null && running.child.signalCode === null) running.child.kill('SIGTERM');

@@ -1,5 +1,5 @@
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 import { request as boardLinkRequest } from '../src/relay.js';
 import { personSigningCase } from './person-signing-case.js';
 import { submitFixture as submitBoardStateFixture } from './board-submit-fixture.js';
@@ -105,6 +105,9 @@ import {
   readKeylessInbox,
   finishKeylessInbox,
 } from './inbox-key-fixture.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 const CLI = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
 /** The shipped command run with an explicit trusted fixture relay; test-only, never published (#408). */
@@ -230,9 +233,6 @@ import {
   listResources,
 } from ${JSON.stringify(new URL('../src/resources.js', import.meta.url).href)};
 import {loadMachineSettings} from ${JSON.stringify(new URL('../src/settings.js', import.meta.url).href)};
-
-/** Bind the real canonical presentation providers once for this fixture module. */
-const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 const [root,ready,observed]=process.argv.slice(1);
 const capacity=loadMachineSettings().gateSlots;
 const leases=[];

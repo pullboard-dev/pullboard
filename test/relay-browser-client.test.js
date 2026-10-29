@@ -1,6 +1,6 @@
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** @pullboard-test-gui */
 /** The relay browser client's sealed snapshot decode, in Chrome and in WebKit [H5,H16]. */
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
