@@ -37,6 +37,7 @@ export function functionsIn(source) {
 
 /** Board functions handed a function to call, and the one the CLI and the runner hand them. */
 export const MACHINE_CALLBACKS = {
+  'board-claim.js': { freeze: 'cli.js#freezer', foreignBlockers: 'board.js#foreignBlockers' },
   // Real higher command roots bind runnerExecutionServices; admission snapshots these functions onto the lease.
   'gate-execution.js': {
     'gateLease.executionServices.runners.runOnRunner': 'runners.js#runOnRunner',

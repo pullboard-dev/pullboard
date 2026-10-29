@@ -12,6 +12,7 @@ import { loadConfig } from '../src/config.js';
 import { HELP } from '../src/cli.js';
 import { PULLBOARD_COMMANDS } from '../src/cockpit.js';
 import { viewPureGate } from './checks/view-pure.js';
+import { boardWriteIoProblems } from './checks/board-write-io.js';
 
 const root = process.cwd();
 let failed = false;
@@ -26,6 +27,10 @@ for (const row of engineFolderProblems(root)) {
 }
 for (const row of viewPureGate(root).failures) {
   console.error(`${row.path}:${row.line}: ${row.text}`);
+  failed = true;
+}
+for (const row of boardWriteIoProblems(sources)) {
+  console.error(`${row.file}:${row.line}: external I/O inside a board write: ${row.call} (${row.chain.join(' -> ')})`);
   failed = true;
 }
 const declared = [...declaredProseCommands(HELP)].sort();
