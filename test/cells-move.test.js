@@ -30,7 +30,7 @@ function fixture(t, source = "import { number } from './number.js';\nexport cons
   const root = join(outer, 'repo');
   const custody = join(outer, 'custody');
   mkdirSync(root); mkdirSync(custody); mkdirSync(join(root, 'src'));
-  writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
+  writeFileSync(join(root, 'package.json'), '{"type":"module","bin":"src/leaf.js"}\n');
   writeFileSync(join(root, 'src/leaf.js'), source);
   chmodSync(join(root, 'src/leaf.js'), 0o755);
   writeFileSync(join(root, 'src/number.js'), 'export const number = 41;\n');
