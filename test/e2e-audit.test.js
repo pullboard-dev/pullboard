@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** Value placement and incremental audit control contracts, without executing repository journeys [C7]. */
 import { flakeLedger } from '../src/flakes.js';
+import { auditFailureItem as focusedAuditFailureItem } from '../src/audit-failure-item.js';
 import { eventCauses } from '../src/board-rigor.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -94,6 +95,7 @@ test('optimal audit cadence changes with observed escapes and actual run and del
 });
 
 test('an audit failure names exactly the landings since its last green event without blaming a test cause [C7]', () => {
+  assert.equal(auditFailureItem, focusedAuditFailureItem, 'the preserved public export is the actual focused native payload builder');
   const landings = [{ eventId: 2, commit: 'old', items: [1] }, { eventId: 5, commit: 'new', items: [2, 3] }];
   const failure = auditFailureItem({ failures: [{ file: 'test/journey.test.js', name: 'the integration works' }], landings, sinceEventId: 3, lane: 'core' });
   assert.equal(failure.title, 'Main red: scheduled audit (test/journey.test.js)');

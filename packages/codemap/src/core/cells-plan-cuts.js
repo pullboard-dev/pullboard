@@ -5,6 +5,12 @@ const BRIEF_LIMIT = 8000;
 /** Stable identity for a cut item, independent of move numbering and board allocation. */
 export function cutTitle(cell) { return `Cells import cuts: ${cell} removes imports into later cells`; }
 
+/** Resolve one historical source identity only when its unique placement stayed put or moved lower. */
+function historicalPlacement(plan, original, path) {
+  const found = plan.cells.flatMap(cell => cell.paths.filter(row => row[0] === path).map(row => ({ cell, row })));
+  return found.length === 1 && found[0].cell.order <= original.order ? found[0].row : null;
+}
+
 /** Group every recorded import occurrence by its importing cell; repeated imports remain distinct occurrences. */
 export function importCuts(plan) {
   const cells = new Map(plan.cells.map(cell => [cell.name, cell]));
@@ -15,12 +21,12 @@ export function importCuts(plan) {
     const group = groups.get(importer.name) ?? { cell: importer.name, order: importer.order, edges: [] };
     for (const [index, edge] of link.edges.entries()) {
       const [from, to, extra] = edge.split('->');
-      if (extra || !importer.paths.some(([path]) => path === from) || !target.paths.some(([path]) => path === to)) {
+      const source = historicalPlacement(plan, importer, from), destination = historicalPlacement(plan, target, to);
+      if (extra || !source || !destination) {
         throw new Error(`cut import is outside its named cells: ${edge}`);
       }
-      const destination = target.paths.find(([path]) => path === to)?.[1];
       group.edges.push({ id: `${importer.name}->${target.name}:${index}`, from, to, target: target.name,
-        how: destination?.includes('/src/core/')
+        how: destination[1].includes('/src/core/')
           ? 'move the shared pure definition below both cells, retaining the provider front door'
           : 'invert the dependency by passing the provider operation or state through an explicit caller-supplied port' });
     }

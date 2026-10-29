@@ -1,6 +1,7 @@
 /** Import-cut filing uses the committed plan, real CLI and real source graphs [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -127,4 +128,30 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
     put(edge.from, "await import(name); export const detached = true;\n");
     assert.ok(checkCuts(root, plan, group.cell).some(problem => problem.includes('cannot prove')), 'a computed loader cannot claim the cut is proven');
   });
+
+  test('closed historical cuts accept exact lower ownership while higher or missing placement still refuses [C7,D3,CD64]', t => {
+    const { root, put } = fixture(t), plan = computePlan(root), group = importCuts(plan)[0], edge = group.edges[0];
+    const importer = plan.cells.find(cell => cell.name === group.cell);
+    const original = plan.cells.find(cell => cell.name === edge.target);
+    const index = original.paths.findIndex(row => row[0] === edge.to);
+    const row = original.paths.splice(index, 1)[0], extracted = 'src/lower-extracted.js';
+    const body = readFileSync(join(root, edge.to), 'utf8');
+    row[1] = extracted; importer.paths.push(row);
+    put(extracted, body); rmSync(join(root, edge.to));
+    put(edge.from, "import './lower-extracted.js'; export const native = true;\n");
+    assert.equal(importCuts(plan)[0].edges[0].to, edge.to, 'the original cut identity is retained');
+    assert.deepEqual(checkCuts(root, plan, group.cell), [], 'actual lower ownership closes the historical cut without an alias');
+    const higher = structuredClone(plan), higherImporter = higher.cells.find(cell => cell.name === importer.name);
+    const moved = higherImporter.paths.splice(higherImporter.paths.findIndex(value => value[0] === edge.to), 1)[0];
+    higher.cells.find(cell => cell.order > original.order).paths.push(moved);
+    assert.throws(() => importCuts(higher), /cut import is outside its named cells/u, 'later ownership cannot close an earlier historical cut');
+    const missing = structuredClone(plan);
+    missing.cells.find(cell => cell.name === importer.name).paths = importer.paths.filter(value => value[0] !== edge.to);
+    assert.throws(() => importCuts(missing), /cut import is outside its named cells/u, 'missing historical placement never grants an exemption');
+    put(original.frontDoor, 'export const real = true;\n');
+    put(edge.from, `import ${JSON.stringify('../' + original.frontDoor)}; export const native = true;\n`);
+    assert.ok(checkCuts(root, plan, group.cell).some(problem => problem.includes(original.frontDoor)),
+      'an actual live later-cell backedge still refuses after a valid lower extraction');
+  });
+
 }
