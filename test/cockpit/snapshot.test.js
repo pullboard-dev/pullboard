@@ -753,7 +753,7 @@ test('the export asks for the full board [N26,A2]', { timeout: 90_000 }, // budg
           title: detail.querySelector('h2').innerText,
           criterion: part('Criterion')?.querySelector('.text').innerText ?? null,
           verdicts: [...(part('Verdicts')?.querySelectorAll('.verdict') ?? [])].map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').innerText]),
-          moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact) b')].map((move) => move.textContent),
+          moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].flatMap((move) => move.dataset.eventIds.split(' ').map(() => move.dataset.timelineKind)),
           facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent),
         };
       })()`);
