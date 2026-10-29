@@ -1,10 +1,11 @@
 /** @pullboard-test-gui */
 /** Settings are projected by the real local API, never read or changed by the page [O5,O6,N26]. */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { machine, project, startView, openPage, fetchLive, boardId } from './fixture.js';
+import { machine, project, startView, openPage, fetchLive, boardId, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 
 /** Escape the expected literal API text, independently of the page's renderer. */
 function text(value) {
@@ -63,4 +64,56 @@ test('the Settings page lists every setting by scope from the settings API and e
     assert.equal(readFileSync(join(alpha.repo, 'pullboard.json'), 'utf8'), config);
     assert.equal(box.run(alpha.repo, 'export', '--json'), before, 'settings navigation changes no board data');
   } finally { await view.stop(); }
+});
+
+
+test('Settings has a bottom sidebar address and isolates a bad row at desktop and 320px [O5,O6,N26]', { timeout: 180_000 }, async () => {
+  const executable = chromeExecutable();
+  assert.ok(executable, 'Chrome is required for Settings reachability and row isolation.');
+  const box = machine();
+  const alpha = project(box, 'healthy-settings', undefined, { submitGate: 'landing', submitDeferAbove: 20, lease: '47m' });
+  const beta = project(box, 'bad-settings', undefined, { submitGate: 'landing', submitDeferAbove: 20 });
+  const file = join(beta.repo, 'pullboard.json');
+  const configured = JSON.parse(readFileSync(file, 'utf8'));
+  configured.submitDeferAbove = 'not a number';
+  writeFileSync(file, JSON.stringify(configured));
+  const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-settings-'));
+  let chrome;
+  try {
+    const href = new URL(view.link.href); href.pathname = '/settings';
+    chrome = await openSnapshotChrome(executable, href.href, profile);
+    await chrome.waitFor('view.tab === "settings" && !document.querySelector("#settings-pane").hidden');
+    const footer = await chrome.stable(`(() => {
+      const button = document.querySelector('#side [data-tab="settings"]');
+      return { bottom: button?.closest('.side-footer') === document.querySelector('#side').lastElementChild,
+        github: Boolean(button?.parentElement.querySelector('a[href*="github.com"]')),
+        top: Boolean(document.querySelector('.side-body [data-tab="settings"]')) };
+    })()`);
+    assert.deepEqual(footer, { bottom: true, github: true, top: false });
+    await press(chrome, 'document.querySelector("#settings-pane [data-settings-open]")');
+    await press(chrome, 'document.querySelector("[data-settings-scope=repo]")');
+    await chrome.waitFor('document.querySelectorAll("#settings-content [data-setting-key]").length > 0');
+    for (const [width, mobile] of [[1440, false], [320, true]]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile });
+      const shown = await chrome.stable(`(() => {
+        const rows = [...document.querySelectorAll('#settings-content [data-setting-key]')];
+        return { descriptions: rows.map(row => row.querySelector('.setting-description')?.textContent.trim()),
+          thresholds: rows.filter(row => row.dataset.settingKey === 'submitDeferAbove').map(row => ({ text: row.textContent, error: Boolean(row.querySelector('.setting-error')) })),
+          healthy: rows.some(row => row.dataset.settingKey === 'lease' && row.textContent.includes('47m')),
+          overflow: document.documentElement.scrollWidth > innerWidth };
+      })()`);
+      assert.ok(shown.descriptions.every(Boolean), width + ': each setting explains its effect');
+      assert.equal(shown.thresholds.length, 2, 'both real registered repos remain visible');
+      assert.ok(shown.thresholds.some(row => !row.error && row.text.includes('20')), 'the valid numeric threshold stays valid');
+      assert.ok(shown.thresholds.some(row => row.error && /whole number at least 1/u.test(row.text)), 'the one bad row includes its real API repair');
+      assert.ok(shown.healthy, 'an unrelated configured row survives');
+      assert.equal(shown.overflow, false, width + ': the settings page fits its viewport');
+    }
+    assert.equal(JSON.parse(readFileSync(file, 'utf8')).submitDeferAbove, 'not a number', 'read-only navigation never repairs configuration');
+    assert.equal(JSON.parse(readFileSync(join(alpha.repo, 'pullboard.json'), 'utf8')).submitDeferAbove, 20);
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
 });
