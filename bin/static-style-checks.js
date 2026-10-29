@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { styleSources } from '../src/source-inventory.js';
+import { styleSources } from '../packages/codemap/index.js';
 import { importStyleViolations } from '../src/static-import-style.js';
 import { engineFolderProblems } from '../src/engine-folder.js';
 import { declaredProseCommands } from '../src/static-prose-commands.js';

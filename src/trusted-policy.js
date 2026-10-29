@@ -12,6 +12,7 @@ export { mainPolicy, policyAt, trunkRef } from './trusted-policy-read.js';
 import { refuseGrafts } from './git.js';
 import { outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
+import { specGateMoveOnly } from './spec-gate-move.js';
 
 /** Resolve the trunk snapshot and refuse a conflict without touching an index or worktree [B34,V6].
  *
@@ -68,6 +69,8 @@ export function submissionPaths(root, item, commit, { config, mainCommit, depend
     const object = pathObject(root, commit, path);
     if (object === pathObject(root, snapshot, path)) return false;
     if (mainBases.length && mainBases.every(start => object === pathObject(root, start, path))) return false;
+    if (path === ownership.spec && bases.every(start => pathObject(root, start, path) === object
+      || specGateMoveOnly(root, path, start, commit))) return false;
     return !accepted.some(dependency => dependency.paths.has(path)
       && !outOfLane(ownership, dependency.lane, [path]).length
       && object === pathObject(root, dependency.commit, path));

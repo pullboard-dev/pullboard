@@ -32,6 +32,11 @@ import {
 } from './gui-admission.js';
 import { Refused } from './refused.js';
 import { runnerSource } from './gate-policy-load.js';
+import {
+  retainTestOutput,
+  renderTestSummary,
+} from './test-output-summary.js';
+import { readFileSync } from 'node:fs';
 import { fullGateRun } from './gate-execution.js';
 import { timingSource } from './run-timing.js';
 import { trackedDefaultTestFiles } from './test-selection.js';
@@ -155,10 +160,11 @@ export async function runTestFiles(root, config, files, { agent, onWait, affecte
     return withGateSlot(checkout, (lease) => runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs }),
       { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full, agent, kind: 'test', onWait });
   }, withMainCheckout);
-  const result = { green: run.isGreen, output: run.output, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
+  const summary = retainTestOutput(root, run.output, { root: run.executionRoot ?? root, profile: run.profile });
+  const result = { green: run.isGreen, output: renderTestSummary(summary), ...summary, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
     ...(run.executionRunner ? {} : { local: localReason() }) };
   if (!run.isGreen) {
-    const compared = await compareMainFailures(root, run.profile, onWait, run.output, { runnerAdmission: admission });
+    const compared = await compareMainFailures(root, run.profile, onWait, readFileSync(summary.logPath, 'utf8'), { runnerAdmission: admission });
     result.main = compared.main;
     // A file main does not have yet cannot fail there: its failure is new, whatever main's run of it said.
     result.known = compared.files.map((entry) => compared.main && spawnSync('git', ['cat-file', '-e', `${compared.main}:${entry.file}`], { cwd: root, env: cleanGitEnvironment(), stdio: 'ignore' }).status !== 0

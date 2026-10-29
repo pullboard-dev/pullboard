@@ -1,3 +1,10 @@
+import { reviewCompanionOffer } from './item-patch-review.js';
+import { itemPolicy } from './trusted-policy.js';
+import { requireTrunkMerge } from './trusted-policy.js';
+import { retryReviewCommit } from './verdict-retry.js';
+import { git } from './git.js';
+import { isClean } from './git.js';
+import { untracked } from './git.js';
 import { committedItemAuthors } from './review-independence.js';
 import { agentSessionDigest } from './person.js';
 import { effectiveItemHead } from './source-advance-state.js';
@@ -61,6 +68,20 @@ export function ownSessionReviews(info, board, digest = agentSessionDigest(), { 
   });
 }
 
+/** Place active companions in the leased checkout before any reservation route hands it over. */
+function composedReservation(ctx, board, found, getItem) {
+  if (!found.item) return found;
+  const root = ctx.info.root;
+  const companions = reviewCompanionOffer(root, board, found.item,
+    { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem });
+  if (!companions) return found;
+  if (!isClean(root)) throw new Refused('DIRTY', 'commit or preserve checkout changes before reserving a companion review');
+  if (untracked(root).length) throw new Refused('UNTRACKED', 'commit or preserve untracked files before reserving a companion review');
+  // Git also protects ignored files that an ordinary checkout would silently overwrite.
+  git(root, ['switch', '--detach', '--no-overwrite-ignore', companions.commit]);
+  return { ...found, companions };
+}
+
 /**
  * The review half of one next loop: return heads that no longer merge, then reserve the named review or the next one.
  *
@@ -82,8 +103,9 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
     const item = getItem(board, id);
     refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard' });
     ctx.io.nextPhase?.('review reservation', id);
-    return { item: await ordered('reserveReview', [id, reservation]), reasons: [] };
+    return composedReservation(ctx, board, { item: await ordered('reserveReview', [id, reservation]), reasons: [] }, getItem);
   }
-  return await ordered('reserveNextReview', [{ agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy,
+  const found = await ordered('reserveNextReview', [{ agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy,
     familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes, observeIdle: values.observeIdle, skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems }), priority: mainRedReviewItems(ctx.info.root, board) }]);
+  return composedReservation(ctx, board, found, getItem);
 }

@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../src/package-files.js';
-import { readPathMap } from '../src/path-map.js';
+import { readPathMap } from '../packages/codemap/index.js';
 import { cellsMove } from '../bin/cells-move-tool.js';
 import { checkMoved } from '../bin/cells-plan.js';
 import { runFixtureChild } from './fixture-child.js';

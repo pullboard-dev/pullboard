@@ -16,10 +16,10 @@ import { decodeBoardKey, encodeBoardKey, generateBoardKey, seal, unseal } from '
 import { githubFixture } from './relay-fixture.js';
 import * as store from '../src/board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
-import { checkpointSequence } from '../src/engine.js';
 import { serveApi } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { main } from '../src/cli.js';
-import { appliedSequence, engineReceipt, prepareEngineMove } from '../src/engine.js';
+import { appliedSequence, checkpointSequence, engineReceipt, prepareEngineMove } from '../src/engine.js';
 import { storeBoardKey } from '../src/relay-key.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { presentationShout } from '../src/relay-presentation.js';
@@ -970,7 +970,7 @@ async function competingReplicaClaims(fixture, timing) {
   }
   let localApi;
   try {
-    localApi = await timing.wait('start the local API used to exercise relay ordering', () => serveApi({ runCommand: apiCommand, projects: () => [{ root: clones[0], name: 'Clone API' }] }));
+    localApi = await timing.wait('start the local API used to exercise relay ordering', () => serveApi({ refusalDocument, runCommand: apiCommand, projects: () => [{ root: clones[0], name: 'Clone API' }] }));
     const address = new URL(localApi.url);
     const response = await timing.wait('send the first API move through clone A', () => fetchFresh(`${address.origin}/api/v1/boards/${boardId}/moves`, {
       method: 'POST', headers: { 'x-pullboard-key': address.searchParams.get('k'), 'content-type': 'application/json' },

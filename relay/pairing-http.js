@@ -1,5 +1,6 @@
 /** Authenticated, no-store HTTP boundary for one-use client-encrypted pairing envelopes [H15,H17]. */
 import { apiJson, apiRefusal, apiStatus, readApiBody } from '../src/api-http.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { Refused } from '../src/refused.js';
 import { PAIR_PACKAGE_BODY_BYTES } from '../src/relay-limits.js';
 
@@ -41,7 +42,7 @@ export function createPairingHandler({ authenticate, pairings }) {
       apiJson(res, 201, pairings.publish(board, locator, input.sealed));
       return true;
     } catch (error) {
-      apiJson(res, apiStatus(error), apiRefusal(error));
+      apiJson(res, apiStatus(error), apiRefusal(error, refusalDocument));
       return true;
     }
   };

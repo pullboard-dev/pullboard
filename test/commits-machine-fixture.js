@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lex } from '../src/js-lex.js';
-import { readPathMap, mappedPath } from '../src/path-map.js';
+import { readPathMap, mappedPath } from '../packages/codemap/index.js';
 
 const SOURCE_MAP = new Map([...readPathMap(fileURLToPath(new URL('../', import.meta.url)))].filter(([, target]) => target.startsWith('packages/commits/')));
 

@@ -4,7 +4,7 @@ import { lex } from '../src/js-lex.js';
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
 import { engineFolderViolations } from '../src/engine-folder.js';
-import { readPathMap } from '../src/path-map.js';
+import { readPathMap } from '../packages/codemap/index.js';
 import { cleanGitEnvironment } from '../src/git.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';
 

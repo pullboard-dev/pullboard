@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createLocalApiHandler } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import * as store from '../src/board.js';
 import { logEvent } from '../src/board-event-log.js';
 import { main } from '../src/cli.js';
@@ -20,7 +21,7 @@ async function apiFixture(t) {
   const box = fixtures.project('true');
   const secret = randomUUID();
   let port = 0;
-  const handler = createLocalApiHandler({ secret, getPort: () => port, runCommand: main,
+  const handler = createLocalApiHandler({ refusalDocument, secret, getPort: () => port, runCommand: main,
     projects: () => [{ root: box.repo, name: 'Flow validator', project: '', added: '2026-01-01T00:00:00Z' }], stateDetail: 'summary' });
   const server = createServer(handler);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));

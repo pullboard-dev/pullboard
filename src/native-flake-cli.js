@@ -3,7 +3,7 @@ import { recordRun } from './gate-execution.js';
 /** CLI diagnostic adapters keep policy capture, execution and evidence inside the existing gate admission. */
 import { readFileSync } from 'node:fs';
 import { COORDINATOR } from './config.js';
-import { mappedCheck } from './path-map.js';
+import { mappedCheck } from '../packages/codemap/index.js';
 import { laneOf } from './lanes.js';
 import {
   mainPolicy,

@@ -2,10 +2,14 @@
 import {
   serveApi,
 } from '../api.js';
+import { performanceCores } from '../gate.js';
+import { refusalDocument } from '../next-step-words.js';
 import {
   traceServeStartup,
 } from '../cli-main.js';
 import {
+  DEFAULT_VIEW_PORT,
+  defaultViewPort,
   loadConfig,
 } from '../config.js';
 import {
@@ -34,7 +38,8 @@ export async function serveHere(io, values) {
   const port = values.port === undefined ? 0 : Number(values.port);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Refused('USAGE', '--port is a number from 0 to 65535; use 0 to choose a free one');
   traceServeStartup('serve-listen-start');
-  const api = await serveApi({ port, runCommand: main, isMain: ctx.allowSchemaUpgrade });
+  const api = await serveApi({ port, runCommand: main, isMain: ctx.allowSchemaUpgrade, refusalDocument,
+    settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT } });
   traceServeStartup('serve-listen-ready');
   io.result?.({ url: api.url, port: api.port });
   io.say(`Pullboard API v1: ${api.url}`);

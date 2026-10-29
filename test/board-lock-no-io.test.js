@@ -10,7 +10,7 @@ import * as store from '../src/board.js';
 import { writeBoardCommand } from '../src/board-command-write.js';
 import { exportBoard } from '../src/exchange.js';
 import { boardWriteIoProblems } from '../bin/checks/board-write-io.js';
-import { styleSources } from '../src/source-inventory.js';
+import { styleSources } from '../packages/codemap/index.js';
 import { fixtureBoard } from './board-fixture.js';
 
 /** Set up only native fixture operations; file storage is necessary to observe the writer lock. */

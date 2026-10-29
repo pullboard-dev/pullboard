@@ -900,7 +900,9 @@ catalogCase('[A1,C7] test runs named test files and reports where they ran', asy
   assert.equal(result.green, true);
   assert.deepEqual(result.files, ['test/catalog.test.js']);
   assert.equal(result.runner, 'this machine', 'with no runner registered the files run here');
-  assert.match(result.output, /^ok 1 - catalog passes/mu);
+  assert.deepEqual(result.counts, { passed: 1, failed: 0, skipped: 0 });
+  assert.match(readFileSync(result.logPath, 'utf8'), /^ok 1 - catalog passes/mu,
+    'the actual TAP is retained in the complete log instead of the public summary');
 });
 
 catalogCase('[A1,H11] sync shares a board through a real Git remote without an account', async () => {

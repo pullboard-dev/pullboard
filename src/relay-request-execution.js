@@ -66,11 +66,12 @@ export async function executePersonRequests(root, io, runCommand) {
       const record = requests(coordinatorRoot).find(entry => entry.id === initial.id);
       if (record.executor !== executor || record.status !== 'waiting') continue;
       if (!Object.hasOwn(record, 'result')) {
+        const { refusalDocument } = await import('./next-step-words.js');
         const response = await executeMove(coordinatorRoot, record.move, (argv, streams) => runCommand(argv, {
           ...streams, skipPersonRequests: true,
           personRequest: { id: record.id, executor, phase: 'execute', digest: requestIntentDigest(record) },
           personRequestMoveId: stageId(record.id, 'execute', executor),
-        }));
+        }), undefined, undefined, refusalDocument);
         if (response.status !== 200) {
           const error = response.body.error;
           if (transportRefusal(error) || error.code === 'PERSON_REQUEST_TAKEN') continue;
