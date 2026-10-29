@@ -5,7 +5,13 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
+import { machine } from './fixture.js';
+import { project } from './fixture.js';
+import { startView } from './fixture.js';
+import { chromeExecutable } from './fixture.js';
+import { openSnapshotChrome } from './fixture.js';
+import { closeSnapshotChrome } from './fixture.js';
+import { press } from './fixture.js';
 
 test('a roadmap summary card separates its counts, legend and forecast at phone and desktop widths [N26]', { timeout: 90_000 }, async () => {
   const executable = chromeExecutable();
@@ -34,11 +40,12 @@ test('a roadmap summary card separates its counts, legend and forecast at phone 
         await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
         const label = await chrome.stable("document.querySelector('[data-key=\"m:Capacity\"] .milestone-limit')?.textContent");
         assert.equal(label, '512 items', `${width}/${scheme}: the distant 700-item limit is hidden`);
-        const card = JSON.parse(await chrome.stable("JSON.stringify((()=>{const m=document.querySelector('[data-key=\"m:Capacity\"]'),entries=[...m.querySelectorAll('[data-summary-state]')],held=entries.at(-1),forecast=m.querySelector('.roadmap-forecast'),estimate=m.querySelector('.roadmap-estimate'),pace=m.querySelector('.roadmap-pace');return {text:m.textContent,legend:entries.map(x=>x.textContent.trim()),rows:entries.map(x=>{const r=x.getBoundingClientRect();return {top:r.top,center:r.top+r.height/2};}),heldHeight:held.getBoundingClientRect().height,heldColor:getComputedStyle(held).color,colors:[...new Set(entries.map(x=>getComputedStyle(x).color))],aligned:entries.every(entry=>{const nodes=[...entry.children],centers=nodes.map(node=>{const r=node.getBoundingClientRect();return r.top+r.height/2;});return getComputedStyle(entry).display==='inline-flex'&&getComputedStyle(entry).alignItems==='center'&&Number(getComputedStyle(nodes[1]).fontWeight)>=600&&nodes.map(node=>node.tagName).join(',')==='I,B,SPAN'&&centers.every(center=>Math.abs(center-centers[0])<.75);}),forecast:{estimate:estimate.textContent,pace:pace.textContent,estimateBold:estimate.querySelectorAll('b').length,paceBold:pace.querySelectorAll('b').length,separate:pace.getBoundingClientRect().top>estimate.getBoundingClientRect().top,display:getComputedStyle(forecast).display}};})())"));
+        const card = JSON.parse(await chrome.stable("JSON.stringify((()=>{const m=document.querySelector('[data-key=\"m:Capacity\"]'),entries=[...m.querySelectorAll('[data-summary-state]')],held=entries.at(-1),forecast=m.querySelector('.roadmap-forecast'),estimate=m.querySelector('.roadmap-estimate'),pace=m.querySelector('.roadmap-pace');return {text:m.textContent,legend:entries.map(x=>x.textContent.trim()),rows:entries.map(x=>{const r=x.getBoundingClientRect();return {top:r.top,center:r.top+r.height/2};}),heldHeight:held.getBoundingClientRect().height,heldColor:getComputedStyle(held).color,colors:[...new Set(entries.map(x=>getComputedStyle(x).color))],alignment:entries.map(entry=>{const nodes=[...entry.children],style=getComputedStyle(entry),centers=nodes.map(node=>{const r=node.getBoundingClientRect();return r.top+r.height/2;});return {display:style.display,alignItems:style.alignItems,tags:nodes.map(node=>node.tagName),weight:getComputedStyle(nodes[1]).fontWeight,centers,centered:centers.every(center=>Math.abs(center-centers[0])<.75)}),forecast:{estimate:estimate.textContent,pace:pace.textContent,estimateBold:estimate.querySelectorAll('b').length,paceBold:pace.querySelectorAll('b').length,separate:pace.getBoundingClientRect().top>estimate.getBoundingClientRect().top,display:getComputedStyle(forecast).display}};})())"));
         assert.match(card.text, /512 items/u);
         assert.doesNotMatch(card.text, /limit 700/u);
         assert.deepEqual(card.legend, ['0 landed', '7 accepted, landing', '0 in review', '0 building', '493 waiting', '12 held'], `${width}/${scheme}: legend text keeps a real space before each label`);
-        assert.equal(card.aligned, true, `${width}/${scheme}: every legend entry aligns a dot, bold count and label`);
+        assert.ok(card.alignment.every(entry => ['flex', 'inline-flex'].includes(entry.display) && entry.alignItems === 'center' && Number(entry.weight) >= 600 && entry.tags.join(',') === 'I,B,SPAN' && entry.centered),
+          `${width}/${scheme}: every legend entry aligns a dot, bold count and label: ${JSON.stringify(card.alignment)}`);
         assert.equal(card.colors.length, 1, `${width}/${scheme}: the held control shares the legend text color`);
         assert.ok(card.heldHeight >= (width < 900 ? 44 : 32), `${width}/${scheme}: the held control keeps its ${width < 900 ? 44 : 32}px target`);
         if (width === 1280) assert.equal(new Set(card.rows.map(row => row.top)).size, 1, 'desktop legend entries share one row');

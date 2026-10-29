@@ -283,6 +283,10 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "roadmap: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
+  "test/cockpit/roadmap-summary-card.test.js": {
+    "kind": "journey",
+    "reason": "A native roadmap API fixture supplies the initial milestone summary to a live authenticated Chrome card; a labeled presenter-only scenario checks legend text/alignment, phone and desktop geometry, and forecast styling."
+  },
   "test/cockpit/scope.test.js": {
     "kind": "journey",
     "reason": "scope: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
