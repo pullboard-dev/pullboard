@@ -1,10 +1,11 @@
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** Real loopback relay and complete native API observations for reader parity [H5,H15,H16,A2]. */
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
-import { decodeBoardKey } from '../src/seal.js';
+import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import { relayPresentation } from '../src/relay-presentation.js';
 import { presentationDigest } from '../src/relay-presentation.js';
 import { observeRelayHealth } from '../src/relay-canary-health.js';
@@ -13,6 +14,9 @@ import { runFixtureChildAsync } from './fixture-child.js';
 export { assertReaderParity } from './relay-parity-reader.js';
 import { createParityReader } from './relay-parity-reader.js';
 import { relayClientFixture } from './relay-client-fixture.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 /** Seed actual native writes, keeping the operation receipts available for the fail-closed coverage inventory. */
 export function seedParityBoard(root, lane) {
@@ -31,14 +35,14 @@ export function seedParityBoard(root, lane) {
 
 /** Clock advancement alone is not a board change, while a real native mutation always is. */
 function assertPresentationChangeClock(root, item) {
-  const first = relayPresentation(root, { observedAt: Date.UTC(2026, 0, 1) });
-  const later = relayPresentation(root, { observedAt: Date.UTC(2026, 0, 2) });
+  const first = relayPresentation(root, { observedAt: Date.UTC(2026, 0, 1) }, RELAY_PRESENTATION_PORTS);
+  const later = relayPresentation(root, { observedAt: Date.UTC(2026, 0, 2) }, RELAY_PRESENTATION_PORTS);
   assert.notEqual(first.state.observedAt, later.state.observedAt, 'emitted observations retain their actual caller clock');
   assert.equal(presentationDigest(first), presentationDigest(later), 'an unchanged board does not publish merely because its clock advanced');
   const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   try { store.editItem(board, item, { agentId: 'coordinator', brief: 'Business input changed after the clock-only observation.' }); }
   finally { store.closeBoard(board); }
-  const changed = relayPresentation(root, { observedAt: Date.UTC(2026, 0, 2) });
+  const changed = relayPresentation(root, { observedAt: Date.UTC(2026, 0, 2) }, RELAY_PRESENTATION_PORTS);
   assert.notEqual(presentationDigest(later), presentationDigest(changed), 'a real business mutation changes the fingerprint at the same observation clock');
 }
 

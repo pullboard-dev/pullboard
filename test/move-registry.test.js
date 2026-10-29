@@ -26,8 +26,8 @@ import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../src/move-registry.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { MOVE_REGISTRY } from '../src/move-registry.js';
 import { PROOF_RUN_ENGINE } from '../src/proof-run-engine.js';
-import { boardEnginePorts } from '../src/board-engine-ports.js';
-const { relayMoveActor } = boardEnginePorts();
+import { nativeBoardPorts } from '../src/native-board.js';
+const { relayMoveActor } = nativeBoardPorts().enginePorts;
 import { NEXT_STEPS } from '../src/next-step-words.js';
 import { REGISTRY_AT } from './move-registry-fixture.js';
 import { registryFixtureBoard } from './move-registry-fixture.js';
@@ -166,8 +166,8 @@ test('two new board moves declared in two files need no edit to engine.js, board
   run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'commit', '-m', 'fixture: two independent declarations']);
   const child = `
 import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from './src/move-registry.js';
-import { boardEnginePorts } from './src/board-engine-ports.js';
-const { relayMoveActor } = boardEnginePorts();
+import { nativeBoardPorts } from './src/native-board.js';
+const { relayMoveActor } = nativeBoardPorts().enginePorts;
 import { NEXT_STEPS } from './src/next-step-words.js';
 import { readFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';

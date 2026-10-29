@@ -7,12 +7,6 @@ import {
   listAgents,
   logEvent,
 } from './board.js';
-import {
-  boardReceiptStore,
-  readGateReceipt,
-  receiptBody,
-  receiptFields,
-} from './gate-run-receipt.js';
 import { ENGINE_VERSION } from './machine.js';
 import { PROOF_RUN_ENGINE } from './proof-run-engine.js';
 import { Refused } from './refused.js';
@@ -20,6 +14,7 @@ import * as seats from './seats.js';
 
 /** Read the native gate's file before sealing a replayable move; caller-supplied fields are not evidence. */
 export function boundProofReceipt(board, request) {
+  const { boardReceiptStore, readGateReceipt, receiptBody } = board.runtimePorts.sourceAdvanceReceipts;
   const id = request?.receiptId ?? request?.receipt?.id;
   const stored = readGateReceipt(boardReceiptStore(board), id);
   if (!stored || stored.version !== 2 || request?.receipt && receiptBody(request.receipt) !== receiptBody(stored)) {
@@ -34,7 +29,7 @@ export function proofRunReceipt(board, request) {
   if (!listAgents(board).some(agent => agent.agent_id === agentId)) throw new Refused('NOT_JOINED', 'join before recording a proof run');
   // Only the engine establishes this in-process replay context after origin sealing, as for legacy gate runs.
   // A replica cannot read the origin's receipt file; normal direct calls always require that file.
-  const run = board.executionEngineVersion === undefined ? boundProofReceipt(board, request) : receiptFields(request.receipt);
+  const run = board.executionEngineVersion === undefined ? boundProofReceipt(board, request) : board.runtimePorts.sourceAdvanceReceipts.receiptFields(request.receipt);
   if (!run || run.version !== 2 || run.proof.item !== itemId) throw new Refused('PROOF_RUN_UNBOUND', 'the native receipt must name this item; run its check and read pullboard show <id>');
   if (run.proof.seat !== agentId) throw new Refused('PROOF_RUN_ACTOR', 'the native receipt belongs to another seat; use the receipts from your own check');
   const item = getItem(board, itemId);

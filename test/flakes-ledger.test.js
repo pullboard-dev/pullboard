@@ -1,3 +1,5 @@
+import { flakeLedger as nativeFlakeLedger } from '../src/flakes.js';
+import { recordFlakeObservation as nativeRecordFlakeObservation } from '../src/flakes.js';
 /** Synthetic public-store/replay fixtures: these receipt inputs do not claim a gate was executed [H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -31,7 +33,7 @@ function observation(box, id) {
 }
 
 /** Exercise the public observation operation with the same lane and registered actor as an actual adapter. */
-function record(box, value) { return store.recordFlakeObservation(box.board, { agentId: box.builder, observation: value, lane: 'app' }); }
+function record(box, value) { return nativeRecordFlakeObservation(box.board, { agentId: box.builder, observation: value, lane: 'app' }); }
 
 test('one observation is immutable and idempotent; a second drafts ordinary repair work [D1,H16]', t => {
   const box = ledgerFixture(t), first = observation(box, 'synthetic-one');
@@ -39,11 +41,11 @@ test('one observation is immutable and idempotent; a second drafts ordinary repa
   const count = store.events(box.board).length;
   assert.equal(record(box, first).duplicate, true);
   assert.equal(store.events(box.board).length, count);
-  assert.equal(store.flakeLedger(box.board)[0].count, 1);
-  assert.equal(store.flakeLedger(box.board)[0].item, null);
+  assert.equal(nativeFlakeLedger(box.board)[0].count, 1);
+  assert.equal(nativeFlakeLedger(box.board)[0].item, null);
   assert.throws(() => record(box, { ...first, reason: 'different evidence under an existing identity' }), error => error.code === 'FLAKE_OBSERVATION_CHANGED');
   box.advance(); record(box, observation(box, 'synthetic-two'));
-  const row = store.flakeLedger(box.board)[0], repair = store.getItem(box.board, row.item);
+  const row = nativeFlakeLedger(box.board)[0], repair = store.getItem(box.board, row.item);
   assert.equal(row.count, 2); assert.equal(row.observations.length, 2);
   assert.equal(repair.item_status, 'open'); assert.equal(repair.item_route, 'strong');
   assert.match(repair.item_brief, /synthetic-one[^]*synthetic-two/u);
@@ -53,16 +55,16 @@ test('one observation is immutable and idempotent; a second drafts ordinary repa
 test('a landed repair is fixed until the same test is seen again [D1,H16]', t => {
   const box = ledgerFixture(t);
   record(box, observation(box, 'synthetic-one')); box.advance(); record(box, observation(box, 'synthetic-two'));
-  const row = store.flakeLedger(box.board)[0], id = row.item;
+  const row = nativeFlakeLedger(box.board)[0], id = row.item;
   store.claim(box.board, id, { agentId: box.builder, lane: 'app', leaseMs: 3600000,
     freeze: () => ({ text: 'synthetic repair criterion', digest: 'd'.repeat(64) }) });
   submitFixture(box.board, id, { agentId: box.builder, commit: 'e'.repeat(40), tree: 'f'.repeat(40) });
   store.verify(box.board, id, { agentId: box.reviewer, decision: 'ACCEPT', head: 'e'.repeat(40), digest: 'd'.repeat(64), policy: 'any',
     note: 'Synthetic history fixture: no engineering acceptance or gate execution is claimed.' });
   box.advance(); store.merged(box.board, id, { agentId: 'coordinator', commit: '1'.repeat(40), note: 'Synthetic history only; no real repository changed.' });
-  assert.equal(store.flakeLedger(box.board)[0].status, 'fixed');
+  assert.equal(nativeFlakeLedger(box.board)[0].status, 'fixed');
   box.advance(); record(box, observation(box, 'synthetic-three'));
-  const again = store.flakeLedger(box.board)[0];
+  const again = nativeFlakeLedger(box.board)[0];
   assert.equal(again.status, 'active'); assert.equal(again.count, 3);
   assert.equal(again.firstSeen, row.firstSeen); assert.ok(again.lastSeen > row.lastSeen);
 });
@@ -80,15 +82,15 @@ test('flake observations replay exactly and duplicate engine receipts do not add
     assert.deepEqual(applyEngineMove(replica, move, order), original, 'the duplicate returns its immutable engine receipt');
     box.advance();
   }
-  assert.deepEqual(store.flakeLedger(replica), store.flakeLedger(box.board));
-  assert.equal(store.flakeLedger(replica)[0].count, 2); assert.equal(appliedSequence(replica), 2);
+  assert.deepEqual(nativeFlakeLedger(replica), nativeFlakeLedger(box.board));
+  assert.equal(nativeFlakeLedger(replica)[0].count, 2); assert.equal(appliedSequence(replica), 2);
   const source = exportBoard(box.board), target = exportBoard(replica);
   for (const [table, rows] of Object.entries(source.tables)) if (table !== 'board_meta') assert.deepEqual(target.tables[table], rows, table);
 });
 
 test('old engines, unjoined actors and impossible evidence cannot add observations [H16]', t => {
   const box = ledgerFixture(t), value = observation(box, 'synthetic-one');
-  assert.throws(() => store.recordFlakeObservation(box.board, { agentId: 'not-joined', observation: value, lane: 'app' }), error => error.code === 'NOT_JOINED');
+  assert.throws(() => nativeRecordFlakeObservation(box.board, { agentId: 'not-joined', observation: value, lane: 'app' }), error => error.code === 'NOT_JOINED');
   assert.throws(() => record(box, { ...value, original: { ...value.original, green: true } }), error => error.code === 'FLAKE_EVIDENCE');
   const move = prepareEngineMove(box.board, 'recordFlakeObservation', [{ agentId: box.builder, observation: value, lane: 'app' }], { id: 'synthetic-old-engine', actor: box.builder });
   assert.throws(() => applyEngineMove(box.board, { ...move, engine: 58 }, { sequence: 1, at: box.at() }), error => error.code === 'RELAY_MOVE');
@@ -97,5 +99,5 @@ test('old engines, unjoined actors and impossible evidence cannot add observatio
     assert.throws(() => record(box, value), error => error.code === 'ENGINE_VERSION');
     assert.throws(() => store.recordLandingBatch(box.board, { agentId: 'coordinator', batch: { flakeDiagnostics: {} } }), error => error.code === 'ENGINE_VERSION');
   } finally { delete box.board.executionEngineVersion; }
-  assert.deepEqual(store.flakeLedger(box.board), []);
+  assert.deepEqual(nativeFlakeLedger(box.board), []);
 });

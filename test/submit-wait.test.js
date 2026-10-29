@@ -1,4 +1,4 @@
-import { withBoardRead } from '../src/board-read.js';
+import { withBoardRead } from '../src/cli-context.js';
 import { retrySync } from '../src/cli-sync.js';
 /** Submission verdict delivery and deterministic rejected-work return [V2,V4,B5,B13,A6]. */
 import { dispatchHealth } from '../src/dispatch-health.js';

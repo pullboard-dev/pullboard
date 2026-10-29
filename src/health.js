@@ -19,7 +19,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { machineHome } from './machine-home.js';
 import { runnerRecoveryStatus } from './runner-recovery.js';
-import { missedJobFindings } from './recurring-jobs.js';
+import { missedJobFindings } from './board-recurring-jobs.js';
 import {
   COORDINATOR,
   durationMs,

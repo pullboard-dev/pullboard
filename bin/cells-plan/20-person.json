@@ -5,14 +5,13 @@
  "root": "packages/person",
  "frontDoor": "packages/person/index.js",
  "placedBy": {
-  "seed": 33,
-  "rule": 1,
+  "seed": 32,
+  "rule": 0,
   "imports": 0
  },
  "paths": [
   ["src/pairing.js","packages/person/src/shell/pairing.js","seed"],
   ["src/person-attested.js","packages/person/src/core/person-attested.js","seed"],
-  ["src/person-authority-schema.js","packages/person/src/core/person-authority-schema.js","rule"],
   ["src/person-bar-cli.js","packages/person/src/shell/person-bar-cli.js","seed"],
   ["src/person-bar-effect.js","packages/person/src/core/person-bar-effect.js","seed"],
   ["src/person-confirmation.js","packages/person/src/shell/person-confirmation.js","seed"],
@@ -27,7 +26,6 @@
   ["src/person-signing.js","packages/person/src/shell/person-signing.js","seed"],
   ["src/person.js","packages/person/src/shell/person.js","seed"],
   ["src/qr.js","packages/person/src/core/qr.js","seed"],
-  ["src/seal.js","packages/person/src/core/seal.js","seed"],
   ["test/add-lanes.test.js","packages/person/tests/add-lanes.test.js","seed"],
   ["test/agent-session.test.js","packages/person/tests/agent-session.test.js","seed"],
   ["test/approved-row-changes.test.js","packages/person/tests/approved-row-changes.test.js","seed"],

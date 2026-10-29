@@ -1,3 +1,6 @@
+import { flakeQuarantines as nativeFlakeQuarantines } from '../src/quarantine.js';
+import { gateRuns as nativeGateRuns } from '../src/quarantine.js';
+import { recordGateRun as nativeRecordGateRun } from '../src/quarantine.js';
 /** Actual native suite and gate receipts retain source-bound phases through board recording and replay [C7,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -48,7 +51,7 @@ function timingProject(t) {
 function recorded(box) {
   const board = store.openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   assert.ok(board);
-  try { return store.gateRuns(board); } finally { store.closeBoard(board); }
+  try { return nativeGateRuns(board); } finally { store.closeBoard(board); }
 }
 
 /** Check measurements rather than impose a latency target or infer a total from overlapping shards. */
@@ -89,7 +92,7 @@ test('a direct full suite records one durable source-bound run, including a comp
   assert.equal(both[1].full, true, 'both committed files completed even though a real assertion failed');
   assertMeasured(both[1], box, red.stdout);
   const board = store.openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
-  try { assert.deepEqual(store.flakeQuarantines(board), [], 'direct-suite evidence cannot establish a quarantine'); }
+  try { assert.deepEqual(nativeFlakeQuarantines(board), [], 'direct-suite evidence cannot establish a quarantine'); }
   finally { store.closeBoard(board); }
   const filtered = await runFixtureChildAsync(process.execPath, ['bin/run-tests.js', '--test-skip-pattern=first'],
     { cwd: box.repo, env: box.env, encoding: 'utf8' });
@@ -117,7 +120,7 @@ const run=await runGate(process.cwd(),JSON.parse(readFileSync('pullboard.json','
 if(!run.isGreen) throw new Error(run.output);
 const receipt=readGateReceipt(receiptStore(process.cwd()),run.receiptId);
 const board=store.openBoard('.git/pullboard/board.sqlite');
-try { store.recordGateRun(board,{agentId:'coordinator',receipt,lane:'web'}); } finally {store.closeBoard(board);}
+try { board.enginePorts.store.recordGateRun(board,{agentId:'coordinator',receipt,lane:'web'}); } finally {store.closeBoard(board);}
 console.log(run.output); console.log(JSON.stringify({receiptId:run.receiptId}));`;
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr + result.stdout);
@@ -145,10 +148,10 @@ console.log(run.output); console.log(JSON.stringify({receiptId:run.receiptId}));
       error => error.code === 'RELAY_MOVE', 'an older receiver cannot silently discard the actual phase evidence');
     assert.equal(appliedSequence(replica), sequence - 1);
     assert.equal(applyEngineMove(replica, move, { sequence, at }).error, undefined);
-    assert.deepEqual(store.gateRuns(replica).find(row => row.id === receipt.id).timing, receipt.timing);
+    assert.deepEqual(nativeGateRuns(replica).find(row => row.id === receipt.id).timing, receipt.timing);
     const changed = structuredClone(rows[0]);
     changed.timing.wallMs += 1;
-    assert.throws(() => store.recordGateRun(board, { agentId: 'coordinator', receipt: changed, lane: 'web' }),
+    assert.throws(() => nativeRecordGateRun(board, { agentId: 'coordinator', receipt: changed, lane: 'web' }),
       error => error.code === 'GATE_RUN_UNBOUND', 'altering an actual phase cannot reuse its native receipt');
   } finally { store.closeBoard(board); }
 });
@@ -256,7 +259,7 @@ assert.match(red.output,/# pullboard suite timing /); assert.equal(accountedFail
 const ids=[]; const options={commit:${JSON.stringify(box.head)},detailed:true,onMeasuredReceipt:async id=>{
 const receipt=readGateReceipt(receiptStore(root),id); assert.ok(receipt);
 const board=store.openBoard('.git/pullboard/board.sqlite');
-try {store.recordGateRun(board,{agentId:'coordinator',receipt,lane:'web'});} finally {store.closeBoard(board);}
+try {board.enginePorts.store.recordGateRun(board,{agentId:'coordinator',receipt,lane:'web'});} finally {store.closeBoard(board);}
 ids.push(id);}};
 const first=await compareMainFailures(root,red.profile,undefined,red.output,options);
 assert.equal(first.unavailable,undefined); assert.equal(first.files[0].result,'red'); assert.equal(ids.length,1);

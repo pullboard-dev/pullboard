@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/cli.js src/board.js src/board-hot.js src/board-migrate.js src/board-read.js src/commands/status.js src/commands/show.js src/commands/list.js src/commands/version.js */
+/** @pullboard-test-loads src/cli.js src/board.js src/board-hot.js src/board-migrate.js src/cli-context.js src/commands/status.js src/commands/show.js src/commands/list.js src/commands/version.js */
 /** A read command opens the board read-only, so a writer holding the lock never stalls it [C7]. */
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
@@ -10,7 +10,7 @@ import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import * as store from '../src/board.js';
 import { withBoard } from '../src/cli-context.js';
-import { withBoardRead } from '../src/board-read.js';
+import { withBoardRead } from '../src/cli-context.js';
 import { pathToFileURL } from 'node:url';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild, startFixtureChild as spawn } from './fixture-child.js';

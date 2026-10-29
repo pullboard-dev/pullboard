@@ -8,7 +8,7 @@ import { Refused } from '../src/refused.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { readBoardKey } from '../src/relay-key.js';
 import { request } from '../src/relay.js';
-import { unseal } from '../src/seal.js';
+import { unseal } from '../packages/kernel/src/core/seal.js';
 
 const REPOSITORY = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = join(REPOSITORY, 'bin', 'pullboard.js');

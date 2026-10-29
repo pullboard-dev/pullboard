@@ -3,7 +3,7 @@ import { Refused } from './refused.js';
 import {
   seal,
   unseal,
-} from './seal.js';
+} from '../packages/kernel/src/core/seal.js';
 
 export const PAGE_BYTES = 262_144;
 export const PAGE_FANOUT = 64;

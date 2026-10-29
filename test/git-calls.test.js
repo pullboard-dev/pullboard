@@ -1,3 +1,4 @@
+import { recordGateRun as nativeRecordGateRun } from '../src/quarantine.js';
 /** Count real Git child processes and prove command-scoped facts refresh after a commit [C7]. */
 import assert from 'node:assert/strict';
 import {
@@ -240,7 +241,7 @@ function seedRuleBudgetRun(box, { green = true, days = 0, tree, command, failure
   mkdirSync(folder, { recursive: true });
   writeFileSync(join(folder, `${receipt.id}.json`), receiptBody(receipt));
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { isMain: true });
-  try { store.recordGateRun(board, { agentId: 'coordinator', receipt, lane: 'core' }); }
+  try { nativeRecordGateRun(board, { agentId: 'coordinator', receipt, lane: 'core' }); }
   finally { store.closeBoard(board); }
 }
 

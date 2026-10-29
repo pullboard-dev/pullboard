@@ -1,5 +1,5 @@
 /** The pullboard sentinel command, in its own module so an item adding another command never edits these lines. */
-import { parseProcessCensus } from '../process-census.js';
+import { parseProcessCensus } from '../../packages/kernel/src/core/process-census.js';
 import {
   sentinelCommand,
 } from '../sentinel-command.js';

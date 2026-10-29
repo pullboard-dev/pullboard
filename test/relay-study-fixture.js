@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer, request as httpRequest } from 'node:http';
 import { performance } from 'node:perf_hooks';
 import { ENGINE_VERSION } from '../src/machine.js';
-import { decodeBoardKey } from '../src/seal.js';
+import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import { openPagedSnapshot } from '../src/relay-page-layout.js';
 
 /**

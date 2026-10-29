@@ -37,7 +37,7 @@ export async function seedLandingObservations(context) {
   const folder = join(box.root, '.git', 'pullboard', 'gate-receipts');
   mkdirSync(folder, { recursive: true });
   writeFileSync(join(folder, `${receipt.id}.json`), receiptBody(receipt));
-  await exercise('recordGateRun', () => store.recordGateRun(board, { agentId: 'coordinator', receipt, lane: box.lane }));
+  await exercise('recordGateRun', () => board.enginePorts.store.recordGateRun(board, { agentId: 'coordinator', receipt, lane: box.lane }));
   await exercise('recordLandingWaiver', () => store.recordLandingWaiver(board, { agentId: 'person', channel: 'terminal',
     id: 'parity-synthetic-waiver', test: 'test/parity-synthetic.test.js', until: '2099-01-01T00:00:00Z', reason: 'Synthetic projection fixture; no real test waiver' }));
   await exercise('recordLandingFlake', () => store.recordLandingFlake(board, { agentId: 'coordinator', test: 'test/parity-synthetic.test.js',
@@ -167,14 +167,14 @@ export async function seedPersonSigning(context) {
   const { board, store, exercise, reviewer } = context;
   // The preceding handoff retired the worker; its actual recipient remains an active native actor.
   requireHandoffActive(board, reviewer, 'setPersonSigning', []);
-  await exercise('setPersonSigning', () => store.setPersonSigning(board, { agentId: reviewer, signed: true }));
-  assert.equal(store.personSigning(board).signed, true, 'the actual native signing event enables the device projection');
+  await exercise('setPersonSigning', () => board.enginePorts.store.setPersonSigning(board, { agentId: reviewer, signed: true }));
+  assert.equal(board.enginePorts.store.personSigning(board).signed, true, 'the actual native signing event enables the device projection');
   const request = preparePersonRequest({ verb: 'signing', args: { signed: 'off' } }, randomUUID());
-  await exercise('proposePersonMove', () => store.proposePersonMove(board, { agentId: reviewer, request }));
-  const proposal = store.personProposals(board).find(entry => entry.id === request.id);
+  await exercise('proposePersonMove', () => board.enginePorts.store.proposePersonMove(board, { agentId: reviewer, request }));
+  const proposal = board.enginePorts.store.personProposals(board).find(entry => entry.id === request.id);
   assert.ok(proposal, 'the native proposal retains its exact request identity');
   assert.deepEqual(proposal.move, request.move, 'the device projection carries the exact proposed intent');
-  assert.equal(store.personSigning(board).signed, true, 'a proposal grants no authority to turn signing off');
+  assert.equal(board.enginePorts.store.personSigning(board).signed, true, 'a proposal grants no authority to turn signing off');
 }
 
 /** Synthetic unknown summaries exercise native projection; no provider execution or measured usage is claimed. */

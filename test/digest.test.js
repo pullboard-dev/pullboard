@@ -10,7 +10,7 @@ import * as store from '../src/board.js';
 import { DIGEST_MAX_BYTES } from '../src/digest.js';
 import { exportBoard } from '../src/exchange.js';
 import { registerProject } from '../src/projects.js';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');

@@ -144,7 +144,7 @@ test('source-advance replay binds native episode, exact receipts and old-engine 
     assert.equal(replay(board,originalMove).error.code,'SOURCE_ADVANCE_STALE');
   });
   replica('caller-green',board=>{
-    assert.throws(()=>box.store.advanceItemSource(board,box.id,{agentId:'coordinator',proof}),error=>error.code==='SOURCE_ADVANCE_STALE');
+    assert.throws(()=>board.enginePorts.store.advanceItemSource(board,box.id,{agentId:'coordinator',proof}),error=>error.code==='SOURCE_ADVANCE_STALE');
     assert.throws(()=>engine.prepareEngineMove(board,'advanceItemSource',[box.id,{agentId:'coordinator',proof}]),error=>error.code==='SOURCE_ADVANCE_STALE');
     assert.equal(box.store.getItem(board,box.id).item_effective_head,undefined,'even genuine copied receipt bytes cannot replace origin custody');
   });

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { assertLandingLease, guardLandingWrite, LANDING_LEASE_MS } from '../src/landing-lease.js';
+import { assertLandingLease, guardLandingWrite, LANDING_LEASE_MS } from '../src/board-landing-lease.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { landingRelayCallbacks } from '../src/landing-relay.js';

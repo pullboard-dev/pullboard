@@ -9,7 +9,7 @@ import { appliedSequence, prepareEngineMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { preparePersonRequest } from '../src/person-request.js';
 import { personRequestRecords, requestIntentDigest } from '../src/relay-requests.js';
-import { decodeBoardKey, seal } from '../src/seal.js';
+import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
 const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay.js')).href;

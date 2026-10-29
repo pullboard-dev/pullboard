@@ -1,7 +1,6 @@
 import { suspendStoreGuards } from './board-store-guards.js';
 import { AGENT_GRANT_ENGINE } from './agent-grant-engine.js';
-import { beginCommandPhase } from './command-phase.js';
-import { LANDING_LOCAL_PREFIX } from './landing-local-lease.js';
+import { LANDING_LOCAL_PREFIX } from './board-landing-local-lease.js';
 import { PROOF_COUNTER_PREFIX } from './proof-counters.js';
 import { rebuildProofCounters } from './proof-counters.js';
 import { importSeatObservations } from './seat-presence.js';
@@ -22,10 +21,6 @@ import {
   SIGNED_EVENT_LOG_VERSION,
   specApprovalBaseline,
 } from './board.js';
-import {
-  exportedMeta,
-  guardRestore,
-} from './person-signing.js';
 
 const VERSION = 1;
 
@@ -70,7 +65,7 @@ function nativeRows(db, table) {
  * @returns {{ version: number, tables: Record<string, any[]> }}
  */
 export function exportBoard(board) {
-  const finishPhase = beginCommandPhase('local-export');
+  const finishPhase = board.nativePorts.beginCommandPhase('local-export');
   try {
     const db = board.db;
     db.exec('BEGIN DEFERRED');
@@ -81,7 +76,7 @@ export function exportBoard(board) {
       ]));
       db.exec('COMMIT');
       // The pinned relay key stays with this board file; an export never carries it to another [E22].
-      tables.board_meta = exportedMeta(tables.board_meta ?? []);
+      tables.board_meta = board.nativePorts.exportedMeta(tables.board_meta ?? []);
       return { version: VERSION, tables };
     } catch (error) {
       db.exec('ROLLBACK');
@@ -259,7 +254,7 @@ function restoreDocument(board, document, replace = false, expectedNativeDigest 
         table,
         nativeRows(db, table),
       ])) };
-      current.tables.board_meta = exportedMeta(current.tables.board_meta);
+      current.tables.board_meta = board.nativePorts.exportedMeta(current.tables.board_meta);
       const actual = semanticBoardDigest(current);
       if (actual !== expectedNativeDigest) throw new Refused('RELAY_LOCAL_CHANGED', 'the local board changed before checkpoint restore; its changes were preserved, export them and retry recovery');
       localAgentCursors = new Map(current.tables.agent.map((row) => [row.agent_id, row.agent_last_shout_id]));
@@ -272,7 +267,7 @@ function restoreDocument(board, document, replace = false, expectedNativeDigest 
     }
     // Signed person moves survive a restore: this board keeps its own relay key pin and its signing state [E22].
     const restoreGuards = suspendStoreGuards(board);
-    const signing = guardRestore(db, document);
+    const signing = board.nativePorts.guardRestore(db, document);
     if (replace) {
       for (const table of [...names].reverse()) db.exec(`DELETE FROM ${identifier(table)}`);
     } else if (initCoordinator) {

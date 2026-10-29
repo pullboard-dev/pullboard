@@ -1,5 +1,5 @@
 /** Typed provenance of a proved Rigor row; prose alone never identifies a cause [D1,S1]. */
-import { causeProblem } from './rigor.js';
+import { causeProblem } from './board-rigor.js';
 
 import { RIGOR_NOTICE_ENGINE } from './rigor-notice-engine.js';
 export { RIGOR_NOTICE_ENGINE };
