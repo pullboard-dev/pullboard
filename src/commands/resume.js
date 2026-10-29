@@ -40,7 +40,7 @@ import {
 } from '../health-sentinel.js';
 import {
   unwiredHookProblems,
-} from '../hooks.js';
+} from '../../packages/commits/index.js';
 import {
   takeDecisionNotices,
 } from '../implies.js';

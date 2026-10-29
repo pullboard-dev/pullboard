@@ -23,7 +23,8 @@
   ["src/source-advance-plan.js","packages/codemap/src/shell/source-advance-plan.js","imports"],
   ["src/source-inventory.js","packages/codemap/src/shell/source-inventory.js","rule"],
   ["src/cell-lint-cell-shards.js","packages/codemap/src/shell/cell-lint-cell-shards.js","rule"],
-  ["src/map-slice-say.js","packages/codemap/src/shell/map-slice-say.js","imports"]
+  ["src/map-slice-say.js","packages/codemap/src/shell/map-slice-say.js","imports"],
+  ["src/main-facts-cache.js","packages/codemap/src/shell/main-facts-cache.js","rule"]
  ],
  "reexports": [
   "src/cell-lint-baseline-plan.js",

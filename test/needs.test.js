@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { main } from '../src/cli.js';
 import { parseSpec } from '../src/spec.js';
-import { serveMcp } from '../src/mcp.js';
+import { serveMcp } from '../packages/mcp/index.js';
 import { personNeedsState } from '../src/needs-state.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { createE2eHelpers } from './e2e-helpers.js';

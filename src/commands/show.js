@@ -1,3 +1,6 @@
+import { loadMachineSettings } from '../settings-read.js';
+import { localUsage } from '../cost-prices.js';
+import { dollarText } from '../cost-prices.js';
 import { trunkRef } from '../trusted-policy-read.js';
 import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
 import { reviewEligibility } from '../review-eligibility.js';
@@ -23,7 +26,6 @@ import {
 import {
   sayCheckBaseline,
 } from '../check-baseline-format.js';
-import * as infraNotes from '../infra-note.js';
 import {
   mainMergeFor,
   mainMergeLines,
@@ -47,20 +49,23 @@ import { publicUsage } from '../cost-read.js';
 /** Run `pullboard show` and return its exit code. */
 export async function run(io, { first, values }) {
   const ctx = context(io);
+  const prices = loadMachineSettings().costPrices;
   const id = idArg(first);
-  const { item, verdicts, moves, thread, related, reviewer, agents, mainMerge, infra, approval, cost, proofReceipts, independence } = await withBoardRead(ctx, (board) => {
+  const { item, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence } = await withBoardRead(ctx, (board) => {
     const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
     const result = { item, independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
-      approval: specApprovalState(ctx.info.root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id) };
+      approval: specApprovalState(ctx.info.root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
     // JSON retains every public detail field; text-only labels and related-item searches add nothing to it.
     if (values.json) return result;
     const history = store.events(board, { itemId: id });
     return { ...result, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
       related: store.relatedItems(board, item), reviewer: store.reviewHolder(board, item),
-      agents: store.listAgents(board), mainMerge: mainMergeFor(board, id), infra: infraNotes.infraNoteOf(history) };
+      agents: store.listAgents(board), mainMerge: mainMergeFor(board, id), submits: history.filter((event) => event.event_kind === 'submit') };
   });
 
+  // The commits front door also carries the hook machinery, so an item that was never submitted never loads it.
+  const infra = submits?.length ? (await import('../../packages/commits/index.js')).infraNoteOf(submits) : null;
   const agentApproved = itemAgentApprovals(item, approval);
   const approvalQualification = agentApprovalLine(agentApproved);
   // #922: moves on this item made while the relay was down wait in this machine's relay outbox until it answers.
@@ -70,7 +75,7 @@ export async function run(io, { first, values }) {
   const frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null;
   const checkText = frozen ? frozen.check ?? '' : item.item_check ?? '';
   if (values.json) {
-    io.result({ ...item, reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: publicUsage(cost) } : {}), ...(relayPending.length ? { relayPending } : {}) });
+    io.result({ ...item, reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
     return 0;
   }
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
@@ -86,7 +91,7 @@ export async function run(io, { first, values }) {
   if (item.item_verdict_state) io.say(staleVerdictRefusal(item, item.item_verdict_state).message);
   io.say(`review tier: ${independence.tier}${independence.requiredFamily ? `; required family ${independence.requiredFamily}` : ''}`);
   io.say(`eligible reviewers: ${independence.ready ? independence.eligible.join(', ') || 'none' : 'not submitted'}`);
-  io.say(`usage: input ${cost.inputTokens ?? 'unknown'} (fresh ${cost.freshInputTokens ?? 'unknown'}, cached read ${cost.cacheReadInputTokens ?? 'unknown'}, cached write ${cost.cacheWriteInputTokens ?? 'unknown'}), output ${cost.outputTokens ?? 'unknown'}, ${cost.wallMs} ms${cost.shared ? '; shared-session item split unknown' : ''}; models ${cost.models.join(', ') || 'unknown'}${cost.unknownReasons.length ? '; unknown: ' + cost.unknownReasons.join(', ') : ''}`);
+  io.say(`usage: input ${cost.inputTokens ?? 'unknown'} (fresh ${cost.freshInputTokens ?? 'unknown'}, cached read ${cost.cacheReadInputTokens ?? 'unknown'}, cached write ${cost.cacheWriteInputTokens ?? 'unknown'}), output ${cost.outputTokens ?? 'unknown'}, ${cost.wallMs} ms${cost.shared ? '; shared-session item split unknown' : ''}; models ${cost.models.join(', ') || 'unknown'}${cost.unknownReasons.length ? '; unknown: ' + cost.unknownReasons.join(', ') : ''}${dollarText(cost)}`);
   if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
   if (checkText) {
     io.say(`check: ${checkText}`);

@@ -2,6 +2,7 @@
 import { posix } from 'node:path';
 import { lex } from '../js-lex.js';
 import { lineAt } from '../js-lex.js';
+import { freeWindowOffsets } from '../view-binding-reads.js';
 
 /** Reviewed renderer coverage; a journey never substitutes for these data-in/HTML-out witnesses. */
 export const VIEW_RENDERER_COVERAGE = Object.freeze([
@@ -105,8 +106,11 @@ export function viewTestProblems({ sources, edges, unknown = new Map(), roots, r
       if (!sources.has(file)) { issue(root, file, 1, 'missing reached source; logic purity is unknown'); continue; }
       if (unknown.has(file)) { issue(root, file, 1, 'unknown reach: ' + unknown.get(file)); continue; }
       const source = sources.get(file), { code } = lex(source);
+      const freeWindows = freeWindowOffsets(source);
       for (const match of code.matchAll(/\b(?:process|global|globalThis|window|document|navigator|eval|Function)\b/gu)) {
-        if (!propertyName(code, match.index, match[0])) issue(root, file, lineAt(source, match.index), 'logic reaches ambient execution/DOM port ' + match[0]);
+        if (!propertyName(code, match.index, match[0]) && (match[0] !== 'window' || freeWindows.has(match.index))) {
+          issue(root, file, lineAt(source, match.index), 'logic reaches ambient execution/DOM port ' + match[0]);
+        }
       }
       for (const match of code.matchAll(/\bDate\s*\.\s*now\s*\(|\bnew\s+Date\s*\(\s*\)/gu)) issue(root, file, lineAt(source, match.index), 'logic reads the ambient clock; pass a clock reading as data');
       for (const match of code.matchAll(BROWSER_CALLS)) issue(root, file, lineAt(source, match.index), 'logic reaches browser/process/IO fixture call ' + match[0].trim());

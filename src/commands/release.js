@@ -1,6 +1,6 @@
 import { relayRecovered } from '../relay.js';
 import { completeMoveHandoff } from '../post-move-handoff.js';
-import { prepareStaleObservation } from '../stale-state-command.js';
+import { prepareStaleObservation } from '../../packages/health/index.js';
 import { staleReleaseNote } from '../board-stale-state-policy.js';
 import { Refused } from '../refused.js';
 /** The pullboard release command, in its own module so an item adding another command never edits these lines. */

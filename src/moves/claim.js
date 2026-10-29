@@ -42,6 +42,7 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "claim", order: 13, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+  "MAIN_FACTS_BUSY": "wait for the immutable main facts derivation to finish, then retry",
   "LINE_WIP_LIMIT": "review the oldest eligible waiting submission: pullboard next --verify; if none is eligible, ask the coordinator to arrange a reviewer",
   "A5_GRAMMAR_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "AGENT_APPROVAL_REQUIRED": "ask the person to confirm or decline the named row through pullboard view or their own terminal",
@@ -63,7 +64,6 @@ export default Object.freeze({ operation: "claim", order: 13, engine: 1,
   "REOPEN_HELD_FOR_BUILDER": "wait until the named deadline, or ask the builder to run pullboard release <id>",
   "ROUTE": "take an item your route covers: pullboard next",
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again",
-  "SPEC_BEHIND_MAIN": "git merge main",
   "UNKNOWN_SPEC": "ask the coordinator to restore the named spec rows or withdraw the item: pullboard shout coordinator --kind question \"please fix the rows cited by #<id>\"",
   "WRONG_LANE": "create a worktree in the required lane with pullboard worktree <lane> --model \"<model name>\", or take an item in your lane with pullboard next"
 }) });

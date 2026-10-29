@@ -8,7 +8,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import { DECISION_ORIGIN_ENGINE } from '../src/decision-origin-engine.js';
 import { originOf } from '../packages/commits/src/core/decision-origin.js';
-import { whyFile } from '../src/why-file.js';
+import { whyFile } from '../packages/commits/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);

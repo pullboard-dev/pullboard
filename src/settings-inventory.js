@@ -19,7 +19,7 @@ import {
 import {
   LINE_SETTING_DEFINITIONS,
   validateLineSetting,
-} from './queue-settings.js';
+} from '../packages/queue/index.js';
 import {
   gateQueueSettings,
   loadMachineSettings,

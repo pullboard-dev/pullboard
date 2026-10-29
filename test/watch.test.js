@@ -8,7 +8,7 @@ import { delimiter, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after, test } from 'node:test';
 import { openBoard, reserveReview } from '../src/board.js';
-import { followBoard } from '../src/watch.js';
+import { followBoard } from '../packages/shouts/index.js';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -420,7 +420,7 @@ test('help watch and the generated agent instructions teach seats to listen with
     'Claude Code: run pullboard watch --to <your id> under the Monitor tool, and each event line wakes the seat.',
     'Any other harness: run it as a long-running command and treat each stdout line as an event.',
   ], 'two lines after the example: the Claude Code way and the way for any other harness');
-  const { agentsBlock } = await import('../src/templates.js');
+  const { agentsBlock } = await import('../src/doctrine.js');
   const listen = agentsBlock().split('\n').find((line) => line.startsWith('**Listen.**'));
   assert.ok(listen, 'the AGENTS.md that init writes has a Listen paragraph');
   assert.match(listen, /run `pullboard watch --to <your id>` there/u);

@@ -55,7 +55,7 @@ import {
   gateSlotEnvironment,
 } from './resources.js';
 import { cleanGitEnvironment } from './git.js';
-import { secretsIn } from './hooks.js';
+import { secretsIn } from '../packages/commits/index.js';
 
 /** Copy one authenticated phase without buffering the full command output into controller memory. */
 function phaseCopy(raw, phase, path) {

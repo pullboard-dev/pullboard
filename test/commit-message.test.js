@@ -10,12 +10,12 @@ import {
   commitMessageProblems,
   parseCommitMessage,
   specOrder,
-} from '../src/commit-message.js';
+} from '../packages/commits/index.js';
 import { landingRows } from '../packages/commits/src/core/landing-rows.js';
 import { checkLandingMessages, itemCommitType, landingMessage } from '../src/land.js';
 import { citedIds, parseSpec } from '../src/spec.js';
 import { defaults } from '../src/config.js';
-import { commitMsgProblems } from '../src/hooks.js';
+import { commitMsgProblems } from '../packages/commits/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const e2e = createE2eHelpers();

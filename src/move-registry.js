@@ -8,7 +8,6 @@ import { SOURCE_ADVANCE_ENGINE } from './source-advance-engine.js';
  * would make recovery text load board writers and could cycle through this discovered registry.
  * Historical order and first-matching engine conditions belong to each leaf, not this loader.
  */
-import { conditionalHoldFloor } from './stale-state-floor.js';
 import { readdirSync } from 'node:fs';
 import {
   MOVE_CANDIDATE,
@@ -66,12 +65,16 @@ export const MOVE_REGISTRY = found.registry;
 /** The allowed operation names, derived rather than hand-kept. */
 export const MOVE_OPERATIONS = found.operations;
 
-/** Resolve a move's existing ordered floor without interpreting a different operation's arguments. */
-export function minimumMoveEngine(operation, args, board, at) {
+/**
+ * Resolve a move's existing ordered floor without interpreting a different operation's arguments.
+ * The board-wide pending-condition floor is passed in by the port that composes the engine: the
+ * health front door reaches this loader through its own imports, so importing it here would cycle.
+ */
+export function minimumMoveEngine(operation, args, board, at, boardFloor = () => 1) {
   if (!Object.hasOwn(MOVE_REGISTRY, operation)) throw new Error(`unknown move ${operation}; declare its own module before using it`);
   const value = MOVE_REGISTRY[operation].minimumEngine(args, board, at);
   if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${operation} returned an invalid engine floor`);
-  return Math.max(value, conditionalHoldFloor(board), sourceAdvanceFloor(board, SOURCE_ADVANCE_ENGINE));
+  return Math.max(value, boardFloor(board), sourceAdvanceFloor(board, SOURCE_ADVANCE_ENGINE));
 }
 
 /** Unknown operations and missing argument arrays retain the original null actor. */
