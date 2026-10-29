@@ -1,6 +1,6 @@
 /** Account for individual exports without executing modules; opaque uses remain per-entity debt [CD62,C7]. */
 import { bindingReadsForModules } from './cell-binding-uses.js';
-import { lex } from './js-lex.js';
+import { lex } from '../../../../src/js-lex.js';
 import { testFile } from './cell-lint-inventory.js';
 
 const ID = '[A-Za-z_$][\\w$]*';
