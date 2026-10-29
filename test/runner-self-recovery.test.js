@@ -116,6 +116,56 @@ test('a live job stays unavailable and its next idle probe waits five minutes [C
   assert.equal(readFileSync(requests + '.health-probes', 'utf8').trim().split('\n').length, 1);
 });
 
+test('a job owner outside its job cwd blocks recovery only until that process exits [C7]', t => {
+  const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
+  const transport = pathToFileURL(join(import.meta.dirname, '../src/runner-transport.js')).href;
+  const { actual } = remoteFixture(t, ({ root }) => `
+    import { spawn } from 'node:child_process';
+    import { once } from 'node:events';
+    import { existsSync, mkdirSync } from 'node:fs';
+    import { join } from 'node:path';
+    import { probeRunnerHealth } from ${JSON.stringify(runners)};
+    const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: 1, browser: 0 };
+    const job = join(${JSON.stringify(root)}, 'jobs', 'owned-job');
+    mkdirSync(job);
+    const script = 'import {recordRunnerOwner} from ' + JSON.stringify(${JSON.stringify(transport)})
+      + ';recordRunnerOwner(' + JSON.stringify(job) + ');setInterval(()=>{},60000);';
+    const owner = spawn(process.execPath, ['--input-type=module', '-e', script], { stdio: 'ignore' });
+    let held;
+    try {
+      const deadline = Date.now() + 5000;
+      while (!existsSync(join(job, 'worker-owner.json'))) {
+        if (Date.now() > deadline || owner.exitCode !== null) throw new Error('worker owner never recorded its identity');
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      held = await probeRunnerHealth(runner, undefined, { idle: true });
+    } finally { const exited = once(owner, 'exit'); owner.kill('SIGTERM'); await exited; }
+    const idle = await probeRunnerHealth(runner, undefined, { idle: true });
+    console.log(JSON.stringify({ held, idle }));`);
+  assert.equal(actual.held.healthy, false);
+  assert.match(actual.held.reason, /runner process or job working directory/u);
+  assert.equal(actual.idle.healthy, true, JSON.stringify(actual));
+});
+
+test('a runner resource lease prevents an idle proof even without a job cwd [C7]', t => {
+  const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
+  const { actual } = remoteFixture(t, ({ machineHome }) => `
+    import { DatabaseSync } from 'node:sqlite';
+    import { join } from 'node:path';
+    import { probeRunnerHealth } from ${JSON.stringify(runners)};
+    const db = new DatabaseSync(join(${JSON.stringify(machineHome)}, 'resources.sqlite'));
+    db.exec('CREATE TABLE holder(name TEXT NOT NULL,agent TEXT NOT NULL)');
+    db.prepare('INSERT INTO holder VALUES(?,?)').run('gate', 'pullboard-ssh-private-job');
+    const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: 1, browser: 0 };
+    const held = await probeRunnerHealth(runner, undefined, { idle: true });
+    db.exec('DELETE FROM holder'); db.close();
+    const idle = await probeRunnerHealth(runner, undefined, { idle: true });
+    console.log(JSON.stringify({ held, idle }));`);
+  assert.equal(actual.held.healthy, false);
+  assert.match(actual.held.reason, /resource lease is active/u);
+  assert.equal(actual.idle.healthy, true, JSON.stringify(actual));
+});
+
 test('a runner unavailable thirty minutes appears in the sentinel health findings [C7]', t => {
   const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
   const health = pathToFileURL(join(import.meta.dirname, '../src/health.js')).href;
