@@ -67,7 +67,7 @@ export function activityModel(project) {
   for (const event of events) {
     if (['health-failure', 'health-resolved'].includes(event.event_kind) || isNotice(event)) { pending.push(event); continue; }
     if (event.event_kind === 'health-scan') { run(event); continue; }
-    if (['activity-delivered', 'flake-observation'].includes(event.event_kind)) continue;
+    if (['activity-delivered', 'flake-observation', 'usage', 'shared-usage'].includes(event.event_kind)) continue;
     const detail = parse(event), shout = shouts.get(detail.shout);
     if (['shout', 'shout_news', 'answer'].includes(event.event_kind)) {
       rows.push({ id: event.event_id, at: event.event_at, category: 'shouts', kind: 'shout', by: event.event_by, to: shout?.shout_to ?? detail.to,
