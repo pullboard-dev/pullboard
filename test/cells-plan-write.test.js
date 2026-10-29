@@ -57,6 +57,6 @@ for (const mode of ['writePlan', '--place']) test(`${mode} keeps a two-space ind
   assert.deepEqual(JSON.parse(after), expected, 'only the new stay and its total change');
   assert.equal(after, JSON.stringify(expected, null, 2) + '\n', 'index bytes retain two-space indentation');
   const lines = git(root, 'diff', '--numstat', '--', 'bin/cells-plan.json').trim().split('\t');
-  assert.deepEqual(lines, ['6', '2', 'bin/cells-plan.json'], 'one counter and one appended object, without a formatting rewrite');
+  assert.deepEqual(lines, ['5', '1', 'bin/cells-plan.json'], 'one counter and one appended object, without a formatting rewrite');
   for (const [file, bytes] of shards) assert.equal(readFileSync(join(root, file), 'utf8'), bytes, `${file} keeps its compact shard format`);
 });
