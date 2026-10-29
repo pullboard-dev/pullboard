@@ -121,7 +121,7 @@ const ENTRY_POINTS = [
   { verbs: ['submit'], at: ['board.js#submit', 'commands/submit.js#submitHere'] },
   { verbs: ['reserve'], at: ['board.js#reserveReview', 'board.js#reserveNextReview'] },
   { verbs: ['accept', 'reject'], at: ['board.js#verify', 'commands/verify.js#verifyHere'] },
-  { verbs: ['escalate'], at: ['board.js#escalate'] },
+  { verbs: ['escalate'], at: ['board-escalate.js#escalate'] },
   { verbs: ['withdraw'], at: ['board.js#withdraw'] },
   { verbs: ['refreeze'], at: ['board.js#refreeze'] },
   { verbs: ['reopen'], at: ['board.js#reopen'] },
@@ -1348,12 +1348,12 @@ test('only moveItem writes an item\'s status, and a write anywhere else fails th
     "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function current");
   assert.deepEqual(statusWriters(besideReader), ['board-query.js#reopenByHand'], 'the projection exemption never covers a writer beside it');
   assert.match(functionsIn(fromDisk('board.js')).get('moveItem'), /item_status: move\.to/, 'moveItem is the writer');
-  const planted = editedSource('board.js', /set: \(found\) => \(\{ item_route: nextRoute\(found\.item_route\), item_owner: null, item_lease_until: null \}\),/, "set: (found) => ({ item_route: nextRoute(found.item_route), item_status: 'open', item_owner: null, item_lease_until: null }),");
-  assert.deepEqual(statusWriters(planted), ['board.js#escalate']);
-  const lowercase = editedSource('board.js', /^export function recordAttempt/m, "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function recordAttempt");
-  assert.deepEqual(statusWriters(lowercase), ['board.js#reopenByHand']);
-  const computed = editedSource('board.js', /^export function recordAttempt/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport function recordAttempt");
-  assert.deepEqual(statusWriters(computed), ['board.js#reopenByKey']);
+  const planted = editedSource('board-escalate.js', /set: \(found\) => \(\{ item_route: nextRoute\(found\.item_route\), item_owner: null, item_lease_until: null \}\),/, "set: (found) => ({ item_route: nextRoute(found.item_route), item_status: 'open', item_owner: null, item_lease_until: null }),");
+  assert.deepEqual(statusWriters(planted), ['board-escalate.js#escalate']);
+  const lowercase = editedSource('board-record-attempt.js', /^export function recordAttempt/m, "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function recordAttempt");
+  assert.deepEqual(statusWriters(lowercase), ['board-record-attempt.js#reopenByHand']);
+  const computed = editedSource('board-record-attempt.js', /^export function recordAttempt/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport function recordAttempt");
+  assert.deepEqual(statusWriters(computed), ['board-record-attempt.js#reopenByKey']);
   const besideCatalog = editedSource('json.js', /^export const JSON_SHAPES =/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport const JSON_SHAPES =");
   assert.deepEqual(statusWriters(besideCatalog), ['json.js#reopenByKey'], 'the output catalog exemption never covers a writer beside it');
 });
