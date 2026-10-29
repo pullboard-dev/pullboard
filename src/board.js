@@ -365,9 +365,7 @@ export { agentAt, agentById, agentCreator, coordinatorHolder, listAgents, nextSe
 export const ACCEPT_REASON = 'CRITERION_MET';
 export { PERSON } from './board-query.js';
 
-export { EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION } from './board-schema-source.js';
-
-export { BOARD_BUSY_TIMEOUT_MS } from './board-schema-source.js';
+export { EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, BOARD_BUSY_TIMEOUT_MS, SCHEMA_VERSION } from './board-schema-source.js';
 
 const REVIEW_RELEASE_COOLDOWN_MS = 60 * 60 * 1000;
 
@@ -386,8 +384,6 @@ export { openBoardForRead } from './native-board.js';
 export { openBoardReadOnly } from './board-read-open.js';
 /** Temporary public compatibility; #1624 removes this edge after native-root callers compose. */
 export { openBoard } from './native-board.js';
-
-export { SCHEMA_VERSION } from './board-schema-source.js';
 
 export { readEventLogVersion } from './board-read-open.js';
 

@@ -296,6 +296,7 @@ test('an item records the tokens and cost its seats spent with a shared native s
   assert.equal(JSON.stringify({ totals, a, b }).includes(file), false);
   seatUsage(box, box.web, identity);
   assert.equal(JSON.parse(box.run(box.repo, 'stats', '--json').out).usage.sharedSessions[0].inputTokens, 150, 'closed shared-session replay is idempotent');
+  // @pullboard-board-file journey: inspect the actual CLI-written shared usage and presentation without changing its board.
   const presentation = store.openBoard(boardFile);
   try { assertUsagePresentation(store.events(presentation), first, { root: box.repo, agents: store.listAgents(presentation) }); } finally { store.closeBoard(presentation); }
 });
