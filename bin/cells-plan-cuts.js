@@ -9,7 +9,7 @@ import { cutItemCommands } from '../src/cells-plan-cuts.js';
 import { cutTitle } from '../src/cells-plan-cuts.js';
 import { importCuts } from '../src/cells-plan-cuts.js';
 import { retiredRows } from '../packages/codemap/src/core/cells-plan-cuts.js';
-import { existsSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { repositoryImport } from '../packages/codemap/src/core/import-map.js';
 import { lex } from '../src/js-lex.js';
@@ -44,7 +44,12 @@ export function retiredProblems(root, plan, inventory) {
   const endpoints = new Set(rows.flatMap(entry => entry.row.slice(0, 2)));
   const config = files.has('package.json') ? JSON.parse(files.get('package.json').toString('utf8')) : {};
   const problems = [];
-  for (const path of endpoints) if (files.has(path) || existsSync(join(root, path))) problems.push(`retired historical path still exists: ${path}`);
+  for (const path of endpoints) {
+    let present = files.has(path);
+    try { lstatSync(join(root, path)); present = true; }
+    catch (error) { if (!['ENOENT', 'ENOTDIR'].includes(error.code)) throw error; }
+    if (present) problems.push(`retired historical path still exists: ${path}`);
+  }
   for (const [file, imports] of edges) for (const { target } of imports) {
     if (endpoints.has(target)) problems.push(`live import of retired historical path: ${file} -> ${target}`);
   }

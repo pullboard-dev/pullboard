@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -49,6 +50,9 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
     rmSync(join(root, original[1]));
     put(original[0], 'export const present = true;\n');
     assert.ok(retiredProblems(root, plan).some(problem => problem.includes(original[0])), 'an existing original cannot retire');
+    rmSync(join(root, original[0]));
+    symlinkSync('missing-retired-target', join(root, original[0]));
+    assert.ok(retiredProblems(root, plan).some(problem => problem.includes(original[0])), 'a dangling symlink is not an absent original');
     rmSync(join(root, original[0]));
     put(edge.from, `import ${JSON.stringify('./' + edge.to.slice('src/'.length))};\n`);
     assert.ok(retiredProblems(root, plan).some(problem => problem.includes('live import')), 'a dangling live import does not become a retired exemption');
