@@ -191,6 +191,9 @@ function hasOnlyInitCoordinator(db, names) {
     delete detail.model;
     if (detail.grantEngine !== undefined && detail.grantEngine !== AGENT_GRANT_ENGINE) return false;
     delete detail.grantEngine;
+    // Init records an unknown coordinator family; a declared family is retained history.
+    if (Object.hasOwn(detail, 'family') && detail.family !== null) return false;
+    delete detail.family;
     if (JSON.stringify(detail) !== JSON.stringify({ lane: 'coordinator' })) return false;
   } catch {
     return false;
