@@ -10,6 +10,8 @@ import { shellWord } from './runner-remote-tooling.js';
 import { sshEnvironment } from './runner-remote-tooling.js';
 import { trustedTooling } from './runner-remote-tooling.js';
 import { probeRunnerTransport } from './runner-transport.js';
+import { effectiveRunners } from './runner-slots.js';
+import { refreshRunnerMeasurements } from './runner-slots.js';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
@@ -46,5 +48,5 @@ export async function probeRunnerHealth(runner, previous, { idle = false } = {})
 /** Supply canonical late-bound runner operations to an actual higher gate composition root. */
 export function runnerExecutionServices(front = { runOnRunner, runOnRunnerAsync, probeRunnerHealth }) {
   return Object.freeze({ runOnRunner: front.runOnRunner, runOnRunnerAsync: front.runOnRunnerAsync, sampleRunnerLoad, localRunnerDescriptor,
-    carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth: front.probeRunnerHealth });
+    carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth: front.probeRunnerHealth, effectiveRunners, refreshRunnerMeasurements });
 }

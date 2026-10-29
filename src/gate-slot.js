@@ -1,8 +1,6 @@
 import { mainCheckout } from './git.js';
 /** Machine admission and receipts without eagerly loading board or full proof execution [Q1,Q2,Q3,C7]. */
 import { Refused } from './refused.js';
-import { effectiveRunners } from './runner-slots.js';
-import { refreshRunnerMeasurements } from './runner-slots.js';
 import { recordRunnerMeasurement } from './settings.js';
 import {
   inheritedGateSlot,
@@ -33,7 +31,7 @@ import {
 
 /** Snapshot required canonical operations before admission; functions remain private process-local lease state. */
 export function requireGateExecutionServices(value) {
-  const runners = ['sampleRunnerLoad', 'localRunnerDescriptor', 'carriedRunnerTrunk', 'probeRunnerTransport', 'probeRunnerHealth', 'runOnRunner', 'runOnRunnerAsync'];
+  const runners = ['sampleRunnerLoad', 'localRunnerDescriptor', 'carriedRunnerTrunk', 'probeRunnerTransport', 'probeRunnerHealth', 'runOnRunner', 'runOnRunnerAsync', 'effectiveRunners', 'refreshRunnerMeasurements'];
   const landing = ['captureReleaseQueue', 'constrainedLandingHost', 'releaseExecutors'];
   if (!runners.every(name => typeof value?.runners?.[name] === 'function')
     || !landing.every(name => typeof value?.landing?.[name] === 'function')) {
@@ -94,7 +92,7 @@ export async function withGateSlot(root, action, options = {}) {
 
 /** One gate admission and its action; withGateSlot may call it again for a local rerun. */
 async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, runnerWaitMs, runnerDeadlineAt, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, readMemory = readMachineMemory, executionServices } = {}) {
-  const { localRunnerDescriptor, sampleRunnerLoad, carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth } = executionServices.runners;
+  const { localRunnerDescriptor, sampleRunnerLoad, carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth, effectiveRunners, refreshRunnerMeasurements } = executionServices.runners;
   const restriction = requiredExecutorOf(requiredExecutor);
   const tracker = startReceipt();
   const receiptKind = kind || (landing ? 'landing' : 'gate');

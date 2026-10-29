@@ -40,6 +40,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
       if (!runner) return { ...row, computedSlots: null };
       const offered = effectiveRunner(runner, settings.gate?.measuredSlots === true);
       return { ...row, slots: offered.slots, browser: offered.browser,
+        ...(runner.cores !== undefined ? { cores: runner.cores, memoryMB: runner.memoryMB, measuredAt: runner.measuredAt } : {}),
         computedSlots: runner.cores !== undefined ? computeRunnerSlots(runner).slots : null,
         fixed: runner.fixed === true };
     });
