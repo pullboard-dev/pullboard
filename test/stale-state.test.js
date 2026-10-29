@@ -210,7 +210,7 @@ test('coordinator expiry refuses stale revisions and a replaced reviewer without
   assert.throws(() => store.maintainStaleState(f.board, { agentId: 'coordinator', snapshot }), error => error.code === 'STALE_STATE_CHANGED');
   assert.equal(store.getItem(f.board, id).item_review_by, f.reviewer);
   const other = store.register(f.board, { lane: 'web', path: join(f.box.dir, 'replacement-reviewer') });
-  store.release(f.board, id, f.reviewer, 'Another independent reviewer will continue');
+  store.release(f.board, id, f.reviewer, 'Another independent reviewer will continue', 'OTHER');
   store.reserveReview(f.board, id, { agentId: other, leaseMs: 120 * MINUTE, policy: 'any' });
   const currentRevision = f.snapshot().observedRevision;
   // A caller cannot make stale holder evidence valid by merely replacing its revision number.
@@ -444,6 +444,9 @@ test('a silent claim on a blocker can be released by the coordinator after 15 mi
   assert.equal(early.status, 1);
   assert.equal(store.getItem(f.board, id).item_owner, f.builder);
   f.advance(1);
+  const invalid = await f.cli('release', String(id), '--stale', '--reason', 'NOPE', '--note', 'The release waits on this silent claim', '--json');
+  assert.equal(JSON.parse(invalid.stdout).error.code, 'RELEASE_REASON');
+  assert.equal(store.getItem(f.board, id).item_owner, f.builder);
   const before = store.events(f.board).length;
   const result = await f.cli('release', String(id), '--stale', '--note', 'The release waits on this silent claim', '--json');
   assert.equal(result.status, 0, result.stderr);
@@ -454,6 +457,7 @@ test('a silent claim on a blocker can be released by the coordinator after 15 mi
   assert.equal(release.event_by, 'coordinator');
   const detail = JSON.parse(release.event_detail);
   assert.equal(detail.staleClaim.holder, f.builder);
+  assert.equal(detail.reasonCode, 'BLOCKED', 'the actual stale CLI supplies its maintenance default');
   assert.equal(detail.staleClaim.limitMs, 15 * MINUTE);
   assert.equal(detail.reason, 'The release waits on this silent claim');
   const notice = events.find(event => event.event_kind === 'shout');
@@ -483,9 +487,62 @@ test('actual private worktree activity prevents an otherwise stale blocker relea
   assert.equal(row.evidence.complete, true);
   assert.equal(row.ageMs, 2 * MINUTE);
   assert.throws(() => store.release(f.board, id, 'coordinator', 'Still working', {
-    staleClaim: row, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: {} }), error => error.code === 'NOT_YOURS');
+    staleClaim: row, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: {} }, 'BLOCKED'), error => error.code === 'NOT_YOURS');
   assert.equal(store.getItem(f.board, id).item_owner, f.builder);
   heartbeatSeat(f.board, f.builder);
   const revived = await captureStaleState(ctx, f.board);
   assert.equal(revived.claims[0].ageMs, 0);
+});
+
+
+test('stale releases carry observation plus code through native and ordered APIs without rewriting history [B4,C7,H16]', async t => {
+  const { applyEngineMove } = await import('../src/engine.js');
+  const { STALE_STATE_ENGINE } = await import('../src/stale-state-engine.js');
+  const { ROUTING_RULES_ENGINE } = await import('../src/routing-rules-engine.js');
+  for (const mode of ['native', 'ordered', 'historical']) {
+    const f = fixture(t), id = f.add('Silent native maintenance target');
+    store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
+    f.advance(60 * MINUTE);
+    const snapshot = f.snapshot(), row = snapshot.claims.find(entry => entry.id === id);
+    assert.equal(row.evidence.complete, true, 'the real snapshot observes the private unchanged Git worktree and native activity');
+    const observation = { staleClaim: row, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: {} };
+    const note = 'The silent claim blocks the next handoff';
+    const before = store.getItem(f.board, id), events = store.events(f.board);
+    assert.throws(() => store.release(f.board, id, 'coordinator', note, observation), { code: 'RELEASE_REASON' });
+    assert.throws(() => store.release(f.board, id, f.builder, note, observation, 'BLOCKED'), { code: 'NOT_YOURS' });
+    assert.deepEqual(store.getItem(f.board, id), before);
+    assert.deepEqual(store.events(f.board), events);
+    const args = [id, 'coordinator', note, observation, 'BLOCKED'];
+    const move = prepareEngineMove(f.board, 'release', args);
+    assert.ok(move.engine >= ROUTING_RULES_ENGINE);
+    const options = { sequence: 1, at: f.clock.now().toISOString() };
+    assert.throws(() => applyEngineMove(f.board, { ...move, engine: STALE_STATE_ENGINE }, options), { code: 'RELAY_MOVE' });
+    assert.deepEqual(store.getItem(f.board, id), before);
+    if (mode === 'native') store.release(f.board, id, 'coordinator', note, observation, 'BLOCKED');
+    else {
+      const selected = mode === 'historical'
+        ? { ...prepareEngineMove(f.board, 'release', args.slice(0, 4)), engine: STALE_STATE_ENGINE }
+        : move;
+      const outcome = applyEngineMove(f.board, selected, options);
+      assert.equal(outcome.error, undefined);
+      assert.deepEqual(applyEngineMove(f.board, selected, options), outcome);
+    }
+    assert.equal(store.getItem(f.board, id).item_status, 'open');
+    const detail = JSON.parse(store.events(f.board, { itemId: id }).findLast(event => event.event_kind === 'release').event_detail);
+    assert.equal(detail.staleClaim.holder, f.builder);
+    assert.equal(detail.reason, note);
+    assert.deepEqual(Object.keys(detail).sort(), mode === 'historical' ? ['reason', 'staleClaim'] : ['reason', 'reasonCode', 'staleClaim']);
+    if (mode !== 'historical') assert.equal(detail.reasonCode, 'BLOCKED');
+  }
+});
+
+test('the stale CLI validates and retains an explicit maintenance reason override [B4,C7]', async t => {
+  const f = fixture(t), id = f.add('Silent coded override');
+  store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
+  f.advance(60 * MINUTE);
+  const result = await f.cli('release', String(id), '--stale', '--reason', 'OTHER', '--note', 'An outside prerequisite blocks this claim', '--json');
+  assert.equal(result.status, 0, result.stderr);
+  const detail = JSON.parse(store.events(f.board, { itemId: id }).findLast(event => event.event_kind === 'release').event_detail);
+  assert.equal(detail.reasonCode, 'OTHER');
+  assert.equal(detail.reason, 'An outside prerequisite blocks this claim');
 });

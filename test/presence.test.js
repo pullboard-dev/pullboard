@@ -607,6 +607,7 @@ test('a gone seat claim returns to the queue with a note [B3,B5,H16]', async t =
   assert.equal(event.event_kind, 'release');
   assert.equal(event.event_by, 'coordinator', 'maintenance never impersonates the holder');
   assert.deepEqual(detail.goneSeat, { seat: f.owner, lastSeen });
+  assert.equal(detail.reasonCode, 'BLOCKED');
   assert.ok(detail.reason.includes(f.owner) && detail.reason.includes(lastSeen));
   assert.equal(store.nextFor(f.board, { agentId: f.other, lane: 'web' }).item.item_id, id);
   await f.scan();
@@ -646,8 +647,8 @@ test('gone claim maintenance is opt-in and preserves recent seats and ordinary a
   await f.scan();
   assert.equal(store.getItem(f.board, id).item_status, 'claimed', 'recent heartbeat resets the exact gone boundary');
   const observation = { seat: f.owner, lastSeen: store.agentById(f.board, f.owner).heartbeatAt };
-  assert.throws(() => store.release(f.board, id, f.other, '', observation), error => error.code === 'NOT_YOURS');
-  assert.throws(() => store.release(f.board, id, 'coordinator', '', observation), error => error.code === 'NOT_YOURS');
+  assert.throws(() => store.release(f.board, id, f.other, '', observation, 'BLOCKED'), error => error.code === 'NOT_YOURS');
+  assert.throws(() => store.release(f.board, id, 'coordinator', '', observation, 'BLOCKED'), error => error.code === 'NOT_YOURS');
   f.advance(1);
   store.holdItem(f.board, id, { agentId: 'coordinator', reason: 'Outside approval is pending' });
   await f.scan();
@@ -679,4 +680,45 @@ test('gone maintenance leaves unknown imported holders and submitted reviews alo
   assert.equal(store.getItem(f.board, id).item_status, 'submitted');
   assert.equal(store.getItem(f.board, id).item_review_by, f.other);
   assert.equal(f.moves.length, 0, 'gone build maintenance never frees an independent review reservation');
+});
+
+
+test('native and ordered gone releases retain coded evidence and historical event shape [B3,C7,H16]', async t => {
+  const { goneClaimFixture } = await import('./presence-gone-fixture.js');
+  const { applyEngineMove, prepareEngineMove } = await import('../src/engine.js');
+  const { GONE_CLAIM_ENGINE } = await import('../src/gone-claim-engine.js');
+  const { ROUTING_RULES_ENGINE } = await import('../src/routing-rules-engine.js');
+  for (const mode of ['native', 'ordered', 'historical']) {
+    const f = goneClaimFixture(t), id = f.claim();
+    const observation = { seat: f.owner, lastSeen: store.agentById(f.board, f.owner).heartbeatAt };
+    f.advance(1_800_000);
+    const before = store.getItem(f.board, id), events = store.events(f.board);
+    for (const code of [undefined, 'NOPE']) {
+      assert.throws(() => store.release(f.board, id, 'coordinator', '', observation, code), { code: 'RELEASE_REASON' });
+      assert.deepEqual(store.getItem(f.board, id), before);
+      assert.deepEqual(store.events(f.board), events);
+    }
+    assert.throws(() => store.release(f.board, id, f.other, '', observation, 'BLOCKED'), { code: 'NOT_YOURS' });
+    assert.deepEqual(store.events(f.board), events, 'a real code cannot grant maintenance authority');
+    const args = [id, 'coordinator', '', observation, 'BLOCKED'];
+    const move = prepareEngineMove(f.board, 'release', args);
+    assert.ok(move.engine >= ROUTING_RULES_ENGINE);
+    const options = { sequence: 1, at: f.clock.now().toISOString() };
+    assert.throws(() => applyEngineMove(f.board, { ...move, engine: GONE_CLAIM_ENGINE }, options), { code: 'RELAY_MOVE' });
+    assert.deepEqual(store.getItem(f.board, id), before, 'an old writer cannot drop the supplied code');
+    if (mode === 'native') store.release(f.board, id, 'coordinator', '', observation, 'BLOCKED');
+    else {
+      const selected = mode === 'historical'
+        ? { ...prepareEngineMove(f.board, 'release', args.slice(0, 4)), engine: GONE_CLAIM_ENGINE }
+        : move;
+      const outcome = applyEngineMove(f.board, selected, options);
+      assert.equal(outcome.error, undefined);
+      assert.deepEqual(applyEngineMove(f.board, selected, options), outcome, 'the same dual-argument move replays once');
+    }
+    assert.equal(store.getItem(f.board, id).item_status, 'open');
+    const detail = JSON.parse(store.events(f.board, { itemId: id }).at(-1).event_detail);
+    assert.deepEqual(detail.goneSeat, observation);
+    assert.deepEqual(Object.keys(detail).sort(), mode === 'historical' ? ['goneSeat', 'reason'] : ['goneSeat', 'reason', 'reasonCode']);
+    if (mode !== 'historical') assert.equal(detail.reasonCode, 'BLOCKED');
+  }
 });

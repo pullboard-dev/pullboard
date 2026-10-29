@@ -10,7 +10,7 @@ export async function releaseGoneClaims(ctx, board, me, ordered) {
   for (const claim of claims) {
     const seat = agentById(board, claim.item_owner);
     if (seat?.presence !== 'gone' || !seat.heartbeatAt) continue;
-    await ordered(ctx, board, 'release', [claim.item_id, me.id, '', { seat: seat.agent_id, lastSeen: seat.heartbeatAt }]);
+    await ordered(ctx, board, 'release', [claim.item_id, me.id, '', { seat: seat.agent_id, lastSeen: seat.heartbeatAt }, 'BLOCKED']);
     released.push(claim.item_id);
   }
   return released;

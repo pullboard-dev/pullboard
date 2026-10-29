@@ -20,7 +20,7 @@ function existingEngine(args, board, at) {
 
 /** An observation cannot be silently ignored by an older release implementation. */
 function minimumEngine(args, board, at) {
-  return Math.max(routingRulesEngine(board), typeof args[3] === 'string' ? ROUTING_RULES_ENGINE : args[3]?.staleClaim !== undefined ? STALE_STATE_ENGINE : args[3] !== undefined ? GONE_CLAIM_ENGINE : 1, existingEngine(args, board, at));
+  return Math.max(routingRulesEngine(board), args[4] !== undefined ? ROUTING_RULES_ENGINE : 1, typeof args[3] === 'string' ? ROUTING_RULES_ENGINE : args[3]?.staleClaim !== undefined ? STALE_STATE_ENGINE : args[3] !== undefined ? GONE_CLAIM_ENGINE : 1, existingEngine(args, board, at));
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

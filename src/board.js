@@ -979,11 +979,12 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, 
  * @param {string} agentId
  * @param {string} [note] One-line reason required when releasing a submitted review.
  * @param {{seat: string, lastSeen: string}} [goneSeat] Frozen coordinator observation, never a caller identity.
+ * @param {string} [reasonCode] Coded maintenance reason supplied alongside a frozen observation.
  * @returns {boolean} Whether a review reservation was released rather than a claim.
  */
-export function release(board, id, agentId, note = '', goneSeat) {
+export function release(board, id, agentId, note = '', goneSeat, reasonCode) {
   return releaseClaim(board, id, agentId, note, goneSeat, { atomic, itemById, reviewHolder,
-    reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout });
+    reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout }, reasonCode);
 }
 
 export { prepareMergeOnlySubmit };
