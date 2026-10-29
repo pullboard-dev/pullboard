@@ -66,3 +66,15 @@ test('Roadmap cards preserve shipping counters, per-board folds and shipped hist
   assert.doesNotMatch(html, /undefined|NaN/u);
   assert.match(roadmapCardsHtml([]), /No milestones yet/u);
 });
+
+test('Roadmap renders open items in the backend queue position order and shows each position [N26,N38,C7]', () => {
+  const rows = [
+    { label: '#102', state: 'building', stage: 'claimed', position: 2 },
+    { label: '#101', state: 'open', stage: 'open', held: 'Pinned', position: 1 },
+  ];
+  const read = readMilestoneModel({ name: 'Next', items: rows }, rows);
+  assert.deepEqual(read.rows.map(row => row.label), ['#101', '#102']);
+  const html = milestoneRowHtml({ label: '#101', state: 'open', stage: 'open', position: 1, why: '', title: 'T', block: { detail: '' } }, {});
+  assert.match(html, /data-position="1"/);
+  assert.match(html, /queue-position[^>]*>1\./);
+});
