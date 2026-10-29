@@ -195,3 +195,35 @@ test('computed listing preserves the latest canonical GUI observation [C7]', t =
   assert.equal(b.list().gui,false,'computed counts cannot revive a stale positive registration');
   assert.equal(b.list().slots,9);
 });
+
+
+test('periodic observations wait for real leases before changing measured capacity [C7]', async t => {
+  const b=box(t);b.run('runner','add',HOST);b.run('settings','gate.measuredSlots','on');useMachine(t,b);
+  const settings=loadMachineSettings();settings.runners[0].measuredAt='2000-01-01T00:00:00.000Z';
+  writeFileSync(b.machineFile,JSON.stringify(settings));b.machine(4,16);
+  const lease=await takeResource({name:'gate',capacity:1,browserCapacityProvider:()=>1,scope:'machine',
+    root:b.paths.repo,repo:b.paths.repo,agent:'measured-busy-fixture',remote:true,runnerOnly:true,
+    runnerProvider:()=>settings.runners});
+  try {
+    await refreshRunnerMeasurements(loadMachineSettings(),{measure:probeRunnerTransport,record:recordRunnerMeasurement});
+    assert.equal(loadMachineSettings().runners[0].cores,10,'an actual held lease prevents a capacity change');
+    assert.equal(runnerResourceStatus(settings.runners)[0].inUse,1);
+  } finally {lease.release();}
+  await refreshRunnerMeasurements(loadMachineSettings(),{measure:probeRunnerTransport,record:recordRunnerMeasurement});
+  assert.equal(loadMachineSettings().runners[0].cores,4,'an idle retry records the real fresh measurement');
+});
+
+test('a periodic observation preserves a newer explicit fixed registration [C7]', async t => {
+  const b=box(t);b.run('runner','add',HOST);b.run('settings','gate.measuredSlots','on');useMachine(t,b);
+  const settings=loadMachineSettings();settings.runners[0].measuredAt='2000-01-01T00:00:00.000Z';
+  writeFileSync(b.machineFile,JSON.stringify(settings));b.machine(4,16);
+  await refreshRunnerMeasurements(settings,{measure:async runner=>{
+    const observed=await probeRunnerTransport(runner,{observeGui:true});
+    b.run('runner','add',HOST,'--slots','2','--browser','1');
+    return observed;
+  },record:recordRunnerMeasurement});
+  const runner=loadMachineSettings().runners[0];
+  assert.equal(runner.cores,4);assert.equal(runner.fixed,true);
+  assert.equal(runner.slots,2);assert.equal(runner.browser,1);
+  assert.equal(b.list().slots,2,'late capacity facts cannot overwrite the newer declared policy');
+});
