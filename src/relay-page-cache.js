@@ -140,9 +140,18 @@ export function createRelayPageCache(state) {
 
   /** Stream only objects not yet acknowledged by this relay, without an aggregate request body. */
   function* pending(source) {
-    // Node 22.13 may finalize an unreferenced statement while its iterator is suspended across a yield.
-    const statement = db.prepare('SELECT object.id FROM object JOIN job_object USING(id) WHERE source=? AND ack=0 ORDER BY object.rowid');
-    for (const row of statement.iterate(source)) yield object(row.id);
+    // Finish each read before yielding: an awaited PUT may let another connection commit,
+    // and a suspended SQLite iterator would make the subsequent ACK upgrade a stale snapshot.
+    // CROSS JOIN keeps the rowid seek outermost instead of sorting the whole job for each page.
+    const statement = db.prepare('SELECT object.rowid AS position,object.id FROM object CROSS JOIN job_object USING(id) WHERE source=? AND ack=0 AND object.rowid>? ORDER BY object.rowid LIMIT 1');
+    statement.setReadBigInts(true);
+    let position = 0n;
+    for (;;) {
+      const row = statement.get(source, position);
+      if (!row) return;
+      position = row.position;
+      yield object(row.id);
+    }
   }
 
   /** A lost ACK safely retries the same immutable object; only an actual ACK marks it done. */
