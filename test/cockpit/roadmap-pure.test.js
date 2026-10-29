@@ -7,7 +7,7 @@ import { roadmapCardsHtml } from '../../src/view/roadmap-render.js';
 import { roadmapRemainingCount } from '../../src/view/roadmap-render.js';
 
 test('Roadmap title totals use shown header authority, retain legacy completion and exclude shipped history [N26,N38,C7]', () => {
-  const modern = readMilestoneModel({ name: 'Next', items: [1, 2], summary: { total: 8, landed: 3, left: 5 } },
+  const modern = readMilestoneModel({ name: 'Next', items: [1, 2], shipped: null, summary: { total: 8, landed: 3, left: 5 } },
     [{ state: 'verified', stage: 'accepted' }]);
   const legacy = readMilestoneModel({ name: 'Old export', items: [3, 4] },
     [{ state: 'verified', stage: 'merged' }, { state: 'open', stage: 'open' }]);
