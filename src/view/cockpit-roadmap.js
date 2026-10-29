@@ -61,6 +61,7 @@ function milestoneItem(entry, p) {
   if (item) roadmapDetails.set(JSON.stringify([view.root, 'i:' + label]), () => block(false).detail);
   return {
     label: local ? '#' + entry.id : String(entry.id),
+    position: entry.position,
     title: item ? item.title : read ? entry.title : '',
     root,
     titles: renderIndex(source).titles,

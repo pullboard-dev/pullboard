@@ -869,21 +869,21 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
         const live = document.querySelector('#detail #fact-${expected.find((entry) => entry.type === 'fact' && entry.kind === 'capture').id}');
         const plain = document.querySelector('#detail .tl-fact:not(.tl-judgement):not(.tl-superseded)');
         const judgementColors = Object.fromEntries(['decision', 'rejection', 'supersession', 'root-cause'].map((kind) => {
-          const row = [...timeline.querySelectorAll('.tl-fact')].find((entry) => entry.querySelector('.tl-fact-head .chip')?.textContent === kind);
-          return [kind, row ? getComputedStyle(row, '::before').backgroundColor : null];
+          const row = [...timeline.querySelectorAll('.tl-fact')].find((entry) => entry.querySelector('.tl-kind')?.textContent === kind);
+          return [kind, row ? getComputedStyle(row.querySelector('.tl-marker')).backgroundColor : null];
         }));
         return {
           ids: [...timeline.querySelectorAll('[data-event-id]')].map((row) => Number(row.dataset.eventId)),
           rows: timeline.querySelectorAll('li').length,
-          kinds: [...timeline.querySelectorAll('.tl-fact-head .chip')].map((chip) => chip.textContent),
-          authors: [...timeline.querySelectorAll('.tl-fact-head b')].map((name) => name.textContent),
+          kinds: [...timeline.querySelectorAll('.tl-kind')].map((chip) => chip.textContent),
+          authors: [...timeline.querySelectorAll('.tl-fact .tl-who')].map((name) => name.textContent),
           ages: timeline.querySelectorAll('.tl-fact small time[data-ago]').length,
           oldClass: old?.className,
           replacementHref: old?.querySelector('.thread-replacement')?.getAttribute('href'),
           oldOpacity: Number(old && getComputedStyle(old).opacity),
           replacementOpacity: Number(replacement && getComputedStyle(replacement).opacity),
           liveOpacity: Number(live && getComputedStyle(live).opacity),
-          plainMarker: plain ? getComputedStyle(plain, '::before').backgroundColor : null,
+          plainMarker: plain ? getComputedStyle(plain.querySelector('.tl-marker')).backgroundColor : null,
           judgementColors,
           judgementKinds: Object.keys(judgementColors).filter((kind) => judgementColors[kind] !== null),
           ref: timeline.querySelector('.tl-fact button[data-code]')?.dataset.code,
@@ -895,7 +895,7 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
       assert.equal(rendered.rows, expected.length, `${width}px: each API event appears exactly once`);
       const expectedFacts = expected.filter((entry) => entry.type === 'fact');
       assert.deepEqual(rendered.kinds, expectedFacts.map((entry) => entry.kind), `${width}px: every fact kind is a visible chip`);
-      assert.deepEqual(rendered.authors, expectedFacts.map((entry) => entry.by + ' (Test Model)'), `${width}px: each fact names its API author`);
+      assert.deepEqual(rendered.authors, expectedFacts.map((entry) => entry.by), `${width}px: each fact names its API author`);
       assert.equal(rendered.ages, expectedFacts.length, `${width}px: each fact shows its age`);
       assert.match(rendered.oldClass, /tl-superseded/, `${width}px: the earlier fact is visibly dimmed`);
       assert.equal(rendered.replacementHref, `#fact-${replacement.id}`, `${width}px: the earlier fact links to its replacement`);
