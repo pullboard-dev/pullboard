@@ -11,6 +11,7 @@ import { main } from '../src/cli.js';
 import { parseSpec } from '../src/spec.js';
 import { serveMcp } from '../src/mcp.js';
 import { personNeedsState } from '../src/needs-state.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 test('one builder lists what needs the person [N26,A9]', async (t) => {
@@ -73,7 +74,7 @@ test('one builder lists what needs the person [N26,A9]', async (t) => {
   let diagnostics = '';
   const status = await serveMcp({ cwd: box.repo, input: Readable.from([JSON.stringify(request) + '\n']),
     output: { write: text => { output += text; } }, log: { write: text => { diagnostics += text; } }, runCommand: main,
-    readPersonNeeds: cwd => personNeeds(personNeedsState(cwd)) });
+    readPersonNeeds: cwd => personNeeds(personNeedsState(cwd)), formatRefusal: refusalDocument });
   assert.equal(status, 0, diagnostics);
   const reply = JSON.parse(output);
   assert.equal(reply.result?.isError, false, JSON.stringify(reply));
