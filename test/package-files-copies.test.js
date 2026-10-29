@@ -19,9 +19,9 @@ import { runFixtureChild } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { test } from 'node:test';
-import { copyPackageFiles, packageFiles } from '../src/package-files.js';
+import { copyPackageFiles, packageFiles, toolSourcePath } from '../src/package-files.js';
 
 /** Create isolated package bytes and remove only this test's owned temporary directory. */
 function fixture(t, files = ['src', 'packages/*/src']) {
@@ -429,11 +429,11 @@ await assert.rejects(runOnRunnerAsync(process.cwd(),'true',{runner:{host:'privat
   run('transport');
   assert.equal(readFileSync(marker, 'utf8'), 'called', 'exact Git bytes, including literal path characters and Unicode, reach the private transport');
   rmSync(marker);
-  const resource = join(installed, 'src/resources.js');
+  const resource = toolSourcePath(installed, 'src/resources.js'), resourcePath = relative(installed, resource);
   writeFileSync(resource, readFileSync(resource, 'utf8').replace(/\r?\n/gu, '\r\n'));
   box.git(installed, 'config', 'core.autocrlf', 'true');
-  writeFileSync(join(installed, '.git/info/attributes'), 'src/resources.js text eol=crlf\n');
-  box.git(installed, 'add', '--renormalize', 'src/resources.js');
+  writeFileSync(join(installed, '.git/info/attributes'), `${resourcePath} text eol=crlf\n`);
+  box.git(installed, 'add', '--renormalize', resourcePath);
   assert.equal(box.git(installed, 'diff', '--cached', '--name-only'), '', 'filter normalization retains the original committed blob');
   assert.equal(box.git(installed, 'status', '--porcelain'), '', 'Git filtering reports clean while the working bytes differ from the committed blob');
   run('refusal');
@@ -447,7 +447,7 @@ import {readFileSync,writeFileSync} from 'node:fs';
 const {runOnRunnerAsync}=await import(${JSON.stringify(pathToFileURL(join(f.installed, 'src/runners.js')).href)});
 const options={runner:{host:'private-unused.invalid',slots:1,browser:0}};
 await assert.rejects(runOnRunnerAsync(process.cwd(),'true',options),error=>error.code==='RUNNER_SOURCE_CHANGED');
-const resource=${JSON.stringify(join(f.installed, 'src/resources.js'))};
+const resource=${JSON.stringify(toolSourcePath(f.installed, 'src/resources.js'))};
 writeFileSync(resource,readFileSync(resource,'utf8')+'\\n// changed after controller load\\n');
 await assert.rejects(runOnRunnerAsync(process.cwd(),'true',options),error=>error.code==='RUNNER_TOOLING_CHANGED');`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: f.root, encoding: 'utf8' });

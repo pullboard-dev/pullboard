@@ -14,10 +14,11 @@ export function shellQuote(value) {
  * Make a local ssh stand-in that executes the actual worker command in a second private machine.
  * It appends "dispatched" and "returned" to <requests>.phases so a round trip can be timed by phase,
  * and `hold` ('dispatch', 'run' or 'return') keeps it alive at that phase, as a stuck runner would.
+ * `workerHealthDown` also fails every pinned-worker recovery probe, as an unreachable host does; `healthDown` alone fails only non-worker commands.
  * `stderrLog` also copies the worker's stderr, so a test can read its result receipt, and `nodeOptions` reaches the
  * worker's own Node process, so a test can force an ordering inside it.
  */
-export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false, healthFailures = 0, deferFirstWorker = '', deferredFrame = '' }) {
+export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, workerHealthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false, healthFailures = 0, deferFirstWorker = '', deferredFrame = '' }) {
   const ssh = join(bin, 'ssh');
   const source = `#!/usr/bin/env node
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -76,7 +77,7 @@ if (host !== ${JSON.stringify(HOST)} && host !== ${JSON.stringify(`${HOST}-drop`
 if (${JSON.stringify(healthDown)} && !remoteCommand.startsWith(configuredNode)) {
   record({ healthProbeFailed: true, stdinBytes }); process.exit(255);
 }
-if (workerHealthProbe && call <= ${JSON.stringify(healthFailures)}) { record({ healthProbeFailed: true, stdinBytes }); process.exit(255); }
+if (workerHealthProbe && (${JSON.stringify(workerHealthDown)} || call <= ${JSON.stringify(healthFailures)})) { record({ healthProbeFailed: true, stdinBytes }); process.exit(255); }
 if (!registrationGuiProbe && !workerHealthProbe && ${JSON.stringify(deferFirstWorker)} && call === 1) {
   writeFileSync(${JSON.stringify(deferFirstWorker)}, remoteCommand);
   await new Promise(resolve => {

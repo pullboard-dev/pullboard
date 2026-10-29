@@ -23,7 +23,7 @@ function selected(ctx, board, values, { checkMainVerifier, whoAmI, mainRedRework
   }
   return dispatchWork(board, store.agentById(board, me.id), {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
-    skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board),
+    skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board), observeIdle: values.observeIdle,
   });
 }
 

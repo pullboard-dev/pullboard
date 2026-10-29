@@ -5,6 +5,7 @@
  * the tools that run models, however useful they are. Agent tools are another matter: helping
  * Claude Code, Codex and others read the repo's rules (AGENTS.md, skills) is the core's job.
  */
+import { cockpitPage } from '../src/cockpit.js';
 import assert from 'node:assert/strict';
 import { workingSourceInventory } from '../bin/checks/scan.js';
 import { spawnSync } from 'node:child_process';
@@ -43,16 +44,16 @@ test('only explicit relay commands open outbound connections; the view defaults 
     // relay on's key hand-over reads a person's public SSH keys from GitHub itself, so the relay cannot add one [E17].
     (file === 'src/relay-handover.js' && line.trim() === "const response = await fetch(new URL('users/' + encodeURIComponent(login) + '/keys', base.href.endsWith('/') ? base : base.href + '/'),") ||
     (['src/serve.js', 'src/api.js'].includes(file) && line.trim() === "import { createServer } from 'node:http';") ||
-    (file === 'src/local-fetch.js' && line.trim() === "import { request as httpRequest } from 'node:http';") ||
+    (file === 'packages/sync/src/shell/local-fetch.js' && line.trim() === "import { request as httpRequest } from 'node:http';") ||
     (file === 'src/serve.js' && line.trim() === "const reply = await fetch(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });") ||
     (file === 'src/view-session.js' && line.trim() === "const response = await fetch(`http://${LOOPBACK}:${view.port}/api/v1/boards?k=${encodeURIComponent(view.secret)}`, {") ||
-    (file === 'src/cockpit.js' && /^\s*const res = await fetch\(path, /.test(line)) ||
+    (file === 'src/view/cockpit-live.js' && /^\s*const res = await fetch\(path, /.test(line)) ||
     (file === 'src/cockpit.js' && line.trim() === "try { reply = await fetch(base + '/local/protocol', { signal: AbortSignal.timeout(3000), credentials: 'omit', redirect: 'error' }); }");
   const found = sources().flatMap(({ file, lines }) =>
     lines.flatMap((line, index) => (NETWORK.test(line) && !allowed(file, line) ? [`${file}:${index + 1}: ${line.trim()}`] : [])),
   );
   assert.deepEqual(found, []);
-  const cockpitSource = readFileSync(join(ROOT, 'src', 'cockpit.js'), 'utf8');
+  const cockpitSource = cockpitPage();
   const discoveryLines = cockpitSource.split('\n').filter((line) => /\bfetch\s*\(/u.test(line) && /\/local\/protocol\b/u.test(line));
   if (discoveryLines.length) {
     assert.equal(discoveryLines.length, 1, 'the cockpit makes only one local discovery request');
@@ -76,7 +77,7 @@ test('only explicit relay commands open outbound connections; the view defaults 
     assert.match(validator, /address\.port\s*!==\s*''/u);
     assert.match(validator, /address\.origin\s*===\s*value\.origin/u, 'origin equality rejects credentials and non-canonical origins');
   }
-  const localFetchPath = join(ROOT, 'src', 'local-fetch.js');
+  const localFetchPath = join(ROOT, 'packages', 'sync', 'src', 'shell', 'local-fetch.js');
   const localFetchSource = readFileSync(localFetchPath, 'utf8');
   const httpImport = "import { request as httpRequest } from 'node:http';";
   assert.equal(localFetchSource.split(httpImport).length - 1, 1, 'the local fetch has one exact HTTP request import');

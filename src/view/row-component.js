@@ -1,7 +1,7 @@
 /** One data-driven row frame; accepted Needs and Activity layouts remain explicit variants [N26]. */
 export function sharedRowHtml(row) {
   const variant = row.variant ?? 'item';
-  if (!['needs', 'activity', 'item', 'record'].includes(variant)) throw new TypeError('unknown row variant');
+  if (!['needs', 'activity', 'item', 'record', 'timeline'].includes(variant)) throw new TypeError('unknown row variant');
   /** Escape board data; only explicitly named Html slots contain trusted caller-rendered markup. */
   const esc = value => String(value ?? '').replace(/[&<>"']/gu, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   /** Reusable rows accept presentation and native data attributes, never event handlers. */
@@ -9,6 +9,12 @@ export function sharedRowHtml(row) {
     if (!/^(?:data-[a-z0-9-]+|aria-[a-z0-9-]+|title|role|id|tabindex)$/u.test(key)) throw new TypeError('unsupported row attribute');
     return value === undefined || value === null ? '' : ' ' + key + '="' + esc(value) + '"';
   }).join('');
+  if (variant === 'timeline') {
+    return '<li class="' + esc(row.className) + '"' + attrs(row.attributes) + '>'
+      + '<span class="tl-marker ' + esc(row.state) + '" aria-hidden="true">' + (row.iconHtml ?? '') + '</span>'
+      + '<div class="tl-content"><div class="tl-heading"><span class="tl-sentence">' + (row.mainHtml ?? '') + '</span><time>' + esc(row.time) + '</time></div>'
+      + (row.metaHtml ? '<small>' + row.metaHtml + '</small>' : '') + (row.bodyHtml ?? '') + '</div></li>';
+  }
   const needs = variant === 'needs', activity = variant === 'activity';
   if (needs || activity) {
     const markerClass = needs ? 'needs-kind needs-kind-' + row.state : 'activity-verb ' + row.state;

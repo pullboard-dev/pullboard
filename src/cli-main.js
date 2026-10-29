@@ -144,6 +144,7 @@ const OPTIONS = {
   verbose: { type: 'boolean' },
   since: { type: 'string' },
   window: { type: 'string' },
+  compare: { type: 'boolean' },
   policy: { type: 'string' },
   decision: { type: 'boolean' },
   kind: { type: 'string' },

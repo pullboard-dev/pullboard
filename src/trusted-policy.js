@@ -62,9 +62,12 @@ export function submissionPaths(root, item, commit, { config, mainCommit, depend
   const accepted = dependencies.map(dependency => ({ ...dependency,
     paths: new Set(policyGit(root, ['diff', '--no-renames', '--name-only', '-z', dependency.base, dependency.commit, '--']).split('\0').filter(Boolean)),
   }));
+  // A path still equal to main at every merge base arrived only through a merge of main, so it is not the item change.
+  const mainBases = policyGit(root, ['merge-base', '--all', snapshot, commit]).trim().split('\n').filter(Boolean);
   const denied = foreign.filter(path => {
     const object = pathObject(root, commit, path);
     if (object === pathObject(root, snapshot, path)) return false;
+    if (mainBases.length && mainBases.every(start => object === pathObject(root, start, path))) return false;
     return !accepted.some(dependency => dependency.paths.has(path)
       && !outOfLane(ownership, dependency.lane, [path]).length
       && object === pathObject(root, dependency.commit, path));

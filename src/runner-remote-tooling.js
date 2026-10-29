@@ -10,6 +10,7 @@ import { captureRunnerTooling } from './runner-tooling-snapshot.js';
 import { currentRunnerTooling } from './runner-tooling-snapshot.js';
 import { claimRunnerLaunch } from './runner-transport.js';
 import { recoveryIdentity } from './runner-transport.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -19,11 +20,23 @@ import { gzipSync } from 'node:zlib';
 
 const TOOL_ROOT = fileURLToPath(new URL('../', import.meta.url));
 
+// The generation of the runners.js instance whose operation is running; the first pin answers callers outside one.
+const GENERATION = new AsyncLocalStorage();
 let LOADED_TOOLING = null;
 
-/** Pin this controller generation when the runners.js front door loads, before any later dispatch. */
+/** Pin one runners.js instance's controller generation when it loads, before any later dispatch. */
 export function pinRunnerTooling() {
-  LOADED_TOOLING = loadedTooling();
+  const generation = { loaded: loadedTooling() };
+  LOADED_TOOLING ??= generation;
+  return generation;
+}
+
+/**
+ * Run one front-door operation against the generation its own runners.js instance pinned.
+ * Why: a shared step module must not let a newer instance's pin vouch for an older instance's stale bytes.
+ */
+export function inRunnerGeneration(generation, operation) {
+  return GENERATION.run(generation, operation);
 }
 
 /** Pin the actual derived runtime and controller generation before any later dispatch. */
@@ -48,7 +61,7 @@ export function sshEnvironment() {
 
 /** Share the loaded generation guard; async callers leave the closure scan to their fresh controller. */
 export function loadedToolingFiles({ rescan = true } = {}) {
-  return currentRunnerTooling(TOOL_ROOT, LOADED_TOOLING, { rescan });
+  return currentRunnerTooling(TOOL_ROOT, (GENERATION.getStore() ?? LOADED_TOOLING)?.loaded ?? null, { rescan });
 }
 
 /** Compare every shipped runtime byte with its immutable Git blob, using bounded literal path batches. */

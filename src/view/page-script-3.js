@@ -6,7 +6,7 @@
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart3(scope) {
-  const { applyStateDelta } = scope;
+  const { applyStateDelta, expandItemSummaries } = scope;
 return `/** Whether a selected project is backed by the read-only relay transport. */
 function relayProject(root = view.root) {
   const board = data?.projects.find((entry) => entry.root === root && entry.ok);
@@ -239,6 +239,8 @@ async function boardState(root, mark, fresh = null) {
 const sentStates = new Map();
 // #552's delta applier, embedded as the server's own source, so the page applies a delta and recomputes nothing.
 const applyStateDelta = (${applyStateDelta.toString()});
+// Expand the opt-in wire dictionary before holding a delta base or rendering any item.
+const expandItemSummaries = (${expandItemSummaries.toString()});
 
 /**
  * Read one board's summary state. A local board the page read before asks only what changed since the state it holds
@@ -256,9 +258,11 @@ async function boardRead(board, seen) {
       return state;
     }
   }
-  const reply = await api(path + (mark && '?' + mark));
-  if (local) sentStates.set(board.id, { state: reply.state, sequence: reply.state.sequence, version: reply.eventLogVersion });
-  return reply.state;
+  const query = [mark, local ? 'items=compact' : ''].filter(Boolean).join('&');
+  const reply = await api(path + (query && '?' + query));
+  const state = expandItemSummaries(reply.state);
+  if (local) sentStates.set(board.id, { state, sequence: state.sequence, version: reply.eventLogVersion });
+  return state;
 }
 
 /** Whether a board state already carries every item's detail, as exports and event replays do. */

@@ -1,5 +1,7 @@
 /** General CLI recovery text; operation-owned codes live in src/moves/ [P4,C7]. */
 export const DEFAULT_NEXT_STEPS = Object.freeze({
+  NO_ELIGIBLE_REVIEWER: 'credit the companion to a custodian of another family, or declare the missing family with pullboard join <lane> --family <vendor> on a seat that can review, then submit again',
+  BAD_IDLE_REASON: 'run next again and use its structured idle observation',
   NEXT_TIMEOUT: 'read the named phase and item, inspect your current claim or review with pullboard whoami and pullboard show <id>, then retry next after resolving that blocker',
   CHECK_REQUIRED: 'intake a pull request with --criterion "behavior" --check "command" from the trusted coordinator checkout',
   ROW_VERIFY_RECEIPT: 'run pullboard spec verify <id> accepted|rejected --reason "why" before applying its verdict',
@@ -12,7 +14,10 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   CELLS_PLAN_SHARD: 'regenerate the plan and its shards with node bin/cells-plan.js --write',
   CELLS_PLAN_FILE: 'run pullboard list core --all to see which move items exist, fix the reported problem, then rerun node bin/cells-plan.js --file, which skips filed items',
   CELLS_PLAN_GIT: 'run node bin/cells-plan.js inside a Git checkout of this repository',
-  CELLS_PLAN_MODE: 'run node bin/cells-plan.js --write, --check, --moved <cell> or --file [--yes]',
+  CELLS_PLAN_UNPLACED: 'run node bin/cells-plan.js --place <path> --cell <cell> (or --stay), commit the source and plan, then submit',
+  CELLS_PLAN_MODE: 'run node bin/cells-plan.js --place <path> --cell <cell> (or --stay), --check, --moved <cell> or --file [--yes]',
+  NO_CELLS_PLAN: 'restore a readable bin/cells-plan.json and its shards on the trusted main branch, then submit again; outside intake does not classify without the sensitive list',
+  SENSITIVE_CELL_MISSING: 'restore the gate, landing, merge, verify, keys and person cells in bin/cells-plan.json on the trusted main branch, or move their code into a named cell, then submit again',
   PUBLIC_EXPORT_BLOCKED: 'remove the blocked public text the refusal names, or run pullboard view --export <dir> without --public for a private snapshot; never publish the refused snapshot',
   PUBLIC_EXPORT_UNAVAILABLE: 'upgrade Pullboard to a build whose view export declares the checked public filter, or run pullboard view --export <dir> without --public for a private snapshot',
   SUBMISSION_CHANGED: 'run pullboard show <id> to inspect its current submission attempt and verdict; do not resubmit an acknowledged attempt',
@@ -53,6 +58,12 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "BOARD_LINK_INACTIVE": "use a current non-revoked bilateral link generation for the exact source and receiving boards",
   "BOARD_LINK_TRANSPORT": "read the exact durable delivery receipt or use the last nonnegative incoming cursor through the authenticated relay",
   "BOARD_LINK_REPLAY": "send a newer source position; retry an existing delivery with its original correlation ID and sealed bytes",
+  "USAGE_RECORD": "keep this seat’s native session available; its next claim, submit or release publishes only sanitized token and time summaries",
+  "USAGE_CHANGED": "keep the recorded revision unchanged; the next native usage checkpoint publishes the next cumulative revision",
+  "USAGE_LEDGER": "restore access to this repository’s private usage ledger and let its current writer finish before its next native checkpoint",
+  "USAGE_OVERFLOW": "leave the unrepresentable native counter unknown and report the provider format to the board maintainer",
+  "USAGE_PENDING": "the lifecycle move already succeeded; its next native claim, submit or release retries the usage checkpoint",
+
   "SHOUT_SPACES": "rewrite the shout with spaces between words, then send it again",
   "DECISION_HANDOFF_BINDING": "use the exact versioned handoff, namespaced source decision and original option set",
   "DECISION_HANDOFF_AUTH": "obtain authority for this exact question, answer or source query",

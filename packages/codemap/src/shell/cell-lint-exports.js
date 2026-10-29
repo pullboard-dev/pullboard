@@ -1,6 +1,6 @@
 /** Account for individual exports without executing modules; opaque uses remain per-entity debt [CD62,C7]. */
 import { bindingReadsForModules } from './cell-binding-uses.js';
-import { lex } from './js-lex.js';
+import { lex } from '../../../../src/js-lex.js';
 import { testFile } from './cell-lint-inventory.js';
 
 const ID = '[A-Za-z_$][\\w$]*';
@@ -17,6 +17,36 @@ function names(text) {
     const match = new RegExp(`^(${ID})(?:\\s+as\\s+(${ID}))?$`, 'u').exec(row);
     return match ? { local: match[1], name: match[2] ?? match[1] } : null;
   });
+}
+
+/** Read literal dynamic imports: `(await import('x')).name` and `const { a } = await import('x')` name exact exports; any other use is opaque. */
+function dynamicUses(info, edges) {
+  const uses = [], call = `import\\s*\\(\\s*['"][^'"]*['"]\\s*\\)`, seen = new Set();
+  /** Resolve the literal inside the call that starts at `at` through the compiler-checked edge list. */
+  function resolve(at, length) {
+    const literal = info.strings.find(row => row.start >= at && row.end <= at + length);
+    return literal && !literal.text.includes('\\') ? edges.find(edge => edge.specifier === literal.text)?.target : null;
+  }
+  const member = new RegExp(`\\(\\s*await\\s+(${call})\\s*\\)\\s*\\.\\s*(${ID})`, 'gu');
+  for (const match of info.code.matchAll(member)) {
+    const at = match.index + match[0].indexOf('import', 1), target = resolve(at, match[1].length);
+    seen.add(at);
+    if (target) uses.push({ target, names: [match[2]] });
+  }
+  const pattern = new RegExp(`\\{([^{}]*)\\}\\s*=\\s*await\\s+(${call})`, 'gu');
+  for (const match of info.code.matchAll(pattern)) {
+    const at = match.index + match[0].lastIndexOf('import'), target = resolve(at, match[2].length);
+    seen.add(at);
+    if (!target) continue;
+    const rows = match[1].split(',').map(row => row.trim()).filter(Boolean).map(row => new RegExp(`^(${ID})(?:\\s*:\\s*${ID})?$`, 'u').exec(row)?.[1] ?? null);
+    uses.push({ target, names: rows.filter(Boolean), opaque: rows.includes(null) });
+  }
+  for (const match of info.code.matchAll(new RegExp(call, 'gu'))) {
+    if (seen.has(match.index)) continue;
+    const target = resolve(match.index, match[0].length);
+    if (target) uses.push({ target, names: [], opaque: true });
+  }
+  return uses;
 }
 
 /** Describe compiler-validated exports and imports; never infer syntax from strings or comments. */
@@ -89,7 +119,7 @@ function bindings(source, edges) {
     }
   }
   if (/\bexport\s+default\b/u.test(info.code)) exports.set('default', { local: 'default' });
-  return { exports, explicit: new Set(exports.keys()), imports, stars, unknown, body: body.join('') };
+  return { exports, explicit: new Set(exports.keys()), imports, stars, unknown, dynamic: dynamicUses(info, edges), body: body.join('') };
 }
 
 /** Read simple namespace member accesses; any other occurrence is opaque, never blanket proven reach. */
@@ -136,6 +166,10 @@ export function exportReachability(files, edges, reached) {
   })());
   for (const [file, module] of modules) {
     if (!reached.has(file)) continue;
+    for (const use of module.dynamic) {
+      for (const name of use.names) enqueue(use.target, name, null, Boolean(use.opaque));
+      if (use.opaque) for (const name of modules.get(use.target)?.exports.keys() ?? []) enqueue(use.target, name, null, true);
+    }
     const reads = readsByModule.get(file);
     for (const binding of module.imports) {
       const read = reads.get(binding.local);

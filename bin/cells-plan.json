@@ -1,118 +1,416 @@
 {
- "version": 1,
- "item": 1473,
- "rfc": "docs/rfcs/0006-cells.md",
- "base": "b068c560b665790d78507a0db598cf9d130e9232",
- "seed": {
-  "source": "pullboard-research/2026-10-26-cells/dryrun/raw/map.json",
-  "sha256": "cfd97ccc7a130179d9166536653ffb96301bbb21f0c50d248b8aca4e4d53cb7e",
-  "paths": 789,
-  "tests": 116
- },
- "names": {
-  "relay-client": "link",
-  "relay-outbox": "outbox",
-  "relay-keys": "keys",
-  "relay-page": "pages",
-  "runner-client": "runners",
-  "app:relay-server": "app:relay"
- },
- "totals": {
-  "cells": 43,
-  "movedPaths": 1279,
-  "stays": 38,
-  "placedBy": {
-   "seed": 894,
-   "rule": 303,
-   "imports": 82
+  "version": 1,
+  "item": 1473,
+  "rfc": "docs/rfcs/0006-cells.md",
+  "base": "b068c560b665790d78507a0db598cf9d130e9232",
+  "seed": {
+    "source": "pullboard-research/2026-10-26-cells/dryrun/raw/map.json",
+    "sha256": "cfd97ccc7a130179d9166536653ffb96301bbb21f0c50d248b8aca4e4d53cb7e",
+    "paths": 789,
+    "tests": 116
   },
-  "shims": 656,
-  "cutImports": 364,
-  "cutEdges": 143
- },
- "cells": [
-  {"order":1,"name":"kernel","file":"bin/cells-plan/01-kernel.json"},
-  {"order":2,"name":"git","file":"bin/cells-plan/02-git.json"},
-  {"order":3,"name":"codemap","file":"bin/cells-plan/03-codemap.json"},
-  {"order":4,"name":"queue","file":"bin/cells-plan/04-queue.json"},
-  {"order":5,"name":"resources","file":"bin/cells-plan/05-resources.json"},
-  {"order":6,"name":"config","file":"bin/cells-plan/06-config.json"},
-  {"order":7,"name":"mcp","file":"bin/cells-plan/07-mcp.json"},
-  {"order":8,"name":"state","file":"bin/cells-plan/08-state.json"},
-  {"order":9,"name":"seats","file":"bin/cells-plan/09-seats.json"},
-  {"order":10,"name":"roadmap","file":"bin/cells-plan/10-roadmap.json"},
-  {"order":11,"name":"spec","file":"bin/cells-plan/11-spec.json"},
-  {"order":12,"name":"commits","file":"bin/cells-plan/12-commits.json"},
-  {"order":13,"name":"items","file":"bin/cells-plan/13-items.json"},
-  {"order":14,"name":"stats","file":"bin/cells-plan/14-stats.json"},
-  {"order":15,"name":"merge","file":"bin/cells-plan/15-merge.json"},
-  {"order":16,"name":"verify","file":"bin/cells-plan/16-verify.json"},
-  {"order":17,"name":"store","file":"bin/cells-plan/17-store.json"},
-  {"order":18,"name":"sandbox","file":"bin/cells-plan/18-sandbox.json"},
-  {"order":19,"name":"doctrine","file":"bin/cells-plan/19-doctrine.json"},
-  {"order":20,"name":"person","file":"bin/cells-plan/20-person.json"},
-  {"order":21,"name":"activity","file":"bin/cells-plan/21-activity.json"},
-  {"order":22,"name":"pages","file":"bin/cells-plan/22-pages.json"},
-  {"order":23,"name":"keys","file":"bin/cells-plan/23-keys.json"},
-  {"order":24,"name":"blueprints","file":"bin/cells-plan/24-blueprints.json"},
-  {"order":25,"name":"link","file":"bin/cells-plan/25-link.json"},
-  {"order":26,"name":"api","file":"bin/cells-plan/26-api.json"},
-  {"order":27,"name":"outbox","file":"bin/cells-plan/27-outbox.json"},
-  {"order":28,"name":"gate","file":"bin/cells-plan/28-gate.json"},
-  {"order":29,"name":"runners","file":"bin/cells-plan/29-runners.json"},
-  {"order":30,"name":"landing","file":"bin/cells-plan/30-landing.json"},
-  {"order":31,"name":"sync","file":"bin/cells-plan/31-sync.json"},
-  {"order":32,"name":"shouts","file":"bin/cells-plan/32-shouts.json"},
-  {"order":33,"name":"health","file":"bin/cells-plan/33-health.json"},
-  {"order":34,"name":"moves","file":"bin/cells-plan/34-moves.json"},
-  {"order":35,"name":"sentinels","file":"bin/cells-plan/35-sentinels.json"},
-  {"order":36,"name":"rigor","file":"bin/cells-plan/36-rigor.json"},
-  {"order":37,"name":"github","file":"bin/cells-plan/37-github.json"},
-  {"order":38,"name":"flakes","file":"bin/cells-plan/38-flakes.json"},
-  {"order":39,"name":"app:view","file":"bin/cells-plan/39-app-view.json"},
-  {"order":40,"name":"app:runner","file":"bin/cells-plan/40-app-runner.json"},
-  {"order":41,"name":"app:cli","file":"bin/cells-plan/41-app-cli.json"},
-  {"order":42,"name":"app:lib","file":"bin/cells-plan/42-app-lib.json"},
-  {"order":43,"name":"app:relay","file":"bin/cells-plan/43-app-relay.json"}
- ],
- "stays": [
-  {"path":"bin/cell-lints.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/cells-plan-cuts.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/cells-plan.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/check-baseline.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/check-perf-budgets.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/check-signoffs.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/checks/board-file-baseline.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/checks/board-files.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/checks/empty-catch.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/checks/file-size.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/checks/git-launches.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/checks/scan.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/checks/test-inputs.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/checks/test-names.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/main-audit.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/pullboard.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/release-gate.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/run-tests.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/source-advance.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/static-style-checks.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/update-formats.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/verify-release-receipt.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/case-study.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/case-study/durations.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/case-study/events.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/case-study/report.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/case-study/structure.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/cells-move-fixtures.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/cells-move-tool.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/cells-move-transaction.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/cells-move.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/checks/ui-sizes.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/checks/view-pure.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/landing-candidate.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/landing-worker.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/runner-controller.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/timed-shell.js","reason":"bin/ stays in place during the move (dry run section 1)"},
-  {"path":"bin/update-docs.js","reason":"bin/ stays in place during the move (dry run section 1)"}
- ]
+  "names": {
+    "relay-client": "link",
+    "relay-outbox": "outbox",
+    "relay-keys": "keys",
+    "relay-page": "pages",
+    "runner-client": "runners",
+    "app:relay-server": "app:relay"
+  },
+  "totals": {
+    "cells": 43,
+    "movedPaths": 1326,
+    "stays": 41,
+    "placedBy": {
+      "seed": 893,
+      "rule": 348,
+      "imports": 85
+    },
+    "shims": 655,
+    "cutImports": 363,
+    "cutEdges": 142
+  },
+  "cells": [
+    {
+      "order": 1,
+      "name": "kernel",
+      "file": "bin/cells-plan/01-kernel.json"
+    },
+    {
+      "order": 2,
+      "name": "git",
+      "file": "bin/cells-plan/02-git.json"
+    },
+    {
+      "order": 3,
+      "name": "codemap",
+      "file": "bin/cells-plan/03-codemap.json"
+    },
+    {
+      "order": 4,
+      "name": "queue",
+      "file": "bin/cells-plan/04-queue.json"
+    },
+    {
+      "order": 5,
+      "name": "resources",
+      "file": "bin/cells-plan/05-resources.json"
+    },
+    {
+      "order": 6,
+      "name": "config",
+      "file": "bin/cells-plan/06-config.json"
+    },
+    {
+      "order": 7,
+      "name": "mcp",
+      "file": "bin/cells-plan/07-mcp.json"
+    },
+    {
+      "order": 8,
+      "name": "state",
+      "file": "bin/cells-plan/08-state.json"
+    },
+    {
+      "order": 9,
+      "name": "seats",
+      "file": "bin/cells-plan/09-seats.json"
+    },
+    {
+      "order": 10,
+      "name": "roadmap",
+      "file": "bin/cells-plan/10-roadmap.json"
+    },
+    {
+      "order": 11,
+      "name": "spec",
+      "file": "bin/cells-plan/11-spec.json"
+    },
+    {
+      "order": 12,
+      "name": "commits",
+      "file": "bin/cells-plan/12-commits.json"
+    },
+    {
+      "order": 13,
+      "name": "items",
+      "file": "bin/cells-plan/13-items.json"
+    },
+    {
+      "order": 14,
+      "name": "stats",
+      "file": "bin/cells-plan/14-stats.json"
+    },
+    {
+      "order": 15,
+      "name": "merge",
+      "file": "bin/cells-plan/15-merge.json"
+    },
+    {
+      "order": 16,
+      "name": "verify",
+      "file": "bin/cells-plan/16-verify.json"
+    },
+    {
+      "order": 17,
+      "name": "store",
+      "file": "bin/cells-plan/17-store.json"
+    },
+    {
+      "order": 18,
+      "name": "sandbox",
+      "file": "bin/cells-plan/18-sandbox.json"
+    },
+    {
+      "order": 19,
+      "name": "doctrine",
+      "file": "bin/cells-plan/19-doctrine.json"
+    },
+    {
+      "order": 20,
+      "name": "person",
+      "file": "bin/cells-plan/20-person.json"
+    },
+    {
+      "order": 21,
+      "name": "activity",
+      "file": "bin/cells-plan/21-activity.json"
+    },
+    {
+      "order": 22,
+      "name": "pages",
+      "file": "bin/cells-plan/22-pages.json"
+    },
+    {
+      "order": 23,
+      "name": "keys",
+      "file": "bin/cells-plan/23-keys.json"
+    },
+    {
+      "order": 24,
+      "name": "blueprints",
+      "file": "bin/cells-plan/24-blueprints.json"
+    },
+    {
+      "order": 25,
+      "name": "link",
+      "file": "bin/cells-plan/25-link.json"
+    },
+    {
+      "order": 26,
+      "name": "api",
+      "file": "bin/cells-plan/26-api.json"
+    },
+    {
+      "order": 27,
+      "name": "outbox",
+      "file": "bin/cells-plan/27-outbox.json"
+    },
+    {
+      "order": 28,
+      "name": "gate",
+      "file": "bin/cells-plan/28-gate.json"
+    },
+    {
+      "order": 29,
+      "name": "runners",
+      "file": "bin/cells-plan/29-runners.json"
+    },
+    {
+      "order": 30,
+      "name": "landing",
+      "file": "bin/cells-plan/30-landing.json"
+    },
+    {
+      "order": 31,
+      "name": "sync",
+      "file": "bin/cells-plan/31-sync.json"
+    },
+    {
+      "order": 32,
+      "name": "shouts",
+      "file": "bin/cells-plan/32-shouts.json"
+    },
+    {
+      "order": 33,
+      "name": "health",
+      "file": "bin/cells-plan/33-health.json"
+    },
+    {
+      "order": 34,
+      "name": "moves",
+      "file": "bin/cells-plan/34-moves.json"
+    },
+    {
+      "order": 35,
+      "name": "sentinels",
+      "file": "bin/cells-plan/35-sentinels.json"
+    },
+    {
+      "order": 36,
+      "name": "rigor",
+      "file": "bin/cells-plan/36-rigor.json"
+    },
+    {
+      "order": 37,
+      "name": "github",
+      "file": "bin/cells-plan/37-github.json"
+    },
+    {
+      "order": 38,
+      "name": "flakes",
+      "file": "bin/cells-plan/38-flakes.json"
+    },
+    {
+      "order": 39,
+      "name": "app:view",
+      "file": "bin/cells-plan/39-app-view.json"
+    },
+    {
+      "order": 40,
+      "name": "app:runner",
+      "file": "bin/cells-plan/40-app-runner.json"
+    },
+    {
+      "order": 41,
+      "name": "app:cli",
+      "file": "bin/cells-plan/41-app-cli.json"
+    },
+    {
+      "order": 42,
+      "name": "app:lib",
+      "file": "bin/cells-plan/42-app-lib.json"
+    },
+    {
+      "order": 43,
+      "name": "app:relay",
+      "file": "bin/cells-plan/43-app-relay.json"
+    }
+  ],
+  "stays": [
+    {
+      "path": "bin/cell-lints.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/cells-plan-cuts.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/cells-plan.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/check-baseline.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/check-perf-budgets.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/check-signoffs.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/checks/board-file-baseline.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/checks/board-files.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/checks/empty-catch.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/checks/file-size.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/checks/git-launches.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/checks/scan.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/checks/test-inputs.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/checks/test-names.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/main-audit.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/pullboard.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/release-gate.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/run-tests.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/source-advance.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/static-style-checks.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/update-formats.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/verify-release-receipt.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/case-study.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/case-study/durations.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/case-study/events.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/case-study/report.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/case-study/structure.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/cells-move-fixtures.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/cells-move-tool.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/cells-move-transaction.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/cells-move.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/checks/ui-sizes.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/checks/view-pure.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/landing-candidate.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/landing-worker.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/runner-controller.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/timed-shell.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/update-docs.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/cells-data-reads.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/cells-move-mentions.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "src/git-sync-format.js",
+      "reason": "Retired by #1619: consolidated into packages/commits/src/core/board-format.js; no source remains for the sync move."
+    }
+  ]
 }

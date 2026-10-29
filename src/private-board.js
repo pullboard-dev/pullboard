@@ -1,3 +1,4 @@
+import { seatFamily } from './family-declaration.js';
 /** Select a repo's device-local board for an add without changing the shared repo board [E11,E13]. */
 import * as store from './board.js';
 import { withPrivateBoard } from './projects.js';
@@ -38,7 +39,7 @@ export function runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases, 
       const actor = store.agentAt(board, ctx.info.root);
       try {
         return await work(privateCtx, board, { id: actor.agent_id, lane: actor.agent_lane, route: actor.agent_route,
-          family: actor.agent_family, model: actor.agent_model });
+          family: seatFamily(board, actor.agent_id), model: actor.agent_model });
       } finally {
         if (privateIo.recordedMove) ctx.io.recordedMove = true;
       }

@@ -27,6 +27,7 @@ import { Refused } from '../src/refused.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { fileCuts } from './cells-plan-cuts.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';
+import { readMoveDataReads, staleDataReads } from './cells-data-reads.js';
 
 export const PLAN_FILE = 'bin/cells-plan.json';
 export const PLAN_DIR = 'bin/cells-plan';
@@ -96,6 +97,30 @@ export function readPlan(root, read = file => readFileSync(join(root, file), 'ut
   return { ...index, cells };
 }
 
+/** Append one explicit placement; preserve every existing row, cut, contract and ordering decision. */
+export function placePath(root, file, { cell, stay = false, part = 'shell' } = {}) {
+  if (typeof file !== 'string' || !inPlanScope(file) || file.split('/').some(piece => !piece || piece === '.' || piece === '..')
+    || /[\0\r\n\\]/u.test(file) || stay === Boolean(cell) || !['core', 'shell'].includes(part)) {
+    throw new Refused('CELLS_UNPLACED', 'use --place <in-scope path> with exactly one --cell <existing cell> or --stay');
+  }
+  const tracked = tryGit(root, ['ls-files', '--error-unmatch', '--', file]);
+  if (tracked.status !== 0 || !lstatSync(join(root, file)).isFile()) throw new Refused('CELLS_UNPLACED', `stage a regular source file before placing it: ${file}`);
+  const plan = readPlan(root);
+  const assigned = plan.cells.flatMap(entry => entry.paths).some(([from, to]) => from === file || to === file)
+    || plan.stays.some(row => row.path === file);
+  if (assigned) throw new Refused('CELLS_UNPLACED', `${file} is already placed; retain its existing plan row`);
+  if (stay) plan.stays.push({ path: file, reason: 'explicit bounded placement: stays in place during the move' });
+  else {
+    const entry = plan.cells.find(entry => entry.name === cell);
+    if (!entry || file.startsWith('bin/')) throw new Refused('CELLS_UNPLACED', `choose an existing cell, or --stay for bin/: ${cell}`);
+    const target = `${entry.root}/src/${part}/${file.slice(file.indexOf('/') + 1)}`;
+    if (plan.cells.some(row => row.paths.some(([from, to]) => from === target || to === target))) throw new Refused('CELLS_UNPLACED', `the placement target already belongs to a path: ${target}`);
+    entry.paths.push([file, target, 'rule']);
+  }
+  writePlan(root, plan);
+  return plan;
+}
+
 /** Compute the plan from a checkout's tracked files and real import edges, at its HEAD. */
 export function computePlan(root) {
   const { files, edges } = cellInventory(root, { importsIn, commonJsIn });
@@ -146,6 +171,8 @@ export function checkMoved(root, plan, name) {
   }
   const listed = tryGit(root, ['ls-files', '-z', '--', 'test', 'docs']);
   if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot inventory tracked fixture readers');
+  const data = readMoveDataReads(root, cell.name), matchedDataReads = [];
+  problems.push(...data.problems);
   for (const file of listed.stdout.split('\0').filter(file => /\.[cm]?js$/u.test(file))) {
     const path = join(root, file);
     let stat;
@@ -156,14 +183,16 @@ export function checkMoved(root, plan, name) {
     }
     if (!stat.isFile() || stat.isSymbolicLink()) { problems.push(`cannot prove fixture source through ${file}`); continue; }
     const source = readFileSync(path, 'utf8');
-    if (!cell.paths.some(([from]) => source.includes(from.split('/').at(-1)))) continue;
-    const uses = fixtureSourceEdits(source, { file, moves: cell.paths.map(([from, to]) => [from, to]), readSource });
+    if (!data.reads.some(row => row.file === file) && !cell.paths.some(([from]) => source.includes(from.split('/').at(-1)))) continue;
+    const uses = fixtureSourceEdits(source, { file, moves: cell.paths.map(([from, to]) => [from, to]), readSource, dataReads: data.reads, mentionsOnly: true });
+    matchedDataReads.push(...uses.matchedDataReads ?? []);
     problems.push(...uses.problems);
     for (const edit of uses.edits) {
       const line = source.slice(0, edit.start).split('\n').length;
       problems.push(`${file}:${line} still hand-copies or reads a moved source path; repoint its source operand before submitting the move`);
     }
   }
+  problems.push(...staleDataReads(data.reads, matchedDataReads));
   if (existsSync(join(root, CELL_BASELINE_DESCRIPTOR))) {
     for (const row of cellLintGrowth(cellLintReport(root, { importsIn, commonJsIn }), readCellLintBaseline(root), { enforcedOnly: true })) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
   }
@@ -231,6 +260,19 @@ function main(argv) {
     writePlan(root, computePlan(root));
     return 0;
   }
+  if (mode === '--place') {
+    const [file, ...options] = rest;
+    const allowed = new Set(['--cell', '--part', '--stay']);
+    const values = {};
+    for (let i = 0; i < options.length; i++) {
+      const flag = options[i];
+      if (!allowed.has(flag) || Object.hasOwn(values, flag)) throw new Refused('CELLS_PLAN_MODE', 'use --place <path> --cell <cell> [--part core|shell], or --place <path> --stay');
+      values[flag] = flag === '--stay' ? true : options[++i];
+      if (values[flag] === undefined) throw new Refused('CELLS_PLAN_MODE', `supply the value for ${flag}`);
+    }
+    placePath(root, file, { cell: values['--cell'], stay: values['--stay'] === true, part: values['--part'] ?? 'shell' });
+    return 0;
+  }
   const plan = readPlan(root);
   if (mode === '--check') {
     const missing = unplanned(root, plan);
@@ -250,7 +292,7 @@ function main(argv) {
     return problems.length ? 1 : 0;
   }
   if (mode === '--file') { fileItems(root, plan, rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --write | --check | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> (or --stay) | --check | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));

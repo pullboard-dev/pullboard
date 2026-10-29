@@ -1,0 +1,10 @@
+{
+  "kind": "shared-usage",
+  "entries": [
+    {
+      "order": 13,
+      "actor": "participant",
+      "detail": "`id`, `seats`, `allocations`, `revision`, `observedAt`, `records`, `estimate`"
+    }
+  ]
+}
