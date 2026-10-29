@@ -108,6 +108,13 @@ test('Settings has a bottom sidebar address and isolates a bad row at desktop an
       assert.ok(shown.thresholds.some(row => row.error && /whole number at least 1/u.test(row.text)), 'the one bad row includes its real API repair');
       assert.ok(shown.healthy, 'an unrelated configured row survives');
       assert.equal(shown.overflow, false, width + ': the settings page fits its viewport');
+      const provenance = await chrome.stable(`(() => {
+        const rows = [...document.querySelectorAll('#settings-content [data-setting-key]')];
+        return { sources: rows.map(row => ({ label: row.querySelector('.setting-source')?.textContent, path: row.querySelector('.setting-source')?.title, root: row.querySelector('.setting-root')?.textContent })),
+          errors: rows.flatMap(row => [...row.querySelectorAll('.setting-error')].map(node => ({ edge: getComputedStyle(node).borderLeftWidth, fill: getComputedStyle(node).backgroundColor }))) };
+      })()`);
+      assert.ok(provenance.sources.every(source => source.label && source.path && !source.label.includes('/') && !source.root?.includes('/')), 'provenance has short labels and retains each exact source path in its tooltip');
+      assert.ok(provenance.errors.length > 0 && provenance.errors.every(error => error.edge === '0px' && error.fill === 'rgba(0, 0, 0, 0)'), 'a bad setting uses plain error words without an edge bar or tinted box');
       if (width === 1440) {
         const geometry = await chrome.stable(`(() => { const row = document.querySelector('#settings-content tbody tr'); return { sourceWidth: row.lastElementChild.getBoundingClientRect().width, rowHeight: row.getBoundingClientRect().height }; })()`);
         assert.ok(geometry.sourceWidth >= 200, 'desktop source paths have a readable column');
@@ -128,6 +135,11 @@ test('Settings has a bottom sidebar address and isolates a bad row at desktop an
         await chrome.stable('window.scrollTo(0, 0)');
         const shot = await chrome.send('Page.captureScreenshot', { format: 'png' });
         writeFileSync(join(process.env.PULLBOARD_SETTINGS_SCREENSHOTS, 'settings-' + width + '.png'), Buffer.from(shot.data, 'base64'));
+        for (const [name, invalid] of [['valid', false], ['bad', true]]) {
+          await chrome.stable(`[...document.querySelectorAll('[data-setting-key="submitDeferAbove"]')].find(row => row.classList.contains('setting-invalid') === ${invalid}).scrollIntoView({ block: 'center' })`);
+          const focused = await chrome.send('Page.captureScreenshot', { format: 'png' });
+          writeFileSync(join(process.env.PULLBOARD_SETTINGS_SCREENSHOTS, 'settings-' + width + '-' + name + '.png'), Buffer.from(focused.data, 'base64'));
+        }
       }
 
     }

@@ -1400,7 +1400,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .setting-description { display: block; margin-top: var(--space-2); font-weight: 400; color: var(--ink-muted); }
 .setting-root { display: block; margin-top: var(--space-2); color: var(--ink-faint); font-weight: 400; overflow-wrap: anywhere; }
 .setting-origin { display: block; color: var(--ink-faint); font-size: var(--text-xs); }
-.setting-error { color: var(--reject); padding: var(--space-3); border-left: 3px solid currentColor; background: color-mix(in srgb, currentColor 5%, transparent); }
+.setting-error { color: var(--reject); margin-block: var(--space-2) 0; }
 @media (width < 900px) { .side-footer { display: none; } .side.open .side-footer { display: flex; } }
 @media (width < 600px) {
   #settings-pane { padding: var(--space-4); }
