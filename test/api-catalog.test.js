@@ -397,7 +397,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await json(box, repo, 'hold', ['app', '--reason', 'exercise JSON']);
   await json(box, repo, 'hold', ['app', '--off']);
 
-  await json(box, secondPath, 'shout', ['Please decide', '--decision', '--kind', 'decision']);
+  await json(box, secondPath, 'shout', ['Please decide', '--decision', '--kind', 'question']);
   await json(box, repo, 'decisions');
   await json(box, repo, 'pass', ['1', 'The test run is complete']);
   await json(box, repo, 'answer', ['2', 'Yes, keep the change', '--as', 'person']);
@@ -454,7 +454,7 @@ catalogCase('[A1,B21,B27] decisions shows an agent its direct and lane asks only
   const app1Ask = (await json(box, box.repo, 'shout', ['app-1', 'App one decision?', '--decision'])).id;
   const app2Ask = (await json(box, box.repo, 'shout', ['app-2', 'App two decision?', '--decision'])).id;
   const reviewAsk = (await json(box, box.repo, 'shout', ['review', 'Review decision?', '--decision'])).id;
-  const coordinatorAsk = (await json(box, app1, 'shout', ['coordinator', 'Coordinator decision?', '--decision', '--kind', 'decision'])).id;
+  const coordinatorAsk = (await json(box, app1, 'shout', ['coordinator', 'Coordinator decision?', '--decision', '--kind', 'question'])).id;
 
   const app1Queue = (await json(box, app1, 'decisions')).decisions.map(({ shout_id }) => shout_id);
   assert.deepEqual(app1Queue, [laneAsk, app1Ask]);
@@ -481,7 +481,7 @@ catalogCase('[A1,B21,B27] decisions shows an agent its direct and lane asks only
   assert.match(answeredText.stdout, new RegExp(`#${app2Ask}\\b`));
   assert.doesNotMatch(answeredText.stdout, new RegExp(`#${laneAsk}\\b`));
   assert.deepEqual((await json(box, box.repo, 'decisions')).decisions.map(({ shout_id }) => shout_id), [coordinatorAsk]);
-  const passedAsk = (await json(box, app1, 'shout', ['coordinator', 'Please decide this.', '--decision', '--kind', 'decision'])).id;
+  const passedAsk = (await json(box, app1, 'shout', ['coordinator', 'Please decide this.', '--decision', '--kind', 'question'])).id;
   const pass = await json(box, box.repo, 'pass', [String(passedAsk), 'the person should decide']);
   assert.deepEqual((await json(box, box.repo, 'decisions', ['--as', 'person'])).decisions.map(({ shout_id }) => shout_id), [pass.id]);
   await jsonError(box, app1, 'decisions', ['--as', 'person'], {
