@@ -65,21 +65,48 @@ function usageRole(itemEvents, agent, checkpointId) {
   return role;
 }
 
-/** Read each agent/item's latest sanitized usage revision from native usage events. */
+/** Return a cumulative counter's attributable delta, keeping resets and unknowns visibly unknown. */
+function counterDelta(current, previous, field) {
+  const value = current?.[field];
+  if (!Number.isSafeInteger(value) || value < 0) return null;
+  if (!previous || !Object.hasOwn(previous, field)) return value;
+  const prior = previous[field];
+  return Number.isSafeInteger(prior) && prior >= 0 && value >= prior ? value - prior : null;
+}
+
+/** Recover per-revision agent/model deltas instead of assigning cumulative totals to the latest phase. */
 function usageByItem(events) {
-  const latest = new Map();
-  for (const event of events) {
-    if (!['usage', 'shared-usage'].includes(kindOf(event))) continue;
-    const detail = detailOf(event);
-    const item = Number(detail.item);
-    if (!Number.isSafeInteger(item) || item < 1 || !Array.isArray(detail.records)) continue;
-    const agent = actorOf(event);
-    const key = item + ':' + agent;
-    const prior = latest.get(key);
-    const revision = Number(detail.revision ?? 0);
-    if (!prior || revision >= prior.revision) latest.set(key, { item, agent, revision, eventId: Number(event.event_id ?? 0), shared: Boolean(detail.shared), records: detail.records });
+  const snapshots = new Map(), deltas = [];
+  for (const event of [...(events ?? [])].sort((a, b) => Number(a.event_id ?? 0) - Number(b.event_id ?? 0))) {
+    if (kindOf(event) !== 'usage') continue;
+    const detail = detailOf(event), item = Number(detail.item), agent = actorOf(event), revision = Number(detail.revision ?? 0);
+    if (!Number.isSafeInteger(item) || item < 1 || !agent || !Number.isSafeInteger(revision) || revision < 1 || !Array.isArray(detail.records)) continue;
+    const key = item + ':' + agent, prior = snapshots.get(key);
+    if (prior && revision <= prior.revision) continue;
+    const records = new Map();
+    for (const record of detail.records) {
+      if (!record || typeof record.model !== 'string' || !record.model.trim()) continue;
+      const old = prior?.records.get(record.model);
+      const fields = ['freshInputTokens', 'cacheReadInputTokens', 'cacheWriteInputTokens', 'inputTokens', 'outputTokens', 'wallMs', 'knownInputTokens', 'knownOutputTokens'];
+      const delta = Object.fromEntries(fields.map(field => [field, counterDelta(record, old, field)]));
+      deltas.push({ item, agent, revision, eventId: Number(event.event_id ?? 0), model: record.model, ...delta });
+      records.set(record.model, record);
+    }
+    snapshots.set(key, { revision, records });
   }
-  return [...latest.values()];
+  return deltas;
+}
+
+/** Identify items whose native usage was shared across seats and cannot be split per landing. */
+function sharedUsageItems(events) {
+  const items = new Set();
+  for (const event of events ?? []) {
+    if (kindOf(event) !== 'shared-usage') continue;
+    for (const allocation of detailOf(event).allocations ?? []) {
+      if (Number.isSafeInteger(allocation?.item) && allocation.item > 0) items.add(allocation.item);
+    }
+  }
+  return items;
 }
 
 /** Price a split record only when all required counters and normalized per-million rates exist. */
@@ -108,26 +135,28 @@ export function costTabModel(project, events, prices = null) {
     itemEvents.get(id).push(event);
     if (kindOf(event) === 'merged') landings.set(id, event);
   }
-  const usage = usageByItem(events ?? []);
+  const usage = usageByItem(events ?? []), sharedItems = sharedUsageItems(events ?? []);
   const rows = [...landings].map(([id, event]) => {
     const item = items.get(id) ?? {};
     const history = itemEvents.get(id) ?? [];
-    const sessions = usage.filter(entry => entry.item === id).flatMap(entry => entry.records.map(record => {
+    const checkpoints = usage.filter(entry => entry.item === id).map(entry => {
       const owner = agents.get(entry.agent) ?? {};
-      const wallMs = Number.isSafeInteger(record.wallMs) && record.wallMs >= 0 ? record.wallMs : null;
-      return {
-        agent: entry.agent,
-        model: typeof record.model === 'string' && record.model.trim() ? record.model : 'Model unknown',
-        vendor: owner.family ?? owner.agent_family ?? owner.vendor ?? 'Vendor unknown',
-        role: usageRole(history, entry.agent, entry.eventId),
-        freshInputTokens: record.freshInputTokens ?? null,
-        cacheReadInputTokens: record.cacheReadInputTokens ?? null,
-        cacheWriteInputTokens: record.cacheWriteInputTokens ?? null,
-        outputTokens: record.outputTokens ?? null,
-        wallMs,
-        costUSD: recordCost(record, prices),
-      };
-    }));
+      return { ...entry, vendor: owner.family ?? owner.agent_family ?? owner.vendor ?? 'Vendor unknown', role: usageRole(history, entry.agent, entry.eventId), costUSD: recordCost(entry, prices) };
+    });
+    const aggregates = new Map();
+    for (const checkpoint of checkpoints) {
+      const key = [checkpoint.agent, checkpoint.model, checkpoint.vendor, checkpoint.role].join(':');
+      const old = aggregates.get(key);
+      if (!old) aggregates.set(key, { ...checkpoint });
+      else {
+        for (const field of ['freshInputTokens', 'cacheReadInputTokens', 'cacheWriteInputTokens', 'outputTokens', 'wallMs']) {
+          old[field] = Number.isSafeInteger(old[field]) && Number.isSafeInteger(checkpoint[field]) ? old[field] + checkpoint[field] : null;
+        }
+        old.costUSD = Number.isFinite(old.costUSD) && Number.isFinite(checkpoint.costUSD) ? old.costUSD + checkpoint.costUSD : null;
+        old.eventId = Math.min(old.eventId, checkpoint.eventId);
+      }
+    }
+    const sessions = [...aggregates.values()];
     const submits = history.filter(row => kindOf(row) === 'submit').length;
     const reviewActors = [...new Set(history.filter(row => ['accept', 'reject'].includes(kindOf(row))).map(actorOf).filter(Boolean))];
     const buildAgent = item.builtBy ?? item.built_by ?? item.builder;
@@ -141,9 +170,15 @@ export function costTabModel(project, events, prices = null) {
     const totalCost = sessions.length ? completeSum(costs) : null;
     const wall = sessions.map(row => row.wallMs);
     const totalWallMs = sessions.length && wall.every(value => Number.isSafeInteger(value)) ? wall.reduce((sum, value) => sum + value, 0) : null;
-    const returns = history.filter(row => ['reject', 'reopen'].includes(kindOf(row))).map(row => ({ kind: kindOf(row), at: row.event_at ?? row.at, costUSD: null }));
+    const sharedUsage = sharedItems.has(id);
+    const returnEvents = history.filter(row => ['reject', 'reopen'].includes(kindOf(row)));
+    const returns = returnEvents.map((row, index) => {
+      const after = Number(row.event_id ?? 0), before = Number(returnEvents[index + 1]?.event_id ?? Infinity);
+      const reworkCosts = checkpoints.filter(entry => entry.role === 'rework' && entry.eventId > after && entry.eventId < before).map(entry => entry.costUSD);
+      return { kind: kindOf(row), at: row.event_at ?? row.at, costUSD: reworkCosts.length ? completeSum(reworkCosts) : totalCost !== null && !sharedUsage ? 0 : null };
+    });
     return { id, title: item.title ?? `Item ${id}`, landedAt: event.event_at ?? event.at ?? '', buildModels, reviewedModels,
-      agentHours: totalWallMs === null ? null : totalWallMs / 3_600_000, rounds: submits, sessions, returns, totalCost };
+      agentHours: totalWallMs === null ? null : totalWallMs / 3_600_000, rounds: submits, sessions, returns, totalCost: sharedUsage ? null : totalCost, sharedUsage };
   }).sort((a, b) => String(b.landedAt).localeCompare(String(a.landedAt)) || b.id - a.id).slice(0, 20);
   const knownCosts = rows.map(row => row.totalCost);
   const total = rows.length ? completeSum(knownCosts) : null;
@@ -191,9 +226,12 @@ export function costTabHtml(model, opened = null, { loading = false, error = nul
       + '<span class="cost-models" data-label="Models">' + escapeHtml(title) + '</span><span class="cost-hours" data-label="Agent-hours">' + (Number.isFinite(row.agentHours) ? row.agentHours.toFixed(1) + ' h' : '—') + '</span>'
       + '<span class="cost-rounds" data-label="Rounds">' + row.rounds + '</span><b class="cost-amount" data-label="Cost">' + costFigure(row.totalCost) + '</b></button>';
     if (!expanded) return summary;
-    const sessions = row.sessions.length ? row.sessions.map(sessionHtml).join('') : '<p class="cost-unknown">No usage record; token and cost figures are unavailable.</p>';
+    const sessions = row.sessions.length ? row.sessions.map(sessionHtml).join('') : '<p class="cost-unknown">' + (row.sharedUsage
+      ? 'Shared usage is not attributable to this item; token and cost figures are unavailable.'
+      : 'No usage record; token and cost figures are unavailable.') + '</p>';
     const returns = row.returns.length ? '<section class="cost-returns"><h3>Rejects and reopens</h3><ul>' + row.returns.map(entry => '<li><span>' + escapeHtml(entry.kind === 'reject' ? 'Rejected' : 'Reopened') + ' · ' + escapeHtml(dateLabel(entry.at)) + '</span><b>' + costFigure(entry.costUSD) + '</b></li>').join('') + '</ul></section>' : '';
-    return summary + '<div class="cost-detail" id="cost-detail-' + row.id + '"><h3>Usage detail</h3>' + sessions + returns + '</div>';
+    const shared = row.sharedUsage ? '<p class="cost-unknown">Shared session usage is not split across its items.</p>' : '';
+    return summary + '<div class="cost-detail" id="cost-detail-' + row.id + '"><h3>Usage detail</h3>' + shared + sessions + returns + '</div>';
   }).join('') : '<p class="empty">No landed items yet.</p>';
   return '<section class="cost-page" aria-label="Cost"><header class="cost-heading"><div><h1>Cost</h1><p>The last 20 landed items</p></div><span class="cost-private">Private to this view</span></header>'
     + tiles + '<section class="cost-list card-panel" aria-label="Landed items">' + cards + '</section></section>';
@@ -202,6 +240,6 @@ export function costTabHtml(model, opened = null, { loading = false, error = nul
 /** Embed this module's closure-free Cost functions into the standalone local-view page. */
 export function costTabScript() {
   const functions = [detailOf, actorOf, kindOf, costFigure, dateLabel, escapeHtml, completeSum, median,
-    usageRole, usageByItem, recordCost, costTabModel, sessionHtml, costTabHtml];
+    usageRole, counterDelta, usageByItem, sharedUsageItems, recordCost, costTabModel, sessionHtml, costTabHtml];
   return functions.map((fn) => `const ${fn.name} = (${fn.toString()});`).join('\n');
 }
