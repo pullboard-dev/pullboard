@@ -4,10 +4,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { writeBoardCommand } from '../src/board-command-write.js';
 import { exportBoard } from '../src/exchange.js';
+import { boardWriteIoProblems } from '../bin/checks/board-write-io.js';
+import { styleSources } from '../src/source-inventory.js';
 import { fixtureBoard } from './board-fixture.js';
 
 /** Set up only native fixture operations; file storage is necessary to observe the writer lock. */
@@ -82,4 +85,68 @@ test('an intervening native edit invalidates prepared source without a partial c
   assert.deepEqual(exportBoard(board), before, 'refusing the stale plan changes no native row or event');
   assert.equal(store.getItem(board, id).item_status, 'open');
   assert.equal(observed.calls, 1, 'a stale binding never repeats external work while locked');
+});
+
+
+test('a non-claim native command retains its own arguments and domain guards [B2,C7]', t => {
+  const { board, agentId, id } = setup(t);
+  const result = writeBoardCommand(board, 'shout', [{ from: agentId, to: 'all', text: 'A native non-claim message' }], agentId);
+  assert.ok(result);
+  assert.equal(store.getItem(board, id).item_status, 'open');
+  assert.equal(store.events(board).filter(event => event.item_id === id && event.event_kind === 'claim').length, 0);
+  assert.ok(store.recentShouts(board).some(row => row.shout_text === 'A native non-claim message'));
+});
+
+
+/** Static fixtures describe source only; the guard never imports or executes these module bodies. */
+function guardSources(source, extra = []) {
+  return [{ file: 'src/board-event-log.js', source: 'export function atomic(board, work) { return work(); }' },
+    { file: 'src/fixture-writer.js', source }, ...extra];
+}
+
+test('the write guard follows named, aliased and reexported I/O without running source [C7,CD39]', () => {
+  const cases = [
+    "import {atomic} from './board-event-log.js'; import {readFileSync as load} from 'node:fs'; atomic(board, () => load('private'));",
+    "import {atomic as tx} from './board-event-log.js'; import fs from 'node:fs'; const io=fs; const write=() => io.readFileSync('private'); tx(board, () => write());",
+    "import {atomic} from './board-event-log.js'; import * as fs from 'node:fs'; atomic(board, () => fs['readFileSync']('private'));",
+    "import {atomic} from './board-event-log.js'; import * as fs from 'node:fs'; atomic(board, () => fs[method]('private'));",
+    "import {atomic} from './board-event-log.js'; import {read} from './facade.js'; atomic(board, () => read());",
+    "import {atomic} from './board-event-log.js'; import {execFileSync} from 'node:child_process'; const run=execFileSync; const tx=atomic; tx(board, () => run('git'));",
+  ];
+  const extra = [{ file: 'src/facade.js', source: "export {read} from './provider.js';" },
+    { file: 'src/provider.js', source: "import {readFileSync} from 'node:fs'; export function read() { return readFileSync('private'); }" }];
+  for (const source of cases) assert.ok(boardWriteIoProblems(guardSources(source, extra), { pending: {} }).length > 0, source);
+  const pure = "import {atomic} from './board-event-log.js'; import {join} from 'node:path'; atomic(board, () => { const text=\"readFileSync('not executed')\"; return join('a', 'b'); });";
+  assert.deepEqual(boardWriteIoProblems(guardSources(pure), { pending: {} }), []);
+});
+
+test('opaque atomic callbacks are refused rather than silently certified [C7,CD39]', () => {
+  const source = "import {atomic} from './board-event-log.js'; atomic(board, callbacks[name]);";
+  assert.ok(boardWriteIoProblems(guardSources(source), { pending: {} }).some(row => row.call === 'unresolved atomic callback'));
+});
+
+test('the native write publication exception cannot hide a new process call [C7,CD39]', () => {
+  const source = "import {atomic} from './board-event-log.js'; import {beginBoardWrite} from './board-write-lock.js'; atomic(board, () => beginBoardWrite());";
+  const writer = "import {writeFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process'; export function beginBoardWrite() { writeFileSync('marker', 'owned'); execFileSync('git'); }";
+  const problems = boardWriteIoProblems(guardSources(source, [{ file: 'src/board-write-lock.js', source: writer }]), { pending: {} });
+  assert.ok(problems.some(row => row.call === 'node:child_process#execFileSync'));
+  assert.ok(!problems.some(row => row.call === 'node:fs#writeFileSync'));
+});
+
+test('a named deferred receipt read is allowed only through its assigned train writer [C7,CD39]', () => {
+  const receipt = { file: 'src/gate-run-receipt.js', source:
+    "import {readFileSync} from 'node:fs'; export function readGateReceipt() { return readFileSync('receipt'); }" };
+  const train = { file: 'src/record-train-landing.js', source:
+    "import {atomic} from './board-event-log.js'; import {readGateReceipt} from './gate-run-receipt.js'; export function recordTrainLanding(board) { return atomic(board, () => readGateReceipt()); }" };
+  const other = "import {atomic} from './board-event-log.js'; import {readGateReceipt} from './gate-run-receipt.js'; atomic(board, () => readGateReceipt());";
+  const assigned = guardSources('', [receipt, train]);
+  assert.deepEqual(boardWriteIoProblems(assigned), []);
+  assert.ok(boardWriteIoProblems(guardSources(other, [receipt, train])).some(row => row.call === 'node:fs#readFileSync'),
+    'a pending train repair does not waive another transaction reading the same receipt');
+  assert.ok(boardWriteIoProblems(assigned, { pending: {} }).some(row => row.call === 'node:fs#readFileSync'),
+    'removing the named repair exposes the actual deferred read');
+});
+
+test('native transaction source contains no unassigned named external I/O [C7,CD39]', () => {
+  assert.deepEqual(boardWriteIoProblems(styleSources(fileURLToPath(new URL('..', import.meta.url)))), []);
 });
