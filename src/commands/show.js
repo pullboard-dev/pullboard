@@ -23,7 +23,6 @@ import {
 import {
   sayCheckBaseline,
 } from '../check-baseline-format.js';
-import * as infraNotes from '../../packages/commits/index.js';
 import {
   mainMergeFor,
   mainMergeLines,
@@ -48,7 +47,7 @@ import { publicUsage } from '../cost-read.js';
 export async function run(io, { first, values }) {
   const ctx = context(io);
   const id = idArg(first);
-  const { item, verdicts, moves, thread, related, reviewer, agents, mainMerge, infra, approval, cost, proofReceipts, independence } = await withBoardRead(ctx, (board) => {
+  const { item, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence } = await withBoardRead(ctx, (board) => {
     const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
     const result = { item, independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
@@ -58,9 +57,11 @@ export async function run(io, { first, values }) {
     const history = store.events(board, { itemId: id });
     return { ...result, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
       related: store.relatedItems(board, item), reviewer: store.reviewHolder(board, item),
-      agents: store.listAgents(board), mainMerge: mainMergeFor(board, id), infra: infraNotes.infraNoteOf(history) };
+      agents: store.listAgents(board), mainMerge: mainMergeFor(board, id), submits: history.filter((event) => event.event_kind === 'submit') };
   });
 
+  // The commits front door also carries the hook machinery, so an item that was never submitted never loads it.
+  const infra = submits?.length ? (await import('../../packages/commits/index.js')).infraNoteOf(submits) : null;
   const agentApproved = itemAgentApprovals(item, approval);
   const approvalQualification = agentApprovalLine(agentApproved);
   // #922: moves on this item made while the relay was down wait in this machine's relay outbox until it answers.
