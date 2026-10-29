@@ -353,6 +353,8 @@ export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } 
 export { flakeLedger, recordFlakeObservation } from './flakes.js';
 export { flakeQuarantines, gateRuns, recordGateRun } from './quarantine.js';
 export { personProposals, personSigning, proposePersonMove, setPersonSigning } from './person-signing.js'; // Signed person moves [E22].
+export { recordUsage } from './cost.js';
+export { recordSharedUsage } from './cost-shared.js';
 export { proofReceipts, recordProofRun } from './proof-receipts.js';
 import { refuseLongShout } from './proof-receipts.js';
 import { PROOF_RUN_ENGINE } from './proof-run-engine.js';
@@ -363,9 +365,7 @@ export { agentAt, agentById, agentCreator, coordinatorHolder, listAgents, nextSe
 export const ACCEPT_REASON = 'CRITERION_MET';
 export { PERSON } from './board-query.js';
 
-export { EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION } from './board-schema-source.js';
-
-export { BOARD_BUSY_TIMEOUT_MS } from './board-schema-source.js';
+export { EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, BOARD_BUSY_TIMEOUT_MS, SCHEMA_VERSION } from './board-schema-source.js';
 
 const REVIEW_RELEASE_COOLDOWN_MS = 60 * 60 * 1000;
 
@@ -384,8 +384,6 @@ export { openBoardForRead } from './native-board.js';
 export { openBoardReadOnly } from './board-read-open.js';
 /** Temporary public compatibility; #1624 removes this edge after native-root callers compose. */
 export { openBoard } from './native-board.js';
-
-export { SCHEMA_VERSION } from './board-schema-source.js';
 
 export { readEventLogVersion } from './board-read-open.js';
 

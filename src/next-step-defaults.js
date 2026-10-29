@@ -57,6 +57,12 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "BOARD_LINK_INACTIVE": "use a current non-revoked bilateral link generation for the exact source and receiving boards",
   "BOARD_LINK_TRANSPORT": "read the exact durable delivery receipt or use the last nonnegative incoming cursor through the authenticated relay",
   "BOARD_LINK_REPLAY": "send a newer source position; retry an existing delivery with its original correlation ID and sealed bytes",
+  "USAGE_RECORD": "keep this seat’s native session available; its next claim, submit or release publishes only sanitized token and time summaries",
+  "USAGE_CHANGED": "keep the recorded revision unchanged; the next native usage checkpoint publishes the next cumulative revision",
+  "USAGE_LEDGER": "restore access to this repository’s private usage ledger and let its current writer finish before its next native checkpoint",
+  "USAGE_OVERFLOW": "leave the unrepresentable native counter unknown and report the provider format to the board maintainer",
+  "USAGE_PENDING": "the lifecycle move already succeeded; its next native claim, submit or release retries the usage checkpoint",
+
   "SHOUT_SPACES": "rewrite the shout with spaces between words, then send it again",
   "DECISION_HANDOFF_BINDING": "use the exact versioned handoff, namespaced source decision and original option set",
   "DECISION_HANDOFF_AUTH": "obtain authority for this exact question, answer or source query",

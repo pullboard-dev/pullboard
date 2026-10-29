@@ -136,7 +136,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `patch remove` | `version:number`, `item:number`, `key:string`, `digest:string`, `changed:boolean` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array`, `thread:array`, `reviewEligibility:object` |
 | `capacity` | `version:number`, `report:object` |
-| `stats` | `version:number`, `stats:object`, `gateWaits:array` |
+| `stats` | `version:number`, `stats:object`, `gateWaits:array`, `usage:object` |
 | `badge` | `version:number`, `items:number`, `checked:number`, `percent:number\|null`, `changed:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `capacityForecast:object`, `ruleCounts:object`, `stats:object`, `reviewQueue:object`, `unread:number`, `relay:object` |
 | `doctor` | `version:number`, `problems:array` |

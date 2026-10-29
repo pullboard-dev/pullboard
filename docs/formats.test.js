@@ -65,6 +65,8 @@ import {
   passDecision,
   PERSON,
   recordAttempt,
+  recordUsage,
+  recordSharedUsage,
   recordRowDecisions,
   applyRowDecisions,
   draftSpecRow,
@@ -518,6 +520,13 @@ function recordEventContract() {
   beginSentinelRun(board, { agentId: coordinator, name: watch.name, digest: watch.digest, run: 'format-run' });
   finishSentinelRun(board, { agentId: coordinator, name: watch.name, digest: watch.digest, run: 'format-run',
     result: { green: false, code: 1, timedOut: false, durationMs: 0, output: 'synthetic format receipt' } });
+  // Synthetic numeric summaries exercise the documented event shape, not provider attribution.
+  const usageRecords = [{ model: 'Fixture', inputTokens: null, outputTokens: null,
+    knownInputTokens: 0, knownOutputTokens: 0, wallMs: 1, unknownReasons: ['native-session-unavailable'] }];
+  recordUsage(board, { agentId: builder, item: first, revision: 1, observedAt: 1, records: usageRecords });
+  recordSharedUsage(board, { agentId: builder, id: '00000000-0000-0000-0000-000000000056',
+    seats: [builder, returnedBuilder], allocations: [{ seat: builder, item: first }, { seat: returnedBuilder, item: returned }],
+    revision: 1, observedAt: 2, records: usageRecords });
   recordRelayExclusionIntent(board, 'view'); // Synthetic person format fixture, not a real settings opt-out.
   // Exercise the optional omission through native decisions and replay validation, not a fabricated event.
   const omitted = addItem(board, { by: coordinator, lane: 'docs', title: 'Unfrozen draft citation format',
@@ -825,6 +834,8 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     edit: 'editor',
     attempt: 'reporting agent',
     fact: 'author',
+    usage: 'builder',
+    'shared-usage': 'participant',
     guards: 'board',
     'rigor-notice': 'rigor',
     'rigor-draft': 'rigor',
