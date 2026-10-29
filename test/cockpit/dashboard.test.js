@@ -57,7 +57,8 @@ test('a board opens on Dashboard with API-backed work, shared pace and existing 
         true, `${section} is rendered`);
     }
     assert.equal(state.statsComparison?.available, true, 'the actual private board supplies the canonical comparison snapshot');
-    assert.equal(state.statsComparison.durationMinutes, 120, 'Dashboard compares the last two hours with the two hours before');
+    const comparisonMinutes = 120; // Declared N26 comparison window, not an execution-time budget.
+    assert.equal(state.statsComparison.durationMinutes, comparisonMinutes, 'Dashboard compares the last two hours with the two hours before');
     assert.equal(state.statsComparison.current.until, state.observedAt, 'the full API comparison uses its own read clock');
     assert.ok(state.statsComparison.current.agentHours > 0, 'real seeded join and claim events produce observed-seat time');
     await chrome.waitFor('document.querySelectorAll("#dashboard [data-stats-comparison]").length === 17');

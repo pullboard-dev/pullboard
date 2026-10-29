@@ -192,7 +192,7 @@ test('seeded event windows reach Dashboard rows through the canonical comparison
   ];
   for (const [key,group] of metrics) {
     const name = group ? group+'.'+key : key;
-    const values = ['current','previous','change'].map(window => JSON.stringify(group ? comparison[window][group][key] : comparison[window][key]));
+    const values = ['current','previous','change'].map(period => JSON.stringify(group ? comparison[period][group][key] : comparison[period][key]));
     assert.ok(html.includes('data-stats-comparison="'+name+'" data-current="'+values[0]+'" data-previous="'+values[1]+'" data-change="'+values[2]+'"'),name+' preserves its canonical values');
   }
   assert.equal(JSON.stringify(history),original,'the pure renderer does not change recorded inputs');
