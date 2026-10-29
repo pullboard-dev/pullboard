@@ -18,8 +18,7 @@ function success(result, label) {
 /** Return the board's shared Git metadata path for this repository and its worktrees. */
 function commonPullboard(box) {
   const common = runFixtureGit(['rev-parse', '--git-common-dir'], { cwd: box.root, env: box.env, encoding: 'utf8' });
-  assert.equal(common.status, 0, common.stderr);
-  return join(resolve(box.root, common.stdout.trim()), 'pullboard');
+  return join(resolve(box.root, common), 'pullboard');
 }
 
 test('submit on a relay-linked board never creates Git sync state and later writes still work [H11,C7]', async t => {
@@ -30,10 +29,8 @@ test('submit on a relay-linked board never creates Git sync state and later writ
   config.lanes[box.lane].owns = ['source/'];
   writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify(config, null, 2) + '\n');
   writeFileSync(join(box.root, 'SPEC.md'), '# Private fixture\n\n- G1 [approved, must] The committed fixture source is present. | gate: test -f source/repair-fixture.txt\n');
-  const setup = runFixtureGit(['add', '-A'], { cwd: box.root, env: box.env, encoding: 'utf8' });
-  assert.equal(setup.status, 0, setup.stderr);
-  const setupCommit = runFixtureGit(['commit', '-q', '-m', 'test: prepare linked submission [G1]'], { cwd: box.root, env: box.env, encoding: 'utf8' });
-  assert.equal(setupCommit.status, 0, setupCommit.stderr);
+  runFixtureGit(['add', '-A'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  runFixtureGit(['commit', '-q', '-m', 'test: prepare linked submission [G1]'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   await box.link();
   success(await box.cli('shout', 'all', 'establish relay history for sync self-repair'), 'record linked relay history');
   const metadata = commonPullboard(box);
@@ -42,20 +39,17 @@ test('submit on a relay-linked board never creates Git sync state and later writ
   const added = success(await box.cli('add', box.lane, 'linked submit fixture', '--specs', 'G1',
     '--criterion', 'The committed fixture source is present.', '--check', 'test -f source/repair-fixture.txt'), 'add the linked submit fixture item');
   const worker = join(dirname(box.root), 'submit-worker');
-  const worktree = runFixtureGit(['worktree', 'add', '-q', '-b', 'web/git-sync-repair', worker], {
+  runFixtureGit(['worktree', 'add', '-q', '-b', 'web/git-sync-repair', worker], {
     cwd: box.root, env: box.env, encoding: 'utf8',
   });
-  assert.equal(worktree.status, 0, worktree.stderr);
   success(await box.cliAt(worker, 'join', box.lane, '--model', 'fixture-model'), 'join a private builder');
   success(await box.cliAt(worker, 'claim', String(added.item.item_id)), 'claim the linked item');
   mkdirSync(join(worker, 'source'), { recursive: true });
   writeFileSync(join(worker, 'source', 'repair-fixture.txt'), 'source for the linked submit\n');
-  const staged = runFixtureGit(['add', '-A'], { cwd: worker, env: box.env, encoding: 'utf8' });
-  assert.equal(staged.status, 0, staged.stderr);
-  const committed = runFixtureGit(['commit', '-q', '-m', 'feat(web): linked submit fixture [G1]'], {
+  runFixtureGit(['add', '-A'], { cwd: worker, env: box.env, encoding: 'utf8' });
+  runFixtureGit(['commit', '-q', '-m', 'feat(web): linked submit fixture [G1]'], {
     cwd: worker, env: box.env, encoding: 'utf8',
   });
-  assert.equal(committed.status, 0, committed.stderr);
 
   success(await box.cliAt(worker, 'submit', String(added.item.item_id)), 'submit on relay-linked history');
   assert.equal(existsSync(join(metadata, 'git-sync.json')), false, 'submit must not create the Git-sync marker');
@@ -111,7 +105,7 @@ test('an internal retry refuses relay history before creating a marker or starti
   await box.link();
   success(await box.cli('shout', 'all', 'establish relay history before internal retry'), 'record relay history');
   // Removing only the private fixture remote makes any accidental transport attempt fail locally.
-  assert.equal(runFixtureGit(['remote', 'remove', 'origin'], { cwd: box.root, env: box.env, encoding: 'utf8' }).status, 0);
+  runFixtureGit(['remote', 'remove', 'origin'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   const metadata = commonPullboard(box);
   // @pullboard-board-file journey: open the same isolated native board to call the internal transport adapter.
   const board = store.openBoard(join(metadata, 'board.sqlite'));
