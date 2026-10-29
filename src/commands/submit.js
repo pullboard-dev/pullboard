@@ -333,9 +333,15 @@ export async function submitHere(ctx, id, infra) {
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission },
     onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
   const summary = retainTestOutput(root, readFileSync(gate.log, 'utf8'), { root, profile: gate.profile });
-  const scope = gate.deferred ? `${gate.deferredFiles?.length ?? gate.files.length} affected files deferred to landing`
-    : gate.full ? 'full gate ran' : 'affected tests ran';
-  const displayedReport = `item check ${gate.check.checked ? gate.check.green ? 'green' : 'red' : 'absent'}; ${scope}\n${renderTestSummary(summary)}`;
+  const selected = gate.files.slice(0, 8).join(', ') || 'none';
+  const files = `${selected}${gate.files.length > 8 ? `, … ${gate.files.length - 8} more in the full log` : ''}`;
+  const invariants = gate.submitInvariants?.length
+    ? `submit invariants: ${gate.submitInvariants.slice(0, 8).join(', ')}; ` : '';
+  const scope = gate.deferred
+    ? `${gate.deferFullFallback ? invariants : `affected tests: ${files}; `}full suite deferred to the landing gate`
+    : gate.full ? `full gate: ${gate.reason}` : `affected tests: ${files}`;
+  const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'}` : 'no item check';
+  const displayedReport = `${check}; ${scope}\n${renderTestSummary(summary)}`;
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
     await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt });
   }

@@ -54,9 +54,13 @@ export function testOutputSummary(logPath, { root = process.cwd(), profile } = {
     file: short(row.file ?? profile?.testOutcomes?.find(test => test.name === row.name)?.file) || null,
     name: short(row.name), error: short(errors[index] || row.failureType || 'no error line recorded'),
   }]);
+  const unstructured = !rows.length || rows.some((row, index) => !row.passed && !row.skip && (!errors[index] || /^test failed$/iu.test(errors[index])));
+  const lines = output.split('\n').filter(line => line.trim());
+  const diagnostic = unstructured ? lines.find(line => !/^\s*(?:TAP version |# (?:Subtest:|tests |suites |pass |fail |cancelled |skipped |todo |duration_ms |pullboard )|(?:not )?ok \d+|\d+\.\.\d+|---|\.\.\.)/u.test(line) && !/^ {2,}[a-zA-Z_]+:/u.test(line)) : null;
   if (!rows.length && output.trim()) failed.push({ file: null, name: 'command output',
-    error: short(output.split('\n').find(line => line.trim()) ?? '') });
+    error: short(diagnostic ?? lines[0]) });
   return { counts, failures: failed.slice(0, FAILURE_LIMIT),
+    ...(diagnostic ? { diagnostic: short(diagnostic), omittedOutputLines: Math.max(0, lines.length - 1) } : {}),
     omittedFailures: Math.max(0, failed.length - FAILURE_LIMIT), logPath };
 }
 
@@ -81,6 +85,8 @@ export function renderTestSummary(summary) {
     : `${passed} passed, ${failed} failed, ${skipped ?? 'unknown'} skipped`;
   const failures = summary.failures.map(row => `${short(row.file || '(file unavailable)')}: ${row.name}: ${row.error}`);
   return [heading, ...failures,
+    ...(summary.diagnostic ? [summary.diagnostic] : []),
+    ...(summary.omittedOutputLines ? [`${summary.omittedOutputLines} nonempty output lines omitted`] : []),
     ...(summary.omittedFailures ? [`${summary.omittedFailures} additional failures are in the full log`] : []),
     `full log: ${summary.logPath}`].join('\n');
 }
