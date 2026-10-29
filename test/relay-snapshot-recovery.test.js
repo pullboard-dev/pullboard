@@ -1,6 +1,7 @@
 /** @pullboard-test-gui */
 /** Recover a native checkpoint timeout through the actual relay page [H16]. The timeout is an API1 checkpoint PUT, so
  * the case runs on the legacy wire (#903). */
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,9 +10,12 @@ import { openBoard, closeBoard } from '../src/board.js';
 import { prepareEngineMove, applyRelayMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
-import { decodeBoardKey, generateBoardKey, seal } from '../src/seal.js';
+import { decodeBoardKey, generateBoardKey, seal } from '../packages/kernel/src/core/seal.js';
 import { legacyRelayClientFixture as relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 /** Seal a real native document for an exact authenticated relay position. */
 async function encoded(key, value, board, kind, sequence) {
@@ -85,7 +89,7 @@ test('a delayed native checkpoint recovers the real page after its visible timeo
     const outcome = applyRelayMove(native, move, { sequence: 1, at: sent.event.event_at, sender: sent.event.sender, kind: 'move' });
     assert.equal(outcome.error, undefined, 'the CLI engine applies exactly the acknowledged native operation');
   } finally { closeBoard(native); }
-  const checkpoint = relaySnapshot(box.root);
+  const checkpoint = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   assert.ok(checkpoint.presentation.state.items.some(item => item.title === recovered));
 
   // Neither an incorrectly keyed checkpoint nor truncated ciphertext is successful recovery.

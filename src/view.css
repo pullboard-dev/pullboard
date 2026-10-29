@@ -431,7 +431,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .seg-hit-bottom { bottom: calc(var(--space-0) * -1); }
 .seg button:focus-visible { outline-offset: calc(var(--space-0) * -1); }
 .seg button:hover { color: var(--ink); }
-.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px var(--shade), 0 0 0 1px var(--line); }
+.seg button[aria-pressed="true"], .seg button[aria-selected="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px var(--shade), 0 0 0 1px var(--line); }
 .seg button b { font: 400 var(--text-2xs) var(--mono); color: var(--ink-faint); margin-left: var(--space-2); }
 
 .chain { list-style: none; margin: 0; padding: var(--space-2); display: grid; gap: var(--space-0); }
@@ -1069,7 +1069,6 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* Settings are literal API data: readable on narrow screens, with no editable fields. */
 #settings-pane { padding: var(--space-6); }
 #settings-content [role="tablist"] { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-block: var(--space-5); }
-#settings-content [aria-selected="true"] { font-weight: 700; border-color: var(--accent); }
 #settings-content table { width: 100%; border-collapse: collapse; margin-top: var(--space-5); }
 #settings-content th, #settings-content td { padding: var(--space-4); text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
 #settings-content td { max-width: 40ch; overflow-wrap: anywhere; white-space: pre-wrap; }
@@ -1397,7 +1396,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .settings-heading .eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: var(--text-xs); margin-bottom: var(--space-2); }
 .settings-toolbar { margin-top: var(--space-5); }
 .settings-context { margin: 0; color: var(--ink-muted); font-size: var(--text-sm); }
-#settings-content .settings-scopes { gap: 0; margin-block: var(--space-3) 0; }
+#settings-content .settings-scopes { height: auto; gap: 0; margin-block: var(--space-3) 0; }
 #settings-content .settings-scopes button { min-height: 44px; }
 #settings-content table { table-layout: fixed; }
 #settings-content th, #settings-content td { box-sizing: border-box; }

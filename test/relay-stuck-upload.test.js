@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { gunzipSync } from 'node:zlib';
-import { decodeBoardKey, unseal } from '../src/seal.js';
+import { decodeBoardKey, unseal } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { legacyRelayClientFixture as relayClientFixture } from './relay-client-fixture.js';
 

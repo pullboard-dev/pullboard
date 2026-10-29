@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { decodeBoardKey, seal, unseal } from '../src/seal.js';
+import { decodeBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { assertPersonUnlinkHistory } from './relay-exclusion-fixture.js';
 import { runFixtureGit } from './fixture-child.js';

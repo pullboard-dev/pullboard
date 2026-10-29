@@ -12,7 +12,7 @@ import { createRelayAuth } from '../relay/auth.js';
 import { createGitHubClient } from '../relay/github.js';
 import { createRelayHandler } from '../relay/service.js';
 import { ENGINE_VERSION } from '../src/machine.js';
-import { generateBoardKey, seal } from '../src/seal.js';
+import { generateBoardKey, seal } from '../packages/kernel/src/core/seal.js';
 import { readSealedDescriptor, readSealedValue, writeSealedDescriptor, writeSealedValue } from '../src/sealed-pages.js';
 import { githubFixture } from './relay-fixture.js';
 

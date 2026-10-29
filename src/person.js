@@ -1,17 +1,12 @@
-import { AGENT_SESSION_IDS } from '../packages/kernel/src/core/discovery.js';
+import {
+  AGENT_SESSION_IDS,
+  AGENT_SHELL_MARKERS,
+  SSH_SHELL_MARKERS,
+} from '../packages/kernel/src/core/discovery.js';
 /** Person actions use the view when a terminal is remote or belongs to an agent [B26]. */
 import { createHash } from 'node:crypto';
 import { COORDINATOR } from './config.js';
 import { Refused } from './refused.js';
-
-/** Markers carried by Claude Code and Codex agent subprocesses, rather than user configuration. */
-export const AGENT_SHELL_MARKERS = Object.freeze([
-  'CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT',
-  'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL',
-]);
-
-/** SSH transport markers: any one names a remote shell, and test children acting as the person drop them all. */
-export const SSH_SHELL_MARKERS = Object.freeze(['SSH_CONNECTION', 'SSH_CLIENT', 'SSH_TTY']);
 
 /**
  * Tell whether this shell arrived over SSH by any of its markers [B26].

@@ -1,3 +1,5 @@
+import { personSigning as nativePersonSigning } from '../src/person-signing.js';
+import { setPersonSigning as nativeSetPersonSigning } from '../src/person-signing.js';
 /** Initial unpaired authority insertion uses only an owned private board, never shared SQLite [E22,B26,H16]. */
 import assert from 'node:assert/strict';
 import {
@@ -29,7 +31,7 @@ export function firstUnpairedAuthorityInsertion(t) {
   const board = store.openBoard(join(directory, 'board.sqlite'));
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   const boardId = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='board_id'").get().meta_value;
-  store.setPersonSigning(board, { agentId: 'coordinator', signed: true });
+  nativeSetPersonSigning(board, { agentId: 'coordinator', signed: true });
   assert.equal(board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='person_authority_local'").get(), undefined,
     'the board has never pinned an authority or paired a phone');
   assert.equal(board.db.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'person_authority_%'").all().length, 0,
@@ -43,11 +45,11 @@ export function firstUnpairedAuthorityInsertion(t) {
   // The forged off is exact and correctly signed by an unrelated local key; it is not a relay/person attestation.
   board.db.prepare('INSERT INTO event(event_at,event_by,event_kind,item_id,event_detail) VALUES (?,?,?,?,?)')
     .run(new Date().toISOString(), 'person', 'person_signing', null, JSON.stringify({ signed: false, request, presence, intent }));
-  assert.equal(store.personSigning(board).signed, true, 'without an authenticated authority the forged off is ignored');
+  assert.equal(nativePersonSigning(board).signed, true, 'without an authenticated authority the forged off is ignored');
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run('person_authority_local', JSON.stringify({
     origin: 'https://unrelated-fixture.invalid', publicKey: publicKey.export({ format: 'der', type: 'spki' }).toString('base64url'),
   }));
-  assert.equal(store.personSigning(board).signed, true,
+  assert.equal(nativePersonSigning(board).signed, true,
     'an initial raw local authority row cannot turn signing off on an unpaired board');
 }
 

@@ -1,5 +1,6 @@
-import { digestNativePorts } from './digest-native-ports.fixture.js';
 /** @pullboard-test-loads src/board.js src/engine.js src/machine.js */
+import { recordFlakeObservation as nativeRecordFlakeObservation } from '../src/flakes.js';
+import { digestNativePorts } from './digest-native-ports.fixture.js';
 /** Automatic Rigor proposals retain evidence, never invent proof or person approval [D1,D3,H16]. */
 import { loadDoctrine } from '../src/doctrine.js';
 import assert from 'node:assert/strict';
@@ -24,7 +25,7 @@ import { loadConfig } from '../src/config.js';
 import { RIGOR_AUTO_ENGINE } from '../src/rigor-auto-engine.js';
 import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
 import { conflictNote } from '../packages/kernel/src/core/registry-guards.js';
-import { automaticDecisionSource, rigorDecisionKey } from '../src/rigor-auto-source.js';
+import { automaticDecisionSource, rigorDecisionKey } from '../src/board-rigor-auto-source.js';
 
 const roots = [];
 /** Bind real upper health providers for direct digest reads without changing their board snapshot. */
@@ -74,7 +75,7 @@ function fixture() {
     return id;
   };
   /** Record an unclassified original failure, with no claim that this fixture executed a test. */
-  const failure = (id, name = 'the same behavior fails') => store.recordFlakeObservation(board, { agentId: reviewer,
+  const failure = (id, name = 'the same behavior fails') => nativeRecordFlakeObservation(board, { agentId: reviewer,
     lane: 'app', observation: { id: `fixture-${serial}`, head: store.getItem(board, id).item_commit,
       tree: 'e'.repeat(40), main: null, kind: 'verify', classification: 'unclassified',
       commandSha256: 'a'.repeat(64), reason: 'synthetic original failure; no gate execution', at: now.toISOString(),

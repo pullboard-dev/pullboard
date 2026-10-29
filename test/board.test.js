@@ -24,7 +24,7 @@ import { AUTO_ESCALATE_ENGINE, ENGINE_VERSION, STRONG_REJECTION_NOTICE_ENGINE } 
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { unpackRelease } from './release-archive.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../src/review-independence-engine.js';
-import { verifyLegacyUnknownFamily } from './review-family-fixture.js';
+import { verifyLegacyUnknownFamily, familyFreeze } from './review-family-fixture.js';
 
 const HOUR = 3_600_000;
 const SHA_A = 'a'.repeat(40);
@@ -60,18 +60,6 @@ async function runMain(cwd, argv) {
     stderr: { write: (text) => { stderr += text; } },
   });
   return { code, stdout, stderr };
-}
-
-/**
- * Freeze the real spec row shape that `show` renders for the family integration fixture.
- *
- * @returns {{ text: string, digest: string }}
- */
-function familyFreeze() {
-  return {
-    text: JSON.stringify({ rows: [{ id: 'G1', text: 'Families are recorded.', gate: 'true' }] }),
-    digest: 'digest:family',
-  };
 }
 
 /**
@@ -1371,13 +1359,19 @@ test('[O3] declared families travel through native snapshots; unknown registrati
   assert.match(shownText.stdout, /ACCEPT CRITERION_MET by review-1 \(Test Model\) \[family Family Beta\]/);
 
   const redeclared = await runMain(reviewerRoot, ['join', 'review', '--family', 'Family Gamma', '--json']);
-  assert.equal(redeclared.code, 0, redeclared.stderr || redeclared.stdout);
-  assert.equal(JSON.parse(redeclared.stdout).agent, 'review-1', 'redeclaring keeps the existing agent id');
-  assert.equal(store.agentAt(persistent, reviewerRoot).agent_family, 'Family Gamma');
-  assert.equal(store.verdictsFor(persistent, id)[0].verdict_verifier_family, 'Family Beta', 'a later declaration leaves the old verdict unchanged');
+  assert.equal(redeclared.code, 1, redeclared.stderr || redeclared.stdout);
+  assert.equal(JSON.parse(redeclared.stdout).error.code, 'FAMILY_DECLARED');
+  assert.equal(store.agentAt(persistent, reviewerRoot).agent_id, 'review-1', 'a refused declaration keeps the existing agent id');
+  assert.equal(store.agentAt(persistent, reviewerRoot).agent_family, 'Family Beta', 'a refused declaration preserves the immutable family');
+  assert.deepEqual(store.verdictsFor(persistent, id), [recorded], 'a refused declaration preserves the complete old verdict');
+  assert.equal(store.verdictsFor(persistent, id)[0].verdict_verifier_family, 'Family Beta', 'a refused declaration leaves the old verdict family unchanged');
+  const sameFamily = await runMain(reviewerRoot, ['join', 'review', '--family', 'Family Beta', '--json']);
+  assert.equal(sameFamily.code, 0, sameFamily.stderr || sameFamily.stdout);
+  assert.equal(JSON.parse(sameFamily.stdout).agent, 'review-1', 'the same family rejoins with the stable agent id');
+  assert.equal(store.agentAt(persistent, reviewerRoot).agent_family, 'Family Beta');
   const rejoined = await runMain(reviewerRoot, ['join', 'review', '--json']);
   assert.equal(rejoined.code, 0, rejoined.stderr || rejoined.stdout);
-  assert.equal(store.agentAt(persistent, reviewerRoot).agent_family, 'Family Gamma', 'omitting --family preserves the declaration');
+  assert.equal(store.agentAt(persistent, reviewerRoot).agent_family, 'Family Beta', 'omitting --family preserves the declaration');
   const historicalShow = await runMain(repo, ['show', String(id)]);
   assert.match(historicalShow.stdout, /ACCEPT CRITERION_MET by review-1 \(Test Model\) \[family Family Beta\]/);
 
@@ -1407,7 +1401,7 @@ test('[O3] declared families travel through native snapshots; unknown registrati
   const differentFamily = store.addItem(persistent, { by: 'coordinator', lane: 'web', title: 'CLI family review' });
   store.claim(persistent, differentFamily, { agentId: 'web-1', lane: 'web', leaseMs: 2 * HOUR, freeze: familyFreeze });
   submitFixture(persistent, differentFamily, { agentId: 'web-1', commit: SHA_A, tree: 'tree-d' });
-  assert.equal(store.agentAt(persistent, reviewerRoot).agent_family, 'Family Gamma');
+  assert.equal(store.agentAt(persistent, reviewerRoot).agent_family, 'Family Beta');
   assert.equal(store.getItem(persistent, unclaimed).item_builder_family, null);
   assert.equal(store.nextFor(persistent, { agentId: 'review-1', lane: 'review', verify: true, familyPolicy: 'require' }).item.item_id, differentFamily);
   const policyConfig = JSON.stringify({

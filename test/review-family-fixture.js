@@ -28,3 +28,15 @@ export function requireFixtureReviewFamilies(board) {
     reason: 'Private fixture explicitly requires declared vendor pairs; this changes no operational board.',
     window: { syntheticPolicy: 1 } });
 }
+
+/**
+ * Freeze the real spec row shape that `show` renders for the family integration fixture.
+ *
+ * @returns {{ text: string, digest: string }}
+ */
+export function familyFreeze() {
+  return {
+    text: JSON.stringify({ rows: [{ id: 'G1', text: 'Families are recorded.', gate: 'true' }] }),
+    digest: 'digest:family',
+  };
+}

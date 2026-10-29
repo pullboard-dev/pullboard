@@ -1,5 +1,6 @@
 /** @pullboard-test-gui */
 /** Cockpit references checks, using the shared real-board fixtures [N26]. */
+import { nativeBoardPorts as relayPresentationNativePorts } from '../../src/native-board.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, request } from 'node:http';
@@ -8,6 +9,9 @@ import { test } from 'node:test';
 import { exportView } from '../../src/commands/view.js';
 import { relayPresentation } from '../../src/relay-presentation.js';
 import { machine, project, build, fetchLive, startView, target, openPage, boardId, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 
 test("a shout's code reference opens that code as it was at that commit [B23]", async () => {
@@ -145,7 +149,7 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     assert.match(page.show('feed'), /Code reference unavailable: missing the repository path\./);
     assert.match(page.show('detail'), /Referenced code/);
     assert.ok(page.show('detail').includes(button(`web/greeting.html:1-2@${second}`, false)), 'typed thread refs reuse the collapsed reference block');
-    const relay = JSON.stringify(relayPresentation(alpha.repo));
+    const relay = JSON.stringify(relayPresentation(alpha.repo, {}, RELAY_PRESENTATION_PORTS));
     assert.ok(relay.includes('"path":"web/greeting.html"') && relay.includes('"commit":"' + second + '"'), 'the relay presentation retains only the typed reference fields');
     assert.ok(!relay.includes('  hello <b>there</b>'), 'the relay presentation never contains committed source text');
 
@@ -189,7 +193,7 @@ test('committed shout and fact references stay local, expand safely at phone and
   box.run(alpha.web, 'shout', 'all', 'missing commit: web/reference.js:1@deadbee');
   box.run(alpha.web, 'shout', 'all', `missing path: :1@${sha.slice(0, 7)}`);
 
-  const presentation = JSON.stringify(relayPresentation(alpha.repo));
+  const presentation = JSON.stringify(relayPresentation(alpha.repo, {}, RELAY_PRESENTATION_PORTS));
   assert.ok(presentation.includes('"path":"web/reference.js"') && presentation.includes('"commit":"' + sha + '"'), 'relay projection carries the typed reference');
   assert.ok(!presentation.includes('localOnlyFixture') && !presentation.includes('row99'), 'relay projection contains no source code');
 

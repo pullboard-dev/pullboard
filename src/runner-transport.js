@@ -26,7 +26,7 @@ import {
 import { join } from 'node:path';
 import { guiSession } from './gui-session.js';
 import { processCensus } from './runner-custody.js';
-import { parseProcessCensus } from './process-census.js';
+import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
 
 /** Give a health observation the same credential-forwarding limits as a worker connection. */
 function environment() {

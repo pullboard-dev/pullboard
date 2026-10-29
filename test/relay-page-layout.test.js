@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
-import { generateBoardKey } from '../src/seal.js';
+import { generateBoardKey } from '../packages/kernel/src/core/seal.js';
 import { CURRENT_SNAPSHOT_BYTES, currentSnapshotPresentation, openPagedSnapshot } from '../src/relay-page-layout.js';
 import { writePagedSnapshot } from '../src/relay-page-writer.js';
 import { readSealedDescriptor, writeSealedDescriptor } from '../src/sealed-pages.js';

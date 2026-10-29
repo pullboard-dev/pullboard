@@ -1,4 +1,4 @@
-import { staleClaimRelease } from './stale-claim-release.js';
+import { staleClaimRelease } from './board-stale-claim-release.js';
 /** Ordinary claim/review releases, including recorded coordinator gone-seat observations. */
 import { Refused } from './refused.js';
 import {

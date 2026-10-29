@@ -11,16 +11,16 @@ import {
   isActivityNews,
   itemActivity,
   projectAgentActivity,
-} from './activity-feed.js';
+} from './board-activity-feed.js';
 export { itemById };
 import { outsideSource } from './outside-source.js';
 import {
   COORDINATION_SHOUT,
   itemShoutReader,
   UNREAD_SHOUT_SQL,
-} from './shout-audience.js';
+} from './board-shout-audience.js';
 import { shoutItemId } from '../packages/kernel/src/core/registry-guards.js';
-import { workerInboxQuery } from './worker-inbox.js';
+import { workerInboxQuery } from './board-worker-inbox.js';
 /** Canonical board queries shared by reads and the synchronous write store [C7]. */
 import { verdictWithdrawals } from './verdict-withdrawal.js';
 import { reopenCauseCorrection } from './reopen-cause.js';

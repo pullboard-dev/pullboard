@@ -12,7 +12,7 @@ import {
   createDeviceKeys,
   unwrapDeviceBoardKey,
 } from '../src/relay-device-keys.js';
-import { decodeBoardKey } from '../src/seal.js';
+import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 
 test('a native key holder verifies a pinned person root before delivering each granted board [H15]',

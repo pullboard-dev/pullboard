@@ -11,7 +11,7 @@ import {
   test,
 } from 'node:test';
 import * as store from '../src/board.js';
-import { eventCauses } from '../src/rigor.js';
+import { eventCauses } from '../src/board-rigor.js';
 import { REOPEN_CAUSE_ENGINE } from '../src/reopen-cause-engine.js';
 import {
   exportBoard,

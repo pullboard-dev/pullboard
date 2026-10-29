@@ -17,7 +17,7 @@ import {
 import * as store from '../src/board.js';
 import { invalidateGitFacts } from '../src/git.js';
 import { runLandingBatch } from '../src/land.js';
-import { assertLandingLease } from '../src/landing-lease.js';
+import { assertLandingLease } from '../src/board-landing-lease.js';
 
 /** Run an ordinary fixture command and retain its full refusal on failure. */
 function run(box, root, ...args) {
@@ -110,7 +110,7 @@ async function withFixtureLease(box, branch, action) {
     invalidateGitFacts();
     const check = () => assertLandingLease(board, fence);
     return await action({ root: box.repo, board, fence, owner: 'private-boundary-control', say() {},
-      write: async (operation, args) => store[operation](board, ...args), checkLease: async () => { check(); invalidateGitFacts(); }, checkLeaseNow: check });
+      write: async (operation, args) => board.enginePorts.store[operation](board, ...args), checkLease: async () => { check(); invalidateGitFacts(); }, checkLeaseNow: check });
   } finally {
     if (fence) store.landingLeaseMove(board, { ...fence, action: 'release' });
     store.closeBoard(board);

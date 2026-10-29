@@ -1,3 +1,4 @@
+import { recordPublishFinding as nativeRecordPublishFinding } from '../src/pr-findings.js';
 /** Publishing proposes only proven heads and observes a person's merge [B3,R3]. */
 import assert from 'node:assert/strict';
 import {
@@ -276,7 +277,7 @@ test('publication findings replay deterministically and ordinary closed-parent g
   assert.equal(store.getItem(source, entries[0].id).item_status, 'verified');
   assert.throws(() => store.addItem(source, { by: 'coordinator', lane: 'web', title: 'ordinary child',
     criterion: 'ordinary closed parent remains refused', parentId: entries[0].id, route: 'strong' }), { code: 'PARENT_CLOSED' });
-  assert.throws(() => store.recordPublishFinding(source, { ...request, agentId: 'web-1' }), { code: 'COORDINATOR_ONLY' });
+  assert.throws(() => nativeRecordPublishFinding(source, { ...request, agentId: 'web-1' }), { code: 'COORDINATOR_ONLY' });
   assert.throws(() => store.linkPublishRepair(source, { agentId: 'web-1', item: entries[0].id, repair: entries[1].id }), { code: 'COORDINATOR_ONLY' });
 });
 

@@ -23,7 +23,7 @@ import { repoInfo } from '../src/git.js';
 import { bindLocalSession } from '../src/agent-session.js';
 import { recordItemSession } from '../src/item-sessions.js';
 import { dispatchHealth } from '../src/dispatch-health.js';
-import { deliverHealthNotices } from '../src/health-receipts.js';
+import { deliverHealthNotices } from '../src/board-health-receipts.js';
 import { proveRequiredReviewFamily } from './required-review-family-fixture.js';
 import { assertSpecCorrectionRefreezesCitations, assertSpecRefreezeReplay } from './spec-refreeze-fixture.js';
 import { crossLaneFixture } from './e2e-helpers.js';

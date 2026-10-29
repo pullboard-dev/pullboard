@@ -10,7 +10,7 @@ import vm from 'node:vm';
 import { standardDoctrine } from '../../src/doctrine.js';
 import { loadConfig } from '../../src/config.js';
 import { pageScriptPart4 } from '../../src/view/page-script-4.js';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../../packages/kernel/src/core/discovery.js';
 import { tapTarget, SPEC, machine, project, build, startView, styleOf, openPage, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, watchSpecDecisionWait, press } from './fixture.js';
 
 /** Return regex-literal bodies while skipping comments and quoted strings in a hosted script part. */
