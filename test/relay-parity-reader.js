@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { serveApi } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { main } from '../src/cli.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { openPagedSnapshot } from '../src/relay-page-layout.js';
@@ -42,7 +43,7 @@ export function assertReaderParity(native, relay, localFields = LOCAL_PARITY_FIE
 export async function createParityReader({ root, origin, token, boardId, key, projects = () => [{ root, name: 'parity' }] }) {
   let observedAt = Date.now();
   const secret = randomBytes(24).toString('base64url');
-  const api = await serveApi({ secret, runCommand: main, projects, isMain: true, stateDetail: 'full', scope: { projectRoot: root }, now: () => observedAt });
+  const api = await serveApi({ refusalDocument, secret, runCommand: main, projects, isMain: true, stateDetail: 'full', scope: { projectRoot: root }, now: () => observedAt });
   /** Read the current exact sealed clock, then ask the complete native HTTP API at that clock. */
   async function read() {
     /** Request through a distinct authenticated person session, never a direct journal read. */

@@ -45,9 +45,7 @@
   {"cell":"flakes","imports":1,"before":false},
   {"cell":"app:cli","imports":2,"before":false}
  ],
- "cuts": [
-  {"cell":"kernel","imports":1,"edges":["src/registry-guards.js->src/git.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": -1,
   "shims": 11,

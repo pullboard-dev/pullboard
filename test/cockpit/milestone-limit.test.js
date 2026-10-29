@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 
-test('the view shows milestone count against its limit including empty and shipped plans [N26]', { timeout: 90_000 }, async () => {
+test('the view names a milestone limit only near capacity, including empty and shipped plans [N26]', { timeout: 90_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for milestone capacity labels.');
   const box = machine(), alpha = project(box, 'milestone-caps');
@@ -27,10 +27,10 @@ test('the view shows milestone count against its limit including empty and shipp
     await chrome.waitFor("document.querySelector('[data-tab=roadmap]')");
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
     await chrome.waitFor("document.querySelector('[data-key=\"m:Active\"] .milestone-limit')");
-    for (const width of [375, 1280]) {
+    for (const width of [320, 375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       const labels = JSON.parse(await chrome.stable(`JSON.stringify(['Active','Empty','Shipped','Unlimited'].map(name => document.querySelector('[data-key="m:'+name+'"] .milestone-limit')?.textContent ?? null))`));
-      assert.deepEqual(labels, ['1/2 items', '0/0 items', '0/0 items', null], String(width));
+      assert.deepEqual(labels, ['1 item', '0 items · limit 0', '0 items · limit 0', null], String(width));
     }
     assert.deepEqual(chrome.exceptions, []);
   } finally {

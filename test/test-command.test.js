@@ -58,9 +58,10 @@ test('pullboard test runs files on the runner pool with a per-file timeout [C7]'
   assert.equal(ran.code, 1, `a red file makes the run red: ${ran.err}`);
   const result = JSON.parse(ran.out);
   assert.equal(result.runner, HOST, 'the files ran on the registered runner');
-  assert.match(result.output, /^ok \d+ - .*passes/mu, 'the TAP of a passing file comes back as the runner printed it');
-  assert.match(result.output, /fails here/u, 'the uncommitted change ran on the runner');
-  assert.match(result.output, /timed? ?out|cancelled/iu, 'the hanging test stops at its timeout');
+  const output = readFileSync(result.logPath, 'utf8');
+  assert.match(output, /^ok \d+ - .*passes/mu, 'the complete log keeps the TAP exactly as the runner printed it');
+  assert.match(output, /fails here/u, 'the uncommitted change ran on the runner');
+  assert.match(output, /timed? ?out|cancelled/iu, 'the hanging test stops at its timeout');
   assert.ok(seconds < 200, `the hung file never holds the run past its timeout (${seconds}s)`); // budget: hang ceiling far above the 3 s test timeout; not a speed target.
   const known = Object.fromEntries(result.known.map((entry) => [entry.file, entry.result]));
   assert.equal(known['test/hang.test.js'], 'red', 'the hang fails on main too, so it reads as a known main failure');

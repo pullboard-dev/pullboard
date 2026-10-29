@@ -135,12 +135,7 @@
   {"cell":"app:cli","imports":6,"before":false}
  ],
  "cuts": [
-  {"cell":"mcp","imports":2,"edges":["src/mcp.js->src/needs-state.js","src/mcp.js->src/needs.js"]},
-  {"cell":"spec","imports":1,"edges":["src/spec-approval.js->src/needs.js"]},
-  {"cell":"store","imports":1,"edges":["src/native-board-state.js->src/serve.js"]},
-  {"cell":"api","imports":1,"edges":["src/api.js->src/serve.js"]},
-  {"cell":"landing","imports":1,"edges":["src/land.js->src/badge.js"]},
-  {"cell":"shouts","imports":1,"edges":["src/watch.js->src/view-session.js"]}
+  {"cell":"api","imports":2,"edges":["src/api.js->src/serve.js","src/api.js->src/view-state-summary.js"]}
  ],
  "ratchets": {
   "legacySource": -3,

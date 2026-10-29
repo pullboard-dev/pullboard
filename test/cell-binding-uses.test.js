@@ -33,7 +33,7 @@ import {
   bindingReadsForModules,
   localFunctionCallSets,
   readOnlyMemberRanges,
-} from '../src/cell-binding-uses.js';
+} from '../packages/codemap/index.js';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
 import { mainAuditKey } from '../src/main-audit-state.js';
 import { readAuditJob } from './main-audit-project.js';

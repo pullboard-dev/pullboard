@@ -16,6 +16,7 @@ import {
   apiStatus,
   readApiBody,
 } from '../src/api-http.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { Refused } from '../src/refused.js';
 import { createRelayJournal } from './journal.js';
 import { createRelayRetention } from './retention.js';
@@ -342,6 +343,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
   const browser = origin ? createRelayBrowserHandler({ authenticate: (req) => auth.authenticate(credential(req, origin)) }) : null;
   const pagesHandler = createRelayPagesHandler({ directory: root, now, authorize: authorizedRequest, withJournal, sender, quota, annotated, refreshStorage, enabled: Boolean(quota) });
   const common = createApiHandler({
+    refusalDocument,
     authenticate: async (req, { board, write }) => {
       const token = credential(req, origin, write);
       if (board !== null) return { ...await authorizedRequest(req, board, write), credential: token };
@@ -462,7 +464,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
       return await common(req, res);
     } catch (error) {
       if (!res.headersSent) {
-        const document = apiRefusal(error);
+        const document = apiRefusal(error, refusalDocument);
         const size = error.snapshotLimit;
         if (error.code === 'BAD_UPLOAD' && Number.isSafeInteger(size?.sealedBytes) && Number.isSafeInteger(size?.limit)
             && size.limit > 0 && size.sealedBytes > size.limit) {

@@ -1,4 +1,10 @@
 import { frozenCheckTiming } from '../check-timing.js';
+import {
+  testOutputSummary,
+  retainTestOutput,
+  renderTestSummary,
+  withTestOutput,
+} from '../test-output-summary.js';
 import { checkAtCommit } from '../runner-private-check.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../landing-shards.js';
@@ -118,6 +124,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   const implies = parseImplies(values.implies);
   const { root } = ctx.info;
   let verificationProfile = null;
+  let verificationOutput = null;
   let accepted = null;
   let acceptedLandingCommit = null;
   let approvalRows = [];
@@ -190,13 +197,12 @@ export async function verifyHere(ctx, id, { second, values }) {
         invalidateGitFacts(); // A private check can outlive changes in the reviewer's live checkout.
         refuseSandboxBlocked(check);
         verificationProfile = check.profile ?? null;
-        const evidence = check.checked
-          ? `\nlast output lines (up to 40):\n${(check.outputTail ?? '(no output)').split('\n').map((line) => `  ${line}`).join('\n')}\nfull output file: ${check.outputPath ?? `(unavailable${check.outputError ? `: ${check.outputError}` : ''})`}`
-          : '';
-        const checkTimings = timingDigest(check.profile);
-        const timingEvidence = check.profilePath ? `\n${checkTimings}\ntiming profile: ${check.profilePath}` : '';
-        if (check.state === 'unverified') throw new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the ${checkedLabel}; restore the install or check environment, then retry verification; output digest:\n${check.report.replace(/^/gm, '  ')}${evidence}${timingEvidence}`);
-        if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the ${checkedLabel} (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit; output digest:\n${check.report.replace(/^/gm, '  ')}${evidence}${timingEvidence}`);
+        if (check.checked) verificationOutput = check.outputPath
+          ? testOutputSummary(check.outputPath, { root: check.executionRoot ?? root, profile: check.profile })
+          : retainTestOutput(root, check.output ?? check.report ?? '', { root: check.executionRoot ?? root, profile: check.profile });
+        const evidence = verificationOutput ? `\n${renderTestSummary(verificationOutput)}` : '';
+        if (check.state === 'unverified') throw withTestOutput(new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the ${checkedLabel}; restore the install or check environment, then retry verification${evidence}`), verificationOutput);
+        if (check.state === 'red') throw withTestOutput(new Refused('CHECK_RED', `the frozen item check is red at the ${checkedLabel} (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit${evidence}`), verificationOutput);
         const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
         submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
         const currentTrunk = requireTrunkMerge(root, checkedCommit); // Re-read after the frozen check, before accepting.
@@ -252,12 +258,12 @@ export async function verifyHere(ctx, id, { second, values }) {
     }
     return verdict;
   });
-  const primary = { id, ...result, ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) };
+  const primary = { id, ...result, ...(verificationOutput ?? {}), ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) };
   ctx.io.result?.(primary);
   const verifiedSummary = timingDigest(verificationProfile);
   const verifiedTiming = result.decision === 'ACCEPT' && verificationProfile && verifiedSummary ? `\n${verifiedSummary}\ntiming profile: ${verificationProfile.profilePath ?? '(not saved)'}` : '';
   ctx.io.say(result.decision === 'ACCEPT'
-    ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verifiedTiming}`
+    ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verificationOutput ? '\n' + renderTestSummary(verificationOutput) : ''}${verifiedTiming}`
     : `rejected #${id}: ${result.reason}${result.clause ? `; clause: ${result.clause}` : ''}; ${result.held ? 'held until its bar is sharpened' : 'it is open again for rework'}`);
   if (accepted) ctx.io.say(landNext(ctx.info, accepted, acceptedLandingCommit, { spec: loadSpec(ctx.info.root, ctx.config) }));
   if (ctx.verdictResult) ctx.verdictResult.value = primary;

@@ -14,8 +14,8 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { computePlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
-import { importCuts } from '../src/cells-plan-cuts.js';
-import { cellLintReport } from '../src/cell-lints.js';
+import { importCuts } from '../packages/codemap/index.js';
+import { cellLintReport } from '../packages/codemap/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
 

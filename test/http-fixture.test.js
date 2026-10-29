@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { serveApi } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { main } from '../src/cli.js';
 import { fetchFresh } from './http-fixture.js';
 
@@ -110,7 +111,7 @@ test('[C7] each fixture request opens its own connection, and a failed one names
 test('[C7] a fixture request after a blocked event loop reaches the view child and the in-process API', async (t) => {
   const box = privateBoard(t);
   const view = await startView(t, box);
-  const api = await serveApi({ runCommand: main, projects: () => [{ root: box.root, name: 'HTTP fixture' }] });
+  const api = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'HTTP fixture' }] });
   t.after(() => api.close());
   const apiUrl = new URL(api.url);
   const servers = [['the view child', view.origin, view.key], ['the in-process API', apiUrl.origin, apiUrl.searchParams.get('k')]];

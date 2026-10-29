@@ -50,7 +50,6 @@
   {"cell":"app:cli","imports":2,"before":false}
  ],
  "cuts": [
-  {"cell":"sandbox","imports":1,"edges":["src/source-advance-worker.js->src/relay-outbox-guard.js"]},
   {
    "cell": "link",
    "imports": 9,
