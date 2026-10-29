@@ -1,3 +1,13 @@
+import { relayPresentation, relaySnapshot, relayPresentationShout } from '../src/relay-presentation.js';
+import { verifiedPasskeyRowDecision as presentation_verifiedPasskeyRowDecision } from '../src/person-row-proof.js';
+import { pendingFit as presentation_pendingFit } from '../src/blueprint-fit.js';
+import { projectFit as presentation_projectFit } from '../src/blueprint-fit.js';
+import { projectState as presentation_projectState } from '../src/serve.js';
+import { personRequestStatuses as presentation_personRequestStatuses } from '../src/relay-requests.js';
+import { personSigningPresentation as presentation_personSigningPresentation } from '../src/person-signing-presentation.js';
+import { activeViewAgents as presentation_activeViewAgents } from '../src/view-state-summary.js';
+import { viewProofSummary as presentation_viewProofSummary } from '../src/view-state-summary.js';
+import { fitFile as presentation_fitFile } from '../src/blueprint-fit.js';
 import { boardEnginePorts } from '../src/board-engine-ports.js';
 import { validPresence } from '../src/person-presence.js';
 import { recordTrainLanding } from '../src/record-train-landing.js';
@@ -317,5 +327,27 @@ test('native engine composition keeps supplied upper operations and refuses miss
     const missing = { ...providers };
     delete missing[name];
     assert.throws(() => boardEnginePorts(missing), error => error.code === 'NO_POLICY' && error.message.includes(name));
+  }
+});
+
+/** All native presentation entrypoints refuse before reading any repository, option clock or board. */
+test('presentation providers retain exact identities and all missing ports refuse before effects [C7,A4]', t => {
+  const ports = native.nativeBoardPorts().presentation;
+  const expected = { verifiedPasskeyRowDecision: presentation_verifiedPasskeyRowDecision, pendingFit: presentation_pendingFit, projectFit: presentation_projectFit, projectState: presentation_projectState, personRequestStatuses: presentation_personRequestStatuses, personSigningPresentation: presentation_personSigningPresentation, activeViewAgents: presentation_activeViewAgents, viewProofSummary: presentation_viewProofSummary, fitFile: presentation_fitFile };
+  for (const [name, provider] of Object.entries(expected)) assert.equal(ports[name], provider);
+  assert.equal(Object.isFrozen(ports), true);
+  let effects = 0;
+  const root = { toString() { effects++; throw new Error('repository discovery reached'); } };
+  const options = { get board() { effects++; throw new Error('board getter reached'); } };
+  for (const name of Object.keys(expected)) {
+    const missing = { ...ports, [name]: undefined };
+    for (const invoke of [() => relayPresentation(root, options, missing), () => relaySnapshot(root, options, missing), () => relayPresentationShout(root, 1, missing)]) {
+      assert.throws(invoke, error => error.code === 'RELAY_PRESENTATION_PORTS');
+      assert.equal(effects, 0);
+    }
+  }
+  for (const invoke of [() => relayPresentation(root, options), () => relaySnapshot(root, options), () => relayPresentationShout(root, 1)]) {
+    assert.throws(invoke, error => error.code === 'RELAY_PRESENTATION_PORTS');
+    assert.equal(effects, 0);
   }
 });

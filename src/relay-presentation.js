@@ -1,12 +1,3 @@
-import { activeViewAgents } from './view-state-summary.js';
-import { viewProofSummary } from './view-state-summary.js';
-import { personSigningPresentation } from './person-signing-presentation.js';
-import { personRequestStatuses } from './relay-requests.js';
-import { projectState } from './serve.js';
-import { projectFit } from './blueprint-fit.js';
-import { pendingFit } from './blueprint-fit.js';
-import { fitFile } from './blueprint-fit.js';
-import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 /** Device-sealed presentation uses the same API state as the local view [A4,H5,H15]. */
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -30,13 +21,25 @@ import { compareFlowWindows } from './stats-flow.js';
 // A comparison clock is an internal fingerprint input, never a displayed forecast or observation.
 const COMPARISON_CLOCK = Date.UTC(2000, 0, 1);
 
+/** Refuse incomplete upper bindings before repository discovery, clocks, Git or database effects. */
+function requirePresentationPorts(ports) {
+  if (!ports || typeof ports.verifiedPasskeyRowDecision !== 'function' || typeof ports.pendingFit !== 'function' || typeof ports.projectFit !== 'function' || typeof ports.projectState !== 'function' || typeof ports.personRequestStatuses !== 'function' || typeof ports.personSigningPresentation !== 'function' || typeof ports.activeViewAgents !== 'function' || typeof ports.viewProofSummary !== 'function' || typeof ports.fitFile !== 'function') {
+    throw new Refused('RELAY_PRESENTATION_PORTS', 'relay presentation requires its complete native upper provider map; use the current native composition entrypoint');
+  }
+  return ports;
+}
+
 /** Capture spec, doctrine, config and board presentation without sending plaintext to a relay. */
-export function relayPresentation(root, { board: providedBoard = null, observedAt = providedBoard ? providedBoard.clock.now().getTime() : Date.now() } = {}) {
-  return withGitReadFacts(() => readRelayPresentation(root, providedBoard, observedAt));
+export function relayPresentation(root, options = {}, ports) {
+  requirePresentationPorts(ports);
+  const { board: providedBoard = null, observedAt = providedBoard ? providedBoard.clock.now().getTime() : Date.now() } = options;
+  return withGitReadFacts(() => readRelayPresentation(root, providedBoard, observedAt, ports));
 }
 
 /** Build both clocks through the same pure projection; only the actual observation is emitted as state. */
-function readRelayPresentation(root, providedBoard, observedAt) {
+function readRelayPresentation(root, providedBoard, observedAt, ports) {
+  requirePresentationPorts(ports);
+  const { fitFile } = ports;
   const info = repoInfo(root);
   const isMain = codeIsFromMain();
   const board = providedBoard ?? store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain });
@@ -48,7 +51,7 @@ function readRelayPresentation(root, providedBoard, observedAt) {
     const freshnessReader = providedBoard ? null : cachedVerdictStates(root, board, info, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, boardId: store.boardId });
     /** Preserve a single authorized board, including existing unavailable external milestone entries. */
     const project = (clock) => {
-      const built = buildLocalBoardState(root, boardId, board, isMain, { projects, scopeCommonDir: info.commonDir, observedAt: clock, freshnessReader }, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary });
+      const built = buildLocalBoardState(root, boardId, board, isMain, { projects, scopeCommonDir: info.commonDir, observedAt: clock, freshnessReader }, ports);
       return { ...built.state, sequence: built.sequence,
         statsComparison: compareFlowWindows(built.history, { now: clock, windowMinutes: 120, complete: true }) };
     };
@@ -68,8 +71,9 @@ function readRelayPresentation(root, providedBoard, observedAt) {
   } finally { if (!providedBoard) store.closeBoard(board); }
 }
 /** Resolve one shout from the complete history carried only inside the sealed presentation. */
-export function relayPresentationShout(root, id) {
-  return presentationShout(relayPresentation(root), id);
+export function relayPresentationShout(root, id, ports) {
+  requirePresentationPorts(ports);
+  return presentationShout(relayPresentation(root, {}, ports), id);
 }
 
 /** Resolve one addressed shout from an already decoded snapshot without local repository access. */
@@ -89,19 +93,22 @@ export function presentationDigest(presentation) {
 }
 
 /** Capture importable native tables beside matching API presentation, retrying a concurrent local move. */
-export function relaySnapshot(root, { board: providedBoard = null, observedAt = providedBoard ? providedBoard.clock.now().getTime() : Date.now() } = {}) {
-  return withGitReadFacts(() => readRelaySnapshot(root, providedBoard, observedAt));
+export function relaySnapshot(root, options = {}, ports) {
+  requirePresentationPorts(ports);
+  const { board: providedBoard = null, observedAt = providedBoard ? providedBoard.clock.now().getTime() : Date.now() } = options;
+  return withGitReadFacts(() => readRelaySnapshot(root, providedBoard, observedAt, ports));
 }
 
 /** Keep native tables and their device presentation at one observed board revision. */
-function readRelaySnapshot(root, providedBoard, observedAt) {
+function readRelaySnapshot(root, providedBoard, observedAt, ports) {
+  requirePresentationPorts(ports);
   const info = repoInfo(root);
   for (let attempt = 0; attempt < 3; attempt++) {
-    const before = providedBoard ? null : relayPresentation(info.root, { observedAt });
+    const before = providedBoard ? null : relayPresentation(info.root, { observedAt }, ports);
     const board = providedBoard ?? store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
     let native;
     try { native = exportBoard(board); } finally { if (!providedBoard) store.closeBoard(board); }
-    const presentation = relayPresentation(info.root, { board: providedBoard, observedAt });
+    const presentation = relayPresentation(info.root, { board: providedBoard, observedAt }, ports);
     const event = native.tables.event.at(-1)?.event_id ?? 0;
     if (event === (presentation.state.events[0]?.event_id ?? 0) &&
         (providedBoard || presentationDigest(before) === presentationDigest(presentation))) return { ...native, presentation };

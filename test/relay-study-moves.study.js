@@ -1,3 +1,4 @@
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 import { proposeSentinel as nativeProposeSentinel } from '../src/sentinels.js';
 import { decideSentinel as nativeDecideSentinel } from '../src/sentinels.js';
 import { beginSentinelRun as nativeBeginSentinelRun } from '../src/sentinels.js';
@@ -21,6 +22,9 @@ import { presentationState } from '../relay/browser-model.js';
 import { apiFetch } from './api-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { syntheticFlakeObservation } from './flake-observation-fixture.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 test('relay study compares each exercised move effect through the real API2 reader [H5,H17]', { timeout: 180_000 }, async t => {
   const box = await relayClientFixture(t);
@@ -68,7 +72,7 @@ test('relay study compares each exercised move effect through the real API2 read
     }
     const published = await box.cli('status');
     assert.equal(published.code, 0, 'the actual CLI publishes after ' + operation);
-    const expected = relaySnapshot(box.root);
+    const expected = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
     const read = await readRelay(box);
     assert.deepEqual(differences(expected.presentation, read.document.presentation), [], operation + ' full presentation');
     assert.deepEqual(differences(expected.tables, read.document.tables), [], operation + ' native tables');

@@ -1,3 +1,12 @@
+import { activeViewAgents } from './view-state-summary.js';
+import { viewProofSummary } from './view-state-summary.js';
+import { personSigningPresentation } from './person-signing-presentation.js';
+import { personRequestStatuses } from './relay-requests.js';
+import { projectState } from './serve.js';
+import { projectFit } from './blueprint-fit.js';
+import { pendingFit } from './blueprint-fit.js';
+import { fitFile } from './blueprint-fit.js';
+import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import { advanceItemSource } from './source-advance.js';
 import { proposeSentinel } from './sentinels.js';
 import { decideSentinel } from './sentinels.js';
@@ -192,6 +201,7 @@ export function nativeBoardPorts() {
   });
   return Object.freeze({
     nativePorts, enginePorts, operations: enginePorts.operations, logEvent,
+    presentation: Object.freeze({ verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, fitFile }),
     sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody, receiptFields, guardLandingWrite }),
 
     verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters }),

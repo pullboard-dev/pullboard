@@ -1,3 +1,4 @@
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** @pullboard-test-gui */
 /** Compression stays inside the device seal while both clients retain legacy snapshot reads [H5,H15,H17]. */
 import assert from 'node:assert/strict';
@@ -19,6 +20,9 @@ import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
 import { readSealedDescriptor } from '../src/sealed-pages.js';
 import { openPagedSnapshot } from '../src/relay-page-layout.js';
 import { PROOF_RUN_ENGINE } from '../src/proof-run-engine.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 const LEGACY_BODY_THRESHOLD = 14_000_000;
 const LEGACY_RELAY_THRESHOLD = 10_000_000;
@@ -77,7 +81,7 @@ test('a 20 MB sealed snapshot syncs to the relay and reads back whole [H5,H15,H1
   } finally { store.closeBoard(local); }
 
   const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
-  const sealed = await sealedSnapshot(box, relaySnapshot(box.root), state.sequence, true);
+  const sealed = await sealedSnapshot(box, relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS), state.sequence, true);
   const sealedBytes = Buffer.from(sealed, 'base64url');
   assert.ok(sealedBytes.byteLength > 20_000_000, 'the gzip snapshot exceeds 20,000,000 decoded bytes');
   assert.ok(sealedBytes.byteLength < RELAY_LIMIT, 'the gzip snapshot remains within the shared decoded limit');
@@ -112,7 +116,7 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
   // An ordinary older JSON snapshot remains readable by the CLI after the relay compacts it.
   assert.equal((await box.cli('add', box.lane, 'legacy snapshot cursor')).code, 0);
   let sourceState = JSON.parse(readFileSync(box.linkFile, 'utf8'));
-  let legacyDocument = relaySnapshot(box.root);
+  let legacyDocument = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   const legacySealed = await sealedSnapshot(box, legacyDocument, sourceState.sequence, false);
   const legacyUpload = await fetch(box.origin + '/api/v1/boards/' + sourceState.board + '/state', {
     method: 'PUT',
@@ -168,14 +172,14 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
       store.shout(native, { from: 'coordinator', to: 'all', text: marker + 'recent ' + index, lanes: [box.lane] });
     }
   } finally { store.closeBoard(native); }
-  const before = relaySnapshot(box.root);
+  const before = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   assert.ok(Buffer.byteLength(JSON.stringify(before)) > LEGACY_BODY_THRESHOLD, 'the legacy uncompressed snapshot exceeds the former body bound');
   const uncompressedSealed = await sealedSnapshot(box, before, JSON.parse(readFileSync(box.linkFile, 'utf8')).sequence, false);
   assert.ok(Buffer.from(uncompressedSealed, 'base64url').byteLength > LEGACY_BODY_THRESHOLD, 'the uncompressed legacy seal exceeds the former body bound');
 
   assert.equal((await box.cli('status')).code, 0, 'the local CLI publishes a compressed pending snapshot');
   assert.equal((await box.cli('add', box.lane, 'advance compressed snapshot')).code, 0, 'an acknowledged move advances the relay snapshot cursor');
-  const expected = relaySnapshot(box.root);
+  const expected = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   const snapshotRequest = box.transit.filter(row => row.method === 'PUT' && row.path.endsWith('/state')).at(-1);
   assert.ok(snapshotRequest, 'the actual linked CLI uploaded a snapshot to the relay');
   const uploadBody = JSON.parse(snapshotRequest.request.toString('utf8'));
@@ -242,13 +246,13 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
   const clock = Date.parse(observedAt);
   assert.ok(Number.isSafeInteger(clock), 'the native checkpoint carries its explicit observation clock');
   // Compare complete production readers at the SAME documented observation, not two wall-clock instants.
-  const projection = { ...relaySnapshot(box.root, { observedAt: clock }).presentation.state, root: sourceState.board };
+  const projection = { ...relaySnapshot(box.root, { observedAt: clock }, RELAY_PRESENTATION_PORTS).presentation.state, root: sourceState.board };
   const projectionHash = createHash('sha256').update(JSON.stringify(projection)).digest('hex');
   assert.deepEqual(browserHashes, { projectionHash, tablesHash }, 'the production browser client reads the exact projection and browser gzip retains every native table byte');
 
   // An older relay that does not advertise paged snapshots keeps its explicit per-request refusal.
   box.legacySnapshotApi();
-  const oversizedDocument = relaySnapshot(box.root);
+  const oversizedDocument = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   const randomTitle = 'OVERSIZE_SNAPSHOT_340_' + randomBytes(RELAY_LIMIT).toString('base64');
   oversizedDocument.tables.board_meta.push({ meta_key: 'oversize_test_payload', meta_value: randomTitle });
   const oversizedGzip = await sealedSnapshot(box, oversizedDocument, sourceState.sequence, true);
@@ -257,7 +261,7 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
   assert.ok(Buffer.byteLength(JSON.stringify({ sequence: sourceState.sequence, sealed: oversizedGzip })) < BODY_LIMIT,
     'the oversized sealed snapshot remains below the shared HTTP body limit');
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
-  const localDigest = presentationDigest(relaySnapshot(box.root).presentation);
+  const localDigest = presentationDigest(relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS).presentation);
   link.checkpoint = { sequence: sourceState.sequence, sealed: oversizedGzip };
   link.checkpointPresentationDigest = localDigest;
   writeFileSync(box.linkFile, JSON.stringify(link), { mode: 0o600 });
@@ -338,7 +342,7 @@ async function thirtyThousandBoard(t) {
     });
     assert.equal(store.allShouts(native)[0].shout_id, oldest, 'the addressed marker really is this board\'s oldest shout');
   } finally { store.closeBoard(native); }
-  const before = relaySnapshot(box.root);
+  const before = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   assert.ok(before.tables.event.length >= 30_000 && before.tables.event.length < 31_000);
   assert.ok(gzipSync(Buffer.from(JSON.stringify(before))).byteLength > LEGACY_RELAY_THRESHOLD * 3, 'even compressed whole-board state is several times the old limit');
   const uploadedStatus = await box.cli('status');
@@ -450,7 +454,7 @@ test('thirty thousand events open on the phone within three seconds and stream a
   } finally {
     await chrome.evaluate('window.__olderHistoryAllowed = true; window.__releaseOlderHistory?.(); true');
   }
-  const expected = relaySnapshot(box.root);
+  const expected = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   const finalSequence = Number(expected.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value);
   // Budget: a complete loopback replay includes both the pinned predecessor and its live successor, never the three-second boot bar.
   await chrome.waitFor(`transport.historyProgress('${link.board}').complete && transport.historyProgress('${link.board}').sequence === ${finalSequence}`, 45_000, 'all sealed history is held at the live checkpoint'); // budget: hang ceiling for two complete pinned background streams; the 3s boot bar is measured separately.
@@ -567,7 +571,7 @@ test('large compressible history uses bounded pages even when its whole encrypte
       });
     });
   } finally { store.closeBoard(board); }
-  const before = relaySnapshot(box.root);
+  const before = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   const raw = Buffer.from(JSON.stringify(before));
   assert.ok(raw.byteLength > 1_000_000);
   const compressedBytes = gzipSync(raw).byteLength;

@@ -1,3 +1,4 @@
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** @pullboard-test-gui */
 /** Real Chrome reads and follows device-sealed boards; the relay never receives its key [H5,H15,H18]. */
 import assert from 'node:assert/strict';
@@ -17,6 +18,9 @@ import { addItem, answerDecision, closeBoard, openBoard, shout } from '../src/bo
 import { relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
 import { pairStudioPhone, phoneExpiry, readApprovalCard, studioCommand, studioProject } from './relay-studio-fixture.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 /** Read native gzip snapshots while retaining checks against historical uncompressed records. */
 function snapshotDocument(plain) {
@@ -384,7 +388,7 @@ test('real Chrome refuses a newer engine in the initial replay without exposing 
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
-  const presentation = relaySnapshot(box.root).presentation;
+  const presentation = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS).presentation;
   presentation.state.items[0].title = privateTitle;
   await appendEngineMove(box, link, key, 1, ENGINE_VERSION + 1, presentation);
 
@@ -413,7 +417,7 @@ test('real Chrome refuses a newer engine delivered over the live stream [H5,H15]
   await signIn(chrome, box);
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(initialTitle) + ')');
-  const presentation = relaySnapshot(box.root).presentation;
+  const presentation = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS).presentation;
   presentation.state.items[0].title = privateTitle;
   await appendEngineMove(box, link, key, 1, ENGINE_VERSION + 1, presentation);
   await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes(" + JSON.stringify('This board needs engine ' + (ENGINE_VERSION + 1)) + ")");
@@ -444,7 +448,7 @@ test('real Chrome waits for and installs the late snapshot that compacts a legac
   assert.equal(await chrome.evaluate('document.body.textContent.includes(' + JSON.stringify(finalTitle) + ')'), false,
     'the event position is not consumed while the current snapshot is behind it');
 
-  const checkpoint = relaySnapshot(box.root);
+  const checkpoint = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   checkpoint.tables.item[0].item_title = finalTitle;
   checkpoint.presentation.state.items[0].title = finalTitle;
   const bytes = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(checkpoint)), {

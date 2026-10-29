@@ -1,3 +1,4 @@
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** @pullboard-test-gui */
 /** The relay browser client's sealed snapshot decode, in Chrome and in WebKit [H5,H16]. */
 import assert from 'node:assert/strict';
@@ -17,6 +18,9 @@ import { relaySnapshot } from '../src/relay-presentation.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';
 import { relayClientFixture } from './relay-client-fixture.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 
 const CLIENT = new URL('../relay/browser-client.js', import.meta.url);
@@ -214,7 +218,7 @@ test('the sealed gzip snapshot decodes through a Response body, the way WebKit a
 
 /** Publish the later checkpoint with the real API2 CLI writer inside the private fixture. */
 async function publishApi2Checkpoint(box, boardId, sequence) {
-  const before = relaySnapshot(box.root);
+  const before = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   assert.equal(before.presentation.state.items.filter(item => item.title.startsWith('PHONE_PENDING_')).length, 3,
     'the local native projection contains all three acknowledged moves before publishing');
 
@@ -322,7 +326,7 @@ for (const apiVersion of [1, 2]) test('the phone shows moves past its checkpoint
   assert.equal(box.calls.filter(call => call.method === 'GET' && call.path === '/').length, loadsBefore,
     'the phone catches up without reloading the page');
 
-  const checkpointN3 = relaySnapshot(box.root);
+  const checkpointN3 = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   assert.equal(checkpointN3.presentation.state.items.filter(item => pendingTitles.includes(item.title)).length, 3,
     'the later native checkpoint includes all three acknowledged operations');
   if (apiVersion === 1) {

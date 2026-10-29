@@ -2,12 +2,31 @@
 /** The board refuses a brief longer than this (item-routing.js); this cell sits below it, so it cannot import it. */
 const BRIEF_LIMIT = 8000;
 
+/** Preserve removed source provenance separately from active ownership, without aliasing its replacement. */
+export function retiredRows(plan) {
+  const rows = plan.retired ?? [];
+  if (!Array.isArray(rows)) throw new Error('retired placements must be an array');
+  const seen = new Set();
+  for (const entry of rows) {
+    const cell = plan.cells.find(value => value.name === entry?.cell);
+    const row = entry?.row;
+    if (!cell || !Array.isArray(row) || row.length !== 3 || !['seed', 'rule', 'imports'].includes(row[2])
+      || row.slice(0, 2).some(path => typeof path !== 'string' || /[\\:\x00-\x1f\x7f]/u.test(path) || path.split('/').some(part => !part || part === '.' || part === '..'))
+      || !row[1].startsWith(`${cell.root}/`) || seen.has(row[0])
+      || plan.cells.some(value => value.paths.some(active => active[0] === row[0]))) throw new Error('invalid or active retired historical placement');
+    seen.add(row[0]);
+  }
+  return rows;
+}
+
 /** Stable identity for a cut item, independent of move numbering and board allocation. */
 export function cutTitle(cell) { return `Cells import cuts: ${cell} removes imports into later cells`; }
 
 /** Resolve one historical source identity only when its unique placement stayed put or moved lower. */
 function historicalPlacement(plan, original, path) {
   const found = plan.cells.flatMap(cell => cell.paths.filter(row => row[0] === path).map(row => ({ cell, row })));
+  const retired = retiredRows(plan).filter(entry => entry.cell === original.name && entry.row[0] === path);
+  if (!found.length && retired.length === 1) return retired[0].row;
   return found.length === 1 && found[0].cell.order <= original.order ? found[0].row : null;
 }
 

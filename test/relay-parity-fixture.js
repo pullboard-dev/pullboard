@@ -1,3 +1,4 @@
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** Real loopback relay and complete native API observations for reader parity [H5,H15,H16,A2]. */
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
@@ -31,14 +32,14 @@ export function seedParityBoard(root, lane) {
 
 /** Clock advancement alone is not a board change, while a real native mutation always is. */
 function assertPresentationChangeClock(root, item) {
-  const first = relayPresentation(root, { observedAt: Date.UTC(2026, 0, 1) });
-  const later = relayPresentation(root, { observedAt: Date.UTC(2026, 0, 2) });
+  const first = relayPresentation(root, { observedAt: Date.UTC(2026, 0, 1) }, RELAY_PRESENTATION_PORTS);
+  const later = relayPresentation(root, { observedAt: Date.UTC(2026, 0, 2) }, RELAY_PRESENTATION_PORTS);
   assert.notEqual(first.state.observedAt, later.state.observedAt, 'emitted observations retain their actual caller clock');
   assert.equal(presentationDigest(first), presentationDigest(later), 'an unchanged board does not publish merely because its clock advanced');
   const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   try { store.editItem(board, item, { agentId: 'coordinator', brief: 'Business input changed after the clock-only observation.' }); }
   finally { store.closeBoard(board); }
-  const changed = relayPresentation(root, { observedAt: Date.UTC(2026, 0, 2) });
+  const changed = relayPresentation(root, { observedAt: Date.UTC(2026, 0, 2) }, RELAY_PRESENTATION_PORTS);
   assert.notEqual(presentationDigest(later), presentationDigest(changed), 'a real business mutation changes the fingerprint at the same observation clock');
 }
 
@@ -97,6 +98,9 @@ export async function parityRoundtrip(t, { foreign = false, localHealth = false 
     try {
       const running = runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', `import { readFileSync } from 'node:fs';
 import { exerciseOperationParity } from ${JSON.stringify(module)};
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 try { console.log(JSON.stringify(await exerciseOperationParity(JSON.parse(readFileSync(${JSON.stringify(file)}, 'utf8'))))); } catch (error) { console.log(JSON.stringify({ error: error.message })); process.exitCode = 1; }`], { cwd: box.root, env: box.env, signal: t.signal });
       t.after(async () => {
         if (running.child.exitCode === null && running.child.signalCode === null) running.child.kill('SIGTERM');

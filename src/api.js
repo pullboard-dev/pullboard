@@ -1122,7 +1122,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     item: (board, id) => withGitReadFacts(() => localItem(board, id)),
     search: (board, text) => withGitReadFacts(() => localSearch(board, text)),
     shout: (board, id) => withGitReadFacts(() => relayLinked(board.root)
-      ? relayPresentationShout(board.root, id)
+      ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, fitFile })
       : withBoard(board.root, (db) => store.shoutDetails(db, id), codeIsMain)),
     code: (board, ref) => withGitReadFacts(() => codeAt(board.root, ref)),
     events: (board, after) => withGitReadFacts(() => afterEvents(board.root, after, codeIsMain)),

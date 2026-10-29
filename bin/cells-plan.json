@@ -19,10 +19,10 @@
   },
   "totals": {
     "cells": 43,
-    "movedPaths": 1320,
+    "movedPaths": 1319,
     "stays": 41,
     "placedBy": {
-      "seed": 893,
+      "seed": 892,
       "rule": 341,
       "imports": 86
     },
@@ -411,6 +411,200 @@
     {
       "path": "src/git-sync-format.js",
       "reason": "Retired by #1619: consolidated into packages/commits/src/core/board-format.js; no source remains for the sync move."
+    }
+  ],
+  "retired": [
+    {
+      "cell": "store",
+      "row": [
+        "src/board-read.js",
+        "packages/store/src/shell/board-read.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "src/person-authority-schema.js",
+        "packages/person/src/core/person-authority-schema.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "activity",
+      "row": [
+        "src/activity-delivery-store.js",
+        "packages/activity/src/core/activity-delivery-store.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "activity",
+      "row": [
+        "src/activity-feed.js",
+        "packages/activity/src/core/activity-feed.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "activity",
+      "row": [
+        "src/activity-news.js",
+        "packages/activity/src/core/activity-news.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-exceptions.js",
+        "packages/landing/src/core/landing-exceptions.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-lease.js",
+        "packages/landing/src/core/landing-lease.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-local-lease.js",
+        "packages/landing/src/core/landing-local-lease.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-test-defect-history.js",
+        "packages/landing/src/core/landing-test-defect-history.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-test-defects.js",
+        "packages/landing/src/core/landing-test-defects.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "shouts",
+      "row": [
+        "src/inbox-store.js",
+        "packages/shouts/src/core/inbox-store.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "shouts",
+      "row": [
+        "src/shout-audience.js",
+        "packages/shouts/src/core/shout-audience.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "shouts",
+      "row": [
+        "src/worker-inbox.js",
+        "packages/shouts/src/core/worker-inbox.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/conditional-holds.js",
+        "packages/health/src/core/conditional-holds.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/health-receipts.js",
+        "packages/health/src/core/health-receipts.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/recurring-jobs.js",
+        "packages/health/src/core/recurring-jobs.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/release-claim.js",
+        "packages/health/src/core/release-claim.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/stale-claim-release.js",
+        "packages/health/src/core/stale-claim-release.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/stale-state-maintenance.js",
+        "packages/health/src/core/stale-state-maintenance.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/stale-state-policy.js",
+        "packages/health/src/core/stale-state-policy.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/stale-state-store.js",
+        "packages/health/src/core/stale-state-store.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "rigor",
+      "row": [
+        "src/rigor-auto-source.js",
+        "packages/rigor/src/core/rigor-auto-source.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "rigor",
+      "row": [
+        "src/rigor-source.js",
+        "packages/rigor/src/core/rigor-source.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "rigor",
+      "row": [
+        "src/rigor.js",
+        "packages/rigor/src/core/rigor.js",
+        "seed"
+      ]
     }
   ]
 }
