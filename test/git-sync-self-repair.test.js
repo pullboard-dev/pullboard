@@ -7,11 +7,11 @@ import { readGitSyncRepairs } from '../src/git-sync-files.js';
 import { runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import * as store from '../src/board.js';
-import { syncGitBoard } from '../packages/sync/src/shell/sync.js';
+import { syncGitBoard } from '../packages/sync/index.js';
 
 /** Demand a successful fixture CLI result without including its synthetic relay credentials. */
 function success(result, label) {
-  assert.equal(result.code, 0, `${label}: ${result.failure ?? result.document?.error?.code ?? result.code}`);
+  assert.equal(result.code, 0, `${label}: ${result.document?.error?.code ?? result.code}; ${result.failure ?? ''}`);
   return result.document;
 }
 

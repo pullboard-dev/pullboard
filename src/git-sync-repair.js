@@ -2,8 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { lstatSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { gitSyncCompatibility } from '../packages/sync/src/shell/sync.js';
-import { inspectGitSyncLock, withGitSyncLock } from '../packages/sync/src/shell/git-sync-lock.js';
+import { gitSyncCompatibility, inspectGitSyncLock, withGitSyncLock } from '../packages/sync/index.js';
 import { gitSyncFiles, readGitSyncMarker } from './git-sync-files.js';
 import { Refused } from './refused.js';
 
