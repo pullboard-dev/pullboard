@@ -7,7 +7,7 @@
  "dryRunName": "runner-client",
  "placedBy": {
   "seed": 4,
-  "rule": 15,
+  "rule": 22,
   "imports": 1
  },
  "paths": [
@@ -30,7 +30,14 @@
   ["src/runner-runtime-urls.js","packages/runners/src/core/runner-runtime-urls.js","rule"],
   ["src/runner-source-cache.js","packages/runners/src/shell/runner-source-cache.js","rule"],
   ["src/runner-stage-model.js","packages/runners/src/core/runner-stage-model.js","rule"],
-  ["src/runner-tooling-snapshot.js","packages/runners/src/shell/runner-tooling-snapshot.js","rule"]
+  ["src/runner-tooling-snapshot.js","packages/runners/src/shell/runner-tooling-snapshot.js","rule"],
+  ["src/runner-source-scan.js","packages/runners/src/shell/runner-source-scan.js","rule"],
+  ["src/runner-history-pack.js","packages/runners/src/shell/runner-history-pack.js","rule"],
+  ["src/runner-remote-tooling.js","packages/runners/src/shell/runner-remote-tooling.js","rule"],
+  ["src/runner-request.js","packages/runners/src/shell/runner-request.js","rule"],
+  ["src/runner-result.js","packages/runners/src/shell/runner-result.js","rule"],
+  ["src/runner-dispatch.js","packages/runners/src/shell/runner-dispatch.js","rule"],
+  ["src/runner-health.js","packages/runners/src/shell/runner-health.js","rule"]
  ],
  "reexports": [
   "src/run.js",
