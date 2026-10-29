@@ -57,7 +57,7 @@ test('an idle pinned runner with stale job files and missing exact completion re
     console.log(JSON.stringify({ first, again, held: db.prepare('SELECT COUNT(*) n FROM runner_unavailable').get().n,
       events: events.map(event => ({ kind: event.kind, detail: JSON.parse(event.detail) })) }));
     db.close();`);
-  assert.equal(actual.first, true);
+  assert.equal(actual.first, true, JSON.stringify(actual));
   assert.equal(actual.again, false);
   assert.equal(actual.held, 0);
   assert.deepEqual(actual.events.map(event => event.kind), ['unavailable', 'available']);

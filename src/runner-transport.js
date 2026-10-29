@@ -9,6 +9,7 @@ import {
   mkdirSync,
   lstatSync,
   readFileSync,
+  readdirSync,
   readlinkSync,
   realpathSync,
   renameSync,
@@ -24,6 +25,7 @@ import {
 } from 'node:path';
 import { join } from 'node:path';
 import { guiSession } from './gui-session.js';
+import { processCensus } from './runner-custody.js';
 
 /** Give a health observation the same credential-forwarding limits as a worker connection. */
 function environment() {
@@ -154,22 +156,36 @@ export function runnerHealthReply(root, request) {
   return { ...base, cleanup: true, reason: 'exact jobs drained or atomically fenced before startup' };
 }
 
-/** Observe live worker commands and job working directories; old files alone are not running jobs. */
+/** Bind a running worker to its own job directory before it can wait for a resource lease. */
+export function recordRunnerOwner(directory) {
+  const owner = processCensus()?.get(process.pid);
+  if (!owner) throw new Error('runner worker process identity could not be observed');
+  writeFileSync(join(directory, 'worker-owner.json'), JSON.stringify({ pid: owner.pid, started: owner.started }) + '\n',
+    { mode: 0o600, flag: 'wx' });
+}
+
+/** Observe live owners and job working directories; old files alone are not running jobs. */
 function runnerProcessesIdle(root) {
-  const options = { encoding: 'utf8', timeout: 3_000, maxBuffer: 8 * 1024 * 1024,
+  const options = { encoding: 'utf8', timeout: 2_000, maxBuffer: 8 * 1024 * 1024,
     env: { PATH: '/usr/bin:/bin:/usr/sbin', LC_ALL: 'C', LANG: 'C' } };
-  const census = spawnSync('/bin/ps', ['-axo', 'pid=,stat=,args='], options);
-  if (census.error || census.status !== 0 || census.signal || !census.stdout.trim()) return false;
-  const pids = [];
-  for (const line of census.stdout.trim().split('\n')) {
-    const row = /^\s*(\d+)\s+(\S+)\s+(.+)$/u.exec(line);
-    if (!row) return false;
-    const pid = Number(row[1]);
-    if (pid === process.pid || row[2].startsWith('Z')) continue;
-    if (/^\S+\s+\S*[/]runner-worker\.js(?:\s|$)/u.test(row[3]) && !/\s--health(?:\s|$)/u.test(row[3])) return false;
-    pids.push(pid);
-  }
+  const census = processCensus();
+  if (!census) return false;
+  const pids = [...census.values()].filter(row => row.pid !== process.pid && !row.state.startsWith('Z')).map(row => row.pid);
   const jobs = join(realpathSync(root), 'jobs');
+  let directories;
+  try { directories = readdirSync(jobs, { withFileTypes: true }); }
+  catch (error) { if (error.code !== 'ENOENT') return false; directories = []; }
+  for (const entry of directories) {
+    if (!entry.isDirectory()) continue;
+    const file = join(jobs, entry.name, 'worker-owner.json');
+    try {
+      if (!lstatSync(file).isFile() || lstatSync(file).size > 4096) return false;
+      const owner = JSON.parse(readFileSync(file, 'utf8'));
+      if (!Number.isSafeInteger(owner.pid) || typeof owner.started !== 'string') return false;
+      const actual = census.get(owner.pid);
+      if (actual && !actual.state.startsWith('Z') && actual.started === owner.started) return false;
+    } catch (error) { if (error.code !== 'ENOENT') return false; }
+  }
   /** Compare directory components so jobs-old never counts as a running job. */
   const inJobs = path => {
     const part = relative(jobs, path);

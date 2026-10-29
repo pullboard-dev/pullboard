@@ -53,6 +53,7 @@ import {
 import { Refused } from './refused.js';
 import {
   recordRunnerCompletion,
+  recordRunnerOwner,
   recoveryIdentity,
   runnerLaunchAllowed,
   runnerHealthReply,
@@ -1057,6 +1058,7 @@ async function main() {
     chmodSync(base, 0o700);
     runDirectory = mkdtempSync(join(base, `${spec.id}-`));
     cleanupDirectory = runDirectory;
+    recordRunnerOwner(runDirectory);
     const root = join(runDirectory, 'checkout');
     const privateHome = join(runDirectory, 'home');
     const temporary = join(runDirectory, 'tmp');
