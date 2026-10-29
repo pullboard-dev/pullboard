@@ -1,12 +1,21 @@
 /** Nonblocking process diagnostics preserve their target and safe failure information [C7,N26]. */
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
-import { readMachineMemory, memoryVerdict } from '../src/resources.js';
-import { toolSourcePath } from '../src/package-files.js';
-import { cleanupFailureReport } from './cleanup-diagnostics.js';
+import {
+  readMachineMemory,
+  memoryVerdict,
+} from '../src/shell/resources.js';
+import { toolSourcePath } from '../../../src/package-files.js';
+import { cleanupFailureReport } from '../../../test/cleanup-diagnostics.js';
 
 /** Inject only the documented OS-tool boundary; all production parsing and failure rendering still run. */
 async function memoryProbe(fail = false) {
@@ -62,8 +71,8 @@ test('cleanup ownership probes request nonblocking lsof and retain scoped holder
 });
 
 test('literal process-directory and cleanup helper probes all retain the nonblocking flag [C7]', () => {
-  const sources = [['src/resources.js', readFileSync(toolSourcePath(join(import.meta.dirname, '..'), 'src/resources.js'), 'utf8')]];
-  for (const path of ['./cleanup-diagnostics.js', './view-port.test.js']) sources.push([path, readFileSync(new URL(path, import.meta.url), 'utf8')]);
+  const sources = [['src/resources.js', readFileSync(toolSourcePath(join(import.meta.dirname, '../../..'), 'packages/resources/src/shell/resources.js'), 'utf8')]];
+  for (const path of ['cleanup-diagnostics.js', 'view-port.test.js']) sources.push(['./' + path, readFileSync(new URL('../../../test/' + path, import.meta.url), 'utf8')]);
   let calls = 0;
   for (const [path, source] of sources) {
     const probes = source.matchAll(/(?:spawnSync|run|runFixtureProcessTool)\(\s*(['"])(?:\/usr\/(?:sbin|bin)\/)?lsof\1\s*,\s*\[([^\]]*)\]/gu);

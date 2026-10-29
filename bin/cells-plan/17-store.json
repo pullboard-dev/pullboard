@@ -6,7 +6,7 @@
  "frontDoor": "packages/store/index.js",
  "placedBy": {
   "seed": 67,
-  "rule": 15,
+  "rule": 18,
   "imports": 8
  },
  "paths": [
@@ -97,6 +97,9 @@
   ["src/board-rigor-auto-source.js","packages/store/src/core/board-rigor-auto-source.js","seed"],
   ["src/board-rigor-source.js","packages/store/src/core/board-rigor-source.js","seed"],
   ["src/board-rigor.js","packages/store/src/core/board-rigor.js","seed"],
+  ["src/board-claim.js","packages/store/src/shell/board-claim.js","rule"],
+  ["src/board-command-write.js","packages/store/src/shell/board-command-write.js","rule"],
+  ["src/board-write-preparation.js","packages/store/src/shell/board-write-preparation.js","rule"],
   ["src/routing-rule-set.js","packages/store/src/shell/routing-rule-set.js","rule"],
   ["src/routing-shout.js","packages/store/src/shell/routing-shout.js","rule"],
   ["src/release-reasons.js","packages/store/src/core/release-reasons.js","rule"]
