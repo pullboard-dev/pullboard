@@ -1,3 +1,3 @@
 export {
   landingBatches,
-} from "../packages/git/index.js";
+} from "../packages/git/src/core/git-landing-batches.js";

@@ -1,3 +1,3 @@
 export {
   removeGitRepositorySelectors,
-} from "../packages/git/index.js";
+} from "../packages/git/src/core/git-child-selectors.js";

@@ -119,36 +119,17 @@ function shimBodies(read, path, seen = new Set()) {
  * test line is correct before and after a cells move.
  * @param {string} root - The package or fixture directory.
  * @param {string} path - A root-relative tool source path such as src/resources.js.
- * @param {{followShims?:boolean}} [options] - False returns the exact regular entry without following its exports.
- * @returns {string} The absolute path of the implementation, or the exact entry when following is disabled.
+ * @returns {string} The absolute path of the file that holds the code.
  */
-export function toolSourcePath(root, path, { followShims = true } = {}) {
-  if (typeof followShims !== 'boolean') throw new Error('followShims must be a Boolean');
+export function toolSourcePath(root, path) {
   const base = resolve(root);
-  /** Resolve a literal package entry without following symbolic path components or escaping the private root. */
-  function entry(file) {
-    const identity = copyPath(file), target = resolve(base, identity), part = relative(base, target);
-    if (!part || part === '..' || part.startsWith('..' + sep) || isAbsolute(part)) throw new Error('tool source path escapes its package');
-    let current = base;
-    const components = identity.split('/');
-    for (let at = 0; at < components.length; at++) {
-      current = join(current, components[at]);
-      const stat = lstatSync(current);
-      if (stat.isSymbolicLink() || (at === components.length - 1 ? !stat.isFile() : !stat.isDirectory())) {
-        throw new Error('tool source path must contain regular files and directories');
-      }
-    }
-    return target;
-  }
+  const read = file => readFileSync(join(base, file), 'utf8');
   let current = copyPath(path);
   for (let hop = 0; hop < 16; hop++) {
-    const selected = entry(current);
-    if (!followShims) return selected;
-    const text = /\.[cm]?js$/u.test(current) ? readFileSync(selected, 'utf8') : '';
+    const text = /\.[cm]?js$/u.test(current) ? read(current) : '';
     const targets = shimTargets(text);
-    if (!targets) return selected;
+    if (!targets) return join(base, current);
     if (targets.length !== 1) throw new Error(`${current} is a shim over ${targets.length} modules; name the module that holds the code`);
-    if (!/^\.\.?\//u.test(targets[0])) throw new Error(`${current} forwards to a non-relative module`);
     current = normalize(join(dirname(current), targets[0])).split(sep).join('/');
   }
   throw new Error(`shim chain from ${path} is too long`);
