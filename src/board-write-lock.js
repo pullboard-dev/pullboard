@@ -15,6 +15,7 @@ import { writeSync } from 'node:fs';
 import { constants } from 'node:fs';
 import { join } from 'node:path';
 import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
+import { recordBoardHold } from './board-hold-log.js';
 
 const pending = new WeakMap();
 let ownIdentity;
@@ -77,7 +78,8 @@ function contextFor(db, context) {
   if (!seat && context.path && db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent'").get()) {
     seat = db.prepare('SELECT agent_id FROM agent WHERE agent_path=?').get(context.path)?.agent_id;
   }
-  return { command: label(context.command, 'api'), seat: label(seat, 'unknown') };
+  return { command: label(context.command, 'api'), seat: label(seat, 'unknown'),
+    item: Number.isSafeInteger(context.item) && context.item > 0 ? context.item : null };
 }
 
 /** Start tracking AFTER successful BEGIN; slow admission is never misreported as lock-holding time. */
@@ -104,16 +106,27 @@ export function beginBoardWrite(db, context = {}) {
   return record;
 }
 
+/** Enrich API and nested-command observations from native events, without recording event contents. */
+export function noteBoardWriteItem(db, item) {
+  if (!Number.isSafeInteger(item) || item < 1) return;
+  for (const record of pending.get(db) ?? []) {
+    if (record.complete || record.multipleItems) continue;
+    if (record.item == null) record.item = item;
+    else if (record.item !== item) { record.item = null; record.multipleItems = true; }
+  }
+}
+
 /** Complete only after COMMIT/ROLLBACK or actual connection close; unique records cannot unlink a successor. */
 export function finishBoardWrite(record, released, outcome = 'released') {
   if (!record || record.complete || !released) return;
   record.complete = true;
-  const durationMs = Math.max(0, Math.round(performance.now() - record.start));
+  const durationMs = Math.max(0, Math.round((record.releasedAt ?? performance.now()) - record.start));
   if (durationMs > LONG_WRITE_MS) {
-    const line = { command: record.command, seat: record.seat, pid: record.pid, durationMs, outcome };
+    const line = { command: record.command, seat: record.seat, item: record.item ?? null, pid: record.pid, durationMs, outcome };
     try { writeSync(2, 'pullboard: long board write ' + JSON.stringify(line) + '\n'); }
     catch { /* A closed diagnostic stream must not turn an already committed move into an apparent refusal. */ }
   }
+  recordBoardHold({ ...record, durationMs, outcome });
   if (record.marker) {
     try { unlinkSync(record.marker); }
     catch { /* Retain a stale advisory file if cleanup is unavailable; PID/start checks keep it non-authoritative. */ }
