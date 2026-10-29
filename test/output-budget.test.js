@@ -6,14 +6,29 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { DEFAULT_OUTPUT_BUDGET, LINE_BUDGET, commandName, cutLine, outputBudget } from '../src/json-output.js';
+import { DEFAULT_OUTPUT_BUDGET, LINE_BUDGET, commandName, commandOutput, cutLine, outputBudget } from '../src/json-output.js';
+import { COMMANDS } from '../src/commands/index.js';
+import { runFixtureChild } from './fixture-child.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-/** The commands measured on the seeded board, with the arguments a reader passes them by default. */
-const MEASURED = [['status'], ['list', 'web'], ['show', '1'], ['queue'], ['roadmap'], ['log'], ['stats'], ['lanes'],
-  ['agents'], ['whoami'], ['decisions'], ['flakes'], ['spec'], ['ledger'], ['health'], ['capacity']];
+/** Arguments a reader passes by default; every other command runs bare. */
+const DEFAULT_ARGS = { list: ['web'], show: ['1'], log: [], why: ['1'] };
+
+/**
+ * Commands never run here, each with why: they stream until stopped, or they act (land, push, run work, change
+ * machine state) when run bare. Every other command is measured; a command in neither set fails the ratchet.
+ */
+const EXCLUDED = Object.freeze({
+  view: 'serves until stopped', watch: 'streams until stopped', serve: 'serves until stopped', relay: 'links a relay',
+  mcp: 'serves MCP on stdio until stopped', hook: 'is a git hook entry that reads its hook arguments', loop: 'loops until stopped',
+  land: 'lands accepted work', publish: 'pushes to the remote', sync: 'syncs with the remote', runner: 'registers runners',
+  test: 'runs the test suite', check: 'runs an item check', gate: 'runs the gate', run: 'runs a command',
+  sweep: 'releases and reopens board work', init: 'initializes a repository', takeover: 'takes over the coordinator seat',
+  worktree: 'creates a worktree', heartbeat: 'records presence', tour: 'is an interactive walkthrough', help: 'is the reference page',
+  export: 'prints the whole board as a data document meant for a file, never for an agent context',
+});
 
 /** Committed sizes in UTF-8 bytes; an entry may only fall. */
 const BASELINE = JSON.parse(readFileSync(new URL('./output-budget-baseline.json', import.meta.url), 'utf8'));
@@ -47,19 +62,32 @@ function seeded() {
 test('every measured command prints within its committed baseline and declared budget on a seeded board [C7,N26]', () => {
   const box = seeded();
   const measured = {};
-  const failed = [];
-  for (const args of MEASURED) {
-    const result = box.run(box.repo, ...args);
-    if (result.code !== 0) failed.push(`${args.join(' ')}: ${result.err}`);
-    measured[args[0]] = Buffer.byteLength(result.out);
+  const unlisted = Object.keys(COMMANDS).filter(command => !Object.hasOwn(BASELINE, command) && !Object.hasOwn(EXCLUDED, command));
+  assert.deepEqual(unlisted, [], 'every command is measured against a baseline or excluded with a reason');
+  for (const command of Object.keys(COMMANDS).filter(name => !Object.hasOwn(EXCLUDED, name))) {
+    // A refusal still prints its default text; only stdout lands in a reader's context as output.
+    const result = runFixtureChild(process.execPath, [helpers.BIN, command, ...(DEFAULT_ARGS[command] ?? [])],
+      { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 20_000 });
+    measured[command] = result.signal ? Infinity : Buffer.byteLength(result.stdout ?? '');
   }
-  assert.deepEqual(failed, [], 'every measured read succeeds on the seeded board');
   assert.deepEqual(ratchetProblems(measured, BASELINE), [], JSON.stringify(measured));
   const full = box.run(box.repo, 'list', 'web', '--detail');
   assert.ok(Buffer.byteLength(full.out) > DEFAULT_OUTPUT_BUDGET, '--detail still prints every row');
   const bounded = box.run(box.repo, 'list', 'web');
   assert.match(bounded.out, /more lines withheld to keep this output within 8192 bytes; add --detail for all of it, or --json/u);
   assert.equal(JSON.parse(box.run(box.repo, 'list', 'web', '--json').out).items.length, 300, '--json is never trimmed by the text budget');
+});
+
+test('a long withheld next step is cut to one line and the whole output stays within the budget [C7,N26]', () => {
+  let printed = '';
+  const io = commandOutput(['blueprint'], { stdout: { write: text => { printed += text; } }, stderr: { write() {} } }, { refusalDocument: () => ({}) });
+  for (let index = 0; index < 200; index += 1) io.say(`draft row ${index} ${'x'.repeat(80)}`);
+  io.say('next: ' + Array.from({ length: 130 }, (_, index) => `src/very/long/path/file-${index}.js`).join(' '));
+  io.flush(0);
+  assert.ok(Buffer.byteLength(printed) <= DEFAULT_OUTPUT_BUDGET, `${Buffer.byteLength(printed)} bytes`);
+  const lines = printed.trimEnd().split('\n');
+  assert.match(lines.at(-1), /^next: src\/very\/long\/path\/file-0\.js .*--detail shows the whole line\)$/u, 'the next step survives, cut to one line');
+  assert.match(lines.at(-2), /more lines withheld/u);
 });
 
 test('a command over its baseline or its budget fails the ratchet naming it [C7]', () => {

@@ -62,11 +62,11 @@ export const DEFAULT_OUTPUT_BUDGET = 8192;
 
 /**
  * Each command's declared default-text budget in UTF-8 bytes. Long-running streams (view, watch, relay, serve) and
- * the reference pages (help, tour) are declared unbounded; every other command gets the default. Why: default
+ * the reference pages (help, tour) and the board data dump (export) are declared unbounded; every other command gets the default. Why: default
  * output is what lands in an agent's context, so a list of hundreds of rows belongs behind --detail or --json.
  */
 export const OUTPUT_BUDGETS = Object.freeze({ view: Infinity, watch: Infinity, relay: Infinity, serve: Infinity,
-  mcp: Infinity, hook: Infinity, help: Infinity, tour: Infinity });
+  mcp: Infinity, hook: Infinity, help: Infinity, tour: Infinity, export: Infinity });
 
 /** The command a CLI argument list runs: its first positional before any `--`. */
 export function commandName(argv) {
@@ -148,7 +148,8 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
   // Default text stops at the command's budget; --detail prints everything, as --json always does [#1885].
   const flagArgs = argv.slice(0, argv.indexOf('--') < 0 ? argv.length : argv.indexOf('--'));
   const budget = flagArgs.includes('--detail') ? Infinity : outputBudget(commandName(argv));
-  const notice = 512;
+  // Room kept for the closing count line and a final next step, itself cut to one line, inside the budget.
+  const notice = LINE_BUDGET + 256;
   let printed = 0, withheld = 0, withheldNext = null;
   const fields = requestedFields(argv);
   let result;
@@ -174,7 +175,7 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
       const size = Buffer.byteLength(text);
       if (withheld || printed + size > budget - notice) {
         withheld += 1;
-        if (/^next:/u.test(part)) withheldNext = part;
+        if (/^next:/u.test(part)) withheldNext = cutLine(part);
         continue;
       }
       printed += size;
