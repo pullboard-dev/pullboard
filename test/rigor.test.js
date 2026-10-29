@@ -18,7 +18,7 @@ import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
 import { applyEngineMove, applyRelayMove, appliedSequence, prepareEngineMove } from '../src/engine.js';
 import { executeMove } from '../src/api.js';
 import { main } from '../src/cli.js';
-import { refusePersonMove } from '../src/mcp.js';
+import { refusePersonMove } from '../packages/mcp/index.js';
 import { CAUSE_ENGINE, ENGINE_VERSION } from '../src/machine.js';
 import { rigorReport } from '../src/board-rigor.js';
 import { newRigorNotices, undraftedRigor } from '../src/rigor-notices.js';
