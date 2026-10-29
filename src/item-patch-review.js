@@ -6,6 +6,8 @@ import { itemPatchDigest } from './item-patches.js';
 import { itemPatchReviewProblem } from './item-patches.js';
 import { outOfLane } from './lanes.js';
 import { contains } from './git.js';
+import { git } from './git.js';
+import { differFromHead } from './git.js';
 import { Refused } from './refused.js';
 
 /** Enforce the native source author's lane for every actual patch path. */
@@ -47,4 +49,25 @@ export function prepareItemPatchReview(root, board, item, ports, { mergeMain = t
   }
   if (digest && composed.digest !== digest) throw new Refused('ITEM_PATCH_CHANGED', 'read the current patch set and restart review');
   return { ...composed, companionDigest: digest };
+}
+
+/** Describe the exact ordered companions a reservation must place in the review checkout. */
+export function reviewCompanionOffer(root, board, item, ports) {
+  const patches = itemPatches(board, item.item_id);
+  if (!patches.length) return null;
+  const composed = prepareItemPatchReview(root, board, item, ports, { mergeMain: false });
+  return { commit: composed.commit, digest: composed.companionDigest, keys: patches.map(patch => patch.key) };
+}
+
+/** Compare final companion paths, including modes and deletions, rather than trusting commit ancestry. */
+export function missingCompanionKeys(root, board, item, head, ports) {
+  const offer = reviewCompanionOffer(root, board, item, ports);
+  if (!offer) return { keys: [], digest: null };
+  const keys = itemPatches(board, item.item_id).filter(patch => [...itemPatchPaths(patch.patch)].some(path => {
+    const args = ['ls-tree', '-z'];
+    const expected = git(root, [...args, offer.commit, '--', ':(literal)' + path]);
+    const actual = git(root, [...args, head, '--', ':(literal)' + path]);
+    return actual !== expected || differFromHead(root, [path]).length > 0;
+  })).map(patch => patch.key);
+  return { keys, digest: offer.digest };
 }
