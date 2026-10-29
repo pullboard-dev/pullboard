@@ -24,6 +24,7 @@ function fixture({ missing = false, locked = false } = {}) {
   /** Append numeric native-shaped usage, never provider prompt or conversation content. */
   const usage = (input, output) => appendFileSync(file, JSON.stringify({ timestamp: new Date().toISOString(), type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: input, output_tokens: output } } } }) + '\n');
   if (!missing) usage(10, 1);
+  // @pullboard-board-file journey: seed the real repository board shared by the native CLI claim and submit.
   const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   let item;
   try {
