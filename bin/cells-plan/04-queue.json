@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/queue",
  "frontDoor": "packages/queue/index.js",
- "placedBy": {
-  "seed": 2,
-  "rule": 1,
-  "imports": 1
- },
  "paths": [
   ["src/queue-order.js","packages/queue/src/shell/queue-order.js","seed"],
   ["src/queue-settings.js","packages/queue/src/shell/queue-settings.js","seed"],

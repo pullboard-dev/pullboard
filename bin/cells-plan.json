@@ -17,19 +17,6 @@
     "runner-client": "runners",
     "app:relay-server": "app:relay"
   },
-  "totals": {
-    "cells": 43,
-    "movedPaths": 1334,
-    "stays": 45,
-    "placedBy": {
-      "seed": 877,
-      "rule": 359,
-      "imports": 98
-    },
-    "shims": 636,
-    "cutImports": 327,
-    "cutEdges": 133
-  },
   "cells": [
     {
       "order": 1,

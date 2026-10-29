@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/kernel",
  "frontDoor": "packages/kernel/index.js",
- "placedBy": {
-  "seed": 8,
-  "rule": 0,
-  "imports": 0
- },
  "paths": [
   ["src/discovery.js","packages/kernel/src/core/discovery.js","seed"],
   ["src/js-lex.js","packages/kernel/src/core/js-lex.js","seed"],

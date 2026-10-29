@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/person",
  "frontDoor": "packages/person/index.js",
- "placedBy": {
-  "seed": 32,
-  "rule": 0,
-  "imports": 0
- },
  "paths": [
   ["src/pairing.js","packages/person/src/shell/pairing.js","seed"],
   ["src/person-attested.js","packages/person/src/core/person-attested.js","seed"],

@@ -5,11 +5,6 @@
  "root": "packages/runners",
  "frontDoor": "packages/runners/index.js",
  "dryRunName": "runner-client",
- "placedBy": {
-  "seed": 4,
-  "rule": 21,
-  "imports": 1
- },
  "paths": [
   ["src/run.js","packages/runners/src/shell/run.js","seed"],
   ["src/runner-capacity-read.js","packages/runners/src/shell/runner-capacity-read.js","rule"],

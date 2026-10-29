@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/verify",
  "frontDoor": "packages/verify/index.js",
- "placedBy": {
-  "seed": 22,
-  "rule": 7,
-  "imports": 6
- },
  "paths": [
   ["src/bar-actor.js","packages/verify/src/shell/bar-actor.js","seed"],
   ["src/bar-check.js","packages/verify/src/core/bar-check.js","seed"],

@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/health",
  "frontDoor": "packages/health/index.js",
- "placedBy": {
-  "seed": 2,
-  "rule": 7,
-  "imports": 0
- },
  "paths": [
   ["src/doctor.js","packages/health/src/shell/doctor.js","seed"],
   ["src/health.js","packages/health/src/shell/health.js","seed"],

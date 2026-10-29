@@ -4,11 +4,6 @@
  "kind": "app",
  "root": "apps/cli",
  "frontDoor": "apps/cli/index.js",
- "placedBy": {
-  "seed": 111,
-  "rule": 79,
-  "imports": 34
- },
  "paths": [
   ["src/cli-board-read.js","apps/cli/src/shell/cli-board-read.js","seed"],
   ["src/cli-context.js","apps/cli/src/shell/cli-context.js","seed"],

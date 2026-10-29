@@ -5,11 +5,6 @@
  "root": "packages/link",
  "frontDoor": "packages/link/index.js",
  "dryRunName": "relay-client",
- "placedBy": {
-  "seed": 46,
-  "rule": 2,
-  "imports": 0
- },
  "paths": [
   ["src/relay-approval.js","packages/link/src/core/relay-approval.js","seed"],
   ["src/relay-approvers.js","packages/link/src/shell/relay-approvers.js","seed"],

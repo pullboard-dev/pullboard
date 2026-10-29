@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/landing",
  "frontDoor": "packages/landing/index.js",
- "placedBy": {
-  "seed": 23,
-  "rule": 18,
-  "imports": 5
- },
  "paths": [
   ["src/computed-conflict-receipt.js","packages/landing/src/shell/computed-conflict-receipt.js","seed"],
   ["src/computed-conflict-return.js","packages/landing/src/shell/computed-conflict-return.js","seed"],

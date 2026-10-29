@@ -533,8 +533,8 @@ test('MCP code-map tools pin usages, impact and cell answers and refuse escaping
     'test/leaf.test.js': "import { caller } from '../src/caller.js';\ncaller();\n",
     'test/other.test.js': 'export const unrelated = true;\n',
     'bin/cells-plan.json': JSON.stringify({ cells: [{ file: 'bin/cells-plan/01-leaf.json' }, { file: 'bin/cells-plan/02-callers.json' }], stays: [] }),
-    'bin/cells-plan/01-leaf.json': JSON.stringify({ order: 1, name: 'leaf', frontDoor: 'src/leaf.js', paths: [['src/leaf.js', 'packages/leaf/index.js']] }),
-    'bin/cells-plan/02-callers.json': JSON.stringify({ order: 2, name: 'callers', frontDoor: 'src/caller.js', paths: [['src/caller.js', 'packages/callers/index.js']] }),
+    'bin/cells-plan/01-leaf.json': JSON.stringify({ order: 1, name: 'leaf', frontDoor: 'src/leaf.js', paths: [['src/leaf.js', 'packages/leaf/index.js', 'seed']], reexports: [], cuts: [] }),
+    'bin/cells-plan/02-callers.json': JSON.stringify({ order: 2, name: 'callers', frontDoor: 'src/caller.js', paths: [['src/caller.js', 'packages/callers/index.js', 'seed']], reexports: [], cuts: [] }),
     'bin/cells-plan/temporary-edges.json': JSON.stringify({ version: 1, edges: [] }),
   };
   for (const [file, source] of Object.entries(files)) {

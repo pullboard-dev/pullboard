@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/moves",
  "frontDoor": "packages/moves/index.js",
- "placedBy": {
-  "seed": 73,
-  "rule": 14,
-  "imports": 0
- },
  "paths": [
   ["src/bar-ready-setting.js","packages/moves/src/core/bar-ready-setting.js","seed"],
   ["src/move-registry.js","packages/moves/src/shell/move-registry.js","seed"],
