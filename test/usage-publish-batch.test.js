@@ -2,6 +2,7 @@
 /** Pending historical usage publishes once without extending the lifecycle writer [N2,C7,H16]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import * as store from '../src/board.js';
@@ -130,4 +131,54 @@ test('1001 pending revisions progress across bounded commands and never duplicat
   const totals=storedSeatUsage(board,agent);
   assert.deepEqual(totals.map(row=>row.item).sort((a,b)=>a-b),ids.slice(0,USAGE_BATCH_LIMIT+1));
   assert.ok(totals.every(row=>row.records[0].wallMs===50),'the unsent tail retains its exact private numeric totals');
+});
+
+
+/** Seed public-shaped history, not copied board data or private provider records. */
+function seedFamilyScale(board, directory) {
+  const at='2026-10-01T00:00:00.000Z';
+  const agent=board.db.prepare('INSERT INTO agent(agent_id,agent_lane,agent_path,agent_created_at,agent_family) VALUES(?,?,?,?,?)');
+  const event=board.db.prepare('INSERT INTO event(event_at,event_by,event_kind,item_id,event_detail) VALUES(?,?,?,NULL,?)');
+  const meta=board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)');
+  store.atomic(board,()=>{
+    for(let n=0;n<1221;n++){
+      const id=`scale-seat-${n}`,path=join(directory,id);
+      agent.run(id,'web',path,at,'fixture-family');
+      event.run(at,id,'join',JSON.stringify(n<74?{path}:{path,family:'fixture-family'}));
+      if(n<74)event.run(at,id,'family',JSON.stringify({family:null}));
+      if(n<254)meta.run(`agent_session:${id}`,String(n+1).padStart(64,'0'));
+      if(n<192)meta.run(`relay_receipt_scale-${n}`,JSON.stringify({sequence:n+1,
+        move:JSON.stringify({operation:'register',args:[{path,family:'fixture-family'}]}),outcome:{result:id}}));
+    }
+    for(let n=0;n<100000;n++)event.run(at,`scale-seat-${n%1221}`,'fact',JSON.stringify({id:`scale-fact-${n}`,kind:'note',text:'synthetic historical fact'}));
+  });
+}
+
+test('48 revisions hold the production writer under one second with 1221 seats and real-shaped family history [N2,C7,H16]',t=>{
+  const f=fixture(t);let board=f.board;
+  t.after(()=>store.closeBoard(board));
+  seedFamilyScale(board,f.box.dir);
+  // Opening the persisted board warms its proof projection exactly as a normal native opener does.
+  store.closeBoard(board);
+  board=store.openBoard(join(f.box.repo,'.git','pullboard','board.sqlite'));
+  const prepare=board.db.prepare.bind(board.db),exec=board.db.exec.bind(board.db);
+  let familyScans=0,acquired=null;const holds=[];
+  board.db.prepare=sql=>{if(sql.includes('SELECT agent.*, model.meta_value'))familyScans++;return prepare(sql);};
+  board.db.exec=sql=>{const result=exec(sql);if(sql==='BEGIN IMMEDIATE')acquired=performance.now();
+    if(sql==='COMMIT'&&acquired!==null){holds.push(performance.now()-acquired);acquired=null;}return result;};
+  const records=[{model:'scale-fixture',inputTokens:1,outputTokens:2,knownInputTokens:1,knownOutputTokens:2,wallMs:3,unknownReasons:[]}];
+  const items=f.ids.slice(0,48).map(item=>({agentId:f.agent,item,revision:1,observedAt:1,records}));
+  store.recordUsageBatch(board,{agentId:f.agent,items});
+  assert.equal(holds.length,1);
+  assert.ok(holds[0]<1000,`real-shaped history writer held ${holds[0]} ms`); // budget: frozen #1867 under-one-second real-scale hold.
+  assert.equal(familyScans,0,'membership must not derive unrelated seat families');
+  store.recordUsageBatch(board,{agentId:f.agent,items});
+  assert.equal(prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind='usage'").get().n,48);
+  assert.throws(()=>store.recordUsageBatch(board,{agentId:'unregistered-scale-seat',items:[]}),{code:'NOT_JOINED'});
+  assert.throws(()=>store.recordUsage(board,{...items[0],agentId:'unregistered-scale-seat'}),{code:'NOT_JOINED'});
+  const counts={agents:prepare('SELECT COUNT(*) AS n FROM agent').get().n,events:prepare('SELECT COUNT(*) AS n FROM event').get().n,
+    family:prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind='family'").get().n,
+    sessions:prepare("SELECT COUNT(*) AS n FROM board_meta WHERE meta_key LIKE 'agent_session:%'").get().n,
+    receipts:prepare("SELECT COUNT(*) AS n FROM board_meta WHERE meta_key LIKE 'relay_receipt_%'").get().n};
+  t.diagnostic(`deterministic history ${JSON.stringify(counts)}; actual batch hold ${holds[0]} ms`);
 });
