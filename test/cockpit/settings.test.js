@@ -108,6 +108,11 @@ test('Settings has a bottom sidebar address and isolates a bad row at desktop an
       assert.ok(shown.thresholds.some(row => row.error && /whole number at least 1/u.test(row.text)), 'the one bad row includes its real API repair');
       assert.ok(shown.healthy, 'an unrelated configured row survives');
       assert.equal(shown.overflow, false, width + ': the settings page fits its viewport');
+      if (width === 1440) {
+        const geometry = await chrome.stable(`(() => { const row = document.querySelector('#settings-content tbody tr'); return { sourceWidth: row.lastElementChild.getBoundingClientRect().width, rowHeight: row.getBoundingClientRect().height }; })()`);
+        assert.ok(geometry.sourceWidth >= 200, 'desktop source paths have a readable column');
+        assert.ok(geometry.rowHeight < 300, 'the first scalar setting does not stretch down the page');
+      }
       if (width === 320) {
         const scopes = await chrome.stable(`[...document.querySelectorAll('[data-settings-scope]')].map(node => { const box = node.getBoundingClientRect(); return { left: box.left, right: box.right, height: box.height }; })`);
         assert.equal(scopes.length, 3);
@@ -120,6 +125,7 @@ test('Settings has a bottom sidebar address and isolates a bad row at desktop an
       }
       if (process.env.PULLBOARD_SETTINGS_SCREENSHOTS) {
         mkdirSync(process.env.PULLBOARD_SETTINGS_SCREENSHOTS, { recursive: true });
+        await chrome.stable('window.scrollTo(0, 0)');
         const shot = await chrome.send('Page.captureScreenshot', { format: 'png' });
         writeFileSync(join(process.env.PULLBOARD_SETTINGS_SCREENSHOTS, 'settings-' + width + '.png'), Buffer.from(shot.data, 'base64'));
       }
