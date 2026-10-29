@@ -1,4 +1,4 @@
-/** @pullboard-test-loads bin/run-tests.js src/test-isolation.js src/child-journal-preload.js src/machine-home.js src/settings.js src/resources.js src/config.js */
+/** @pullboard-test-loads bin/run-tests.js src/test-isolation.js src/child-journal-preload.js packages/resources/src/shell/machine-home.js src/settings.js src/resources.js src/config.js */
 /** A test's verdict never depends on the machine it runs on: settings, resources, runners, host markers, ports [C7]. */
 import { awaitNestedRun } from '../src/test-file-pool.js';
 import assert from 'node:assert/strict';
@@ -29,7 +29,7 @@ function probeSuite(dir) {
 import { userInfo } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { machineHome } from ${module('src/machine-home.js')};
+import { machineHome } from ${module('packages/resources/index.js')};
 import { loadMachineSettings } from ${module('src/settings.js')};
 import { listResources } from ${module('src/resources.js')};
 import { foreignNodeOptions } from ${module('src/test-isolation.js')};

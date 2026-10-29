@@ -17,8 +17,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { machineHome } from '../../../../src/machine-home.js';
-import { runnerRecoveryStatus } from '../../../../src/runner-recovery.js';
+import { machineHome } from '../../../resources/index.js';
+import { runnerRecoveryStatus } from '../../../resources/index.js';
 import { missedJobFindings } from '../../../../src/board-recurring-jobs.js';
 import {
   COORDINATOR,

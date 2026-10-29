@@ -4,6 +4,7 @@ import {
   spawnSync,
 } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { recoveryIdentity } from '../packages/resources/index.js';
 import { DatabaseSync } from 'node:sqlite';
 import {
   mkdirSync,
@@ -74,12 +75,6 @@ export async function probeRunnerTransport(runner, { observeGui = false } = {}) 
   // Arbitrary stderr is deliberately not returned by a health-only probe; the failed job retains its sanitized diagnostics.
   return { healthy: Boolean(healthy), ...(observeGui ? { gui: healthy && typeof reply?.gui === 'boolean' ? reply.gui : null } : {}), command: ['ssh', ...args.slice(0, -1), `${runner.node ?? 'node'} [nonce health observation]`],
     ...result, error, timedOut, stderrBytes: Buffer.byteLength(stderr), reason: healthy ? 'configured Node answered nonce' : 'transport health not confirmed' };
-}
-
-/** Accept only controller-issued exact-job identities; absence is legacy custody, never proof of cleanup. */
-export function recoveryIdentity(value) {
-  return value?.version === 1 && (value.launchFence === undefined || value.launchFence === 1) && /^[A-Za-z0-9_-]{1,100}$/u.test(value.request ?? '')
-    && /^[a-f0-9-]{36}$/u.test(value.nonce ?? '') && /^[a-f0-9]{64}$/u.test(value.tooling ?? '');
 }
 
 /** Atomically reserve the same nonce path for worker startup or cancellation; a loser must never launch. */

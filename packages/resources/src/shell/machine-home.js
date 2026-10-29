@@ -4,7 +4,7 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { Refused } from './refused.js';
+import { Refused } from '../../../../src/refused.js';
 
 /**
  * Use the OS account home unless a caller explicitly selects a private machine pool. A test run substitutes its own

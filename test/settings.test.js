@@ -9,7 +9,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { installRegistrationProbeStandIn } from './runner-ssh-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
-const MACHINE_HOME_MODULE = resolve(import.meta.dirname, '../src/machine-home.js');
+const MACHINE_HOME_MODULE = resolve(import.meta.dirname, '../packages/resources/index.js');
 
 /** Run settings in an isolated machine home, returning its structured CLI result. */
 function settings(home, ...args) {

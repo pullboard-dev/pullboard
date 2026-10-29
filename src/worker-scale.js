@@ -21,7 +21,7 @@ import { join } from 'node:path';
 import * as store from './board.js';
 import { readCapacity } from './capacity-read.js';
 import { COORDINATOR } from './config.js';
-import { machineHome } from './machine-home.js';
+import { machineHome } from '../packages/resources/index.js';
 import { readyItems } from './queue-readiness.js';
 import { Refused } from './refused.js';
 import { withLocalSeatPresence } from './seat-presence.js';

@@ -15,9 +15,9 @@ import { copyPackageFiles, toolSourcePath } from '../src/package-files.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
-import { initializeRunnerRecovery } from '../src/runner-recovery.js';
-import { recordRunnerFailure } from '../src/runner-recovery.js';
-import { recoverUnavailableRunners } from '../src/runner-recovery.js';
+import { initializeRunnerRecovery } from '../packages/resources/index.js';
+import { recordRunnerFailure } from '../packages/resources/index.js';
+import { recoverUnavailableRunners } from '../packages/resources/index.js';
 
 // Budget: the real configured-Node observation must recover in seconds, well before the old five-minute retry.
 const RECOVERY_BOUND_MS = 5_000;
@@ -115,7 +115,7 @@ test('an SSH-healthy host whose worker misses READY stays held after the admissi
   writeFileSync(settings, JSON.stringify({ ...configured, gate: { ...configured.gate, runnerWaitMs: 1_000 } }));
   const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
   const transport = pathToFileURL(join(import.meta.dirname, '../src/runner-transport.js')).href;
-  const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
+  const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
   const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
     import {probeRunnerTransport} from ${JSON.stringify(transport)};
@@ -162,7 +162,7 @@ test('a recovered runner is cleared on its first successful probe instead of a f
 test('real pinned worker recovery clears the transport row within seconds [C7]', t => {
   const box = fixture(t);
   const runner = { ...box.runner, host: HOST };
-  const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
+  const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
   const transport = pathToFileURL(join(import.meta.dirname, '../src/runner-transport.js')).href;
   const result = child(box, `import {DatabaseSync} from 'node:sqlite';
     import {initializeRunnerRecovery,recordRunnerFailure,recoverUnavailableRunners} from ${JSON.stringify(recovery)};

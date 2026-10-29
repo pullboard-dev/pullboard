@@ -7,7 +7,7 @@ import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { receiptLog } from '../src/gate-receipt.js';
-import { machineHome } from '../src/machine-home.js';
+import { machineHome } from '../packages/resources/index.js';
 import { loadMachineSettings } from '../src/settings.js';
 import { startFixtureChild } from './fixture-child.js';
 import { bridgeProvider, runBridgeCLI } from './pr-bridge-fixture.js';

@@ -18,14 +18,14 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
-import { initializeRunnerRecovery } from '../src/runner-recovery.js';
-import { recordRunnerFailure } from '../src/runner-recovery.js';
+import { initializeRunnerRecovery } from '../packages/resources/index.js';
+import { recordRunnerFailure } from '../packages/resources/index.js';
 import {
   claimRunnerLaunch,
   recordRunnerCompletion,
   runnerHealthReply,
 } from '../src/runner-transport.js';
-import { recoverUnavailableRunners } from '../src/runner-recovery.js';
+import { recoverUnavailableRunners } from '../packages/resources/index.js';
 
 /** Open only a private queue; it has no configured machine hosts or leases. */
 function queue(t) {
@@ -56,7 +56,7 @@ export function runnerRecoveryTests() {
       const env = { ...box.env, PATH: `${bin}:${box.env.PATH}` };
       delete env.NODE_TEST_CONTEXT;
       const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
-      const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
+      const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
       const script = `import {runOnRunnerAsync,probeRunnerHealth} from ${JSON.stringify(runners)};
 import {initializeRunnerRecovery,recordRunnerFailure,recoverUnavailableRunners} from ${JSON.stringify(recovery)};
 import {DatabaseSync} from 'node:sqlite';import {readdirSync,readFileSync} from 'node:fs';import {join} from 'node:path';
@@ -94,7 +94,7 @@ console.log(JSON.stringify({wrong,actual:actual.isGreen,first,beforeBackoff,firs
     const e2e = createE2eHelpers(); t.after(e2e.cleanup);
     const box = e2e.project('true');
     const resources = pathToFileURL(join(import.meta.dirname, '../src/resources.js')).href;
-    const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
+    const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
     const source = `import {listResources,takeResource,runnerResourceStatus} from ${JSON.stringify(resources)};
 import {recordRunnerFailure} from ${JSON.stringify(recovery)};import {DatabaseSync} from 'node:sqlite';
 listResources();const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite');
