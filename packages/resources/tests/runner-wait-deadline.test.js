@@ -1,15 +1,45 @@
 /** Runner deadlines retain ordinary local admission and never create disabled capacity [C7,Q1,Q2]. */
-import { executionServicesSource } from './gate-execution-fixture.js';
+import { executionServicesSource } from '../../../test/gate-execution-fixture.js';
 import assert from 'node:assert/strict';
-import { after, test } from 'node:test';
-import { closeSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, existsSync, writeFileSync } from 'node:fs';
+import {
+  after,
+  test,
+} from 'node:test';
+import {
+  closeSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  existsSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createE2eHelpers } from './e2e-helpers.js';
-import { cleanupFixtureChildren, runFixtureChild, runFixtureChildAsync } from './fixture-child.js';
-import { cleanupToolingSnapshots, cli, committedToolingSnapshot, fixtureResultContext, gateResult, runThroughGate } from './runner-tooling-fixture.js';
-import { HOST, installSshStandIn, shellQuote } from './runner-ssh-fixture.js';
-import { listResources, takeResource } from '../src/resources.js';
+import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import {
+  cleanupFixtureChildren,
+  runFixtureChild,
+  runFixtureChildAsync,
+} from '../../../test/fixture-child.js';
+import {
+  cleanupToolingSnapshots,
+  cli,
+  committedToolingSnapshot,
+  fixtureResultContext,
+  gateResult,
+  runThroughGate,
+} from '../../../test/runner-tooling-fixture.js';
+import {
+  HOST,
+  installSshStandIn,
+  shellQuote,
+} from '../../../test/runner-ssh-fixture.js';
+import {
+  listResources,
+  takeResource,
+} from '../src/shell/resources.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -109,7 +139,7 @@ test('disabled local capacity and runner-only work refuse by name at the runner 
     const box = fixture();
     const settings = JSON.parse(readFileSync(box.settingsFile, 'utf8'));
     writeFileSync(box.settingsFile, JSON.stringify({ ...settings, gateSlots: runnerOnly ? 1 : 0, browserSlots: runnerOnly ? 1 : 0 }));
-    const module = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
+    const module = pathToFileURL(join(import.meta.dirname, '../../../src/gate.js')).href;
     const source = `import {withGateSlot} from ${JSON.stringify(module)};
 ${executionServicesSource(module)}
 try { await withGateSlot(${JSON.stringify(box.repo)},()=>{throw Error('disabled execution ran')},{ executionServices,browser:true,gui:true,runnerOnly:${runnerOnly},agent:'deadline-refusal'}); process.exitCode=9; }
@@ -302,7 +332,7 @@ test('a first runner freed after the queue deadline executes with its captured s
     let pending;
     const release = join(box.dir, 'release-runner'), released = join(box.dir, 'runner-released');
     try {
-      const tooling = committedToolingSnapshot(join(import.meta.dirname, '..'), box.env);
+      const tooling = committedToolingSnapshot(join(import.meta.dirname, '../../..'), box.env);
       const gate = pathToFileURL(join(tooling, 'src/gate.js')).href;
       const command = 'node -e "console.log(\'LATE_FIRST_DISPATCH_EXECUTED\')"';
       const script = `import {writeFileSync,existsSync} from 'node:fs';
