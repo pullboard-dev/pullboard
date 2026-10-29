@@ -67,26 +67,50 @@ export function shardFile(cell) {
   return `${PLAN_DIR}/${String(cell.order).padStart(2, '0')}-${cell.name.replace(':', '-')}.json`;
 }
 
+/** Every placed path belongs to exactly one recognized source bucket. */
+function requirePlacementSources(cell) {
+  if (cell.paths.some(row => !['seed', 'rule', 'imports'].includes(row[2]))) throw new Refused('CELLS_UNPLACED', `${cell.name} has a path without a known placement source; resolve that path before writing the plan`);
+}
+
+/** Derive a cell's placement counts from its actual rows, never a stored summary. */
+function placementCounts(cell) {
+  requirePlacementSources(cell);
+  return Object.fromEntries(['seed', 'rule', 'imports'].map(via => [via, cell.paths.filter(row => row[2] === via).length]));
+}
+
+/** Derive all plan counters from the same cell rows and explicit stays the reader returns. */
+function planCounts(cells, stays) {
+  for (const cell of cells) for (const cut of cell.cuts) {
+    if (!Number.isSafeInteger(cut.imports) || cut.imports < 0) throw new Refused('CELLS_PLAN_COUNTS', `${cell.name} has a cut without a nonnegative integer import count`);
+  }
+  return {
+    cells: cells.length,
+    movedPaths: cells.reduce((sum, cell) => sum + cell.paths.length, 0),
+    stays: stays.length,
+    placedBy: Object.fromEntries(['seed', 'rule', 'imports'].map(via => [via, cells.reduce((sum, cell) => sum + cell.placedBy[via], 0)])),
+    shims: cells.reduce((sum, cell) => sum + cell.reexports.length, 0),
+    cutImports: cells.reduce((sum, cell) => sum + cell.cuts.reduce((sum, row) => sum + row.imports, 0), 0),
+    cutEdges: cells.reduce((sum, cell) => sum + cell.cuts.length, 0),
+  };
+}
+
 /** Write the plan as an index plus one shard per cell, removing shards a regenerated plan no longer names. */
 export function writePlan(root, plan) {
   const retired = retiredProblems(root, plan);
   if (retired.length) throw new Refused('CELLS_PLAN_RETIRED', retired.join('; '));
-  // Bounded read/modify/write callers carry old summaries; the exact paths being written own these counts.
+  // Persist authoritative rows; readers derive summaries from the exact rows they return.
   const cells = plan.cells.map(cell => {
-    if (cell.paths.some(row => !['seed', 'rule', 'imports'].includes(row[2]))) throw new Refused('CELLS_UNPLACED', `${cell.name} has a path without a known placement source; resolve that path before writing the plan`);
-    return { ...cell, placedBy: Object.fromEntries(['seed', 'rule', 'imports'].map(via => [via, cell.paths.filter(row => row[2] === via).length])) };
+    requirePlacementSources(cell);
+    const { placedBy: _cachedPlacement, ...rows } = cell;
+    return rows;
   });
-  const totals = { ...plan.totals, cells: cells.length, movedPaths: cells.reduce((sum, cell) => sum + cell.paths.length, 0), stays: plan.stays.length,
-    placedBy: Object.fromEntries(['seed', 'rule', 'imports'].map(via => [via, cells.reduce((sum, cell) => sum + cell.placedBy[via], 0)])),
-    shims: cells.reduce((sum, cell) => sum + cell.reexports.length, 0),
-    cutImports: cells.reduce((sum, cell) => sum + cell.cuts.reduce((sum, row) => sum + row.imports, 0), 0),
-    cutEdges: cells.reduce((sum, cell) => sum + cell.cuts.length, 0) };
   mkdirSync(join(root, PLAN_DIR), { recursive: true });
   const shards = cells.map(cell => [shardFile(cell), cell]);
   const keep = new Set([SEED_FILE, `${PLAN_DIR}/temporary-edges.json`, `${PLAN_DIR}/transition.json`, ...shards.map(([file]) => file)]);
   for (const name of readdirSync(join(root, PLAN_DIR))) if (name.endsWith('.json') && !keep.has(`${PLAN_DIR}/${name}`)) rmSync(join(root, PLAN_DIR, name));
   for (const [file, cell] of shards) writeFileSync(join(root, file), formatJson(cell) + '\n');
-  const index = { ...plan, totals, cells: cells.map(cell => ({ order: cell.order, name: cell.name, file: shardFile(cell) })) };
+  const { totals: _cachedTotals, ...metadata } = plan;
+  const index = { ...metadata, cells: cells.map(cell => ({ order: cell.order, name: cell.name, file: shardFile(cell) })) };
   writeFileSync(join(root, PLAN_FILE), JSON.stringify(index, null, 2) + '\n');
 }
 
@@ -96,9 +120,10 @@ export function readPlan(root, read = file => readFileSync(join(root, file), 'ut
   const cells = index.cells.map(row => {
     let source;
     try { source = read(row.file); } catch { throw new Refused('CELLS_PLAN_SHARD', `${row.file} is missing; regenerate with node bin/cells-plan.js --write`); }
-    return JSON.parse(source);
+    const cell = JSON.parse(source);
+    return { ...cell, placedBy: placementCounts(cell) };
   });
-  return { ...index, cells };
+  return { ...index, totals: planCounts(cells, index.stays), cells };
 }
 
 /** Append one explicit placement; preserve every existing row, cut, contract and ordering decision. */

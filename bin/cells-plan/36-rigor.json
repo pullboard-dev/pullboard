@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/rigor",
  "frontDoor": "packages/rigor/index.js",
- "placedBy": {
-  "seed": 11,
-  "rule": 0,
-  "imports": 0
- },
  "paths": [
   ["src/rigor-auto-apply.js","packages/rigor/src/shell/rigor-auto-apply.js","seed"],
   ["src/rigor-auto.js","packages/rigor/src/shell/rigor-auto.js","seed"],

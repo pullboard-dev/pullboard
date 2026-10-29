@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/blueprints",
  "frontDoor": "packages/blueprints/index.js",
- "placedBy": {
-  "seed": 16,
-  "rule": 0,
-  "imports": 0
- },
  "paths": [
   ["src/blueprint-fit-command.js","packages/blueprints/src/shell/blueprint-fit-command.js","seed"],
   ["src/blueprint-fit.js","packages/blueprints/src/shell/blueprint-fit.js","seed"],

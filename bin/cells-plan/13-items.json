@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/items",
  "frontDoor": "packages/items/index.js",
- "placedBy": {
-  "seed": 41,
-  "rule": 13,
-  "imports": 5
- },
  "paths": [
   ["src/blocks.js","packages/items/src/shell/blocks.js","seed"],
   ["src/brief.js","packages/items/src/core/brief.js","seed"],

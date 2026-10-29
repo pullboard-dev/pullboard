@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/seats",
  "frontDoor": "packages/seats/index.js",
- "placedBy": {
-  "seed": 24,
-  "rule": 1,
-  "imports": 1
- },
  "paths": [
   ["src/agent-hook-work.js","packages/seats/src/core/agent-hook-work.js","seed"],
   ["src/agent-hook.js","packages/seats/src/shell/agent-hook.js","seed"],

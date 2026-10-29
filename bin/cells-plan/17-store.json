@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/store",
  "frontDoor": "packages/store/index.js",
- "placedBy": {
-  "seed": 67,
-  "rule": 15,
-  "imports": 8
- },
  "paths": [
   ["src/board-access.js","packages/store/src/shell/board-access.js","seed"],
   ["src/board-busy.js","packages/store/src/shell/board-busy.js","seed"],

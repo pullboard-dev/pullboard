@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/spec",
  "frontDoor": "packages/spec/index.js",
- "placedBy": {
-  "seed": 26,
-  "rule": 2,
-  "imports": 1
- },
  "paths": [
   ["src/approved-rows.js","packages/spec/src/shell/approved-rows.js","seed"],
   ["src/fact-identity.js","packages/spec/src/core/fact-identity.js","seed"],

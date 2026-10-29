@@ -4,11 +4,6 @@
  "kind": "app",
  "root": "apps/lib",
  "frontDoor": "apps/lib/index.js",
- "placedBy": {
-  "seed": 1,
-  "rule": 1,
-  "imports": 0
- },
  "paths": [
   ["src/index.js","apps/lib/src/core/index.js","seed"],
   ["src/native-board.js","apps/lib/src/core/native-board.js","rule"]

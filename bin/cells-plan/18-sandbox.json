@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/sandbox",
  "frontDoor": "packages/sandbox/index.js",
- "placedBy": {
-  "seed": 10,
-  "rule": 0,
-  "imports": 6
- },
  "paths": [
   ["src/execution-environment.js","packages/sandbox/src/shell/execution-environment.js","seed"],
   ["src/next-take.js","packages/sandbox/src/shell/next-take.js","imports"],

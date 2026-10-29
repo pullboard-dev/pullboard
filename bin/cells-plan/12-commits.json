@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/commits",
  "frontDoor": "packages/commits/index.js",
- "placedBy": {
-  "seed": 10,
-  "rule": 0,
-  "imports": 0
- },
  "paths": [
   ["src/commit-message.js","packages/commits/src/core/commit-message.js","seed"],
   ["src/commit-metadata.js","packages/commits/src/core/commit-metadata.js","seed"],

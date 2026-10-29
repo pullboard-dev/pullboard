@@ -4,11 +4,6 @@
  "kind": "app",
  "root": "apps/view",
  "frontDoor": "apps/view/index.js",
- "placedBy": {
-  "seed": 32,
-  "rule": 43,
-  "imports": 1
- },
  "paths": [
   ["src/background-view.js","apps/view/src/shell/background-view.js","seed"],
   ["src/badge.js","apps/view/src/shell/badge.js","seed"],
