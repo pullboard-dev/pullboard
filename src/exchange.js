@@ -2,6 +2,8 @@ import { suspendStoreGuards } from './board-store-guards.js';
 import { AGENT_GRANT_ENGINE } from './agent-grant-engine.js';
 import { LANDING_LOCAL_PREFIX } from './board-landing-local-lease.js';
 import { PROOF_COUNTER_PREFIX } from './proof-counters.js';
+import { exportedMeta } from './board-person-authority-schema.js';
+import { beginCommandPhase } from './command-phase.js';
 import { rebuildProofCounters } from './proof-counters.js';
 import { importSeatObservations } from './seat-presence.js';
 import {
@@ -60,12 +62,22 @@ function nativeRows(db, table) {
 }
 
 /**
+ * The phase and filter an export uses. An opened board supplies its native root's ports; a public
+ * {db} caller gets the same kernel phase journal and store-owned AUTHORITY filter, never an unfiltered export.
+ * @param {{ db: any, nativePorts?: any }} board
+ */
+function exportPorts(board) {
+  return board.nativePorts ?? { beginCommandPhase, exportedMeta };
+}
+
+/**
  * Capture every board table and row in the stable v1 document format.
  * @param {{ db: any }} board
  * @returns {{ version: number, tables: Record<string, any[]> }}
  */
 export function exportBoard(board) {
-  const finishPhase = board.nativePorts.beginCommandPhase('local-export');
+  const ports = exportPorts(board);
+  const finishPhase = ports.beginCommandPhase('local-export');
   try {
     const db = board.db;
     db.exec('BEGIN DEFERRED');
@@ -76,7 +88,7 @@ export function exportBoard(board) {
       ]));
       db.exec('COMMIT');
       // The pinned relay key stays with this board file; an export never carries it to another [E22].
-      tables.board_meta = board.nativePorts.exportedMeta(tables.board_meta ?? []);
+      tables.board_meta = ports.exportedMeta(tables.board_meta ?? []);
       return { version: VERSION, tables };
     } catch (error) {
       db.exec('ROLLBACK');
