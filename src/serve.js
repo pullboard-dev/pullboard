@@ -37,6 +37,7 @@ import {
   resolve,
 } from 'node:path';
 import * as store from './board.js';
+import { openBoard } from './native-board.js';
 import { releaseHeadlinesBetween } from './release-headlines.js';
 import { VERSION } from './release-version.js';
 import { displayAgentName } from './agent-names.js';
@@ -68,7 +69,7 @@ import { Refused } from './refused.js';
 import { refusalDocument } from './next-step-words.js';
 import { relayLinkAvailability } from './relay.js';
 import { personNeeds } from './row-decision-text.js';
-import { rigorDraftNeeds } from './rigor-notices.js';
+import { rigorDraftNeeds } from '../packages/rigor/index.js';
 import { sentinelDraftNeeds } from './sentinels.js';
 import { sentinels } from './sentinels.js';
 import { projectRowDecisions } from './row-decisions.js';
@@ -244,7 +245,7 @@ function rememberPort(port) {
 function withProject(root, read, providedBoard = null) {
   const info = repoInfo(root);
   const config = loadConfig(info.root);
-  const board = providedBoard ?? store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
+  const board = providedBoard ?? openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
   try {
     return read(board, info, config);
   } finally {

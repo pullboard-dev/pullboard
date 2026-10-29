@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { serveApi } from '../../src/api.js';
 import { refusalDocument } from '../../src/next-step-words.js';
 import { main } from '../../src/cli.js';
@@ -19,7 +20,7 @@ test('Dashboard pace crosses every cached window without a milestone or a native
     '--criterion', 'The private project configuration exists.', '--check', 'test -f pullboard.json', '--wait');
   const base = Date.now() + 1_000, clock = { at: base };
   // @pullboard-board-file journey: the CLI seeds the persisted Git-local board that serveApi reopens over HTTP.
-  const board = store.openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(base) });
+  const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(base) });
   t.after(() => store.closeBoard(board));
   const reviewer = store.register(board, { lane: 'tests', path: join(box.dir, 'clock-reviewer'), parentDigest: 'b'.repeat(64) });
   const head = box.git(alpha.repo, 'rev-parse', 'HEAD'), tree = box.git(alpha.repo, 'rev-parse', 'HEAD^{tree}');
