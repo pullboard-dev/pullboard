@@ -113,10 +113,14 @@ function countPairs() {
     const recentEvents = p.events.filter(event => Date.parse(event.event_at) > Date.now() - 4 * 3_600_000);
     const recentLandings = new Set(recentEvents.filter(event => event.event_kind === 'merged' && p.dashboardLanded.some(item => item.id === event.item_id && item.commit === JSON.parse(event.event_detail).commit)).map(event => event.item_id));
     const chips = all('.dash-chips > span').slice(1);
+    add('Dashboard/4h chip inventory', chips.length, 4);
+    const historyLoading = all('#dashboard [aria-label="Agents"] .muted').some(node => node.textContent === 'Complete history is loading; historical totals are not yet available.');
     for (const [index, expected] of [recentLandings.size, recentEvents.filter(event => event.event_kind === 'accept').length,
       recentEvents.filter(event => ['reject', 'reopen'].includes(event.event_kind)).length,
       recentEvents.filter(event => event.event_kind === 'shout' && JSON.parse(event.event_detail).to === 'person').length].entries()) {
-      add('Dashboard/4h chip/' + index, number(chips[index]), expected);
+      const value = chips[index]?.textContent.trim().split(/\s+/)[0];
+      if (value === '—') add('Dashboard/explicitly unknown historical count/' + index, historyLoading, true);
+      else add('Dashboard/4h chip/' + index, Number.parseInt(value?.replaceAll(',', ''), 10), expected);
     }
     const rate = document.querySelector('.dash-rate');
     add('Dashboard/all-time landed', Number(/(\d[\d,]*) landed all time/.exec(rate.textContent)?.[1].replaceAll(',', '')), p.dashboardLanded.length);
@@ -257,7 +261,7 @@ test('every tab count describes its real list or named native set across landing
     await pane(chrome, 'settings', 'before add');
     await liveMove(chrome, () => box.run(demo.repo, 'add', 'web', 'Live added item', '--specs', 'G1', '--criterion', 'Count the live addition.'), 'data.project.items.length === 6', 'added');
     await pane(chrome, 'dashboard', 'before claim');
-    await liveMove(chrome, () => box.run(demo.web, 'claim', '3'), 'document.querySelector("[data-dashboard-stat=building]")?.dataset.value === "1"', 'claimed');
+    await liveMove(chrome, () => box.run(demo.web, 'claim', '3'), 'document.querySelector("[data-dashboard-stat=building]")?.dataset.value === "1" && [...document.querySelectorAll(".dash-chips > span")].slice(1).every(node => /^\\d/.test(node.textContent.trim()))', 'claimed');
     assert.deepEqual(chrome.exceptions, [], 'every tab and live move stays executable');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
