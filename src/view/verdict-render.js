@@ -7,11 +7,12 @@ export function visibleVerdictNote(reason, note) {
 }
 
 /** Render a verdict with plain metadata and an explicitly prepared rich note. */
-export function verdictHtml({ verdict, agentLabel, timeLabel, noteHtml }) {
+export function verdictHtml({ verdict, agentLabel, timeLabel, noteHtml, decisionLabel, reasonLabel }) {
   /** Only noteHtml is markup; metadata and the prepared time label remain plain text. */
   const esc = text => String(text ?? '').replace(/[&<>"']/gu, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
   const { decision, reason, commit } = verdict;
-  return '<div class="verdict ' + (decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(decision) + ' ' + esc(reason)
+  const shownReason = reasonLabel === undefined ? esc(reason) : '<span title="' + esc(reason) + '">' + esc(reasonLabel) + '</span>';
+  return '<div class="verdict ' + (decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(decisionLabel ?? decision) + (reasonLabel === undefined ? ' ' : ' · ') + shownReason
     + '</b><span class="by">' + esc(agentLabel) + ' · ' + esc(timeLabel) + ' · at ' + esc(String(commit || '').slice(0, 12))
     + '</span><div class="note">' + noteHtml + '</div></div>';
 }
