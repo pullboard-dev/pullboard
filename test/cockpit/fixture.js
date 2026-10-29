@@ -707,7 +707,7 @@ function assertObservationsEqual(expected, actual, message) {
 
 /** Unwrap only the name layout spans so full-card assertions keep checking their text and structure. */
 function shoutNameText(html) {
-  return html.replace(/<span class="agent-label(?: prefix)?" title="[^"]*" role="group" aria-label="[^"]*"><span class="agent-(?:id|model)">([^]*?)<\/span><span class="agent-(?:id|model)">([^]*?)<\/span><\/span>/g, '$1$2');
+  return html.replace(/<span class="agent-address" role="group" aria-label="[^"]*">([^<]*)<\/span>/g, '$1').replace(/<span class="agent-label(?: prefix)?" title="[^"]*" role="group" aria-label="[^"]*"><span class="agent-(?:id|model)">([^]*?)<\/span><span class="agent-(?:id|model)">([^]*?)<\/span><\/span>/g, '$1$2');
 }
 
 /** Find an installed Chrome without making browser availability a product-test failure. */

@@ -320,12 +320,28 @@ const rejected = (i) => i.status !== 'verified' && !!i.verdict && i.verdict.deci
 /** Resolve visible agent text from this board's API without changing action identities. */
 function agentName(id, project = data?.project) {
   const agent = project?.agents?.find((entry) => entry.agent_id === id);
-  return agent?.displayName || (agent ? id + ' (' + (agent.model || agent.agent_model || 'unknown') + ')' : id);
+  const model = [agent?.model, agent?.agent_model].find(value => typeof value === 'string' && value.trim() && value.trim().toLowerCase() !== 'unknown');
+  return model ? agent.displayName || id + ' (' + model + ')' : id;
 }
+/** Name a typed native event without changing its operation or replay identity. */
+const eventWords = kind => activityWords({ kind }).label;
+/** Name a lifecycle boundary as a noun, without exposing its internal operation. */
+const eventMoment = kind => ({ lapse: 'lease expiry', claim: 'start of building', renew: 'lease renewal', submit: 'submission for review', accept: 'review approval', reject: 'return for rework', reopen: 'reopening', merged: 'landing', add: 'creation', release: 'release', refreeze: 'criterion refreeze', rehomeImport: 'work import', intake: 'arrival for review', 'submit-merge': 'submission update', patch: 'work update' }[kind] || 'recorded update');
+/** Prepare browser clock labels before the pure notice formatter sees any presentation text. */
+function findingWords(finding, preserveWords = false) {
+  const timestampLabels = new Map();
+  for (const text of [finding.why, finding.next, finding.since]) {
+    for (const match of String(text ?? '').matchAll(/\\b\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(?:\\.\\d+)?(?:Z|[+-]\\d\\d:\\d\\d)\\b/gu))
+      if (Number.isFinite(Date.parse(match[0]))) timestampLabels.set(match[0], when(match[0]));
+  }
+  return activityWords(finding, { now: Date.now(), timestampLabels, preserveWords });
+}
+/** Display a plain reason while retaining its exact native code as a tooltip. */
+const reasonHtml = code => '<span title="' + esc(code) + '">' + esc(activityWords({ cause: code }).label) + '</span>';
 /** Keep a shout address whole while its model can shorten, retaining the API name for assistive readers. */
 function shoutAgentName(id) {
   const name = agentName(id);
-  if (name === id) return esc(id);
+  if (name === id) return '<span class="agent-address" role="group" aria-label="' + esc(id) + '">' + esc(id) + '</span>';
   const prefix = name.endsWith('-' + id);
   const model = prefix ? name.slice(0, -id.length) : name.slice(id.length);
   const address = '<span class="agent-id">' + esc(id) + '</span>';
@@ -333,7 +349,7 @@ function shoutAgentName(id) {
   return '<span class="agent-label' + (prefix ? ' prefix' : '') + '" title="' + esc(name) + '" role="group" aria-label="' + esc(name) + '">' + (prefix ? label + address : address + label) + '</span>';
 }
 /** Render a review note with escaped text and references bound to the selected board. */
-const verdictHtml = (v, titles) => verdictRenderer({ verdict: v, agentLabel: agentName(v.by), timeLabel: when(v.at), noteHtml: inline(visibleVerdictNote(v.reason, v.note), titles) });
+const verdictHtml = (v, titles) => verdictRenderer({ verdict: v, decisionLabel: v.decision === 'ACCEPT' ? 'Accepted' : 'Sent back', reasonLabel: activityWords({ cause: v.reason }).label, agentLabel: agentName(v.by), timeLabel: when(v.at), noteHtml: inline(visibleVerdictNote(v.reason, v.note), titles) });
 const homeRules = (${homeRules.toString()});
 const homeCapacity = (${homeCapacity.toString()});
 const roadmapSummary = (${roadmapSummary.toString()}), roadmapHeaders = (${roadmapHeaders.toString()});
@@ -557,12 +573,12 @@ function timeline(item) {
     return model && String(model).toLowerCase() !== 'unknown' ? model : '';
   };
   const presentedEntries = replayEntries.map((entry) => entry.type === 'fact'
-    ? { ...entry, timeLabel: when(entry.at), ageHtml: age(entry.at), model: modelFor(entry.by),
+    ? { ...entry, text: findingWords({ why: entry.text }, true).text, kindLabel: eventWords(entry.kind), timeLabel: when(entry.at), ageHtml: age(entry.at), model: modelFor(entry.by),
       bodyHtml: timelineBodyHtml(entry.text, { itemHref: itemAddress, codeLink: ref => codeRef(ref, '', false, 12), timeLabel: when, commit: item.commit || item.head || '',
         refusalTitles: { ONE_CLAIM: 'An agent can hold only one building claim at a time.' } }),
       hasCodeRef: Boolean(entry.ref), codeHtml: entry.ref ? codeRef(factCodeRef(entry.ref), '', false, 12) : '' }
     : entry);
-  const presentedSteps = steps.map((step) => ({ ...step, timeLabel: step.at ? when(step.at) : '',
+  const presentedSteps = steps.map((step) => ({ ...step, kindLabel: eventWords(step.kind), momentLabel: eventMoment(step.kind), timeLabel: step.at ? when(step.at) : '',
     ageHtml: step.at ? age(step.at) : '', model: modelFor(step.by) }));
   return renderTimelineHtml({ entries: presentedEntries, steps: presentedSteps, flow: FLOW,
     open: view.timelineOpen?.get(JSON.stringify([view.root, item.id])) || [] });
