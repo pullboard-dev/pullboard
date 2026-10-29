@@ -91,6 +91,28 @@ test('unknown and decreasing cumulative baselines stay unknown [N26]', () => {
   assert.equal(counterDelta({ inputTokens: 8 }, { inputTokens: 12 }, 'inputTokens'), null);
 });
 
+test('shared usage never appears as per-item or vendor dollars [N26]', () => {
+  const records = value => [{ model: 'Model A', freshInputTokens: value, cacheReadInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 0, wallMs: 60_000 }];
+  const events = [
+    { event_id: 1, event_kind: 'claim', item_id: 88, event_by: 'builder' },
+    { event_id: 2, event_kind: 'submit', item_id: 88, event_by: 'builder' },
+    { event_id: 3, event_kind: 'usage', event_by: 'builder', event_detail: JSON.stringify({ item: 88, revision: 1, records: records(1_000_000) }) },
+    { event_id: 4, event_kind: 'reject', item_id: 88, event_by: 'reviewer' },
+    { event_id: 5, event_kind: 'claim', item_id: 88, event_by: 'builder' },
+    { event_id: 6, event_kind: 'usage', event_by: 'builder', event_detail: JSON.stringify({ item: 88, revision: 2, records: records(2_000_000) }) },
+    { event_id: 7, event_kind: 'shared-usage', event_detail: JSON.stringify({ allocations: [{ item: 88, seat: 'builder' }, { item: 89, seat: 'peer' }] }) },
+    { event_id: 8, event_kind: 'merged', item_id: 88, event_detail: '{}', event_at: '2026-10-29T00:00:00.000Z' },
+  ];
+  const model = costTabModel({ items: [{ id: 88, title: 'Shared usage', builtBy: 'builder' }], agents: [
+    { agent_id: 'builder', model: 'Model A', family: 'Vendor A' },
+  ] }, events, { 'Model A': { freshInput: 1, cacheReadInput: 0, cacheWriteInput: 0, output: 0 } });
+  assert.equal(model.rows[0].totalCost, null);
+  assert.ok(model.rows[0].usageRows.every(entry => entry.costUSD === null));
+  assert.equal(model.rows[0].returns[0].costUSD, null);
+  assert.equal(model.vendors[0].costUSD, null);
+  assert.equal(model.reworkShare, null);
+});
+
 test('cumulative usage preserves priced totals but leaves collapsed lifecycle attribution unknown [N26]', () => {
   const row = (model, freshInputTokens, wallMs) => ({ model, freshInputTokens, cacheReadInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 0, wallMs });
   const usage = (event_id, event_by, revision, records) => ({ event_id, event_kind: 'usage', event_by,
@@ -152,8 +174,11 @@ test('the private view shows its last twenty native landings; a public export ke
   const publicEvents = JSON.parse(readFileSync(join(boardDirectory, 'events.json'), 'utf8'));
   assert.doesNotMatch(publicHtml, /data-tab="cost"|id="cost"|costTabModel|freshInputTokens/u,
     'the public page has neither the Cost controls nor its private token renderer');
-  assert.doesNotMatch(JSON.stringify({ publicState, publicEvents }), /"(?:costUSD|knownCostUSD|costPrices)"\s*:/u,
-    'the actual public state, complete event history, item thread and history have no private dollar fields');
+  const publicDocuments = JSON.stringify({ publicState, publicEvents });
+  assert.doesNotMatch(publicDocuments, /"(?:costUSD|knownCostUSD|costPrices|freshInputTokens|cacheReadInputTokens|cacheWriteInputTokens|inputTokens|outputTokens|knownInputTokens|knownOutputTokens|wallMs)"\s*:/u,
+    'the actual public state, event history, item thread and history contain no private cost counters');
+  assert.doesNotMatch(publicDocuments, /"(?:event_kind|kind)":"(?:usage|shared-usage)"/u,
+    'native usage and shared-usage events are absent from all public event projections');
 
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-cost-tab-'));
   let chrome;

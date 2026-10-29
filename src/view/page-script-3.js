@@ -1,17 +1,9 @@
 /**
- * Part 3 of the hosted page's script, verbatim from src/cockpit.js lines 1310-1690 (#745): its
- * text is what the page served before the split, with the values its ${} expressions read passed in as scope.
- *
- * @param {Record<string, any>} scope - The values cockpitPage passes for the names this part interpolates.
- * @returns {string} The script text of this part.
+ * Read the private board's cost event history once per board state sequence.
+ * This function is serialized into the private page script and uses its page-local state.
+ * @param {Record<string, any>} project - The current board state.
+ * @returns {{loading: false, error: string}|{sequence: number, loading: boolean, error: string|null, model: any}} The private-history status or cached entry.
  */
-export function pageScriptPart3(scope) {
-  const { applyStateDelta, costTabScript, expandItemSummaries, privateCost } = scope;
-return `${privateCost ? costTabScript() : ''}
-/** The private usage history held only in this browser's memory, keyed to the selected local board and sequence. */
-const costHistory = new Map();
-
-/** Read the complete item event history only when the private Cost tab is open or its board changes. */
 function readCostHistory(project) {
   if (!privateCost || snapshot || hosted.local || readOnly || data.group) return { loading: false, error: 'Cost is available in the private local view only.' };
   const root = view.root;
@@ -33,6 +25,20 @@ function readCostHistory(project) {
   });
   return entry;
 }
+
+/**
+ * Part 3 of the hosted page's script, verbatim from src/cockpit.js lines 1310-1690 (#745): its
+ * text is what the page served before the split, with the values its ${} expressions read passed in as scope.
+ *
+ * @param {Record<string, any>} scope - The values cockpitPage passes for the names this part interpolates.
+ * @returns {string} The script text of this part.
+ */
+export function pageScriptPart3(scope) {
+  const { applyStateDelta, costTabScript, expandItemSummaries, privateCost } = scope;
+const privateCostSource = privateCost ? `${costTabScript()}
+const costHistory = new Map();
+${readCostHistory.toString()}` : '';
+return `${privateCostSource}
 
 /** Whether a selected project is backed by the read-only relay transport. */
 function relayProject(root = view.root) {

@@ -162,9 +162,10 @@ export function costTabModel(project, events, prices = null) {
   const rows = [...landings].map(([id, event]) => {
     const item = items.get(id) ?? {};
     const history = itemEvents.get(id) ?? [];
+    const sharedUsage = sharedItems.has(id);
     const checkpoints = usage.filter(entry => entry.item === id).map(entry => {
       const owner = agents.get(entry.agent) ?? {};
-      return { ...entry, vendor: owner.family ?? owner.agent_family ?? owner.vendor ?? 'Vendor unknown', role: entry.phaseKnown ? usageRole(history, entry.agent, entry.eventId) : 'unattributed', costUSD: recordCost(entry, prices) };
+      return { ...entry, vendor: owner.family ?? owner.agent_family ?? owner.vendor ?? 'Vendor unknown', role: entry.phaseKnown ? usageRole(history, entry.agent, entry.eventId) : 'unattributed', costUSD: sharedUsage ? null : recordCost(entry, prices) };
     });
     const aggregates = new Map();
     for (const checkpoint of checkpoints) {
@@ -193,7 +194,6 @@ export function costTabModel(project, events, prices = null) {
     const totalCost = usageRows.length ? completeSum(costs) : null;
     const wall = usageRows.map(row => row.wallMs);
     const totalWallMs = usageRows.length && wall.every(value => Number.isSafeInteger(value)) ? wall.reduce((sum, value) => sum + value, 0) : null;
-    const sharedUsage = sharedItems.has(id);
     const returnEvents = history.filter(row => ['reject', 'reopen'].includes(kindOf(row)));
     const returns = returnEvents.map((row, index) => {
       const after = Number(row.event_id ?? 0), before = Number(returnEvents[index + 1]?.event_id ?? Infinity);
