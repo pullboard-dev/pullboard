@@ -53,7 +53,8 @@ function render() {
   renderHostedReleaseNote(p);
   renderPersonRequests(p);
   renderCredentials();
-  if (view.tab === 'settings') { $('group-view').hidden = true; showTab(); return; }
+  // A board's Settings pane still refreshes the shared status counts; machine-only Settings has no board to render.
+  if (view.tab === 'settings' && !p) { $('group-view').hidden = true; showTab(); return; }
   if (group) { renderGroup(group); return; }
   if (!p) return;
   $('proof-stats').hidden = view.tab !== 'items';
