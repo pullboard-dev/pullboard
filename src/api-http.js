@@ -2,14 +2,13 @@
 import { createHash } from 'node:crypto';
 import { Refused } from './refused.js';
 import { relayStorage } from './relay-storage.js';
-import { refusalDocument } from './next-step-words.js';
 import { withGitFacts } from './git.js';
 import { PAIR_PACKAGE_BODY_BYTES } from './relay-limits.js';
 
 const BODY_BYTES = 100_000;
 
-/** Keep unexpected internal failures out of the public refusal document. */
-function refusal(error) {
+/** Keep unexpected internal failures out of the public refusal document; the caller supplies the renderer. */
+function refusalFor(refusalDocument, error) {
   const document = refusalDocument(error instanceof Refused ? error : new Refused('SERVICE_ERROR', 'the board service could not complete the call; retry or check the service'));
   const storage = error instanceof Refused && error.code === 'ACCOUNT_STORAGE_LIMIT' ? relayStorage(error.storage) : null;
   if (storage) document.error.storage = storage;
@@ -135,6 +134,9 @@ function stateDetail(value) {
 /** Create the common API router; an adapter controls authorization and board storage. */
 export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {}) {
   if (!Number.isInteger(pollMs) || pollMs < 10 || pollMs > 60_000) throw new Refused('API_POLL', 'use a poll interval from 10 to 60000 milliseconds');
+  if (typeof adapter?.refusalDocument !== 'function') throw new TypeError('createApiHandler needs the caller\'s refusalDocument renderer');
+  /** Render one refusal with the injected renderer. */
+  const refusal = (error) => refusalFor(adapter.refusalDocument, error);
   const streams = new Set();
 
   /**
@@ -425,4 +427,6 @@ export function apiStatus(error) {
 }
 
 // Relay-only snapshot/delete routes reuse the exact shared bounded-body and refusal boundary.
-export { json as apiJson, refusal as apiRefusal, readBody as readApiBody };
+/** The relay service renders its own refusals: the caller supplies the renderer, as every other caller does. */
+export function apiRefusal(error, refusalDocument) { return refusalFor(refusalDocument, error); }
+export { json as apiJson, readBody as readApiBody };

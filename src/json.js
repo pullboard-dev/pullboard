@@ -82,7 +82,7 @@ export const JSON_SHAPES = {
     sweep: shape({ messages: 'array' }),
     next: shape({ item: 'object', review: 'boolean', held: 'boolean', shared: 'array' }),
     check: shape({ id: 'number', green: 'boolean', seconds: 'number', check: 'string', receipt: 'object', report: 'string' }),
-    test: shape({ green: 'boolean', output: 'string', runner: 'string', seconds: 'number', files: 'array', known: 'array', main: 'string|null' }),
+    test: shape({ green: 'boolean', output: 'string', counts: 'object', failures: 'array', logPath: 'string', runner: 'string', seconds: 'number', files: 'array', known: 'array', main: 'string|null' }),
     'check accept': shape({ id: 'number', digest: 'string', check: 'string' }),
     claim: shape({ id: 'number', renewed: 'boolean', leaseUntil: 'string', digest: 'string' }),
     hold: shape({ lane: 'string', held: 'boolean' }),

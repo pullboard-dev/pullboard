@@ -19,14 +19,17 @@ import shoutMove from '../src/moves/shout.js';
 import { ACTIVITY_DELIVERY_ENGINE } from '../src/activity-delivery-engine.js';
 import { nativeBoardPorts } from '../src/native-board.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
-import { readActivityDelivery } from '../src/activity-delivery-read.js';
 import { prepareSpecRefreezes } from '../src/spec-refreeze.js';
-import { activityMainFiles, activityWorkingFiles, readActivityCursor, saveActivityCursor } from '../src/activity-inbox.js';
 import { fixtureBoard } from './board-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { DatabaseSync } from 'node:sqlite';
-import { budgetInbox } from '../src/inbox-budget.js';
-import { activityDeliveryLines } from '../src/activity-delivery-cli.js';
+import { activityDeliveryLines } from '../packages/activity/index.js';
+import { activityMainFiles } from '../packages/activity/index.js';
+import { activityWorkingFiles } from '../packages/activity/index.js';
+import { budgetInbox } from '../packages/activity/index.js';
+import { readActivityCursor } from '../packages/activity/index.js';
+import { readActivityDelivery } from '../packages/activity/index.js';
+import { saveActivityCursor } from '../packages/activity/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -517,7 +520,9 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   assert.deepEqual(store.getItem(board, active), claimBefore, 'delivery grants no claim or lease authority');
   const again = box.run(box.web, 'inbox', '--json');
   assert.equal(again.code, 0, again.err);
-  assert.deepEqual(new Set(JSON.parse(again.out).activity.interrupts.map(entry => entry.id)), new Set(feed.interrupts.map(entry => entry.id)),
+  // #1885: delivered obligations stay pending by id on a repeat read; they are never replayed as text.
+  assert.deepEqual(JSON.parse(again.out).activity.interrupts, [], 'a repeat read replays no delivered interrupt');
+  assert.deepEqual(new Set(JSON.parse(again.out).activity.pending), new Set(feed.interrupts.map(entry => entry.id)),
     'reading or advancing a checkout cursor never means acted-on');
   assert.deepEqual(JSON.parse(again.out).activity.digests, [], 'ordinary checks do not deliver the digest');
   const ids = feed.interrupts.map(entry => entry.id).join(',');
@@ -758,11 +763,13 @@ test('inbox budgets withhold interrupt receipts until the whole interrupt is ren
   assert.deepEqual(JSON.parse(enlarged.out).activity.interrupts.map(interrupt => interrupt.id), [id],
     'a withheld fresh obligation survives both canonical and local cursor advancement');
   const repeat = box.run(box.web, 'inbox', '--json');
-  assert.deepEqual(JSON.parse(repeat.out).activity.interrupts.map(interrupt => interrupt.id), [id],
-    'delivery still grants no acted-on authority');
+  // #1885: a repeat read names the delivered, unacted obligation by id and never re-lists its text.
+  assert.deepEqual(JSON.parse(repeat.out).activity.interrupts, [], 'a delivered interrupt is not replayed');
+  assert.deepEqual(JSON.parse(repeat.out).activity.pending, [id], 'delivery still grants no acted-on authority');
   const acted = box.run(box.web, 'inbox', '--acted-on', id, '--json');
   assert.equal(acted.code, 0, acted.err);
   assert.deepEqual(JSON.parse(acted.out).activity.interrupts, []);
+  assert.deepEqual(JSON.parse(acted.out).activity.pending, [], 'an acted-on interrupt leaves the pending list');
 });
 
 

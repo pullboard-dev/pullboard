@@ -7,9 +7,9 @@ import assert from 'node:assert/strict';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { cellLintReport } from '../src/cell-lints.js';
-import { cellLintGrowth } from '../src/cell-lint-ratchet.js';
-import { readCellLintBaseline } from '../src/cell-lint-store.js';
+import { cellLintReport } from '../packages/codemap/index.js';
+import { cellLintGrowth } from '../packages/codemap/index.js';
+import { readCellLintBaseline } from '../packages/codemap/index.js';
 
 // The analyzer compiles bounded source probes in Node children; it never executes repository modules.
 test('the repository cell guard enforces strict debt and reports named transition rises [C7,CD64]', () => {

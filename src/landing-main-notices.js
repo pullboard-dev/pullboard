@@ -8,7 +8,7 @@ export async function refreshLandedCodeMap(state) {
     await warnMainMoved({ root: state.root, board: state.board, trunk: state.batch.tip, write: state.write, say: state.say }, { listAgents: store.listAgents, listItems: store.listItems });
   } catch (error) { state.say('main-move warnings deferred: ' + error.message); }
   try {
-    const { refreshLandedCodeMap: refresh } = await import('./code-map.js');
+    const { refreshLandedCodeMap: refresh } = await import('../packages/codemap/index.js');
     const map = refresh(state.root);
     if (map) state.say('code map refreshed for main ' + map.mainCommit.slice(0, 12));
   } catch (error) {

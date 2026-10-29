@@ -110,8 +110,7 @@
   {"cell":"app:cli","imports":2,"before":false}
  ],
  "cuts": [
-  {"cell":"state","imports":2,"edges":["src/agent-grant.js->src/move-registry.js","src/engine.js->src/move-registry.js"]},
-  {"cell":"verify","imports":1,"edges":["src/bar-readiness.js->src/bar-ready-setting.js"]}
+  {"cell":"store","imports":1,"edges":["src/board-engine-ports.js->src/move-registry.js"]}
  ],
  "ratchets": {
   "legacySource": -78,

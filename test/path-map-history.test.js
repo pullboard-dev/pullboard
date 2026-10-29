@@ -12,7 +12,7 @@ import { checkBaseline } from '../src/check-baseline.js';
 import { itemsTouching } from '../src/why-file.js';
 import { rigorReport } from '../src/board-rigor.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
-import { coChangedPaths, historicalPaths, mappedCheck, readPathMap } from '../src/path-map.js';
+import { coChangedPaths, historicalPaths, mappedCheck, readPathMap } from '../packages/codemap/index.js';
 import { prepareCauseProof, runCheckAt } from '../src/rigor-proof.js';
 import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
 import { proveCauseCheck } from '../src/rigor-proof.js';

@@ -14,19 +14,20 @@ import { join } from 'node:path';
 import { posix } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cellInventory } from '../src/cell-lint-inventory.js';
-import { cellLintReport } from '../src/cell-lints.js';
-import { cellLintGrowth } from '../src/cell-lint-ratchet.js';
-import { readCellLintBaseline } from '../src/cell-lint-store.js';
-import { CELL_BASELINE_DESCRIPTOR } from '../src/cell-lint-store.js';
-import { buildCellsPlan } from '../src/cells-plan.js';
-import { inPlanScope } from '../src/cells-plan.js';
-import { readPathMap } from '../src/path-map.js';
-import { mappedPath } from '../src/path-map.js';
+import { cellInventory } from '../packages/codemap/index.js';
+import { cellLintReport } from '../packages/codemap/index.js';
+import { cellLintGrowth } from '../packages/codemap/index.js';
+import { readCellLintBaseline } from '../packages/codemap/index.js';
+import { CELL_BASELINE_DESCRIPTOR } from '../packages/codemap/index.js';
+import { buildCellsPlan } from '../packages/codemap/index.js';
+import { inPlanScope } from '../packages/codemap/index.js';
+import { readPathMap } from '../packages/codemap/index.js';
+import { mappedPath } from '../packages/codemap/index.js';
 import { tryGit } from '../src/git.js';
 import { Refused } from '../src/refused.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { fileCuts } from './cells-plan-cuts.js';
+import { refreshPlanCuts } from '../packages/codemap/index.js';
 import { retiredProblems } from './cells-plan-cuts.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';
 import { readMoveDataReads, staleDataReads } from './cells-data-reads.js';
@@ -396,6 +397,14 @@ function fileItems(root, plan, yes) {
 function main(argv) {
   const [mode = '--check', ...rest] = argv;
   const root = resolve('.');
+  if (mode === '--refresh-cuts') {
+    const plan = readPlan(root), { edges, unknown } = cellInventory(root, { importsIn, commonJsIn });
+    const endpoints = new Set([...edges.keys(), ...[...edges.values()].flatMap(rows => rows.map(row => row.target))]);
+    const missing = unplanned(root, plan).filter(file => endpoints.has(file));
+    if (missing.length) throw new Refused('CELLS_PLAN_UNPLANNED', `cannot refresh cuts for unplanned tracked sources: ${missing.join(', ')}; place them through the plan generator first`);
+    writePlan(root, refreshPlanCuts(plan, edges, readPathMap(root), unknown));
+    return 0;
+  }
   if (mode === '--write') {
     writePlan(root, computePlan(root));
     return 0;
@@ -439,7 +448,7 @@ function main(argv) {
     return problems.length ? 1 : 0;
   }
   if (mode === '--file') { fileItems(root, plan, rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> (or --stay) | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> (or --stay) | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));

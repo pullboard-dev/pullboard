@@ -104,49 +104,7 @@
   {"cell":"app:runner","imports":2,"before":false}
  ],
  "cuts": [
-  {"cell":"git","imports":1,"edges":["src/push-native-evidence.js->src/landing-batch-history.js"]},
-  {"cell":"config","imports":1,"edges":["src/config.js->src/landing-cadence.js"]},
-  {"cell":"state","imports":2,"edges":["src/engine.js->src/computed-conflict-receipt.js","src/engine.js->src/computed-conflict-return.js"]},
-  {"cell":"commits","imports":1,"edges":["src/commit-metadata.js->src/landing-message.js"]},
-  {"cell":"items","imports":1,"edges":["src/reopen-authority.js->src/computed-conflict-receipt.js"]},
-  {"cell":"verify","imports":1,"edges":["src/next-review.js->src/main-red.js"]},
-  {
-   "cell": "store",
-   "imports": 8,
-   "edges": [
-    "src/board.js->src/computed-conflict-receipt.js",
-    "src/board.js->src/landing-batch-history.js",
-    "src/board.js->src/landing-environment-guards.js",
-    "src/board.js->src/landing-exceptions.js",
-    "src/board.js->src/landing-lease.js",
-    "src/board.js->src/landing-test-defects.js",
-    "src/board.js->src/landing-waivers.js",
-    "src/exchange.js->src/landing-local-lease.js"
-   ]
-  },
-  {
-   "cell": "sandbox",
-   "imports": 3,
-   "edges": [
-    "src/next-take.js->src/computed-conflict-return.js",
-    "src/next-take.js->src/main-red.js",
-    "src/source-advance-worker.js->src/landing-lease.js"
-   ]
-  },
-  {"cell":"link","imports":1,"edges":["src/relay.js->src/landing-relay.js"]},
-  {"cell":"outbox","imports":1,"edges":["src/relay-conflict-record.js->src/computed-conflict-receipt.js"]},
-  {
-   "cell": "gate",
-   "imports": 6,
-   "edges": [
-    "src/gate-execution.js->src/landing-host.js",
-    "src/gate-execution.js->src/landing-shards.js",
-    "src/gate-slot.js->src/release-queue.js",
-    "src/release-gate.js->src/landing-shards.js",
-    "src/test-run.js->src/main-red.js",
-    "src/test-value.js->src/landing-shards.js"
-   ]
-  }
+  {"cell":"link","imports":1,"edges":["src/relay.js->src/landing-relay.js"]}
  ],
  "ratchets": {
   "legacySource": -4,

@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { createLocalApiHandler } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { main } from '../src/cli.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fetchFresh } from './http-fixture.js';
@@ -125,7 +126,7 @@ test("the API passes blank shout text to the CLI's own refusal [A2,A9]", async (
   const box = e2e.project('true');
   const secret = randomUUID();
   let port = 0;
-  handler = createLocalApiHandler({
+  handler = createLocalApiHandler({ refusalDocument,
     secret, getPort: () => port, runCommand: main,
     projects: () => [{ root: box.repo, name: 'Shout fixture', project: '', added: '2026-01-01T00:00:00.000Z' }],
   });

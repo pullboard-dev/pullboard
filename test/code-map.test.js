@@ -1,12 +1,12 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/board.js src/code-map.js src/commands/map.js src/commands/merged.js src/commands/index.js src/commands/next.js src/commands/claim.js src/map-slice-say.js src/cli-main.js src/cli-help.js src/help.js src/land.js src/templates.js test/board-submit-fixture.js */
+/** @pullboard-test-loads src/board.js packages/codemap/src/shell/code-map.js src/commands/map.js src/commands/merged.js src/commands/index.js src/commands/next.js src/commands/claim.js packages/codemap/src/shell/map-slice-say.js src/cli-main.js src/cli-help.js src/help.js src/land.js src/templates.js test/board-submit-fixture.js */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
-import { buildCodeMap, renderItemSlice } from '../src/code-map.js';
+import { buildCodeMap, renderItemSlice } from '../packages/codemap/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { agentsBlock } from '../src/doctrine.js';

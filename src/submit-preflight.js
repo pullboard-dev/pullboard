@@ -5,7 +5,7 @@
  * that always rolls back, with a stand-in proof, so every board guard decides now and nothing is recorded.
  */
 import { tryGit } from './git.js';
-import { inPlanScope } from './cells-plan.js';
+import { inPlanScope } from '../packages/codemap/index.js';
 import { Refused } from './refused.js';
 
 /** Bind placement to committed source, never an unstaged plan or the process working directory. */

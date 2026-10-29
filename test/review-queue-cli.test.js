@@ -10,6 +10,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { main } from '../src/cli.js';
 import { serveApi } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { loadConfig } from '../src/config.js';
 import { fetchFresh } from './http-fixture.js';
 
@@ -229,7 +230,7 @@ test('[Q1,V15,A2] authenticated API next returns a real unreserved offer and exp
   submitted(box); submitted(box); submitted(box);
   const id = build(box);
   const apiKey = randomUUID();
-  const api = await serveApi({ secret: apiKey, projects: () => [{ root: box.root }],
+  const api = await serveApi({ refusalDocument, secret: apiKey, projects: () => [{ root: box.root }],
     runCommand: (args, io) => main(args, { ...io, clock: box.clock }) });
   t.after(() => api.close());
   const boardId = store.boardId(box.board);

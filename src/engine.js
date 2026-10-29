@@ -1,26 +1,19 @@
+import { registrationProblem } from './engine-move-register.js';
 import { recordReviewPolicyActivation } from '../packages/state/index.js';
 import { agentGrantMinimum } from './agent-grant.js';
 import { recordFamilyDeclareActivation } from './family-declaration.js';
 import { requireAgentGrant } from './agent-grant.js';
-import { rejectedWorkReturns } from '../packages/state/index.js';
 import { handoffMoveProblem } from '../packages/state/index.js';
 import { requireHandoffActive } from '../packages/state/index.js';
-import { manualLandingFailureQuoted } from '../packages/state/src/core/manual-landing-failure-quoted.js';
-import { submissionSize } from '../packages/state/index.js';
-import { lineSettings } from '../packages/state/index.js';
 /** Versioned, deterministic replay through the CLI's existing board engine [H3,H16]. */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { COORDINATOR } from './config.js';
 import { recordedRefusal } from './recorded-refusal.js';
 import { PEOPLE_ENGINE } from './people-engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { VERIFIER_STANDING_ENGINE } from './machine.js';
-import { canonicalMilestoneTarget } from '../packages/state/index.js';
 import { Refused } from './refused.js';
-import { SUBMISSION_PROOF_ENGINE } from './move-engine-constants.js';
-import { submissionProof } from '../packages/state/index.js';
-import { MERGE_ONLY_VERDICT_ENGINE } from './merge-only-verdict-engine.js';
+import { ENGINE_MOVE_STEPS } from './engine-move-steps.js';
 
 /** Require the explicit runtime ports supplied by the board owner, never a receiver-local loader. */
 function enginePorts(board) {
@@ -74,83 +67,15 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
   const ports = enginePorts(board);
   const store = ports.store;
   if (!ports.operations.includes(operation) || !Array.isArray(args)) throw new Refused('RELAY_MOVE', 'use a supported board-engine operation with its argument array');
-  if (operation === 'reopen') args = ports.computedReturnArgs(board, args);
+  // Each operation's own sealing steps live in its engine-move module [C7].
+  const steps = Object.hasOwn(ENGINE_MOVE_STEPS, operation) ? ENGINE_MOVE_STEPS[operation] : {};
+  if (steps.prepareArgs) args = steps.prepareArgs(board, args, { ports, store, id });
   const values = args.map((value) => value && typeof value === 'object' ? { ...value } : value);
-  if (operation === 'recordTrainLanding') {
-    const request = values[0];
-    if (request?.agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator seals a train landing');
-    const prepared = request?.nativeBatch
-      ? ports.prepareNativeTrainLanding(request?.batch?.root, board, request.nativeBatch, request?.receipt?.id)
-      : ports.prepareTrainLanding(request?.batch?.root, board,
-        request?.batch?.items?.map(item => item.id), request?.batch?.tip, request?.receipt?.id);
-    values[0] = { ...prepared, ...(request?.landingFence === undefined ? {} : { landingFence: request.landingFence }) };
-  }
-  if (operation === 'rehomeItem' && values[1] && typeof values[1] === 'object') {
-    if (values[1].sourceMoveId !== undefined && values[1].sourceMoveId !== id) throw new Refused('RELAY_MOVE', 'a re-home must retain its exact source MOVEID');
-    values[1] = { ...values[1], sourceMoveId: id };
-  }
-  validateSpecRefreezeMarker(operation, values);
-  if (operation === 'reopen' && values[1] && typeof values[1] === 'object'
-    && manualLandingFailureQuoted(values[1].note)) values[1].quotedLandingFailure = true;
-  // Seal native stored facts at origin; replicas replay these bytes without the origin file.
-  if (operation === 'reopen' && args[1]?.sourceAdvanceReturn !== undefined) values[1] = ports.sealSourceAdvanceReturn(board, values[0], args[1]);
-  if (operation === 'advanceItemSource') values[1] = ports.sealSourceAdvance(board, values[0], args[1]);
-  if (operation === 'recordProofRun') {
-    const receipt = ports.boundProofReceipt(board, args[0]);
-    values[0] = { agentId: args[0].agentId, itemId: args[0].itemId, receipt };
-  }
-  if (['attachItemPatch', 'removeItemPatch'].includes(operation) && store.getItem(board, values[0]).item_status === 'claimed') {
-    values[1] = { ...values[1], presubmit: true };
-  }
-  if (operation === 'submit') values[1] = ports.sealItemPatchSubmit(board, values[0], values[1]);
-  if (operation === 'followItemPatches') values[1] = ports.sealItemPatchFollow(board, values[0], values[1]);
-  if (operation === 'submit' && ENGINE_VERSION >= SUBMISSION_PROOF_ENGINE) submissionProof(values[1]?.submissionProof);
-  // Derive once before sealing; replicas never re-decide a recorded carry from their local objects.
-  if (operation === 'submit' && ENGINE_VERSION >= MERGE_ONLY_VERDICT_ENGINE && values[1]) {
-    const carry = store.prepareMergeOnlySubmit(board, values[0], values[1], { getItem: store.getItem, acceptedVerdict: store.acceptedVerdict, identity: board.nativePorts });
-    delete values[1].mergeOnly;
-    if (carry) values[1].mergeOnly = carry;
-  }
-  if (operation === 'submit') submissionSize(values[1]?.submissionSize, values[1]?.commit);
-  if (operation === 'claim' && ['wipPerReviewer', 'takeoverMinutes'].some(key => typeof lineSettings(board)[key] === 'number')) {
-    values[1] = { ...values[1], lineCapacity: true };
-  }
+  steps.validate?.(values);
+  steps.prepareBefore?.(board, values, { args, ports, store, id });
   const minimumEngine = Math.max(ports.minimumOperationEngine(operation, values, board), agentGrantMinimum(board, { operation, args: values }));
   if (ENGINE_VERSION < minimumEngine) throw new Refused('ENGINE_VERSION', `${operation} requires engine version ${minimumEngine}; this pullboard uses engine ${ENGINE_VERSION}; upgrade before sending it`);
-  // A gate run is sealed only as its gate's own receipt; a run made up by hand is refused before it reaches any replica.
-  if (operation === 'recordGateRun') ports.requireBound(board, values[0]?.receipt);
-  if (operation === 'reopen' && values[1]?.computedConflict !== undefined) {
-    if (values[1].conflict !== undefined) throw new Refused('COORDINATOR_ONLY', 'automatic conflict evidence accepts no caller conflict assertion');
-    ports.requirePreparedComputedConflict(board, values[0], values[1].agentId, values[1].computedConflict);
-  }
-  // Freeze local liveness only at the authenticated sender; receivers replay this observation.
-  if (operation === 'recordHealthFindings' && values[0]?.returnRejected === true) {
-    if (values[0].agentId !== 'coordinator') throw new Refused('COORDINATOR_ONLY', 'ask the coordinator to return unattended rejects');
-    rejectedWorkReturns(board, values[0].findings, ports.withSeatPresence);
-  }
-  if (operation === 'verify' && values[1]?.sandbox !== undefined) ports.requireOutsideReceipt(board, values[1].sandbox);
-  if (operation === 'release') {
-    const problem = store.reviewReleaseNoteProblem(board, values[0], values[1], values[2]);
-    if (problem) throw problem;
-  }
-  if (['claim', 'refreeze'].includes(operation) || operation === 'editItem' && values[1]?.correction === true) {
-    const options = values[1];
-    const item = store.getItem(board, values[0]);
-    if (typeof options?.freeze === 'function') {
-      let frozen;
-      let error;
-      try { frozen = options.freeze(operation === 'editItem' ? { ...item, ...store.validateItemEdit(board, values[0], options).next } : item); }
-      catch (cause) {
-        if (!(cause instanceof Refused)) throw cause;
-        error = recordedRefusal(cause);
-      }
-      delete options.freeze;
-      options.frozen = frozen ?? null;
-      options.freezeError = error ?? null;
-    }
-  }
-  // A target is fixed to one instant here, so replicas in other time zones read the same one.
-  if (operation === 'editMilestone' && values[1] && 'target' in values[1]) values[1].target = canonicalMilestoneTarget(values[1].target);
+  steps.prepareAfter?.(board, values, { args, ports, store, id });
   const move = { version: 1, engine: ENGINE_VERSION, id, operation, args: values, ...(actor === undefined ? {} : { actor }) };
   // JSON is the wire format: optional undefined fields become absent on every replica alike.
   return JSON.parse(JSON.stringify(move));
@@ -161,19 +86,13 @@ export function requireSupportedEngine(move) {
   if (Number.isSafeInteger(move?.engine) && move.engine > ENGINE_VERSION) throw new Refused('ENGINE_VERSION', `move engine version ${move.engine} is newer than this pullboard engine version ${ENGINE_VERSION}; upgrade pullboard before applying the relay order`);
 }
 
-/** Treat a present correction array, including an empty one, as the new apply protocol marker. */
-function validateSpecRefreezeMarker(operation, args) {
-  if (operation === 'applyRowDecisions' && Object.hasOwn(args[0] ?? {}, 'refreezes') && !Array.isArray(args[0].refreezes)) {
-    throw new Refused('ROW_DECISION', 'the spec correction payload is invalid; run pullboard spec apply again');
-  }
-}
-
 /** Validate protocol identity before a future engine or malformed input can alter any replica. */
 function validateMove(move, ports) {
   if (!move || move.version !== 1 || !Number.isSafeInteger(move.engine) || move.engine < 1) throw new Refused('RELAY_MOVE', 'this executable move format is invalid; upgrade pullboard or restore a consistent relay snapshot');
   requireSupportedEngine(move);
   if (typeof move.id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(move.id) || !ports.operations.includes(move.operation) || !Array.isArray(move.args)) throw new Refused('RELAY_MOVE', 'this sealed operation is invalid; use a supported board-engine operation');
-  validateSpecRefreezeMarker(move.operation, move.args);
+  const steps = Object.hasOwn(ENGINE_MOVE_STEPS, move.operation) ? ENGINE_MOVE_STEPS[move.operation] : {};
+  steps.validate?.(move.args);
   const minimumEngine = ports.minimumOperationEngine(move.operation, move.args);
   if (move.engine < minimumEngine) throw new Refused('RELAY_MOVE', `${move.operation} cannot be replayed from engine version ${move.engine}; it was introduced in engine ${minimumEngine}; restore a consistent relay prefix`);
 }
@@ -183,37 +102,8 @@ export function executableArgs(move, board) {
   const ports = enginePorts(board);
   const store = ports.store;
   const args = structuredClone(move.args);
-  if (move.operation === 'rehomeItem' && args[1]?.sourceMoveId !== move.id) throw new Refused('RELAY_MOVE', 'a re-home source MOVEID does not match its sealed move');
-  if (move.operation === 'appendFact') {
-    if (!args[1] || typeof args[1] !== 'object' || Array.isArray(args[1])) throw new Refused('RELAY_MOVE', 'a fact needs its typed arguments; use the current Pullboard engine');
-    args[1].factId = move.id;
-  }
-  // Implied facts take their ids from the sealed move, so every replica writes the same ones.
-  if (['answerDecision', 'verify'].includes(move.operation) && args[1] && typeof args[1] === 'object' && !Array.isArray(args[1])) args[1].impliesId = move.id;
-  if (['claim', 'refreeze'].includes(move.operation) || move.operation === 'editItem' && args[1]?.correction === true) {
-    const options = args[1];
-    if (!options || !Object.hasOwn(options, 'frozen')) throw new Refused('RELAY_MOVE', 'the claim has no frozen criterion; send it with the current pullboard engine');
-    options.freeze = () => {
-      if (options.freezeError) throw new Refused(options.freezeError.code, options.freezeError.message);
-      if (!options.frozen || typeof options.frozen.text !== 'string' || typeof options.frozen.digest !== 'string') throw new Refused('RELAY_MOVE', 'the frozen criterion is invalid; send it with the current pullboard engine');
-      return options.frozen;
-    };
-  }
-  if (move.operation === 'verify') {
-    const item = store.getItem(board, args[0]);
-    const options = args[1];
-    let frozen;
-    try { frozen = JSON.parse(item.item_frozen ?? 'null'); }
-    catch { throw new Refused('NO_POLICY', 'the frozen verify policy is invalid; ask the coordinator to refreeze this item before verifying it'); }
-    const capturedPolicy = frozen?.policy;
-    const captured = capturedPolicy?.verify;
-    if (!options || typeof options !== 'object' || Array.isArray(options) ||
-        capturedPolicy?.version !== 1 || !/^[0-9a-f]{40,64}$/.test(capturedPolicy.commit ?? '') ||
-        !['any', 'coordinator'].includes(captured?.policy) || !['off', 'prefer', 'require'].includes(captured?.family)) {
-      throw new Refused('NO_POLICY', 'the frozen verify policy is missing or invalid; ask the coordinator to refreeze this item before verifying it');
-    }
-    args[1] = { ...options, policy: captured.policy, familyPolicy: captured.family, impliesId: move.id };
-  }
+  const steps = Object.hasOwn(ENGINE_MOVE_STEPS, move.operation) ? ENGINE_MOVE_STEPS[move.operation] : {};
+  steps.replayArgs?.(board, args, { move, store });
   return args;
 }
 
@@ -257,40 +147,6 @@ export function refuseRelayMove(board, move, { sequence, at, sender, kind, code,
   });
 }
 
-/**
- * Bind an engine-48 registration to the relay's receipt (#579). A seat made by another seat names
- * itself in the move (`id`) and arrives with the receipt the relay issued its first token under:
- * same target, the authenticated creator, this position and these exact sealed bytes. A join no
- * seat made is machine-sent and carries no receipt; a receipt on any other move is refused.
- *
- * @param {any} board
- * @param {any} move
- * @param {{ sender: any, registration?: any, sequence: number, digest: string | null }} record
- * @returns {Refused | null}
- */
-function registrationProblem(board, move, { sender, registration, sequence, digest }) {
-  const ports = enginePorts(board);
-  const store = ports.store;
-  const refuse = (why) => new Refused('RELAY_REGISTRATION', `${why}; register the seat again from its creating seat's checkout`);
-  const options = move?.operation === 'register' && move.engine >= VERIFIER_STANDING_ENGINE ? move.args?.[0] : null;
-  if (!options || sender?.kind === 'person') return registration === undefined || registration === null ? null : refuse('the relay attached a seat receipt to a move that registers no seat');
-  const existing = typeof options.path === 'string' ? store.agentAt(board, options.path) : null;
-  if (sender.kind === 'machine' || existing) {
-    if (registration !== undefined && registration !== null) return refuse('a machine join or a returning seat carries no seat receipt');
-    if (existing && sender.kind === 'agent' && existing.agent_id !== sender.agent) return refuse(`agent ${sender.agent} cannot register another seat's worktree`);
-    return null;
-  }
-  if (options.createdBy === COORDINATOR && sender.root !== true) {
-    return refuse('only the coordinator credential the person set up creates seats; run pullboard relay on in the main checkout once');
-  }
-  const receipt = registration ?? {};
-  if (typeof options.id !== 'string' || receipt.target !== options.id || receipt.creator !== sender.agent || receipt.creator !== options.createdBy ||
-      receipt.sequence !== sequence || typeof digest !== 'string' || receipt.digest !== digest) {
-    return refuse('a new seat needs the relay receipt its creator received for exactly this sealed move');
-  }
-  return null;
-}
-
 /** Authorize each public relay position before replay, retaining refusals atomically with its cursor. */
 export function applyRelayMove(board, move, { sequence, at, sender, kind, digest = null, registration }) {
   const ports = enginePorts(board);
@@ -299,7 +155,7 @@ export function applyRelayMove(board, move, { sequence, at, sender, kind, digest
   const phoneReceipt = sender?.kind === 'machine' && move?.engine >= 6 && Boolean(move.personRequest) && !ports.requestMoveProblem(board, move, { checkExecutorLease: false });
   const problem = ports.relaySenderProblem(move, sender, kind, { phoneReceipt })
     ?? (kind === 'move' ? handoffMoveProblem(board, ports.relayMoveActor(move), move.operation, move.args) : null)
-    ?? (kind === 'move' ? registrationProblem(board, move, { sender, registration, sequence, digest }) : null)
+    ?? (kind === 'move' ? registrationProblem(board, move, { sender, registration, sequence, digest }, ports) : null)
     // With signing on, a person-only move counts only when it carries out a passkey-confirmed request [E22].
     ?? (kind === 'move' ? ports.signedMoveProblem(board, ports.personAuthority(move), phoneReceipt ? move.personRequest : null) : null);
   if (!problem) {
@@ -340,7 +196,8 @@ export function applyEngineMove(board, move, { sequence, at, standing = null, en
       const minimumEngine = Math.max(ports.minimumOperationEngine(move.operation, move.args, board, new Date(at)), agentGrantMinimum(board, move));
       if (move.engine < minimumEngine) throw new Refused('RELAY_MOVE', `${move.operation} cannot act on a checked-composition snapshot from engine ${move.engine}; use engine ${minimumEngine} or newer`);
       // Missing immutable objects abort before a refusal receipt or cursor could make a fetch unrecoverable.
-      if (move.operation === 'reopen' && move.args[1]?.computedConflict !== undefined) ports.preflightComputedConflict(board, move.args[0], move.args[1].agentId, move.args[1].computedConflict);
+      const steps = Object.hasOwn(ENGINE_MOVE_STEPS, move.operation) ? ENGINE_MOVE_STEPS[move.operation] : {};
+      steps.replayBefore?.(board, move.args, { ports });
       const clock = board.clock;
       const engineVersion = board.executionEngineVersion;
       board.clock = { now: () => new Date(at) };
