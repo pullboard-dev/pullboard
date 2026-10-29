@@ -4,11 +4,23 @@
  * trust, and every import is a Node built-in or a file of its own.
  */
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn, runFixtureChild as spawnSync } from '../../../test/fixture-child.js';
+import {
+  startFixtureChild as spawn,
+  runFixtureChild as spawnSync,
+} from '../../../test/fixture-child.js';
 import { once } from 'node:events';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import {
+  join,
+  resolve,
+} from 'node:path';
 import { test } from 'node:test';
 
 const ROOT = resolve(import.meta.dirname, '..', '..', '..');
