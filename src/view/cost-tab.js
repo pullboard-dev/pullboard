@@ -1,7 +1,7 @@
 /** Private Cost-tab selection and rendering for the local board view [N26]. */
 
 /** Decode one event detail without letting malformed legacy JSON break the view. */
-function detailOf(event) {
+function costEventDetail(event) {
   if (event?.detail && typeof event.detail === 'object') return event.detail;
   if (typeof event?.event_detail !== 'string') return {};
   try { return JSON.parse(event.event_detail); } catch { return {}; }
@@ -89,14 +89,14 @@ function usageByItem(events) {
   const ordered = [...(events ?? [])].sort((a, b) => Number(a.event_id ?? 0) - Number(b.event_id ?? 0));
   const itemHistories = new Map();
   for (const row of ordered) {
-    const id = Number(row.item_id ?? detailOf(row).item);
+    const id = Number(row.item_id ?? costEventDetail(row).item);
     if (!Number.isSafeInteger(id) || id < 1) continue;
     if (!itemHistories.has(id)) itemHistories.set(id, []);
     itemHistories.get(id).push(row);
   }
   for (const event of ordered) {
     if (kindOf(event) !== 'usage') continue;
-    const detail = detailOf(event), item = Number(detail.item), agent = actorOf(event), revision = Number(detail.revision ?? 0);
+    const detail = costEventDetail(event), item = Number(detail.item), agent = actorOf(event), revision = Number(detail.revision ?? 0);
     if (!Number.isSafeInteger(item) || item < 1 || !agent || !Number.isSafeInteger(revision) || revision < 1 || !Array.isArray(detail.records)) continue;
     const key = item + ':' + agent, prior = snapshots.get(key);
     const history = itemHistories.get(item) ?? [];
@@ -125,7 +125,7 @@ function sharedUsageItems(events) {
   const items = new Set();
   for (const event of events ?? []) {
     if (kindOf(event) !== 'shared-usage') continue;
-    for (const allocation of detailOf(event).allocations ?? []) {
+    for (const allocation of costEventDetail(event).allocations ?? []) {
       if (Number.isSafeInteger(allocation?.item) && allocation.item > 0) items.add(allocation.item);
     }
   }
@@ -152,7 +152,7 @@ export function costTabModel(project, events, prices = null) {
   const itemEvents = new Map();
   const landings = new Map();
   for (const event of [...(events ?? [])].sort((a, b) => Number(a.event_id ?? 0) - Number(b.event_id ?? 0))) {
-    const id = Number(event.item_id ?? detailOf(event).item);
+    const id = Number(event.item_id ?? costEventDetail(event).item);
     if (!Number.isSafeInteger(id) || id < 1) continue;
     if (!itemEvents.has(id)) itemEvents.set(id, []);
     itemEvents.get(id).push(event);
@@ -265,7 +265,7 @@ export function costTabHtml(model, opened = null, { loading = false, error = nul
 
 /** Embed this module's closure-free Cost functions into the standalone local-view page. */
 export function costTabScript() {
-  const functions = [detailOf, actorOf, kindOf, costFigure, dateLabel, escapeHtml, completeSum, median,
+  const functions = [costEventDetail, actorOf, kindOf, costFigure, dateLabel, escapeHtml, completeSum, median,
     usageRole, firstSamplePhaseKnown, counterDelta, usageByItem, sharedUsageItems, recordCost, costTabModel, sessionHtml, costTabHtml];
   return functions.map((fn) => `const ${fn.name} = (${fn.toString()});`).join('\n');
 }
