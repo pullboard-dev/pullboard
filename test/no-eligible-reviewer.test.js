@@ -6,6 +6,7 @@ import { fixtureBoard } from './board-fixture.js';
 import { submitPreflight } from '../src/submit-preflight.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
 import { refuseUnreviewable } from '../src/review-reachability.js';
+import { reviewEligibility } from '../src/review-eligibility.js';
 import { refuseLiveAttach } from '../src/item-patches.js';
 import { healthReport } from '../src/health.js';
 import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
@@ -33,6 +34,42 @@ function fixture(t, seats, clock) {
   const preflight = (id, builder) => submitPreflight(board, id, { agentId: builder, commit: 'a'.repeat(40), tree: 'b'.repeat(40) }, { atomic: store.atomic, submit: store.submit }, { refuse: (board, item) => refuseUnreviewable(board, item, REVIEW) });
   return { board, claimed, credit, preflight };
 }
+
+test('Standard reachability skips the seat scan while the normal projection still lists reviewers [C7,V4]', t => {
+  const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b']]);
+  const id = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'Standard reachability fixture' });
+  store.claim(f.board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE, freeze });
+  const original = f.board.db.prepare.bind(f.board.db);
+  let enumerations = 0;
+  /** Count the real candidate enumeration without replacing its statement or native database identity. */
+  f.board.db.prepare = sql => {
+    if (sql === 'SELECT agent_id,agent_route FROM agent ORDER BY agent_id') enumerations++;
+    return original(sql);
+  };
+  t.after(() => { f.board.db.prepare = original; });
+  const before = store.events(f.board);
+  f.preflight(id, 'core-1');
+  assert.equal(enumerations, 0, 'Standard preflight never enumerates candidates it would discard');
+  assert.deepEqual(store.events(f.board), before, 'the real preflight still rolls back its native submit');
+  assert.equal(store.getItem(f.board, id).item_status, 'claimed');
+  const projected = reviewEligibility(f.board, { ...store.getItem(f.board, id), item_status: 'submitted',
+    item_built_by: 'core-1', item_builder_family: 'openai' }, REVIEW);
+  assert.equal(projected.tier, 'standard');
+  assert.deepEqual(projected.eligible, ['core-2'], 'the default read projection retains Standard reviewer details');
+  assert.equal(enumerations, 1);
+});
+
+test('reachability rereads current Strict policy after a Standard projection [C7,V4]', t => {
+  const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b']]);
+  const id = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'Changed review policy fixture' });
+  const standard = { ...store.getItem(f.board, id), item_status: 'submitted', item_built_by: 'core-1', item_builder_family: 'openai' };
+  assert.doesNotThrow(() => refuseUnreviewable(f.board, standard, REVIEW));
+  store.editItem(f.board, id, { agentId: 'coordinator', sensitive: true });
+  store.claim(f.board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE, freeze });
+  f.credit(id, 'core-2');
+  assert.throws(() => f.preflight(id, 'core-1'), { code: 'NO_ELIGIBLE_REVIEWER' },
+    'an earlier Standard observation cannot suppress the current Strict guard');
+});
 
 test('an OpenAI builder with a Claude-credited companion on a strict item is refused by name [C7,V4]', t => {
   const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b'], ['core-3', 'claude', 'c'], ['core-4', 'openai', 'd']]);

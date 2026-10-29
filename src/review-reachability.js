@@ -26,7 +26,7 @@ function authorFamilies(board, item) {
  */
 export function unreviewableStrict(board, item, options = {}) {
   const { registered = false, ...eligibility } = options;
-  const projected = reviewEligibility(board, item, eligibility);
+  const projected = reviewEligibility(board, item, eligibility, { strictOnly: true });
   if (projected.tier !== 'strict' || !projected.ready) return null;
   // A replayed move may not read local heartbeats, so it counts every registered seat; submit and the sentinel count only active ones.
   const present = new Map(listAgents(board).map(seat => [seat.agent_id, registered ? 'registered' : seat.presence]));
