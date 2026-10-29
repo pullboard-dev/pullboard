@@ -6,7 +6,7 @@
  "frontDoor": "packages/verify/index.js",
  "placedBy": {
   "seed": 23,
-  "rule": 7,
+  "rule": 9,
   "imports": 6
  },
  "paths": [
@@ -45,7 +45,9 @@
   ["src/reject-clause.js","packages/verify/src/shell/reject-clause.js","imports"],
   ["src/review-tier.js","packages/verify/src/core/review-tier.js","rule"],
   ["src/check-widen.js","packages/verify/src/core/check-widen.js","imports"],
-  ["src/review-reachability.js","packages/verify/src/core/review-reachability.js","imports"]
+  ["src/review-reachability.js","packages/verify/src/core/review-reachability.js","imports"],
+  ["src/routing-rules-floor.js","packages/verify/src/shell/routing-rules-floor.js","rule"],
+  ["src/routing-rules.js","packages/verify/src/shell/routing-rules.js","rule"]
  ],
  "reexports": [
   "src/bar-actor.js",

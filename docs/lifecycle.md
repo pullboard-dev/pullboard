@@ -135,9 +135,9 @@ Each move checks its guards in this order and refuses with the first one that do
 | WRONG_LANE | the item is in the caller's lane; the main checkout builds coordinator-lane items only | cd <the lane's worktree> && pullboard claim <id> |
 | OUTSIDE_NATIVE_BUILD | the item is in the caller's lane; the main checkout builds coordinator-lane items only | the outside author revises the PR; ask the coordinator to return it, then intake the new exact head |
 | ROUTE | the caller's route covers the item's: light, then mid, then strong | pullboard next, which offers only items your route covers |
-| ROUTING_RULE | no recorded routing rule bars the caller from building the item, a routing rule names the item or its tier | take work no rule bars you from: pullboard next |
-| BAD_REVIEW_POLICY | no recorded routing rule bars the caller from building the item, a routing rule names the item or its tier | restore the native review policy |
-| ITEM_PATCH | no recorded routing rule bars the caller from building the item, a routing rule names the item or its tier | restore the item patch set |
+| ROUTING_RULE | no recorded routing rule bars the caller from building the item, a routing rule names the item, its tier, or all items | take work no rule bars you from: pullboard next |
+| BAD_REVIEW_POLICY | no recorded routing rule bars the caller from building the item, a routing rule names the item, its tier, or all items | restore the native review policy |
+| ITEM_PATCH | no recorded routing rule bars the caller from building the item, a routing rule names the item, its tier, or all items | restore the item patch set |
 | BLOCKED | every item it waits on is verified | claim another item, or shout the lane it waits on |
 | REOPEN_HELD_FOR_BUILDER | a returned item waits for its original builder until its recorded deadline or builder release | wait until the named deadline, or ask its builder to run pullboard release <id> |
 | HELD | no other agent holds it under a live lease | pullboard next |

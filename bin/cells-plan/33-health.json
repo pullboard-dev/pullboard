@@ -6,7 +6,7 @@
  "frontDoor": "packages/health/index.js",
  "placedBy": {
   "seed": 4,
-  "rule": 12,
+  "rule": 13,
   "imports": 2
  },
  "paths": [
@@ -27,7 +27,8 @@
   ["src/stale-state-policy.js","packages/health/src/core/stale-state-policy.js","rule"],
   ["src/stale-state-query.js","packages/health/src/core/stale-state-query.js","rule"],
   ["src/stale-state-store.js","packages/health/src/core/stale-state-store.js","rule"],
-  ["src/stale-work-observation.js","packages/health/src/shell/stale-work-observation.js","rule"]
+  ["src/stale-work-observation.js","packages/health/src/shell/stale-work-observation.js","rule"],
+  ["src/release-reasons.js","packages/health/src/core/release-reasons.js","rule"]
  ],
  "reexports": [
   "src/conditional-holds.js",

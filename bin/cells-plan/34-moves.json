@@ -6,7 +6,7 @@
  "frontDoor": "packages/moves/index.js",
  "placedBy": {
   "seed": 74,
-  "rule": 12,
+  "rule": 13,
   "imports": 0
  },
  "paths": [
@@ -95,7 +95,8 @@
   ["src/moves/withdraw.js","packages/moves/src/core/moves/withdraw.js","seed"],
   ["src/moves/followItemPatches.js","packages/moves/src/core/moves/followItemPatches.js","rule"],
   ["src/moves/recordTrainLanding.js","packages/moves/src/core/moves/recordTrainLanding.js","rule"],
-  ["src/moves/recordNextIdle.js","packages/moves/src/core/moves/recordNextIdle.js","rule"]
+  ["src/moves/recordNextIdle.js","packages/moves/src/core/moves/recordNextIdle.js","rule"],
+  ["src/moves/setRoutingRule.js","packages/moves/src/core/moves/setRoutingRule.js","rule"]
  ],
  "reexports": ["src/bar-ready-setting.js","src/move-implies.js","src/move-registry.js","src/moves/reopen.js","src/moves/shout.js"],
  "imports": [

@@ -1,4 +1,5 @@
 import { RULING_OWNER_ENGINE } from '../ruling-owner-engine.js';
+import { routingRulesEngine } from '../routing-rules-floor.js';
 import { laneMessageFloor } from '../lane-lead.js';
 import { DECISION_QUEUE_ENGINE } from '../decision-queue-engine.js';
 import { ACTIVITY_NEWS_ENGINE } from '../activity-news-engine.js';
@@ -18,7 +19,7 @@ function historicalMinimumEngine(args, board, at) {
 }
 
 /** News combines every applicable floor; old arguments retain their historical replay condition order. */
-function minimumEngine(args, board, at) {
+function existingMinimumEngine(args, board, at) {
   const laneFloor = laneMessageFloor(board, args[0]);
   const optionsFloor = Math.max(args[0]?.options !== undefined ? DECISION_QUEUE_ENGINE : 1,
     args[0]?.effects !== undefined ? RULING_OWNER_ENGINE : 1);
@@ -30,6 +31,11 @@ function minimumEngine(args, board, at) {
     typeof args[1]?.cause === 'string' && args[1].cause.startsWith('sentinel:') ? BOARD_SENTINEL_ENGINE : 1);
 }
 
+/** Fresh messages on a rule-bearing board cannot use an older sender to bypass native routing guards. */
+function minimumEngine(args, board, at) {
+  return Math.max(routingRulesEngine(board), existingMinimumEngine(args, board, at));
+}
+
 /** Read precisely the actor argument used by this operation [H2,H16]. */
 function actor(move) { return move.args[0]?.from ?? null; }
 
@@ -39,6 +45,7 @@ export default Object.freeze({ operation: "shout", order: 23, engine: 1,
   RULING_EFFECTS: 'declare one to 64 concrete effects on a decision request with --decision --effects',
   RULING_EFFECT: 'use a supported effect operation with its exact row, item or decision target; omit caller owner and status fields',
   RULING_ROW: 'read the current spec or doctrine and declare approval or revision when the row is not approved',
+  ROUTING_BY_SHOUT: 'ask for a rule, not an assignment: pullboard rule add review|build|any <effect> <value> --item <id> --source <shout-id>',
   BAD_MESSAGE_KIND: 'use --kind question, blocker, decision, exception or idea',
   STATUS_IS_ACTIVITY: 'keep working on the item; status is board activity, not a shout',
   LANE_MESSAGE_ITEM: 'omit --kind for an item-specific message',

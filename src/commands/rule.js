@@ -8,11 +8,11 @@ import { withBoardRead } from '../cli.js';
 import { routingRules } from '../routing-rules.js';
 import { STANDING_RULINGS } from '../routing-rules.js';
 
-const USAGE = 'pullboard rule add review|build|any <only-seat|bar-seat|require-family|bar-family|bar-pool|require-session|bar-session> <value> (--item <id> | --tier strict) --source <shout-id> [--note "why"]; rule revoke <id>; rule migrate; rule list';
+const USAGE = 'pullboard rule add review|build|any <only-seat|bar-seat|require-family|bar-family|bar-pool|require-session|bar-session|different-session|different-family> <value> (--item <id> | --tier strict | --all) --source <shout-id> [--note "why"]; rule revoke <id>; rule migrate; rule list';
 
 /** One line per rule, naming its source shout. */
 function line(rule) {
-  const scope = rule.scope.item === undefined ? 'strict items' : `#${rule.scope.item}`;
+  const scope = rule.scope.all === true ? 'all items' : rule.scope.item === undefined ? 'strict items' : `#${rule.scope.item}`;
   return `rule #${rule.id}: ${rule.act} of ${scope}: ${rule.effect} ${rule.value}${rule.source ? ` (shout ${rule.source})` : ''}${rule.note ? ` - ${rule.note}` : ''}`;
 }
 
@@ -44,9 +44,9 @@ export async function run(io, { first, second, rest, values }) {
       return 0;
     });
   }
-  if (first !== 'add' || rest.length !== 2 || (values.item === undefined) === (values.tier === undefined)) throw new Refused('USAGE', USAGE);
+  if (first !== 'add' || rest.length !== 2 || [values.item !== undefined, values.tier !== undefined, Boolean(values.all)].filter(Boolean).length !== 1) throw new Refused('USAGE', USAGE);
   const source = values.source === undefined ? null : idArg(values.source);
-  const scope = values.item === undefined ? { tier: values.tier } : { item: idArg(values.item) };
+  const scope = values.all ? { all: true } : values.item === undefined ? { tier: values.tier } : { item: idArg(values.item) };
   return actOn(io, async (ctx, board, me) => {
     const id = await ordered(ctx, board, 'setRoutingRule', [{ agentId: me.id, act: second, scope, effect: rest[0], value: rest[1], source,
       ...(values.note === undefined ? {} : { note: values.note }) }]);
