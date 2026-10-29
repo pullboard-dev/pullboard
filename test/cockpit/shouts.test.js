@@ -97,10 +97,10 @@ test('a shout shows the evidence it carries [B22]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  build(box, alpha, 1, 'greeting.html');
+  box.run(alpha.web, 'claim', '1'); // Evidence needs a bound item and commit, not a restated submit.
   const head = box.git(alpha.web, 'rev-parse', 'HEAD');
-  box.run(alpha.web, 'shout', 'all', 'Does the measured page load meet the budget?', '--kind', 'question', '--evidence', 'receipt', '--outcome', 'measured <fast>', '--item', '1', '--commit', head.slice(0, 7));
-  box.run(alpha.web, 'shout', 'all', 'Should we retry the failed cache attempt?', '--kind', 'question', '--evidence', 'attempt', '--outcome', 'failed', '--item', '1', '--commit', 'HEAD');
+  box.run(alpha.web, 'shout', 'all', 'the page loads in 80ms', '--evidence', 'receipt', '--outcome', 'measured <fast>', '--item', '1', '--commit', head.slice(0, 7));
+  box.run(alpha.web, 'shout', 'all', 'tried a cache', '--evidence', 'attempt', '--outcome', 'failed', '--item', '1', '--commit', 'HEAD');
   box.run(alpha.web, 'shout', 'all', 'nothing to show');
   const view = await startView(box);
   try {
@@ -109,8 +109,8 @@ test('a shout shows the evidence it carries [B22]', async () => {
     const feed = page.show('feed');
     const card = (kind, outcome) => `<div class="receipt"><div><span class="badge">${kind}</span> <span class="outcome">${outcome}</span></div><div class="receipt-foot"><a class="ref" href="/items/1" data-go="item:1" title="Greeting">#1</a> · web-1 (Test Model) · <code class="inline sha" title="${head}">${head.slice(0, 10)}</code></div></div>`;
     const after = (text) => feed.slice(feed.indexOf(text + '</div>') + text.length + 6).replace(/^<button class="more" data-more type="button">more<\/button>/, '');
-    assert.ok(after('Does the measured page load meet the budget?').startsWith(card('receipt', 'measured &lt;fast&gt;')), `what was measured, for which item, by whom, at which commit: ${after('Does the measured page load meet the budget?').slice(0, 400)}`);
-    assert.ok(after('Should we retry the failed cache attempt?').startsWith(card('attempt', 'failed')), 'and what was tried');
+    assert.ok(after('the page loads in 80ms').startsWith(card('receipt', 'measured &lt;fast&gt;')), `what was measured, for which item, by whom, at which commit: ${after('the page loads in 80ms').slice(0, 400)}`);
+    assert.ok(after('tried a cache').startsWith(card('attempt', 'failed')), 'and what was tried');
     assert.match(feed, /<span class="item">#1<\/span>/, 'the card names its item on top');
     assert.ok(feed.includes('nothing to show</div>'), 'a shout with no evidence has no card');
   } finally {

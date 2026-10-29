@@ -148,12 +148,15 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     assert.ok(page.show('feed').includes(`<span class="code no" role="status">[NO_LINES] web/greeting.html has 1 lines at ${sha}</span>`));
     assert.match(page.show('feed'), /Code reference unavailable: missing a usable commit SHA\./);
     assert.match(page.show('feed'), /Code reference unavailable: missing the repository path\./);
+    page.run("openTab('items'); render();");
+    await page.click({ item: '1' });
     assert.match(page.show('detail'), /Referenced code/);
     assert.ok(page.show('detail').includes(button(`web/greeting.html:1-2@${second}`, false)), 'typed thread refs reuse the collapsed reference block');
     const relay = JSON.stringify(relayPresentation(alpha.repo, {}, RELAY_PRESENTATION_PORTS));
     assert.ok(relay.includes('"path":"web/greeting.html"') && relay.includes('"commit":"' + second + '"'), 'the relay presentation retains only the typed reference fields');
     assert.ok(!relay.includes('  hello <b>there</b>'), 'the relay presentation never contains committed source text');
 
+    page.run("openTab('shouts'); render();");
     // Expansion stays attached to the repo that owned the reference if the selected project changes mid-flight.
     const alphaId = await page.run(`data.projects.find((entry) => entry.root === ${JSON.stringify(alpha.repo)}).id`);
     const betaId = await page.run(`data.projects.find((entry) => entry.root === ${JSON.stringify(beta.repo)}).id`);
@@ -268,6 +271,8 @@ test('committed shout and fact references stay local, expand safely at phone and
   try {
     const address = snapshotServer.address();
     snapshotChrome = await openSnapshotChrome(executable, `http://127.0.0.1:${address.port}/`, join(box.dir, 'relay-snapshot-chrome'));
+    await snapshotChrome.waitFor('data?.project');
+    await snapshotChrome.click("document.querySelector('[data-tab=shouts]')");
     await snapshotChrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]')`);
     await snapshotChrome.click(`document.querySelector('[data-tab="shouts"]')`);
     await snapshotChrome.click(`document.querySelector('#feed button[data-code^="web/reference.js:1-100@"]')`);
