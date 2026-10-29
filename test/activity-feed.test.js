@@ -23,7 +23,13 @@ import { prepareSpecRefreezes } from '../src/spec-refreeze.js';
 import { fixtureBoard } from './board-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { DatabaseSync } from 'node:sqlite';
-import { activityDeliveryLines, activityMainFiles, activityWorkingFiles, budgetInbox, readActivityCursor, readActivityDelivery, saveActivityCursor } from '../packages/activity/index.js';
+import { activityDeliveryLines } from '../packages/activity/index.js';
+import { activityMainFiles } from '../packages/activity/index.js';
+import { activityWorkingFiles } from '../packages/activity/index.js';
+import { budgetInbox } from '../packages/activity/index.js';
+import { readActivityCursor } from '../packages/activity/index.js';
+import { readActivityDelivery } from '../packages/activity/index.js';
+import { saveActivityCursor } from '../packages/activity/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
