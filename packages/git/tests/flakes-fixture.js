@@ -1,9 +1,28 @@
 /** Real private flake projects own their counter and native board evidence bytes [C7,H16]. */
 import assert from 'node:assert/strict';
-import { appendFileSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { runFixtureChild, runFixtureGit } from '../../../test/fixture-child.js';
+import {
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from 'node:path';
+import {
+  runFixtureChild,
+  runFixtureGit,
+} from '../../../test/fixture-child.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 export const TITLE = 'a controlled intermittent assertion [C7]';

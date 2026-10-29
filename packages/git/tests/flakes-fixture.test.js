@@ -1,6 +1,10 @@
 /** Private flake readers preserve actual evidence and cannot acquire source-file authority [C7,H16]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { flakyProject } from './flakes-fixture.js';
