@@ -1,8 +1,10 @@
 /** Client-only signing-root storage; PRF acquisition and recovery UI are separate [H15]. */
 import { Refused } from './refused.js';
-import { devicePublicKey } from './relay-device-keys.js';
-import { openAccountEnvelope } from './person-enrollment.js';
-import { sealAccountEnvelope } from './person-enrollment.js';
+import {
+  devicePublicKey,
+  openAccountEnvelope,
+  sealAccountEnvelope,
+} from './person-enrollment.js';
 
 const encoder = new TextEncoder();
 const modes = ['credential', 'recovery'];

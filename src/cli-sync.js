@@ -9,7 +9,11 @@ import { retryCheckBaselines } from './check-baseline-worker.js';
 import { relayOutboxSetting } from './cli.js';
 import { displayedRefusal } from './cli-context.js';
 import { Refused } from './refused.js';
-import { syncRelay } from './relay.js';
+import {
+  DEFAULT_RELAY,
+  relayStatus,
+  syncRelay,
+} from './relay.js';
 import { executePersonRequests } from './relay-request-execution.js';
 import { autoLinkProject } from './relay-setup.js';
 import {
@@ -106,7 +110,7 @@ export async function syncBefore(io, main) {
   }
   await retrySync(io);
   // An off that only the relay can vouch for is checked against the relay's own authority before anything reads it (#408).
-  try { await (await import('./person-signing-cli.js')).attestBeforeCommand(io.cwd, io); }
+  try { await (await import('./person-signing-cli.js')).attestBeforeCommand(io.cwd, io, { DEFAULT_RELAY, relayStatus }); }
   catch (error) { reportQuietly(io, error); }
   try { await executePersonRequests(io.cwd, io, main); }
   catch (error) { await reportQuietly(io, error); }

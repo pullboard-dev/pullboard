@@ -2,14 +2,18 @@ import { itemCheckBaseline } from './board-query.js';
 /** Durable sealed request intake and ordinary-move receipts; no replica executes CLI intent [H12,H16]. */
 import { answerQuestion } from './spec.js';
 import * as store from './board.js';
-import { createHash } from 'node:crypto';
 import { recordedRefusal } from './recorded-refusal.js';
 import { Refused } from './refused.js';
 
 import { personSigning } from './person-signing.js';
 import { signedRowDecisionsMatch } from './person-row-proof.js';
 import { parseImplies } from './implies.js';
-import { validatePersonRequest } from './person-request.js';
+import {
+  PERSON_REQUESTS_INDEX,
+  personRequestRecords,
+  requestIntentDigest,
+  validatePersonRequest,
+} from './person-request.js';
 import {
   barDigest,
   barReadiness,
@@ -21,18 +25,9 @@ import {
 } from './person-bar-effect.js';
 import { PEOPLE_ENGINE } from './people-engine.js';
 
-const INDEX = 'relay_person_requests';
+const INDEX = PERSON_REQUESTS_INDEX;
 
-/** Bind each machine receipt to the exact earlier authenticated phone document. */
-export function requestIntentDigest(record) {
-  return createHash('sha256').update(record.encoded).digest('hex');
-}
-
-/** Read all durable request receipts so an offline browser can still resolve an old request. */
-export function personRequestRecords(board) {
-  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(INDEX);
-  return row ? JSON.parse(row.meta_value) : [];
-}
+export { personRequestRecords, requestIntentDigest };
 
 /**
  * The GitHub login the relay stamped on a record from engine 73 on, or null: the person who made or tried it [E3].

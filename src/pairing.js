@@ -5,7 +5,9 @@ import {
 } from 'node:crypto';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
-import { PAIR_PACKAGE_BYTES as MAX_PACKAGE_BYTES } from './relay-limits.js';
+
+/** The largest decoded pairing package; relay limits re-export it so both cells share one value. */
+export const PAIR_PACKAGE_BYTES = 90_000_000;
 
 const LOCATOR = /^[A-Za-z0-9_-]{22}$/;
 const SECRET = /^[A-Za-z0-9_-]{43}$/;
@@ -87,7 +89,7 @@ export async function sealPairingBundle(code, bundle) {
   const key = await webcrypto.subtle.importKey('raw', secret, 'AES-GCM', false, ['encrypt']);
   const aad = new TextEncoder().encode(JSON.stringify(['pullboard-pairing', 1, locator]));
   const plaintext = new TextEncoder().encode(JSON.stringify(value));
-  if (plaintext.length > MAX_PACKAGE_BYTES) throw new Refused('PAIR_PACKAGE_SIZE', 'this board export is too large for one-time pairing; use a smaller local board export before trying again');
+  if (plaintext.length > PAIR_PACKAGE_BYTES) throw new Refused('PAIR_PACKAGE_SIZE', 'this board export is too large for one-time pairing; use a smaller local board export before trying again');
   const ciphertext = new Uint8Array(await webcrypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aad, tagLength: 128 }, key, plaintext));
   return Buffer.concat([iv, ciphertext]).toString('base64url');
 }
@@ -103,7 +105,7 @@ export async function openPairingBundle(code, sealed) {
   try { plaintext = await webcrypto.subtle.decrypt({ name: 'AES-GCM', iv: blob.slice(0, 12), additionalData: aad, tagLength: 128 }, key, blob.slice(12)); }
   catch { throw new Refused('PAIR_CODE_INVALID', 'the one-time code is invalid or already used; ask the linked device for a new code'); }
   let value;
-  if (plaintext.byteLength > MAX_PACKAGE_BYTES) throw new Refused('PAIR_PACKAGE_SIZE', 'the encrypted board export exceeds the pairing limit; ask the linked device for a smaller package');
+  if (plaintext.byteLength > PAIR_PACKAGE_BYTES) throw new Refused('PAIR_PACKAGE_SIZE', 'the encrypted board export exceeds the pairing limit; ask the linked device for a smaller package');
   try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(plaintext)); }
   catch { throw new Refused('PAIR_PACKAGE', 'the encrypted pairing package is invalid; ask the linked device for a new code'); }
   const bundle = validateBundle(value);

@@ -19,7 +19,7 @@ import { validatePersonRequest } from './person-request.js';
 import {
   personRequestRecords,
   requestIntentDigest,
-} from './relay-requests.js';
+} from './person-request.js';
 import { validPresence } from './person-presence.js';
 import { presenceSigned } from './person-presence.js';
 import {
