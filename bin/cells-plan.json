@@ -19,16 +19,16 @@
   },
   "totals": {
     "cells": 43,
-    "movedPaths": 1304,
-    "stays": 40,
+    "movedPaths": 1319,
+    "stays": 41,
     "placedBy": {
-      "seed": 894,
-      "rule": 325,
+      "seed": 893,
+      "rule": 341,
       "imports": 85
     },
-    "shims": 656,
-    "cutImports": 364,
-    "cutEdges": 143
+    "shims": 655,
+    "cutImports": 363,
+    "cutEdges": 142
   },
   "cells": [
     {
@@ -407,6 +407,10 @@
     {
       "path": "bin/cells-move-mentions.js",
       "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "src/git-sync-format.js",
+      "reason": "Retired by #1619: consolidated into packages/commits/src/core/board-format.js; no source remains for the sync move."
     }
   ]
 }

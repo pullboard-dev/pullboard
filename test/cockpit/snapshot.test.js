@@ -13,7 +13,9 @@ import { closeBoard } from '../../src/board.js';
 import { events } from '../../src/board.js';
 import { openBoardForRead } from '../../src/board-read-open.js';
 import { proofStats } from '../../src/stats.js';
+import { compareFlowWindows } from '../../src/stats-flow.js';
 import { portableSnapshot } from '../../src/serve.js';
+import { viewProofSummary } from '../../src/view-state-summary.js';
 import { exportView } from '../../src/commands/view.js';
 import { machine, project, build, sendBack, fetchLive, startView, accept, boardId, boardOf, chromeExecutable, browserPause, openSnapshotChrome, closeSnapshotChrome, press, travel, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, serveFolder, proofShot } from './fixture.js';
 
@@ -24,17 +26,24 @@ const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCo
 
 /** Compare every projection field, evaluating running statistics at each real observation clock. */
 function assertSnapshotObservation(expected, actual, board, root, message) {
-  /** Read the entire public statistics projection at its recorded observation time. */
+  /** Apply the public view's compact projection at its recorded observation time. */
   const statisticsAt = (observation) => {
     const now = Date.parse(observation.proofStats.flow.asOf);
     assert.ok(Number.isFinite(now), 'the projection records a valid observation clock');
     assert.equal(observation.observedAt, new Date(now).toISOString(), 'the root read stamp matches its statistics observation clock');
-    return portableSnapshot(JSON.parse(JSON.stringify(proofStats(board, { now }, statsReadPorts))), root);
+    return portableSnapshot(JSON.parse(JSON.stringify(viewProofSummary(proofStats(board, { now }, statsReadPorts)))), root);
   };
   assert.deepEqual(expected.proofStats, statisticsAt(expected), 'the live projection matches the public statistics reader at its clock');
   const actualStatistics = statisticsAt(actual);
   assert.deepEqual(actual.proofStats, actualStatistics, 'the export projection matches the public statistics reader at its clock');
-  assert.deepEqual(actual, { ...expected, observedAt: actual.observedAt, proofStats: actualStatistics }, message);
+  /** Check the complete comparison window against the same locked event prefix at each read clock. */
+  const comparisonAt = observation => portableSnapshot(JSON.parse(JSON.stringify(compareFlowWindows(readStatsEvents(board), {
+    now: Date.parse(observation.observedAt), windowMinutes: 120, complete: true,
+  }))), root);
+  assert.deepEqual(expected.statsComparison, comparisonAt(expected), 'the live comparison matches its public reader at its observation clock');
+  const actualComparison = comparisonAt(actual);
+  assert.deepEqual(actual.statsComparison, actualComparison, 'the export comparison matches its public reader at its observation clock');
+  assert.deepEqual(actual, { ...expected, observedAt: actual.observedAt, proofStats: actualStatistics, statsComparison: actualComparison }, message);
 }
 
 test('static export stays in its prefix and replays read-only in Chrome [A10,A3]', { timeout: 90_000 }, async (t) => {
@@ -137,6 +146,9 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
     assert.ok(initial.total >= 6, 'the exported board contains the complete claim/submit/reject/claim/submit/accept history');
     assert.ok(initial.index >= initial.total - 1, 'the initial replay position is the exported final state');
 
+    // Static export opens on Dashboard; materialize the lazy Shouts pane before reading its feed.
+    await press(chrome, "document.querySelector('[data-tab=shouts]')");
+    await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && document.querySelector('#feed')?.textContent.includes(" + JSON.stringify(scriptShout) + ")");
     const shout = JSON.parse(await evaluate(`JSON.stringify((() => {
       const feed = document.querySelector('#feed');
       return { text: feed.textContent, html: feed.innerHTML, scripts: feed.querySelectorAll('script').length };
@@ -145,6 +157,9 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
     assert.ok(shout.html.includes('&lt;script&gt;'), 'the snapshot escapes HTML in shout text');
     assert.equal(shout.scripts, 0, 'shout text never becomes an executable script element');
 
+    // Replay assertions inspect item rows, so return from Shouts to the lazy Items pane first.
+    await press(chrome, "document.querySelector('[data-tab=items]')");
+    await chrome.waitFor("!document.querySelector('[data-pane=items]').hidden");
     await evaluate(`(() => {
       window.__snapshotRealAdvance = advanceReplay;
       window.__snapshotFirstPosition = null;
@@ -657,8 +672,8 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     await openRoadmapParts(chrome);
     const seen = await readRoadmap(chrome);
     assert.deepEqual(seen.cards[0].rows.map(({ id, label, tone, button }) => ({ id, label, tone, button })), [
-      { id: '#1', label: 'accepted', tone: 'ok', button: true },
       { id: '#2', label: 'unclaimed', tone: 'free', button: true },
+      { id: '#1', label: 'accepted', tone: 'ok', button: true },
       { id: 'beacon#1', label: 'unclaimed', tone: 'free', button: true },
     ], "the snapshot's rows expand in place; another repo's unavailable item has no Items link");
     assert.equal(seen.cards[0].rows.find((row) => row.id === 'beacon#1').tip, 'Billing webhook retries (not in this snapshot)', 'and says why');
@@ -752,7 +767,7 @@ test('the export asks for the full board [N26,A2]', { timeout: 90_000 }, // budg
           title: detail.querySelector('h2').innerText,
           criterion: part('Criterion')?.querySelector('.text').innerText ?? null,
           verdicts: [...(part('Verdicts')?.querySelectorAll('.verdict') ?? [])].map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').innerText]),
-          moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact) b')].map((move) => move.textContent),
+          moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].flatMap((move) => move.dataset.eventIds.split(' ').map(() => move.dataset.timelineKind)),
           facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent),
         };
       })()`);

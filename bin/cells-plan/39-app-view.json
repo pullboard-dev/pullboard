@@ -6,7 +6,7 @@
  "frontDoor": "apps/view/index.js",
  "placedBy": {
   "seed": 32,
-  "rule": 42,
+  "rule": 43,
   "imports": 1
  },
  "paths": [
@@ -84,7 +84,8 @@
   ["src/view/test-policy.js","apps/view/src/core/view/test-policy.js","rule"],
   ["src/view/test-roles.js","apps/view/src/core/view/test-roles.js","rule"],
   ["src/view/timeline-render.js","apps/view/src/core/view/timeline-render.js","rule"],
-  ["src/view/verdict-render.js","apps/view/src/core/view/verdict-render.js","rule"]
+  ["src/view/verdict-render.js","apps/view/src/core/view/verdict-render.js","rule"],
+  ["src/view/timeline-body.js","apps/view/src/core/view/timeline-body.js","rule"]
  ],
  "reexports": [
   "src/background-view.js",

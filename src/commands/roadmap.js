@@ -28,7 +28,7 @@ export function run(io, { first, second, rest }) {
     if (milestone.note) io.say(`  ${milestone.note}`);
     for (const item of milestone.items) {
       const id = typeof item.id === 'number' ? `#${item.id}` : item.id;
-      io.say(`  ${id} ${item.title} — ${item.state}`);
+      io.say(`  ${item.position ? `${item.position}. ` : ''}${id} ${item.title} — ${item.state}`);
     }
   }
   return 0;

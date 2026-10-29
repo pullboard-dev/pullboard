@@ -1,3 +1,4 @@
+import { compactItemSummaries } from './view-state-summary.js';
 import { lifecycleEvent } from './item-list.js';
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import { gitSpawnSync } from './git-adapter.js';
@@ -932,15 +933,18 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     return read(entry, false);
   }
   /** Return item summaries or every item in full, as asked or by this server's default, and the JSON for either. */
-  function localState(board, seen, { detail = null } = {}) {
+  function localState(board, seen, { detail = null, items = null } = {}) {
     const observedAt = now();
-    const full = (detail ?? stateDetail) === 'full';
+    const compact = items === 'compact';
+    const full = !compact && (detail ?? stateDetail) === 'full';
     const sent = withSnapshot(board, (entry, cached) => {
-      const state = stateForRequest(full ? entry.state : entry.summary, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory);
+      const base = full ? entry.state : compact ? (entry.compact ??= compactItemSummaries(entry.summary)) : entry.summary;
+      const state = stateForRequest(base, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory);
       // Full fragments wait for the first full request, so a server sending summaries never builds them.
-      const fields = full ? (entry.stateJsonFields ??= prepareStateJson(entry.state)) : entry.summaryFields;
+      const fields = full ? (entry.stateJsonFields ??= prepareStateJson(entry.state))
+        : compact ? (entry.compactFields ??= prepareStateJson(base)) : entry.summaryFields;
       const reportValidator = reportValidation(entry);
-      const validator = serializeState(state, fields, entry.reportValidator.json) + '\0report-expiry:' + reportValidator;
+      const validator = serializeState(state, fields, entry.reportValidator.json) + '\0report-expiry:' + reportValidator + (compact ? '\0items:compact-v1' : '');
       return { state, json: serializeState(state, fields), validator, reportValidator, entry };
     }, observedAt);
     // Only the build actually returned is sent; a delta extends summaries, never a full state.

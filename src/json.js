@@ -50,7 +50,7 @@ export const JSON_SHAPES = {
     'patch remove': shape({ item: 'number', key: 'string', digest: 'string', changed: 'boolean' }),
     show: shape({ item_id: 'number', item_title: 'string', item_lane: 'string', item_status: 'string', verdicts: 'array', thread: 'array', reviewEligibility: 'object' }),
     capacity: shape({ report: 'object' }),
-    stats: shape({ stats: 'object', gateWaits: 'array' }),
+    stats: shape({ stats: 'object', gateWaits: 'array', usage: 'object' }),
     badge: shape({ items: 'number', checked: 'number', percent: 'number|null', changed: 'array' }),
     status: shape({ me: 'object', mine: 'array', capacityForecast: 'object', ruleCounts: 'object', stats: 'object', reviewQueue: 'object', unread: 'number', relay: 'object' }),
     doctor: shape({ problems: 'array' }),
@@ -149,6 +149,3 @@ export const JSON_SHAPES = {
   error: shape({ error: 'object' }),
   errorFields: { code: 'string', message: 'string', next: 'string' },
 };
-
-// Temporary compatibility for the approved serve.js importer companion; remove when that companion composes.
-export { refusalDocument } from './next-step-words.js';

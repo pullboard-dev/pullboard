@@ -6,7 +6,7 @@
  "frontDoor": "apps/cli/index.js",
  "placedBy": {
   "seed": 113,
-  "rule": 76,
+  "rule": 79,
   "imports": 21
  },
  "paths": [
@@ -219,7 +219,10 @@
   ["src/help/declarations.js","apps/cli/src/core/help/declarations.js","imports"],
   ["src/worker-scale.js","apps/cli/src/shell/worker-scale.js","rule"],
   ["src/next-progress-monitor.js","apps/cli/src/shell/next-progress-monitor.js","imports"],
-  ["src/documentation/events/next-idle.json","apps/cli/src/shell/documentation/events/next-idle.json","rule"]
+  ["src/documentation/events/next-idle.json","apps/cli/src/shell/documentation/events/next-idle.json","rule"],
+  ["src/cli-recorded-effects.js","apps/cli/src/shell/cli-recorded-effects.js","rule"],
+  ["src/documentation/events/shared-usage.json","apps/cli/src/shell/documentation/events/shared-usage.json","rule"],
+  ["src/documentation/events/usage.json","apps/cli/src/shell/documentation/events/usage.json","rule"]
  ],
  "reexports": [
   "src/changelog.js",
