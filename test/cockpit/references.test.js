@@ -54,8 +54,10 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     page.run("openTab('shouts'); render();");
     // A button carries the text written before it on its line.
     // Its label: the path, then the lines and the commit's first ten characters; the whole reference on hover.
-    const label = (ref) => `<span class="ref-path">${ref.slice(0, ref.indexOf(':'))}</span><span class="ref-at">${ref.slice(ref.indexOf(':'), ref.lastIndexOf('@'))}<span class="ref-sha">${ref.slice(ref.lastIndexOf('@'), ref.lastIndexOf('@') + 11)}</span></span>`;
-    const button = (ref, open, before = '', block = false) => `<button class="ref${block ? ' block' : ''}" data-code="${ref}"${before ? ` data-before="${before}"` : ''} title="${ref}" aria-label="Open code reference ${ref}" type="button" aria-expanded="${open}">${label(ref)}</button>`;
+    /** Keep each surface's explicit hash length in the expected reference label. */
+    const label = (ref, hashLength = 10) => `<span class="ref-path">${ref.slice(0, ref.indexOf(':'))}</span><span class="ref-at">${ref.slice(ref.indexOf(':'), ref.lastIndexOf('@'))}<span class="ref-sha">${ref.slice(ref.lastIndexOf('@'), ref.lastIndexOf('@') + 1 + hashLength)}</span></span>`;
+    /** Require the complete control and binding, including its surface-specific label. */
+    const button = (ref, open, before = '', block = false, hashLength = 10) => `<button class="ref${block ? ' block' : ''}" data-code="${ref}"${before ? ` data-before="${before}"` : ''} title="${ref}" aria-label="Open code reference ${ref}" type="button" aria-expanded="${open}">${label(ref, hashLength)}</button>`;
     const prior = (text, ref) => text.slice(0, text.indexOf(ref));
     const [b1, b2, b3] = [was, now, long].map((ref) => prior(first_, ref));
     assert.ok(page.show('feed').includes(`#1</a> was ${button(was, false, b1)}, is ${button(now, false, b2)}; see ${button(long, false, b3)}.`), 'code references stay buttons beside the item link');
@@ -151,7 +153,7 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     page.run("openTab('items'); render();");
     await page.click({ item: '1' });
     assert.match(page.show('detail'), /Referenced code/);
-    assert.ok(page.show('detail').includes(button(`web/greeting.html:1-2@${second}`, false)), 'typed thread refs reuse the collapsed reference block');
+    assert.ok(page.show('detail').includes(button(`web/greeting.html:1-2@${second}`, false, '', false, 12)), 'typed thread refs reuse the collapsed reference block');
     const relay = JSON.stringify(relayPresentation(alpha.repo, {}, RELAY_PRESENTATION_PORTS));
     assert.ok(relay.includes('"path":"web/greeting.html"') && relay.includes('"commit":"' + second + '"'), 'the relay presentation retains only the typed reference fields');
     assert.ok(!relay.includes('  hello <b>there</b>'), 'the relay presentation never contains committed source text');
