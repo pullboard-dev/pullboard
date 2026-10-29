@@ -1,3 +1,4 @@
+import { seatFamily } from './family-declaration.js';
 import { committedItemAuthors } from './review-independence.js';
 import { twoTierReviews } from './review-independence.js';
 /** Immutable verdict assurance distinguishes recorded parent independence from procedural review [V1,B3]. */
@@ -20,7 +21,7 @@ export { verdictAssurance } from './verdict-reviews.js';
 
 /** Insert the immutable native verdict and, under engine 90, its assurance in the same board transaction. */
 export function recordVerdict(board, item, { agentId, decision, reason, note, digest, head }) {
-  const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
+  const family = seatFamily(board, agentId);
   const inserted = board.db.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note,
     verdict_commit, verdict_digest, verdict_head, verdict_verifier_family, verdict_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(item.item_id, agentId, decision, reason, note.trim(), item.item_commit,

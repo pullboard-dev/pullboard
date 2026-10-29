@@ -7,7 +7,7 @@
  "placedBy": {
   "seed": 23,
   "rule": 7,
-  "imports": 5
+  "imports": 6
  },
  "paths": [
   ["src/bar-actor.js","packages/verify/src/shell/bar-actor.js","seed"],
@@ -44,7 +44,8 @@
   ["test/evidence.test.js","packages/verify/tests/evidence.test.js","seed"],
   ["src/reject-clause.js","packages/verify/src/shell/reject-clause.js","imports"],
   ["src/review-tier.js","packages/verify/src/core/review-tier.js","rule"],
-  ["src/check-widen.js","packages/verify/src/core/check-widen.js","imports"]
+  ["src/check-widen.js","packages/verify/src/core/check-widen.js","imports"],
+  ["src/review-reachability.js","packages/verify/src/core/review-reachability.js","imports"]
  ],
  "reexports": [
   "src/bar-actor.js",

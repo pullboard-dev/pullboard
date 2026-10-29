@@ -1,3 +1,4 @@
+import { seatFamily } from './family-declaration.js';
 /** Optional item-specific reviewer families, independent of model names [V1,V2,H16]. */
 import { AUTOMATIC_DISPATCH_ENGINE } from './automatic-dispatch-engine.js';
 import { familyName } from './review-policy.js';
@@ -37,7 +38,7 @@ export function requiredReviewFamilyProblem(board, item, agentId) {
   if (board.executionEngineVersion !== undefined && board.executionEngineVersion < AUTOMATIC_DISPATCH_ENGINE) return null;
   const required = requiredReviewFamily(board, item.item_id);
   if (!required) return null;
-  const declared = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(agentId)?.agent_family;
+  const declared = seatFamily(board, agentId);
   const aliases = familyAliasesOf(board);
   const same = aliasEngineOn(board) ? familyName(declared, aliases) !== null && familyName(declared, aliases) === familyName(required, aliases)
     : typeof declared === 'string' && declared.trim().toLowerCase() === required.toLowerCase();

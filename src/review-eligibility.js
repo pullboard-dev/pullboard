@@ -1,3 +1,4 @@
+import { seatFamily } from './family-declaration.js';
 import { committedItemAuthors } from './review-independence.js';
 import { strictReviewProblem as strictAuthorProblem } from './review-independence.js';
 /** The show command and review queue use the native rules rather than an agent's lineage notes [V4,B26]. */
@@ -23,7 +24,7 @@ export function eligibilityProblem(board, item, agent, { policy = 'any', familyP
   const strict = strictReviewProblem(board, item, agent.agent_id);
   if (strict) return strict;
   const family = twoTierReviews(board) ? reviewFamilyProblem(board, item, agent.agent_id, familyPolicy)
-    : familyPolicy === 'require' && !familiesDiffer(board, agent.agent_family, item.item_builder_family)
+    : familyPolicy === 'require' && !familiesDiffer(board, seatFamily(board, agent.agent_id), item.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', 'legacy policy requires different declared families') : null;
   if (family) return family;
   if (item.item_review_by && item.item_review_by !== agent.agent_id && item.item_review_until > board.clock.now().toISOString()) return new Refused('REVIEW_HELD', `${item.item_review_by} currently holds the review`);
@@ -71,7 +72,7 @@ export function reviewEligibility(board, item, options = {}) {
 /** Apply the unchanged native eligibility guards to every candidate in the same read projection. */
 function projectEligibility(board, item, options) {
   const policy = itemReviewPolicy(board, item.item_id);
-  const agents = board.db.prepare('SELECT agent_id,agent_route,agent_family FROM agent ORDER BY agent_id').all();
+  const agents = board.db.prepare('SELECT agent_id,agent_route FROM agent ORDER BY agent_id').all();
   const result = { tier: twoTierReviews(board) ? policy.tier : 'legacy', requiredFamily: policy.reviewFamily,
     ready: item.item_status === 'submitted' || item.item_status === 'verified' && !item.item_merged_commit,
     eligible: [], ineligible: [] };

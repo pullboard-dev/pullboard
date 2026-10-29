@@ -89,6 +89,8 @@ async function nextWithProgress(io, values, progress) {
   if (!Number.isFinite(minutes) || minutes < 0 || minutes > 240) {
     throw new Refused('USAGE', '--wait is a number of minutes from 0 to 240');
   }
+  values = { ...values, observeIdle: true };
+  let lastIdleReason;
   const deadline = Date.now() + minutes * 60_000;
   const origin = ctx.info.root;
   for (;;) {
@@ -141,6 +143,17 @@ async function nextWithProgress(io, values, progress) {
         io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id} --wait`);
       }
       return 0;
+    }
+    const idleReason = found.idleReason ?? 'unknown';
+    if (!found.retry && idleReason !== lastIdleReason) {
+      try {
+        await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, reason: idleReason }])));
+      } catch (error) {
+        if (!(error instanceof Refused) || !['RELAY_RECOVERY_PENDING', 'RELAY_KEY_MISSING', 'AUTH_REQUIRED', 'ENGINE_VERSION'].includes(error.code)) throw error;
+        // Reading eligibility stays available while canonical writes are fenced; this interval remains unknown.
+        io.err(`next idle observation was not recorded (${error.code}); the idle reason remains unmeasured`);
+      }
+      lastIdleReason = idleReason;
     }
     if (!found.retry && (found.laneWork || Date.now() >= deadline)) {
       if (values.verify) refuseWhileBuilding(ctx);

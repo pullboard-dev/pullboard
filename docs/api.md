@@ -272,6 +272,7 @@ The causes, each with its owner:
 | `CLAIM_LAPSED` | a claim's lease ran out; `since` is when it ran out | the holder |
 | `REVIEW_LAPSED` | a review reservation's lease ran out with no verdict | a reviewer |
 | `NO_REVIEWER` | a submission has had no reviewer past `health.stuck` | a reviewer |
+| `NO_ELIGIBLE_REVIEWER` | a submitted strict item that no active registered seat is eligible to review | the coordinator |
 | `UNLANDED_CONFLICT` | accepted past `health.stuck` and its commit conflicts with the trunk; `detail.files` names the files | its builder |
 | `UNLANDED_HELD` | accepted past `health.stuck` and held; `detail.reason` names the hold | who holds it |
 | `UNLANDED_STACKED` | accepted past `health.stuck` and carrying another item's commit that has no accept | a reviewer, or that item's builder |

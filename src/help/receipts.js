@@ -2,7 +2,7 @@
 export const receiptsHelp = `Receipts
   pullboard flow replay [--history <json>] [--policy <json>]  reproduce recorded flow or predict another item order and WIP limits
                                         --json includes text-free structural history; policy order is recorded or item ids, settings use modelled board line-control names (unsupported names are refused)
-  pullboard stats [--since <date> | --window <duration>]  proof numbers from the event log; --json for sites and tools
+  pullboard stats [--since <date> | --window <duration> [--compare]]  proof numbers from the event log; --json for sites and tools
                                         --window 6h (also 30m or 1d): landed-item stage quartiles, tails and excess over targets;
                                         includes all attempts and sent-back idle; missing intervals stay unmeasured;
                                         stage averages/medians count ends inside the inclusive UTC window;

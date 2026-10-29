@@ -1,5 +1,7 @@
 /** Window projections of the canonical lifecycle observer; absent evidence is never a zero [R1,R2]. */
 import { Refused } from './refused.js';
+import { proofEventDetail } from '../packages/kernel/src/core/event-detail.js';
+import { NEXT_IDLE_ENGINE } from './next-idle-engine.js';
 
 const MINUTE = 60_000;
 export const WINDOW_STAGES = ['build', 'reviewWait', 'review', 'sendBackIdle', 'mergeWait'];
@@ -160,4 +162,151 @@ export function flowWindowBounds(minutes, now) {
   }
   const since = now - minutes * MINUTE;
   return { since: new Date(since).toISOString(), until: new Date(now).toISOString(), durationMinutes: minutes };
+}
+
+const HOUR = 3_600_000;
+const IDLE_REASONS = ['nothing-eligible', 'held', 'review-family', 'main-red', 'unknown'];
+const COMPARE_STAGES = { build: 'build', rework: 'rework', reviewWait: 'reviewWait', review: 'review', land: 'mergeWait' };
+
+/** Adjacent count windows are open at the start and closed at the end, so no boundary move is counted twice. */
+export function comparisonBounds(minutes, now) {
+  const current = flowWindowBounds(minutes, now);
+  const previous = flowWindowBounds(minutes, now - minutes * MINUTE);
+  return [previous, current].map(bounds => ({ ...bounds, start: Date.parse(bounds.since), end: Date.parse(bounds.until) }));
+}
+
+/** A missing denominator is unmeasured, never a fictitious zero or infinity. */
+function comparisonRatio(value, denominator) { return denominator > 0 && value !== null ? value / denominator : null; }
+
+/** Preserve the Dashboard's event-observed seat cohort and union overlapping work, with building first. */
+function seatWindow(history, bounds) {
+  const joined = new Map(), last = new Map(), work = new Map(), segments = [], observations = new Map();
+  for (const event of history) {
+    const at = Date.parse(event.event_at), detail = proofEventDetail(event);
+    if (at <= bounds.end && event.event_kind === 'join' && detail.lane && detail.lane !== 'coordinator'
+      && !['coordinator', 'board', 'person', 'clock'].includes(event.event_by) && !joined.has(event.event_by)) joined.set(event.event_by, at);
+  }
+  /** Close a real held interval only at its recorded transition or lease boundary. */
+  function close(key, at) {
+    const held = work.get(key);
+    if (!held) return;
+    const end = Math.min(at, held.until);
+    if (end > held.start) segments.push({ ...held, end });
+    work.delete(key);
+  }
+  /** Record the cause next actually observed; invalid or older observations explicitly mean unknown. */
+  function idle(event, at, detail) {
+    const reason = detail.version === 1 && Number.isSafeInteger(detail.engine) && detail.engine >= NEXT_IDLE_ENGINE
+      && IDLE_REASONS.includes(detail.reason) ? detail.reason : 'unknown';
+    const rows = observations.get(event.event_by) ?? [];
+    rows.push({ at, reason }); observations.set(event.event_by, rows);
+  }
+  for (const event of history) {
+    const at = Date.parse(event.event_at);
+    if (!Number.isFinite(at) || at > bounds.end) continue;
+    const detail = proofEventDetail(event), id = event.item_id, by = event.event_by;
+    if (joined.has(by)) last.set(by, Math.max(last.get(by) ?? -Infinity, at));
+    for (const [key, held] of work) if (held.until <= at) close(key, held.until);
+    if (event.event_kind === 'next-idle') idle(event, at, detail);
+    if (['claim', 'reserve'].includes(event.event_kind)) {
+      const rows = observations.get(by) ?? [];
+      rows.push({ at, reason: 'unknown' }); observations.set(by, rows);
+    }
+    if (id === null || id === undefined) continue;
+    if (['claim', 'renew', 'reserve'].includes(event.event_kind)) {
+      const kind = event.event_kind === 'reserve' ? 'review' : 'build', key = `${kind}:${id}`, held = work.get(key);
+      const until = Date.parse(kind === 'review' ? detail.until : detail.leaseUntil);
+      if (held?.actor !== by) { close(key, at); work.set(key, { actor: by, kind, start: at, until: Number.isFinite(until) ? until : at }); }
+      else if (Number.isFinite(until)) held.until = until;
+    }
+    if (['submit', 'lapse', 'withdraw', 'reopen'].includes(event.event_kind) || event.event_kind === 'release' && !detail.review) close(`build:${id}`, at);
+    if (['accept', 'reject', 'reopen', 'withdraw', 'patch'].includes(event.event_kind) || event.event_kind === 'release' && detail.review) close(`review:${id}`, at);
+  }
+  for (const [key] of [...work]) close(key, bounds.end);
+  let budget = 0, occupied = 0, seats = 0;
+  const reasons = Object.fromEntries(IDLE_REASONS.map(reason => [reason, 0]));
+  const unknownSeats = new Set(segments.filter(row => !joined.has(row.actor) && row.start < bounds.end && row.end > bounds.start).map(row => row.actor));
+  for (const [agent, joinAt] of joined) {
+    const start = Math.max(bounds.start, joinAt);
+    const stays = segments.filter(row => row.actor === agent && row.start < bounds.end && row.end > start);
+    if (!(last.get(agent) > bounds.start) && !stays.length) continue;
+    seats++; budget += Math.max(0, bounds.end - start);
+    const observed = (observations.get(agent) ?? []).sort((a, b) => a.at - b.at);
+    const points = [...new Set([start, bounds.end, ...stays.flatMap(row => [Math.max(start, row.start), Math.min(bounds.end, row.end)]),
+      ...observed.filter(row => row.at > start && row.at < bounds.end).map(row => row.at)])].sort((a, b) => a - b);
+    let observation = 0, reason = 'unknown';
+    for (let index = 1; index < points.length; index++) {
+      const a = points[index - 1], b = points[index];
+      while (observation < observed.length && observed[observation].at <= a) reason = observed[observation++].reason;
+      const active = stays.filter(row => row.start < b && row.end > a);
+      if (active.find(row => row.kind === 'build') || active.length) occupied += b - a;
+      else reasons[reason] += b - a;
+    }
+  }
+  const idleMilliseconds = Math.max(0, budget - occupied), measured = unknownSeats.size === 0;
+  return { observedSeats: seats, unmeasuredSeats: unknownSeats.size,
+    agentHours: measured ? budget / HOUR : null, idleHours: measured ? idleMilliseconds / HOUR : null,
+    idleShare: measured ? comparisonRatio(idleMilliseconds, budget) : null,
+    idleReasonHours: Object.fromEntries(IDLE_REASONS.map(reason => [reason, measured ? reasons[reason] / HOUR : null])),
+    idleReasons: Object.fromEntries(IDLE_REASONS.map(reason => [reason, measured ? comparisonRatio(reasons[reason], budget) : null])) };
+}
+
+/** Project traffic and recorded stage time from the same event prefix, without consulting mutable item rows. */
+function comparisonWindow(history, prepared, bounds, stageReport) {
+  const selected = history.filter(event => { const at = Date.parse(event.event_at); return at > bounds.start && at <= bounds.end; });
+  const submissions = selected.filter(event => event.event_kind === 'submit');
+  const submittedItems = new Set(submissions.map(event => event.item_id).filter(id => id !== null && id !== undefined)).size;
+  const landed = prepared.items.filter(item => item.mergeAt > bounds.start && item.mergeAt <= bounds.end).length;
+  const rejections = selected.filter(event => event.event_kind === 'reject').length;
+  const coordinatorShouts = selected.filter(event => event.event_kind === 'shout' && proofEventDetail(event).to === 'coordinator').length;
+  const seats = seatWindow(history, bounds);
+  const stageMilliseconds = Object.fromEntries(Object.entries(COMPARE_STAGES).map(([name, key]) => [name, stageReport.milliseconds[key]]));
+  const measuredStageMilliseconds = Object.values(stageMilliseconds).reduce((sum, value) => sum + value, 0);
+  return { since: bounds.since, until: bounds.until, landed, ...seats,
+    agentHoursPerLanding: comparisonRatio(seats.agentHours, landed),
+    stageHours: Object.fromEntries(Object.entries(stageMilliseconds).map(([key, value]) => [key, value / HOUR])),
+    stageShares: Object.fromEntries(Object.entries(stageMilliseconds).map(([key, value]) => [key, comparisonRatio(value, measuredStageMilliseconds)])),
+    unknownStageHours: stageReport.unknownMilliseconds / HOUR,
+    submissions: submissions.length, submittedItems, submitsPerItem: comparisonRatio(submissions.length, submittedItems),
+    rejections, rejectRate: comparisonRatio(rejections, submissions.length), coordinatorShouts,
+    shoutsPerLanding: comparisonRatio(coordinatorShouts, landed) };
+}
+
+/** Changes retain null for either unmeasured side; nested reason and stage figures use identical units. */
+function comparisonChange(current, previous) {
+  if (current === null || previous === null) return null;
+  if (typeof current === 'number' && typeof previous === 'number') return current - previous;
+  if (current && previous && typeof current === 'object' && typeof previous === 'object') {
+    return Object.fromEntries(Object.keys(current).filter(key => !['since', 'until'].includes(key))
+      .map(key => [key, comparisonChange(current[key], previous[key])]));
+  }
+  return null;
+}
+
+/** One canonical two-window JSON contract is shared by stats, the coordinator line and Dashboard composition. */
+export function projectWindowComparison(history, prepared, bounds, stageReports) {
+  const [previous, current] = bounds.map((window, index) => comparisonWindow(history, prepared, window, stageReports[index]));
+  return { version: 1, available: true, durationMinutes: bounds[1].durationMinutes,
+    bounds: '(since,until]', current, previous, change: comparisonChange(current, previous) };
+}
+
+/** Render every comparison measure with an absolute change in its own units, never a guessed relative rate. */
+export function comparisonLines(comparison) {
+  if (!comparison.available) return [`window comparison unavailable: ${comparison.reason}`];
+  const { current, previous, change } = comparison;
+  /** Percentages use percentage-point changes; missing observations remain visibly unmeasured. */
+  const format = (value, share = false) => value === null ? 'unmeasured' : share ? `${(value * 100).toFixed(1)}%` : value.toFixed(2);
+  /** Absolute percentage-point deltas are not relative percentage changes. */
+  const delta = (value, share) => value === null ? 'unmeasured' : share ? `${(value * 100).toFixed(1)} percentage points` : value.toFixed(2);
+  const lines = [`window comparison: ${current.since} to ${current.until} versus ${previous.since} to ${previous.until}`];
+  const rows = [
+    ['landed', 'landed'], ['agent-hours', 'agentHours'], ['agent-hours/landing', 'agentHoursPerLanding'],
+    ['idle share', 'idleShare', true], ['submits/item', 'submitsPerItem'], ['reject rate', 'rejectRate', true],
+    ['coordinator shouts/landing', 'shoutsPerLanding'],
+  ];
+  for (const [label, key, share] of rows) lines.push(`${label}: ${format(current[key], share)} (previous ${format(previous[key], share)}; change ${delta(change[key], share)})`);
+  for (const [name, shares] of [['idle reason', 'idleReasons'], ['stage share', 'stageShares']]) {
+    for (const key of Object.keys(current[shares])) lines.push(`${name} ${key}: ${format(current[shares][key], true)} (previous ${format(previous[shares][key], true)}; change ${delta(change[shares][key], true)})`);
+  }
+  return lines;
 }

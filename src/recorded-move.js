@@ -26,7 +26,7 @@ export function requestedCommandMove(command, operation) {
     add: ['addItem'], companion: ['requestCompanion'], patch: ['attachItemPatch', 'removeItemPatch'], edit: ['editItem'], merged: ['merged', 'recordTrainLanding'], move: ['rehomeItem'], submit: ['submit'], done: ['submit'],
     claim: ['claim'], release: ['release'], verify: ['verify'], withdraw: ['withdraw', 'editMilestoneItems'],
     refreeze: ['refreeze'], reopen: ['reopen'], escalate: ['escalate', 'shout'],
-    next: ['claim', 'reserveReview', 'reserveNextReview'], run: ['claim', 'release', 'submit', 'reserveReview', 'reserveNextReview', 'verify', 'escalate', 'shout'],
+    next: ['claim', 'reserveReview', 'reserveNextReview', 'recordNextIdle'], run: ['claim', 'release', 'submit', 'reserveReview', 'reserveNextReview', 'verify', 'escalate', 'shout'],
     init: ['register'], join: ['register'], worktree: ['register'], takeover: ['takeCoordinator'],
     relay: ['setBoardMembers'],
     inbox: ['recordActivityDelivery', 'actOnActivity'],

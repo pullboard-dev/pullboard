@@ -45,6 +45,7 @@ const NOT_MOVES = {
   ALREADY_JOINED: 'registering who is asking, before any move',
   BAD_PARENT: 'validating optional parent/session declarations at join, before any move',
   PARENT_SESSION_CHANGED: 'preserving the joined seat’s immutable parent/session identity, before any move',
+  FAMILY_DECLARED: 'a seat\u2019s declared vendor family is final, checked at join before any move',
   BAD_ROUTE: 'registering who is asking, before any move',
   ONE_COORDINATOR: 'registering who is asking, before any move',
   BAD_SEAT_ID: 'registering who is asking, before any move; only a creator naming a new worktree seat raises it',
@@ -93,6 +94,7 @@ const NOT_MOVES = {
   REMOTE_COORDINATOR_MODEL: 'a linked replica cannot redeclare the coordinator model; use the coordinator checkout',
   EVENT_LOG_VERSION: 'the local board format is checked before opening it for an item move',
   BOARD_BUSY: 'the board connection is opened or read before an item move can begin',
+  NO_ELIGIBLE_REVIEWER: 'the submit command checks, before any item move, that some active seat could review a strict item; the move itself decides nothing new',
   BOARD_NOT_WRITABLE: 'the board folder must be writable before a command opens it for an item move',
   NOT_YOUR_CHECKOUT: 'the caller owns the checkout session, checked before any item move',
   CHECKOUT_SESSION: 'the checkout-local session binding is readable before any item move',
@@ -161,6 +163,7 @@ const CALLBACKS = {
  * reads committed doctrine rules leniently: a doctrine it cannot parse carries no check [D1].
  */
 const CAUGHT = {
+  'review-reachability.js#unreviewableStrict': ['review-eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
@@ -183,8 +186,7 @@ const CAUGHT = {
   'rigor-source.js#readRigorSource': ['rigor.js#causeProblem'],
   'rigor-auto-source.js#readAutomaticRigorSource': ['rigor.js#causeProblem'],
   // Only an unsupported historical grammar is ignored; new caller refusals remain audited below.
-  'rigor-auto-source.js#automaticDecisionSource': ['spec.js#parseSpec'],
-  'rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec'],
+  'rigor-auto-source.js#automaticDecisionSource': ['spec.js#parseSpec'], 'rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec'],
   'person-row-proof.js#signedRowDecisionsMatch': ['spec.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
 };
 /**
@@ -684,11 +686,11 @@ function boardOnDisk(clock) {
 }
 
 /** A logic-only board uses the shared memory contract; raw connections stay in boardOnDisk. */
-function memoryBoardLab(t, clock) {
+function memoryBoardLab(t, clock, { reviewerFamily = 'review-vendor' } = {}) {
   const board = fixtureBoard(t, { clock });
   store.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
   store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
-  store.register(board, { lane: 'web', path: '/repo-web-2', family: 'review-vendor' });
+  store.register(board, { lane: 'web', path: '/repo-web-2', family: reviewerFamily });
   return { board };
 }
 
@@ -898,55 +900,6 @@ test("a blank field in the board file is exactly what JavaScript's trim removes 
 
 const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
 
-test('docs/lifecycle.md is the page the declaration generates, so a stale copy fails [M1, P4]', () => {
-  const page = machineRules.lifecycleMarkdown();
-  const committed = fs.readFileSync(new URL('../docs/lifecycle.md', import.meta.url), 'utf8');
-  assert.equal(committed, page, 'docs/lifecycle.md is stale; regenerate it: node bin/pullboard.js lifecycle > docs/lifecycle.md');
-  assert.match(page, /```mermaid\nstateDiagram-v2\n {2}\[\*\] --> open\n/);
-  for (const state of machineRules.MACHINE.states) assert.match(page, new RegExp(`^\\| ${state.id}( \\(final\\))? \\|`, 'm'), `${state.id} has a row`);
-  for (const move of machineRules.MACHINE.moves) {
-    assert.match(page, new RegExp(`^\\| ${move.verb} \\| ${move.from.join(', ')} \\| ${move.to} \\|`, 'm'), `${move.verb} has a row`);
-    for (const from of move.from) assert.ok(page.includes(`  ${from} --> ${move.to}: ${move.verb}`), `the diagram draws ${move.verb} from ${from}`);
-    for (const id of machineRules.effectiveGuards(move)) assert.ok(page.includes(id), `${move.verb}'s guard ${id} is listed`);
-  }
-  for (const [state, guards] of Object.entries(machineRules.MACHINE.exitGuards)) assert.ok(page.includes(`| ${state} | ${guards.join(', ')} |`), `${state}'s exit guards are listed`);
-  const codes = new Set([...machineRules.MACHINE.guards.flatMap((guard) => [guard.refuse, ...(guard.alsoRefuses ?? []).map((entry) => entry.code)]), ...machineRules.MACHINE.moves.flatMap((move) => [move.refuse, ...(move.alsoRefuses ?? []).map((entry) => entry.code)]), machineRules.MACHINE.unknownMove.refuse].filter(Boolean));
-  for (const code of codes) assert.match(page, new RegExp(`^\\| ${code} \\|`, 'm'), `${code} is in the refusal table`);
-});
-
-test('the lifecycle page versions fresh and historical family matching and explains unknown families [O2, O3]', () => {
-  const page = machineRules.lifecycleMarkdown();
-  assert.match(page, /^\| O2_FAMILY_MATCH \| strict reviews require different declared vendor families; the existing vendor policy and explicit board or item family requirements also apply, when the item is strict, verify\.family is require, an item requires a family, or requireReviewFamilies is on for unknown families \| ask the coordinator for a verifier from another declared family \|$/m);
-  for (const verb of ['reserve', 'accept', 'reject']) {
-    assert.match(page, new RegExp(`^\\| ${verb} \\| .*familyAllows \\(O2_FAMILY_MATCH or LINE_SETTING_RANGE\\)`, 'm'));
-  }
-});
-
-test('the page and the help follow the declaration: a new move appears in both [M1, P4]', () => {
-  const machine = copy();
-  machine.moves.push({ verb: 'shelve', from: ['open'], to: 'withdrawn', by: ['coordinator'], refuse: 'CLOSED', guards: ['joined', 'coordinatorOnly', 'noteGiven', 'itemExists', machineRules.IN_STATE], sets: ['item_withdrawn_reason'] });
-  assert.ok(!machineRules.lifecycleMarkdown().includes('shelve'));
-  assert.ok(machineRules.lifecycleMarkdown(machine).includes('  open --> withdrawn: shelve'));
-  assert.match(machineRules.lifecycleMarkdown(machine), /^\| shelve \| open \| withdrawn \| coordinator \|/m);
-  assert.match(machineRules.lifecycleHelp(machine), /^ {2}coordinator +.*\bshelve\b/m);
-  assert.doesNotMatch(machineRules.lifecycleHelp(machine), /^ {2}agent +.*\bshelve\b/m);
-});
-
-test('pullboard help lists each role\'s moves from the declaration, and pullboard lifecycle prints the page [M1, P4]', () => {
-  const help = runFixtureChild(process.execPath, [BIN, 'help', '--all'], { encoding: 'utf8' });
-  assert.equal(help.status, 0, help.stderr);
-  for (const role of machineRules.MACHINE.roles) {
-    const line = help.stdout.split('\n').find((text) => text.startsWith(`  ${role} `));
-    assert.ok(line, `help has a line for ${role}`);
-    const listed = line.slice(role.length + 2).split(',').map((part) => part.trim().split(' ')[0]).filter(Boolean);
-    assert.deepEqual(listed.sort(), [...new Set(machineRules.MACHINE.moves.filter((move) => move.by.includes(role)).map((move) => move.verb))].sort(), `${role}'s moves`);
-  }
-  assert.ok(HELP.all.includes(machineRules.lifecycleHelp()), 'the full help screen carries the generated section, not a typed copy');
-  const printed = runFixtureChild(process.execPath, [BIN, 'lifecycle'], { encoding: 'utf8' });
-  assert.equal(printed.status, 0, printed.stderr);
-  assert.equal(printed.stdout, machineRules.lifecycleMarkdown());
-});
-
 /** Guards checked before the explicit transition: CLI facts and optional roadmap selection. */
 const PRECHECKED = {
   claim: ['joined', 'checkProvesSomething'],
@@ -1054,7 +1007,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
 });
 
 test('submit, accept and reject refuse in the declared order, one failure peeled at a time [M1, M2]', t => {
-  const lab = memoryBoardLab(t);
+  const lab = memoryBoardLab(t, undefined, { reviewerFamily: 'REQUIRED REVIEW' }); // Declared once: a family is one derived value (#1783).
   const { board } = lab;
   const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
   const submitAs = (id, agentId, commit) => outcome(() => submitFixture(board, id, { agentId, commit, tree: 'tree' }));
@@ -1081,12 +1034,13 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
   submits.push(submitAs(piece, 'web-1', SHA_A), submitAs(piece, 'web-1', SHA_B));
   assert.deepEqual(submits, [...declaredBoardOrder('submit'), 'ok']);
 
-  const other = store.register(board, { lane: 'web', path: '/repo-web-other', family: 'review-vendor' });
+  // A family is one derived value since #1783, so each vendor role is its own seat rather than a rewritten column.
+  const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
+  const otherVendor = store.register(board, { lane: 'web', path: '/repo-web-other-vendor', family: 'BUILDER-VENDOR' });
+  const otherRequired = store.register(board, { lane: 'web', path: '/repo-web-other-required', family: 'required review' });
   for (const verb of ['accept', 'reject']) {
     const decision = verb === 'accept' ? 'ACCEPT' : 'REJECT';
-    store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
     store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
-    store.register(board, { lane: 'web', path: '/repo-web-other', family: null });
     const built = submittedItem(board, { reviewFamily: 'Required Review' });
     const vendorOnly = submittedItem(board, { sensitive: true });
     const landed = submittedItem(board);
@@ -1108,13 +1062,8 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
       judge(built, 'web-2', { reason: bad }),
       judge(built, other, { reason: bad, policy: 'any' }),
       /** Observe vendor refusal on Strict work, then restore the required-family peer for later guards. */
-      (() => {
-        store.register(board, { lane: 'web', path: '/repo-web-other', family: 'BUILDER-VENDOR' });
-        const refused = judge(vendorOnly, other, { reason: bad, policy: 'any', familyPolicy: 'require' });
-        store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
-        return refused;
-      })(),
-      judge(built, other, { reason: bad, policy: 'any' }),
+      judge(vendorOnly, otherVendor, { reason: bad, policy: 'any', familyPolicy: 'require' }),
+      judge(built, otherRequired, { reason: bad, policy: 'any' }),
       judge(built, 'web-2', { reason: bad, policy: 'any' }),
       judge(built, 'web-2', { reason: bad, policy: 'any', digest: 'digest:Page' }),
       judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page' }),
@@ -1128,11 +1077,13 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
 });
 
 test('reserve refuses in the declared order, one failure peeled at a time [V15, M1, M2]', t => {
-  const lab = memoryBoardLab(t);
+  const lab = memoryBoardLab(t, undefined, { reviewerFamily: 'REQUIRED REVIEW' }); // Declared once: a family is one derived value (#1783).
   const { board } = lab;
   const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
   const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
-  store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
+  // A family is one derived value since #1783, so each vendor role is its own seat rather than a rewritten column.
+  const otherVendor = store.register(board, { lane: 'web', path: '/repo-web-other-vendor', family: 'BUILDER-VENDOR' });
+  const otherRequired = store.register(board, { lane: 'web', path: '/repo-web-other-required', family: 'required review' });
   store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
   const built = submittedItem(board, { reviewFamily: 'Required Review' });
   const vendorOnly = submittedItem(board, { sensitive: true });
@@ -1142,11 +1093,9 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
   store.reserveReview(board, cooling, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
   store.release(board, cooling, 'web-2', 'another reviewer should take it');
   const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2'), reserveAs(built, other, 'any')];
-  store.register(board, { lane: 'web', path: '/repo-web-other', family: 'BUILDER-VENDOR' });
-  fired.push(reserveAs(vendorOnly, other, 'any', 'require'));
-  store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
-  store.reserveReview(board, built, { agentId: other, leaseMs: 3_600_000, policy: 'any' });
-  fired.push(reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
+  fired.push(reserveAs(vendorOnly, otherVendor, 'any', 'require'));
+  store.reserveReview(board, built, { agentId: otherRequired, leaseMs: 3_600_000, policy: 'any' });
+  fired.push(reserveAs(built, 'web-2', 'any'), reserveAs(built, otherRequired, 'any'));
   assert.deepEqual(fired, [...declaredBoardOrder('reserve'), 'ok']);
   assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
 });

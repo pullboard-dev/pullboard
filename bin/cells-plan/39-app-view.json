@@ -6,7 +6,7 @@
  "frontDoor": "apps/view/index.js",
  "placedBy": {
   "seed": 32,
-  "rule": 35,
+  "rule": 43,
   "imports": 1
  },
  "paths": [
@@ -23,6 +23,13 @@
   ["src/view.css","apps/view/src/shell/view.css","seed"],
   ["src/view.js","apps/view/src/core/view.js","seed"],
   ["src/view/agent-approval.js","apps/view/src/core/view/agent-approval.js","seed"],
+  ["src/view/cockpit-live.js","apps/view/src/core/view/cockpit-live.js","rule"],
+  ["src/view/cockpit-markup.js","apps/view/src/core/view/cockpit-markup.js","rule"],
+  ["src/view/cockpit-page.js","apps/view/src/shell/view/cockpit-page.js","rule"],
+  ["src/view/cockpit-prose.js","apps/view/src/core/view/cockpit-prose.js","rule"],
+  ["src/view/cockpit-replay.js","apps/view/src/core/view/cockpit-replay.js","rule"],
+  ["src/view/cockpit-roadmap.js","apps/view/src/shell/view/cockpit-roadmap.js","rule"],
+  ["src/view/cockpit-sidebar.js","apps/view/src/core/view/cockpit-sidebar.js","rule"],
   ["src/view/dashboard-model.js","apps/view/src/shell/view/dashboard-model.js","rule"],
   ["src/view/dashboard-render.js","apps/view/src/core/view/dashboard-render.js","rule"],
   ["src/view/dashboard-runtime.js","apps/view/src/shell/view/dashboard-runtime.js","rule"],
@@ -77,7 +84,8 @@
   ["src/view/test-policy.js","apps/view/src/core/view/test-policy.js","rule"],
   ["src/view/test-roles.js","apps/view/src/core/view/test-roles.js","rule"],
   ["src/view/timeline-render.js","apps/view/src/core/view/timeline-render.js","rule"],
-  ["src/view/verdict-render.js","apps/view/src/core/view/verdict-render.js","rule"]
+  ["src/view/verdict-render.js","apps/view/src/core/view/verdict-render.js","rule"],
+  ["src/view/timeline-body.js","apps/view/src/core/view/timeline-body.js","rule"]
  ],
  "reexports": [
   "src/background-view.js",

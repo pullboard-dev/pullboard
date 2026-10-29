@@ -1,6 +1,6 @@
 /** Transitional roots follow declared executables and audited browser entry declarations, never directory-name guesses [CD62,C7]. */
 import { posix } from 'node:path';
-import { lex } from './js-lex.js';
+import { lex } from '../../../../src/js-lex.js';
 import { testFile } from './cell-lint-inventory.js';
 
 /** Resolve a declared repository path without following external URLs or allowing paths to escape the inventory. */

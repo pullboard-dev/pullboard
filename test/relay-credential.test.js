@@ -49,6 +49,7 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'setBarReady') args = [{ agentId: actor, enabled: false }];
     if (operation === 'maintainStaleState') args = [{ agentId: actor, snapshot: null }];
     if (operation === 'recordHealthFindings') args = [{ agentId: actor, observedRevision: 0, findings: [] }];
+    if (operation === 'recordNextIdle') args = [{ agentId: actor, reason: 'nothing-eligible' }];
     if (operation === 'recordActivityDelivery') args = [{ agentId: actor, through: 0, interrupts: [] }];
     if (operation === 'actOnActivity') args = [{ agentId: actor, ids: ['event:1'] }];
     if (operation === 'recordSpecApprovalBaseline') args = [{ agentId: actor, baseline: { version: 1, file: 'SPEC.md', anchor: null, rows: [] } }];
@@ -118,6 +119,7 @@ test('every current operation selects its native actor credential without a seco
     { operation: 'maintainStaleState', args: [{ snapshot: null }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordHealthFindings', args: [{ observedRevision: 0, findings: [] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'setBoardMembers', args: [{ document: null }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
+    { operation: 'recordNextIdle', args: [{ reason: 'nothing-eligible' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordActivityDelivery', args: [{ through: 0, interrupts: [] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'actOnActivity', args: [{ ids: ['event:1'] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordSpecApprovalBaseline', args: [{ baseline: { version: 1, file: 'SPEC.md', anchor: null, rows: [] } }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
