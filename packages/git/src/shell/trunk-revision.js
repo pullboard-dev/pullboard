@@ -4,7 +4,7 @@ import {
   statSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { trunkRef } from "../../../../src/git-trunk-ref.js";
+import { trunkRef } from './git-trunk-ref.js';
 
 /** Invalidate a retained branch lookup only when its local configuration changes. */
 function fileMarkerForPath(path) {

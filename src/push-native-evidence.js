@@ -1,1 +1,1 @@
-export * from "../packages/git/index.js";
+export * from "../packages/git/src/shell/push-native-evidence.js";

@@ -11,5 +11,8 @@
   "src/source-advance-nudge.js": "packages/git/src/shell/source-advance-nudge.js",
   "src/trunk-revision.js": "packages/git/src/shell/trunk-revision.js",
   "src/worktree.js": "packages/git/src/shell/worktree.js",
-  "test/git-provenance.test.js": "packages/git/tests/git-provenance.test.js"
+  "test/git-provenance.test.js": "packages/git/tests/git-provenance.test.js",
+  "src/git-child-selectors.js": "packages/git/src/core/git-child-selectors.js",
+  "src/git-landing-batches.js": "packages/git/src/core/git-landing-batches.js",
+  "src/git-trunk-ref.js": "packages/git/src/shell/git-trunk-ref.js"
 }

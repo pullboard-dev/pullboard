@@ -107,3 +107,13 @@ export function declaredBoardOrder(machineRules, prechecked, verb) {
     .filter((id) => !prechecked[verb].includes(id))
     .map((id) => (id === machineRules.IN_STATE ? move.refuse : machineRules.MACHINE.guards.find((guard) => guard.id === id).refuse));
 }
+
+/** Preserve actual Git refusal reachability and detect a newly planted moved-body refusal. */
+export function assertGitFacadeAudit(codeWalk, fromDisk, editedSource) {
+  const entry = 'git.js#repoInfo';
+  assert.ok(codeWalk(fromDisk).refusalsOf(entry).has('NOT_A_REPO'));
+  const planted = editedSource('../packages/git/src/shell/git.js', /^export function repoInfo\(cwd, \{ env \} = \{\}\) \{$/m,
+    "$&\n  throw new Refused('GIT_PACKAGE_PROBE', 'planted Git body refusal');");
+  assert.ok(codeWalk(planted).refusalsOf(entry).has('GIT_PACKAGE_PROBE'),
+    'a Git compatibility shim cannot hide a new refusal in its actual implementation');
+}

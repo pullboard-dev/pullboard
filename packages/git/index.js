@@ -10,3 +10,6 @@ export * from "./src/shell/queued-item-lease.js";
 export * from "./src/shell/source-advance-nudge.js";
 export * from "./src/shell/trunk-revision.js";
 export * from "./src/shell/worktree.js";
+export * from "./src/core/git-child-selectors.js";
+export * from "./src/core/git-landing-batches.js";
+export * from "./src/shell/git-trunk-ref.js";

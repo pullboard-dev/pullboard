@@ -5,7 +5,7 @@ import {
   git,
   gitChildEnv,
 } from "./git.js";
-import { landingBatches } from "../../../../src/git-landing-batches.js";
+import { landingBatches } from '../core/git-landing-batches.js';
 import { pushCommandDigest } from "./pre-push-receipts.js";
 
 /**

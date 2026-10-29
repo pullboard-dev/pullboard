@@ -150,10 +150,12 @@ test('[A5,A6,C7] one provenance read preserves main branch detached and absent-m
     const file = join(directory, label + '.sqlite');
     const old = new DatabaseSync(file); old.exec('PRAGMA user_version = 0'); old.close();
     if (expected) {
+      // @pullboard-board-file migration: actual checkout authority initializes this private schema.
       const board = openBoard(file, undefined, { isMain: actual });
       assert.equal(board.db.prepare('PRAGMA user_version').get().user_version, SCHEMA_VERSION, label + ' may initialize a throwaway schema');
       closeBoard(board);
     } else {
+      // @pullboard-board-file migration: a linked checkout must refuse this persistent private schema.
       assert.throws(() => openBoard(file, undefined, { isMain: actual }), { code: 'UNMERGED_SCHEMA' }, label + ' cannot upgrade persistent schema');
       const unchanged = new DatabaseSync(file, { readOnly: true });
       assert.equal(unchanged.prepare('PRAGMA user_version').get().user_version, 0, label + ' refusal leaves version unchanged');
@@ -167,6 +169,7 @@ test('[A5,A6,C7] one provenance read preserves main branch detached and absent-m
   assert.equal(probe(helper, primary, env), true, 'primary checkout retains authority when no branch is named main');
   assert.equal(probe(helper, branch, env), false, 'linked branch has no upgrade authority when the main ref is absent');
   assert.equal(probe(helper, detached, env), false, 'linked detached HEAD has no upgrade authority when the main ref is absent');
+  // @pullboard-board-file migration: absence of a main ref does not authorize linked schema upgrades.
   for (const label of ['branch', 'detached']) assert.throws(() => openBoard(join(directory, label + '.sqlite'), undefined,
     { isMain: probe(helper, label === 'branch' ? branch : detached, env) }), { code: 'UNMERGED_SCHEMA' }, label + ' still refuses an old schema with no main ref');
 });
