@@ -68,7 +68,8 @@ test('local prices compute two models by hand while an unpriced model retains to
   assert.equal(document(box.run(box.repo, 'show', String(ids[3]), '--json')).usage.costUSD, 2.65);
   assert.equal(stats.items.find(row => row.item === ids[4]).costUSD, null, 'shared allocation is not charged to an individual item');
   assert.equal(document(box.run(box.repo, 'show', String(ids[4]), '--json')).usage.costUSD, null);
-  assert.equal(stats.lanes.find(row => row.lane === 'web').knownCostUSD, 5.3);
+  assert.ok(Math.abs(stats.lanes.find(row => row.lane === 'web').knownCostUSD - 5.3) < 1e-12,
+    'the two alpha and two beta allocations total 5.30 USD within floating-point rounding');
   assert.match(box.run(box.repo, 'stats').out, /cost USD 0\.650000/u);
   assert.equal(JSON.stringify(stats).includes('costPrices'), false);
   writeFileSync(file, JSON.stringify({ ...previous, costPrices: { alpha: { output: -1 } } }));
