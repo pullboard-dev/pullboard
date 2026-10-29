@@ -1,7 +1,7 @@
 /** Project one Activity sentence per human action and one disclosure per native sentinel scan [N26].
  * Standalone for the served/exported page: no board reads, clocks, or transports of its own.
  */
-export function activityModel(project) {
+export function activityModel(project, { words } = {}) {
   const parse = event => { try { return JSON.parse(event.event_detail || '{}') || {}; } catch { return {}; } };
   const events = [...(project.events ?? [])].sort((a, b) => a.event_id - b.event_id);
   const items = new Map((project.items ?? []).map(item => [item.id, item]));
@@ -67,21 +67,21 @@ export function activityModel(project) {
   for (const event of events) {
     if (['health-failure', 'health-resolved'].includes(event.event_kind) || isNotice(event)) { pending.push(event); continue; }
     if (event.event_kind === 'health-scan') { run(event); continue; }
-    if (['activity-delivered', 'flake-observation'].includes(event.event_kind)) continue;
+    if (['activity-delivered', 'flake-observation', 'usage', 'shared-usage'].includes(event.event_kind)) continue;
     const detail = parse(event), shout = shouts.get(detail.shout);
     if (['shout', 'shout_news', 'answer'].includes(event.event_kind)) {
       rows.push({ id: event.event_id, at: event.event_at, category: 'shouts', kind: 'shout', by: event.event_by, to: shout?.shout_to ?? detail.to,
         words: shout?.shout_text ?? '', verb: 'told', agent: agents.get(event.event_by) });
       continue;
     }
-    if (!event.item_id || !verbs[event.event_kind] || consumed.has(event.event_id)) continue;
+    if ((!event.item_id && !words) || (!verbs[event.event_kind] && !words) || consumed.has(event.event_id)) continue;
     let released = null;
     if (event.event_kind === 'claim') {
       released = releases.get(handoffKey(event))?.find(other => other.item_id !== event.item_id && !consumed.has(other.event_id));
       if (released) consumed.add(released.event_id);
     }
-    rows.push({ id: event.event_id, at: event.event_at, category: 'work', kind: event.event_kind, verb: verbs[event.event_kind],
-      by: event.event_by, agent: agents.get(event.event_by), item: items.get(event.item_id) ?? { id: event.item_id, title: '' },
+    rows.push({ id: event.event_id, at: event.event_at, category: 'work', kind: event.event_kind, verb: words ? words({ kind: event.event_kind === 'fact' ? detail.kind || 'fact' : event.event_kind }).label : verbs[event.event_kind],
+      by: event.event_by, agent: agents.get(event.event_by), item: event.item_id ? items.get(event.item_id) ?? { id: event.item_id, title: '' } : null,
       released: released ? items.get(released.item_id) ?? { id: released.item_id, title: '' } : null });
   }
   if (pending.length) run(null);

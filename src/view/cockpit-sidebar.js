@@ -159,7 +159,7 @@ function renderGroup(group) {
   }));
   const events = groupActivityModel(group.repos);
   $('group-activity').innerHTML = events.length ? byDay(events, event => event.event_at, event => groupEventHtml({
-    timeLabel: clock(event.event_at), repoName: event.repo.name, agentLabel: agentName(event.event_by, event.repo.board), kind: event.event_kind,
+    timeLabel: clock(event.event_at), repoName: event.repo.name, agentLabel: agentName(event.event_by, event.repo.board), kind: eventWords(event.event_kind),
     itemId: event.item_id, itemHref: event.item_id ? itemAddress(event.item_id, event.repo.root) : null,
     foreignRoot: event.repo.root === view.root ? null : event.repo.root,
     titleHtml: event.title ? rich(event.title, event.titles, true, event.repo.root) : '',
