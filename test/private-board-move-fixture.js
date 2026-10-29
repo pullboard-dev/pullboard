@@ -21,7 +21,7 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import { REFERENCE_ENGINE } from '../src/reference-engine.js';
 import { preparePersonRequest } from '../src/person-request.js';
 import { personRequestRecords } from '../src/relay-requests.js';
-import { decodeBoardKey, seal } from '../src/seal.js';
+import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';
 import { privateBoardPath } from '../src/projects.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
 import { runFixtureGit } from './fixture-child.js';

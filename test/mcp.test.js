@@ -10,7 +10,7 @@ import { pathToFileURL } from 'node:url';
 import { PassThrough } from 'node:stream';
 import { Readable } from 'node:stream';
 import { fixtureChildMessage, runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { personNeeds } from '../src/row-decision-text.js';
 import { personNeedsState } from '../src/needs-state.js';
 import { serveMcp } from '../src/mcp.js';

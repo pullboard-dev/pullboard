@@ -5,8 +5,8 @@ import { STALE_STATE_ENGINE } from './stale-state-engine.js';
 import {
   staleInstant,
   staleStateLimits,
-} from './stale-state-policy.js';
-import { planStaleState } from './stale-state-maintenance.js';
+} from './board-stale-state-policy.js';
+import { planStaleState } from './board-stale-state-maintenance.js';
 
 /** A malformed observation is a refusal, never permission to make a best-effort release. */
 function invalid() {

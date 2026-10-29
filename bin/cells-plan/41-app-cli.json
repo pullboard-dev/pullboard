@@ -223,7 +223,6 @@
   ["src/cli-recorded-effects.js","apps/cli/src/shell/cli-recorded-effects.js","rule"],
   ["src/documentation/events/shared-usage.json","apps/cli/src/shell/documentation/events/shared-usage.json","rule"],
   ["src/documentation/events/usage.json","apps/cli/src/shell/documentation/events/usage.json","rule"],
-  ["src/commands/rule.js","apps/cli/src/shell/commands/rule.js","rule"],
   ["src/cli/add.js","apps/cli/src/shell/cli/add.js","imports"],
   ["src/cli/blueprint.js","apps/cli/src/shell/cli/blueprint.js","imports"],
   ["src/cli/board-access.js","apps/cli/src/shell/cli/board-access.js","imports"],
@@ -237,7 +236,8 @@
   ["src/cli/submit.js","apps/cli/src/shell/cli/submit.js","imports"],
   ["src/cli/sweep.js","apps/cli/src/shell/cli/sweep.js","imports"],
   ["src/cli/verify.js","apps/cli/src/shell/cli/verify.js","imports"],
-  ["src/cli/worktree.js","apps/cli/src/shell/cli/worktree.js","imports"]
+  ["src/cli/worktree.js","apps/cli/src/shell/cli/worktree.js","imports"],
+  ["src/commands/rule.js","apps/cli/src/shell/commands/rule.js","rule"]
  ],
  "reexports": [
   "src/changelog.js",

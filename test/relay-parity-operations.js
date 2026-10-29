@@ -9,7 +9,7 @@ import { MOVE_OPERATIONS } from '../src/move-registry.js';
 import { publishLatestCheckpoint } from '../src/relay.js';
 import { captureSpecApprovalBaseline } from '../src/spec-approval.js';
 import { loadConfig } from '../src/config.js';
-import { decodeBoardKey } from '../src/seal.js';
+import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import { createParityReader, assertReaderParity } from './relay-parity-reader.js';
 import { createStudyExercise, seedStudyState, seedRehome, seedHandoff } from './relay-parity-seeds.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -54,7 +54,9 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
     }
     await seedStudyState(context);
     await seedItemPatches(context);
+    process.stderr.write('parity phase seedSourceAdvance begin\n');
     await seedSourceAdvance(context);
+    process.stderr.write('parity phase seedSourceAdvance complete\n');
     await seedOutside(context);
     await seedLandingObservations(context);
     await seedMembership(context);
@@ -63,7 +65,9 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
     await seedRoutingRules(context);
     await seedStaleState(context);
     await seedBatch(context);
+    process.stderr.write('parity phase seedNativeTrain begin\n');
     await seedNativeTrain(context);
+    process.stderr.write('parity phase seedNativeTrain complete\n');
     await seedSpecOutcomes(context);
     await seedCurrentOperations(context);
     await seedBarSignature(context);

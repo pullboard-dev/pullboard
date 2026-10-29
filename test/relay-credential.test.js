@@ -11,7 +11,7 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import {
   decodeBoardKey,
   unseal,
-} from '../src/seal.js';
+} from '../packages/kernel/src/core/seal.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { syntheticFlakeObservation } from './flake-observation-fixture.js';
 

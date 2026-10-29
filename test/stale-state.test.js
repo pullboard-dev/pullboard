@@ -11,7 +11,7 @@ let staleStateSnapshot;
 let planStaleState;
 try {
   ({ staleStateSnapshot } = await import('../src/stale-state-query.js'));
-  ({ planStaleState } = await import('../src/stale-state-maintenance.js'));
+  ({ planStaleState } = await import('../src/board-stale-state-maintenance.js'));
 } catch (error) {
   if (error.code !== 'ERR_MODULE_NOT_FOUND' || !['stale-state-query.js', 'stale-state-maintenance.js'].some(file => error.url?.endsWith('/src/' + file))) throw error;
 }

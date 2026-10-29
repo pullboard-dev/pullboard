@@ -8,9 +8,9 @@ import {
   context,
 } from '../cli.js';
 import { openBoardReadOnly } from '../board.js';
-import { HEALTH_SENTINEL_ENGINE } from '../health-receipts.js';
+import { HEALTH_SENTINEL_ENGINE } from '../board-health-receipts.js';
 import { readBlocks } from '../blocks.js';
-import { rigorReport } from '../rigor.js';
+import { rigorReport } from '../board-rigor.js';
 import { dispatchHealth } from '../dispatch-health.js';
 
 /** Run `pullboard health` and return its exit code. */

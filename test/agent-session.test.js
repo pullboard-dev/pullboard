@@ -9,7 +9,7 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { listResources } from '../src/resources.js';
-import { SSH_SHELL_MARKERS } from '../src/person.js';
+import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const DIRS = [];

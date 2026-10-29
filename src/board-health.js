@@ -1,5 +1,4 @@
-import { normalizedDispatch } from './dispatch-health.js';
-import { hasPendingDispatchNotices } from './health-receipts.js';
+import { hasPendingDispatchNotices } from './board-health-receipts.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from './automatic-dispatch-engine.js';
 /** Health mutation extracted without changing its transaction or notice order [A6]. */
 import { ENGINE_VERSION } from './machine.js';
@@ -9,20 +8,19 @@ import {
 } from './board-query.js';
 import { logEvent } from './board-event-log.js';
 import { Refused } from './refused.js';
-import { normalizedHealthFindings } from './health-receipts.js';
-import { healthFindingIdentity } from './health-receipts.js';
-import { healthTargets } from './health-receipts.js';
-import { deliverHealthNotices } from './health-receipts.js';
-import { HEALTH_SENTINEL_ENGINE } from './health-receipts.js';
+import { normalizedHealthFindings } from './board-health-receipts.js';
+import { healthFindingIdentity } from './board-health-receipts.js';
+import { healthTargets } from './board-health-receipts.js';
+import { deliverHealthNotices } from './board-health-receipts.js';
+import { HEALTH_SENTINEL_ENGINE } from './board-health-receipts.js';
 import { COORDINATOR } from './config.js';
 import { PERSON } from './board-query.js';
 
 import { CPU_SENTINEL_ENGINE } from './cpu-sentinel-engine.js';
-import { hasPendingCpuNotices } from './health-receipts.js';
+import { hasPendingCpuNotices } from './board-health-receipts.js';
 import { REJECTED_WORK_RETURN_ENGINE } from './rejected-work-return-engine.js';
-import { rejectedWorkReturns } from './rejected-work-return.js';
 /** Record one current health snapshot atomically, notifying each new or resolved episode once [A6]. */
-export function applyHealthFindings(board, { agentId, observedRevision, findings, dispatch, returnRejected = false }, { atomic, insertShout }) {
+export function applyHealthFindings(board, { agentId, observedRevision, findings, dispatch, returnRejected = false }, { atomic, insertShout, normalizedDispatch, rejectedWorkReturns }) {
   return atomic(board, () => {
     const existingMinimum = dispatch !== undefined || hasPendingDispatchNotices(board) ? AUTOMATIC_DISPATCH_ENGINE
       : hasPendingCpuNotices(board) || (Array.isArray(findings) && findings.some(finding => finding?.cause === 'AGENT_CPU')) ? CPU_SENTINEL_ENGINE : HEALTH_SENTINEL_ENGINE;

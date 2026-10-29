@@ -5,7 +5,7 @@
  */
 export { resourceRunLabel } from './cli-resource-display.js';
 export { browserAdmissionReporter } from './cli-resource-display.js';
-export { withBoardRead } from './board-read.js';
+export { withBoardRead } from './cli-context.js';
 // Commands and tests import these from here; each lives in the module a read can load without the rest.
 export { agentDisplayName } from './cli-context.js';
 export { cdTo } from './cli-context.js';

@@ -1,3 +1,4 @@
+import { recordTrainLanding } from '../src/record-train-landing.js';
 /** @pullboard-test-input source-tree */
 import { receiptBinds } from '../src/gate-run-receipt.js';
 import { gateRuns } from '../src/quarantine.js';
@@ -368,7 +369,7 @@ test('native train evidence seals at origin and replays without private receipt 
   onBoard(box, origin => {
     const request = prepareTrainLanding(box.repo, origin, [id], tip, receipt.id);
     const before = store.events(origin).length;
-    assert.throws(() => store.recordTrainLanding(origin, { ...request,
+    assert.throws(() => recordTrainLanding(origin, { ...request,
       receipt: { ...receipt, command: '0'.repeat(64) } }), { code: 'GATE_RUN_UNBOUND' });
     assert.equal(store.events(origin).length, before, 'unbound direct writer emits no partial gate or landing');
     const move = prepareEngineMove(origin, 'recordTrainLanding', [request]);

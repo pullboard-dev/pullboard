@@ -20,8 +20,8 @@ import {
   WITHDRAW_MILESTONE_ENGINE,
 } from '../src/milestones.js';
 import { BOARD_SENTINEL_ENGINE } from '../src/sentinels.js';
-import { RIGOR_NOTICE_ENGINE } from '../src/rigor-source.js';
-import { HEALTH_SENTINEL_ENGINE } from '../src/health-receipts.js';
+import { RIGOR_NOTICE_ENGINE } from '../src/board-rigor-source.js';
+import { HEALTH_SENTINEL_ENGINE } from '../src/board-health-receipts.js';
 import { CONFLICT_ENGINE } from '../src/trunk-conflict.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { unpackRelease } from './release-archive.js';

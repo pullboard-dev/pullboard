@@ -390,6 +390,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "RELAY_ORIGIN": "set a GitHub origin: git remote add origin https://github.com/<owner>/<repo>.git, then pullboard relay on",
   "RELAY_PERSON_ONLY": "do it as the person from the paired phone or the person's own session",
   "RELAY_PRESENTATION_PENDING": "run pullboard status again",
+  "RELAY_PRESENTATION_PORTS": "use the current native composition entrypoint and supply its complete presentation provider map",
   "RELAY_RECOVERY_HEALTHY": "replay it normally: pullboard relay",
   "RELAY_RECOVERY_PENDING": "finish the saved recovery: pullboard relay recover --skip <sequence>",
   "RELAY_REGISTRATION": "create the seat again from its creating seat's checkout, or from the main checkout: pullboard worktree <lane> --model \"<model name>\"",

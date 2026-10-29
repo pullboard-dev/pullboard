@@ -4,21 +4,17 @@ import { committedItemAuthors } from './review-independence.js';
 import { strictReviewProblem } from './review-independence.js';
 import { firstRefusal } from './board-item-read.js';
 import { verdictWithdrawalTarget } from './verdict-withdrawal.js';
-import { computedConflictProblem } from './computed-conflict-receipt.js';
 import {
   holdUntilKind,
   forgetHoldMaintenance,
   rememberHoldCondition,
-} from './conditional-holds.js';
-import { STALE_STATE_ENGINE } from './stale-state-engine.js';
+} from './board-conditional-holds.js';
 import { sealItemPatchSubmit } from './item-patch-submit.js';
 import { checkItemPatchSubmit } from './item-patch-submit.js';
 import * as rejectClause from './reject-clause.js';
 import { requireSourceAdvanceReview } from './source-advance-state.js';
 import { SOURCE_ADVANCE_ENGINE } from './source-advance-engine.js';
 import { sourceAdvanceReturnProblem } from './source-advance-return.js';
-import { sealSourceAdvanceReturn } from './source-advance-origin.js';
-export { advanceItemSource } from './source-advance.js';
 import * as reviewRouting from './review-routing.js';
 import { reviewFamilyProblem } from './review-independence.js';
 import { reviewPolicyChange } from './review-independence.js';
@@ -29,8 +25,8 @@ import {
   idleReason,
   liveRouteProblem,
 } from './routing-presence.js';
-import { releaseClaim } from './release-claim.js';
-export { recordTrainLanding } from './record-train-landing.js';
+import { releaseClaim } from './board-release-claim.js';
+
 import { REFERENCE_ENGINE } from './reference-engine.js';
 import { validateReferences } from './reference-authors.js';
 import {
@@ -44,7 +40,6 @@ import { readReceivedBoardState } from './board-link-state.js';
 import * as itemDependencies from './item-dependencies.js';
 import { AGENT_GRANT_ENGINE } from './agent-grant-engine.js';
 import { submitAdmission as checkedSubmitAdmission } from '../packages/state/src/core/submit-admission.js';
-import * as computedConflictEvidence from './computed-conflict-receipt.js';
 import { reopenAuthority } from './reopen-authority.js';
 import { applySpecRowDecisions } from './spec-row-apply.js';
 import { SPEC_REFREEZE } from './spec-row-apply.js';
@@ -62,7 +57,7 @@ import {
   applyItemHold,
   applyItemHoldRelease,
 } from './item-holds.js';
-import { applyStaleState } from './stale-state-store.js';
+import { applyStaleState } from './board-stale-state-store.js';
 import {
   isLaneEscalation,
   laneLeads,
@@ -81,14 +76,14 @@ import { applyCompanionRequest } from './companion.js';
 export { readBoardMembers, setBoardMembers } from './board-members.js';
 import { heartbeatSeat } from './seat-presence.js';
 import * as itemDecisions from './item-decision-queue.js';
-import * as activityDeliveryStore from './activity-delivery-store.js';
+import * as activityDeliveryStore from './board-activity-delivery-store.js';
 import { requireFactKind } from './item-notes.js';
 import {
   criticalPathEnabled,
   criticalPathOrder,
   remainingPaths,
 } from './critical-path-order.js';
-import { activityNewsFlag } from './activity-news.js';
+import { activityNewsFlag } from './board-activity-news.js';
 import {
   focusOrder,
   focusReasons,
@@ -196,7 +191,7 @@ import {
   itemShoutTarget,
   itemShoutReader,
   unreadShoutBindings,
-} from './shout-audience.js';
+} from './board-shout-audience.js';
 import { shoutItemId } from '../packages/kernel/src/core/registry-guards.js';
 import { recordVerdict } from './verdict-assurance.js';
 import {
@@ -225,9 +220,9 @@ import {
   checkedLandingCommit,
 } from './verdict-reviews.js';
 export { verdictReviewProblem, verdictsFor, acceptedVerdict, checkedLandingCommit };
-export { landingTestDefects, recordLandingTestDefect } from './landing-test-defects.js';
-export { landingLeaseMove, landingLeaseState } from './landing-lease.js';
-import { guardLandingWrite } from './landing-lease.js';
+export { landingTestDefects, recordLandingTestDefect } from './board-landing-test-defects.js';
+export { landingLeaseMove, landingLeaseState } from './board-landing-lease.js';
+import { guardLandingWrite } from './board-landing-lease.js';
 import {
   randomUUID,
 } from 'node:crypto';
@@ -235,7 +230,6 @@ import {
   factIdentityExists,
   requireFactIdentityIndexes,
 } from './fact-identity.js';
-import { NEXT_STEPS } from './next-step-words.js';
 export { boardBusyError } from './board-access.js';
 export { schemaMissing, writeRefused } from './board-migrate.js';
 import { checkRoute } from './item-routing.js';
@@ -274,7 +268,6 @@ import { SPEC_REVISION_ENGINE } from './spec-revision-engine.js';
 import {
   validRevisionApproval,
 } from './spec-revisions.js';
-import * as landingEnvironment from './landing-environment-guards.js';
 import { Refused } from './refused.js';
 import { saveJoinedSession } from './parent-session.js';
 import {
@@ -295,24 +288,16 @@ import {
   saveAgentModel,
   seatLineage,
 } from './seats.js';
-import {
-  newRigorNotices,
-  rigorNoticeText,
-} from './rigor-notices.js';
-import { RIGOR_NOTICE_ENGINE } from './rigor-source.js';
+import { RIGOR_NOTICE_ENGINE } from './board-rigor-source.js';
 import { RIGOR_AUTO_ENGINE } from './rigor-auto-engine.js';
 import {
   milestoneRanks,
   workOrderCompare,
 } from './work-order.js';
 import {
-  deriveRigorCause,
-  recordAutomaticRigorDrafts,
-} from './rigor-auto.js';
-import {
   causeProblem,
   requireNeverAgain,
-} from './rigor.js';
+} from './board-rigor.js';
 import { barCorrectionFields } from './bar-corrections.js';
 import * as checkWiden from './check-widen.js';
 import {
@@ -331,7 +316,7 @@ import {
   landingFlakes,
   landingWaiverCovers,
   landingWaiverKind,
-} from './landing-exceptions.js';
+} from './board-landing-exceptions.js';
 import { parseSpec } from './spec.js';
 import { KNOWN_MAIN_REWORKS_ENGINE } from './known-main-reworks-engine.js';
 import { requireKnownMainReworks } from './known-main-reworks.js';
@@ -341,24 +326,18 @@ import { validateLandingBatch } from './submit-invariants.js';
 import { validateLandingRevision } from './submit-invariants.js';
 import { submissionProof } from '../packages/state/src/core/submission-proof.js';
 import { SUBMISSION_PROOF_ENGINE } from './move-engine-constants.js';
-import { landingBatches } from './landing-batch-history.js';
+import { landingBatches } from './git-landing-batches.js';
 import {
   NATIVE_FLAKE_ENGINE,
   carriesFlakeDiagnostics,
 } from './flake-engine.js';
 export { landingFlakes, landingWaiverCovers, landingWaiverKind };
-export { landingWaivers, landingWaiverFor, waivedLandingProof } from './landing-waivers.js';
 export { acceptCheck } from './check-accept.js';
-export { declareJob, recordJobRun } from './recurring-jobs.js';
-export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } from './sentinels.js';
-export { flakeLedger, recordFlakeObservation } from './flakes.js';
-export { flakeQuarantines, gateRuns, recordGateRun } from './quarantine.js';
-export { personProposals, personSigning, proposePersonMove, setPersonSigning } from './person-signing.js'; // Signed person moves [E22].
+export { declareJob, recordJobRun } from './board-recurring-jobs.js';
 export { recordUsage } from './cost.js';
 export { recordSharedUsage } from './cost-shared.js';
 export { proofReceipts, recordProofRun } from './proof-receipts.js';
 import { requireShoutProtocol } from './routing-shout.js';
-export { recordPublishFinding } from './pr-findings.js';
 /** The seat readers live in seats.js; the board re-exports them so `store.*` callers keep one import. */
 export { agentAt, agentById, agentCreator, coordinatorHolder, listAgents, nextSeatId, seatEnrolled, seatLineage, takeCoordinator, withVerifierStanding } from './seats.js';
 
@@ -1231,7 +1210,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
   const code = isAccept ? ACCEPT_REASON : reason;
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   if (sourceAdvanceHead !== undefined && engine < SOURCE_ADVANCE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before binding a verdict to an automatically advanced source');
-  landingEnvironment.requireVerdict(board, environment);
+  board.nativePorts.landingEnvironment.requireVerdict(board, environment);
   const declaration = MOVES.find(move => move.verb === verb);
   const newReview = engine >= VERDICT_REVIEW_ENGINE && review !== undefined;
   let clauseDetail = {};
@@ -1279,7 +1258,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     if (isAccept && sandbox && outsideSource(board, id)) saveOutsideSource(board, id, { ...outsideSource(board, id), sandbox });
     const trigger = rejectClause.finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
       agentId, code, cause, clauseDetail, companionDigest, note, check, environment, sandbox, newReview,
-      review, implies, impliesId, decision, verb }, { firstRefusalDetail, deriveRigorCause, logEvent, holdItem,
+      review, implies, impliesId, decision, verb }, { firstRefusalDetail, deriveRigorCause: board.nativePorts.deriveRigorCause, logEvent, holdItem,
       shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications });
     if (!isAccept) postRigorNotices(board, trigger);
     return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}),
@@ -1298,13 +1277,14 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
 export function reopen(board, id, { agentId, note = '', conflict, cause, reopenFirstRefusalMinutes, quotedLandingFailure, withdrawVerdict, computedConflict, sourceAdvanceReturn, landingFence }) {
   return atomic(board, () => {
     if (sourceAdvanceReturn !== undefined) {
-      if (board.executionEngineVersion === undefined) ({ note, conflict, quotedLandingFailure, sourceAdvanceReturn } = sealSourceAdvanceReturn(board, id, { agentId, sourceAdvanceReturn, landingFence }));
+      if (board.executionEngineVersion === undefined) ({ note, conflict, quotedLandingFailure, sourceAdvanceReturn } = board.nativePorts.sealSourceAdvanceReturn(board, id, { agentId, sourceAdvanceReturn, landingFence }));
+
       const problem = sourceAdvanceReturnProblem(board, getItem(board, id), { agentId, note, conflict, quotedLandingFailure, sourceAdvanceReturn });
       if (problem) throw problem;
     }
     let submittedCommit = null;
     const assertedConflict = conflict;
-    conflict = computedConflictEvidence.conflictValue(computedConflict, conflict);
+    conflict = board.nativePorts.conflictValue(computedConflict, conflict);
     const forMerge = conflict !== undefined && conflict !== null;
     let supersedes, landingFailure, withdrawnVerdict;
     const forWithdrawal = withdrawVerdict === true;
@@ -1318,7 +1298,7 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
         joined: null,
         [IN_STATE]: (found) => new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, found).item_status}, not submitted`),
         reopenAuthority: (found) => reopenAuthority(board, found, agentId,
-          { forWithdrawal, forMerge, currentEngine, computedConflict, assertedConflict }, value => { withdrawnVerdict = value; }, { listAgents, verdictWithdrawalTarget, computedConflictProblem }),
+          { forWithdrawal, forMerge, currentEngine, computedConflict, assertedConflict }, value => { withdrawnVerdict = value; }, { listAgents, verdictWithdrawalTarget, computedConflictProblem: board.nativePorts.computedConflictProblem }),
         noteGiven: () => (forMerge || note.trim() ? null : new Refused('NOTE_REQUIRED', 'say why the criterion needs correction: --note "why"')),
         causeWellFormed: () => causeProblem(cause),
         notMerged: (found) => found.item_status !== 'verified' || !found.item_merged_commit
@@ -1340,7 +1320,7 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
           const manual = manualLandingFailure(note, { quoted: quoted && (quotedLandingFailure === true || manualLandingFailureQuoted(note)) });
           if (!accepted || (!recorded && !manual)) return new Refused('LANDING_FAILURE_REQUIRED',
             `reopening verified item #${id} needs --note in the format <test file>: <test name>; merge commit <sha>${quoted ? ', or quote a test name containing a semicolon' : ''}`,
-            quoted ? NEXT_STEPS.LANDING_FAILURE_REQUIRED : undefined);
+            quoted ? board.nativePorts.nextSteps.LANDING_FAILURE_REQUIRED : undefined);
           supersedes = accepted.event_id;
           landingFailure = recorded
             ? { batch: recorded.batch.id, tests: recorded.culprit.tests, mergeCommit: recorded.culprit.mergeCommit }
@@ -1366,7 +1346,7 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
     const reservation = (forMerge || landingFailure || forWithdrawal) && currentEngine >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalDetail(board, item, reopenFirstRefusalMinutes, returnedAt) : {};
     const returned = forWithdrawal ? { supersedes, withdrawnVerdict } : forMerge ? { supersedes, ...conflictDetail(conflict), ...(computedConflict !== undefined ? { computedConflict } : {}) } : supersedes ? { supersedes, landingFailure } : {};
     const derivedCause = currentEngine >= RIGOR_AUTO_ENGINE
-      ? deriveRigorCause(board, item, { cause, conflict, landingFailure, agentId }) : cause != null ? { cause } : {};
+      ? board.nativePorts.deriveRigorCause(board, item, { cause, conflict, landingFailure, agentId }) : cause != null ? { cause } : {};
     const returnedWithCause = currentEngine >= RIGOR_AUTO_ENGINE ? { ...returned, ...derivedCause } : { ...derivedCause, ...returned };
     const trigger = logEvent(board, agentId, 'reopen', id, { ...(sourceAdvanceReturn ? { sourceAdvanceReturn } : {}), commit: submittedCommit, note: note.trim() || conflictNote(conflict), judgment: null, ...reservation,
       ...returnedWithCause }, returnedAt);
@@ -1589,7 +1569,7 @@ export function shout(board, message) {
 
 /** Record one health snapshot through its unchanged transactional implementation [A6]. */
 export function recordHealthFindings(board, options) {
-  return applyHealthFindings(board, options, { atomic, insertShout });
+  return applyHealthFindings(board, options, { atomic, insertShout, normalizedDispatch: board.nativePorts.normalizedDispatch, rejectedWorkReturns: board.nativePorts.rejectedWorkReturns });
 }
 
 /**
@@ -1655,11 +1635,11 @@ export function answerDecision(board, id, { agentId, text, lanes, asPerson = fal
   });
 }
 
-export { EVIDENCE_KINDS } from './shout-audience.js';
+export { EVIDENCE_KINDS } from './board-shout-audience.js';
 
 export { openDecisions } from './board-query.js';
 
-export { inbox } from './inbox-store.js';
+export { inbox } from './board-inbox-store.js';
 
 export { unreadCount } from './board-query.js';
 
@@ -1704,11 +1684,11 @@ export function appendFact(board, id, { agentId, kind, text, ref = null, superse
 function postRigorNotices(board, trigger) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < RIGOR_NOTICE_ENGINE) return;
   if ((board.executionEngineVersion ?? ENGINE_VERSION) >= RIGOR_AUTO_ENGINE) {
-    recordAutomaticRigorDrafts(board, trigger, persistShout);
+    board.nativePorts.recordAutomaticRigorDrafts(board, trigger, persistShout);
     return;
   }
-  for (const cause of newRigorNotices(events(board), trigger, { person: PERSON })) {
-    persistShout(board, { from: 'rigor', to: COORDINATOR, text: rigorNoticeText(cause) });
+  for (const cause of board.nativePorts.newRigorNotices(events(board), trigger, { person: PERSON })) {
+    persistShout(board, { from: 'rigor', to: COORDINATOR, text: board.nativePorts.rigorNoticeText(cause) });
     logEvent(board, 'rigor', 'rigor-notice', null, { cause: cause.key, items: cause.items,
       occurrences: cause.occurrences, neverAgain: cause.neverAgain, engine: RIGOR_NOTICE_ENGINE });
   }
@@ -1932,7 +1912,7 @@ export { itemHold } from './board-query.js';
 
 /** Hold an item through the unchanged coordinator transaction. */
 export function holdItem(board, id, options) {
-  return applyItemHold(board, id, options, { coordinatorOnly, atomic, getItem, setItem, now, logEvent, postRigorNotices, itemHold, holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: STALE_STATE_ENGINE });
+  return applyItemHold(board, id, options, { coordinatorOnly, atomic, getItem, setItem, now, logEvent, postRigorNotices, itemHold, holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: board.nativePorts.staleStateEngine });
 }
 
 /** Lift an item hold through its existing native operation. */
@@ -2012,7 +1992,7 @@ export { landingBatches };
 /** Append one coordinator-owned batch revision without changing the board schema [B3,R3]. */
 export function recordLandingBatch(board, { agentId, batch, revision = 0, landingFence }) {
   coordinatorOnly(agentId, 'records landing batches');
-  landingEnvironment.requireBatch(board, batch);
+  board.nativePorts.landingEnvironment.requireBatch(board, batch);
   if (carriesFlakeDiagnostics(batch) && (board.executionEngineVersion ?? ENGINE_VERSION) < NATIVE_FLAKE_ENGINE) {
     throw new Refused('ENGINE_VERSION', `typed landing diagnostics require engine ${NATIVE_FLAKE_ENGINE}; upgrade Pullboard`);
   }
@@ -2026,7 +2006,7 @@ export function recordLandingBatch(board, { agentId, batch, revision = 0, landin
   return atomic(board, () => {
     guardLandingWrite(board, landingFence);
     const previous = landingBatches(board).find((entry) => entry.id === batch.id);
-    landingEnvironment.requireRevision(board, previous, batch);
+    board.nativePorts.landingEnvironment.requireRevision(board, previous, batch);
     preserveInvariantEvidence(previous, evidence, board.executionEngineVersion ?? ENGINE_VERSION);
     validateLandingRevision(previous, batch, revision);
     const recorded = { ...batch, revision: revision + 1, updatedAt: now(board) };
@@ -2075,12 +2055,12 @@ export function recordLandingFlake(board, { agentId, test, hash, names, lane, ba
 /** Atomically record a pushed batch's first-containing merges and one main-moved receipt [B3,R3]. */
 export function finishLandingBatch(board, { agentId, id, tip, landingFence }) {
   coordinatorOnly(agentId, 'finishes a landing');
-  landingEnvironment.requireTrunk(board);
+  board.nativePorts.landingEnvironment.requireTrunk(board);
   return atomic(board, () => {
     guardLandingWrite(board, landingFence);
     const batch = landingBatches(board).find((entry) => entry.id === id);
     if (!batch || batch.tip !== tip) throw new Refused('LAND_BATCH', 'the pushed tip must match its recorded batch; run pullboard land --adopt');
-    landingEnvironment.requireStoredBatch(board, batch);
+    board.nativePorts.landingEnvironment.requireStoredBatch(board, batch);
     if (batch.state === 'landed') return batch;
     if (batch.state !== 'pushed' && !(batch.state === 'trunk' && (board.executionEngineVersion ?? ENGINE_VERSION) >= LOCAL_LANDING_ENGINE)) throw new Refused('LAND_NOT_PUSHED', 'record a successful push before landing receipts; run pullboard land --adopt');
     for (const entry of batch.items) {
@@ -2179,6 +2159,9 @@ export function foreignBlockers(board, item) { return readForeignBlockers(board,
 
 /** Project canonical foreign dependency state through the same native receiving reader [B24,E32,H16]. */
 export function foreignDependencyStates(board, item) { return readForeignDependencyStates(board, item, { readReceivedBoardState }); }
+
+/** Temporary public API bridge counted by #1776; native operation importers use their actual owners. */
+export { advanceItemSource, proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation, flakeQuarantines, gateRuns, recordGateRun, personProposals, personSigning, proposePersonMove, setPersonSigning, recordPublishFinding, landingWaivers, landingWaiverFor, waivedLandingProof, recordTrainLanding } from './native-board.js';
 
 /** Persist next's observed idle cause through the normal ordered actor boundary [R2,N2]. */
 export function recordNextIdle(board, options) { return recordNextIdleObservation(board, options, { atomic, logEvent, agentById }); }

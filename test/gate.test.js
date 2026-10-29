@@ -1,3 +1,6 @@
+import { flakeQuarantines as nativeFlakeQuarantines } from '../src/quarantine.js';
+import { gateRuns as nativeGateRuns } from '../src/quarantine.js';
+import { recordGateRun as nativeRecordGateRun } from '../src/quarantine.js';
 /**
  * The gate's digest (V10): what an agent reads of a red run. And submit's own run of the gate (V16):
  * no stamp stands in for it, and the tree must hold still while it runs.
@@ -664,7 +667,7 @@ test('the same tree red and green proves a flake and files it once [C7,D1]', asy
   const tree = box.commit('one');
   await box.gate(true);
   let board = box.open();
-  const [red] = store.gateRuns(board);
+  const [red] = nativeGateRuns(board);
   assert.equal(red.tree, tree, 'every run records the tree it ran on');
   assert.equal(red.green, false);
   assert.deepEqual(red.failures, [FLAKY], 'a red run names the committed test that failed');
@@ -676,16 +679,16 @@ test('the same tree red and green proves a flake and files it once [C7,D1]', asy
   const items = store.listItems(board, { all: true });
   assert.equal(items.length, 1, 'the same tree red and green files one item');
   assert.match(items[0].item_title, /^Flaky test: test\/flaky\.test\.js :: flaky target/u);
-  const [, green] = store.gateRuns(board);
+  const [, green] = nativeGateRuns(board);
   assert.equal(green.green, true);
   assert.match(items[0].item_brief, new RegExp(red.id, 'u'), 'the red run is the evidence on the item');
   assert.match(items[0].item_brief, new RegExp(green.id, 'u'), 'and so is the green run');
   assert.match(items[0].item_brief, /"load":\{"average":/u, 'with the host load of each');
-  assert.equal(store.flakeQuarantines(board).length, 1);
+  assert.equal(nativeFlakeQuarantines(board).length, 1);
   await box.gate(true);
   await box.gate(false);
   board = box.open();
-  assert.equal(store.gateRuns(board).length, 4, 'every run is recorded');
+  assert.equal(nativeGateRuns(board).length, 4, 'every run is recorded');
   assert.equal(store.listItems(board, { all: true }).length, 1, 'more red and green runs of the same test file no second item');
   box.commit('two');
   await box.gate(false);
@@ -749,7 +752,7 @@ test('a hand-recorded run never quarantines a test [C7,D1]', async (t) => {
   const runs = [forged('00000000-0000-4000-8000-000000000001', false), forged('00000000-0000-4000-8000-000000000002', true)];
   for (const receipt of runs) {
     for (const agentId of ['coordinator', builder]) {
-      assert.throws(() => store.recordGateRun(board, { agentId, receipt, lane: 'app' }), (error) => error.code === 'GATE_RUN_UNBOUND' || assert.fail(error), 'a run recorded by hand is refused');
+      assert.throws(() => nativeRecordGateRun(board, { agentId, receipt, lane: 'app' }), (error) => error.code === 'GATE_RUN_UNBOUND' || assert.fail(error), 'a run recorded by hand is refused');
       assert.throws(() => prepareEngineMove(board, 'recordGateRun', [{ agentId, receipt, lane: 'app' }], { id: `move-${receipt.id.slice(-1)}-${agentId}`, actor: agentId }),
         (error) => error.code === 'GATE_RUN_UNBOUND', 'and so is sealing it as a move');
     }
@@ -760,7 +763,7 @@ test('a hand-recorded run never quarantines a test [C7,D1]', async (t) => {
     applyEngineMove(board, move, { sequence: sequence + 1, at: new Date().toISOString() });
   }
   assert.equal(store.listItems(board, { all: true }).length, 0, 'no item is filed from runs a seat recorded by hand');
-  assert.deepEqual(store.flakeQuarantines(board), []);
+  assert.deepEqual(nativeFlakeQuarantines(board), []);
   // Running something other than the accepted gate is a real execution, but of the wrong command: it leaves no receipt.
   const fake = `printf 'TAP version 13\\nnot ok 1 - flaky target\\n  ---\\n  location: ${join(box.root, FLAKY.file)}:4:1\\n  ...\\n1..1\\n'; exit 1`;
   const observed = [];
@@ -771,11 +774,11 @@ test('a hand-recorded run never quarantines a test [C7,D1]', async (t) => {
   // A real receipt cannot be reused to say something else: each altered field breaks the binding.
   await box.gate(true);
   const reopened = box.open();
-  const [real] = store.gateRuns(reopened);
+  const [real] = nativeGateRuns(reopened);
   const { eventId, by, ...receipt } = real;
   for (const lie of [{ ...receipt, green: true, failures: [] }, { ...receipt, failures: [{ file: FLAKY.file, name: 'another test' }] }, { ...receipt, command: 'c'.repeat(64) },
     { ...receipt, id: '00000000-0000-4000-8000-000000000003' }]) {
-    assert.throws(() => store.recordGateRun(reopened, { agentId: 'coordinator', receipt: lie, lane: 'app' }), (error) => ['GATE_RUN_UNBOUND', 'GATE_RUN_CHANGED'].includes(error.code));
+    assert.throws(() => nativeRecordGateRun(reopened, { agentId: 'coordinator', receipt: lie, lane: 'app' }), (error) => ['GATE_RUN_UNBOUND', 'GATE_RUN_CHANGED'].includes(error.code));
   }
   assert.equal(store.listItems(reopened, { all: true }).length, 0, 'one real red and no green proves nothing');
   assert.equal(waivedFailures(reopened, [FLAKY], landingPorts), null, 'no landing block is removed');

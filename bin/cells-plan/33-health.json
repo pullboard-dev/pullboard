@@ -5,30 +5,20 @@
  "root": "packages/health",
  "frontDoor": "packages/health/index.js",
  "placedBy": {
-  "seed": 4,
-  "rule": 13,
-  "imports": 2
+  "seed": 2,
+  "rule": 7,
+  "imports": 0
  },
  "paths": [
-  ["src/conditional-holds.js","packages/health/src/core/conditional-holds.js","imports"],
   ["src/doctor.js","packages/health/src/shell/doctor.js","seed"],
-  ["src/health-receipts.js","packages/health/src/core/health-receipts.js","seed"],
   ["src/health.js","packages/health/src/shell/health.js","seed"],
-  ["src/recurring-jobs.js","packages/health/src/core/recurring-jobs.js","seed"],
-  ["src/release-claim.js","packages/health/src/core/release-claim.js","imports"],
-  ["src/stale-claim-release.js","packages/health/src/core/stale-claim-release.js","rule"],
   ["src/stale-run-observation.js","packages/health/src/shell/stale-run-observation.js","rule"],
   ["src/stale-state-blockers.js","packages/health/src/core/stale-state-blockers.js","rule"],
   ["src/stale-state-capture.js","packages/health/src/shell/stale-state-capture.js","rule"],
   ["src/stale-state-command.js","packages/health/src/shell/stale-state-command.js","rule"],
-  ["src/stale-state-engine.js","packages/health/src/core/stale-state-engine.js","rule"],
   ["src/stale-state-floor.js","packages/health/src/core/stale-state-floor.js","rule"],
-  ["src/stale-state-maintenance.js","packages/health/src/core/stale-state-maintenance.js","rule"],
-  ["src/stale-state-policy.js","packages/health/src/core/stale-state-policy.js","rule"],
   ["src/stale-state-query.js","packages/health/src/core/stale-state-query.js","rule"],
-  ["src/stale-state-store.js","packages/health/src/core/stale-state-store.js","rule"],
-  ["src/stale-work-observation.js","packages/health/src/shell/stale-work-observation.js","rule"],
-  ["src/release-reasons.js","packages/health/src/core/release-reasons.js","rule"]
+  ["src/stale-work-observation.js","packages/health/src/shell/stale-work-observation.js","rule"]
  ],
  "reexports": [
   "src/conditional-holds.js",

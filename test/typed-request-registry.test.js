@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { MOVE_REGISTRY, minimumMoveEngine } from '../src/move-registry.js';
-import { boardEnginePorts } from '../src/board-engine-ports.js';
-const { relayMoveActor } = boardEnginePorts();
+import { nativeBoardPorts } from '../src/native-board.js';
+const { relayMoveActor } = nativeBoardPorts().enginePorts;
 import { TYPED_REQUESTS_ENGINE } from '../src/typed-requests-engine.js';
 export const TYPED_REQUEST_OPERATIONS=Object.freeze(['fileTypedRequest','answerTypedRequests']);
 export const TYPED_REQUEST_STEPS=Object.freeze({

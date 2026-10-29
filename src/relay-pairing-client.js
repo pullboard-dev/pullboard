@@ -29,7 +29,7 @@ import {
   readBoardKey,
   storeBoardKey,
 } from './relay-key.js';
-import { encodeBoardKey } from './seal.js';
+import { encodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import {
   createPairingCode,
   openPairingBundle,

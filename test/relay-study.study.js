@@ -1,3 +1,4 @@
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** A measured private relay study, with explicit coverage limits rather than inferred parity [H5,H17]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -11,6 +12,9 @@ import { MOVE_OPERATIONS } from '../src/move-registry.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { differences, readRelay } from './relay-study-fixture.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 test('relay study measures seeded native and API2 reader parity [H5,H17]', { timeout: 180_000 }, async t => {
   const box = await relayClientFixture(t);
@@ -28,7 +32,7 @@ test('relay study measures seeded native and API2 reader parity [H5,H17]', { tim
   const published = await box.cli('status');
   assert.equal(published.code, 0, 'the real linked CLI publishes the seeded board');
   const publishMs = performance.now() - started;
-  const expected = relaySnapshot(box.root);
+  const expected = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   const read = await readRelay(box);
   const full = differences(expected.presentation, read.document.presentation);
   const tables = differences(expected.tables, read.document.tables);
@@ -68,7 +72,7 @@ test('relay study measures 1k 10k and 50k native-event sync and private request 
     const result = await box.cli('status');
     assert.equal(result.code, 0, 'the actual CLI syncs the measured event scale');
     const publishMs = performance.now() - publishStart;
-    const expected = relaySnapshot(box.root);
+    const expected = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
     const read = await readRelay(box);
     const projection = differences(expected.presentation, read.document.presentation);
     const tables = differences(expected.tables, read.document.tables);
