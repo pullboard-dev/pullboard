@@ -13,7 +13,7 @@ import { FIGURES, drawLifecycle } from '../docs/img/draw.mjs';
 import { themeVariants } from '../docs/img/theme.mjs';
 import { HELP, commandPhrases } from '../src/help.js';
 import { MACHINE } from '../src/machine.js';
-import { agentsBlock } from '../src/templates.js';
+import { agentsBlock } from '../src/doctrine.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
