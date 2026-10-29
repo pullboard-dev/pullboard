@@ -134,15 +134,19 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
   /** Write one default-text line within the budget, keeping only a count (and a final next step) of the rest. */
   const say = (line) => {
     if (enabled) return emit(streams.stdout, messages, line);
-    const text = `${budget === Infinity ? line : cutLine(String(line))}\n`;
-    const size = Buffer.byteLength(text);
-    if (withheld || printed + size > budget - notice) {
-      withheld += 1;
-      if (/^next:/u.test(String(line))) withheldNext = String(line);
-      return;
+    if (budget === Infinity) return streams.stdout.write(`${line}\n`);
+    // One message may hold many lines, such as a red gate's output; each printed line is cut and counted alone.
+    for (const part of String(line).split('\n')) {
+      const text = `${cutLine(part)}\n`;
+      const size = Buffer.byteLength(text);
+      if (withheld || printed + size > budget - notice) {
+        withheld += 1;
+        if (/^next:/u.test(part)) withheldNext = part;
+        continue;
+      }
+      printed += size;
+      streams.stdout.write(text);
     }
-    printed += size;
-    streams.stdout.write(text);
   };
   const flush = (code) => {
     if (!enabled && withheld && !written) {
