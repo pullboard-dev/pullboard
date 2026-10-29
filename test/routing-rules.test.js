@@ -157,9 +157,13 @@ test('a rule-bearing native board fences fresh legacy shout and release senders 
   const releaseArgs = [id, 'core-1', 'Legacy reason text'];
   assert.ok(shoutMove.minimumEngine(shoutArgs, f.board, f.board.clock.now()) < ROUTING_RULES_ENGINE);
   assert.ok(releaseMove.minimumEngine(releaseArgs, f.board, f.board.clock.now()) < ROUTING_RULES_ENGINE);
-  migrateStandingRulings(f.board, 'coordinator');
+  const rules = migrateStandingRulings(f.board, 'coordinator');
   assert.equal(shoutMove.minimumEngine(shoutArgs, f.board, f.board.clock.now()), ROUTING_RULES_ENGINE);
   assert.equal(releaseMove.minimumEngine(releaseArgs, f.board, f.board.clock.now()), ROUTING_RULES_ENGINE);
+  for (const id of rules) f.rule({ revoke: id });
+  assert.deepEqual(store.routingRules(f.board), []);
+  assert.equal(shoutMove.minimumEngine(shoutArgs, f.board, f.board.clock.now()), ROUTING_RULES_ENGINE, 'revoking the final rule does not reset native message protocol');
+  assert.equal(releaseMove.minimumEngine(releaseArgs, f.board, f.board.clock.now()), ROUTING_RULES_ENGINE, 'revoking the final rule cannot restore uncoded fresh releases');
 });
 
 test('a shout to the coordinator that routes work is answered with the rule command [C7]', () => {

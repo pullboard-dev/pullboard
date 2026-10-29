@@ -4,8 +4,8 @@ import { ROUTING_RULES_ENGINE } from './routing-rules-engine.js';
 /** The board_meta key holding the rule list. */
 export const ROUTING_RULES_KEY = 'routing_rules';
 
-/** An older receiver must not drop a rule a newer one enforces. */
+/** A committed routing prefix retains its protocol floor even after its last rule is revoked. */
 export function routingRulesEngine(board) {
   const text = board?.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(ROUTING_RULES_KEY)?.meta_value;
-  return text && text !== '[]' ? ROUTING_RULES_ENGINE : 1;
+  return text !== undefined ? ROUTING_RULES_ENGINE : 1;
 }
