@@ -46,7 +46,7 @@ function countPairs() {
     }
     const draft = document.querySelector(root + ' .needs-drafts .needs-copy b');
     if (draft) add('Needs/draft rows', number(draft), p.needs.find(row => row.kind === 'draft')?.count ?? 0);
-    if (view.tab === 'dashboard') {
+    if (view.tab === 'dashboard' && document.querySelector('#dashboard-rules [data-home-count]')) {
       const approved = p.spec.filter(row => row.status === 'approved');
       for (const [key, expected] of [['approved', approved.length], ['gated', approved.filter(row => String(row.gate ?? '').trim()).length], ['ungated', approved.filter(row => !String(row.gate ?? '').trim()).length]]) {
         add('Dashboard/rules/' + key, number(document.querySelector('[data-home-count="' + key + '"] dd')), expected);

@@ -42,7 +42,7 @@ test('Dashboard is the landing page, carries the rules, and migrates saved Home 
     // A new board opens on Dashboard, which retains the rules and the calls waiting on the person.
     const fresh = await openPage(view, { store: storage() });
     assert.equal(fresh.run('view.tab'), 'dashboard', 'a board with no items yet opens on Dashboard');
-    const rules = fresh.show('dashboard-rules');
+    const rules = fresh.show('dashboard');
     assert.deepEqual(['approved', 'gated', 'ungated'].map((key) => count(rules, key)), [3, 2, 1], 'approved rows, those naming a gate, and those with none');
     assert.match(rules, /data-go="tab:spec"/, 'the rules card opens the Spec');
     assert.match(fresh.show('dashboard'), /Should the page greet a visitor\?[^]*?NEEDS YOU/u, 'Dashboard keeps the call waiting on the person');
@@ -82,7 +82,7 @@ test('home renders the projected useful agents range lever and curve and refresh
     const page = await openPage(view);
     assert.match(page.html, /id="dashboard-capacity"/, 'the served page mounts the capacity card on Dashboard');
     page.run(`data.project.capacityForecast = ${JSON.stringify(CAPACITY)}; render();`);
-    const html = page.show('dashboard-capacity');
+    const html = page.show('dashboard');
     assert.match(html, /Max useful agents now: <strong>24<\/strong> \(16–32\)/);
     assert.match(html, /Finish in about 18–22 h/);
     assert.match(html, /Binding: rework/);
@@ -91,7 +91,7 @@ test('home renders the projected useful agents range lever and curve and refresh
     assert.match(html, /<polyline/);
     assert.match(page.show('dashboard-rules'), /Your rules/, 'existing rules remain visible');
     page.run('data.project.capacityForecast = { available: false, stale: true, unknown: ["Missing measured history"] }; render();');
-    const unavailable = page.show('dashboard-capacity');
+    const unavailable = page.show('dashboard');
     assert.match(unavailable, /Capacity estimate is unavailable/);
     assert.match(unavailable, /Estimates are stale/);
     assert.match(unavailable, /Missing measured history/);
