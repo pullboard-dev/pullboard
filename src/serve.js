@@ -68,7 +68,7 @@ import { Refused } from './refused.js';
 import { refusalDocument } from './next-step-words.js';
 import { relayLinkAvailability } from './relay.js';
 import { personNeeds } from './row-decision-text.js';
-import { rigorDraftNeeds } from './rigor-notices.js';
+import { rigorDraftNeeds } from '../packages/rigor/index.js';
 import { sentinelDraftNeeds } from './sentinels.js';
 import { sentinels } from './sentinels.js';
 import { projectRowDecisions } from './row-decisions.js';
