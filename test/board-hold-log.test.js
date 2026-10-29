@@ -70,6 +70,75 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   assert.match(shown.out, /fixture-hold: 1 holds; slowest \d+ ms/u);
 });
 
+test('a hold log append observes the actual SQLite writer already released after commit and rollback [B2,C7,P4]', () => {
+  const box = helpers.project('true');
+  box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'post-release-observations');
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const source = `
+    import assert from 'node:assert/strict';
+    import fs from 'node:fs';
+    import { syncBuiltinESMExports } from 'node:module';
+    import { DatabaseSync } from 'node:sqlite';
+    import { openBoard, closeBoard, atomic } from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+    import { boardHoldLog } from ${JSON.stringify(new URL('../src/board-hold-log.js', import.meta.url).href)};
+    // @pullboard-board-file locking: a separate real connection probes the same writer at the actual append.
+    const board = openBoard(process.argv[1], undefined, { writeContext: { command: 'post-commit', seat: 'web-1', item: 42 } });
+    const peer = new DatabaseSync(process.argv[1]);
+    peer.exec('PRAGMA busy_timeout=0');
+    const original = { openSync: fs.openSync, writeSync: fs.writeSync, closeSync: fs.closeSync };
+    const logFds = new Set(), observations = [];
+    /** Probe the real lock, releasing the peer's own transaction whenever acquisition succeeds. */
+    function writerAvailable() {
+      try { peer.exec('BEGIN IMMEDIATE'); }
+      catch (error) { assert.match(error.message, /locked/u); return false; }
+      peer.exec('ROLLBACK');
+      return true;
+    }
+    /** Track only the real diagnostic descriptor while preserving every filesystem operation. */
+    fs.openSync = (...args) => {
+      const fd = original.openSync(...args);
+      if (args[0] === boardHoldLog()) logFds.add(fd);
+      return fd;
+    };
+    /** Observe SQLite immediately before the real append; retain errors outside optional logging's catch. */
+    fs.writeSync = (...args) => {
+      if (logFds.has(args[0])) {
+        try { observations.push(writerAvailable()); }
+        catch (error) { observations.push(error.message); }
+      }
+      return original.writeSync(...args);
+    };
+    /** Never mistake a later reuse of a closed descriptor for the diagnostic log. */
+    fs.closeSync = fd => { logFds.delete(fd); return original.closeSync(fd); };
+    syncBuiltinESMExports();
+    try {
+      for (const outcome of ['commit', 'rollback']) {
+        board.writeContext.command = 'post-' + outcome;
+        const refusal = new Error('deliberate rollback');
+        /** The wait is the subject: one actual outer hold must cross the logging threshold. */
+        const held = () => {
+          assert.equal(writerAvailable(), false, 'the separate connection is blocked while work owns the writer');
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1_100);
+          if (outcome === 'rollback') throw refusal;
+        };
+        if (outcome === 'commit') atomic(board, held);
+        else assert.throws(() => atomic(board, held), error => error === refusal);
+      }
+      assert.deepEqual(observations, [true, true], 'both actual log appends happen after SQLite releases the writer');
+      const rows = fs.readFileSync(boardHoldLog(), 'utf8').trim().split('\\n').map(line => JSON.parse(line))
+        .filter(row => row.command === 'post-commit' || row.command === 'post-rollback');
+      assert.deepEqual(rows.map(row => row.outcome), ['committed', 'rolled-back']);
+    } finally {
+      Object.assign(fs, original); syncBuiltinESMExports();
+      closeBoard(board); peer.close();
+    }
+  `;
+  const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, file], {
+    cwd: box.repo, env: box.env, encoding: 'utf8',
+  });
+  assert.equal(child.status, 0, child.context);
+});
+
 test('the daily allowance is unmeasured until its first full-day fact, and a measured baseline only falls [C7]', () => {
   const empty = { version: 1, allowancePerDay: null, observedDay: null, fact: null };
   const measured = { version: 1, allowancePerDay: 12, observedDay: '2026-10-28', fact: 'fixture-full-day-fact' };
