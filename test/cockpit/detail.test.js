@@ -110,6 +110,8 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
 
       // The verified item opens with its criterion, check, brief, verdicts and thread from one more request.
       await chrome.stable("(() => { const q = document.querySelector('#q'); q.value = ''; q.dispatchEvent(new Event('input', { bubbles: true })); q.blur(); })()");
+      // Opening the search result selects All; restore Active before checking the original queue.
+      await chooseFilter(chrome, 'state:active');
       await chrome.waitFor("document.querySelectorAll('#chain .row').length === 2");
       listed.rows = await chrome.stable("[...document.querySelectorAll('#chain .row')].map((row) => row.dataset.item)");
       assert.deepEqual(listed.rows.sort(), ['2', '3'], 'the Active list shows the submitted and the open item');

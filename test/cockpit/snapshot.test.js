@@ -146,6 +146,9 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
     assert.ok(initial.total >= 6, 'the exported board contains the complete claim/submit/reject/claim/submit/accept history');
     assert.ok(initial.index >= initial.total - 1, 'the initial replay position is the exported final state');
 
+    // Static export opens on Dashboard; materialize the lazy Shouts pane before reading its feed.
+    await press(chrome, "document.querySelector('[data-tab=shouts]')");
+    await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && document.querySelector('#feed')?.textContent.includes(" + JSON.stringify(scriptShout) + ")");
     const shout = JSON.parse(await evaluate(`JSON.stringify((() => {
       const feed = document.querySelector('#feed');
       return { text: feed.textContent, html: feed.innerHTML, scripts: feed.querySelectorAll('script').length };
@@ -154,6 +157,9 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
     assert.ok(shout.html.includes('&lt;script&gt;'), 'the snapshot escapes HTML in shout text');
     assert.equal(shout.scripts, 0, 'shout text never becomes an executable script element');
 
+    // Replay assertions inspect item rows, so return from Shouts to the lazy Items pane first.
+    await press(chrome, "document.querySelector('[data-tab=items]')");
+    await chrome.waitFor("!document.querySelector('[data-pane=items]').hidden");
     await evaluate(`(() => {
       window.__snapshotRealAdvance = advanceReplay;
       window.__snapshotFirstPosition = null;
