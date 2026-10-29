@@ -16,6 +16,13 @@ import { selectAffectedTests } from '../affected-tests.js';
 import { scanSource } from '../code-map.js';
 import { repositoryImport } from '../import-map.js';
 import { readPlan } from '../../bin/cells-plan.js';
+import { personNeeds } from '../row-decision-text.js';
+import { personNeedsState } from '../needs-state.js';
+
+/** Compose the actual shared person obligations at the CLI boundary, outside the MCP transport. */
+function readPersonNeeds(cwd) {
+  return personNeeds(personNeedsState(cwd));
+}
 
 /** Refuse traversal and absolute paths before consulting any committed blob, including missing paths. */
 function repositoryPath(value) {
@@ -99,7 +106,7 @@ export async function mcpHere(io, { first, values }) {
   if (first) throw new Refused('USAGE', 'pullboard mcp takes no arguments; run pullboard mcp from the agent\'s worktree');
   if (values.json) throw new Refused('USAGE', 'pullboard mcp speaks MCP on stdout; run pullboard mcp without --json');
   context(io);
-  return serveMcp({ cwd: io.cwd, input: io.stdin, output: io.stdout, log: io.stderr, runCommand: main, readCodeMap });
+  return serveMcp({ cwd: io.cwd, input: io.stdin, output: io.stdout, log: io.stderr, runCommand: main, readCodeMap, readPersonNeeds });
 }
 
 /** Run `pullboard mcp` and return its exit code. */
