@@ -1,7 +1,7 @@
 /** @pullboard-test-gui */
 /** Settings are projected by the real local API, never read or changed by the page [O5,O6,N26]. */
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -108,6 +108,18 @@ test('Settings has a bottom sidebar address and isolates a bad row at desktop an
       assert.ok(shown.thresholds.some(row => row.error && /whole number at least 1/u.test(row.text)), 'the one bad row includes its real API repair');
       assert.ok(shown.healthy, 'an unrelated configured row survives');
       assert.equal(shown.overflow, false, width + ': the settings page fits its viewport');
+      if (width === 320) {
+        await press(chrome, 'document.querySelector("#proj-switch")');
+        const target = await chrome.stable(`(() => { const node = document.querySelector('#side [data-tab="settings"]'), box = node.getBoundingClientRect(); return { visible: getComputedStyle(node.parentElement).display !== 'none', left: box.left, right: box.right, height: box.height, bottom: box.bottom }; })()`);
+        assert.ok(target.visible && target.left >= 0 && target.right <= width && target.height >= 44 && target.bottom <= 900, 'the bottom Settings entry is reachable by touch at 320px');
+        await press(chrome, 'document.querySelector("#proj-switch")');
+      }
+      if (process.env.PULLBOARD_SETTINGS_SCREENSHOTS) {
+        mkdirSync(process.env.PULLBOARD_SETTINGS_SCREENSHOTS, { recursive: true });
+        const shot = await chrome.send('Page.captureScreenshot', { format: 'png' });
+        writeFileSync(join(process.env.PULLBOARD_SETTINGS_SCREENSHOTS, 'settings-' + width + '.png'), Buffer.from(shot.data, 'base64'));
+      }
+
     }
     assert.equal(JSON.parse(readFileSync(file, 'utf8')).submitDeferAbove, 'not a number', 'read-only navigation never repairs configuration');
     assert.equal(JSON.parse(readFileSync(join(alpha.repo, 'pullboard.json'), 'utf8')).submitDeferAbove, 20);
