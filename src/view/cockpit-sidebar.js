@@ -32,9 +32,11 @@ function renderSide() {
   const selectedGroup = data.groups.find((group) => group.key === view.root);
   const selectedRepo = data.projects.find((x) => x.root === view.root);
   $('proj-name').textContent = selectedGroup?.name || selectedRepo?.name || (p ? p.root.split('/').pop() : 'No project');
-  // The browser tab says it too, for when the view sits behind other tabs.
+  // Other tabs retain the machine-wide person-call count. Roadmap rendering supplies its own exact remaining total.
   const needs = data.projects.reduce((n, x) => n + needCount(x), 0);
-  document.title = p || selectedGroup ? (needs ? '(' + needs + ') ' : '') + $('proj-name').textContent + ' · Pullboard' : 'Pullboard';
+  document.title = p || selectedGroup ? (view.tab === 'roadmap' && !selectedGroup
+    ? $('proj-name').textContent + ' · Roadmap · Pullboard'
+    : (needs ? '(' + needs + ') ' : '') + $('proj-name').textContent + ' · Pullboard') : 'Pullboard';
 }
 
   /** Escape plain text while preserving safe item and code-preview links.
