@@ -43,3 +43,12 @@ export function discovered(names, candidate, strict, what) {
 /** Runtime session environment vocabulary, without authentication authority [V1,B3]. */
 /** Session identifiers belong beside the shell markers; only their digest reaches the local checkout binding. */
 export const AGENT_SESSION_IDS = Object.freeze(['CLAUDE_CODE_SESSION_ID', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID']);
+
+/** Markers carried by Claude Code and Codex agent subprocesses, rather than user configuration. */
+export const AGENT_SHELL_MARKERS = Object.freeze([
+  'CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT',
+  'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL',
+]);
+
+/** SSH transport markers: any one names a remote shell, and test children acting as the person drop them all. */
+export const SSH_SHELL_MARKERS = Object.freeze(['SSH_CONNECTION', 'SSH_CLIENT', 'SSH_TTY']);

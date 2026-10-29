@@ -1,3 +1,4 @@
+import { waivedLandingProof as nativeWaivedLandingProof } from '../landing-waivers.js';
 import { quarantineWaivers } from '../quarantine.js';
 /** The pullboard hook command, in its own module so an item adding another command never edits these lines. */
 import { boardBusyError } from '../board-access.js';
@@ -130,7 +131,7 @@ export async function hookCommand(io, { first, second }) {
     problems = prePushProblems(info.root, refsText);
     if (!problems.length) {
       const landing = pushesTrunk(refsText, trunkRef(info.root));
-      const waived = landing && withBoard(ctx, (board) => store.waivedLandingProof(board, headTree(info.root), { quarantineWaivers }));
+      const waived = landing && withBoard(ctx, (board) => nativeWaivedLandingProof(board, headTree(info.root), { quarantineWaivers }));
       const recordedException = landing && withBoard(ctx, (board) => store.landingBatches(board).some((batch) => batch.proof?.tree === headTree(info.root) && batch.proof.failures?.length));
       if (waived && isClean(info.root) && !untracked(info.root).length) io.say(`pre-push: exact landing tree covered by live person waivers in batch ${waived.id}; no ordinary green stamp`);
       else if (recordedException) problems = ['the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver'];

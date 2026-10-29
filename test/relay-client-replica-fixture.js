@@ -1,7 +1,7 @@
 /** Read and replay fixture replica state without changing its durable history [H16,V1,V17]. */
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
-import { unseal } from '../src/seal.js';
+import { unseal } from '../packages/kernel/src/core/seal.js';
 import { syncRelay } from '../src/relay.js';
 import * as store from '../src/board.js';
 

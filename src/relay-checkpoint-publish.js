@@ -28,7 +28,7 @@ import { Refused } from './refused.js';
  *   sealedRecord: Function, reportCheckpointRefusal: Function, safePauseCode: Function, safePauseMessage: Function }} relay
  * @returns {{ publishCheckpoint: Function, publishLatestCheckpoint: Function }}
  */
-export function checkpointPublisher({ request, saveLink, loadLink, linkFile, readBoardKey, sealedRecord, reportCheckpointRefusal, safePauseCode, safePauseMessage }) {
+export function checkpointPublisher({ request, saveLink, loadLink, linkFile, readBoardKey, sealedRecord, reportCheckpointRefusal, safePauseCode, safePauseMessage, presentationPorts }) {
   /**
    * Read and seal this board's checkpoint: the expensive part of publishing, which needs no relay lock.
    *
@@ -37,7 +37,8 @@ export function checkpointPublisher({ request, saveLink, loadLink, linkFile, rea
    * @returns {Promise<{ sequence: number, digest: string, sealed: string }>}
    */
   async function prepareCheckpoint(root, state) {
-    const document = relaySnapshot(root);
+    const ports = presentationPorts();
+    const document = relaySnapshot(root, {}, ports);
     const sequence = Number(document.tables.board_meta.find((row) => row.meta_key === 'relay_applied_sequence')?.meta_value ?? 0);
     return { sequence, digest: presentationDigest(document.presentation),
       sealed: await sealedRecord(readBoardKey(state.board), document, state, 'snapshot', sequence) };

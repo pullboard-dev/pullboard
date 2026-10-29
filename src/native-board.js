@@ -1,9 +1,73 @@
-import { guardLandingWrite } from './landing-lease.js';
+import { activeViewAgents } from './view-state-summary.js';
+import { viewProofSummary } from './view-state-summary.js';
+import { personSigningPresentation } from './person-signing-presentation.js';
+import { personRequestStatuses } from './relay-requests.js';
+import { projectState } from './serve.js';
+import { projectFit } from './blueprint-fit.js';
+import { pendingFit } from './blueprint-fit.js';
+import { fitFile } from './blueprint-fit.js';
+import { verifiedPasskeyRowDecision } from './person-row-proof.js';
+import { advanceItemSource } from './source-advance.js';
+import { proposeSentinel } from './sentinels.js';
+import { decideSentinel } from './sentinels.js';
+import { beginSentinelRun } from './sentinels.js';
+import { finishSentinelRun } from './sentinels.js';
+import { flakeLedger } from './flakes.js';
+import { recordFlakeObservation } from './flakes.js';
+import { flakeQuarantines } from './quarantine.js';
+import { gateRuns } from './quarantine.js';
+import { recordGateRun } from './quarantine.js';
+import { personProposals } from './person-signing.js';
+import { personSigning } from './person-signing.js';
+import { proposePersonMove } from './person-signing.js';
+import { setPersonSigning } from './person-signing.js';
+import { recordPublishFinding } from './pr-findings.js';
+import { landingWaivers } from './landing-waivers.js';
+import { landingWaiverFor } from './landing-waivers.js';
+import { waivedLandingProof } from './landing-waivers.js';
+import { prepareTrainLanding } from './train-landing.js';
+import { prepareNativeTrainLanding } from './train-landing.js';
+import { sealItemPatchSubmit } from './item-patch-submit.js';
+import { sealItemPatchFollow } from './item-patch-submit.js';
+import { sealSourceAdvance } from './source-advance-origin.js';
+import { computedReturnArgs } from './computed-conflict-return.js';
+import { requirePreparedComputedConflict } from './computed-conflict-receipt.js';
+import { preflightComputedConflict } from './computed-conflict-receipt.js';
+import { signedMoveProblem } from './person-signing.js';
+import { requireBound } from './quarantine.js';
+import { requestMoveProblem } from './relay-requests.js';
+import { recordRequestMove } from './relay-requests.js';
+import { relayPerson } from './relay-requests.js';
+import { requestPerson } from './relay-requests.js';
+import { validPresence } from './person-presence.js';
+import { recordTrainLanding } from './record-train-landing.js';
+import {
+  newRigorNotices,
+  rigorNoticeText,
+} from './rigor-notices.js';
+import { sealSourceAdvanceReturn } from './source-advance-origin.js';
+import { conflictValue } from './computed-conflict-receipt.js';
+import { NEXT_STEPS } from './next-step-words.js';
+import * as landingEnvironment from './landing-environment-guards.js';
+import {
+  deriveRigorCause,
+  recordAutomaticRigorDrafts,
+} from './rigor-auto.js';
+import { normalizedDispatch } from './dispatch-health.js';
+import { rejectedWorkReturns } from './rejected-work-return.js';
+import { guardLandingWrite } from './board-landing-lease.js';
+
 import { recordRowVerification as applyRowVerification } from './spec-verdicts.js';
 import { decideSpecRevisions as applySpecRevisionDecisions } from './spec-revisions.js';
 import { draftSpecRow as applySpecRowDraft } from './row-drafts.js';
 /** One native board composition root supplies connection-local runtime providers [C7]. */
 import * as store from './board.js';
+import { sourceAdvanceCASProblem } from './source-advance.js';
+import { beginCommandPhase } from './command-phase.js';
+import { exportedMeta } from './person-signing.js';
+import { guardRestore } from './person-signing.js';
+import { receiptFields } from './gate-run-receipt.js';
+
 import { boardReceiptStore } from './gate-run-receipt.js';
 import { readGateReceipt } from './gate-run-receipt.js';
 import { receiptBody } from './gate-run-receipt.js';
@@ -85,7 +149,7 @@ import {
   holdUntilKind,
   forgetHoldMaintenance,
   rememberHoldCondition,
-} from './conditional-holds.js';
+} from './board-conditional-holds.js';
 import {
   STALE_STATE_ENGINE,
 } from './stale-state-engine.js';
@@ -111,6 +175,8 @@ export { closeBoard } from './board-read-open.js';
 /** Build immutable native capabilities once per connection, without a registry or cross-connection defaults. */
 export function nativeBoardPorts() {
   const nativePorts = Object.freeze({
+    sourceAdvanceCASProblem, beginCommandPhase, exportedMeta, guardRestore,
+    newRigorNotices, rigorNoticeText, sealSourceAdvanceReturn, conflictValue, nextSteps: NEXT_STEPS, landingEnvironment, deriveRigorCause, recordAutomaticRigorDrafts, normalizedDispatch, rejectedWorkReturns,
     atomic, logEvent, rowDrafts: store.rowDrafts, rowDecisions: store.rowDecisions, PERSON: store.PERSON,
     recordRowDecisions: store.recordRowDecisions, now,
     committedItemAuthors, twoTierReviews, strictReviewProblem,
@@ -122,10 +188,22 @@ export function nativeBoardPorts() {
     milestones: store.milestones, listItems: store.listItems, buildOrder: store.buildOrder,
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap: store.roadmap, ROUTES: store.ROUTES,
   });
-  const enginePorts = boardEnginePorts();
+  const enginePorts = boardEnginePorts({
+    recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel,
+    beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation,
+    flakeQuarantines, gateRuns, recordGateRun, personProposals,
+    personSigning, proposePersonMove, setPersonSigning, recordPublishFinding,
+    landingWaivers, landingWaiverFor, waivedLandingProof, prepareTrainLanding,
+    prepareNativeTrainLanding, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
+    sealSourceAdvance, computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict,
+    signedMoveProblem, requireBound, requestMoveProblem, recordRequestMove,
+    relayPerson, requestPerson, validPresence
+  });
   return Object.freeze({
     nativePorts, enginePorts, operations: enginePorts.operations, logEvent,
-    sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody, guardLandingWrite }),
+    presentation: Object.freeze({ verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, fitFile }),
+    sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody, receiptFields, guardLandingWrite }),
+
     verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters }),
     guards: Object.freeze({ guardStore, refreshStoreDeclarations, storeTriggers }),
     lifecycle: Object.freeze({ atomic, ensureProofCounters, ensureHotIndexes, missingAdditiveIndexes,
@@ -163,3 +241,14 @@ export function decideSpecRevisions(board, options) { return applySpecRevisionDe
 
 /** Record a row verdict through the same native query, transaction and event capabilities. */
 export function recordRowVerification(board, options) { return applyRowVerification(board, options, board.nativePorts); }
+
+/** Actual public operations remain owned by their providers; the raw board bridge expires with #1776. */
+export { advanceItemSource } from './source-advance.js';
+export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } from './sentinels.js';
+export { flakeLedger, recordFlakeObservation } from './flakes.js';
+export { flakeQuarantines, gateRuns, recordGateRun } from './quarantine.js';
+export { personProposals, personSigning, proposePersonMove, setPersonSigning } from './person-signing.js';
+export { recordPublishFinding } from './pr-findings.js';
+export { landingWaivers, landingWaiverFor, waivedLandingProof } from './landing-waivers.js';
+
+export { recordTrainLanding } from './record-train-landing.js';

@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { SETUP_COMMIT_QUESTION } from '../src/init-finish.js';
 import { RELAY_OFFER_QUESTION } from '../src/init.js';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 
 /** Create a private Git repo whose installed hooks invoke this candidate CLI only. */
 function fixture(t, ignore) {

@@ -7,7 +7,7 @@ import { focusReviewFirst } from '../focus-milestone.js';
 import { focusReasons } from '../focus-milestone.js';
 import { mainLaneWork } from '../next-steps.js';
 import * as store from '../board.js';
-import { withBoardRead } from '../board-read.js';
+import { withBoardRead } from '../cli-context.js';
 import { agentDisplayName } from '../cli-context.js';
 import { context } from '../cli-context.js';
 import { idArg } from '../cli-context.js';

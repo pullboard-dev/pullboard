@@ -2,7 +2,7 @@
 import { Refused } from './refused.js';
 import { STALE_STATE_ENGINE } from './stale-state-engine.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
-import { staleInstant } from './stale-state-policy.js';
+import { staleInstant } from './board-stale-state-policy.js';
 
 const ALIASES = Object.freeze({ verified: 'accept', landed: 'merged' });
 const KINDS = new Set(['claim', 'submit', 'accept', 'reject', 'reopen', 'merged', 'release', 'refreeze', 'withdraw', 'shout', 'proof-run']);

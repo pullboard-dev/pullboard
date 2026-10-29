@@ -1,3 +1,4 @@
+import { flakeLedger as nativeFlakeLedger } from './flakes.js';
 /** Coordinator landing parallel step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
 import { localDependencyIds } from './item-dependencies.js';
@@ -184,7 +185,7 @@ function withoutParallelBlocker(state, entries, removed) {
 /** Trust a recorded positive main comparison only for every exact failing target of this gate. */
 function parallelGreenBase(state, gate) {
   const ids = new Set((gate.flakeDiagnostics?.observations ?? []).filter(row => row.recorded).map(row => row.id));
-  const observations = store.flakeLedger(state.board).flatMap(row => row.observations).filter(row => ids.has(row.id));
+  const observations = nativeFlakeLedger(state.board).flatMap(row => row.observations).filter(row => ids.has(row.id));
   return gate.failures.length > 0 && gate.failures.every(failure => observations.some(observation => observation.file === failure.file
     && observation.name === failure.name && observation.main === state.batch.base
     && observation.classification === 'possible-regression' && observation.mainReceipt?.green === true));

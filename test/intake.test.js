@@ -97,6 +97,16 @@ test('outside issue intake retains source state and distinguishes a maintainer r
 });
 
 
+test('the lower sealing definition still requires outside owner approval [B26,V3]', t => {
+  const box = intakeFixture(t);
+  const path = 'packages/kernel/src/core/seal.js';
+  advanceOutsideFixture(box, path, 'export const sealFixture = true;\n', ['relay/outside.js']);
+  const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
+  const source = fixtureJSON(box, box.repo, 'show', String(filed.item.item_id)).outside;
+  assert.equal(source.sensitive, true);
+  assert.ok(source.sensitivity.some(reason => reason.path === path && reason.rule === 'declared-sensitive-path'));
+});
+
 test('outside sealing and command-bearing changes require owner approval [B26,V3]', t => {
   const box = intakeFixture(t);
   // Remove the original relay path so it cannot conceal an omitted sealing classification.

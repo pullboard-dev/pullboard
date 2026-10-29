@@ -1,3 +1,5 @@
+import { personProposals as nativePersonProposals } from './person-signing.js';
+import { personSigning as nativePersonSigning } from './person-signing.js';
 import { itemCheckBaseline } from './board-query.js';
 /** Preserve the signing item's device-facing fields in the shared native/relay projection [E22,H16]. */
 import * as store from './board.js';
@@ -17,8 +19,8 @@ import { Refused } from './refused.js';
 export function personSigningPresentation(root, board, config) {
   // The passkey device reads whether person moves are signed and which terminal-started moves wait for it [E22].
   const requested = new Set(personRequestRecords(board).map((record) => record.id));
-  const personProposals = store.personProposals(board).filter((proposal) => !requested.has(proposal.id));
-  const signed = store.personSigning(board).signed;
+  const personProposals = nativePersonProposals(board).filter((proposal) => !requested.has(proposal.id));
+  const signed = nativePersonSigning(board).signed;
   const ids = signed ? [...loadSpec(root, config).rows.map(row => row.id), ...loadDoctrine(root, config).repo.rows.map(row => `doctrine:${row.id}`)] : [];
   const personRows = signed ? shownDecisionRows(root, config, ids, { loadDoctrine }) : [];
   let personBars = [];

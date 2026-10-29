@@ -1,11 +1,11 @@
 /** Read a recipient's interrupt obligations without consuming a message or writing an acknowledgement [R2,N26,H16]. */
 import { agentActivity } from './board-query.js';
-import { activityEventDetail } from './activity-feed.js';
+import { activityEventDetail } from './board-activity-feed.js';
 import { classifyActivityDelivery } from './activity-delivery.js';
 import {
   activityDeliveryState,
   rejectionRecipient,
-} from './activity-delivery-store.js';
+} from './board-activity-delivery-store.js';
 
 /** Retain exact native references when supplementing the legacy projection with an original builder's rejection. */
 function rejectionEntry(event, agentId) {

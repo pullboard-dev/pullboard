@@ -4,7 +4,7 @@ import { atomic } from './board.js';
 import { openRequests } from './board-read-auxiliary.js';
 import { COORDINATOR } from './config.js';
 import { Refused } from './refused.js';
-import { workerInboxQuery } from './worker-inbox.js';
+import { workerInboxQuery } from './board-worker-inbox.js';
 
 /**
  * Unread shouts for an agent, oldest first; an unrecorded delivery can inspect them without consuming them.

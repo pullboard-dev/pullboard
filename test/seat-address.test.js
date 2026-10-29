@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   UNREAD_SHOUT_SQL,
   unreadShoutBindings,
-} from '../src/shout-audience.js';
+} from '../src/board-shout-audience.js';
 import { fileURLToPath } from 'node:url';
 import { runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';

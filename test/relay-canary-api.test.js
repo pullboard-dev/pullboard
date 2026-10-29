@@ -1,3 +1,4 @@
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** Local API projection for private relay-canary alerts; never part of the sealed relay view. */
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
@@ -11,6 +12,9 @@ import { observeRelayHealth } from '../src/relay-canary-health.js';
 import { main } from '../src/cli.js';
 import { apiFetch } from './api-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 const helpers = createE2eHelpers();
 test.after(() => helpers.cleanup());
@@ -96,7 +100,7 @@ test('local API refreshes private relay health without adding it to a sealed pre
     assert.ok(degraded.state.needs.some((entry) => entry.kind === 'relay-health' && entry.id === 'relay-canary'),
       'the local Needs-you projection includes the current canary alert');
 
-    const sealedDuringAlert = relaySnapshot(box.repo);
+    const sealedDuringAlert = relaySnapshot(box.repo, {}, RELAY_PRESENTATION_PORTS);
     assert.equal(Object.hasOwn(sealedDuringAlert.presentation.state, 'relayHealthAlerts'), false,
       'host-local health is not serialized into the device-sealed presentation');
     assert.equal(sealedDuringAlert.presentation.state.needs.some((entry) => entry.kind === 'relay-health'), false,
@@ -118,7 +122,7 @@ test('local API refreshes private relay health without adding it to a sealed pre
 
     assert.equal(eventCount(boardFile), beforeEvents,
       'health changes and API refreshes do not write a native board event');
-    const sealedAfterRecovery = relaySnapshot(box.repo);
+    const sealedAfterRecovery = relaySnapshot(box.repo, {}, RELAY_PRESENTATION_PORTS);
     assert.equal(Object.hasOwn(sealedAfterRecovery.presentation.state, 'relayHealthAlerts'), false);
     assert.equal(JSON.stringify(sealedAfterRecovery.presentation).includes('relay-canary'), false,
       'private canary status remains outside the sealed snapshot after recovery too');

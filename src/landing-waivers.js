@@ -1,8 +1,8 @@
 /** Derived landing waiver reads; ordered waiver receipts retain their released shape [B3,R3,H16]. */
 import { PERSON } from './board.js';
 import { landingBatches } from './landing-batch-history.js';
-import { landingWaiverCovers } from './landing-exceptions.js';
-import { landingWaiverKind } from './landing-exceptions.js';
+import { landingWaiverCovers } from './board-landing-exceptions.js';
+import { landingWaiverKind } from './board-landing-exceptions.js';
 
 /** Read every person waiver, retaining expired entries as evidence [B3,R3]. */
 export function landingWaivers(board, ports) {

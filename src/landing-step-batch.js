@@ -1,3 +1,4 @@
+import { landingWaiverFor as nativeLandingWaiverFor } from './landing-waivers.js';
 /** Coordinator landing batch step; source-preserving partition of land.js [B3,R3,C7]. */
 import { requirePublishGreen } from './publish-pause.js';
 import { cadenceDeferral } from './landing-cadence.js';
@@ -15,7 +16,7 @@ import { mainCheckout } from './git.js';
 import { repoInfo } from './git.js';
 import { untracked } from './git.js';
 import { takeLandingResource } from './landing-resource.js';
-import { requireConfirmedLanding } from './landing-lease.js';
+import { requireConfirmedLanding } from './board-landing-lease.js';
 import { runLandingWorker } from './landing-worker.js';
 import { inheritedGateSlot } from './resources.js';
 import { Refused } from './refused.js';
@@ -180,7 +181,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     const held = (batch.flakes ?? []).filter((flake) => {
       const corrected = batch.base !== trunk.commit && testHash(root, flake.test) !== null && testHash(root, flake.test) !== flake.hash;
       const failures = (batch.failures ?? []).filter((failure) => failure.file === flake.test);
-      return !corrected && (!failures.length || !failures.every((failure) => store.landingWaiverFor(board, failure, landingPorts)));
+      return !corrected && (!failures.length || !failures.every((failure) => nativeLandingWaiverFor(board, failure, landingPorts)));
     });
     if (held.length) throw new Refused('LAND_FLAKE', `batch ${batch.id} is held by ${held.map((entry) => entry.test).join(', ')}; fix the test or ask the person for an expiring waiver; nothing retries`);
   }

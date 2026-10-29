@@ -1,3 +1,4 @@
+import { request as boardLinkRequest } from '../src/relay.js';
 import { signedBoard, consent, linkRelay } from './board-link-fixture.js';
 /** Bilateral board links disclose only authorized state and retain real SSH consent [E32,H16,H17]. */
 import assert from 'node:assert/strict';
@@ -98,7 +99,7 @@ test('sealed board-link delivery authenticates both boards and retains exact ret
   const api = await import('../src/board-link.js');
   const { createSshBoardLinkAuthority } = await import('../src/board-link-ssh.js');
   const { createBoardLinkCapability } = await import('../src/board-link-envelope.js');
-  const { generateBoardKey, seal, unseal } = await import('../src/seal.js');
+  const { generateBoardKey, seal, unseal } = await import('../packages/kernel/src/core/seal.js');
   const parent = signedBoard(t, 'parent');
   const child = signedBoard(t, 'child');
   const authority = createSshBoardLinkAuthority([parent, child]);
@@ -106,8 +107,9 @@ test('sealed board-link delivery authenticates both boards and retains exact ret
   await api.applyBoardLink(parent.board, record, authority);
   await api.applyBoardLink(child.board, record, authority);
   const box = await linkRelay(t, [parent, child], authority);
-  const sender = transportApi.createBoardLinkRelayTransport(box.states.get(child.reference.boardId));
-  const receiver = transportApi.createBoardLinkRelayTransport(box.states.get(parent.reference.boardId));
+  assert.throws(() => transportApi.createBoardLinkRelayTransport(box.states.get(child.reference.boardId), { request: null }), /authenticated request port/u);
+  const sender = transportApi.createBoardLinkRelayTransport(box.states.get(child.reference.boardId), { request: boardLinkRequest });
+  const receiver = transportApi.createBoardLinkRelayTransport(box.states.get(parent.reference.boardId), { request: boardLinkRequest });
   await sender.publish(record);
   const linkKey = await generateBoardKey();
   const capability = createBoardLinkCapability(record, linkKey);

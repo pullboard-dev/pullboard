@@ -78,7 +78,9 @@ function render() {
   const chipsAt = $('roadmap-releases')?.scrollLeft ?? 0, panelAt = $('roadmap-panel')?.scrollTop ?? 0;
   roadmapAhead.clear();
   roadmapDetails.clear();
-  const roadmapHtml = roadmapCards(p, titles);
+  const roadmap = roadmapCards(p, titles), roadmapHtml = roadmap.html;
+  document.title = (roadmap.remaining === null ? '' : '(' + roadmap.remaining + ' remaining) ')
+    + $('proj-name').textContent + ' · Roadmap · Pullboard';
   const roadmapBoard = p.board ?? data.projects.find(project => project.root === view.root)?.id ?? null;
   if (drawnRoadmap?.root !== view.root || drawnRoadmap.board !== roadmapBoard || drawnRoadmap.html !== roadmapHtml) {
     $('roadmap').innerHTML = roadmapHtml;

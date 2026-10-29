@@ -1,6 +1,6 @@
 import { setItem as writeItemFields } from './item-fields.js';
 import { now } from './board-query.js';
-import { liftConditionalHold } from './conditional-holds.js';
+import { liftConditionalHold } from './board-conditional-holds.js';
 import { requireHandoffActive } from '../packages/state/src/core/handoff-state.js';
 /** Append native events and their rebuildable proof projection in the same transaction [R2]. */
 import { ENGINE_VERSION } from './machine.js';

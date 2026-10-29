@@ -45,7 +45,7 @@ for(const host of ${JSON.stringify(hosts)}) recordRunnerGui(host,host==='fixture
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 ${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
-import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/process-census.js')).href)};
+import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 const calls = [];
 const remoteRun = async (_root, _command, options) => {
@@ -78,7 +78,7 @@ recordRunnerGui(${JSON.stringify(HOST)}, null);
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 ${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
-import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/process-census.js')).href)};
+import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 let release;
 let entered;
@@ -118,7 +118,7 @@ import assert from 'node:assert/strict';
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 ${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
-import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/process-census.js')).href)};
+import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 let release;
 let entered;
@@ -161,7 +161,7 @@ test('six shards land on six different runners [C7,V4]', (t) => {
   const script = `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 ${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
-import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/process-census.js')).href)};
+import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 const calls = [];
 let release;
@@ -475,7 +475,7 @@ async function landingWithRunnerAnswer(box, answer, count, deadlineMs) {
   const url = name => JSON.stringify(pathToFileURL(join(SOURCE, 'src', name)).href);
   const files = NAMES.map(name => `./test/${name}.test.js`);
   const script = `const { runLandingShards } = await import(${url('landing-shards.js')});
-const { parseProcessCensus } = await import(${url('process-census.js')});
+const { parseProcessCensus } = await import(${url('../packages/kernel/src/core/process-census.js')});
 const { landingShardProfile } = await import(${url('gate-run-receipt.js')});
 const { Refused } = await import(${url('refused.js')});
 const { RunnerDropped } = await import(${url('runners.js')});

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { stop } from '../src/landing-worker.js';
-import { parseProcessCensus } from '../src/process-census.js';
+import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
 import { startFixtureChild } from './fixture-child.js';
 
 const GROUP = 41001;

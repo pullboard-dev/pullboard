@@ -8,7 +8,7 @@ import * as store from '../src/board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { appliedSequence, applyEngineMove, engineReceipt, prepareEngineMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
-import { AGENT_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 
 const RECORDED_AT = '2026-10-08T18:00:00.000Z';
 const APPLIED_AT = '2026-10-08T18:01:00.000Z';
