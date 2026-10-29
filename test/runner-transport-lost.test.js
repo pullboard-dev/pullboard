@@ -102,6 +102,11 @@ ${executionServicesSource(url)}
   assert.equal(requests[0].dropped, true);
 });
 
+// Test-only boot budget: gate.runnerWaitMs runs from the request, so under load a 1000 ms deadline can expire before
+// the SSH stand-in's own Node process boots and no start is recorded (3 of 12 concurrent runs red on 28 Oct, 4/4 green
+// alone). 8000 ms is the measured headroom; the product deadline is unchanged and every assertion below is kept.
+const STAND_IN_BOOT_BUDGET_MS = 8_000;
+
 test('an SSH-healthy host whose worker misses READY stays held after the admission deadline [C7]', t => {
   const box = fixture(t, { dropFirst: false });
   const ssh = join(box.dir, 'transport-bin', 'ssh');
@@ -112,7 +117,7 @@ test('an SSH-healthy host whose worker misses READY stays held after the admissi
   writeFileSync(ssh, before.replace(dispatch, 'if (remoteCommand.startsWith(configuredNode)) await holdHere();'));
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const configured = JSON.parse(readFileSync(settings, 'utf8'));
-  writeFileSync(settings, JSON.stringify({ ...configured, gate: { ...configured.gate, runnerWaitMs: 1_000 } }));
+  writeFileSync(settings, JSON.stringify({ ...configured, gate: { ...configured.gate, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS } }));
   const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
   const transport = pathToFileURL(join(import.meta.dirname, '../src/runner-transport.js')).href;
   const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
