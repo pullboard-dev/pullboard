@@ -6,7 +6,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { join } from 'node:path';
 import { availableParallelism, loadavg, tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { takeResource } from '../src/resources.js';
+import { takeResource } from '../packages/resources/index.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 
 /** Run one real paired-rerun case; the caller supplies the pinned tooling and round-trip harness. */

@@ -36,7 +36,7 @@ import {
   GATE_SLOT_POOL_ENV,
   GATE_SLOT_TOKEN_ENV,
   BROWSER_SLOT_HELD_ENV,
-} from '../src/resources.js';
+} from '../packages/resources/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);

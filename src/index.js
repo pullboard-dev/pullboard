@@ -8,6 +8,6 @@ export { laneOf, outOfLane, laneNames } from './lanes.js';
 export { parseSpec, lintSpec, frozenCriterion, citedIds } from './spec.js';
 export { commitMsgProblems, secretsIn, blockedPaths } from '../packages/commits/index.js';
 export { Refused } from './refused.js';
-export { takeResource, listResources } from './resources.js';
+export { takeResource, listResources } from '../packages/resources/index.js';
 export { main } from './cli.js';
 export { loadDoctrine, standardDoctrine, STANDARD_VERSION } from './doctrine.js';

@@ -12,7 +12,7 @@ import {
   GATE_SLOT_POOL_ENV,
   GATE_SLOT_TOKEN_ENV,
   BROWSER_SLOT_HELD_ENV,
-} from '../src/resources.js';
+} from '../packages/resources/index.js';
 
 /** Require genuine native success before treating a fixture as admission evidence. */
 function document(result) {

@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { startFixtureChild, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { stageFixtureTests } from './run-tests-fixture.js';
-import { listResources } from '../src/resources.js';
+import { listResources } from '../packages/resources/index.js';
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 const shardFileCount = 9;
@@ -1002,7 +1002,7 @@ test('a landing run stops at the first failing file [C7,V4]', async t => {
       failChildIdentity = fixtureProcessIdentity(readFileSync(held.failChildPid, 'utf8').trim());
       assert.ok(failChildIdentity, 'the owned child has a capturable cleanup identity');
       const waiterReadyFile = join(held.root, 'competing-gate-started');
-      const resourceModule = fileURLToPath(new URL('../src/resources.js', import.meta.url));
+      const resourceModule = fileURLToPath(new URL('../packages/resources/index.js', import.meta.url));
       const waiterSource = `import { takeResource } from ${JSON.stringify(resourceModule)}; import { writeFileSync } from 'node:fs'; const lease = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', root: ${JSON.stringify(held.root)}, agent: 'cleanup-drain-waiter' }); writeFileSync(${JSON.stringify(waiterReadyFile)}, 'started'); lease.release();`;
       waiter = startFixtureChild(process.execPath, ['--input-type=module', '-e', waiterSource], {
         cwd: held.root, env: baseEnv, stdio: ['ignore', 'pipe', 'pipe'],

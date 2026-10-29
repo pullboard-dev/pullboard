@@ -1,4 +1,4 @@
-/** @pullboard-test-loads bin/run-tests.js src/test-isolation.js src/child-journal-preload.js src/machine-home.js src/settings.js src/resources.js src/config.js */
+/** @pullboard-test-loads bin/run-tests.js src/test-isolation.js src/child-journal-preload.js src/machine-home.js src/settings.js packages/resources/index.js src/config.js */
 /** A test's verdict never depends on the machine it runs on: settings, resources, runners, host markers, ports [C7]. */
 import { awaitNestedRun } from '../src/test-file-pool.js';
 import assert from 'node:assert/strict';
@@ -11,9 +11,9 @@ import { pathToFileURL } from 'node:url';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { childJournalPreloadSource } from '../src/child-journal-preload.js';
 import { foreignNodeOptions } from '../src/test-isolation.js';
-import { takeResource } from '../src/resources.js';
+import { takeResource } from '../packages/resources/index.js';
 import { DEFAULT_VIEW_PORT } from '../src/config.js';
-import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../src/resources.js';
+import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
 
 const RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
 const HOSTILE_LEASE = 'isolation-hostile-machine';
@@ -31,7 +31,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { machineHome } from ${module('src/machine-home.js')};
 import { loadMachineSettings } from ${module('src/settings.js')};
-import { listResources } from ${module('src/resources.js')};
+import { listResources } from ${module('packages/resources/index.js')};
 import { foreignNodeOptions } from ${module('src/test-isolation.js')};
 import { defaultViewPort } from ${module('src/config.js')};
 import { chooseViewPort } from ${module('test/view-port-fixture.js')};

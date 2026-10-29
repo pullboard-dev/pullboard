@@ -8,12 +8,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../src/resources.js';
+import { BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
 const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href;
-const RESOURCE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/resources.js')).href;
+const RESOURCE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/resources/index.js')).href;
 const BROWSER_ADMISSION_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/browser-admission.js')).href;
 const PROBE_NAME = 'machine gate slot runner probe [Q4]';
 const PROBE_PATTERN = '^machine gate slot runner probe \\[Q4\\]$';
