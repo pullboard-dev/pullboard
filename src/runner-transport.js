@@ -1,14 +1,27 @@
 /** Bounded transport health observations never execute or certify a project's tests [C7]. */
-import { spawn } from 'node:child_process';
+import {
+  spawn,
+  spawnSync,
+} from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import {
   mkdirSync,
   lstatSync,
   readFileSync,
+  readlinkSync,
+  realpathSync,
   renameSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { userInfo } from 'node:os';
+import {
+  isAbsolute,
+  relative,
+  sep,
+} from 'node:path';
 import { join } from 'node:path';
 import { guiSession } from './gui-session.js';
 
@@ -139,4 +152,88 @@ export function runnerHealthReply(root, request) {
     return { ...base, reason: 'started request has no exact completion record' };
   }
   return { ...base, cleanup: true, reason: 'exact jobs drained or atomically fenced before startup' };
+}
+
+/** Observe live worker commands and job working directories; old files alone are not running jobs. */
+function runnerProcessesIdle(root) {
+  const options = { encoding: 'utf8', timeout: 3_000, maxBuffer: 8 * 1024 * 1024,
+    env: { PATH: '/usr/bin:/bin:/usr/sbin', LC_ALL: 'C', LANG: 'C' } };
+  const census = spawnSync('/bin/ps', ['-axo', 'pid=,stat=,args='], options);
+  if (census.error || census.status !== 0 || census.signal || !census.stdout.trim()) return false;
+  const pids = [];
+  for (const line of census.stdout.trim().split('\n')) {
+    const row = /^\s*(\d+)\s+(\S+)\s+(.+)$/u.exec(line);
+    if (!row) return false;
+    const pid = Number(row[1]);
+    if (pid === process.pid || row[2].startsWith('Z')) continue;
+    if (/^\S+\s+\S*[/]runner-worker\.js(?:\s|$)/u.test(row[3]) && !/\s--health(?:\s|$)/u.test(row[3])) return false;
+    pids.push(pid);
+  }
+  const jobs = join(realpathSync(root), 'jobs');
+  /** Compare directory components so jobs-old never counts as a running job. */
+  const inJobs = path => {
+    const part = relative(jobs, path);
+    return part === '' || part !== '..' && !part.startsWith('..' + sep) && !isAbsolute(part);
+  };
+  if (process.platform === 'linux') {
+    for (const pid of pids) {
+      try {
+        if (statSync(`/proc/${pid}`).uid === process.getuid() && inJobs(readlinkSync(`/proc/${pid}/cwd`))) return false;
+      } catch (error) { if (!['ENOENT', 'ESRCH'].includes(error.code)) return false; }
+    }
+    return true;
+  }
+  if (process.platform !== 'darwin') return false;
+  const observed = spawnSync('/usr/sbin/lsof', ['-nP', '-a', '-u', String(process.getuid()), '-d', 'cwd', '-Fpn'], options);
+  if (observed.error || observed.status !== 0 || observed.signal || observed.stderr.trim()) return false;
+  let pid = null, ownSeen = false, complete = false;
+  for (const line of observed.stdout.trim().split('\n')) {
+    if (/^p[1-9][0-9]*$/u.test(line)) {
+      if (pid !== null && !complete) return false;
+      pid = Number(line.slice(1)); complete = false;
+    } else if (line === 'fcwd' && pid !== null && !complete) continue;
+    else if (line.startsWith('n') && pid !== null && !complete && isAbsolute(line.slice(1))) {
+      if (inJobs(line.slice(1))) return false;
+      ownSeen ||= pid === process.pid; complete = true;
+    } else return false;
+  }
+  return ownSeen && complete;
+}
+
+/** Attest an idle pinned worker and writable root without guessing a missing job's identity. */
+export function runnerIdleReply(root, request) {
+  const base = { version: 1, nonce: request?.nonce, worker: true, idle: false, writable: false };
+  try {
+    if (!/^[a-f0-9-]{36}$/u.test(request?.nonce ?? '') || !statSync(root).isDirectory())
+      return { ...base, reason: 'runner root is unavailable' };
+    const jobs = join(root, 'jobs');
+    let jobDirectory;
+    try { jobDirectory = lstatSync(jobs); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    if (jobDirectory && !jobDirectory.isDirectory()) return { ...base, reason: 'runner jobs location is not a directory' };
+    if (!runnerProcessesIdle(root)) return { ...base, reason: 'runner process or job working directory is active or unknown' };
+    const home = isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir;
+    const machineHome = process.env.PULLBOARD_MACHINE_HOME ?? join(home, '.pullboard');
+    if (!isAbsolute(machineHome)) return { ...base, reason: 'runner resource location is unknown' };
+    const file = join(machineHome, 'resources.sqlite');
+    let resourceFile;
+    try { resourceFile = lstatSync(file); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    if (resourceFile) {
+      if (!resourceFile.isFile()) return { ...base, reason: 'runner resource location is not a file' };
+      const db = new DatabaseSync(file, { readOnly: true });
+      try {
+        if (db.prepare("SELECT 1 FROM holder WHERE name='gate' OR agent LIKE 'pullboard-ssh-%' LIMIT 1").get())
+          return { ...base, reason: 'runner resource lease is active' };
+      } finally { db.close(); }
+    }
+    const marker = join(root, `.idle-probe-${request.nonce}`);
+    writeFileSync(marker, '', { flag: 'wx', mode: 0o600 });
+    unlinkSync(marker);
+    try { jobDirectory = lstatSync(jobs); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; jobDirectory = null; }
+    if (jobDirectory && !jobDirectory.isDirectory() || !runnerProcessesIdle(root))
+      return { ...base, reason: 'runner process or job working directory appeared or could not be verified' };
+    return { ...base, idle: true, writable: true, reason: 'no live runner process, job working directory or resource lease and runner root writable' };
+  } catch { return { ...base, reason: 'runner idle or writable state could not be verified' }; }
 }
