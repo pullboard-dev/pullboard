@@ -1,4 +1,5 @@
 /** Bridge private provider attribution to authenticated numeric board moves [N2]. */
+import { USAGE_BATCH_LIMIT } from './cost-read.js';
 import { publicUsage } from './cost-read.js';
 import { usageCheckpoint } from './cost-ledger.js';
 import { sharedSessionTotals } from './cost-shared.js';
@@ -34,10 +35,15 @@ export async function publishUsage(ctx, board, { agent, item, operation }) {
     newClaim: operation === 'claim' && history.latest?.event_kind === 'claim' && history.latest.item_id === item });
   // A claim only opens its private anchor: its own zero-length interval publishes at submit, release or refresh.
   // Attribution above reads private files before ordering; the actual writer records only numeric revisions.
-  const items = changes.items.filter(change => operation !== 'claim' || change.item !== item)
+  const pendingItems = changes.items.filter(change => operation !== 'claim' || change.item !== item);
+  const items = pendingItems.slice(0, USAGE_BATCH_LIMIT)
     .map(change => ({ ...change, records: publicUsage(change.records) }));
-  const sharedSessions = changes.sharedSessions.map(change => ({ ...change, records: publicUsage(change.records) }));
-  if (items.length || sharedSessions.length) await ordered(ctx, board, 'recordUsageBatch', [{ agentId: agent, items, sharedSessions }]);
+  const sharedSessions = changes.sharedSessions.slice(0, USAGE_BATCH_LIMIT - items.length)
+    .map(change => ({ ...change, records: publicUsage(change.records) }));
+  const published = items.length + sharedSessions.length;
+  if (published) await ordered(ctx, board, 'recordUsageBatch', [{ agentId: agent, items, sharedSessions }]);
+  const pending = pendingItems.length + changes.sharedSessions.length - published;
+  if (pending) ctx.io.err(`pullboard: USAGE_PENDING: published ${published} usage revisions in one batch; ${pending} remain for the next native claim, submit or release.`);
 }
 
 /** Name only fixed attribution stages; provider paths, identities and exception messages stay private. */

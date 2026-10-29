@@ -8,6 +8,8 @@ import * as store from '../src/board.js';
 import { logEvent } from '../src/board-event-log.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import { storedSeatUsage } from '../src/cost.js';
+import { USAGE_BATCH_LIMIT } from '../src/cost-read.js';
 import { USAGE_BATCH_ENGINE } from '../src/usage-batch-engine.js';
 import { prepareEngineMove } from '../src/engine.js';
 import { applyEngineMove } from '../src/engine.js';
@@ -25,16 +27,19 @@ function fixture(t, count = 48) {
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const ids = [];
   const start = Date.now() - 100000;
+  const main = box.git(box.repo, 'rev-parse', 'HEAD');
+  store.atomic(board, () => {
   for (let n = 0; n <= count; n++) {
     const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: `Usage batch ${n}`, specIds: ['G1'],
       criterion: 'Usage stays attributed once.', check: 'test -f web/ready',
-      checkBaseline: { command: 'test -f web/ready', result: 'red', main: box.git(box.repo, 'rev-parse', 'HEAD'), seconds: 0 } });
+      checkBaseline: { command: 'test -f web/ready', result: 'red', main, seconds: 0 } });
     ids.push(id);
     if (n < count) {
       logEvent(board, agent, 'claim', id, { model: 'unknown', leaseUntil: new Date(start + n * 100 + 90).toISOString() }, new Date(start + n * 100));
       logEvent(board, agent, 'release', id, {}, new Date(start + n * 100 + 50));
     }
   }
+  });
   return { box, helpers, board, agent, ids };
 }
 
@@ -92,4 +97,37 @@ test('usage batches retain authentication, atomic rollback, per-record deduplica
   assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind='usage'").get().n,2);
   board.executionEngineVersion=USAGE_BATCH_ENGINE-1;
   assert.throws(()=>store.recordUsageBatch(board,payload),{code:'ENGINE_VERSION'});
+});
+
+
+test('1001 pending revisions progress across bounded commands and never duplicate or disappear [N2,C7,H16]', t => {
+  const {box,helpers,board,agent,ids}=fixture(t,USAGE_BATCH_LIMIT+1);
+  t.after(()=>store.closeBoard(board));
+  const cli=pathToFileURL(join(helpers.BIN,'../../src/cli.js')).href;
+  const checkpoint=pathToFileURL(join(helpers.BIN,'../../src/cost-checkpoint.js')).href;
+  const code=`import {context,withBoard,whoAmI} from ${JSON.stringify(cli)};
+    import {publishUsage} from ${JSON.stringify(checkpoint)};
+    const operations=[],io={cwd:process.cwd(),say(){},err(message){process.stderr.write(message+'\\n');},onOrderedMove(event){operations.push(event.operation);}};
+    const ctx=context(io);await withBoard(ctx,board=>publishUsage(ctx,board,{agent:whoAmI(ctx,board).id,operation:'refresh'}));
+    console.log(JSON.stringify({operations}));`;
+  const env={...box.env,CODEX_HOME:join(box.dir,'codex'),CLAUDE_CONFIG_DIR:join(box.dir,'claude')};
+  for(const key of ['CODEX_THREAD_ID','CODEX_SESSION_ID','CLAUDE_CODE_SESSION_ID','CLAUDECODE','CLAUDE_CODE_ENTRYPOINT','AI_AGENT','CODEX_CI','CODEX_SHELL'])delete env[key];
+  const run=()=>{
+    const result=runFixtureChild(process.execPath,['--input-type=module','-e',code],{cwd:box.web,env,encoding:'utf8'});
+    assert.equal(result.status,0,result.stdout+result.stderr);
+    return {...result,...JSON.parse(result.stdout)};
+  };
+  const count=()=>board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind='usage'").get().n;
+  const first=run();
+  assert.deepEqual(first.operations,['recordUsageBatch']);
+  assert.equal(count(),USAGE_BATCH_LIMIT);
+  assert.match(first.stderr,/1 remain for the next native claim/);
+  const second=run();
+  assert.deepEqual(second.operations,['recordUsageBatch']);
+  assert.equal(count(),USAGE_BATCH_LIMIT+1);
+  assert.deepEqual(run().operations,[]);
+  assert.equal(count(),USAGE_BATCH_LIMIT+1,'fresh-process retry cannot duplicate acknowledged revisions');
+  const totals=storedSeatUsage(board,agent);
+  assert.deepEqual(totals.map(row=>row.item).sort((a,b)=>a-b),ids.slice(0,USAGE_BATCH_LIMIT+1));
+  assert.ok(totals.every(row=>row.records[0].wallMs===50),'the unsent tail retains its exact private numeric totals');
 });

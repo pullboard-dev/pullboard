@@ -1,5 +1,6 @@
 /** One ordered transaction retains each usage record's existing validation and idempotency [N2,H16]. */
 import { listAgents } from './board-query.js';
+import { USAGE_BATCH_LIMIT } from './cost-read.js';
 import { atomic } from './board-event-log.js';
 import { recordUsage } from './cost.js';
 import { recordSharedUsage } from './cost-shared.js';
@@ -16,7 +17,7 @@ export function recordUsageBatch(board, payload) {
   const { agentId, items = [], sharedSessions = [] } = payload;
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < USAGE_BATCH_ENGINE) throw new Refused('ENGINE_VERSION', `usage batching requires engine ${USAGE_BATCH_ENGINE}`);
   if (!listAgents(board).some(value => value.agent_id === agentId)) throw new Refused('NOT_JOINED', 'join before publishing a usage batch');
-  if (!Array.isArray(items) || !Array.isArray(sharedSessions) || items.length + sharedSessions.length > 1000
+  if (!Array.isArray(items) || !Array.isArray(sharedSessions) || items.length + sharedSessions.length > USAGE_BATCH_LIMIT
       || items.some(value => !value || value.agentId !== agentId
         || Object.keys(value).some(key => !['agentId', 'item', 'revision', 'records', 'observedAt', 'shared'].includes(key)))
       || sharedSessions.some(value => !value || value.agentId !== undefined && value.agentId !== agentId

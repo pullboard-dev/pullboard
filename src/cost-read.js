@@ -1,3 +1,6 @@
+/** One authenticated command bounds public usage revisions without discarding pending totals [N2,C7]. */
+export const USAGE_BATCH_LIMIT = 1000;
+
 /** Read-only usage totals for one item, kept free of board writers so show stays light [N2,C7]. */
 
 /** Fixed public explanations for unavailable native token attribution, with no private paths or identities. */

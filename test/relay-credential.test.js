@@ -29,7 +29,7 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'ensureCoordinator') { args = [box.root]; kind = 'machine'; }
     if (operation === 'intakeOutside') args = [{ agentId: actor }];
     if (operation === 'openHandoff') args = [{ agentId: actor }];
-    if (['recordUsage', 'recordSharedUsage'].includes(operation)) args = [{ agentId: actor }];
+    if (['recordUsage', 'recordSharedUsage', 'recordUsageBatch'].includes(operation)) args = [{ agentId: actor }];
     if (operation === 'takeHandoff') args = [{ agentId: actor, item: 999999 }];
     if (operation === 'approveOutside') { args = [999999, { agentId: 'person' }]; kind = 'person'; }
     if (operation === 'addItem') args = [{ by: actor, lane: box.lane, title: 'credential actor fixture' }];
