@@ -61,7 +61,7 @@ export function createRelayBrowserHandler({ authenticate }) {
     ['/relay/browser-pages.js', ['text/javascript', readFileSync(new URL('./browser-pages.js', import.meta.url), 'utf8').replaceAll("'../src/relay-page-layout.js'", "'./page-layout.js'").replaceAll("'../src/sealed-pages.js'", "'./sealed-pages.js'").replaceAll("'../src/refused.js'", "'./refused.js'")]],
     ['/relay/browser-history.js', ['text/javascript', readFileSync(new URL('./browser-history.js', import.meta.url), 'utf8')]],
     ['/relay/page-layout.js', ['text/javascript', readFileSync(new URL('../src/relay-page-layout.js', import.meta.url), 'utf8')]],
-    ['/relay/sealed-pages.js', ['text/javascript', readFileSync(new URL('../src/sealed-pages.js', import.meta.url), 'utf8')]],
+    ['/relay/sealed-pages.js', ['text/javascript', readFileSync(new URL('../src/sealed-pages.js', import.meta.url), 'utf8').replace("'../packages/kernel/src/core/seal.js'", "'./seal.js'")]],
     ['/relay/model.js', ['text/javascript', readFileSync(new URL('./browser-model.js', import.meta.url), 'utf8').replace("'../src/refused.js'", "'./refused.js'")]],
     ['/relay/engine.js', ['text/javascript', 'export const ENGINE_VERSION = ' + ENGINE_VERSION + ';\n']],
     ['/relay/seal.js', ['text/javascript', readFileSync(new URL('../packages/kernel/src/core/seal.js', import.meta.url), 'utf8')]],
