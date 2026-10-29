@@ -18,6 +18,7 @@ import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
 import { completeMoveHandoff } from '../post-move-handoff.js';
 import { itemReviewPolicy } from '../review-independence.js';
 import { twoTierReviews } from '../review-independence.js';
+import { missingCompanionKeys } from '../item-patch-review.js';
 import { prepareItemPatchReview } from '../item-patch-review.js';
 import { outsideVerdict } from '../outside-verify.js';
 /** The pullboard verify command, in its own module so an item adding another command never edits these lines. */
@@ -169,6 +170,10 @@ export async function verifyHere(ctx, id, { second, values }) {
     let review;
     let unaffectedMove = '';
     const companionDigest = store.itemPatchDigest(board, id);
+    const missing = missingCompanionKeys(root, board, item, head,
+      { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem });
+    if (missing.keys.length) throw new Refused('NOT_AT_COMMIT',
+      `the review tree lacks companions ${missing.keys.join(', ')} for patch-set ${missing.digest}; run pullboard next --verify ${id} to check out the composed source`);
     try {
       digest = freezer(ctx, { board })(item).digest;
     } catch (error) {

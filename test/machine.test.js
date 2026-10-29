@@ -156,17 +156,22 @@ const CAUGHT = {
   // specApprovalState turns a Refused from the canonical baseline reader into invalid evidence.
   'spec-approval.js#specApprovalState': ['board-query.js#specApprovalBaseline'],
   // Historical decline metadata is parsed inside a non-throwing boundary, covered by the Rigor history control.
-  'board.js#reopen': ['rigor-notices.js#declinedRigorSource'],
+  'board.js#reopen': ['rigor-notices.js#declinedRigorSource', '../packages/rigor/src/core/rigor-notices.js#declinedRigorSource'],
   // Rigor projection folds inspect invalid cause results as data, never lifecycle refusals.
   'board-rigor.js#eventCauses': ['board-rigor.js#causeProblem'],
-  'rigor-counter-state.js#neverKey': ['board-rigor.js#causeProblem'],
+  '../src/board-rigor.js#eventCauses': ['../src/board-rigor.js#causeProblem'], // The same helper as reached from the moved Rigor cell.
+  '../packages/rigor/src/core/rigor-counter-state.js#neverKey': ['../src/board-rigor.js#causeProblem'],
   // Historical decline grammar is caught locally; typed readers return invalid evidence as null.
-  'rigor-counter-state.js#declineKey': ['spec.js#parseSpec'],
+  '../packages/rigor/src/core/rigor-counter-state.js#declineKey': ['../src/spec.js#parseSpec'],
   'board-rigor-source.js#readRigorSource': ['board-rigor.js#causeProblem'],
+  '../src/board-rigor-source.js#readRigorSource': ['../src/board-rigor.js#causeProblem'], // As reached from the moved Rigor cell.
   'board-rigor-auto-source.js#readAutomaticRigorSource': ['board-rigor.js#causeProblem'],
+  '../src/board-rigor-auto-source.js#readAutomaticRigorSource': ['../src/board-rigor.js#causeProblem'], // As reached from the moved Rigor cell.
   // Only an unsupported historical grammar is ignored; new caller refusals remain audited below.
   'board-rigor-auto-source.js#automaticDecisionSource': ['spec.js#parseSpec'],
+  '../src/board-rigor-auto-source.js#automaticDecisionSource': ['../src/spec.js#parseSpec'], // As reached from the moved Rigor cell.
   'board-rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec'],
+  '../src/board-rigor-auto-source.js#rigorDecisionKey': ['../src/spec.js#parseSpec'], // As reached from the moved Rigor cell.
   'person-row-proof.js#signedRowDecisionsMatch': ['spec.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
 };
 /**
@@ -292,7 +297,8 @@ function codeProblems(machine, read = fromDisk) {
 function editedSource(file, line, replacement) {
   return (name) => {
     const source = fromDisk(name);
-    if (name !== file) return source;
+    // The moved Rigor cell reaches src/ files as ../src/<file>; it is the same file.
+    if (name.replace(/^\.\.\/src\//, '') !== file) return source;
     assert.match(source, line, `${file} still has the line this broken copy rewrites`);
     return source.replace(line, replacement);
   };
@@ -1383,7 +1389,7 @@ test('same-file runner controller bridges retain child refusals in the lifecycle
 });
 
 test('Rigor historical data boundaries do not hide a new projection refusal [M1,M4]', () => {
-  const broken = editedSource('rigor-counter-state.js', /export function rigorCounterKeys\(event, person\) \{/, "export function rigorCounterKeys(event, person) { if (event.event_kind === 'probe') throw new Refused('RIGOR_PROBE', 'new item eligibility rule');");
+  const broken = editedSource('../packages/rigor/src/core/rigor-counter-state.js', /export function rigorCounterKeys\(event, person\) \{/, "export function rigorCounterKeys(event, person) { if (event.event_kind === 'probe') throw new Refused('RIGOR_PROBE', 'new item eligibility rule');");
   assert.ok(codeProblems(machineRules.MACHINE, broken).includes('RIGOR_PROBE is raised by claim but not declared there'));
 });
 

@@ -64,11 +64,19 @@ test('item patches compose immutable retry-identical commits without touching th
 test('item patch tampering, stale binding, conflicts and unsafe paths fail closed [H16,V1]', t => {
   const { root, commit, record } = fixture(t);
   const item = { item_commit: commit };
+  const index = readFileSync(join(root, '.git', 'index'));
+  const value = readFileSync(join(root, 'value.txt'));
+  const status = command(root, 'status', '--porcelain=v1');
   assert.throws(() => composeItemPatches(root, item, [{ ...record, patch: record.patch + '\n' }]), /tampered/);
   assert.throws(() => composeItemPatches(root, item, [{ ...record, commit: '0'.repeat(40) }]), /stale/);
   const conflict = { ...record, key: 'conflict', patch: record.patch.replace('+after', '+different') };
   conflict.digest = createHash('sha256').update(conflict.patch).digest('hex');
-  assert.throws(() => composeItemPatches(root, item, [record, conflict]), /refused by Git/);
+  assert.throws(() => composeItemPatches(root, item, [record, conflict]), error => {
+    assert.equal(error.code, 'ITEM_PATCH');
+    assert.match(error.message, /^\[ITEM_PATCH\] companion conflict no longer applies: file value\.txt; hunk @@ -1 \+1 @@;/u);
+    assert.equal(error.message.includes('different'), false, 'the diagnostic does not leak the failed source line');
+    return true;
+  });
   const unsafe = { ...record, patch: record.patch.replaceAll('value.txt', '../escape') };
   unsafe.digest = createHash('sha256').update(unsafe.patch).digest('hex');
   assert.throws(() => composeItemPatches(root, item, [unsafe]), /unsafe/);
@@ -76,6 +84,9 @@ test('item patch tampering, stale binding, conflicts and unsafe paths fail close
   symlink.digest = createHash('sha256').update(symlink.patch).digest('hex');
   assert.throws(() => composeItemPatches(root, item, [symlink]), /regular-file/);
   assert.equal(command(root, 'rev-parse', 'HEAD').trim(), commit);
+  assert.deepEqual(readFileSync(join(root, 'value.txt')), value, 'every refused patch preserves live file bytes');
+  assert.deepEqual(readFileSync(join(root, '.git', 'index')), index, 'every refused patch preserves the staged index');
+  assert.equal(command(root, 'status', '--porcelain=v1'), status);
 });
 
 test('a clean retry composition preserves original patch binding and current trunk parent [H16,V1]', t => {
