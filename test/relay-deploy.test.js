@@ -15,7 +15,7 @@ import { ENGINE_VERSION, VERIFIER_STANDING_ENGINE } from '../src/machine.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { githubFixture } from './relay-fixture.js';
 import { createRelayBrowserHandler } from '../relay/browser-page.js';
-import { encodeBoardKey, generateBoardKey, seal, unseal } from '../src/seal.js';
+import { encodeBoardKey, generateBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { createDeviceKeys, signDeviceEnrollment, unwrapDeviceBoardKey, wrapDeviceBoardKey } from '../src/relay-device-keys.js';
 import { approvalContext, openApproval, sealApproval, signApprovalIntent, verifyApprovalIntent } from '../src/relay-approval.js';
@@ -690,7 +690,7 @@ test('[H5,H18] Docker COPY sources boot the relay and serve its browser page, wh
     'src/cockpit.js',
     'src/machine.js',
     'src/view.css',
-    'src/seal.js',
+    'packages/kernel/src/core/seal.js',
     'relay/browser-client.js',
     'relay/browser-model.js',
     'src/refused.js',

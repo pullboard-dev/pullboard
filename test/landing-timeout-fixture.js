@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { landingLeaseState } from '../src/landing-lease.js';
+import { landingLeaseState } from '../src/board-landing-lease.js';
 
 /** A configured timeout must stop the gate and its detached child before releasing the trunk. */
 export function landingTimeoutFixture({ landProject, itemWorktree, submitItem, acceptItem, onBoard, json }) {

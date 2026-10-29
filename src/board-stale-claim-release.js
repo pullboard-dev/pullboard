@@ -6,7 +6,7 @@ import {
   staleInstant,
   staleReleaseNote,
   staleStateLimits,
-} from './stale-state-policy.js';
+} from './board-stale-state-policy.js';
 
 /** Validate exact current ownership and a complete observed idle interval before ordinary release. */
 export function staleClaimRelease(board, item, actor, note, captured) {

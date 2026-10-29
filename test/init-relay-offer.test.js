@@ -5,7 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { acceptsRelayOffer, RELAY_LATER, RELAY_OFFER_QUESTION, RELAY_ON_ALL } from '../src/init.js';
 import { SETUP_COMMIT_LATER, SETUP_COMMIT_QUESTION } from '../src/init-finish.js';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { runFixtureChild, safeFixtureDiagnostic, startFixtureChild } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 

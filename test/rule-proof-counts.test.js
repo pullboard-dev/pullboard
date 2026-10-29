@@ -1,3 +1,5 @@
+import { gateRuns as nativeGateRuns } from '../src/quarantine.js';
+import { recordGateRun as nativeRecordGateRun } from '../src/quarantine.js';
 /** Rule proof counts come from trunk gate evidence, not a row merely naming a test [S1,A1,A2]. */
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -66,7 +68,7 @@ function seedRun(box, { head = box.head, main = head, green = true, days = 0, co
   const folder = join(box.root, '.git', 'pullboard', 'gate-receipts');
   mkdirSync(folder, { recursive: true });
   writeFileSync(join(folder, `${receipt.id}.json`), receiptBody(receipt));
-  store.recordGateRun(box.board, { agentId: 'coordinator', receipt, lane: 'web' });
+  nativeRecordGateRun(box.board, { agentId: 'coordinator', receipt, lane: 'web' });
 }
 
 /** Read the public status JSON and actual authenticated HTTP state for the same board. */
@@ -116,7 +118,7 @@ test('a read-only legacy board retains recent red counts and exact expiry withou
   seedRun(box, { green: false, days: 1, kind: 'submit',
     failures: [{ file: 'test/unproven.test.js', name: 'submission is not trunk gate proof' }] });
   seedRun(box);
-  const runs = store.gateRuns(box.board);
+  const runs = nativeGateRuns(box.board);
   const red = runs.find(run => run.kind === 'gate' && !run.green);
   const submit = runs.find(run => run.kind === 'submit');
   assert.ok(red && submit, 'the private board has validated historical receipts of both kinds');

@@ -114,7 +114,7 @@ import {
   generateBoardKey,
   seal,
   unseal,
-} from './seal.js';
+} from '../packages/kernel/src/core/seal.js';
 import { terminalQr } from './qr.js';
 import { environmentLink } from './relay-environment.js';
 import { locked } from './relay-lock.js';
@@ -704,13 +704,15 @@ async function uploadInitialBaseline(root, file, state, io) {
 
 /** Probe blocked limits first; only a recovered relay receives a fresh baseline containing all paused local moves. */
 async function retryPausedBaseline(root, file, state, io) {
+  const presentationRuntime = nativeBoardPorts();
+  const presentationPorts = presentationRuntime.presentation;
   if (!(state.baselinePause || state.baselineStale) || attemptedBaselineThisCommand(io, file)) return !(state.baselinePause || state.baselineStale);
   try {
     if (!await uploadRetryReady(state, state.baselinePause, path => request(state, path, {}, io))) {
       await publishSnapshotSize(state, io);
       saveLink(file, state); reportBaselinePause(state, io); return false;
     }
-    const document = relaySnapshot(root);
+    const document = relaySnapshot(root, {}, presentationPorts);
     state.snapshot = { sequence: 0, sealed: await sealedRecord(readBoardKey(state.board), document, state, 'snapshot', 0) };
     state.snapshotPresentationDigest = presentationDigest(document.presentation);
     state.baselineCursor = document.tables.event.at(-1)?.event_id ?? 0;
@@ -733,6 +735,8 @@ async function sealedRecord(key, value, state, kind, sequence) {
 
 /** Catch up in local order, retaining exact ciphertext so a lost response cannot duplicate a move. */
 async function flushMirror(root, file, state, io) {
+  const presentationRuntime = nativeBoardPorts();
+  const presentationPorts = presentationRuntime.presentation;
   const key = readBoardKey(state.board);
   const path = '/api/v1/boards/' + state.board;
   if (state.linkPending) {
@@ -778,7 +782,7 @@ async function flushMirror(root, file, state, io) {
   for (const event of rows) {
     if (!state.pending) {
       const sequence = state.sequence + 1;
-      const current = relayPresentation(root);
+      const current = relayPresentation(root, {}, presentationPorts);
       // Only a projection ending at this local record belongs to its relay position.
       const presentation = current.state.events[0]?.event_id === event.event_id ? current : undefined;
       state.pending = { localEvent: event.event_id, sequence, needsPresentation: Boolean(state.needsPresentation || !presentation), ...(presentation ? { presentationDigest: presentationDigest(presentation) } : {}),
@@ -795,10 +799,10 @@ async function flushMirror(root, file, state, io) {
     delete state.pending;
     saveLink(file, state);
   }
-  const presentation = relayPresentation(root);
+  const presentation = relayPresentation(root, {}, presentationPorts);
   const digest = presentationDigest(presentation);
   if (state.needsPresentation || state.presentationDigest !== digest) {
-    const document = relaySnapshot(root);
+    const document = relaySnapshot(root, {}, presentationPorts);
     if ((document.tables.event.at(-1)?.event_id ?? 0) !== state.cursor) throw new Refused('RELAY_PRESENTATION_PENDING', 'new local moves arrived while syncing; run pullboard status again before publishing their presentation');
     state.snapshot = { sequence: state.sequence, sealed: await sealedRecord(key, document, state, 'snapshot', state.sequence) };
     state.snapshotPresentationDigest = presentationDigest(document.presentation);
@@ -862,7 +866,7 @@ async function replayRelayRecord(board, key, state, record) {
 }
 
 // Checkpoint publishing lives in its own module, over these link and transport helpers (#1014).
-const checkpoints = checkpointPublisher({ request, saveLink, loadLink, linkFile, readBoardKey, sealedRecord, reportCheckpointRefusal, safePauseCode, safePauseMessage });
+const checkpoints = checkpointPublisher({ request, saveLink, loadLink, linkFile, readBoardKey, sealedRecord, reportCheckpointRefusal, safePauseCode, safePauseMessage, presentationPorts: () => nativeBoardPorts().presentation });
 const publishCheckpoint = (...args) => checkpoints.publishCheckpoint(...args);
 /** Publish this board's checkpoint once, as the background publisher's one step (#1014). */
 export const publishLatestCheckpoint = (...args) => checkpoints.publishLatestCheckpoint(...args);
@@ -1020,7 +1024,7 @@ function outboxLink(root, file, state, io, senderPolicy) {
  */
 async function queueLocally(root, file, operation, args, io, command, applyLocally, onRecorded, senderPolicy) {
   const guarded = landingRelayCallbacks(operation, args, {
-    apply: () => typeof applyLocally === 'function' ? applyLocally() : localRecords(root, (board) => store[operation](board, ...args)),
+    apply: () => typeof applyLocally === 'function' ? applyLocally() : localRecords(root, (board) => board.enginePorts.store[operation](board, ...args)),
     queue: () => { throw new Refused('RELAY_OUTBOX', 'a local-first move queues itself; it is never queued twice'); },
   });
   // An unlink that finished while this move waited for the guard leaves an ordinary local board.
@@ -1046,7 +1050,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
     const state = loadLink(file);
     if (operation === 'rehomeItem') await requireAuthoritativeRehomeItem(file, state, args?.[0]);
     const guarded = landingRelayCallbacks(operation, args, {
-      apply: () => typeof applyLocally === 'function' ? applyLocally() : localRecords(root, (board) => store[operation](board, ...args)),
+      apply: () => typeof applyLocally === 'function' ? applyLocally() : localRecords(root, (board) => board.enginePorts.store[operation](board, ...args)),
       queue: (error, move, apply) => queueMove(outboxLink(root, file, state, io, senderPolicy), { operation, args, command, move, error, applyLocally: apply }),
     });
     const applyPausedMoveLocally = guarded.apply;
@@ -1183,7 +1187,9 @@ export async function relayOperation(root, operation, args, io, command, applyLo
 
 /** Catch up an opted-in replica before/after a CLI command; offline reads retain local evidence. */
 export async function syncRelay(root, io) {
-  const senderPolicy = nativeBoardPorts().enginePorts;
+  const presentationRuntime = nativeBoardPorts();
+  const presentationPorts = presentationRuntime.presentation;
+  const senderPolicy = presentationRuntime.enginePorts;
   const roundTripStarted = Date.now();
   // Reuse Git discovery only within this command; still re-read the link before each retry.
   const files = LINK_FILES.get(io) ?? LINK_FILES.set(io, new Map()).get(io);
@@ -1209,7 +1215,7 @@ export async function syncRelay(root, io) {
       // for an upload, and any other command asks the publisher to compare, so a spec edit alone still reaches the
       // phone. Otherwise the command publishes a changed presentation itself, as before #1014.
       if (checkpointInBackground()) { if (state.checkpoint) scheduleCheckpoint(root, file); else requestCheckpointCheck(root, file); }
-      else if (state.checkpoint || state.presentationDigest !== presentationDigest(relayPresentation(root))) await publishCheckpoint(root, file, state, io);
+      else if (state.checkpoint || state.presentationDigest !== presentationDigest(relayPresentation(root, {}, presentationPorts))) await publishCheckpoint(root, file, state, io);
       await deliverDeviceWraps(root, io);
       if (io.keyRequestsWaiting && !state.environment) await (await import('./relay-handover.js')).handOverKeys(root, state, readBoardKey(state.board), request, io); // an agent token never hands over a key
       return summary(root, state);
@@ -1360,7 +1366,9 @@ export function relayRecovered(root, { includePending = false } = {}) {
 
 /** Explicitly refuse one blocked position, replay its valid tail on a private copy, then publish it. */
 export async function relayRecover(root, skip, io) {
-  const senderPolicy = nativeBoardPorts().enginePorts;
+  const presentationRuntime = nativeBoardPorts();
+  const presentationPorts = presentationRuntime.presentation;
+  const senderPolicy = presentationRuntime.enginePorts;
   const file = linkFile(root);
   return locked(file, async () => {
     const state = loadLink(file);
@@ -1426,7 +1434,7 @@ export async function relayRecover(root, skip, io) {
           break;
         }
       }
-      const document = relaySnapshot(root, { board: staged });
+      const document = relaySnapshot(root, { board: staged }, presentationPorts);
       const sequence = appliedSequence(staged);
       if (nativeBoardDigest(source) !== sourceDigest) throw new Refused('RELAY_LOCAL_CHANGED', 'the local board changed while recovery was staged; no recovery checkpoint was published, export the new local change and retry');
       const candidate = state.recovery?.sequence === sequence
@@ -1511,7 +1519,9 @@ async function deviceSignIn(url, io, { signal, intent, onSignIn } = {}) {
 
 /** Explicitly sign in through the relay and persist a sealed initial snapshot before uploading it. */
 export async function relayOn(root, address, io, { session, credential, quiet = false, strict = false, name } = {}) {
-  const senderPolicy = nativeBoardPorts().enginePorts;
+  const presentationRuntime = nativeBoardPorts();
+  const presentationPorts = presentationRuntime.presentation;
+  const senderPolicy = presentationRuntime.enginePorts;
   const label = computerName(name);
   const remoteShell = io.personChannel !== 'view' && isRemoteShell();
   const reusableSession = remoteShell ? undefined : session;
@@ -1549,7 +1559,7 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
         startRelayEpoch(board, nextBoard);
         return { board: store.boardId(board) };
       });
-      snapshot.document = relaySnapshot(root);
+      snapshot.document = relaySnapshot(root, {}, presentationPorts);
       // Save the device key before creating any remote link; a locked keychain cannot strand it.
       const keyStorage = storeBoardKey(snapshot.board, key);
       state = { version: 1, mode: 'ordered', board: snapshot.board, url, repository, token: null, personReauth: true,

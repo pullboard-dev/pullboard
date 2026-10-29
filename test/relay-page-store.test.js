@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { createRelayPages } from '../relay/page-store.js';
 import { createRelayJournal } from '../relay/journal.js';
 import { Refused } from '../src/refused.js';
-import { generateBoardKey } from '../src/seal.js';
+import { generateBoardKey } from '../packages/kernel/src/core/seal.js';
 import { PAGE_BYTES, readSealedValue, writeSealedValue } from '../src/sealed-pages.js';
 
 const machine = { kind: 'machine', userId: '1', machine: 'fixture-native' };

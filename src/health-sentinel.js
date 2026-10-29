@@ -10,7 +10,7 @@ import { agentCpuFindings } from './sentinel-cpu.js';
 import {
   healthFindingIdentity,
   normalizedHealthFindings,
-} from './health-receipts.js';
+} from './board-health-receipts.js';
 
 /** A missing board or an explicitly disabled sentinel has no observation to publish. */
 export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFindings, returnRejected = false }) {

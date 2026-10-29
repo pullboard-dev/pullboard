@@ -9,6 +9,6 @@ if (process.argv[1] && resolve(process.argv[1]) === FILE && process.argv[2] === 
   const { badgeCounts, writeBadges } = await import('../src/badge.js');
   const { flakeSource, observeNativeFailure } = await import('../src/native-flakes.js');
   const { quarantineWaivers } = await import('../src/quarantine.js');
-  const { parseProcessCensus } = await import('../src/process-census.js');
+  const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
   landingCandidateEntry({ checkAtCommit, landingPorts: { badgeCounts, writeBadges, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus } });
 }

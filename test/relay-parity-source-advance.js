@@ -64,7 +64,8 @@ export async function seedSourceAdvance({ board, box, store, exercise, agent, cl
     custody.started();
     const gate = await runSubmitGate(composition.directory, mainPolicy(root).config, { executionServices, base: candidate,
       changed: composition.changed, check, agent: 'coordinator', item: String(id), sourceAdvance: true,
-      proofContext: { item: id, frozenDigest: digest, seat: 'coordinator', kind: 'submit' } });
+      proofContext: { item: id, frozenDigest: digest, seat: 'coordinator', kind: 'submit' },
+      onWait(state) { process.stderr.write(`parity source-advance admission ${JSON.stringify({ admitted: state.admitted === true, position: state.position ?? null })}\n`); } });
     assert.equal(gate.cleanupUnverified, undefined, 'the admitted child returned without unknown custody');
     custody.terminal();
     assert.equal(gate.isGreen, true, gate.output);
@@ -75,7 +76,7 @@ export async function seedSourceAdvance({ board, box, store, exercise, agent, cl
     }
     assert.match(gate.check.profile.tests[0]?.name ?? '', /both independently committed source branches survive composition/u);
     const request = prepareSourceAdvance(root, board, item, composition, gate, basis, { selectAffectedTests, selectTestTreeGuards });
-    const advanced = await exercise('advanceItemSource', () => store.advanceItemSource(board, id, request));
+    const advanced = await exercise('advanceItemSource', () => board.enginePorts.store.advanceItemSource(board, id, request));
     assert.ok(advanced, 'only the actual source-advance mutation counts as parity coverage');
     assert.equal(store.getItem(board, id).item_effective_head, composition.head);
     assert.equal(store.getItem(board, id).item_commit, candidate);

@@ -13,11 +13,11 @@ import { submitFixture as submitStoredItem } from './board-submit-fixture.js';
 import { serveApi } from '../src/api.js';
 import { main } from '../src/cli.js';
 import { ENGINE_VERSION } from '../src/machine.js';
-import { decodeBoardKey, unseal } from '../src/seal.js';
+import { decodeBoardKey, unseal } from '../packages/kernel/src/core/seal.js';
 import { frozenCriterion, parseSpec } from '../src/spec.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { fetchFresh } from './http-fixture.js';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
 
 after(cleanupFixtureChildren);

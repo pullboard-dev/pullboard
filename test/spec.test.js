@@ -25,7 +25,7 @@ import { test } from 'node:test';
 import { configFromSource } from '../src/config.js';
 import { preCommitProblems } from '../src/hooks.js';
 import { standardDoctrine } from '../src/doctrine.js';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { requireRelayOnChannel } from '../src/person.js';
 import { RECORDED_GENERIC_NEXT } from '../src/recorded-refusal.js';
 import {
