@@ -46,10 +46,14 @@ function countPairs() {
     }
     const draft = document.querySelector(root + ' .needs-drafts .needs-copy b');
     if (draft) add('Needs/draft rows', number(draft), p.needs.find(row => row.kind === 'draft')?.count ?? 0);
-    if (view.tab === 'dashboard' && document.querySelector('#dashboard-rules [data-home-count]')) {
+    if (view.tab === 'dashboard' && view.addressDetail !== 'floor') {
       const approved = p.spec.filter(row => row.status === 'approved');
+      const ruleCounts = all('#dashboard-rules [data-home-count]');
+      add('Dashboard/rules card rows', ruleCounts.length, 3);
       for (const [key, expected] of [['approved', approved.length], ['gated', approved.filter(row => String(row.gate ?? '').trim()).length], ['ungated', approved.filter(row => !String(row.gate ?? '').trim()).length]]) {
-        add('Dashboard/rules/' + key, number(document.querySelector('[data-home-count="' + key + '"] dd')), expected);
+        const count = document.querySelector('[data-home-count="' + key + '"] dd');
+        add('Dashboard/rules/' + key + ' exists', Boolean(count), true);
+        add('Dashboard/rules/' + key, number(count), expected);
       }
       source('[data-home-count]');
     }

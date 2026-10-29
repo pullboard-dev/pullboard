@@ -45,8 +45,9 @@ test('Dashboard is the landing page, carries the rules, and migrates saved Home 
     const rules = fresh.show('dashboard');
     assert.deepEqual(['approved', 'gated', 'ungated'].map((key) => count(rules, key)), [3, 2, 1], 'approved rows, those naming a gate, and those with none');
     assert.match(rules, /data-go="tab:spec"/, 'the rules card opens the Spec');
-    assert.match(fresh.show('dashboard'), /Should the page greet a visitor\?[^]*?NEEDS YOU/u, 'Dashboard keeps the call waiting on the person');
-    assert.doesNotMatch(fresh.show('dashboard'), /Nothing needs you/u, 'a visible call suppresses the calm state');
+    const dashboard = fresh.show('dashboard');
+    assert.match(dashboard, /aria-label="Needs you"[^]*?Should the page greet a visitor\?/u, 'Dashboard keeps the call waiting on the person');
+    assert.doesNotMatch(dashboard, /Nothing needs you/u, 'a visible call suppresses the calm state');
 
     // Existing work also opens on Dashboard; the person's explicit Items choice is remembered.
     box.run(alpha.repo, 'add', 'web', 'Render the page', '--specs', 'G1');
@@ -89,7 +90,7 @@ test('home renders the projected useful agents range lever and curve and refresh
     assert.match(html, /Lever: Halve rejects/);
     assert.match(html, /2 items lack recorded approval evidence/);
     assert.match(html, /<polyline/);
-    assert.match(page.show('dashboard-rules'), /Your rules/, 'existing rules remain visible');
+    assert.match(page.show('dashboard'), /Your rules/, 'existing rules remain visible');
     page.run('data.project.capacityForecast = { available: false, stale: true, unknown: ["Missing measured history"] }; render();');
     const unavailable = page.show('dashboard');
     assert.match(unavailable, /Capacity estimate is unavailable/);
