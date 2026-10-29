@@ -26,6 +26,7 @@ import {
 import { join } from 'node:path';
 import { guiSession } from './gui-session.js';
 import { processCensus } from './runner-custody.js';
+import { parseProcessCensus } from './process-census.js';
 
 /** Give a health observation the same credential-forwarding limits as a worker connection. */
 function environment() {
@@ -168,16 +169,16 @@ export function recordRunnerOwner(directory) {
 function runnerProcessesIdle(root) {
   const options = { encoding: 'utf8', timeout: 2_000, maxBuffer: 8 * 1024 * 1024,
     env: { PATH: '/usr/bin:/bin:/usr/sbin', LC_ALL: 'C', LANG: 'C' } };
-  const census = processCensus();
+  const commands = spawnSync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,lstart=,stat=,args='], options);
+  if (commands.error || commands.status !== 0 || commands.signal) return false;
+  const census = parseProcessCensus(commands.stdout);
   if (!census) return false;
   const pids = [...census.values()].filter(row => row.pid !== process.pid && !row.state.startsWith('Z')).map(row => row.pid);
   const canonicalRoot = realpathSync(root);
-  const commands = spawnSync('/bin/ps', ['-axo', 'pid=,args='], options);
-  if (commands.error || commands.status !== 0 || commands.signal || !commands.stdout.trim()) return false;
-  const escaped = canonicalRoot.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-  const entry = new RegExp(escaped + '/runtime/[a-f0-9]{64}/src/runner-worker\\.js(?=\\s|$)', 'u');
+  const roots = [...new Set([root, canonicalRoot])].map(value => value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'));
+  const entry = new RegExp('(?:^|\\s|["\'])' + '(?:' + roots.join('|') + ')/runtime/[a-f0-9]{64}/src/runner-worker\\.js(?=\\s|$)', 'u');
   for (const line of commands.stdout.trim().split('\n')) {
-    const row = /^\s*([1-9][0-9]*)\s+(.+)$/u.exec(line);
+    const row = /^\s*([1-9][0-9]*)\s+\d+\s+\d+\s+[A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\d{4}\s+\S+\s+(.+)$/u.exec(line);
     if (!row) return false;
     const actual = census.get(Number(row[1]));
     if (!actual || actual.pid === process.pid || actual.state.startsWith('Z')) continue;
@@ -196,6 +197,10 @@ function runnerProcessesIdle(root) {
       const owner = JSON.parse(readFileSync(file, 'utf8'));
       if (!Number.isSafeInteger(owner.pid) || owner.pid < 1 || typeof owner.started !== 'string' || !owner.started.trim()) return false;
       const actual = census.get(owner.pid);
+      if (!actual) {
+        try { process.kill(owner.pid, 0); return false; }
+        catch (error) { if (error.code !== 'ESRCH') return false; }
+      }
       if (actual && !actual.state.startsWith('Z') && actual.started === owner.started) return false;
     } catch (error) { if (error.code !== 'ENOENT') return false; }
   }

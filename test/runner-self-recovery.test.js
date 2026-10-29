@@ -54,7 +54,7 @@ test('an idle pinned runner with stale job files and missing exact completion re
     const again = await recoverUnavailableRunners(db, [runner], { now: Date.now() + 2000,
       probe: probeRunnerHealth, idleProbe: r => probeRunnerHealth(r, undefined, { idle: true }) });
     const events = db.prepare('SELECT kind,detail FROM runner_recovery_event ORDER BY rowid').all();
-    console.log(JSON.stringify({ first, again, held: db.prepare('SELECT COUNT(*) n FROM runner_unavailable').get().n,
+    console.log(JSON.stringify({ first, again, latest: db.prepare('SELECT failure FROM runner_unavailable').get(), held: db.prepare('SELECT COUNT(*) n FROM runner_unavailable').get().n,
       events: events.map(event => ({ kind: event.kind, detail: JSON.parse(event.detail) })) }));
     db.close();`);
   assert.equal(actual.first, true, JSON.stringify(actual));
@@ -147,21 +147,22 @@ test('a job owner outside its job cwd blocks recovery only until that process ex
   assert.equal(actual.idle.healthy, true, JSON.stringify(actual));
 });
 
-test('an unmarked legacy worker waiting outside jobs still blocks its own runner root [C7]', t => {
+test('an unmarked legacy worker through an alias blocks only its own runner root [C7]', t => {
   const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
   const { actual } = remoteFixture(t, ({ root }) => `
     import { spawn } from 'node:child_process';
     import { once } from 'node:events';
-    import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+    import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
     import { join } from 'node:path';
     import { probeRunnerHealth } from ${JSON.stringify(runners)};
-    const runtime = join(${JSON.stringify(root)}, 'runtime', 'a'.repeat(64), 'src');
+    const alias = ${JSON.stringify(root)} + '-alias'; symlinkSync(${JSON.stringify(root)}, alias);
+    const runtime = join(alias, 'runtime', 'a'.repeat(64), 'src');
     mkdirSync(runtime, { recursive: true });
     const ready = join(runtime, 'ready');
     const entry = join(runtime, 'runner-worker.js');
     writeFileSync(entry, 'require("node:fs").writeFileSync(' + JSON.stringify(ready) + ',"running");setInterval(()=>{},60000)');
     const owner = spawn(process.execPath, [entry], { stdio: 'ignore' });
-    const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: 1, browser: 0 };
+    const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: 1, browser: 0, root: alias };
     let held;
     try {
       const deadline = Date.now() + 5000;
