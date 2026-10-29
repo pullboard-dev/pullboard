@@ -200,6 +200,10 @@ function countPairs() {
     const bins = all('.floor-bars rect title').map(node => number(node));
     add('Floor/histogram inventory', bins.length, 24);
     add('Floor/histogram total', bins.reduce((sum, count) => sum + count, 0), dayIds.size);
+    const landedCaption = document.querySelector('[aria-label="Landed per hour"] h2 span').textContent;
+    const [, captionTotal, captionPeak] = /^([\d,]+) in 24 h · peak (\d+)\/h · [\d.]+\/h average$/u.exec(landedCaption) ?? [];
+    add('Floor/caption 24h landed', Number(captionTotal?.replaceAll(',', '')), dayIds.size);
+    add('Floor/caption peak per hour', Number(captionPeak), Math.max(...bins));
     for (const row of agents) add('Floor/agent shouts/' + row.dataset.floorAgent, number(row.querySelector('[data-label="Shouts"]')), recent.filter(event => event.event_kind === 'shout' && event.event_by === row.dataset.floorAgent).length);
 
   }
