@@ -8,7 +8,7 @@ import { heartbeatSeat } from '../src/seat-presence.js';
 import { refuseUnreviewable } from '../src/review-reachability.js';
 import { reviewEligibility } from '../src/review-eligibility.js';
 import { refuseLiveAttach } from '../src/item-patches.js';
-import { healthReport } from '../src/health.js';
+import { healthReport } from '../packages/health/index.js';
 import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
 
 const LEASE = 3_600_000;
