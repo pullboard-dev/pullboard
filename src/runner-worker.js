@@ -53,9 +53,11 @@ import {
 import { Refused } from './refused.js';
 import {
   recordRunnerCompletion,
+  recordRunnerOwner,
   recoveryIdentity,
   runnerLaunchAllowed,
   runnerHealthReply,
+  runnerIdleReply,
 } from './runner-transport.js';
 import { guiSession } from './gui-session.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
@@ -1056,6 +1058,7 @@ async function main() {
     chmodSync(base, 0o700);
     runDirectory = mkdtempSync(join(base, `${spec.id}-`));
     cleanupDirectory = runDirectory;
+    recordRunnerOwner(runDirectory);
     const root = join(runDirectory, 'checkout');
     const privateHome = join(runDirectory, 'home');
     const temporary = join(runDirectory, 'tmp');
@@ -1184,6 +1187,6 @@ if (process.argv[2] === '--health') {
     const request = JSON.parse(Buffer.from(process.argv[3] ?? '', 'base64').toString('utf8'));
     if (!/^[a-f0-9-]{36}$/u.test(request.nonce ?? '') || request.root !== undefined && !isAbsolute(request.root)) throw new Error('invalid health request');
     const root = request.root ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard-runner');
-    process.stdout.write(JSON.stringify(runnerHealthReply(root, request)) + '\n');
+    process.stdout.write(JSON.stringify(request.idle === true ? runnerIdleReply(root, request) : runnerHealthReply(root, request)) + '\n');
   } catch { process.exitCode = 1; }
 } else main().catch(failedWorker);
