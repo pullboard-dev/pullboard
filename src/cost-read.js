@@ -1,3 +1,7 @@
+import { usageDollars } from './cost-prices.js';
+/** One authenticated command bounds public usage revisions without discarding pending totals [N2,C7]. */
+export const USAGE_BATCH_LIMIT = 1000;
+
 /** Read-only usage totals for one item, kept free of board writers so show stays light [N2,C7]. */
 
 /** Fixed public explanations for unavailable native token attribution, with no private paths or identities. */
@@ -10,7 +14,7 @@ export const SPLIT_COUNTS = ['freshInputTokens', 'cacheReadInputTokens', 'cacheW
 export const COUNTS = ['inputTokens', 'outputTokens', 'wallMs', 'knownInputTokens', 'knownOutputTokens', ...SPLIT_COUNTS];
 
 /** Sum known partial amounts while keeping incomplete totals visibly unknown. */
-export function sumUsage(rows) {
+export function sumUsage(rows, prices) {
   const result = { inputTokens: 0, outputTokens: 0, knownInputTokens: 0, knownOutputTokens: 0, wallMs: 0, models: [], unknownReasons: [], shared: false };
   for (const name of SPLIT_COUNTS) result[name] = rows.length ? 0 : null;
   for (const row of rows) {
@@ -25,14 +29,14 @@ export function sumUsage(rows) {
     }
     if (!result.models.includes(row.model)) result.models.push(row.model);
   }
-  return { ...result, estimate: true };
+  return { ...result, estimate: true, ...usageDollars(rows, prices) };
 }
 
 /** One item's totals; absence of any reported session is unknown rather than a false zero. */
-export function itemCost(board, item) {
+export function itemCost(board, item, prices) {
   const records = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key GLOB ?").all(`cost:${item}:*`).flatMap((row) => { const value = JSON.parse(row.meta_value); return value.records.map((record) => ({ ...record, shared: Boolean(value.shared) })); });
-  const total = records.length ? sumUsage(records) : { ...unknownInputSplit(), inputTokens: null, outputTokens: null, knownInputTokens: 0, knownOutputTokens: 0, wallMs: 0, models: [], unknownReasons: ['not-recorded'], estimate: true };
-  return board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`shared-item:${item}`) ? { ...total, ...unknownInputSplit(), inputTokens: null, outputTokens: null, unknownReasons: [...new Set([...total.unknownReasons, 'shared-session'])], shared: true } : total;
+  const total = records.length ? sumUsage(records, prices) : { ...unknownInputSplit(), inputTokens: null, outputTokens: null, knownInputTokens: 0, knownOutputTokens: 0, wallMs: 0, models: [], unknownReasons: ['not-recorded'], estimate: true, ...usageDollars([], prices) };
+  return board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`shared-item:${item}`) ? { ...total, ...unknownInputSplit(), inputTokens: null, outputTokens: null, unknownReasons: [...new Set([...total.unknownReasons, 'shared-session'])], shared: true, ...usageDollars([{ shared: true }], prices) } : total;
 }
 
 /** Public token/time summaries omit dollar accounting, which belongs to the separate pricing item. */

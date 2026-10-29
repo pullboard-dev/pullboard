@@ -8,7 +8,7 @@
   ["src/shout-readable.js","packages/shouts/src/core/shout-readable.js","seed"],
   ["src/watch.js","packages/shouts/src/shell/watch.js","seed"]
  ],
- "reexports": ["src/inbox-store.js","src/shout-audience.js","src/shout-readable.js","src/watch.js","src/worker-inbox.js"],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":4,"before":true},
   {"cell":"git","imports":1,"before":true},
