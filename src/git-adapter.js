@@ -1,1 +1,1 @@
-export * from "../packages/git/src/shell/git-adapter.js";
+export * from "../packages/git/index.js";

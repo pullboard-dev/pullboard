@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { appendFileSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureChild, runFixtureGit } from '../../../test/fixture-child.js';
 
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 export const TITLE = 'a controlled intermittent assertion [C7]';
 
 /** Initialize a real private board and Git history; all gate commands use only this synthetic project. */

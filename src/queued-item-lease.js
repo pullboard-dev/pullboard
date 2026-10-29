@@ -1,1 +1,1 @@
-export * from "../packages/git/src/shell/queued-item-lease.js";
+export * from "../packages/git/index.js";

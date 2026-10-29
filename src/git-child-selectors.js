@@ -1,1 +1,1 @@
-export * from "../packages/git/src/core/git-child-selectors.js";
+export * from "../packages/git/index.js";

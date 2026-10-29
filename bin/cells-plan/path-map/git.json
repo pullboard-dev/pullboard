@@ -14,5 +14,7 @@
   "test/git-provenance.test.js": "packages/git/tests/git-provenance.test.js",
   "src/git-child-selectors.js": "packages/git/src/core/git-child-selectors.js",
   "src/git-landing-batches.js": "packages/git/src/core/git-landing-batches.js",
-  "src/git-trunk-ref.js": "packages/git/src/shell/git-trunk-ref.js"
+  "src/git-trunk-ref.js": "packages/git/src/shell/git-trunk-ref.js",
+  "test/flakes-fixture.js": "packages/git/tests/flakes-fixture.js",
+  "test/flakes-fixture.test.js": "packages/git/tests/flakes-fixture.test.js"
 }

@@ -1,1 +1,1 @@
-export * from "../packages/git/src/core/git-landing-batches.js";
+export * from "../packages/git/index.js";

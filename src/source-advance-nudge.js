@@ -1,1 +1,1 @@
-export * from "../packages/git/src/shell/source-advance-nudge.js";
+export * from "../packages/git/index.js";
