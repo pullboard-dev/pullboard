@@ -35,6 +35,8 @@ const SOURCE_FILES = new Set([
   'src/train-mechanical-merge.js', 'src/release-gate.js', 'src/release-gate-receipt.js',
   'src/source-advance.js', 'src/source-advance-state.js', 'src/source-advance-worker.js',
   'src/land.js', 'src/runners.js', 'src/browser-admission.js', 'src/gui-admission.js',
+  'src/runner-source-scan.js', 'src/runner-history-pack.js', 'src/runner-remote-tooling.js', 'src/runner-request.js',
+  'src/runner-result.js', 'src/runner-dispatch.js', 'src/runner-health.js',
 ]);
 const GUARD_TESTS = new Set([
   'test/flakes.test.js', 'test/flakes-ledger.test.js', 'test/affected-tests.test.js', 'test/affected-source-loads.test.js',
