@@ -14,6 +14,7 @@ import { itemListFields } from './pipeline-model.js';
 import { pipelineHtml } from './pipeline-render.js';
 import { lifecycleDiagramHtml } from './lifecycle-diagram.js';
 import { timelineHtml as renderTimelineHtml } from './timeline-render.js';
+import { timelineBodyHtml } from './timeline-body.js';
 /**
  * Part 2 of the hosted page's script, verbatim from src/cockpit.js lines 332-1298 (#745): its
  * text is what the page served before the split, with the values its ${} expressions read passed in as scope.
@@ -443,7 +444,7 @@ function highlightCodeLine(line, path, state = {}) {
 }
 // A shout or thread fact's path:lines@commit reference: keep only the reference in this button until
 // the person opens it. The text before a shout ref is retained so ambiguous paths can be refused.
-const codeRef = (ref, before, block = false) => {
+const codeRef = (ref, before, block = false, hashLength = 10) => {
   const c = view.code[view.root + '\\n' + before + '\\n' + ref];
   const open = Boolean(c && c.open);
   const shownLines = c?.all ? c.allLines : c?.lines, carry = {};
@@ -453,9 +454,9 @@ const codeRef = (ref, before, block = false) => {
       + (c.all ? '<button class="code-control" data-code-less="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' type="button">show less</button>' : '')
       + '</div>';
   // Its label is one piece: the path, cut short first where the line is narrow, then the lines and the commit's first
-  // ten characters; the whole reference is on hover.
+  // ten characters by default; the timeline explicitly requests twelve. The whole reference is on hover.
   const colon = ref.indexOf(':'), at = ref.lastIndexOf('@');
-  const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at)) + '<span class="ref-sha">' + esc(ref.slice(at, at + 11)) + '</span></span>';
+  const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at)) + '<span class="ref-sha">' + esc(ref.slice(at, at + 1 + hashLength)) + '</span></span>';
   const button = (asBlock) => '<button class="ref' + (asBlock ? ' block' : '') + '" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' title="' + esc(ref) + '" aria-label="Open code reference ' + esc(ref) + '" type="button" aria-expanded="' + open + '">' + label + '</button>';
   // A reference on a line of its own is a block, collapsed until asked: a caret, the path and lines, the short commit.
   // One inside a sentence keeps its label, so the prose reads on, and opens that same block below it.
@@ -494,6 +495,7 @@ const FLOW = ${JSON.stringify(lifecycle()).replaceAll('<', '\\u003c')};
 const lifecycleEvent = (${lifecycleEvent.toString()});
 const lifecycleMove = (${lifecycleMove.toString()});
 const renderTimelineHtml = (${renderTimelineHtml.toString()});
+const timelineBodyHtml = (${timelineBodyHtml.toString()});
 
 /**
  * An item's history replayed through the lifecycle: each event with the state it found the item in
@@ -563,13 +565,22 @@ function timeline(item) {
     : entry);
   const moves = replayEntries.filter((entry) => entry.type === 'move');
   const steps = replay({ ...item, history: moves });
+  /** Resolve model metadata from this board without appending it to the seat address. */
+  const modelFor = by => {
+    const agent = data?.project?.agents?.find(row => row.agent_id === by);
+    const model = agent?.model || agent?.agent_model;
+    return model && String(model).toLowerCase() !== 'unknown' ? model : '';
+  };
   const presentedEntries = replayEntries.map((entry) => entry.type === 'fact'
-    ? { ...entry, text: findingWords({ why: entry.text }, true).text, kindLabel: eventWords(entry.kind), timeLabel: when(entry.at), ageHtml: age(entry.at), agentLabel: agentName(entry.by),
-      hasCodeRef: Boolean(entry.ref), codeHtml: entry.ref ? codeRef(factCodeRef(entry.ref), '') : '' }
+    ? { ...entry, text: findingWords({ why: entry.text }, true).text, kindLabel: eventWords(entry.kind), timeLabel: when(entry.at), ageHtml: age(entry.at), model: modelFor(entry.by),
+      bodyHtml: timelineBodyHtml(entry.text, { itemHref: itemAddress, codeLink: ref => codeRef(ref, '', false, 12), timeLabel: when, commit: item.commit || item.head || '',
+        refusalTitles: { ONE_CLAIM: 'An agent can hold only one building claim at a time.' } }),
+      hasCodeRef: Boolean(entry.ref), codeHtml: entry.ref ? codeRef(factCodeRef(entry.ref), '', false, 12) : '' }
     : entry);
   const presentedSteps = steps.map((step) => ({ ...step, kindLabel: eventWords(step.kind), momentLabel: eventMoment(step.kind), timeLabel: step.at ? when(step.at) : '',
-    ageHtml: step.at ? age(step.at) : '', agentLabel: agentName(step.by) }));
-  return renderTimelineHtml({ entries: presentedEntries, steps: presentedSteps, flow: FLOW });
+    ageHtml: step.at ? age(step.at) : '', model: modelFor(step.by) }));
+  return renderTimelineHtml({ entries: presentedEntries, steps: presentedSteps, flow: FLOW,
+    open: view.timelineOpen?.get(JSON.stringify([view.root, item.id])) || [] });
 }
 
 /**

@@ -39,7 +39,7 @@ const DETAIL = `(() => {
     check: part('Check') ? [part('Check').querySelector('code').textContent, part('Check').querySelector('.chip').textContent] : null,
     brief: part('Brief')?.querySelector('.text').innerText ?? null,
     verdicts: [...detail.querySelectorAll('.verdict')].map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').innerText]),
-    moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact) b')].map((move) => move.textContent),
+    moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].flatMap((move) => move.dataset.eventIds.split(' ').map(() => move.dataset.timelineKind)),
     facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent),
   };
 })()`;
