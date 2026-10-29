@@ -3,8 +3,6 @@
  * every coding agent reads (AGENTS.md, which CLAUDE.md points at).
  */
 import { DOCTRINE_FILE } from './config.js';
-// Temporary existing docs callers only; contract #1739 removes this edge.
-export { agentsBlock } from './doctrine.js';
 
 export const AGENTS_START = '<!-- pullboard:start -->';
 export const AGENTS_END = '<!-- pullboard:end -->';

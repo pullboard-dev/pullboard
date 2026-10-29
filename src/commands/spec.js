@@ -379,7 +379,7 @@ export async function specCommand(io, { first, second, rest, values }) {
         const items = board.db.prepare('SELECT * FROM item ORDER BY item_id').all();
         const skippedDrafts = specRefreezeSkips(board, plan.records, items);
         const refreezes = prepareSpecRefreezes(plan.records, items,
-          freezer(ctx, { captureVerifyPolicy: true, board }), { skippedDrafts });
+          freezer(ctx, { captureVerifyPolicy: true, board, applyingDecisions: plan.records }), { skippedDrafts });
         if (refreezes !== undefined) args.refreezes = refreezes;
         if (skippedDrafts.length) args.skippedDrafts = skippedDrafts;
         applied = await ordered(ctx, board, 'applyRowDecisions', [args]);

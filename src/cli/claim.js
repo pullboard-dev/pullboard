@@ -28,17 +28,13 @@ import { agentDoctrine } from '../doctrine-rulings.js';
 import { signedMoveProblem } from '../person-signing.js';
 import { bindLocalSession } from '../agent-session.js';
 import { localSessionMatches } from '../agent-session.js';
-import { contains } from '../git.js';
-import { git } from '../git.js';
 import { headCommit } from '../git.js';
-import { isClean } from '../git.js';
-import { mainCheckout } from '../git.js';
-import { tryGit } from '../git.js';
-import { untracked } from '../git.js';
 import { Refused } from '../refused.js';
 import { frozenCriterion } from '../spec.js';
+import { mainCriterionFacts } from '../main-criterion-facts.js';
+import { liveCriterionSpec } from '../main-criterion-facts.js';
+import { foreignNodeOptions } from '../test-isolation.js';
 import { loadSpec } from '../spec.js';
-import { parseSpec } from '../spec.js';
 import { refuseAgentApprovedRows } from '../spec-approval.js';
 import { ensureSpecApprovalCoordinator } from '../spec-approval-bootstrap.js';
 import { initialSpecApprovalBaseline } from '../spec-approval-bootstrap.js';
@@ -155,14 +151,18 @@ export async function claimOrdered(ctx, board, args) {
  * @param {{ captureVerifyPolicy?: boolean }} [options]
  * @returns {(item: any) => { text: string, digest: string }}
  */
-export function freezer(ctx, { captureVerifyPolicy = false, board } = {}) {
+export function freezer(ctx, { captureVerifyPolicy = false, board, applyingDecisions = [] } = {}) {
+  const cacheEligible = () => !foreignNodeOptions(process.env.NODE_OPTIONS);
   /** Freeze the criterion and, when requested, the trunk lane and verifier policy. */
   return (item) => {
+    // Derivation starts only inside the actual callback, after prepared claim guards [B2,C7].
+    const sourcePolicy = board && !(ctx.info.isMain && !headCommit(ctx.info.root)) ? mainPolicy(ctx.info.root) : null;
+    const facts = sourcePolicy ? mainCriterionFacts(ctx.info.root, { commit: sourcePolicy.commit, cacheEligible }) : null;
     const prior = item.item_frozen ? JSON.parse(item.item_frozen) : null;
     const needsPinnedPolicy = !prior || captureVerifyPolicy;
     let policy = prior?.policy ?? null;
     if (needsPinnedPolicy && !(ctx.info.isMain && !headCommit(ctx.info.root))) {
-      policy = { version: 1, commit: mainPolicy(ctx.info.root).commit };
+      policy = { version: 1, commit: sourcePolicy?.commit ?? mainPolicy(ctx.info.root).commit };
     }
     let config;
     if (policy && needsPinnedPolicy) {
@@ -174,50 +174,23 @@ export function freezer(ctx, { captureVerifyPolicy = false, board } = {}) {
     } else {
       config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
     }
-    const doctrine = board ? agentDoctrine(ctx, board) : loadDoctrine(ctx.info.root, config);
-    if (board) refuseAgentApprovedRows(ctx.info.root, { board, config, item }, { store, verifiedPasskeyRowDecision });
-    const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item, doctrine);
+    // Only spec apply's already validated native decision events are being materialized now [S18,V2].
+    const applying = new Map(applyingDecisions.map(record => [record.event, record]));
+    const decisions = board ? store.rowDecisions(board).map(record => {
+      const planned = applying.get(record.event);
+      const exact = planned && ['kind', 'file', 'id', 'source', 'replacement', 'text', 'decision'].every(key => planned[key] === record[key]);
+      return exact ? { ...record, applied: true } : record;
+    }) : [];
+    const doctrine = board ? agentDoctrine(ctx, board, { facts, decisions }) : loadDoctrine(ctx.info.root, config);
+    if (board) refuseAgentApprovedRows(ctx.info.root, { board, config: facts?.config ?? config, item }, { store, verifiedPasskeyRowDecision });
+    const spec = board && facts ? liveCriterionSpec(ctx.info.root, facts, item, decisions) : loadSpec(ctx.info.root, config);
+    const frozen = frozenCriterion(spec, item, doctrine);
     if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
     const signed = board && barReadinessRequired(board, item) ? barReadiness(board, item, {}, { itemCheckBaseline }).signed : null;
     const coverage = signed?.coverage ? barCoverageForPolicy(ctx.info.root, item, signed.coverage, { commit: policy.commit, config }) : null;
     const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), policy });
     return { text, digest: createHash('sha256').update(text).digest('hex') };
   };
-}
-
-/** Merge a safe main fast-forward before freezing rows that only main has [V1].
- *
- * @param {any} ctx
- * @param {any} item
- * @returns {string[]|null} Missing rows merged from main, or null when no merge was needed.
- */
-function prepareClaimSpec(ctx, item) {
-  if (item.item_frozen) return null;
-  const ids = (item.item_spec_ids ?? '').split(',').map((id) => id.trim()).filter((id) => id && !id.startsWith('doctrine:'));
-  if (!ids.length) return null;
-  const root = ctx.info.root;
-  const main = mainCheckout(root);
-  if (!main?.commit) return null;
-  const policy = policyAt(root, main.commit);
-  const mainSource = tryGit(root, ['show', `${main.commit}:${policy.config.spec}`]);
-  if (mainSource.status !== 0) return null;
-  const mainRows = new Set(parseSpec(mainSource.stdout).rows.map((row) => row.id));
-  const localRows = new Set(loadSpec(root, ctx.config).rows.map((row) => row.id));
-  const missing = [...new Set(ids)].filter((id) => mainRows.has(id) && !localRows.has(id));
-  if (!missing.length) return null;
-
-  const head = headCommit(root);
-  const symbolic = tryGit(root, ['symbolic-ref', '--quiet', 'HEAD']);
-  const canFastForward = Boolean(head && symbolic.status === 0 && isClean(root) && untracked(root).length === 0 && contains(root, head, main.commit));
-  if (!canFastForward) throw specBehindMain(policy.config.spec, missing);
-  try {
-    git(root, ['merge', '--ff-only', main.commit]);
-    if (headCommit(root) !== main.commit) throw new Error('main moved during the fast-forward');
-  } catch {
-    throw specBehindMain(policy.config.spec, missing);
-  }
-  Object.defineProperties(ctx, Object.getOwnPropertyDescriptors(context(ctx.io)));
-  return missing;
 }
 
 /** Carry a safe main fast-forward out of the board transaction so claim can retry at the new HEAD. */
@@ -238,20 +211,8 @@ export class MainSpecMerged extends Error {
  */
 export function claimFreezer(ctx, board) {
   return (item) => {
-    const rows = prepareClaimSpec(ctx, item);
-    if (rows) throw new MainSpecMerged(rows);
     return freezer(ctx, { board })(item);
   };
-}
-
-/** Explain why an out-of-date spec cannot be merged automatically.
- *
- * @param {string} specName
- * @param {string[]} rows
- * @returns {Refused}
- */
-function specBehindMain(specName, rows) {
-  return new Refused('SPEC_BEHIND_MAIN', `${specName} is missing rows ${rows.join(', ')} that exist on main; commit or resolve local work, then merge main and retry`);
 }
 
 /** Enrich the ordinary lane refusal with a clean destination owned by this session; never widen claim authority. */

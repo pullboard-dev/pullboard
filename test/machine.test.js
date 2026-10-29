@@ -528,6 +528,8 @@ test('a broken copy of the declaration fails the check against the code, both wa
     'AGENT_APPROVAL_REQUIRED is raised by refreeze but not declared there',
     'BAD_CONFIG is raised by claim but not declared there',
     'BAD_CONFIG is raised by refreeze but not declared there',
+    'MAIN_FACTS_BUSY is raised by claim but not declared there',
+    'MAIN_FACTS_BUSY is raised by refreeze but not declared there',
     'NO_POLICY is raised by claim but not declared there',
     'NO_POLICY is raised by refreeze but not declared there',
     'UNKNOWN_SPEC is raised by claim but not declared there',
@@ -605,7 +607,6 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
 
   const doubleQuoted = editedSource('cli-read-context.js', /^(?:export )?const cdTo = .*$/m, "const cdTo = (root) => { if (!root) throw new Refused(\"NO_ROOT\", 'no root'); return 'cd ' + root + ' &&'; };");
   assert.deepEqual(codeProblems(machineRules.MACHINE, doubleQuoted), [
-    'NO_ROOT is raised by submit but not declared there',
     'NO_ROOT is raised by accept and reject but not declared there',
   ]);
 });

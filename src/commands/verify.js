@@ -177,7 +177,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     try {
       digest = freezer(ctx, { board })(item).digest;
     } catch (error) {
-      if (!(error instanceof Refused) || error.code === 'A5_GRAMMAR_VERSION') throw error;
+      if (!(error instanceof Refused) || ['A5_GRAMMAR_VERSION', 'MAIN_FACTS_BUSY'].includes(error.code)) throw error;
     }
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
@@ -218,7 +218,10 @@ export async function verifyHere(ctx, id, { second, values }) {
           throw new Refused('NOT_AT_COMMIT', 'the reviewed checkout moved during its check; restore the clean reviewed HEAD and retry verification');
         }
         if (currentTrunk.commit !== trunk.commit && (!judged || judged.overlap)) {
-          if (attempt === 1) throw new Refused('VERDICT_TRUNK_MOVED', `main moved again from ${trunk.commit} to ${currentTrunk.commit} during the one review retry; merge the latest main and re-review the clean composition`);
+          if (attempt === 1) {
+            const reach = judged ? (await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) }, { selectAffectedTests, explicitCheckFiles }, { all: true })).overlaps : [];
+            throw new Refused('VERDICT_TRUNK_MOVED', `main moved again from ${trunk.commit} to ${currentTrunk.commit} during the one review retry${reach.length ? `, reaching this review through ${reach.join('; ')}` : ''}; merge the latest main and re-review the clean composition`);
+          }
           checkedCommit = retryReviewCommit(root, checkedCommit, currentTrunk);
           checkedLabel = `retry composition ${checkedCommit}`;
           trunk = currentTrunk;

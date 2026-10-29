@@ -296,7 +296,6 @@
  ],
  "cuts": [
   {"cell":"codemap","imports":1,"edges":["src/map-slice-say.js->src/cli.js"]},
-  {"cell":"config","imports":1,"edges":["src/json.js->src/command-docs.js"]},
   {
    "cell": "seats",
    "imports": 5,
