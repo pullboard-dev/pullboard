@@ -87,7 +87,7 @@ function addressTab() {
     return read((location.hash || '').slice(1));
   }
   if (routed) {
-    const parts = location.pathname.split('/').filter(Boolean);
+    const parts = (location.pathname || '/').split('/').filter(Boolean);
     return read(tabs.includes(parts[0]) ? parts[0] : parts[1] || '');
   }
   return read((location.hash || '').slice(1));

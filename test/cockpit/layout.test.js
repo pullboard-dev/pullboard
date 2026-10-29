@@ -43,7 +43,7 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
     await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: false });
     await chrome.stable(`document.documentElement.style.setProperty('--sans', ${JSON.stringify(font || 'system-ui, sans-serif')})`);
     await chrome.waitFor(`innerWidth === ${width}`);
-    for (const tab of ['home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap']) {
+    for (const tab of ['dashboard', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap']) {
       await chrome.click(`document.querySelector('[data-tab="${tab}"]')`);
       await chrome.waitFor(`!document.querySelector('[data-pane="${tab}"]').hidden`);
       const seen = JSON.parse(await chrome.stable(`JSON.stringify((() => {

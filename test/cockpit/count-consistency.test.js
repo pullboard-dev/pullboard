@@ -226,7 +226,7 @@ async function pane(chrome, name, phase) {
 
 /** Check every tab, each counted filter choice, pipeline stage, and the separate Dashboard floor. */
 async function sweep(chrome, phase) {
-  for (const tab of ['dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings']) {
+  for (const tab of ['dashboard', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings']) {
     await pane(chrome, tab, phase);
     if (tab === 'items') {
       const states = await chrome.stable('[...document.querySelectorAll("[data-filter-kind=state]")].map(node => node.dataset.filterValue)');

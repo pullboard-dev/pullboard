@@ -34,7 +34,8 @@ test('Dashboard is the landing page, carries the rules, and migrates saved Home 
   const view = await startView(box);
   try {
     const html = await (await fetchPage(view)).text();
-    const tabs = [...html.matchAll(/<button\b[^>]*\bdata-tab="([^"]+)"[^>]*>/gu)].map(([, tab]) => tab);
+    const navigation = /<nav class="tabs"[^>]*>([\s\S]*?)<\/nav>/u.exec(html)?.[1] ?? '';
+    const tabs = [...navigation.matchAll(/<button\b[^>]*\bdata-tab="([^"]+)"[^>]*>/gu)].map(([, tab]) => tab);
     assert.equal(tabs[0], 'dashboard', 'Dashboard is the first tab');
     assert.doesNotMatch(html, /data-tab="home"|data-pane="home"/u, 'the retired Home tab and pane are absent');
 
