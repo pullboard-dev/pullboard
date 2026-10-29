@@ -51,6 +51,54 @@ function copiedFiles(root, prefix = '') {
   }).sort();
 }
 
+test('literal package entries and followed implementations retain independent current Buffer bytes [C7,P3]', t => {
+  const f = fixture(t), installed = join(f.directory, 'installed');
+  const sourceShim = readFileSync(join(f.root, 'src/entry.js'));
+  const sourceBody = readFileSync(join(f.root, 'packages/leaf/src/value.js'));
+  copyPackageFiles(f.root, installed);
+  const shim = toolSourcePath(installed, 'src/entry.js', { followShims: false });
+  const body = toolSourcePath(installed, 'src/entry.js');
+  assert.equal(shim, join(installed, 'src/entry.js'));
+  assert.equal(body, join(installed, 'packages/leaf/src/value.js'));
+  assert.deepEqual(readFileSync(shim), sourceShim);
+  assert.deepEqual(readFileSync(body), sourceBody);
+  const changedBody = Buffer.from('export const value = 99;\n');
+  writeFileSync(body, changedBody);
+  assert.deepEqual(readFileSync(toolSourcePath(installed, 'src/entry.js')), changedBody);
+  assert.deepEqual(readFileSync(shim), sourceShim, 'the implementation mutation does not replace shim bytes');
+  const changedShim = Buffer.from("// copied shim changed\nexport { value } from '../packages/leaf/src/value.js';\n");
+  writeFileSync(shim, changedShim);
+  assert.deepEqual(readFileSync(toolSourcePath(installed, 'src/entry.js', { followShims: false })), changedShim);
+  assert.deepEqual(readFileSync(toolSourcePath(installed, 'src/entry.js', { followShims: true })), changedBody);
+});
+
+test('literal source reads preserve broken exports while both modes refuse unsafe file paths [C7,P3]', t => {
+  const f = fixture(t);
+  f.write('src/missing-target.js', "export * from './absent.js';\n");
+  f.write('src/ambiguous.js', "export * from './entry.js'; export * from './missing-target.js';\n");
+  for (const name of ['missing-target.js', 'ambiguous.js']) {
+    assert.equal(toolSourcePath(f.root, 'src/' + name, { followShims: false }), join(f.root, 'src', name));
+    assert.throws(() => toolSourcePath(f.root, 'src/' + name));
+  }
+  const outside = join(f.directory, 'outside.txt'); writeFileSync(outside, 'private fixture data');
+  symlinkSync(outside, join(f.root, 'src', 'linked.js'));
+  symlinkSync(f.directory, join(f.root, 'linked-directory'));
+  for (const followShims of [true, false]) {
+    for (const file of ['../outside.txt', outside, '.git/private-state', 'node_modules/missing.js',
+      'src/absent.js', 'src', 'src/linked.js', 'linked-directory/outside.txt']) {
+      assert.throws(() => toolSourcePath(f.root, file, { followShims }), file);
+    }
+  }
+  f.write('src/escape.js', "export * from '../../outside.txt';\n");
+  f.write('src/bare.js', "export * from 'node:fs';\n");
+  f.write('src/cycle.js', "export * from './cycle.js';\n");
+  for (const name of ['escape.js', 'bare.js', 'cycle.js']) {
+    assert.throws(() => toolSourcePath(f.root, 'src/' + name));
+    assert.equal(toolSourcePath(f.root, 'src/' + name, { followShims: false }), join(f.root, 'src', name));
+  }
+  assert.throws(() => toolSourcePath(f.root, 'src/entry.js', { followShims: 'false' }), /Boolean/u);
+});
+
 test('the private closure compiler preserves V8 edges and refusals without executing source [C7,P3]', t => {
   const f = fixture(t);
   const marker = join(f.directory, 'must-not-execute');

@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/board.js */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles, toolSourcePath } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
@@ -283,8 +283,8 @@ test('opening an older board names and logs its genuine index-building write [C7
   assert.equal(readFileSync(privateBin, 'utf8'), readFileSync(BIN, 'utf8'));
   const sourceGit = mappedWorkingSource(resolve(import.meta.dirname, '..'), 'src/git.js');
   const installedGit = {
-    body: readFileSync(join(installed, sourceGit.implementationPath)),
-    shimBody: sourceGit.shimBody === null ? null : readFileSync(join(installed, sourceGit.shimPath)),
+    body: readFileSync(toolSourcePath(installed, sourceGit.implementationPath)),
+    shimBody: sourceGit.shimBody === null ? null : readFileSync(toolSourcePath(installed, sourceGit.shimPath, { followShims: false })),
   };
   assert.deepEqual(installedGit.body, sourceGit.body, 'the installed implementation retains exact source Buffer bytes');
   assert.deepEqual(installedGit.shimBody, sourceGit.shimBody, 'the installed compatibility shim retains exact source bytes');
