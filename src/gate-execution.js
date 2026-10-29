@@ -1,5 +1,6 @@
 import { proofSourceAt } from './gate-observation.js';
 import { testValueProfile } from './gate-observation.js';
+import { sourcePreparationFields } from './runner-overhead.js';
 import { gitChildEnv } from './git.js';
 import { invalidateGitFacts } from './git.js';
 /** Concern-specific gate stage; public callers keep the gate facade. */
@@ -221,6 +222,7 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
     gateLease.gui = run.executionCapabilities?.gui ?? null;
     gateLease.executionAdmission = run.executionAdmission ?? null;
     gateLease.executionPhases = run.executionPhases ?? null;
+    gateLease.sourcePreparation = sourcePreparationFields(run.sourcePreparation);
   }
   const sandboxBlocked = run.isGreen ? null : run.sandboxBlocked ?? (run.executionRunner
     // The controller cannot realpath remote files; retain the network denial signal without treating remote paths as local paths.
@@ -332,6 +334,7 @@ export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlo
     gateLease.gui = run.executionCapabilities?.gui ?? null;
     gateLease.executionAdmission = run.executionAdmission ?? null;
     gateLease.executionPhases = run.executionPhases ?? null;
+    gateLease.sourcePreparation = sourcePreparationFields(run.sourcePreparation);
     gateLease.tracker?.mark('ranAt');
     const wallMs = Math.max(0, Date.now() - started);
     const profilePath = join(dirname(gitPath(root, LOG)), `pullboard-gate-${randomUUID()}.profile.json`);
@@ -404,8 +407,10 @@ function runTiming(run, command, root) {
     const suffix = relative(run.executionRoot, path);
     return suffix && suffix !== '..' && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix) ? suffix : original;
   };
+  const sourcePreparation = sourcePreparationFields(run.sourcePreparation);
   return { ...profile, executionRunner: run.executionRunner, executionSource: run.executionSource,
     ...(run.executionPhases ? { executionPhases: run.executionPhases } : {}),
+    ...(sourcePreparation ? { sourcePreparation } : {}),
     files: (profile.files ?? []).map(file => ({ ...file, path: localPath(file.path) })),
     tests: (profile.tests ?? []).map(test => ({ ...test, file: localPath(test.file) })) };
 }
