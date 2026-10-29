@@ -57,7 +57,7 @@ export function beginImmediateQueued(db, startedAt) {
     catch (error) {
       const refusal = boardWriteBusyError(db, startedAt, error);
       if (refusal === error || bound === 0 || db.prepare('PRAGMA busy_timeout').get().timeout === 0 || Date.now() - startedAt >= BOARD_BUSY_TIMEOUT_MS + bound) throw refusal;
-      try { writeSync(2, `pullboard: board write queued, still waiting for the lock (up to ${Math.round((BOARD_BUSY_TIMEOUT_MS + bound) / 1000)}s): ${refusal.message}\n`); }
+      try { writeSync(2, `pullboard: board write queued, still waiting for the lock (up to ${Math.round((BOARD_BUSY_TIMEOUT_MS + bound) / 1000)}s): ${refusal.message.replace(/^\[BOARD_BUSY\]\s*/u, '')}\n`); }
       catch { /* A closed diagnostic stream must not turn a queued write into a refusal. */ }
     }
   }
