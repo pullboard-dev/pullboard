@@ -16,7 +16,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
 import * as store from '../src/board.js';
 import { main } from '../src/cli.js';
-import { boardHealth, healthReport } from '../src/health.js';
+import { boardHealth, healthReport } from '../packages/health/index.js';
 import { fixture as dispatchFixture, cli as dispatchCli } from './next-take-fixture.js';
 import { readDigest } from '../src/digest.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
@@ -372,7 +372,7 @@ test('a submitted item with no reviewer goes to the coordinator, not its builder
 test('item history survives garbage collection mid-read [A6]', () => {
   // A stand-in database whose statement lives only while something references it, as node:sqlite's
   // does on Node 22.13, with garbage collection forced while the history is read (#874).
-  const health = pathToFileURL(resolve(import.meta.dirname, '../src/health.js')).href;
+  const health = pathToFileURL(resolve(import.meta.dirname, '../packages/health/index.js')).href;
   const script = `
     import { DatabaseSync } from 'node:sqlite';
     import { itemHistory } from ${JSON.stringify(health)};

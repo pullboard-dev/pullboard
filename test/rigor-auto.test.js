@@ -15,7 +15,7 @@ import { resumeRigorCounters } from '../src/rigor-counters.js';
 import { RIGOR_COLD_NOTICE } from '../src/rigor-counters.js';
 import { clearProofCounters } from '../src/proof-counters.js';
 import { readDigest } from '../src/digest.js';
-import { healthReport } from '../src/health.js';
+import { healthReport } from '../packages/health/index.js';
 import { dispatchHealth } from '../src/dispatch-health.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';

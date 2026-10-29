@@ -1,6 +1,6 @@
 import { specApprovalBaselineExists } from './board.js';
 import { relayRecovered } from './relay.js';
-import { prepareStaleObservation } from './stale-state-command.js';
+import { prepareStaleObservation } from '../packages/health/index.js';
 import { planStaleState } from './board-stale-state-maintenance.js';
 import { releaseGoneClaims } from './gone-claims.js';
 /** CLI proposal and exact person decisions for board-owned watches [A6,D3]. */
