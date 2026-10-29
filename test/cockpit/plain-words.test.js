@@ -30,7 +30,7 @@ async function tab(chrome, name) {
 
 /** Exercise real bookkeeping writers, retaining their source/receipt identities outside Activity. */
 async function seedBookkeeping(box, alpha) {
-  box.run(alpha.repo, 'add', 'web', 'Bookkeeping keeps its native subject', '--specs', 'G1', '--criterion', 'The native fixture command runs.', '--check', 'node --version', '--wait');
+  box.run(alpha.repo, 'add', 'web', 'Bookkeeping keeps its native subject', '--specs', 'G1', '--criterion', 'The native fixture command runs.', '--check', 'node --version');
   box.run(alpha.repo, 'milestone', 'add', 'Plain launch', '--items', '1');
   box.run(alpha.repo, 'milestone', 'items', 'Plain launch', '--add', '2');
   box.run(alpha.repo, 'milestone', 'order', 'Plain launch', '2,1');
@@ -71,6 +71,7 @@ async function seedBookkeeping(box, alpha) {
     assert.equal(JSON.parse(store.events(board).findLast(event => event.event_kind === 'gate-run').event_detail).run.id, receipt.id, 'the gate event retains its actual receipt identity');
   } finally { store.closeBoard(board); }
   box.run(alpha.repo, 'hold', 'web', '--reason', 'Waiting for plain guidance.');
+  box.run(alpha.repo, 'show', '3'); // Deliver any completed native background baseline receipt before observing history.
   const held = store.openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     store.recordNextIdle(held, { agentId: 'coordinator', reason: 'held' });
