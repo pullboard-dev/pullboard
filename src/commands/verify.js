@@ -109,6 +109,16 @@ import {
 import { recordedRecovery } from '../recorded-recovery.js';
 import { retryReviewCommit } from '../verdict-retry.js';
 
+/** Preserve policy refusals while representing unusable cited criteria as a changed digest. */
+export function verificationCriterionDigest(freeze, item) {
+  try { return freeze(item).digest; }
+  catch (error) {
+    if (!(error instanceof Refused)
+      || ['A5_GRAMMAR_VERSION', 'MAIN_FACTS_BUSY', 'NO_POLICY', 'NO_CONFIG', 'BAD_CONFIG'].includes(error.code)) throw error;
+    return 'missing';
+  }
+}
+
 /**
  * Verify from this checkout (V3, V7): the submitted commit must be here, at or under HEAD, and the
  * criterion is re-read from the spec, so a verdict is never given against a moved bar.
@@ -174,11 +184,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem });
     if (missing.keys.length) throw new Refused('NOT_AT_COMMIT',
       `the review tree lacks companions ${missing.keys.join(', ')} for patch-set ${missing.digest}; run pullboard next --verify ${id} to check out the composed source`);
-    try {
-      digest = freezer(ctx, { board })(item).digest;
-    } catch (error) {
-      if (!(error instanceof Refused) || ['A5_GRAMMAR_VERSION', 'MAIN_FACTS_BUSY'].includes(error.code)) throw error;
-    }
+    digest = verificationCriterionDigest(freezer(ctx, { board }), item);
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
