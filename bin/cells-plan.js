@@ -198,11 +198,15 @@ export function retirePath(root, file) {
   return stale;
 }
 
-/** The main commit this move builds on: the merge base with main, or null so every unproven read still counts. */
+/**
+ * The main commit this move builds on: its merge base with main. Null, so every unproven read still counts, when
+ * there is no main or HEAD is itself that base (a check on main has no earlier state to compare against).
+ */
 function moveBase(root) {
+  const head = tryGit(root, ['rev-parse', 'HEAD']).stdout;
   for (const ref of ['main', 'origin/main']) {
     const found = tryGit(root, ['merge-base', 'HEAD', ref]);
-    if (found.status === 0 && /^[a-f0-9]{40,64}$/u.test(found.stdout.trim())) return found.stdout.trim();
+    if (found.status === 0 && /^[a-f0-9]{40,64}$/u.test(found.stdout)) return found.stdout === head ? null : found.stdout;
   }
   return null;
 }

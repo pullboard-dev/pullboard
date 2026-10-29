@@ -126,7 +126,12 @@ test('--moved counts only unproven fixture reads the move made: exact main-base 
   assert.match(notes[0], /also at main [a-f0-9]{12}; not this move's obligation/u);
   assert.deepEqual(problems.map(problem => problem.split(':')[1]).sort(), ['5', '6'],
     'a read naming a moved basename and an extra occurrence of a known site both still count');
+  /** Name the lines of every counted unproven read in the reader. */
+  const counted = () => checkMoved(root, readPlan(root), cell.name).filter(problem => problem.startsWith(reader)).map(problem => problem.split(':')[1]).sort();
+  git(root, 'checkout', '-q', 'main');
+  git(root, 'merge', '-q', '--ff-only', 'move');
+  assert.deepEqual(counted(), ['4', '5', '6'], 'on main itself there is no earlier base, so every unproven read counts');
+  git(root, 'checkout', '-q', 'move');
   git(root, 'branch', '-q', '-D', 'main');
-  assert.deepEqual(checkMoved(root, readPlan(root), cell.name).filter(problem => problem.startsWith(reader)).map(problem => problem.split(':')[1]).sort(),
-    ['4', '5', '6'], 'without a main base every unproven read counts');
+  assert.deepEqual(counted(), ['4', '5', '6'], 'without a main base every unproven read counts');
 });
