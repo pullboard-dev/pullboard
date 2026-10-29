@@ -18,11 +18,9 @@ import { ENGINE_VERSION } from './machine.js';
 import { VERDICT_REVIEW_ENGINE } from './machine.js';
 import { IN_STATE } from './machine.js';
 import { MOVES } from './machine.js';
-import * as landingEnvironment from './landing-environment-guards.js';
 import { Refused } from './refused.js';
 import { recordRejectedItemRoute } from './route-escalation.js';
-import { deriveRigorCause } from './rigor-auto.js';
-import { causeProblem } from './rigor.js';
+import { causeProblem } from './board-rigor.js';
 import { tellVerdictImplications } from './implies.js';
 import { ACCEPT_REASON } from './board.js';
 import { REJECT_REASONS } from './board.js';
@@ -58,7 +56,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
   const code = isAccept ? ACCEPT_REASON : reason;
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   if (sourceAdvanceHead !== undefined && engine < SOURCE_ADVANCE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before binding a verdict to an automatically advanced source');
-  landingEnvironment.requireVerdict(board, environment);
+  board.nativePorts.landingEnvironment.requireVerdict(board, environment);
   const declaration = MOVES.find(move => move.verb === verb);
   const newReview = engine >= VERDICT_REVIEW_ENGINE && review !== undefined;
   let clauseDetail = {};
@@ -106,7 +104,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     if (isAccept && sandbox && outsideSource(board, id)) saveOutsideSource(board, id, { ...outsideSource(board, id), sandbox });
     const trigger = rejectClause.finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
       agentId, code, cause, clauseDetail, companionDigest, note, check, environment, sandbox, newReview,
-      review, implies, impliesId, decision, verb }, { firstRefusalDetail, deriveRigorCause, logEvent, holdItem,
+      review, implies, impliesId, decision, verb }, { firstRefusalDetail, deriveRigorCause: board.nativePorts.deriveRigorCause, logEvent, holdItem,
       shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications });
     if (!isAccept) postRigorNotices(board, trigger);
     return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}),

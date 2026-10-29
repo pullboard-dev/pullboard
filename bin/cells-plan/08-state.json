@@ -6,7 +6,7 @@
  "frontDoor": "packages/state/index.js",
  "placedBy": {
   "seed": 110,
-  "rule": 78,
+  "rule": 80,
   "imports": 18
  },
  "paths": [
@@ -177,6 +177,8 @@
   ["src/no-eligible-reviewer-engine.js","packages/state/src/core/no-eligible-reviewer-engine.js","rule"],
   ["src/move-history/170.json","packages/state/src/shell/move-history/170.json","rule"],
   ["src/family-declare-engine.js","packages/state/src/core/family-declare-engine.js","rule"],
+  ["src/main-audit-engine.js","packages/state/src/core/main-audit-engine.js","rule"],
+  ["src/stale-state-engine.js","packages/state/src/core/stale-state-engine.js","rule"],
   ["src/move-history/171.json","packages/state/src/shell/move-history/171.json","rule"],
   ["src/engine-move-advance-item-source.js","packages/state/src/core/engine-move-advance-item-source.js","rule"],
   ["src/engine-move-answer-decision.js","packages/state/src/core/engine-move-answer-decision.js","rule"],

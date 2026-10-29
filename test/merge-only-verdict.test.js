@@ -245,7 +245,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
       store.recordLandingBatch(adoption, { agentId: 'coordinator', batch });
       await assert.rejects(runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root: box.repo, board: adoption, adopt: true,
         config: { landing: { publish: 'separate' } }, owner: 'private-adopter', say: () => {},
-        write: async (operation, args) => store[operation](adoption, ...args), checkLease: async () => {} }),
+        write: async (operation, args) => adoption.enginePorts.store[operation](adoption, ...args), checkLease: async () => {} }),
       error => error.code === 'STALE_VERDICT' && /recorded merge-only acceptance/u.test(error.message),
       'adoption must re-prove an already-gated canonical carry before finishing its trunk receipt');
       assert.equal(store.landingBatches(adoption).at(-1).state, 'trunk');

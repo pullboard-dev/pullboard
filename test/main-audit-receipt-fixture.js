@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { prepareEngineMove, applyEngineMove, appliedSequence } from '../src/engine.js';
 import { MAIN_AUDIT_ENGINE } from '../src/main-audit-engine.js';
 import { getItem } from '../src/board.js';
-import { recordLandingTestDefect } from '../src/landing-test-defects.js';
+import { recordLandingTestDefect } from '../src/board-landing-test-defects.js';
 import { gateRuns, recordGateRun } from '../src/quarantine.js';
 
 /** Caller supplies two native boards with the same genuinely recorded landing history, plus the real stored run. */

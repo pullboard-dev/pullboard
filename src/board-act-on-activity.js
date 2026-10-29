@@ -1,4 +1,4 @@
-import * as activityDeliveryStore from './activity-delivery-store.js';
+import * as activityDeliveryStore from './board-activity-delivery-store.js';
 import { atomic } from './board-event-log.js';
 import { logEvent } from './board-event-log.js';
 

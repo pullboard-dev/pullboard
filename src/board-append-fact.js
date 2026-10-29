@@ -12,7 +12,7 @@ import { factIdentityExists } from './fact-identity.js';
 import { requireFactIdentityIndexes } from './fact-identity.js';
 import { COORDINATOR } from './config.js';
 import { Refused } from './refused.js';
-import { requireNeverAgain } from './rigor.js';
+import { requireNeverAgain } from './board-rigor.js';
 import { factReference } from './fact-reference.js';
 import { factFromEvent } from '../packages/state/src/core/fact-projection.js';
 import { tellFactImplications } from './implies.js';

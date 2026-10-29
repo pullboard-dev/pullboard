@@ -1,8 +1,5 @@
 import { verdictWithdrawalTarget } from './verdict-withdrawal.js';
-import { computedConflictProblem } from './computed-conflict-receipt.js';
 import { sourceAdvanceReturnProblem } from './source-advance-return.js';
-import { sealSourceAdvanceReturn } from './source-advance-origin.js';
-import * as computedConflictEvidence from './computed-conflict-receipt.js';
 import { reopenAuthority } from './reopen-authority.js';
 import * as verdictWithdrawal from './verdict-withdrawal.js';
 import { current } from './board-query.js';
@@ -10,7 +7,6 @@ import { getItem } from './board-query.js';
 import { events } from './board-query.js';
 import { atomic } from './board-event-log.js';
 import { logEvent } from './board-event-log.js';
-import { NEXT_STEPS } from './next-step-words.js';
 import { manualLandingFailure } from './claims.js';
 import { firstRefusalDetail } from './claims.js';
 import { tellFirstRefusal } from './claims.js';
@@ -23,13 +19,12 @@ import { MOVES } from './machine.js';
 import { Refused } from './refused.js';
 import { listAgents } from './seats.js';
 import { RIGOR_AUTO_ENGINE } from './rigor-auto-engine.js';
-import { deriveRigorCause } from './rigor-auto.js';
-import { causeProblem } from './rigor.js';
+import { causeProblem } from './board-rigor.js';
 import { conflictDetail } from './trunk-conflict.js';
 import { conflictProblem } from './trunk-conflict.js';
 import { returnedHeadNotice } from './trunk-conflict.js';
 import { conflictNote } from '../packages/kernel/src/core/registry-guards.js';
-import { landingBatches } from './landing-batch-history.js';
+import { landingBatches } from './git-landing-batches.js';
 import { moveItem } from './board.js';
 import { postRigorNotices } from './board.js';
 import { persistShout } from './board-shout.js';
@@ -45,13 +40,13 @@ import { persistShout } from './board-shout.js';
 export function reopen(board, id, { agentId, note = '', conflict, cause, reopenFirstRefusalMinutes, quotedLandingFailure, withdrawVerdict, computedConflict, sourceAdvanceReturn, landingFence }) {
   return atomic(board, () => {
     if (sourceAdvanceReturn !== undefined) {
-      if (board.executionEngineVersion === undefined) ({ note, conflict, quotedLandingFailure, sourceAdvanceReturn } = sealSourceAdvanceReturn(board, id, { agentId, sourceAdvanceReturn, landingFence }));
+      if (board.executionEngineVersion === undefined) ({ note, conflict, quotedLandingFailure, sourceAdvanceReturn } = board.nativePorts.sealSourceAdvanceReturn(board, id, { agentId, sourceAdvanceReturn, landingFence }));
       const problem = sourceAdvanceReturnProblem(board, getItem(board, id), { agentId, note, conflict, quotedLandingFailure, sourceAdvanceReturn });
       if (problem) throw problem;
     }
     let submittedCommit = null;
     const assertedConflict = conflict;
-    conflict = computedConflictEvidence.conflictValue(computedConflict, conflict);
+    conflict = board.nativePorts.conflictValue(computedConflict, conflict);
     const forMerge = conflict !== undefined && conflict !== null;
     let supersedes, landingFailure, withdrawnVerdict;
     const forWithdrawal = withdrawVerdict === true;
@@ -65,7 +60,7 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
         joined: null,
         [IN_STATE]: (found) => new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, found).item_status}, not submitted`),
         reopenAuthority: (found) => reopenAuthority(board, found, agentId,
-          { forWithdrawal, forMerge, currentEngine, computedConflict, assertedConflict }, value => { withdrawnVerdict = value; }, { listAgents, verdictWithdrawalTarget, computedConflictProblem }),
+          { forWithdrawal, forMerge, currentEngine, computedConflict, assertedConflict }, value => { withdrawnVerdict = value; }, { listAgents, verdictWithdrawalTarget, computedConflictProblem: board.nativePorts.computedConflictProblem }),
         noteGiven: () => (forMerge || note.trim() ? null : new Refused('NOTE_REQUIRED', 'say why the criterion needs correction: --note "why"')),
         causeWellFormed: () => causeProblem(cause),
         notMerged: (found) => found.item_status !== 'verified' || !found.item_merged_commit
@@ -87,7 +82,7 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
           const manual = manualLandingFailure(note, { quoted: quoted && (quotedLandingFailure === true || manualLandingFailureQuoted(note)) });
           if (!accepted || (!recorded && !manual)) return new Refused('LANDING_FAILURE_REQUIRED',
             `reopening verified item #${id} needs --note in the format <test file>: <test name>; merge commit <sha>${quoted ? ', or quote a test name containing a semicolon' : ''}`,
-            quoted ? NEXT_STEPS.LANDING_FAILURE_REQUIRED : undefined);
+            quoted ? board.nativePorts.nextSteps.LANDING_FAILURE_REQUIRED : undefined);
           supersedes = accepted.event_id;
           landingFailure = recorded
             ? { batch: recorded.batch.id, tests: recorded.culprit.tests, mergeCommit: recorded.culprit.mergeCommit }
@@ -113,7 +108,7 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
     const reservation = (forMerge || landingFailure || forWithdrawal) && currentEngine >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalDetail(board, item, reopenFirstRefusalMinutes, returnedAt) : {};
     const returned = forWithdrawal ? { supersedes, withdrawnVerdict } : forMerge ? { supersedes, ...conflictDetail(conflict), ...(computedConflict !== undefined ? { computedConflict } : {}) } : supersedes ? { supersedes, landingFailure } : {};
     const derivedCause = currentEngine >= RIGOR_AUTO_ENGINE
-      ? deriveRigorCause(board, item, { cause, conflict, landingFailure, agentId }) : cause != null ? { cause } : {};
+      ? board.nativePorts.deriveRigorCause(board, item, { cause, conflict, landingFailure, agentId }) : cause != null ? { cause } : {};
     const returnedWithCause = currentEngine >= RIGOR_AUTO_ENGINE ? { ...returned, ...derivedCause } : { ...derivedCause, ...returned };
     const trigger = logEvent(board, agentId, 'reopen', id, { ...(sourceAdvanceReturn ? { sourceAdvanceReturn } : {}), commit: submittedCommit, note: note.trim() || conflictNote(conflict), judgment: null, ...reservation,
       ...returnedWithCause }, returnedAt);

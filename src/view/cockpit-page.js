@@ -6,6 +6,7 @@ import { cockpitRoadmap } from './cockpit-roadmap.js';
 import { cockpitProse } from './cockpit-prose.js';
 import { milestoneRowHtml } from './roadmap-render.js';
 import { readMilestoneModel } from './roadmap-render.js';
+import { roadmapRemainingCount } from './roadmap-render.js';
 import { roadmapCardsHtml } from './roadmap-render.js';
 import { groupActivityModel } from './group-render.js';
 import { groupNeedsHtml } from './group-render.js';
@@ -121,7 +122,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   const repositoryAttribute = starRepository().replace(/[&<>"']/gu, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const sections = { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, hostedMarkup, signIn, settingsMarkup, starMarkup,
     pageScope, pageScriptPart1, pageScriptPart2, pageScriptPart3, COMMAND_SOURCE, groupActivityModel, groupNeedsHtml, groupEventHtml,
-    milestoneRowHtml, readMilestoneModel, roadmapCardsHtml, releaseNotice, pageRenderScript, settingsPageScript,
+    milestoneRowHtml, readMilestoneModel, roadmapRemainingCount, roadmapCardsHtml, releaseNotice, pageRenderScript, settingsPageScript,
     agentApprovalScript, pageScriptPart4, historyLoadingScript };
   return cockpitMarkup(sections) + cockpitLive(sections) + cockpitReplay(sections) + cockpitSidebar(sections)
     + cockpitRoadmap(sections) + cockpitProse(sections);

@@ -5,13 +5,12 @@
  "root": "apps/runner",
  "frontDoor": "apps/runner/index.js",
  "placedBy": {
-  "seed": 8,
+  "seed": 7,
   "rule": 0,
   "imports": 0
  },
  "paths": [
   ["src/private-check-worker.js","apps/runner/src/shell/private-check-worker.js","seed"],
-  ["src/process-census.js","apps/runner/src/shell/process-census.js","seed"],
   ["src/runner-custody.js","apps/runner/src/shell/runner-custody.js","seed"],
   ["src/runner-private-check.js","apps/runner/src/shell/runner-private-check.js","seed"],
   ["src/runner-private-mode.js","apps/runner/src/shell/runner-private-mode.js","seed"],

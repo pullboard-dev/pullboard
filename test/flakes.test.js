@@ -30,10 +30,10 @@ import { runSubmitGate } from '../src/gate.js';
 import { withFileLock } from '../src/relay-outbox-guard.js';
 import { readMainAudit } from '../src/main-audit-state.js';
 import { saveMainAudit } from '../src/main-audit-state.js';
-import { landingLeaseState } from '../src/landing-lease.js';
+import { landingLeaseState } from '../src/board-landing-lease.js';
 import { executionServices } from './gate-execution-fixture.js';
 import { flakeLedger } from '../src/flakes.js';
-import { eventCauses } from '../src/rigor.js';
+import { eventCauses } from '../src/board-rigor.js';
 const workerServices = Object.freeze({ executionServices, context, ordered, withBoard, runSubmitGate, withFileLock,
   readMainAudit, saveMainAudit, landingLeaseState, selectors: { selectAffectedTests, selectTestTreeGuards },
   testValue: { flakeLedger, eventCauses } });
@@ -492,7 +492,7 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
       await assert.rejects(land({ landingPorts, root: box.root, board, config, owner: 'private-interrupted-owner', say: () => {}, landingWorkerFile: resolve(import.meta.dirname, '../bin/landing-worker.js'),
         write: async (operation, args) => {
           if (operation === 'recordLandingBatch' && args[0].batch.state === 'blocked') throw new Error('controlled interruption after retained diagnostic');
-          return store[operation](board, ...args);
+          return board.enginePorts.store[operation](board, ...args);
         } }).then(result => { completed = result; return result; }), /controlled interruption after retained diagnostic/u);
     } catch (error) {
       const saved = store.landingBatches(board).at(-1);

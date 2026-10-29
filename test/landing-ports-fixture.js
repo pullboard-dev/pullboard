@@ -4,6 +4,6 @@ import { writeBadges } from '../src/badge.js';
 import { flakeSource } from '../src/native-flakes.js';
 import { observeNativeFailure } from '../src/native-flakes.js';
 import { quarantineWaivers } from '../src/quarantine.js';
-import { parseProcessCensus } from '../src/process-census.js';
+import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
 
 export const landingPorts = Object.freeze({ badgeCounts, writeBadges, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus });

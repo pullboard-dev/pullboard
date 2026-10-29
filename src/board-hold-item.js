@@ -1,7 +1,6 @@
-import { holdUntilKind } from './conditional-holds.js';
-import { forgetHoldMaintenance } from './conditional-holds.js';
-import { rememberHoldCondition } from './conditional-holds.js';
-import { STALE_STATE_ENGINE } from './stale-state-engine.js';
+import { holdUntilKind } from './board-conditional-holds.js';
+import { forgetHoldMaintenance } from './board-conditional-holds.js';
+import { rememberHoldCondition } from './board-conditional-holds.js';
 import { applyItemHold } from './item-holds.js';
 import { now } from './board-query.js';
 import { getItem } from './board-query.js';
@@ -14,5 +13,5 @@ import { setItem } from './board.js';
 
 /** Hold an item through the unchanged coordinator transaction. */
 export function holdItem(board, id, options) {
-  return applyItemHold(board, id, options, { coordinatorOnly, atomic, getItem, setItem, now, logEvent, postRigorNotices, itemHold, holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: STALE_STATE_ENGINE });
+  return applyItemHold(board, id, options, { coordinatorOnly, atomic, getItem, setItem, now, logEvent, postRigorNotices, itemHold, holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: board.nativePorts.staleStateEngine });
 }

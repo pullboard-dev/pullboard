@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { test } from 'node:test';
-import { generateBoardKey, seal } from '../src/seal.js';
+import { generateBoardKey, seal } from '../packages/kernel/src/core/seal.js';
 import {
   PAGE_BYTES,
   PAGE_CIPHER_BYTES,

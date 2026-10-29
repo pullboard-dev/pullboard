@@ -4,13 +4,12 @@ import { atomic } from './board-event-log.js';
 import { logEvent } from './board-event-log.js';
 import { acceptedVerdict } from './verdict-reviews.js';
 import { checkedLandingCommit } from './verdict-reviews.js';
-import { guardLandingWrite } from './landing-lease.js';
+import { guardLandingWrite } from './board-landing-lease.js';
 import { ENGINE_VERSION } from './machine.js';
 import { VERDICT_REVIEW_ENGINE } from './machine.js';
 import { LOCAL_LANDING_ENGINE } from './land-engine.js';
-import * as landingEnvironment from './landing-environment-guards.js';
 import { Refused } from './refused.js';
-import { landingBatches } from './landing-batch-history.js';
+import { landingBatches } from './git-landing-batches.js';
 import { coordinatorOnly } from './board.js';
 import { merged } from './board-merged.js';
 import { recordLandingBatch } from './board-record-landing-batch.js';
@@ -19,12 +18,12 @@ import { persistShout } from './board-shout.js';
 /** Atomically record a pushed batch's first-containing merges and one main-moved receipt [B3,R3]. */
 export function finishLandingBatch(board, { agentId, id, tip, landingFence }) {
   coordinatorOnly(agentId, 'finishes a landing');
-  landingEnvironment.requireTrunk(board);
+  board.nativePorts.landingEnvironment.requireTrunk(board);
   return atomic(board, () => {
     guardLandingWrite(board, landingFence);
     const batch = landingBatches(board).find((entry) => entry.id === id);
     if (!batch || batch.tip !== tip) throw new Refused('LAND_BATCH', 'the pushed tip must match its recorded batch; run pullboard land --adopt');
-    landingEnvironment.requireStoredBatch(board, batch);
+    board.nativePorts.landingEnvironment.requireStoredBatch(board, batch);
     if (batch.state === 'landed') return batch;
     if (batch.state !== 'pushed' && !(batch.state === 'trunk' && (board.executionEngineVersion ?? ENGINE_VERSION) >= LOCAL_LANDING_ENGINE)) throw new Refused('LAND_NOT_PUSHED', 'record a successful push before landing receipts; run pullboard land --adopt');
     for (const entry of batch.items) {

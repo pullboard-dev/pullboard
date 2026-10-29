@@ -1,3 +1,4 @@
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** Checkpoint invalidation follows sealed business inputs rather than private command recovery [H5,C6,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -8,6 +9,9 @@ import {
   relayPresentation,
   presentationDigest,
 } from '../src/relay-presentation.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 /** Supply real Git and SQLite state while freezing only the documented presentation observation argument. */
 function checkpointBox(t) {
@@ -27,18 +31,18 @@ function refusal(box, audience, code) {
 
 test('checkpoint fingerprints ignore an agent-only refusal when complete sealed state is unchanged [H5,C6,H16]', t => {
   const box = checkpointBox(t);
-  const before = relayPresentation(box.root, { observedAt: box.observedAt });
+  const before = relayPresentation(box.root, { observedAt: box.observedAt }, RELAY_PRESENTATION_PORTS);
   refusal(box, 'agent', 'UNKNOWN_SPEC');
-  const after = relayPresentation(box.root, { observedAt: box.observedAt });
+  const after = relayPresentation(box.root, { observedAt: box.observedAt }, RELAY_PRESENTATION_PORTS);
   assert.deepEqual(after.state, before.state, 'all emitted state fields remain exact, including presence, proof stats and observation time');
   assert.equal(presentationDigest(after), presentationDigest(before), 'a private recovery ledger append alone needs no new sealed checkpoint');
 });
 
 test('checkpoint fingerprints retain a new person-visible refusal and its complete Needs you state [H5,C6,H16]', t => {
   const box = checkpointBox(t);
-  const before = relayPresentation(box.root, { observedAt: box.observedAt });
+  const before = relayPresentation(box.root, { observedAt: box.observedAt }, RELAY_PRESENTATION_PORTS);
   refusal(box, 'person', 'HUMAN_REQUIRED');
-  const after = relayPresentation(box.root, { observedAt: box.observedAt });
+  const after = relayPresentation(box.root, { observedAt: box.observedAt }, RELAY_PRESENTATION_PORTS);
   assert.ok(after.state.blocks.some(block => block.code === 'HUMAN_REQUIRED' && block.reason === 'synthetic checkpoint input refusal'));
   assert.notDeepEqual(after.state, before.state);
   assert.notEqual(presentationDigest(after), presentationDigest(before), 'public recovery still invalidates the complete checkpoint');

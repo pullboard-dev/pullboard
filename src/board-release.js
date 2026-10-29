@@ -1,4 +1,4 @@
-import { releaseClaim } from './release-claim.js';
+import { releaseClaim } from './board-release-claim.js';
 import { itemById } from './board-query.js';
 import { reviewHolder } from './board-query.js';
 import { atomic } from './board-event-log.js';

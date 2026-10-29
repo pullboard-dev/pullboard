@@ -395,7 +395,7 @@ async function runMain(argv, streams) {
       try {
         let eligible = true;
         try {
-          const { landingLeaseState } = await import('./landing-lease.js');
+          const { landingLeaseState } = await import('./board-landing-lease.js');
           eligible = (await import('./source-advance-worker.js')).hasSourceAdvanceJobs(io.cwd, { landingLeaseState });
         }
         catch { /* Unknown state keeps the normal worker path, which records incomplete work. */ }

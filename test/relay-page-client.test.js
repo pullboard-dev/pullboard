@@ -9,7 +9,7 @@ import { createRelayJournal } from '../relay/journal.js';
 import { snapshotPageRoot } from '../relay/pages-http.js';
 import { createRelayPageCache, snapshotSourceId } from '../src/relay-page-cache.js';
 import { pagedSnapshotRequest, relaySnapshotRequest, relayStorage, relayStorageLine } from '../src/relay-page-client.js';
-import { generateBoardKey } from '../src/seal.js';
+import { generateBoardKey } from '../packages/kernel/src/core/seal.js';
 import { writeSealedValue, sealedPageFingerprint } from '../src/sealed-pages.js';
 import { Refused } from '../src/refused.js';
 import { createServer } from 'node:http';

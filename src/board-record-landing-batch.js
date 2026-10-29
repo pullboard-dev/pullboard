@@ -1,18 +1,17 @@
 import { now } from './board-query.js';
 import { atomic } from './board-event-log.js';
 import { logEvent } from './board-event-log.js';
-import { guardLandingWrite } from './landing-lease.js';
+import { guardLandingWrite } from './board-landing-lease.js';
 import { ENGINE_VERSION } from './machine.js';
 import { VERDICT_REVIEW_ENGINE } from './machine.js';
 import { LOCAL_LANDING_ENGINE } from './land-engine.js';
-import * as landingEnvironment from './landing-environment-guards.js';
 import { Refused } from './refused.js';
 import { invariantEvidence } from './submit-invariants.js';
 import { preserveInvariantEvidence } from './submit-invariants.js';
 import { validateLandingBatch } from './submit-invariants.js';
 import { validateLandingRevision } from './submit-invariants.js';
 import { SUBMISSION_PROOF_ENGINE } from './move-engine-constants.js';
-import { landingBatches } from './landing-batch-history.js';
+import { landingBatches } from './git-landing-batches.js';
 import { NATIVE_FLAKE_ENGINE } from './flake-engine.js';
 import { carriesFlakeDiagnostics } from './flake-engine.js';
 import { coordinatorOnly } from './board.js';
@@ -20,7 +19,7 @@ import { coordinatorOnly } from './board.js';
 /** Append one coordinator-owned batch revision without changing the board schema [B3,R3]. */
 export function recordLandingBatch(board, { agentId, batch, revision = 0, landingFence }) {
   coordinatorOnly(agentId, 'records landing batches');
-  landingEnvironment.requireBatch(board, batch);
+  board.nativePorts.landingEnvironment.requireBatch(board, batch);
   if (carriesFlakeDiagnostics(batch) && (board.executionEngineVersion ?? ENGINE_VERSION) < NATIVE_FLAKE_ENGINE) {
     throw new Refused('ENGINE_VERSION', `typed landing diagnostics require engine ${NATIVE_FLAKE_ENGINE}; upgrade Pullboard`);
   }
@@ -34,7 +33,7 @@ export function recordLandingBatch(board, { agentId, batch, revision = 0, landin
   return atomic(board, () => {
     guardLandingWrite(board, landingFence);
     const previous = landingBatches(board).find((entry) => entry.id === batch.id);
-    landingEnvironment.requireRevision(board, previous, batch);
+    board.nativePorts.landingEnvironment.requireRevision(board, previous, batch);
     preserveInvariantEvidence(previous, evidence, board.executionEngineVersion ?? ENGINE_VERSION);
     validateLandingRevision(previous, batch, revision);
     const recorded = { ...batch, revision: revision + 1, updatedAt: now(board) };

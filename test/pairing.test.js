@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createPairingCode, openPairingBundle, parsePairingCode, sealPairingBundle } from '../src/pairing.js';
-import { decodeBoardKey } from '../src/seal.js';
+import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { createPairingStore } from '../relay/pairing-store.js';
 import { createPairingHandler } from '../relay/pairing-http.js';

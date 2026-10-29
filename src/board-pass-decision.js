@@ -1,7 +1,7 @@
 import { leadOwnsDecision } from './lane-lead.js';
 import { getShout } from './board-read-auxiliary.js';
 import { PERSON } from './board-query.js';
-import { COORDINATION_SHOUT } from './shout-audience.js';
+import { COORDINATION_SHOUT } from './board-shout-audience.js';
 import { shoutItemId } from '../packages/kernel/src/core/registry-guards.js';
 import { atomic } from './board-event-log.js';
 import { COORDINATOR } from './config.js';

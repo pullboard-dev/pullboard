@@ -8,7 +8,7 @@ import * as store from '../src/board.js';
 import { runFixtureGit } from './fixture-child.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { CPU_SENTINEL_ENGINE } from '../src/cpu-sentinel-engine.js';
-import { HEALTH_SHOUT_CAP } from '../src/health-receipts.js';
+import { HEALTH_SHOUT_CAP } from '../src/board-health-receipts.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
 
 // CPU time is observed, not burned: the native utility port supplies an exact ps/lsof transcript.

@@ -14,7 +14,7 @@ import { closeSync } from 'node:fs';
 import { writeSync } from 'node:fs';
 import { constants } from 'node:fs';
 import { join } from 'node:path';
-import { parseProcessCensus } from './process-census.js';
+import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
 
 const pending = new WeakMap();
 let ownIdentity;

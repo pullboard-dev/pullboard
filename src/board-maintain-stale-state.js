@@ -1,4 +1,4 @@
-import { applyStaleState } from './stale-state-store.js';
+import { applyStaleState } from './board-stale-state-store.js';
 import { getItem } from './board-query.js';
 import { atomic } from './board-event-log.js';
 import { logEvent } from './board-event-log.js';

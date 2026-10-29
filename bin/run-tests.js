@@ -24,7 +24,10 @@ import {
   shardArguments,
   testSelectionPatterns,
 } from '../src/test-selection.js';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import {
+  AGENT_SHELL_MARKERS,
+  SSH_SHELL_MARKERS,
+} from '../packages/kernel/src/core/discovery.js';
 import { isLandingWorkerIdentityTimeout, landingWorkerIdentityQuery, parseLandingWorkerIdentity } from '../src/landing-worker-identity.js';
 import { foreignNodeOptions, isolateTestMachine } from '../src/test-isolation.js';
 import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../src/test-file-pool.js';
@@ -1330,7 +1333,7 @@ async function main(args) {
         if (!files.length) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
         const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null;
         const { runLandingShards } = await import('../src/landing-shards.js');
-        const { parseProcessCensus } = await import('../src/process-census.js');
+        const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
         const { testsNeedBrowser } = await import('../src/browser-admission.js');
         const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite, parseProcessCensus,
           needsBrowser: shardFiles => testsNeedBrowser(process.cwd(), shardFiles), timing });

@@ -1,3 +1,4 @@
+import { landingWaiverFor as nativeLandingWaiverFor } from './landing-waivers.js';
 /** Coordinator landing selection step; source-preserving partition of land.js [B3,R3,C7]. */
 import { localDependencyIds } from './item-dependencies.js';
 import { landingChangedFiles } from './land-collisions.js';
@@ -7,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from './board.js';
 import { tryGit } from './git.js';
-import { landingLeaseState } from './landing-lease.js';
+import { landingLeaseState } from './board-landing-lease.js';
 import { sameEnvironment } from './execution-environment.js';
 import { staleVerdictRefusal } from './verdict-freshness.js';
 import { verdictProjector } from './verdict-freshness.js';
@@ -29,7 +30,7 @@ export function heldTestDefects(root, board, trunk, landingPorts) {
   return store.landingTestDefects(board).filter(defect => {
     if (defect.branch !== trunk.branch) return false;
     const blob = testBlob(root, trunk.commit, defect.test);
-    return !(blob && blob !== defect.blob && blob !== defect.trunkBlob) && !defect.names.every(name => store.landingWaiverFor(board, { file: defect.test, name }, landingPorts));
+    return !(blob && blob !== defect.blob && blob !== defect.trunkBlob) && !defect.names.every(name => nativeLandingWaiverFor(board, { file: defect.test, name }, landingPorts));
   });
 }
 
@@ -78,7 +79,7 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     if (stale) { blocked.push({ id: item.item_id, ...stale }); continue; }
     const known = knownReds.find((entry) => entry.id === item.item_id && entry.commit === item.item_commit
       && (entry.reviewedCommit ?? entry.commit) === item.item_landing_commit);
-    if (known && !known.tests.every((failure) => store.landingWaiverFor(board, failure, landingPorts))) {
+    if (known && !known.tests.every((failure) => nativeLandingWaiverFor(board, failure, landingPorts))) {
       blocked.push({ id: item.item_id, code: 'LAND_KNOWN_RED', tests: known.tests });
       continue;
     }

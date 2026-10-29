@@ -1,4 +1,6 @@
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/machine.js */
+import { landingWaiverFor as nativeLandingWaiverFor } from '../src/landing-waivers.js';
+import { waivedLandingProof as nativeWaivedLandingProof } from '../src/landing-waivers.js';
 /** Preserve released person-waiver receipts on independent current replicas [B3,R3,H16]. */
 import { landingPorts } from './landing-ports-fixture.js';
 import assert from 'node:assert/strict';
@@ -74,8 +76,8 @@ test('an actual engine12 person waiver keeps its exact receipt and history on bo
     assert.deepEqual(engineReceipt(board, move.id), oldEngine.engineReceipt(old, move.id));
     assert.deepEqual(withoutWriterMarker(exportBoard(board)), withoutWriterMarker(oldExchange.exportBoard(old)));
     const before = exportBoard(board);
-    assert.equal(store.landingWaiverFor(board, { file: 'test/flaky.test.js', name: 'unrelated behavior' }, landingPorts).kind, 'file');
-    assert.equal(store.landingWaiverFor(board, { file: 'test/unrelated.test.js', name: 'test/flaky.test.js' }, landingPorts), null,
+    assert.equal(nativeLandingWaiverFor(board, { file: 'test/flaky.test.js', name: 'unrelated behavior' }, landingPorts).kind, 'file');
+    assert.equal(nativeLandingWaiverFor(board, { file: 'test/unrelated.test.js', name: 'test/flaky.test.js' }, landingPorts), null,
       'a file waiver cannot cover a test merely named like its file');
     assert.deepEqual(exportBoard(board), before, 'derived waiver classification never writes history');
     assert.deepEqual(applyEngineMove(board, move, order), original, 'retrying the old move preserves its released receipt');
@@ -106,7 +108,7 @@ test('an actual engine12 person waiver keeps its exact receipt and history on bo
   for (const board of replicas) {
     const before = exportBoard(board);
     assert.equal(store.getItem(board, item).item_merged_commit, commit, 'the older pushed receipt remains recorded');
-    assert.equal(store.waivedLandingProof(board, commit, landingPorts), null, 'new pushes cannot reuse that unsafe old proof');
+    assert.equal(nativeWaivedLandingProof(board, commit, landingPorts), null, 'new pushes cannot reuse that unsafe old proof');
     assert.deepEqual(exportBoard(board), before, 'stricter pre-push projection never rewrites ordered history');
   }
 });

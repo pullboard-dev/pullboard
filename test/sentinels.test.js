@@ -1,3 +1,7 @@
+import { proposeSentinel as nativeProposeSentinel } from '../src/sentinels.js';
+import { decideSentinel as nativeDecideSentinel } from '../src/sentinels.js';
+import { beginSentinelRun as nativeBeginSentinelRun } from '../src/sentinels.js';
+import { finishSentinelRun as nativeFinishSentinelRun } from '../src/sentinels.js';
 /** Real board watches: exact person approval, automatic execution, owner notices and replay [A6,D1,D3,H16]. */
 import assert from 'node:assert/strict';
 import { ChildProcess } from 'node:child_process';
@@ -22,8 +26,8 @@ import { applyRelayMove } from '../src/engine.js';
 import { prepareEngineMove } from '../src/engine.js';
 import { exportBoard } from '../src/exchange.js';
 import { importBoard } from '../src/exchange.js';
-import { eventCauses } from '../src/rigor.js';
-import { rigorReport } from '../src/rigor.js';
+import { eventCauses } from '../src/board-rigor.js';
+import { rigorReport } from '../src/board-rigor.js';
 import { executeSentinel } from '../src/sentinel-runner.js';
 import { runDueSentinels } from '../src/sentinel-runner.js';
 import { startServeSentinel } from '../src/serve-sentinel.js';
@@ -46,7 +50,7 @@ import { loadConfig } from '../src/config.js';
 import { loadDoctrine } from '../src/doctrine.js';
 import { frozenCriterion } from '../src/spec.js';
 import { loadSpec } from '../src/spec.js';
-import { parseProcessCensus } from '../src/process-census.js';
+import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
 import { requireSupportedEngine as requirePublished55Engine } from './fixtures/engine-55-reader.js';
 
 /** Isolate actual SQLite, Git, settings and subprocess files; due time is explicitly injected. */
@@ -296,9 +300,9 @@ test('an approved sentinel execution reports to its owner once [A6,D1,D3]', asyn
 
 test('an agent cannot approve a sentinel [A6,D3,H16]', async t => {
   const box = fixture(t);
-  const row = store.proposeSentinel(box.board, { agentId: box.agent, row: { name: 'private-check', check: 'true', every: 'hourly', owner: 'core' } });
+  const row = nativeProposeSentinel(box.board, { agentId: box.agent, row: { name: 'private-check', check: 'true', every: 'hourly', owner: 'core' } });
   const before = exportBoard(box.board);
-  assert.throws(() => store.decideSentinel(box.board, { agentId: box.agent, channel: 'view', name: row.name, digest: row.digest, decision: 'approve' }), error => error.code === 'B26_PERSON_APPROVAL');
+  assert.throws(() => nativeDecideSentinel(box.board, { agentId: box.agent, channel: 'view', name: row.name, digest: row.digest, decision: 'approve' }), error => error.code === 'B26_PERSON_APPROVAL');
   assert.deepEqual(exportBoard(box.board), before);
   const forged = prepareEngineMove(box.board, 'decideSentinel', [{ agentId: store.PERSON, channel: 'view', name: row.name, digest: row.digest, decision: 'approve' }]);
   for (const sender of [{ kind: 'agent', agent: box.agent, userId: 'fixture' }, { kind: 'machine', machine: 'fixture', userId: 'fixture' }]) {
@@ -317,18 +321,18 @@ test('an agent cannot approve a sentinel [A6,D3,H16]', async t => {
 test('a changed command, directory or schedule loses approval and stale receipts cannot restore it [A6,H16]', async t => {
   const box = fixture(t);
   const definition = { name: 'daily-check', check: 'true', every: 'daily', owner: 'coordinator' };
-  const initial = store.proposeSentinel(box.board, { agentId: box.agent, row: definition });
-  store.decideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: initial.name, digest: initial.digest, decision: 'approve' });
+  const initial = nativeProposeSentinel(box.board, { agentId: box.agent, row: definition });
+  nativeDecideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: initial.name, digest: initial.digest, decision: 'approve' });
   for (const change of [{ check: 'false' }, { directory: 'other' }, { every: 'hourly' }, { owner: 'core' }, { timeoutMs: 500 }]) {
-    const changed = store.proposeSentinel(box.board, { agentId: box.agent, row: { ...definition, ...change } });
+    const changed = nativeProposeSentinel(box.board, { agentId: box.agent, row: { ...definition, ...change } });
     assert.notEqual(changed.digest, initial.digest); assert.equal(changed.status, 'pending');
     const before = exportBoard(box.board);
-    assert.throws(() => store.decideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: initial.name, digest: initial.digest, decision: 'approve' }), error => error.code === 'STALE_SENTINEL');
+    assert.throws(() => nativeDecideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: initial.name, digest: initial.digest, decision: 'approve' }), error => error.code === 'STALE_SENTINEL');
     assert.deepEqual(exportBoard(box.board), before);
-    assert.equal(store.beginSentinelRun(box.board, { agentId: box.agent, name: changed.name, digest: changed.digest, run: 'not-approved' }), null);
+    assert.equal(nativeBeginSentinelRun(box.board, { agentId: box.agent, name: changed.name, digest: changed.digest, run: 'not-approved' }), null);
   }
   const current = sentinels(box.board)[0];
-  store.decideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: current.name, digest: current.digest, decision: 'decline', reason: 'Not this check' });
+  nativeDecideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: current.name, digest: current.digest, decision: 'decline', reason: 'Not this check' });
   assert.equal((await box.run()).length, 0);
   assert.equal(sentinels(box.board)[0].status, 'declined');
 });
@@ -336,15 +340,15 @@ test('a changed command, directory or schedule loses approval and stale receipts
 test('simultaneous observers run one child and an identical approval cannot steal its lease [A6,H16]', async t => {
   const box = fixture(t);
   const check = checker(box, "import {appendFileSync} from 'node:fs'; appendFileSync('count','run\\n');");
-  const row = store.proposeSentinel(box.board, { agentId: box.agent, row: { name: 'one-child', check, every: '10m', owner: 'core' } });
-  store.decideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: row.name, digest: row.digest, decision: 'approve' });
+  const row = nativeProposeSentinel(box.board, { agentId: box.agent, row: { name: 'one-child', check, every: '10m', owner: 'core' } });
+  nativeDecideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: row.name, digest: row.digest, decision: 'approve' });
   await Promise.all([box.run(), box.run()]);
   assert.equal(readFileSync(join(box.root, 'count'), 'utf8'), 'run\n');
   box.clock.time += 600_001;
-  const started = store.beginSentinelRun(box.board, { agentId: box.agent, name: row.name, digest: row.digest, run: 'claimed-run' });
+  const started = nativeBeginSentinelRun(box.board, { agentId: box.agent, name: row.name, digest: row.digest, run: 'claimed-run' });
   assert.ok(started);
-  store.decideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: row.name, digest: row.digest, decision: 'approve' });
-  assert.equal(store.beginSentinelRun(box.board, { agentId: 'coordinator', name: row.name, digest: row.digest, run: 'must-not-run' }), null);
+  nativeDecideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: row.name, digest: row.digest, decision: 'approve' });
+  assert.equal(nativeBeginSentinelRun(box.board, { agentId: 'coordinator', name: row.name, digest: row.digest, run: 'must-not-run' }), null);
 });
 
 test('watch timeout drains its owned child group and retains only bounded final output [A6]', async t => {
@@ -410,9 +414,9 @@ test('watch receipts replay deterministically, export without execution and keep
 test('a missing census provider cannot launch a watch or claim its ordered lease [A6,H16]', async t => {
   const box = fixture(t);
   const check = checker(box, "import {writeFileSync} from 'node:fs'; writeFileSync('unexpected-watch','launched');");
-  const row = store.proposeSentinel(box.board, { agentId: box.agent,
+  const row = nativeProposeSentinel(box.board, { agentId: box.agent,
     row: { name: 'missing-census', check, every: 'hourly', owner: 'core' } });
-  store.decideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: row.name, digest: row.digest, decision: 'approve' });
+  nativeDecideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: row.name, digest: row.digest, decision: 'approve' });
   const before = exportBoard(box.board);
   await assert.rejects(executeSentinel(box.root, row), error => error.code === 'SENTINEL_DRAIN');
   await assert.rejects(runDueSentinels({ root: box.root, board: box.board, agentId: 'coordinator', ordered: box.ordered }),
@@ -470,25 +474,25 @@ test('a successful watch drains an unreferenced descendant before returning its 
 
 test('watch receipts reject extra or contradictory fields without consuming the run lease [A6,H16]', t => {
   const box=fixture(t);
-  const row=store.proposeSentinel(box.board,{agentId:box.agent,row:{name:'receipt',check:'true',every:'hourly',owner:'core'}});
-  store.decideSentinel(box.board,{agentId:store.PERSON,channel:'view',name:row.name,digest:row.digest,decision:'approve'});
-  store.beginSentinelRun(box.board,{agentId:box.agent,name:row.name,digest:row.digest,run:'receipt-run'});
+  const row=nativeProposeSentinel(box.board,{agentId:box.agent,row:{name:'receipt',check:'true',every:'hourly',owner:'core'}});
+  nativeDecideSentinel(box.board,{agentId:store.PERSON,channel:'view',name:row.name,digest:row.digest,decision:'approve'});
+  nativeBeginSentinelRun(box.board,{agentId:box.agent,name:row.name,digest:row.digest,run:'receipt-run'});
   const args={agentId:box.agent,name:row.name,digest:row.digest,run:'receipt-run'};
   const good={green:true,code:0,timedOut:false,signal:null,aborted:false,durationMs:1,output:'done'};
   for(const result of [{...good,extra:'not a receipt field'},{...good,green:false},{...good,signal:'bad signal'}, {...good,aborted:'false'}, {...good,code:-1}]) {
     const before=exportBoard(box.board);
-    assert.throws(()=>store.finishSentinelRun(box.board,{...args,result}),error=>error.code==='BAD_SENTINEL');
+    assert.throws(()=>nativeFinishSentinelRun(box.board,{...args,result}),error=>error.code==='BAD_SENTINEL');
     assert.deepEqual(exportBoard(box.board),before,'invalid receipts neither write events nor consume the lease');
   }
-  store.finishSentinelRun(box.board,{...args,result:good});
+  nativeFinishSentinelRun(box.board,{...args,result:good});
   assert.equal(sentinels(box.board)[0].lastRun.green,true);
 });
 
 
 test('cancellation after a watch lease but before launch records no false failure [A6,H16]', async t => {
   const box=fixture(t), controller=new AbortController();
-  const row=store.proposeSentinel(box.board,{agentId:box.agent,row:{name:'cancelled',check:'true',every:'hourly',owner:'core'}});
-  store.decideSentinel(box.board,{agentId:store.PERSON,channel:'view',name:row.name,digest:row.digest,decision:'approve'});
+  const row=nativeProposeSentinel(box.board,{agentId:box.agent,row:{name:'cancelled',check:'true',every:'hourly',owner:'core'}});
+  nativeDecideSentinel(box.board,{agentId:store.PERSON,channel:'view',name:row.name,digest:row.digest,decision:'approve'});
   await runDueSentinels({root:box.root,board:box.board,agentId:'coordinator',ordered:box.ordered,signal:controller.signal,parseProcessCensus,
     execute:async (root,definition,options)=>{controller.abort();return executeSentinel(root,definition,options);}});
   assert.equal(sentinels(box.board)[0].lastRun.aborted,true,'cancellation keeps its actual outcome');
@@ -536,7 +540,7 @@ test('a successful watch drains a descendant that ignores TERM before publishing
 test('the background observer leaves approved board watches for explicit runs [A6,D3]', async t => {
   const box = fixture(t);
   const check = checker(box, "import {appendFileSync} from 'node:fs'; appendFileSync('background-runs','run\\n'); console.log('background receipt'); process.exit(1);");
-  const row = store.proposeSentinel(box.board, { agentId: box.agent, row: { name: 'background', check, every: '10m', owner: box.agent } });
+  const row = nativeProposeSentinel(box.board, { agentId: box.agent, row: { name: 'background', check, every: '10m', owner: box.agent } });
   let tick;
   let cancelled = false;
   const errors = [];
@@ -550,7 +554,7 @@ test('the background observer leaves approved board watches for explicit runs [A
   await tick();
   const runs = join(box.root, 'background-runs');
   assert.equal(existsSync(runs), false, 'the real child cannot execute a pending proposal');
-  store.decideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: row.name, digest: row.digest, decision: 'approve' });
+  nativeDecideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: row.name, digest: row.digest, decision: 'approve' });
   const configFile = join(box.root, 'pullboard.json');
   const config = readFileSync(configFile, 'utf8');
   writeFileSync(configFile, JSON.stringify({ ...JSON.parse(config), health: { sentinel: false } }));
@@ -579,7 +583,7 @@ test('the background observer leaves approved board watches for explicit runs [A
 
 test('a person approves or declines a sentinel by its exact proposal [N26,P6]', async t => {
   const box = fixture(t);
-  const proposal = store.proposeSentinel(box.board, { agentId: box.agent,
+  const proposal = nativeProposeSentinel(box.board, { agentId: box.agent,
     row: { name: 'view-watch', check: 'true', directory: '.', every: 'hourly', owner: 'core' } });
   const draft = sentinelDraftNeeds(sentinels(box.board))[0];
   assert.deepEqual([draft.check, draft.directory, draft.every, draft.owner, draft.digest],
@@ -596,7 +600,7 @@ test('a person approves or declines a sentinel by its exact proposal [N26,P6]', 
   const approved = await act(approval);
   assert.equal(approved.status, 200, JSON.stringify(approved));
   assert.equal(sentinels(box.board)[0].status, 'approved');
-  const replacement = store.proposeSentinel(box.board, { agentId: box.agent, row: { ...proposal, check: 'false' } });
+  const replacement = nativeProposeSentinel(box.board, { agentId: box.agent, row: { ...proposal, check: 'false' } });
   const beforeStale = exportBoard(box.board);
   const stale = await act(approval);
   assert.equal(stale.body.error?.code, 'STALE_SENTINEL');
@@ -615,7 +619,7 @@ test('a person approves or declines a sentinel by its exact proposal [N26,P6]', 
     assert.equal(refused.body.error?.code, 'B26_PERSON_CHANNEL');
     assert.deepEqual(exportBoard(box.board), beforeAgent, 'an agent API channel never makes a person decision');
   }
-  const relayed = store.proposeSentinel(box.board, { agentId: box.agent,
+  const relayed = nativeProposeSentinel(box.board, { agentId: box.agent,
     row: { name: 'relay-watch', check: 'true', every: 'daily', owner: 'core' } });
   const intent = { verb: 'sentinel-approve', args: { name: relayed.name, digest: relayed.digest } };
   /** Receive only through the ordinary durable authenticated request intake. */
@@ -654,7 +658,7 @@ test('a person approves or declines a sentinel by its exact proposal [N26,P6]', 
   assert.equal(personRequestRecords(box.board).find(row => row.id === record.id).status, 'done');
   assert.equal(JSON.parse(box.board.db.prepare("SELECT event_detail FROM event WHERE event_kind='sentinel-decision' ORDER BY event_id DESC LIMIT 1").get().event_detail).person,
     person.login, 'the decision belongs to the initiating phone person, not its executor');
-  const nextProposal = store.proposeSentinel(box.board, { agentId: box.agent, row: { ...relayed, check: 'false' } });
+  const nextProposal = nativeProposeSentinel(box.board, { agentId: box.agent, row: { ...relayed, check: 'false' } });
   const declineIntent = { verb: 'sentinel-decline', args: { name: nextProposal.name,
     digest: nextProposal.digest, reason: '  Requested decline  ' } };
   const declineRecord = receive('person-sentinel-decline', person, declineIntent);

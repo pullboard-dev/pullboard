@@ -149,6 +149,6 @@ test('a changed cockpit test selects the shared-wait scanner [C7,B3]', (t) => {
   const commit = git('rev-parse', 'HEAD');
   assert.deepEqual(git('diff', '--name-only', base, commit).split('\n'), ['test/cockpit/demo.test.js'], 'the actual repository changes only the cockpit test');
   const selection = selectAffectedTests(root, { base, commit });
-  assert.equal(selection.full, false, 'a cockpit-only change retains affected selection');
+  assert.equal(selection.full, false, `a cockpit-only change retains affected selection: ${selection.reason}; selected ${selection.files.length} files`);
   assert.ok(selection.files.includes('test/shared-wait-guard.test.js'), 'the actual shared-wait scanner is selected');
 });

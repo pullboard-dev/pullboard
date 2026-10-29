@@ -10,7 +10,7 @@ import * as setup from '../src/relay-setup.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { createDeviceKeys, signDeviceEnrollment } from '../src/relay-device-keys.js';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 
 /** Run the public view adapter in a process whose complete home, registry and boards are private. */
 async function viewScenario(box, mode) {

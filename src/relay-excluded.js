@@ -12,7 +12,7 @@ import { ENGINE_VERSION } from './engine-metadata.js';
 import {
   generateBoardKey,
   seal,
-} from './seal.js';
+} from '../packages/kernel/src/core/seal.js';
 import { Refused } from './refused.js';
 
 /** Rebuild and seal this machine's current list using only its locally authenticated device roster. */

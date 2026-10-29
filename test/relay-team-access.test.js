@@ -13,7 +13,7 @@ import { ACCESS_WINDOW_MS, createRelayAuth } from '../relay/auth.js';
 import { createAuthHandler } from '../relay/auth-http.js';
 import { createRelayHandler } from '../relay/service.js';
 import { createRelayJournal } from '../relay/journal.js';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { runFixtureChild, runFixtureChildAsync } from './fixture-child.js';
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');

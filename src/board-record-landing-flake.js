@@ -1,7 +1,7 @@
 import { atomic } from './board-event-log.js';
 import { logEvent } from './board-event-log.js';
 import { Refused } from './refused.js';
-import { landingFlakes } from './landing-exceptions.js';
+import { landingFlakes } from './board-landing-exceptions.js';
 import { coordinatorOnly } from './board.js';
 import { addItem } from './board-add-item.js';
 

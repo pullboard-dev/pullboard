@@ -11,7 +11,7 @@ import { LANDING_LOCAL_LEASE_ENGINE } from './landing-local-lease-engine.js';
 import {
   localLandingEntry,
   rememberLocalLanding,
-} from './landing-local-lease.js';
+} from './board-landing-local-lease.js';
 
 const KEY = 'landing_lease';
 export const LANDING_LEASE_MS = 30_000;

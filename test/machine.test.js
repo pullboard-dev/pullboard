@@ -4,6 +4,7 @@
  * The item lifecycle's declaration (M1, M2, M4): sound on its own terms, each property shown
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
  */
+import { functionsIn, MACHINE_CALLBACKS as CALLBACKS } from './machine-source-functions.fixture.js';
 import { sourceFacts } from './machine-source-functions.fixture.js';
 import { moveOf } from './machine-source-functions.fixture.js';
 import { declaredBoardOrder } from './machine-source-functions.fixture.js';
@@ -13,7 +14,6 @@ import { packageFiles } from '../src/package-files.js';
 import { assertSyncFacadeAudit } from './machine-source-functions.fixture.js';
 import { workingSourceInventory } from '../bin/checks/scan.js';
 import { fileURLToPath } from 'node:url';
-import { functionsIn } from './machine-source-functions.fixture.js';
 import { assertCommitShimRefusals, machineSourceModule } from './commits-machine-fixture.js';
 import { assertMachineWalkMemo } from './machine-walk-memo.fixture.js';
 import * as fs from 'node:fs';
@@ -134,36 +134,7 @@ const NON_MOVE_ENTRY_POINTS = [
   'resources.js#gateSlotEnvironment',
   'person-signing-cli.js#pinRelayAuthority', // Reads the relay's authority before a person command (#408).
 ];
-/** Board functions handed a function to call, and the one the CLI and the runner hand them. */
-const CALLBACKS = {
-  // Real higher command roots bind runnerExecutionServices; admission snapshots these functions onto the lease.
-  'gate-execution.js': {
-    'gateLease.executionServices.runners.runOnRunner': 'runners.js#runOnRunner',
-    'gateLease.executionServices.runners.runOnRunnerAsync': 'runners.js#runOnRunnerAsync',
-  },
-  // Explicit item ports preserve these canonical authority and sandbox refusal paths.
-  'reopen-authority.js': { verdictWithdrawalTarget: 'verdict-withdrawal.js#verdictWithdrawalTarget' },
-  'outside-verify.js': { verifyOutsideSandbox: 'sandbox-verify.js#verifyOutsideSandbox' },
-  'item-authors.js': { strictReviewProblem: 'review-independence.js#strictReviewProblem' },
-  // Native verification ports retain these exact receipt and projection guards.
-  'proof-cli.js': { proofRunReceipt: 'proof-receipts.js#proofRunReceipt' },
-  'proof-counters.js': {
-    appendRigorCounter: 'rigor-counters.js#appendRigorCounter',
-    ensureRigorCounters: 'rigor-counters.js#ensureRigorCounters',
-  },
-  // The native root supplies these setup guards through the physical store's explicit ports.
-  'board-store.js': {
-    readEventLogVersion: 'board-read-open.js#readEventLogVersion',
-    boardNotWritable: 'board-access.js#boardNotWritable',
-    boardBusyError: 'board-access.js#boardBusyError',
-  },
-  'board.js': { freeze: 'cli.js#freezer' }, 'board-claim.js': { freeze: 'cli.js#freezer' }, 'board-refreeze.js': { freeze: 'cli.js#freezer' },
-  'line-capacity-board.js': {
-    nextFor: 'board.js#nextFor',
-    reviewerChecks: 'board.js#reviewerChecks',
-    reviewReleaseCooldown: 'board.js#reviewReleaseCooldown',
-  },
-};
+
 /**
  * Calls whose refusals an entry point catches and reports as another: submit and verify read a
  * cited row taken out of force as a changed criterion, CRITERIA_CHANGED. Submit also keeps its
@@ -187,14 +158,15 @@ const CAUGHT = {
   // Historical decline metadata is parsed inside a non-throwing boundary, covered by the Rigor history control.
   'board.js#reopen': ['rigor-notices.js#declinedRigorSource'],
   // Rigor projection folds inspect invalid cause results as data, never lifecycle refusals.
-  'rigor.js#eventCauses': ['rigor.js#causeProblem'],
-  'rigor-counter-state.js#neverKey': ['rigor.js#causeProblem'],
+  'board-rigor.js#eventCauses': ['board-rigor.js#causeProblem'],
+  'rigor-counter-state.js#neverKey': ['board-rigor.js#causeProblem'],
   // Historical decline grammar is caught locally; typed readers return invalid evidence as null.
   'rigor-counter-state.js#declineKey': ['spec.js#parseSpec'],
-  'rigor-source.js#readRigorSource': ['rigor.js#causeProblem'],
-  'rigor-auto-source.js#readAutomaticRigorSource': ['rigor.js#causeProblem'],
+  'board-rigor-source.js#readRigorSource': ['board-rigor.js#causeProblem'],
+  'board-rigor-auto-source.js#readAutomaticRigorSource': ['board-rigor.js#causeProblem'],
   // Only an unsupported historical grammar is ignored; new caller refusals remain audited below.
-  'rigor-auto-source.js#automaticDecisionSource': ['spec.js#parseSpec'], 'rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec'],
+  'board-rigor-auto-source.js#automaticDecisionSource': ['spec.js#parseSpec'],
+  'board-rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec'],
   'person-row-proof.js#signedRowDecisionsMatch': ['spec.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
 };
 /**
@@ -596,7 +568,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
   ], 'the caller is not exempt: only the exact reader call is inside its catch');
 
   for (const helper of ['automaticDecisionSource', 'rigorDecisionKey']) {
-    const inHistoricalCaller = editedSource('rigor-auto-source.js',
+    const inHistoricalCaller = editedSource('board-rigor-auto-source.js',
       new RegExp(`^export function ${helper}\\(record\\) \\{$`, 'm'),
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inHistoricalCaller).sort(), [
@@ -1428,6 +1400,16 @@ test('lifecycle audit follows extracted package guards and catches a new refusal
   const planted = editedSource(file, /^export function requireHandoffActive\(board, actor, operation, args\) \{$/m,
     "$&\n  throw new Refused('STATE_PACKAGE_PROBE', 'planted package guard');");
   assert.ok(codeProblems(machineRules.MACHINE, planted).includes('STATE_PACKAGE_PROBE is raised by submit but not declared there'));
+});
+
+/** The exact native guard binding remains audited after the canonical root supplies it. */
+test('native landing ports retain guard refusals without trusting unrelated chains [M1,M4]', () => {
+  const planted = editedSource('landing-environment-guards.js', /^export function requireVerdict\([^\n]+\) \{$/m,
+    "$&\n  throw new Refused('NATIVE_PORT_PROBE', 'planted native guard');");
+  const reaches = codeProblems(machineRules.MACHINE, planted);
+  assert.ok(reaches.includes('NATIVE_PORT_PROBE is raised by accept and reject but not declared there'), 'the actual bound guard reaches its lifecycle caller');
+  const unrelated = file => planted(file).replaceAll('board.nativePorts.landingEnvironment.', 'board.nativePorts.unrelatedLandingEnvironment.');
+  assert.ok(!codeProblems(machineRules.MACHINE, unrelated).some(problem => problem.startsWith('NATIVE_PORT_PROBE is raised by ')), 'an unrelated property chain does not inherit the real binding');
 });
 
 test('lifecycle source walks follow sync shims and catch a planted body refusal [M1,M4,H16]', () => {

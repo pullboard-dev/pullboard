@@ -1,11 +1,11 @@
-import { hasPendingDispatchNotices } from '../health-receipts.js';
+import { hasPendingDispatchNotices } from '../board-health-receipts.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from '../automatic-dispatch-engine.js';
 import { CPU_SENTINEL_ENGINE } from '../cpu-sentinel-engine.js';
 import { REJECTED_WORK_RETURN_ENGINE } from '../rejected-work-return-engine.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by recordHealthFindings, discovered without a shared registry edit [C7,V4,H16]. */
-import { HEALTH_SENTINEL_ENGINE } from '../health-receipts.js';
-import { hasPendingCpuNotices } from '../health-receipts.js';
+import { HEALTH_SENTINEL_ENGINE } from '../board-health-receipts.js';
+import { hasPendingCpuNotices } from '../board-health-receipts.js';
 import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 
