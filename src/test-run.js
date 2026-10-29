@@ -38,6 +38,7 @@ import { trackedDefaultTestFiles } from './test-selection.js';
 import {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
+  gateRunnerAdmission,
   loadMachineSettings,
 } from './settings.js';
 
@@ -50,8 +51,15 @@ export async function runFullSuite(root, runner, executionServices) {
   const { cpuRunnerRequired } = await import('./cpu-load-admission.js');
   const result = await withGateSlot(root, lease => fullGateRun(root, { ...policy.config, gate: 'node ./bin/run-tests.js' }, false,
     { gateLease: lease, waitMs: lease.waitMs, kind: 'suite' }),
-  { executionServices, browser: true, gui: testsNeedGui(root, files), runnerOnly: cpuRunnerRequired(root, files), kind: 'gate' });
+  { executionServices, browser: true, gui: testsNeedGui(root, files), runnerOnly: cpuRunnerRequired(root, files), ...testRunnerAdmission(), kind: 'gate' });
   return result;
+}
+
+/** Capture the machine's runner-only cutoff and name the setting before any test admission waits. */
+function testRunnerAdmission() {
+  const admission = gateRunnerAdmission();
+  if (admission.runnerOnly) process.stderr.write('gate.runnersOnly is on; tests wait for a registered runner with no local fallback\n');
+  return admission;
 }
 
 /** Quote one argument for the configured focused test command. */
@@ -129,6 +137,7 @@ export async function runTestFiles(root, config, files, { agent, onWait, affecte
   let paths = affected ? [] : testFiles(root, files);
   if (typeof compareMainFailures !== 'function' || typeof withMainCheckout !== 'function') throw new TypeError('test files need an explicit accepted-main comparison');
   const started = Date.now();
+  const admission = testRunnerAdmission();
   const run = await inCleanCheckout(root, async (checkout) => {
     let full = false;
     if (policy) {
@@ -144,12 +153,12 @@ export async function runTestFiles(root, config, files, { agent, onWait, affecte
     const command = full ? `(${config.gate})${focused ? ' && ' + focused : ''}` : (focused || 'true');
     const browser = full || !browserFreeChecksEnabled() || await testsNeedBrowser(checkout, paths);
     return withGateSlot(checkout, (lease) => runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs }),
-      { executionServices, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full, agent, kind: 'test', onWait });
+      { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full, agent, kind: 'test', onWait });
   }, withMainCheckout);
   const result = { green: run.isGreen, output: run.output, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
     ...(run.executionRunner ? {} : { local: localReason() }) };
   if (!run.isGreen) {
-    const compared = await compareMainFailures(root, run.profile, onWait, run.output);
+    const compared = await compareMainFailures(root, run.profile, onWait, run.output, { runnerAdmission: admission });
     result.main = compared.main;
     // A file main does not have yet cannot fail there: its failure is new, whatever main's run of it said.
     result.known = compared.files.map((entry) => compared.main && spawnSync('git', ['cat-file', '-e', `${compared.main}:${entry.file}`], { cwd: root, env: cleanGitEnvironment(), stdio: 'ignore' }).status !== 0
