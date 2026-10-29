@@ -11,8 +11,8 @@ import { landingExecutionServices } from '../landing-shards.js';
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import { gitBoardDataPush } from '../../packages/commits/src/core/board-format.js';
 import * as store from '../board.js';
-import { pendingCommitSignoffProblem } from '../commit-signoff.js';
-import { prepareCommitMetadata } from '../commit-metadata.js';
+import { pendingCommitSignoffProblem } from '../../packages/commits/index.js';
+import { prepareCommitMetadata } from '../../packages/commits/index.js';
 import { landingBatchOwnsRoot } from '../landing-candidates.js';
 import { landingRows } from '../../packages/commits/src/core/landing-rows.js';
 import {
@@ -43,7 +43,7 @@ import {
   preCommitProblems,
   prePushProblems,
   pushesTrunk,
-} from '../hooks.js';
+} from '../../packages/commits/index.js';
 import {
   Refused,
 } from '../refused.js';

@@ -39,7 +39,7 @@ import {
   caughtFrom,
 } from './caught.js';
 
-import { secretsIn } from './hooks.js';
+import { secretsIn } from '../packages/commits/index.js';
 import { Refused } from './refused.js';
 
 

@@ -65,10 +65,10 @@ function receiptRegistrations(board) {
 }
 
 /** Every family record of one seat, each with its board order: the join (its own field, else its insert), then family events. */
-function seatRecords(board, id, { inserting = false } = {}) {
-  const seat = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id = ?').get(id);
-  const join = board.db.prepare("SELECT event_id, event_detail FROM event WHERE event_kind='join' AND event_by=? ORDER BY event_id LIMIT 1").get(id);
-  const families = board.db.prepare("SELECT event_id, event_detail FROM event WHERE event_kind='family' AND event_by=? ORDER BY event_id").all(id)
+function seatRecords(board, id, { inserting = false } = {}, snapshot = null) {
+  const seat = snapshot ? snapshot.seats.get(id) : board.db.prepare('SELECT agent_path FROM agent WHERE agent_id = ?').get(id);
+  const join = snapshot ? snapshot.joins.get(id) : board.db.prepare("SELECT event_id, event_detail FROM event WHERE event_kind='join' AND event_by=? ORDER BY event_id LIMIT 1").get(id);
+  const families = snapshot ? snapshot.families.get(id) ?? [] : board.db.prepare("SELECT event_id, event_detail FROM event WHERE event_kind='family' AND event_by=? ORDER BY event_id").all(id)
     .map(row => ({ order: row.event_id, family: parsed(row.event_detail)?.family }));
   const records = [];
   const joined = join ? parsed(join.event_detail) : null;
@@ -76,9 +76,9 @@ function seatRecords(board, id, { inserting = false } = {}) {
   else if (!inserting && seat) {
     // A join recorded before the family field: with no family event since, the seat row still holds its insert
     // value; after a change, the first ordered registration receipt for its path is the first record.
-    const receipt = families.length ? receiptRegistrations(board).get(seat.agent_path) : null;
+    const receipt = families.length ? (snapshot ? snapshot.receipts() : receiptRegistrations(board)).get(seat.agent_path) : null;
     const insert = families.length ? (receipt && (receipt.seat === null || receipt.seat === id) ? receipt.family : undefined)
-      : board.db.prepare('SELECT agent_family AS family FROM agent WHERE agent_id = ?').get(id)?.family;
+      : snapshot ? seat.agent_family : board.db.prepare('SELECT agent_family AS family FROM agent WHERE agent_id = ?').get(id)?.family;
     records.push({ order: join?.event_id ?? LAST, family: insert });
   }
   return [...records, ...families].filter(record => namesFamily(record.family));
@@ -137,7 +137,48 @@ export function withDerivedFamily(board, row) {
   return row ? { ...row, agent_family: seatFamily(board, row.agent_id) } : row;
 }
 
-/** Agent rows as every reader sees them, each with its one derived family. */
+/** Collect read-local family inputs once; no derived authority survives this bulk read. */
+function familySnapshot(board) {
+  const seats = new Map(board.db.prepare('SELECT agent_id, agent_path, agent_family FROM agent').all().map(row => [row.agent_id, row]));
+  const sessions = new Map(), peers = new Map(), joins = new Map(), families = new Map();
+  for (const row of board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key LIKE 'agent\\_session:%' ESCAPE '\\' ORDER BY rowid").all()) {
+    const id = row.meta_key.slice('agent_session:'.length);
+    if (row.meta_key === 'agent_session:' + id) sessions.set(id, row.meta_value);
+    if (!peers.has(row.meta_value)) peers.set(row.meta_value, []);
+    peers.get(row.meta_value).push(id);
+  }
+  for (const row of board.db.prepare("SELECT event_id, event_by, event_kind, event_detail FROM event WHERE event_kind IN ('join','family') ORDER BY event_id").all()) {
+    if (row.event_kind === 'join') { if (!joins.has(row.event_by)) joins.set(row.event_by, row); }
+    else {
+      if (!families.has(row.event_by)) families.set(row.event_by, []);
+      families.get(row.event_by).push({ order: row.event_id, family: parsed(row.event_detail)?.family });
+    }
+  }
+  let receipts;
+  return { seats, sessions, peers, joins, families,
+    /** Read historical registration receipts at most once, only when a legacy changed seat needs them. */
+    receipts() { return receipts ??= receiptRegistrations(board); } };
+}
+
+/** Agent rows share one read snapshot while retaining the ordinary single-seat and older-engine semantics. */
 export function withDerivedFamilies(board, rows) {
-  return rows.map(row => withDerivedFamily(board, row));
+  if (!rows.length) return [];
+  if ((board.executionEngineVersion ?? Infinity) < FAMILY_DECLARE_ENGINE) return rows.map(row => withDerivedFamily(board, row));
+  board.db.exec('SAVEPOINT family_bulk_read');
+  try {
+    const snapshot = familySnapshot(board), records = new Map();
+    return rows.map(row => {
+      if (!row) return row;
+      const id = row.agent_id, original = id ? snapshot.sessions.get(id) ?? null : null;
+      // The requested seat comes first even when legacy records tie at LAST; ghost peer ids remain evidence.
+      const seats = new Set(id ? [id] : []);
+      if (original) for (const peer of snapshot.peers.get(original) ?? []) seats.add(peer);
+      let first = null;
+      for (const seat of seats) {
+        if (!records.has(seat)) records.set(seat, seatRecords(board, seat, {}, snapshot));
+        for (const record of records.get(seat)) if (!first || record.order < first.order) first = record;
+      }
+      return { ...row, agent_family: first?.family ?? null };
+    });
+  } finally { board.db.exec('RELEASE family_bulk_read'); }
 }

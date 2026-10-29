@@ -7,7 +7,7 @@ import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { configProblems, defaults } from '../src/config.js';
-import { machineNameProblems, machineNames } from '../src/hooks.js';
+import { machineNameProblems, machineNames } from '../packages/commits/index.js';
 import { installStep } from '../src/worktree.js';
 
 const e2e = createE2eHelpers();

@@ -7,6 +7,9 @@ import { readPathMap, mappedPath } from '../packages/codemap/index.js';
 
 const SOURCE_MAP = new Map([...readPathMap(fileURLToPath(new URL('../', import.meta.url)))].filter(([, target]) => target.startsWith('packages/commits/')));
 
+/** The re-export shim the commits move generated for src/hooks.js, kept as text to exercise the alias reader. */
+const GENERATED_HOOKS_SHIM = 'export { HOOKS, HOOKS_DIR, HOOK_MARK, FIX_NOTE, commitMsgProblems, computerName, machineNames, machineNameProblems, commitCitationWarnings, stagedPaths, addedLines, secretsIn, matchesPattern, blockedPaths, preCommitProblems, deletedGateProblems, preMergeHookProblems, unwiredHookProblems, applyFixers, deletedRowProblems, prePushProblems, pushesTrunk, hookScript, installHooks } from "../packages/commits/src/shell/hooks.js";\n';
+
 /** Follow only this moved cell's committed exact aliases through whole generated shims, preserving other cells' readers. */
 export function machineSourceModule(file, read) {
   const source = read(file), original = posix.normalize(posix.join('src', file));
@@ -30,17 +33,18 @@ export function machineSourceModule(file, read) {
 export function assertCommitShimRefusals(codeWalk, read, editedSource, codeProblems, machine) {
   const walk = codeWalk(read);
   for (const [entry, code] of [
-    ['hooks.js#machineNameProblems', 'HOST_NAME'],
-    ['infra-note.js#infraNote', 'INFRA_NOTE_REQUIRED'],
-    ['guard-revert.js#guardRevertNote', 'GUARD_CANNOT_FAIL'],
-    ['guard-revert.js#guardRevertNote', 'GUARD_NOT_FOUND'],
+    ['../packages/commits/src/shell/hooks.js#machineNameProblems', 'HOST_NAME'],
+    ['../packages/commits/src/core/infra-note.js#infraNote', 'INFRA_NOTE_REQUIRED'],
+    ['../packages/commits/src/shell/guard-revert.js#guardRevertNote', 'GUARD_CANNOT_FAIL'],
+    ['../packages/commits/src/shell/guard-revert.js#guardRevertNote', 'GUARD_NOT_FOUND'],
   ]) assert.ok(walk.refusalsOf(entry).has(code), `${entry} retains its actual moved refusal ${code}`);
   const planted = editedSource('../packages/commits/src/shell/hooks.js',
     /^export function machineNameProblems\(root, range, \{ refuse, say, names = machineNames\(\) \}\) \{$/m,
     "$&\n  throw new Refused('COMMIT_PACKAGE_PROBE', 'planted moved commit guard');");
   assert.ok(codeProblems(machine, planted).includes('COMMIT_PACKAGE_PROBE is raised by submit but not declared there'),
     'a compatibility shim cannot hide a newly raised lifecycle refusal');
-  const realShim = read('hooks.js');
+  // The shims are deleted from src/; the reader's alias rules are still proven against the shape the move generated.
+  const realShim = GENERATED_HOOKS_SHIM;
   for (const badShim of [realShim.replace('machineNameProblems,', 'machineNames as machineNameProblems,'),
     realShim.replace('machineNameProblems,', '')]) {
     assert.throws(() => machineSourceModule('hooks.js', file => file === 'hooks.js' ? badShim : read(file)),
