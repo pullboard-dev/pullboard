@@ -44,7 +44,7 @@ function fixture({ missing = false, locked = false } = {}) {
 test('a normal native claim, work and submit preserves its real counter anchor [N2]', () => {
   const control = fixture();
   const { box, item, usage, run } = control;
-  assert.doesNotMatch(control.claim.stderr, /USAGE_PENDING/);
+  assert.doesNotMatch(JSON.stringify(JSON.parse(control.claim.stdout).diagnostics ?? []), /USAGE_PENDING/);
   const ledger = JSON.parse(readFileSync(join(box.repo, '.git/pullboard/cost-ledger.json'), 'utf8'));
   assert.ok(ledger.active.some(entry => entry.item === item && entry.snapshot && !entry.recovered));
   usage(37, 6);
@@ -61,7 +61,7 @@ test('a normal native claim, work and submit preserves its real counter anchor [
 
 test('a synthetic claim-time ledger lock alone produces recovered missed-claim-anchor [N2]', () => {
   const { item, claim, usage, run } = fixture({ locked: true });
-  assert.match(claim.stderr, /USAGE_PENDING/);
+  assert.match(JSON.stringify(JSON.parse(claim.stdout).diagnostics), /USAGE_PENDING/);
   usage(37, 6);
   run('release', String(item), '--no-next');
   const shown = JSON.parse(run('show', String(item), '--json').stdout);
@@ -72,7 +72,7 @@ test('a synthetic claim-time ledger lock alone produces recovered missed-claim-a
 
 test('provider discovery failure with a persisted claim is distinct from a missed claim checkpoint [N2]', () => {
   const { item, claim, run } = fixture({ missing: true });
-  assert.doesNotMatch(claim.stderr, /USAGE_PENDING/);
+  assert.doesNotMatch(JSON.stringify(JSON.parse(claim.stdout).diagnostics ?? []), /USAGE_PENDING/);
   run('release', String(item), '--no-next');
   const shown = JSON.parse(run('show', String(item), '--json').stdout);
   assert.equal(shown.usage.inputTokens, null);
