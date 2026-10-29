@@ -13,7 +13,7 @@ import {
   inheritedGateSlot,
   listResources,
   takeResource,
-} from '../src/resources.js';
+} from '../src/shell/resources.js';
 
 const TEMP = [];
 
