@@ -87,6 +87,36 @@ test('an intervening native edit invalidates prepared source without a partial c
   assert.equal(observed.calls, 1, 'a stale binding never repeats external work while locked');
 });
 
+test('claim preparation rechecks original guards after an intervening native hold [B2,C7,V2]', t => {
+  const { board, agentId, id, peer } = setup(t);
+  const observed = { calls: 0 };
+  const freeze = unlockedFreeze(peer, observed);
+  assert.throws(() => writeBoardCommand(board, 'claim', [id, { agentId, lane: 'core', leaseMs: 7_200_000,
+    freeze(item) {
+      const frozen = freeze(item);
+      store.holdItem(board, id, { agentId: 'coordinator', reason: 'Pause during preparation' });
+      return frozen;
+    } }], agentId), error => error.code === 'ITEM_HELD');
+  assert.equal(observed.calls, 1, 'changed hold guard runs before another source read');
+  assert.equal(store.getItem(board, id).item_status, 'open');
+  assert.equal(store.events(board).filter(event => event.item_id === id && event.event_kind === 'claim').length, 0);
+});
+
+test('continuous native edits exhaust bounded preparation without a partial claim [B2,C7,V2]', t => {
+  const { board, agentId, id, peer } = setup(t);
+  const observed = { calls: 0 };
+  const freeze = unlockedFreeze(peer, observed);
+  assert.throws(() => writeBoardCommand(board, 'claim', [id, { agentId, lane: 'core', leaseMs: 7_200_000,
+    freeze(item) {
+      const frozen = freeze(item);
+      store.editItem(board, id, { agentId: 'coordinator', criterion: `Native edit ${observed.calls}` });
+      return frozen;
+    } }], agentId), error => error.code === 'BOARD_BUSY');
+  assert.equal(observed.calls, 3);
+  assert.equal(store.getItem(board, id).item_status, 'open');
+  assert.equal(store.events(board).filter(event => event.item_id === id && event.event_kind === 'claim').length, 0);
+});
+
 
 test('a non-claim native command retains its own arguments and domain guards [B2,C7]', t => {
   const { board, agentId, id } = setup(t);
