@@ -107,3 +107,26 @@ test('--retire refuses a deleted file that a live import still names [C7,D3,CD64
   assert.match(retire.stderr, /CELLS_PLAN_RETIRED[\s\S]*live import/u);
   assert.equal(readFileSync(join(root, 'bin/cells-plan.json'), 'utf8'), before, 'a refused retirement writes nothing');
 });
+
+test('--moved counts only unproven fixture reads the move made: exact main-base sites are notes, new or path-naming ones still refuse [C7,D3,CD64]', t => {
+  const { root, put } = fixture(t);
+  writePlan(root, computePlan(root));
+  const reader = 'test/reader.test.js';
+  const header = "import { readFileSync } from 'node:fs';\nconst moved = 'stats.js';\n";
+  put(reader, header + "readFileSync(outputOf(box));\nreadFileSync(pick('stats.js'));\n");
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'main with an unproven fixture read');
+  git(root, 'checkout', '-q', '-b', 'move');
+  put(reader, header + "\nreadFileSync(outputOf(box));\nreadFileSync(pick('stats.js'));\nreadFileSync(outputOf(box));\n");
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'the move branch shifts a line and adds a second occurrence');
+  const cell = readPlan(root).cells.find(entry => entry.paths.some(([from]) => from === 'src/stats.js'));
+  const notes = [], problems = checkMoved(root, readPlan(root), cell.name, { notes }).filter(problem => problem.startsWith(reader));
+  assert.deepEqual(notes.map(note => note.split(':')[1]), ['4'], 'the main-base site, found by its text even on a shifted line, is a note');
+  assert.match(notes[0], /also at main [a-f0-9]{12}; not this move's obligation/u);
+  assert.deepEqual(problems.map(problem => problem.split(':')[1]).sort(), ['5', '6'],
+    'a read naming a moved basename and an extra occurrence of a known site both still count');
+  git(root, 'branch', '-q', '-D', 'main');
+  assert.deepEqual(checkMoved(root, readPlan(root), cell.name).filter(problem => problem.startsWith(reader)).map(problem => problem.split(':')[1]).sort(),
+    ['4', '5', '6'], 'without a main base every unproven read counts');
+});

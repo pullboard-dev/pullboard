@@ -11,6 +11,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { posix } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cellInventory } from '../src/cell-lint-inventory.js';
@@ -197,11 +198,55 @@ export function retirePath(root, file) {
   return stale;
 }
 
+/** The main commit this move builds on: the merge base with main, or null so every unproven read still counts. */
+function moveBase(root) {
+  for (const ref of ['main', 'origin/main']) {
+    const found = tryGit(root, ['merge-base', 'HEAD', ref]);
+    if (found.status === 0 && /^[a-f0-9]{40,64}$/u.test(found.stdout.trim())) return found.stdout.trim();
+  }
+  return null;
+}
+
+/** Split one analyzer refusal into its exact source line text and reason, or null for any other problem. */
+function unsupportedSite(problem, file, source) {
+  const match = /^(.+):(\d+): unsupported fixture source: (.+)$/u.exec(problem);
+  if (!match || match[1] !== file) return null;
+  const text = source.split('\n')[Number(match[2]) - 1];
+  return text === undefined ? null : { text: text.trim(), reason: match[3] };
+}
+
+/**
+ * Count the same file's unproven reads at the move's main base, by exact line text and reason, from committed
+ * bytes only. Why: a read the analyzer could not prove before the move is not a gap the move made, while a read
+ * whose line names a moved basename, or any new or extra occurrence, still counts against the move.
+ */
+function baseUnsupported(root, base, file, { moves, dataReads }) {
+  const counts = new Map();
+  if (!base) return counts;
+  /** Read one regular blob at the base commit, never the working tree. */
+  function readBase(path) {
+    if (!/^[\w./-]+$/u.test(path) || path.split('/').some(part => !part || part === '.' || part === '..')) return null;
+    const row = tryGit(root, ['ls-tree', '-z', base, '--', path]);
+    const object = /^100(?:644|755) blob ([a-f0-9]+)\t/u.exec(row.stdout)?.[1];
+    // tryGit trims output, so exact bytes come from Git directly; the analyzer re-hashes them against the object.
+    const shown = object && spawnSync('git', ['cat-file', 'blob', object], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 ** 2 });
+    return shown?.status === 0 ? { source: shown.stdout, object } : null;
+  }
+  const original = readBase(file);
+  if (!original) return counts;
+  const uses = fixtureSourceEdits(original.source, { file, moves, readSource: readBase, dataReads, mentionsOnly: true });
+  for (const problem of uses.problems) {
+    const site = unsupportedSite(problem, file, original.source);
+    if (site) counts.set(`${site.text}\0${site.reason}`, (counts.get(`${site.text}\0${site.reason}`) ?? 0) + 1);
+  }
+  return counts;
+}
+
 /**
  * Check that one cell's move happened as planned: every path sits at its target, every old path is gone or is
  * only a re-export, the front door exists, and no enforced cell lint rose. This is each move item's frozen check.
  */
-export function checkMoved(root, plan, name) {
+export function checkMoved(root, plan, name, { notes = [] } = {}) {
   const cell = plan.cells.find(row => row.name === name);
   if (!cell) throw new Refused('CELLS_PLAN_CELL', `no cell ${name} in ${PLAN_FILE}; use a name from its cells list`);
   const problems = [];
@@ -228,6 +273,7 @@ export function checkMoved(root, plan, name) {
   }
   const listed = tryGit(root, ['ls-files', '-z', '--', 'test', 'docs']);
   if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot inventory tracked fixture readers');
+  const base = moveBase(root);
   const data = readMoveDataReads(root, cell.name), matchedDataReads = [];
   problems.push(...data.problems);
   for (const file of listed.stdout.split('\0').filter(file => /\.[cm]?js$/u.test(file))) {
@@ -241,9 +287,17 @@ export function checkMoved(root, plan, name) {
     if (!stat.isFile() || stat.isSymbolicLink()) { problems.push(`cannot prove fixture source through ${file}`); continue; }
     const source = readFileSync(path, 'utf8');
     if (!data.reads.some(row => row.file === file) && !cell.paths.some(([from]) => source.includes(from.split('/').at(-1)))) continue;
-    const uses = fixtureSourceEdits(source, { file, moves: cell.paths.map(([from, to]) => [from, to]), readSource, dataReads: data.reads, mentionsOnly: true });
+    const moves = cell.paths.map(([from, to]) => [from, to]);
+    const uses = fixtureSourceEdits(source, { file, moves, readSource, dataReads: data.reads, mentionsOnly: true });
     matchedDataReads.push(...uses.matchedDataReads ?? []);
-    problems.push(...uses.problems);
+    const before = uses.problems.some(problem => unsupportedSite(problem, file, source))
+      ? baseUnsupported(root, base, file, { moves, dataReads: data.reads }) : new Map();
+    for (const problem of uses.problems) {
+      const site = unsupportedSite(problem, file, source);
+      const key = site && !moves.some(([from]) => site.text.includes(posix.basename(from))) ? `${site.text}\0${site.reason}` : null;
+      if (key && before.get(key) > 0) { before.set(key, before.get(key) - 1); notes.push(`${problem} (also at main ${base.slice(0, 12)}; not this move's obligation)`); }
+      else problems.push(problem);
+    }
     for (const edit of uses.edits) {
       const line = source.slice(0, edit.start).split('\n').length;
       problems.push(`${file}:${line} still hand-copies or reads a moved source path; repoint its source operand before submitting the move`);
@@ -344,7 +398,8 @@ function main(argv) {
     return 0;
   }
   if (mode === '--moved') {
-    const problems = checkMoved(root, plan, rest[0]);
+    const notes = [], problems = checkMoved(root, plan, rest[0], { notes });
+    for (const note of notes) console.log(note);
     for (const problem of problems) console.error(problem);
     return problems.length ? 1 : 0;
   }
