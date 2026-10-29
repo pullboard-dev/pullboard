@@ -56,7 +56,7 @@ export function testOutputSummary(logPath, { root = process.cwd(), profile } = {
   }]);
   const unstructured = !rows.length || rows.some((row, index) => !row.passed && !row.skip && (!errors[index] || /^test failed$/iu.test(errors[index])));
   const lines = output.split('\n').filter(line => line.trim());
-  const detail = unstructured ? lines.filter(line => !/^\s*(?:item check:|affected tests:|proof:|TAP version |# (?:Subtest:|tests |suites |pass |fail |cancelled |skipped |todo |duration_ms |pullboard )|(?:not )?ok \d+|\d+\.\.\d+|---|\.\.\.)/u.test(line)) : [];
+  const detail = unstructured ? lines.filter(line => !/^\s*(?:item check:|affected tests:|full gate:|proof:|TAP version |# (?:Subtest:|tests |suites |pass |fail |cancelled |skipped |todo |duration_ms |pullboard )|(?:not )?ok \d+|\d+\.\.\d+|---|\.\.\.)/u.test(line)) : [];
   const diagnostics = [...new Set([detail[0], ...detail.filter(line => /ERR_[A-Z_]+|(?:Assertion)?Error[: [|]/u.test(line))]
     .filter(Boolean))].slice(0, 3).map(short);
   if (!rows.length && output.trim()) failed.push({ file: null, name: 'command output',
