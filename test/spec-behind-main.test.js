@@ -66,95 +66,36 @@ test('spec check names merge main when a cited row exists on main [S8,B6]', () =
   }
 });
 
-test('a worktree behind main on the spec is caught before UNKNOWN_SPEC [B6, V1]', () => {
-  const fastForward = project();
-  addMainRows(fastForward);
-  const fastForwardItem = addRowItem(fastForward);
-  const beforeFastForward = fastForward.git(fastForward.web, 'rev-parse', 'HEAD');
-  const built = fastForward.run(fastForward.web, 'next', '--build');
-  assert.equal(built.code, 0, built.err || built.out);
-  assert.match(built.out, new RegExp(`merged main before claiming #${fastForwardItem}: added spec rows G3`));
-  assert.match(built.out, new RegExp(`claimed #${fastForwardItem}`));
-  assert.notEqual(beforeFastForward, fastForward.git(fastForward.web, 'rev-parse', 'HEAD'));
-  const fastForwardHead = fastForward.git(fastForward.web, 'rev-parse', 'HEAD');
-  assert.equal(fastForwardHead, fastForward.git(fastForward.repo, 'rev-parse', 'HEAD'));
-  assert.equal(JSON.parse(fastForward.run(fastForward.web, 'show', fastForwardItem, '--json').out).item_claim_head, fastForwardHead);
-
-  const directClaim = project();
-  addMainRows(directClaim);
-  const directItem = addRowItem(directClaim);
-  const direct = directClaim.run(directClaim.web, 'claim', directItem);
-  assert.equal(direct.code, 0, direct.err || direct.out);
-  assert.match(direct.out, new RegExp(`merged main before claiming #${directItem}: added spec rows G3`));
-  assert.match(direct.out, new RegExp(`claimed #${directItem}`));
-  const directHead = directClaim.git(directClaim.web, 'rev-parse', 'HEAD');
-  assert.equal(directHead, directClaim.git(directClaim.repo, 'rev-parse', 'HEAD'));
-  assert.equal(JSON.parse(directClaim.run(directClaim.web, 'show', directItem, '--json').out).item_claim_head, directHead);
-
-  const localCommit = project();
-  addMainRows(localCommit, ['G3', 'G4']);
-  const localItem = addRowItem(localCommit, 'G3,G4');
-  commitLocalWork(localCommit);
-  const localHead = localCommit.git(localCommit.web, 'rev-parse', 'HEAD');
-  const refused = localCommit.run(localCommit.web, 'claim', localItem);
-  assert.equal(refused.code, 1);
-  assert.match(refused.err, /^(?:stderr: )?pullboard: \[SPEC_BEHIND_MAIN\]/mu);
-  assert.match(refused.err, /G3, G4/u);
-  assert.ok(refused.err.trimEnd().endsWith('next: git merge main'));
-  const refusalJson = JSON.parse(localCommit.run(localCommit.web, 'claim', localItem, '--json').out);
-  assert.equal(refusalJson.error.code, 'SPEC_BEHIND_MAIN');
-  assert.equal(refusalJson.error.next, 'git merge main');
-  assert.equal(localCommit.git(localCommit.web, 'rev-parse', 'HEAD'), localHead);
-  assert.match(localCommit.run(localCommit.repo, 'list', '--all').out, new RegExp(`#${localItem}  open`));
-
-  const untracked = project();
-  addMainRows(untracked);
-  const untrackedItem = addRowItem(untracked);
-  mkdirSync(join(untracked.web, 'web'), { recursive: true });
-  writeFileSync(join(untracked.web, 'web', 'untracked.txt'), 'uncommitted work\n');
-  const untrackedHead = untracked.git(untracked.web, 'rev-parse', 'HEAD');
-  const untrackedRefusal = untracked.run(untracked.web, 'claim', untrackedItem);
-  assert.equal(untrackedRefusal.code, 1);
-  assert.match(untrackedRefusal.err, /^(?:stderr: )?pullboard: \[SPEC_BEHIND_MAIN\]/mu);
-  assert.match(untrackedRefusal.err, /G3/u);
-  assert.ok(untrackedRefusal.err.trimEnd().endsWith('next: git merge main'));
-  assert.equal(untracked.git(untracked.web, 'rev-parse', 'HEAD'), untrackedHead);
-
-  const dirty = project();
-  addMainRows(dirty);
-  const dirtyItem = addRowItem(dirty);
-  const dirtyPath = join(dirty.web, 'AGENTS.md');
-  const dirtyText = readFileSync(dirtyPath, 'utf8') + '\nLocal unfinished instructions.\n';
-  writeFileSync(dirtyPath, dirtyText);
-  const dirtyHead = dirty.git(dirty.web, 'rev-parse', 'HEAD');
-  const dirtyRefusal = dirty.run(dirty.web, 'next', '--build');
-  assert.equal(dirtyRefusal.code, 1);
-  assert.match(dirtyRefusal.err, /^(?:stderr: )?pullboard: \[SPEC_BEHIND_MAIN\]/mu);
-  assert.ok(dirtyRefusal.err.trimEnd().endsWith('next: git merge main'));
-  assert.equal(dirty.git(dirty.web, 'rev-parse', 'HEAD'), dirtyHead);
-  assert.equal(readFileSync(dirtyPath, 'utf8'), dirtyText);
-  assert.equal(JSON.parse(dirty.run(dirty.repo, 'show', dirtyItem, '--json').out).item_status, 'open');
-
-  // Earlier claim guards keep their refusal and cannot advance a caller in the wrong lane.
+test('claims freeze main-only rows without changing stale, dirty or divergent worktrees [B6,V1]', () => {
+  for (const state of ['clean', 'diverged', 'untracked', 'dirty']) {
+    const box = project();
+    addMainRows(box, ['G3', 'G4']);
+    const id = addRowItem(box, 'G3,G4');
+    if (state === 'diverged') commitLocalWork(box);
+    if (state === 'untracked') writeFileSync(join(box.web, 'scratch.txt'), 'unfinished\n');
+    if (state === 'dirty') writeFileSync(join(box.web, 'AGENTS.md'), 'unfinished instructions\n');
+    const head = box.git(box.web, 'rev-parse', 'HEAD');
+    const spec = readFileSync(join(box.web, 'SPEC.md'), 'utf8');
+    const status = box.git(box.web, 'status', '--porcelain');
+    const claimed = box.run(box.web, 'claim', id);
+    assert.equal(claimed.code, 0, claimed.err || claimed.out);
+    assert.match(claimed.out, new RegExp(`claimed #${id}`));
+    assert.doesNotMatch(claimed.out, /merged main/u);
+    assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), head);
+    assert.equal(box.git(box.web, 'status', '--porcelain'), status);
+    assert.equal(readFileSync(join(box.web, 'SPEC.md'), 'utf8'), spec);
+    const item = JSON.parse(box.run(box.web, 'show', id, '--json').out);
+    assert.equal(item.item_claim_head, head);
+    assert.deepEqual(JSON.parse(item.item_frozen).rows.map(row => row.id), ['G3', 'G4']);
+  }
   const wrongLane = project();
   addMainRows(wrongLane);
   const wrongItem = addRowItem(wrongLane, 'G3', 'api');
-  const wrongHead = wrongLane.git(wrongLane.web, 'rev-parse', 'HEAD');
+  const head = wrongLane.git(wrongLane.web, 'rev-parse', 'HEAD');
   const wrong = wrongLane.run(wrongLane.web, 'claim', wrongItem);
   assert.equal(wrong.code, 1);
-  assert.match(wrong.err, /^(?:stderr: )?pullboard: \[WRONG_LANE\]/mu);
-  assert.equal(wrongLane.git(wrongLane.web, 'rev-parse', 'HEAD'), wrongHead);
-
-  const alreadyCurrent = project();
-  addMainRows(alreadyCurrent);
-  const currentItem = addRowItem(alreadyCurrent);
-  alreadyCurrent.git(alreadyCurrent.web, 'merge', '--ff-only', 'main');
-  const currentHead = alreadyCurrent.git(alreadyCurrent.web, 'rev-parse', 'HEAD');
-  const claimed = alreadyCurrent.run(alreadyCurrent.web, 'claim', currentItem);
-  assert.equal(claimed.code, 0, claimed.err || claimed.out);
-  assert.match(claimed.out, new RegExp(`claimed #${currentItem}`));
-  assert.doesNotMatch(claimed.out, /merged main/u);
-  assert.equal(alreadyCurrent.git(alreadyCurrent.web, 'rev-parse', 'HEAD'), currentHead);
+  assert.match(wrong.err, /\[WRONG_LANE\]/u);
+  assert.equal(wrongLane.git(wrongLane.web, 'rev-parse', 'HEAD'), head);
 });
 
 test.after(e2e.cleanup);

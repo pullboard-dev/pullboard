@@ -1,5 +1,6 @@
 /** Select committed Node test files through import edges; uncertainty requires the full gate [V4,C7]. */
 import { spawnSync } from 'node:child_process';
+import { cachedAffectedGraph } from './affected-graph-cache.js';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
@@ -301,7 +302,7 @@ function knownBuiltinUtilities(sources, imports) {
 }
 
 /** Compile this tree's import edges, plus the literal child-CLI dependency used by fixture modules. */
-function graphAt(root, commit, changedDocs = []) {
+function buildGraph(root, commit) {
   const { modules, blobs, unsafeInputs, importMap } = modulesAt(root, commit);
   const paths = [...modules.keys()];
   const sources = [...modules.values()];
@@ -331,7 +332,6 @@ function graphAt(root, commit, changedDocs = []) {
         reverse.get(load).add(path);
       }
     }
-    if (changedDocs.length) docInputs.set(path, documentationInputs(path, modules.get(path), imports[index], changedDocs));
     if (TEST.test(path)) {
       for (const line of headerLines(modules.get(path))) {
         if (line === TEST_TREE_INPUT) testTreeReaders.add(path);
@@ -401,6 +401,18 @@ function graphAt(root, commit, changedDocs = []) {
   }
   return { paths, reverse, unknown, undeclared, testTreeReaders, sourceTreeReaders, docInputs, modules, blobs,
     imports: new Map(paths.map((path, index) => [path, imports[index]])), importMap };
+}
+
+/** Cache only immutable base graphs; documentation reach is specific to this selection. */
+function graphAt(root, commit, changedDocs = []) {
+  const pinned = selectionGit(root, ['rev-parse', '--verify', `${commit}^{commit}`]).trim();
+  const graph = cachedAffectedGraph(root, pinned, () => buildGraph(root, pinned));
+  if (changedDocs.length) {
+    for (const path of graph.paths) {
+      graph.docInputs.set(path, documentationInputs(path, graph.modules.get(path), graph.imports.get(path), changedDocs));
+    }
+  }
+  return graph;
 }
 
 /**
@@ -561,6 +573,7 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
       .map(path => `${path}: ${unknownRoots.get(path)}`);
     return { full: false, reason: unresolved.length ? `unresolved root closures retained: ${unresolved.join('; ')}` : '', files: selected };
   } catch (error) {
+    if (error?.code === 'MAIN_FACTS_BUSY') throw error;
     return { full: true, reason: `import selection could not be computed: ${error.message}`, files };
   }
 }
