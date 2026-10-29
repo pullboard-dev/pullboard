@@ -1,7 +1,8 @@
 /** @pullboard-test-gui */
 /** Render the real roadmap card with explicit summary presentation values at phone and desktop widths [N26]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
