@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
 import { serveApi } from '../../src/api.js';
+import { refusalDocument } from '../../src/next-step-words.js';
 import { main } from '../../src/cli.js';
 import { exportBoard } from '../../src/exchange.js';
 import { submitFixture } from '../board-submit-fixture.js';
@@ -33,7 +34,7 @@ test('Dashboard pace crosses every cached window without a milestone or a native
   store.merged(board, 1, { agentId: 'coordinator', commit: head });
   const id = store.boardId(board), secret = randomBytes(24).toString('base64url');
   let builds = 0;
-  const api = await serveApi({ secret, runCommand: main, projects: () => [{ root: alpha.repo, name: 'dashboard-clock' }],
+  const api = await serveApi({ refusalDocument, secret, runCommand: main, projects: () => [{ root: alpha.repo, name: 'dashboard-clock' }],
     scope: { projectRoot: alpha.repo }, isMain: true, now: () => clock.at, onStateBuild: () => { builds++; } });
   t.after(api.close);
   const original = exportBoard(board);

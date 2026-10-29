@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { serveApi } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { main } from '../src/cli.js';
 import { apiFetch } from './api-fixture.js';
 import { rebuildProofCounters } from '../src/proof-counters.js';
@@ -84,7 +85,7 @@ test('status shows max useful agents the binding constraint and its lever [N2,R1
   const morning = JSON.parse(digest.out);
   assert.deepEqual(morning.capacityForecast, planner, 'morning digest uses the identical cached projection');
   assert.match(morning.markdown, /Max useful agents now:/u);
-  const api = await serveApi({ runCommand: main,
+  const api = await serveApi({ runCommand: main, refusalDocument,
     projects: () => [{ root: box.repo, name: 'Capacity fixture', project: '', added: '2026-10-20T00:00:00Z' }] });
   t.after(() => api.close());
   const address = new URL(api.url);

@@ -13,6 +13,7 @@ import * as store from '../src/board.js';
 import { main } from '../src/cli.js';
 import { proofStats } from '../src/stats.js';
 import { serveApi } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { fetchFresh } from './http-fixture.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */
@@ -129,7 +130,7 @@ test('[R2,A1] stats forwards the inclusive date window and returns an actionable
 /** Exercise authenticated state from the same private board used by the command checks. */
 test('[R1,R2,A2] local HTTP state exposes exactly the command statistics', async (t) => {
   const { root, board } = fixture(t);
-  const api = await serveApi({ runCommand: main, projects: () => [{ root, name: 'Statistics fixture' }] });
+  const api = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root, name: 'Statistics fixture' }] });
   t.after(() => api.close());
   const url = new URL(api.url);
   const headers = { 'x-pullboard-key': url.searchParams.get('k') };

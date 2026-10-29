@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
-/** @pullboard-test-loads src/serve.js src/api.js src/cli.js */
+/** @pullboard-test-loads src/serve.js src/api.js src/cli.js src/next-step-words.js */
 /** Cockpit projects checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
 import { copyPackageFiles } from '../../src/package-files.js';
@@ -750,8 +750,9 @@ test('a migration-refused project stays quiet beside a normal board [A5,A6,N26]'
     { root: normal.repo, name: 'Normal board', project: '', added: '2026-01-01' },
     { root: missing.repo, name: 'Missing board', project: '', added: '2026-01-01' }];
   const { serveApi } = await import(pathToFileURL(join(linked, 'src/api.js')).href);
+  const { refusalDocument } = await import(pathToFileURL(join(linked, 'src/next-step-words.js')).href);
   const { main } = await import(pathToFileURL(join(linked, 'src/cli.js')).href);
-  const api = await serveApi({ port: 0, projects: () => projects, runCommand: main });
+  const api = await serveApi({ refusalDocument, port: 0, projects: () => projects, runCommand: main });
   /** Require the public API to retain the refusal and the healthy project together. */
   const listing = async (base, key) => {
     const reply = await fetchLive(base + '/api/v1/boards', { headers: { 'x-pullboard-key': key } });
