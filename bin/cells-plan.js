@@ -26,6 +26,7 @@ import { tryGit } from '../src/git.js';
 import { Refused } from '../src/refused.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { fileCuts } from './cells-plan-cuts.js';
+import { refreshPlanCuts } from '../src/cells-plan-cuts.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';
 import { readMoveDataReads, staleDataReads } from './cells-data-reads.js';
 
@@ -256,6 +257,14 @@ function fileItems(root, plan, yes) {
 function main(argv) {
   const [mode = '--check', ...rest] = argv;
   const root = resolve('.');
+  if (mode === '--refresh-cuts') {
+    const plan = readPlan(root), { edges, unknown } = cellInventory(root, { importsIn, commonJsIn });
+    const endpoints = new Set([...edges.keys(), ...[...edges.values()].flatMap(rows => rows.map(row => row.target))]);
+    const missing = unplanned(root, plan).filter(file => endpoints.has(file));
+    if (missing.length) throw new Refused('CELLS_PLAN_UNPLANNED', `cannot refresh cuts for unplanned tracked sources: ${missing.join(', ')}; place them through the plan generator first`);
+    writePlan(root, refreshPlanCuts(plan, edges, readPathMap(root), unknown));
+    return 0;
+  }
   if (mode === '--write') {
     writePlan(root, computePlan(root));
     return 0;
@@ -292,7 +301,7 @@ function main(argv) {
     return problems.length ? 1 : 0;
   }
   if (mode === '--file') { fileItems(root, plan, rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> (or --stay) | --check | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> (or --stay) | --refresh-cuts | --check | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));

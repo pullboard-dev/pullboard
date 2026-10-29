@@ -178,55 +178,10 @@
   {"cell":"app:cli","imports":1,"before":false}
  ],
  "cuts": [
-  {
-   "cell": "git",
-   "imports": 3,
-   "edges": [
-    "src/pre-push-receipts.js->src/gate-run-receipt.js",
-    "src/push-native-evidence.js->src/gate-run-receipt.js",
-    "src/queued-item-lease.js->src/gate-wait.js"
-   ]
-  },
-  {"cell":"codemap","imports":2,"edges":["src/cell-lint-inventory.js->src/module-imports.js","src/source-advance-plan.js->src/affected-tests.js"]},
-  {"cell":"config","imports":1,"edges":["src/settings-inventory.js->src/gate.js"]},
-  {
-   "cell": "items",
-   "imports": 3,
-   "edges": [
-    "src/item-routing.js->src/check-mask.js",
-    "src/outside-verify.js->src/browser-admission.js",
-    "src/outside-verify.js->src/gate.js"
-   ]
-  },
-  {
-   "cell": "verify",
-   "imports": 5,
-   "edges": [
-    "src/check-accept.js->src/check-baseline-format.js",
-    "src/rule-proof-counts.js->src/gate-run-receipt.js",
-    "src/rule-proof-index.js->src/gate-run-receipt.js",
-    "src/verdict-trunk.js->src/affected-tests.js",
-    "src/verdict-trunk.js->src/browser-admission.js"
-   ]
-  },
-  {"cell":"store","imports":2,"edges":["src/proof-receipts.js->src/gate-run-receipt.js","src/source-advance-return.js->src/gate-run-receipt.js"]},
-  {
-   "cell": "sandbox",
-   "imports": 11,
-   "edges": [
-    "src/push-receipt-smoke.js->src/browser-admission.js",
-    "src/push-receipt-smoke.js->src/gate.js",
-    "src/push-receipt-smoke.js->src/gui-admission.js",
-    "src/release-hosted.js->src/release-gate-receipt.js",
-    "src/release-hosted.js->src/release-transport.js",
-    "src/source-advance-origin.js->src/gate-run-receipt.js",
-    "src/source-advance-worker.js->src/gate.js",
-    "src/source-advance-worker.js->src/main-audit-state.js",
-    "src/source-advance.js->src/gate-run-receipt.js",
-    "src/trusted-policy.js->src/gate-output.js",
-    "src/trusted-policy.js->src/timing.js"
-   ]
-  }
+  {"cell":"git","imports":1,"edges":["src/queued-item-lease.js->src/git-wait-reporter.js"]},
+  {"cell":"items","imports":2,"edges":["src/item-patch-submit.js->src/gate-run-receipt.js","src/item-patch-submit.js->src/gate-submit.js"]},
+  {"cell":"verify","imports":1,"edges":["src/proof-provenance.js->src/test-outcomes.js"]},
+  {"cell":"store","imports":2,"edges":["src/proof-receipts.js->src/gate-run-receipt.js","src/source-advance-return.js->src/gate-run-receipt.js"]}
  ],
  "ratchets": {
   "legacySource": -13,

@@ -14,6 +14,7 @@ import { test } from 'node:test';
 import { main } from '../src/cli.js';
 import { headCommit, withGitFacts } from '../src/git.js';
 import { serveApi } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { pathToFileURL } from 'node:url';
 import { fetchFresh } from './http-fixture.js';
 
@@ -324,7 +325,7 @@ test('a live serve request sees a commit made while the server stays open [C7]',
   const original = box.git(box.repo, 'rev-parse', 'HEAD');
   await withGitFacts(async () => {
     assert.equal(headCommit(box.repo), original, 'the long-lived command has an initial cached HEAD');
-    const api = await serveApi({ secret: 'git-facts-test-key', runCommand: main, projects: () => [{ root: box.repo, name: 'Git facts fixture' }] });
+    const api = await serveApi({ refusalDocument, secret: 'git-facts-test-key', runCommand: main, projects: () => [{ root: box.repo, name: 'Git facts fixture' }] });
     try {
       assert.equal(await readServedBranchCode(api, branch), original);
       const advanced = advanceHead(box, 'advance the served branch', branch);

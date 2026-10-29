@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { serveApi } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { main } from '../src/cli.js';
 import { recordBlock } from '../src/blocks.js';
 import { exportBoard } from '../src/exchange.js';
@@ -27,7 +28,7 @@ async function clockFixture(t) {
   const id = store.boardId(board);
   let builds = 0;
   const secret = randomBytes(24).toString('base64url');
-  const api = await serveApi({ secret, runCommand: main, projects: () => [{ root: box.root, name: 'clock-parity' }],
+  const api = await serveApi({ refusalDocument, secret, runCommand: main, projects: () => [{ root: box.root, name: 'clock-parity' }],
     scope: { projectRoot: box.root }, isMain: true, stateDetail: 'full', now: () => clock.value, onStateBuild: () => { builds++; } });
   t.after(api.close);
   /** Compare the complete authenticated native response with the uncached production reader at exactly its clock.

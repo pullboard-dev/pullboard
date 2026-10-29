@@ -116,9 +116,7 @@
   {"cell":"app:cli","imports":2,"before":false}
  ],
  "cuts": [
-  {"cell":"state","imports":3,"edges":["src/agent-grant.js->src/move-registry.js","src/engine.js->src/move-registry.js","src/implies.js->src/move-implies.js"]},
-  {"cell":"verify","imports":1,"edges":["src/bar-readiness.js->src/bar-ready-setting.js"]},
-  {"cell":"outbox","imports":1,"edges":["src/relay-sender.js->src/move-registry.js"]}
+  {"cell":"store","imports":1,"edges":["src/board-engine-ports.js->src/move-registry.js"]}
  ],
  "ratchets": {
   "legacySource": -78,

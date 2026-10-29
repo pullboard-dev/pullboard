@@ -68,31 +68,7 @@
   {"cell":"app:runner","imports":3,"before":false}
  ],
  "cuts": [
-  {"cell":"resources","imports":2,"edges":["src/resources.js->src/runner-recovery.js","src/resources.js->src/runner-wait.js"]},
-  {
-   "cell": "config",
-   "imports": 4,
-   "edges": [
-    "src/settings-read.js->src/runner-registration.js",
-    "src/settings-read.js->src/runner-wait.js",
-    "src/settings.js->src/runner-registration.js",
-    "src/settings.js->src/runner-wait.js"
-   ]
-  },
-  {"cell":"sandbox","imports":1,"edges":["src/trusted-policy-read.js->src/runner-policy.js"]},
-  {
-   "cell": "gate",
-   "imports": 7,
-   "edges": [
-    "src/gate-execution.js->src/runners.js",
-    "src/gate-policy-load.js->src/runner-registration.js",
-    "src/gate-receipt.js->src/runner-overhead.js",
-    "src/gate-slot.js->src/runner-load.js",
-    "src/gate-slot.js->src/runner-policy.js",
-    "src/gate-slot.js->src/runner-transport.js",
-    "src/test-run.js->src/runners.js"
-   ]
-  }
+  {"cell":"resources","imports":2,"edges":["src/resources.js->src/runner-recovery.js","src/resources.js->src/runner-wait.js"]}
  ],
  "ratchets": {
   "legacySource": 0,

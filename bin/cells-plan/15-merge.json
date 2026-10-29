@@ -41,9 +41,7 @@
   {"cell":"store","imports":2,"before":false},
   {"cell":"sandbox","imports":1,"before":false}
  ],
- "cuts": [
-  {"cell":"items","imports":1,"edges":["src/reopen-cause.js->src/trunk-conflict.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": 0,
   "shims": 9,

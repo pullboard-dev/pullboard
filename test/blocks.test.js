@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { serveApi } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { repoInfo } from '../src/git.js';
 import { personNeedsState } from '../src/needs-state.js';
 import {
@@ -36,7 +37,7 @@ test('a block clears when its audience completes the same move [C6,N26]', async 
   assert.equal(blocked.code, 1, blocked.err);
   const needs = () => personNeedsState(box.repo).needs.filter(row => row.kind === 'block');
   assert.equal(needs().length, 1, 'the stopped person move appears in Needs you');
-  const api = await serveApi({ secret: 'blocks-test', runCommand: async () => 0, isMain: true,
+  const api = await serveApi({ refusalDocument, secret: 'blocks-test', runCommand: async () => 0, isMain: true,
     projects: () => [{ root: box.repo, name: 'blocks-clear', project: '', added: '2026-10-22T00:00:00.000Z' }] });
   t.after(() => api.close());
   assert.equal((await apiNeeds(api, box.repo)).blocks.length, 1, 'the API caches the initial block');
@@ -148,7 +149,7 @@ test('a Pullboard block reaches whoever can clear it and repeats are counted [C6
   assert.doesNotMatch(`${needs[0].text} ${needs[0].what}`, /\[[A-Z][A-Z0-9_]*\]|B26|relay|--/u);
 
   // The local API and the sealed relay page build Needs you from the same ledger, without local paths.
-  const api = await serveApi({ secret: 'blocks-test', runCommand: async () => 0, isMain: true,
+  const api = await serveApi({ refusalDocument, secret: 'blocks-test', runCommand: async () => 0, isMain: true,
     projects: () => [{ root: box.repo, name: 'blocks', project: '', added: '2026-10-22T00:00:00.000Z' }] });
   t.after(() => api.close());
   assert.deepEqual((await apiNeeds(api, box.repo)).needs.map(row => row.text), [needs[0].text]);

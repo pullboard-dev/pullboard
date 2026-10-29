@@ -46,7 +46,6 @@
   {"cell":"app:runner","imports":1,"before":false}
  ],
  "cuts": [
-  {"cell":"state","imports":1,"edges":["src/engine.js->src/rejected-work-return.js"]},
   {
    "cell": "store",
    "imports": 3,
@@ -55,8 +54,7 @@
     "src/board-health.js->src/rejected-work-return.js",
     "src/board.js->src/sentinels.js"
    ]
-  },
-  {"cell":"health","imports":1,"edges":["src/health.js->src/dispatch-health.js"]}
+  }
  ],
  "ratchets": {
   "legacySource": 0,

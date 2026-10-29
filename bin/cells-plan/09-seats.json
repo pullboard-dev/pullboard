@@ -79,10 +79,7 @@
   {"cell":"github","imports":1,"before":false},
   {"cell":"app:cli","imports":6,"before":false}
  ],
- "cuts": [
-  {"cell":"config","imports":1,"edges":["src/templates.js->src/agent-proof-guidance.js"]},
-  {"cell":"state","imports":2,"edges":["src/engine.js->src/coordinator-hold.js","src/engine.js->src/line-settings.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": -1,
   "shims": 23,

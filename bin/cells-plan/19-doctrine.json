@@ -26,18 +26,7 @@
   {"cell":"sandbox","imports":1,"before":true}
  ],
  "cuts": [
-  {"cell":"config","imports":1,"edges":["src/templates.js->src/doctrine.js"]},
-  {
-   "cell": "spec",
-   "imports": 4,
-   "edges": [
-    "src/approved-rows.js->src/doctrine-checks.js",
-    "src/row-decisions.js->src/doctrine.js",
-    "src/row-drafts.js->src/doctrine.js",
-    "src/spec-draft.js->src/doctrine.js"
-   ]
-  },
-  {"cell":"items","imports":2,"edges":["src/resume-sources.js->src/doctrine-rulings.js","src/resume-sources.js->src/doctrine.js"]}
+  {"cell":"config","imports":1,"edges":["src/templates.js->src/doctrine.js"]}
  ],
  "ratchets": {
   "legacySource": -1,
