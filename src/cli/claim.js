@@ -160,8 +160,17 @@ export function freezer(ctx, { captureVerifyPolicy = false, board, applyingDecis
   /** Freeze the criterion and, when requested, the trunk lane and verifier policy. */
   return (item) => {
     // Derivation starts only inside the actual callback, after prepared claim guards [B2,C7].
-    const sourcePolicy = board && !(ctx.info.isMain && !headCommit(ctx.info.root)) ? mainPolicy(ctx.info.root) : null;
-    const facts = sourcePolicy ? mainCriterionFacts(ctx.info.root, { commit: sourcePolicy.commit, cacheEligible }) : null;
+    const readsMain = board && !(ctx.info.isMain && !headCommit(ctx.info.root));
+    let sourcePolicy = null;
+    if (readsMain) {
+      try { sourcePolicy = mainPolicy(ctx.info.root); }
+      catch (error) {
+        if (!(error instanceof Refused) || error.code !== 'NO_POLICY') throw error;
+        // A primary detached for review still has its retained accepted trunk; never use candidate rows as authority.
+      }
+    }
+    const facts = readsMain ? mainCriterionFacts(ctx.info.root,
+      { ...(sourcePolicy ? { commit: sourcePolicy.commit } : {}), cacheEligible }) : null;
     const prior = item.item_frozen ? JSON.parse(item.item_frozen) : null;
     const needsPinnedPolicy = !prior || captureVerifyPolicy;
     let policy = prior?.policy ?? null;
