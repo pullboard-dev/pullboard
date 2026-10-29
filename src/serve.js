@@ -37,6 +37,7 @@ import {
   resolve,
 } from 'node:path';
 import * as store from './board.js';
+import { openBoard } from './native-board.js';
 import { releaseHeadlinesBetween } from './release-headlines.js';
 import { VERSION } from './release-version.js';
 import { displayAgentName } from './agent-names.js';
@@ -244,7 +245,7 @@ function rememberPort(port) {
 function withProject(root, read, providedBoard = null) {
   const info = repoInfo(root);
   const config = loadConfig(info.root);
-  const board = providedBoard ?? store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
+  const board = providedBoard ?? openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
   try {
     return read(board, info, config);
   } finally {

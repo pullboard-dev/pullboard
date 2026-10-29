@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { MACHINE } from '../../src/machine.js';
 import { seedNativeOrdinary } from './lifecycle-ordinary-seed.js';
 import { nativeRareJourneys, seedRareLifecycleJourneys } from './lifecycle-native-seed.js';
@@ -130,7 +131,7 @@ test('native rare lifecycle routes retain source receipts and render in Chrome a
   const box = machine();
   const demo = project(box, 'lifecycle-native-rare');
   // @pullboard-board-file journey: this private native board supplies the real receipts compared with its authenticated HTTP state and Chrome chart.
-  const board = store.openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
   let view, chrome;
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-lifecycle-rare-chrome-'));
   try {
