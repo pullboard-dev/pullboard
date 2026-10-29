@@ -37,9 +37,9 @@ test('the timeline times a verified item that goes back to open [N26, M1]', asyn
     })()`));
     const [finalRows, nonFinalRows] = rendered.map(timelineRows);
     for (const rows of [finalRows, nonFinalRows]) {
-      assert.equal(rows.find((row) => row.event.startsWith('accept ')).stay, 'verified for 2m');
-      assert.equal(rows.find((row) => row.event.startsWith('merged ')).stay, '', 'a quiet event does not end the verified stay');
-      assert.equal(rows.find((row) => row.event.startsWith('reopen ')).dot, 'tl-open');
+      assert.equal(rows.find((row) => row.event === 'coordinator passed it').stay, 'verified for 2m');
+      assert.equal(rows.find((row) => row.event === 'coordinator landed it').stay, '', 'a quiet event does not end the verified stay');
+      assert.equal(rows.find((row) => row.event === 'coordinator sent it back').dot, 'tl-open');
     }
   } finally {
     await view.stop();
@@ -133,16 +133,16 @@ test("the history is a timeline of the item's states [N26]", async () => {
     await page.click({ go: 'item:1' });
     const done = timelineRows(page.show('detail'));
     assert.deepEqual(done.map((row) => [row.dot, row.event]), [
-      ['tl-open', 'add coordinator (unknown)'],
-      ['tl-claimed', 'claim web-1 (Test Model)'],
-      ['tl-claimed tl-quiet', 'proof-run web-1 (Test Model)'],
-      ['tl-submitted', 'submit web-1 (Test Model)'],
-      ['tl-open tl-back', 'reject coordinator (unknown)'],
-      ['tl-claimed', 'claim web-1 (Test Model)'],
-      ['tl-claimed tl-quiet', 'proof-run web-1 (Test Model)'],
-      ['tl-submitted', 'submit web-1 (Test Model)'],
-      ['tl-verified', 'accept coordinator (unknown)'],
-      ['tl-verified tl-quiet', 'merged coordinator (unknown)'],
+      ['tl-open', 'coordinator added this work'],
+      ['tl-claimed', 'web-1 claimed it'],
+      ['tl-claimed tl-quiet', 'web-1 ran the proof'],
+      ['tl-submitted', 'web-1 submitted it for review'],
+      ['tl-open tl-back', 'coordinator sent it back'],
+      ['tl-claimed', 'web-1 claimed it'],
+      ['tl-claimed tl-quiet', 'web-1 ran the proof'],
+      ['tl-submitted', 'web-1 submitted it for review'],
+      ['tl-verified', 'coordinator passed it'],
+      ['tl-verified tl-quiet', 'coordinator landed it'],
     ], 'a dot per event in the colour of the state it led to; a merge moves nothing');
     assert.deepEqual(done.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', 'claimed for', '', 'submitted for', 'sent back for', 'claimed for', '', 'submitted for', verifiedIsFinal ? '' : 'verified for', ''], 'each stay until the next move; a final state has none and quiet proof receipts and merge stay untimed');
     assert.ok(done.filter(row => !row.dot.includes('tl-quiet')).slice(0, 6).every((row) => / for (under a minute|\d+m)$/.test(row.stay)), done.map((row) => row.stay).join(', '));
@@ -159,10 +159,10 @@ test("the history is a timeline of the item's states [N26]", async () => {
     const item = { status: 'claimed', history: [{ kind: 'add', by: 'web-1', at: at(0) }, { kind: 'claim', by: 'web-1', at: at(5) }, { kind: 'claim', by: 'web-2', at: at(200) }] };
     const lapsed = timelineRows(page.run(`timeline(${JSON.stringify(item)})`));
     assert.deepEqual(lapsed.map((row) => [row.dot, row.event, row.time === '']), [
-      ['tl-open', 'add web-1 (Test Model)', false],
-      ['tl-claimed', 'claim web-1 (Test Model)', false],
-      ['tl-open', 'lapse the clock', true],
-      ['tl-claimed', 'claim web-2', false],
+      ['tl-open', 'web-1 added this work', false],
+      ['tl-claimed', 'web-1 claimed it', false],
+      ['tl-open', 'the clock released an expired lease', true],
+      ['tl-claimed', 'web-2 claimed it', false],
     ]);
     assert.deepEqual(lapsed.map((row) => row.stay.replace(/ for .*/, ' for')), [
       'open for',
@@ -175,9 +175,9 @@ test("the history is a timeline of the item's states [N26]", async () => {
     // A lease that ran out with nothing after it: the item reads open, and has been since the lapse.
     const idle = { status: 'open', history: [{ kind: 'add', by: 'web-1', at: at(0) }, { kind: 'claim', by: 'web-1', at: at(5) }] };
     assert.deepEqual(timelineRows(page.run(`timeline(${JSON.stringify(idle)})`)).map((row) => [row.event, row.stay]), [
-      ['add web-1 (Test Model)', 'open for 5m'],
-      ['claim web-1 (Test Model)', 'claimed until the lapse, length not logged'],
-      ['lapse the clock', 'open so far since the lapse, length not logged'],
+      ['web-1 added this work', 'open for 5m'],
+      ['web-1 claimed it', 'claimed until the lapse, length not logged'],
+      ['the clock released an expired lease', 'open so far since the lapse, length not logged'],
     ]);
   } finally {
     await view.stop();

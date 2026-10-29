@@ -6,7 +6,8 @@ export function milestoneRowHtml(row, presentation = {}) {
   const { hidden = false, open = false, root } = presentation;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const title = presentation.titleHtml ?? '<span class="muted">' + esc(row.why) + '</span>';
-  const label = '<span class="id">' + esc(row.label) + '</span>' + title;
+  const place = Number.isInteger(row.position) && row.position > 0 ? '<span class="queue-position" data-position="' + row.position + '" title="Queue position ' + row.position + '">' + row.position + '.</span> ' : '';
+  const label = place + '<span class="id">' + esc(row.label) + '</span>' + title;
   const text = row.block?.dot ? '<span class="milestone-title">' + label + '</span>' + row.block.dot : label;
   const key = 'i:' + row.label;
   const status = (open && row.block?.dot ? '<span class="chip warn roadmap-blocked"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>blocked</span>' : '') + (row.stage === 'merged' ? '<span class="chip ok roadmap-landed">verified</span>' : row.stage === 'accepted' ? '<span class="chip ok">accepted</span>' : row.held ? heldChip(row.held) : row.state ? (presentation.stateChipHtml ?? '') : '<span class="chip">' + esc(row.word) + '</span>');
@@ -28,7 +29,10 @@ export function readMilestoneModel(milestone, inputRows) {
     : row.stage === 'accepted' ? 0 : row.stage === 'submitted' ? 1
       : row.held ? 5 : row.stage === 'claimed' ? 2
         : row.state === 'verified' ? 6 : row.state === 'back' ? 3 : 4;
-  const rows = [...visible].sort((a, b) => rank(a) - rank(b));
+  /** Open items carry the backend's queue position; that order stands and is never re-sorted by lifecycle. */
+  const place = row => Number.isInteger(row.position) && row.position > 0 ? row.position : null;
+  const rows = [...visible].sort((a, b) => place(a) !== null && place(b) !== null ? place(a) - place(b)
+    : place(a) !== null ? -1 : place(b) !== null ? 1 : rank(a) - rank(b));
   // Current API milestones own their landed count and explicit shipment. Old exports retain their old count.
   /** Reject malformed snapshot counts before they reach numeric HTML attributes. */
   const numeric = value => Number.isInteger(value) && value >= 0 ? value : null;
