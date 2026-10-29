@@ -79,7 +79,11 @@ function makeFixture(t) {
   git('init', '-q', '-b', 'main');
   git('add', '.gitignore', 'package.json', 'CHANGELOG.md', 'lib', 'test');
   git('add', '-f', 'src/probe.js');
+  // A shipped nested .gitignore may unignore itself; keep this real Git configuration tracked.
+  const copiedIgnores = copied.filter(file => file.endsWith('/.gitignore'));
+  if (copiedIgnores.length) git('add', '-f', '--', ...copiedIgnores);
   git('commit', '-q', '-m', 'fixture');
+  assert.equal(git('status', '--porcelain', '--untracked-files=all'), '', 'the cache fixture starts with a clean real Git worktree');
   /** Commit one file's new text. */
   const change = (path, text) => { writeFileSync(join(root, path), text); git('add', '-f', '--', path); git('commit', '-q', '-m', `change ${path}`, '--', path); };
   /** Run the whole suite through the real runner; return its status, output and the files that ran. */
