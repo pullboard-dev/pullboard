@@ -32,7 +32,7 @@ test('standard version1 retains twelve rules with the approved PB9 trailer amend
   assert.deepEqual(standard.rows.map(fields), expected.map(fields));
   assert.equal(standard.rows.length, 12);
   assert.equal(STANDARD_VERSION, 1);
-  assert.match(readFileSync(new URL('../src/standard-doctrine.md', import.meta.url), 'utf8'), /\nVersion: 1\n/);
+  assert.match(readFileSync(new URL('../packages/doctrine/src/shell/standard-doctrine.md', import.meta.url), 'utf8'), /\nVersion: 1\n/);
   const box = practiceBox(t);
   const merged = loadDoctrine(box.root, box.config);
   assert.equal(merged.repoExists, false);

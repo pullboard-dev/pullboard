@@ -1083,7 +1083,7 @@ test('a source change selects the tests that scan sources [C7,B3]', (t) => {
   const actualCommit = commitAll(actual, 'test(core): add an unimported source input [G1]');
   const actualSelection = selectAffectedTests(actual.root, { base: actualBase, commit: actualCommit });
   assert.equal(actualSelection.full, false, 'an unimported source addition keeps affected selection');
-  for (const scanner of ['test/boundary.test.js', 'test/machine.test.js', 'test/package.test.js',
+  for (const scanner of ['test/boundary.test.js', 'test/machine.test.js', 'packages/doctrine/tests/package.test.js',
     'test/submit-gate.test.js', 'test/wall-clock-budgets.test.js']) {
     assert.ok(readFileSync(join(repository, scanner), 'utf8').split(/\r?\n/u).slice(0, 2).includes(sourceInput.trimEnd()),
       'actual source-tree reader declares its input: ' + scanner);
