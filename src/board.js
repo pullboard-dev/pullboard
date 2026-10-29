@@ -35,6 +35,7 @@ import { REFERENCE_ENGINE } from './reference-engine.js';
 import { validateReferences } from './reference-authors.js';
 import {
   submissionItemValues,
+  submissionChildrenProblem,
   recordSubmissionEvent,
 } from './submission-record.js';
 import { foreignBlockers as readForeignBlockers } from './cross-repo-dependencies.js';
@@ -1034,6 +1035,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         hasCommit: null,
         withinLane: null,
         trunkMergeClean: null,
+        sourcePlaced: null, // The CLI checks exact committed placement before any proof or ordered submit.
         trunkInCandidate: null,
         noUnverifiedStack: null,
         infraExplained: null, // The CLI checks the claimed Git diff before this transition.
@@ -1056,12 +1058,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= FLOW_SIZE_ENGINE) recordedSize = submissionSize(size, commit);
           return null;
         },
-        childrenDone: () => {
-          const { total } = board.db
-            .prepare("SELECT COUNT(*) AS total FROM item WHERE item_parent_id = ? AND item_status IN ('open', 'claimed', 'submitted')")
-            .get(id);
-          return total ? new Refused('CHILDREN_OPEN', `item #${id} has ${total} unfinished child items`) : null;
-        },
+        childrenDone: () => submissionChildrenProblem(board, id),
         headIsNew: (found) => {
           const engineVersion = board.executionEngineVersion ?? ENGINE_VERSION;
           const rejectedHead = board.db.prepare(
