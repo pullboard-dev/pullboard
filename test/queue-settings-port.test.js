@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { machineHome, machineSettingsFile } from '../src/machine-home.js';
-import { DEFAULT_QUEUE_AGING_MINUTES, readGateQueueSettings, readMachineSettingsFile } from '../src/queue-settings.js';
+import { DEFAULT_QUEUE_AGING_MINUTES, readGateQueueSettings, readMachineSettingsFile } from '../packages/queue/index.js';
 import { gateQueueSettings } from '../src/settings.js';
 
 /** Write one settings object into a fresh directory, returning the directory and its file. */

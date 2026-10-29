@@ -2,8 +2,8 @@ import { isAbsolute } from 'node:path';
 /** Read-only machine settings retain the same validation as admission, without loading writers [C7]. */
 import { Refused } from './refused.js';
 import { machineSettingsFile } from './machine-home.js';
-import { readMachineSettingsFile } from './queue-settings.js';
-import { validateGateQueue } from './queue-settings.js';
+import { readMachineSettingsFile } from '../packages/queue/index.js';
+import { validateGateQueue } from '../packages/queue/index.js';
 const DEFAULT_GATE_SLOTS = 2;
 const DEFAULT_BROWSER_SLOTS = 1;
 

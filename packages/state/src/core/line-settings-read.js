@@ -1,6 +1,6 @@
 /** Read validated board line policy without loading the mutation engine [R1,R2,H16]. */
-import { LINE_SETTING_DEFINITIONS } from '../../../../src/queue-settings.js';
-import { validateKnownLineSetting } from '../../../../src/queue-settings.js';
+import { LINE_SETTING_DEFINITIONS } from '../../../queue/index.js';
+import { validateKnownLineSetting } from '../../../queue/index.js';
 import { Refused } from '../../../../src/refused.js';
 
 const PREFIX = 'line_setting:';

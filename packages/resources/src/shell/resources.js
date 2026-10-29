@@ -34,7 +34,7 @@ import {
   recoverUnavailableRunners,
   runnerRecoveryStatus,
 } from '../../../../src/runner-recovery.js';
-import { readGateQueueSettings } from '../../../../src/queue-settings.js';
+import { readGateQueueSettings } from '../../../queue/index.js';
 import {
   localWaitBranch,
   runnerDeadlineLine,
@@ -47,8 +47,8 @@ import {
   orderedWaiters,
   queueClass,
   releaseOrderInEffect,
-} from '../../../../src/queue-order.js';
-export { QUEUE_CLASSES, QUEUE_AGE_MS, queueClass } from '../../../../src/queue-order.js';
+} from '../../../queue/index.js';
+export { QUEUE_CLASSES, QUEUE_AGE_MS, queueClass } from '../../../queue/index.js';
 
 const LEASE_MS = 20_000;
 const HEARTBEAT_MS = 3_000;
