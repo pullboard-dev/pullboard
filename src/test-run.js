@@ -158,7 +158,7 @@ export async function runTestFiles(root, config, files, { agent, onWait, affecte
   const result = { green: run.isGreen, output: run.output, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
     ...(run.executionRunner ? {} : { local: localReason() }) };
   if (!run.isGreen) {
-    const compared = await compareMainFailures(root, run.profile, onWait, run.output);
+    const compared = await compareMainFailures(root, run.profile, onWait, run.output, { runnerAdmission: admission });
     result.main = compared.main;
     // A file main does not have yet cannot fail there: its failure is new, whatever main's run of it said.
     result.known = compared.files.map((entry) => compared.main && spawnSync('git', ['cat-file', '-e', `${compared.main}:${entry.file}`], { cwd: root, env: cleanGitEnvironment(), stdio: 'ignore' }).status !== 0
