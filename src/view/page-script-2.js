@@ -554,9 +554,10 @@ const span = (ms) => {
  */
 function timeline(item) {
   const fromThread = Array.isArray(item.thread) && item.thread.length > 0;
-  const entries = fromThread
+  const entries = (fromThread
     ? item.thread
-    : item.history.filter((entry) => entry.kind !== 'fact').map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry }));
+    : item.history.filter((entry) => entry.kind !== 'fact').map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry })))
+    .filter((entry) => !['usage', 'shared-usage'].includes(entry.kind));
   // Native thread moves keep their event detail nested; project it through the shared lifecycle adapter
   // before replay so retained refreezes and other declared event facts match the API history projection.
   const replayEntries = entries.map((entry) => entry.type === 'move' && fromThread

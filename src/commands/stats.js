@@ -1,4 +1,6 @@
 /** The pullboard stats command, in its own module so an item adding another command never edits these lines. */
+import { costTotals } from '../cost.js';
+import { publicUsage } from '../cost-read.js';
 import { counterProofStats } from '../proof-counter-read.js';
 import {
   barStatsLines,
@@ -39,7 +41,7 @@ export function run(io, { values }) {
   if (values.compare && values.window === undefined) throw new Refused('USAGE', 'compare adjacent windows with pullboard stats --window 4h --compare');
   const windowMinutes = values.window === undefined ? undefined : flowWindowMinutes(values.window);
   const now = ctx.clock.now().getTime();
-  const { stats, agents, window, comparison } = withBoard(ctx, (board) => {
+  const { stats, agents, window, comparison, usage } = withBoard(ctx, (board) => {
     // Keep counters and optional raw-history window on the same read snapshot while other seats append.
     if (windowMinutes !== undefined) board.db.exec('SAVEPOINT stats_window_read');
     try {
@@ -50,13 +52,13 @@ export function run(io, { values }) {
         : flowStats(history, null, now, stats, { windowMinutes }).window;
       const comparison = values.compare ? compareFlowWindows(history, { now, windowMinutes, complete: true }) : undefined;
       if (window) window.executionCapacity = readRunnerStage(ctx.info.root, { from: window.since, to: window.until });
-      return { stats, agents: store.listAgents(board), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) };
+      return { stats, agents: store.listAgents(board), usage: publicUsage(costTotals(board)), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) };
     } finally {
       if (windowMinutes !== undefined) board.db.exec('RELEASE stats_window_read');
     }
   });
   const waits = gateReceipt.gateWaitStats(ctx.info.root);
-  io.result?.({ stats, gateWaits: waits.stats, ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) });
+  io.result?.({ stats, usage, gateWaits: waits.stats, ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) });
   io.say(`${stats.submissions} submissions · ${stats.rejections} rejections · ${(stats.rejectionShare * 100).toFixed(1)}% sent back`);
   io.say(`${stats.merged} items merged · ${stats.mergedWithoutAccept} merged without an accept`);
   io.say(`${stats.agentCount} agents · ${stats.familyCount} family buckets: ${stats.families.map((family) => `${family.name} (${family.agents} agents, ${family.moves} moves)`).join('; ') || 'none'}`);
@@ -73,5 +75,9 @@ export function run(io, { values }) {
   }
   if (comparison) for (const line of comparisonLines(comparison)) io.say(line);
   for (const line of waits.lines) io.say(line);
+  for (const group of ['items', 'lanes', 'milestones', 'models']) for (const row of usage[group]) {
+    const label = row.item ?? row.lane ?? row.milestone ?? row.model;
+    io.say(`usage ${group} ${label}: input ${row.inputTokens ?? 'unknown'}, output ${row.outputTokens ?? 'unknown'}, ${row.wallMs} ms${row.unknownReasons.length ? '; unknown: ' + row.unknownReasons.join(', ') : ''}`);
+  }
   return 0;
 }

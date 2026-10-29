@@ -5,17 +5,16 @@
  "root": "packages/sync",
  "frontDoor": "packages/sync/index.js",
  "placedBy": {
-  "seed": 4,
+  "seed": 3,
   "rule": 0,
   "imports": 0
  },
  "paths": [
-  ["src/git-sync-format.js","packages/sync/src/core/git-sync-format.js","seed"],
   ["src/local-fetch.js","packages/sync/src/shell/local-fetch.js","seed"],
   ["src/sync.js","packages/sync/src/shell/sync.js","seed"],
   ["test/local-fetch.test.js","packages/sync/tests/local-fetch.test.js","seed"]
  ],
- "reexports": ["src/git-sync-format.js","src/local-fetch.js","src/sync.js"],
+ "reexports": ["src/local-fetch.js","src/sync.js"],
  "imports": [
   {"cell":"kernel","imports":2,"before":true},
   {"cell":"git","imports":2,"before":true},
@@ -24,12 +23,10 @@
   {"cell":"link","imports":1,"before":true},
   {"cell":"landing","imports":1,"before":true}
  ],
- "cuts": [
-  {"cell":"commits","imports":1,"edges":["src/hooks.js->src/git-sync-format.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": 0,
-  "shims": 3,
+  "shims": 2,
   "boundaries": 1,
   "strays": -1,
   "documents": 0,
