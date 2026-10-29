@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import {
   boardHealth,
   healthLines,
-} from '../health.js';
+} from '../../packages/health/index.js';
 import {
   context,
 } from '../cli.js';

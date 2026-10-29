@@ -6,6 +6,7 @@ import { withSeatPresence } from './seat-presence.js';
 import { MOVE_REGISTRY } from './move-registry.js';
 import { MOVE_OPERATIONS } from './move-registry.js';
 import { minimumMoveEngine } from './move-registry.js';
+import { conditionalHoldFloor } from '../packages/health/index.js';
 
 import { boundProofReceipt } from './proof-receipts.js';
 import { requireOutsideReceipt } from './outside-proof.js';
@@ -45,7 +46,7 @@ export function boardEnginePorts(providers) {
   const { personAuthority, relayMoveActor, relaySenderProblem, validRelaySender, credentialActor } =
     relaySenderPolicy({ declaredMoveActor, validPresence });
   return Object.freeze({ store, withSeatPresence, registry: MOVE_REGISTRY, operations: MOVE_OPERATIONS,
-    minimumOperationEngine: minimumMoveEngine, prepareTrainLanding, prepareNativeTrainLanding, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn, sealSourceAdvance,
+    minimumOperationEngine: (operation, args, board, at) => minimumMoveEngine(operation, args, board, at, conditionalHoldFloor), prepareTrainLanding, prepareNativeTrainLanding, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn, sealSourceAdvance,
     computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict, boundProofReceipt,
     requireOutsideReceipt, signedMoveProblem, requireCoordinatorHold, requireBound,
     requestMoveProblem, recordRequestMove, relayPerson, requestPerson,

@@ -1,7 +1,6 @@
 /** Shared numeric usage summaries: raw native sessions never enter the board [N2]. */
 import { atomic } from './board-event-log.js';
 import { getItem } from './board-query.js';
-import { listAgents } from './board-query.js';
 import { logEvent } from './board-event-log.js';
 import { milestones } from './board-read-auxiliary.js';
 import { COST_ENGINE } from './cost-engine.js';
@@ -46,7 +45,7 @@ export function sanitizedUsage(rows, engine = ENGINE_VERSION) {
 /** Record a caller's cumulative summary idempotently; delayed earlier revisions cannot erase newer totals. */
 export function recordUsage(board, { agentId, item, revision, records, observedAt, shared = false }) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < COST_ENGINE) throw new Refused('ENGINE_VERSION', `usage recording requires engine ${COST_ENGINE}; upgrade Pullboard`);
-  if (!listAgents(board).some((agent) => agent.agent_id === agentId)) throw new Refused('NOT_JOINED', 'join this board before recording seat usage');
+  if (!board.db.prepare('SELECT 1 FROM agent WHERE agent_id=? LIMIT 1').get(agentId)) throw new Refused('NOT_JOINED', 'join this board before recording seat usage');
   if (!Number.isSafeInteger(item) || item < 1) throw new Refused('USAGE_RECORD', 'usage names a positive item id');
   getItem(board, item);
   if (typeof shared !== 'boolean' || !Number.isSafeInteger(observedAt) || observedAt < 0 || !Number.isSafeInteger(revision) || revision < 1 || !board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_by=? AND event_kind='claim' LIMIT 1").get(item, agentId)) throw new Refused('USAGE_RECORD', 'record usage only for an item this seat claimed, with a positive revision');
@@ -68,7 +67,7 @@ export function recordUsage(board, { agentId, item, revision, records, observedA
 }
 
 /** Read shared summaries, grouping the same immutable numeric records for every machine. */
-export function costTotals(board) {
+export function costTotals(board, prices) {
   const sharedItems = new Set(board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'shared-item:*'").all().map((row) => Number(row.meta_key.slice('shared-item:'.length))));
   const records = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key LIKE 'cost:%'").all().flatMap((row) => {
     const value = JSON.parse(row.meta_value);
@@ -78,9 +77,9 @@ export function costTotals(board) {
   const sharedSessions = publicSharedSessions(board);
   const sharedModels = sharedSessions.flatMap((group) => group.records.map((row) => ({ ...row, wallMs: 0 })));
   /** Group numeric records without multiplying totals across models. */
-  const grouped = (name, values) => [...new Set(values.map((row) => row[name]))].map((value) => ({ [name]: value, ...sumUsage(values.filter((row) => row[name] === value)) }));
+  const grouped = (name, values) => [...new Set(values.map((row) => row[name]))].map((value) => ({ [name]: value, ...sumUsage(values.filter((row) => row[name] === value), prices) }));
   return { items: grouped('item', records), lanes: grouped('lane', records), models: grouped('model', [...records, ...sharedModels]),
-    milestones: milestones(board).map((milestone) => ({ milestone: milestone.name, ...sumUsage(records.filter((row) => milestone.items.includes(row.item))) })),
+    milestones: milestones(board).map((milestone) => ({ milestone: milestone.name, ...sumUsage(records.filter((row) => milestone.items.includes(row.item)), prices) })),
     seats: grouped('agent', records), sharedSessions };
 }
 
