@@ -6,6 +6,8 @@ import { readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { nativeUsage } from './cost-provider.js';
+import { SPLIT_COUNTS } from './cost-read.js';
+import { unknownInputSplit } from './cost-read.js';
 
 /** Hash a private prefix so truncation or replacement never becomes historical spend. */
 function hash(bytes) {
@@ -58,8 +60,8 @@ export function sessionSnapshot(source, previous, cutoff = Infinity) {
     const totals = Object.create(null);
     for (const event of events) {
       const model = event.model ?? 'unknown';
-      const total = totals[model] ?? { inputTokens: 0, outputTokens: 0 };
-      totals[model] = { inputTokens: add(total.inputTokens, event.inputTokens), outputTokens: add(total.outputTokens, event.outputTokens) };
+      const total = totals[model] ?? Object.fromEntries(['inputTokens', 'outputTokens', ...SPLIT_COUNTS].map(name => [name, 0]));
+      totals[model] = Object.fromEntries(['inputTokens', 'outputTokens', ...SPLIT_COUNTS].map(name => [name, add(total[name], event[name])]));
     }
     return { totals, model: events.at(-1)?.model ?? null, dev: stat.dev, ino: stat.ino, bytes: bytes.length, sha256: hash(bytes) };
   } catch { return null; }
@@ -69,14 +71,14 @@ export function sessionSnapshot(source, previous, cutoff = Infinity) {
 export function usageDifference(before, after, fallbackModel) {
   // Older private ledgers may retain an empty-file snapshot; that never established a native counter.
   if (!before || !after || !Object.keys(before.totals).length || !Object.keys(after.totals).length) {
-    return [{ model: fallbackModel, inputTokens: null, outputTokens: null }];
+    return [{ model: fallbackModel, ...unknownInputSplit(), inputTokens: null, outputTokens: null }];
   }
   const models = new Set([...Object.keys(before.totals), ...Object.keys(after.totals)]);
   return [...models].map((model) => {
-    const old = before.totals[model] ?? { inputTokens: 0, outputTokens: 0 };
+    const old = before.totals[model] ?? Object.fromEntries(['inputTokens', 'outputTokens', ...SPLIT_COUNTS].map(name => [name, 0]));
     const current = after.totals[model];
     /** A missing or decreasing field has no trustworthy spend delta. */
     const difference = (name) => current?.[name] !== null && old[name] !== null && Number.isSafeInteger(current?.[name] - old[name]) && current[name] >= old[name] ? current[name] - old[name] : null;
-    return { model, inputTokens: difference('inputTokens'), outputTokens: difference('outputTokens') };
+    return { model, ...Object.fromEntries(['inputTokens', 'outputTokens', ...SPLIT_COUNTS].map(name => [name, difference(name)])) };
   });
 }

@@ -24,7 +24,7 @@ export function recordSharedUsage(board, { agentId, id, seats, allocations, revi
     getItem(board, allocation.item);
     if (!board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_by=? AND event_kind='claim' LIMIT 1").get(allocation.item, allocation.seat)) throw new Refused('USAGE_RECORD', 'shared allocations name only items their seats claimed');
   }
-  const value = { id, allocations: allocations.map((row) => ({ seat: row.seat, item: row.item })), seats: [...seats], revision, observedAt, records: sanitizedUsage(records) };
+  const value = { id, allocations: allocations.map((row) => ({ seat: row.seat, item: row.item })), seats: [...seats], revision, observedAt, records: sanitizedUsage(records, board.executionEngineVersion ?? ENGINE_VERSION) };
   return atomic(board, () => {
     const key = `shared-cost:${id}`;
     const old = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key);

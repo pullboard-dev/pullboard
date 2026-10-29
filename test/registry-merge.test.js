@@ -71,7 +71,7 @@ test('two commands added at the same sorted spot merge without conflict [C7,V4]'
 });
 
 test('two engines added at the same sorted spot merge without conflict [C7,V4]', async (t) => {
-  const engineFiles = ['machine.js', 'engine-metadata.js', 'discovery.js', 'engine-numbers.js', ...readdirSync(SOURCE).filter((file) => /-engine\.js$/u.test(file))];
+  const engineFiles = ['machine.js', 'engine-metadata.js', 'discovery.js', 'engine-numbers.js', ...readdirSync(SOURCE).filter((file) => /-engine\.js$|^machine-(?:move-.+|shared)\.js$/u.test(file))];
   const engine = (name, number) => ({ name, files: { [`${name}-engine.js`]: `/** An independent private engine. */\nexport const ${name.toUpperCase().replace(/-/gu, '_')}_ENGINE = ${number};\n` } });
   const register = (root, addition) => listed('machine.js', "  'engine-52': 52,", `  '${addition.name}': ${addition.name.endsWith('alpha') ? 63 : 64},`)(root);
   const repo = mergeTwo(t, { files: engineFiles, additions: [engine('check-alpha', 63), engine('check-beta', 64)], register });
