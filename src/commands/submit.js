@@ -10,6 +10,12 @@ import {
 import { join } from 'node:path';
 import { gateRunnerAdmission } from '../settings.js';
 import { frozenCheckTiming } from '../check-timing.js';
+import {
+  retainTestOutput,
+  renderTestSummary,
+  summaryProfile,
+  withTestOutput,
+} from '../test-output-summary.js';
 import { quarantineWaivers } from '../quarantine.js';
 import { withBoardRead as waitBoardRead } from '../cli-context.js';
 import { retrySync } from '../cli-sync.js';
@@ -54,7 +60,6 @@ import {
 import {
   deferredSelectionNote,
   runSubmitGate,
-  submitGateReport,
   withGateSlot,
 } from '../gate.js';
 import {
@@ -327,6 +332,10 @@ export async function submitHere(ctx, id, infra) {
   const gate = await withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, outputRoot: root, runnerAdmission, base: claimHead, trunk: acceptedMain.commit, check: frozenCheck(held), timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: queuedItemLease(ctx, held, me.id, 'build', admission), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission },
     onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
+  const summary = retainTestOutput(root, readFileSync(gate.log, 'utf8'), { root, profile: gate.profile });
+  const scope = gate.deferred ? `${gate.deferredFiles?.length ?? gate.files.length} affected files deferred to landing`
+    : gate.full ? 'full gate ran' : 'affected tests ran';
+  const displayedReport = `item check ${gate.check.checked ? gate.check.green ? 'green' : 'red' : 'absent'}; ${scope}\n${renderTestSummary(summary)}`;
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
     await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt });
   }
@@ -349,7 +358,7 @@ export async function submitHere(ctx, id, infra) {
   }
   if (!gate.isGreen && !waived && !knownMainFailures) {
     const accountingNote = gate.check?.green && !failures ? '\nknown-main acceptance unavailable: the proof has no complete named failure diagnostics' : '';
-    const message = `the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${submitGateReport(gate)}${accountingNote}`;
+    const message = `the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${displayedReport}${accountingNote}`;
     // No submission can follow this verdict. Read-only main comparisons must not retain the seat's write lease.
     CHECKOUT_LEASES.get(ctx.io)?.release();
     CHECKOUT_LEASES.delete(ctx.io);
@@ -358,7 +367,7 @@ export async function submitHere(ctx, id, infra) {
       try { comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, onMeasuredReceipt, runnerAdmission }); } catch { /* Keep the original gate refusal if main evidence is unavailable. */ }
     }
     const mainNote = withBoard(ctx, board => mainRedMessage(root, board, gate.profile, comparison));
-    throw new Refused('GATE_RED', `${message}${mainNote ? `\n${mainNote}` : ''}`, 'fix the reported test or gate, commit the change, and run pullboard submit <id> again');
+    throw withTestOutput(new Refused('GATE_RED', `${message}${mainNote ? `\n${mainNote}` : ''}`, 'fix the reported test or gate, commit the change, and run pullboard submit <id> again'), summary);
   }
   if (headCommit(root) !== commit || !isClean(root)) {
     throw new Refused(
@@ -403,13 +412,13 @@ export async function submitHere(ctx, id, infra) {
   if (sizeNote) ctx.io.say(`note: ${sizeNote}`);
   for (const reminder of submitReferenceReminders(root, held, commit)) ctx.io.err(reminder);
   const report = knownMainFailures
-    ? `submission proof red with ${knownMainFailures.failures.length} known main failure(s) at ${knownMainFailures.main}; item check green; no new failures accepted. ${submitGateReport(gate)}`
+    ? `submission proof red with ${knownMainFailures.failures.length} known main failure(s) at ${knownMainFailures.main}; item check green; no new failures accepted. ${displayedReport}`
     : waived
-    ? `submission proof waived, not green: ${waived.length} failure(s), each covered by a live person waiver; the whole output is in ${gate.log}\n${waivedLines.join('\n')}`
-    : submitGateReport(gate);
+    ? `submission proof waived, not green: ${waived.length} failure(s), each covered by a live person waiver. ${displayedReport}`
+    : displayedReport;
   if (trunkMove) ctx.io.say(trunkMoveFact(trunkMove));
-  return reportSubmission(ctx, id, submitted, { green: gate.isGreen, report, files: gate.files, full: gate.full, deferred: gate.deferred, deferFullFallback: gate.deferFullFallback, ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), reason: gate.reason, check: gate.check,
-    log: gate.log, profile: gate.profile, profilePath: gate.profilePath, proofLog: gate.proofLog, proofProfilePath: gate.proofProfilePath,
+  return reportSubmission(ctx, id, submitted, { green: gate.isGreen, report, files: gate.files, full: gate.full, deferred: gate.deferred, deferFullFallback: gate.deferFullFallback, ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), reason: gate.reason, check: { ...gate.check, profile: summaryProfile(gate.check.profile) },
+    ...summary, log: gate.log, profile: summaryProfile(gate.profile), profilePath: gate.profilePath, proofLog: gate.proofLog, proofProfilePath: gate.proofProfilePath,
     ...(companion ? { companion } : {}),
     ...(knownMainFailures ? { knownMainFailures } : {}),
     ...(knownMainFailures ? { knownMainReworks: knownMainFailures.failures.map(({ file, name, item }) => ({ file, name, item })) } : {}),
