@@ -6,6 +6,9 @@ import { storedSeatUsage } from './cost.js';
 import { agentModel } from './board-query.js';
 import { ordered } from './cli.js';
 
+/** Usage writes one lifecycle move may order before the rest wait for the next move (#1867). */
+const USAGE_WRITES_PER_MOVE = 4;
+
 /** Recover missed local checkpoints as unknown usage bounded by actual ordered claim/end times. */
 function lifecycleIntervals(board, agent, now) {
   const events = board.db.prepare("SELECT event_id,event_at,event_kind,item_id,event_detail FROM event WHERE event_by=? AND event_kind IN ('claim','renew','submit','release') ORDER BY event_id").all(agent);
@@ -33,8 +36,13 @@ export async function publishUsage(ctx, board, { agent, item, operation }) {
     existing: storedSeatUsage(board, agent), existingShared: sharedSessionTotals(board), intervals: history.intervals,
     newClaim: operation === 'claim' && history.latest?.event_kind === 'claim' && history.latest.item_id === item });
   // A claim only opens its private anchor: its own zero-length interval publishes at submit, release or refresh.
-  for (const change of changes.items) if (operation !== 'claim' || change.item !== item) await ordered(ctx, board, 'recordUsage', [{ ...change, records: publicUsage(change.records) }]);
-  for (const change of changes.sharedSessions) await ordered(ctx, board, 'recordSharedUsage', [{ agentId: agent, ...change, records: publicUsage(change.records) }]);
+  // #1867 stopgap: each ordered usage write holds the board lock for seconds, so one move publishes at most
+  // USAGE_WRITES_PER_MOVE of them; the rest stay pending and the next claim, submit or release continues.
+  const items = changes.items.filter(change => operation !== 'claim' || change.item !== item);
+  const writes = [...items.map(change => ['recordUsage', { ...change, records: publicUsage(change.records) }]),
+    ...changes.sharedSessions.map(change => ['recordSharedUsage', { agentId: agent, ...change, records: publicUsage(change.records) }])];
+  for (const [move, payload] of writes.slice(0, USAGE_WRITES_PER_MOVE)) await ordered(ctx, board, move, [payload]);
+  if (writes.length > USAGE_WRITES_PER_MOVE) ctx.io.err(`pullboard: USAGE_PENDING: published ${USAGE_WRITES_PER_MOVE} of ${writes.length} usage revisions; ${writes.length - USAGE_WRITES_PER_MOVE} remain for the next native claim, submit or release.`);
 }
 
 /** A secondary usage failure must never report a successfully ordered claim/submit/release as failed. */
