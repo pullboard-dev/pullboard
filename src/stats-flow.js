@@ -190,7 +190,7 @@ function recommendation(stage, { activeAgents, queues, openByLane, accepted, cou
 }
 
 /** Compile immutable lifecycle facts once so API cache hits only need a time-specific projection. */
-export function prepareFlowHistory(history, { window = false, comparisonWindows } = {}) {
+export function prepareFlowHistory(history, { window: traceWindow = false, comparisonWindows } = {}) {
   const items = new Map();
   const actors = new Map();
   const dailyEvents = [];
@@ -213,7 +213,7 @@ export function prepareFlowHistory(history, { window = false, comparisonWindows 
     }
     if (reporting) recordReportPolicy(reportPolicy, event, detail, items.get(event.item_id));
     if (event.item_id === null || event.item_id === undefined) continue;
-    if (!items.has(event.item_id)) items.set(event.item_id, { id: event.item_id, lane: 'unknown', ...(window ? { windowTrace: newWindowTrace() } : {}) });
+    if (!items.has(event.item_id)) items.set(event.item_id, { id: event.item_id, lane: 'unknown', ...(traceWindow ? { windowTrace: newWindowTrace() } : {}) });
     const item = items.get(event.item_id);
     if (event.event_kind === 'add') dailyEvents.push({ at, kind: 'added' });
     if (event.event_kind === 'merged' && item.mergeAt === undefined) dailyEvents.push({ at, kind: 'merged' });
@@ -284,12 +284,12 @@ export function projectFlowStats(prepared, boundary, now, counts, { windowMinute
   } : { stage: null, share: null, completedItems, fullyMeasuredCycles: 0, totalCycleMinutes: 0, lowConfidence: completedItems > 0,
     message: completedItems ? `not enough measured flow to name a bottleneck (${completedItems} items completed since ${boundary ?? 'the beginning'}, none with every stage measured)` :
       `not enough flow to name a bottleneck (0 items completed since ${boundary ?? 'the beginning'})`, recommendation: null };
-  const window = windowMinutes === undefined ? undefined : {
+  const flowWindow = windowMinutes === undefined ? undefined : {
     ...projectFlowWindow(prepared, windowMinutes, now),
     ...(executionCapacity ? { executionCapacity } : {}),
   };
   const report = projectReport(prepared.reportItems ?? prepared.items, prepared.reportPolicy, now);
-  return { report, ...(window === undefined ? {} : { window }), asOf: new Date(now).toISOString(), stages, queues: queueData.queues, unreviewed: queueData.unreviewed, daily: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)),
+  return { report, ...(flowWindow === undefined ? {} : { window: flowWindow }), asOf: new Date(now).toISOString(), stages, queues: queueData.queues, unreviewed: queueData.unreviewed, daily: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)),
     submitsPerMerged: completedItems ? counts.submissions / completedItems : 0, activeAgents, bottleneck };
 }
 
