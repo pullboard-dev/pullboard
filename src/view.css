@@ -1069,7 +1069,6 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* Settings are literal API data: readable on narrow screens, with no editable fields. */
 #settings-pane { padding: var(--space-6); }
 #settings-content [role="tablist"] { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-block: var(--space-5); }
-#settings-content [aria-selected="true"] { font-weight: 700; border-color: var(--accent); }
 #settings-content table { width: 100%; border-collapse: collapse; margin-top: var(--space-5); }
 #settings-content th, #settings-content td { padding: var(--space-4); text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
 #settings-content td { max-width: 40ch; overflow-wrap: anywhere; white-space: pre-wrap; }
