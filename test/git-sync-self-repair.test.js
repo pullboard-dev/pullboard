@@ -55,7 +55,8 @@ test('submit on a relay-linked board never creates Git sync state and later writ
 
   success(await box.cliAt(worker, 'submit', String(added.item.item_id)), 'submit on relay-linked history');
   assert.equal(existsSync(join(metadata, 'git-sync.json')), false, 'submit must not create the Git-sync marker');
-  success(await box.cli('add', box.lane, 'write after linked submit'), 'write after the linked submit');
+  success(await box.cli('add', buildLane, 'write after linked submit', '--specs', 'G1',
+    '--criterion', 'Another ordinary board write remains available after submission.'), 'write after the linked submit');
   assert.equal(existsSync(join(metadata, 'git-sync.json')), false, 'later relay writes do not create the marker');
 });
 
