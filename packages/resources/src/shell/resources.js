@@ -714,7 +714,7 @@ export function recordRunnerGui(host, gui) {
 }
 
 /** Serialize runner changes with admission; removal may drain active leases instead of refusing. */
-export function updateRunnerSettings(host, persist, { drain = false } = {}) {
+export function updateRunnerSettings(host, persist, { drain = false, observation = false } = {}) {
   if (typeof host !== 'string' || !host.trim() || host.trim() !== host || typeof persist !== 'function') {
     throw new Refused('BAD_RUNNER_SETTINGS', 'a runner host and settings persistence callback are required');
   }
@@ -727,6 +727,8 @@ export function updateRunnerSettings(host, persist, { drain = false } = {}) {
       const draining = drain && held && db.prepare('SELECT runner FROM runner_draining WHERE host = ?').get(host);
       if (draining) return { ...JSON.parse(draining.runner), draining: true };
       const result = persist();
+      // A capacity observation is not cleanup evidence or an explicit host registration.
+      if (observation) return result;
       if (drain && held) {
         // Dispatch settings no longer name this host. Keep its tombstone even after the last
         // release, so a stale provider cannot offer it again; explicit registration clears it.

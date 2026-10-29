@@ -31,7 +31,9 @@
   ["src/runner-request.js","packages/runners/src/shell/runner-request.js","rule"],
   ["src/runner-result.js","packages/runners/src/shell/runner-result.js","rule"],
   ["src/runner-dispatch.js","packages/runners/src/shell/runner-dispatch.js","rule"],
-  ["src/runner-health.js","packages/runners/src/shell/runner-health.js","rule"]
+  ["src/runner-health.js","packages/runners/src/shell/runner-health.js","rule"],
+  ["src/runner-slots.js","packages/runners/src/shell/runner-slots.js","rule"],
+  ["test/runner-slots-measured.test.js","packages/runners/tests/runner-slots-measured.test.js","rule"]
  ],
  "reexports": [
   "src/run.js",
@@ -43,7 +45,8 @@
   "src/runner-transport.js",
   "src/runner-utilization.js",
   "src/runner-wait.js",
-  "src/runners.js"
+  "src/runners.js",
+  "src/runner-slots.js"
  ],
  "imports": [
   {"cell":"kernel","imports":5,"before":true},

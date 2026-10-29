@@ -1,6 +1,9 @@
 import { mainCheckout } from './git.js';
 /** Machine admission and receipts without eagerly loading board or full proof execution [Q1,Q2,Q3,C7]. */
 import { Refused } from './refused.js';
+import { effectiveRunners } from './runner-slots.js';
+import { refreshRunnerMeasurements } from './runner-slots.js';
+import { recordRunnerMeasurement } from './settings.js';
 import {
   inheritedGateSlot,
   memoryAdmission,
@@ -123,6 +126,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     }
   }
   const settingsProvider = () => loadMachineSettings();
+  if (remote) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement });
   const floorMB = memoryFloorMB();
   const capacityProvider = () => settingsProvider().gateSlots;
   const source = runnerSource(root);
@@ -155,7 +159,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     remote: remote && Boolean(source),
     runnerOnly,
     ...(restriction ? { requiredExecutor: restriction } : {}),
-    runnerProvider: () => loadMachineSettings().runners ?? [],
+    runnerProvider: () => effectiveRunners(loadMachineSettings()),
     runnerHealthProbe: probeRunnerHealth,
     /** Keep legacy fallback distinct from the ordinary exact-job health observation. */
     runnerIdleProbe: runner => probeRunnerHealth(runner, undefined, { idle: true }),
