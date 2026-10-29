@@ -4,6 +4,22 @@ import { test } from 'node:test';
 import { readMilestoneModel } from '../../src/view/roadmap-render.js';
 import { milestoneRowHtml } from '../../src/view/roadmap-render.js';
 import { roadmapCardsHtml } from '../../src/view/roadmap-render.js';
+import { roadmapRemainingCount } from '../../src/view/roadmap-render.js';
+
+test('Roadmap title totals use shown header authority, retain legacy completion and exclude shipped history [N26,N38,C7]', () => {
+  const modern = readMilestoneModel({ name: 'Next', items: [1, 2], summary: { total: 8, landed: 3, left: 5 } },
+    [{ state: 'verified', stage: 'accepted' }]);
+  const legacy = readMilestoneModel({ name: 'Old export', items: [3, 4] },
+    [{ state: 'verified', stage: 'merged' }, { state: 'open', stage: 'open' }]);
+  const shipped = { ...modern, shipped: true };
+  assert.equal(roadmapRemainingCount([modern, legacy, shipped]), 6,
+    'modern totals describe all remaining work even when the retained rows are partial');
+  assert.equal(roadmapRemainingCount([modern]), 5, 'a selected release uses exactly its supplied header total');
+  assert.equal(roadmapRemainingCount([modern, modern]), 10, 'the same item in two milestones contributes two roadmap entries');
+  assert.equal(roadmapRemainingCount([]), 0);
+  assert.equal(roadmapRemainingCount([shipped]), 0, 'shipped history does not become pending work');
+  assert.equal(roadmapRemainingCount([{ milestone: {}, total: Infinity, done: 0 }]), null, 'invalid legacy totals remain unknown');
+});
 
 test('Roadmap ranks supplied work by shipping stage and preserves modern and legacy completion rules [N26,N38,C7]', () => {
   const rows = [
