@@ -7,7 +7,8 @@
  "paths": [
   ["src/local-fetch.js","packages/sync/src/shell/local-fetch.js","seed"],
   ["src/sync.js","packages/sync/src/shell/sync.js","seed"],
-  ["test/local-fetch.test.js","packages/sync/tests/local-fetch.test.js","seed"]
+  ["test/local-fetch.test.js","packages/sync/tests/local-fetch.test.js","seed"],
+  ["src/git-sync-repair.js","packages/sync/src/shell/git-sync-repair.js","rule"]
  ],
  "reexports": ["src/local-fetch.js","src/sync.js"],
  "imports": [

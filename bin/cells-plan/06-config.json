@@ -22,7 +22,8 @@
   ["test/submit-size.test.js","packages/config/tests/submit-size.test.js","seed"],
   ["test/watch.test.js","packages/config/tests/watch.test.js","seed"],
   ["src/release-headlines.js","packages/config/src/shell/release-headlines.js","rule"],
-  ["src/release-version.js","packages/config/src/core/release-version.js","rule"]
+  ["src/release-version.js","packages/config/src/core/release-version.js","rule"],
+  ["src/git-sync-files.js","packages/config/src/shell/git-sync-files.js","rule"]
  ],
  "reexports": [
   "src/command-declaration-read.js",

@@ -12,14 +12,17 @@ import { HEALTH_SENTINEL_ENGINE } from '../board-health-receipts.js';
 import { readBlocks } from '../blocks.js';
 import { rigorReport } from '../board-rigor.js';
 import { dispatchHealth } from '../dispatch-health.js';
+import { readGitSyncRepairs } from '../git-sync-files.js';
 
 /** Run `pullboard health` and return its exit code. */
 export function run(io) {
   const ctx = context(io);
   const report = boardHealth(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), dispatchHealth });
+  report.gitSyncRepairs = readGitSyncRepairs(ctx.info.root);
   report.blocks = blockReport(readBlocks(ctx.info.commonDir, { since: new Date(ctx.clock.now().getTime() - 86_400_000) }), seatsByPath(ctx.file));
   io.result?.(report);
   for (const line of healthLines(report)) io.say(line);
+  for (const repair of report.gitSyncRepairs) io.say('Git sync recovery: ' + JSON.stringify(repair));
   for (const line of blockLines(report.blocks)) io.say(line);
   return report.stuck.length ? 1 : 0;
 }
