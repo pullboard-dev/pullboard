@@ -147,6 +147,14 @@ test('a named deferred receipt read is allowed only through its assigned train w
     'removing the named repair exposes the actual deferred read');
 });
 
+test('the transaction implementation is audited after acquisition, keeping preparation outside [C7,CD39]', () => {
+  const kernel = { file: 'src/board-event-log.js', source:
+    "import {readFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process'; function prepareBoardWriteIdentity() { execFileSync('ps'); } export function atomic(board, work) { prepareBoardWriteIdentity(); beginImmediateQueued(board.db); readFileSync('inside'); return work(); }" };
+  const problems = boardWriteIoProblems(guardSources('', [kernel]), { pending: {} });
+  assert.ok(problems.some(row => row.call === 'node:fs#readFileSync'), 'the actual wrapper is not a hidden I/O boundary');
+  assert.ok(!problems.some(row => row.call === 'node:child_process#execFileSync'), 'pre-acquisition process identity work holds no SQLite writer lock');
+});
+
 test('native transaction source contains no unassigned named external I/O [C7,CD39]', () => {
   assert.deepEqual(boardWriteIoProblems(styleSources(fileURLToPath(new URL('..', import.meta.url)))), []);
 });

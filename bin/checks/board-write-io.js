@@ -166,6 +166,11 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
       const key = target.file + '#' + target.name;
       if (target.builtin && EXTERNAL_IO.test(target.builtin)) {
         if (WRITE_PUBLICATION.get(chain.at(-1))?.has(target.builtin + '#' + target.name)) continue;
+        const firstArgument = argumentsAt(model.code, start + call.open)?.[0];
+        if (chain.at(-1) === 'src/board-event-log.js#atomic' && target.builtin === 'node:fs'
+            && target.name === 'writeSync' && firstArgument
+            && model.code.slice(...firstArgument).trim() === '2') continue; // Existing stderr-only cleanup diagnostic.
+
         const detail = { file, line: model.source.slice(0, start + call.at).split('\n').length,
           call: target.builtin + '#' + target.name, chain };
         problems.set(chain[0] + ':' + detail.file + ':' + detail.line + ':' + detail.call, detail);
@@ -198,6 +203,19 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
         }
       } else if (/=>|\bfunction\b/u.test(body)) inspect(model.file, start, end, chain, new Set());
       else problems.set(chain[0], { file: model.file, line: model.source.slice(0, call.at).split("\n").length, call: "unresolved atomic callback", chain });
+    }
+  }
+  // Call-site callbacks do not include the transaction implementation's own post-acquisition work.
+  // Its process identity preparation intentionally stays before BEGIN, outside this held-lock range.
+  const transaction = modules.get('src/board-event-log.js');
+  const implementation = transaction?.functions.get('atomic');
+  if (implementation) {
+    const body = transaction.code.slice(implementation.bodyStart, implementation.end);
+    const acquisition = calls(body).find(call => call.name === 'beginImmediateQueued');
+    if (acquisition) {
+      const end = closing(body, acquisition.open);
+      if (end >= 0) inspect(transaction.file, implementation.bodyStart + end + 1, implementation.end,
+        [transaction.file + '#' + implementation.name], new Set([transaction.file + '#' + implementation.name]));
     }
   }
   return [...problems.values()].sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.call.localeCompare(b.call));
