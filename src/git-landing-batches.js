@@ -1,1 +1,3 @@
-export * from "../packages/git/index.js";
+export {
+  landingBatches,
+} from "../packages/git/index.js";

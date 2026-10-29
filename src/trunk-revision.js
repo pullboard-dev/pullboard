@@ -1,1 +1,3 @@
-export * from "../packages/git/index.js";
+export {
+  trunkRevisionReader,
+} from "../packages/git/index.js";

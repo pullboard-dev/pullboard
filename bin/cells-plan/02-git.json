@@ -62,7 +62,7 @@
   "legacySource": -1,
   "shims": 14,
   "boundaries": 1,
-  "strays": -3,
+  "strays": -1,
   "documents": 0,
   "cyclesIfUncut": 2,
   "assetReads": 1

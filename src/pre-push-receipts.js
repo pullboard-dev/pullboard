@@ -1,1 +1,5 @@
-export * from "../packages/git/index.js";
+export {
+  pushCommandDigest,
+  pushReceiptProblems,
+  pushedFirstParentCommits,
+} from "../packages/git/index.js";

@@ -1,1 +1,3 @@
-export * from "../packages/git/index.js";
+export {
+  createMemoryGitAdapter,
+} from "../packages/git/index.js";
