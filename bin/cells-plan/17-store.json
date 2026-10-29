@@ -5,7 +5,7 @@
  "root": "packages/store",
  "frontDoor": "packages/store/index.js",
  "placedBy": {
-  "seed": 67,
+  "seed": 65,
   "rule": 15,
   "imports": 8
  },
@@ -21,7 +21,6 @@
   ["src/board-item-dependencies.js","packages/store/src/shell/board-item-dependencies.js","rule"],
   ["src/board-item-read.js","packages/store/src/core/board-item-read.js","seed"],
   ["src/board-link-envelope.js","packages/store/src/shell/board-link-envelope.js","seed"],
-  ["src/board-link-format.js","packages/store/src/core/board-link-format.js","seed"],
   ["src/board-link-relay.js","packages/store/src/shell/board-link-relay.js","seed"],
   ["src/board-link-ssh.js","packages/store/src/shell/board-link-ssh.js","seed"],
   ["src/board-link-state.js","packages/store/src/core/board-link-state.js","seed"],
@@ -31,7 +30,6 @@
   ["src/board-query.js","packages/store/src/shell/board-query.js","seed"],
   ["src/board-read-auxiliary.js","packages/store/src/shell/board-read-auxiliary.js","seed"],
   ["src/board-read-open.js","packages/store/src/shell/board-read-open.js","seed"],
-  ["src/board-reference.js","packages/store/src/core/board-reference.js","seed"],
   ["src/board-rehome.js","packages/store/src/shell/board-rehome.js","rule"],
   ["src/board-schema-source.js","packages/store/src/shell/board-schema-source.js","seed"],
   ["src/board-schema.js","packages/store/src/shell/board-schema.js","seed"],
@@ -108,7 +106,6 @@
   "src/board-inventory.js",
   "src/board-item-read.js",
   "src/board-link-envelope.js",
-  "src/board-link-format.js",
   "src/board-link-relay.js",
   "src/board-link-ssh.js",
   "src/board-link-state.js",
@@ -119,7 +116,6 @@
   "src/board-read-auxiliary.js",
   "src/board-read-open.js",
   "src/board-read.js",
-  "src/board-reference.js",
   "src/board-schema-source.js",
   "src/board-store-guards.js",
   "src/board-write-lock.js",
@@ -175,7 +171,7 @@
   {"cell":"state","imports":3,"edges":["src/engine.js->src/board.js","src/engine.js->src/proof-receipts.js","src/implies.js->src/board-query.js"]},
   {
    "cell": "seats",
-   "imports": 10,
+   "imports": 9,
    "edges": [
     "src/agent-hook-work.js->src/board.js",
     "src/agent-tree.js->src/board.js",
@@ -183,7 +179,6 @@
     "src/line-capacity-board.js->src/board-query.js",
     "src/line-settings.js->src/board-event-log.js",
     "src/line-settings.js->src/board.js",
-    "src/projects.js->src/board-reference.js",
     "src/projects.js->src/board.js",
     "src/seat-checkout.js->src/board.js",
     "src/seats.js->src/board-query.js"
@@ -215,9 +210,8 @@
   },
   {
    "cell": "items",
-   "imports": 18,
+   "imports": 17,
    "edges": [
-    "src/cross-repo-dependencies.js->src/board-link-format.js",
     "src/cross-repo-dependencies.js->src/board-link-state.js",
     "src/digest.js->src/board-query.js",
     "src/digest.js->src/board.js",

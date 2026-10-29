@@ -19,16 +19,16 @@
   },
   "totals": {
     "cells": 43,
-    "movedPaths": 1354,
+    "movedPaths": 1334,
     "stays": 42,
     "placedBy": {
-      "seed": 892,
-      "rule": 362,
-      "imports": 100
+      "seed": 877,
+      "rule": 359,
+      "imports": 98
     },
-    "shims": 655,
-    "cutImports": 363,
-    "cutEdges": 142
+    "shims": 636,
+    "cutImports": 327,
+    "cutEdges": 133
   },
   "cells": [
     {
@@ -608,6 +608,166 @@
         "src/rigor.js",
         "packages/rigor/src/core/rigor.js",
         "seed"
+      ]
+    },
+    {
+      "cell": "seats",
+      "row": [
+        "src/agent-proof-guidance.js",
+        "packages/seats/src/core/agent-proof-guidance.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "items",
+      "row": [
+        "src/handoff-state.js",
+        "packages/items/src/core/handoff-state.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "items",
+      "row": [
+        "src/ruling-owner.js",
+        "packages/items/src/core/ruling-owner.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "items",
+      "row": [
+        "src/submission-size.js",
+        "packages/items/src/core/submission-size.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "items",
+      "row": [
+        "src/submit-admission.js",
+        "packages/items/src/core/submit-admission.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "verify",
+      "row": [
+        "src/proof-event-detail.js",
+        "packages/verify/src/core/proof-event-detail.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "src/board-link-format.js",
+        "packages/store/src/core/board-link-format.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "src/board-reference.js",
+        "packages/store/src/core/board-reference.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "link",
+      "row": [
+        "src/relay-activation.js",
+        "packages/link/src/core/relay-activation.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "link",
+      "row": [
+        "src/relay-canary-config.js",
+        "packages/link/src/core/relay-canary-config.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "outbox",
+      "row": [
+        "src/relay-sender.js",
+        "packages/outbox/src/core/relay-sender.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "src/check-mask.js",
+        "packages/gate/src/core/check-mask.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "runners",
+      "row": [
+        "src/runner-registration.js",
+        "packages/runners/src/core/runner-registration.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-collection-report.js",
+        "packages/landing/src/core/landing-collection-report.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/manual-landing-failure-quoted.js",
+        "packages/landing/src/core/manual-landing-failure-quoted.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "moves",
+      "row": [
+        "src/move-implies.js",
+        "packages/moves/src/core/move-implies.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "app:view",
+      "row": [
+        "src/view-port.js",
+        "apps/view/src/shell/view-port.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/changelog.js",
+        "apps/cli/src/shell/changelog.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/first-refusal-window.js",
+        "apps/cli/src/core/first-refusal-window.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/help-version.js",
+        "apps/cli/src/core/help-version.js",
+        "imports"
       ]
     }
   ]

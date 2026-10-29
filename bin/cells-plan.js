@@ -84,7 +84,12 @@ export function writePlan(root, plan) {
   const shards = cells.map(cell => [shardFile(cell), cell]);
   const keep = new Set([SEED_FILE, `${PLAN_DIR}/temporary-edges.json`, `${PLAN_DIR}/transition.json`, ...shards.map(([file]) => file)]);
   for (const name of readdirSync(join(root, PLAN_DIR))) if (name.endsWith('.json') && !keep.has(`${PLAN_DIR}/${name}`)) rmSync(join(root, PLAN_DIR, name));
-  for (const [file, cell] of shards) writeFileSync(join(root, file), formatJson(cell) + '\n');
+  for (const [file, cell] of shards) {
+    // A shard whose data is unchanged keeps its bytes, so one row's edit never reformats an unrelated cell.
+    let current = null;
+    try { current = JSON.parse(readFileSync(join(root, file), 'utf8')); } catch { current = null; }
+    if (current === null || JSON.stringify(current) !== JSON.stringify(cell)) writeFileSync(join(root, file), formatJson(cell) + '\n');
+  }
   const index = { ...plan, totals, cells: cells.map(cell => ({ order: cell.order, name: cell.name, file: shardFile(cell) })) };
   writeFileSync(join(root, PLAN_FILE), JSON.stringify(index, null, 2) + '\n');
 }
@@ -148,6 +153,51 @@ export function unplanned(root, plan) {
 }
 
 /**
+ * Name the active plan rows whose source is gone at HEAD: neither the original, its target nor its mapped path is
+ * tracked or on disk. A later move would otherwise look for a file no item can ever produce (#1559 met
+ * src/agent-proof-guidance.js after #1613 deleted it), so the check names the row and how to retire it.
+ */
+export function stalePlanRows(root, plan) {
+  const listed = tryGit(root, ['ls-files', '-z']);
+  if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'run the plan check inside a Git checkout');
+  const tracked = new Set(listed.stdout.split('\0').filter(Boolean));
+  const map = readPathMap(root);
+  /** A path counts as present when Git tracks it or anything, even a dangling link, sits at it. */
+  function present(path) {
+    if (tracked.has(path)) return true;
+    try { lstatSync(join(root, path)); return true; }
+    catch (error) { if (['ENOENT', 'ENOTDIR'].includes(error.code)) return false; throw error; }
+  }
+  return plan.cells.flatMap(cell => cell.paths.filter(([from, to]) => ![from, to, mappedPath(map, from)].some(present))
+    .map(row => ({ cell: cell.name, file: shardFile(cell), row })));
+}
+
+/**
+ * Retire one stale planned path: its row moves to the plan's retired list, which keeps its provenance and refuses
+ * it ever coming back or being imported, and the shim and cut edges that only existed for it leave the cell.
+ */
+export function retirePath(root, file) {
+  const plan = readPlan(root);
+  const stale = stalePlanRows(root, plan).find(entry => entry.row[0] === file);
+  if (!stale) {
+    const active = plan.cells.some(cell => cell.paths.some(([from]) => from === file));
+    throw new Refused('CELLS_PLAN_RETIRE', active
+      ? `${file} still exists at HEAD or at its target; retire only a planned path its item deleted`
+      : `${file} is not an active plan row; name a path that node bin/cells-plan.js --check reports as stale`);
+  }
+  const cell = plan.cells.find(entry => entry.name === stale.cell);
+  cell.paths = cell.paths.filter(([from]) => from !== file);
+  cell.reexports = cell.reexports.filter(path => path !== file);
+  for (const entry of plan.cells) {
+    entry.cuts = entry.cuts.map(link => ({ ...link, edges: link.edges.filter(edge => !edge.split('->').includes(file)) }))
+      .filter(link => link.edges.length).map(link => ({ ...link, imports: link.edges.length }));
+  }
+  plan.retired = [...(plan.retired ?? []), { cell: cell.name, row: stale.row }];
+  writePlan(root, plan);
+  return stale;
+}
+
+/**
  * Check that one cell's move happened as planned: every path sits at its target, every old path is gone or is
  * only a re-export, the front door exists, and no enforced cell lint rose. This is each move item's frozen check.
  */
@@ -156,7 +206,9 @@ export function checkMoved(root, plan, name) {
   if (!cell) throw new Refused('CELLS_PLAN_CELL', `no cell ${name} in ${PLAN_FILE}; use a name from its cells list`);
   const problems = [];
   if (!existsSync(join(root, cell.frontDoor))) problems.push(`missing front door ${cell.frontDoor}`);
+  const stale = new Set(stalePlanRows(root, plan).filter(entry => entry.cell === name).map(entry => entry.row[0]));
   for (const [from, to] of cell.paths) {
+    if (stale.has(from)) { problems.push(`${from} was deleted, so its plan row is stale; retire it: node bin/cells-plan.js --retire ${from}`); continue; }
     if (!existsSync(join(root, to))) problems.push(`missing ${to} (from ${from})`);
     if (existsSync(join(root, from)) && /\.[cm]?js$/u.test(from)) {
       const code = readFileSync(join(root, from), 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/gu, '').replace(/\s/gu, '');
@@ -280,10 +332,16 @@ function main(argv) {
   }
   const plan = readPlan(root);
   if (mode === '--check') {
-    const missing = unplanned(root, plan);
+    const missing = unplanned(root, plan), stale = stalePlanRows(root, plan);
     for (const path of missing) console.error(`not in ${PLAN_FILE}: ${path}`);
     if (missing.length) console.error('regenerate the plan: node bin/cells-plan.js --write');
-    return missing.length ? 1 : 0;
+    for (const { file, row } of stale) console.error(`stale plan row in ${file}: ${row[0]} no longer exists; retire it: node bin/cells-plan.js --retire ${row[0]}`);
+    return missing.length || stale.length ? 1 : 0;
+  }
+  if (mode === '--retire') {
+    const { file, row } = retirePath(root, rest[0]);
+    console.log(`retired ${row[0]} from ${file}`);
+    return 0;
   }
   if (mode === '--moved') {
     const problems = checkMoved(root, plan, rest[0]);
@@ -297,7 +355,7 @@ function main(argv) {
     return problems.length ? 1 : 0;
   }
   if (mode === '--file') { fileItems(root, plan, rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> (or --stay) | --check | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> (or --stay) | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));
