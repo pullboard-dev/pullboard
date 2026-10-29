@@ -124,3 +124,37 @@ test('the reader ignores stale legacy summaries and the writer persists only aut
   assert.equal(readFileSync(indexPath, 'utf8'), indexBytes, 'normalizing legacy summaries restores identical index bytes');
   for (const [file, bytes] of shards) assert.equal(readFileSync(join(root, file), 'utf8'), bytes, `${file} normalizes to identical row bytes`);
 });
+
+
+test('--check refuses an on-disk path that cannot contribute to exactly one placement bucket [C7,D3,CD60]', t => {
+  const { root } = fixture(t);
+  const plan = computePlan(root);
+  plan.cells[0].paths[0][2] = 'unknown';
+  assert.throws(() => writePlan(root, plan), { code: 'CELLS_UNPLACED' }, 'the existing writer guard stays enforced');
+  plan.cells[0].paths[0][2] = 'seed';
+  writePlan(root, plan);
+  const index = JSON.parse(readFileSync(join(root, 'bin/cells-plan.json'), 'utf8'));
+  const file = join(root, index.cells[0].file);
+  const shard = JSON.parse(readFileSync(file, 'utf8'));
+  shard.paths[0][2] = 'unknown';
+  writeFileSync(file, JSON.stringify(shard));
+  const run = runFixtureChild(process.execPath, [BIN, '--check'], { cwd: root, encoding: 'utf8' });
+  assert.notEqual(run.status, 0);
+  assert.match(run.stderr, /CELLS_UNPLACED/u);
+});
+
+test('--check refuses cut rows that cannot produce valid integer import counts [C7,D3,CD64]', t => {
+  const { root } = fixture(t);
+  writePlan(root, computePlan(root));
+  const index = JSON.parse(readFileSync(join(root, 'bin/cells-plan.json'), 'utf8'));
+  const file = index.cells.map(row => join(root, row.file)).find(path => JSON.parse(readFileSync(path, 'utf8')).cuts.length);
+  assert.ok(file, 'the real fixture contains a declared cut');
+  const shard = JSON.parse(readFileSync(file, 'utf8'));
+  for (const invalid of [-1, 1.5, '1']) {
+    shard.cuts[0].imports = invalid;
+    writeFileSync(file, JSON.stringify(shard));
+    const run = runFixtureChild(process.execPath, [BIN, '--check'], { cwd: root, encoding: 'utf8' });
+    assert.notEqual(run.status, 0, `invalid count ${JSON.stringify(invalid)} is refused`);
+    assert.match(run.stderr, /CELLS_PLAN_COUNTS/u);
+  }
+});

@@ -66,13 +66,22 @@ export function shardFile(cell) {
   return `${PLAN_DIR}/${String(cell.order).padStart(2, '0')}-${cell.name.replace(':', '-')}.json`;
 }
 
+/** Every placed path belongs to exactly one recognized source bucket. */
+function requirePlacementSources(cell) {
+  if (cell.paths.some(row => !['seed', 'rule', 'imports'].includes(row[2]))) throw new Refused('CELLS_UNPLACED', `${cell.name} has a path without a known placement source; resolve that path before writing the plan`);
+}
+
 /** Derive a cell's placement counts from its actual rows, never a stored summary. */
-function placementCounts(paths) {
-  return Object.fromEntries(['seed', 'rule', 'imports'].map(via => [via, paths.filter(row => row[2] === via).length]));
+function placementCounts(cell) {
+  requirePlacementSources(cell);
+  return Object.fromEntries(['seed', 'rule', 'imports'].map(via => [via, cell.paths.filter(row => row[2] === via).length]));
 }
 
 /** Derive all plan counters from the same cell rows and explicit stays the reader returns. */
 function planCounts(cells, stays) {
+  for (const cell of cells) for (const cut of cell.cuts) {
+    if (!Number.isSafeInteger(cut.imports) || cut.imports < 0) throw new Refused('CELLS_PLAN_COUNTS', `${cell.name} has a cut without a nonnegative integer import count`);
+  }
   return {
     cells: cells.length,
     movedPaths: cells.reduce((sum, cell) => sum + cell.paths.length, 0),
@@ -90,7 +99,7 @@ export function writePlan(root, plan) {
   if (retired.length) throw new Refused('CELLS_PLAN_RETIRED', retired.join('; '));
   // Persist authoritative rows; readers derive summaries from the exact rows they return.
   const cells = plan.cells.map(cell => {
-    if (cell.paths.some(row => !['seed', 'rule', 'imports'].includes(row[2]))) throw new Refused('CELLS_UNPLACED', `${cell.name} has a path without a known placement source; resolve that path before writing the plan`);
+    requirePlacementSources(cell);
     const { placedBy: _cachedPlacement, ...rows } = cell;
     return rows;
   });
@@ -111,7 +120,7 @@ export function readPlan(root, read = file => readFileSync(join(root, file), 'ut
     let source;
     try { source = read(row.file); } catch { throw new Refused('CELLS_PLAN_SHARD', `${row.file} is missing; regenerate with node bin/cells-plan.js --write`); }
     const cell = JSON.parse(source);
-    return { ...cell, placedBy: placementCounts(cell.paths) };
+    return { ...cell, placedBy: placementCounts(cell) };
   });
   return { ...index, totals: planCounts(cells, index.stays), cells };
 }
