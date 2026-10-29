@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/sentinels",
  "frontDoor": "packages/sentinels/index.js",
- "placedBy": {
-  "seed": 6,
-  "rule": 0,
-  "imports": 3
- },
  "paths": [
   ["src/dispatch-health.js","packages/sentinels/src/shell/dispatch-health.js","imports"],
   ["src/gone-claims.js","packages/sentinels/src/core/gone-claims.js","imports"],

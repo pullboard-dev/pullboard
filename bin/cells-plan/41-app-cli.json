@@ -4,11 +4,6 @@
  "kind": "app",
  "root": "apps/cli",
  "frontDoor": "apps/cli/index.js",
- "placedBy": {
-  "seed": 113,
-  "rule": 79,
-  "imports": 35
- },
  "paths": [
   ["src/changelog.js","apps/cli/src/shell/changelog.js","seed"],
   ["src/cli-board-read.js","apps/cli/src/shell/cli-board-read.js","seed"],

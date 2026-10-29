@@ -5,11 +5,6 @@
  "root": "packages/outbox",
  "frontDoor": "packages/outbox/index.js",
  "dryRunName": "relay-outbox",
- "placedBy": {
-  "seed": 16,
-  "rule": 1,
-  "imports": 0
- },
  "paths": [
   ["src/relay-baseline-settle.js","packages/outbox/src/shell/relay-baseline-settle.js","seed"],
   ["src/relay-checkpoint-publish.js","packages/outbox/src/shell/relay-checkpoint-publish.js","seed"],

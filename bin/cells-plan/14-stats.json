@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/stats",
  "frontDoor": "packages/stats/index.js",
- "placedBy": {
-  "seed": 10,
-  "rule": 9,
-  "imports": 5
- },
  "paths": [
   ["src/flow-replay-history.js","packages/stats/src/core/flow-replay-history.js","seed"],
   ["src/flow-replay.js","packages/stats/src/core/flow-replay.js","seed"],
