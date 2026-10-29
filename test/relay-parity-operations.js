@@ -13,7 +13,7 @@ import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import { createParityReader, assertReaderParity } from './relay-parity-reader.js';
 import { createStudyExercise, seedStudyState, seedRehome, seedHandoff } from './relay-parity-seeds.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { seedOutside, seedLandingObservations, seedMembership, seedAdministrative, seedBatch, seedCoordinatorAuthority, seedSpecOutcomes, seedBarSignature, seedCurrentOperations, seedPersonSigning } from './relay-parity-extra-seeds.js';
+import { seedOutside, seedLandingObservations, seedMembership, seedAdministrative, seedBatch, seedCoordinatorAuthority, seedSpecOutcomes, seedBarSignature, seedCurrentOperations, seedPersonSigning, seedUsage } from './relay-parity-extra-seeds.js';
 import { seedTypedRequests } from './relay-parity-typed-requests.js';
 import { seedSourceAdvance } from './relay-parity-source-advance.js';
 import { seedNativeTrain } from './relay-parity-train.js';
@@ -71,6 +71,7 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
     await seedBarSignature(context);
     await seedCoordinatorAuthority(context);
     await seedRehome(context);
+    await seedUsage(context);
     await seedHandoff(context);
     await seedPersonSigning(context);
     const missing = tracking.missing(MOVE_OPERATIONS);

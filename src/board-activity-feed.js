@@ -5,7 +5,7 @@ import { itemFiles } from './item-files.js';
 /** Include a batch's main-moving receipt only for the exact item ids that receipt records. */
 export function itemActivity(board, id) {
   return board.db.prepare(`
-    SELECT * FROM event WHERE item_id = ?
+    SELECT * FROM event WHERE item_id = ? AND event_kind NOT IN ('usage','shared-usage')
     UNION ALL
     SELECT * FROM event WHERE item_id IS NULL AND event_kind = 'main-moved'
       AND EXISTS (
@@ -85,6 +85,7 @@ export function projectAgentActivity({ agent, interests, events, shouts, changes
   const entries = [], laneItems = new Set(), announcements = [];
   let laneCount = 0;
   for (const event of events) {
+    if (['usage', 'shared-usage'].includes(event.event_kind)) continue;
     const detail = activityEventDetail(event);
     if (!detail) {
       if (interests.related.has(event.item_id) || event.item_id === null) {

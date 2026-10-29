@@ -89,6 +89,7 @@ import {
 import * as seatCheckout from '../seat-checkout.js';
 import {
   submitPreflight,
+  requirePlannedSource,
 } from '../submit-preflight.js';
 import {
   refuseUnreviewable,
@@ -216,6 +217,7 @@ export async function submitHere(ctx, id, infra) {
       if (recordedRecovery(board, recovered)) return { me, recorded: true };
       const item = store.getItem(board, id);
       const trunk = requireTrunkMerge(root, recovered.args[1].commit);
+      requirePlannedSource(root, trunk.commit, recovered.args[1].commit);
       if (barReadySetting(board).enabled && (recovered.args[1].policyCommit !== trunk.commit || !contains(root, trunk.commit, recovered.args[1].commit))) {
         throw new Refused('MAIN_NOT_COMPOSED', 'the unrecorded recovered submission has no proof for current main; run pullboard inbox to synchronize its original receipt, or ask the coordinator to resolve the pending move before a fresh submit; the original request is retained');
       }
@@ -295,6 +297,7 @@ export async function submitHere(ctx, id, infra) {
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : acceptedMain.commit;
   withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }, { atomic: store.atomic, submit: store.submit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }) }));
   const trunk = requireTrunkMerge(root, commit);
+  requirePlannedSource(root, trunk.commit, commit);
   const companion = await withBoard(ctx, async board => {
     if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
       await ordered(ctx, board, 'followItemPatches', [id, { agentId: me.id, commit }]);
