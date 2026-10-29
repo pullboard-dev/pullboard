@@ -32,7 +32,7 @@ import { loadDoctrine } from '../../../../src/doctrine.js';
 import {
   preMergeHookProblems,
   unwiredHookProblems,
-} from '../../../../src/hooks.js';
+} from '../../../commits/index.js';
 const blankCharacters = new Set(BLANKS.map((point) => String.fromCodePoint(point)));
 
 /** Offer a working tracked or untracked rename without rewriting the repo's doctrine [D1,D2]. */

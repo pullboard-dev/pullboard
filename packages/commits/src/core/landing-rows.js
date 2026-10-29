@@ -1,5 +1,5 @@
 /** The frozen row identity named by a landing [C7]. */
-import { specOrder } from '../../../../src/commit-message.js';
+import { specOrder } from './commit-message.js';
 
 /**
  * The rows a landing names: the item's final frozen set when it has one, since a refreeze after the

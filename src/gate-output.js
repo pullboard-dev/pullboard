@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname } from 'node:path';
-import { secretsIn } from './hooks.js';
+import { secretsIn } from '../packages/commits/index.js';
 
 const DIGEST_CHARS = 3000;
 const TAIL_CHARS = 1000;

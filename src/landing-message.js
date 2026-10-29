@@ -3,7 +3,7 @@ import {
   buildCommitMessage,
   commitMessageProblems,
   parseCommitMessage,
-} from './commit-message.js';
+} from '../packages/commits/index.js';
 import { landingRows } from '../packages/commits/src/core/landing-rows.js';
 import { tryGit } from './git.js';
 import { Refused } from './refused.js';

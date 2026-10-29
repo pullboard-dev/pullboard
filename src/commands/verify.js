@@ -49,7 +49,7 @@ import {
 } from '../git.js';
 import {
   guardRevertNote,
-} from '../guard-revert.js';
+} from '../../packages/commits/index.js';
 import {
   checkImplies,
   parseImplies,

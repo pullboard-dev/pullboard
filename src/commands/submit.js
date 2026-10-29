@@ -73,8 +73,8 @@ import {
 } from '../git.js';
 import {
   machineNameProblems,
-} from '../hooks.js';
-import * as infraNotes from '../infra-note.js';
+} from '../../packages/commits/index.js';
+import * as infraNotes from '../../packages/commits/index.js';
 import {
   accountedFailures,
   waivedFailures,

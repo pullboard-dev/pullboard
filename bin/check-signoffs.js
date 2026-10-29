@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Check every incoming PR or main-push commit against the event's trusted base policy [C1,C7]. */
 import { readFileSync } from 'node:fs';
-import { contributionSignoffProblem } from '../src/commit-signoff.js';
+import { contributionSignoffProblem } from '../packages/commits/index.js';
 
 /** Use structured event data rather than interpolating contributor-controlled values into a shell. */
 function main() {

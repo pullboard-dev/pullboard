@@ -101,7 +101,7 @@ import {
 } from './timing.js';
 import {
   secretsIn,
-} from './hooks.js';
+} from '../packages/commits/index.js';
 import {
   Refused,
 } from './refused.js';

@@ -23,7 +23,7 @@ import {
 import {
   sayCheckBaseline,
 } from '../check-baseline-format.js';
-import * as infraNotes from '../infra-note.js';
+import * as infraNotes from '../../packages/commits/index.js';
 import {
   mainMergeFor,
   mainMergeLines,

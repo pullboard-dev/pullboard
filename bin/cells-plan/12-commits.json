@@ -16,15 +16,7 @@
   ["test/landing-message.test.js","packages/commits/tests/landing-message.test.js","seed"],
   ["test/merge-hooks.test.js","packages/commits/tests/merge-hooks.test.js","seed"]
  ],
- "reexports": [
-  "src/commit-message.js",
-  "src/commit-metadata.js",
-  "src/commit-signoff.js",
-  "src/guard-revert.js",
-  "src/hooks.js",
-  "src/infra-note.js",
-  "src/why-file.js"
- ],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":5,"before":true},
   {"cell":"git","imports":4,"before":true},

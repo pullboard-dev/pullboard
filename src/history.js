@@ -4,7 +4,7 @@
  * row keeps its meaning however the spec changes.
  */
 import { spawnSync } from 'node:child_process';
-import { parseCommitMessage } from './commit-message.js';
+import { parseCommitMessage } from '../packages/commits/index.js';
 import {
   ID_RE,
   parseSpec,
