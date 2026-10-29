@@ -21,6 +21,11 @@ export function activityDeliveryLines({ shouts, agents, activity, budget }, conf
     if (shout.shout_evidence_kind) lines.push(`  ${evidenceLine(shout)}`);
   }
   for (const interrupt of activity.interrupts) lines.push(`interrupt ${interrupt.id}: ${interrupt.text}`);
+  if (activity.pending?.length) {
+    const shown = activity.pending.slice(0, 20).join(',');
+    const rest = activity.pending.length > 20 ? ` and ${activity.pending.length - 20} more` : '';
+    lines.push(`${activity.pending.length} delivered interrupt${activity.pending.length === 1 ? '' : 's'} still unacted: ${shown}${rest}; clear with pullboard inbox --acted-on <ids>`);
+  }
   const direct = new Set(shouts.map(shout => shout.shout_id));
   for (const entry of activity.entries) if (!direct.has(entry.shout)) lines.push(`${entry.at.slice(0, 16)}  ${entry.text}`);
   for (const digest of activity.digests) lines.push(digest.text);
@@ -56,6 +61,10 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
       changesForMain: (commit, detail) => activityMainFiles(ctx.info.root, commit, detail,
         { rowFiles: [ctx.config.spec, ctx.config.practice] }) });
     const { observation, newsShouts, shoutCursor, ...activity } = projected;
+    // A delivered, unacted interrupt is an obligation, not news: a repeat read names its id once, never its text again [#1885].
+    const fresh = new Set(observation.fresh.map(interrupt => interrupt.id));
+    activity.pending = activity.interrupts.filter(interrupt => !fresh.has(interrupt.id)).map(interrupt => interrupt.id);
+    activity.interrupts = activity.interrupts.filter(interrupt => fresh.has(interrupt.id));
     // Pending obligations survive an output failure: delivery is not acknowledgement.
     const retired = handoffMoveProblem(board, me.id, 'recordActivityDelivery', [{ agentId: me.id }]);
     if (retired) activity.receipt = { recorded: false, code: retired.code, message: retired.message };

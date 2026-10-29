@@ -758,11 +758,13 @@ test('inbox budgets withhold interrupt receipts until the whole interrupt is ren
   assert.deepEqual(JSON.parse(enlarged.out).activity.interrupts.map(interrupt => interrupt.id), [id],
     'a withheld fresh obligation survives both canonical and local cursor advancement');
   const repeat = box.run(box.web, 'inbox', '--json');
-  assert.deepEqual(JSON.parse(repeat.out).activity.interrupts.map(interrupt => interrupt.id), [id],
-    'delivery still grants no acted-on authority');
+  // #1885: a repeat read names the delivered, unacted obligation by id and never re-lists its text.
+  assert.deepEqual(JSON.parse(repeat.out).activity.interrupts, [], 'a delivered interrupt is not replayed');
+  assert.deepEqual(JSON.parse(repeat.out).activity.pending, [id], 'delivery still grants no acted-on authority');
   const acted = box.run(box.web, 'inbox', '--acted-on', id, '--json');
   assert.equal(acted.code, 0, acted.err);
   assert.deepEqual(JSON.parse(acted.out).activity.interrupts, []);
+  assert.deepEqual(JSON.parse(acted.out).activity.pending, [], 'an acted-on interrupt leaves the pending list');
 });
 
 

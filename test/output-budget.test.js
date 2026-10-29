@@ -78,3 +78,21 @@ test('streams and reference pages are declared unbounded, and a single long line
   assert.match(cut, /--detail shows the whole line\)$/u);
   assert.equal(cutLine('short'), 'short');
 });
+
+test('inbox after a read shows nothing old: a delivered interrupt comes back only as its id [N26,R2]', () => {
+  const box = helpers.project('true');
+  // @pullboard-board-file journey: the real CLI subprocesses read this answered decision as an interrupt.
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    const question = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'Which path?', decision: true, lanes: ['web'] });
+    store.answerDecision(board, question, { agentId: 'coordinator', text: 'Use the reviewed path', lanes: ['web'] });
+  } finally { store.closeBoard(board); }
+  const first = box.run(box.web, 'inbox');
+  assert.match(first.out, /Use the reviewed path/u, 'the first read delivers the answer');
+  const second = box.run(box.web, 'inbox');
+  assert.doesNotMatch(second.out, /Use the reviewed path|Which path\?/u, 'the second read replays nothing old');
+  assert.match(second.out, /1 delivered interrupt still unacted: event:\d+; clear with pullboard inbox --acted-on <ids>/u);
+  const id = JSON.parse(box.run(box.web, 'inbox', '--json').out).activity.pending[0];
+  assert.equal(box.run(box.web, 'inbox', '--acted-on', id).code, 0);
+  assert.match(box.run(box.web, 'inbox').out, /no new shouts or activity/u, 'acting on it clears the reminder');
+});
