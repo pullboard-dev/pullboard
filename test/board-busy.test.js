@@ -67,6 +67,7 @@ async function holdWriteLock(box, file) {
 /** Prove a real ordered CLI move refuses contention atomically, then succeeds exactly once. */
 async function proveBusyWrite(t, args, table) {
   const box = e2e.project();
+  box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const before = snapshot(file);
   const release = await holdWriteLock(box, file);
@@ -153,6 +154,7 @@ async function holdNamedWriter(box, file) {
 
 test('a refused writer names the board lock holder [C7,P4,B2]', async t => {
   const box = e2e.project();
+  box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const before = snapshot(file);
   const holder = await holdNamedWriter(box, file);
@@ -191,6 +193,7 @@ function longWrites(stderr) {
 
 test('a nested rolled-back writer logs once and leaves no live advisory record [C7,P4,B2]', () => {
   const box = e2e.project();
+  box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const before = snapshot(file);
   const source = `
@@ -225,6 +228,7 @@ test('a nested rolled-back writer logs once and leaves no live advisory record [
 
 test('a real CLI writer labels its long transaction without changing JSON or native counts [C7,P4,B2]', () => {
   const box = e2e.project();
+  box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const before = snapshot(file);
   const preload = join(box.dir, 'hold-private-shout.mjs');
@@ -268,6 +272,7 @@ test('a real CLI writer labels its long transaction without changing JSON or nat
 
 test('opening an older board names and logs its genuine index-building write [C7,P4,B2]', async (t) => {
   const box = e2e.project();
+  box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   // Installed source may own a main-board migration without entering the small project's Git history.
   const installed = join(box.dir, 'installed-maintenance-cli');
   mkdirSync(installed);
@@ -391,6 +396,7 @@ test('opening an older board names and logs its genuine index-building write [C7
 
 test('native import observes committed and rolled-back write ownership without changing restored rows [A7,C7,P4]', () => {
   const box = e2e.project();
+  box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const added = box.run(box.repo, 'add', 'web', 'private restored item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
   assert.equal(added.code, 0, added.err);
   const document = snapshot(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
@@ -459,6 +465,7 @@ test('native import observes committed and rolled-back write ownership without c
 
 test('journal conversion reports total wait-plus-hold separately and preserves its result [C7,P4]', () => {
   const box = e2e.project();
+  box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const before = snapshot(file);
   const source = `
@@ -508,6 +515,7 @@ test('journal conversion reports total wait-plus-hold separately and preserves i
 
 test('a failed owning migration rolls back schema, index and stamp work together [A5,A6,C7]', () => {
   const box = e2e.project();
+  box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const installed = join(box.dir, 'installed-rollback-cli');
   mkdirSync(installed);
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
@@ -550,6 +558,7 @@ test('a failed owning migration rolls back schema, index and stamp work together
 
 test('a standalone native attempt and nested rollback each observe only their actual outer write [C7,P4]', () => {
   const box = e2e.project();
+  box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const added = box.run(box.repo, 'add', 'web', 'private native attempt', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
