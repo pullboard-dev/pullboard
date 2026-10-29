@@ -1408,3 +1408,10 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
   #settings-content td:nth-child(3)::before { content: 'Default'; }
   #settings-content td:nth-child(4)::before { content: 'Source'; }
 }
+
+/* Every scope remains a full touch target when the Settings pane narrows. */
+body:has(#settings-pane:not([hidden])) #share-note { display: none; }
+@media (width < 600px) {
+  #settings-content .settings-scopes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; overflow: visible; }
+  #settings-content .settings-scopes button { min-width: 0; white-space: normal; }
+}
