@@ -27,15 +27,17 @@ export function boardHoldBaselineProblems(current, previous) {
     ? [`board hold allowance grew from ${previous.allowancePerDay} to ${count}; the ratchet only falls`] : [];
 }
 
-/** Compare both working edits and each committed parent, so committing a raised allowance cannot hide it. */
+/** Preserve the lowest reachable allowance, so an unrelated child cannot hide an earlier increase. */
 export function committedBoardHoldBaselineProblems(root) {
   const current = readBoardHoldBaseline(root);
-  const refs = ['HEAD', ...git(root, ['rev-list', '--parents', '-n', '1', 'HEAD']).split(' ').slice(1)];
-  const previous = [], parents = [];
-  for (const [index, ref] of refs.entries()) {
-    const listed = git(root, ['ls-tree', ref, '--', BOARD_HOLD_BASELINE]);
-    if (listed) (index === 0 ? previous : parents).push(JSON.parse(git(root, ['show', `${ref}:${BOARD_HOLD_BASELINE}`])));
+  const refs = git(root, ['log', '--full-history', '--format=%H', 'HEAD', '--', BOARD_HOLD_BASELINE]).split('\n').filter(Boolean);
+  const previous = [];
+  for (const ref of refs) {
+    try { previous.push(JSON.parse(git(root, ['show', `${ref}:${BOARD_HOLD_BASELINE}`]))); }
+    catch (error) {
+      if (git(root, ['ls-tree', ref, '--', BOARD_HOLD_BASELINE])) throw error;
+    }
   }
-  previous.push(...(parents.length ? parents : [undefined]));
+  if (!previous.some(value => value.allowancePerDay === null)) previous.push(undefined);
   return [...new Set(previous.flatMap(value => boardHoldBaselineProblems(current, value)))];
 }

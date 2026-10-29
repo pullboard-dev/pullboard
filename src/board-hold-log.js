@@ -58,7 +58,7 @@ function retainedHolds() {
     if (start) text = text.slice(text.indexOf('\n') + 1);
     return { text, truncated: start > 0, available: true };
   } catch (error) {
-    return { text: '', truncated: false, available: error.code === 'ENOENT' };
+    return { text: '', truncated: false, available: false, missing: error.code === 'ENOENT' };
   } finally {
     if (fd !== undefined) {
       try { closeSync(fd); }
@@ -79,6 +79,7 @@ export function boardHoldStats({ since, until = Date.now() } = {}) {
     let row;
     try { row = JSON.parse(line); }
     catch { invalidLines++; continue; }
+    if (!row || typeof row !== 'object' || Array.isArray(row)) { invalidLines++; continue; }
     const at = Date.parse(row.at);
     if (row.version !== 1 || !Number.isFinite(at) || !Number.isSafeInteger(row.heldMs) || row.heldMs <= BOARD_HOLD_MS
       || label(row.command, null) === null || label(row.seat, null) === null) { invalidLines++; continue; }
@@ -92,14 +93,15 @@ export function boardHoldStats({ since, until = Date.now() } = {}) {
   }
   return { since: new Date(start).toISOString(), until: new Date(end).toISOString(), thresholdMs: BOARD_HOLD_MS,
     count: retained.available ? count : null, today, todayCount: retained.available ? todayCount : null,
-    available: retained.available, truncated: retained.truncated, invalidLines,
+    available: retained.available, missing: retained.missing ?? false, truncated: retained.truncated, invalidLines,
     days: Object.fromEntries([...days].sort()),
     commands: [...commands.values()].sort((a, b) => b.slowestMs - a.slowestMs || a.command.localeCompare(b.command)) };
 }
 
 /** Keep absent or bounded history explicit instead of presenting an unmeasured total as zero. */
 export function boardHoldLines(stats, baseline) {
-  if (!stats.available) return ['board write holds >1s: log unavailable'];
+  if (!stats.available) return [`board write holds >1s: ${stats.missing ? 'unmeasured (no retained machine log)' : 'log unavailable'}`,
+    ...(baseline?.allowancePerDay === null ? ['WARNING: board hold allowance is unmeasured; record the first full UTC day and its fact before setting it.'] : [])];
   return [`board write holds >1s: ${stats.count} recorded${stats.truncated ? ' (bounded log tail; incomplete history)' : ''}`,
     ...stats.commands.slice(0, 5).map(row => `  ${row.command}: ${row.count} holds; slowest ${row.slowestMs} ms`),
     ...(baseline?.allowancePerDay === null ? ['WARNING: board hold allowance is unmeasured; record the first full UTC day and its fact before setting it.']

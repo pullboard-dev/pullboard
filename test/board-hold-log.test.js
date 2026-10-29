@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
@@ -18,9 +19,14 @@ after(helpers.cleanup);
 
 test('one 1.2-second outer hold is logged with its command, seat and item, while 0.2 seconds is not [C7,P4]', () => {
   const box = helpers.project('true');
+  box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'hold-observations');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const source = `
     import { openBoard, closeBoard, atomic } from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+    import assert from 'node:assert/strict';
+    import { boardHoldStats } from ${JSON.stringify(new URL('../src/board-hold-log.js', import.meta.url).href)};
+    assert.equal(boardHoldStats().available, false, 'a missing machine log is unmeasured, not healthy zero');
+    assert.equal(boardHoldStats().count, null);
     // @pullboard-board-file locking: this real SQLite transaction measures the actual acquired/released boundary.
     const board = openBoard(process.argv[1], undefined, { writeContext: { command: 'fixture-hold', seat: 'web-1', item: 42 } });
     try {
@@ -48,9 +54,11 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   assert.equal(rows.some(row => row.command === 'fixture-fast'), false);
   assert.deepEqual(Object.keys(holds[0]).sort(), ['at', 'command', 'heldMs', 'item', 'outcome', 'seat', 'version'],
     'no SQL, notes, CLI arguments, session ids or board data are published');
+  appendFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'board-holds.jsonl'), 'null\n{}\n');
   const result = box.run(box.repo, 'stats', '--window', '24h', '--json');
   assert.equal(result.code, 0, result.err);
   const stats = JSON.parse(result.out).boardHolds;
+  assert.equal(stats.invalidLines, 2, 'malformed diagnostic rows cannot crash a stats query or count as a hold');
   assert.equal(stats.commands.find(row => row.command === 'fixture-hold').count, 1);
   assert.equal(stats.commands.find(row => row.command === 'fixture-hold').slowestMs, holds[0].heldMs);
   const narrow = box.run(box.repo, 'stats', '--since', new Date(Date.now() + 60_000).toISOString(), '--json');
@@ -80,7 +88,7 @@ test('the daily allowance is unmeasured until its first full-day fact, and a mea
 test('the gate checks committed allowance changes without consulting live machine counts [C7]', () => {
   assert.deepEqual(committedBoardHoldBaselineProblems(join(import.meta.dirname, '..')), []);
   const box = helpers.project('true'), file = join(box.repo, 'src', 'board-hold-baseline.json');
-  mkdirSync(join(box.repo, 'src'));
+  mkdirSync(join(box.repo, 'src'), { recursive: true });
   const baseline = { version: 1, allowancePerDay: null, observedDay: null, fact: null };
   writeFileSync(file, JSON.stringify(baseline));
   box.git(box.repo, 'add', 'src/board-hold-baseline.json');
@@ -93,4 +101,9 @@ test('the gate checks committed allowance changes without consulting live machin
   box.git(box.repo, 'commit', '-qam', 'chore: raise fixture allowance [G1]');
   assert.match(committedBoardHoldBaselineProblems(box.repo).join(), /grew from 12 to 13/u,
     'a raised value stays refused even after it has been committed');
+  writeFileSync(join(box.repo, 'unrelated.txt'), 'Unrelated fixture change.\n');
+  box.git(box.repo, 'add', 'unrelated.txt');
+  box.git(box.repo, 'commit', '-qm', 'chore: add unrelated fixture child [G1]');
+  assert.match(committedBoardHoldBaselineProblems(box.repo).join(), /grew from 12 to 13/u,
+    'an unrelated later commit cannot hide the committed allowance increase');
 });
