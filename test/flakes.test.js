@@ -224,6 +224,7 @@ const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', 'test/
 process.exitCode = run.status;
 `);
   writeFileSync(join(box.root, 'test/unrelated.test.mjs'), `import { test } from 'node:test';
+import { appendFileSync } from 'node:fs';
 test('unrelated execution [C7]', () => appendFileSync(${JSON.stringify(unrelated)}, 'run\\n'));
 `);
   const file = join(box.root, 'pullboard.json');
@@ -578,6 +579,7 @@ test('a CI passing title cannot prove two files when the other rerun skips [C7,H
   const box = flakyProject(t);
   for (const suffix of ['a', 'b']) {
     writeFileSync(join(box.root, `test/ci-${suffix}.test.mjs`), `import assert from 'node:assert/strict';
+import { test } from 'node:test';
 test('the shared title [C7]', { skip: process.env.CI_DUPLICATE_MODE === 'rerun' && ${suffix === 'b'} }, () => {
   assert.equal(process.env.CI_DUPLICATE_MODE, 'rerun');
 });\n`);
