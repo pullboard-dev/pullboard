@@ -23,7 +23,7 @@ function showTab() {
 
 /** Read the selected repo, tab and detail from a path or the hosted page's fragment. */
 function placeAtAddress(page = data) {
-  const tabs = ['dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings'];
+  const tabs = ['dashboard', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings'];
   const hash = location.hash || '';
   let path = routed ? location.pathname || '/' : hash.slice(1);
   if (hash === '#items/pipeline' || hash === '#roadmap') path = hash.slice(1);
@@ -33,10 +33,11 @@ function placeAtAddress(page = data) {
   catch { parts = []; }
   const repo = page?.projects.find((entry) => entry.ok && entry.name === parts[0]);
   const group = page?.groups.find((entry) => entry.name === parts[0]);
-  const named = (repo || group) && tabs.includes(parts[1]);
+  const named = (repo || group) && (tabs.includes(parts[1]) || parts[1] === 'home');
   const root = named ? repo?.root || group.key : null;
   if (named) parts.shift();
-  const tab = tabs.includes(parts[0]) ? parts.shift() : (!path && transportModule && globalThis.history?.state?.tab) || homeTab(page);
+  const requested = tabs.includes(parts[0]) || parts[0] === 'home' ? parts.shift() : (!path && transportModule && globalThis.history?.state?.tab) || landingTab(page);
+  const tab = requested === 'home' ? 'dashboard' : requested;
   return { root, tab, detail: parts[0] ?? null };
 }
 
@@ -72,7 +73,7 @@ function address(push = true) {
 /** Apply a parsed selection without recording another history entry. */
 function applyPlace(place, kept = null) {
   if (place.root) view.root = place.root;
-  view.tab = place.tab;
+  view.tab = place.tab === 'home' ? 'dashboard' : place.tab;
   view.addressDetail = place.detail;
   view.item = place.tab === 'items' && place.detail !== null && place.detail !== 'pipeline' ? Number(place.detail) : null;
   view.itemsView = place.tab === 'items' && place.detail === 'pipeline' ? 'pipeline' : 'list';
@@ -102,7 +103,7 @@ function fromAddress(event) {
   }
   if (snapshot) {
     const kept = event?.state || {};
-    const place = location.hash ? placeAtAddress() : { root: null, tab: kept.tab || homeTab(data), detail: kept.detail ?? null };
+    const place = location.hash ? placeAtAddress() : { root: null, tab: kept.tab || landingTab(), detail: kept.detail ?? null };
     applyPlace(place, kept);
     if (kept.root && kept.root !== view.root) return switchTo(kept.root, view.item, false);
   } else {
@@ -120,7 +121,8 @@ function fromAddress(event) {
 
 /** Pick a tab or an explicit detail and record the complete place once. */
 function openTab(tab, detail = null) {
-  view.tab = tab;
+  view.tab = tab === 'home' ? 'dashboard' : tab;
+  tab = view.tab;
   view.addressDetail = detail;
   view.shout = tab === 'shouts' && detail !== null ? Number(detail) : null;
   view.scrollPlace = detail !== null;

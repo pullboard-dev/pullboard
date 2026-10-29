@@ -141,10 +141,16 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
 
     const initial = JSON.parse(await evaluate(`JSON.stringify({ project: data.project, index: snapshotReplay.index, total: snapshotReplay.events.length, playing: snapshotReplay.playing, speedOptions: [...document.querySelector('#replay-speed').options].map((option) => option.value), bodyClass: document.body.classList.contains('snapshot') })`));
     assert.equal(initial.bodyClass, true);
+    assert.equal(await evaluate('view.tab'), 'dashboard', 'a static export lands on Dashboard');
+    assert.equal(await evaluate("Boolean(document.querySelector('[data-tab=home]'))"), false, 'a static export has no Home tab');
     assertSnapshotObservation(expected, initial.project, observationBoard, alpha.repo, 'the initial snapshot is the final live API state');
     assert.deepEqual(initial.speedOptions, ['1', '4', '16']);
     assert.ok(initial.total >= 6, 'the exported board contains the complete claim/submit/reject/claim/submit/accept history');
     assert.ok(initial.index >= initial.total - 1, 'the initial replay position is the exported final state');
+
+    await chrome.send('Page.navigate', { url: `${base}${prefix}#home` });
+    await chrome.waitFor("document.body.classList.contains('snapshot') && view.tab === 'dashboard' && snapshotReplay.index === snapshotReplay.events.length");
+    assert.equal(await evaluate('location.hash'), '#dashboard', 'a saved or shared Home address normalizes to Dashboard');
 
     // Static export opens on Dashboard; materialize the lazy Shouts pane before reading its feed.
     await press(chrome, "document.querySelector('[data-tab=shouts]')");

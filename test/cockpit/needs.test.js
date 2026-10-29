@@ -107,22 +107,21 @@ test('a local relay-health Needs-you entry is an inspection with no release or h
       render();
       return true;
     })()`);
-    await chrome.click('document.querySelector("[data-tab=home]")');
-    await chrome.waitFor(`Array.from(document.querySelectorAll('#home-needs .needs-call')).some(row => row.textContent.includes(${JSON.stringify(text)}))`);
+    await chrome.waitFor(`Array.from(document.querySelectorAll('#dashboard .needs-call')).some(row => row.textContent.includes(${JSON.stringify(text)}))`);
     await chrome.click('document.querySelector("[data-tab=items]")');
     await chrome.waitFor(`Array.from(document.querySelectorAll('#needs .needs-call')).some(row => row.textContent.includes(${JSON.stringify(text)}))`);
     const rendered = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const row = [...document.querySelectorAll('#needs .needs-call')].find(entry => entry.textContent.includes(${JSON.stringify(text)}));
-      const homeRow = [...document.querySelectorAll('#home-needs .needs-call')].find(entry => entry.textContent.includes(${JSON.stringify(text)}));
-      return row && homeRow ? {
+      const dashboardRow = [...document.querySelectorAll('#dashboard .needs-call')].find(entry => entry.textContent.includes(${JSON.stringify(text)}));
+      return row && dashboardRow ? {
         target: row.querySelector('[data-go]')?.dataset.go ?? null,
         ref: row.querySelector('.needs-id')?.textContent ?? null,
         title: row.querySelector('.needs-copy b').textContent,
         need: row.querySelector('.needs-copy small').textContent,
         action: row.querySelector('.needs-action').textContent,
         hasAge: !!row.querySelector('.needs-age time'),
-        homeTarget: homeRow.querySelector('[data-go]')?.dataset.go ?? null,
-        homeAction: homeRow.querySelector('.needs-action').textContent,
+        dashboardTarget: dashboardRow.querySelector('[data-go]')?.dataset.go ?? null,
+        dashboardAction: dashboardRow.querySelector('.needs-action').textContent,
       } : null;
     })())`));
     assert.deepEqual(rendered, {
@@ -132,9 +131,9 @@ test('a local relay-health Needs-you entry is an inspection with no release or h
       need: nextStep,
       action: 'Inspect',
       hasAge: true,
-      homeTarget: null,
-      homeAction: 'Inspect',
-    }, 'both real Chrome surfaces show an age-stamped inspection step and do not turn the health alert into a shouts/hold link');
+      dashboardTarget: null,
+      dashboardAction: 'Inspect',
+    }, 'Dashboard and Items show an age-stamped inspection step and do not turn the health alert into a shouts/hold link');
     assert.deepEqual(chrome.exceptions, [], 'the actual page renders the new Needs-you kind without exceptions');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
@@ -203,11 +202,19 @@ test("the page's Needs-you comes from the shared builder [N26]", { timeout: 180_
       const profile = mkdtempSync(join(tmpdir(), 'pullboard-shared-needs-')); profiles.push(profile);
       chrome = await openSnapshotChrome(executable, address, profile);
       await chrome.waitFor("data?.project?.needs?.length === 4");
+      assert.equal(await chrome.stable('view.tab'), 'dashboard', mode + ' opens on Dashboard');
       await chrome.click('document.querySelector("[data-tab=items]")');
       await chrome.waitFor("data?.project?.needs?.length === 4 && document.querySelectorAll('#needs .needs-call').length === 4");
       assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify(projectNeeds(data.project))')), expected, mode + ' computes identical entries');
       assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify([...document.querySelectorAll("#needs .needs-copy b")].map(row => row.textContent))')),
         ['G3Choose the greeting.', '#1Ship the greeting?', 'webWait for the greeting decision', '1 draft spec rows to approve or drop'], mode + ' renders the same calls');
+      await chrome.stable(`localStorage.setItem(${JSON.stringify(mode === 'export' ? 'snapshot.pb.tab' : 'pb.tab')}, 'home'); history.replaceState(history.state, '', location.pathname + location.search)`);
+      await chrome.send('Page.reload');
+      await chrome.waitFor("data?.project?.needs?.length === 4 && view.tab === 'dashboard'");
+      assert.equal(await chrome.stable(`localStorage.getItem(${JSON.stringify(mode === 'export' ? 'snapshot.pb.tab' : 'pb.tab')})`), 'dashboard', mode + ' migrates saved Home state');
+      await chrome.send('Page.navigate', { url: address + '#home' });
+      await chrome.waitFor("view.tab === 'dashboard' && data?.project?.needs?.length === 4");
+      assert.equal(await chrome.stable('location.hash'), '#dashboard', mode + ' normalizes legacy Home links');
       assert.deepEqual(chrome.exceptions, [], mode + ' has no uncaught exception');
       await closeSnapshotChrome(chrome); chrome = null;
     }

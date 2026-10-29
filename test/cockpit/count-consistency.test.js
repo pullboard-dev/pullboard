@@ -38,18 +38,18 @@ function countPairs() {
       add('Pipeline/' + stage.dataset.pipelineStage, number(stage.querySelector('[data-stage-count]')), stage.querySelectorAll('.pipeline-item').length);
     }
   }
-  if (view.tab === 'home' || view.tab === 'items') {
-    const root = view.tab === 'home' ? '#home-needs' : '#needs';
+  if (view.tab === 'dashboard' || view.tab === 'items') {
+    const root = view.tab === 'dashboard' ? '#dashboard' : '#needs';
     for (const group of all(root + ' .needs-group')) {
       const heading = group.querySelector('.needs-group-head h3');
       if (heading) add('Needs/' + heading.textContent, Number(heading.textContent.split('·').at(-1).trim()), group.querySelector('ol').children.length);
     }
     const draft = document.querySelector(root + ' .needs-drafts .needs-copy b');
     if (draft) add('Needs/draft rows', number(draft), p.needs.find(row => row.kind === 'draft')?.count ?? 0);
-    if (view.tab === 'home') {
+    if (view.tab === 'dashboard') {
       const approved = p.spec.filter(row => row.status === 'approved');
       for (const [key, expected] of [['approved', approved.length], ['gated', approved.filter(row => String(row.gate ?? '').trim()).length], ['ungated', approved.filter(row => !String(row.gate ?? '').trim()).length]]) {
-        add('Home/rules/' + key, number(document.querySelector('[data-home-count="' + key + '"] dd')), expected);
+        add('Dashboard/rules/' + key, number(document.querySelector('[data-home-count="' + key + '"] dd')), expected);
       }
       source('[data-home-count]');
     }
