@@ -1,5 +1,5 @@
 import { renderAgentsBlock } from '../../../../src/templates.js';
-/** @pullboard-test-input src/standard-doctrine.md */
+/** @pullboard-test-input packages/doctrine/src/shell/standard-doctrine.md */
 /** The shared house rules (D1–D4): one packaged standard and a repo's explicit changes to it. */
 import { readFileSync } from 'node:fs';
 import {
