@@ -374,7 +374,7 @@ test('Pullboard\'s four checks count what main has [D1, C7]', async (t) => {
     const reader = [
       "import { readFileSync } from 'node:fs';",
       "import { test } from 'node:test';",
-      "test('reads the seal source [S1]', () => readFileSync(new URL('../src/seal.js', import.meta.url), 'utf8'));",
+      "test('reads the seal source [S1]', () => readFileSync(new URL('../packages/kernel/src/core/seal.js', import.meta.url), 'utf8'));",
       '',
     ].join('\n');
     const splitVariable = [
@@ -393,7 +393,7 @@ test('Pullboard\'s four checks count what main has [D1, C7]', async (t) => {
     ].join('\n');
     put(root, 'test/declared.test.js', `/** @pullboard-test-input test-tree */\n/** @pullboard-test-input source-tree */\n${reader}`);
     put(root, 'test/fixture-copy.test.js', "import { readFileSync } from 'node:fs';\nconst copy = (lane) => readFileSync(join(lane, 'src/board.js'), 'utf8');\n");
-    put(root, 'test/imports.test.js', "import { seal } from '../src/seal.js';\nconst note = \"readFileSync(new URL('../src/a.js', import.meta.url))\";\n");
+    put(root, 'test/imports.test.js', "import { seal } from '../packages/kernel/src/core/seal.js';\nconst note = \"readFileSync(new URL('../src/a.js', import.meta.url))\";\n");
     put(root, 'test/module-url.test.js', [
       "import { readFileSync } from 'node:fs';",
       "const board = new URL('../src/board.js', import.meta.url).href;",

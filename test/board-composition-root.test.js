@@ -1,3 +1,16 @@
+import { relayPresentation, relaySnapshot, relayPresentationShout } from '../src/relay-presentation.js';
+import { verifiedPasskeyRowDecision as presentation_verifiedPasskeyRowDecision } from '../src/person-row-proof.js';
+import { pendingFit as presentation_pendingFit } from '../src/blueprint-fit.js';
+import { projectFit as presentation_projectFit } from '../src/blueprint-fit.js';
+import { projectState as presentation_projectState } from '../src/serve.js';
+import { personRequestStatuses as presentation_personRequestStatuses } from '../src/relay-requests.js';
+import { personSigningPresentation as presentation_personSigningPresentation } from '../src/person-signing-presentation.js';
+import { activeViewAgents as presentation_activeViewAgents } from '../src/view-state-summary.js';
+import { viewProofSummary as presentation_viewProofSummary } from '../src/view-state-summary.js';
+import { fitFile as presentation_fitFile } from '../src/blueprint-fit.js';
+import { boardEnginePorts } from '../src/board-engine-ports.js';
+import { validPresence } from '../src/person-presence.js';
+import { recordTrainLanding } from '../src/record-train-landing.js';
 /** Native construction binds all capabilities before guards and preserves the public board API [C7,B1,B2]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -12,6 +25,9 @@ import { board as library } from '../src/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { openBoardStore } from '../src/board-store.js';
 import { recordRowDraft } from '../src/row-draft-store.js';
+import { setPersonSigning } from '../src/person-signing.js';
+import { recordGateRun } from '../src/quarantine.js';
+import { advanceItemSource } from '../src/source-advance.js';
 
 test('native spec operations retain their public identity and explicit draft providers fail before mutation [C7,S1,D1]', t => {
   for (const name of ['draftSpecRow', 'decideSpecRevisions', 'recordRowVerification']) {
@@ -219,7 +235,8 @@ test('source advance receipt capabilities are frozen and refuse missing members 
   const file = join(directory, 'never-created', 'board.sqlite');
   const ports = native.nativeBoardPorts();
   assert.equal(Object.isFrozen(ports.sourceAdvanceReceipts), true);
-  for (const key of ['boardReceiptStore', 'readGateReceipt', 'receiptBody', 'guardLandingWrite']) {
+  for (const key of ['boardReceiptStore', 'readGateReceipt', 'receiptBody', 'receiptFields', 'guardLandingWrite']) {
+
     const sourceAdvanceReceipts = { ...ports.sourceAdvanceReceipts };
     delete sourceAdvanceReceipts[key];
     assert.throws(() => {
@@ -245,5 +262,92 @@ test('every verification capability is required before storage exists [C7,B1,B2]
       native.closeBoard(board);
     }, error => error.code === 'NO_POLICY' && error.message.includes(`verification.${key}`));
     assert.equal(existsSync(join(directory, 'never-created')), false);
+  }
+});
+
+/** Native origin and restore capabilities must exist before the first SQLite side effect. */
+test('store origin and restore capabilities refuse missing providers before storage exists [C7,H16]', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-store-providers-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'never-created', 'board.sqlite');
+  const ports = native.nativeBoardPorts();
+  for (const key of ['sourceAdvanceCASProblem', 'beginCommandPhase', 'exportedMeta', 'guardRestore']) {
+    const nativePorts = { ...ports.nativePorts };
+    delete nativePorts[key];
+    assert.throws(() => {
+      // @pullboard-board-file persistence: missing authority refuses before creating the database or its directory.
+      const board = native.openBoard(file, undefined, { ports: { ...ports, nativePorts } });
+      native.closeBoard(board);
+    }, error => error.code === 'NO_POLICY' && error.message.includes(`nativePorts.${key}`));
+    assert.equal(existsSync(join(directory, 'never-created')), false);
+  }
+});
+
+/** Public compatibility and replay use the same actual operation, including its person-auth refusal. */
+test('the native operation bag and counted public bridge retain actual authority [C7,H16,B2]', t => {
+  const board = fixtureBoard(t);
+  for (const [name, operation] of Object.entries({ setPersonSigning, recordGateRun, advanceItemSource, recordTrainLanding })) {
+    assert.equal(board.enginePorts.store[name], operation, name);
+    assert.equal(legacy[name], operation, 'the #1776 bridge retains the existing public function identity');
+    assert.equal(library[name], operation, 'the unchanged library namespace retains its public operation');
+  }
+  assert.equal(Object.isFrozen(board.enginePorts.store), true);
+  board.enginePorts.store.setPersonSigning(board, { agentId: 'person', signed: true });
+  assert.equal(legacy.events(board).at(-1).event_kind, 'person_signing');
+  const before = legacy.events(board);
+  assert.throws(() => board.enginePorts.store.setPersonSigning(board, { agentId: 'person', signed: false }), { code: 'PERSON_SIGNED' });
+  assert.throws(() => library.setPersonSigning(board, { agentId: 'person', signed: false }), { code: 'PERSON_SIGNED' });
+  assert.deepEqual(legacy.events(board), before, 'neither operation path bypasses the actual passkey guard');
+});
+
+test('native engine composition keeps supplied upper operations and refuses missing providers before storage [C7,B1,H16]', t => {
+  const board = fixtureBoard(t);
+  const original = native.nativeBoardPorts().enginePorts;
+  assert.equal(original.store.recordTrainLanding, recordTrainLanding);
+  assert.equal(native.recordTrainLanding, recordTrainLanding);
+  assert.equal(legacy.recordTrainLanding, native.recordTrainLanding, 'the existing board public name retains exact native identity');
+  const before = legacy.events(board);
+  const refusal = new Error('EXPLICIT_TRAIN_PROVIDER');
+  let calls = 0;
+  /** Observe the exact injected operation without delegating or mutating the board. */
+  function trainProvider(actualBoard, request) {
+    assert.equal(actualBoard, board);
+    assert.deepEqual(request, { agentId: 'coordinator' });
+    calls++;
+    throw refusal;
+  }
+  const providers = { ...original.store, ...original, validPresence, recordTrainLanding: trainProvider };
+  const composed = boardEnginePorts(providers);
+  assert.equal(composed.store.recordTrainLanding, trainProvider);
+  assert.throws(() => composed.store.recordTrainLanding(board, { agentId: 'coordinator' }), error => error === refusal);
+  assert.equal(calls, 1);
+  assert.deepEqual(legacy.events(board), before);
+  assert.equal(original.store.recordTrainLanding, recordTrainLanding, 'another connection keeps the native provider');
+  for (const name of ['recordTrainLanding', 'validPresence', 'sealItemPatchFollow']) {
+    const missing = { ...providers };
+    delete missing[name];
+    assert.throws(() => boardEnginePorts(missing), error => error.code === 'NO_POLICY' && error.message.includes(name));
+  }
+});
+
+/** All native presentation entrypoints refuse before reading any repository, option clock or board. */
+test('presentation providers retain exact identities and all missing ports refuse before effects [C7,A4]', t => {
+  const ports = native.nativeBoardPorts().presentation;
+  const expected = { verifiedPasskeyRowDecision: presentation_verifiedPasskeyRowDecision, pendingFit: presentation_pendingFit, projectFit: presentation_projectFit, projectState: presentation_projectState, personRequestStatuses: presentation_personRequestStatuses, personSigningPresentation: presentation_personSigningPresentation, activeViewAgents: presentation_activeViewAgents, viewProofSummary: presentation_viewProofSummary, fitFile: presentation_fitFile };
+  for (const [name, provider] of Object.entries(expected)) assert.equal(ports[name], provider);
+  assert.equal(Object.isFrozen(ports), true);
+  let effects = 0;
+  const root = { toString() { effects++; throw new Error('repository discovery reached'); } };
+  const options = { get board() { effects++; throw new Error('board getter reached'); } };
+  for (const name of Object.keys(expected)) {
+    const missing = { ...ports, [name]: undefined };
+    for (const invoke of [() => relayPresentation(root, options, missing), () => relaySnapshot(root, options, missing), () => relayPresentationShout(root, 1, missing)]) {
+      assert.throws(invoke, error => error.code === 'RELAY_PRESENTATION_PORTS');
+      assert.equal(effects, 0);
+    }
+  }
+  for (const invoke of [() => relayPresentation(root, options), () => relaySnapshot(root, options), () => relayPresentationShout(root, 1)]) {
+    assert.throws(invoke, error => error.code === 'RELAY_PRESENTATION_PORTS');
+    assert.equal(effects, 0);
   }
 });

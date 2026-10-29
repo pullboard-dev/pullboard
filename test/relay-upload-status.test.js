@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { relayClientFixture } from './relay-client-fixture.js';
-import { decodeBoardKey, unseal } from '../src/seal.js';
+import { decodeBoardKey, unseal } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 
 test('a real refused upload produces only board-scoped sealed status and accepted data clears it [H5,H15,H17]', async t => {

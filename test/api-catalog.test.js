@@ -28,7 +28,7 @@ import { JSON_SHAPES } from '../src/json.js';
 import { projectState } from '../src/serve.js';
 import { serveView } from '../src/commands/view.js';
 import { registerProject } from '../src/projects.js';
-import { SSH_SHELL_MARKERS } from '../src/person.js';
+import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { fetchFresh } from './http-fixture.js';
 import { fixtureJSON as intakeFixtureJSON, intakeFixture } from './intake-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';

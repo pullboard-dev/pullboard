@@ -15,10 +15,10 @@ import { Refused } from './refused.js';
 import {
   causeProblem,
   rigorReport,
-} from './rigor.js';
+} from './board-rigor.js';
 import { draftRow } from './spec-draft.js';
 import { proveCauseCheck } from './rigor-proof.js';
-import { rigorSource } from './rigor-source.js';
+import { rigorSource } from './board-rigor-source.js';
 import { rigorSentinelName } from './sentinels.js';
 
 /**

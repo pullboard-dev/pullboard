@@ -5,7 +5,7 @@ import {
   span,
   whoAmI,
 } from './cli.js';
-import { withBoardRead } from './board-read.js';
+import { withBoardRead } from './cli-context.js';
 import { reviewQueueLine } from './review-queue-line.js';
 import { Refused } from './refused.js';
 

@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { gunzipSync } from 'node:zlib';
-import { decodeBoardKey, seal, unseal } from '../src/seal.js';
+import { decodeBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
 import { assertSnapshotCheckpoints, cliChildDeadlineMs } from './relay-client-fixture.js';

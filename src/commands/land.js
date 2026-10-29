@@ -3,7 +3,7 @@ import { writeBadges } from '../badge.js';
 import { flakeSource } from '../native-flakes.js';
 import { observeNativeFailure } from '../native-flakes.js';
 import { quarantineWaivers } from '../quarantine.js';
-import { parseProcessCensus } from '../process-census.js';
+import { parseProcessCensus } from '../../packages/kernel/src/core/process-census.js';
 import { fileURLToPath } from 'node:url';
 import { codeIsFromMain } from '../git.js';
 import { syncRelay } from '../relay.js';

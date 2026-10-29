@@ -2,7 +2,7 @@
 import { runnerExecutionServices } from '../src/runners.js';
 import { landingExecutionServices } from '../src/landing-shards.js';
 import { flakeLedger } from '../src/flakes.js';
-import { eventCauses } from '../src/rigor.js';
+import { eventCauses } from '../src/board-rigor.js';
 /** Independent scheduled/manual main audit; no foreground lease or identity is borrowed [C7]. */
 import { context } from '../src/cli.js';
 import { ordered } from '../src/cli.js';

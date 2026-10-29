@@ -32,8 +32,8 @@ import { recordSchemaStamp } from './board-migrate.js';
 import { SCHEMA_DIGEST } from './board-schema-source.js';
 import { SCHEMA_VERSION } from './board-schema-source.js';
 
-import { AUTHORITY } from './person-authority-schema.js';
-import { AUTHORITY_TRIGGERS } from './person-authority-schema.js';
+import { AUTHORITY } from './board-person-authority-schema.js';
+import { AUTHORITY_TRIGGERS } from './board-person-authority-schema.js';
 
 const PROPOSALS = 'person_proposals';
 const PROPOSAL_MS = 10 * 60_000;
