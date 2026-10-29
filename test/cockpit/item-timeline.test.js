@@ -5,7 +5,8 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { openBoard, closeBoard, events, recordHealthFindings } from '../../src/board.js';
+import { closeBoard, events, recordHealthFindings } from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 
 test('the native item timeline reads as sentences with clamped notes and working references at desktop and phone widths [N26,B23]', { timeout: 240_000 }, async () => {
