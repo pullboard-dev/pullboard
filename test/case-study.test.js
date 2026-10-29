@@ -10,9 +10,6 @@ import { test } from 'node:test';
 import { eventMetrics } from '../bin/case-study/events.js';
 import { structureMetrics, requireFinishedStructure } from '../bin/case-study/structure.js';
 import { caseStudy, readCaseStudyBaseline, writeCaseStudy } from '../bin/case-study/report.js';
-
-/** The plan index path, split so the move check does not mistake it for a moved .js module. */
-const PLAN_INDEX = 'bin/cells-plan.' + 'json';
 import { frozenCheckMetrics, suiteLogMetrics } from '../bin/case-study/durations.js';
 import { receiptBody } from '../src/gate-run-receipt.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
@@ -42,7 +39,7 @@ function fixture(t, entries = []) {
     root: `packages/${name}`, frontDoor: `packages/${name}/index.js`,
     paths: [[`src/${name}.js`, `packages/${name}/src/core/${name}.js`]] }));
   for (const cell of cells) put(root, `bin/cells-plan/${cell.name}.json`, cell);
-  put(root, PLAN_INDEX, { version: 1, base: A, totals: { cutImports: 1 },
+  put(root, 'bin/cells-plan.json', { version: 1, base: A, totals: { cutImports: 1 },
     cells: cells.map(cell => ({ file: `bin/cells-plan/${cell.name}.json` })) });
   runFixtureGit(['add', '.'], { cwd: root });
   runFixtureGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.com', 'commit', '-qm', 'fixture'], { cwd: root });
@@ -236,9 +233,9 @@ test('case study counts a moved body separately from its remaining forwarding sh
 
 test('case study binds the selected plan revision separately from the inventoried source [C7,D3]', t => {
   const source = fixture(t), plan = fixture(t);
-  const index = JSON.parse(readFileSync(join(plan.root, PLAN_INDEX), 'utf8'));
+  const index = JSON.parse(readFileSync(join(plan.root, 'bin/cells-plan.json'), 'utf8'));
   index.totals.cutImports = 7;
-  put(plan.root, PLAN_INDEX, index);
+  put(plan.root, 'bin/cells-plan.json', index);
   runFixtureGit(['add', '.'], { cwd: plan.root });
   runFixtureGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.com', 'commit', '-qm', 'different plan revision'], { cwd: plan.root });
   const metrics = structureMetrics(source.root, { planRoot: plan.root });
@@ -248,7 +245,7 @@ test('case study binds the selected plan revision separately from the inventorie
   assert.equal(metrics.importCutsLeft, 1, 'different recorded totals do not change the real physical import');
   const bound = metrics.planSource.contentSHA256;
   index.totals.cutImports = 8;
-  put(plan.root, PLAN_INDEX, index);
+  put(plan.root, 'bin/cells-plan.json', index);
   const changed = structureMetrics(source.root, { planRoot: plan.root });
   assert.notEqual(changed.planSource.contentSHA256, bound);
   assert.equal(changed.planSource.head, metrics.planSource.head);
