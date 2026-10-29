@@ -4,6 +4,9 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { selectFields } from '../src/json-output.js';
+import { join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
+import * as store from '../src/board.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -61,4 +64,23 @@ test('--fields trims show, list, queue and inbox to the named keys and leaves re
 test('selectFields keeps a named cursor beside trimmed rows and drops lists that carry none of the keys [N2]', () => {
   const document = { version: 1, shouts: [{ shout_id: 4, shout_text: 'x' }], next: 4, more: false, budget: { limit: 1 }, thread: [{ kind: 'a' }] };
   assert.deepEqual(selectFields(document, ['shout_id', 'next']), { version: 1, shouts: [{ shout_id: 4 }], next: 4 });
+});
+
+test('a history row larger than the whole budget is cut to fit and marked, so no reply exceeds the budget [N2,A1]', () => {
+  const box = helpers.project('true');
+  const configPath = join(box.web, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  writeFileSync(configPath, JSON.stringify({ ...config, inbox: { tokenBudget: 1024 } }));
+  // @pullboard-board-file journey: the real CLI subprocess reads this oversized multibyte shout from the project board.
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  try { store.shout(board, { from: 'coordinator', to: 'web-1', text: 'historical ' + '界'.repeat(380), lanes: ['web'] }); }
+  finally { store.closeBoard(board); }
+  const text = box.run(box.web, 'inbox', '--history', '--since', '0');
+  assert.equal(text.code, 0, text.err);
+  assert.ok(Buffer.byteLength(text.out) <= 1024, `text reply is ${Buffer.byteLength(text.out)} bytes`);
+  const reply = box.run(box.web, 'inbox', '--history', '--since', '0', '--json');
+  assert.ok(Buffer.byteLength(reply.out) <= 1024, `JSON reply is ${Buffer.byteLength(reply.out)} bytes`);
+  const row = JSON.parse(reply.out).shouts.find(shout => shout.shout_text.startsWith('historical'));
+  assert.equal(row.shout_text_cut, true, 'the oversized row says it was cut');
+  assert.match(row.shout_text, /cut to fit the inbox budget\)$/u);
 });

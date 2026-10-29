@@ -23,6 +23,29 @@ export async function run(io, { values = {} } = {}) {
   return 0;
 }
 
+/** Bytes a history reply reserves for its envelope and closing note, outside its rows. */
+const HISTORY_ENVELOPE = 512;
+
+/** One row's printed size: the larger of its indented JSON form and its text line. */
+function historySize(row) {
+  const json = JSON.stringify(row, null, 2);
+  const text = `#${row.shout_id} ${row.shout_at.slice(0, 16)} ${row.shout_from} -> ${row.shout_to}: ${row.shout_text}\n`;
+  return Math.max(Buffer.byteLength(json) + 4 * json.split('\n').length + 2, Buffer.byteLength(text));
+}
+
+/** Cut one oversized shout's text at a character boundary until its row fits, marking the row as cut. */
+function cutHistoryRow(row, room) {
+  const marker = ' … (cut to fit the inbox budget)';
+  const characters = [...row.shout_text];
+  let low = 0, high = characters.length;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    const candidate = { ...row, shout_text: characters.slice(0, middle).join('') + marker, shout_text_cut: true };
+    if (historySize(candidate) <= room) low = middle; else high = middle - 1;
+  }
+  return { ...row, shout_text: characters.slice(0, low).join('') + marker, shout_text_cut: true };
+}
+
 /**
  * Read shouts newer than a shout id, optionally only those to one recipient or of one kind, without delivering,
  * marking or acting on anything. Why: agents ran about 17.7k raw SQL reads of the shout table for exactly this
@@ -43,13 +66,16 @@ function history(io, ctx, values) {
     }
     const rows = board.db.prepare(`SELECT shout_id, shout_from, shout_to, shout_text, shout_at FROM shout WHERE shout_id > ?${to ? ' AND shout_to = ?' : ''} ORDER BY shout_id`);
     const shouts = [];
+    // The envelope (version, cursor, more) and the closing note take their room first; rows share the rest.
+    const room = budget - HISTORY_ENVELOPE;
     let bytes = 0, more = false;
-    for (const row of rows.iterate(...(to ? [after, to] : [after]))) {
-      if (kind && kinds.get(row.shout_id) !== kind) continue;
-      const size = Buffer.byteLength(JSON.stringify(row));
-      if (shouts.length && bytes + size > budget) { more = true; break; }
+    for (const found of rows.iterate(...(to ? [after, to] : [after]))) {
+      if (kind && kinds.get(found.shout_id) !== kind) continue;
+      if (shouts.length && bytes + historySize(found) > room) { more = true; break; }
+      // A single shout larger than the whole budget is cut to fit and says so; it never overruns the reply.
+      const row = historySize(found) > room ? cutHistoryRow(found, room) : found;
       shouts.push(row);
-      bytes += size;
+      bytes += historySize(row);
     }
     return { shouts, more };
   });
