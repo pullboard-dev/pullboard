@@ -1,13 +1,17 @@
 /** @pullboard-test-gui */
 /** Plain presentation over real native events, preserving quoted words and action identities [N26]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
 import { applyRelayMove, appliedSequence, prepareEngineMove } from '../../src/engine.js';
 import { activityWords } from '../../src/view/activity-words.js';
+import { runGate } from '../../src/gate.js';
+import { runnerExecutionServices } from '../../src/runners.js';
+import { landingExecutionServices } from '../../src/landing-shards.js';
+import { readGateReceipt, receiptStore } from '../../src/gate-run-receipt.js';
 import { machine, project, build, sendBack, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 
 /** Seed authoritative health transitions through the normal ordered receiver, never fabricated event rows. */
@@ -22,6 +26,59 @@ function scan(board, findings) {
 async function tab(chrome, name) {
   await press(chrome, 'document.querySelector("#tabs [data-tab=' + name + ']")');
   await chrome.waitFor('!document.querySelector("[data-pane=' + name + ']").hidden');
+}
+
+/** Exercise real bookkeeping writers, retaining their source/receipt identities outside Activity. */
+async function seedBookkeeping(box, alpha) {
+  box.run(alpha.repo, 'add', 'web', 'Bookkeeping keeps its native subject', '--specs', 'G1', '--criterion', 'The native fixture command runs.', '--check', 'node --version', '--wait');
+  box.run(alpha.repo, 'milestone', 'add', 'Plain launch', '--items', '1');
+  box.run(alpha.repo, 'milestone', 'items', 'Plain launch', '--add', '2');
+  box.run(alpha.repo, 'milestone', 'order', 'Plain launch', '2,1');
+  box.run(alpha.web, 'claim', '3');
+  const source = box.git(alpha.web, 'rev-parse', 'HEAD');
+  const patch = join(box.dir, 'plain-native.patch');
+  writeFileSync(patch, ['diff --git a/docs/plain-native.txt b/docs/plain-native.txt', 'new file mode 100644', '--- /dev/null', '+++ b/docs/plain-native.txt', '@@ -0,0 +1 @@', '+Native companion provenance.', ''].join('\n'));
+  box.run(alpha.repo, 'patch', 'attach', '3', patch, '--key', 'plain-native', '--author', 'coordinator', '--source', source);
+  mkdirSync(join(alpha.web, 'web'), { recursive: true });
+  writeFileSync(join(alpha.web, 'web', 'bookkeeping.js'), 'export const bookkeeping = true;\n');
+  box.git(alpha.web, 'add', 'web/bookkeeping.js');
+  box.git(alpha.web, 'commit', '-q', '-m', 'feat(web): native bookkeeping source [G1]');
+  const descendant = box.git(alpha.web, 'rev-parse', 'HEAD');
+  const run = await runGate(alpha.repo, JSON.parse(readFileSync(join(alpha.repo, 'pullboard.json'), 'utf8')), {
+    executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, agent: 'coordinator',
+  });
+  assert.equal(run.isGreen, true, run.output);
+  const receipt = readGateReceipt(receiptStore(alpha.repo), run.receiptId);
+  assert.ok(receipt, 'the real private gate retained its source-bound receipt');
+  // @pullboard-board-file journey: actual native writers feed the same private HTTP projection.
+  const board = store.openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    store.recordGateRun(board, { agentId: 'coordinator', receipt, lane: 'web' });
+    const followed = store.followItemPatches(board, 3, { agentId: 'web-1', commit: descendant });
+    assert.equal(followed.changed, true, 'the actual descendant advances the companion binding');
+    store.removeItemPatch(board, 3, { agentId: 'coordinator', key: 'plain-native' });
+    store.holdItem(board, 3, { agentId: 'coordinator', reason: 'The native fixture needs guidance.' });
+    const rejection = store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'reject');
+    const rejected = store.getItem(board, 1), originalClock = board.clock;
+    const now = new Date(Date.parse(rejection.event_at) + 601_000);
+    board.clock = { now: () => now };
+    try {
+      store.recordHealthFindings(board, { agentId: 'coordinator', observedRevision: store.events(board).at(-1).event_id, returnRejected: true,
+        findings: [{ key: 'REWORK_UNCLAIMED:item:1', cause: 'REWORK_UNCLAIMED', item: 1, subject: '#1', title: 'rejected work needs another builder', since: rejection.event_at,
+          why: 'The private rejected work has waited ten minutes.', next: 'Claim the returned work.', owner: { who: 'coordinator' },
+          detail: { move: 'reject', rejection: rejection.event_id, builder: rejected.item_built_by, commit: rejected.item_commit, reason: 'timeout', presence: 'idle', heartbeatAt: null, observedAt: now.toISOString() } }] });
+    } finally { board.clock = originalClock; }
+    assert.equal(JSON.parse(store.events(board).findLast(event => event.event_kind === 'gate-run').event_detail).run.id, receipt.id, 'the gate event retains its actual receipt identity');
+  } finally { store.closeBoard(board); }
+  box.run(alpha.repo, 'hold', 'web', '--reason', 'Waiting for plain guidance.');
+  const held = store.openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    store.recordNextIdle(held, { agentId: 'coordinator', reason: 'held' });
+    const kinds = new Set(store.events(held).map(event => event.event_kind));
+    for (const kind of ['gate-run', 'milestone_order', 'milestone_items', 'join', 'next-idle', 'check-baseline', 'item_patch_attach', 'item_patch_remove', 'item_patch_follow', 'reject_returned', 'hold_item']) {
+      assert.ok(kinds.has(kind), 'private native history genuinely contains ' + kind);
+    }
+  } finally { store.closeBoard(held); }
 }
 
 test('only typed native words are translated while user quotations keep their codes [N26]', () => {
@@ -61,8 +118,8 @@ test('native board kinds, names, reasons and sentinel notices read plainly acros
       assert.ok(kinds.has(kind), 'private native history genuinely contains ' + kind);
     }
   } finally { store.closeBoard(board); }
+  await seedBookkeeping(box, alpha);
   box.run(alpha.repo, 'shout', 'person', 'Which plain greeting?', '--decision');
-  box.run(alpha.repo, 'hold', 'web', '--reason', 'Waiting for plain guidance.');
   box.run(unknown, 'shout', 'all', 'Keep [MY_CODE] and these words. Appointment 2026-10-28T04:12:00Z');
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-plain-words-'));
   let chrome;
@@ -73,12 +130,16 @@ test('native board kinds, names, reasons and sentinel notices read plainly acros
     for (const name of ['dashboard', 'items', 'shouts', 'activity']) {
       await tab(chrome, name);
       if (name === 'activity') {
+        const selection = await chrome.stable(`(() => { const raw = activityModel(data.project), plain = activityModel(data.project, { words: activityWords }); return { raw: raw.rows.map(row => row.id), plain: plain.rows.map(row => row.id) }; })()`);
+        assert.deepEqual(selection.plain, selection.raw, 'plain wording preserves the exact native Activity row IDs and count');
         await chrome.stable('document.querySelectorAll("#activity details").forEach(node => { node.open = true; })');
         const rows = await chrome.stable('[...document.querySelectorAll("#activity .activity-event")].map(node => node.innerText)');
         assert.ok(rows.some(text => /Measured|measurement/iu.test(text)), 'the genuine measurement has an Activity sentence');
         assert.ok(rows.every(text => text.trim()), 'no native Activity row is empty');
         const subjects = await chrome.stable('[...document.querySelectorAll("#activity .activity-event")].map(node => (node.querySelector(".activity-who") || node.querySelector("summary b"))?.textContent)');
         assert.ok(subjects.every(subject => typeof subject === 'string' && subject.trim()), 'every native Activity sentence has its actual actor or Sentinels subject');
+        const workSubjects = await chrome.stable('[...document.querySelectorAll("#activity .activity-event")].filter(node => !["shout", "sentinels"].includes(node.dataset.activityKind)).map(node => node.querySelector(".activity-item")?.textContent)');
+        assert.ok(workSubjects.every(subject => typeof subject === 'string' && subject.trim()), 'every native work sentence retains its actual item subject');
       }
       const text = await chrome.stable('document.querySelector("[data-pane=' + name + ']").innerText');
       assert.doesNotMatch(text, forbidden, name + ': visible scanner finds no raw machine words');
