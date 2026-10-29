@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/verify",
  "frontDoor": "packages/verify/index.js",
- "placedBy": {
-  "seed": 23,
-  "rule": 7,
-  "imports": 6
- },
  "paths": [
   ["src/bar-actor.js","packages/verify/src/shell/bar-actor.js","seed"],
   ["src/bar-check.js","packages/verify/src/core/bar-check.js","seed"],
@@ -22,7 +17,6 @@
   ["src/proof-cli.js","packages/verify/src/core/proof-cli.js","seed"],
   ["src/proof-counter-read.js","packages/verify/src/shell/proof-counter-read.js","seed"],
   ["src/proof-counters.js","packages/verify/src/shell/proof-counters.js","seed"],
-  ["src/proof-event-detail.js","packages/verify/src/core/proof-event-detail.js","seed"],
   ["src/proof-provenance.js","packages/verify/src/core/proof-provenance.js","seed"],
   ["src/required-review-family.js","packages/verify/src/core/required-review-family.js","imports"],
   ["src/review-eligibility.js","packages/verify/src/core/review-eligibility.js","rule"],
@@ -60,7 +54,6 @@
   "src/proof-cli.js",
   "src/proof-counter-read.js",
   "src/proof-counters.js",
-  "src/proof-event-detail.js",
   "src/proof-provenance.js",
   "src/required-review-family.js",
   "src/review-eligibility.js",
@@ -102,9 +95,8 @@
   {"cell":"seats","imports":2,"edges":["src/line-capacity-board.js->src/review-routing.js","src/route-escalation.js->src/verdict-reviews.js"]},
   {
    "cell": "items",
-   "imports": 8,
+   "imports": 7,
    "edges": [
-    "src/caught.js->src/proof-event-detail.js",
     "src/digest.js->src/proof-counter-read.js",
     "src/item-authors.js->src/review-independence.js",
     "src/item-patch-review.js->src/source-advance-state.js",
@@ -114,16 +106,7 @@
     "src/reopen-authority.js->src/verdict-withdrawal.js"
    ]
   },
-  {
-   "cell": "stats",
-   "imports": 4,
-   "edges": [
-    "src/stats-flow.js->src/proof-event-detail.js",
-    "src/stats.js->src/bar-corrections.js",
-    "src/stats.js->src/proof-counter-read.js",
-    "src/stats.js->src/proof-event-detail.js"
-   ]
-  },
+  {"cell":"stats","imports":2,"edges":["src/stats.js->src/bar-corrections.js","src/stats.js->src/proof-counter-read.js"]},
   {"cell":"merge","imports":1,"edges":["src/merge-only-verdict.js->src/verdict-reviews.js"]}
  ],
  "ratchets": {

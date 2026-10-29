@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/config",
  "frontDoor": "packages/config/index.js",
- "placedBy": {
-  "seed": 14,
-  "rule": 3,
-  "imports": 0
- },
  "paths": [
   ["src/config.js","packages/config/src/shell/config.js","seed"],
   ["src/json-output.js","packages/config/src/core/json-output.js","seed"],

@@ -4,14 +4,8 @@
  "kind": "package",
  "root": "packages/moves",
  "frontDoor": "packages/moves/index.js",
- "placedBy": {
-  "seed": 74,
-  "rule": 14,
-  "imports": 0
- },
  "paths": [
   ["src/bar-ready-setting.js","packages/moves/src/core/bar-ready-setting.js","seed"],
-  ["src/move-implies.js","packages/moves/src/core/move-implies.js","seed"],
   ["src/move-registry.js","packages/moves/src/shell/move-registry.js","seed"],
   ["src/moves/acceptCheck.js","packages/moves/src/core/moves/acceptCheck.js","seed"],
   ["src/moves/actOnActivity.js","packages/moves/src/core/moves/actOnActivity.js","seed"],
@@ -99,7 +93,7 @@
   ["src/moves/recordSharedUsage.js","packages/moves/src/shell/moves/recordSharedUsage.js","rule"],
   ["src/moves/recordUsage.js","packages/moves/src/shell/moves/recordUsage.js","rule"]
  ],
- "reexports": ["src/bar-ready-setting.js","src/move-implies.js","src/move-registry.js","src/moves/reopen.js","src/moves/shout.js"],
+ "reexports": ["src/bar-ready-setting.js","src/move-registry.js","src/moves/reopen.js","src/moves/shout.js"],
  "imports": [
   {"cell":"kernel","imports":1,"before":true},
   {"cell":"state","imports":291,"before":true},
@@ -116,9 +110,8 @@
   {"cell":"app:cli","imports":2,"before":false}
  ],
  "cuts": [
-  {"cell":"state","imports":3,"edges":["src/agent-grant.js->src/move-registry.js","src/engine.js->src/move-registry.js","src/implies.js->src/move-implies.js"]},
-  {"cell":"verify","imports":1,"edges":["src/bar-readiness.js->src/bar-ready-setting.js"]},
-  {"cell":"outbox","imports":1,"edges":["src/relay-sender.js->src/move-registry.js"]}
+  {"cell":"state","imports":2,"edges":["src/agent-grant.js->src/move-registry.js","src/engine.js->src/move-registry.js"]},
+  {"cell":"verify","imports":1,"edges":["src/bar-readiness.js->src/bar-ready-setting.js"]}
  ],
  "ratchets": {
   "legacySource": -78,

@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/github",
  "frontDoor": "packages/github/index.js",
- "placedBy": {
-  "seed": 10,
-  "rule": 0,
-  "imports": 1
- },
  "paths": [
   ["src/ci-flakes.js","packages/github/src/shell/ci-flakes.js","seed"],
   ["src/github-origin.js","packages/github/src/core/github-origin.js","seed"],

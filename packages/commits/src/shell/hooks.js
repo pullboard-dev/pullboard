@@ -50,6 +50,7 @@ import {
   parseSpec,
 } from "../../../../src/spec.js";
 import { approvedRowProblems } from "../../../../src/approved-rows.js";
+import { specGateMoveOnly } from "../../../../src/spec-gate-move.js";
 
 export const HOOKS = ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push'];
 export const HOOKS_DIR = '.githooks';
@@ -396,7 +397,8 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile, preM
     : [];
   resolved.forEach((path) => onNotice?.(`resolved accepted-main conflict in ${path}; the coordinator owns ${path}`));
   problems.push(
-    ...foreignPaths.filter((path) => !resolved.includes(path))
+    ...foreignPaths.filter((path) => !resolved.includes(path)
+      && !(path === ownershipConfig.spec && specGateMoveOnly(root, path)))
       .flatMap((path) => outOfLane(ownershipConfig, agent.agent_lane, [path]))
       .map((path) => `outside the ${agent.agent_lane} lane: ${path}; shout its owner instead`),
   );
