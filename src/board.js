@@ -35,6 +35,7 @@ import { REFERENCE_ENGINE } from './reference-engine.js';
 import { validateReferences } from './reference-authors.js';
 import {
   submissionItemValues,
+  submissionChildrenProblem,
   recordSubmissionEvent,
 } from './submission-record.js';
 import { foreignBlockers as readForeignBlockers } from './cross-repo-dependencies.js';
@@ -353,6 +354,8 @@ export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } 
 export { flakeLedger, recordFlakeObservation } from './flakes.js';
 export { flakeQuarantines, gateRuns, recordGateRun } from './quarantine.js';
 export { personProposals, personSigning, proposePersonMove, setPersonSigning } from './person-signing.js'; // Signed person moves [E22].
+export { recordUsage } from './cost.js';
+export { recordSharedUsage } from './cost-shared.js';
 export { proofReceipts, recordProofRun } from './proof-receipts.js';
 import { requireShoutProtocol } from './routing-shout.js';
 export { recordPublishFinding } from './pr-findings.js';
@@ -362,9 +365,7 @@ export { agentAt, agentById, agentCreator, coordinatorHolder, listAgents, nextSe
 export const ACCEPT_REASON = 'CRITERION_MET';
 export { PERSON } from './board-query.js';
 
-export { EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION } from './board-schema-source.js';
-
-export { BOARD_BUSY_TIMEOUT_MS } from './board-schema-source.js';
+export { EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, BOARD_BUSY_TIMEOUT_MS, SCHEMA_VERSION } from './board-schema-source.js';
 
 const REVIEW_RELEASE_COOLDOWN_MS = 60 * 60 * 1000;
 
@@ -383,8 +384,6 @@ export { openBoardForRead } from './native-board.js';
 export { openBoardReadOnly } from './board-read-open.js';
 /** Temporary public compatibility; #1624 removes this edge after native-root callers compose. */
 export { openBoard } from './native-board.js';
-
-export { SCHEMA_VERSION } from './board-schema-source.js';
 
 export { readEventLogVersion } from './board-read-open.js';
 
@@ -1035,6 +1034,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         hasCommit: null,
         withinLane: null,
         trunkMergeClean: null,
+        sourcePlaced: null, // The CLI checks exact committed placement before any proof or ordered submit.
         trunkInCandidate: null,
         noUnverifiedStack: null,
         infraExplained: null, // The CLI checks the claimed Git diff before this transition.
@@ -1057,12 +1057,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= FLOW_SIZE_ENGINE) recordedSize = submissionSize(size, commit);
           return null;
         },
-        childrenDone: () => {
-          const { total } = board.db
-            .prepare("SELECT COUNT(*) AS total FROM item WHERE item_parent_id = ? AND item_status IN ('open', 'claimed', 'submitted')")
-            .get(id);
-          return total ? new Refused('CHILDREN_OPEN', `item #${id} has ${total} unfinished child items`) : null;
-        },
+        childrenDone: () => submissionChildrenProblem(board, id),
         headIsNew: (found) => {
           const engineVersion = board.executionEngineVersion ?? ENGINE_VERSION;
           const rejectedHead = board.db.prepare(

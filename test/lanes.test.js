@@ -243,3 +243,34 @@ test('submit and patch attach share frozen ownership and move together on refree
   assert.equal(attached.code, 0, attached.err + attached.out);
   assert.equal(JSON.parse(attached.out).changed, true, 'the same author now owns this path under the refrozen policy');
 });
+
+/** A web item that merged main, after which main changed the same foreign file again. */
+function mergedMainFixture(title) {
+  const box = policyFixtures.project('true');
+  assert.equal(box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'merge of main stays in lane', '--check', 'true').code, 0);
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal(policyFixtures.commitFile(box, box.web, 'web/index.html', 'own work\n', 'feat(web): own change [G1]').status, 0);
+  assert.equal(policyFixtures.commitFile(box, box.repo, 'coordinator.txt', 'main one\n', 'chore: main change one').status, 0);
+  box.git(box.web, 'merge', '-q', '--no-edit', 'main');
+  assert.equal(policyFixtures.commitFile(box, box.repo, 'coordinator.txt', 'main two\n', 'chore: main change two').status, 0);
+  return box;
+}
+
+test('a merge of main whose foreign-lane files advanced again still submits [L3,V4]', () => {
+  const box = mergedMainFixture('Merged main');
+  const submitted = box.run(box.web, 'submit', '1', '--json');
+  assert.equal(submitted.code, 0, submitted.err || submitted.out);
+});
+
+test('a real outside-lane edit after the merge of main is refused by name [L3,V4]', () => {
+  const box = mergedMainFixture('Edit after merge');
+  mkdirSync(join(box.web, 'api'), { recursive: true });
+  writeFileSync(join(box.web, 'api/stray.js'), 'outside\n');
+  policyFixtures.attackCommit(box, box.web);
+  const refused = box.run(box.web, 'submit', '1', '--json');
+  assert.equal(refused.code, 1);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'OUTSIDE_LANE');
+  assert.match(error.message, /api\/stray\.js/u);
+  assert.doesNotMatch(error.message, /coordinator\.txt/u, 'main-only files never count');
+});

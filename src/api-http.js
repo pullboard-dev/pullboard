@@ -332,6 +332,12 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
       if (req.method === 'GET' && route[2] === 'state') {
         const seen = url.searchParams.has('seen') ? seenCursor(url.searchParams.get('seen')) : null;
         const options = { detail: stateDetail(url.searchParams.get('detail')) };
+        if (url.searchParams.has('items')) {
+          if (url.searchParams.get('items') !== 'compact' || options.detail === 'full' || url.searchParams.has('since')) {
+            throw new Refused('BAD_REQUEST', 'items=compact is only for a summary snapshot; read ordinary deltas or use detail=full without compact items');
+          }
+          options.items = 'compact';
+        }
         if (url.searchParams.has('since')) {
           const since = sinceCursor(url.searchParams.get('since'));
           if (options.detail === 'full') throw new Refused('BAD_REQUEST', 'a delta brings item summaries up to date; use since=N without detail=full');

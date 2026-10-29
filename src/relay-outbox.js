@@ -184,6 +184,7 @@ const FIRST_ITEM = ['approveOutside', 'signBar', 'editItem', 'completeCheckBasel
  */
 export const ITEM_SLOTS = Object.freeze({
   setBarReady: [], setLineSetting: [], setLaneLead: [],
+  recordUsage: [[0, 'item']], recordSharedUsage: [[0, 'allocations', '*', 'item']],
   requestCompanion: [[0, 'parentId']],
   fileTypedRequest: [[0, 'itemId']],
   // A rule scope names a board item, but the rule itself is the coordinator's record, not a delegated item reference.

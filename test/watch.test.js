@@ -280,7 +280,8 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   await watch.line((line) => JSON.parse(line).sequence === claimObserved && JSON.parse(line).kind === 'check_accept',
     5_000, 'event after the claim work check'); // budget: hang ceiling for an exact event, not a latency claim.
   box.cli(builder.path, 'release', String(waiting.item_id), '--reason', 'BLOCKED', '--no-next');
-  const releaseSequence = lastSequence(box);
+  // The release's usage checkpoint follows it as a separate event [N2]; watch still names the release itself.
+  const releaseSequence = events(box).findLast(event => event.event_kind === 'release' && event.item_id === waiting.item_id).event_id;
   await watch.line((line) => JSON.parse(line).kind === 'release' && JSON.parse(line).sequence === releaseSequence,
     5_000, 'release event'); // budget: hang ceiling for an exact event, not a latency claim.
   // A work check may see the new board state while processing the preceding barrier event.
@@ -347,10 +348,10 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.ok(kinds.includes('accept') && kinds.includes('reject'), 'the verdicts print as events too');
   const recorded = events(box).slice(before);
   assert.deepEqual(recorded.map(event => event.event_kind), [
-    'add', 'add', 'claim', 'check_accept', 'release', 'claim', 'proof-run', 'proof-run',
-    'submit', ...(firstSubmission.activity.digests.length ? ['activity-delivered'] : []), 'join', 'reserve', 'proof-run', 'accept', 'claim', 'proof-run', 'proof-run',
-    'submit', ...(secondSubmission.activity.digests.length ? ['activity-delivered'] : []), 'reserve', 'reject',
-  ], 'watch wrote no event: only the explicit moves and their native proof receipts were recorded');
+    'add', 'add', 'claim', 'check_accept', 'release', 'usage', 'claim', 'proof-run', 'proof-run',
+    'submit', 'usage', ...(firstSubmission.activity.digests.length ? ['activity-delivered'] : []), 'join', 'reserve', 'proof-run', 'accept', 'claim', 'proof-run', 'proof-run',
+    'submit', 'usage', ...(secondSubmission.activity.digests.length ? ['activity-delivered'] : []), 'reserve', 'reject',
+  ], 'watch wrote no event: only the explicit moves, their usage checkpoints and native proof receipts were recorded');
   const proofs = recorded.filter(event => event.event_kind === 'proof-run');
   const receipts = proofs.map(event => JSON.parse(event.event_detail).receipt);
   assert.deepEqual(receipts.map(receipt => [receipt.item, receipt.commit]), [

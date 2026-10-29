@@ -3,7 +3,7 @@ export function cockpitReplay(sections) {
   return `/** Display the current event and make the replay's play, pause and end states explicit. */
 function replayControls() {
   const r = snapshotReplay;
-  const event = r.events[r.index - 1];
+  const event = r.events.slice(0, r.index).findLast((entry) => !['usage', 'shared-usage'].includes(entry.event_kind));
   $('replay-progress').textContent = 'Event ' + r.index + ' / ' + r.events.length + (event ? ' · ' + event.event_kind + (event.item_id ? ' #' + event.item_id : '') : '') + (r.index === r.events.length ? ' · End' : '');
   $('replay-play').disabled = r.playing || !r.final || !r.events.length;
   $('replay-play').textContent = r.index === r.events.length ? 'Play from first event' : 'Play';
@@ -13,11 +13,16 @@ function replayControls() {
 /** Project only the events already played, using the same declared lifecycle as the live page. */
 function replayProject(index) {
   const r = snapshotReplay;
-  if (index === r.events.length) return structuredClone(r.final);
   const p = structuredClone(r.final);
+  // Accounting stays in the exported log and cursor, but is never a lifecycle row.
+  for (const item of p.items) {
+    item.history = (item.history || []).filter((entry) => !['usage', 'shared-usage'].includes(entry.kind));
+    if (Array.isArray(item.thread)) item.thread = item.thread.filter((entry) => !['usage', 'shared-usage'].includes(entry.kind));
+  }
+  if (index === r.events.length) return p;
   const log = r.events.slice(0, index);
   p.items = p.items.flatMap((item) => {
-    const history = log.filter((event) => event.item_id === item.id);
+    const history = log.filter((event) => event.item_id === item.id && !['usage', 'shared-usage'].includes(event.event_kind));
     if (!history.some((event) => event.event_kind === 'add')) return [];
     let state = FLOW.initial;
     item.owner = null;
