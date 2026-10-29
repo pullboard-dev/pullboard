@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/shouts",
  "frontDoor": "packages/shouts/index.js",
- "placedBy": {
-  "seed": 2,
-  "rule": 0,
-  "imports": 0
- },
  "paths": [
   ["src/shout-readable.js","packages/shouts/src/core/shout-readable.js","seed"],
   ["src/watch.js","packages/shouts/src/shell/watch.js","seed"]
@@ -25,20 +20,7 @@
   {"cell":"sync","imports":1,"before":true},
   {"cell":"app:view","imports":1,"before":false}
  ],
- "cuts": [
-  {"cell":"items","imports":1,"edges":["src/item-decision-queue.js->src/shout-audience.js"]},
-  {
-   "cell": "store",
-   "imports": 5,
-   "edges": [
-    "src/board-query.js->src/shout-audience.js",
-    "src/board-query.js->src/worker-inbox.js",
-    "src/board-read-auxiliary.js->src/worker-inbox.js",
-    "src/board.js->src/inbox-store.js",
-    "src/board.js->src/shout-audience.js"
-   ]
-  }
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": 0,
   "shims": 5,

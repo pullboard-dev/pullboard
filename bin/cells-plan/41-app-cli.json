@@ -4,13 +4,7 @@
  "kind": "app",
  "root": "apps/cli",
  "frontDoor": "apps/cli/index.js",
- "placedBy": {
-  "seed": 113,
-  "rule": 79,
-  "imports": 35
- },
  "paths": [
-  ["src/changelog.js","apps/cli/src/shell/changelog.js","seed"],
   ["src/cli-board-read.js","apps/cli/src/shell/cli-board-read.js","seed"],
   ["src/cli-context.js","apps/cli/src/shell/cli-context.js","seed"],
   ["src/cli-help.js","apps/cli/src/shell/cli-help.js","seed"],
@@ -116,8 +110,6 @@
   ["src/commands/why.js","apps/cli/src/shell/commands/why.js","seed"],
   ["src/commands/withdraw.js","apps/cli/src/shell/commands/withdraw.js","seed"],
   ["src/commands/worktree.js","apps/cli/src/shell/commands/worktree.js","seed"],
-  ["src/first-refusal-window.js","apps/cli/src/core/first-refusal-window.js","seed"],
-  ["src/help-version.js","apps/cli/src/core/help-version.js","imports"],
   ["src/help.js","apps/cli/src/core/help.js","seed"],
   ["src/help/coordinator.js","apps/cli/src/core/help/coordinator.js","imports"],
   ["src/help/footer.js","apps/cli/src/core/help/footer.js","imports"],
@@ -239,7 +231,6 @@
   ["src/cli/worktree.js","apps/cli/src/shell/cli/worktree.js","imports"]
  ],
  "reexports": [
-  "src/changelog.js",
   "src/cli-context.js",
   "src/cli-main.js",
   "src/cli-presence.js",
@@ -251,7 +242,6 @@
   "src/commands/index.js",
   "src/commands/status.js",
   "src/commands/worktree.js",
-  "src/first-refusal-window.js",
   "src/help.js",
   "src/help/sections.js",
   "src/init-finish.js",
@@ -304,35 +294,20 @@
   {"cell":"app:runner","imports":1,"before":true}
  ],
  "cuts": [
-  {"cell":"git","imports":2,"edges":["src/queued-item-lease.js->src/cli-context.js","src/queued-item-lease.js->src/cli.js"]},
-  {"cell":"config","imports":1,"edges":["src/json.js->src/next-step-words.js"]},
-  {"cell":"mcp","imports":1,"edges":["src/mcp.js->src/help.js"]},
+  {"cell":"codemap","imports":1,"edges":["src/map-slice-say.js->src/cli.js"]},
+  {"cell":"config","imports":1,"edges":["src/json.js->src/command-docs.js"]},
   {
    "cell": "seats",
-   "imports": 6,
+   "imports": 5,
    "edges": [
     "src/agent-hook-work.js->src/cli-presence.js",
     "src/agent-hook-work.js->src/cli.js",
     "src/agent-hook-work.js->src/cli.js",
     "src/line-settings-cli.js->src/cli.js",
-    "src/route-capacity.js->src/first-refusal-window.js",
     "src/seat-checkout.js->src/commands/worktree.js"
    ]
   },
-  {"cell":"spec","imports":1,"edges":["src/setup-rows.js->src/init.js"]},
-  {
-   "cell": "items",
-   "imports": 4,
-   "edges": [
-    "src/claims.js->src/first-refusal-window.js",
-    "src/outside-verify.js->src/cli.js",
-    "src/resume-sources.js->src/cli.js",
-    "src/submit-wait.js->src/cli-sync.js"
-   ]
-  },
-  {"cell":"verify","imports":1,"edges":["src/post-move-handoff.js->src/cli.js"]},
-  {"cell":"store","imports":3,"edges":["src/board-read.js->src/cli-context.js","src/board.js->src/next-step-words.js","src/exchange.js->src/command-phase.js"]},
-  {"cell":"sandbox","imports":2,"edges":["src/next-take.js->src/cli.js","src/source-advance-worker.js->src/cli.js"]},
+  {"cell":"stats","imports":1,"edges":["src/cost-checkpoint.js->src/cli.js"]},
   {
    "cell": "person",
    "imports": 3,
@@ -342,33 +317,19 @@
     "src/person-signing-cli.js->src/cli.js"
    ]
   },
-  {"cell":"activity","imports":1,"edges":["src/activity-delivery-cli.js->src/cli.js"]},
   {
    "cell": "link",
-   "imports": 4,
+   "imports": 6,
    "edges": [
     "src/relay-canary-command.js->src/cli.js",
     "src/relay-lock.js->src/command-phase.js",
+    "src/relay-request-execution.js->src/next-step-words.js",
+    "src/relay-request-execution.js->src/next-step-words.js",
     "src/relay-setup.js->src/init.js",
     "src/relay.js->src/command-phase.js"
    ]
   },
-  {"cell":"outbox","imports":2,"edges":["src/relay-sender-worker.js->src/cli-main.js","src/relay-sender-worker.js->src/cli.js"]},
-  {"cell":"gate","imports":1,"edges":["src/main-audit-worker.js->src/cli.js"]},
-  {"cell":"health","imports":1,"edges":["src/release-claim.js->src/first-refusal-window.js"]},
-  {"cell":"moves","imports":2,"edges":["src/moves/claim.js->src/first-refusal-window.js","src/moves/release.js->src/first-refusal-window.js"]},
-  {
-   "cell": "app:view",
-   "imports": 6,
-   "edges": [
-    "src/serve.js->src/changelog.js",
-    "src/serve.js->src/cli.js",
-    "src/serve.js->src/cli.js",
-    "src/serve.js->src/cockpit.js",
-    "src/serve.js->src/help.js",
-    "src/view/hosted-release.js->src/help.js"
-   ]
-  }
+  {"cell":"app:view","imports":2,"edges":["src/serve.js->src/next-step-words.js","src/view/cockpit-page.js->src/help.js"]}
  ],
  "ratchets": {
   "legacySource": -108,

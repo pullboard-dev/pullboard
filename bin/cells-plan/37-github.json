@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/github",
  "frontDoor": "packages/github/index.js",
- "placedBy": {
-  "seed": 10,
-  "rule": 0,
-  "imports": 1
- },
  "paths": [
   ["src/ci-flakes.js","packages/github/src/shell/ci-flakes.js","seed"],
   ["src/github-origin.js","packages/github/src/core/github-origin.js","seed"],
@@ -47,8 +42,6 @@
  ],
  "cuts": [
   {"cell":"seats","imports":1,"edges":["src/projects.js->src/github-origin.js"]},
-  {"cell":"spec","imports":1,"edges":["src/reference-authors.js->src/pr-github.js"]},
-  {"cell":"store","imports":1,"edges":["src/board.js->src/pr-findings.js"]},
   {"cell":"link","imports":2,"edges":["src/relay-excluded.js->src/github-origin.js","src/relay.js->src/github-origin.js"]}
  ],
  "ratchets": {

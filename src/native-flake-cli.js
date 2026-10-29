@@ -58,14 +58,22 @@ export function observer(ctx, { kind, board, main, commit, privateCheck = false,
   }
   const recordRun = receiptRecorder(ctx, { agentId, acceptedConfig, board, ordered, withBoard });
   // The pinned main rides on the observer, so a remote runner's receipt can name the main this run used (#925).
-  return Object.assign(async (run, { root = ctx.info.root, command, lease }) => {
-    await observeNativeFailure({ root, config: acceptedConfig, pin, run, command, lease, kind, checkAtCommit,
-      record: observation => {
+  /** Record each observation in its owning lane through the ordinary ordered move, opening the board once. */
+  const recordAll = observations => {
+    const write = async target => {
+      for (const observation of observations) {
         const ownerLane = observation.file ? laneOf(acceptedConfig, observation.file) : COORDINATOR;
         const lane = ownerLane === COORDINATOR ? Object.keys(acceptedConfig.lanes)[0] : ownerLane;
-        const write = target => ordered(ctx, target, 'recordFlakeObservation', [{ agentId, observation, lane }]);
-        return board ? write(board) : withBoard(ctx, write);
-      } });
+        await ordered(ctx, target, 'recordFlakeObservation', [{ agentId, observation, lane }]);
+      }
+    };
+    return board ? write(board) : withBoard(ctx, write);
+  };
+  return Object.assign(async (run, { root = ctx.info.root, command, lease }) => {
+    await observeNativeFailure({ root, config: acceptedConfig, pin, run, command, lease, kind, checkAtCommit,
+      record: observation => recordAll([observation]),
+      // One board session records every case after all probes finish, rather than one open per case [#1899].
+      recordBatch: observations => recordAll(observations) });
   }, { main: pin.main, recordRun });
 }
 

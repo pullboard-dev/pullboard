@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/health",
  "frontDoor": "packages/health/index.js",
- "placedBy": {
-  "seed": 2,
-  "rule": 7,
-  "imports": 0
- },
  "paths": [
   ["src/doctor.js","packages/health/src/shell/doctor.js","seed"],
   ["src/health.js","packages/health/src/shell/health.js","seed"],
@@ -56,28 +51,7 @@
   {"cell":"sentinels","imports":1,"before":false},
   {"cell":"app:cli","imports":1,"before":false}
  ],
- "cuts": [
-  {
-   "cell": "items",
-   "imports": 3,
-   "edges": [
-    "src/digest.js->src/health.js",
-    "src/item-holds.js->src/conditional-holds.js",
-    "src/item-holds.js->src/stale-state-engine.js"
-   ]
-  },
-  {
-   "cell": "store",
-   "imports": 5,
-   "edges": [
-    "src/board-event-log.js->src/conditional-holds.js",
-    "src/board-health.js->src/health-receipts.js",
-    "src/board.js->src/recurring-jobs.js",
-    "src/board.js->src/release-claim.js",
-    "src/board.js->src/stale-state-store.js"
-   ]
-  }
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": -3,
   "shims": 15,

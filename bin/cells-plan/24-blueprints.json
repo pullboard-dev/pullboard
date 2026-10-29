@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/blueprints",
  "frontDoor": "packages/blueprints/index.js",
- "placedBy": {
-  "seed": 16,
-  "rule": 0,
-  "imports": 0
- },
  "paths": [
   ["src/blueprint-fit-command.js","packages/blueprints/src/shell/blueprint-fit-command.js","seed"],
   ["src/blueprint-fit.js","packages/blueprints/src/shell/blueprint-fit.js","seed"],
@@ -43,11 +38,7 @@
   {"cell":"doctrine","imports":1,"before":true},
   {"cell":"person","imports":2,"before":true}
  ],
- "cuts": [
-  {"cell":"spec","imports":1,"edges":["src/row-decisions.js->src/blueprints.js"]},
-  {"cell":"store","imports":1,"edges":["src/native-board-state.js->src/blueprint-fit.js"]},
-  {"cell":"person","imports":1,"edges":["src/person-row-proof.js->src/blueprints.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": -10,
   "shims": 5,

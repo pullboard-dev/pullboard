@@ -7,6 +7,7 @@ import { createServer } from 'node:http';
 import { join } from 'node:path';
 import test from 'node:test';
 import { createLocalApiHandler } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
 import { observeRelayHealth } from '../src/relay-canary-health.js';
 import { main } from '../src/cli.js';
@@ -48,7 +49,7 @@ test('local API refreshes private relay health without adding it to a sealed pre
   await withFixtureEnvironment(box.env, async () => {
     const secret = randomBytes(24).toString('base64url');
     let port = 0;
-    const handler = createLocalApiHandler({
+    const handler = createLocalApiHandler({ refusalDocument,
       secret,
       getPort: () => port,
       runCommand: main,

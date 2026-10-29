@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/merge",
  "frontDoor": "packages/merge/index.js",
- "placedBy": {
-  "seed": 6,
-  "rule": 1,
-  "imports": 3
- },
  "paths": [
   ["src/main-moved-warning.js","packages/merge/src/shell/main-moved-warning.js","imports"],
   ["src/mechanical-merge.js","packages/merge/src/shell/mechanical-merge.js","seed"],
@@ -41,9 +36,7 @@
   {"cell":"store","imports":2,"before":false},
   {"cell":"sandbox","imports":1,"before":false}
  ],
- "cuts": [
-  {"cell":"items","imports":1,"edges":["src/reopen-cause.js->src/trunk-conflict.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": 0,
   "shims": 9,

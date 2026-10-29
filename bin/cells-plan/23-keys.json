@@ -5,11 +5,6 @@
  "root": "packages/keys",
  "frontDoor": "packages/keys/index.js",
  "dryRunName": "relay-keys",
- "placedBy": {
-  "seed": 5,
-  "rule": 0,
-  "imports": 0
- },
  "paths": [
   ["src/relay-device-keys.js","packages/keys/src/core/relay-device-keys.js","seed"],
   ["src/relay-key.js","packages/keys/src/shell/relay-key.js","seed"],

@@ -1,4 +1,4 @@
-/** @pullboard-test-input src/standard-doctrine.md */
+/** @pullboard-test-input packages/doctrine/src/shell/standard-doctrine.md */
 /** One complete native state builder for local HTTP and sealed relay projections [A2,H5,H16]. */
 import { counterProofStats } from './proof-counter-read.js';
 import { createHash } from 'node:crypto';

@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/flakes",
  "frontDoor": "packages/flakes/index.js",
- "placedBy": {
-  "seed": 5,
-  "rule": 1,
-  "imports": 0
- },
  "paths": [
   ["src/flake-command.js","packages/flakes/src/shell/flake-command.js","seed"],
   ["src/flakes.js","packages/flakes/src/shell/flakes.js","seed"],
@@ -33,11 +28,16 @@
   {"cell":"github","imports":1,"before":true}
  ],
  "cuts": [
-  {"cell":"git","imports":1,"edges":["src/push-native-evidence.js->src/quarantine.js"]},
-  {"cell":"state","imports":1,"edges":["src/engine.js->src/quarantine.js"]},
-  {"cell":"store","imports":2,"edges":["src/board.js->src/flakes.js","src/board.js->src/quarantine.js"]},
-  {"cell":"gate","imports":2,"edges":["src/test-capacity.js->src/quarantine.js","src/test-value.js->src/flakes.js"]},
-  {"cell":"landing","imports":2,"edges":["src/land.js->src/native-flakes.js","src/landing-waivers.js->src/quarantine.js"]}
+  {
+   "cell": "landing",
+   "imports": 4,
+   "edges": [
+    "src/land-local-guard.js->src/flakes.js",
+    "src/landing-step-parallel.js->src/flakes.js",
+    "src/publish-pause.js->src/quarantine.js",
+    "src/record-train-landing.js->src/quarantine.js"
+   ]
+  }
  ],
  "ratchets": {
   "legacySource": -1,

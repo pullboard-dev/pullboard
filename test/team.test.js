@@ -78,6 +78,7 @@ import {
   executeMove,
   serveApi,
 } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { main } from '../src/cli.js';
 import { fetchFresh } from './http-fixture.js';
 import {
@@ -302,7 +303,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   let streamController;
   let streamReader;
   let builds = 0;
-  const api = await serveApi({ runCommand: main, projects: () => [{ root: reviewer, name: 'Verdict fixture' }], onStateBuild: () => { builds += 1; } });
+  const api = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root: reviewer, name: 'Verdict fixture' }], onStateBuild: () => { builds += 1; } });
   t.after(async () => {
     streamController?.abort();
     await streamReader?.cancel().catch(() => {});
@@ -456,7 +457,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   const peerBoardId = withBoard(peer, store.boardId);
   assert.equal(snapshotState(relaySnapshot(peer, {}, RELAY_PRESENTATION_PORTS), peerBoardId).items[0].verdictState?.code, 'STALE_VERDICT',
     'a sealed phone presentation also fails closed until the reviewed objects arrive');
-  const peerApi = await serveApi({ runCommand: main, projects: () => [{ root: peer, name: 'Peer verdict fixture' }] });
+  const peerApi = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root: peer, name: 'Peer verdict fixture' }] });
   t.after(() => peerApi.close());
   const peerAddress = new URL(peerApi.url);
   /** Keep this peer's server alive across an object-only fetch without a board write. */
@@ -630,7 +631,7 @@ test('an older pushed landing shows stale checked proof and a correction path ac
     assert.match(explanation, new RegExp(checked));
     assert.doesNotMatch(explanation, /then another agent runs pullboard verify 1 accept/u);
     assert.deepEqual(withBoard(box.repo, board => store.verdictsFor(board, 1)), verdicts, 'presentation does not rewrite proof');
-    const api = await serveApi({ runCommand: main, projects: () => [{ root: box.repo, name: 'Older landing fixture' }] });
+    const api = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root: box.repo, name: 'Older landing fixture' }] });
     t.after(() => api.close());
     const address = new URL(api.url);
     const detail = await fetchFresh(address.origin + '/api/v1/boards/' + withBoard(box.repo, store.boardId) + '/items/1',
@@ -1281,7 +1282,7 @@ test('an item waits across repos [B24,H16]', async t => {
   await announce(1);
   blocked(dependent, 'service#1');
   const builds = [];
-  const localApi = await serveApi({ port: 0, runCommand: main, stateDetail: 'full',
+  const localApi = await serveApi({ refusalDocument, port: 0, runCommand: main, stateDetail: 'full',
     projects: () => [{ root: parent.root, name: 'app', project: 'fixture', added: '2026-10-25T00:00:00Z' }],
     onItemBuild: entry => builds.push(entry.itemId) });
   t.after(() => localApi.close());

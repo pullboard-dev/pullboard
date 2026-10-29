@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/sandbox",
  "frontDoor": "packages/sandbox/index.js",
- "placedBy": {
-  "seed": 10,
-  "rule": 0,
-  "imports": 6
- },
  "paths": [
   ["src/execution-environment.js","packages/sandbox/src/shell/execution-environment.js","seed"],
   ["src/next-take.js","packages/sandbox/src/shell/next-take.js","imports"],
@@ -61,41 +56,7 @@
   {"cell":"app:cli","imports":2,"before":false}
  ],
  "cuts": [
-  {"cell":"git","imports":2,"edges":["src/push-native-evidence.js->src/trusted-policy-read.js","src/trunk-revision.js->src/trusted-policy-read.js"]},
-  {"cell":"config","imports":2,"edges":["src/config.js->src/execution-environment.js","src/settings-inventory.js->src/execution-environment.js"]},
-  {"cell":"state","imports":1,"edges":["src/engine.js->src/source-advance-origin.js"]},
-  {"cell":"spec","imports":1,"edges":["src/row-drafts.js->src/trusted-policy-read.js"]},
-  {"cell":"commits","imports":1,"edges":["src/guard-revert.js->src/trusted-policy.js"]},
-  {
-   "cell": "items",
-   "imports": 4,
-   "edges": [
-    "src/item-patch-review.js->src/trusted-policy.js",
-    "src/outside-sensitive.js->src/trusted-policy.js",
-    "src/outside-verify.js->src/sandbox-verify.js",
-    "src/outside-verify.js->src/trusted-policy.js"
-   ]
-  },
-  {"cell":"merge","imports":1,"edges":["src/trunk-merge.js->src/trusted-policy-read.js"]},
-  {
-   "cell": "verify",
-   "imports": 4,
-   "edges": [
-    "src/check-accept.js->src/trusted-policy-read.js",
-    "src/proof-provenance.js->src/execution-environment.js",
-    "src/verdict-admission.js->src/trusted-policy.js",
-    "src/verdict-freshness.js->src/trusted-policy-read.js"
-   ]
-  },
-  {
-   "cell": "store",
-   "imports": 3,
-   "edges": [
-    "src/board.js->src/source-advance-origin.js",
-    "src/board.js->src/source-advance.js",
-    "src/source-advance-return.js->src/source-advance.js"
-   ]
-  }
+  {"cell":"items","imports":2,"edges":["src/item-patch-submit.js->src/trusted-policy-read.js","src/item-patch-submit.js->src/trusted-policy.js"]}
  ],
  "ratchets": {
   "legacySource": 0,

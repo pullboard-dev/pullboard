@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/roadmap",
  "frontDoor": "packages/roadmap/index.js",
- "placedBy": {
-  "seed": 3,
-  "rule": 0,
-  "imports": 0
- },
  "paths": [
   ["src/focus-milestone.js","packages/roadmap/src/core/focus-milestone.js","seed"],
   ["src/milestones.js","packages/roadmap/src/core/milestones.js","seed"],
@@ -23,9 +18,7 @@
   {"cell":"seats","imports":2,"before":true},
   {"cell":"store","imports":3,"before":false}
  ],
- "cuts": [
-  {"cell":"state","imports":1,"edges":["src/engine.js->src/milestones.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": 0,
   "shims": 3,

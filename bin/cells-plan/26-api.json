@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/api",
  "frontDoor": "packages/api/index.js",
- "placedBy": {
-  "seed": 4,
-  "rule": 1,
-  "imports": 0
- },
  "paths": [
   ["src/api-delta-fields.js","packages/api/src/core/api-delta-fields.js","rule"],
   ["src/api-http.js","packages/api/src/shell/api-http.js","seed"],

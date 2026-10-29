@@ -4,11 +4,6 @@
  "kind": "app",
  "root": "apps/view",
  "frontDoor": "apps/view/index.js",
- "placedBy": {
-  "seed": 32,
-  "rule": 43,
-  "imports": 1
- },
  "paths": [
   ["src/background-view.js","apps/view/src/shell/background-view.js","seed"],
   ["src/badge.js","apps/view/src/shell/badge.js","seed"],
@@ -18,7 +13,6 @@
   ["src/needs.js","apps/view/src/core/needs.js","seed"],
   ["src/resume-needs.js","apps/view/src/core/resume-needs.js","seed"],
   ["src/serve.js","apps/view/src/shell/serve.js","seed"],
-  ["src/view-port.js","apps/view/src/shell/view-port.js","seed"],
   ["src/view-session.js","apps/view/src/shell/view-session.js","seed"],
   ["src/view.css","apps/view/src/shell/view.css","seed"],
   ["src/view.js","apps/view/src/core/view.js","seed"],
@@ -96,7 +90,6 @@
   "src/needs.js",
   "src/resume-needs.js",
   "src/serve.js",
-  "src/view-port.js",
   "src/view-session.js",
   "src/view.js",
   "src/view/agent-approval.js",
@@ -142,13 +135,7 @@
   {"cell":"app:cli","imports":6,"before":false}
  ],
  "cuts": [
-  {"cell":"config","imports":1,"edges":["src/settings-inventory.js->src/view-port.js"]},
-  {"cell":"mcp","imports":2,"edges":["src/mcp.js->src/needs-state.js","src/mcp.js->src/needs.js"]},
-  {"cell":"spec","imports":1,"edges":["src/spec-approval.js->src/needs.js"]},
-  {"cell":"store","imports":1,"edges":["src/native-board-state.js->src/serve.js"]},
-  {"cell":"api","imports":1,"edges":["src/api.js->src/serve.js"]},
-  {"cell":"landing","imports":1,"edges":["src/land.js->src/badge.js"]},
-  {"cell":"shouts","imports":1,"edges":["src/watch.js->src/view-session.js"]}
+  {"cell":"api","imports":2,"edges":["src/api.js->src/serve.js","src/api.js->src/view-state-summary.js"]}
  ],
  "ratchets": {
   "legacySource": -3,

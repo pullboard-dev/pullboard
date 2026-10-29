@@ -274,7 +274,7 @@ test('a red gate on submit shows what the gate said [C7,V10]', (t) => {
     assert.notEqual(submitted.code, 0);
     const refusal = JSON.parse(submitted.out).error;
     assert.equal(refusal.code, 'GATE_RED');
-    assert.ok(refusal.message.includes(first), 'the first diagnostic must survive the bounded refusal');
+    assert.ok(refusal.message.includes(first), `the first diagnostic must survive the bounded refusal: ${JSON.stringify(refusal)}`);
     assert.match(refusal.message, /\d+ nonempty output lines omitted/u);
     assert.ok(refusal.message.length < 5000, 'a refusal must remain bounded');
     const log = box.git('rev-parse', '--git-path', 'pullboard-submit.log').trim();
@@ -1075,7 +1075,7 @@ test('a source change selects the tests that scan sources [C7,B3]', (t) => {
 
   const repository = resolve(import.meta.dirname, '..');
   const actual = privateRepo(t);
-  const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'bin/', 'test/'], {
+  const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'bin/', 'test/', 'packages/'], {
     cwd: repository, encoding: 'utf8',
   }).split('\0').filter(path => /\.[cm]?js$/u.test(path));
   const actualBase = copyRepositoryFixture(actual, repository, tracked);
@@ -1083,7 +1083,7 @@ test('a source change selects the tests that scan sources [C7,B3]', (t) => {
   const actualCommit = commitAll(actual, 'test(core): add an unimported source input [G1]');
   const actualSelection = selectAffectedTests(actual.root, { base: actualBase, commit: actualCommit });
   assert.equal(actualSelection.full, false, 'an unimported source addition keeps affected selection');
-  for (const scanner of ['test/boundary.test.js', 'test/machine.test.js', 'test/package.test.js',
+  for (const scanner of ['test/boundary.test.js', 'test/machine.test.js', 'packages/doctrine/tests/package.test.js',
     'test/submit-gate.test.js', 'test/wall-clock-budgets.test.js']) {
     assert.ok(readFileSync(join(repository, scanner), 'utf8').split(/\r?\n/u).slice(0, 2).includes(sourceInput.trimEnd()),
       'actual source-tree reader declares its input: ' + scanner);

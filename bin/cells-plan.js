@@ -11,6 +11,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { posix } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cellInventory } from '../src/cell-lint-inventory.js';
@@ -26,6 +27,7 @@ import { tryGit } from '../src/git.js';
 import { Refused } from '../src/refused.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { fileCuts } from './cells-plan-cuts.js';
+import { refreshPlanCuts } from '../src/cells-plan-cuts.js';
 import { retiredProblems } from './cells-plan-cuts.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';
 import { readMoveDataReads, staleDataReads } from './cells-data-reads.js';
@@ -66,26 +68,55 @@ export function shardFile(cell) {
   return `${PLAN_DIR}/${String(cell.order).padStart(2, '0')}-${cell.name.replace(':', '-')}.json`;
 }
 
+/** Every placed path belongs to exactly one recognized source bucket. */
+function requirePlacementSources(cell) {
+  if (cell.paths.some(row => !['seed', 'rule', 'imports'].includes(row[2]))) throw new Refused('CELLS_UNPLACED', `${cell.name} has a path without a known placement source; resolve that path before writing the plan`);
+}
+
+/** Derive a cell's placement counts from its actual rows, never a stored summary. */
+function placementCounts(cell) {
+  requirePlacementSources(cell);
+  return Object.fromEntries(['seed', 'rule', 'imports'].map(via => [via, cell.paths.filter(row => row[2] === via).length]));
+}
+
+/** Derive all plan counters from the same cell rows and explicit stays the reader returns. */
+function planCounts(cells, stays) {
+  for (const cell of cells) for (const cut of cell.cuts) {
+    if (!Number.isSafeInteger(cut.imports) || cut.imports < 0) throw new Refused('CELLS_PLAN_COUNTS', `${cell.name} has a cut without a nonnegative integer import count`);
+  }
+  return {
+    cells: cells.length,
+    movedPaths: cells.reduce((sum, cell) => sum + cell.paths.length, 0),
+    stays: stays.length,
+    placedBy: Object.fromEntries(['seed', 'rule', 'imports'].map(via => [via, cells.reduce((sum, cell) => sum + cell.placedBy[via], 0)])),
+    shims: cells.reduce((sum, cell) => sum + cell.reexports.length, 0),
+    cutImports: cells.reduce((sum, cell) => sum + cell.cuts.reduce((sum, row) => sum + row.imports, 0), 0),
+    cutEdges: cells.reduce((sum, cell) => sum + cell.cuts.length, 0),
+  };
+}
+
 /** Write the plan as an index plus one shard per cell, removing shards a regenerated plan no longer names. */
 export function writePlan(root, plan) {
   const retired = retiredProblems(root, plan);
   if (retired.length) throw new Refused('CELLS_PLAN_RETIRED', retired.join('; '));
-  // Bounded read/modify/write callers carry old summaries; the exact paths being written own these counts.
+  // Persist authoritative rows; readers derive summaries from the exact rows they return.
   const cells = plan.cells.map(cell => {
-    if (cell.paths.some(row => !['seed', 'rule', 'imports'].includes(row[2]))) throw new Refused('CELLS_UNPLACED', `${cell.name} has a path without a known placement source; resolve that path before writing the plan`);
-    return { ...cell, placedBy: Object.fromEntries(['seed', 'rule', 'imports'].map(via => [via, cell.paths.filter(row => row[2] === via).length])) };
+    requirePlacementSources(cell);
+    const { placedBy: _cachedPlacement, ...rows } = cell;
+    return rows;
   });
-  const totals = { ...plan.totals, cells: cells.length, movedPaths: cells.reduce((sum, cell) => sum + cell.paths.length, 0), stays: plan.stays.length,
-    placedBy: Object.fromEntries(['seed', 'rule', 'imports'].map(via => [via, cells.reduce((sum, cell) => sum + cell.placedBy[via], 0)])),
-    shims: cells.reduce((sum, cell) => sum + cell.reexports.length, 0),
-    cutImports: cells.reduce((sum, cell) => sum + cell.cuts.reduce((sum, row) => sum + row.imports, 0), 0),
-    cutEdges: cells.reduce((sum, cell) => sum + cell.cuts.length, 0) };
   mkdirSync(join(root, PLAN_DIR), { recursive: true });
   const shards = cells.map(cell => [shardFile(cell), cell]);
   const keep = new Set([SEED_FILE, `${PLAN_DIR}/temporary-edges.json`, `${PLAN_DIR}/transition.json`, ...shards.map(([file]) => file)]);
   for (const name of readdirSync(join(root, PLAN_DIR))) if (name.endsWith('.json') && !keep.has(`${PLAN_DIR}/${name}`)) rmSync(join(root, PLAN_DIR, name));
-  for (const [file, cell] of shards) writeFileSync(join(root, file), formatJson(cell) + '\n');
-  const index = { ...plan, totals, cells: cells.map(cell => ({ order: cell.order, name: cell.name, file: shardFile(cell) })) };
+  for (const [file, cell] of shards) {
+    // A shard whose data is unchanged keeps its bytes, so one row's edit never reformats an unrelated cell.
+    let current = null;
+    try { current = JSON.parse(readFileSync(join(root, file), 'utf8')); } catch { current = null; }
+    if (current === null || JSON.stringify(current) !== JSON.stringify(cell)) writeFileSync(join(root, file), formatJson(cell) + '\n');
+  }
+  const { totals: _cachedTotals, ...metadata } = plan;
+  const index = { ...metadata, cells: cells.map(cell => ({ order: cell.order, name: cell.name, file: shardFile(cell) })) };
   writeFileSync(join(root, PLAN_FILE), JSON.stringify(index, null, 2) + '\n');
 }
 
@@ -95,9 +126,10 @@ export function readPlan(root, read = file => readFileSync(join(root, file), 'ut
   const cells = index.cells.map(row => {
     let source;
     try { source = read(row.file); } catch { throw new Refused('CELLS_PLAN_SHARD', `${row.file} is missing; regenerate with node bin/cells-plan.js --write`); }
-    return JSON.parse(source);
+    const cell = JSON.parse(source);
+    return { ...cell, placedBy: placementCounts(cell) };
   });
-  return { ...index, cells };
+  return { ...index, totals: planCounts(cells, index.stays), cells };
 }
 
 /** Append one explicit placement; preserve every existing row, cut, contract and ordering decision. */
@@ -148,15 +180,110 @@ export function unplanned(root, plan) {
 }
 
 /**
+ * Name the active plan rows whose source is gone at HEAD: neither the original, its target nor its mapped path is
+ * tracked or on disk. A later move would otherwise look for a file no item can ever produce (#1559 met
+ * src/agent-proof-guidance.js after #1613 deleted it), so the check names the row and how to retire it.
+ */
+export function stalePlanRows(root, plan) {
+  const listed = tryGit(root, ['ls-files', '-z']);
+  if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'run the plan check inside a Git checkout');
+  const tracked = new Set(listed.stdout.split('\0').filter(Boolean));
+  const map = readPathMap(root);
+  /** A path counts as present when Git tracks it or anything, even a dangling link, sits at it. */
+  function present(path) {
+    if (tracked.has(path)) return true;
+    try { lstatSync(join(root, path)); return true; }
+    catch (error) { if (['ENOENT', 'ENOTDIR'].includes(error.code)) return false; throw error; }
+  }
+  return plan.cells.flatMap(cell => cell.paths.filter(([from, to]) => ![from, to, mappedPath(map, from)].some(present))
+    .map(row => ({ cell: cell.name, file: shardFile(cell), row })));
+}
+
+/**
+ * Retire one stale planned path: its row moves to the plan's retired list, which keeps its provenance and refuses
+ * it ever coming back or being imported, and the shim and cut edges that only existed for it leave the cell.
+ */
+export function retirePath(root, file) {
+  const plan = readPlan(root);
+  const stale = stalePlanRows(root, plan).find(entry => entry.row[0] === file);
+  if (!stale) {
+    const active = plan.cells.some(cell => cell.paths.some(([from]) => from === file));
+    throw new Refused('CELLS_PLAN_RETIRE', active
+      ? `${file} still exists at HEAD or at its target; retire only a planned path its item deleted`
+      : `${file} is not an active plan row; name a path that node bin/cells-plan.js --check reports as stale`);
+  }
+  const cell = plan.cells.find(entry => entry.name === stale.cell);
+  cell.paths = cell.paths.filter(([from]) => from !== file);
+  cell.reexports = cell.reexports.filter(path => path !== file);
+  for (const entry of plan.cells) {
+    entry.cuts = entry.cuts.map(link => ({ ...link, edges: link.edges.filter(edge => !edge.split('->').includes(file)) }))
+      .filter(link => link.edges.length).map(link => ({ ...link, imports: link.edges.length }));
+  }
+  plan.retired = [...(plan.retired ?? []), { cell: cell.name, row: stale.row }];
+  writePlan(root, plan);
+  return stale;
+}
+
+/**
+ * The main commit this move builds on: its merge base with main. Null, so every unproven read still counts, when
+ * there is no main or HEAD is itself that base (a check on main has no earlier state to compare against).
+ */
+function moveBase(root) {
+  const head = tryGit(root, ['rev-parse', 'HEAD']).stdout;
+  for (const ref of ['main', 'origin/main']) {
+    const found = tryGit(root, ['merge-base', 'HEAD', ref]);
+    if (found.status === 0 && /^[a-f0-9]{40,64}$/u.test(found.stdout)) return found.stdout === head ? null : found.stdout;
+  }
+  return null;
+}
+
+/** Split one analyzer refusal into its exact source line text and reason, or null for any other problem. */
+function unsupportedSite(problem, file, source) {
+  const match = /^(.+):(\d+): unsupported fixture source: (.+)$/u.exec(problem);
+  if (!match || match[1] !== file) return null;
+  const text = source.split('\n')[Number(match[2]) - 1];
+  return text === undefined ? null : { text: text.trim(), reason: match[3] };
+}
+
+/**
+ * Count the same file's unproven reads at the move's main base, by exact line text and reason, from committed
+ * bytes only. Why: a read the analyzer could not prove before the move is not a gap the move made, while a read
+ * whose line names a moved basename, or any new or extra occurrence, still counts against the move.
+ */
+function baseUnsupported(root, base, file, { moves, dataReads }) {
+  const counts = new Map();
+  if (!base) return counts;
+  /** Read one regular blob at the base commit, never the working tree. */
+  function readBase(path) {
+    if (!/^[\w./-]+$/u.test(path) || path.split('/').some(part => !part || part === '.' || part === '..')) return null;
+    const row = tryGit(root, ['ls-tree', '-z', base, '--', path]);
+    const object = /^100(?:644|755) blob ([a-f0-9]+)\t/u.exec(row.stdout)?.[1];
+    // tryGit trims output, so exact bytes come from Git directly; the analyzer re-hashes them against the object.
+    const shown = object && spawnSync('git', ['cat-file', 'blob', object], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 ** 2 });
+    return shown?.status === 0 ? { source: shown.stdout, object } : null;
+  }
+  const original = readBase(file);
+  if (!original) return counts;
+  const uses = fixtureSourceEdits(original.source, { file, moves, readSource: readBase, dataReads, mentionsOnly: true });
+  for (const problem of uses.problems) {
+    const site = unsupportedSite(problem, file, original.source);
+    if (site) counts.set(`${site.text}\0${site.reason}`, (counts.get(`${site.text}\0${site.reason}`) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
  * Check that one cell's move happened as planned: every path sits at its target, every old path is gone or is
  * only a re-export, the front door exists, and no enforced cell lint rose. This is each move item's frozen check.
  */
-export function checkMoved(root, plan, name) {
+export function checkMoved(root, plan, name, { notes = [] } = {}) {
   const cell = plan.cells.find(row => row.name === name);
   if (!cell) throw new Refused('CELLS_PLAN_CELL', `no cell ${name} in ${PLAN_FILE}; use a name from its cells list`);
   const problems = [];
   if (!existsSync(join(root, cell.frontDoor))) problems.push(`missing front door ${cell.frontDoor}`);
+  const stale = new Set(stalePlanRows(root, plan).filter(entry => entry.cell === name).map(entry => entry.row[0]));
   for (const [from, to] of cell.paths) {
+    if (stale.has(from)) { problems.push(`${from} was deleted, so its plan row is stale; retire it: node bin/cells-plan.js --retire ${from}`); continue; }
     if (!existsSync(join(root, to))) problems.push(`missing ${to} (from ${from})`);
     if (existsSync(join(root, from)) && /\.[cm]?js$/u.test(from)) {
       const code = readFileSync(join(root, from), 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/gu, '').replace(/\s/gu, '');
@@ -176,6 +303,7 @@ export function checkMoved(root, plan, name) {
   }
   const listed = tryGit(root, ['ls-files', '-z', '--', 'test', 'docs']);
   if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot inventory tracked fixture readers');
+  const base = moveBase(root);
   const data = readMoveDataReads(root, cell.name), matchedDataReads = [];
   problems.push(...data.problems);
   for (const file of listed.stdout.split('\0').filter(file => /\.[cm]?js$/u.test(file))) {
@@ -189,9 +317,17 @@ export function checkMoved(root, plan, name) {
     if (!stat.isFile() || stat.isSymbolicLink()) { problems.push(`cannot prove fixture source through ${file}`); continue; }
     const source = readFileSync(path, 'utf8');
     if (!data.reads.some(row => row.file === file) && !cell.paths.some(([from]) => source.includes(from.split('/').at(-1)))) continue;
-    const uses = fixtureSourceEdits(source, { file, moves: cell.paths.map(([from, to]) => [from, to]), readSource, dataReads: data.reads, mentionsOnly: true });
+    const moves = cell.paths.map(([from, to]) => [from, to]);
+    const uses = fixtureSourceEdits(source, { file, moves, readSource, dataReads: data.reads, mentionsOnly: true });
     matchedDataReads.push(...uses.matchedDataReads ?? []);
-    problems.push(...uses.problems);
+    const before = uses.problems.some(problem => unsupportedSite(problem, file, source))
+      ? baseUnsupported(root, base, file, { moves, dataReads: data.reads }) : new Map();
+    for (const problem of uses.problems) {
+      const site = unsupportedSite(problem, file, source);
+      const key = site && !moves.some(([from]) => site.text.includes(posix.basename(from))) ? `${site.text}\0${site.reason}` : null;
+      if (key && before.get(key) > 0) { before.set(key, before.get(key) - 1); notes.push(`${problem} (also at main ${base.slice(0, 12)}; not this move's obligation)`); }
+      else problems.push(problem);
+    }
     for (const edit of uses.edits) {
       const line = source.slice(0, edit.start).split('\n').length;
       problems.push(`${file}:${line} still hand-copies or reads a moved source path; repoint its source operand before submitting the move`);
@@ -261,6 +397,14 @@ function fileItems(root, plan, yes) {
 function main(argv) {
   const [mode = '--check', ...rest] = argv;
   const root = resolve('.');
+  if (mode === '--refresh-cuts') {
+    const plan = readPlan(root), { edges, unknown } = cellInventory(root, { importsIn, commonJsIn });
+    const endpoints = new Set([...edges.keys(), ...[...edges.values()].flatMap(rows => rows.map(row => row.target))]);
+    const missing = unplanned(root, plan).filter(file => endpoints.has(file));
+    if (missing.length) throw new Refused('CELLS_PLAN_UNPLANNED', `cannot refresh cuts for unplanned tracked sources: ${missing.join(', ')}; place them through the plan generator first`);
+    writePlan(root, refreshPlanCuts(plan, edges, readPathMap(root), unknown));
+    return 0;
+  }
   if (mode === '--write') {
     writePlan(root, computePlan(root));
     return 0;
@@ -280,13 +424,20 @@ function main(argv) {
   }
   const plan = readPlan(root);
   if (mode === '--check') {
-    const missing = unplanned(root, plan);
+    const missing = unplanned(root, plan), stale = stalePlanRows(root, plan);
     for (const path of missing) console.error(`not in ${PLAN_FILE}: ${path}`);
     if (missing.length) console.error('regenerate the plan: node bin/cells-plan.js --write');
-    return missing.length ? 1 : 0;
+    for (const { file, row } of stale) console.error(`stale plan row in ${file}: ${row[0]} no longer exists; retire it: node bin/cells-plan.js --retire ${row[0]}`);
+    return missing.length || stale.length ? 1 : 0;
+  }
+  if (mode === '--retire') {
+    const { file, row } = retirePath(root, rest[0]);
+    console.log(`retired ${row[0]} from ${file}`);
+    return 0;
   }
   if (mode === '--moved') {
-    const problems = checkMoved(root, plan, rest[0]);
+    const notes = [], problems = checkMoved(root, plan, rest[0], { notes });
+    for (const note of notes) console.log(note);
     for (const problem of problems) console.error(problem);
     return problems.length ? 1 : 0;
   }
@@ -297,7 +448,7 @@ function main(argv) {
     return problems.length ? 1 : 0;
   }
   if (mode === '--file') { fileItems(root, plan, rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> (or --stay) | --check | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> (or --stay) | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));
