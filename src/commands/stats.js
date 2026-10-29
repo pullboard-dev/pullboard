@@ -86,7 +86,7 @@ export function run(io, { values }) {
   for (const line of boardHoldLines(boardHolds, holdBaseline)) io.say(line);
   for (const group of ['items', 'lanes', 'milestones', 'models']) for (const row of usage[group]) {
     const label = row.item ?? row.lane ?? row.milestone ?? row.model;
-    io.say(`usage ${group} ${label}: input ${row.inputTokens ?? 'unknown'}, output ${row.outputTokens ?? 'unknown'}, ${row.wallMs} ms${row.unknownReasons.length ? '; unknown: ' + row.unknownReasons.join(', ') : ''}`);
+    io.say(`usage ${group} ${label}: input ${row.inputTokens ?? 'unknown'} (fresh ${row.freshInputTokens ?? 'unknown'}, cached read ${row.cacheReadInputTokens ?? 'unknown'}, cached write ${row.cacheWriteInputTokens ?? 'unknown'}), output ${row.outputTokens ?? 'unknown'}, ${row.wallMs} ms${row.unknownReasons.length ? '; unknown: ' + row.unknownReasons.join(', ') : ''}`);
   }
   return 0;
 }

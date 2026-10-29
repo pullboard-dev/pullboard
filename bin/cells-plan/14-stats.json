@@ -28,7 +28,8 @@
   ["src/cost-session.js","packages/stats/src/shell/cost-session.js","rule"],
   ["src/cost-shared-ledger.js","packages/stats/src/shell/cost-shared-ledger.js","rule"],
   ["src/cost-shared.js","packages/stats/src/shell/cost-shared.js","rule"],
-  ["src/cost.js","packages/stats/src/shell/cost.js","rule"]
+  ["src/cost.js","packages/stats/src/shell/cost.js","rule"],
+  ["src/cost-input-split-engine.js","packages/stats/src/shell/cost-input-split-engine.js","rule"]
  ],
  "reexports": [
   "src/flow-replay.js",
