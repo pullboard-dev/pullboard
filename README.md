@@ -25,6 +25,19 @@
 
 Pullboard keeps agents building **true to your intent**, with a second agent checking every change. Your judgement carries across every agent and every session, so a complex project stays coherent for months. It's a coordination queue for serious software: you decide what matters once, and many agents build, check and land the work.
 
+<p align="center">
+  <a href="https://pullboard.dev/live/">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/img/live-floor-dark.png">
+      <img src="docs/img/live-floor-light.png" alt="Pullboard's own board, 28 Oct 2026: 32 agents, 22 building, 3 reviewing, 180 items landed in 24 hours. Each building and reviewing agent's last four hours as a timeline, and the item it holds now." width="100%">
+    </picture>
+  </a>
+</p>
+
+<p align="center"><a href="https://pullboard.dev/live/"><b>Watch Pullboard build itself, live →</b></a></p>
+
+---
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/holds-dark.svg">
   <img src="docs/img/holds.svg" alt="How it holds. Your decision becomes a bar each piece of work is frozen against; a second agent checks the exact commit; the board keeps what passed, what failed and why; the next agent starts from there.">

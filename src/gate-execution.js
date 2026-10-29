@@ -1,3 +1,5 @@
+import { proofSourceAt } from './gate-observation.js';
+import { testValueProfile } from './gate-observation.js';
 /** Concern-specific gate stage; public callers keep the gate facade. */
 import {
   TIMING_RUN_ID_ENV,
@@ -64,11 +66,9 @@ import {
   testRuntimeEnvironment,
 } from './execution-environment.js';
 import {
-  gitChildEnv,
   gitPath,
   headCommit,
   headTree,
-  invalidateGitFacts,
   isClean,
   tryGit,
   untracked,
@@ -85,6 +85,8 @@ import {
   committedTest,
   tapTests,
 } from './tap-tests.js';
+import { readTestOutcomes } from './test-outcomes.js';
+import { committedTestOutcomes } from './test-outcomes.js';
 import {
   frozenCheck,
   mainPolicy,
@@ -183,7 +185,7 @@ export function safeLog(output) {
  * @param {{ waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean, collectAll?: boolean, stages?: boolean, timeoutMs?: number, waivers?: Array<{ kind: string, test: string }> }} [options]
  */
 export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs, auditCoverage = false } = {}) {
-  const proofSource = gateLease?.proof ? proofSourceAt(root) : null;
+  const proofSource = gateLease?.proof ? proofSourceAt(root, null, committedTree) : null;
   const timingSourceBefore = stages ? timingSourceForReceipt(root) : null;
   const directory = artifactDirectory ?? dirname(gitPath(root, LOG));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -222,10 +224,12 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
     // The controller cannot realpath remote files; retain the network denial signal without treating remote paths as local paths.
     ? sandboxBlockedOperation(root, run.output, { includeFilePaths: false })
     : sandboxBlockedOperation(root, run.output));
-  const profiledRun = { ...run, sandboxBlocked };
+  const testOutcomes = committedTestOutcomes(root, proofSource?.head ?? headCommit(root),
+    readTestOutcomes(safeLog(run.output ?? ''), id), tryGit);
+  const profiledRun = { ...run, sandboxBlocked, ...(testOutcomes ? { testOutcomes } : {}) };
   if (logPath) writeFileSync(logPath, safeLog(run.output), { mode: 0o600 });
   const profile = writeTimingProfile(profilePath, {
-    ...runTiming(profiledRun, command, root),
+    ...runTiming(profiledRun, command, root), ...(testOutcomes ? { testOutcomes } : {}),
     waitMs: Math.max(0, Math.round(waitMs)), wallMs: Math.max(0, Date.now() - started), receipt: settleReceipt(gateLease),
   });
   const collectionReport = collectionId ? parseCollectionReports(run.output, { id: collectionId, scope: 'suite', requireComplete: false }) : null;
@@ -246,31 +250,13 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
   return { ...result, ...(proofReceiptId ? { proofReceiptId } : {}) };
 }
 
-/** Capture source identifiers before execution; a dirty tree remains explicitly unproven. */
-function proofSourceAt(root, commit = null) {
-  invalidateGitFacts(); // The child may have changed Git facts outside this command context.
-  const head = commit ?? headCommit(root);
-  const tree = head ? tryGit(root, ['rev-parse', '--verify', `${head}^{tree}`], { env: gitChildEnv(root) }) : null;
-  const clean = commit !== null || committedTree(root) !== null;
-  return { head: clean ? head : null, tree: clean && tree?.status === 0 ? tree.stdout : null, clean };
-}
-
-/** Retain explicit executed TAP outcomes; skipped, aggregate and aborted cases prove no named result. */
-function testValueProfile(root, run) {
-  try {
-    return { ...run.profile, tests: tapTests(run.output ?? '', run.executionRoot ?? root).filter(row =>
-      !row.skip && row.type !== 'suite'
-      && !['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType)) };
-  } catch { return null; }
-}
-
 /** The private gate writer records process results, never provenance supplied by a CLI argument. */
 function leaveProofReceipt(root, command, run, before, context, lease) {
   try {
     if (!before || run.sandboxBlocked || run.exitCode === undefined) return null;
     const store = receiptStore(root);
     if (!store) return null;
-    const after = context.commit ? before : proofSourceAt(root);
+    const after = context.commit ? before : proofSourceAt(root, null, committedTree);
     const source = run.executionSource ?? run.profile?.executionSource;
     const sourceClean = before.clean && after.clean && before.head === after.head && before.tree === after.tree
       && run.executionSourceUnchanged !== false && (!source || source.commit === before.head && source.tree === before.tree)
@@ -289,6 +275,7 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
           && row.type !== 'suite' && !['subtestsFailed','cancelledByParent','testAborted'].includes(row.failureType))
           .slice(0, 500).map(({ file, name }) => ({ file, name })),
       load: run.executionLoad ?? (remote || lease?.runner ? null : localLoad), at: new Date().toISOString(),
+      ...(sourceClean && run.testOutcomes ? { testOutcomes: run.testOutcomes } : {}),
       proof: { item: context.item, frozenDigest: context.frozenDigest ?? null, seat: context.seat,
         environment, testRuntimes, runner: remote ?? (lease?.runner ? null
           : run.profile?.receipt?.runner?.id ?? lease?.receipt?.runner?.id ?? lease?.localDescriptor?.id ?? null), exitCode: run.exitCode,
@@ -312,8 +299,16 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
 export function runFrozenProof(root, item, { gateLease, waitMs = 0 } = {}, { checkAtCommit }) {
   const context = { item: item.item_id, frozenDigest: item.item_frozen_digest ?? null,
     seat: gateLease?.proof?.seat, kind: 'verdict', commit: item.item_commit };
-  const before = proofSourceAt(root, item.item_commit);
+  const before = proofSourceAt(root, item.item_commit, committedTree);
+  const outcomeId = randomUUID();
+  if (gateLease) gateLease.testOutcomeRunId = outcomeId;
   const result = checkAtCommit(root, item, { gateLease, waitMs });
+  const testOutcomes = result.executed && result.executionSourceUnchanged !== false
+    ? committedTestOutcomes(root, item.item_commit, readTestOutcomes(result.outputPath ? logLines(result.outputPath) : result.output ?? '', outcomeId), tryGit) : null;
+  if (testOutcomes) {
+    result.testOutcomes = testOutcomes;
+    if (result.profilePath) result.profile = writeTimingProfile(result.profilePath, { ...result.profile, testOutcomes });
+  }
   const id = result.executed ? leaveProofReceipt(root, frozenCheck(item), result, before, context, gateLease) : null;
   return { ...result, ...(id ? { proofReceiptId: id } : {}) };
 }
@@ -496,8 +491,9 @@ export async function runMainComparison(root, path, { detailed = false, gateLeas
 
 /** Hand a run's receipt to its observer, which records it on the board; recording never changes the run's verdict [C7,D1]. */
 export async function recordRun(observer, run) {
-  if (!run.receiptId || typeof observer?.recordRun !== 'function') return;
-  try { await observer.recordRun(run.receiptId); } catch { /* A board that cannot take the record leaves the gate result as it was. */ }
+  const id = run.proofReceiptId ?? run.receiptId;
+  if (!id || typeof observer?.recordRun !== 'function') return;
+  try { await observer.recordRun(id); } catch { /* A board that cannot take the record leaves the gate result as it was. */ }
 }
 
 /**
@@ -536,6 +532,7 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
       planDigest: digest(plan), completedDigest: digest(completed) };
     const receipt = receiptFields({ version: 1, id: randomUUID(), kind, tree: before, head, main: policy.commit, command: createHash('sha256').update(config.gate).digest('hex'),
       green: run.isGreen, failures: [...failures.values()], load: Array.isArray(run.executionLoad?.average) ? run.executionLoad : local, at: receiptAt, environment: run.environment ?? null, ...(collection ? { collection } : {}),
+      ...(run.testOutcomes ? { testOutcomes: run.testOutcomes } : {}),
       full: kind === 'main-red' ? false : run.suiteTiming?.full ?? null,
       timing: kind === 'main-red' ? { version: 1, node: run.suiteTiming?.node ?? run.environment?.node ?? null,
         wallMs: comparison.compareMs, selectionMs: null, setupMs: null, shards: null, compareMs: comparison.compareMs }
@@ -565,7 +562,7 @@ export function fullGateRun(root, config, trustStamp = false, { waitMs = 0, log 
   refuseSandboxBlocked(run);
   // The release producer validates full collection and every executor before it may stamp this tree.
   if (kind !== 'suite' && !releaseRequest && isGreen && !config[VALUE_GATE] && before !== null && committedTree(root) === before) writeFileSync(gitPath(root, STAMP), `${before}\n`);
-  return { isGreen, isCached: false, output, seconds, log, profile, profilePath, receiptId, environment: run.environment ?? null,
+  return { isGreen, exitCode: run.exitCode, isCached: false, output, seconds, log, profile, profilePath, receiptId, environment: run.environment ?? null,
     ...(releaseRequest ? { releaseParticipation: run.releaseParticipation ?? null } : {}),
     ...(collectAll ? { collectAllComplete: run.collectAllComplete === true, collectionReport: run.collectionReport ?? null,
       ...(run.cleanupVerified === undefined ? {} : { cleanupVerified: run.cleanupVerified }) } : {}),

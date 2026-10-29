@@ -2,6 +2,7 @@
 /** Keep the format guide aligned with parser behavior, live SQLite schema and static export [A5,A10]. */
 import { recordRelayExclusionIntent } from '../src/relay-exclusion-state.js';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
   mkdirSync,
@@ -24,6 +25,7 @@ import { exerciseRejectedWorkFormat } from '../test/rejected-work-format-fixture
 import { syntheticFlakeObservation } from '../test/flake-observation-fixture.js';
 import { sourceAdvanceEventContract } from '../test/generated-doc-source-advance-fixture.js';
 import { recordFlakeObservation } from '../src/board.js';
+import { recordNextIdle } from '../src/board.js';
 import { proposeSentinel } from '../src/sentinels.js';
 import { decideSentinel } from '../src/sentinels.js';
 import { beginSentinelRun } from '../src/sentinels.js';
@@ -331,6 +333,7 @@ function recordEventContract() {
   // Synthetic format fixture; cryptographic authority is exercised by relay-membership.test.js.
   setBoardMembers(board, { agentId: coordinator, document: { body: { v: 1, board: boardId(board), repository: 'fixture/repository', revision: 1, members: ['bob'] }, by: 'alice', signature: '-----BEGIN SSH SIGNATURE-----\nsynthetic format fixture\n' } });
   const builder = register(board, { lane: 'docs', path: '/builder' });
+  recordNextIdle(board, { agentId: builder, reason: 'nothing-eligible' });
   register(board, { lane: 'docs', path: '/builder', family: 'codex' });
   register(board, { lane: 'docs', path: '/builder', model: 'Fixture Model' });
   const reviewer = register(board, { lane: 'tests', path: '/reviewer', family: 'Fixture Review' });
@@ -447,6 +450,13 @@ function recordEventContract() {
   editItem(board, corrected, { agentId: coordinator, criterion: 'Corrected criterion', reason: 'the fixture corrects its bar' });
   assert.deepEqual(JSON.parse(events(board).filter((row) => row.event_kind === 'edit').at(-1).event_detail).pendingRefreeze, ['criterion']);
   refreeze(board, corrected, { agentId: builder, freeze: freeze('adopted-correction') });
+  const widener = register(board, { lane: 'docs', path: '/widener' });
+  const widened = addItem(board, { by: coordinator, lane: 'docs', title: 'Widened own check', check: 'node bin/run-tests.js docs/formats.test.js' });
+  claim(board, widened, { agentId: widener, lane: 'docs', leaseMs: 60_000, freeze: freeze('before-widening') });
+  const widenedCheck = 'node bin/run-tests.js docs/formats.test.js test/generated-docs.test.js';
+  const widenedBar = JSON.stringify({ criterion: '', check: widenedCheck });
+  editItem(board, widened, { agentId: widener, check: widenedCheck, correction: true, freeze: () => ({ text: widenedBar, digest: createHash('sha256').update(widenedBar).digest('hex') }) });
+  assert.deepEqual(JSON.parse(events(board).filter((row) => row.event_kind === 'edit').at(-1).event_detail).widenedCheck, ['test/generated-docs.test.js'], 'a builder widening is the one edit that carries widenedCheck');
 
   const returnedBuilder = register(board, { lane: 'docs', path: '/returned-builder', model: 'builder' });
   const returned = addItem(board, { by: coordinator, lane: 'docs', title: 'Returned landing example' });
@@ -523,7 +533,7 @@ function recordEventContract() {
   assert.equal(applyEngineMove(board, omissionMove, { sequence: appliedSequence(board) + 1, at: board.clock.now().toISOString() }).error, undefined);
   const rows = events(board).map((row) => ({ ...row, detail: JSON.parse(row.event_detail) }));
   closeBoard(board);
-  return { rows, actors: { [coordinator]: 'coordinator', [builder]: 'builder', [returnedBuilder]: 'builder', [unattendedBuilder]: 'builder', [reviewer]: 'reviewer', [PERSON]: 'person', board: 'board', rigor: 'rigor' } };
+  return { rows, actors: { [coordinator]: 'coordinator', [builder]: 'builder', [returnedBuilder]: 'builder', [widener]: 'builder', [unattendedBuilder]: 'builder', [reviewer]: 'reviewer', [PERSON]: 'person', board: 'board', rigor: 'rigor' } };
 }
 
 /** Reopen a file after removing old-format objects and report the repaired guard event. */
@@ -821,6 +831,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     shout: 'sender',
     'activity-delivered': 'recipient',
     'activity-acted': 'recipient',
+    'next-idle': 'idle seat',
     shout_news: 'sender',
     pass: 'coordinator',
     answer: 'answerer',

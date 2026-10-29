@@ -1,3 +1,4 @@
+import { TIMING_RUN_ID_ENV } from './run-timing.js';
 /** Controller-owned private checks: immutable clone, runner protocol and retained sanitized evidence [C7,V4]. */
 import {
   createHash,
@@ -105,7 +106,7 @@ export function runnerPrivateCheck(root, item, command, policy, lease, guard, wa
   const started = Date.now();
   lease.tracker?.mark('runAt');
   const result = runOnRunner(root, command, { runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser,
-    metadata: { ...lease.runMetadata, testStage: lease.receiptKind ?? 'verify' }, checkedSource, privateCheck: mode, rawOutputPath: join(directory, 'raw.log') });
+    metadata: { ...lease.runMetadata, ...(lease.testOutcomeRunId ? { timingRunId: lease.testOutcomeRunId } : {}), testStage: lease.receiptKind ?? 'verify' }, checkedSource, privateCheck: mode, rawOutputPath: join(directory, 'raw.log') });
   lease.tracker?.mark('ranAt');
   lease.environment = result.environment ?? null;
   lease.gui = result.executionCapabilities?.gui ?? null;
@@ -180,7 +181,8 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
   const verifierHome = process.env.HOME ?? process.env.USERPROFILE;
   const npmCache = process.env.npm_config_cache ?? join(verifierHome ?? home, '.npm');
   const env = { ...cleanGitEnvironment(), HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, 'machine'), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', npm_config_cache: npmCache };
-  if (gateLease) Object.assign(env, gateSlotEnvironment(gateLease));
+  if (gateLease) Object.assign(env, gateSlotEnvironment(gateLease),
+    gateLease.testOutcomeRunId ? { [TIMING_RUN_ID_ENV]: gateLease.testOutcomeRunId } : {});
   else if (gateSlotHeld) env[GATE_SLOT_HELD_ENV] = '1';
   delete env.PULLBOARD_RELAY_TOKEN;
   let installOutput = '';

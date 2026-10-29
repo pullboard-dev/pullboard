@@ -1,5 +1,5 @@
 /** Real gate, item-check and verifier profiles parse emitted timings [C7,V10]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyFixtureRunner } from './fixture-runner-copy.js';
 import { awaitNestedRun } from '../src/test-file-pool.js';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
@@ -380,7 +380,7 @@ function copyProfileRunner(box) {
   if (existsSync(fixtureSource)) {
     assert.deepEqual(readdirSync(fixtureSource), [], 'the profile fixture has no local source files to overwrite');
   } else mkdirSync(fixtureSource, { recursive: true });
-  copyPackageFiles(source, box.repo);
+  copyFixtureRunner(source, box.repo);
 }
 
 /** Run one real submission with an optional real machine-slot wait and await every owned child. */
@@ -459,7 +459,7 @@ test('a submit timing profile records both phases and one queue wait for selecte
     mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
     writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
     const checkCommand = 'node bin/run-tests.js timed/check.test.js';
-    // The full package copy includes unrelated docs tests; preserve this private full-fallback's original three bodies.
+    // Select the same three private bodies while the copied runtime remains the unchanged production runner.
     const gateCommand = 'node bin/run-tests.js timed/check.test.js web/affected.test.js api/untouched.test.js';
     writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ type: 'module' }));
     copyProfileRunner(box);

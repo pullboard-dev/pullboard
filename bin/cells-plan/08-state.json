@@ -6,7 +6,7 @@
  "frontDoor": "packages/state/index.js",
  "placedBy": {
   "seed": 110,
-  "rule": 45,
+  "rule": 55,
   "imports": 2
  },
  "paths": [
@@ -81,6 +81,7 @@
   ["src/pr-bridge-engine.js","packages/state/src/core/pr-bridge-engine.js","seed"],
   ["src/private-rehome-engine.js","packages/state/src/core/private-rehome-engine.js","rule"],
   ["src/proof-run-engine.js","packages/state/src/core/proof-run-engine.js","seed"],
+  ["src/quarantine-core-engine.js","packages/state/src/shell/quarantine-core-engine.js","rule"],
   ["src/quoted-landing-failure-engine.js","packages/state/src/core/quoted-landing-failure-engine.js","seed"],
   ["src/recorded-conflict-context.js","packages/state/src/core/recorded-conflict-context.js","seed"],
   ["src/recorded-move.js","packages/state/src/core/recorded-move.js","seed"],
@@ -166,7 +167,16 @@
   ["src/reject-clause-engine.js","packages/state/src/core/reject-clause-engine.js","rule"],
   ["src/review-tier-engine.js","packages/state/src/core/review-tier-engine.js","rule"],
   ["src/run-timing-engine.js","packages/state/src/core/run-timing-engine.js","rule"],
-  ["src/train-landing-engine.js","packages/state/src/core/train-landing-engine.js","rule"]
+  ["src/train-landing-engine.js","packages/state/src/core/train-landing-engine.js","rule"],
+  ["src/move-history/166.json","packages/state/src/shell/move-history/166.json","rule"],
+  ["src/check-widen-self-engine.js","packages/state/src/core/check-widen-self-engine.js","rule"],
+  ["src/move-history/167.json","packages/state/src/shell/move-history/167.json","rule"],
+  ["src/next-idle-engine.js","packages/state/src/core/next-idle-engine.js","rule"],
+  ["src/move-history/168.json","packages/state/src/shell/move-history/168.json","rule"],
+  ["src/move-history/169.json","packages/state/src/shell/move-history/169.json","rule"],
+  ["src/no-eligible-reviewer-engine.js","packages/state/src/core/no-eligible-reviewer-engine.js","rule"],
+  ["src/move-history/170.json","packages/state/src/shell/move-history/170.json","rule"],
+  ["src/family-declare-engine.js","packages/state/src/core/family-declare-engine.js","rule"]
  ],
  "reexports": [
   "src/activity-delivery-engine.js",

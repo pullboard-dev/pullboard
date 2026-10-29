@@ -2,9 +2,15 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
-import { HOOKS, HOOKS_DIR } from '../src/hooks.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import {
+  after,
+  test,
+} from 'node:test';
+import {
+  HOOKS,
+  HOOKS_DIR,
+} from "../src/shell/hooks.js";
+import { createE2eHelpers } from "../../../test/e2e-helpers.js";
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);

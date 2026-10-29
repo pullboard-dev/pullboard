@@ -1,3 +1,4 @@
+import { withDerivedFamily } from './family-declaration.js';
 /**
  * A CI or cloud session's board, from its environment alone [E18]. A session that cannot pair holds an agent token
  * (PULLBOARD_RELAY_TOKEN) and the board key (PULLBOARD_RELAY_KEY), and optionally the relay address
@@ -97,5 +98,5 @@ export function environmentAgent(root, board) {
   let state;
   try { state = JSON.parse(readFileSync(join(repoInfo(root).commonDir, 'pullboard', 'relay.json'), 'utf8')); } catch { return null; }
   const agent = state?.environment?.agent;
-  return typeof agent === 'string' ? board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(agent) ?? null : null;
+  return typeof agent === 'string' ? withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(agent)) ?? null : null;
 }
