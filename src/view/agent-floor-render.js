@@ -43,7 +43,7 @@ export function agentFloorHtml(floor, { back = '#dashboard', locale = 'en-US', t
     ['shouts', n.shouts, 'Shouts', 'in 4 h', 'shout', 'Shouts during the last 4 hours'],
   ];
   const band = '<section class="floor-band" aria-label="Board numbers">' + numbers.map(([key, value, label, note, tone, source]) =>
-    '<div class="floor-number' + (tone ? ' floor-' + tone : '') + '" data-floor-stat="' + key + '" data-value="' + esc(value ?? '') + '" title="' + esc(source) + '"><b>' + count(value) + '</b><span>' + esc(label) + '</span><small>' + esc(note) + '</small></div>').join('') + '</section>';
+    '<div class="floor-number' + (tone ? ' floor-' + tone : '') + '" title="' + esc(source) + '" data-floor-stat="' + key + '" data-value="' + esc(value ?? '') + '"><b>' + count(value) + '</b><span>' + esc(label) + '</span><small>' + esc(note) + '</small></div>').join('') + '</section>';
 
   const peak = Math.max(0, ...f.bins.map(bin => bin.count)), tallest = Math.max(1, peak);
   const landedBars = '<svg class="floor-bars" viewBox="0 0 960 80" preserveAspectRatio="none" role="img" aria-label="Items landed per hour, last 24 hours">' + f.bins.map((bin, index) => {
