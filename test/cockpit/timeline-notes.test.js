@@ -59,14 +59,14 @@ test('long timeline notes expand in place and hashes show twelve characters with
     assert.equal(await chrome.stable(`getComputedStyle(document.querySelector(${JSON.stringify(bodySelector)})).webkitLineClamp`), '3');
     assert.equal(await chrome.stable(`(() => { const body = document.querySelector(${JSON.stringify(bodySelector)}), style = getComputedStyle(body); return body.getBoundingClientRect().height <= parseFloat(style.lineHeight) * 3 + 1; })()`), true, 'the note is clamped to three visible lines');
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(noteSelector + ' [data-timeline-more]')}).textContent`), 'Show all');
-    await press(chrome, `${noteSelector} [data-timeline-more]`);
+    await press(chrome, `document.querySelector(${JSON.stringify(noteSelector + ' [data-timeline-more]')})`);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(noteSelector)}).classList.contains('expanded')`), true);
     assert.match(await chrome.stable(`document.querySelector(${JSON.stringify(noteSelector + ' .tl-body')}).textContent`), /Line 8: the complete note remains available after expansion/u);
     const timelineHash = '#detail .tl button.hash-copy';
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).textContent`), commit.slice(0, 12));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).title`), commit);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).dataset.copy`), commit);
-    await press(chrome, timelineHash);
+    await press(chrome, `document.querySelector(${JSON.stringify(timelineHash)})`);
     assert.match(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).title`), /^(Copied|Could not copy) full hash$/u);
 
     await chrome.click(`document.querySelector('[data-tab="items"]')`);
@@ -77,7 +77,7 @@ test('long timeline notes expand in place and hashes show twelve characters with
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(needHash)}).textContent`), approval.slice(0, 12));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(needHash)}).title`), approval);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(needHash)}).dataset.copy`), approval);
-    await press(chrome, needHash);
+    await press(chrome, `document.querySelector(${JSON.stringify(needHash)})`);
     assert.match(await chrome.stable(`document.querySelector(${JSON.stringify(needHash)}).title`), /^(Copied|Could not copy) full hash$/u);
 
     await chrome.send('Page.navigate', { url: href.href });
@@ -86,7 +86,7 @@ test('long timeline notes expand in place and hashes show twelve characters with
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).textContent`), commit.slice(0, 12));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).title`), commit);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).dataset.copy`), commit);
-    await press(chrome, itemHash);
+    await press(chrome, `document.querySelector(${JSON.stringify(itemHash)})`);
     assert.match(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).title`), /^(Copied|Could not copy) full hash$/u);
     assert.deepEqual(chrome.exceptions, []);
   } finally {
