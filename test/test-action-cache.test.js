@@ -45,13 +45,20 @@ function scanNotes() { appendFileSync(process.env.PULLBOARD_ACTION_CAPTURE, 'e\\
 test('e [C7]', scanNotes);
 `;
 
+/** Anchor and quote one canonical copied-tool identity; project files keep their explicit Git tracking. */
+function copiedToolIgnore(file) {
+  const escape = String.fromCharCode(92);
+  return '/' + [...file].map(char => (escape + '*?[]!# ').includes(char) ? escape + char : char).join('');
+}
+
 /** A committed repository with the real runner, three tests and their modules: A imports shared, B and C stand alone. */
 function makeFixture(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-test-actions-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const folder of ['bin', 'lib', 'test']) mkdirSync(join(root, folder));
-  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
-  writeFileSync(join(root, '.gitignore'), 'bin/\nsrc/\nmachine/\n');
+  const copied = copyPackageFiles(resolve(import.meta.dirname, '..'), root);
+  writeFileSync(join(root, '.gitignore'), ['bin/', 'src/', 'machine/',
+    ...copied.filter(file => !['package.json', 'CHANGELOG.md'].includes(file)).map(copiedToolIgnore)].join('\n') + '\n');
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   writeFileSync(join(root, 'lib', 'shared.js'), "export const shared = 'green';\n");
   writeFileSync(join(root, 'lib', 'a.js'), "import { shared } from './shared.js';\nexport const value = shared;\n");
@@ -72,7 +79,11 @@ function makeFixture(t) {
   git('init', '-q', '-b', 'main');
   git('add', '.gitignore', 'package.json', 'CHANGELOG.md', 'lib', 'test');
   git('add', '-f', 'src/probe.js');
+  // A shipped nested .gitignore may unignore itself; keep this real Git configuration tracked.
+  const copiedIgnores = copied.filter(file => file.endsWith('/.gitignore'));
+  if (copiedIgnores.length) git('add', '-f', '--', ...copiedIgnores);
   git('commit', '-q', '-m', 'fixture');
+  assert.equal(git('status', '--porcelain', '--untracked-files=all'), '', 'the cache fixture starts with a clean real Git worktree');
   /** Commit one file's new text. */
   const change = (path, text) => { writeFileSync(join(root, path), text); git('add', '-f', '--', path); git('commit', '-q', '-m', `change ${path}`, '--', path); };
   /** Run the whole suite through the real runner; return its status, output and the files that ran. */
@@ -267,4 +278,26 @@ test('a harness dependency edit changes every key, and a test edit stays local t
   assert.notEqual(testEdit.get('test/c.test.js').inputKey, harnessEdit.get('test/c.test.js').inputKey);
   assert.equal(testEdit.get('test/b.test.js').inputKey, harnessEdit.get('test/b.test.js').inputKey,
     'another test file is not harness code, so editing it leaves this key alone');
+});
+
+test('copied tooling ignores preserve the refusal to reuse with an unrelated untracked file [C7]', t => {
+  const fixture = makeFixture(t);
+  const first = fixture.run(['test/b.test.js']);
+  assert.equal(first.status, 0, first.output);
+  assert.deepEqual(first.ran, ['b']);
+  const warm = fixture.run(['test/b.test.js']);
+  assert.equal(warm.status, 0, warm.output);
+  assert.deepEqual(warm.ran, [], 'the clean fixture has a real reusable receipt');
+  assert.match(warm.output, /^# reused /mu);
+  const unrelated = join(fixture.root, 'unrelated-untracked.txt');
+  writeFileSync(unrelated, 'actual unrelated untracked bytes\n');
+  const dirty = fixture.run(['test/b.test.js']);
+  assert.equal(dirty.status, 0, dirty.output);
+  assert.deepEqual(dirty.ran, ['b'], 'untracked project content still forces fresh execution');
+  assert.doesNotMatch(dirty.output, /^# reused /mu);
+  rmSync(unrelated);
+  const cleanAgain = fixture.run(['test/b.test.js']);
+  assert.equal(cleanAgain.status, 0, cleanAgain.output);
+  assert.deepEqual(cleanAgain.ran, [], 'removing only the unrelated file restores clean reuse');
+  assert.match(cleanAgain.output, /^# reused /mu);
 });
