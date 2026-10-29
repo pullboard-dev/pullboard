@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { loadConfig } from '../src/config.js';
-import { healthReport } from '../src/health.js';
+import { healthReport } from '../packages/health/index.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
 import { context } from '../src/cli-read-context.js';
 import { waitForSubmissionVerdict } from '../src/submit-wait.js';

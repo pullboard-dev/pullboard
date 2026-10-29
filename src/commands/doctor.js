@@ -3,7 +3,7 @@ import { checkAtCommit } from '../runner-private-check.js';
 import {
   doctorProblems,
   doctrineProblems,
-} from '../doctor.js';
+} from '../../packages/health/index.js';
 import {
   bareWorktreeFinding,
   tryGit,

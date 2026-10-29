@@ -14,7 +14,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { after, test } from 'node:test';
 import { submitFixture } from './board-submit-fixture.js';
 import * as store from '../src/board.js';
-import { healthReport } from '../src/health.js';
+import { healthReport } from '../packages/health/index.js';
 import { loadConfig } from '../src/config.js';
 import { personNeedsSummary } from '../src/needs-summary.js';
 import { resumeNeeds } from '../src/resume-needs.js';
