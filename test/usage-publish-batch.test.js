@@ -76,6 +76,8 @@ test('usage batches retain authentication, atomic rollback, per-record deduplica
   const record = item => ({agentId:agent,item,revision:1,observedAt:1,records:[{model:'fixture',inputTokens:1,outputTokens:2,
     knownInputTokens:1,knownOutputTokens:2,wallMs:3,unknownReasons:[]}]});
   const items=ids.slice(0,2).map(record),payload={agentId:agent,items};
+  assert.throws(()=>store.recordUsageBatch(board,{...payload,privateSession:'must never seal'}),{code:'USAGE_RECORD'});
+  assert.throws(()=>store.recordUsageBatch(board,{...payload,items:[{...items[0],privatePath:'must never seal'}]}),{code:'USAGE_RECORD'});
   assert.throws(()=>store.recordUsageBatch(board,{...payload,items:[items[0],{...items[1],agentId:'foreign'}]}),{code:'USAGE_RECORD'});
   assert.throws(()=>store.recordUsageBatch(board,{...payload,items:[items[0],{...items[1],revision:0}]}),{code:'USAGE_RECORD'});
   assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind='usage'").get().n,0);

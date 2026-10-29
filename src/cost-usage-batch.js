@@ -8,12 +8,19 @@ import { USAGE_BATCH_ENGINE } from './usage-batch-engine.js';
 import { Refused } from './refused.js';
 
 /** Publish only the authenticated seat's revisions; any invalid record rolls back the entire batch. */
-export function recordUsageBatch(board, { agentId, items = [], sharedSessions = [] }) {
+export function recordUsageBatch(board, payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)
+      || Object.keys(payload).some(key => !['agentId', 'items', 'sharedSessions'].includes(key))) {
+    throw new Refused('USAGE_RECORD', 'a usage batch carries only its actor and numeric revisions');
+  }
+  const { agentId, items = [], sharedSessions = [] } = payload;
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < USAGE_BATCH_ENGINE) throw new Refused('ENGINE_VERSION', `usage batching requires engine ${USAGE_BATCH_ENGINE}`);
   if (!listAgents(board).some(value => value.agent_id === agentId)) throw new Refused('NOT_JOINED', 'join before publishing a usage batch');
   if (!Array.isArray(items) || !Array.isArray(sharedSessions) || items.length + sharedSessions.length > 1000
-      || items.some(value => !value || value.agentId !== agentId)
-      || sharedSessions.some(value => !value || value.agentId !== undefined && value.agentId !== agentId)) {
+      || items.some(value => !value || value.agentId !== agentId
+        || Object.keys(value).some(key => !['agentId', 'item', 'revision', 'records', 'observedAt', 'shared'].includes(key)))
+      || sharedSessions.some(value => !value || value.agentId !== undefined && value.agentId !== agentId
+        || Object.keys(value).some(key => !['agentId', 'id', 'seats', 'allocations', 'revision', 'observedAt', 'records'].includes(key)))) {
     throw new Refused('USAGE_RECORD', 'a usage batch carries at most 1000 revisions belonging to its authenticated seat');
   }
   return atomic(board, () => ({
