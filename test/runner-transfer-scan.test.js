@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { secretsIn } from '../src/hooks.js';
+import { secretsIn } from '../packages/commits/index.js';
 
 test('a large clean batch of kebab-case names and source text is never refused as a key [C7,S1]', () => {
   const names = Array.from({ length: 600 }, (_, index) => ({

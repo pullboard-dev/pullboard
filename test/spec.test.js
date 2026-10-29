@@ -23,7 +23,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { configFromSource } from '../src/config.js';
-import { preCommitProblems } from '../src/hooks.js';
+import { preCommitProblems } from '../packages/commits/index.js';
 import { standardDoctrine } from '../src/doctrine.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { requireRelayOnChannel } from '../src/person.js';

@@ -9,7 +9,9 @@ import { git } from '../git.js';
 import { gitChildEnv } from '../git.js';
 import { mainCheckout } from '../git.js';
 import { Refused } from '../refused.js';
-import { commitCitations } from '../history.js';
+import { gitOut } from '../history.js';
+import { ID_RE } from '../spec.js';
+import { parseCommitMessage } from '../../packages/commits/index.js';
 import { committedIds } from '../history.js';
 import { trunkRef } from '../trusted-policy.js';
 import { ordered } from './claim.js';
@@ -97,3 +99,30 @@ export function specProof(ctx) {
   });
 }
 
+/**
+ * The complete spec citations from `since` (the spec's first commit) to HEAD, each with the newest
+ * commit that cites it. Final row trailers take priority over header previews; legacy commits fall
+ * back to their named header rows. Commits older than the spec cite nothing it could hold.
+ *
+ * @param {string} root
+ * @param {string} since
+ * @returns {Map<string, string>}
+ */
+export function commitCitations(root, since) {
+  const out = [
+    gitOut(root, ['log', '--format=%h%x00%B%x00', `${since}..HEAD`]),
+    gitOut(root, ['log', '-1', '--format=%h%x00%B%x00', since]),
+  ].join('\n');
+  const cited = new Map();
+  // Git commit messages cannot contain NUL, so body lines and tabs cannot forge record boundaries.
+  const records = out.split('\0');
+  for (let index = 0; index + 1 < records.length; index += 2) {
+    const short = records[index].trim();
+    if (!short) continue;
+    const parsed = parseCommitMessage(records[index + 1]);
+    for (const id of (parsed.rows ?? parsed.shown).filter((entry) => ID_RE.test(entry))) {
+      if (!cited.has(id)) cited.set(id, `commit ${short}`);
+    }
+  }
+  return cited;
+}

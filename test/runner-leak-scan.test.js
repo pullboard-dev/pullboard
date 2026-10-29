@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { secretsIn } from '../src/hooks.js';
+import { secretsIn } from '../packages/commits/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST, installSshStandIn, shellQuote } from './runner-ssh-fixture.js';
 

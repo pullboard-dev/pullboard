@@ -3,7 +3,7 @@ import { configFromSource } from './config.js';
 import { runnerSource } from './gate-policy-load.js';
 import { validateRunner } from './gate-policy-load.js';
 import { repoInfo } from './git.js';
-import { secretsIn } from './hooks.js';
+import { secretsIn } from '../packages/commits/index.js';
 import { machineSettingsFile } from './machine-home.js';
 import { carriedBrowserByLaunch } from '../packages/queue/index.js';
 import { readMachineSettingsFile } from '../packages/queue/index.js';

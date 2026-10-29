@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { guardRevertNote } from '../src/guard-revert.js';
+import { guardRevertNote } from '../packages/commits/index.js';
 
 /** Own one disposable scratch source file; these port controls do not claim a native gate receipt. */
 function fixture(t) {
