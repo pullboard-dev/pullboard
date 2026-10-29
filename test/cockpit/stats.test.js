@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { tapTarget, SPEC, machine, project, build, sendBack, startView, accept, boardOf, earlier, proofShot, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, pickProject, press, tapTouch } from './fixture.js';
 
 /** Add a real joined worktree to the shared test board.
@@ -276,7 +277,7 @@ test('stats read at a glance on a board with hundreds of agents [N26,V2]', { tim
   const alpha = project(box, 'stats-at-a-glance');
   stageFlowBoard(box, alpha);
   stageAcceptedQueue(box, alpha);
-  const board = store.openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     for (let index = 5; index <= 299; index += 1) {
       store.register(board, {

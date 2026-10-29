@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { applyRelayMove, appliedSequence, prepareEngineMove } from '../../src/engine.js';
 import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, proofShot } from './fixture.js';
 
@@ -20,7 +21,7 @@ test('real board Activity has sentence rows, working filters, full quotes and an
   box.run(alpha.web, 'shout', 'coordinator', 'Keep [MY_CODE] and these words.\nSecond line at 2026-10-28T04:12:00Z', '--kind', 'idea');
   const file = join(alpha.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: native health scans must reach this real view through its HTTP board snapshot.
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   let scanId;
   try {
     const rank = { ...scannedBoard().finding, owner: { who: 'web-1', role: 'agent' }, why: 'web-1 claimed #1 while #2 ranks ahead in the web lane and sits free' };
