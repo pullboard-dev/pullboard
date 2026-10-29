@@ -204,7 +204,7 @@ test('a runner resource lease prevents an idle proof even without a job cwd [C7]
 
 test('a runner unavailable thirty minutes appears in the sentinel health findings [C7]', t => {
   const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
-  const health = pathToFileURL(join(import.meta.dirname, '../src/health.js')).href;
+  const health = pathToFileURL(join(import.meta.dirname, '../packages/health/index.js')).href;
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');
