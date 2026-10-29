@@ -25,7 +25,7 @@ const SOURCE = join(import.meta.dirname, '..');
 const PLAN = join(SOURCE, 'bin/cells-plan.js');
 
 /** A real committed source checkout with the actual plan, native agents and normal hooks. */
-function plannedProject(t) {
+function plannedProject(t, { companionLanes = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('node check.cjs');
@@ -35,6 +35,10 @@ function plannedProject(t) {
   writePlan(box.repo, readPlan(SOURCE));
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.web.owns.push('src/', 'bin/cells-plan.json', 'bin/cells-plan/');
+  if (companionLanes) {
+    config.lanes.view = { owns: ['src/view/'], specs: ['G1'] };
+    config.lanes.core = { owns: ['bin/cells-plan.json', 'bin/cells-plan/'], specs: ['G1'] };
+  }
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2) + '\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize the real placement fixture');
@@ -86,6 +90,43 @@ test('native submit names an unplanned source before its check, then the same pl
   const submitted = success(box, box.web, 'submit', String(id));
   assert.equal(submitted.gate.green, true);
   assert.equal(existsSync(box.marker), true, 'the real check now runs normally');
+});
+
+test('native view submit validates its core companion placement on the composed source [C7,V4]', t => {
+  const box = plannedProject(t, { companionLanes: true });
+  const view = join(box.dir, 'placement-view'), core = join(box.dir, 'placement-core');
+  for (const [path, lane] of [[view, 'view'], [core, 'core']]) {
+    box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'main');
+    success(box, path, 'join', lane);
+  }
+  const author = success(box, core, 'whoami').id;
+  const id = success(box, box.repo, 'add', 'view', 'Place through a core companion', '--specs', 'G1',
+    '--criterion', 'The new view source is placed by its core companion.', '--check', 'node check.cjs', '--wait').item.item_id;
+  success(box, view, 'claim', String(id));
+  const file = 'src/view/plan-companion-added.js';
+  mkdirSync(join(view, 'src/view'), { recursive: true });
+  writeFileSync(join(view, file), 'export const companionPlaced = true;\n');
+  box.git(view, 'add', file);
+  box.git(view, 'commit', '-q', '-m', 'feat(view): add the companion-placed source [G1]');
+  const source = box.git(view, 'rev-parse', 'HEAD');
+  rmSync(box.marker);
+  const refused = box.run(view, 'submit', String(id), '--no-next', '--json');
+  assert.equal(JSON.parse(refused.out).error.code, 'CELLS_PLAN_UNPLACED', refused.out + refused.err);
+  assert.match(refused.out, /src\/view\/plan-companion-added\.js/);
+  assert.equal(existsSync(box.marker), false, 'the unplaced bare source never runs its check');
+  placePath(view, file, { cell: 'app:view' });
+  const patch = join(box.dir, 'core-placement.patch');
+  writeFileSync(patch, box.git(view, 'diff', '--', 'bin/cells-plan.json', 'bin/cells-plan') + '\n');
+  box.git(view, 'restore', '--', 'bin/cells-plan.json', 'bin/cells-plan');
+  assert.equal(box.git(view, 'status', '--porcelain'), '', 'the builder keeps its clean original source');
+  success(box, box.repo, 'patch', 'attach', String(id), patch, '--key', 'core-placement', '--author', author, '--source', source);
+  const submitted = success(box, view, 'submit', String(id));
+  assert.equal(submitted.gate.green, true);
+  assert.equal(submitted.gate.companion.source, source);
+  assert.notEqual(submitted.gate.companion.commit, source, 'the actual gate proves the composed source');
+  assert.equal(existsSync(box.marker), true, 'the composed source now reaches its real check');
+  assert.throws(() => requirePlannedSource(view, box.git(box.repo, 'rev-parse', 'HEAD'), source), /plan-companion-added\.js/,
+    'the companion never lends its placement to the bare builder source');
 });
 
 test('placement rejects unknown cells, duplicate paths, symlinks and out-of-scope paths without rewriting the plan [C7]', t => {
