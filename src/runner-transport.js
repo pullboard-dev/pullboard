@@ -168,7 +168,7 @@ export function recordRunnerOwner(directory) {
 /** Observe live owners and job working directories; old files alone are not running jobs. */
 function runnerProcessesIdle(root) {
   const options = { encoding: 'utf8', timeout: 2_000, maxBuffer: 8 * 1024 * 1024,
-    env: { PATH: '/usr/bin:/bin:/usr/sbin', LC_ALL: 'C', LANG: 'C' } };
+    env: { PATH: '/usr/bin:/bin:/usr/sbin', LC_ALL: 'C', LANG: 'C', TZ: 'UTC' } };
   const commands = spawnSync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,lstart=,stat=,args='], options);
   if (commands.error || commands.status !== 0 || commands.signal) return false;
   const census = parseProcessCensus(commands.stdout);
