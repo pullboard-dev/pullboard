@@ -33,7 +33,8 @@
   ["src/spec-verdicts.js","packages/spec/src/shell/spec-verdicts.js","seed"],
   ["src/spec.js","packages/spec/src/shell/spec.js","seed"],
   ["test/doctrine-rulings.test.js","packages/spec/tests/doctrine-rulings.test.js","seed"],
-  ["test/signoff.test.js","packages/spec/tests/signoff.test.js","seed"]
+  ["test/signoff.test.js","packages/spec/tests/signoff.test.js","seed"],
+  ["src/spec-gate-move.js","packages/spec/src/shell/spec-gate-move.js","rule"]
  ],
  "reexports": [
   "src/approved-rows.js",

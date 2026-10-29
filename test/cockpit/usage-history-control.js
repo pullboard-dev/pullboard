@@ -39,6 +39,18 @@ export function assertUsagePresentation(events, itemId, board) {
   const nodes = new Map();
   const $ = id => { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); };
   const context = { snapshotReplay, structuredClone, FLOW, lifecycleEvent, lifecycleMove, $ };
+  /** Evaluate a served top-level arrow helper, such as eventWords, in the given context. */
+  const emittedConst = (name, scope) => {
+    const declaration = new RegExp('^const ' + name + ' = ([^\\n]+);$', 'mu').exec(served);
+    assert.ok(declaration, 'the served ' + name + ' helper is present');
+    return vm.runInNewContext('(' + declaration[1] + ')', scope);
+  };
+  // Event labels come from the page's own plain-words helpers, so bind the served ones [N26].
+  const words = {};
+  words.activityWords = vm.runInNewContext('(' + emitted('activityWords') + ')', words);
+  words.eventWords = emittedConst('eventWords', words);
+  words.eventMoment = emittedConst('eventMoment', words);
+  Object.assign(context, words);
   const replayProject = vm.runInNewContext('(' + emitted('replayProject') + ')', context);
   const replayControls = vm.runInNewContext('(' + emitted('replayControls') + ')', context);
   const positions = new Set([events.length, ...accounting.map(event => events.indexOf(event) + 1)]);
@@ -60,6 +72,7 @@ export function assertUsagePresentation(events, itemId, board) {
   const timeline = vm.runInNewContext('(' + emitted('timeline') + ')', {
     data, view, FLOW, lifecycleEvent, replay: row => replayItem(row, FLOW, lifecycleMove), renderTimelineHtml: timelineHtml,
     when: value => value, age: () => '', agentName: value => value,
+    ...words,
   });
   for (const row of [item, { ...item, thread: [] }]) {
     const html = timeline(row);

@@ -10,6 +10,9 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { configProblems, defaults, durationMs, loadConfig } from '../src/config.js';
 import { isLane, laneNames, laneOf, outOfLane } from '../src/lanes.js';
 import { crossLaneFixture } from './e2e-helpers.js';
+import { runFixtureChild } from './fixture-child.js';
+import { specGateMoveOnly } from '../src/spec-gate-move.js';
+import { submissionPaths } from '../src/trusted-policy.js';
 
 const CONFIG = {
   ...defaults(),
@@ -40,6 +43,48 @@ test('lane names list the coordinator first [L1]', () => {
   assert.deepEqual(laneNames(CONFIG), ['coordinator', 'web', 'ui', 'api']);
   assert.ok(isLane(CONFIG, 'coordinator'));
   assert.ok(!isLane(CONFIG, 'all'));
+});
+
+test('a lane commits only exact gate paths for its staged test rename [L3,B34]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  mkdirSync(join(box.repo, 'web'), { recursive: true });
+  writeFileSync(join(box.repo, 'web/old.test.js'), 'export const fixture = true;\n');
+  writeFileSync(join(box.repo, 'web/kept.test.js'), 'export const kept = true;\n');
+  const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8').replace('gate: web test', 'gate: node web/old.test.js,  web/kept.test.js');
+  writeFileSync(join(box.repo, 'SPEC.md'), spec);
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: seed renamed gate fixture');
+  box.git(box.web, 'merge', '--ff-only', 'main');
+  const moved = spec.replace('web/old.test.js', 'web/new.test.js');
+  writeFileSync(join(box.web, 'SPEC.md'), moved);
+  box.git(box.web, 'add', 'SPEC.md');
+  assert.equal(specGateMoveOnly(box.web, 'SPEC.md'), false, 'a gate edit without an actual staged rename stays foreign');
+  box.git(box.web, 'mv', 'web/old.test.js', 'web/new.test.js');
+  assert.equal(specGateMoveOnly(box.web, 'SPEC.md'), true);
+  // A valid gate change never authorizes extra wording, headers, status, IDs or unrelated gates.
+  for (const changed of [moved.replace('The page renders.', 'Different rule.'), moved + '\nextra prose\n', moved + '\n', moved + ' ',
+    moved.replace('approved, must', 'draft, must'), moved.replace('- G1 ', '- G3 '),
+    moved.replace('gate: api test', 'gate: true')]) {
+    writeFileSync(join(box.web, 'SPEC.md'), changed);
+    box.git(box.web, 'add', 'SPEC.md');
+    assert.equal(specGateMoveOnly(box.web, 'SPEC.md'), false);
+    const refused = box.run(box.web, 'hook', 'pre-commit');
+    assert.equal(refused.code, 1, refused.out + refused.err);
+    assert.match(refused.out + refused.err, /outside the web lane: SPEC\.md/u);
+  }
+  writeFileSync(join(box.web, 'SPEC.md'), moved);
+  box.git(box.web, 'add', 'SPEC.md');
+  const committed = runFixtureChild('git', ['commit', '-q', '-m', 'test: move exact gate fixture'],
+    { cwd: box.web, env: box.env, encoding: 'utf8' });
+  assert.equal(committed.status, 0, committed.stdout + committed.stderr);
+  assert.equal(specGateMoveOnly(box.web, 'SPEC.md', 'HEAD^', 'HEAD'), true);
+  const base = box.git(box.web, 'rev-parse', 'HEAD^');
+  const commit = box.git(box.web, 'rev-parse', 'HEAD');
+  assert.ok(submissionPaths(box.web, { item_lane: 'web', item_claim_head: base,
+    item_frozen: JSON.stringify({ policy: { commit: base } }) }, commit, { mainCommit: base }).includes('SPEC.md'),
+  'the exact committed gate move also passes native submission ownership');
 });
 
 test('WRONG_LANE names a clean native lane checkout and the claim there retains its lane hook [L2,B13,N2]', t => {
