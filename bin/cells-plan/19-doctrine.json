@@ -9,7 +9,8 @@
   ["src/doctrine-rulings.js","packages/doctrine/src/shell/doctrine-rulings.js","seed"],
   ["src/doctrine.js","packages/doctrine/src/shell/doctrine.js","seed"],
   ["src/standard-doctrine.md","packages/doctrine/src/shell/standard-doctrine.md","seed"],
-  ["test/package.test.js","packages/doctrine/tests/package.test.js","seed"]
+  ["test/package.test.js","packages/doctrine/tests/package.test.js","seed"],
+  ["src/main-criterion-facts.js","packages/doctrine/src/shell/main-criterion-facts.js","rule"]
  ],
  "reexports": ["src/doctrine-checks.js","src/doctrine-rulings.js","src/doctrine.js"],
  "imports": [

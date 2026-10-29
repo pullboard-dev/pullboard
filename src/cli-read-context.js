@@ -108,8 +108,9 @@ export function context(io) {
   const file = join(info.commonDir, 'pullboard', 'board.sqlite');
   // Where the running code came from costs Git processes, and only a board behind this code's schema needs it.
   let allowSchemaUpgrade;
+  let doctrine;
   return { info, config, file, get allowSchemaUpgrade() { return allowSchemaUpgrade ??= codeIsFromMain(); },
-    doctrine: loadDoctrine(info.root, config), io, clock: io.clock ?? store.systemClock };
+    get doctrine() { return doctrine ??= loadDoctrine(info.root, config); }, io, clock: io.clock ?? store.systemClock };
 }
 
 /**
