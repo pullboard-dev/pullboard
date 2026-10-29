@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import {
   historyPathMap,
   mappedPath,
-} from './path-map.js';
+} from '../packages/codemap/index.js';
 import {
   addItem,
   atomic,

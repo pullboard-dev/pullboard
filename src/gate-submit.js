@@ -1,11 +1,11 @@
 /** Concern-specific gate stage; public callers keep the gate facade. */
-import { sourceAdvancePlan } from './source-advance-plan.js';
+import { sourceAdvancePlan } from '../packages/codemap/index.js';
 import {
   withGateSlot,
 } from './gate-slot.js';
 import {
   mappedCheck,
-} from './path-map.js';
+} from '../packages/codemap/index.js';
 import {
   placementSubmitSelection,
 } from './test-placement.js';

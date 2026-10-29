@@ -2,9 +2,9 @@
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { copyPackageFiles } from '../src/package-files.js';
-import { readPathMap } from '../src/path-map.js';
+import { readPathMap } from '../packages/codemap/index.js';
 import { lex } from '../src/js-lex.js';
-import { bindingReadsForModules } from '../src/cell-binding-uses.js';
+import { bindingReadsForModules } from '../packages/codemap/index.js';
 
 /** Find executable hand copies of shipped tool paths; comments and fixture-program strings are not code. */
 export function fixtureCopierProblems(source, file = 'fixture.js') {

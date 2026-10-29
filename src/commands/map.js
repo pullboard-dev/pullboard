@@ -26,7 +26,7 @@ export async function run(io, { first, values }) {
   if (!root || trunk?.branch !== 'refs/heads/main' || !trunk.commit) {
     throw new Refused('NO_TRUNK', 'pullboard map needs a reachable primary main checkout; restore it, then retry');
   }
-  const { ensureCodeMap, renderCodeMapOverview, renderMapCard, renderItemSlice } = await import('../code-map.js');
+  const { ensureCodeMap, renderCodeMapOverview, renderMapCard, renderItemSlice } = await import('../../packages/codemap/index.js');
   const cache = join(ctx.info.commonDir, 'pullboard', 'code-map.json');
   let map;
   try {

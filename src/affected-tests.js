@@ -4,7 +4,7 @@ import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import { cleanGitEnvironment } from './git.js';
-import { repositoryImport } from './import-map.js';
+import { repositoryImport } from '../packages/codemap/index.js';
 import {
   COMMAND_CANDIDATE,
   ENGINE_CANDIDATE,
