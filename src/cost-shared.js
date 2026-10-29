@@ -1,7 +1,6 @@
 /** Ordered shared-session counters without raw native identifiers or invented item splits [N2]. */
 import { getItem } from './board-query.js';
 import { atomic } from './board-event-log.js';
-import { listAgents } from './board-query.js';
 import { logEvent } from './board-event-log.js';
 import { COST_ENGINE } from './cost-engine.js';
 import { sanitizedUsage } from './cost.js';
@@ -17,8 +16,8 @@ export function sharedSessionTotals(board) {
 /** Let an overlap participant publish its cumulative native delta once across all participating seats. */
 export function recordSharedUsage(board, { agentId, id, seats, allocations, revision, observedAt, records }) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < COST_ENGINE) throw new Refused('ENGINE_VERSION', `shared usage requires engine ${COST_ENGINE}`);
-  const agents = new Set(listAgents(board).map((agent) => agent.agent_id));
-  if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/u.test(id) || !Array.isArray(seats) || seats.length < 2 || seats.length > 100 || !seats.includes(agentId) || seats.some((seat) => !agents.has(seat)) || new Set(seats).size !== seats.length || !Number.isSafeInteger(revision) || revision < 1 || !Number.isSafeInteger(observedAt) || observedAt < 0) throw new Refused('USAGE_RECORD', 'shared usage needs a public alias, registered participant seats, numeric checkpoint and positive revision');
+  const registered = board.db.prepare('SELECT 1 FROM agent WHERE agent_id=? LIMIT 1');
+  if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/u.test(id) || !Array.isArray(seats) || seats.length < 2 || seats.length > 100 || !seats.includes(agentId) || seats.some((seat) => !registered.get(seat)) || new Set(seats).size !== seats.length || !Number.isSafeInteger(revision) || revision < 1 || !Number.isSafeInteger(observedAt) || observedAt < 0) throw new Refused('USAGE_RECORD', 'shared usage needs a public alias, registered participant seats, numeric checkpoint and positive revision');
   if (!Array.isArray(allocations) || allocations.length < 2 || allocations.length > 100 || allocations.some((value) => !value || Object.keys(value).some((key) => !['seat', 'item'].includes(key)) || !seats.includes(value.seat) || !Number.isSafeInteger(value.item)) || seats.some((seat) => !allocations.some((value) => value.seat === seat))) throw new Refused('USAGE_RECORD', 'shared usage names its registered seat/item allocations');
   for (const allocation of allocations) {
     getItem(board, allocation.item);

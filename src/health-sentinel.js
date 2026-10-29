@@ -3,7 +3,7 @@ import { rejectedWorkReturns } from './rejected-work-return.js';
 /** Snapshot health without keeping a board write lock across Git's merge checks [A6]. */
 import { existsSync } from 'node:fs';
 import { openBoardReadOnly } from './board.js';
-import { healthReport } from './health.js';
+import { healthReport } from '../packages/health/index.js';
 import { healthSentinelEnabled } from './settings.js';
 import { Refused } from './refused.js';
 import { agentCpuFindings } from './sentinel-cpu.js';
