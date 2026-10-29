@@ -1,5 +1,5 @@
 /** Versioned command results and refusals for tools that drive the CLI (A1). */
-import { declaredCommandShapes } from './command-docs.js';
+import { declaredCommandShapes } from './command-declaration-read.js';
 
 /** A shape's required top-level fields; optional fields may be added within this version. */
 function shape(fields) {
