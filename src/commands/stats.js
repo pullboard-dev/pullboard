@@ -1,3 +1,6 @@
+import { loadMachineSettings } from '../settings-read.js';
+import { localUsage } from '../cost-prices.js';
+import { dollarText } from '../cost-prices.js';
 /** The pullboard stats command, in its own module so an item adding another command never edits these lines. */
 import { costTotals } from '../cost.js';
 import { boardHoldLines } from '../board-hold-log.js';
@@ -38,6 +41,7 @@ import {
 /** Run `pullboard stats` and return its exit code. */
 export function run(io, { values }) {
   const ctx = context(io);
+  const prices = loadMachineSettings().costPrices;
   if (values.since !== undefined && values.window !== undefined) {
     throw new Refused('USAGE', 'choose either --since <date> or --window <duration>, for example pullboard stats --window 6h');
   }
@@ -55,7 +59,7 @@ export function run(io, { values }) {
         : flowStats(history, null, now, stats, { windowMinutes }).window;
       const comparison = values.compare ? compareFlowWindows(history, { now, windowMinutes, complete: true }) : undefined;
       if (window) window.executionCapacity = readRunnerStage(ctx.info.root, { from: window.since, to: window.until });
-      return { stats, agents: store.listAgents(board), usage: publicUsage(costTotals(board)), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) };
+      return { stats, agents: store.listAgents(board), usage: localUsage(costTotals(board, prices), publicUsage), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) };
     } finally {
       if (windowMinutes !== undefined) board.db.exec('RELEASE stats_window_read');
     }
@@ -86,7 +90,7 @@ export function run(io, { values }) {
   for (const line of boardHoldLines(boardHolds, holdBaseline)) io.say(line);
   for (const group of ['items', 'lanes', 'milestones', 'models']) for (const row of usage[group]) {
     const label = row.item ?? row.lane ?? row.milestone ?? row.model;
-    io.say(`usage ${group} ${label}: input ${row.inputTokens ?? 'unknown'} (fresh ${row.freshInputTokens ?? 'unknown'}, cached read ${row.cacheReadInputTokens ?? 'unknown'}, cached write ${row.cacheWriteInputTokens ?? 'unknown'}), output ${row.outputTokens ?? 'unknown'}, ${row.wallMs} ms${row.unknownReasons.length ? '; unknown: ' + row.unknownReasons.join(', ') : ''}`);
+    io.say(`usage ${group} ${label}: input ${row.inputTokens ?? 'unknown'} (fresh ${row.freshInputTokens ?? 'unknown'}, cached read ${row.cacheReadInputTokens ?? 'unknown'}, cached write ${row.cacheWriteInputTokens ?? 'unknown'}), output ${row.outputTokens ?? 'unknown'}, ${row.wallMs} ms${row.unknownReasons.length ? '; unknown: ' + row.unknownReasons.join(', ') : ''}${dollarText(row)}`);
   }
   return 0;
 }

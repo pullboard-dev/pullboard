@@ -68,7 +68,7 @@ export function recordUsage(board, { agentId, item, revision, records, observedA
 }
 
 /** Read shared summaries, grouping the same immutable numeric records for every machine. */
-export function costTotals(board) {
+export function costTotals(board, prices) {
   const sharedItems = new Set(board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'shared-item:*'").all().map((row) => Number(row.meta_key.slice('shared-item:'.length))));
   const records = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key LIKE 'cost:%'").all().flatMap((row) => {
     const value = JSON.parse(row.meta_value);
@@ -78,9 +78,9 @@ export function costTotals(board) {
   const sharedSessions = publicSharedSessions(board);
   const sharedModels = sharedSessions.flatMap((group) => group.records.map((row) => ({ ...row, wallMs: 0 })));
   /** Group numeric records without multiplying totals across models. */
-  const grouped = (name, values) => [...new Set(values.map((row) => row[name]))].map((value) => ({ [name]: value, ...sumUsage(values.filter((row) => row[name] === value)) }));
+  const grouped = (name, values) => [...new Set(values.map((row) => row[name]))].map((value) => ({ [name]: value, ...sumUsage(values.filter((row) => row[name] === value), prices) }));
   return { items: grouped('item', records), lanes: grouped('lane', records), models: grouped('model', [...records, ...sharedModels]),
-    milestones: milestones(board).map((milestone) => ({ milestone: milestone.name, ...sumUsage(records.filter((row) => milestone.items.includes(row.item))) })),
+    milestones: milestones(board).map((milestone) => ({ milestone: milestone.name, ...sumUsage(records.filter((row) => milestone.items.includes(row.item)), prices) })),
     seats: grouped('agent', records), sharedSessions };
 }
 
