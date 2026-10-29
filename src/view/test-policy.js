@@ -16,6 +16,7 @@ export const VIEW_RENDERER_COVERAGE = Object.freeze([
   { module: 'src/view/segmented-control.js', names: ['segmentedToggle'], tests: ['test/cockpit/segmented-control-pure.test.js'] },
   { module: 'src/view/agents-panel-model.js', names: ['agentsPanelModel'], tests: ['test/cockpit/agents-panel-pure.test.js'] },
   { module: 'src/view/agents-panel-render.js', names: ['agentsPanelHtml'], tests: ['test/cockpit/agents-panel-pure.test.js'] },
+  { module: 'src/view/timeline-body.js', names: ['timelineBodyHtml'], tests: ['test/cockpit/view-pure.test.js'] },
   { module: 'src/view/timeline-render.js', names: ['timelineHtml'], tests: ['test/cockpit/view-pure.test.js'] },
   { module: 'src/view/items-selection.js', names: ['selectItemsView'], tests: ['test/cockpit/view-pure.test.js'] },
   { module: 'src/view/rule-list-model.js', names: ['ruleListModel'], tests: ['test/cockpit/view-pure.test.js'] },
