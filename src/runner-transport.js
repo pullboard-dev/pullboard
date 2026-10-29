@@ -171,7 +171,20 @@ function runnerProcessesIdle(root) {
   const census = processCensus();
   if (!census) return false;
   const pids = [...census.values()].filter(row => row.pid !== process.pid && !row.state.startsWith('Z')).map(row => row.pid);
-  const jobs = join(realpathSync(root), 'jobs');
+  const canonicalRoot = realpathSync(root);
+  const commands = spawnSync('/bin/ps', ['-axo', 'pid=,args='], options);
+  if (commands.error || commands.status !== 0 || commands.signal || !commands.stdout.trim()) return false;
+  const escaped = canonicalRoot.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  const entry = new RegExp(escaped + '/runtime/[a-f0-9]{64}/src/runner-worker\\.js(?=\\s|$)', 'u');
+  for (const line of commands.stdout.trim().split('\n')) {
+    const row = /^\s*([1-9][0-9]*)\s+(.+)$/u.exec(line);
+    if (!row) return false;
+    const actual = census.get(Number(row[1]));
+    if (!actual || actual.pid === process.pid || actual.state.startsWith('Z')) continue;
+    const worker = entry.exec(row[2]);
+    if (worker && !/^\s+--health(?:\s|$)/u.test(row[2].slice(worker.index + worker[0].length))) return false;
+  }
+  const jobs = join(canonicalRoot, 'jobs');
   let directories;
   try { directories = readdirSync(jobs, { withFileTypes: true }); }
   catch (error) { if (error.code !== 'ENOENT') return false; directories = []; }
@@ -181,7 +194,7 @@ function runnerProcessesIdle(root) {
     try {
       if (!lstatSync(file).isFile() || lstatSync(file).size > 4096) return false;
       const owner = JSON.parse(readFileSync(file, 'utf8'));
-      if (!Number.isSafeInteger(owner.pid) || typeof owner.started !== 'string') return false;
+      if (!Number.isSafeInteger(owner.pid) || owner.pid < 1 || typeof owner.started !== 'string' || !owner.started.trim()) return false;
       const actual = census.get(owner.pid);
       if (actual && !actual.state.startsWith('Z') && actual.started === owner.started) return false;
     } catch (error) { if (error.code !== 'ENOENT') return false; }
@@ -227,7 +240,6 @@ export function runnerIdleReply(root, request) {
     try { jobDirectory = lstatSync(jobs); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (jobDirectory && !jobDirectory.isDirectory()) return { ...base, reason: 'runner jobs location is not a directory' };
-    if (!runnerProcessesIdle(root)) return { ...base, reason: 'runner process or job working directory is active or unknown' };
     const home = isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir;
     const machineHome = process.env.PULLBOARD_MACHINE_HOME ?? join(home, '.pullboard');
     if (!isAbsolute(machineHome)) return { ...base, reason: 'runner resource location is unknown' };

@@ -147,6 +147,41 @@ test('a job owner outside its job cwd blocks recovery only until that process ex
   assert.equal(actual.idle.healthy, true, JSON.stringify(actual));
 });
 
+test('an unmarked legacy worker waiting outside jobs still blocks its own runner root [C7]', t => {
+  const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
+  const { actual } = remoteFixture(t, ({ root }) => `
+    import { spawn } from 'node:child_process';
+    import { once } from 'node:events';
+    import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+    import { join } from 'node:path';
+    import { probeRunnerHealth } from ${JSON.stringify(runners)};
+    const runtime = join(${JSON.stringify(root)}, 'runtime', 'a'.repeat(64), 'src');
+    mkdirSync(runtime, { recursive: true });
+    const ready = join(runtime, 'ready');
+    const entry = join(runtime, 'runner-worker.js');
+    writeFileSync(entry, 'require("node:fs").writeFileSync(' + JSON.stringify(ready) + ',"running");setInterval(()=>{},60000)');
+    const owner = spawn(process.execPath, [entry], { stdio: 'ignore' });
+    const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: 1, browser: 0 };
+    let held;
+    try {
+      const deadline = Date.now() + 5000;
+      while (!existsSync(ready)) {
+        if (Date.now() > deadline || owner.exitCode !== null) throw new Error('legacy worker never became ready');
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      held = await probeRunnerHealth(runner, undefined, { idle: true });
+    } finally { const exited = once(owner, 'exit'); owner.kill('SIGTERM'); await exited; }
+    const idle = await probeRunnerHealth(runner, undefined, { idle: true });
+    const malformed = join(${JSON.stringify(root)}, 'jobs', 'malformed-owner'); mkdirSync(malformed);
+    writeFileSync(join(malformed, 'worker-owner.json'), JSON.stringify({ pid: 0, started: '' }));
+    const unknown = await probeRunnerHealth(runner, undefined, { idle: true });
+    console.log(JSON.stringify({ held, idle, unknown }));`);
+  assert.equal(actual.held.healthy, false);
+  assert.match(actual.held.reason, /runner process or job working directory/u);
+  assert.equal(actual.idle.healthy, true, JSON.stringify(actual));
+  assert.equal(actual.unknown.healthy, false, 'a malformed owner record cannot establish idle');
+});
+
 test('a runner resource lease prevents an idle proof even without a job cwd [C7]', t => {
   const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
   const { actual } = remoteFixture(t, ({ machineHome }) => `
