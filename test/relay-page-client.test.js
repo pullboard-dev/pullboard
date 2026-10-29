@@ -9,6 +9,8 @@ import { createRelayJournal } from '../relay/journal.js';
 import { snapshotPageRoot } from '../relay/pages-http.js';
 import { createRelayPageCache, snapshotSourceId } from '../src/relay-page-cache.js';
 import { pagedSnapshotRequest, relaySnapshotRequest, relayStorage, relayStorageLine } from '../src/relay-page-client.js';
+import { relayStorage as compatibleStorage, relayStorageLine as compatibleStorageLine } from '../src/relay-storage.js';
+import { relayStorage as publicStorage } from '../packages/pages/index.js';
 import { generateBoardKey } from '../packages/kernel/src/core/seal.js';
 import { writeSealedValue, sealedPageFingerprint } from '../src/sealed-pages.js';
 import { Refused } from '../src/refused.js';
@@ -209,6 +211,14 @@ test('account status has a validated identity, exact byte counts and a clear ope
   assert.equal(relayStorageLine(storage), 'relay storage: account owner-login, 251.0 MB used of 256.0 MB');
   assert.equal(relayStorage({ ...storage, account: { ...storage.account, login: 'Bearer private text' } }), null);
   assert.equal(relayStorage({ ...storage, usedBytes: -1 }), null);
+  assert.equal(compatibleStorage, publicStorage, 'the historical entry and pages front door retain one validator');
+  assert.equal(compatibleStorageLine, relayStorageLine, 'the compatibility formatter retains its identity');
+  assert.deepEqual(compatibleStorage({ ...storage, privateToken: 'synthetic-secret', account: { ...storage.account, credential: 'synthetic-secret' } }), storage, 'credential fields never enter the retained status');
+  for (const value of [null, {}, { ...storage, account: { ...storage.account, id: '' } },
+    { ...storage, usedBytes: Number.MAX_SAFE_INTEGER + 1 }, { ...storage, limitBytes: 0 }, { ...storage, limitBytes: 1.5 }]) {
+    assert.equal(publicStorage(value), null, 'malformed account or byte counts stay refused');
+    assert.equal(compatibleStorageLine(value), '', 'invalid status never becomes person-facing quota text');
+  }
 });
 
 test('oversize native uploads negotiate API2, native reads upgrade explicitly, and a paged board never downgrades [H15,H17]', async t => {
