@@ -40,10 +40,17 @@ export async function publishUsage(ctx, board, { agent, item, operation }) {
   if (items.length || sharedSessions.length) await ordered(ctx, board, 'recordUsageBatch', [{ agentId: agent, items, sharedSessions }]);
 }
 
+/** Name only fixed attribution stages; provider paths, identities and exception messages stay private. */
+function checkpointStage(error) {
+  if (error?.code === 'USAGE_LEDGER') return 'private-ledger';
+  if (error?.code === 'USAGE_OVERFLOW') return 'attribution-totals';
+  return 'checkpoint';
+}
+
 /** A secondary usage failure must never report a successfully ordered claim/submit/release as failed. */
 export async function checkpointAfterMove(ctx, board, request) {
   try { await publishUsage(ctx, board, request); }
-  catch {
-    ctx.io.err('pullboard: USAGE_PENDING: the lifecycle move was recorded, but its usage checkpoint is pending; the next native claim, submit or release will retry. Missing native attribution stays unknown.');
+  catch (error) {
+    ctx.io.err(`pullboard: USAGE_PENDING: [stage=${checkpointStage(error)}] the lifecycle move was recorded, but its usage checkpoint is pending; the next native claim, submit or release will retry. Missing native attribution stays unknown.`);
   }
 }
