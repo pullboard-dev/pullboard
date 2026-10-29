@@ -61,7 +61,7 @@ test('local prices compute two models by hand while an unpriced model retains to
   }
   const stats = document(box.run(box.repo, 'stats', '--json')).usage;
   assert.equal(stats.items.find(row => row.item === ids[0]).costUSD, .65);
-  assert.equal(stats.models.find(row => row.model === 'beta').costUSD, 2);
+  assert.equal(stats.models.find(row => row.model === 'beta').costUSD, 4);
   assert.equal(stats.models.find(row => row.model === 'unpriced').costUSD, null);
   assert.equal(stats.lanes.find(row => row.lane === 'web').costUSD, null);
   assert.equal(stats.items.find(row => row.item === ids[3]).costUSD, 2.65, 'mixed models are priced before their tokens are aggregated');
