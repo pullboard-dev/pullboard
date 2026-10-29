@@ -160,6 +160,7 @@ test('48 revisions hold the production writer under one second with 1221 seats a
   seedFamilyScale(board,f.box.dir);
   // Opening the persisted board warms its proof projection exactly as a normal native opener does.
   store.closeBoard(board);
+  // @pullboard-board-file journey: reopen the same private persisted fixture to warm its native proof projection.
   board=store.openBoard(join(f.box.repo,'.git','pullboard','board.sqlite'));
   const prepare=board.db.prepare.bind(board.db),exec=board.db.exec.bind(board.db);
   let familyScans=0,acquired=null;const holds=[];
