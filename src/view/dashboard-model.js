@@ -117,7 +117,7 @@ export function dashboardModel(project, history, { now, complete = true } = {}) 
   const order = new Map((project.dashboardNext ?? []).map((id, index) => [id, index]));
   const next = items.filter(item => item.status === 'open' && !(item.blockedBy?.length) && !heldItems.has(item.id) && !heldLanes.has(item.lane))
     .toSorted((a,b) => (order.get(a.id) ?? Infinity)-(order.get(b.id) ?? Infinity) || a.id-b.id);
-  return { now, start, complete, pace, claims, reviewing, agents, milestone,
+  return { now, start, complete, pace, claims, reviewing, agents, milestone, comparison: project.statsComparison ?? null,
     inFlight: { building: claims.filter(item => milestoneIds.has(item.id)), review: reviewing.filter(item => milestoneIds.has(item.id)) },
     landed: [...landed].map(([id, at]) => ({ item: byId.get(id), at })).sort((a,b) => b.at-a.at),
     bins, landing, inReview, next, last,

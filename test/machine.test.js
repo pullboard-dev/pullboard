@@ -177,9 +177,9 @@ const CAUGHT = {
   'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   'line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
-  'commands/submit.js#submitHere': ['native-flakes.js#observeFailure', 'cli.js#freezer', 'main-red.js#compareMainFailures', 'main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
+  'commands/submit.js#submitHere': ['native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', 'main-red.js#compareMainFailures', 'main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
   // observeNativeFailure catches its optional pair/recording errors; they cannot become lifecycle refusals.
-  'commands/verify.js#verifyHere': ['cli.js#freezer', 'native-flakes.js#observeFailure'],
+  'commands/verify.js#verifyHere': ['cli.js#freezer', 'cli/claim.js#freezer', 'native-flakes.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
   'spec-approval.js#approvalEvidence': ['spec.js#readSignoffs'],
   'spec-approval.js#confirmedDecision': ['signature.js#verifyRowDecision'],
@@ -1399,7 +1399,7 @@ test('a helper added to the board that changes a status outside moveItem is refu
 });
 
 test('transport boundaries keep a new item refusal in ordered dispatch visible [M1,M4,H16]', () => {
-  const inDispatch = editedSource('cli.js', /^(?:export )?async function ordered\(ctx, board, operation, args\) \{$/m,
+  const inDispatch = editedSource('cli/claim.js', /^(?:export )?async function ordered\(ctx, board, operation, args\) \{$/m,
     "$&\n  if (args[0] === 999) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inDispatch).sort(), [
     'MOON_PHASE is raised by accept and reject but not declared there',

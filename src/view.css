@@ -607,7 +607,7 @@ form.inline { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: 
 .shout header { display: flex; flex-wrap: nowrap; align-items: baseline; gap: var(--space-0) var(--space-3); }
 .shout .who, .shout .to { display: flex; flex: 0 1 auto; min-width: min-content; white-space: nowrap; }
 /* A recipient with no model to shorten, such as coordinator and you, gives way with an ellipsis before the age is pushed out. */
-.shout .to:not(:has(.agent-label)) { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.shout .to:not(:has(.agent-label, .agent-address)) { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .shout .agent-label { display: inline-grid; grid-template-columns: max-content minmax(0, 1fr); min-width: 0; }
 .shout .agent-label.prefix { grid-template-columns: minmax(0, 1fr) max-content; }
 .shout .agent-model { overflow: hidden; text-overflow: ellipsis; white-space: pre; }
@@ -620,7 +620,7 @@ form.inline { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: 
 /* A waiting ask keeps its address and age whole; a wider fallback font shortens its kind instead. */
 #decisions .shout header { flex-wrap: nowrap; }
 #decisions .shout .who, #decisions .shout .to { flex: 0 1 auto; min-width: min-content; white-space: nowrap; }
-#decisions .shout .to:not(:has(.agent-label)) { min-width: 0; }
+#decisions .shout .to:not(:has(.agent-label, .agent-address)) { min-width: 0; }
 #decisions .shout header .mark { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #decisions .shout header time { flex: none; }
 .shout .text { margin-top: var(--space-1); overflow-wrap: break-word; }
@@ -743,6 +743,8 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .flow g:hover > .box, .flow g:hover > .edge { stroke-width: 2.2; }
 .activity-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-4); }
 .activity-toolbar .activity-bar { margin: 0; }
+.activity-toolbar #activity-filters, .activity-toolbar .activity-bar { min-width: 0; max-width: 100%; }
+.activity-toolbar .seg { box-sizing: border-box; }
 .activity-toolbar .flow-show { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0 0 0 auto; font-size: var(--text-xs); }
 .flow-show svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .flow [data-lifecycle-stage] .name { font: 600 var(--text-sm) var(--sans); letter-spacing: 0; fill: var(--ink-muted); }
@@ -1374,3 +1376,56 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
   .floor-queue .dash-list { max-height: 360px; }
 }
 .floor-queue .dash-list li:last-child { border-bottom: 0; }
+
+
+/* Canonical window comparisons retain every figure in a readable four-column table on phones. */
+.dash-comparison table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: var(--space-4); font-size: var(--text-xs); }
+.dash-comparison th, .dash-comparison td { padding: var(--space-2); border-bottom: 1px solid var(--line); overflow-wrap: anywhere; vertical-align: top; }
+.dash-comparison th { text-align: left; }
+.dash-comparison th:first-child { width: 43%; }
+.dash-comparison td { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Settings keeps ordinary read-only values intact while narrowing to a single column on phones. */
+.side { display: flex; flex-direction: column; }
+.side-body { flex: 1; }
+.side-footer { display: flex; gap: var(--space-2); padding-top: var(--space-4); margin-top: var(--space-5); border-top: 1px solid var(--line); }
+.side-footer .ghost { min-height: 44px; flex: 1; justify-content: center; }
+.settings-heading, .settings-toolbar { display: flex; justify-content: space-between; align-items: start; gap: var(--space-4); flex-wrap: wrap; }
+.settings-heading { padding-bottom: var(--space-5); border-bottom: 1px solid var(--line); }
+.settings-heading h2 { margin: 0 0 var(--space-2); }
+.settings-heading p { margin: 0; color: var(--ink-muted); }
+.settings-heading .eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: var(--text-xs); margin-bottom: var(--space-2); }
+.settings-toolbar { margin-top: var(--space-5); }
+.settings-context { margin: 0; color: var(--ink-muted); font-size: var(--text-sm); }
+#settings-content .settings-scopes { gap: 0; margin-block: var(--space-3) 0; }
+#settings-content .settings-scopes button { min-height: 44px; }
+#settings-content table { table-layout: fixed; }
+#settings-content th, #settings-content td { box-sizing: border-box; }
+#settings-content thead th:nth-child(1) { width: 34%; }
+#settings-content thead th:nth-child(2) { width: 20%; }
+#settings-content thead th:nth-child(3) { width: 16%; }
+#settings-content thead th:nth-child(4) { width: 30%; }
+#settings-content th code { font-size: var(--text-sm); font-weight: 600; }
+.setting-description { display: block; margin-top: var(--space-2); font-weight: 400; color: var(--ink-muted); }
+.setting-root { display: block; margin-top: var(--space-2); color: var(--ink-faint); font-weight: 400; overflow-wrap: anywhere; }
+.setting-origin { display: block; color: var(--ink-faint); font-size: var(--text-xs); }
+.setting-error { color: var(--reject); margin-block: var(--space-2) 0; }
+@media (width < 900px) { .side-footer { display: none; } .side.open .side-footer { display: flex; } }
+@media (width < 600px) {
+  #settings-pane { padding: var(--space-4); }
+  #settings-content table, #settings-content tbody, #settings-content tr, #settings-content th, #settings-content td { display: block; width: 100%; max-width: none; box-sizing: border-box; }
+  #settings-content thead { display: none; }
+  #settings-content tr { padding-block: var(--space-3); border-bottom: 1px solid var(--line); }
+  #settings-content th, #settings-content td { border: 0; padding: var(--space-2) 0; }
+  #settings-content td::before { display: block; color: var(--ink-faint); font-size: var(--text-xs); }
+  #settings-content td:nth-child(2)::before { content: 'Value'; }
+  #settings-content td:nth-child(3)::before { content: 'Default'; }
+  #settings-content td:nth-child(4)::before { content: 'Source'; }
+}
+
+/* Every scope remains a full touch target when the Settings pane narrows. */
+body:has(#settings-pane:not([hidden])) #share-note { display: none; }
+@media (width < 600px) {
+  #settings-content .settings-scopes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; overflow: visible; }
+  #settings-content .settings-scopes button { min-width: 0; white-space: normal; }
+}
