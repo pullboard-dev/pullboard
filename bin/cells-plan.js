@@ -83,7 +83,7 @@ export function writePlan(root, plan) {
   for (const name of readdirSync(join(root, PLAN_DIR))) if (name.endsWith('.json') && !keep.has(`${PLAN_DIR}/${name}`)) rmSync(join(root, PLAN_DIR, name));
   for (const [file, cell] of shards) writeFileSync(join(root, file), formatJson(cell) + '\n');
   const index = { ...plan, totals, cells: cells.map(cell => ({ order: cell.order, name: cell.name, file: shardFile(cell) })) };
-  writeFileSync(join(root, PLAN_FILE), formatJson(index) + '\n');
+  writeFileSync(join(root, PLAN_FILE), JSON.stringify(index, null, 2) + '\n');
 }
 
 /** Read the committed plan back as one object, refusing an index whose shard is missing. */
