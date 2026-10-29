@@ -517,7 +517,9 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   assert.deepEqual(store.getItem(board, active), claimBefore, 'delivery grants no claim or lease authority');
   const again = box.run(box.web, 'inbox', '--json');
   assert.equal(again.code, 0, again.err);
-  assert.deepEqual(new Set(JSON.parse(again.out).activity.interrupts.map(entry => entry.id)), new Set(feed.interrupts.map(entry => entry.id)),
+  // #1885: delivered obligations stay pending by id on a repeat read; they are never replayed as text.
+  assert.deepEqual(JSON.parse(again.out).activity.interrupts, [], 'a repeat read replays no delivered interrupt');
+  assert.deepEqual(new Set(JSON.parse(again.out).activity.pending), new Set(feed.interrupts.map(entry => entry.id)),
     'reading or advancing a checkout cursor never means acted-on');
   assert.deepEqual(JSON.parse(again.out).activity.digests, [], 'ordinary checks do not deliver the digest');
   const ids = feed.interrupts.map(entry => entry.id).join(',');
