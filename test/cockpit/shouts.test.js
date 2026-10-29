@@ -83,6 +83,7 @@ test('an empty feed says so on one line [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    page.run("openTab('shouts'); render();");
     assert.equal(page.show('feed'), '<div class="empty">No shouts yet.</div>', 'one line, with no bar while the feed shows everything');
     assert.match(page.html, /<div class="card-panel shouts-card">[^]*<div class="feed" id="feed"><\/div><\/div>/, 'the shouts feed, in the Shouts card');
     assert.match(page.html, /<div class="card-panel feed" id="activity"><\/div>/, 'and the activity feed are both feeds');
@@ -98,16 +99,18 @@ test('a shout shows the evidence it carries [B22]', async () => {
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
   const head = box.git(alpha.web, 'rev-parse', 'HEAD');
-  box.run(alpha.web, 'shout', 'all', 'the page loads in 80ms', '--evidence', 'receipt', '--outcome', 'measured <fast>', '--item', '1', '--commit', head.slice(0, 7));
-  box.run(alpha.web, 'shout', 'all', 'tried a cache', '--evidence', 'attempt', '--outcome', 'failed', '--item', '1', '--commit', 'HEAD');
+  box.run(alpha.web, 'shout', 'all', 'Does the measured page load meet the budget?', '--kind', 'question', '--evidence', 'receipt', '--outcome', 'measured <fast>', '--item', '1', '--commit', head.slice(0, 7));
+  box.run(alpha.web, 'shout', 'all', 'Should we retry the failed cache attempt?', '--kind', 'question', '--evidence', 'attempt', '--outcome', 'failed', '--item', '1', '--commit', 'HEAD');
   box.run(alpha.web, 'shout', 'all', 'nothing to show');
   const view = await startView(box);
   try {
-    const feed = (await openPage(view)).show('feed');
+    const page = await openPage(view);
+    page.run("openTab('shouts'); render();");
+    const feed = page.show('feed');
     const card = (kind, outcome) => `<div class="receipt"><div><span class="badge">${kind}</span> <span class="outcome">${outcome}</span></div><div class="receipt-foot"><a class="ref" href="/items/1" data-go="item:1" title="Greeting">#1</a> · web-1 (Test Model) · <code class="inline sha" title="${head}">${head.slice(0, 10)}</code></div></div>`;
     const after = (text) => feed.slice(feed.indexOf(text + '</div>') + text.length + 6).replace(/^<button class="more" data-more type="button">more<\/button>/, '');
-    assert.ok(after('the page loads in 80ms').startsWith(card('receipt', 'measured &lt;fast&gt;')), `what was measured, for which item, by whom, at which commit: ${after('the page loads in 80ms').slice(0, 400)}`);
-    assert.ok(after('tried a cache').startsWith(card('attempt', 'failed')), 'and what was tried');
+    assert.ok(after('Does the measured page load meet the budget?').startsWith(card('receipt', 'measured &lt;fast&gt;')), `what was measured, for which item, by whom, at which commit: ${after('Does the measured page load meet the budget?').slice(0, 400)}`);
+    assert.ok(after('Should we retry the failed cache attempt?').startsWith(card('attempt', 'failed')), 'and what was tried');
     assert.match(feed, /<span class="item">#1<\/span>/, 'the card names its item on top');
     assert.ok(feed.includes('nothing to show</div>'), 'a shout with no evidence has no card');
   } finally {
@@ -266,7 +269,9 @@ test('real Chrome styles shout code and item text without growing linked lines [
       if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error') consoleErrors.push(message.params.entry.text);
     });
     await chrome.send('Log.enable');
-    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 4 && document.querySelectorAll("#feed > .shout").length >= 4');
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 4');
+    await chrome.click("document.querySelector('[data-tab=items]')");
+    await chrome.click("document.querySelector('#chain [data-item=\"1\"]')");
     await assertFirstStateDelay(chrome, t);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 1280 && document.querySelector("#detail .text.muted code.inline")?.getBoundingClientRect().width > 0');
@@ -291,6 +296,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
     await chrome.click("document.querySelector('#add-cancel')");
     await chrome.waitFor("document.querySelector('#add-form').hidden");
     await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+    await chrome.waitFor('document.querySelectorAll("#feed > .shout").length >= 4');
 
     const rendered = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const shout = [...document.querySelectorAll('#feed > .shout')].find((row) => row.textContent.includes('Inline'));

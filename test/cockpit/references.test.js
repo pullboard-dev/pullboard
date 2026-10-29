@@ -51,6 +51,7 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    page.run("openTab('shouts'); render();");
     // A button carries the text written before it on its line.
     // Its label: the path, then the lines and the commit's first ten characters; the whole reference on hover.
     const label = (ref) => `<span class="ref-path">${ref.slice(0, ref.indexOf(':'))}</span><span class="ref-at">${ref.slice(ref.indexOf(':'), ref.lastIndexOf('@'))}<span class="ref-sha">${ref.slice(ref.lastIndexOf('@'), ref.lastIndexOf('@') + 11)}</span></span>`;
@@ -200,7 +201,9 @@ test('committed shout and fact references stay local, expand safely at phone and
   const view = await startView(box);
   let chrome;
   try {
-    chrome = await openSnapshotChrome(executable, view.link.href, join(box.dir, 'local-code-chrome'));
+    const link = new URL(view.link.href);
+    link.pathname = '/items/1';
+    chrome = await openSnapshotChrome(executable, link.href, join(box.dir, 'local-code-chrome'));
     await chrome.waitFor('typeof data === "object" && data?.project?.shouts?.length >= 3 && !!document.querySelector("#detail .fact-code button[data-code]")');
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });

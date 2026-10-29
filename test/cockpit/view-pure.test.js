@@ -325,7 +325,7 @@ test('Roadmap headers display supplied counts, estimates and linked needs withou
   assert.match(result.detail, /viewBox="0 0 10 1"/u);
   assert.deepEqual([...result.detail.matchAll(/data-count="(\d+)"/gu)].map(match => Number(match[1])), [2, 1, 3, 1, 2, 1]);
   assert.match(result.detail, /aria-pressed="true" data-summary-state="held"/u);
-  assert.match(result.detail, /About 2 to 4 h at today’s pace/u);
+  assert.match(result.detail, /About 2 to 4 hours at today’s pace/u);
   assert.match(result.detail, /2 landed in the last 6 h, 1 in the last 2 h/u);
   assert.match(result.detail, /display:2026-10-29T12:00:00Z/u);
   assert.match(result.detail, /past target/u);
