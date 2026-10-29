@@ -4,16 +4,16 @@ import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { readCellLintBaseline } from '../src/cell-lint-store.js';
-import { writeCellLintBaseline } from '../src/cell-lint-store.js';
-import { CELL_BASELINE_DESCRIPTOR } from '../src/cell-lint-store.js';
-import { cellLintCells } from '../src/cell-lint-cell-shards.js';
-import { storedCellLintFiles } from '../src/cell-lint-store.js';
-import { planCellLintBaseline } from '../src/cell-lint-baseline-plan.js';
-import { cellLintReport } from '../src/cell-lints.js';
-import { cellLintBaseline } from '../src/cell-lint-ratchet.js';
-import { cellLintGrowth } from '../src/cell-lint-ratchet.js';
-import { lowerCellLintBaseline } from '../src/cell-lint-ratchet.js';
+import { readCellLintBaseline } from '../packages/codemap/index.js';
+import { writeCellLintBaseline } from '../packages/codemap/index.js';
+import { CELL_BASELINE_DESCRIPTOR } from '../packages/codemap/index.js';
+import { cellLintCells } from '../packages/codemap/index.js';
+import { storedCellLintFiles } from '../packages/codemap/index.js';
+import { planCellLintBaseline } from '../packages/codemap/index.js';
+import { cellLintReport } from '../packages/codemap/index.js';
+import { cellLintBaseline } from '../packages/codemap/index.js';
+import { cellLintGrowth } from '../packages/codemap/index.js';
+import { lowerCellLintBaseline } from '../packages/codemap/index.js';
 
 const [mode = '--report', directory = '.'] = process.argv.slice(2);
 if (!['--report', '--check', '--init', '--update'].includes(mode) || process.argv.length > 4) {

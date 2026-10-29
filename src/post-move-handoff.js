@@ -24,7 +24,7 @@ async function takeFollowing(ctx, completedId, { nextOnce, withBoardRead, listIt
       if (found.retry) continue;
       if (!found.item) return idle(found.reasons?.length ? found.reasons : ['no eligible work in this seat']);
       return { item: found.item, review, held: Boolean(found.held), reasons: found.reasons ?? [],
-        ...(found.seat ? { seat: found.seat } : {}), ...(found.shared?.length ? { shared: found.shared } : {}) };
+        ...(found.seat ? { seat: found.seat } : {}), ...(found.companions ? { companions: found.companions } : {}), ...(found.shared?.length ? { shared: found.shared } : {}) };
     } catch (error) {
       if (!(error instanceof Refused)) throw error;
       if (['HELD', 'NOT_REVIEWABLE', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) continue;
@@ -50,6 +50,7 @@ export async function completeMoveHandoff(ctx, completedId, values, primary, ser
   ctx.io.result?.(result);
   if (next.item) {
     ctx.io.say(`next ${next.review ? 'review reserved' : next.held ? 'work held' : 'build claimed'}: #${next.item.item_id} ${next.item.item_title}`);
+    if (next.companions) ctx.io.say(`review tree checked out at ${next.companions.commit}; patch-set digest: ${next.companions.digest}; companions: ${next.companions.keys.join(', ')}`);
     if (next.item.item_check) ctx.io.say(`check: ${next.item.item_check}`);
   } else {
     ctx.io.say(`next: no eligible work; ${next.reasons.join('; ').replace(/[\r\n]+/gu, ' ')}`);

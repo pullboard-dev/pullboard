@@ -1,5 +1,6 @@
 /** Explicit test roles are an inventory, not completion evidence or a browser-admission exemption [N26,C7]. */
 export const VIEW_TEST_ROLES = Object.freeze({
+  'test/cockpit/count-consistency.test.js': { kind: 'journey', reason: 'Real native items, milestones, rules and event-stream updates are compared with rendered counts in every tab, filter choices, Pipeline and the Dashboard floor.' },
   'test/cockpit/roadmap-count.test.js': { kind: 'journey', reason: 'Real native milestones, acceptance and recorded trunk landing update an authenticated live Chrome Roadmap and its remaining-work browser title through the event stream.' },
   'test/cockpit/plain-words.test.js': { kind: 'journey', reason: 'Genuine legacy model-less seat, ordered native health/review/fact events, authenticated HTTP and Chrome scan of person-visible names, words and chart hover text; pure label assertions retain explicit timestamp inputs.' },
   'test/cockpit/item-timeline.test.js': { kind: 'journey', reason: 'Actual native checks/facts and live authenticated HTTP detail, followed by Chrome rail geometry, disclosure, and item/code navigation at desktop and phone widths.' },
@@ -282,6 +283,10 @@ export const VIEW_TEST_ROLES = Object.freeze({
   "test/cockpit/roadmap.test.js": {
     "kind": "journey",
     "reason": "roadmap: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
+  },
+  "test/cockpit/roadmap-summary-card.test.js": {
+    "kind": "journey",
+    "reason": "A native roadmap API fixture supplies the initial milestone summary to a live authenticated Chrome card; a labeled presenter-only scenario checks legend text/alignment, phone and desktop geometry, and forecast styling."
   },
   "test/cockpit/scope.test.js": {
     "kind": "journey",

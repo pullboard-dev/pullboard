@@ -121,7 +121,7 @@ const ENTRY_POINTS = [
   { verbs: ['submit'], at: ['board.js#submit', 'commands/submit.js#submitHere'] },
   { verbs: ['reserve'], at: ['board.js#reserveReview', 'board.js#reserveNextReview'] },
   { verbs: ['accept', 'reject'], at: ['board.js#verify', 'commands/verify.js#verifyHere'] },
-  { verbs: ['escalate'], at: ['board.js#escalate'] },
+  { verbs: ['escalate'], at: ['board-escalate.js#escalate'] },
   { verbs: ['withdraw'], at: ['board.js#withdraw'] },
   { verbs: ['refreeze'], at: ['board.js#refreeze'] },
   { verbs: ['reopen'], at: ['board.js#reopen'] },
@@ -156,17 +156,22 @@ const CAUGHT = {
   // specApprovalState turns a Refused from the canonical baseline reader into invalid evidence.
   'spec-approval.js#specApprovalState': ['board-query.js#specApprovalBaseline'],
   // Historical decline metadata is parsed inside a non-throwing boundary, covered by the Rigor history control.
-  'board.js#reopen': ['rigor-notices.js#declinedRigorSource'],
+  'board.js#reopen': ['rigor-notices.js#declinedRigorSource', '../packages/rigor/src/core/rigor-notices.js#declinedRigorSource'],
   // Rigor projection folds inspect invalid cause results as data, never lifecycle refusals.
   'board-rigor.js#eventCauses': ['board-rigor.js#causeProblem'],
-  'rigor-counter-state.js#neverKey': ['board-rigor.js#causeProblem'],
+  '../src/board-rigor.js#eventCauses': ['../src/board-rigor.js#causeProblem'], // The same helper as reached from the moved Rigor cell.
+  '../packages/rigor/src/core/rigor-counter-state.js#neverKey': ['../src/board-rigor.js#causeProblem'],
   // Historical decline grammar is caught locally; typed readers return invalid evidence as null.
-  'rigor-counter-state.js#declineKey': ['spec.js#parseSpec'],
+  '../packages/rigor/src/core/rigor-counter-state.js#declineKey': ['../src/spec.js#parseSpec'],
   'board-rigor-source.js#readRigorSource': ['board-rigor.js#causeProblem'],
+  '../src/board-rigor-source.js#readRigorSource': ['../src/board-rigor.js#causeProblem'], // As reached from the moved Rigor cell.
   'board-rigor-auto-source.js#readAutomaticRigorSource': ['board-rigor.js#causeProblem'],
+  '../src/board-rigor-auto-source.js#readAutomaticRigorSource': ['../src/board-rigor.js#causeProblem'], // As reached from the moved Rigor cell.
   // Only an unsupported historical grammar is ignored; new caller refusals remain audited below.
   'board-rigor-auto-source.js#automaticDecisionSource': ['spec.js#parseSpec'],
+  '../src/board-rigor-auto-source.js#automaticDecisionSource': ['../src/spec.js#parseSpec'], // As reached from the moved Rigor cell.
   'board-rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec'],
+  '../src/board-rigor-auto-source.js#rigorDecisionKey': ['../src/spec.js#parseSpec'], // As reached from the moved Rigor cell.
   'person-row-proof.js#signedRowDecisionsMatch': ['spec.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
 };
 /**
@@ -275,7 +280,7 @@ function codeProblems(machine, read = fromDisk) {
     }
   }
   const commandFiles = fs.readdirSync(new URL('../src/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `commands/${name}`);
-  const raised = new Set(['board.js', 'cli.js', 'spec.js', ...commandFiles].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
+  const moveFiles = new Set([...read('board.js').matchAll(/^import \{ \w+ \} from '\.\/(board-[\w-]+\.js)';$/gmu)].map((match) => match[1])), raised = new Set(['board.js', ...moveFiles, 'cli.js', 'spec.js', ...commandFiles].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
 }
@@ -292,7 +297,8 @@ function codeProblems(machine, read = fromDisk) {
 function editedSource(file, line, replacement) {
   return (name) => {
     const source = fromDisk(name);
-    if (name !== file) return source;
+    // The moved Rigor cell reaches src/ files as ../src/<file>; it is the same file.
+    if (name.replace(/^\.\.\/src\//, '') !== file) return source;
     assert.match(source, line, `${file} still has the line this broken copy rewrites`);
     return source.replace(line, replacement);
   };
@@ -1320,12 +1326,12 @@ test('only moveItem writes an item\'s status, and a write anywhere else fails th
     "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function current");
   assert.deepEqual(statusWriters(besideReader), ['board-query.js#reopenByHand'], 'the projection exemption never covers a writer beside it');
   assert.match(functionsIn(fromDisk('board.js')).get('moveItem'), /item_status: move\.to/, 'moveItem is the writer');
-  const planted = editedSource('board.js', /set: \(found\) => \(\{ item_route: nextRoute\(found\.item_route\), item_owner: null, item_lease_until: null \}\),/, "set: (found) => ({ item_route: nextRoute(found.item_route), item_status: 'open', item_owner: null, item_lease_until: null }),");
-  assert.deepEqual(statusWriters(planted), ['board.js#escalate']);
-  const lowercase = editedSource('board.js', /^export function recordAttempt/m, "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function recordAttempt");
-  assert.deepEqual(statusWriters(lowercase), ['board.js#reopenByHand']);
-  const computed = editedSource('board.js', /^export function recordAttempt/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport function recordAttempt");
-  assert.deepEqual(statusWriters(computed), ['board.js#reopenByKey']);
+  const planted = editedSource('board-escalate.js', /set: \(found\) => \(\{ item_route: nextRoute\(found\.item_route\), item_owner: null, item_lease_until: null \}\),/, "set: (found) => ({ item_route: nextRoute(found.item_route), item_status: 'open', item_owner: null, item_lease_until: null }),");
+  assert.deepEqual(statusWriters(planted), ['board-escalate.js#escalate']);
+  const lowercase = editedSource('board-record-attempt.js', /^export function recordAttempt/m, "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function recordAttempt");
+  assert.deepEqual(statusWriters(lowercase), ['board-record-attempt.js#reopenByHand']);
+  const computed = editedSource('board-record-attempt.js', /^export function recordAttempt/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport function recordAttempt");
+  assert.deepEqual(statusWriters(computed), ['board-record-attempt.js#reopenByKey']);
   const besideCatalog = editedSource('json.js', /^export const JSON_SHAPES =/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport const JSON_SHAPES =");
   assert.deepEqual(statusWriters(besideCatalog), ['json.js#reopenByKey'], 'the output catalog exemption never covers a writer beside it');
 });
@@ -1383,7 +1389,7 @@ test('same-file runner controller bridges retain child refusals in the lifecycle
 });
 
 test('Rigor historical data boundaries do not hide a new projection refusal [M1,M4]', () => {
-  const broken = editedSource('rigor-counter-state.js', /export function rigorCounterKeys\(event, person\) \{/, "export function rigorCounterKeys(event, person) { if (event.event_kind === 'probe') throw new Refused('RIGOR_PROBE', 'new item eligibility rule');");
+  const broken = editedSource('../packages/rigor/src/core/rigor-counter-state.js', /export function rigorCounterKeys\(event, person\) \{/, "export function rigorCounterKeys(event, person) { if (event.event_kind === 'probe') throw new Refused('RIGOR_PROBE', 'new item eligibility rule');");
   assert.ok(codeProblems(machineRules.MACHINE, broken).includes('RIGOR_PROBE is raised by claim but not declared there'));
 });
 
