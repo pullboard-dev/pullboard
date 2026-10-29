@@ -4,17 +4,11 @@
  "kind": "package",
  "root": "packages/seats",
  "frontDoor": "packages/seats/index.js",
- "placedBy": {
-  "seed": 24,
-  "rule": 1,
-  "imports": 1
- },
  "paths": [
   ["src/agent-hook-work.js","packages/seats/src/core/agent-hook-work.js","seed"],
   ["src/agent-hook.js","packages/seats/src/shell/agent-hook.js","seed"],
   ["src/agent-hooks.js","packages/seats/src/shell/agent-hooks.js","seed"],
   ["src/agent-names.js","packages/seats/src/core/agent-names.js","seed"],
-  ["src/agent-proof-guidance.js","packages/seats/src/core/agent-proof-guidance.js","seed"],
   ["src/agent-session.js","packages/seats/src/shell/agent-session.js","seed"],
   ["src/agent-tree.js","packages/seats/src/shell/agent-tree.js","seed"],
   ["src/computer-name.js","packages/seats/src/core/computer-name.js","seed"],
@@ -41,7 +35,6 @@
   "src/agent-hook.js",
   "src/agent-hooks.js",
   "src/agent-names.js",
-  "src/agent-proof-guidance.js",
   "src/agent-session.js",
   "src/agent-tree.js",
   "src/computer-name.js",
@@ -80,7 +73,6 @@
   {"cell":"app:cli","imports":6,"before":false}
  ],
  "cuts": [
-  {"cell":"config","imports":1,"edges":["src/templates.js->src/agent-proof-guidance.js"]},
   {"cell":"state","imports":2,"edges":["src/engine.js->src/coordinator-hold.js","src/engine.js->src/line-settings.js"]}
  ],
  "ratchets": {

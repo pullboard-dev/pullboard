@@ -354,12 +354,23 @@ function manyCalls() {
   return Array.from({ length: 300 }, (_, index) => `const output${index} = join(root, 'leaf-${index}');`).join('\n');
 }
 
-/** Read exact regular committed producer bytes from this source-only test checkout, never machine state. */
-function sourceSnapshot(file) {
-  assert.equal(file, 'src/projects.js', 'this fixture supplies exactly its actual imported producer source');
-  return { source: readFileSync(new URL('../src/projects.js', import.meta.url), 'utf8'),
-    object: runFixtureGit(['rev-parse', 'HEAD:src/projects.js'], { cwd: fileURLToPath(new URL('../', import.meta.url)) }) };
+/**
+ * Supply exactly one producer's committed bytes: its original identity and, once a cells move maps it, the shim at
+ * that identity and the body the committed path map names. Why: the fixture bar stays the actual imported producer
+ * while a move changes where its body lives, so no move has to edit these cases.
+ */
+function mappedProducer(identity) {
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const mapped = mappedWorkingSource(root, identity);
+  const files = new Map([[mapped.implementationPath, mapped.body], ...(mapped.shimPath ? [[mapped.shimPath, mapped.shimBody]] : [])]);
+  return file => {
+    assert.ok(files.has(file) && files.get(file) !== null, 'this fixture supplies exactly its actual imported producer source');
+    return { source: files.get(file).toString('utf8'), object: runFixtureGit(['rev-parse', `HEAD:${file}`], { cwd: root }) };
+  };
 }
+
+/** Read exact regular committed producer bytes from this source-only test checkout, never machine state. */
+const sourceSnapshot = file => mappedProducer('src/projects.js')(file);
 
 test('actual api-http fixture config reads resolve without changing their source or move proof [C7]', () => {
   assert.throws(() => sourceSnapshot('src/git.js'), /exactly its actual imported producer source/);
@@ -572,12 +583,40 @@ test('session path producers prove a fixed leaf without granting authority to th
     valid.replace('locate(info)', 'locate(...info)'),
     valid.replace('return join', "if (info) return info.file; return join"),
   ]) assert.ok(fixtureSourceEdits(consumer, { ...options, readSource: () => blob(source) }).problems.length, source);
-  const actual = readFileSync(new URL('../src/agent-session.js', import.meta.url), 'utf8');
   const direct = "import { readFileSync } from 'node:fs'; import { checkoutSessionFile } from '../src/agent-session.js'; readFileSync(checkoutSessionFile(repoInfo(worker)), 'utf8');";
-  assert.deepEqual(fixtureSourceEdits(direct, { ...options, readSource: file => {
-    assert.equal(file, 'src/agent-session.js');
-    return blob(actual);
-  } }), { edits: [], problems: [] });
+  assert.deepEqual(fixtureSourceEdits(direct, { ...options, readSource: mappedProducer('src/agent-session.js') }), { edits: [], problems: [] });
+});
+
+test('a producer moved into a package behind its shim resolves its deep relative imports and keeps its exact bar [C7]', () => {
+  const consumer = "import { readFileSync } from 'node:fs'; import { locate } from '../src/producer.js'; readFileSync(locate(info));";
+  const options = { file: 'test/moved-producer.js', moves: [['src/producer.js', 'packages/seats/src/shell/producer.js']] };
+  const body = "import { join } from 'node:path';\nimport { Refused } from '../../../../src/refused.js';\n"
+    + "import { guard } from '../../../kernel/src/core/guard.js';\n"
+    + "export function locate(info) { return join(info.gitDir, 'pullboard-checkout-session.json'); }\n";
+  const sources = { 'src/producer.js': "export { locate } from '../packages/seats/src/shell/producer.js';\n",
+    'packages/seats/src/shell/producer.js': body };
+  const inspect = values => fixtureSourceEdits(consumer, { ...options, readSource: file => values[file] ? blob(values[file]) : null });
+  assert.deepEqual(inspect(sources), { edits: [], problems: [] }, 'the shim and its ../../../../ body imports resolve');
+  assert.ok(inspect({ ...sources, 'packages/seats/src/shell/producer.js': undefined }).problems.length, 'an unreadable moved body never proves the read');
+  assert.ok(inspect({ ...sources, 'packages/seats/src/shell/producer.js': body.replace("'pullboard-checkout-session.json'", "'producer.js'") }).problems.length,
+    'a moved body whose leaf is a moved basename still refuses');
+});
+
+test('mapped working source path fields follow the path map while lookalikes, other fields and writes stay unproven [C7]', () => {
+  const head = "import { readFileSync } from 'node:fs';\nimport { join } from 'node:path';\nimport { mappedWorkingSource } from '../bin/checks/scan.js';\n";
+  const options = { file: 'test/mapped-reader.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']] };
+  const inspect = body => fixtureSourceEdits(head + body, options).problems;
+  const valid = "const mapped = mappedWorkingSource(root, 'src/git.js');\nreadFileSync(join(installed, mapped.implementationPath));\nreadFileSync(join(installed, mapped.shimPath));\n";
+  assert.deepEqual(inspect(valid), [], 'the map-resolved implementation and shim paths need no repointing');
+  for (const body of [valid.replace('mapped.shimPath', 'mapped.identity'),
+    valid.replace("'src/git.js'", 'identity'),
+    valid + 'mapped.implementationPath = other;\n',
+    valid.replace("mappedWorkingSource(root, 'src/git.js')", "copy(root, 'src/git.js')"),
+    valid.replace('join(installed, mapped.implementationPath)', "join(installed, mapped.implementationPath, 'git.js')"),
+    valid + 'function shadow(mappedWorkingSource) { return mappedWorkingSource; }\n',
+  ]) assert.ok(inspect(body).length, body);
+  assert.ok(fixtureSourceEdits(head.replace('../bin/checks/scan.js', './scan-lookalike.js') + valid, options).problems.length,
+    'only the real scan module export qualifies');
 });
 
 test('named metadata constants follow exact bounded reexports and retain collision refusal [C7]', () => {
