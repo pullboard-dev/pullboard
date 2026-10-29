@@ -171,6 +171,7 @@
  ],
  "cuts": [
   {"cell":"git","imports":1,"edges":["src/queued-item-lease.js->src/git-wait-reporter.js"]},
+  {"cell":"spec","imports":1,"edges":["src/spec-gate-move.js->src/test-selection.js"]},
   {"cell":"items","imports":2,"edges":["src/item-patch-submit.js->src/gate-run-receipt.js","src/item-patch-submit.js->src/gate-submit.js"]},
   {"cell":"verify","imports":1,"edges":["src/proof-provenance.js->src/test-outcomes.js"]}
  ],
