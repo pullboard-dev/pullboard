@@ -68,7 +68,8 @@ import { editItem } from './board-edit-item.js';
 import { validateItemEdit } from './board-edit-item.js';
 import { attachItemPatch } from './board-attach-item-patch.js';
 import { removeItemPatch } from './board-remove-item-patch.js';
-import { claim } from './board-claim.js';
+import { prepareClaim as preparedClaim } from './board-claim.js';
+import { claim as applyPreparedClaim } from './board-claim.js';
 import { release } from './board-release.js';
 import { submit } from './board-submit.js';
 import { reviewReleaseNoteProblem } from './board-review-release-note.js';
@@ -202,26 +203,8 @@ function declaredCodes(move, id) {
   return [guard.refuse, ...(guard.alsoRefuses ?? []).map((entry) => entry.code)];
 }
 
-/**
- * Apply one declared move to an item (M1, M2). This is the only code that writes an item's status.
- *
- * It checks the move's guards, then any exit guard of its target the move does not name, in the
- * order src/machine.js declares them, and refuses with the first that does not hold. `checks` has
- * one entry per guard: a function given the item that returns null when the guard holds or the
- * refusal when it does not, or null for a guard the caller has already checked, such as the CLI's
- * look at git and the gate. The item's state is checked against the move's declared starting
- * states; its entry supplies only the refusal. Each refusal must carry the code the declaration
- * gives that guard, so the code here and the declaration cannot drift apart. Once every guard
- * holds, `before` runs, for what must exist before the write, such as the verdict that proves an
- * accept; then the target state's fields are checked and the status written with `set`.
- *
- * @param {any} board
- * @param {number} id
- * @param {string} verb
- * @param {{ checks: Record<string, ((item: any) => Refused | null) | null>, set?: (item: any) => object, before?: (item: any) => void, transition?: object }} how
- * @returns {any} The item as it was before the move.
- */
-export function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}, transition = null, unchanged = null }) {
+/** Validate the original declared guards without mutating the item; preparation reuses their exact order. */
+function checkedItemMove(board, id, verb, checks, transition = null) {
   const move = transition ?? MOVES.find((entry) => entry.verb === verb);
   if (!move) throw new Refused(UNKNOWN_MOVE.refuse, `${UNKNOWN_MOVE.rule}: ${UNKNOWN_MOVE.next}`);
   let item = null;
@@ -242,6 +225,30 @@ export function moveItem(board, id, verb, { checks, set = () => ({}), before = (
     }
     throw refusal;
   }
+  return { move, item };
+}
+
+/**
+ * Apply one declared move to an item (M1, M2). This is the only code that writes an item's status.
+ *
+ * It checks the move's guards, then any exit guard of its target the move does not name, in the
+ * order src/machine.js declares them, and refuses with the first that does not hold. `checks` has
+ * one entry per guard: a function given the item that returns null when the guard holds or the
+ * refusal when it does not, or null for a guard the caller has already checked, such as the CLI's
+ * look at git and the gate. The item's state is checked against the move's declared starting
+ * states; its entry supplies only the refusal. Each refusal must carry the code the declaration
+ * gives that guard, so the code here and the declaration cannot drift apart. Once every guard
+ * holds, `before` runs, for what must exist before the write, such as the verdict that proves an
+ * accept; then the target state's fields are checked and the status written with `set`.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {string} verb
+ * @param {{ checks: Record<string, ((item: any) => Refused | null) | null>, set?: (item: any) => object, before?: (item: any) => void, transition?: object }} how
+ * @returns {any} The item as it was before the move.
+ */
+export function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}, transition = null, unchanged = null }) {
+  const { move, item } = checkedItemMove(board, id, verb, checks, transition);
   // A validated no-op retains the exact row, including its lease and update time.
   if (unchanged?.(item)) return item;
   before(item);
@@ -411,7 +418,6 @@ export {
   validateItemEdit,
   attachItemPatch,
   removeItemPatch,
-  claim,
   release,
   submit,
   reviewReleaseNoteProblem,
@@ -455,3 +461,13 @@ export {
 
 /** Temporary public API bridge counted by #1776; native operation importers use their actual owners. */
 export { advanceItemSource, proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation, flakeQuarantines, gateRuns, recordGateRun, personProposals, personSigning, proposePersonMove, setPersonSigning, recordPublishFinding, landingWaivers, landingWaiverFor, waivedLandingProof, recordTrainLanding } from './native-board.js';
+
+/** Prepare a claim before any outer writer; capability binding stays native and connection-local. */
+export function prepareClaim(board, id, options) {
+  return preparedClaim(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
+}
+
+/** Claim with the original guards, revalidated against the prepared database snapshot. */
+export function claim(board, id, options) {
+  return applyPreparedClaim(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
+}

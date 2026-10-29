@@ -6,7 +6,7 @@
  "frontDoor": "packages/store/index.js",
  "placedBy": {
   "seed": 67,
-  "rule": 62,
+  "rule": 64,
   "imports": 8
  },
  "paths": [
@@ -97,6 +97,9 @@
   ["src/board-rigor-auto-source.js","packages/store/src/core/board-rigor-auto-source.js","seed"],
   ["src/board-rigor-source.js","packages/store/src/core/board-rigor-source.js","seed"],
   ["src/board-rigor.js","packages/store/src/core/board-rigor.js","seed"],
+  ["src/board-claim.js","packages/store/src/shell/board-claim.js","rule"],
+  ["src/board-command-write.js","packages/store/src/shell/board-command-write.js","rule"],
+  ["src/board-write-preparation.js","packages/store/src/shell/board-write-preparation.js","rule"],
   ["src/board-act-on-activity.js","packages/store/src/shell/board-act-on-activity.js","rule"],
   ["src/board-activity-delivery.js","packages/store/src/shell/board-activity-delivery.js","rule"],
   ["src/board-add-item.js","packages/store/src/shell/board-add-item.js","rule"],
@@ -107,7 +110,6 @@
   ["src/board-approve-outside.js","packages/store/src/shell/board-approve-outside.js","rule"],
   ["src/board-attach-item-patch.js","packages/store/src/shell/board-attach-item-patch.js","rule"],
   ["src/board-build-order.js","packages/store/src/shell/board-build-order.js","rule"],
-  ["src/board-claim.js","packages/store/src/shell/board-claim.js","rule"],
   ["src/board-edit-item.js","packages/store/src/shell/board-edit-item.js","rule"],
   ["src/board-ensure-coordinator.js","packages/store/src/shell/board-ensure-coordinator.js","rule"],
   ["src/board-finish-landing-batch.js","packages/store/src/shell/board-finish-landing-batch.js","rule"],

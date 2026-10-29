@@ -19,11 +19,11 @@
   },
   "totals": {
     "cells": 43,
-    "movedPaths": 1439,
-    "stays": 41,
+    "movedPaths": 1441,
+    "stays": 42,
     "placedBy": {
       "seed": 892,
-      "rule": 431,
+      "rule": 433,
       "imports": 116
     },
     "shims": 655,
@@ -411,6 +411,10 @@
     {
       "path": "src/git-sync-format.js",
       "reason": "Retired by #1619: consolidated into packages/commits/src/core/board-format.js; no source remains for the sync move."
+    },
+    {
+      "path": "bin/checks/board-write-io.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [

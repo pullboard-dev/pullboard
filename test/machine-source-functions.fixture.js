@@ -37,7 +37,7 @@ export function functionsIn(source) {
 
 /** Board functions handed a function to call, and the one the CLI and the runner hand them. */
 export const MACHINE_CALLBACKS = {
-  'board-claim.js': { freeze: 'cli.js#freezer' },
+  'board-claim.js': { freeze: 'cli.js#freezer', foreignBlockers: 'board.js#foreignBlockers' },
   'board-refreeze.js': { freeze: 'cli.js#freezer' },
   'board-verify.js': { 'board.nativePorts.landingEnvironment.requireVerdict': 'landing-environment-guards.js#requireVerdict' },
   'board-reopen.js': {
