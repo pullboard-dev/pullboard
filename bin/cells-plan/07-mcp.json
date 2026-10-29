@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/mcp",
  "frontDoor": "packages/mcp/index.js",
- "placedBy": {
-  "seed": 1,
-  "rule": 0,
-  "imports": 0
- },
  "paths": [["src/mcp.js","packages/mcp/src/core/mcp.js","seed"]],
  "reexports": ["src/mcp.js"],
  "imports": [

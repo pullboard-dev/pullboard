@@ -153,13 +153,22 @@ export function prepareClaim(board, id, options, ports) {
   const { checkedItemMove } = ports;
   const known = PREPARED_CLAIMS.get(options);
   if (known?.board === board && known.id === id) return options;
-  const snapshot = boardWriteSnapshot(board);
-  const plan = claimPlan(board, id, options, ports);
-  checkedItemMove(board, id, 'claim', plan.how.checks);
-  requireBoardWriteSnapshot(board, snapshot, 'claim');
-  const prepared = Object.freeze({ ...options });
-  PREPARED_CLAIMS.set(prepared, { board, id, snapshot, plan });
-  return prepared;
+  // A baseline worker can publish while freeze reads source. Rebuild the entire plan from the
+  // new board, outside BEGIN, rather than certifying the old plan against a newer snapshot.
+  // Bound preparation so a continuously changing board still reports its contention.
+  for (let attempt = 0; ; attempt++) {
+    const snapshot = boardWriteSnapshot(board);
+    const plan = claimPlan(board, id, options, ports);
+    checkedItemMove(board, id, 'claim', plan.how.checks);
+    try { requireBoardWriteSnapshot(board, snapshot, 'claim'); }
+    catch (error) {
+      if (!(error instanceof Refused) || error.code !== 'BOARD_BUSY' || attempt >= 2) throw error;
+      continue;
+    }
+    const prepared = Object.freeze({ ...options });
+    PREPARED_CLAIMS.set(prepared, { board, id, snapshot, plan });
+    return prepared;
+  }
 }
 
 /**

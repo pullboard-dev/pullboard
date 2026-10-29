@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/codemap",
  "frontDoor": "packages/codemap/index.js",
- "placedBy": {
-  "seed": 1,
-  "rule": 16,
-  "imports": 2
- },
  "paths": [
   ["src/cell-binding-uses.js","packages/codemap/src/shell/cell-binding-uses.js","rule"],
   ["src/cell-lint-baseline-plan.js","packages/codemap/src/shell/cell-lint-baseline-plan.js","rule"],

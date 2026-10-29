@@ -5,11 +5,6 @@
  "root": "apps/relay",
  "frontDoor": "apps/relay/index.js",
  "dryRunName": "app:relay-server",
- "placedBy": {
-  "seed": 48,
-  "rule": 0,
-  "imports": 0
- },
  "paths": [
   ["relay/Dockerfile","apps/relay/src/shell/Dockerfile","seed"],
   ["relay/README.md","apps/relay/src/shell/README.md","seed"],

@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/state",
  "frontDoor": "packages/state/index.js",
- "placedBy": {
-  "seed": 110,
-  "rule": 59,
-  "imports": 2
- },
  "paths": [
   ["src/activity-delivery-engine.js","packages/state/src/core/activity-delivery-engine.js","seed"],
   ["src/activity-news-engine.js","packages/state/src/core/activity-news-engine.js","seed"],

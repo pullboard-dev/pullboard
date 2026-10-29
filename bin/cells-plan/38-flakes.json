@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/flakes",
  "frontDoor": "packages/flakes/index.js",
- "placedBy": {
-  "seed": 5,
-  "rule": 1,
-  "imports": 0
- },
  "paths": [
   ["src/flake-command.js","packages/flakes/src/shell/flake-command.js","seed"],
   ["src/flakes.js","packages/flakes/src/shell/flakes.js","seed"],

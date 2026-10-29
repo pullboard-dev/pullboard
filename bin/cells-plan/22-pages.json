@@ -5,11 +5,6 @@
  "root": "packages/pages",
  "frontDoor": "packages/pages/index.js",
  "dryRunName": "relay-page",
- "placedBy": {
-  "seed": 7,
-  "rule": 0,
-  "imports": 0
- },
  "paths": [
   ["src/relay-page-cache.js","packages/pages/src/shell/relay-page-cache.js","seed"],
   ["src/relay-page-client.js","packages/pages/src/shell/relay-page-client.js","seed"],

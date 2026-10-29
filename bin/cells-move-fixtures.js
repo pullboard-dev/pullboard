@@ -14,6 +14,7 @@ const ID = '[A-Za-z_$][\\w$]*';
 const READS = new Set(['readFileSync', 'cpSync', 'copyFileSync']);
 const REPOSITORY = '/__pullboard_fixture_repo__';
 const DATA_FILE = /\.(?:sqlite3?|db|jsonl|log)$/u;
+const MAPPED_SOURCE = { module: 'bin/checks/scan.js', name: 'mappedWorkingSource', fields: ['implementationPath', 'shimPath'] };
 
 /** Blank spans without changing any source offset or newline. */
 function blank(text, start, end) {
@@ -834,6 +835,25 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
       && ![...moved.keys()].some(from => posix.basename(from) === posix.basename(leaf)) ? { fixture: true } : null;
   }
 
+  /**
+   * A path tail that is mappedWorkingSource's implementationPath or shimPath for one literal identity is the
+   * committed path map's own answer, so the read already follows every move and holds no path to repoint. Only the
+   * real imported function, an immutable receiver and those two fields qualify; anything else stays unproven.
+   */
+  function mappedSourceTail(range) {
+    const parsed = call(range);
+    const tail = parsed ? (operation(parsed, 'path', ['join', 'resolve']) && parsed.args.length > 1 ? parsed.args.at(-1) : null) : range;
+    const member = tail && new RegExp(`^(${ID})\\s*\\.\\s*(${ID})$`, 'u').exec(code.slice(tail.start, tail.end));
+    if (!member || !MAPPED_SOURCE.fields.includes(member[2])) return false;
+    const declared = constant(member[1], tail.start);
+    if (!declared || !immutableReceiver(member[1], tail.start, declared)) return false;
+    const invoked = call(declared), binding = invoked && !invoked.member ? imported.bindings.get(invoked.name) : null;
+    const identity = invoked?.args.length === 2 ? literal(invoked.args[1]) : null;
+    return Boolean(binding?.module === 'source' && binding.target === MAPPED_SOURCE.module && binding.imported === MAPPED_SOURCE.name
+      && proven(invoked.name, invoked.at) && identity && !identity.includes('${')
+      && !identity.split('/').some(part => !part || part === '.' || part === '..'));
+  }
+
   /** Edit only the fs source argument; unsupported source construction never masquerades as success. */
   function sourceArgument(range, reader, regularFile, flowing = new Set()) {
     const argumentsAt = helperArguments(range);
@@ -873,6 +893,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
     const resolved = path(range);
     if (resolved?.fixture) return;
     if (regularFile && factoryField(range)) return;
+    if (regularFile && mappedSourceTail(range)) return;
     if (!resolved?.path) {
       const leaf = leafName(range);
       if (regularFile && leaf && !leaf.split('/').some(part => part === '.' || part === '..')
