@@ -44,6 +44,19 @@ export function readMilestoneModel(milestone, inputRows) {
   return { milestone, rows, done, total, shipped };
 }
 
+/** Count the same remaining entries the shown release headers describe, retaining legacy export semantics. */
+export function roadmapRemainingCount(reads) {
+  let total = 0;
+  for (const read of reads) {
+    if (read.shipped) continue;
+    const observed = read.milestone.summary?.left;
+    const left = Number.isSafeInteger(observed) && observed >= 0 ? observed : Math.max(0, read.total - read.done);
+    if (!Number.isSafeInteger(left) || !Number.isSafeInteger(total + left)) return null;
+    total += left;
+  }
+  return total;
+}
+
 /** Render release cards, shipping counts and shipped history without browser state. */
 export function roadmapCardsHtml(read, presentation = {}) {
   const { only = null, root, held, open = new Map(), headers = new Map(), headings = new Map(), rows: rowPresentation = new Map(), notes = new Map(), targets = new Map() } = presentation;
