@@ -133,7 +133,9 @@ ${executionServicesSource(gate)}
     const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite');
     const held=db.prepare('SELECT * FROM runner_unavailable').get();
     let automaticProbes=0;
-    const recovered=await recoverUnavailableRunners(db,[${JSON.stringify(box.runner)}],{
+    // The first automatic probe falls due 1000 ms after the failure is recorded; asking one tick before it keeps this a
+    // statement about SSH health alone instead of a race against how slowly a loaded host boots the health probe.
+    const recovered=await recoverUnavailableRunners(db,[${JSON.stringify(box.runner)}],{now:held.probe_after-1,
       probe:async()=>{automaticProbes++;return {healthy:true};}});
     const remaining=db.prepare('SELECT COUNT(*) n FROM runner_unavailable').get().n;
     const leases=db.prepare('SELECT (SELECT COUNT(*) FROM holder)+(SELECT COUNT(*) FROM waiter) n').get().n;
