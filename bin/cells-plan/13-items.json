@@ -126,10 +126,10 @@
   {"cell":"app:cli","imports":4,"before":false}
  ],
  "cuts": [
-  {"cell":"state","imports":2,"edges":["src/engine.js->src/outside-proof.js","src/engine.js->src/submit-invariants.js"]},
+  {"cell":"queue","imports":2,"edges":["src/queue-readiness.js->src/item-dependencies.js","src/queue-readiness.js->src/item-files.js"]},
+  {"cell":"state","imports":1,"edges":["src/engine.js->src/family-declaration.js"]},
   {"cell":"seats","imports":1,"edges":["src/line-order.js->src/item-dependencies.js"]},
-  {"cell":"spec","imports":1,"edges":["src/reference-lines.js->src/brief.js"]},
-  {"cell":"commits","imports":1,"edges":["src/why-file.js->src/decision-origin.js"]}
+  {"cell":"roadmap","imports":1,"edges":["src/roadmap.js->src/queue.js"]}
  ],
  "ratchets": {
   "legacySource": -4,

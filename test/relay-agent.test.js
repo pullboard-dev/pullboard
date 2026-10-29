@@ -11,6 +11,7 @@ import { after, test } from 'node:test';
 import { claim as claimStoredItem, closeBoard, openBoard, register as registerStoredAgent } from '../src/board.js';
 import { submitFixture as submitStoredItem } from './board-submit-fixture.js';
 import { serveApi } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { main } from '../src/cli.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { decodeBoardKey, unseal } from '../packages/kernel/src/core/seal.js';
@@ -262,7 +263,7 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   const previousApiHome = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   t.after(() => { if (previousApiHome === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = previousApiHome; });
-  const localApi = await serveApi({
+  const localApi = await serveApi({ refusalDocument,
     runCommand: main,
     projects: () => [{ root: box.root, name: 'private relay fixture', project: 'fixture/repository', added: '2026-10-07T00:00:00.000Z' }],
   });

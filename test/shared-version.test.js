@@ -1,5 +1,6 @@
 /** Unmerged source protects both shared formats, including indirect openers and real hooks [A5,A6]. */
 import { copyPackageFiles } from '../src/package-files.js';
+import { toolSourcePath } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -84,7 +85,7 @@ test('a newer lane can make a real checked commit and doctor gives a working mai
 
 test('relay snapshot guards its native board open even when presentation is already supplied [A5,A6]', t => {
   const box = fixture(t); const before = box.versions(); box.bump('EVENT_LOG_VERSION', 1, 2);
-  const relay = join(box.lane, 'src/relay-presentation.js');
+  const relay = toolSourcePath(box.lane, 'packages/pages/src/shell/relay-presentation.js');
   const original = readFileSync(relay, 'utf8');
   const supplied = original.replace(/^export function relayPresentation\([^\n]+\) \{[\s\S]*?^\}/mu,
     'export function relayPresentation() { return {version:1,state:{events:[]}}; }');
