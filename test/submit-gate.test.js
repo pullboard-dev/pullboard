@@ -274,7 +274,7 @@ test('a red gate on submit shows what the gate said [C7,V10]', (t) => {
     assert.notEqual(submitted.code, 0);
     const refusal = JSON.parse(submitted.out).error;
     assert.equal(refusal.code, 'GATE_RED');
-    assert.ok(refusal.message.includes(first), 'the first diagnostic must survive the bounded refusal');
+    assert.ok(refusal.message.includes(first), `the first diagnostic must survive the bounded refusal: ${JSON.stringify(refusal)}`);
     assert.match(refusal.message, /\d+ nonempty output lines omitted/u);
     assert.ok(refusal.message.length < 5000, 'a refusal must remain bounded');
     const log = box.git('rev-parse', '--git-path', 'pullboard-submit.log').trim();
