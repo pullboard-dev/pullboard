@@ -117,12 +117,21 @@ function saveReceipt(directory, id, label, run) {
   return { green: run.isGreen, sha256: fileDigest(file), bytes: statSync(file).size, artifact: 'flake-evidence/' + id + '/' + label + '.log', profileSha256 };
 }
 
-/** A probe proves one selected target only if its real completion is present, not merely a zero exit. */
-function targetResult(run, root, name) {
-  if (run.executionSourceUnchanged === false) return null;
-  const matches = tapTests(run.output ?? '', run.executionRoot ?? root).filter(row => row.type !== 'suite' && !row.skip);
-  if (matches.length !== 1 || matches[0].indent !== 0 || matches[0].name !== name || ['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(matches[0].failureType)) return null;
-  return matches[0].passed === run.isGreen ? run.isGreen : null;
+/**
+ * What one probe proved for each selected target: true or false only where that target's own completion is present
+ * once at the top level, and null otherwise. A batch run is trusted only when every selected target completed and
+ * its exit agrees with them, so a crash after some targets passed proves none of them [#1899].
+ */
+function targetResults(run, root, names) {
+  const results = new Map(names.map(name => [name, null]));
+  if (run.executionSourceUnchanged === false) return results;
+  const rows = tapTests(run.output ?? '', run.executionRoot ?? root).filter(row => row.type !== 'suite' && !row.skip);
+  if (rows.length !== names.length || rows.some(row => row.indent !== 0 || !results.has(row.name)
+    || ['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType))) return results;
+  if (new Set(rows.map(row => row.name)).size !== rows.length) return results;
+  if (rows.every(row => row.passed) !== run.isGreen) return results;
+  for (const row of rows) results.set(row.name, row.passed);
+  return results;
 }
 
 /** Run an exact-target private source comparison, preserving the trusted check's full receipt. */
@@ -171,8 +180,12 @@ function diagnosticCode(error) {
   return /^[A-Z][A-Z0-9_]{0,79}$/u.test(error?.code ?? '') ? error.code : 'FLAKE_DIAGNOSTIC_FAILED';
 }
 
-/** Observe one red run, optionally run one pair, then persist typed results without changing its verdict. */
-async function observeFailure({ root, config, pin, run, command, lease, kind, record, checkAtCommit }) {
+/**
+ * Observe one red run: probe each file's failing cases together, once at the candidate and once at main, then
+ * persist one typed result per case without changing its verdict. Batching keeps a 33-case red file to two probes
+ * instead of 66 [#1899]; each case still keeps its own evidence directory, receipts and classification.
+ */
+async function observeFailure({ root, config, pin, run, command, lease, kind, record, recordBatch, checkAtCommit }) {
   if (run.isGreen || !pin.head || !pin.tree) return;
   const started = Date.now();
   const observedAt = new Date().toISOString();
@@ -184,65 +197,104 @@ async function observeFailure({ root, config, pin, run, command, lease, kind, re
   if (common.status !== 0) throw new Error('Cannot retain flake evidence without the board Git directory.');
   const evidence = join(common.stdout.trim(), 'pullboard', 'flake-evidence');
   mkdirSync(evidence, { recursive: true, mode: 0o700 });
-  const observations = [];
-  for (const failure of failures) {
-    const targetStarted = Date.now();
+  // Every case's original receipt is durable before any diagnostic executes.
+  const cases = failures.map(failure => {
     const id = randomUUID();
     const directory = join(evidence, id); mkdirSync(directory, { mode: 0o700 });
-    const original = saveReceipt(directory, id, 'original', run);
-    let paired = null, mainReceipt = null, classification = 'unclassified';
-    let reason = config.flakes?.rerun === true ? 'No supported structured Node test selector is available.' : 'Paired reruns are off for this board; the original red is retained.';
-    const named = failure.file && failure.name && committedTest(root, pin.head, failure.file);
-    invalidateGitFacts();
-    const changed = run.executionSourceUnchanged === false || !pin.privateCheck && (headCommit(root) !== pin.head || headTree(root) !== pin.tree || !isClean(root) || untracked(root).length > 0);
-    if (!pin.clean || changed) reason = 'The source is dirty or changed; no unchanged-head diagnostic is claimed.';
-    else if (lease?.runner && remoteGap(run, pin)) reason = remoteGap(run, pin);
-    else if (config.flakes?.rerun === true && prefix && named && failure.indent === 0) {
-      const pattern = '^' + failure.name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&') + '$';
-      const selected = prefix + ' --test-name-pattern ' + word(pattern) + ' ' + word(failure.file);
-      const pairRun = pin.privateCheck ? privateProbe(root, pin.head, selected, lease, pin.main ?? pin.head, checkAtCommit)
-        : runProfiledShell(root, selected, { gateLease: lease });
-      paired = saveReceipt(directory, id, 'paired', pairRun);
-      // Every remote receipt a classification rests on carries both facts, the paired rerun's and main's included; a
-      // probe that ran in a local private copy has no remote receipt to check.
-      const gaps = [];
-      const pairGap = pairRun.executionRunner ? remoteGap(pairRun, pin, 'paired remote') : null;
-      if (pairGap) gaps.push(pairGap);
-      const pairResult = pairRun.unverified || pairGap ? null : targetResult(pairRun, root, failure.name);
-      let mainResult = pin.main === pin.head ? false : null;
-      if (pin.main && pin.main !== pin.head && committedTest(root, pin.main, failure.file)) {
-        const mainRun = privateProbe(root, pin.main, selected, lease, pin.main, checkAtCommit);
-        mainReceipt = saveReceipt(directory, id, 'main', mainRun);
-        const mainGap = mainRun.executionRunner ? remoteGap(mainRun, pin, 'main remote') : null;
-        if (mainGap) gaps.push(mainGap);
-        mainResult = mainRun.unverified || mainGap ? null : targetResult(mainRun, root, failure.name);
-      }
-      if (mainResult === true) { classification = 'possible-regression'; reason = 'The exact target passes on pinned main; this candidate failure is not a flake observation.'; }
-      else if (pairResult === true && mainResult === false) { classification = 'flake'; reason = 'The red target passed its one paired rerun at the same pinned head; original red retained.'; }
-      else if (pairResult === false) { classification = 'stable-red'; reason = 'The target remains red in its one paired rerun; original red retained.'; }
-      else reason = gaps[0] ?? 'A probe did not establish the exact target at its pinned source; it remains unclassified.';
-      invalidateGitFacts();
-      if (!pin.privateCheck && (headCommit(root) !== pin.head || headTree(root) !== pin.tree || !isClean(root) || untracked(root).length > 0)) {
-        classification = 'unclassified'; reason = 'The source changed during diagnostics; no unchanged-head classification is claimed.';
-      }
+    return { failure, id, directory, started: Date.now(), original: saveReceipt(directory, id, 'original', run),
+      named: Boolean(failure.file && failure.name && committedTest(root, pin.head, failure.file)), paired: null, mainReceipt: null,
+      classification: 'unclassified',
+      reason: config.flakes?.rerun === true ? 'No supported structured Node test selector is available.' : 'Paired reruns are off for this board; the original red is retained.' };
+  });
+  invalidateGitFacts();
+  const changed = run.executionSourceUnchanged === false || !pin.privateCheck && (headCommit(root) !== pin.head || headTree(root) !== pin.tree || !isClean(root) || untracked(root).length > 0);
+  const groups = new Map();
+  for (const entry of cases) {
+    if (!pin.clean || changed) entry.reason = 'The source is dirty or changed; no unchanged-head diagnostic is claimed.';
+    else if (lease?.runner && remoteGap(run, pin)) entry.reason = remoteGap(run, pin);
+    else if (config.flakes?.rerun === true && prefix && entry.named && entry.failure.indent === 0) {
+      const group = groups.get(entry.failure.file) ?? [];
+      if (!group.some(other => other.failure.name === entry.failure.name)) group.push(entry);
+      groups.set(entry.failure.file, group);
     }
+  }
+  for (const [file, group] of groups) probeFile(root, pin, lease, prefix, checkAtCommit, file, group);
+  const observations = [];
+  const pending = [];
+  for (const entry of cases) {
+    const { failure, id, directory, named, original, paired, mainReceipt, classification, reason } = entry;
     const observation = { id, file: named ? failure.file : null, name: named ? failure.name : null, head: pin.head, tree: pin.tree, main: pin.main,
-      kind, classification, reason, commandSha256: digest(command), at: observedAt, diagnosticMs: Date.now() - targetStarted,
+      kind, classification, reason, commandSha256: digest(command), at: observedAt, diagnosticMs: Date.now() - entry.started,
       // A remote run records its own host's load; without one, the observer's sample stands and the reason says so.
       load: lease?.runner && run.executionLoad ? run.executionLoad : load, original, paired, mainReceipt };
     writeFileSync(join(directory, 'observation.json'), JSON.stringify(observation, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
-    const manifest = Object.fromEntries(readdirSync(directory).map(file => [file, fileDigest(join(directory, file))]));
+    const manifest = Object.fromEntries(readdirSync(directory).map(name => [name, fileDigest(join(directory, name))]));
     writeFileSync(join(directory, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
-    const summary = { id, classification, file: observation.file, name: observation.name, paired: paired !== null, recorded: false };
-    observations.push(summary);
-    run.flakeDiagnostics = { wallMs: Date.now() - started, observations };
-    try { await record(observation); summary.recorded = true; }
-    catch (error) {
-      // The completed evidence manifest remains immutable; the recording failure gets its own addendum.
-      try { writeFileSync(join(directory, 'recording-error.addendum.json'), JSON.stringify({ code: diagnosticCode(error), originalRetained: true }) + '\n', { flag: 'wx', mode: 0o600 }); }
-      catch { /* A failing disk cannot justify replacing the original verdict. */ }
-      throw error;
-    }
+    observations.push({ id, classification, file: observation.file, name: observation.name, paired: paired !== null, recorded: false });
+    pending.push({ observation, directory });
   }
   run.flakeDiagnostics = { wallMs: Date.now() - started, observations };
+  await recordObservations(pending, observations, { record, recordBatch });
+  run.flakeDiagnostics = { wallMs: Date.now() - started, observations };
+}
+
+/**
+ * Run one candidate probe and one main probe for every failing case of one file, selecting the cases by exact name,
+ * then classify each case from its own result in those two shared receipts.
+ */
+function probeFile(root, pin, lease, prefix, checkAtCommit, file, group) {
+  const names = group.map(entry => entry.failure.name);
+  const pattern = '^(?:' + names.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|') + ')$';
+  const selected = prefix + ' --test-name-pattern ' + word(pattern) + ' ' + word(file);
+  const pairRun = pin.privateCheck ? privateProbe(root, pin.head, selected, lease, pin.main ?? pin.head, checkAtCommit)
+    : runProfiledShell(root, selected, { gateLease: lease });
+  // Every remote receipt a classification rests on carries both facts, the paired rerun's and main's included; a
+  // probe that ran in a local private copy has no remote receipt to check.
+  const gaps = [];
+  const pairGap = pairRun.executionRunner ? remoteGap(pairRun, pin, 'paired remote') : null;
+  if (pairGap) gaps.push(pairGap);
+  const pairResults = pairRun.unverified || pairGap ? new Map() : targetResults(pairRun, root, names);
+  let mainRun = null, mainResults = new Map();
+  if (pin.main && pin.main !== pin.head && committedTest(root, pin.main, file)) {
+    mainRun = privateProbe(root, pin.main, selected, lease, pin.main, checkAtCommit);
+    const mainGap = mainRun.executionRunner ? remoteGap(mainRun, pin, 'main remote') : null;
+    if (mainGap) gaps.push(mainGap);
+    if (!mainRun.unverified && !mainGap) mainResults = targetResults(mainRun, root, names);
+  }
+  invalidateGitFacts();
+  const moved = !pin.privateCheck && (headCommit(root) !== pin.head || headTree(root) !== pin.tree || !isClean(root) || untracked(root).length > 0);
+  for (const entry of group) {
+    entry.paired = saveReceipt(entry.directory, entry.id, 'paired', pairRun);
+    if (mainRun) entry.mainReceipt = saveReceipt(entry.directory, entry.id, 'main', mainRun);
+    const pairResult = pairResults.get(entry.failure.name) ?? null;
+    const mainResult = pin.main === pin.head ? false : mainRun ? mainResults.get(entry.failure.name) ?? null : null;
+    if (mainResult === true) { entry.classification = 'possible-regression'; entry.reason = 'The exact target passes on pinned main; this candidate failure is not a flake observation.'; }
+    else if (pairResult === true && mainResult === false) { entry.classification = 'flake'; entry.reason = 'The red target passed its one paired rerun at the same pinned head; original red retained.'; }
+    else if (pairResult === false) { entry.classification = 'stable-red'; entry.reason = 'The target remains red in its one paired rerun; original red retained.'; }
+    else entry.reason = gaps[0] ?? 'A probe did not establish the exact target at its pinned source; it remains unclassified.';
+    if (moved) { entry.classification = 'unclassified'; entry.reason = 'The source changed during diagnostics; no unchanged-head classification is claimed.'; }
+  }
+}
+
+/**
+ * Write every completed observation to the board after all probes finish: through one batch when the caller can
+ * record several at once, else one at a time. A failure leaves the rest unrecorded and keeps each evidence manifest.
+ */
+async function recordObservations(pending, observations, { record, recordBatch }) {
+  try {
+    if (typeof recordBatch === 'function') {
+      await recordBatch(pending.map(row => row.observation));
+      for (const summary of observations) summary.recorded = true;
+      return;
+    }
+    for (const [index, row] of pending.entries()) { await record(row.observation); observations[index].recorded = true; }
+  } catch (error) {
+    // The completed evidence manifests remain immutable; each unrecorded case gets its own addendum.
+    for (const [index, row] of pending.entries()) {
+      if (observations[index].recorded) continue;
+      try { writeFileSync(join(row.directory, 'recording-error.addendum.json'), JSON.stringify({ code: diagnosticCode(error), originalRetained: true }) + '\n', { flag: 'wx', mode: 0o600 }); }
+      catch { /* A failing disk cannot justify replacing the original verdict. */ }
+    }
+    throw error;
+  }
 }
