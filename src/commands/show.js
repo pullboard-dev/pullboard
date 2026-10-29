@@ -1,5 +1,6 @@
 import { loadMachineSettings } from '../settings-read.js';
-import { localUsage, dollarText } from '../cost-prices.js';
+import { localUsage } from '../cost-prices.js';
+import { dollarText } from '../cost-prices.js';
 import { trunkRef } from '../trusted-policy-read.js';
 import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
 import { reviewEligibility } from '../review-eligibility.js';
