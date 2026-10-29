@@ -251,9 +251,9 @@ test('a sent-back item shows why first [N26]', async () => {
     const needs = page.show('needs');
     assert.doesNotMatch(needs, /Greeting|Farewell/, "work sent back is the agents' to move, so it stays out of Needs-you; its row says why");
     const row = itemRow(page.show('chain'), 1);
-    assert.ok(row.includes('<b>BEHAVIOR_MISMATCH</b> no &lt;b&gt;greeting&lt;/b&gt; on the page'), row);
+    assert.ok(row.includes('<b><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> no &lt;b&gt;greeting&lt;/b&gt; on the page'), row);
     assert.ok(!row.includes('second line'), 'the row shows the first line of the note only');
-    assert.ok(itemRow(page.show('chain'), 2).includes('<b>BEHAVIOR_MISMATCH</b> the farewell is missing'));
+    assert.ok(itemRow(page.show('chain'), 2).includes('<b><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> the farewell is missing'));
 
     await page.click({ item: '1', classes: 'row' });
     const detail = page.show('detail');
@@ -262,8 +262,8 @@ test('a sent-back item shows why first [N26]', async () => {
     const top = detail.slice(0, detail.indexOf('<h3>Criterion</h3>'));
     assert.ok(detail.indexOf('<h3>Criterion</h3>') > 0, 'the criterion is shown');
     assert.match(top, /<h3>Sent back<\/h3>/);
-    assert.match(top, /<b>REJECT BEHAVIOR_MISMATCH<\/b>/);
-    assert.match(top, new RegExp(`coordinator \\(unknown\\) · (\\w+ \\d+ )?${time} · at ${verdict.commit.slice(0, 12)}`), 'who sent it back, when, and at which commit');
+    assert.match(top, /<b>Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>/);
+    assert.match(top, new RegExp(`coordinator · (\\w+ \\d+ )?${time} · at ${verdict.commit.slice(0, 12)}`), 'who sent it back, when, and at which commit');
     assert.ok(top.includes('no &lt;b&gt;greeting&lt;/b&gt; on the page\nsecond line of the note'), 'the full note, escaped, before the criterion');
     assert.ok(!detail.includes('<b>greeting</b>'), 'the note cannot inject markup');
     assert.ok(detail.indexOf('<h3>Criterion</h3>') < detail.indexOf('<h3>Spec rows it serves</h3>'));
@@ -273,15 +273,15 @@ test('a sent-back item shows why first [N26]', async () => {
     await page.click({ item: '2', classes: 'row' });
     assert.match(beforeCriterion(), /<h3>Sent back, resubmitted<\/h3>[^]*the farewell is missing/);
 
-    assert.ok(itemRow(page.show('chain'), 5).includes('<b>BEHAVIOR_MISMATCH</b> the footer is empty'), 'a row being reworked still says why');
+    assert.ok(itemRow(page.show('chain'), 5).includes('<b><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> the footer is empty'), 'a row being reworked still says why');
     await page.click({ item: '5', classes: 'row' });
-    assert.match(beforeCriterion(), /<h3>Sent back, being reworked<\/h3>[^]*<b>REJECT BEHAVIOR_MISMATCH<\/b>[^]*the footer is empty/);
+    assert.match(beforeCriterion(), /<h3>Sent back, being reworked<\/h3>[^]*<b>Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>[^]*the footer is empty/);
 
     // A withdrawn item has no row; the person reaches it from a spec row or the activity feed.
     assert.equal(itemRow(page.show('chain'), 4), '');
     await page.click({ go: 'item:4' });
     assert.match(page.show('detail'), /<h2><span>#4<\/span>Banner<\/h2>/);
-    assert.match(beforeCriterion(), /<h3>Sent back, then withdrawn<\/h3>[^]*<b>REJECT BEHAVIOR_MISMATCH<\/b>[^]*the banner covers the heading/, 'withdrawn after a reject, it still opens with why');
+    assert.match(beforeCriterion(), /<h3>Sent back, then withdrawn<\/h3>[^]*<b>Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>[^]*the banner covers the heading/, 'withdrawn after a reject, it still opens with why');
     assert.ok(page.show('detail').indexOf('<h3>Criterion</h3>') < page.show('detail').indexOf('<h3>Brief</h3>'));
 
     await page.click({ item: '3', classes: 'row' });
@@ -325,8 +325,8 @@ test('a sent-back reason reads once [N26]', { timeout: 90_000 }, async () => {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#chain .row[data-item="1"] .why')`);
       for (const [id, title, expectedRow, expectedCard] of [
-        ['1', 'Duplicate reason', 'BEHAVIOR_MISMATCH a78c361: selected-lane exception is unclear', 'a78c361: selected-lane exception is unclear'],
-        ['2', 'Plain note', 'BEHAVIOR_MISMATCH BEHAVIOR_MISMATCHED is a separate code-like prefix: the issue remains', 'BEHAVIOR_MISMATCHED is a separate code-like prefix: the issue remains'],
+        ['1', 'Duplicate reason', 'Behavior did not match a78c361: selected-lane exception is unclear', 'a78c361: selected-lane exception is unclear'],
+        ['2', 'Plain note', 'Behavior did not match BEHAVIOR_MISMATCHED is a separate code-like prefix: the issue remains', 'BEHAVIOR_MISMATCHED is a separate code-like prefix: the issue remains'],
       ]) {
         await chrome.click(`document.querySelector('#chain .row[data-item="${id}"]')`);
         await chrome.waitFor(`document.querySelector('#detail h2')?.textContent.includes('${title}')`);
@@ -334,10 +334,12 @@ test('a sent-back reason reads once [N26]', { timeout: 90_000 }, async () => {
           row: document.querySelector('#chain .row[data-item="${id}"] .why')?.textContent,
           card: document.querySelector('#detail .sentback .verdict .note')?.textContent,
           reason: document.querySelector('#detail .sentback .verdict b')?.textContent,
+          reasonCode: document.querySelector('#detail .sentback .verdict b [title]')?.title,
         })`));
-        assert.equal(rendered.row, expectedRow, `${width}px item #${id}: the row shows the reason code once`);
+        assert.equal(rendered.row, expectedRow, `${width}px item #${id}: the row shows the readable reason once`);
         assert.equal(rendered.card, expectedCard, `${width}px item #${id}: the card removes only a duplicated leading code`);
-        assert.equal(rendered.reason, 'REJECT BEHAVIOR_MISMATCH', `${width}px item #${id}: the card retains its verdict heading`);
+        assert.equal(rendered.reason, 'Sent back · Behavior did not match', `${width}px item #${id}: the card retains its verdict heading`);
+        assert.equal(rendered.reasonCode, 'BEHAVIOR_MISMATCH', `${width}px item #${id}: the raw verdict reason remains in its tooltip`);
       }
     }
     const storedItems = (await boardOf(view, alpha.repo)).items;

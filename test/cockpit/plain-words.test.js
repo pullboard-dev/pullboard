@@ -131,8 +131,16 @@ test('native board kinds, names, reasons and sentinel notices read plainly acros
     for (const name of ['dashboard', 'items', 'shouts', 'activity']) {
       await tab(chrome, name);
       if (name === 'activity') {
-        const selection = await chrome.stable(`(() => { const raw = activityModel(data.project), plain = activityModel(data.project, { words: activityWords }); return { raw: raw.rows.map(row => row.id), plain: plain.rows.map(row => row.id) }; })()`);
+        const selection = await chrome.stable(`(() => {
+          const before = JSON.stringify(data.project.events), raw = activityModel(data.project), plain = activityModel(data.project, { words: activityWords });
+          const excluded = ['gate-run', 'milestone_order', 'milestone_items', 'join', 'next-idle', 'check-baseline', 'item_patch_attach', 'item_patch_remove', 'item_patch_follow', 'reject_returned', 'hold_item'];
+          return { raw: raw.rows.map(row => row.id), plain: plain.rows.map(row => row.id),
+            bookkeeping: data.project.events.filter(event => excluded.includes(event.event_kind)).map(event => event.event_id),
+            unchanged: before === JSON.stringify(data.project.events) };
+        })()`);
         assert.deepEqual(selection.plain, selection.raw, 'plain wording preserves the exact native Activity row IDs and count');
+        assert.ok(selection.bookkeeping.length > 0 && selection.bookkeeping.every(id => !selection.raw.includes(id) && !selection.plain.includes(id)), 'bookkeeping remains native history without becoming a work row');
+        assert.equal(selection.unchanged, true, 'both presentation modes preserve every raw native event field and identity');
         await chrome.stable('document.querySelectorAll("#activity details").forEach(node => { node.open = true; })');
         const rows = await chrome.stable('[...document.querySelectorAll("#activity .activity-event")].map(node => node.innerText)');
         assert.ok(rows.some(text => /Measured|measurement/iu.test(text)), 'the genuine measurement has an Activity sentence');

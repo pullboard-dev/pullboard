@@ -12,7 +12,7 @@ export function verdictHtml({ verdict, agentLabel, timeLabel, noteHtml, decision
   const esc = text => String(text ?? '').replace(/[&<>"']/gu, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
   const { decision, reason, commit } = verdict;
   const shownReason = reasonLabel === undefined ? esc(reason) : '<span title="' + esc(reason) + '">' + esc(reasonLabel) + '</span>';
-  return '<div class="verdict ' + (decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(decisionLabel ?? decision) + ' ' + shownReason
+  return '<div class="verdict ' + (decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(decisionLabel ?? decision) + (reasonLabel === undefined ? ' ' : ' · ') + shownReason
     + '</b><span class="by">' + esc(agentLabel) + ' · ' + esc(timeLabel) + ' · at ' + esc(String(commit || '').slice(0, 12))
     + '</span><div class="note">' + noteHtml + '</div></div>';
 }

@@ -74,7 +74,7 @@ export function activityModel(project, { words } = {}) {
         words: shout?.shout_text ?? '', verb: 'told', agent: agents.get(event.event_by) });
       continue;
     }
-    if ((!event.item_id && !words) || (!verbs[event.event_kind] && !words) || consumed.has(event.event_id)) continue;
+    if (!event.item_id || !verbs[event.event_kind] || consumed.has(event.event_id)) continue;
     let released = null;
     if (event.event_kind === 'claim') {
       released = releases.get(handoffKey(event))?.find(other => other.item_id !== event.item_id && !consumed.has(other.event_id));

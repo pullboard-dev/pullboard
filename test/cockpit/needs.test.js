@@ -173,7 +173,7 @@ test("the page's Needs-you comes from the shared builder [N26]", { timeout: 180_
     assert.deepEqual(JSON.parse(page.run('JSON.stringify((({decisions,pending,holds,drafts}) => ({decisions,pending,holds,drafts}))(boardSummary({},data.project)))')),
       { decisions: 1, pending: 1, holds: 1, drafts: 1 }, 'summary counts describe those same entries');
     assert.equal(page.run('document.title'), '(4) shared needs · Pullboard');
-    assert.ok(needEntries(page.show('needs')).some(row => row[3] === 'lane held by coordinator (unknown)'), 'the hold retains its human-readable attribution');
+    assert.ok(needEntries(page.show('needs')).some(row => row[3] === 'lane held by coordinator'), 'the hold retains its human-readable attribution');
 
     const output = join(box.dir, 'needs-export');
     box.run(alpha.repo, 'view', '--export', output);
@@ -288,9 +288,9 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     assert.doesNotMatch(page.show('needs'), /decide:/, "an agent's ask is its coordinator's to answer");
     page.run("openTab('shouts'); render();");
     assert.equal(page.element('decisions').hidden, true, 'an ask waiting on others stays folded');
-    assert.match(page.show('asks-slot'), /^<button class="asks-toggle" data-fold="waiting" type="button" aria-expanded="false" title="Asks between agents, waiting on others: web-1 \(Test Model\) asks coordinator \(unknown\)">1 ask waiting <span aria-hidden="true">▾<\/span><\/button>$/, 'its toggle sits at the end of the composer line');
+    assert.match(page.show('asks-slot'), /^<button class="asks-toggle" data-fold="waiting" type="button" aria-expanded="false" title="Asks between agents, waiting on others: web-1 \(Test Model\) asks coordinator">1 ask waiting <span aria-hidden="true">▾<\/span><\/button>$/, 'its toggle sits at the end of the composer line');
     page.run("openTab('shouts'); view.open.waiting = true; render();");
-    assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1 \\(Test Model\\)</b><span class="to">→ coordinator \\(unknown\\)</span><span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">1m ago</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
+    assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1 \\(Test Model\\)</b><span class="to">→ coordinator</span><span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">1m ago</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
     assert.doesNotMatch(page.show('feed'), /Greet in/, 'though the feed no longer reaches it');
 
     // The coordinator passes it up with its note (B27): now it is the person's call.
@@ -300,11 +300,11 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     page.run(`Date.now = () => ${passedAt + 61_000}; render();`);
     page.run("openTab('items'); render();");
     const passed = `Passed up from web-1: ${question}\nCoordinator note: over to you`;
-    assert.deepEqual(needEntries(page.show('needs')), [['decide:42', '#42', 'Passed up from web-1: Greet in &lt;b&gt;French&lt;/b&gt; first?', 'Asked by coordinator (unknown)', 'Decide']], "the person's call identifies its source, question and action");
+    assert.deepEqual(needEntries(page.show('needs')), [['decide:42', '#42', 'Passed up from web-1: Greet in &lt;b&gt;French&lt;/b&gt; first?', 'Asked by coordinator', 'Decide']], "the person's call identifies its source, question and action");
     assert.ok(page.show('needs').includes('Passed up from web-1: Greet in &lt;b&gt;French&lt;/b&gt; first?<br>Coordinator note: over to you'), 'expanded details preserve the entire passed question and coordinator note');
     assert.match(page.show('needs'), /<span class="needs-age"><time data-ago="[^"]+">1m<\/time><\/span>/u, 'the call retains its actual one-minute age');
     page.run("openTab('shouts'); render();");
-    assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<div class="head"><i></i>Decision needed</div><article class="shout h\\d lead" data-shout-id="42"><span class="avatar"><svg [\\s\\S]*?</svg></span><div class="shout-main"><header><b class="who">coordinator \\(unknown\\)</b><span class="to">→ person</span><span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">1m ago</time></header><div class="text">${passed.replace('\n', '<br>')}</div><button class="more" data-more type="button">more</button><button class="ghost answer" data-go="decide:42" type="button">Answer</button></div></article>$`), 'and above the shouts as the coordinator\'s card, with an Answer button');
+    assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<div class="head"><i></i>Decision needed</div><article class="shout h\\d lead" data-shout-id="42"><span class="avatar"><svg [\\s\\S]*?</svg></span><div class="shout-main"><header><b class="who">coordinator</b><span class="to">→ person</span><span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">1m ago</time></header><div class="text">${passed.replace('\n', '<br>')}</div><button class="more" data-more type="button">more</button><button class="ghost answer" data-go="decide:42" type="button">Answer</button></div></article>$`), 'and above the shouts as the coordinator\'s card, with an Answer button');
 
     const form = () => ({
       answering: !page.element('answering').hidden,
@@ -317,7 +317,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     page.element('shout-to').value = 'web';
     await page.click({ go: 'decide:42' });
     assert.equal(page.run('view.tab'), 'shouts');
-    assert.deepEqual(form(), { answering: true, who: 'coordinator (unknown)', question: 'Passed up from web-1: Greet in <b>French</b> first?\nCoordinator note: over to you', to: 'coordinator', locked: true, button: 'Answer' }, 'Answer turns the form to answering the one who asked');
+    assert.deepEqual(form(), { answering: true, who: 'coordinator', question: 'Passed up from web-1: Greet in <b>French</b> first?\nCoordinator note: over to you', to: 'coordinator', locked: true, button: 'Answer' }, 'Answer turns the form to answering the one who asked');
     await page.fire('answer-cancel', 'click');
     assert.deepEqual(form(), { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' }, 'Cancel gives back the plain shout');
 
@@ -340,8 +340,8 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     box.run(alpha.repo, 'pass', '45', 'yours');
     await page.run('refresh()');
     const feed = shoutNameText(page.show('feed'));
-    assert.match(feed, /<b class="who">web-1 \(Test Model\)<\/b><span class="to">→ coordinator \(unknown\)<\/span><span class="mark ask" role="group" title="decision" aria-label="decision">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
-    assert.match(feed, /<b class="who">you<\/b><span class="to">→ coordinator \(unknown\)<\/span><span class="mark" role="group" title="answer" aria-label="answer">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
+    assert.match(feed, /<b class="who">web-1 \(Test Model\)<\/b><span class="to">→ coordinator<\/span><span class="mark ask" role="group" title="decision" aria-label="decision">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
+    assert.match(feed, /<b class="who">you<\/b><span class="to">→ coordinator<\/span><span class="mark" role="group" title="answer" aria-label="answer">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
     page.run("openTab('items'); render();");
     assert.match(page.show('needs'), /data-go="decide:46"/);
 
@@ -398,20 +398,20 @@ test("needs-you holds only the person's calls; the rest show on the board with w
       ['tab', 'web', 'G3 is open'],
       ['tab', null, '1 draft spec rows to approve or drop'],
     ], "the person's calls, and only those: the decision asked of them, the spec's question, the held lane, the draft row");
-    assert.equal(needEntries(needs).find(entry => entry[0]?.startsWith('decide:'))[3], 'Asked by coordinator (unknown)', 'a decision says below who asked it');
+    assert.equal(needEntries(needs).find(entry => entry[0]?.startsWith('decide:'))[3], 'Asked by coordinator', 'a decision says below who asked it');
     assert.doesNotMatch(needs, /Which colour|Greeting|Farewell/, "an agent's ask, work waiting for a verdict and work sent back are not the person's");
-    assert.match(needs, /<span class="needs-id"(?: title="[^"]*")?>web<\/span>G3 is open<\/b><small>lane held by coordinator \(unknown\)<\/small>[\s\S]*?<span class="needs-age"><time data-ago="[^"]+">(?:now|\d+[mhd])<\/time>/u, 'a held lane says who set it and shows the API-provided hold age');
+    assert.match(needs, /<span class="needs-id"(?: title="[^"]*")?>web<\/span>G3 is open<\/b><small>lane held by coordinator<\/small>[\s\S]*?<span class="needs-age"><time data-ago="[^"]+">(?:now|\d+[mhd])<\/time>/u, 'a held lane says who set it and shows the API-provided hold age');
 
     // Each of the rest is on the board, with who holds it.
     page.run("openTab('shouts'); view.open.waiting = true; render();");
-    assert.match(shoutNameText(page.show('decisions')), /<article class="shout h\d" data-shout-id="\d+"><span class="avatar" aria-hidden="true">W1<\/span><div class="shout-main"><header><b class="who">web-1 \(Test Model\)<\/b><span class="to">→ coordinator \(unknown\)<\/span>/, "the agent's ask waits on its coordinator");
+    assert.match(shoutNameText(page.show('decisions')), /<article class="shout h\d" data-shout-id="\d+"><span class="avatar" aria-hidden="true">W1<\/span><div class="shout-main"><header><b class="who">web-1 \(Test Model\)<\/b><span class="to">→ coordinator<\/span>/, "the agent's ask waits on its coordinator");
     page.run("openTab('items'); render();");
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip [^"]*">to verify<\/span><\/li>$/, 'work waiting for a verdict');
-    assert.ok(itemRow(page.show('chain'), 2).includes('<b>BEHAVIOR_MISMATCH</b> no farewell yet'), 'and work sent back, with why');
+    assert.ok(itemRow(page.show('chain'), 2).includes('<b><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> no farewell yet'), 'and work sent back, with why');
     page.run("openTab('shouts'); view.agent = 'web-1'; render();");
     assert.deepEqual(agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1').holds, ['#2 Farewell: sent back', '#1 Greeting: to verify'], 'the agent that built them holds both');
     page.run('view.agent = null; render();');
-    assert.match(page.show('lanes'), /<b>web<\/b> <span class="chip no" title="held by coordinator \(unknown\)">held by coordinator \(unknown\)<\/span> <span class="muted">G3 is open<\/span>/, 'a held lane names who holds it');
+    assert.match(page.show('lanes'), /<b>web<\/b> <span class="chip no" title="held by coordinator">held by coordinator<\/span> <span class="muted">G3 is open<\/span>/, 'a held lane names who holds it');
 
     // The sidebar counts exactly the person's calls; its line still says what the agents are doing.
     assert.deepEqual(projectRows(page.show('proj-list')).map((row) => [row.needs, row.line]), [['4', '1 decision · 1 question · 1 draft row · 1 lane held · 1 sent back · 1 to verify']]);
@@ -503,8 +503,8 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
         assert.deepEqual([r.needsShown, r.inList, r.separateCard], [true, true, false], `${at}: Needs you is the head of the Items list, not a card of its own`);
         assert.deepEqual(r.needs.map(({ go, ref, words, kind, chip }) => [go.split(':')[0], ref, words.includes('Which colour for the button?') ? 'Which colour…' : words, kind, chip]), [
           ['spec', 'G3', 'G3Should the greeting name the visitor?', 'pullboard spec answer G3 "<choice>"', 'Review'],
-          ['decide', '#2', 'Which colour…', 'Asked by coordinator (unknown)', 'Decide'],
-          ['tab', 'web', 'webFreeze for the demo', 'lane held by coordinator (unknown)', 'Review'],
+          ['decide', '#2', 'Which colour…', 'Asked by coordinator', 'Decide'],
+          ['tab', 'web', 'webFreeze for the demo', 'lane held by coordinator', 'Review'],
           ['tab', null, '2 draft spec rows to approve or drop', 'In the Spec tab, one by one or a section at a time', 'Review'],
         ], `${at}: the person's calls, each a row, the drafts one row with their count`);
         assert.ok(r.needs.every((need) => need.label), `${at}: question icons and action chips use the warning colour, while the draft retains its Review control`);
