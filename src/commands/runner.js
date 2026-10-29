@@ -35,9 +35,14 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     // Registered capacity is what each runner enforces, whatever its own settings say (#1066).
     const settings = loadMachineSettings();
     const registered = new Map((settings.runners ?? []).map(runner => [runner.host, runner]));
-    const runners = runnerResourceStatus(settings.runners ?? [])
-      .map(row => ({ ...row, ...(registered.has(row.host) ? effectiveRunner(registered.get(row.host), settings.gate?.measuredSlots === true) : {}), ...(registered.get(row.host)?.cores !== undefined ? { cores: registered.get(row.host).cores, memoryMB: registered.get(row.host).memoryMB, measuredAt: registered.get(row.host).measuredAt } : {}),
-        computedSlots: registered.get(row.host)?.cores !== undefined ? computeRunnerSlots(registered.get(row.host)).slots : null, fixed: registered.get(row.host)?.fixed === true }));
+    const runners = runnerResourceStatus(settings.runners ?? []).map(row => {
+      const runner = registered.get(row.host);
+      if (!runner) return { ...row, computedSlots: null };
+      const offered = effectiveRunner(runner, settings.gate?.measuredSlots === true);
+      return { ...row, slots: offered.slots, browser: offered.browser,
+        computedSlots: runner.cores !== undefined ? computeRunnerSlots(runner).slots : null,
+        fixed: runner.fixed === true };
+    });
     io.result?.({ runners });
     io.say(runners.length ? runners.map(runner => `${runner.host}: ${runner.slots} slots, ${runner.browser} browser${runner.draining ? ' (draining)' : ''}\n  size: ${registered.has(runner.host) ? sizeLine(registered.get(runner.host), settings) : 'draining'}\n  GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}`).join('\n') : 'no runners registered');
     return 0;
