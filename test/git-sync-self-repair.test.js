@@ -25,11 +25,12 @@ test('submit on a relay-linked board never creates Git sync state and later writ
   // The fixture runs its provider on loopback and generates all credentials locally; no live relay is contacted.
   const box = await relayClientFixture(t);
   symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(box.env.PATH, 'pullboard'));
+  const buildLane = 'fixture-build';
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   config.gate = 'test -f source/repair-fixture.txt';
-  config.lanes[box.lane].owns = ['source/'];
+  config.lanes[buildLane] = { owns: ['source/'], specs: ['G'], starts: 'now' };
   writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify(config, null, 2) + '\n');
-  writeFileSync(join(box.root, 'SPEC.md'), '# Private fixture\n\n- G1 [approved, must] The committed fixture source is present. | gate: test -f source/repair-fixture.txt\n');
+  writeFileSync(join(box.root, 'SPEC.md'), '# Private fixture\n\n## G · Goals\n\n- G1 [approved, must] The committed fixture source is present. | gate: test -f source/repair-fixture.txt\n');
   runFixtureGit(['add', '-A'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   runFixtureGit(['commit', '-q', '-m', 'test: prepare linked submission [G1]'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   await box.link();
@@ -37,13 +38,13 @@ test('submit on a relay-linked board never creates Git sync state and later writ
   const metadata = commonPullboard(box);
   assert.equal(existsSync(join(metadata, 'git-sync.json')), false, 'relay history is not Git-sync opt-in');
 
-  const added = success(await box.cli('add', box.lane, 'linked submit fixture', '--specs', 'G1',
+  const added = success(await box.cli('add', buildLane, 'linked submit fixture', '--specs', 'G1',
     '--criterion', 'The committed fixture source is present.', '--check', 'test -f source/repair-fixture.txt'), 'add the linked submit fixture item');
   const worker = join(dirname(box.root), 'submit-worker');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'web/git-sync-repair', worker], {
     cwd: box.root, env: box.env, encoding: 'utf8',
   });
-  success(await box.cliAt(worker, 'join', box.lane, '--model', 'fixture-model'), 'join a private builder');
+  success(await box.cliAt(worker, 'join', buildLane, '--model', 'fixture-model'), 'join a private builder');
   success(await box.cliAt(worker, 'claim', String(added.item.item_id)), 'claim the linked item');
   mkdirSync(join(worker, 'source'), { recursive: true });
   writeFileSync(join(worker, 'source', 'repair-fixture.txt'), 'source for the linked submit\n');
@@ -89,11 +90,14 @@ test('a foreign marker and dead legacy lock are quarantined on the next write an
   assert.deepEqual(readFileSync(artifacts.find(artifact => artifact.name === 'git-sync.json').path), originalMarker);
   assert.deepEqual(readFileSync(join(artifacts.find(artifact => artifact.name === 'git-sync.json.lock').path, 'pid')), originalPid);
 
-  const health = success(await box.cli('health'), 'read structured health after repair');
+  const healthResult = await box.cli('health');
+  const health = healthResult.document;
+  assert.ok(Array.isArray(health.stuck), 'health returns its normal report, not an operation refusal');
+  assert.equal(healthResult.code, health.stuck.length ? 1 : 0, 'health preserves its existing stuck-work exit status');
   assert.deepEqual(health.gitSyncRepairs, repairs, 'health reports the same durable repair summary');
   const text = box.startCli(['health'], {}, { json: false });
   const textResult = await text.closed;
-  assert.equal(textResult.code, 0, textResult.stderr);
+  assert.equal(textResult.code, healthResult.code, 'text health preserves the structured report exit status');
   assert.match(text.stdout, new RegExp(String(pid), 'u'));
   assert.ok(text.stdout.includes(command), 'health text names the observed command');
   assert.ok(text.stdout.includes(at), 'health text names the observed timestamp');
