@@ -4,8 +4,12 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { closeBoard, openBoard, register } from '../../src/board.js';
-import { BIN, machine, project } from './fixture.js';
+import { closeBoard } from '../../src/board.js';
+import { openBoard } from '../../src/board.js';
+import { register } from '../../src/board.js';
+import { BIN } from './fixture.js';
+import { machine } from './fixture.js';
+import { project } from './fixture.js';
 
 /** Seed genuine registration history with many seats and shared original sessions, outside the startup budget. */
 function seedSeats(box, demo) {
@@ -71,7 +75,7 @@ test('large live board serves its first page and agent state within two seconds 
     const state = (await response.json()).state;
     const visible = new Map(state.agents.map(agent => [agent.agent_id, agent.agent_family]));
     for (const id of ids) assert.equal(visible.get(id), 'startup-vendor', 'each native seat retains its declared family');
-    assert.ok(performance.now() - started < 2000, 'first page and actual board state meet the frozen two-second budget');
+    assert.ok(performance.now() - started < 2000, 'first page and actual board state meet the frozen two-second budget'); // budget: declared frozen #1915 ceiling is 2000 ms, including startup and initial board data.
   } finally {
     if (child.exitCode === null && child.signalCode === null) {
       const exited = once(child, 'exit');
