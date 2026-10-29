@@ -20,7 +20,7 @@
   "totals": {
     "cells": 43,
     "movedPaths": 1319,
-    "stays": 41,
+    "stays": 44,
     "placedBy": {
       "seed": 893,
       "rule": 341,
@@ -411,6 +411,18 @@
     {
       "path": "src/git-sync-format.js",
       "reason": "Retired by #1619: consolidated into packages/commits/src/core/board-format.js; no source remains for the sync move."
+    },
+    {
+      "path": "src/board-hold-log.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/board-hold-ratchet.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/board-hold-baseline.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ]
 }
