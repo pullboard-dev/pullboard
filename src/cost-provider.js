@@ -38,8 +38,10 @@ function codex(rows) {
     // A decreased field is independently unknown; never turn resets into positive spend.
     const deltaInput = !previous ? input : input >= previous.input ? input - previous.input : null;
     const deltaOutput = !previous ? output : output >= previous.output ? output - previous.output : null;
-    const read = count(usage.cached_input_tokens);
-    const fresh = read !== null && read <= input ? input - read : null;
+    const cached = count(usage.cached_input_tokens);
+    // Codex includes cached reads in input: an inconsistent subset cannot establish a baseline.
+    const read = cached !== null && cached <= input ? cached : null;
+    const fresh = read !== null ? input - read : null;
     const deltaRead = read !== null && (!previous || previous.read !== null && read >= previous.read) ? read - (previous?.read ?? 0) : null;
     const deltaFresh = fresh !== null && (!previous || previous.fresh !== null && fresh >= previous.fresh) ? fresh - (previous?.fresh ?? 0) : null;
     previous = { input, output, read, fresh };

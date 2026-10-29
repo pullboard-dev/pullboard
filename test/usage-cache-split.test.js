@@ -62,7 +62,11 @@ test('Codex differences inclusive input and cached reads independently, preservi
   assert.deepEqual(split(parsed('codex', [codex(9, 0)])[0]), [9, 0, null]);
   assert.deepEqual(split(parsed('codex', [codex(9, undefined)])[0]), [null, null, null]);
   assert.deepEqual(split(parsed('codex', [codex(9, '0')])[0]), [null, null, null]);
-  assert.equal(parsed('codex', [codex(9, 10)])[0].freshInputTokens, null);
+  const inconsistent = parsed('codex', [codex(9, 10), codex(12, 4), codex(15, 6)]);
+  assert.deepEqual(split(inconsistent[0]), [null, null, null], 'cached input cannot exceed inclusive input');
+  assert.deepEqual(split(inconsistent[1]), [null, null, null], 'an invalid cached count never becomes a spend baseline');
+  assert.deepEqual(split(inconsistent[2]), [1, 2, null], 'a subsequent pair of valid counters restores differencing');
+  assert.equal(inconsistent[1].inputTokens, 3, 'valid inclusive input keeps its independent baseline');
   const reset = parsed('codex', [codex(100, 60), codex(120, 50)]);
   assert.equal(reset[1].cacheReadInputTokens, null, 'decreased cached counters never become spend');
 });
