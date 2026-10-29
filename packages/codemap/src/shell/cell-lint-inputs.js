@@ -1,12 +1,12 @@
 /** Recognize finite executable and data inputs without evaluating repository modules [C7,CD62]. */
 import { posix } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { lex } from './js-lex.js';
-import { COMMAND_CANDIDATE } from './discovery.js';
-import { COMMAND_FILE } from './discovery.js';
+import { lex } from '../../../../src/js-lex.js';
+import { COMMAND_CANDIDATE } from '../../../../src/discovery.js';
+import { COMMAND_FILE } from '../../../../src/discovery.js';
 import { bindingReadsForModules } from './cell-binding-uses.js';
 
-const DISCOVERY = readFileSync(new URL('./discovery.js', import.meta.url), 'utf8');
+const DISCOVERY = readFileSync(new URL('../../../../src/discovery.js', import.meta.url), 'utf8');
 
 /** Resolve one literal module-relative input, excluding external URLs and parent escapes. */
 function relativeInput(file, literal) {
