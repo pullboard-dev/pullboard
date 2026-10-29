@@ -5,6 +5,7 @@
  "root": "packages/stats",
  "frontDoor": "packages/stats/index.js",
  "paths": [
+  ["test/cost-dollars.test.js","packages/stats/tests/cost-dollars.test.js","rule"],
   ["src/flow-replay-history.js","packages/stats/src/core/flow-replay-history.js","seed"],
   ["src/flow-replay.js","packages/stats/src/core/flow-replay.js","seed"],
   ["src/flow-report-counter.js","packages/stats/src/core/flow-report-counter.js","seed"],
