@@ -145,12 +145,63 @@ function countPairs() {
   }
   if (view.tab === 'dashboard' && view.addressDetail === 'floor') {
     source('[data-floor-stat], .floor-foot');
-    for (const queue of all('[data-floor-queue]')) add('Floor/' + queue.dataset.floorQueue, number(queue.querySelector('h2 b')), queue.querySelectorAll('li').length);
+    const recent = p.events.filter(event => Date.parse(event.event_at) > Date.now() - 4 * 3_600_000);
+    const landedIds = new Set(p.dashboardLanded.map(item => item.id));
+    const dayIds = new Set(p.events.filter(event => event.event_kind === 'merged'
+      && Date.parse(event.event_at) > Date.now() - 24 * 3_600_000
+      && p.dashboardLanded.some(item => item.id === event.item_id && item.commit === JSON.parse(event.event_detail).commit)).map(event => event.item_id));
+    const recentIds = new Set(recent.filter(event => event.event_kind === 'merged'
+      && p.dashboardLanded.some(item => item.id === event.item_id && item.commit === JSON.parse(event.event_detail).commit)).map(event => event.item_id));
+    const review = items.filter(item => item.status === 'submitted');
+    const heldItems = new Set((p.itemHolds ?? []).map(hold => hold.item));
+    const heldLanes = new Set(p.holds.map(hold => hold.hold_lane));
+    const nativeQueues = {
+      review: review.map(item => item.id),
+      landing: items.filter(item => item.status === 'verified' && !landedIds.has(item.id)).map(item => item.id),
+      ready: items.filter(item => item.status === 'open' && !item.blockedBy.length && !heldItems.has(item.id) && !heldLanes.has(item.lane)).map(item => item.id),
+      landed: [...dayIds],
+    };
+    const queues = all('[data-floor-queue]');
+    add('Floor/queue inventory', queues.length, 4);
+    for (const queue of queues) {
+      const key = queue.dataset.floorQueue, rows = [...queue.querySelectorAll('li')];
+      add('Floor/queue/' + key, number(queue.querySelector('h2 b')), rows.length);
+      add('Floor/queue native IDs/' + key, rows.map(row => Number(row.querySelector('[data-go]').dataset.go.split(':')[1])).sort((a, b) => a - b).join(','), nativeQueues[key].toSorted((a, b) => a - b).join(','));
+    }
     for (const group of all('.floor-group')) {
       let rows = 0, node = group.nextElementSibling;
       while (node?.matches('[data-floor-agent]')) { rows++; node = node.nextElementSibling; }
       add('Floor/' + group.textContent, Number(group.textContent.split('·').at(-1).trim()), rows);
     }
+    const agents = all('[data-floor-agent]');
+    const building = agents.filter(row => row.classList.contains('floor-building')).length;
+    const reviewing = agents.filter(row => row.classList.contains('floor-reviewing')).length;
+    const between = agents.filter(row => row.classList.contains('floor-between-items')).length;
+    const live = agents.filter(row => !row.classList.contains('floor-quiet')).length;
+    const values = {
+      live, building, reviewing, between, landed: dayIds.size,
+      accepted: recent.filter(event => event.event_kind === 'accept').length,
+      'sent-back': recent.filter(event => ['reject', 'reopen'].includes(event.event_kind)).length,
+      'in-review': review.length, waiting: nativeQueues.landing.length, ready: nativeQueues.ready.length,
+      shouts: recent.filter(event => event.event_kind === 'shout').length,
+    };
+    add('Floor/tile inventory', all('[data-floor-stat]').length, Object.keys(values).length);
+    for (const [key, expected] of Object.entries(values)) {
+      // Read the visible numeral: a stale data-value must never conceal a wrong tile.
+      const numeral = document.querySelector('[data-floor-stat="' + key + '"] > b');
+      add('Floor/tile/' + key, Number.parseInt(numeral?.textContent.replaceAll(',', ''), 10), expected);
+    }
+    add('Floor/seen agents note', number(document.querySelector('[data-floor-stat="live"] small')), agents.length);
+    add('Floor/recent landed note', number(document.querySelector('[data-floor-stat="landed"] small')), recentIds.size);
+    add('Floor/unreviewed note', number(document.querySelector('[data-floor-stat="in-review"] small')), review.filter(item => !item.reviewer || !(Date.parse(item.reviewUntil) > Date.now())).length);
+    const headline = document.querySelector('.floor-hero h1').textContent.replaceAll(',', '').match(/\d+/g).map(Number);
+    for (const [index, expected] of [live, building, reviewing, dayIds.size].entries()) add('Floor/headline/' + index, headline[index], expected);
+    add('Floor/all-time landed', number(document.querySelector('.floor-foot span')), landedIds.size);
+    const bins = all('.floor-bars rect title').map(node => number(node));
+    add('Floor/histogram inventory', bins.length, 24);
+    add('Floor/histogram total', bins.reduce((sum, count) => sum + count, 0), dayIds.size);
+    for (const row of agents) add('Floor/agent shouts/' + row.dataset.floorAgent, number(row.querySelector('[data-label="Shouts"]')), recent.filter(event => event.event_kind === 'shout' && event.event_by === row.dataset.floorAgent).length);
+
   }
   return pairs;
 }
@@ -209,7 +260,21 @@ async function sweep(chrome, phase) {
   await chrome.waitFor('!!document.querySelector(".dash-floor-link")');
   await press(chrome, 'document.querySelector(".dash-floor-link")');
   await chrome.waitFor('view.addressDetail === "floor" && !!document.querySelector(".floor")');
+  await chrome.waitFor('!document.querySelector(".floor-agents .muted")');
   await checkCounts(chrome, phase + '/floor');
+  // Each independently corrupted visible tile must be detected while its data-value stays untouched.
+  const controls = await chrome.stable(`(() => {
+    return [...document.querySelectorAll('[data-floor-stat]')].map(tile => {
+      const numeral = tile.querySelector('b'), original = numeral.textContent;
+      numeral.textContent = '999';
+      const pair = window.countSweepPairs().find(pair => pair.label === 'Floor/tile/' + tile.dataset.floorStat);
+      numeral.textContent = original;
+      return { key: tile.dataset.floorStat, detected: pair?.actual === 999 && pair.actual !== pair.expected };
+    });
+  })()`);
+  assert.equal(controls.length, 11, phase + ': all Floor tile controls ran');
+  for (const control of controls) assert.equal(control.detected, true, phase + ': detects corrupted Floor ' + control.key);
+  await checkCounts(chrome, phase + '/floor restored');
   await press(chrome, 'document.querySelector(".floor-crumbs a")');
 }
 
