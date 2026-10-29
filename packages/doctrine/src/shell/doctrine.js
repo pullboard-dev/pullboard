@@ -49,7 +49,7 @@ export function doctrineFromSource(source, name) {
 }
 
 /** Overlay only the person's applied exact-row decisions on the committed doctrine. */
-export function appliedDoctrine(doctrine, decisions, currentSource) {
+export function appliedDoctrine(doctrine, decisions, currentSource, { standard } = {}) {
   const rows = new Map(doctrine.repo.rows.map(row => [row.id, row]));
   const aliases = new Set([DOCTRINE_FILE, LEGACY_DOCTRINE_FILE]);
   const current = parseSpec(currentSource ?? '');
@@ -69,12 +69,11 @@ export function appliedDoctrine(doctrine, decisions, currentSource) {
       || row.status !== (record.decision === 'approve' ? 'approved' : 'wont')) continue;
     rows.set(row.id, { ...row, section: rows.get(row.id)?.section ?? row.section });
   }
-  return composeDoctrine({ ...doctrine.repo, rows: [...rows.values()] }, doctrine.name);
+  return composeDoctrine({ ...doctrine.repo, rows: [...rows.values()] }, doctrine.name, standard);
 }
 
 /** Combine one repo snapshot with the packaged standard using the same override rules. */
-function composeDoctrine(repo, name) {
-  const standard = standardDoctrine();
+function composeDoctrine(repo, name, standard = standardDoctrine()) {
   const inherited = new Set(standard.rows.map((row) => row.id));
   const overrides = new Set(repo.rows.filter((row) => inherited.has(row.id)).map((row) => row.id));
   // Readers group rows by heading name, so one shared heading must not render the rows twice.

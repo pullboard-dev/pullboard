@@ -177,7 +177,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     try {
       digest = freezer(ctx, { board })(item).digest;
     } catch (error) {
-      if (!(error instanceof Refused) || error.code === 'A5_GRAMMAR_VERSION') throw error;
+      if (!(error instanceof Refused) || ['A5_GRAMMAR_VERSION', 'MAIN_FACTS_BUSY'].includes(error.code)) throw error;
     }
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');

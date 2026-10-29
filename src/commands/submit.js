@@ -281,7 +281,7 @@ export async function submitHere(ctx, id, infra) {
       try {
         digest = freezer(ctx, { board })(item).digest;
       } catch (error) {
-        if (!(error instanceof Refused) || error.code === 'A5_GRAMMAR_VERSION') throw error;
+        if (!(error instanceof Refused) || ['A5_GRAMMAR_VERSION', 'MAIN_FACTS_BUSY'].includes(error.code)) throw error;
         unusable = error.message.replace(/^\[\w+\] /, '').split(';')[0];
       }
       if (digest !== item.item_frozen_digest) {

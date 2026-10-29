@@ -19,7 +19,6 @@ import {
 } from 'node:path';
 import * as store from '../../../../src/board.js';
 import {
-  CONFIG_FILE,
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
 } from '../../../../src/config.js';
@@ -30,20 +29,15 @@ import {
 } from './doctrine.js';
 import {
   git,
-  mainCheckout,
-  resolveCommit,
   tryGit,
 } from '../../../../src/git.js';
 import { Refused } from '../../../../src/refused.js';
 import { writeRowApply } from '../../../../src/row-decisions.js';
+import { mainCriterionFacts } from '../../../../src/main-criterion-facts.js';
 import {
   loadSpec,
   parseSpec,
 } from '../../../../src/spec.js';
-import {
-  policyAt,
-  trunkRef,
-} from '../../../../src/trusted-policy.js';
 
 /**
  * Read one doctrine file at a commit, falling back to the other default name the way loadDoctrine
@@ -74,23 +68,15 @@ function doctrineAt(root, commit, name) {
  * @param {any} board
  * @returns {any} a composed doctrine, as loadDoctrine returns
  */
-export function agentDoctrine(ctx, board) {
+export function agentDoctrine(ctx, board, { facts = mainCriterionFacts(ctx.info.root), decisions = store.rowDecisions(board) } = {}) {
   const root = ctx.info.root;
-  const primary = mainCheckout(root);
-  const retained = primary?.commit ? null : trunkRef(root);
-  const commit = primary?.commit ?? (retained ? resolveCommit(root, retained) : null);
-  let doctrine = ctx.doctrine;
+  let doctrine = facts?.doctrine ?? ctx.doctrine;
   let name = doctrine.name;
-  if (commit && tryGit(root, ['show', `${commit}:${CONFIG_FILE}`]).status === 0) {
-    const read = doctrineAt(root, commit, policyAt(root, commit).config.practice);
-    name = read.name;
-    doctrine = doctrineFromSource(read.source, name);
-  }
   const entry = git(root, ['worktree', 'list', '--porcelain', '-z']).split('\0')[0];
   const primaryRoot = entry.startsWith('worktree ') ? entry.slice('worktree '.length) : null;
   const file = primaryRoot && join(primaryRoot, name);
   const current = file && existsSync(file) ? readFileSync(file, 'utf8') : null;
-  return appliedDoctrine(doctrine, store.rowDecisions(board), current);
+  return appliedDoctrine(doctrine, decisions, current, { standard: facts?.standard });
 }
 
 /**
