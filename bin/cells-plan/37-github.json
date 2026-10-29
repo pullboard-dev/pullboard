@@ -42,8 +42,6 @@
  ],
  "cuts": [
   {"cell":"seats","imports":1,"edges":["src/projects.js->src/github-origin.js"]},
-  {"cell":"spec","imports":1,"edges":["src/reference-authors.js->src/pr-github.js"]},
-  {"cell":"store","imports":1,"edges":["src/board.js->src/pr-findings.js"]},
   {"cell":"link","imports":2,"edges":["src/relay-excluded.js->src/github-origin.js","src/relay.js->src/github-origin.js"]}
  ],
  "ratchets": {

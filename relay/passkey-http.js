@@ -5,6 +5,7 @@ import {
   apiStatus,
   readApiBody,
 } from '../src/api-http.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { Refused } from '../src/refused.js';
 
 /**
@@ -40,6 +41,6 @@ export function createPasskeyHandler({ auth, origin, person, board }) {
         apiJson(res, 200, { passkeys: auth.passkeys(await person(req, false)) }); return true;
       }
       throw new Refused('NO_ENDPOINT', 'use the documented passkey endpoints');
-    } catch (error) { apiJson(res, apiStatus(error), apiRefusal(error)); return true; }
+    } catch (error) { apiJson(res, apiStatus(error), apiRefusal(error, refusalDocument)); return true; }
   };
 }

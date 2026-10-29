@@ -20,20 +20,7 @@
   {"cell":"sync","imports":1,"before":true},
   {"cell":"app:view","imports":1,"before":false}
  ],
- "cuts": [
-  {"cell":"items","imports":1,"edges":["src/item-decision-queue.js->src/shout-audience.js"]},
-  {
-   "cell": "store",
-   "imports": 5,
-   "edges": [
-    "src/board-query.js->src/shout-audience.js",
-    "src/board-query.js->src/worker-inbox.js",
-    "src/board-read-auxiliary.js->src/worker-inbox.js",
-    "src/board.js->src/inbox-store.js",
-    "src/board.js->src/shout-audience.js"
-   ]
-  }
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": 0,
   "shims": 5,

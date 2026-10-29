@@ -12,6 +12,7 @@ import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { after, test } from 'node:test';
 import { main } from '../src/cli.js';
 import { createLocalApiHandler } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { forgetProject, listApiProjects } from '../src/projects.js';
 import { runningView, rememberView, forgetView } from '../src/view-session.js';
 import { fetchFresh } from './http-fixture.js';
@@ -306,12 +307,12 @@ test('scoped API answers and its cache and stream never resolve a foreign roadma
   let port = 0;
   const scopedSecret = randomUUID();
   const options = { secret: scopedSecret, getPort: () => port, runCommand: main };
-  const scopedHandler = createLocalApiHandler({ ...options, scope: { projectRoot: localLinkedPath } });
+  const scopedHandler = createLocalApiHandler({ refusalDocument, ...options, scope: { projectRoot: localLinkedPath } });
   const scoped = await serveHandler(t, scopedHandler, options.secret);
   port = scoped.port;
   const plainSecret = randomUUID();
   let plainPort = 0;
-  const plainHandler = createLocalApiHandler({ ...options, secret: plainSecret, getPort: () => plainPort });
+  const plainHandler = createLocalApiHandler({ refusalDocument, ...options, secret: plainSecret, getPort: () => plainPort });
   const plain = await serveHandler(t, plainHandler, plainSecret);
   plainPort = plain.port;
 

@@ -1,4 +1,5 @@
 import { projectItemState } from './api.js';
+import { performanceCores } from './gate.js';
 import { landingPace } from './roadmap.js';
 /** @pullboard-test-input src/view.css */
 /**
@@ -41,6 +42,8 @@ import { VERSION } from './release-version.js';
 import { displayAgentName } from './agent-names.js';
 import {
   COORDINATOR,
+  DEFAULT_VIEW_PORT,
+  defaultViewPort,
   loadConfig,
 } from './config.js';
 import {
@@ -138,7 +141,7 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
     try { return repoInfo(entry.root).commonDir === info.commonDir; } catch { return false; }
   }) ?? { root: info.root, name: config.name || basename(info.root), project: config.project || '', added: new Date().toISOString() };
   const { serveApi } = await import('./api.js');
-  const api = await serveApi({ port: 0, projects: () => [registered], runCommand });
+  const api = await serveApi({ port: 0, projects: () => [registered], runCommand, refusalDocument });
   let listing;
   let state;
   let events;
@@ -440,7 +443,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import('./relay-setup.js');
   const signIns = new Set();
   const signInLifetime = new AbortController();
-  const apiHandler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, stateDetail: 'summary',
+  const apiHandler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
     allowedOrigins: lan ? [] : [HOSTED_ORIGIN], allowedHosts: lan ? [address] : [],
     sessionCookie: { name: cookieName, value: session }, ...(projectRoot === undefined ? {} : { scope: { projectRoot } }) });
   const reply = (res, code, type, body, headers = {}) => {
@@ -519,7 +522,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     try {
       await forgetUnreadableBody(req);
       const registered = listApiProjects();
-      const listing = apiBoardListing(() => registered);
+      const listing = apiBoardListing(() => registered, undefined, refusalDocument);
       const unreadable = listing.warnings
         .filter((warning) => warning.error?.error?.code === 'BOARD_UNAVAILABLE');
       const forgotten = unreadable.filter((project) => forgetProject(project.root)).length;
