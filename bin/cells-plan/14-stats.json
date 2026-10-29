@@ -29,7 +29,10 @@
   ["src/cost-shared-ledger.js","packages/stats/src/shell/cost-shared-ledger.js","rule"],
   ["src/cost-shared.js","packages/stats/src/shell/cost-shared.js","rule"],
   ["src/cost.js","packages/stats/src/shell/cost.js","rule"],
-  ["src/cost-input-split-engine.js","packages/stats/src/shell/cost-input-split-engine.js","rule"]
+  ["src/cost-input-split-engine.js","packages/stats/src/shell/cost-input-split-engine.js","rule"],
+  ["src/cost-usage-batch.js","packages/stats/src/shell/cost-usage-batch.js","rule"],
+  ["src/usage-batch-engine.js","packages/stats/src/shell/usage-batch-engine.js","rule"],
+  ["test/usage-publish-batch.test.js","packages/stats/tests/usage-publish-batch.test.js","rule"]
  ],
  "reexports": [
   "src/flow-replay.js",

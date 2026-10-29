@@ -339,6 +339,7 @@ export { landingFlakes, landingWaiverCovers, landingWaiverKind };
 export { acceptCheck } from './check-accept.js';
 export { declareJob, recordJobRun } from './board-recurring-jobs.js';
 export { recordUsage } from './cost.js';
+export { recordUsageBatch } from './cost-usage-batch.js';
 export { recordSharedUsage } from './cost-shared.js';
 export { proofReceipts, recordProofRun } from './proof-receipts.js';
 import { refuseLongShout } from './proof-receipts.js';
