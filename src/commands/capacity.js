@@ -1,6 +1,6 @@
 import { gateRuns } from '../quarantine.js';
 import { flakeLedger } from '../flakes.js';
-import { eventCauses } from '../rigor.js';
+import { eventCauses } from '../board-rigor.js';
 /** Observed test-work cost and explicit boundary inventory, without changing admission [C7]. */
 import { context } from '../cli.js';
 import { withBoardRead } from '../cli.js';

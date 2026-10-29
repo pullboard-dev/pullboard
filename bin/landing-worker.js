@@ -2,7 +2,7 @@
 /** Compose the trusted private checker in each actual landing guardian/worker process [B3,V4,Q1,Q3]. */
 import { fileURLToPath } from 'node:url';
 import { landingWorkerEntry } from '../src/landing-worker.js';
-import { parseProcessCensus } from '../src/process-census.js';
+import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
 const FILE = fileURLToPath(import.meta.url);
 if (process.argv[1] === FILE && process.send) {
   // The guardian installs its original watchdog without loading the private-check executor.

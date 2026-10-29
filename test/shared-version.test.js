@@ -90,13 +90,13 @@ test('relay snapshot guards its native board open even when presentation is alre
     'export function relayPresentation() { return {version:1,state:{events:[]}}; }');
   assert.notEqual(supplied, original, 'supply presentation without replacing the actual snapshot opener');
   writeFileSync(relay, supplied);
-  const result = box.probe(`import { relaySnapshot } from './src/relay-presentation.js'; try { relaySnapshot(${JSON.stringify(box.root)}); console.log(JSON.stringify({code:'OPENED'})); } catch(e) { console.log(JSON.stringify({code:e.code})); }`);
+  const result = box.probe(`import { nativeBoardPorts } from './src/native-board.js'; import { relaySnapshot } from './src/relay-presentation.js'; try { relaySnapshot(${JSON.stringify(box.root)}, {}, nativeBoardPorts().presentation); console.log(JSON.stringify({code:'OPENED'})); } catch(e) { console.log(JSON.stringify({code:e.code})); }`);
   assert.equal(result.code, 'UNMERGED_SCHEMA'); assert.deepEqual(box.versions(), before);
 });
 
 test('relay presentation refuses before asking the view projection to open a newer board [A5,A6]', t => {
   const box = fixture(t); const before = box.versions(); box.bump('EVENT_LOG_VERSION', 1, 2);
-  const result = box.probe(`import { relayPresentation } from './src/relay-presentation.js'; try { relayPresentation(${JSON.stringify(box.root)}); console.log(JSON.stringify({code:'OPENED'})); } catch(e) { console.log(JSON.stringify({code:e.code})); }`);
+  const result = box.probe(`import { nativeBoardPorts } from './src/native-board.js'; import { relayPresentation } from './src/relay-presentation.js'; try { relayPresentation(${JSON.stringify(box.root)}, {}, nativeBoardPorts().presentation); console.log(JSON.stringify({code:'OPENED'})); } catch(e) { console.log(JSON.stringify({code:e.code})); }`);
   assert.equal(result.code, 'UNMERGED_SCHEMA'); assert.deepEqual(box.versions(), before);
 });
 

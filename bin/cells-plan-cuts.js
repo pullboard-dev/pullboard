@@ -8,6 +8,10 @@ import { temporaryCellEdges } from '../src/cell-lint-inventory.js';
 import { cutItemCommands } from '../src/cells-plan-cuts.js';
 import { cutTitle } from '../src/cells-plan-cuts.js';
 import { importCuts } from '../src/cells-plan-cuts.js';
+import { retiredRows } from '../packages/codemap/src/core/cells-plan-cuts.js';
+import { lstatSync } from 'node:fs';
+import { join } from 'node:path';
+import { repositoryImport } from '../packages/codemap/src/core/import-map.js';
 import { lex } from '../src/js-lex.js';
 import { readPathMap } from '../src/path-map.js';
 import { mappedPath } from '../src/path-map.js';
@@ -32,16 +36,42 @@ function onlyForwards(source, computed) {
     || computed && /^(?:await)?import\([^;]*\);?$/u.test(code);
 }
 
+/** A historical anchor is retired only while neither endpoint exists or has a live resolved import. */
+export function retiredProblems(root, plan, inventory) {
+  const rows = retiredRows(plan);
+  if (!rows.length) return [];
+  const { files, edges, unknown } = inventory ?? cellInventory(root, { importsIn, commonJsIn });
+  const endpoints = new Set(rows.flatMap(entry => entry.row.slice(0, 2)));
+  const config = files.has('package.json') ? JSON.parse(files.get('package.json').toString('utf8')) : {};
+  const problems = [];
+  for (const path of endpoints) {
+    let present = files.has(path);
+    try { lstatSync(join(root, path)); present = true; }
+    catch (error) { if (!['ENOENT', 'ENOTDIR'].includes(error.code)) throw error; }
+    if (present) problems.push(`retired historical path still exists: ${path}`);
+  }
+  for (const [file, imports] of edges) for (const { target } of imports) {
+    if (endpoints.has(target)) problems.push(`live import of retired historical path: ${file} -> ${target}`);
+  }
+  for (const { file, specifier } of unknown) {
+    if (typeof specifier !== 'string') continue;
+    const target = repositoryImport(file, specifier, config.imports);
+    if (endpoints.has(target)) problems.push(`live import of absent retired historical path: ${file} -> ${target}`);
+  }
+  return [...new Set(problems)].sort();
+}
+
 /** Follow this cell's imports and forwarding modules, leaving another cell's own imports to its cut. */
 export function checkCuts(root, plan, name) {
   const group = importCuts(plan).find(row => row.cell === name);
   if (!group) throw new Refused('CELLS_PLAN_CELL', `no import-cut group ${name}; use an importing cell from node bin/cells-plan.js --file-cuts`);
-  const { files, edges, unknown } = cellInventory(root, { importsIn, commonJsIn });
+  const inventory = cellInventory(root, { importsIn, commonJsIn });
+  const { files, edges, unknown } = inventory;
   const map = readPathMap(root);
   const owner = ownerFor(plan, map);
   const temporary = temporaryCellEdges(files);
   const allowed = new Set(temporary.problems.length ? [] : temporary.edges.map(row => `${mappedPath(map, row.importer)}->${mappedPath(map, row.target)}`));
-  const forbidden = new Set(group.targets), problems = new Set(temporary.problems), seen = new Set();
+  const forbidden = new Set(group.targets), problems = new Set([...temporary.problems, ...retiredProblems(root, plan, inventory)]), seen = new Set();
   const pending = [...edges.keys()].filter(file => !testFile(file) && owner(file) === name);
   while (pending.length) {
     const file = pending.pop();

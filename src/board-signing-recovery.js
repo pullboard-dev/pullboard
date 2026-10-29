@@ -1,6 +1,6 @@
 /** Recognize only prior full-shape stamps from legacy normal pin/sign operations [M3,E22,H16]. */
-import { AUTHORITY } from './person-authority-schema.js';
-import { AUTHORITY_TRIGGERS } from './person-authority-schema.js';
+import { AUTHORITY } from './board-person-authority-schema.js';
+import { AUTHORITY_TRIGGERS } from './board-person-authority-schema.js';
 import { EVENT_LOG_VERSION } from './board-schema-source.js';
 import { SIGNED_EVENT_LOG_VERSION } from './board-schema-source.js';
 import { priorShapeMatchesStoredStamp } from './board-migrate.js';

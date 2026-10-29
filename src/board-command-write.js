@@ -23,6 +23,6 @@ export function writeBoardCommand(board, operation, args, actor) {
   return store.atomic(board, () => {
     requireHandoffActive(board, actor, operation, prepared);
     requireAgentGrant(board, { operation, args: prepared, engine: ENGINE_VERSION });
-    return store[operation](board, ...prepared);
+    return board.enginePorts.store[operation](board, ...prepared);
   });
 }

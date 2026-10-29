@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
-import { seal, unseal } from '../src/seal.js';
+import { seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { prepareBoardMembers, authorizeMember } from '../src/relay-membership.js';
 import { createDeviceKeys, unwrapDeviceBoardKey } from '../src/relay-device-keys.js';
 import { handOverBoardKeys, statementBytes } from '../src/relay-handover.js';

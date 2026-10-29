@@ -5,7 +5,7 @@ import { Refused } from './refused.js';
 import {
   automaticSourceFromText,
   readAutomaticRigorSource,
-} from './rigor-auto-source.js';
+} from './board-rigor-auto-source.js';
 import { planAutomaticRigorApply } from './rigor-auto-apply.js';
 import { writeRowApply } from './row-decisions.js';
 import {

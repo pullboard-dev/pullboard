@@ -11,7 +11,7 @@ import { exportBoard, importBoard } from '../../src/exchange.js';
 import { projectState } from '../../src/serve.js';
 import { exportView } from '../../src/commands/view.js';
 import { relayClientFixture } from '../relay-client-fixture.js';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../../packages/kernel/src/core/discovery.js';
 import { runFixtureChildAsync } from '../fixture-child.js';
 import { startChrome } from '../relay-browser-fixture.js';
 import { stableChrome } from './stable.js';
