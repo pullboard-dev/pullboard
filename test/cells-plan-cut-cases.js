@@ -1,7 +1,9 @@
 /** Import-cut filing uses the committed plan, real CLI and real source graphs [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -10,6 +12,7 @@ import { importCuts } from '../src/cells-plan-cuts.js';
 import { cutItemCommands } from '../src/cells-plan-cuts.js';
 import { cutBrief } from '../src/cells-plan-cuts.js';
 import { checkCuts } from '../bin/cells-plan-cuts.js';
+import { retiredProblems } from '../bin/cells-plan-cuts.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { computePlan } from '../bin/cells-plan.js';
 
@@ -30,6 +33,39 @@ function board(t) {
 
 /** Register bounded real-board and graph controls in the existing frozen cells-plan test file. */
 export function installCutCases({ PLAN, BIN, fixture, git }) {
+  test('retired anchors preserve provenance only while both endpoints and their live imports are absent [C7,D3,CD64]', t => {
+    const { root, put } = fixture(t), plan = computePlan(root), group = importCuts(plan)[0], edge = group.edges[0];
+    const provider = plan.cells.find(cell => cell.name === edge.target);
+    const index = provider.paths.findIndex(row => row[0] === edge.to);
+    const original = provider.paths.splice(index, 1)[0];
+    plan.retired = [{ cell: provider.name, row: [...original] }];
+    put(edge.from, 'export const detached = true;\n');
+    rmSync(join(root, edge.to));
+    assert.deepEqual(retiredProblems(root, plan), []);
+    assert.equal(importCuts(plan)[0].edges[0].to, edge.to, 'historical declaration keeps its exact source identity');
+    assert.deepEqual(plan.retired[0].row, original, 'future target and placement provenance are unchanged');
+    assert.deepEqual(checkCuts(root, plan, group.cell), []);
+    put(original[1], 'export const present = true;\n');
+    assert.ok(retiredProblems(root, plan).some(problem => problem.includes(original[1])), 'an existing future target cannot retire');
+    rmSync(join(root, original[1]));
+    put(original[0], 'export const present = true;\n');
+    assert.ok(retiredProblems(root, plan).some(problem => problem.includes(original[0])), 'an existing original cannot retire');
+    rmSync(join(root, original[0]));
+    symlinkSync('missing-retired-target', join(root, original[0]));
+    assert.ok(retiredProblems(root, plan).some(problem => problem.includes(original[0])), 'a dangling symlink is not an absent original');
+    rmSync(join(root, original[0]));
+    put(edge.from, `import ${JSON.stringify('./' + edge.to.slice('src/'.length))};\n`);
+    assert.ok(retiredProblems(root, plan).some(problem => problem.includes('live import')), 'a dangling live import does not become a retired exemption');
+    put(edge.from, `import ${JSON.stringify('../' + original[1])};\n`);
+    assert.ok(retiredProblems(root, plan).some(problem => problem.includes(original[1])), 'a live import of the absent future target also refuses');
+    put('package.json', JSON.stringify({ type: 'module', imports: { '#retired': './' + original[0] } }));
+    put(edge.from, "import '#retired';\n");
+    assert.ok(retiredProblems(root, plan).some(problem => problem.includes(original[0])), 'a real package import alias cannot conceal a retired endpoint');
+    put(edge.from, `import ${JSON.stringify('../' + provider.frontDoor)};\n`);
+    put(provider.frontDoor, 'export const replacement = true;\n');
+    assert.deepEqual(retiredProblems(root, plan), []);
+    assert.ok(checkCuts(root, plan, group.cell).some(problem => problem.includes(provider.frontDoor)), 'actual replacement backedges remain refused');
+  });
   test('the committed plan dry run names every cut occurrence once without filing or a move dependency [C7,D3,CD64]', t => {
     const groups = importCuts(PLAN), commands = cutItemCommands(PLAN);
     const expected = PLAN.cells.flatMap(cell => cell.cuts.flatMap(link => link.edges));
@@ -127,4 +163,30 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
     put(edge.from, "await import(name); export const detached = true;\n");
     assert.ok(checkCuts(root, plan, group.cell).some(problem => problem.includes('cannot prove')), 'a computed loader cannot claim the cut is proven');
   });
+
+  test('closed historical cuts accept exact lower ownership while higher or missing placement still refuses [C7,D3,CD64]', t => {
+    const { root, put } = fixture(t), plan = computePlan(root), group = importCuts(plan)[0], edge = group.edges[0];
+    const importer = plan.cells.find(cell => cell.name === group.cell);
+    const original = plan.cells.find(cell => cell.name === edge.target);
+    const index = original.paths.findIndex(row => row[0] === edge.to);
+    const row = original.paths.splice(index, 1)[0], extracted = 'src/lower-extracted.js';
+    const body = readFileSync(join(root, edge.to), 'utf8');
+    row[1] = extracted; importer.paths.push(row);
+    put(extracted, body); rmSync(join(root, edge.to));
+    put(edge.from, "import './lower-extracted.js'; export const native = true;\n");
+    assert.equal(importCuts(plan)[0].edges[0].to, edge.to, 'the original cut identity is retained');
+    assert.deepEqual(checkCuts(root, plan, group.cell), [], 'actual lower ownership closes the historical cut without an alias');
+    const higher = structuredClone(plan), higherImporter = higher.cells.find(cell => cell.name === importer.name);
+    const moved = higherImporter.paths.splice(higherImporter.paths.findIndex(value => value[0] === edge.to), 1)[0];
+    higher.cells.find(cell => cell.order > original.order).paths.push(moved);
+    assert.throws(() => importCuts(higher), /cut import is outside its named cells/u, 'later ownership cannot close an earlier historical cut');
+    const missing = structuredClone(plan);
+    missing.cells.find(cell => cell.name === importer.name).paths = importer.paths.filter(value => value[0] !== edge.to);
+    assert.throws(() => importCuts(missing), /cut import is outside its named cells/u, 'missing historical placement never grants an exemption');
+    put(original.frontDoor, 'export const real = true;\n');
+    put(edge.from, `import ${JSON.stringify('../' + original.frontDoor)}; export const native = true;\n`);
+    assert.ok(checkCuts(root, plan, group.cell).some(problem => problem.includes(original.frontDoor)),
+      'an actual live later-cell backedge still refuses after a valid lower extraction');
+  });
+
 }

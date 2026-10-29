@@ -43,9 +43,7 @@
   {"cell":"doctrine","imports":1,"before":true},
   {"cell":"person","imports":2,"before":true}
  ],
- "cuts": [
-  {"cell":"store","imports":1,"edges":["src/native-board-state.js->src/blueprint-fit.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": -10,
   "shims": 5,

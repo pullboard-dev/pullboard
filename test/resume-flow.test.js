@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { main } from '../src/cli.js';
 import { spawn } from 'node:child_process';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { RESUME_HOOK } from '../src/init.js';
 import { proofStats } from '../src/stats.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';

@@ -45,17 +45,7 @@
   {"cell":"health","imports":4,"before":true},
   {"cell":"app:runner","imports":1,"before":false}
  ],
- "cuts": [
-  {
-   "cell": "store",
-   "imports": 3,
-   "edges": [
-    "src/board-health.js->src/dispatch-health.js",
-    "src/board-health.js->src/rejected-work-return.js",
-    "src/board.js->src/sentinels.js"
-   ]
-  }
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": 0,
   "shims": 9,

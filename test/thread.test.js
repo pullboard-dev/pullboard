@@ -1,3 +1,4 @@
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** Exercise typed item threads and deterministic replication on isolated SQLite boards [B29,B30,B31,B32]. */
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
@@ -14,6 +15,9 @@ import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { fetchFresh } from './http-fixture.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 const HOUR = 3_600_000;
 const SHA = 'a'.repeat(40);
@@ -343,7 +347,7 @@ test('[B29,B30,B31,B32,A2] CLI and HTTP facts share stamped threads, guard judge
   const apiState = await box.call(box.path + '/items/' + id);
   const apiItem = apiState.document.item;
   assert.deepEqual(terminalJson.thread, apiItem.thread, 'CLI JSON and API state expose the same stamped thread');
-  assert.deepEqual(relayPresentation(box.root).state.items.find((entry) => entry.id === id).thread, apiItem.thread, 'sealed presentation carries the same facts');
+  assert.deepEqual(relayPresentation(box.root, {}, RELAY_PRESENTATION_PORTS).state.items.find((entry) => entry.id === id).thread, apiItem.thread, 'sealed presentation carries the same facts');
   assert.deepEqual(apiItem.thread.filter((entry) => entry.type === 'fact').map(({ id: factId, text, supersedes }) => ({ id: factId, text, supersedes })), [
     { id: observationId, text: '--literal evidence', supersedes: null },
     { id: holderCorrection.id, text: 'corrected evidence', supersedes: observationId },
@@ -351,12 +355,12 @@ test('[B29,B30,B31,B32,A2] CLI and HTTP facts share stamped threads, guard judge
 
   const borrowed = store.openBoard(':memory:');
   try {
-    importBoard(borrowed, relaySnapshot(box.root));
+    importBoard(borrowed, relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS));
     store.appendFact(borrowed, id, { agentId: 'coordinator', kind: 'note', text: 'staged-only relay observation', factId: 'staged-relay-fact' });
-    const staged = relaySnapshot(box.root, { board: borrowed });
+    const staged = relaySnapshot(box.root, { board: borrowed }, RELAY_PRESENTATION_PORTS);
     const stagedThread = staged.presentation.state.items.find((entry) => entry.id === id).thread;
     assert.equal(stagedThread.some((entry) => entry.id === 'staged-relay-fact'), true, 'the supplied board drives item-thread projection too');
-    assert.equal(relayPresentation(box.root).state.items.find((entry) => entry.id === id).thread.some((entry) => entry.id === 'staged-relay-fact'), false,
+    assert.equal(relayPresentation(box.root, {}, RELAY_PRESENTATION_PORTS).state.items.find((entry) => entry.id === id).thread.some((entry) => entry.id === 'staged-relay-fact'), false,
       'the ordinary source-board presentation does not include a staged-only fact');
     assert.ok(borrowed.db.prepare('SELECT COUNT(*) AS count FROM event').get().count > 0, 'the borrowed board remains open after projection');
   } finally { store.closeBoard(borrowed); }

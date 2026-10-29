@@ -1,5 +1,5 @@
 import { flakeLedger } from '../flakes.js';
-import { eventCauses } from '../rigor.js';
+import { eventCauses } from '../board-rigor.js';
 /** The requested fourteen-day test economics report [C7]. */
 import {
   context,

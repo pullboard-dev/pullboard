@@ -1,3 +1,4 @@
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** A refusal that stops someone reaches whoever can clear it, is recorded, and repeats are counted [C6,N26]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
@@ -18,6 +19,9 @@ import {
 } from '../src/blocks.js';
 import { relayPresentation } from '../src/relay-presentation.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -177,7 +181,7 @@ test('a Pullboard block reaches whoever can clear it and repeats are counted [C6
   const served = await apiNeeds(api, box.repo);
   assert.deepEqual(served.needs.map(row => row.text).sort(), personRows.map(row => row.text).sort());
   assert.ok(served.blocks.every(block => block.audience === 'person' && !('path' in block)), JSON.stringify(served.blocks));
-  const sealed = relayPresentation(box.repo).state;
+  const sealed = relayPresentation(box.repo, {}, RELAY_PRESENTATION_PORTS).state;
   assert.deepEqual(sealed.needs.filter(row => row.kind === 'block').map(row => row.text).sort(), personRows.map(row => row.text).sort());
   assert.ok(sealed.blocks.every(block => !('path' in block)), JSON.stringify(sealed.blocks));
 

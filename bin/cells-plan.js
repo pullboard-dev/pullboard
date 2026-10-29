@@ -27,6 +27,7 @@ import { Refused } from '../src/refused.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { fileCuts } from './cells-plan-cuts.js';
 import { refreshPlanCuts } from '../src/cells-plan-cuts.js';
+import { retiredProblems } from './cells-plan-cuts.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';
 import { readMoveDataReads, staleDataReads } from './cells-data-reads.js';
 
@@ -68,6 +69,8 @@ export function shardFile(cell) {
 
 /** Write the plan as an index plus one shard per cell, removing shards a regenerated plan no longer names. */
 export function writePlan(root, plan) {
+  const retired = retiredProblems(root, plan);
+  if (retired.length) throw new Refused('CELLS_PLAN_RETIRED', retired.join('; '));
   // Bounded read/modify/write callers carry old summaries; the exact paths being written own these counts.
   const cells = plan.cells.map(cell => {
     if (cell.paths.some(row => !['seed', 'rule', 'imports'].includes(row[2]))) throw new Refused('CELLS_UNPLACED', `${cell.name} has a path without a known placement source; resolve that path before writing the plan`);
@@ -134,6 +137,8 @@ export function computePlan(root) {
 
 /** Name the in-scope paths at HEAD the committed plan does not place, so drift is reported rather than guessed. */
 export function unplanned(root, plan) {
+  const retired = retiredProblems(root, plan);
+  if (retired.length) throw new Refused('CELLS_PLAN_RETIRED', retired.join('; '));
   const map = readPathMap(root);
   const known = new Set();
   for (const cell of plan.cells) for (const [from, to] of cell.paths) { known.add(from); known.add(to); known.add(mappedPath(map, from)); }

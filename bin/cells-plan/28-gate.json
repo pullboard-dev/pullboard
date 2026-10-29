@@ -6,7 +6,7 @@
  "frontDoor": "packages/gate/index.js",
  "placedBy": {
   "seed": 47,
-  "rule": 32,
+  "rule": 31,
   "imports": 6
  },
  "paths": [
@@ -44,7 +44,6 @@
   ["src/gui-admission.js","packages/gate/src/shell/gui-admission.js","seed"],
   ["src/gui-session.js","packages/gate/src/shell/gui-session.js","seed"],
   ["src/main-audit-economics.js","packages/gate/src/shell/main-audit-economics.js","rule"],
-  ["src/main-audit-engine.js","packages/gate/src/core/main-audit-engine.js","rule"],
   ["src/main-audit-nudge.js","packages/gate/src/shell/main-audit-nudge.js","rule"],
   ["src/main-audit-scheduler.js","packages/gate/src/shell/main-audit-scheduler.js","rule"],
   ["src/main-audit-state.js","packages/gate/src/shell/main-audit-state.js","rule"],
@@ -180,8 +179,7 @@
  "cuts": [
   {"cell":"git","imports":1,"edges":["src/queued-item-lease.js->src/git-wait-reporter.js"]},
   {"cell":"items","imports":2,"edges":["src/item-patch-submit.js->src/gate-run-receipt.js","src/item-patch-submit.js->src/gate-submit.js"]},
-  {"cell":"verify","imports":1,"edges":["src/proof-provenance.js->src/test-outcomes.js"]},
-  {"cell":"store","imports":2,"edges":["src/proof-receipts.js->src/gate-run-receipt.js","src/source-advance-return.js->src/gate-run-receipt.js"]}
+  {"cell":"verify","imports":1,"edges":["src/proof-provenance.js->src/test-outcomes.js"]}
  ],
  "ratchets": {
   "legacySource": -13,

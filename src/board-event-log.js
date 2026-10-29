@@ -1,6 +1,6 @@
 import { setItem as writeItemFields } from './item-fields.js';
 import { now } from './board-query.js';
-import { liftConditionalHold } from './conditional-holds.js';
+import { liftConditionalHold } from './board-conditional-holds.js';
 import { requireHandoffActive } from '../packages/state/src/core/handoff-state.js';
 /** Append native events and their rebuildable proof projection in the same transaction [R2]. */
 import { ENGINE_VERSION } from './machine.js';
@@ -14,6 +14,7 @@ import { beginCapture } from './board-capture.js';
 import {
   beginBoardWrite,
   finishBoardWrite,
+  noteBoardWriteItem,
   prepareBoardWriteIdentity,
 } from './board-write-lock.js';
 
@@ -49,6 +50,7 @@ export function atomic(board, work) {
     const result = work();
     capture?.prepare();
     board.db.exec(depth ? `RELEASE ${savepoint}` : 'COMMIT');
+    if (writeRecord) writeRecord.releasedAt = performance.now();
     released = true;
     outcome = 'committed';
     capture?.commit();
@@ -56,6 +58,7 @@ export function atomic(board, work) {
   } catch (error) {
     if (!released) {
       board.db.exec(depth ? `ROLLBACK TO ${savepoint}; RELEASE ${savepoint}` : 'ROLLBACK');
+      if (writeRecord) writeRecord.releasedAt = performance.now();
       released = true;
       outcome = 'rolled-back';
       board.lastEvent = lastEvent;
@@ -91,6 +94,7 @@ export function atomic(board, work) {
 export function logEvent(board, by, kind, itemId, detail = {}, at) {
   // Standalone native writers take the same actual lock; nested moves retain their existing savepoints.
   if (!(TRANSACTION_DEPTH.get(board) ?? 0)) return atomic(board, () => logEvent(board, by, kind, itemId, detail, at));
+  noteBoardWriteItem(board.db, itemId);
   // A refused authenticated request remains auditable; it is not an outgoing board move.
   if (kind !== 'relay_refused') requireHandoffActive(board, by, kind, [{ item: kind === 'shout' ? detail.item : undefined }]);
   board.db.exec('SAVEPOINT proof_event_append');

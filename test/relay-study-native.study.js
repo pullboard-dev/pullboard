@@ -1,3 +1,4 @@
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** Native view state against the sealed relay presentation, field by field [H5,H17]. Run it explicitly: the default gate skips *.study.js. */
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -10,6 +11,9 @@ import { presentationState } from '../relay/browser-model.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { apiFetch } from './api-fixture.js';
 import { paths, valueDifferences } from './relay-study-fixture.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 test('relay study diffs the native view state and the relay reader state [H5,H17]', { timeout: 180_000 }, async t => {
   const box = await relayClientFixture(t);
@@ -29,7 +33,7 @@ test('relay study diffs the native view state and the relay reader state [H5,H17
   const listing = await (await apiFetch(fixture, '/api/v1/boards')).json();
   const id = listing.boards[0].id;
   const native = (await (await apiFetch(fixture, '/api/v1/boards/' + id + '/state')).json()).state;
-  const relay = presentationState(relayPresentation(box.root), id);
+  const relay = presentationState(relayPresentation(box.root, {}, RELAY_PRESENTATION_PORTS), id);
   const nativePaths = paths(native), relayPaths = paths(relay);
   const onlyNative = [...nativePaths].filter(path => !relayPaths.has(path)).sort();
   const onlyRelay = [...relayPaths].filter(path => !nativePaths.has(path)).sort();

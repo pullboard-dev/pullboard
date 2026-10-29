@@ -1,3 +1,4 @@
+import { recordTrainLanding } from '../src/record-train-landing.js';
 /** A real native producer feeds the unchanged complete reader oracle; acceptance alone is synthetic [H5,H16,C7]. */
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
@@ -34,7 +35,9 @@ export async function seedNativeTrain(context) {
     GIT_COMMITTER_NAME: 'Private Parity Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.com' };
   // init's real generated files were untracked in this metadata-only fixture; receipts require all source committed.
   runFixtureGit(['add', '-A'], { cwd: box.root, env });
+  process.stderr.write('parity train policy commit begin\n');
   runFixtureGit(['commit', '-m', 'test: accept the private parity native gate'], { cwd: box.root, env });
+  process.stderr.write('parity train policy commit complete\n');
   // The fixture Git adapter runs outside the production mutation adapter and must invalidate its cached facts.
   invalidateGitFacts();
   const head = runFixtureGit(['rev-parse', 'HEAD'], { cwd: box.root, env }).trim();
@@ -52,14 +55,17 @@ export async function seedNativeTrain(context) {
   store.verify(board, item, { agentId: reviewer, decision: 'ACCEPT', head, digest: frozen.digest,
     policy: 'any', familyPolicy: 'off', note: 'Synthetic acceptance only; gate bytes below are native.',
     review: { commit: head, head, trunk: head, paths: [] } });
+  process.stderr.write('parity train gate begin\n');
   const run = await runGate(box.root, config, { trustStamp: false, landing: true, agent: 'coordinator',
+    onWait(state) { process.stderr.write(`parity train admission ${JSON.stringify({ admitted: state.admitted === true, position: state.position ?? null })}\n`); },
     executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() } });
+  process.stderr.write(`parity train gate complete ${JSON.stringify({ green: run.isGreen, hasNodeTestContext: process.env.NODE_TEST_CONTEXT !== undefined })}\n`);
   assert.equal(run.isGreen, true, run.output);
   const receipt = readGateReceipt(receiptStore(box.root), run.receiptId);
   assert.ok(receipt, 'the actual native producer stored a receipt');
   assert.equal(receipt.head, head);
   assert.equal(receipt.tree, tree);
   const request = prepareTrainLanding(box.root, board, [item], head, receipt.id);
-  await exercise('recordTrainLanding', () => store.recordTrainLanding(board, request));
+  await exercise('recordTrainLanding', () => recordTrainLanding(board, request));
   assert.equal(store.getItem(board, item).item_merged_commit, head);
 }

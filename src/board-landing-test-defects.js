@@ -1,6 +1,6 @@
 import { TEST_ECONOMICS_ENGINE } from './test-economics-engine.js';
-import { auditFailureItem } from './test-economics.js';
-import { landingTestDefects } from './landing-test-defect-history.js';
+import { auditFailureItem } from './audit-failure-item.js';
+import { landingTestDefects } from './board-landing-test-defect-history.js';
 export { landingTestDefects };
 /** Durable test defects hold a trunk when bisection identifies no item culprit [E29]. */
 import {

@@ -1,3 +1,4 @@
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** The public, versioned JSON surface of every pullboard command (A1). */
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
@@ -33,7 +34,7 @@ import { JSON_SHAPES } from '../src/json.js';
 import { projectState } from '../src/serve.js';
 import { serveView } from '../src/commands/view.js';
 import { registerProject } from '../src/projects.js';
-import { SSH_SHELL_MARKERS } from '../src/person.js';
+import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import {
   apiError,
   apiFetch,
@@ -887,7 +888,7 @@ test('[N38] local API and sealed presentation resolve shouts beyond recent state
   const answer = history.find((shout) => shout.shout_answers === decision.id);
   assert.ok(answer, 'the complete read retains the decision reply relationship');
   assert.equal(answer.shout_text, 'Approved');
-  const presentation = relayPresentation(box.repo);
+  const presentation = relayPresentation(box.repo, {}, relayPresentationNativePorts().presentation);
   assert.throws(() => presentationShout({ state: presentation.state }, decision.id), { code: 'SHOUT_NOT_AVAILABLE' },
     'older snapshots without complete history refuse the capability clearly');
   assert.equal(presentation.shouts.length, 43);

@@ -5,19 +5,29 @@
  "root": "apps/runner",
  "frontDoor": "apps/runner/index.js",
  "placedBy": {
-  "seed": 8,
-  "rule": 0,
+  "seed": 7,
+  "rule": 11,
   "imports": 0
  },
  "paths": [
   ["src/private-check-worker.js","apps/runner/src/shell/private-check-worker.js","seed"],
-  ["src/process-census.js","apps/runner/src/shell/process-census.js","seed"],
   ["src/runner-custody.js","apps/runner/src/shell/runner-custody.js","seed"],
   ["src/runner-private-check.js","apps/runner/src/shell/runner-private-check.js","seed"],
   ["src/runner-private-mode.js","apps/runner/src/shell/runner-private-mode.js","seed"],
   ["src/runner-stage-read.js","apps/runner/src/shell/runner-stage-read.js","seed"],
   ["src/runner-stage.js","apps/runner/src/core/runner-stage.js","seed"],
-  ["src/runner-worker.js","apps/runner/src/shell/runner-worker.js","seed"]
+  ["src/runner-worker.js","apps/runner/src/shell/runner-worker.js","seed"],
+  ["src/runner-worker-state.js","apps/runner/src/shell/runner-worker-state.js","rule"],
+  ["src/runner-worker-health.js","apps/runner/src/shell/runner-worker-health.js","rule"],
+  ["src/runner-worker-spec.js","apps/runner/src/shell/runner-worker-spec.js","rule"],
+  ["src/runner-worker-cleanup.js","apps/runner/src/shell/runner-worker-cleanup.js","rule"],
+  ["src/runner-worker-environment.js","apps/runner/src/shell/runner-worker-environment.js","rule"],
+  ["src/runner-worker-process.js","apps/runner/src/shell/runner-worker-process.js","rule"],
+  ["src/runner-worker-git.js","apps/runner/src/shell/runner-worker-git.js","rule"],
+  ["src/runner-worker-checkout.js","apps/runner/src/shell/runner-worker-checkout.js","rule"],
+  ["src/runner-worker-command.js","apps/runner/src/shell/runner-worker-command.js","rule"],
+  ["src/runner-worker-receipt.js","apps/runner/src/shell/runner-worker-receipt.js","rule"],
+  ["src/runner-worker-main.js","apps/runner/src/shell/runner-worker-main.js","rule"]
  ],
  "reexports": [
   "src/private-check-worker.js",
@@ -38,8 +48,7 @@
   {"cell":"runners","imports":5,"before":true}
  ],
  "cuts": [
-  {"cell":"store","imports":1,"edges":["src/board-write-lock.js->src/process-census.js"]},
-  {"cell":"runners","imports":2,"edges":["src/runner-transport.js->src/process-census.js","src/runner-transport.js->src/runner-custody.js"]}
+  {"cell":"runners","imports":1,"edges":["src/runner-transport.js->src/runner-custody.js"]}
  ],
  "ratchets": {
   "legacySource": -1,

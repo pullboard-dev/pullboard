@@ -1,4 +1,6 @@
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { request as boardLinkRequest } from '../src/relay.js';
 import { personSigningCase } from './person-signing-case.js';
 import { submitFixture as submitBoardStateFixture } from './board-submit-fixture.js';
 /** Two independent Git/SQLite replicas derive verdict freshness without rewriting proof [E8]. */
@@ -88,7 +90,7 @@ import { unpackRelease } from './release-archive.js';
 import {
   decodeBoardKey,
   seal,
-} from '../src/seal.js';
+} from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION as PEOPLE_VERSION } from '../src/machine.js';
 import { relayWorkBudgetMs } from './relay-budget.js';
 import { hostname, tmpdir } from 'node:os';
@@ -104,6 +106,9 @@ import {
   readKeylessInbox,
   finishKeylessInbox,
 } from './inbox-key-fixture.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 const CLI = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
 /** The shipped command run with an explicit trusted fixture relay; test-only, never published (#408). */
@@ -315,7 +320,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
     return document;
   };
   const initialState = (await http('/state')).state;
-  const phoneBefore = relaySnapshot(reviewer);
+  const phoneBefore = relaySnapshot(reviewer, {}, RELAY_PRESENTATION_PORTS);
   await http('/state');
   assert.equal(builds, 1, 'unchanged HTTP reads reuse the state cache');
   await http('/items/1'); // Warm the independent detail freshness projection for a verified item.
@@ -331,8 +336,8 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
     await http('/items/1');
     await http('/state');
     await http('/items/1');
-    relaySnapshot(reviewer);
-    relaySnapshot(reviewer);
+    relaySnapshot(reviewer, {}, RELAY_PRESENTATION_PORTS);
+    relaySnapshot(reviewer, {}, RELAY_PRESENTATION_PORTS);
     assert.deepEqual(processCalls, [], 'unchanged accepted-item detail, state and sealed phone snapshot reads spawn no process');
   } finally {
     for (const [method, original] of originals) childProcess[method] = original;
@@ -377,7 +382,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
       return Reflect.apply(originalSpawn, this, args);
     };
     syncBuiltinESMExports();
-    phoneStale = relaySnapshot(reviewer);
+    phoneStale = relaySnapshot(reviewer, {}, RELAY_PRESENTATION_PORTS);
   } finally { childProcess.spawnSync = originalSpawn; syncBuiltinESMExports(); }
   assert.ok(coldGit.filter(args => args.includes('diff')).length <= 1,
     'unrelated main history must not start one file-diff process per commit: ' + JSON.stringify(coldGit));
@@ -450,7 +455,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   assert.equal(box.git(box.repo, 'rev-parse', reviewPin), composed, 'the checked commit is pinned durably for other replicas to fetch');
   assert.equal(items()[1].item_verdict_state?.code, 'STALE_VERDICT', 'a replica without the checked Git objects fails closed');
   const peerBoardId = withBoard(peer, store.boardId);
-  assert.equal(snapshotState(relaySnapshot(peer), peerBoardId).items[0].verdictState?.code, 'STALE_VERDICT',
+  assert.equal(snapshotState(relaySnapshot(peer, {}, RELAY_PRESENTATION_PORTS), peerBoardId).items[0].verdictState?.code, 'STALE_VERDICT',
     'a sealed phone presentation also fails closed until the reviewed objects arrive');
   const peerApi = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root: peer, name: 'Peer verdict fixture' }] });
   t.after(() => peerApi.close());
@@ -469,12 +474,12 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
     'an object-only fetch clears a cached unavailable HTTP detail');
   assert.equal((await peerHttp('/state')).state.items[0].verdictState, undefined,
     'an object-only fetch clears a cached unavailable HTTP state');
-  assert.equal(snapshotState(relaySnapshot(peer), peerBoardId).items[0].verdictState, undefined,
+  assert.equal(snapshotState(relaySnapshot(peer, {}, RELAY_PRESENTATION_PORTS), peerBoardId).items[0].verdictState, undefined,
     'fetching the exact reviewed objects clears the sealed phone presentation without another board event or main move');
   assert.ok(items().every(item => !item.item_verdict_state), 'the same sealed re-review clears both replicas');
   assert.equal((await http('/state')).state.items[0].verdictState, undefined, 'a newer acceptance invalidates stale cached state');
   assert.equal((await http('/items/1')).item.verdictState, undefined);
-  assert.equal(snapshotState(relaySnapshot(reviewer), withBoard(box.repo, store.boardId)).items[0].verdictState, undefined, 'the sealed phone presentation clears after the checked re-review');
+  assert.equal(snapshotState(relaySnapshot(reviewer, {}, RELAY_PRESENTATION_PORTS), withBoard(box.repo, store.boardId)).items[0].verdictState, undefined, 'the sealed phone presentation clears after the checked re-review');
   assert.deepEqual(withBoard(peer, board => store.verdictsFor(board, 1)), reviewed);
   box.git(box.repo, 'merge', '-q', '--no-edit', composed);
   syncTrunk();
@@ -633,7 +638,7 @@ test('an older pushed landing shows stale checked proof and a correction path ac
       { headers: { 'x-pullboard-key': address.searchParams.get('k') } });
     assert.equal(detail.status, 200);
     assert.equal((await detail.json()).item.verdictState?.landingCode, 'LAND_ITEM_MOVED');
-    assert.equal(snapshotState(relaySnapshot(box.repo), withBoard(box.repo, store.boardId)).items[0].verdictState?.landingCode, 'LAND_ITEM_MOVED');
+    assert.equal(snapshotState(relaySnapshot(box.repo, {}, RELAY_PRESENTATION_PORTS), withBoard(box.repo, store.boardId)).items[0].verdictState?.landingCode, 'LAND_ITEM_MOVED');
     const missing = join(box.dir, 'legacy-landing-missing-objects');
     box.git(box.dir, 'clone', '-q', '--no-local', box.repo, missing);
     assert.notEqual(box.tryGit(missing, 'cat-file', '-e', checked).status, 0, 'this independent clone has not fetched the checked composition');
@@ -1255,14 +1260,14 @@ test('an item waits across repos [B24,H16]', async t => {
   const transportApi = await import('../src/board-link-relay.js');
   const { createSshBoardLinkAuthority } = await import('../src/board-link-ssh.js');
   const { createBoardLinkCapability } = await import('../src/board-link-envelope.js');
-  const { generateBoardKey } = await import('../src/seal.js');
+  const { generateBoardKey } = await import('../packages/kernel/src/core/seal.js');
   const authority = createSshBoardLinkAuthority([parent, child]);
   const record = await consent(api, authority, parent, child, 'dependency');
   await api.applyBoardLink(local, record, authority);
   await api.applyBoardLink(foreign, record, authority);
   const relay = await linkRelay(t, [parent, child], authority);
-  const sender = transportApi.createBoardLinkRelayTransport(relay.states.get(child.reference.boardId));
-  const receiver = transportApi.createBoardLinkRelayTransport(relay.states.get(parent.reference.boardId));
+  const sender = transportApi.createBoardLinkRelayTransport(relay.states.get(child.reference.boardId), { request: boardLinkRequest });
+  const receiver = transportApi.createBoardLinkRelayTransport(relay.states.get(parent.reference.boardId), { request: boardLinkRequest });
   await sender.publish(record);
   const capability = createBoardLinkCapability(record, await generateBoardKey());
   /** Send only actual child item states through the established authenticated E32 transport. */

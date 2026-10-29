@@ -318,7 +318,6 @@
    ]
   },
   {"cell":"stats","imports":1,"edges":["src/cost-checkpoint.js->src/cli.js"]},
-  {"cell":"store","imports":3,"edges":["src/board-read.js->src/cli-context.js","src/board.js->src/next-step-words.js","src/exchange.js->src/command-phase.js"]},
   {
    "cell": "person",
    "imports": 3,

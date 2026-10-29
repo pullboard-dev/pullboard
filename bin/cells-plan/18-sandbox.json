@@ -61,17 +61,7 @@
   {"cell":"app:cli","imports":2,"before":false}
  ],
  "cuts": [
-  {"cell":"items","imports":2,"edges":["src/item-patch-submit.js->src/trusted-policy-read.js","src/item-patch-submit.js->src/trusted-policy.js"]},
-  {
-   "cell": "store",
-   "imports": 4,
-   "edges": [
-    "src/board-engine-ports.js->src/source-advance-origin.js",
-    "src/board.js->src/source-advance-origin.js",
-    "src/board.js->src/source-advance.js",
-    "src/source-advance-return.js->src/source-advance.js"
-   ]
-  }
+  {"cell":"items","imports":2,"edges":["src/item-patch-submit.js->src/trusted-policy-read.js","src/item-patch-submit.js->src/trusted-policy.js"]}
  ],
  "ratchets": {
   "legacySource": 0,

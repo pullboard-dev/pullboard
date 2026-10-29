@@ -10,7 +10,7 @@ import { prepareEngineMove } from '../src/engine.js';
 import { openBoard, closeBoard } from '../src/board.js';
 import { executeMove } from '../src/api.js';
 import { main } from '../src/cli.js';
-import { decodeBoardKey, seal } from '../src/seal.js';
+import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
 import { assertSnapshotCheckpoints, cliChildDeadlineMs, relayClientFixture, legacyRelayClientFixture } from './relay-client-fixture.js';

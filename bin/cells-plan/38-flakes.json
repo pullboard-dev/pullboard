@@ -33,8 +33,16 @@
   {"cell":"github","imports":1,"before":true}
  ],
  "cuts": [
-  {"cell":"store","imports":3,"edges":["src/board-engine-ports.js->src/quarantine.js","src/board.js->src/flakes.js","src/board.js->src/quarantine.js"]},
-  {"cell":"landing","imports":2,"edges":["src/publish-pause.js->src/quarantine.js","src/record-train-landing.js->src/quarantine.js"]}
+  {
+   "cell": "landing",
+   "imports": 4,
+   "edges": [
+    "src/land-local-guard.js->src/flakes.js",
+    "src/landing-step-parallel.js->src/flakes.js",
+    "src/publish-pause.js->src/quarantine.js",
+    "src/record-train-landing.js->src/quarantine.js"
+   ]
+  }
  ],
  "ratchets": {
   "legacySource": -1,

@@ -58,7 +58,7 @@ test('every moved path in the committed plan is in exactly one cell, with one ta
 test('the plan places every tracked module and asset under src/, bin/ and relay/ at its base commit [D3,CD60]', () => {
   assert.match(PLAN.base, /^[0-9a-f]{40}$/u, 'the plan records the commit it was computed at');
   const listed = git(ROOT, 'ls-tree', '-r', '--name-only', PLAN.base);
-  const placed = new Set([...PLAN.cells.flatMap(cell => cell.paths.map(([from]) => from)), ...PLAN.stays.map(row => row.path)]);
+  const placed = new Set([...PLAN.cells.flatMap(cell => cell.paths.map(([from]) => from)), ...(PLAN.retired ?? []).map(entry => entry.row[0]), ...PLAN.stays.map(row => row.path)]);
   const missing = listed.split('\n').filter(file => inPlanScope(file) && !placed.has(file));
   assert.deepEqual(missing, [], 'regenerate with node bin/cells-plan.js --write');
 });

@@ -1,5 +1,8 @@
 /** The pullboard stats command, in its own module so an item adding another command never edits these lines. */
 import { costTotals } from '../cost.js';
+import { boardHoldLines } from '../board-hold-log.js';
+import { boardHoldStats } from '../board-hold-log.js';
+import { readBoardHoldBaseline } from '../board-hold-ratchet.js';
 import { publicUsage } from '../cost-read.js';
 import { counterProofStats } from '../proof-counter-read.js';
 import {
@@ -58,7 +61,12 @@ export function run(io, { values }) {
     }
   });
   const waits = gateReceipt.gateWaitStats(ctx.info.root);
-  io.result?.({ stats, usage, gateWaits: waits.stats, ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) });
+  const boardHolds = boardHoldStats({ since: window?.since ?? stats.since ?? undefined, until: now });
+  const holdBaseline = readBoardHoldBaseline();
+  boardHolds.allowance = { ...holdBaseline, status: holdBaseline.allowancePerDay === null ? 'unmeasured'
+    : boardHolds.todayCount > holdBaseline.allowancePerDay ? 'exceeded'
+      : !boardHolds.available || boardHolds.truncated || boardHolds.invalidLines ? 'incomplete' : 'within' };
+  io.result?.({ stats, usage, gateWaits: waits.stats, boardHolds, ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) });
   io.say(`${stats.submissions} submissions · ${stats.rejections} rejections · ${(stats.rejectionShare * 100).toFixed(1)}% sent back`);
   io.say(`${stats.merged} items merged · ${stats.mergedWithoutAccept} merged without an accept`);
   io.say(`${stats.agentCount} agents · ${stats.familyCount} family buckets: ${stats.families.map((family) => `${family.name} (${family.agents} agents, ${family.moves} moves)`).join('; ') || 'none'}`);
@@ -75,6 +83,7 @@ export function run(io, { values }) {
   }
   if (comparison) for (const line of comparisonLines(comparison)) io.say(line);
   for (const line of waits.lines) io.say(line);
+  for (const line of boardHoldLines(boardHolds, holdBaseline)) io.say(line);
   for (const group of ['items', 'lanes', 'milestones', 'models']) for (const row of usage[group]) {
     const label = row.item ?? row.lane ?? row.milestone ?? row.model;
     io.say(`usage ${group} ${label}: input ${row.inputTokens ?? 'unknown'}, output ${row.outputTokens ?? 'unknown'}, ${row.wallMs} ms${row.unknownReasons.length ? '; unknown: ' + row.unknownReasons.join(', ') : ''}`);

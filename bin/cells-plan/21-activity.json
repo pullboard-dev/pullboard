@@ -5,18 +5,15 @@
  "root": "packages/activity",
  "frontDoor": "packages/activity/index.js",
  "placedBy": {
-  "seed": 7,
+  "seed": 4,
   "rule": 0,
   "imports": 1
  },
  "paths": [
   ["src/activity-delivery-cli.js","packages/activity/src/shell/activity-delivery-cli.js","seed"],
   ["src/activity-delivery-read.js","packages/activity/src/core/activity-delivery-read.js","seed"],
-  ["src/activity-delivery-store.js","packages/activity/src/core/activity-delivery-store.js","seed"],
   ["src/activity-delivery.js","packages/activity/src/core/activity-delivery.js","seed"],
-  ["src/activity-feed.js","packages/activity/src/core/activity-feed.js","seed"],
   ["src/activity-inbox.js","packages/activity/src/shell/activity-inbox.js","seed"],
-  ["src/activity-news.js","packages/activity/src/core/activity-news.js","seed"],
   ["src/inbox-budget.js","packages/activity/src/core/inbox-budget.js","imports"]
  ],
  "reexports": [
@@ -38,17 +35,7 @@
   {"cell":"person","imports":1,"before":true},
   {"cell":"app:cli","imports":1,"before":false}
  ],
- "cuts": [
-  {
-   "cell": "store",
-   "imports": 3,
-   "edges": [
-    "src/board-query.js->src/activity-feed.js",
-    "src/board.js->src/activity-delivery-store.js",
-    "src/board.js->src/activity-news.js"
-   ]
-  }
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": -1,
   "shims": 6,

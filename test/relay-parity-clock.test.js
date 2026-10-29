@@ -1,3 +1,4 @@
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** Native cached HTTP state keeps the same explicit clock as a fresh relay reader [H5,H16,A2]. */
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
@@ -15,6 +16,9 @@ import { snapshotState } from '../relay/browser-model.js';
 import { assertReaderParity } from './relay-parity-reader.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 const HOUR = 3_600_000;
 
@@ -38,7 +42,7 @@ async function clockFixture(t) {
     const response = await fetch(`http://127.0.0.1:${api.port}/api/v1/boards/${id}/state?detail=full`, { headers: { 'x-pullboard-key': secret } });
     assert.equal(response.status, 200);
     const native = (await response.json()).state;
-    const presentation = relayPresentation(box.root, { observedAt: clock.value });
+    const presentation = relayPresentation(box.root, { observedAt: clock.value }, RELAY_PRESENTATION_PORTS);
     const relay = snapshotState({ ...exportBoard(board), presentation }, id);
     assert.equal(native.observedAt, new Date(clock.value).toISOString());
     assert.equal(relay.observedAt, native.observedAt);

@@ -6,10 +6,10 @@ import { milestones } from '../board.js';
 import { openBoardReadOnly } from '../board.js';
 import { rowDrafts } from '../board-query.js';
 import { rowDecisions } from '../board-query.js';
-import { automaticDecisionSource } from '../rigor-auto-source.js';
-import { automaticSourceFromText } from '../rigor-auto-source.js';
-import { rigorDecisionKey } from '../rigor-auto-source.js';
-import { readAutomaticRigorSource } from '../rigor-auto-source.js';
+import { automaticDecisionSource } from '../board-rigor-auto-source.js';
+import { automaticSourceFromText } from '../board-rigor-auto-source.js';
+import { rigorDecisionKey } from '../board-rigor-auto-source.js';
+import { readAutomaticRigorSource } from '../board-rigor-auto-source.js';
 /** The pullboard digest command, in its own module so an item adding another command never edits these lines. */
 import {
   digestCommand,

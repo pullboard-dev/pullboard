@@ -118,15 +118,6 @@
  "cuts": [
   {"cell":"seats","imports":1,"edges":["src/projects.js->src/relay-setup.js"]},
   {
-   "cell": "store",
-   "imports": 3,
-   "edges": [
-    "src/board-engine-ports.js->src/relay-requests.js",
-    "src/board-link-relay.js->src/relay.js",
-    "src/native-board-state.js->src/relay-requests.js"
-   ]
-  },
-  {
    "cell": "person",
    "imports": 9,
    "edges": [

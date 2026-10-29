@@ -1,3 +1,5 @@
+import { landingWaivers as nativeLandingWaivers } from './landing-waivers.js';
+import { landingWaiverFor as nativeLandingWaiverFor } from './landing-waivers.js';
 /** Coordinator landing failures step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
 import { isAbsolute } from 'node:path';
@@ -39,7 +41,7 @@ export function landingFailures(output, root, { excludeCancelled = false } = {})
 
 /** Whether current person waivers cover every named failure of this exact recorded run. */
 export function coveredFailures(state, gate) {
-  return gate.failures.length > 0 && gate.failures.every((failure) => failure.file && store.landingWaiverFor(state.board, failure, state.landingPorts));
+  return gate.failures.length > 0 && gate.failures.every((failure) => failure.file && nativeLandingWaiverFor(state.board, failure, state.landingPorts));
 }
 
 /**
@@ -141,14 +143,14 @@ function pipelineFailures(components, root) {
  */
 export function waivedFailures(board, failures, landingPorts) {
   if (!Array.isArray(failures) || !failures.length || failures.some((entry) => !entry.file)) return null;
-  const covered = failures.map((failure) => ({ ...failure, waiver: store.landingWaiverFor(board, failure, landingPorts) }));
+  const covered = failures.map((failure) => ({ ...failure, waiver: nativeLandingWaiverFor(board, failure, landingPorts) }));
   return covered.every((entry) => entry.waiver) ? covered : null;
 }
 
 /** Project the live person waivers a landing run may read, so it does not stop early on one [B3]. */
 export function liveWaiverProjection(board, landingPorts) {
   const now = board.clock.now().getTime();
-  return store.landingWaivers(board, landingPorts).filter((waiver) => Date.parse(waiver.until) > now)
+  return nativeLandingWaivers(board, landingPorts).filter((waiver) => Date.parse(waiver.until) > now)
     .map((waiver) => ({ kind: waiver.kind ?? store.landingWaiverKind(waiver.test), test: waiver.test }));
 }
 

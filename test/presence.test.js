@@ -1,3 +1,4 @@
+import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** Seat identity survives heartbeat-based presence changes on a real SQLite board [B3]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -9,11 +10,14 @@ import { fixtureBoard } from './board-fixture.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { gunzipSync } from 'node:zlib';
-import { decodeBoardKey, unseal } from '../src/seal.js';
+import { decodeBoardKey, unseal } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { legacyRelayClientFixture } from './relay-client-fixture.js';
 import { relayWorkBudgetMs } from './relay-budget.js';
 import { runCliInProcess } from './cli-in-process-fixture.js';
+
+/** Bind the real canonical presentation providers once for this fixture module. */
+const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 test('a locked presence sidecar retains cached timestamps and next reports its bounded fallback [B3,N2,C7]', async t => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
@@ -222,18 +226,18 @@ test('a relay reader sees the same presence as the native view [B3,I6,H5,H17]', 
   t.after(() => { store.closeBoard(board); store.closeBoard(remote); });
   const id = store.register(board, { lane: 'core', path: join(box.dir, 'presence-seat') });
   const history = exportBoard(board);
-  const snapshot = relaySnapshot(box.repo, { board });
+  const snapshot = relaySnapshot(box.repo, { board }, RELAY_PRESENTATION_PORTS);
   const nativeAgents = snapshot.presentation.state.agents;
   assert.equal(nativeAgents.find(seat => seat.agent_id === id).presence, 'live', 'the native snapshot includes an observed live seat');
   importBoard(remote, snapshot);
-  const restored = relaySnapshot(box.repo, { board: remote });
+  const restored = relaySnapshot(box.repo, { board: remote }, RELAY_PRESENTATION_PORTS);
   assert.deepEqual(restored.presentation.state.agents, nativeAgents, 'restoring and republishing a relay snapshot preserves every projected agent');
   assert.deepEqual(exportBoard(board), history, 'snapshot capture leaves native history unchanged');
   assert.deepEqual(exportBoard(remote), history, 'relay observations remain outside native exports');
   at += 10 * 60_000;
-  assert.equal(relaySnapshot(box.repo, { board: remote }).presentation.state.agents.find(seat => seat.agent_id === id).presence, 'idle');
+  assert.equal(relaySnapshot(box.repo, { board: remote }, RELAY_PRESENTATION_PORTS).presentation.state.agents.find(seat => seat.agent_id === id).presence, 'idle');
   at += 20 * 60_000;
-  assert.equal(relaySnapshot(box.repo, { board: remote }).presentation.state.agents.find(seat => seat.agent_id === id).presence, 'gone');
+  assert.equal(relaySnapshot(box.repo, { board: remote }, RELAY_PRESENTATION_PORTS).presentation.state.agents.find(seat => seat.agent_id === id).presence, 'gone');
   assert.equal(heartbeatSeat(remote, id), true, 'a real local heartbeat can independently refresh the reader');
   assert.equal(store.agentById(remote, id).presence, 'live');
 });
@@ -509,11 +513,11 @@ test('checkpoint fingerprints retain hidden-seat heartbeats without treating clo
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(at) });
   t.after(() => store.closeBoard(board));
   heartbeatSeat(board, 'coordinator');
-  const before = relayPresentation(box.repo, { board, observedAt: at });
+  const before = relayPresentation(box.repo, { board, observedAt: at }, RELAY_PRESENTATION_PORTS);
   const heartbeat = store.agentById(board, 'coordinator').heartbeatAt;
   const history = exportBoard(board);
   const laterAt = at + 5 * 3_600_000; // budget: fixture clock crosses the four-hour activity window; no elapsed-time performance assertion.
-  const later = relayPresentation(box.repo, { board, observedAt: laterAt });
+  const later = relayPresentation(box.repo, { board, observedAt: laterAt }, RELAY_PRESENTATION_PORTS);
   assert.ok(before.state.agents.some(seat => seat.agent_id === 'coordinator'), 'the native seat is initially visible');
   assert.ok(!later.state.agents.some(seat => seat.agent_id === 'coordinator'), 'the unchanged seat leaves the activity window');
   assert.notEqual(before.state.observedAt, later.state.observedAt);
@@ -522,7 +526,7 @@ test('checkpoint fingerprints retain hidden-seat heartbeats without treating clo
   heartbeatSeat(board, 'coordinator');
   assert.notEqual(store.agentById(board, 'coordinator').heartbeatAt, heartbeat, 'the native heartbeat really changes');
   assert.deepEqual(exportBoard(board), history, 'the private heartbeat does not mutate native business history');
-  const changed = relayPresentation(box.repo, { board, observedAt: laterAt });
+  const changed = relayPresentation(box.repo, { board, observedAt: laterAt }, RELAY_PRESENTATION_PORTS);
   assert.ok(!changed.state.agents.some(seat => seat.agent_id === 'coordinator'), 'the heartbeat remains outside the displayed activity window');
   assert.notEqual(presentationDigest(changed), presentationDigest(later), 'a real heartbeat invalidates the sealed checkpoint even for a hidden seat');
 });
@@ -586,8 +590,8 @@ test('a gone seat claim returns to the queue with a note [B3,B5,H16]', async t =
   const { exportBoard, importBoard } = await import('../src/exchange.js');
   const { applyEngineMove } = await import('../src/engine.js');
   const { GONE_CLAIM_ENGINE } = await import('../src/gone-claim-engine.js');
-  const { boardEnginePorts } = await import('../src/board-engine-ports.js');
-  const { relaySenderProblem } = boardEnginePorts();
+  const { nativeBoardPorts } = await import('../src/native-board.js');
+  const { relaySenderProblem } = nativeBoardPorts().enginePorts;
   const { heartbeatSeat } = await import('../src/seat-presence.js');
   const f = goneClaimFixture(t);
   const id = f.claim();

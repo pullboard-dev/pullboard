@@ -1,7 +1,7 @@
 /** Synthetic historical receipts exercise report arithmetic; they are not engineering proof [C7]. */
 import { testCapacityReport } from '../src/test-capacity.js';
 import { flakeLedger } from '../src/flakes.js';
-import { eventCauses } from '../src/rigor.js';
+import { eventCauses } from '../src/board-rigor.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';

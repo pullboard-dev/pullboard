@@ -7,7 +7,7 @@
  "placedBy": {
   "seed": 41,
   "rule": 13,
-  "imports": 4
+  "imports": 5
  },
  "paths": [
   ["src/blocks.js","packages/items/src/shell/blocks.js","seed"],
@@ -67,7 +67,8 @@
   ["src/item-patch-paths.js","packages/items/src/core/item-patch-paths.js","rule"],
   ["src/item-patch-submit.js","packages/items/src/shell/item-patch-submit.js","rule"],
   ["src/lifecycle-move.js","packages/items/src/core/lifecycle-move.js","imports"],
-  ["src/family-declaration.js","packages/items/src/shell/family-declaration.js","imports"]
+  ["src/family-declaration.js","packages/items/src/shell/family-declaration.js","imports"],
+  ["src/audit-failure-item.js","packages/items/src/core/audit-failure-item.js","imports"]
  ],
  "reexports": [
   "src/blocks.js",

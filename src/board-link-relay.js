@@ -1,7 +1,6 @@
 /** One durable cross-board client reuses the authenticated relay and per-link sealing port [E32,H16,H17]. */
 import { createHash } from 'node:crypto';
 import { Refused } from './refused.js';
-import { request } from './relay.js';
 import { atomic } from './board-event-log.js';
 import { logEvent } from './board-event-log.js';
 import { boardId } from './board-query.js';
@@ -35,7 +34,8 @@ function capabilityFor(capability, record, method) {
 }
 
 /** Bind a transport instance to one explicitly authenticated source or receiving board. */
-export function createBoardLinkRelayTransport(state) {
+export function createBoardLinkRelayTransport(state, { request }) {
+  if (typeof request !== 'function') throw new TypeError('board link transport needs its authenticated request port');
   const id = boardReferenceId(state?.board);
   /** Reuse existing credential, engine, origin and deadline behavior without adopting another board's environment token. */
   const sendRequest = (path, options) => request(state, path, options, { ignoreRelayEnvironmentToken: true });
