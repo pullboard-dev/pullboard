@@ -500,7 +500,9 @@ test('stale releases carry observation plus code through native and ordered APIs
   const { STALE_STATE_ENGINE } = await import('../src/stale-state-engine.js');
   const { ROUTING_RULES_ENGINE } = await import('../src/routing-rules-engine.js');
   for (const mode of ['native', 'ordered', 'historical']) {
-    const f = fixture(t), id = f.add('Silent native maintenance target');
+    const f = fixture(t);
+    store.register(f.board, { lane: 'coordinator', path: f.box.repo, model: 'Coded maintenance fixture' });
+    const id = f.add('Silent native maintenance target');
     store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
     f.advance(60 * MINUTE);
     const snapshot = f.snapshot(), row = snapshot.claims.find(entry => entry.id === id);
@@ -531,7 +533,8 @@ test('stale releases carry observation plus code through native and ordered APIs
     const detail = JSON.parse(store.events(f.board, { itemId: id }).findLast(event => event.event_kind === 'release').event_detail);
     assert.equal(detail.staleClaim.holder, f.builder);
     assert.equal(detail.reason, note);
-    assert.deepEqual(Object.keys(detail).sort(), mode === 'historical' ? ['reason', 'staleClaim'] : ['reason', 'reasonCode', 'staleClaim']);
+    assert.equal(detail.model, 'Coded maintenance fixture');
+    assert.deepEqual(Object.keys(detail).sort(), mode === 'historical' ? ['model', 'reason', 'staleClaim'] : ['model', 'reason', 'reasonCode', 'staleClaim']);
     if (mode !== 'historical') assert.equal(detail.reasonCode, 'BLOCKED');
   }
 });

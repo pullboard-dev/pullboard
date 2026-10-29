@@ -689,7 +689,9 @@ test('native and ordered gone releases retain coded evidence and historical even
   const { GONE_CLAIM_ENGINE } = await import('../src/gone-claim-engine.js');
   const { ROUTING_RULES_ENGINE } = await import('../src/routing-rules-engine.js');
   for (const mode of ['native', 'ordered', 'historical']) {
-    const f = goneClaimFixture(t), id = f.claim();
+    const f = goneClaimFixture(t);
+    store.register(f.board, { lane: 'coordinator', path: f.box.repo, model: 'Coded maintenance fixture' });
+    const id = f.claim();
     const observation = { seat: f.owner, lastSeen: store.agentById(f.board, f.owner).heartbeatAt };
     f.advance(1_800_000);
     const before = store.getItem(f.board, id), events = store.events(f.board);
@@ -718,7 +720,8 @@ test('native and ordered gone releases retain coded evidence and historical even
     assert.equal(store.getItem(f.board, id).item_status, 'open');
     const detail = JSON.parse(store.events(f.board, { itemId: id }).at(-1).event_detail);
     assert.deepEqual(detail.goneSeat, observation);
-    assert.deepEqual(Object.keys(detail).sort(), mode === 'historical' ? ['goneSeat', 'reason'] : ['goneSeat', 'reason', 'reasonCode']);
+    assert.equal(detail.model, 'Coded maintenance fixture');
+    assert.deepEqual(Object.keys(detail).sort(), mode === 'historical' ? ['goneSeat', 'model', 'reason'] : ['goneSeat', 'model', 'reason', 'reasonCode']);
     if (mode !== 'historical') assert.equal(detail.reasonCode, 'BLOCKED');
   }
 });
