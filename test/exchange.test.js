@@ -24,6 +24,7 @@ import * as store from '../src/board.js';
 import {
   exportBoard,
   importBoard,
+  isInitialBoard,
 } from '../src/exchange.js';
 import { SIGNED_EVENT_LOG_VERSION } from '../src/board.js';
 
@@ -360,8 +361,14 @@ test('fresh-init grant markers permit pairing without admitting other history [A
     store.register(setup, { lane: 'coordinator', path: '/fresh' });
     const incoming = exportBoard(source);
     const cases = [
+      { detail: JSON.parse(exportBoard(setup).tables.event[0].event_detail), allowed: true },
       { detail: { lane: 'coordinator' }, allowed: true },
       { detail: { lane: 'coordinator', grantEngine: AGENT_GRANT_ENGINE }, allowed: true },
+      { detail: { lane: 'coordinator', grantEngine: AGENT_GRANT_ENGINE, model: 'unknown', family: null }, allowed: true },
+      { detail: { lane: 'coordinator', family: 'openai' }, allowed: false },
+      { detail: { lane: 'coordinator', family: '' }, allowed: false },
+      { detail: { lane: 'coordinator', family: false }, allowed: false },
+      { detail: { lane: 'coordinator', family: {} }, allowed: false },
       { detail: { lane: 'coordinator', grantEngine: String(AGENT_GRANT_ENGINE) }, allowed: false },
       { detail: { lane: 'coordinator', grantEngine: AGENT_GRANT_ENGINE + 1 }, allowed: false },
       { detail: { lane: 'coordinator', grantEngine: AGENT_GRANT_ENGINE, grant: 'stored authority' }, allowed: false },
@@ -373,6 +380,7 @@ test('fresh-init grant markers permit pairing without admitting other history [A
         initial.tables.event[0].event_detail = JSON.stringify(entry.detail);
         importBoard(target, initial);
         const before = exportBoard(target);
+        assert.equal(isInitialBoard(target), entry.allowed, JSON.stringify(entry.detail));
         if (entry.allowed) {
           importBoard(target, incoming);
           assert.deepEqual(exportBoard(target), incoming);

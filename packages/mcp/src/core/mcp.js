@@ -7,11 +7,8 @@
  * API's moveArgs builds, so a refusal reaches the client with the CLI's own code and next step.
  */
 import { COORDINATOR } from "../../../../src/config.js";
-import { VERSION } from "../../../../src/help.js";
-import { refusalDocument } from "../../../../src/next-step-words.js";
+import { VERSION } from "../../../../src/release-version.js";
 import { Refused } from "../../../../src/refused.js";
-import { personNeeds } from "../../../../src/row-decision-text.js";
-import { personNeedsState } from "../../../../src/needs-state.js";
 
 /** MCP revisions this server speaks; the first is offered when a client asks for one it does not know. */
  const MCP_PROTOCOL_VERSIONS = Object.freeze(['2025-06-18', '2025-03-26', '2024-11-05']);
@@ -244,7 +241,7 @@ function toolResult(document, isError) {
  * Run one tool through the CLI engine and return its MCP result.
  * Each read or move is the CLI command it mirrors; a nonzero status is that command's own refusal.
  */
-async function callTool(runCommand, cwd, name, args, readCodeMap) {
+async function callTool(runCommand, cwd, name, args, readCodeMap, readPersonNeeds) {
   refusePersonMove(name);
   const tool = MCP_TOOLS.find((entry) => entry.name === name);
   if (!tool) return null;
@@ -259,7 +256,7 @@ async function callTool(runCommand, cwd, name, args, readCodeMap) {
     const list = await runCli(runCommand, cwd, ['list', '--json']);
     if (list.status) return toolResult(list.document, true);
     // Shared projection retains unapplied row decisions, so settled questions never return as needs.
-    const needsYou = personNeeds(personNeedsState(cwd));
+    const needsYou = readPersonNeeds(cwd);
     const { version, ...summary } = status.document;
     return toolResult({
       version,
@@ -301,7 +298,7 @@ function rpcError(id, code, message, data) {
  * Answer one JSON-RPC message, or return null for a notification, which never gets a reply.
  * Refusals from a tool are tool results with isError; protocol faults are JSON-RPC errors.
  */
-async function handleMessage(message, { runCommand, cwd, seat, readCodeMap }) {
+async function handleMessage(message, { runCommand, cwd, seat, readCodeMap, readPersonNeeds, formatRefusal }) {
   if (!message || typeof message !== 'object' || Array.isArray(message) || message.jsonrpc !== '2.0' || typeof message.method !== 'string') {
     return rpcError(message && typeof message === 'object' && !Array.isArray(message) ? message.id : null, -32600, 'invalid request: send one JSON-RPC 2.0 object with a method');
   }
@@ -323,13 +320,13 @@ async function handleMessage(message, { runCommand, cwd, seat, readCodeMap }) {
   if (method === 'tools/call') {
     if (!params || typeof params !== 'object' || typeof params.name !== 'string') return rpcError(id, -32602, 'tools/call needs params.name and params.arguments');
     try {
-      const result = await callTool(runCommand, cwd, params.name, params.arguments, readCodeMap);
+      const result = await callTool(runCommand, cwd, params.name, params.arguments, readCodeMap, readPersonNeeds);
       if (!result) {
-        return rpcError(id, -32602, `unknown tool ${params.name}`, refusalDocument(new Refused('UNKNOWN_TOOL', `no tool ${params.name}; use one from tools/list`)));
+        return rpcError(id, -32602, `unknown tool ${params.name}`, formatRefusal(new Refused('UNKNOWN_TOOL', `no tool ${params.name}; use one from tools/list`)));
       }
       return { jsonrpc: '2.0', id, result };
     } catch (error) {
-      if (error instanceof Refused) return { jsonrpc: '2.0', id, result: toolResult(refusalDocument(error), true) };
+      if (error instanceof Refused) return { jsonrpc: '2.0', id, result: toolResult(formatRefusal(error), true) };
       return rpcError(id, -32603, `internal error: ${error.message}`);
     }
   }
@@ -341,10 +338,12 @@ async function handleMessage(message, { runCommand, cwd, seat, readCodeMap }) {
  * time, in order, because each tool runs one CLI command against the board. Only replies go to
  * output; anything diagnostic goes to log.
  *
- * @param {{ cwd: string, input: NodeJS.ReadableStream, output: { write(text: string): any }, log: { write(text: string): any }, runCommand: Function }} options
+ * @param {{ cwd: string, input: NodeJS.ReadableStream, output: { write(text: string): any }, log: { write(text: string): any }, runCommand: Function, readPersonNeeds: (cwd: string) => object[], formatRefusal: Function }} options
  * @returns {Promise<number>} the exit code
  */
-export async function serveMcp({ cwd, input, output, log, runCommand, readCodeMap }) {
+export async function serveMcp({ cwd, input, output, log, runCommand, readCodeMap, readPersonNeeds, formatRefusal }) {
+  if (typeof readPersonNeeds !== 'function') throw new Refused('BAD_REQUEST', 'MCP needs its native person-needs reader; start it with pullboard mcp');
+  if (typeof formatRefusal !== 'function') throw new Refused('BAD_REQUEST', 'MCP needs its native refusal formatter; start it with pullboard mcp');
   const me = await runCli(runCommand, cwd, ['whoami', '--json']);
   const seat = me.status ? 'this checkout' : `agent ${me.document.id} in the ${me.document.lane} lane`;
   if (me.status) log.write(`pullboard mcp: ${me.document.error?.message ?? 'this checkout has no agent'}\nnext: ${me.document.error?.next ?? 'run pullboard join <lane> --model "<model name>"'}\n`);
@@ -359,7 +358,7 @@ export async function serveMcp({ cwd, input, output, log, runCommand, readCodeMa
         output.write(`${JSON.stringify(rpcError(null, -32700, 'parse error: each line must be one JSON-RPC message'))}\n`);
         return;
       }
-      const reply = await handleMessage(message, { runCommand, cwd, seat, readCodeMap });
+      const reply = await handleMessage(message, { runCommand, cwd, seat, readCodeMap, readPersonNeeds, formatRefusal });
       if (reply) output.write(`${JSON.stringify(reply)}\n`);
     }).catch((error) => { log.write(`pullboard mcp: ${error.stack ?? error.message}\n`); });
   };
