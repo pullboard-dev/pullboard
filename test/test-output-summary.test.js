@@ -122,7 +122,7 @@ test('native submit JSON and a red frozen verification expose bounded cases and 
   assert.match(readFileSync(document.gate.logPath, 'utf8'), /passing case 199/u);
   const review = join(box.dir, 'review-output');
   box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/output');
-  const joined = box.run(review, 'join', 'review', '--model', 'Test Model');
+  const joined = box.run(review, 'join', 'api', '--model', 'Test Model');
   assert.equal(joined.code, 0, joined.err);
   writeFileSync(flag, 'red');
   const refused = box.run(review, 'verify', '1', 'accept', '--note', 'run the frozen assertions', '--no-next');
