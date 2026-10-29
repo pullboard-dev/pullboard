@@ -29,6 +29,7 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'ensureCoordinator') { args = [box.root]; kind = 'machine'; }
     if (operation === 'intakeOutside') args = [{ agentId: actor }];
     if (operation === 'openHandoff') args = [{ agentId: actor }];
+    if (['recordUsage', 'recordSharedUsage'].includes(operation)) args = [{ agentId: actor }];
     if (operation === 'takeHandoff') args = [{ agentId: actor, item: 999999 }];
     if (operation === 'approveOutside') { args = [999999, { agentId: 'person' }]; kind = 'person'; }
     if (operation === 'addItem') args = [{ by: actor, lane: box.lane, title: 'credential actor fixture' }];
@@ -48,6 +49,7 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'setBarReady') args = [{ agentId: actor, enabled: false }];
     if (operation === 'maintainStaleState') args = [{ agentId: actor, snapshot: null }];
     if (operation === 'recordHealthFindings') args = [{ agentId: actor, observedRevision: 0, findings: [] }];
+    if (operation === 'recordNextIdle') args = [{ agentId: actor, reason: 'nothing-eligible' }];
     if (operation === 'recordActivityDelivery') args = [{ agentId: actor, through: 0, interrupts: [] }];
     if (operation === 'actOnActivity') args = [{ agentId: actor, ids: ['event:1'] }];
     if (operation === 'recordSpecApprovalBaseline') args = [{ agentId: actor, baseline: { version: 1, file: 'SPEC.md', anchor: null, rows: [] } }];
@@ -111,11 +113,14 @@ test('every current operation selects its native actor credential without a seco
     { operation: 'answerTypedRequests', args: [{ answers: [{ requestId: 999999, outcome: 'declined', note: 'missing actor' }] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'requestCompanion', args: [{ parentId: 999999, lane: box.lane, key: 'missing-actor', title: 'Missing actor' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'openHandoff', args: [{}], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
+    { operation: 'recordUsage', args: [{}], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
+    { operation: 'recordSharedUsage', args: [{}], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'takeHandoff', args: [{ item: 999999 }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordPublishFinding', args: [{ item: 999999 }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'maintainStaleState', args: [{ snapshot: null }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordHealthFindings', args: [{ observedRevision: 0, findings: [] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'setBoardMembers', args: [{ document: null }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
+    { operation: 'recordNextIdle', args: [{ reason: 'nothing-eligible' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordActivityDelivery', args: [{ through: 0, interrupts: [] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'actOnActivity', args: [{ ids: ['event:1'] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordSpecApprovalBaseline', args: [{ baseline: { version: 1, file: 'SPEC.md', anchor: null, rows: [] } }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },

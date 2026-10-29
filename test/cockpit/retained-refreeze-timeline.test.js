@@ -49,7 +49,7 @@ test('retained refreeze remains claimed in API history and the detail timeline o
       assert.equal(rendered.eventId, String(threadRefreeze.eventId), `${width}: row is bound to the actual retained-refreeze event`);
       assert.ok(rendered.claimed, `${width}: retained refreeze is shown as claimed`);
       assert.equal(rendered.open, false, `${width}: retained refreeze is not replayed as open`);
-      assert.match(rendered.text, /refreeze/u, `${width}: the actual refreeze event remains visible`);
+      assert.match(rendered.text, /refreshed the frozen bar/u, `${width}: the actual refreeze event remains visible as its plain sentence`);
       assert.ok(rendered.visible, `${width}: the detail timeline row is visible in the viewport`);
     }
     assert.deepEqual(chrome.exceptions, []);

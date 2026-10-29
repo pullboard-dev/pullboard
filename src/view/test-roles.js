@@ -1,8 +1,13 @@
 /** Explicit test roles are an inventory, not completion evidence or a browser-admission exemption [N26,C7]. */
 export const VIEW_TEST_ROLES = Object.freeze({
+  'test/cockpit/item-timeline.test.js': { kind: 'journey', reason: 'Actual native checks/facts and live authenticated HTTP detail, followed by Chrome rail geometry, disclosure, and item/code navigation at desktop and phone widths.' },
   "test/cockpit/needs-actions-pure.test.js": {
     "kind": "logic",
     "reason": "Exact advertised row actions and explicit person authority produce controls over plain data; native decisions and Chrome interaction remain journeys."
+  },
+  "test/cockpit/state-reader-codegen.test.js": {
+    "kind": "adapter",
+    "reason": "Generated local state-reader source is executed with explicit transport replies in a VM; this is a reader adapter contract, not a pure-render witness."
   },
   "test/cockpit/roadmap-pure.test.js": {
     "kind": "logic",

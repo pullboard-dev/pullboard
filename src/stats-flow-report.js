@@ -52,16 +52,37 @@ function stage(item, policy, at) {
 }
 
 /** Charge elapsed time, splitting recorded reservation and claim expiry boundaries exactly. */
-export function advanceReport(item, policy, at) {
+export function advanceReport(item, policy, at, windows) {
   item.report ??= reportState();
   const report = item.report;
+  if (windows && !report.windows) report.windows = windows.map(bounds => ({ ...bounds,
+    milliseconds: Object.fromEntries(STAGES.map(key => [key, 0])), unknownMilliseconds: 0 }));
   if (!Number.isFinite(report.at)) { report.at = at; return; }
   const boundaries = [item.leaseUntil, item.reserve?.until].filter(value => Number.isFinite(value) && value > report.at && value < at).sort((a, b) => a - b);
   for (const end of [...boundaries, at]) {
     const key = stage(item, policy, report.at);
     if (key && end >= report.at) report.totals[key] += (end - report.at) / 60_000;
+    for (const window of report.windows ?? []) {
+      const elapsed = Math.max(0, Math.min(end, window.end) - Math.max(report.at, window.start));
+      if (key) window.milliseconds[key] += elapsed;
+      else if (!['merged', 'withdrawn'].includes(item.state)) window.unknownMilliseconds += elapsed;
+    }
     report.at = end;
   }
+}
+
+/** Clip optional comparison observations through the same canonical stage classifier, never another lifecycle. */
+export function projectReportWindows(items, policy, now, windows) {
+  const observedPolicy = safeReportPolicy(structuredClone(policy));
+  const rows = items.map(item => {
+    const copy = structuredClone(item);
+    advanceReport(copy, observedPolicy, now, windows);
+    return copy;
+  });
+  return windows.map((bounds, index) => ({ ...bounds,
+    milliseconds: Object.fromEntries(STAGES.map(key => [key,
+      rows.reduce((sum, row) => sum + (row.report.windows?.[index].milliseconds[key] ?? 0), 0)])),
+    unknownMilliseconds: rows.reduce((sum, row) => sum + (row.report.windows?.[index].unknownMilliseconds ?? 0), 0) }));
 }
 
 /** Preserve missing lifecycle boundaries before the canonical transition replaces them. */

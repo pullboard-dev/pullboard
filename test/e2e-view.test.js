@@ -1,3 +1,4 @@
+import { cockpitPage as cockpitSource } from '../src/cockpit.js';
 /**
  * End to end on real repos: the CLI runs as its own process, git runs the installed hooks, and
  * worktrees are real worktrees (B1–B3, B6, V3, V4, V7, L3, L4, C3, I1, I2, P2).
@@ -32,7 +33,7 @@ import { fetchPrintedViewLink } from './view-link-fixture.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
-  BIN, cockpitSource, sandboxes, sandbox, CONFIG, SPEC, project, holdingGate,
+  BIN, sandboxes, sandbox, CONFIG, SPEC, project, holdingGate,
   launch, waitFor, gateEvents, commitFile, attackCommit, privateCheckSubmission,
   startView, LIGHT_BRIEF,
 } = e2e;

@@ -1,0 +1,10 @@
+{
+  "kind": "next-idle",
+  "entries": [
+    {
+      "order": 61,
+      "actor": "idle seat",
+      "detail": "`version`, `engine`, `reason` (structured next observation; absent historical reasons stay unknown)"
+    }
+  ]
+}

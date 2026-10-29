@@ -1,4 +1,5 @@
 import { agentById } from './seats.js';
+import { recordNextIdle as recordNextIdleObservation } from './board-stats.js';
 import { committedItemAuthors } from './review-independence.js';
 import { strictReviewProblem } from './review-independence.js';
 import { firstRefusal } from './board-item-read.js';
@@ -34,6 +35,7 @@ import { REFERENCE_ENGINE } from './reference-engine.js';
 import { validateReferences } from './reference-authors.js';
 import {
   submissionItemValues,
+  submissionChildrenProblem,
   recordSubmissionEvent,
 } from './submission-record.js';
 import { foreignBlockers as readForeignBlockers } from './cross-repo-dependencies.js';
@@ -352,6 +354,8 @@ export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } 
 export { flakeLedger, recordFlakeObservation } from './flakes.js';
 export { flakeQuarantines, gateRuns, recordGateRun } from './quarantine.js';
 export { personProposals, personSigning, proposePersonMove, setPersonSigning } from './person-signing.js'; // Signed person moves [E22].
+export { recordUsage } from './cost.js';
+export { recordSharedUsage } from './cost-shared.js';
 export { proofReceipts, recordProofRun } from './proof-receipts.js';
 import { refuseLongShout } from './proof-receipts.js';
 import { PROOF_RUN_ENGINE } from './proof-run-engine.js';
@@ -362,9 +366,7 @@ export { agentAt, agentById, agentCreator, coordinatorHolder, listAgents, nextSe
 export const ACCEPT_REASON = 'CRITERION_MET';
 export { PERSON } from './board-query.js';
 
-export { EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION } from './board-schema-source.js';
-
-export { BOARD_BUSY_TIMEOUT_MS } from './board-schema-source.js';
+export { EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, BOARD_BUSY_TIMEOUT_MS, SCHEMA_VERSION } from './board-schema-source.js';
 
 const REVIEW_RELEASE_COOLDOWN_MS = 60 * 60 * 1000;
 
@@ -383,8 +385,6 @@ export { openBoardForRead } from './native-board.js';
 export { openBoardReadOnly } from './board-read-open.js';
 /** Temporary public compatibility; #1624 removes this edge after native-root callers compose. */
 export { openBoard } from './native-board.js';
-
-export { SCHEMA_VERSION } from './board-schema-source.js';
 
 export { readEventLogVersion } from './board-read-open.js';
 
@@ -445,8 +445,8 @@ export function register(board, who) {
           `this worktree is ${existing.agent_id} in the ${existing.agent_lane} lane, routed ${existing.agent_route}; use another worktree for ${lane} routed ${route}`,
         );
       }
-      saveJoinedSession(board, existing.agent_id, who);
-      if (family !== undefined && family !== existing.agent_family) {
+      const locked = saveJoinedSession(board, existing.agent_id, who);
+      if (family !== undefined && family !== reviewRouting.seatFamily(board, existing.agent_id) && !locked) {
         board.db.prepare('UPDATE agent SET agent_family = ? WHERE agent_id = ?').run(family, existing.agent_id);
         logEvent(board, existing.agent_id, 'family', null, { family });
       }
@@ -472,7 +472,7 @@ export function register(board, who) {
         'INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_family, agent_created_at) VALUES (?, ?, ?, ?, ?, ?)',
       )
       .run(id, lane, path, route, family ?? null, now(board));
-    saveJoinedSession(board, id, who);
+    const recordsFamily = saveJoinedSession(board, id, { ...who, inserting: true });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= 8) saveAgentModel(board, id, model);
     if (createdBy !== undefined) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_creator:${id}`, createdBy);
     // Only a relay replica replaying a receipt-bound registration marks the seat enrolled.
@@ -482,8 +482,8 @@ export function register(board, who) {
       const lineage = createdBy === COORDINATOR ? board.verifierStanding?.lineage ?? null : seatLineage(board, createdBy);
       if (lineage) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_lineage:${id}`, lineage);
     }
-    logEvent(board, id, 'join', null, { lane, ...(route === 'strong' ? {} : { route }),
-      ...(engine >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}) });
+    logEvent(board, id, 'join', null, { lane, ...(route === 'strong' ? {} : { route }), // From the declaration engine a join records its family (#1783).
+      ...(engine >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}), ...(recordsFamily ? { family: family ?? null } : {}) });
     if (board.executionEngineVersion === undefined) heartbeatSeat(board, id);
     return id;
   });
@@ -498,7 +498,7 @@ export function register(board, who) {
  * @returns {string}
  */
 export function ensureCoordinator(board, path) {
-  const existing = board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(COORDINATOR);
+  const existing = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id = ?').get(COORDINATOR);
   if (!existing) return register(board, { lane: COORDINATOR, path });
   if (existing.agent_path !== path) {
     atomic(board, () => {
@@ -1035,6 +1035,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         hasCommit: null,
         withinLane: null,
         trunkMergeClean: null,
+        sourcePlaced: null, // The CLI checks exact committed placement before any proof or ordered submit.
         trunkInCandidate: null,
         noUnverifiedStack: null,
         infraExplained: null, // The CLI checks the claimed Git diff before this transition.
@@ -1057,12 +1058,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= FLOW_SIZE_ENGINE) recordedSize = submissionSize(size, commit);
           return null;
         },
-        childrenDone: () => {
-          const { total } = board.db
-            .prepare("SELECT COUNT(*) AS total FROM item WHERE item_parent_id = ? AND item_status IN ('open', 'claimed', 'submitted')")
-            .get(id);
-          return total ? new Refused('CHILDREN_OPEN', `item #${id} has ${total} unfinished child items`) : null;
-        },
+        childrenDone: () => submissionChildrenProblem(board, id),
         headIsNew: (found) => {
           const engineVersion = board.executionEngineVersion ?? ENGINE_VERSION;
           const rejectedHead = board.db.prepare(
@@ -1110,13 +1106,7 @@ export function reviewReleaseNoteProblem(board, itemId, agentId, note) {
 }
 
 /** Return a reviewer's active one-hour cooldown, if a later submission has not reset it [V1,R1]. */
-function reviewReleaseCooldown(board, itemId, agentId) {
-  if ((board.executionEngineVersion ?? ENGINE_VERSION) < 5) return null;
-  const event = reviewReleasesSinceSubmit(board, itemId, agentId).find((release) => !release.legacy);
-  if (!event) return null;
-  const until = Date.parse(event.event_at) + REVIEW_RELEASE_COOLDOWN_MS;
-  return until > board.clock.now().getTime() ? new Date(until).toISOString() : null;
-}
+const reviewReleaseCooldown = (board, itemId, agentId) => reviewRouting.reviewReleaseCooldown(board, itemId, agentId, { engineVersion: ENGINE_VERSION, reviewReleasesSinceSubmit, cooldownMs: REVIEW_RELEASE_COOLDOWN_MS });
 
 export { reviewQueueBreakdown } from './board-query.js';
 
@@ -1138,7 +1128,7 @@ export function reviewOffer(board, who) {
  * @returns {Record<string, (found: any) => Refused | null>}
  */
 function reviewerChecks(board, { agentId, policy, familyPolicy = 'off' }) {
-  const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
+  const family = reviewRouting.seatFamily(board, agentId);
   return {
     notBuilder: (found) => itemAuthorProblem(board, found, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }),
     routeAllows: (found) => {
@@ -1181,10 +1171,10 @@ export function reserveReview(board, id, who) {
  * @param {{ agentId: string, lane: string, leaseMs: number, policy: string, familyPolicy?: string, runnable?: boolean, routes?: string[], skipIds?: number[] }} who - skipIds: items the caller's own session built, never offered (verify refuses them too)
  * @returns {{ item: any | null, reasons: string[] }}
  */
-export function reserveNextReview(board, { agentId, lane, leaseMs, policy, familyPolicy = 'off', runnable, routes, skipIds = [], priority = [] }) {
+export function reserveNextReview(board, { agentId, lane, leaseMs, policy, familyPolicy = 'off', runnable, routes, skipIds = [], priority = [], observeIdle = false }) {
   return atomic(board, () => {
-    const { item, reasons } = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, skipIds, priority });
-    return item ? { item: reserveWithin(board, item.item_id, { agentId, leaseMs, policy, familyPolicy }), reasons } : { item: null, reasons };
+    const { item, reasons, idleReason } = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, skipIds, priority, observeIdle });
+    return item ? { item: reserveWithin(board, item.item_id, { agentId, leaseMs, policy, familyPolicy }), reasons } : { item: null, reasons, ...(observeIdle ? { idleReason } : {}) };
   });
 }
 
@@ -1759,7 +1749,9 @@ export function buildOrder(board, { warm = [], agentId, readiness = barReadyForO
  * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[], afterRelease?: number }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease }) {
+export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false }) {
+  /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
+  const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
@@ -1770,7 +1762,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;
   if (verify) {
-    const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
+    const family = reviewRouting.seatFamily(board, agentId);
     const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, entry.item_builder_family);
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
     const standingRefusal = unrelated.map((entry) => itemAuthorProblem(board, entry, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }) ?? reviewFamilyProblem(board, entry, agentId, familyPolicy)).find(Boolean);
@@ -1787,7 +1779,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const heldByMe = candidates.find((candidate) => candidate.holder === agentId)?.entry;
     if (heldByMe) return { item: heldByMe, reasons: [] };
     const presenceProblem = liveRouteProblem(board, agentId);
-    if (presenceProblem) return { item: null, reasons: [presenceProblem] };
+    if (presenceProblem) return empty('unknown', { item: null, reasons: [presenceProblem] });
     const milestonePriority = milestonePriorities(board);
     const rank = milestoneRanks(board, milestonePriority, { milestones });
     const scarcity = lineOrderEnabled(board) ? reviewerScarcity(board, candidates.map(candidate => candidate.entry), (entry, reviewer) =>
@@ -1807,20 +1799,20 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
       .map(({ entry, holder: reviewer }) => `${reviewer} holds the review of #${entry.item_id} until ${entry.item_review_until}`);
     const cooling = candidates.filter((candidate) => candidate.cooldown)
       .map(({ entry, cooldown }) => `you released the review of #${entry.item_id}; try again after ${cooldown}, or let another reviewer take it`);
-    return { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`,
-      ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] };
+    return empty(held.length || cooling.length ? 'held' : requiredRefusals.length || standingRefusal?.code?.includes('FAMILY') ? 'review-family' : standingRefusal ? 'unknown' : 'nothing-eligible', { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`,
+      ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] });
   }
   const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
   // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
   const plannedRelease = held && held.item_id === afterRelease ? held.item_id : null;
   if (held && plannedRelease === null) return { item: held, reasons: [] };
   const presenceProblem = liveRouteProblem(board, agentId);
-  if (presenceProblem) return { item: null, reasons: [presenceProblem] };
+  if (presenceProblem) return empty('unknown', { item: null, reasons: [presenceProblem] });
   const selectedLanes = new Set(lanes ?? [lane]);
   const reasons = allItems.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane) && entry.item_hold_reason)
     .map((entry) => `#${entry.item_id} is held by coordinator: ${entry.item_hold_reason}`);
   const paused = laneHold(board, lane);
-  if (!lanes && paused) return { item: null, reasons: [`${paused.hold_by} holds the ${lane} lane: ${paused.hold_reason}`, ...reasons] };
+  if (!lanes && paused) return empty('held', { item: null, reasons: [`${paused.hold_by} holds the ${lane} lane: ${paused.hold_reason}`, ...reasons] });
   if (lanes) for (const name of selectedLanes) {
     const hold = laneHold(board, name);
     if (hold) { selectedLanes.delete(name); reasons.push(`${hold.hold_by} holds the ${name} lane: ${hold.hold_reason}`); }
@@ -1875,7 +1867,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   for (const entry of listItems(board).filter((open) => open.item_status === 'open' && open.item_lane === lane && !open.item_hold_reason && !canTake(route, open.item_route))) {
     reasons.push(`#${entry.item_id} (${entry.item_route}) is open in the ${lane} lane, above your ${route} route: a ${entry.item_route} agent takes it, or, if ${route} can build it, the coordinator reroutes it: pullboard edit ${entry.item_id} --route ${route}`);
   }
-  return { item: null, reasons };
+  return empty(allItems.some(entry => entry.item_status === 'open' && (lanes ?? [lane]).includes(entry.item_lane) && entry.item_hold_reason) || lanes && selectedLanes.size < lanes.length ? 'held' : 'nothing-eligible', { item: null, reasons });
 }
 
 /**
@@ -2187,3 +2179,6 @@ export function foreignBlockers(board, item) { return readForeignBlockers(board,
 
 /** Project canonical foreign dependency state through the same native receiving reader [B24,E32,H16]. */
 export function foreignDependencyStates(board, item) { return readForeignDependencyStates(board, item, { readReceivedBoardState }); }
+
+/** Persist next's observed idle cause through the normal ordered actor boundary [R2,N2]. */
+export function recordNextIdle(board, options) { return recordNextIdleObservation(board, options, { atomic, logEvent, agentById }); }
