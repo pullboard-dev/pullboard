@@ -224,7 +224,7 @@ test('withdraw leaves every milestone and the roadmap lists work to ship first [
 
   const text = run('roadmap');
   const itemText = text.replace(/^ {2}\d+ left of \d+: [^\n]*\n/gm, '');
-  assert.match(itemText, /^Now: 1\/4 landed\n {2}#3 First open page — open\n {2}#5 Second open page — open\n {2}#1 Landed page — landed\n {2}#4 Accepted page — accepted$/m, 'the text roadmap lists the same order and count');
+  assert.match(itemText, /^Now: 1\/4 landed\n {2}1. #3 First open page — open\n {2}2. #5 Second open page — open\n {2}#1 Landed page — landed\n {2}#4 Accepted page — accepted$/m, 'the text roadmap lists the same order and count');
   assert.match(itemText, /^Old: 1\/1 landed\n {2}#1 Landed page — landed$/m, 'and leaves the withdrawn item out of the text');
   assert.doesNotMatch(text, /Stale withdrawn page|Dropped idea/, 'no withdrawn item appears anywhere in the text roadmap');
 });
@@ -262,7 +262,7 @@ test('[N26] each milestone sums its items by state with an estimate', async t =>
   assert.ok(direct.items.every(entry => entry.status !== 'withdrawn'));
   assert.equal(direct.done, 1);
   assert.deepEqual(direct.items.map(entry => entry.id),
-    [review, building, held, waiting, landings.at(-1), landing], 'the roadmap keeps work to ship first and omits withdrawn work');
+    [review, building, waiting, held, landings.at(-1), landing], 'the roadmap lists work in queue order (a held item last), then verified work, and omits withdrawn work');
   assert.equal(['landed', 'landing', 'review', 'building', 'held', 'waiting'].reduce((sum, key) => sum + direct.summary[key], 0), direct.summary.total);
   store.shout(box.board, { from: store.PERSON, to: 'coordinator', lanes: ['web'], answers: ask, text: 'Choose it' });
   assert.deepEqual((await box.run()).milestones[0].summary.needsYou, [], 'answered questions no longer need the person');
