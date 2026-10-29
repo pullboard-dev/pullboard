@@ -1,7 +1,10 @@
 /** A test rename may repoint its gate without changing any requirement bytes [L3,B34]. */
 import { spawnSync } from 'node:child_process';
 import { cleanGitEnvironment } from './git.js';
-import { parseSpec, replaceRowGate } from './spec.js';
+import {
+  parseSpec,
+  replaceRowGate,
+} from './spec.js';
 import { isDefaultTestFile } from './test-selection.js';
 
 /** Keep exact Git object bytes, including terminal whitespace that requirement edits must not hide. */
