@@ -37,6 +37,52 @@ function selected(box, base, commit, files) {
   return result;
 }
 
+test('quoted input markers in leading prose leave real static importer closures known [V4,C7]', t => {
+  const box = graph(t);
+  const prose = '/**\n * Example header: /** @pullboard-test-input fixtures/missing.json *\\/\n */\n';
+  box.put('src/prose.js', prose + 'export const value = 1;\n');
+  box.put('test/prose.test.js', "import '../src/prose.js';\n");
+  const base = box.commit();
+  box.put('src/prose.js', prose + 'export const value = 2;\n');
+  const after = box.commit();
+  selected(box, base, after, ['test/prose.test.js']);
+  assert.deepEqual(testClosures(box.root, after).closures.get('test/prose.test.js').files,
+    ['src/prose.js', 'test/prose.test.js']);
+  box.put('input.json', '{}\n');
+  box.put('test/reader.test.js', '/** @pullboard-test-input input.json */\n' + prose);
+  const declared = box.commit();
+  box.put('input.json', '{"value":2}\n');
+  const changed = box.commit();
+  selected(box, declared, changed, ['test/reader.test.js']);
+  assert.ok(testClosures(box.root, changed).closures.get('test/reader.test.js').files.includes('input.json'));
+});
+
+test('malformed, unmatched and unsafe real input annotations retain conservative fallback [V4,C7]', t => {
+  for (const header of [
+    '/** @pullboard-test-input */',
+    '/* @pullboard-test-input fixtures/existing.json */',
+    '// @pullboard-test-input fixtures/existing.json',
+    '/**\n * @pullboard-test-input fixtures/existing.json\n */',
+    '/** @pullboard-test-input fixtures/missing.json */',
+    '/** @pullboard-test-input fixtures/missing-*.json */',
+    '/** @pullboard-test-input ../outside.json */',
+    '/** @pullboard-test-input /outside.json */',
+    '/** @pullboard-test-input fixtures/{a,b}.json */',
+    '/** @pullboard-test-input fixtures//existing.json */',
+  ]) {
+    const box = graph(t);
+    box.put('fixtures/existing.json', '{}\n');
+    box.put('src/value.js', header + '\nexport const value = 1;\n');
+    const base = box.commit();
+    box.put('src/value.js', header + '\nexport const value = 2;\n');
+    const after = box.commit();
+    const result = selectAffectedTests(box.root, { base, commit: after });
+    assert.equal(result.full, true, header);
+    assert.match(result.reason, /invalid or unmatched declared test input/u, header);
+    assert.equal(testClosures(box.root, after).closures.get('test/value.test.js').files, null, header);
+  }
+});
+
 test('declared global-file readers and ordinary global module importers select their complete reach [V4,C7]', t => {
   const box = graph(t);
   box.put('src/gate.js', 'export const gate = 1;\n');
