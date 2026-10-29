@@ -7,6 +7,7 @@ import { lstatSync } from 'node:fs';
 import { readlinkSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
@@ -154,6 +155,7 @@ test('next and submit reuse immutable facts while an exact applied approval stay
   assert.equal(applied.code, 0, applied.err || applied.out);
   const shown = JSON.parse(box.run(box.repo, 'show', id, '--json').out);
   assert.equal(JSON.parse(shown.item_frozen).rows.find(row => row.id === 'G1').text, 'The page renders a heading.');
+  mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web', 'fresh.html'), '<h1>Fresh</h1>\n');
   box.git(box.web, 'add', 'web/fresh.html');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): fresh page [G1]');
