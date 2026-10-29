@@ -10,17 +10,19 @@ import { Refused } from '../../src/refused.js';
 import { tryGit } from '../../src/git.js';
 import { lex } from '../../src/js-lex.js';
 import { createHash } from 'node:crypto';
+import { readPlan } from '../cells-plan.js';
 
 /** Read the indexed plan without regenerating it or changing any ratchet. */
 function planAt(root) {
-  const bytes = readFileSync(join(root, 'bin/cells-plan.json')), index = JSON.parse(bytes);
-  const digest = createHash('sha256').update('bin/cells-plan.json\0').update(bytes);
-  const cells = index.cells.map(row => {
-    const shard = readFileSync(join(root, row.file));
-    digest.update(`\0${row.file}\0`).update(shard);
-    return JSON.parse(shard);
+  const digest = createHash('sha256');
+  let first = true;
+  const plan = readPlan(root, file => {
+    const bytes = readFileSync(join(root, file));
+    digest.update(`${first ? '' : '\0'}${file}\0`).update(bytes);
+    first = false;
+    return bytes.toString('utf8');
   });
-  return { ...index, cells, contentSHA256: digest.digest('hex') };
+  return { ...plan, contentSHA256: digest.digest('hex') };
 }
 
 /** Identify the actual selected checkout independently of the plan's earlier generation seed. */

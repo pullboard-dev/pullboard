@@ -4,11 +4,6 @@
   "kind": "app",
   "root": "apps/runner",
   "frontDoor": "apps/runner/index.js",
-  "placedBy": {
-    "seed": 7,
-    "rule": 11,
-    "imports": 0
-  },
   "paths": [
     [
       "src/private-check-worker.js",

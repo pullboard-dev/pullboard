@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/sync",
  "frontDoor": "packages/sync/index.js",
- "placedBy": {
-  "seed": 3,
-  "rule": 0,
-  "imports": 0
- },
  "paths": [
   ["src/local-fetch.js","packages/sync/src/shell/local-fetch.js","seed"],
   ["src/sync.js","packages/sync/src/shell/sync.js","seed"],

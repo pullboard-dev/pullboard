@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/git",
  "frontDoor": "packages/git/index.js",
- "placedBy": {
-  "seed": 5,
-  "rule": 6,
-  "imports": 7
- },
  "paths": [
   ["src/committed-file-reader.js","packages/git/src/shell/committed-file-reader.js","seed"],
   ["src/git-adapter.js","packages/git/src/shell/git-adapter.js","rule"],

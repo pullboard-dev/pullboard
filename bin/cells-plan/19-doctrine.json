@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/doctrine",
  "frontDoor": "packages/doctrine/index.js",
- "placedBy": {
-  "seed": 5,
-  "rule": 0,
-  "imports": 0
- },
  "paths": [
   ["src/doctrine-checks.js","packages/doctrine/src/shell/doctrine-checks.js","seed"],
   ["src/doctrine-rulings.js","packages/doctrine/src/shell/doctrine-rulings.js","seed"],

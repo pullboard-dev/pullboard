@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/merge",
  "frontDoor": "packages/merge/index.js",
- "placedBy": {
-  "seed": 6,
-  "rule": 1,
-  "imports": 3
- },
  "paths": [
   ["src/main-moved-warning.js","packages/merge/src/shell/main-moved-warning.js","imports"],
   ["src/mechanical-merge.js","packages/merge/src/shell/mechanical-merge.js","seed"],

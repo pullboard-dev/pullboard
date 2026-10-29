@@ -87,6 +87,36 @@ test('an intervening native edit invalidates prepared source without a partial c
   assert.equal(observed.calls, 1, 'a stale binding never repeats external work while locked');
 });
 
+test('claim preparation rechecks original guards after an intervening native hold [B2,C7,V2]', t => {
+  const { board, agentId, id, peer } = setup(t);
+  const observed = { calls: 0 };
+  const freeze = unlockedFreeze(peer, observed);
+  assert.throws(() => writeBoardCommand(board, 'claim', [id, { agentId, lane: 'core', leaseMs: 7_200_000,
+    freeze(item) {
+      const frozen = freeze(item);
+      store.holdItem(board, id, { agentId: 'coordinator', reason: 'Pause during preparation' });
+      return frozen;
+    } }], agentId), error => error.code === 'ITEM_HELD');
+  assert.equal(observed.calls, 1, 'changed hold guard runs before another source read');
+  assert.equal(store.getItem(board, id).item_status, 'open');
+  assert.equal(store.events(board).filter(event => event.item_id === id && event.event_kind === 'claim').length, 0);
+});
+
+test('continuous native edits exhaust bounded preparation without a partial claim [B2,C7,V2]', t => {
+  const { board, agentId, id, peer } = setup(t);
+  const observed = { calls: 0 };
+  const freeze = unlockedFreeze(peer, observed);
+  assert.throws(() => writeBoardCommand(board, 'claim', [id, { agentId, lane: 'core', leaseMs: 7_200_000,
+    freeze(item) {
+      const frozen = freeze(item);
+      store.editItem(board, id, { agentId: 'coordinator', criterion: `Native edit ${observed.calls}` });
+      return frozen;
+    } }], agentId), error => error.code === 'BOARD_BUSY');
+  assert.equal(observed.calls, 3);
+  assert.equal(store.getItem(board, id).item_status, 'open');
+  assert.equal(store.events(board).filter(event => event.item_id === id && event.event_kind === 'claim').length, 0);
+});
+
 
 test('a non-claim native command retains its own arguments and domain guards [B2,C7]', t => {
   const { board, agentId, id } = setup(t);
@@ -131,6 +161,15 @@ test('the native write publication exception cannot hide a new process call [C7,
   const problems = boardWriteIoProblems(guardSources(source, [{ file: 'src/board-write-lock.js', source: writer }]), { pending: {} });
   assert.ok(problems.some(row => row.call === 'node:child_process#execFileSync'));
   assert.ok(!problems.some(row => row.call === 'node:fs#writeFileSync'));
+});
+
+test('the named post-release hold append does not exempt unrelated reads or process calls [C7,CD39]', () => {
+  const source = "import {atomic} from './board-event-log.js'; import {recordBoardHold} from './board-hold-log.js'; atomic(board, () => recordBoardHold());";
+  const writer = "import {writeSync, readFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process'; export function recordBoardHold() { writeSync(1, 'line'); readFileSync('unrelated'); execFileSync('git'); }";
+  const problems = boardWriteIoProblems(guardSources(source, [{ file: 'src/board-hold-log.js', source: writer }]), { pending: {} });
+  assert.ok(!problems.some(row => row.call === 'node:fs#writeSync'));
+  assert.ok(problems.some(row => row.call === 'node:fs#readFileSync'));
+  assert.ok(problems.some(row => row.call === 'node:child_process#execFileSync'));
 });
 
 test('a named deferred receipt read is allowed only through its assigned train writer [C7,CD39]', () => {
