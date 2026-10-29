@@ -12,7 +12,8 @@ test('a roadmap summary card separates its counts, legend and forecast at phone 
   assert.ok(executable, 'Chrome is required for the rendered roadmap summary card.');
   const box = machine(), alpha = project(box, 'roadmap-summary-card');
   box.run(alpha.repo, 'add', 'web', 'Capacity work', '--specs', 'G1', '--criterion', 'The page renders.');
-  box.run(alpha.repo, 'milestone', 'add', 'Capacity', '--items', '1', '--limit', '2');
+  box.run(alpha.repo, 'milestone', 'add', 'Capacity', '--items', '1');
+  box.run(alpha.repo, 'milestone', 'edit', 'Capacity', '--limit', '2');
   const api = JSON.parse(box.run(alpha.repo, 'roadmap', '--json'));
   const actual = api.milestones.find(milestone => milestone.name === 'Capacity');
   assert.ok(actual, 'the milestone comes from the real roadmap API');
