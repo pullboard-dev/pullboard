@@ -7,6 +7,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { rebuildProofCounters } from '../../src/proof-counters.js';
 import { submitFixture } from '../board-submit-fixture.js';
 
@@ -149,7 +150,7 @@ test('Home capacity stays readable at phone and desktop widths in real Chrome [N
 /** Seed ordinary native board history so the real state endpoint has a measured capacity projection. */
 function seedCapacityHistory(box, repo) {
   // @pullboard-board-file journey: the real view server reads this seeded project board over HTTP
-  const board = store.openBoard(join(repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(repo, '.git/pullboard/board.sqlite'));
   const now = Date.now();
   let clock = now - 3 * 24 * HOUR;
   /** Expose the fixture's controlled clock to normal board operations. */
