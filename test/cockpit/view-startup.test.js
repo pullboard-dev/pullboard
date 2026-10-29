@@ -1,3 +1,4 @@
+/** @pullboard-test-gui */
 /** Real large-board startup and first authenticated page, including its initial state [N26,V4]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -13,6 +14,7 @@ import { project } from './fixture.js';
 
 /** Seed genuine registration history with many seats and shared original sessions, outside the startup budget. */
 function seedSeats(box, demo) {
+  // @pullboard-board-file journey: native registrations persist in the project database that the real CLI child reopens and serves over authenticated HTTP.
   const board = openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
   const ids = [];
   try {
