@@ -8,7 +8,7 @@ export function roadmapSummary(milestone, context = {}) {
   const number = value => Number.isInteger(value) && value >= 0;
   if (!summary || !number(summary.total) || !number(summary.left) || states.some(([key]) => !number(summary[key]))) return null;
   // Only a milestone with work left has a header: a finished one or an empty plan never reads "0 remaining" or
-  // "About 0 to 0 h"; an empty plan keeps its No items yet reading, as before this header.
+  // "About 0 hours"; an empty plan keeps its No items yet reading, as before this header.
   if (summary.left === 0) return null;
   const count = '<span class="roadmap-left"><b>'+escape(summary.left)+' remaining</b><span aria-label="'+escape(summary.landed)+'/'+escape(summary.total)+' landed">'+escape(summary.landed)+' of '+escape(summary.total)+' landed</span></span>';
   const description = states.map(([key,label]) => summary[key]+' '+label).join(', ');
@@ -18,17 +18,28 @@ export function roadmapSummary(milestone, context = {}) {
   const bar = '<svg class="milestone-progress roadmap-summary-bar" viewBox="0 0 ' + (summary.total || 1) + ' 1" preserveAspectRatio="none" role="img" aria-label="' + escape(milestone.name+': '+description) + '" data-total="' + summary.total + '">' + segments + '</svg>';
   // The held count opens the held items alone, and a second press shows every item again (#1256).
   const heldLink = key => key === 'held' && summary.held > 0;
-  const legend = '<div class="roadmap-summary-legend">'+states.map(([key,label]) => (heldLink(key) ? '<button type="button" class="link roadmap-held-link" data-roadmap-held="'+escape(milestone.name)+'" aria-pressed="'+(context.held === milestone.name)+'" data-summary-state="'+key+'">' : '<span data-summary-state="'+key+'">')+'<i class="roadmap-summary-swatch '+key+'" aria-hidden="true"></i><b>'+escape(summary[key])+'</b> '+label+(heldLink(key) ? '</button>' : '</span>')).join('')+'</div>';
+  /** Keep every legend entry's dot, count and label in the same aligned structure. */
+  const legendEntry = ([key, label]) => (heldLink(key)
+    ? '<button type="button" class="link roadmap-held-link" data-roadmap-held="'+escape(milestone.name)+'" aria-pressed="'+(context.held === milestone.name)+'" data-summary-state="'+key+'">'
+    : '<span data-summary-state="'+key+'">')+'<i class="roadmap-summary-swatch '+key+'" aria-hidden="true"></i><b>'+escape(summary[key])+'</b> <span>'+label+'</span>'+(heldLink(key) ? '</button>' : '</span>');
+  const legend = '<div class="roadmap-summary-legend">'+states.map(legendEntry).join('')+'</div>';
   const target = milestone.target ? '<span class="roadmap-target">Target <time datetime="'+escape(milestone.target)+'">'+escape(context.targetLabel !== undefined ? context.targetLabel : milestone.target)+'</time>'+(milestone.pastTarget?' <span class="chip warn">past target</span>':'')+'</span>' : '';
   const estimate = summary.estimate, pace = summary.pace;
   // The time line reads the summary's estimate, window and reason as given (#853): today's pace for the 6 h
   // window, the last day's for the 24 h window, and plain words when too few items have landed to estimate.
-  const bounds = estimate && Number.isFinite(estimate.low) && Number.isFinite(estimate.high)
-    ? escape(estimate.low)+(estimate.low === estimate.high ? '' : ' to '+escape(estimate.high))+' h' : '';
+  /** Round the estimate to whole hours, or whole days once its lower bound reaches a day. */
+  const formatEstimate = () => {
+    if (!estimate || !Number.isFinite(estimate.low) || !Number.isFinite(estimate.high)) return '';
+    const days = estimate.low >= 24, divisor = days ? 24 : 1;
+    const low = Math.round(estimate.low / divisor), high = Math.round(estimate.high / divisor), unit = days ? 'day' : 'hour';
+    const range = low === high ? '<b>'+low+'</b>' : '<b>'+low+'</b> to <b>'+high+'</b>';
+    return range+' '+unit+(high === 1 ? '' : 's');
+  };
+  const bounds = formatEstimate();
   const when = bounds ? 'About '+bounds+(summary.window === '24h' ? ' at the last day’s pace' : ' at today’s pace')
     : summary.reason === 'few-landings' ? 'Too few landings yet to estimate' : '';
   const paced = pace && number(pace.last6h) && number(pace.last2h);
-  const forecast = when ? '<span class="roadmap-estimate">'+when+'</span>'+(paced ? '<span class="roadmap-pace">'+escape(pace.last6h)+' landed in the last 6 h, '+escape(pace.last2h)+' in the last 2 h</span>' : '') : '';
+  const forecast = when ? '<span class="roadmap-forecast"><span class="roadmap-estimate">'+when+'</span>'+(paced ? '<span class="roadmap-pace"><b>'+escape(pace.last6h)+'</b> landed in the last 6 h, <b>'+escape(pace.last2h)+'</b> in the last 2 h</span>' : '')+'</span>' : '';
   const meta = target || forecast ? '<div class="roadmap-summary-meta">'+target+forecast+'</div>' : '';
   const needs = Array.isArray(summary.needsYou) ? summary.needsYou.map(id => {
     const item = context.needs?.get(id);
