@@ -81,9 +81,13 @@ export function roadmapCardsHtml(read, presentation = {}) {
   const mobileHistory = '<section class="roadmap-shipping roadmap-mobile-shipping" aria-label="Last shipped release">' + lastShipped + '</section>';
   /** Keep supplied landed progress beside an upcoming release without a modern summary. */
   const count = (m) => m.total ? '<span class="milestone-count" aria-label="' + m.done + '/' + m.total + ' landed">' + m.done + '/' + m.total + ' landed</span>' : '';
-  /** Show the backend's capacity independently of remaining-work headers, including empty and shipped plans [N26]. */
-  const capacity = (m) => Number.isSafeInteger(m.milestone.limit) && m.milestone.limit >= 0 && Number.isSafeInteger(m.milestone.count) && m.milestone.count >= 0
-    ? '<span class="milestone-limit">' + m.milestone.count + '/' + m.milestone.limit + ' items</span>' : '';
+  /** Show the item count plainly, and name the limit only near capacity [N26]. */
+  const capacity = (m) => {
+    const count = m.milestone.count, limit = m.milestone.limit;
+    if (!Number.isSafeInteger(count) || count < 0 || !Number.isSafeInteger(limit) || limit < 0) return '';
+    const nearLimit = limit === 0 ? count === 0 : count >= limit * .9 && count <= limit * 1.1;
+    return '<span class="milestone-limit">' + count + (count === 1 ? ' item' : ' items') + (nearLimit ? ' · limit ' + limit : '') + '</span>';
+  };
   /** Render the existing milestone items, progress and complete note when opened. */
   const body = (read) => {
     const { milestone, rows, done, total } = read;

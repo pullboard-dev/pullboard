@@ -978,6 +978,10 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
     assert.deepEqual(apiSummary,rawRoadmap.milestones.find(m=>m.name==='State summary').summary,'the live API carries the real CLI summary unchanged');
     await press(chrome,"document.querySelector('[data-tab=roadmap]')");
     await chrome.waitFor(`${milestone('Past target')}?.querySelector('.milestone-head')`);
+    const nativeForecast=JSON.parse(await chrome.stable(`JSON.stringify({estimate:${milestone('State summary')}?.querySelector('.roadmap-estimate')?.textContent||'',pace:${milestone('State summary')}?.querySelector('.roadmap-pace')?.textContent||''})`));
+    assert.match(nativeForecast.estimate,/^About 3 to 8 hours at today’s pace$/u,`the native API estimate renders rounded hours: ${JSON.stringify(nativeForecast)}`);assert.match(nativeForecast.pace,/^4 landed in the last 6 h, 4 in the last 2 h$/u,`the native API pace renders as a separate fact: ${JSON.stringify(nativeForecast)}`);
+    // Exercise the requested 512/700 presentation independently of the live board data above.
+    await chrome.stable("(()=>{const m=data.project.milestones.find(m=>m.name==='State summary');m.count=512;m.limit=700;m.summary={...m.summary,pace:{last6h:7,last2h:7},estimate:{low:71,high:212.5}};render();return true;})()");
     const truth=await chrome.stable(`${milestone('Past target')}.textContent`);
     assert.match(truth,/1 of 3 landed/u,'acceptance does not count as landed');assert.match(truth,/past target/u);
     const states=JSON.parse(await chrome.stable(`JSON.stringify([...${milestone('Past target')}.querySelectorAll('.milestone-item')].map(row=>[row.querySelector('.id').textContent,row.querySelector('.chip').textContent]))`));
@@ -997,13 +1001,19 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
     // An empty plan has nothing left either: no header, its No items yet reading as before the header (tests-28, 18 Oct).
     const empty=JSON.parse(await chrome.stable(`JSON.stringify({summary:Boolean(${milestone('Empty plan')}?.querySelector('.roadmap-summary,.roadmap-left')),zero:/0 (left|remaining)|0 of 0|About 0/u.test(${milestone('Empty plan')}?.textContent||''),empty:${milestone('Empty plan')}?.querySelector('.milestone-empty')?.textContent||''})`));
     assert.deepEqual(empty,{summary:false,zero:false,empty:'No items yet.'},`an empty plan shows no header: ${JSON.stringify(empty)}`);
-    for(const width of [375,1280]) {
+    for(const width of [320,375,1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride',{width,height:950,deviceScaleFactor:1,mobile:false});
       for(const scheme of ['light','dark']) {
         await chrome.send('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:scheme}]});
-        const read=JSON.parse(await chrome.stable(`JSON.stringify((()=>{const m=${milestone('State summary')},bar=m.querySelector('.roadmap-summary-bar');return {text:m.textContent,releaseCount:document.querySelector('[data-roadmap-jump=\"m:State summary\"] b').textContent,legend:[...m.querySelectorAll('[data-summary-state]')].map(x=>[x.dataset.summaryState,x.querySelector('b').textContent]),segments:[...m.querySelectorAll('[data-summary-segment]')].map(x=>[x.dataset.summarySegment,Number(x.dataset.count),x.getBoundingClientRect().width]),bar:bar?.getBoundingClientRect().width,width:document.documentElement.scrollWidth,viewport:innerWidth};})())`));
-        assert.match(read.text,/5 remaining.*1 of 6 landed/u);assert.doesNotMatch(read.text,/ left/u,'the count reads remaining, never left');assert.equal(read.releaseCount,'1/6','the header and Releases list share the summary total');assert.match(read.text,/About 2\.5 to 7\.5 h/u);assert.match(read.text,/4 landed in the last 6 h, 4 in the last 2 h/u);assert.match(read.text,/Needs you:.*#9 Approve the release/u);
+        const read=JSON.parse(await chrome.stable(`JSON.stringify((()=>{const m=${milestone('State summary')},bar=m.querySelector('.roadmap-summary-bar');return {text:m.textContent,releaseCount:document.querySelector('[data-roadmap-jump=\"m:State summary\"] b').textContent,legend:[...m.querySelectorAll('[data-summary-state]')].map(x=>[x.dataset.summaryState,x.querySelector('b').textContent]),legendText:[...m.querySelectorAll('[data-summary-state]')].map(x=>x.textContent.trim()),segments:[...m.querySelectorAll('[data-summary-segment]')].map(x=>[x.dataset.summarySegment,Number(x.dataset.count),x.getBoundingClientRect().width]),bar:bar?.getBoundingClientRect().width,width:document.documentElement.scrollWidth,viewport:innerWidth};})())`));
+        assert.match(read.text,/5 remaining.*1 of 6 landed/u);assert.doesNotMatch(read.text,/ left/u,'the count reads remaining, never left');assert.equal(read.releaseCount,'1/6','the header and Releases list share the summary total');assert.match(read.text,/About 3 to 9 days/u);assert.match(read.text,/7 landed in the last 6 h, 7 in the last 2 h/u);assert.match(read.text,/Needs you:.*#9 Approve the release/u);
         assert.deepEqual(read.legend,[['landed','1'],['landing','1'],['review','1'],['building','1'],['waiting','1'],['held','1']]);
+        assert.deepEqual(read.legendText,['1 landed','1 landing','1 review','1 building','1 waiting','1 held'],`${width}/${scheme}: every label is separated from its count by actual whitespace`);assert.equal(await chrome.stable(`${milestone('State summary')}.querySelector('.milestone-limit')?.textContent`),'512 items',`${width}/${scheme}: a distant limit stays hidden`);
+        const legendLayout=JSON.parse(await chrome.stable(`JSON.stringify([...${milestone('State summary')}.querySelectorAll('[data-summary-state]')].map(entry=>{const nodes=[...entry.children],centers=nodes.map(node=>{const r=node.getBoundingClientRect();return r.top+r.height/2;});return {display:getComputedStyle(entry).display,align:getComputedStyle(entry).alignItems,color:getComputedStyle(entry).color,weight:getComputedStyle(nodes[1]).fontWeight,tags:nodes.map(node=>node.tagName),centers,height:entry.getBoundingClientRect().height};}))`));
+        assert.ok(legendLayout.every(row=>row.display==='inline-flex'&&row.align==='center'&&Number(row.weight)>=600&&row.tags.join(',')==='I,B,SPAN'&&row.centers.every(center=>Math.abs(center-row.centers[0])<.75)),`${width}/${scheme}: every entry aligns its dot, bold count and label`);
+        assert.equal(new Set(legendLayout.map(row=>row.color)).size,1,`${width}/${scheme}: the held control has the same text color as the other entries`);assert.ok(legendLayout.at(-1).height >= (width < 900 ? 44 : 32),`${width}/${scheme}: the held control keeps its ${width < 900 ? 44 : 32}px target`);
+        const forecastLayout=JSON.parse(await chrome.stable(`JSON.stringify((()=>{const m=${milestone('State summary')},group=m.querySelector('.roadmap-forecast'),estimate=m.querySelector('.roadmap-estimate'),pace=m.querySelector('.roadmap-pace');return {display:getComputedStyle(group).display,estimateBold:estimate.querySelectorAll('b').length,paceBold:pace.querySelectorAll('b').length,separate:pace.getBoundingClientRect().top>estimate.getBoundingClientRect().top};})())`));
+        assert.deepEqual(forecastLayout,{display:'grid',estimateBold:2,paceBold:2,separate:true},`${width}/${scheme}: estimate and pace are separately lined with bold figures`);
         assert.equal(read.segments.reduce((sum,row)=>sum+row[1],0),6,'the six supplied states sum to total');
         assert.ok(read.segments.every(row=>row[2]>0&&Math.abs(row[2]-read.bar/6)<1),`${width}/${scheme}: every supplied state occupies its share`);
         assert.ok(read.width<=read.viewport,`${width}/${scheme}: the header stays inside the viewport`);
@@ -1016,12 +1026,12 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
     // Equal bounds read as one number, and the legend says waiting.
     await chrome.stable("(()=>{const m=data.project.milestones.find(m=>m.name==='State summary');m.summary={...m.summary,estimate:{low:2.5,high:2.5}};render();return true;})()");
     const single=await chrome.stable(`${milestone('State summary')}.querySelector('.roadmap-estimate')?.textContent||''`);
-    assert.match(single,/^About 2\.5 h at today/u,`equal bounds read as one number: ${single}`);
+    assert.match(single,/^About 3 hours at today/u,`equal fractional bounds round to one whole hour: ${single}`);
     // A slow day reads the 24 h window, and too few landings say so in words, each beside the landed line (#853).
     const timeLine=async()=>JSON.parse(await chrome.stable(`JSON.stringify({estimate:${milestone('State summary')}.querySelector('.roadmap-estimate')?.textContent||'',pace:${milestone('State summary')}.querySelector('.roadmap-pace')?.textContent||''})`));
     await chrome.stable("(()=>{const m=data.project.milestones.find(m=>m.name==='State summary');m.summary={...m.summary,estimate:{low:6,high:6},window:'24h',reason:null};render();return true;})()");
     const daily=await timeLine();
-    assert.match(daily.estimate,/^About 6 h at the last day’s pace$/u,`the 24 h window names the last day's pace: ${JSON.stringify(daily)}`);
+    assert.match(daily.estimate,/^About 6 hours at the last day’s pace$/u,`the 24 h window names the last day's pace: ${JSON.stringify(daily)}`);
     assert.match(daily.pace,/landed in the last 6 h/u,'the landed line stays beside the 24 h estimate');
     await chrome.stable("(()=>{const m=data.project.milestones.find(m=>m.name==='State summary');m.summary={...m.summary,estimate:null,window:null,reason:'few-landings'};render();return true;})()");
     const early=await timeLine();

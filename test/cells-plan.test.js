@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** The committed cells move plan places each path once and orders cells leaf-first by real imports [D3,CD60,CD64]. */
-import { sourceAdvancePlan } from '../src/source-advance-plan.js';
+import { sourceAdvancePlan } from '../packages/codemap/index.js';
 import { selectAffectedTests } from '../src/affected-tests.js';
 import { selectTestTreeGuards } from '../src/affected-tests.js';
 import { importsIn } from '../src/module-imports.js';
@@ -9,12 +9,13 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { cellInventory } from '../src/cell-lint-inventory.js';
-import { testFile } from '../src/cell-lint-inventory.js';
-import { inPlanScope } from '../src/cells-plan.js';
-import { readPathMap } from '../src/path-map.js';
-import { mappedPath } from '../src/path-map.js';
+import { cellInventory } from '../packages/codemap/index.js';
+import { testFile } from '../packages/codemap/index.js';
+import { inPlanScope } from '../packages/codemap/index.js';
+import { readPathMap } from '../packages/codemap/index.js';
+import { mappedPath } from '../packages/codemap/index.js';
 import { computePlan } from '../bin/cells-plan.js';
+import { refreshPlanCuts } from '../packages/codemap/index.js';
 import { checkMoved } from '../bin/cells-plan.js';
 import { itemCommands } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
@@ -204,4 +205,52 @@ test('codemap providers are required and source advance retains its real raw clo
   assert.equal(plan.criterion, 'node --test test/selected.test.js');
   assert.equal(plan.affected, "node --test --test-reporter=tap './test/selected.test.js'");
   assert.match(plan.selectionDigest, /^[a-f0-9]{64}$/u);
+});
+
+
+test('cut metadata refresh preserves frozen moves and records only current real source edges [D3,CD64]', t => {
+  const { root, put } = fixture(t), plan = computePlan(root);
+  const early = plan.cells.find(cell => cell.name === 'kernel'), later = plan.cells.find(cell => cell.name === 'stats');
+  const before = structuredClone(plan);
+  writePlan(root, plan);
+  put('src/refused.js', "import { stats } from './stats.js';\nexport class Refused extends Error {}\nexport const probe = stats;\n");
+  put('test/probe.test.js', "import '../src/stats.js';\n");
+  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'new actual source edge');
+  const { edges } = cellInventory(root, { importsIn, commonJsIn });
+  const refreshed = refreshPlanCuts(plan, edges, readPathMap(root));
+  const run = runFixtureChild(process.execPath, [BIN, '--refresh-cuts'], { cwd: root, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.deepEqual(readPlan(root).cells, refreshed.cells, 'the real generator command writes the exact bounded refresh');
+  assert.deepEqual(plan, before, 'the reader does not mutate its input');
+  assert.deepEqual(refreshed.cells.map(({ cuts, ...cell }) => cell), plan.cells.map(({ cuts, ...cell }) => cell),
+    'order, numbering, paths, frozen item fields and every non-cut cell field remain exact');
+  const cut = refreshed.cells.find(cell => cell.name === later.name).cuts.find(row => row.cell === early.name);
+  assert.deepEqual(cut, { cell: early.name, imports: 1, edges: ['src/refused.js->src/stats.js'] });
+  assert.ok(refreshed.cells.every(cell => cell.cuts.every(row => row.edges.every(edge => !edge.includes('test/probe')))), 'test imports do not create source cuts');
+  put('src/refused.js', 'await import(globalThis.destination);\nexport class Refused extends Error {}\n');
+  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'unresolved source dependency');
+  const uncertain = cellInventory(root, { importsIn, commonJsIn });
+  assert.ok(uncertain.unknown.some(row => row.file === 'src/refused.js'));
+  const retained = refreshPlanCuts(refreshed, uncertain.edges, readPathMap(root), uncertain.unknown);
+  assert.deepEqual(retained.cells.find(cell => cell.name === later.name).cuts.find(row => row.cell === early.name), cut,
+    'an unresolved loader cannot erase a previously recorded cut');
+  put('src/refused.js', 'export class Refused extends Error {}\n');
+  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'remove actual edge');
+  const removed = refreshPlanCuts(refreshed, cellInventory(root, { importsIn, commonJsIn }).edges, readPathMap(root));
+  assert.ok(!removed.cells.find(cell => cell.name === later.name).cuts.some(row => row.cell === early.name), 'removed source edges cannot remain authorized cuts');
+});
+
+
+test('cut refresh refuses a newly tracked unplanned endpoint without changing any plan bytes [C7,D3,CD64]', t => {
+  const { root, put } = fixture(t), plan = computePlan(root);
+  writePlan(root, plan);
+  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'frozen fixture plan');
+  put('src/unplanned-provider.js', 'export const provider = 1;\n');
+  put('src/refused.js', "import { provider } from './unplanned-provider.js';\nexport class Refused extends Error {}\n");
+  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'unplanned real endpoint');
+  const run = runFixtureChild(process.execPath, [BIN, '--refresh-cuts'], { cwd: root, encoding: 'utf8' });
+  assert.notEqual(run.status, 0, 'an unowned endpoint cannot silently disappear from refreshed cuts');
+  assert.match(run.stderr, /CELLS_PLAN_UNPLANNED.*src\/unplanned-provider\.js/su);
+  assert.deepEqual(readPlan(root), plan, 'refusal preserves the exact prior plan');
+  assert.equal(git(root, 'diff', '--', 'bin/cells-plan.json', 'bin/cells-plan'), '', 'no partial generated writes survive refusal');
 });

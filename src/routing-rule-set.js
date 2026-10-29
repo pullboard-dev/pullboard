@@ -44,4 +44,3 @@ export function setRoutingRule(board, options) {
 export function migrateStandingRulings(board, agentId) {
   return STANDING_RULINGS.map(ruling => setRoutingRule(board, { agentId, ...ruling }));
 }
-

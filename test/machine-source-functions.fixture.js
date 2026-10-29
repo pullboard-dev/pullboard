@@ -38,6 +38,21 @@ export function functionsIn(source) {
 /** Board functions handed a function to call, and the one the CLI and the runner hand them. */
 export const MACHINE_CALLBACKS = {
   'board-claim.js': { freeze: 'cli.js#freezer', foreignBlockers: 'board.js#foreignBlockers' },
+  'board-refreeze.js': { freeze: 'cli.js#freezer' },
+  'board-verify.js': { 'board.nativePorts.landingEnvironment.requireVerdict': 'landing-environment-guards.js#requireVerdict' },
+  'board-reopen.js': {
+    'board.nativePorts.sealSourceAdvanceReturn': 'source-advance-origin.js#sealSourceAdvanceReturn',
+    'board.nativePorts.conflictValue': 'computed-conflict-receipt.js#conflictValue',
+    'board.nativePorts.deriveRigorCause': 'rigor-auto.js#deriveRigorCause',
+  },
+  'board-record-landing-batch.js': {
+    'board.nativePorts.landingEnvironment.requireBatch': 'landing-environment-guards.js#requireBatch',
+    'board.nativePorts.landingEnvironment.requireRevision': 'landing-environment-guards.js#requireRevision',
+  },
+  'board-finish-landing-batch.js': {
+    'board.nativePorts.landingEnvironment.requireTrunk': 'landing-environment-guards.js#requireTrunk',
+    'board.nativePorts.landingEnvironment.requireStoredBatch': 'landing-environment-guards.js#requireStoredBatch',
+  },
   // Real higher command roots bind runnerExecutionServices; admission snapshots these functions onto the lease.
   'gate-execution.js': {
     'gateLease.executionServices.runners.runOnRunner': 'runners.js#runOnRunner',

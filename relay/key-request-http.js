@@ -5,6 +5,7 @@ import {
   apiStatus,
   readApiBody,
 } from '../src/api-http.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { Refused } from '../src/refused.js';
 
 const ROUTE = /^\/api\/v1\/boards\/([0-9a-f]{32})\/key-requests(?:\/([A-Za-z0-9_-]{22}))?$/u;
@@ -37,7 +38,7 @@ export function createKeyRequestHandler({ authenticate, requests }) {
         apiJson(res, 200, requests.read(board, id, await authenticate(req, board, false)));
       } else throw new Refused('NO_ENDPOINT', 'use POST or GET on key-requests, and PUT or GET on one request');
     } catch (error) {
-      apiJson(res, apiStatus(error), apiRefusal(error));
+      apiJson(res, apiStatus(error), apiRefusal(error, refusalDocument));
     }
     return true;
   };

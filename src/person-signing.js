@@ -324,7 +324,5 @@ export function guardRestore(db, document) {
   };
 }
 
-/** Rows a board export leaves out: the pinned relay key belongs to this board file alone. */
-export function exportedMeta(rows) {
-  return rows.filter((row) => row.meta_key !== AUTHORITY);
-}
+/** The store's export filter stays the one source a raw {db} export and the native root share [E22]. */
+export { exportedMeta } from './board-person-authority-schema.js';

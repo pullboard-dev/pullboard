@@ -20,7 +20,11 @@
   {"cell":"doctrine","imports":1,"before":true},
   {"cell":"app:cli","imports":1,"before":true}
  ],
- "cuts": [],
+ "cuts": [
+  {"cell":"store","imports":1,"edges":["src/board.js->src/native-board.js"]},
+  {"cell":"link","imports":1,"edges":["src/relay.js->src/native-board.js"]},
+  {"cell":"app:cli","imports":1,"edges":["src/cli-context.js->src/native-board.js"]}
+ ],
  "ratchets": {
   "legacySource": -1,
   "shims": 0,

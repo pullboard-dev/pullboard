@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-input src/standard-doctrine.md */
+/** @pullboard-test-input packages/doctrine/src/shell/standard-doctrine.md */
 /** Standard doctrine and repo overrides (D1–D4), using real private files. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -32,7 +32,7 @@ test('standard version1 retains twelve rules with the approved PB9 trailer amend
   assert.deepEqual(standard.rows.map(fields), expected.map(fields));
   assert.equal(standard.rows.length, 12);
   assert.equal(STANDARD_VERSION, 1);
-  assert.match(readFileSync(new URL('../src/standard-doctrine.md', import.meta.url), 'utf8'), /\nVersion: 1\n/);
+  assert.match(readFileSync(new URL('../packages/doctrine/src/shell/standard-doctrine.md', import.meta.url), 'utf8'), /\nVersion: 1\n/);
   const box = practiceBox(t);
   const merged = loadDoctrine(box.root, box.config);
   assert.equal(merged.repoExists, false);

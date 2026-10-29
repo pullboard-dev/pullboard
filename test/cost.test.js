@@ -348,15 +348,15 @@ test('an item records the tokens and cost its seats spent after metadata-only ap
   record(file, { type: 'assistant', message: { id: 'same-report', model: 'fixture-claude', usage: { input_tokens: 8, output_tokens: 2 } } });
   const report = sessionSnapshot(source);
   assert.deepEqual(usageDifference({ totals: {} }, report, 'fixture-claude'),
-    [{ model: 'fixture-claude', inputTokens: null, outputTokens: null }],
+    [{ model: 'fixture-claude', freshInputTokens: null, cacheReadInputTokens: null, cacheWriteInputTokens: null, inputTokens: null, outputTokens: null }],
     'a legacy empty-file anchor cannot backcharge the first readable provider record');
   record(file, { type: 'system', subtype: 'tool-metadata', text: 'No usage' });
   const metadata = sessionSnapshot(source, report);
   assert.ok(metadata, 'the original byte prefix remains intact');
-  assert.deepEqual(usageDifference(report, metadata, 'fixture-claude'), [{ model: 'fixture-claude', inputTokens: 0, outputTokens: 0 }], 'metadata-only appends add no native token spend');
+  assert.deepEqual(usageDifference(report, metadata, 'fixture-claude'), [{ model: 'fixture-claude', inputTokens: 0, outputTokens: 0, freshInputTokens: 0, cacheReadInputTokens: null, cacheWriteInputTokens: null }], 'metadata-only appends add no native token spend');
   record(file, { type: 'assistant', message: { id: 'new-spend', model: 'fixture-claude', usage: { input_tokens: 1, output_tokens: 1 } } });
   const spent = sessionSnapshot(source, metadata);
-  assert.deepEqual(usageDifference(report, spent, 'fixture-claude'), [{ model: 'fixture-claude', inputTokens: 1, outputTokens: 1 }], 'only new native counts become spend');
+  assert.deepEqual(usageDifference(report, spent, 'fixture-claude'), [{ model: 'fixture-claude', inputTokens: 1, outputTokens: 1, freshInputTokens: 1, cacheReadInputTokens: null, cacheWriteInputTokens: null }], 'only new native counts become spend');
   writeFileSync(file, '{}\n');
   assert.equal(sessionSnapshot(source, report), null, 'a truncated or rewritten prefix stays unknown');
   assert.equal(sessionSnapshot(source, metadata), null, 'saved snapshots cannot authorize a rewritten source');

@@ -50,21 +50,7 @@
   {"cell":"sentinels","imports":1,"before":true},
   {"cell":"app:runner","imports":1,"before":false}
  ],
- "cuts": [
-  {"cell":"items","imports":1,"edges":["src/digest.js->src/rigor-auto-source.js"]},
-  {"cell":"verify","imports":1,"edges":["src/proof-counters.js->src/rigor-counters.js"]},
-  {
-   "cell": "store",
-   "imports": 4,
-   "edges": [
-    "src/board.js->src/rigor-auto.js",
-    "src/board.js->src/rigor-notices.js",
-    "src/board.js->src/rigor-source.js",
-    "src/board.js->src/rigor.js"
-   ]
-  },
-  {"cell":"gate","imports":1,"edges":["src/test-value.js->src/rigor.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": 0,
   "shims": 14,

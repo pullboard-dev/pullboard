@@ -18,6 +18,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   CELLS_PLAN_MODE: 'run node bin/cells-plan.js --place <path> --cell <cell> (or --stay), --check, --moved <cell> or --file [--yes]',
   NO_CELLS_PLAN: 'restore a readable bin/cells-plan.json and its shards on the trusted main branch, then submit again; outside intake does not classify without the sensitive list',
   SENSITIVE_CELL_MISSING: 'restore the gate, landing, merge, verify, keys and person cells in bin/cells-plan.json on the trusted main branch, or move their code into a named cell, then submit again',
+  INBOX_SINCE: 'pass a shout id to --since: 0 for the oldest, or the next id the last inbox --history read returned',
+  INBOX_HISTORY_READ_ONLY: 'read history with pullboard inbox --history --since <id>, and mark interrupts acted on in a separate pullboard inbox --acted-on <ids>',
   PUBLIC_EXPORT_BLOCKED: 'remove the blocked public text the refusal names, or run pullboard view --export <dir> without --public for a private snapshot; never publish the refused snapshot',
   PUBLIC_EXPORT_UNAVAILABLE: 'upgrade Pullboard to a build whose view export declares the checked public filter, or run pullboard view --export <dir> without --public for a private snapshot',
   SUBMISSION_CHANGED: 'run pullboard show <id> to inspect its current submission attempt and verdict; do not resubmit an acknowledged attempt',
