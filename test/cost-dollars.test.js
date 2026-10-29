@@ -30,7 +30,7 @@ test('local prices compute two models by hand while an unpriced model retains to
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const ids = ['alpha', 'beta', 'unpriced'].map(model => document(box.run(box.repo, 'add', 'web', `Pricing ${model}`,
+  const ids = ['alpha', 'beta', 'unpriced', 'mixed', 'shared'].map(model => document(box.run(box.repo, 'add', 'web', `Pricing ${model}`,
     '--criterion', 'Local dollars preserve numeric usage.', '--specs', 'G1', '--check', 'test -f web/ready', '--json')).item.item_id);
   const agent = document(box.run(box.web, 'whoami', '--json')).id;
   for (const id of ids) {
@@ -42,7 +42,7 @@ test('local prices compute two models by hand while an unpriced model retains to
   let before;
   try {
     ids.forEach((item, index) => store.recordUsage(board, { agentId: agent, item, revision: 100, observedAt: 1,
-      records: [usage(['alpha', 'beta', 'unpriced'][index])] }));
+      shared: index === 4, records: index === 3 ? [usage('alpha'), usage('beta')] : [usage(['alpha', 'beta', 'unpriced', 'mixed', 'alpha'][index])] }));
     before = store.events(board);
   } finally { store.closeBoard(board); }
   const noPrices = document(box.run(box.repo, 'show', String(ids[0]), '--json')).usage;
@@ -64,9 +64,18 @@ test('local prices compute two models by hand while an unpriced model retains to
   assert.equal(stats.models.find(row => row.model === 'beta').costUSD, 2);
   assert.equal(stats.models.find(row => row.model === 'unpriced').costUSD, null);
   assert.equal(stats.lanes.find(row => row.lane === 'web').costUSD, null);
-  assert.equal(stats.lanes.find(row => row.lane === 'web').knownCostUSD, 2.65);
+  assert.equal(stats.items.find(row => row.item === ids[3]).costUSD, 2.65, 'mixed models are priced before their tokens are aggregated');
+  assert.equal(document(box.run(box.repo, 'show', String(ids[3]), '--json')).usage.costUSD, 2.65);
+  assert.equal(stats.items.find(row => row.item === ids[4]).costUSD, null, 'shared allocation is not charged to an individual item');
+  assert.equal(document(box.run(box.repo, 'show', String(ids[4]), '--json')).usage.costUSD, null);
+  assert.equal(stats.lanes.find(row => row.lane === 'web').knownCostUSD, 5.3);
   assert.match(box.run(box.repo, 'stats').out, /cost USD 0\.650000/u);
   assert.equal(JSON.stringify(stats).includes('costPrices'), false);
+  writeFileSync(file, JSON.stringify({ ...previous, costPrices: { alpha: { output: -1 } } }));
+  const invalid = box.run(box.repo, 'show', String(ids[0]), '--json');
+  assert.notEqual(invalid.code, 0);
+  assert.equal(JSON.parse(invalid.out).error.code, 'BAD_MACHINE_SETTINGS');
+  writeFileSync(file, JSON.stringify({ ...previous, costPrices: prices }));
   // @pullboard-board-file journey: pricing reads must not publish local rates, dollars, or accounting events.
   const after = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
