@@ -103,7 +103,7 @@ test('a stale verdict shows a stale chip [N26,V4]', async () => {
     assert.deepEqual(rows(page.show('chain'), (id) => `data-item="${id}"`), [stale, '', '', legacy], 'the verified filter still lists them');
     await page.click({ go: 'item:1' });
     assert.equal(marks(page.show('detail')), stale, 'the detail marks it beside the verified chip');
-    assert.match(page.show('detail'), /<div class="verdict yes"><b>ACCEPT /, 'the ACCEPT stays in the history');
+    assert.match(page.show('detail'), /<div class="verdict yes"><b>Accepted · <span title="CRITERION_MET">criterion met<\/span>/, 'the ACCEPT stays in the history with its native reason tooltip');
     await page.click({ go: 'item:3' });
     assert.equal(marks(page.show('detail')), '', 'a merged item carries no mark');
     page.run('view.tab = "roadmap"; render();');
@@ -286,7 +286,7 @@ test('a sent-back item shows why first [N26]', async () => {
 
     await page.click({ item: '3', classes: 'row' });
     const verified = page.show('detail');
-    assert.doesNotMatch(verified, /Sent back/);
+    assert.doesNotMatch(verified, /<h3>Sent back/, 'the current sent-back panel is absent; historical rejected verdicts keep their readable label');
     assert.ok(verified.indexOf('<h3>Criterion</h3>') < verified.indexOf('<h3>Brief</h3>'));
     assert.ok(verified.indexOf('<h3>Brief</h3>') < verified.indexOf('<h3>Verdicts</h3>'), 'a verified item keeps its verdicts after the brief');
     assert.ok(verified.indexOf('<h3>Verdicts</h3>') < verified.indexOf('no heading yet'));
@@ -896,7 +896,7 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
       assert.deepEqual(rendered.ids, expectedIds, `${width}px: moves and facts follow the API's event order`);
       assert.equal(rendered.rows, expected.length, `${width}px: each API event appears exactly once`);
       const expectedFacts = expected.filter((entry) => entry.type === 'fact');
-      assert.deepEqual(rendered.kinds, expectedFacts.map((entry) => entry.kind), `${width}px: every fact kind is a visible chip`);
+      assert.deepEqual(rendered.kinds, expectedFacts.map((entry) => entry.kind.replaceAll('-', ' ')), `${width}px: every native fact kind has its readable visible chip`);
       assert.deepEqual(rendered.authors, expectedFacts.map((entry) => entry.by), `${width}px: each fact names its API author`);
       assert.equal(rendered.ages, expectedFacts.length, `${width}px: each fact shows its age`);
       assert.match(rendered.oldClass, /tl-superseded/, `${width}px: the earlier fact is visibly dimmed`);

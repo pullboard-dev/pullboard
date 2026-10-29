@@ -607,7 +607,7 @@ form.inline { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: 
 .shout header { display: flex; flex-wrap: nowrap; align-items: baseline; gap: var(--space-0) var(--space-3); }
 .shout .who, .shout .to { display: flex; flex: 0 1 auto; min-width: min-content; white-space: nowrap; }
 /* A recipient with no model to shorten, such as coordinator and you, gives way with an ellipsis before the age is pushed out. */
-.shout .to:not(:has(.agent-label)) { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.shout .to:not(:has(.agent-label, .agent-address)) { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .shout .agent-label { display: inline-grid; grid-template-columns: max-content minmax(0, 1fr); min-width: 0; }
 .shout .agent-label.prefix { grid-template-columns: minmax(0, 1fr) max-content; }
 .shout .agent-model { overflow: hidden; text-overflow: ellipsis; white-space: pre; }
@@ -620,7 +620,7 @@ form.inline { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: 
 /* A waiting ask keeps its address and age whole; a wider fallback font shortens its kind instead. */
 #decisions .shout header { flex-wrap: nowrap; }
 #decisions .shout .who, #decisions .shout .to { flex: 0 1 auto; min-width: min-content; white-space: nowrap; }
-#decisions .shout .to:not(:has(.agent-label)) { min-width: 0; }
+#decisions .shout .to:not(:has(.agent-label, .agent-address)) { min-width: 0; }
 #decisions .shout header .mark { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #decisions .shout header time { flex: none; }
 .shout .text { margin-top: var(--space-1); overflow-wrap: break-word; }
@@ -743,6 +743,8 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .flow g:hover > .box, .flow g:hover > .edge { stroke-width: 2.2; }
 .activity-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-4); }
 .activity-toolbar .activity-bar { margin: 0; }
+.activity-toolbar #activity-filters, .activity-toolbar .activity-bar { min-width: 0; max-width: 100%; }
+.activity-toolbar .seg { box-sizing: border-box; }
 .activity-toolbar .flow-show { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0 0 0 auto; font-size: var(--text-xs); }
 .flow-show svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .flow [data-lifecycle-stage] .name { font: 600 var(--text-sm) var(--sans); letter-spacing: 0; fill: var(--ink-muted); }
