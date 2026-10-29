@@ -4,6 +4,15 @@
  * The item lifecycle's declaration (M1, M2, M4): sound on its own terms, each property shown
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
  */
+import { sourceFacts } from './machine-source-functions.fixture.js';
+import { moveOf } from './machine-source-functions.fixture.js';
+import { declaredBoardOrder } from './machine-source-functions.fixture.js';
+import { sourceReader } from './machine-source-functions.fixture.js';
+import { sourceDirectories } from './machine-source-functions.fixture.js';
+import { packageFiles } from '../src/package-files.js';
+import { assertSyncFacadeAudit } from './machine-source-functions.fixture.js';
+import { workingSourceInventory } from '../bin/checks/scan.js';
+import { fileURLToPath } from 'node:url';
 import { functionsIn } from './machine-source-functions.fixture.js';
 import { assertCommitShimRefusals, machineSourceModule } from './commits-machine-fixture.js';
 import { assertMachineWalkMemo } from './machine-walk-memo.fixture.js';
@@ -13,7 +22,6 @@ import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
@@ -209,19 +217,7 @@ function codeWalk(read, { caught = false } = {}) {
   const load = (file) => {
     if (!files.has(file)) {
       const { sourceFile, source } = machineSourceModule(file, read);
-      const named = new Map();
-      /** Resolve literal relative imports with their repository layout, including extracted packages. */
-      const under = (specifier) => posix.normalize(posix.join(posix.dirname(sourceFile), specifier));
-      for (const [, names, specifier] of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*'(\.{1,2}\/[^']+\.js)'/g)) {
-        const from = under(specifier);
-        if (!from) continue;
-        for (const part of names.split(',').map((text) => text.trim()).filter(Boolean)) {
-          const [original, local = original] = part.split(/\s+as\s+/);
-          named.set(local, `${from}#${original}`);
-        }
-      }
-      const spaces = new Map([...source.matchAll(/import \* as (\w+) from '(\.{1,2}\/[^']+\.js)'/g)].map(([, space, specifier]) => [space, under(specifier)]));
-      files.set(file, { bodies: functionsIn(source), named, spaces, source });
+      files.set(file, sourceFacts(source, sourceFile));
     }
     return files.get(file);
   };
@@ -229,9 +225,15 @@ function codeWalk(read, { caught = false } = {}) {
     if (seen.has(key) || skip.has(key) || TRANSPORT_BOUNDARIES.has(key)) return new Set();
     seen.add(key);
     const [file, name] = key.split('#');
-    const { bodies, named, spaces, source } = load(file);
+    const { bodies, named, spaces, source, stars } = load(file);
     // A facade may import and re-export the helper; follow its real definition after extraction.
     if (!bodies.has(name) && named.has(name)) return refusalsOf(named.get(name), skip, seen);
+    // A public export-star front door retains every concrete provider's refusal path.
+    if (!bodies.has(name) && stars.length) {
+      const codes = new Set();
+      for (const from of stars) for (const code of refusalsOf(`${from}#${name}`, skip, seen)) codes.add(code);
+      return codes;
+    }
     // Loaded source is fixed within this walk; local scans do not depend on the caller's seen/skip sets.
     let facts = localFacts.get(key);
     if (!facts) {
@@ -261,7 +263,7 @@ function codeWalk(read, { caught = false } = {}) {
  * @param {string} file
  * @returns {string}
  */
-const fromDisk = (file) => fs.readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
+const fromDisk = sourceReader(workingSourceInventory(fileURLToPath(new URL('..', import.meta.url)), sourceDirectories(packageFiles(fileURLToPath(new URL('..', import.meta.url))))));
 
 /**
  * The refusal codes the named moves declare, or the whole declaration's when none is named: their
@@ -331,14 +333,6 @@ function editedSource(file, line, replacement) {
  */
 const copy = () => structuredClone(machineRules.MACHINE);
 
-/**
- * The move with this verb.
- *
- * @param {any} machine
- * @param {string} verb
- * @returns {any}
- */
-const moveOf = (machine, verb) => machine.moves.find((move) => move.verb === verb);
 
 /**
  * Accept and reject hold a verifier to the same checks, in the same order, until the verdict's own
@@ -903,24 +897,12 @@ const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
 /** Guards checked before the explicit transition: CLI facts and optional roadmap selection. */
 const PRECHECKED = {
   claim: ['joined', 'checkProvesSomething'],
-  submit: ['joined', 'checkProvesSomething', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'trunkInCandidate', 'infraExplained', 'doctrineHolds', 'gateConfigured', 'queuedItemLease', 'gateGreen', 'proofRecorded', 'treeStillDuringGate', 'noUnverifiedStack'],
+  submit: ['joined', 'checkProvesSomething', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'sourcePlaced', 'trunkInCandidate', 'infraExplained', 'doctrineHolds', 'gateConfigured', 'queuedItemLease', 'gateGreen', 'proofRecorded', 'treeStillDuringGate', 'noUnverifiedStack'],
   reserve: ['coordinatorSaysAs', 'joined', 'roadmapReadable'],
   accept: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit', 'reviewTreeCurrent', 'trunkMergeClean', 'queuedItemLease', 'itemCheckGreen', 'proofRecorded', 'noUnverifiedStack'],
   reject: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit', 'reviewTreeCurrent'],
 };
 
-/**
- * The refusal codes a move's board-checked guards raise, in the order the declaration checks them.
- *
- * @param {string} verb
- * @returns {string[]}
- */
-function declaredBoardOrder(verb) {
-  const move = moveOf(machineRules.MACHINE, verb);
-  return machineRules.effectiveGuards(move)
-    .filter((id) => !PRECHECKED[verb].includes(id))
-    .map((id) => (id === machineRules.IN_STATE ? move.refuse : machineRules.MACHINE.guards.find((guard) => guard.id === id).refuse));
-}
 
 /**
  * The refusal code a call raises, or 'ok'.
@@ -999,7 +981,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     fired.push(claimAs(target, strong, 'web'));
     store.release(board, spare, strong);
     fired.push(claimAs(target, strong, 'web'), claimAs(target, strong, 'web', freeze));
-    assert.deepEqual(fired, [...declaredBoardOrder('claim'), 'ok']);
+    assert.deepEqual(fired, [...declaredBoardOrder(machineRules, PRECHECKED, 'claim'), 'ok']);
     assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'BAR_NOT_READY', 'ITEM_HELD', 'WRONG_LANE', 'ROUTE', 'BLOCKED', 'HELD', 'REOPEN_HELD_FOR_BUILDER', 'PENDING_REFREEZE', 'LANE_HELD', 'LINE_WIP_LIMIT', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
   } finally {
     lab.done();
@@ -1032,7 +1014,7 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
   submits.push(submitAs(piece, 'web-1', SHA_A));
   store.withdraw(board, child, { agentId: 'coordinator', reason: 'folded into the parent' });
   submits.push(submitAs(piece, 'web-1', SHA_A), submitAs(piece, 'web-1', SHA_B));
-  assert.deepEqual(submits, [...declaredBoardOrder('submit'), 'ok']);
+  assert.deepEqual(submits, [...declaredBoardOrder(machineRules, PRECHECKED, 'submit'), 'ok']);
 
   // A family is one derived value since #1783, so each vendor role is its own seat rather than a rewritten column.
   const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
@@ -1072,7 +1054,7 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
       judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page', note: 'reverted the fix; its test went red' }),
       ...(verb === 'reject' ? [judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page', note: 'reverted the fix; its test went red', clause: 'Page' })] : []),
     ];
-    assert.deepEqual(fired, [...declaredBoardOrder(verb), 'ok'], verb);
+    assert.deepEqual(fired, [...declaredBoardOrder(machineRules, PRECHECKED, verb), 'ok'], verb);
   }
 });
 
@@ -1096,7 +1078,7 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
   fired.push(reserveAs(vendorOnly, otherVendor, 'any', 'require'));
   store.reserveReview(board, built, { agentId: otherRequired, leaseMs: 3_600_000, policy: 'any' });
   fired.push(reserveAs(built, 'web-2', 'any'), reserveAs(built, otherRequired, 'any'));
-  assert.deepEqual(fired, [...declaredBoardOrder('reserve'), 'ok']);
+  assert.deepEqual(fired, [...declaredBoardOrder(machineRules, PRECHECKED, 'reserve'), 'ok']);
   assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
 });
 
@@ -1446,4 +1428,8 @@ test('lifecycle audit follows extracted package guards and catches a new refusal
   const planted = editedSource(file, /^export function requireHandoffActive\(board, actor, operation, args\) \{$/m,
     "$&\n  throw new Refused('STATE_PACKAGE_PROBE', 'planted package guard');");
   assert.ok(codeProblems(machineRules.MACHINE, planted).includes('STATE_PACKAGE_PROBE is raised by submit but not declared there'));
+});
+
+test('lifecycle source walks follow sync shims and catch a planted body refusal [M1,M4,H16]', () => {
+  assertSyncFacadeAudit(codeWalk, fromDisk, editedSource);
 });

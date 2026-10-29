@@ -1,3 +1,4 @@
+import { Refused } from './refused.js';
 import { seatFamily } from './family-declaration.js';
 /** Record the existing submitted item fields and native event without changing transaction ownership [V4,H16]. */
 import { getItem } from './board-query.js';
@@ -33,4 +34,12 @@ export function recordSubmissionEvent(board, id, { agentId, commit, tree, policy
     ...(recordedSize ? { submissionSize: recordedSize } : {}),
     ...(companion ? { companion } : {}),
   });
+}
+
+/** Preserve the native submit child guard at its original transaction boundary. */
+export function submissionChildrenProblem(board, id) {
+  const { total } = board.db
+    .prepare("SELECT COUNT(*) AS total FROM item WHERE item_parent_id = ? AND item_status IN ('open', 'claimed', 'submitted')")
+    .get(id);
+  return total ? new Refused('CHILDREN_OPEN', `item #${id} has ${total} unfinished child items`) : null;
 }
