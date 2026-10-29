@@ -1,3 +1,4 @@
+import { writeBoardCommand } from './board-command-write.js';
 import { seatFamily } from './family-declaration.js';
 import { itemCheckBaseline } from './board-query.js';
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
@@ -621,11 +622,7 @@ export async function ordered(ctx, board, operation, args) {
     const actor = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id;
     requireHandoffActive(board, actor, operation, args);
     ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered, gitSyncLinked, ensureCoordinator: store.ensureCoordinator });
-    const write = () => store.atomic(board, () => {
-      requireHandoffActive(board, actor, operation, args);
-      requireAgentGrant(board, { operation, args, engine: NATIVE_ENGINE }); // A native write applies current semantics.
-      return store[operation](board, ...args);
-    });
+    const write = () => writeBoardCommand(board, operation, args, actor);
     if (initialBaseline && actor) await recordBaseline(actor);
     const requestedCommand = ctx.io.relayCommand?.cliOperation ?? (ctx.privateBoard ? ctx.io.requestedCommand : undefined);
     const requested = requestedCommandMove(requestedCommand, operation);

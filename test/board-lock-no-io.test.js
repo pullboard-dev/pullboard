@@ -6,6 +6,8 @@ import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { writeBoardCommand } from '../src/board-command-write.js';
+import { exportBoard } from '../src/exchange.js';
 import { fixtureBoard } from './board-fixture.js';
 
 /** Set up only native fixture operations; file storage is necessary to observe the writer lock. */
@@ -56,4 +58,28 @@ test('a refused claim keeps the original guard priority before criterion prepara
   assert.equal(calls, 0);
   assert.deepEqual(store.events(board), before);
   assert.equal(store.getItem(board, id).item_status, 'open');
+});
+
+
+test('the native command prepares before its enclosing writer too [B2,C7,V2]', t => {
+  const { board, agentId, id, peer } = setup(t);
+  const observed = { calls: 0 };
+  const result = writeBoardCommand(board, 'claim', [id, { agentId, lane: 'core', leaseMs: 7_200_000,
+    freeze: unlockedFreeze(peer, observed) }], agentId);
+  assert.equal(observed.calls, 1);
+  assert.equal(result.renewed, false);
+  assert.equal(store.getItem(board, id).item_owner, agentId);
+});
+
+test('an intervening native edit invalidates prepared source without a partial claim [B2,C7,V2]', t => {
+  const { board, agentId, id, peer } = setup(t);
+  const observed = { calls: 0 };
+  const prepared = store.prepareClaim(board, id, { agentId, lane: 'core', leaseMs: 7_200_000,
+    freeze: unlockedFreeze(peer, observed) });
+  store.editItem(board, id, { agentId: 'coordinator', criterion: 'A changed criterion needs preparation again' });
+  const before = exportBoard(board);
+  assert.throws(() => writeBoardCommand(board, 'claim', [id, prepared], agentId), error => error.code === 'BOARD_BUSY');
+  assert.deepEqual(exportBoard(board), before, 'refusing the stale plan changes no native row or event');
+  assert.equal(store.getItem(board, id).item_status, 'open');
+  assert.equal(observed.calls, 1, 'a stale binding never repeats external work while locked');
 });
