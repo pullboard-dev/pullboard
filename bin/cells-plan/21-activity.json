@@ -11,14 +11,7 @@
   ["src/activity-inbox.js","packages/activity/src/shell/activity-inbox.js","seed"],
   ["src/inbox-budget.js","packages/activity/src/core/inbox-budget.js","imports"]
  ],
- "reexports": [
-  "src/activity-delivery-cli.js",
-  "src/activity-delivery-read.js",
-  "src/activity-delivery-store.js",
-  "src/activity-feed.js",
-  "src/activity-inbox.js",
-  "src/activity-news.js"
- ],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":3,"before":true},
   {"cell":"git","imports":1,"before":true},

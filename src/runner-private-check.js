@@ -37,7 +37,7 @@ import {
   itemPolicy,
   frozenCheck,
 } from './trusted-policy.js';
-import { mappedCheck } from './path-map.js';
+import { mappedCheck } from '../packages/codemap/index.js';
 import { environmentProblem } from './config.js';
 import {
   digestOf,

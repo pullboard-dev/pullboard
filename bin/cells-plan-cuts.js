@@ -2,20 +2,20 @@
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
 import { spawnSync } from 'node:child_process';
-import { cellInventory } from '../src/cell-lint-inventory.js';
-import { testFile } from '../src/cell-lint-inventory.js';
-import { temporaryCellEdges } from '../src/cell-lint-inventory.js';
+import { cellInventory } from '../packages/codemap/index.js';
+import { testFile } from '../packages/codemap/index.js';
+import { temporaryCellEdges } from '../packages/codemap/index.js';
 import { declaredSourceLoads } from '../src/affected-tests.js';
-import { cutItemCommands } from '../src/cells-plan-cuts.js';
-import { cutTitle } from '../src/cells-plan-cuts.js';
-import { importCuts } from '../src/cells-plan-cuts.js';
+import { cutItemCommands } from '../packages/codemap/index.js';
+import { cutTitle } from '../packages/codemap/index.js';
+import { importCuts } from '../packages/codemap/index.js';
 import { retiredRows } from '../packages/codemap/src/core/cells-plan-cuts.js';
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { repositoryImport } from '../packages/codemap/src/core/import-map.js';
 import { lex } from '../src/js-lex.js';
-import { readPathMap } from '../src/path-map.js';
-import { mappedPath } from '../src/path-map.js';
+import { readPathMap } from '../packages/codemap/index.js';
+import { mappedPath } from '../packages/codemap/index.js';
 import { Refused } from '../src/refused.js';
 
 /** Attribute original paths, moved identities and front doors to their committed plan cell. */

@@ -14,7 +14,7 @@ import {
   readFileSync,
   realpathSync,
 } from 'node:fs';
-import { readPathMap } from '../../src/path-map.js';
+import { readPathMap } from '../../packages/codemap/index.js';
 import { tryGit } from '../../src/git.js';
 import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';

@@ -11,7 +11,7 @@ import { NATIVE_FLAKE_ENGINE } from './flake-engine.js';
 import {
   historyPathMap,
   mappedCause,
-} from './path-map.js';
+} from '../packages/codemap/index.js';
 import {
   conflictCause,
   reopenConflictEvidence,

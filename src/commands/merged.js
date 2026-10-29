@@ -35,7 +35,7 @@ async function refreshMap(ctx, io, board, trunk) {
     await warnMainMoved({ root, board, trunk, write: (operation, args) => ordered(ctx, board, operation, args), say: text => io.say(text) }, { listAgents: store.listAgents, listItems: store.listItems });
   } catch (error) { io.say('main-move warnings deferred: ' + error.message); }
   try {
-    const { refreshLandedCodeMap } = await import('../code-map.js');
+    const { refreshLandedCodeMap } = await import('../../packages/codemap/index.js');
     const map = refreshLandedCodeMap(root);
     if (map) io.say(`code map refreshed for main ${map.mainCommit.slice(0, 12)}`);
   } catch (error) {

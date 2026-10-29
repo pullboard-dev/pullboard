@@ -1,6 +1,6 @@
 /** Resolve named source calls inside native SQLite writers without executing candidate modules [C7,CD39]. */
 import { posix } from 'node:path';
-import { scanSource } from '../../src/code-map.js';
+import { scanSource } from '../../packages/codemap/index.js';
 import { lex } from '../../packages/kernel/index.js';
 
 const EXTERNAL_IO = /^(?:node:)?(?:fs(?:\/promises)?|child_process)$/u;

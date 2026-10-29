@@ -10,7 +10,7 @@ import { PERSON } from '../../../../src/board.js';
 import {
   historyPathMap,
   mappedCause,
-} from '../../../../src/path-map.js';
+} from '../../../../packages/codemap/index.js';
 import { Refused } from '../../../../src/refused.js';
 import {
   causeProblem,
