@@ -11,6 +11,7 @@
   ["src/json.js","packages/config/src/core/json.js","seed"],
   ["src/machine-home.js","packages/config/src/shell/machine-home.js","seed"],
   ["src/settings-inventory.js","packages/config/src/shell/settings-inventory.js","seed"],
+  ["src/cost-prices.js","packages/config/src/core/cost-prices.js","rule"],
   ["src/settings-read.js","packages/config/src/core/settings-read.js","rule"],
   ["src/settings.js","packages/config/src/shell/settings.js","seed"],
   ["src/templates.js","packages/config/src/shell/templates.js","seed"],
@@ -26,6 +27,7 @@
  ],
  "reexports": [
   "src/command-declaration-read.js",
+  "src/cost-prices.js",
   "src/config.js",
   "src/json-output.js",
   "src/json.js",
