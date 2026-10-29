@@ -13,7 +13,6 @@
   ["src/landing-batch-history.js","packages/landing/src/core/landing-batch-history.js","seed"],
   ["src/landing-cadence.js","packages/landing/src/core/landing-cadence.js","rule"],
   ["src/landing-candidates.js","packages/landing/src/shell/landing-candidates.js","seed"],
-  ["src/landing-collection-report.js","packages/landing/src/core/landing-collection-report.js","rule"],
   ["src/landing-deferred-run.js","packages/landing/src/core/landing-deferred-run.js","rule"],
   ["src/landing-doctrine.js","packages/landing/src/shell/landing-doctrine.js","seed"],
   ["src/landing-environment-guards.js","packages/landing/src/core/landing-environment-guards.js","seed"],
@@ -31,7 +30,6 @@
   ["src/landing-worktree-prune.js","packages/landing/src/shell/landing-worktree-prune.js","seed"],
   ["src/main-failure-matches.js","packages/landing/src/shell/main-failure-matches.js","seed"],
   ["src/main-red.js","packages/landing/src/shell/main-red.js","seed"],
-  ["src/manual-landing-failure-quoted.js","packages/landing/src/core/manual-landing-failure-quoted.js","seed"],
   ["src/release-queue.js","packages/landing/src/shell/release-queue.js","seed"],
   ["test/main-red.test.js","packages/landing/tests/main-red.test.js","seed"],
   ["test/retention-prune.test.js","packages/landing/tests/retention-prune.test.js","seed"],
@@ -62,7 +60,6 @@
   "src/landing-batch-history.js",
   "src/landing-cadence.js",
   "src/landing-candidates.js",
-  "src/landing-collection-report.js",
   "src/landing-environment-guards.js",
   "src/landing-exceptions.js",
   "src/landing-failure-report.js",
@@ -82,7 +79,6 @@
   "src/landing-worker.js",
   "src/main-failure-matches.js",
   "src/main-red.js",
-  "src/manual-landing-failure-quoted.js",
   "src/release-queue.js"
  ],
  "imports": [

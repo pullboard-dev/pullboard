@@ -19,6 +19,7 @@ import { refreshPlanCuts } from '../src/cells-plan-cuts.js';
 import { checkMoved } from '../bin/cells-plan.js';
 import { itemCommands } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
+import { stalePlanRows } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { runFixtureChild } from './fixture-child.js';
 import { installCutCases } from './cells-plan-cut-cases.js';
@@ -53,6 +54,11 @@ test('every moved path in the committed plan is in exactly one cell, with one ta
   for (const row of PLAN.stays) assert.ok(!owners.has(row.path), `${row.path} both stays and moves`);
   assert.equal(owners.size, PLAN.totals.movedPaths);
   assert.equal(PLAN.cells.length, PLAN.totals.cells);
+});
+
+test('no active plan row names a file deleted since the plan, so a later move never looks for it [C7,D3]', () => {
+  const stale = stalePlanRows(ROOT, PLAN).map(({ file, row }) => `${file}: ${row[0]}`);
+  assert.deepEqual(stale, [], 'retire each deleted file in the item that deletes it: node bin/cells-plan.js --retire <path>');
 });
 
 test('the plan places every tracked module and asset under src/, bin/ and relay/ at its base commit [D3,CD60]', () => {

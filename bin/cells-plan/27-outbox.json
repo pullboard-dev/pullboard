@@ -18,7 +18,6 @@
   ["src/relay-outbox-undo.js","packages/outbox/src/core/relay-outbox-undo.js","seed"],
   ["src/relay-outbox.js","packages/outbox/src/shell/relay-outbox.js","seed"],
   ["src/relay-sender-worker.js","packages/outbox/src/shell/relay-sender-worker.js","seed"],
-  ["src/relay-sender.js","packages/outbox/src/core/relay-sender.js","seed"],
   ["test/relay-checkpoint.test.js","packages/outbox/tests/relay-checkpoint.test.js","seed"],
   ["test/relay-outbox-format.test.js","packages/outbox/tests/relay-outbox-format.test.js","seed"],
   ["test/relay-outbox-guard.test.js","packages/outbox/tests/relay-outbox-guard.test.js","seed"],
@@ -34,8 +33,7 @@
   "src/relay-outbox-guard.js",
   "src/relay-outbox-summary.js",
   "src/relay-outbox-undo.js",
-  "src/relay-outbox.js",
-  "src/relay-sender.js"
+  "src/relay-outbox.js"
  ],
  "imports": [
   {"cell":"kernel","imports":5,"before":true},

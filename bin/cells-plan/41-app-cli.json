@@ -5,7 +5,6 @@
  "root": "apps/cli",
  "frontDoor": "apps/cli/index.js",
  "paths": [
-  ["src/changelog.js","apps/cli/src/shell/changelog.js","seed"],
   ["src/cli-board-read.js","apps/cli/src/shell/cli-board-read.js","seed"],
   ["src/cli-context.js","apps/cli/src/shell/cli-context.js","seed"],
   ["src/cli-help.js","apps/cli/src/shell/cli-help.js","seed"],
@@ -111,8 +110,6 @@
   ["src/commands/why.js","apps/cli/src/shell/commands/why.js","seed"],
   ["src/commands/withdraw.js","apps/cli/src/shell/commands/withdraw.js","seed"],
   ["src/commands/worktree.js","apps/cli/src/shell/commands/worktree.js","seed"],
-  ["src/first-refusal-window.js","apps/cli/src/core/first-refusal-window.js","seed"],
-  ["src/help-version.js","apps/cli/src/core/help-version.js","imports"],
   ["src/help.js","apps/cli/src/core/help.js","seed"],
   ["src/help/coordinator.js","apps/cli/src/core/help/coordinator.js","imports"],
   ["src/help/footer.js","apps/cli/src/core/help/footer.js","imports"],
@@ -234,7 +231,6 @@
   ["src/cli/worktree.js","apps/cli/src/shell/cli/worktree.js","imports"]
  ],
  "reexports": [
-  "src/changelog.js",
   "src/cli-context.js",
   "src/cli-main.js",
   "src/cli-presence.js",
@@ -246,7 +242,6 @@
   "src/commands/index.js",
   "src/commands/status.js",
   "src/commands/worktree.js",
-  "src/first-refusal-window.js",
   "src/help.js",
   "src/help/sections.js",
   "src/init-finish.js",
