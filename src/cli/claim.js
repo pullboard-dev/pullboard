@@ -1,11 +1,10 @@
 /** Helpers for `pullboard claim`: ordered moves and the criterion freeze. Split from src/cli.js, which re-exports it [C7]. */
 import { itemCheckBaseline } from '../board-query.js';
+import { writeBoardCommand } from '../board-command-write.js';
 import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
 import { laneSeatContext } from '../seat-checkout.js';
 import { nextSessionSeats } from '../seat-checkout.js';
 import * as personIdentity from '../person.js';
-import { ENGINE_VERSION as NATIVE_ENGINE } from '../engine-metadata.js';
-import { requireAgentGrant } from '../agent-grant.js';
 import { requireHandoffActive } from '../../packages/state/src/core/handoff-state.js';
 import { requestedCommandMove } from '../recorded-move.js';
 import { barReadinessRequired } from '../bar-readiness.js';
@@ -98,11 +97,7 @@ export async function ordered(ctx, board, operation, args) {
     const actor = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id;
     requireHandoffActive(board, actor, operation, args);
     ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered, gitSyncLinked, ensureCoordinator: store.ensureCoordinator });
-    const write = () => store.atomic(board, () => {
-      requireHandoffActive(board, actor, operation, args);
-      requireAgentGrant(board, { operation, args, engine: NATIVE_ENGINE }); // A native write applies current semantics.
-      return board.enginePorts.store[operation](board, ...args);
-    });
+    const write = () => writeBoardCommand(board, operation, args, actor);
     if (initialBaseline && actor) await recordBaseline(actor);
     const requestedCommand = ctx.io.relayCommand?.cliOperation ?? (ctx.privateBoard ? ctx.io.requestedCommand : undefined);
     const requested = requestedCommandMove(requestedCommand, operation);
