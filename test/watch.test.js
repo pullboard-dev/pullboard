@@ -8,7 +8,7 @@ import { delimiter, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after, test } from 'node:test';
 import { openBoard, reserveReview } from '../src/board.js';
-import { followBoard } from '../src/watch.js';
+import { followBoard } from '../packages/shouts/index.js';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
