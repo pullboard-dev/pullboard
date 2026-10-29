@@ -8,6 +8,7 @@ import { heartbeatSeat } from '../src/seat-presence.js';
 import { refuseUnreviewable } from '../src/review-reachability.js';
 import { refuseLiveAttach } from '../src/item-patches.js';
 import { healthReport } from '../src/health.js';
+import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
 
 const LEASE = 3_600_000;
 const freeze = () => ({ text: '{}', digest: 'synthetic-review-bar' });
@@ -68,7 +69,7 @@ test('seats with no declared family leave strict review unroutable and are named
   const id = f.claimed('core-1');
   assert.throws(() => f.preflight(id, 'core-1'), error => error.code === 'NO_ELIGIBLE_REVIEWER'
     && /core-2, core-3 declare no vendor family/u.test(error.message));
-  f.board.db.prepare('UPDATE agent SET agent_family=? WHERE agent_id=?').run('claude', 'core-3');
+  store.register(f.board, { lane: 'core', path: '/fixture/core-3', family: 'claude', parentDigest: 'c'.repeat(64), model: 'Synthetic fixture model' });
   f.preflight(id, 'core-1');
 });
 
@@ -110,6 +111,21 @@ test('attaching a Claude-credited companion to a claimed OpenAI-built strict ite
     && error.message.includes('builder core-1 (openai)') && error.message.includes('companion author core-2 (claude)'));
   assert.deepEqual(store.events(f.board), before, 'the refused attach recorded nothing');
   assert.equal(attach(f, id, 'companion', 'core-4').changed, true, 'an OpenAI-credited companion still attaches');
+});
+
+test('historical family clears cannot hide the builder or companion from strict reachability [C7,V4,H16]', t => {
+  const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b'], ['core-3', 'openai', 'c']]);
+  const id = f.claimed('core-1');
+  f.board.executionEngineVersion = FAMILY_DECLARE_ENGINE - 1;
+  try {
+    for (const [agent, parent] of [['core-1', 'a'], ['core-2', 'b']]) {
+      store.register(f.board, { lane: 'core', path: `/fixture/${agent}`, family: null, parentDigest: parent.repeat(64), model: 'Synthetic fixture model' });
+    }
+  } finally { delete f.board.executionEngineVersion; }
+  const before = store.events(f.board);
+  assert.throws(() => attach(f, id, 'cleared-companion', 'core-2'), error => error.code === 'NO_ELIGIBLE_REVIEWER'
+    && error.message.includes('builder core-1 (openai)') && error.message.includes('companion author core-2 (claude)'));
+  assert.deepEqual(store.events(f.board), before, 'a refused attach leaves the historical clears factual and adds no event');
 });
 
 test('a live attach is refused when the only eligible reviewer is gone, while replaying the recorded move succeeds [C7,V4]', t => {
