@@ -7,7 +7,7 @@
  "placedBy": {
   "seed": 113,
   "rule": 79,
-  "imports": 21
+  "imports": 35
  },
  "paths": [
   ["src/changelog.js","apps/cli/src/shell/changelog.js","seed"],
@@ -222,7 +222,21 @@
   ["src/documentation/events/next-idle.json","apps/cli/src/shell/documentation/events/next-idle.json","rule"],
   ["src/cli-recorded-effects.js","apps/cli/src/shell/cli-recorded-effects.js","rule"],
   ["src/documentation/events/shared-usage.json","apps/cli/src/shell/documentation/events/shared-usage.json","rule"],
-  ["src/documentation/events/usage.json","apps/cli/src/shell/documentation/events/usage.json","rule"]
+  ["src/documentation/events/usage.json","apps/cli/src/shell/documentation/events/usage.json","rule"],
+  ["src/cli/add.js","apps/cli/src/shell/cli/add.js","imports"],
+  ["src/cli/blueprint.js","apps/cli/src/shell/cli/blueprint.js","imports"],
+  ["src/cli/board-access.js","apps/cli/src/shell/cli/board-access.js","imports"],
+  ["src/cli/claim.js","apps/cli/src/shell/cli/claim.js","imports"],
+  ["src/cli/join.js","apps/cli/src/shell/cli/join.js","imports"],
+  ["src/cli/next.js","apps/cli/src/shell/cli/next.js","imports"],
+  ["src/cli/resume.js","apps/cli/src/shell/cli/resume.js","imports"],
+  ["src/cli/setup.js","apps/cli/src/shell/cli/setup.js","imports"],
+  ["src/cli/shout.js","apps/cli/src/shell/cli/shout.js","imports"],
+  ["src/cli/spec.js","apps/cli/src/shell/cli/spec.js","imports"],
+  ["src/cli/submit.js","apps/cli/src/shell/cli/submit.js","imports"],
+  ["src/cli/sweep.js","apps/cli/src/shell/cli/sweep.js","imports"],
+  ["src/cli/verify.js","apps/cli/src/shell/cli/verify.js","imports"],
+  ["src/cli/worktree.js","apps/cli/src/shell/cli/worktree.js","imports"]
  ],
  "reexports": [
   "src/changelog.js",

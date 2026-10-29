@@ -4,7 +4,7 @@ export function cockpitReplay(sections) {
 function replayControls() {
   const r = snapshotReplay;
   const event = r.events.slice(0, r.index).findLast((entry) => !['usage', 'shared-usage'].includes(entry.event_kind));
-  $('replay-progress').textContent = 'Event ' + r.index + ' / ' + r.events.length + (event ? ' · ' + event.event_kind + (event.item_id ? ' #' + event.item_id : '') : '') + (r.index === r.events.length ? ' · End' : '');
+  $('replay-progress').textContent = 'Event ' + r.index + ' / ' + r.events.length + (event ? ' · ' + eventWords(event.event_kind) + (event.item_id ? ' #' + event.item_id : '') : '') + (r.index === r.events.length ? ' · End' : '');
   $('replay-play').disabled = r.playing || !r.final || !r.events.length;
   $('replay-play').textContent = r.index === r.events.length ? 'Play from first event' : 'Play';
   $('replay-pause').disabled = !r.playing;
