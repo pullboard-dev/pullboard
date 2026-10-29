@@ -15,6 +15,7 @@ import { installSshStandIn } from './runner-ssh-fixture.js';
 import { cli } from './runner-tooling-fixture.js';
 import { takeResource } from '../src/resources.js';
 import { runnerResourceStatus } from '../src/resources.js';
+import { recordRunnerGui } from '../src/resources.js';
 import { recordRunnerMeasurement } from '../src/settings.js';
 import { loadMachineSettings } from '../src/settings.js';
 import { probeRunnerTransport } from '../src/runner-transport.js';
@@ -183,4 +184,14 @@ test('all computed mixtures fit their measured budget and inadequate or invalid 
   }
   assert.deepEqual(effectiveRunners({gate:{measuredSlots:true},runners:[{host:HOST,slots:4,browser:2,cores:4,memoryMB:1024}]}),[]);
   for(const size of [{cores:0,memoryMB:16384},{cores:2,memoryMB:NaN},{cores:2.5,memoryMB:16384}])assert.throws(()=>computeRunnerSlots(size),TypeError);
+});
+
+
+test('computed listing preserves the latest canonical GUI observation [C7]', t => {
+  const b=box(t);b.run('runner','add',HOST);b.run('settings','gate.measuredSlots','on');useMachine(t,b);
+  recordRunnerGui(HOST,true);
+  assert.equal(b.list().gui,true,'computed counts cannot replace a newer positive observation');
+  recordRunnerGui(HOST,false);
+  assert.equal(b.list().gui,false,'computed counts cannot revive a stale positive registration');
+  assert.equal(b.list().slots,9);
 });
