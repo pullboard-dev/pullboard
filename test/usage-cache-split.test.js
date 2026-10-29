@@ -67,8 +67,23 @@ test('Codex differences inclusive input and cached reads independently, preservi
   assert.deepEqual(split(inconsistent[1]), [null, null, null], 'an invalid cached count never becomes a spend baseline');
   assert.deepEqual(split(inconsistent[2]), [1, 2, null], 'a subsequent pair of valid counters restores differencing');
   assert.equal(inconsistent[1].inputTokens, 3, 'valid inclusive input keeps its independent baseline');
-  const reset = parsed('codex', [codex(100, 60), codex(120, 50)]);
-  assert.equal(reset[1].cacheReadInputTokens, null, 'decreased cached counters never become spend');
+  const reset = parsed('codex', [codex(100, 60, 10), codex(120, 50, 15), codex(130, 55, 17)]);
+  assert.deepEqual(split(reset[1]), [null, null, null], 'a cached-counter decrease also invalidates derived fresh spend');
+  assert.equal(reset[1].inputTokens, 20);
+  assert.equal(reset[1].outputTokens, 5);
+  assert.deepEqual(split(reset[2]), [5, 5, null], 'a subsequent valid interval restores the split baseline');
+  const interval = parsed('codex', [codex(100, 10, 10), codex(120, 40, 15), codex(130, 45, 17)]);
+  assert.deepEqual(split(interval[1]), [null, null, null], 'cached interval input cannot exceed inclusive interval input');
+  assert.equal(interval[1].inputTokens, 20);
+  assert.equal(interval[1].outputTokens, 5);
+  assert.deepEqual(split(interval[2]), [5, 5, null]);
+  writeFileSync(file, JSON.stringify(codex(100, 60, 10)) + '\n');
+  const resetBefore = sessionSnapshot(source);
+  appendFileSync(file, JSON.stringify(codex(120, 50, 15)) + '\n');
+  const [resetDelta] = usageDifference(resetBefore, sessionSnapshot(source, resetBefore), 'unknown');
+  assert.deepEqual(split(resetDelta), [null, null, null], 'public anchored differencing preserves the reset uncertainty');
+  assert.equal(resetDelta.inputTokens, 20);
+  assert.equal(resetDelta.outputTokens, 5);
 });
 
 test('Claude fresh, cache reads and cache writes retain native meanings and deduplicate updates [N2]', () => {

@@ -41,10 +41,12 @@ function codex(rows) {
     const cached = count(usage.cached_input_tokens);
     // Codex includes cached reads in input: an inconsistent subset cannot establish a baseline.
     const read = cached !== null && cached <= input ? cached : null;
-    const fresh = read !== null ? input - read : null;
-    const deltaRead = read !== null && (!previous || previous.read !== null && read >= previous.read) ? read - (previous?.read ?? 0) : null;
-    const deltaFresh = fresh !== null && (!previous || previous.fresh !== null && fresh >= previous.fresh) ? fresh - (previous?.fresh ?? 0) : null;
-    previous = { input, output, read, fresh };
+    const reportedRead = read !== null && (!previous || previous.read !== null && read >= previous.read) ? read - (previous?.read ?? 0) : null;
+    // Cached reads are a subset of inclusive input in each trustworthy interval as well as cumulatively.
+    const deltaRead = deltaInput !== null && reportedRead !== null && reportedRead > deltaInput ? null : reportedRead;
+    // A reset or inconsistent cache interval cannot turn a derived fresh increase into proven spend.
+    const deltaFresh = deltaInput !== null && deltaRead !== null ? deltaInput - deltaRead : null;
+    previous = { input, output, read };
     result.push({ at, freshInputTokens: deltaFresh, cacheReadInputTokens: deltaRead, cacheWriteInputTokens: null, inputTokens: deltaInput, outputTokens: deltaOutput, model: typeof model === 'string' && model.trim() ? model : null });
   }
   return result;
