@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { recordRowHtml } from '../../src/view/record-row.js';
 import { pipelineHtml } from '../../src/view/pipeline-render.js';
 import { selectItemsView } from '../../src/view/items-selection.js';
+import { timelineBodyHtml } from '../../src/view/timeline-body.js';
 import { timelineHtml } from '../../src/view/timeline-render.js';
 import { lifecycleDiagramHtml } from '../../src/view/lifecycle-diagram.js';
 import { needsEntries, renderNeedsRow } from '../../src/view/needs-list.js';
@@ -371,4 +372,69 @@ test('Roadmap item HTML retains blockers, provenance and escaped detail from exp
   assert.match(roadmapBlock(item, { ...context, error: '<unavailable>' }).detail, /&lt;unavailable&gt;/u);
   assert.equal(roadmapBlock(null), null);
   assert.deepEqual({ item, context }, before);
+});
+
+test('timeline references keep URLs and absolute paths as literal prose [N26,B23]', () => {
+  const sha = 'abcdef1234567890abcdef1234567890abcdef12';
+  const literals = [
+    ['https://example.test/src/example.js#958', 'https://example.test/src/example.js#958'],
+    ['https://example.test/' + sha + '?code=ONE_CLAIM&item=958', 'https://example.test/' + sha + '?code=ONE_CLAIM&amp;item=958'],
+    ['file:///Users/person/src/example.js#958', 'file:///Users/person/src/example.js#958'],
+    ['/Users/person/src/example.js:2@' + sha, '/Users/person/src/example.js:2@' + sha],
+    ['~/project/src/example.js', '~/project/src/example.js'],
+    ['C:/Users/person/src/example.js', 'C:/Users/person/src/example.js'],
+    ['C:\\Users\\person\\ONE_CLAIM#958', 'C:\\Users\\person\\ONE_CLAIM#958'],
+  ];
+  for (const [literal, escaped] of literals) {
+    const links = [];
+    const html = timelineBodyHtml('Before (' + literal + ') after', { commit: sha,
+      itemHref: id => { links.push(['item', id]); return '/items/' + id; },
+      codeLink: ref => { links.push(['code', ref]); return '<button>code</button>'; } });
+    assert.equal(html, 'Before (' + escaped + ') after', 'the complete external reference remains escaped literal text');
+    assert.deepEqual(links, [], 'neither URL fragments nor absolute paths invoke repository navigation');
+  }
+});
+
+test('timeline prose ratios and diff prefixes stay text while a hash beside a slash stays a hash [N26,B23]', () => {
+  const sha = 'abcdef1234567890abcdef1234567890abcdef12';
+  const refs = [];
+  const text = `2/2 Items24/25 clamp/words/grouping/references a/test/cockpit/agents.test.js ${sha}/tree${sha}`;
+  const html = timelineBodyHtml(text, { commit: sha,
+    codeLink: ref => { refs.push(ref); return '<button data-code="' + ref + '">code</button>'; } });
+  assert.deepEqual(refs, [], 'slash-separated prose and diff prefixes name no repository file');
+  assert.ok(html.startsWith('2/2 Items24/25 clamp/words/grouping/references a/test/cockpit/agents.test.js '), 'original prose stays intact');
+  assert.ok(html.includes('data-copy="' + sha + '">' + sha.slice(0, 12) + '</code>/tree' + sha), 'a commit followed by a slash retains its hash chip');
+});
+
+test('timeline text keeps quoted words, escapes markup and binds only detected references [N26,B23]', () => {
+  const sha = 'abcdef1234567890abcdef1234567890abcdef12';
+  const text = `A <script>ONE_CLAIM</script> says #2; src/example.js:2@${sha}; README.md:1@${sha}; ${sha}; 2026-10-28T12:34:56Z. ../outside.js stays text.`;
+  const refs = [];
+  const html = timelineBodyHtml(text, { itemHref: id => '#items/' + id,
+    codeLink: ref => { refs.push(ref); return '<button data-code="' + ref + '">code</button>'; },
+    timeLabel: () => '7:34 AM', refusalTitles: { ONE_CLAIM: 'Finish or release the current claim.' } });
+  assert.match(html, /&lt;script&gt;/u);
+  assert.doesNotMatch(html, /<script>/u);
+  assert.match(html, /data-go="item:2" href="#items\/2"/u);
+  assert.deepEqual(refs, ['src/example.js:2@' + sha, 'README.md:1@' + sha]);
+  assert.match(html, /title="Finish or release the current claim\."/u);
+  assert.match(html, new RegExp('title="' + sha + '" data-copy="' + sha + '">abcdef123456<'));
+  assert.match(html, />7:34 AM<\/time>/u);
+  assert.match(html, /\.\.\/outside\.js stays text\./u);
+  const at = '2026-10-28T12:00:00Z';
+  const moves = [1, 2].map(eventId => ({ type: 'move', eventId, kind: 'proof-run', by: 'web-1', at }));
+  const steps = moves.map(entry => ({ ...entry, from: 'claimed', move: null, model: 'Actual model', timeLabel: '7:00 AM' }));
+  const flow = { initial: 'open', states: [{ id: 'claimed', final: false }] };
+  const htmlPair = timelineHtml({ entries: moves, steps, flow });
+  assert.match(htmlPair, /ran the proof twice/u);
+  assert.match(htmlPair, /data-event-ids="1 2"/u);
+  assert.match(htmlPair, /title="Actual model">web-1/u);
+  assert.equal((htmlPair.match(/class="tl-claimed/g) ?? []).length, 1);
+  const separated = timelineHtml({ entries: [moves[0], { type: 'fact', id: 'note', eventId: 3, by: 'web-1', kind: 'note', text: 'Between proofs' }, moves[1]], steps, flow });
+  assert.doesNotMatch(separated, /ran the proof twice/u, 'a note prevents grouping non-consecutive moves');
+  const renewals = moves.map(entry => ({ ...entry, kind: 'renew' }));
+  const renewSteps = steps.map(entry => ({ ...entry, kind: 'renew', move: { verb: 'renew', to: 'claimed' } }));
+  const renewed = timelineHtml({ entries: renewals, steps: renewSteps, flow });
+  assert.match(renewed, /continued building twice/u, 'identical native self loops group too');
+  assert.match(renewed, /data-event-ids="1 2"/u);
 });
