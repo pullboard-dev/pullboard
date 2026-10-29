@@ -34,11 +34,10 @@ function plannedProject(t, { companionLanes = false } = {}) {
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   writePlan(box.repo, readPlan(SOURCE));
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  config.lanes.web.owns.push('src/', 'bin/cells-plan.json', 'bin/cells-plan/');
   if (companionLanes) {
     config.lanes.view = { owns: ['src/view/'], specs: ['G1'] };
     config.lanes.core = { owns: ['bin/cells-plan.json', 'bin/cells-plan/'], specs: ['G1'] };
-  }
+  } else config.lanes.web.owns.push('src/', 'bin/cells-plan.json', 'bin/cells-plan/');
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2) + '\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize the real placement fixture');
