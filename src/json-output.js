@@ -134,7 +134,8 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
   /** Write one default-text line within the budget, keeping only a count (and a final next step) of the rest. */
   const say = (line) => {
     if (enabled) return emit(streams.stdout, messages, line);
-    if (budget === Infinity) return streams.stdout.write(`${line}\n`);
+    // A whole JSON document printed as text (export) is machine-readable: cutting it would only corrupt it.
+    if (budget === Infinity || /^\s*[[{]/u.test(String(line))) return streams.stdout.write(`${line}\n`);
     // One message may hold many lines, such as a red gate's output; each printed line is cut and counted alone.
     for (const part of String(line).split('\n')) {
       const text = `${cutLine(part)}\n`;
