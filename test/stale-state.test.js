@@ -10,7 +10,7 @@ import { readFileSync, writeFileSync, utimesSync } from 'node:fs';
 let staleStateSnapshot;
 let planStaleState;
 try {
-  ({ staleStateSnapshot } = await import('../src/stale-state-query.js'));
+  ({ staleStateSnapshot } = await import('../packages/health/src/core/stale-state-query.js'));
   ({ planStaleState } = await import('../src/board-stale-state-maintenance.js'));
 } catch (error) {
   if (error.code !== 'ERR_MODULE_NOT_FOUND' || !['stale-state-query.js', 'stale-state-maintenance.js'].some(file => error.url?.endsWith('/src/' + file))) throw error;
@@ -464,7 +464,7 @@ test('a silent claim on a blocker can be released by the coordinator after 15 mi
 
 
 test('actual private worktree activity prevents an otherwise stale blocker release [B4,C7]', async t => {
-  const { captureStaleState } = await import('../src/stale-state-capture.js');
+  const { captureStaleState } = await import('../packages/health/src/shell/stale-state-capture.js');
   const f = fixture(t);
   const path = join(f.box.dir, 'builder');
   f.worktree(path, 'private-active-builder');

@@ -18,7 +18,7 @@ import {
   tryGit,
 } from './git.js';
 import { runShell } from './shell-run.js';
-import { mappedCheck } from './path-map.js';
+import { mappedCheck } from '../packages/codemap/index.js';
 import { Refused } from './refused.js';
 
 /**

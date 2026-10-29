@@ -1,8 +1,8 @@
 /** Native bounded snapshot upload/resume and complete restore; no private cache fingerprint crosses HTTP [H15,H17]. */
 import { Refused } from "../../../../src/refused.js";
 import { legacyPageRoute } from "../core/relay-page-support.js";
-import { relayStorage } from "../../../../src/relay-storage.js";
-export { relayStorage, relayStorageLine } from "../../../../src/relay-storage.js";
+import { relayStorage } from "../core/relay-page-support.js";
+export { relayStorage, relayStorageLine } from "../core/relay-page-support.js";
 import {
   createRelayPageCache,
   snapshotSourceId,

@@ -42,7 +42,8 @@ import {
   refuseWhileBuilding,
   sayReviewOffer,
 } from '../next-say.js';
-import { sayMapSlice } from '../map-slice-say.js';
+import { sayMapSlice } from '../../packages/codemap/index.js';
+import { primaryCheckoutRoot } from '../cli/worktree.js';
 
 /** Preview governing messages without acknowledging them or changing explicit watch audiences [B7,N2]. */
 function inboxReasons(ctx) {
@@ -119,7 +120,7 @@ async function nextWithProgress(io, values, progress) {
       const item = found.item;
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
-      io.result?.({ item, review, held: Boolean(found.held), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}) });
+      io.result?.({ item, review, held: Boolean(found.held), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.companions ? { companions: found.companions } : {}) });
       for (const reason of found.reasons ?? []) io.say(displayedWait(reason, agents, ctx.config));
       const here = cdTo(ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
@@ -127,7 +128,8 @@ async function nextWithProgress(io, values, progress) {
         sayCheckBaseline(io, item);
         io.say(`next to verify: #${item.item_id} ${item.item_title}, built by ${agentDisplayName(agents, ctx.config, item.item_built_by)} at ${item.item_commit.slice(0, 12)}`);
         io.say(`reserved for you until ${item.item_review_until}: another agent's verdict on it is refused until then; pullboard next --verify again renews it`);
-        io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
+        if (found.companions) io.say(`review tree checked out at ${found.companions.commit}; patch-set digest: ${found.companions.digest}; companions: ${found.companions.keys.join(', ')}`);
+        else io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
         io.say(`then: ${here} pullboard verify ${item.item_id} accept${as} --note "how you proved it", or reject${as} --reason CODE --note "what failed"`);
       } else {
         if (found.seat && found.seat.path !== origin) io.say(seatCheckout.seatLeadLine(found.seat, item, found.held));
@@ -139,7 +141,7 @@ async function nextWithProgress(io, values, progress) {
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
         sayBrief(io, item.item_brief);
-        await progress.run('code map', item.item_id, () => sayMapSlice(io, ctx, item));
+        await progress.run('code map', item.item_id, () => sayMapSlice(io, ctx, item, primaryCheckoutRoot));
         io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id} --wait`);
       }
       return 0;

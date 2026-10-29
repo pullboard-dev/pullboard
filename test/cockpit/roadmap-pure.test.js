@@ -5,6 +5,7 @@ import { readMilestoneModel } from '../../src/view/roadmap-render.js';
 import { milestoneRowHtml } from '../../src/view/roadmap-render.js';
 import { roadmapCardsHtml } from '../../src/view/roadmap-render.js';
 import { roadmapRemainingCount } from '../../src/view/roadmap-render.js';
+import { roadmapSummary } from '../../src/view/roadmap-summary.js';
 
 test('Roadmap title totals use shown header authority, retain legacy completion and exclude shipped history [N26,N38,C7]', () => {
   const modern = readMilestoneModel({ name: 'Next', items: [1, 2], shipped: null, summary: { total: 8, landed: 3, left: 5 } },
@@ -74,13 +75,40 @@ test('Roadmap cards preserve shipping counters, per-board folds and shipped hist
   assert.match(html, /Prepared count/u);
   assert.match(html, /Prepared progress/u);
   assert.match(html, /data-shipping-stage="landing"><dt>Accepted, landing<\/dt><dd>1<\/dd>/u);
-  assert.match(html, /2\/4 items/u);
+  assert.match(html, /<span class="milestone-limit">2 items<\/span>/u);
+  assert.doesNotMatch(html, /limit 4/u, 'a distant capacity limit is not presented beside the item count');
   assert.match(html, /<li hidden><div[^>]*data-roadmap-key="i:#1"/u);
   assert.match(html, /data-roadmap-key="shipped"[^>]*aria-expanded="false"/u, 'another board cannot unfold local history');
   assert.match(html, /class="roadmap-shipped-commit" title="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa">aaaaaaaaaaaa/u);
   assert.match(html, /First line/u);
   assert.doesNotMatch(html, /undefined|NaN/u);
   assert.match(roadmapCardsHtml([]), /No milestones yet/u);
+});
+
+test('Roadmap names a limit only within ten percent and formats the forecast for people [N26]', () => {
+  const rows = [{ label: '#1', state: 'open', stage: 'open', title: 'One item' }];
+  /** Render one milestone count against its declared limit through the actual Roadmap card renderer. */
+  const capacity = (count, limit = 700) => {
+    const read = readMilestoneModel({ name: 'Capacity', items: [1], count, limit }, rows);
+    return roadmapCardsHtml([read], { root: '/local', rows: new Map([[rows[0], { root: '/local', titleHtml: 'One item' }]]) });
+  };
+  assert.match(capacity(512), /<span class="milestone-limit">512 items<\/span>/u);
+  assert.match(capacity(630), /<span class="milestone-limit">630 items · limit 700<\/span>/u, 'the inclusive lower threshold names the limit');
+  assert.doesNotMatch(capacity(629), /limit 700/u, 'one below the lower threshold keeps the limit hidden');
+  assert.match(capacity(770), /770 items · limit 700/u, 'the inclusive upper threshold names the limit');
+  assert.doesNotMatch(capacity(771), /limit 700/u, 'one above the upper threshold keeps the limit hidden');
+  assert.match(capacity(0, 0), /0 items · limit 0/u, 'a zero capacity is named only when exactly full');
+  const shipped = readMilestoneModel({ name: 'Shipped', items: [], count: 512, limit: 700, shipped: { commit: 'a'.repeat(40) } }, []);
+  assert.match(roadmapCardsHtml([shipped]), /<span class="milestone-limit">512 items<\/span>/u,
+    'a shipped milestone keeps its count even when its limit is distant');
+
+  const summary = { total: 512, landed: 0, left: 512, landing: 7, review: 0, building: 0, waiting: 0, held: 12,
+    pace: { last6h: 7, last2h: 7 }, estimate: { low: 71, high: 212.5 }, window: '6h', reason: null };
+  const detail = roadmapSummary({ name: 'Capacity', summary }).detail;
+  assert.match(detail, /<span class="roadmap-estimate">About <b>3<\/b> to <b>9<\/b> days at today’s pace<\/span>/u);
+  assert.match(detail, /<span class="roadmap-pace"><b>7<\/b> landed in the last 6 h, <b>7<\/b> in the last 2 h<\/span>/u);
+  assert.match(detail, /<i class="roadmap-summary-swatch held"[^>]*><\/i><b>12<\/b> <span>held<\/span>/u,
+    'held retains the same dot, bold number, whitespace and separate label structure');
 });
 
 test('Roadmap renders open items in the backend queue position order and shows each position [N26,N38,C7]', () => {
