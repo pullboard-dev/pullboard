@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
-import { runFixtureChildAsync } from './fixture-child.js';
+import { runFixtureChildAsync, safeFixtureDiagnostic } from './fixture-child.js';
 import { readFileSync, writeFileSync, utimesSync } from 'node:fs';
 
 let staleStateSnapshot;
@@ -21,6 +21,7 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { run as statusRun } from '../src/commands/status.js';
 import { fixtureBoard } from './board-fixture.js';
+import { STALE_STATE_ENGINE } from '../src/stale-state-engine.js';
 
 const MINUTE = 60_000;
 
@@ -427,7 +428,7 @@ test('conditional hold replay retains the trigger and refuses a writer below its
   const replayLift = store.events(replica, { itemId: id }).findLast(event => event.event_kind === 'unhold_item');
   assert.deepEqual(replayLift, lift, 'trigger and hold event IDs survive ordered replay exactly');
   assert.deepEqual(applyRelayMove(replica, move, options), outcome, 'duplicate delivery cannot lift twice');
-  assert.throws(() => applyRelayMove(older, { ...move, engine: move.engine - 1 }, options),
+  assert.throws(() => applyRelayMove(older, { ...move, engine: STALE_STATE_ENGINE - 1 }, options),
     error => error.code === 'RELAY_MOVE' && error.message.includes('checked-composition snapshot'));
   assert.ok(store.itemHold(older, id), 'an older writer cannot skip the modern condition');
 });
@@ -540,11 +541,21 @@ test('stale releases carry observation plus code through native and ordered APIs
 });
 
 test('the stale CLI validates and retains an explicit maintenance reason override [B4,C7]', async t => {
+  const { captureStaleState } = await import('../src/stale-state-capture.js');
   const f = fixture(t), id = f.add('Silent coded override');
+  const path = store.agentById(f.board, f.builder).agent_path;
+  f.worktree(path, 'private-coded-stale-override');
   store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
   f.advance(60 * MINUTE);
+  const captured = await captureStaleState({ info: { root: f.box.repo }, config: { health: { sentinel: false } }, clock: f.clock }, f.board);
+  const observed = captured.claims.find(entry => entry.id === id);
+  assert.ok(observed, 'the production capture observes the actual native claim');
+  assert.equal(observed.actor, f.builder);
+  assert.equal(observed.evidence.complete, true, 'the registered private Git worktree supplies real CLI work evidence');
+  assert.equal(observed.limitMs, 60 * MINUTE);
+  assert.ok(observed.ageMs >= observed.limitMs, 'the real observation establishes the unchanged one-hour threshold');
   const result = await f.cli('release', String(id), '--stale', '--reason', 'OTHER', '--note', 'An outside prerequisite blocks this claim', '--json');
-  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.status, 0, safeFixtureDiagnostic(`stdout: ${result.stdout}\nstderr: ${result.stderr}`, f.box.env));
   const detail = JSON.parse(store.events(f.board, { itemId: id }).findLast(event => event.event_kind === 'release').event_detail);
   assert.equal(detail.reasonCode, 'OTHER');
   assert.equal(detail.reason, 'An outside prerequisite blocks this claim');
