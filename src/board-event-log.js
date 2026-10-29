@@ -9,7 +9,7 @@ import { agentModel } from './seats.js';
 import { appendProofCounter } from './proof-counters.js';
 import { ensureProofCounters } from './proof-counters.js';
 
-import { boardWriteBusyError } from './board-busy.js';
+import { beginImmediateQueued } from './board-busy.js';
 import { beginCapture } from './board-capture.js';
 import {
   beginBoardWrite,
@@ -34,8 +34,8 @@ export function atomic(board, work) {
   const savepoint = `pullboard_atomic_${depth}`;
   if (!depth) prepareBoardWriteIdentity();
   const startedAt = Date.now();
-  try { board.db.exec(depth ? `SAVEPOINT ${savepoint}` : 'BEGIN IMMEDIATE'); }
-  catch (error) { throw boardWriteBusyError(board.db, startedAt, error); }
+  if (depth) board.db.exec(`SAVEPOINT ${savepoint}`);
+  else beginImmediateQueued(board.db, startedAt);
   TRANSACTION_DEPTH.set(board, depth + 1);
   const writeRecord = depth ? null : beginBoardWrite(board.db, board.writeContext);
   // A local-first move records the rows it changed, so the relay's order can take it back later (#1013).
