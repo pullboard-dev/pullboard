@@ -72,6 +72,7 @@ async function seedBookkeeping(box, alpha) {
   } finally { store.closeBoard(board); }
   box.run(alpha.repo, 'hold', 'web', '--reason', 'Waiting for plain guidance.');
   box.run(alpha.repo, 'show', '3'); // Deliver any completed native background baseline receipt before observing history.
+  // @pullboard-board-file journey: reopen the CLI's persisted private board to observe actual idle and baseline events.
   const held = store.openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     store.recordNextIdle(held, { agentId: 'coordinator', reason: 'held' });
