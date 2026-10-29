@@ -460,7 +460,8 @@ The computed-grant engine adds `grantEngine` to new join, claim and renewal even
 | `renew` | builder | `leaseUntil`, `digest`, optional `grantEngine` |
 | `shared-usage` | participant | `id`, `seats`, `allocations`, `revision`, `observedAt`, `records`, `estimate` |
 | `usage` | builder | `item`, `revision`, `observedAt`, `shared`, `records`, `estimate` |
-| `release` | builder | — |
+| `release` | builder | `reasonCode`, optional `reason` |
+| `routing-rule` | coordinator | `rule` on recording, or `revoke` on revocation |
 | `submit` | builder | `commit`, `tree`, `policyCommit`, engine-9 `criterionDigest`, engine-38 `submissionProof`, optional `submissionSize` |
 | `reserve` | reviewer | `until` |
 | `accept` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-33 `review`, engine-68 `note` |
