@@ -756,7 +756,7 @@ test('every move the board makes passes the triggers: claim, submit, accept, rej
   const rejected = submittedItem(board);
   verdictOn(board, rejected, 'web-2', 'REJECT');
   store.claim(board, rejected, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
-  store.release(board, rejected, 'web-1');
+  store.release(board, rejected, 'web-1', 'Release the rework fixture before escalation.', undefined, 'OTHER');
   store.escalate(board, rejected, { agentId: 'coordinator', note: 'two tries stayed red' });
   store.refreeze(board, rejected, { agentId: 'coordinator', freeze });
   const dropped = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Old idea' });
@@ -941,7 +941,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     verdictOn(board, dependency, 'web-2', 'ACCEPT');
     fired.push(claimAs(target, strong, 'web'), claimAs(returned, strong, 'web'));
     store.editItem(board, target, { agentId: 'coordinator', criterion: 'Pending correction before the lane guard.' });
-    store.release(board, target, 'web-2');
+    store.release(board, target, 'web-2', 'Release the fixture holder before checking the pending correction.', undefined, 'OTHER');
     fired.push(claimAs(target, strong, 'web'));
     store.refreeze(board, target, { agentId: 'coordinator', freeze });
     store.editItem(board, target, { agentId: 'coordinator', criterion: 'A new bar, so the next claim freezes it.' });
@@ -951,7 +951,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     fired.push(claimAs(target, strong, 'web'));
     store.setLineSetting(board, { agentId: 'coordinator', key: 'wipPerReviewer', value: false, reason: 'peel the remaining existing guards', window: { activeReviewers: 1 } });
     fired.push(claimAs(target, strong, 'web'));
-    store.release(board, spare, strong);
+    store.release(board, spare, strong, 'Release the spare fixture claim before checking the next guard.', undefined, 'OTHER');
     fired.push(claimAs(target, strong, 'web'), claimAs(target, strong, 'web', freeze));
     assert.deepEqual(fired, [...declaredBoardOrder(machineRules, PRECHECKED, 'claim'), 'ok']);
     assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'BAR_NOT_READY', 'ITEM_HELD', 'WRONG_LANE', 'ROUTE', 'ROUTING_RULE', 'BLOCKED', 'HELD', 'REOPEN_HELD_FOR_BUILDER', 'PENDING_REFREEZE', 'LANE_HELD', 'LINE_WIP_LIMIT', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
@@ -1045,7 +1045,7 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
   const reserveAs = (id, agentId, policy = 'coordinator', familyPolicy = 'off') => outcome(() => store.reserveReview(board, id, { agentId, leaseMs: 3_600_000, policy, familyPolicy }));
   const cooling = submittedItem(board);
   store.reserveReview(board, cooling, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
-  store.release(board, cooling, 'web-2', 'another reviewer should take it');
+  store.release(board, cooling, 'web-2', 'another reviewer should take it', undefined, 'OTHER');
   const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2'), reserveAs(built, other, 'any')];
   fired.push(reserveAs(vendorOnly, otherVendor, 'any', 'require'));
   store.reserveReview(board, built, { agentId: otherRequired, leaseMs: 3_600_000, policy: 'any' });
@@ -1269,10 +1269,10 @@ test('the two conditional guards behave as declared: a renewal passes a held lan
   store.releaseLane(board, 'web', { agentId: 'coordinator' });
 
   assert.equal(claimAs(mine, 'web-1', retiredFreeze), 'ok', 'a renewal keeps the frozen bar and checks no rows');
-  store.release(board, mine, 'web-1');
+  store.release(board, mine, 'web-1', 'Release the fixture claim to check reclaiming the frozen bar.', undefined, 'OTHER');
   assert.equal(claimAs(mine, 'web-1', retiredFreeze), 'ok', 'a reclaim keeps the frozen bar too');
   assert.equal(claimAs(theirs, 'web-2', retiredFreeze), 'UNKNOWN_SPEC', 'a first claim freezes, so it checks the rows');
-  store.release(board, mine, 'web-1');
+  store.release(board, mine, 'web-1', 'Release the fixture claim before correcting its bar.', undefined, 'OTHER');
   store.editItem(board, mine, { agentId: 'coordinator', criterion: 'A changed bar.', reason: 'the fixture corrects its bar' });
   assert.equal(claimAs(mine, 'web-1', retiredFreeze), 'UNKNOWN_SPEC', 'after an edit drops the bar, the next claim freezes and checks');
   assert.equal(outcome(() => store.refreeze(board, mine, { agentId: 'coordinator', freeze: retiredFreeze })), 'UNKNOWN_SPEC', 'refreeze freezes, so it checks');
@@ -1345,7 +1345,7 @@ test('the board refuses a status written outside moveItem at run time, however i
     'a replace deletes the old row first, and the board keeps items',
   );
   assert.equal(store.getItem(board, id).item_status, 'claimed');
-  store.release(board, id, 'web-1');
+  store.release(board, id, 'web-1', 'Exercise the declared release move after refusing direct status writes.', undefined, 'OTHER');
   assert.equal(store.getItem(board, id).item_status, 'open', 'a move through moveItem still writes');
 });
 
