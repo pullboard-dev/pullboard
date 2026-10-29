@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
+import { recordGateRun } from '../../src/native-board.js';
 import { applyRelayMove, appliedSequence, prepareEngineMove } from '../../src/engine.js';
 import { activityWords } from '../../src/view/activity-words.js';
 import { runGate } from '../../src/gate.js';
@@ -51,9 +53,9 @@ async function seedBookkeeping(box, alpha) {
   const receipt = readGateReceipt(receiptStore(alpha.repo), run.receiptId);
   assert.ok(receipt, 'the real private gate retained its source-bound receipt');
   // @pullboard-board-file journey: actual native writers feed the same private HTTP projection.
-  const board = store.openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
-    store.recordGateRun(board, { agentId: 'coordinator', receipt, lane: 'web' });
+    recordGateRun(board, { agentId: 'coordinator', receipt, lane: 'web' });
     const followed = store.followItemPatches(board, 3, { agentId: 'web-1', commit: descendant });
     assert.equal(followed.changed, true, 'the actual descendant advances the companion binding');
     store.removeItemPatch(board, 3, { agentId: 'coordinator', key: 'plain-native' });
@@ -73,7 +75,7 @@ async function seedBookkeeping(box, alpha) {
   box.run(alpha.repo, 'hold', 'web', '--reason', 'Waiting for plain guidance.');
   box.run(alpha.repo, 'show', '3'); // Deliver any completed native background baseline receipt before observing history.
   // @pullboard-board-file journey: reopen the CLI's persisted private board to observe actual idle and baseline events.
-  const held = store.openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  const held = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     store.recordNextIdle(held, { agentId: 'coordinator', reason: 'held' });
     const kinds = new Set(store.events(held).map(event => event.event_kind));
@@ -106,7 +108,7 @@ test('native board kinds, names, reasons and sentinel notices read plainly acros
   box.git(alpha.repo, 'worktree', 'add', '-q', '-b', 'web/plain-legacy', unknown, 'main');
   // Historical stored registrations can have no model even though modern CLI joins require it.
   // @pullboard-board-file journey: a real legacy seat and ordered health events feed the live HTTP projection.
-  const board = store.openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     store.register(board, { lane: 'web', path: unknown });
     box.run(unknown, 'claim', '2');
