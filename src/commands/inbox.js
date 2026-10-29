@@ -1,6 +1,5 @@
 /** The pullboard inbox command separates canonical interrupts from break-time summaries [R2,N26]. */
-import { activityDeliveryLines } from '../activity-delivery-cli.js';
-import { deliverActivity } from '../activity-delivery-cli.js';
+import { activityDeliveryLines, deliverActivity } from '../../packages/activity/index.js';
 import { context } from '../cli.js';
 import { agentDisplayName } from '../cli.js';
 import { evidenceLine } from '../cli.js';

@@ -19,14 +19,11 @@ import shoutMove from '../src/moves/shout.js';
 import { ACTIVITY_DELIVERY_ENGINE } from '../src/activity-delivery-engine.js';
 import { nativeBoardPorts } from '../src/native-board.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
-import { readActivityDelivery } from '../src/activity-delivery-read.js';
 import { prepareSpecRefreezes } from '../src/spec-refreeze.js';
-import { activityMainFiles, activityWorkingFiles, readActivityCursor, saveActivityCursor } from '../src/activity-inbox.js';
 import { fixtureBoard } from './board-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { DatabaseSync } from 'node:sqlite';
-import { budgetInbox } from '../src/inbox-budget.js';
-import { activityDeliveryLines } from '../src/activity-delivery-cli.js';
+import { activityDeliveryLines, activityMainFiles, activityWorkingFiles, budgetInbox, readActivityCursor, readActivityDelivery, saveActivityCursor } from '../packages/activity/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
