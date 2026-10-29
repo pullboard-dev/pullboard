@@ -30,20 +30,20 @@ export function agentFloorHtml(floor, { back = '#dashboard', locale = 'en-US', t
   const hero = '<section class="floor-hero" aria-label="Headline"><h1>' + n.live + plural(n.live, ' agent, ', ' agents, ') + n.building + ' building, ' + n.reviewing + ' reviewing, <em>' + count(n.landed) + ' landed in 24 hours.</em></h1><p>Each agent claims one item, a different agent reviews it, and what passes lands.</p></section>';
 
   const numbers = [
-    ['live', n.live, 'Agents live', n.seen + ' seen in 4 h', ''],
-    ['building', n.building, 'Building', 'one item each', 'build'],
-    ['reviewing', n.reviewing, 'Reviewing', 'a different agent', 'review'],
-    ['between', n.between, 'Between items', 'just finished one', ''],
-    ['landed', n.landed, 'Landed · 24 h', count(n.landedRecent) + ' in the last 4 h', 'build'],
-    ['accepted', n.accepted, 'Accepted', 'in 4 h', 'review'],
-    ['sent-back', n.sentBack, 'Sent back', 'in 4 h', 'back'],
-    ['in-review', n.inReview, 'In review', n.unreviewed + ' waiting for a reviewer', ''],
-    ['waiting', n.waiting, 'Waiting to land', 'accepted, in line', ''],
-    ['ready', n.ready, 'Ready to build', 'nothing in the way', ''],
-    ['shouts', n.shouts, 'Shouts', 'in 4 h', 'shout'],
+    ['live', n.live, 'Agents live', n.seen + ' seen in 4 h', '', 'Agents holding work or active in the last 20 minutes; the note counts all agents seen in 4 hours'],
+    ['building', n.building, 'Building', 'one item each', 'build', 'Agents currently building an item'],
+    ['reviewing', n.reviewing, 'Reviewing', 'a different agent', 'review', 'Agents currently reviewing an item'],
+    ['between', n.between, 'Between items', 'just finished one', '', 'Active agents currently between items'],
+    ['landed', n.landed, 'Landed · 24 h', count(n.landedRecent) + ' in the last 4 h', 'build', 'Items landed in the last 24 hours; the note shows the last 4 hours'],
+    ['accepted', n.accepted, 'Accepted', 'in 4 h', 'review', 'Recorded review acceptances during the last 4 hours'],
+    ['sent-back', n.sentBack, 'Sent back', 'in 4 h', 'back', 'Recorded rejections and reopenings during the last 4 hours'],
+    ['in-review', n.inReview, 'In review', n.unreviewed + ' waiting for a reviewer', '', 'Items currently in review; the note identifies those without a reviewer'],
+    ['waiting', n.waiting, 'Waiting to land', 'accepted, in line', '', 'Accepted items waiting to land'],
+    ['ready', n.ready, 'Ready to build', 'nothing in the way', '', 'Items ready for an agent to build'],
+    ['shouts', n.shouts, 'Shouts', 'in 4 h', 'shout', 'Shouts during the last 4 hours'],
   ];
-  const band = '<section class="floor-band" aria-label="Board numbers">' + numbers.map(([key, value, label, note, tone]) =>
-    '<div class="floor-number' + (tone ? ' floor-' + tone : '') + '" data-floor-stat="' + key + '" data-value="' + esc(value ?? '') + '"><b>' + count(value) + '</b><span>' + esc(label) + '</span><small>' + esc(note) + '</small></div>').join('') + '</section>';
+  const band = '<section class="floor-band" aria-label="Board numbers">' + numbers.map(([key, value, label, note, tone, source]) =>
+    '<div class="floor-number' + (tone ? ' floor-' + tone : '') + '" data-floor-stat="' + key + '" data-value="' + esc(value ?? '') + '" title="' + esc(source) + '"><b>' + count(value) + '</b><span>' + esc(label) + '</span><small>' + esc(note) + '</small></div>').join('') + '</section>';
 
   const peak = Math.max(0, ...f.bins.map(bin => bin.count)), tallest = Math.max(1, peak);
   const landedBars = '<svg class="floor-bars" viewBox="0 0 960 80" preserveAspectRatio="none" role="img" aria-label="Items landed per hour, last 24 hours">' + f.bins.map((bin, index) => {
@@ -85,6 +85,6 @@ export function agentFloorHtml(floor, { back = '#dashboard', locale = 'en-US', t
   const queue = entry => '<section class="dash-card floor-queue" aria-label="' + esc(entry.label) + '" data-floor-queue="' + entry.key + '"><h2>' + esc(entry.label) + '<b>' + entry.rows.length + '</b></h2>'
     + (entry.rows.length ? '<ul class="dash-list">' + entry.rows.map(({ item: shown, at }) => '<li>' + item(shown) + '<small' + (entry.late && f.now - at > entry.late ? ' class="dash-old"' : '') + ' data-floor-age>' + span(f.now - at) + '</small></li>').join('') + '</ul>' : '<p class="floor-nothing">None right now.</p>') + '</section>';
   const queues = '<div class="floor-queues">' + f.queues.map(queue).join('') + '</div>';
-  const foot = '<p class="floor-foot"><span>' + count(n.allTime) + ' items landed all time</span><span>Refreshes live with the board</span></p>';
+  const foot = '<p class="floor-foot" title="All-time landings come from recorded board history; this floor refreshes with board updates"><span>' + count(n.allTime) + ' items landed all time</span><span>Refreshes live with the board</span></p>';
   return '<div class="floor" aria-label="Agent floor">' + head + hero + band + '<div class="floor-two">' + landedCard + timeCard + '</div>' + agentsCard + queues + foot + '</div>';
 }

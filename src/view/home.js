@@ -11,7 +11,7 @@ export function homeRules(spec) {
   const gated = approved.filter((row) => String(row.gate ?? '').trim()).length;
   const counts = [['approved', 'Approved', approved.length], ['gated', 'Name a gate', gated], ['ungated', 'No gate', approved.length - gated]];
   return '<h2>Your rules</h2><dl class="home-counts">'
-    + counts.map(([key, label, n]) => '<div data-home-count="' + key + '"><dt>' + label + '</dt><dd>' + n + '</dd></div>').join('')
+    + counts.map(([key, label, n]) => '<div data-home-count="' + key + '" title="' + (key === 'approved' ? 'Approved rows in the current Spec' : key === 'gated' ? 'Approved Spec rows that name a gate' : 'Approved Spec rows that do not name a gate') + '"><dt>' + label + '</dt><dd>' + n + '</dd></div>').join('')
     + '</dl><button class="link" data-go="tab:spec" type="button">Open the Spec</button>';
 }
 

@@ -116,7 +116,7 @@ function countPairs() {
     if (release) add('Dashboard/release remaining', number(document.querySelector('.dash-release b')), release.items.filter(ref => {
       const item = items.find(item => item.id === ref.id); return item && !p.dashboardLanded.some(landed => landed.id === item.id);
     }).length);
-    source('.dash-hero h1, .dash-accent, .dash-rate, .dash-chips > span:not(:first-child), .dash-release, .dash-stats');
+    source('.dash-hero h1, .dash-accent, .dash-rate, .dash-chips > span:not(:first-child), .dash-release, .dash-release + p, .dash-stats');
   }
   if (view.tab === 'dashboard' && view.addressDetail === 'floor') {
     source('[data-floor-stat], .floor-foot');

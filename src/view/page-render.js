@@ -419,7 +419,7 @@ function render() {
     $(kind + '-list').innerHTML = shownRows.length ? shownRows.map((r) => {
       const sectionRows = !snapshot && (!readOnly || requests) && kind === 'spec' && r.section !== section ? rows.filter((entry) => entry.section === r.section && undecided(entry)) : [];
       const sectionCount = sectionCounts.get(r.section);
-      const head = r.section !== section ? '<div class="spec-section-head"><h4>' + esc(r.section) + ' <span class="section-count">' + sectionCount + '</span></h4>' + (sectionRows.length ? '<button class="spec-section-approve" data-section-approve="' + esc(r.section) + '" type="button">Approve all ' + sectionRows.length + ' in this section</button>' : '') + '</div>' : '';
+      const head = r.section !== section ? '<div class="spec-section-head"><h4>' + esc(r.section) + ' <span class="section-count">' + sectionCount + '</span></h4>' + (sectionRows.length ? '<button class="spec-section-approve" data-section-approve="' + esc(r.section) + '" title="All rows needing your decision in this Spec section, including rows hidden by the current filter" type="button">Approve all ' + sectionRows.length + ' in this section</button>' : '') + '</div>' : '';
       section = r.section;
       const declined = kind === 'doctrine' && r.status === 'wont';
       const text = declined ? '<s>' + linked(r.standardText || r.text, titles) + '</s>' : linked(r.text, titles);
