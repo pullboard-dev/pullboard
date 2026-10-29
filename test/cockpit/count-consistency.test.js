@@ -45,13 +45,24 @@ function countPairs() {
       if (heading) add('Needs/' + heading.textContent, Number(heading.textContent.split('·').at(-1).trim()), group.querySelector('ol').children.length);
     }
     const draft = document.querySelector(root + ' .needs-drafts .needs-copy b');
-    if (draft) add('Needs/draft rows', number(draft), p.spec.filter(row => row.status === 'draft' && !row.decision).length);
+    if (draft) add('Needs/draft rows', number(draft), p.needs.find(row => row.kind === 'draft')?.count ?? 0);
     if (view.tab === 'home') {
       const approved = p.spec.filter(row => row.status === 'approved');
-      for (const [key, expected] of [['approved', approved.length], ['gated', approved.filter(row => row.gate?.trim()).length], ['ungated', approved.filter(row => !row.gate?.trim()).length]]) {
+      for (const [key, expected] of [['approved', approved.length], ['gated', approved.filter(row => String(row.gate ?? '').trim()).length], ['ungated', approved.filter(row => !String(row.gate ?? '').trim()).length]]) {
         add('Home/rules/' + key, number(document.querySelector('[data-home-count="' + key + '"] dd')), expected);
       }
       source('[data-home-count]');
+    }
+  }
+  if (view.tab === 'shouts') {
+    add('Shouts/asks waiting', number(document.querySelector('[data-fold="waiting"]')), p.asked.length);
+    add('Shouts/decision rows', all('#decisions .shout').length, p.decisions.length + (view.open.waiting ? p.asked.length : 0));
+    const idle = document.querySelector('#agents [data-fold="idle"][aria-expanded="true"]');
+    if (idle) add('Agents/idle', number(idle), all('#agents .idle-list .agent-pill').length);
+    for (const card of all('#agents .agent-card')) {
+      const more = card.querySelector('.agent-more');
+      if (more && card.querySelector('.agent-work')) add('Agents/additional held items', number(more), card.querySelectorAll('.agent-work').length - 1);
+      if (more) source('#agents .agent-more');
     }
   }
   if (view.tab === 'spec' || view.tab === 'doctrine') {
@@ -61,7 +72,10 @@ function countPairs() {
       let rows = 0, node = head.nextElementSibling;
       while (node && !node.matches('.spec-section-head')) { if (node.matches('[data-row]')) rows++; node = node.nextElementSibling; }
       add(kind + '/section/' + head.querySelector('h4').textContent, number(head.querySelector('.section-count')), rows);
+      const approve = head.querySelector('[data-section-approve]');
+      if (approve) add('Spec/section decisions', Number(/Approve all (\d+)/.exec(approve.textContent)?.[1]), p.spec.filter(row => row.section === approve.dataset.sectionApprove && (['pending', 'draft'].includes(row.status) && !row.decision || row.staleDecision)).length);
     }
+    source('[data-section-approve]');
     for (const row of list.querySelectorAll('[data-row]')) {
       const id = row.dataset.row.split(':')[1], badge = row.querySelector('.row-age');
       add(kind + '/citations/' + id, number(badge), items.filter(item => item.specs.includes(id)).length);
@@ -92,7 +106,9 @@ function countPairs() {
       add('Dashboard/agent group/' + head.textContent, Number(head.textContent.split('·').at(-1).trim()), rows);
       return sum + rows;
     }, 0));
-    add('Dashboard/landed 24h', number(document.querySelector('.dash-accent')), p.dashboardLanded.length);
+    const since = Date.now() - 24 * 3_600_000;
+    const landedInDay = new Set(p.events.filter(event => event.event_kind === 'merged' && Date.parse(event.event_at) > since && p.dashboardLanded.some(item => item.id === event.item_id && item.commit === JSON.parse(event.event_detail).commit)).map(event => event.item_id));
+    add('Dashboard/landed 24h', number(document.querySelector('.dash-accent')), p.dashboardPace?.last24h ?? landedInDay.size);
     for (const flight of all('.dash-flight')) add('Dashboard/' + flight.querySelector('h3').textContent, Number(/\d+$/.exec(flight.querySelector('h3').textContent)?.[0] || 0), flight.querySelectorAll('li').length);
     const building = document.querySelector('[data-dashboard-stat="building"]');
     add('Dashboard/building', Number(building.dataset.value), items.filter(item => item.status === 'claimed').length);
@@ -143,6 +159,17 @@ async function sweep(chrome, phase) {
       await checkCounts(chrome, phase + '/Pipeline');
       await press(chrome, 'document.querySelector("[data-items-view=list]")');
     }
+    if (tab === 'shouts') {
+      for (const fold of ['waiting', 'idle']) {
+        if (await chrome.stable('!!document.querySelector(' + JSON.stringify('[data-fold="' + fold + '"][aria-expanded="false"]') + ')')) await press(chrome, 'document.querySelector(' + JSON.stringify('[data-fold="' + fold + '"]') + ')');
+      }
+      const agents = await chrome.stable('[...document.querySelectorAll("#agents .agent-card [data-agent]")].map(node => node.dataset.agent)');
+      for (const agent of agents) {
+        await press(chrome, 'document.querySelector(' + JSON.stringify('#agents .agent-card [data-agent="' + agent + '"]') + ')');
+        await checkCounts(chrome, phase + '/agent/' + agent);
+      }
+      await checkCounts(chrome, phase + '/Shouts expanded');
+    }
     if (['spec', 'doctrine', 'activity'].includes(tab)) {
       const attribute = tab === 'activity' ? 'data-activity-filter' : 'data-rows';
       const selector = '#' + (tab === 'activity' ? 'activity-filters' : tab + '-chips') + ' [' + attribute + ']';
@@ -192,6 +219,7 @@ test('every tab count describes its real list or named native set across landing
   build(box, demo, 2, 'review.txt');
   box.run(demo.repo, 'milestone', 'add', 'Release', '--items', '1,2,3,4,5');
   box.run(demo.repo, 'shout', 'person', 'Choose the release wording.', '--decision');
+  box.run(demo.web, 'shout', 'coordinator', 'Which item should follow?', '--decision', '--kind', 'question');
   const server = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-count-sweep-'));
   let chrome;
   try {
