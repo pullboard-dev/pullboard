@@ -1068,6 +1068,59 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* The hosted page paints only its neutral mark until its script knows which screen applies (#932). */
 .hosted-mark { display: none; }
 .hosted-page.loading .shell { display: none; }
+
+/* Private Cost view: keep the landing rows compact and let their detail breathe on small screens. */
+.cost-page { display: grid; gap: var(--space-4); min-width: 0; }
+.cost-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.cost-heading h1 { margin: 0; font-size: var(--text-xl); }
+.cost-heading p { margin: var(--space-1) 0 0; color: var(--ink-muted); font-size: var(--text-sm); }
+.cost-private { color: var(--ink-muted); font-size: var(--text-xs); }
+.cost-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+.cost-tiles article { display: grid; align-content: start; gap: var(--space-2); min-width: 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
+.cost-tiles article > span, .cost-tiles small { color: var(--ink-muted); font-size: var(--text-xs); }
+.cost-tiles article > b { font-size: var(--text-lg); font-variant-numeric: tabular-nums; }
+.cost-vendors { display: grid; gap: var(--space-1); }
+.cost-vendors span { display: flex; justify-content: space-between; gap: var(--space-2); font-size: var(--text-sm); }
+.cost-vendors b { min-width: 0; overflow-wrap: anywhere; }
+.cost-list { display: grid; gap: 0; overflow: hidden; }
+.cost-row { display: grid; grid-template-columns: minmax(94px, .8fr) auto minmax(120px, 1.8fr) minmax(120px, 1fr) auto auto auto; align-items: center; gap: var(--space-3); width: 100%; min-height: 48px; padding: var(--space-3) var(--space-4); border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.cost-row:hover, .cost-row:focus-visible { background: var(--surface-2); }
+.cost-date, .cost-id, .cost-hours, .cost-rounds, .cost-amount { font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.cost-title, .cost-models { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cost-title { font-weight: 600; }
+.cost-models { color: var(--ink-muted); font-size: var(--text-xs); }
+.cost-amount { text-align: right; }
+.cost-amber .cost-amount { color: var(--warn); }
+.cost-red .cost-amount { color: var(--reject); }
+.cost-detail { display: grid; gap: var(--space-3); padding: var(--space-4); border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.cost-detail h3, .cost-returns h3 { margin: 0; font-size: var(--text-sm); }
+.cost-session { display: grid; grid-template-columns: minmax(120px, 1.6fr) repeat(5, minmax(72px, 1fr)); gap: var(--space-3); align-items: center; }
+.cost-session > span, .cost-session-model { display: grid; min-width: 0; gap: var(--space-1); }
+.cost-session small { color: var(--ink-muted); font-size: var(--text-2xs); }
+.cost-session b { overflow-wrap: anywhere; font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.cost-session-model small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cost-returns ul { display: grid; gap: var(--space-2); margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+.cost-returns li { display: flex; justify-content: space-between; gap: var(--space-3); color: var(--ink-muted); font-size: var(--text-xs); }
+.cost-unknown { margin: 0; color: var(--ink-muted); font-size: var(--text-sm); }
+@media (width < 900px) {
+  .cost-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cost-row { grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-2) var(--space-3); }
+  .cost-date { grid-column: 1; }
+  .cost-id { grid-column: 2; }
+  .cost-title { grid-column: 1 / 3; grid-row: 2; }
+  .cost-models { grid-column: 1 / 3; grid-row: 3; }
+  .cost-hours { grid-column: 1; grid-row: 4; }
+  .cost-rounds { grid-column: 2; grid-row: 4; }
+  .cost-amount { grid-column: 3; grid-row: 1 / 5; }
+  .cost-session { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cost-session-model { grid-column: 1 / -1; }
+}
+@media (width < 360px) {
+  .cost-heading { align-items: flex-start; }
+  .cost-tiles { gap: var(--space-2); }
+  .cost-tiles article { padding: var(--space-3); }
+  .cost-row { padding-inline: var(--space-3); }
+}
 .hosted-page.loading .hosted-mark { display: grid; place-items: center; min-height: 100vh; color: var(--ink-muted); }
 .hosted-page.loading .hosted-mark svg { width: 56px; height: 56px; }
 

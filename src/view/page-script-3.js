@@ -6,8 +6,35 @@
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart3(scope) {
-  const { applyStateDelta, expandItemSummaries } = scope;
-return `/** Whether a selected project is backed by the read-only relay transport. */
+  const { applyStateDelta, costTabScript, expandItemSummaries, privateCost } = scope;
+return `${privateCost ? costTabScript() : ''}
+/** The private usage history held only in this browser's memory, keyed to the selected local board and sequence. */
+const costHistory = new Map();
+
+/** Read the complete item event history only when the private Cost tab is open or its board changes. */
+function readCostHistory(project) {
+  if (!privateCost || snapshot || hosted.local || readOnly || data.group) return { loading: false, error: 'Cost is available in the private local view only.' };
+  const root = view.root;
+  const sequence = Number(project.sequence ?? project.events?.[0]?.event_id ?? 0);
+  const kept = costHistory.get(root);
+  if (kept?.sequence === sequence) return kept;
+  const entry = { sequence, loading: true, error: null, model: null };
+  costHistory.set(root, entry);
+  api(boardPath(root) + '/events').then(reply => {
+    if (costHistory.get(root) !== entry || root !== view.root || !Array.isArray(reply.events)) return;
+    entry.model = costTabModel(data.project, reply.events, data.project.costPrices ?? null);
+    entry.loading = false;
+    if (view.tab === 'cost') render();
+  }).catch(error => {
+    if (costHistory.get(root) !== entry) return;
+    entry.loading = false;
+    entry.error = String(error.message || error);
+    if (view.tab === 'cost') render();
+  });
+  return entry;
+}
+
+/** Whether a selected project is backed by the read-only relay transport. */
 function relayProject(root = view.root) {
   const board = data?.projects.find((entry) => entry.root === root && entry.ok);
   return boardSources.get(board?.id)?.kind === 'relay';
