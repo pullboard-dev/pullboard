@@ -4,11 +4,6 @@
  "kind": "package",
  "root": "packages/gate",
  "frontDoor": "packages/gate/index.js",
- "placedBy": {
-  "seed": 47,
-  "rule": 31,
-  "imports": 6
- },
  "paths": [
   ["src/affected-tests.js","packages/gate/src/shell/affected-tests.js","seed"],
   ["src/audit-coverage-reporter.js","packages/gate/src/core/audit-coverage-reporter.js","rule"],

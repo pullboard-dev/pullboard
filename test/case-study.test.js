@@ -37,9 +37,10 @@ function fixture(t, entries = []) {
   put(root, 'src/b.js', 'export const b = 1;\n');
   const cells = ['a', 'b'].map((name, index) => ({ name, order: index + 1,
     root: `packages/${name}`, frontDoor: `packages/${name}/index.js`,
-    paths: [[`src/${name}.js`, `packages/${name}/src/core/${name}.js`]] }));
+    paths: [[`src/${name}.js`, `packages/${name}/src/core/${name}.js`, 'seed']],
+    reexports: [], cuts: index === 0 ? [{ cell: 'b', imports: 1 }] : [] }));
   for (const cell of cells) put(root, `bin/cells-plan/${cell.name}.json`, cell);
-  put(root, 'bin/cells-plan.json', { version: 1, base: A, totals: { cutImports: 1 },
+  put(root, 'bin/cells-plan.json', { version: 1, base: A, stays: [],
     cells: cells.map(cell => ({ file: `bin/cells-plan/${cell.name}.json` })) });
   runFixtureGit(['add', '.'], { cwd: root });
   runFixtureGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.com', 'commit', '-qm', 'fixture'], { cwd: root });
@@ -233,19 +234,19 @@ test('case study counts a moved body separately from its remaining forwarding sh
 
 test('case study binds the selected plan revision separately from the inventoried source [C7,D3]', t => {
   const source = fixture(t), plan = fixture(t);
-  const index = JSON.parse(readFileSync(join(plan.root, 'bin/cells-plan.json'), 'utf8'));
-  index.totals.cutImports = 7;
-  put(plan.root, 'bin/cells-plan.json', index);
+  const shard = JSON.parse(readFileSync(join(plan.root, 'bin/cells-plan/a.json'), 'utf8'));
+  shard.cuts[0].imports = 7;
+  put(plan.root, 'bin/cells-plan/a.json', shard);
   runFixtureGit(['add', '.'], { cwd: plan.root });
   runFixtureGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.com', 'commit', '-qm', 'different plan revision'], { cwd: plan.root });
   const metrics = structureMetrics(source.root, { planRoot: plan.root });
   assert.notEqual(metrics.source.head, metrics.planSource.head);
   assert.equal(metrics.planSource.clean, true);
   assert.equal(metrics.plannedCutImports, 7);
-  assert.equal(metrics.importCutsLeft, 1, 'different recorded totals do not change the real physical import');
+  assert.equal(metrics.importCutsLeft, 1, 'different declared cuts do not change the real physical import');
   const bound = metrics.planSource.contentSHA256;
-  index.totals.cutImports = 8;
-  put(plan.root, 'bin/cells-plan.json', index);
+  shard.cuts[0].imports = 8;
+  put(plan.root, 'bin/cells-plan/a.json', shard);
   const changed = structureMetrics(source.root, { planRoot: plan.root });
   assert.notEqual(changed.planSource.contentSHA256, bound);
   assert.equal(changed.planSource.head, metrics.planSource.head);
