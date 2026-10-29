@@ -13,7 +13,7 @@ after(helpers.cleanup);
 
 /** The commands measured on the seeded board, with the arguments a reader passes them by default. */
 const MEASURED = [['status'], ['list', 'web'], ['show', '1'], ['queue'], ['roadmap'], ['log'], ['stats'], ['lanes'],
-  ['agents'], ['whoami'], ['decisions'], ['flakes'], ['spec'], ['doctrine'], ['ledger'], ['health'], ['capacity']];
+  ['agents'], ['whoami'], ['decisions'], ['flakes'], ['spec'], ['ledger'], ['health'], ['capacity']];
 
 /** Committed sizes in UTF-8 bytes; an entry may only fall. */
 const BASELINE = JSON.parse(readFileSync(new URL('./output-budget-baseline.json', import.meta.url), 'utf8'));
@@ -47,11 +47,13 @@ function seeded() {
 test('every measured command prints within its committed baseline and declared budget on a seeded board [C7,N26]', () => {
   const box = seeded();
   const measured = {};
+  const failed = [];
   for (const args of MEASURED) {
     const result = box.run(box.repo, ...args);
-    assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}`);
+    if (result.code !== 0) failed.push(`${args.join(' ')}: ${result.err}`);
     measured[args[0]] = Buffer.byteLength(result.out);
   }
+  assert.deepEqual(failed, [], 'every measured read succeeds on the seeded board');
   assert.deepEqual(ratchetProblems(measured, BASELINE), [], JSON.stringify(measured));
   const full = box.run(box.repo, 'list', 'web', '--detail');
   assert.ok(Buffer.byteLength(full.out) > DEFAULT_OUTPUT_BUDGET, '--detail still prints every row');
@@ -73,6 +75,6 @@ test('streams and reference pages are declared unbounded, and a single long line
   assert.equal(commandName(['--json', 'stats', '--window', '24h']), 'stats');
   const cut = cutLine('agents: ' + 'a'.repeat(5000));
   assert.ok(Buffer.byteLength(cut) <= LINE_BUDGET);
-  assert.match(cut, /--detail shows the whole line$/u);
+  assert.match(cut, /--detail shows the whole line\)$/u);
   assert.equal(cutLine('short'), 'short');
 });

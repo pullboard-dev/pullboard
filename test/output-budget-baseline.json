@@ -1,1 +1,18 @@
-{}
+{
+  "status": 1344,
+  "list": 8192,
+  "show": 512,
+  "queue": 8192,
+  "roadmap": 192,
+  "log": 8128,
+  "stats": 8064,
+  "lanes": 256,
+  "agents": 576,
+  "whoami": 320,
+  "decisions": 128,
+  "flakes": 192,
+  "spec": 192,
+  "ledger": 320,
+  "health": 128,
+  "capacity": 704
+}
