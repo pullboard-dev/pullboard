@@ -4,7 +4,7 @@ import { atomic } from './board.js';
 import { logEvent } from './board-event-log.js';
 import {
   validateLineSetting,
-} from './queue-settings.js';
+} from '../packages/queue/index.js';
 import { FOCUS_MILESTONE_ENGINE } from './focus-milestone-engine.js';
 import { LINE_ORDER_ENGINE } from './line-order-engine.js';
 import { LINE_SETTINGS_ENGINE } from './line-settings-engine.js';

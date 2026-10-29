@@ -30,7 +30,7 @@ import { submitFixture } from './board-submit-fixture.js';
 import { WORK_ORDER_ENGINE } from '../src/work-order-engine.js';
 import { runFixtureGit } from './fixture-child.js';
 import { captureReleaseQueue, localReleaseRank } from '../src/release-queue.js';
-import { orderedWaiters } from '../src/queue-order.js';
+import { orderedWaiters } from '../packages/queue/index.js';
 
 test('release priority uses only local verified work, leaving external references alone [C7,V4]', () => {
   const releases = [
