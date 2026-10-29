@@ -20,7 +20,7 @@
   "totals": {
     "cells": 43,
     "movedPaths": 1334,
-    "stays": 42,
+    "stays": 45,
     "placedBy": {
       "seed": 877,
       "rule": 359,
@@ -414,6 +414,18 @@
     },
     {
       "path": "bin/checks/board-write-io.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/board-hold-log.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/board-hold-ratchet.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/board-hold-baseline.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],

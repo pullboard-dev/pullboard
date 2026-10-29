@@ -8,6 +8,10 @@ const WRITE_PUBLICATION = new Map([
   ['src/board-write-lock.js#beginBoardWrite', new Set(['node:fs#mkdirSync', 'node:fs#lstatSync', 'node:fs#writeFileSync'])],
   ['src/board-write-lock.js#boardFile', new Set(['node:fs#realpathSync'])],
   ['src/board-write-lock.js#finishBoardWrite', new Set(['node:fs#writeSync', 'node:fs#unlinkSync'])],
+  // Coordinator 29 Oct 06:39: finishBoardWrite refuses !released before this bounded post-release log append.
+  ['src/board-hold-log.js#recordBoardHold', new Set([
+    'node:fs#mkdirSync', 'node:fs#openSync', 'node:fs#fstatSync', 'node:fs#writeSync', 'node:fs#closeSync',
+  ])],
 ]);
 // Coordinator44559: these independently owned repairs are composed before the final guard proof.
 export const PENDING_WRITE_REPAIRS = Object.freeze({

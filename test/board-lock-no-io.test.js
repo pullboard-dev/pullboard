@@ -133,6 +133,15 @@ test('the native write publication exception cannot hide a new process call [C7,
   assert.ok(!problems.some(row => row.call === 'node:fs#writeFileSync'));
 });
 
+test('the named post-release hold append does not exempt unrelated reads or process calls [C7,CD39]', () => {
+  const source = "import {atomic} from './board-event-log.js'; import {recordBoardHold} from './board-hold-log.js'; atomic(board, () => recordBoardHold());";
+  const writer = "import {writeSync, readFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process'; export function recordBoardHold() { writeSync(1, 'line'); readFileSync('unrelated'); execFileSync('git'); }";
+  const problems = boardWriteIoProblems(guardSources(source, [{ file: 'src/board-hold-log.js', source: writer }]), { pending: {} });
+  assert.ok(!problems.some(row => row.call === 'node:fs#writeSync'));
+  assert.ok(problems.some(row => row.call === 'node:fs#readFileSync'));
+  assert.ok(problems.some(row => row.call === 'node:child_process#execFileSync'));
+});
+
 test('a named deferred receipt read is allowed only through its assigned train writer [C7,CD39]', () => {
   const receipt = { file: 'src/gate-run-receipt.js', source:
     "import {readFileSync} from 'node:fs'; export function readGateReceipt() { return readFileSync('receipt'); }" };
