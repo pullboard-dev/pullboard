@@ -176,8 +176,8 @@ test("the history is a timeline of the item's states [N26]", async () => {
     const idle = { status: 'open', history: [{ kind: 'add', by: 'web-1', at: at(0) }, { kind: 'claim', by: 'web-1', at: at(5) }] };
     assert.deepEqual(timelineRows(page.run(`timeline(${JSON.stringify(idle)})`)).map((row) => [row.event, row.stay]), [
       ['web-1 added this work', 'open for 5m'],
-      ['web-1 claimed it', 'claimed until the lapse, length not logged'],
-      ['the clock released an expired lease', 'open so far since the lapse, length not logged'],
+      ['web-1 claimed it', 'claimed until the lease expiry, length not logged'],
+      ['the clock released an expired lease', 'open so far since the lease expiry, length not logged'],
     ]);
   } finally {
     await view.stop();

@@ -871,7 +871,7 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
         const live = document.querySelector('#detail #fact-${expected.find((entry) => entry.type === 'fact' && entry.kind === 'capture').id}');
         const plain = document.querySelector('#detail .tl-fact:not(.tl-judgement):not(.tl-superseded)');
         const judgementColors = Object.fromEntries(['decision', 'rejection', 'supersession', 'root-cause'].map((kind) => {
-          const row = [...timeline.querySelectorAll('.tl-fact')].find((entry) => entry.querySelector('.tl-kind')?.textContent === kind);
+          const row = [...timeline.querySelectorAll('.tl-fact')].find((entry) => entry.querySelector('.tl-kind')?.textContent === kind.replaceAll('-', ' '));
           return [kind, row ? getComputedStyle(row.querySelector('.tl-marker')).backgroundColor : null];
         }));
         return {
