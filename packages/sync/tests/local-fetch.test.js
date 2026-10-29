@@ -2,13 +2,14 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { runFixtureChild } from './fixture-child.js';
-import { fetchLocal } from '../src/local-fetch.js';
+import { runFixtureChild } from "../../../test/fixture-child.js";
+import { fetchLocal } from "../src/shell/local-fetch.js";
 
 /** Run one isolated real-socket fault without installing a global handler in the product or parent. */
 function socketChild(mode, home) {
@@ -17,9 +18,9 @@ function socketChild(mode, home) {
     import { Agent, createServer } from 'node:http';
     import { channel } from 'node:diagnostics_channel';
     import { Socket } from 'node:net';
-    import { fetchLocal } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/local-fetch.js')).href)};
-    import { fetchFresh } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'http-fixture.js')).href)};
-    import { rememberView, runningView } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/view-session.js')).href)};
+    import { fetchLocal } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/shell/local-fetch.js')).href)};
+    import { fetchFresh } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../test/http-fixture.js')).href)};
+    import { rememberView, runningView } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../src/view-session.js')).href)};
     const mode = ${JSON.stringify(mode)};
     const server = createServer((_request, response) => response.end('ok'));
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
