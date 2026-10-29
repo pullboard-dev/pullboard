@@ -15,6 +15,8 @@ import { usageDifference } from './cost-session.js';
 import { sharedBefore } from './cost-shared-ledger.js';
 import { sharedAfter } from './cost-shared-ledger.js';
 import { Refused } from './refused.js';
+import { SPLIT_COUNTS } from './cost-read.js';
+import { unknownInputSplit } from './cost-read.js';
 
 /** Serialize a short local ledger mutation; never hold this lock while awaiting a relay. */
 function change(info, work) {
@@ -37,7 +39,7 @@ function change(info, work) {
 
 /** A model's cumulative known partial values and visibly unknown totals. */
 function empty(model) {
-  return { model, inputTokens: 0, outputTokens: 0, knownInputTokens: 0, knownOutputTokens: 0, wallMs: 0, unknownReasons: [] };
+  return { model, ...Object.fromEntries(SPLIT_COUNTS.map(name => [name, 0])), inputTokens: 0, outputTokens: 0, knownInputTokens: 0, knownOutputTokens: 0, wallMs: 0, unknownReasons: [] };
 }
 
 /** Add counts without recovering an unknown total by pretending its missing portion was zero. */
@@ -64,13 +66,17 @@ function advance(state, entry, now, changed) {
     return row;
   };
   const current = sessionSnapshot(entry.source, entry.snapshot, now);
-  const deltas = entry.ambiguous ? [{ model: entry.model, inputTokens: null, outputTokens: null }]
+  const deltas = entry.ambiguous ? [{ model: entry.model, ...unknownInputSplit(), inputTokens: null, outputTokens: null }]
     : usageDifference(entry.snapshot, current, entry.model);
   for (const delta of deltas) {
     if (delta.inputTokens === 0 && delta.outputTokens === 0 && delta.model !== entry.model) continue;
     const row = modelRow(delta.model);
     add(row, 'inputTokens', delta.inputTokens);
     add(row, 'outputTokens', delta.outputTokens);
+    for (const name of SPLIT_COUNTS) {
+      const value = row[name] + delta[name];
+      row[name] = Number.isSafeInteger(row[name]) && Number.isSafeInteger(delta[name]) && Number.isSafeInteger(value) ? value : null;
+    }
     if (delta.inputTokens === null || delta.outputTokens === null) {
       const reason = entry.recovered ? 'missed-claim-anchor' : entry.ambiguous ? 'shared-session'
         : !entry.source ? 'native-session-unavailable' : !entry.snapshot ? 'no-native-baseline'
