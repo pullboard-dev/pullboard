@@ -4,7 +4,7 @@
     {
       "order": 0,
       "actor": "joining agent",
-      "detail": "`lane`, `route`, optional `grantEngine`"
+      "detail": "`lane`, `route`, optional `grantEngine`, optional `family` (the family the registration named, recorded from the family-declaration engine)"
     }
   ]
 }

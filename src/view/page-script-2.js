@@ -4,6 +4,17 @@ import {
 } from './held-items.js';
 import { agentFloorModel } from './agent-floor-model.js';
 import { agentFloorHtml } from './agent-floor-render.js';
+import { recordRowHtml } from './record-row.js';
+import { verdictHtml as verdictRenderer } from './verdict-render.js';
+import { visibleVerdictNote } from './verdict-render.js';
+import { replayItem } from './pipeline-model.js';
+import { pipelineStage } from './pipeline-model.js';
+import { pipelineSince } from './pipeline-model.js';
+import { itemListFields } from './pipeline-model.js';
+import { pipelineHtml } from './pipeline-render.js';
+import { lifecycleDiagramHtml } from './lifecycle-diagram.js';
+import { timelineHtml as renderTimelineHtml } from './timeline-render.js';
+import { timelineBodyHtml } from './timeline-body.js';
 /**
  * Part 2 of the hosted page's script, verbatim from src/cockpit.js lines 332-1298 (#745): its
  * text is what the page served before the split, with the values its ${} expressions read passed in as scope.
@@ -12,16 +23,18 @@ import { agentFloorHtml } from './agent-floor-render.js';
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart2(scope) {
-  const { sharedRowHtml, activityWords, activityModel, activityHtml, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeCapacity, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, lifecycleEvent, lifecycleMove, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
+  const { sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeCapacity, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, lifecycleEvent, lifecycleMove, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
 return `let detailRead = null;
 const addressedShouts = new Map();
 const $ = (id) => document.getElementById(id);
 const sharedRowHtml = (${sharedRowHtml.toString()});
 const activityWords = (${activityWords.toString()});
 const activityModel = (${activityModel.toString()});
+const activityFilters = (${activityFilters.toString()});
 const segmentedToggle = (${segmentedToggle.toString()});
 const revealSegmentedChoices = (${revealSegmentedChoices.toString()});
 const activityHtml = (${activityHtml.toString()});
+const lifecycleChart = (${lifecycleChart.toString()});
 const dashboardModel = (${dashboardModel.toString()});
 const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry) => roadmapSummary(entry), floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
 // The update note from src/view/hosted-release.js (#632): only a confirmed read of this machine's view says how far behind it is.
@@ -280,6 +293,8 @@ const ago = (iso) => { const m = Math.round((Date.now() - Date.parse(iso)) / 600
 const age = (iso) => '<time data-ago="' + esc(iso) + '">' + ago(iso) + '</time>';
 const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const when = (iso) => (new Date(iso).toDateString() === new Date().toDateString() ? '' : new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ') + clock(iso);
+/** Keep the Roadmap detail's existing local display at the browser boundary. */
+const roadmapTime = iso => { const moment = new Date(iso), clock = moment.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); return moment.toDateString() === new Date().toDateString() ? clock : moment.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + clock; };
 // A day as a feed names it: Today, Yesterday, or its weekday and date.
 const dayName = (iso) => {
   const then = new Date(iso).toDateString(), today = new Date();
@@ -297,13 +312,8 @@ const dayRules = (rows, at, row) => { daysNamedAt = new Date(); return rows.map(
   return (day === before ? '' : '<div class="day-rule" role="separator"><span>' + dayName(at(x)) + '</span></div>') + row(x);
 }).join(''); };
 const firstLine = (text) => String(text ?? '').split('\\n').map((line) => line.trim()).find(Boolean) || '';
-/** Omit a duplicated leading verdict code from rendered copy while preserving the recorded note. */
-function visibleVerdictNote(reason, note) {
-  const text = String(note ?? '');
-  const code = String(reason ?? '');
-  const remainder = text.slice(code.length);
-  return code && text.startsWith(code) && (!remainder || /^\\s/u.test(remainder)) ? remainder.trimStart() : text;
-}
+const visibleVerdictNote = (${visibleVerdictNote.toString()});
+const verdictRenderer = (${verdictRenderer.toString()});
 // The latest verdict is a reject and no accept followed: open again, being reworked, resubmitted, or
 // withdrawn after it.
 const rejected = (i) => i.status !== 'verified' && !!i.verdict && i.verdict.decision === 'REJECT';
@@ -323,7 +333,7 @@ function shoutAgentName(id) {
   return '<span class="agent-label' + (prefix ? ' prefix' : '') + '" title="' + esc(name) + '" role="group" aria-label="' + esc(name) + '">' + (prefix ? label + address : address + label) + '</span>';
 }
 /** Render a review note with escaped text and references bound to the selected board. */
-const verdictHtml = (v, titles) => '<div class="verdict ' + (v.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(v.decision) + ' ' + esc(v.reason) + '</b><span class="by">' + esc(agentName(v.by)) + ' · ' + when(v.at) + ' · at ' + esc(String(v.commit || '').slice(0, 12)) + '</span><div class="note">' + inline(visibleVerdictNote(v.reason, v.note), titles) + '</div></div>';
+const verdictHtml = (v, titles) => verdictRenderer({ verdict: v, agentLabel: agentName(v.by), timeLabel: when(v.at), noteHtml: inline(visibleVerdictNote(v.reason, v.note), titles) });
 const homeRules = (${homeRules.toString()});
 const homeCapacity = (${homeCapacity.toString()});
 const roadmapSummary = (${roadmapSummary.toString()}), roadmapHeaders = (${roadmapHeaders.toString()});
@@ -418,7 +428,7 @@ function highlightCodeLine(line, path, state = {}) {
 }
 // A shout or thread fact's path:lines@commit reference: keep only the reference in this button until
 // the person opens it. The text before a shout ref is retained so ambiguous paths can be refused.
-const codeRef = (ref, before, block = false) => {
+const codeRef = (ref, before, block = false, hashLength = 10) => {
   const c = view.code[view.root + '\\n' + before + '\\n' + ref];
   const open = Boolean(c && c.open);
   const shownLines = c?.all ? c.allLines : c?.lines, carry = {};
@@ -428,9 +438,9 @@ const codeRef = (ref, before, block = false) => {
       + (c.all ? '<button class="code-control" data-code-less="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' type="button">show less</button>' : '')
       + '</div>';
   // Its label is one piece: the path, cut short first where the line is narrow, then the lines and the commit's first
-  // ten characters; the whole reference is on hover.
+  // ten characters by default; the timeline explicitly requests twelve. The whole reference is on hover.
   const colon = ref.indexOf(':'), at = ref.lastIndexOf('@');
-  const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at)) + '<span class="ref-sha">' + esc(ref.slice(at, at + 11)) + '</span></span>';
+  const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at)) + '<span class="ref-sha">' + esc(ref.slice(at, at + 1 + hashLength)) + '</span></span>';
   const button = (asBlock) => '<button class="ref' + (asBlock ? ' block' : '') + '" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' title="' + esc(ref) + '" aria-label="Open code reference ' + esc(ref) + '" type="button" aria-expanded="' + open + '">' + label + '</button>';
   // A reference on a line of its own is a block, collapsed until asked: a caret, the path and lines, the short commit.
   // One inside a sentence keeps its label, so the prose reads on, and opens that same block below it.
@@ -448,11 +458,8 @@ const tone = (s) => s === 'approved' ? 'ok' : s === 'pending' ? 'no' : s === 'dr
 const ruleSource = (row) => row.standardVersion != null ? 'Pullboard v' + row.standardVersion + (row.overrides ? row.status === 'wont' ? ', declined here' : ', overridden here' : '') : 'this repo';
 /** Keep the full source label available when a narrow row clips it. */
 const ruleSourceTitle = (row) => ruleSource(row);
-/** Render the two-line record shared by Items, Spec and Doctrine, with one grid and type hierarchy. */
-function recordRow({ tag = 'li', classes = '', attributes, title, state, primary, secondary, rightTop = '', rightBottom = '' }) {
-  return sharedRowHtml({ variant: 'record', tag, className: classes, attributesHtml: attributes, title, state,
-    primaryHtml: primary, metaHtml: secondary, timeHtml: rightTop, chipHtml: rightBottom });
-}
+// The same data-in, HTML-out renderer runs here and in the pure view tests.
+const recordRow = (${recordRowHtml.toString()});
 const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
 // What needs the person in a project, as its Needs-you list counts it: only the person's calls (B26),
 // the decisions passed up to them, spec rows waiting for them, and held lanes, which only the main
@@ -471,6 +478,8 @@ const FLOW = ${JSON.stringify(lifecycle()).replaceAll('<', '\\u003c')};
 // These standalone native helpers retain one matcher in live timelines and snapshot replay.
 const lifecycleEvent = (${lifecycleEvent.toString()});
 const lifecycleMove = (${lifecycleMove.toString()});
+const renderTimelineHtml = (${renderTimelineHtml.toString()});
+const timelineBodyHtml = (${timelineBodyHtml.toString()});
 
 /**
  * An item's history replayed through the lifecycle: each event with the state it found the item in
@@ -479,70 +488,27 @@ const lifecycleMove = (${lifecycleMove.toString()});
  * stands, or an item that reads otherwise than where its history leaves it, means the clock moved
  * first, and the replay puts that lapse in, with no time of its own.
  */
-function replay(item) {
-  const clock = FLOW.moves.filter((m) => m.by.includes('clock'));
-  const steps = [];
-  let at = FLOW.initial;
-  const step = (move, e) => {
-    steps.push({ from: at, move, at: e ? e.at : null, by: e ? e.by : 'the clock', kind: e ? e.kind : move.verb });
-    if (move) at = move.to;
-  };
-  for (const e of item.history) {
-    // The native matcher distinguishes retained refreezes, renewals and state-specific aliases.
-    const fits = s => lifecycleMove(FLOW, s, e);
-    const lapse = fits(at) ? null : clock.find((m) => m.from.includes(at) && fits(m.to));
-    if (lapse) step(lapse, null);
-    step(fits(at) || null, e);
-  }
-  const lapse = at === item.status ? null : clock.find((m) => m.from.includes(at) && m.to === item.status);
-  if (lapse) step(lapse, null);
-  return steps;
-}
-
-/** A recorded merge, rather than an accept, is the end of the shipping pipeline. */
-function pipelineStage(item) {
-  if (item.stage !== undefined) return item.stage;
-  if (item.merged) return 'merged';
-  return item.status === 'verified' ? 'accepted' : item.status;
-}
-
-/** The last arrival in this stage; edits, review reservations and renewals do not restart its age. */
-function pipelineSince(item) {
-  if (item.since !== undefined) return item.since;
-  if (item.merged) return item.history.findLast((event) => event.kind === 'merged')?.at || item.updatedAt;
-  const arrival = replay(item).findLast((step) => step.move && step.from !== step.move.to);
-  // Lapses are inferred, but the native claim receipt records the deadline that caused them.
-  if (arrival?.move?.verb === 'lapse') {
-    const claim = item.thread?.findLast((entry) => entry.type === 'move' && ['claim', 'renew'].includes(entry.kind));
-    if (claim?.detail?.leaseUntil) return claim.detail.leaseUntil;
-  }
-  return arrival ? arrival.at || item.updatedAt : item.history.find((event) => event.kind === 'add')?.at || item.updatedAt;
-}
-
-/** Add the list and pipeline fields omitted from full snapshots, while leaving API summaries intact. */
-function listFields(item, fresh = false) {
-  if (!fresh && item.stage !== undefined) return item;
-  const claim = item.status === 'claimed' && item.owner ? { by: item.owner, until: null }
-    : item.status === 'submitted' && item.reviewer ? { by: item.reviewer, until: item.reviewUntil ?? null } : null;
-  return { ...item, stage: pipelineStage(item), since: pipelineSince(item), claim,
-    counts: { verdicts: item.verdicts.length, facts: (item.thread || []).filter((entry) => entry.type === 'fact').length } };
-}
+const replayItem = (${replayItem.toString()});
+const pipelineStage = (${pipelineStage.toString()});
+const pipelineSince = (${pipelineSince.toString()});
+const itemListFields = (${itemListFields.toString()});
+/** Bind the current lifecycle declaration at the page adapter boundary. */
+function replay(item) { return replayItem(item, FLOW, lifecycleMove); }
+/** Keep summary payloads and full snapshot projections on the same pure list path. */
+function listFields(item, fresh = false) { return itemListFields(item, FLOW, { fresh, match: lifecycleMove }); }
 
 /** Resolve a builder from the full item's owner or the live claim in an API summary. */
 const holderOf = (item) => item.status === 'claimed' ? item.claim?.by ?? item.owner ?? null : null;
 /** Resolve a reviewer from the full item or the live claim in an API summary. */
 const reviewerOf = (item) => item.status === 'submitted' ? item.claim?.by ?? item.reviewer ?? null : null;
 
-/** Render the same board's items in lifecycle order, retaining every item as a detail link. */
+const pipelineHtml = (${pipelineHtml.toString()});
+/** Resolve live navigation and clock presentation before calling the pure renderer. */
 function pipelineCard(items) {
-  const stages = [['open', 'Not started'], ['claimed', 'Building'], ['submitted', 'Waiting for review'], ['accepted', 'Accepted, waiting to merge'], ['merged', 'Merged']];
-  return stages.map(([stage, label]) => {
-    const rows = items.map((item) => listFields(item)).filter((item) => item.stage === stage).sort((a, b) => a.since.localeCompare(b.since) || a.id - b.id);
-    const oldest = rows[0];
-    return '<li class="card-panel pipeline-stage" data-pipeline-stage="' + stage + '"><header><h2>' + label + '</h2><b data-stage-count="' + stage + '">' + rows.length + '</b></header>'
-      + (oldest ? '<p class="pipeline-oldest">Oldest <a class="ref" href="' + esc(itemAddress(oldest.id)) + '" data-go="item:' + oldest.id + '">#' + oldest.id + '</a> · ' + age(oldest.since) + ' in this stage</p>' : '<p class="pipeline-oldest">No items</p>')
-      + '<ul>' + rows.map((item) => '<li><button class="pipeline-item' + (view.item === item.id ? ' on' : '') + '" type="button" data-item="' + item.id + '"><span>#' + item.id + '</span><span>' + esc(item.title) + '</span></button></li>').join('') + '</ul></li>';
-  }).join('');
+  return pipelineHtml(items.map(item => {
+    const fields = listFields(item);
+    return { ...fields, href: itemAddress(item.id), ageHtml: age(fields.since) };
+  }), { selectedId: view.item });
 }
 
 /** How often each move was made on this board, keyed from>to:verb, from every item's replay. */
@@ -571,50 +537,34 @@ const span = (ms) => {
  * ends or begins at one says its length was not logged rather than guess it.
  */
 function timeline(item) {
-  const entries = Array.isArray(item.thread) && item.thread.length
+  const fromThread = Array.isArray(item.thread) && item.thread.length > 0;
+  const entries = fromThread
     ? item.thread
     : item.history.filter((entry) => entry.kind !== 'fact').map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry }));
-  const steps = replay({ ...item, history: entries.filter((entry) => entry.type === 'move').map(({ kind, by, at }) => ({ kind, by, at })) });
-  const facts = entries.filter((entry) => entry.type === 'fact');
-  const replacements = new Map(facts.filter((fact) => fact.supersedes).map((fact) => [fact.supersedes, fact]));
-  const rows = [];
-  let stepIndex = 0;
-  /** Render a lifecycle step, keeping inferred clock lapses between recorded moves. */
-  const moveRow = (s, event, index) => {
-    const enters = s.move ? s.move.to : s.kind === 'add' ? FLOW.initial : null;
-    const state = enters || s.from;
-    const final = FLOW.states.some((f) => f.id === state && f.final);
-    const next = steps.slice(index + 1).find((n) => n.move);
-    const named = s.kind === 'reject' ? 'sent back' : state;
-    const stay = !enters || (final && !next) ? ''
-      : !s.at ? esc(named + (next ? ' after the ' : ' so far since the ') + s.kind + ', length not logged')
-      : !next ? esc(named) + ' for ' + age(s.at) + ' so far'
-      : !next.at ? esc(named + ' until the ' + next.kind + ', length not logged')
-      : esc(named + ' for ' + span(Date.parse(next.at) - Date.parse(s.at)));
-    rows.push('<li class="tl-' + esc(state) + (s.kind === 'reject' ? ' tl-back' : '') + (enters ? '' : ' tl-quiet') + '"' + (event ? ' data-event-id="' + event.eventId + '"' : '') + '><time>' + (s.at ? when(s.at) : '') + '</time><span><b>' + esc(s.kind) + '</b> ' + esc(agentName(s.by)) + '</span>' + (stay ? '<small>' + stay + '</small>' : '') + '</li>');
+  // Native thread moves keep their event detail nested; project it through the shared lifecycle adapter
+  // before replay so retained refreezes and other declared event facts match the API history projection.
+  const replayEntries = entries.map((entry) => entry.type === 'move' && fromThread
+    ? { ...entry, ...lifecycleEvent({ event_kind: entry.kind, event_by: entry.by, event_at: entry.at,
+      event_detail: JSON.stringify(entry.detail ?? {}) }) }
+    : entry);
+  const moves = replayEntries.filter((entry) => entry.type === 'move');
+  const steps = replay({ ...item, history: moves });
+  /** Resolve model metadata from this board without appending it to the seat address. */
+  const modelFor = by => {
+    const agent = data?.project?.agents?.find(row => row.agent_id === by);
+    const model = agent?.model || agent?.agent_model;
+    return model && String(model).toLowerCase() !== 'unknown' ? model : '';
   };
-  /** Render one API fact with its identity, replacement and committed code binding. */
-  const factRow = (fact) => {
-    const replacement = replacements.get(fact.id);
-    const judgement = ['decision', 'rejection', 'supersession', 'root-cause'].includes(fact.kind);
-    rows.push('<li id="fact-' + esc(fact.id) + '" class="tl-fact' + (judgement ? ' tl-judgement' : '') + (replacement ? ' tl-superseded' : '') + '" data-event-id="' + fact.eventId + '"><time>' + when(fact.at) + '</time><span class="tl-fact-head"><span class="chip">' + esc(fact.kind) + '</span> <b>' + esc(agentName(fact.by)) + '</b></span><span class="tl-body">' + esc(fact.text) + '</span><small>' + age(fact.at) + (replacement ? ' · <a class="thread-replacement" href="#fact-' + esc(replacement.id) + '">replaced by ' + esc(replacement.kind) + '</a>' : '') + '</small>' + (fact.ref ? '<div class="tl-code">' + codeRef(factCodeRef(fact.ref), '') + '</div>' : '') + '</li>');
-  };
-  for (const entry of entries) {
-    if (entry.type === 'fact') { factRow(entry); continue; }
-    while (stepIndex < steps.length && !(steps[stepIndex].kind === entry.kind && steps[stepIndex].by === entry.by && steps[stepIndex].at === entry.at)) {
-      moveRow(steps[stepIndex], null, stepIndex);
-      stepIndex += 1;
-    }
-    if (stepIndex < steps.length) {
-      moveRow(steps[stepIndex], entry, stepIndex);
-      stepIndex += 1;
-    }
-  }
-  while (stepIndex < steps.length) {
-    moveRow(steps[stepIndex], null, stepIndex);
-    stepIndex += 1;
-  }
-  return '<ol class="tl">' + rows.join('') + '</ol>';
+  const presentedEntries = replayEntries.map((entry) => entry.type === 'fact'
+    ? { ...entry, timeLabel: when(entry.at), ageHtml: age(entry.at), model: modelFor(entry.by),
+      bodyHtml: timelineBodyHtml(entry.text, { itemHref: itemAddress, codeLink: ref => codeRef(ref, '', false, 12), timeLabel: when, commit: item.commit || item.head || '',
+        refusalTitles: { ONE_CLAIM: 'An agent can hold only one building claim at a time.' } }),
+      hasCodeRef: Boolean(entry.ref), codeHtml: entry.ref ? codeRef(factCodeRef(entry.ref), '', false, 12) : '' }
+    : entry);
+  const presentedSteps = steps.map((step) => ({ ...step, timeLabel: step.at ? when(step.at) : '',
+    ageHtml: step.at ? age(step.at) : '', model: modelFor(step.by) }));
+  return renderTimelineHtml({ entries: presentedEntries, steps: presentedSteps, flow: FLOW,
+    open: view.timelineOpen?.get(JSON.stringify([view.root, item.id])) || [] });
 }
 
 /**
@@ -629,197 +579,11 @@ function timeline(item) {
  * count the items there now; labels count the moves made along each route, or name its moves when
  * none was. Words are wrapped and placed by a generous estimate of their width, so none overlaps.
  */
+const lifecycleDiagramHtml = (${lifecycleDiagramHtml.toString()});
+/** Select the actual board counts before drawing the pure declaration diagram. */
 function flowSvg(p) {
-  // Summary states include board-wide tallies, so the lifecycle drawing needs no per-item histories.
   const counts = p.moveCounts ? new Map(Object.entries(p.moveCounts)) : moveCounts(p.items);
-  const finals = FLOW.states.filter((s) => s.final).map((s) => s.id);
-  const leads = (s) => FLOW.moves.filter((m) => m.from.includes(s) && m.to !== s).map((m) => m.to);
-  let row = [];
-  const walk = (trail) => {
-    const at = trail[trail.length - 1];
-    if (finals.includes(at)) {
-      if (trail.length > row.length || (trail.length === row.length && finals.indexOf(at) < finals.indexOf(row[row.length - 1]))) row = trail;
-      return;
-    }
-    for (const next of new Set(leads(at))) if (!trail.includes(next)) walk([...trail, next]);
-  };
-  walk([FLOW.initial]);
-  const W = 880, L = 20, BW = 160, step = (W - 2 * L - BW) / Math.max(row.length - 1, 1);
-  const f = (v) => String(Math.round(v * 10) / 10);
-  const col = (s) => row.indexOf(s);
-  const pairs = [];
-  for (const m of FLOW.moves) for (const from of m.from) {
-    let pair = pairs.find((e) => e.from === from && e.to === m.to);
-    if (!pair) pairs.push((pair = { from, to: m.to, moves: [] }));
-    pair.moves.push(m);
-  }
-  const made = (pair, m) => counts.get(pair.from + '>' + pair.to + ':' + m.verb) || 0;
-  const says = (pair) => pair.moves.map((m) => m.verb + ', ' + pair.from + ' to ' + pair.to + ', by the ' + m.by.join(' or ') + ': ' + m.how + '. Made ' + count(made(pair, m), 'time', 'times') + (m.checks.length ? '.\\nChecks, in order:\\n' + m.checks.map((c) => '  ' + c).join('\\n') : '.')).join('\\n\\n');
-  // What some pairs' moves come to: each verb with how often it was made, or every verb when none was.
-  const told = (list) => {
-    const sums = new Map();
-    for (const pair of list) for (const m of pair.moves) sums.set(m.verb, (sums.get(m.verb) || 0) + made(pair, m));
-    const done = [...sums].filter(([, n]) => n);
-    return { words: done.length ? done.map(([verb, n]) => verb + ' ' + n) : [...sums.keys()], idle: !done.length };
-  };
-  // A generous width for words at a size, and words joined by dots into the fewest even lines that
-  // fit a room, as the README's figure splits them.
-  const wide = (words, size) => words.length * size * 0.56;
-  const wrap = (words, room, size) => {
-    for (let n = 1; ; n += 1) {
-      const per = Math.ceil(words.length / n), lines = [];
-      for (let i = 0; i < words.length; i += per) lines.push(words.slice(i, i + per).join(' · '));
-      if (per === 1 || lines.every((line) => wide(line, size) <= room)) return lines;
-    }
-  };
-  const text = (x, y, words, cls, anchor = 'middle') => '<text class="' + cls + '" x="' + f(x) + '" y="' + f(y) + '" text-anchor="' + anchor + '">' + esc(words) + '</text>';
-  const lines = (x, y, said, cls, anchor) => said.map((line, i) => text(x, y - 15 * (said.length - 1 - i), line, cls, anchor)).join('');
-  const path = (points) => 'M' + points.map(([x, y]) => f(x) + ' ' + f(y)).join('L');
-
-  // Inside each box: its name and count, then the moves that keep it, then any items sent back.
-  const back = p.items.filter((i) => stateOf(i) === 'back').length;
-  const inside = new Map(FLOW.states.map((s) => {
-    const keeps = pairs.find((pair) => pair.from === s.id && pair.to === s.id);
-    const said = keeps ? told([keeps]) : null;
-    // A wrapped line opens with the dot it was split at, so the moves still read as one list (#954).
-    const kept = said ? wrap(said.words, BW - 28 - wide('↻ ', 11), 11).map((line, i) => (i ? '· ' : '↻ ') + line) : [];
-    return [s.id, { keeps, said, kept, back: s.id === FLOW.initial && back ? back + ' sent back' : '' }];
-  }));
-  const BH = 44 + 15 * Math.max(1, ...[...inside.values()].map((box) => box.kept.length + (box.back ? 1 : 0)));
-
-  // Routes back along the row, each at a level by how far back it goes; their words above them.
-  const ups = pairs.filter((pair) => col(pair.to) >= 0 && col(pair.from) > col(pair.to))
-    .map((pair) => ({ pair, span: Math.abs(col(pair.from) - col(pair.to)) })).sort((a, b) => a.span - b.span);
-  const spans = [...new Set(ups.map((up) => up.span))];
-  for (const up of ups) {
-    up.level = spans.indexOf(up.span);
-    const a = L + BW / 2 + col(up.pair.from) * step, b = L + BW / 2 + col(up.pair.to) * step;
-    const before = (key, value) => ups.filter((other) => other !== up && other.pair[key] === value && other.span < up.span).length;
-    up.start = a + (a > b ? 16 : -16) + (a > b ? 26 : -26) * before('from', up.pair.from);
-    up.end = b + (a > b ? BW / 2 - 40 : 40 - BW / 2) + (a > b ? -30 : 30) * before('to', up.pair.to);
-    up.said = told([up.pair]);
-    up.lines = wrap(up.said.words, Math.abs(up.start - up.end) - 20, 12);
-  }
-  // Higher routes cross this level vertically; put its words in the widest gap between them.
-  for (const up of ups) {
-    const left = Math.min(up.start, up.end), right = Math.max(up.start, up.end);
-    const cuts = [left, ...ups.filter((other) => other.span > up.span).flatMap((other) => [other.start, other.end]).filter((x) => x > left && x < right), right].sort((a, b) => a - b);
-    const rooms = cuts.slice(1).map((end, index) => ({ left: cuts[index], right: end })).sort((a, b) => (b.right - b.left) - (a.right - a.left));
-    const room = rooms[0];
-    up.labelX = (room.left + room.right) / 2;
-    up.lines = wrap(up.said.words, room.right - room.left - 20, 12);
-  }
-  // Each level stands clear of the words of the level below it.
-  const rise = [];
-  for (const level of spans.keys()) {
-    const below = ups.filter((up) => up.level === level - 1);
-    rise[level] = level ? rise[level - 1] + 18 + 15 * Math.max(...below.map((up) => up.lines.length)) : 30;
-  }
-  const highest = ups.length ? Math.max(...ups.map((up) => rise[up.level] + 21 + 15 * (up.lines.length - 1))) : 0;
-  const top = 12 + highest, Y = top + BH / 2, bottom = top + BH;
-  const pos = new Map(row.map((s, i) => [s, { x: L + BW / 2 + i * step, y: Y }]));
-
-  // A forward shortcut gets its own lower lane. Keep its words between the vertical stems of
-  // deeper shortcuts and routes into off-row states, rather than at a fixed diagram coordinate.
-  const shortcuts = pairs.filter((pair) => col(pair.from) >= 0 && col(pair.to) > col(pair.from) + 1)
-    .map((pair) => ({ pair, span: col(pair.to) - col(pair.from),
-      start: pos.get(pair.from).x + BW / 2 - 40, end: pos.get(pair.to).x - BW / 2 + 40 }))
-    .sort((a, b) => a.span - b.span);
-  const downwardStems = pairs.filter((pair) => col(pair.from) >= 0 && col(pair.to) < 0)
-    .map((pair) => pos.get(pair.from).x);
-  shortcuts.forEach((shortcut, index) => {
-    const cuts = [shortcut.start, ...downwardStems,
-      ...shortcuts.slice(index + 1).flatMap((other) => [other.start, other.end]), shortcut.end]
-      .filter((x) => x >= shortcut.start && x <= shortcut.end).sort((a, b) => a - b);
-    const rooms = cuts.slice(1).map((right, i) => ({ left: cuts[i], right }))
-      .sort((a, b) => (b.right - b.left) - (a.right - a.left));
-    const room = rooms[0];
-    shortcut.said = told([shortcut.pair]);
-    shortcut.lines = wrap(shortcut.said.words, room.right - room.left - 20, 12);
-    shortcut.labelX = (room.left + room.right) / 2;
-    shortcut.depth = (index ? shortcuts[index - 1].depth + 24 : 30) + 15 * (shortcut.lines.length - 1);
-  });
-  const shortcutDepth = shortcuts.length ? shortcuts[shortcuts.length - 1].depth : 0;
-  // A straight incoming route labels the midpoint of this gap: its words must also sit below
-  // every shortcut, not just place the off-row boxes below them.
-  const lowerGap = Math.max(80, 2 * shortcutDepth + 32);
-
-  // A state off the row sits below the last state on it that leads there.
-  const below = FLOW.states.filter((s) => !pos.has(s.id));
-  for (const s of below) {
-    const from = row.filter((r) => leads(r).includes(s.id));
-    pos.set(s.id, { x: from.length ? pos.get(from[from.length - 1]).x : W / 2, y: bottom + lowerGap + BH / 2 });
-  }
-  const outgoing = pairs.filter((pair) => pair.from !== pair.to && below.some((state) => state.id === pair.from));
-  const H = (below.length ? bottom + lowerGap + BH : bottom + shortcutDepth) + 14 + (outgoing.length ? 44 + 40 * (outgoing.length - 1) : 0);
-
-  const group = (pairList, route, label) => pairList.map((pair, n) => '<g><title>' + esc(says(pair)) + '</title><path class="edge' + (route.back ? ' back' : '') + '" d="' + route.d + '" marker-end="url(#pb-head' + (route.back ? '-back' : '') + ')"/>' + (n === 0 ? label : '') + '</g>').join('');
-  const tone = (said, extra = '') => 'tag' + (said.idle ? ' idle' : '') + extra;
-  const routes = [];
-  // Straight along the row.
-  for (const pair of pairs.filter((pair) => col(pair.from) >= 0 && col(pair.to) === col(pair.from) + 1)) {
-    const a = pos.get(pair.from), b = pos.get(pair.to), said = told([pair]);
-    const words = said.words.join(' · ');
-    // A long label sits above the boxes when the gap cannot hold it with clearance.
-    const labelY = wide(words, 12) + 8 > b.x - a.x - BW ? top - 8 : Y - 8;
-    routes.push(group([pair], { d: path([[a.x + BW / 2, Y], [b.x - BW / 2 - 1, Y]]) }, text((a.x + b.x) / 2, labelY, words, tone(said))));
-  }
-  // Square, above the row.
-  for (const up of ups) {
-    const isBack = col(up.pair.to) < col(up.pair.from), y = top - rise[up.level];
-    routes.push(group([up.pair], { back: isBack, d: path([[up.start, top], [up.start, y], [up.end, y], [up.end, top - 1]]) }, lines(up.labelX, y - 7, up.lines, tone(up.said, isBack ? ' back' : ''))));
-  }
-  // Square, below the row, for moves that skip forward past another state.
-  for (const shortcut of shortcuts) {
-    const y = bottom + shortcut.depth;
-    routes.push(group([shortcut.pair], { d: path([[shortcut.start, bottom], [shortcut.start, y], [shortcut.end, y], [shortcut.end, bottom + 1]]) },
-      lines(shortcut.labelX, y - 7, shortcut.lines, tone(shortcut.said))));
-  }
-  // Down from the row, joining into one route per state below, labelled once on the way in.
-  for (const s of below) {
-    const t = pos.get(s.id), into = pairs.filter((pair) => pair.to === s.id && col(pair.from) >= 0);
-    const said = told(into), tTop = t.y - BH / 2;
-    // A new import-only route cannot carry the existing ordinary moves' shared label.
-    const ordinary = into.filter((pair) => pair.moves.some((move) => move.verb !== 'rehomeImport'));
-    const carriers = ordinary.length ? ordinary : into;
-    const xs = carriers.map((pair) => pos.get(pair.from).x).sort((a, b) => a - b);
-    const left = xs.filter((x) => x < t.x - 0.5), right = xs.filter((x) => x > t.x + 0.5);
-    const label = left.length
-      ? lines((left[0] + (left[1] ?? t.x - BW / 2)) / 2, t.y - 8, wrap(said.words, (left[1] ?? t.x - BW / 2) - left[0] - 20, 12), tone(said))
-      : right.length
-        ? lines((right[right.length - 1] + (right[right.length - 2] ?? t.x + BW / 2)) / 2, t.y - 8, wrap(said.words, right[right.length - 1] - (right[right.length - 2] ?? t.x + BW / 2) - 20, 12), tone(said))
-        : lines(t.x + 10, (bottom + tTop) / 2 + 4, said.words, tone(said), 'start');
-    // Keep path order intact, but bind the label to its ordinary route family before placement.
-    const order = [...into].sort((p1, p2) => Math.abs(pos.get(p2.from).x - t.x) - Math.abs(pos.get(p1.from).x - t.x));
-    const carrier = order.find((pair) => carriers.includes(pair));
-    order.forEach((pair) => {
-      const a = pos.get(pair.from);
-      const d = Math.abs(a.x - t.x) < 0.5 ? path([[a.x, bottom], [t.x, tTop - 1]]) : path([[a.x, bottom], [a.x, t.y], [a.x < t.x ? t.x - BW / 2 - 1 : t.x + BW / 2 + 1, t.y]]);
-      routes.push(group([pair], { d }, pair === carrier ? label : ''));
-    });
-  }
-  // A below-row state can move back into the row or on to another below-row state.
-  outgoing.forEach((pair, index) => {
-    const from = pos.get(pair.from), to = pos.get(pair.to);
-    const lane = bottom + lowerGap + BH + 26 + index * 40;
-    const side = to.x < from.x ? to.x + BW / 2 + 1 : to.x - BW / 2 - 1;
-    const said = told([pair]);
-    const room = Math.max(40, Math.abs(side - from.x) - 24);
-    const label = lines((from.x + side) / 2, lane - 8, wrap(said.words, room, 12), tone(said));
-    routes.push(group([pair], { d: path([[from.x, from.y + BH / 2], [from.x, lane], [side, lane], [side, to.y]]) }, label));
-  });
-
-  const boxes = FLOW.states.map((s) => {
-    const { x, y } = pos.get(s.id), box = inside.get(s.id), left = x - BW / 2, boxTop = y - BH / 2;
-    const tip = s.id + ': ' + s.means + (s.entry.length ? '.\\nEvery way in checks:\\n' + s.entry.map((r) => '  ' + r).join('\\n') : '.');
-    const keeps = box.kept.length ? '<g><title>' + esc(says(box.keeps)) + '</title>' + box.kept.map((line, i) => text(left + 14, boxTop + 47 + 15 * i, line, 'keep' + (box.said.idle ? ' idle' : ''), 'start')).join('') + '</g>' : '';
-    return '<g class="s-' + esc(s.id) + '"><title>' + esc(tip) + '</title><rect class="box" x="' + f(left) + '" y="' + f(boxTop) + '" width="' + BW + '" height="' + BH + '" rx="10"/>'
-      + (s.final ? '<rect class="box inner" x="' + f(left + 4) + '" y="' + f(boxTop + 4) + '" width="' + (BW - 8) + '" height="' + (BH - 8) + '" rx="7"/>' : '')
-      + text(left + 14, boxTop + 25, s.id, 'name', 'start') + text(x + BW / 2 - 14, boxTop + 29, String(p.items.filter((i) => i.status === s.id).length), 'n', 'end')
-      + keeps + (box.back ? text(left + 14, boxTop + 47 + 15 * box.kept.length, box.back, 'sub', 'start') : '') + '</g>';
-  });
-  const head = (id, cls) => '<marker id="' + id + '" class="' + cls + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker>';
-  return '<svg viewBox="0 0 ' + W + ' ' + f(H) + '" role="img" aria-label="The item lifecycle, with counts from this board"><defs>' + head('pb-head', '') + head('pb-head-back', 'back') + '</defs>' + routes.join('') + boxes.join('') + '</svg>';
+  return lifecycleDiagramHtml(p, FLOW, counts);
 }
 
 /** Read or move through API v1, retaining the rule and repair guidance in a refusal. */

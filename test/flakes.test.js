@@ -2,11 +2,13 @@ import { flakyProject, writeTarget, TITLE } from './flakes-fixture.js';
 import { repoInfo } from '../src/git.js';
 import { selectAffectedTests } from '../src/affected-tests.js';
 import { selectTestTreeGuards } from '../src/affected-tests.js';
+import './quarantine-core-cases.js';
 import { landingPorts } from './landing-ports-fixture.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 /** @pullboard-test-input source-tree */
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
 import { copyPackageFiles } from '../src/package-files.js';
+import { commitFixtureFiles } from './package-copy-fixture.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
@@ -188,7 +190,10 @@ test('an unsupported Node reporter stays unclassified rather than guessing a sel
 test('the pinned bundled runner selects one target and skips unrelated bodies [C7,H16]', t => {
   const box = flakyProject(t);
   const unrelated = join(box.scratch, 'bundled-unrelated-runs');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), box.root);
+  const copied = copyPackageFiles(resolve(import.meta.dirname, '..'), box.root);
+  /** Commit every copied manifest path through the fixture's real Git child and normal hooks. */
+  const git = (_repo, ...args) => box.git(...args);
+  commitFixtureFiles({ repo: box.root, git }, copied);
   writeFileSync(join(box.root, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(box.root, 'test/unrelated.test.mjs'), `import { test } from 'node:test';
 import { appendFileSync } from 'node:fs';
@@ -219,7 +224,6 @@ const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', 'test/
 process.exitCode = run.status;
 `);
   writeFileSync(join(box.root, 'test/unrelated.test.mjs'), `import { test } from 'node:test';
-import { appendFileSync } from 'node:fs';
 test('unrelated execution [C7]', () => appendFileSync(${JSON.stringify(unrelated)}, 'run\\n'));
 `);
   const file = join(box.root, 'pullboard.json');
@@ -574,7 +578,6 @@ test('a CI passing title cannot prove two files when the other rerun skips [C7,H
   const box = flakyProject(t);
   for (const suffix of ['a', 'b']) {
     writeFileSync(join(box.root, `test/ci-${suffix}.test.mjs`), `import assert from 'node:assert/strict';
-import { test } from 'node:test';
 test('the shared title [C7]', { skip: process.env.CI_DUPLICATE_MODE === 'rerun' && ${suffix === 'b'} }, () => {
   assert.equal(process.env.CI_DUPLICATE_MODE, 'rerun');
 });\n`);

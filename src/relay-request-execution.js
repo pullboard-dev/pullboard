@@ -88,7 +88,7 @@ export async function executePersonRequests(root, io, runCommand) {
       if (transportRefusal(error)) { io.err('pullboard: ' + error.message); continue; }
       const record = requests(coordinatorRoot).find(entry => entry.id === initial.id);
       if (record?.executor === executor && record.status === 'waiting') {
-        const { refusalDocument } = await import('./json.js');
+        const { refusalDocument } = await import('./next-step-words.js');
         await receipt(coordinatorRoot, record, executor, 'refuse', io, refusalDocument(error).error);
       }
     }

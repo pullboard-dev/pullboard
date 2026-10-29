@@ -6,8 +6,8 @@
  "frontDoor": "packages/verify/index.js",
  "placedBy": {
   "seed": 23,
-  "rule": 6,
-  "imports": 3
+  "rule": 7,
+  "imports": 6
  },
  "paths": [
   ["src/bar-actor.js","packages/verify/src/shell/bar-actor.js","seed"],
@@ -41,7 +41,11 @@
   ["src/verdict-reviews.js","packages/verify/src/core/verdict-reviews.js","seed"],
   ["src/verdict-trunk.js","packages/verify/src/shell/verdict-trunk.js","seed"],
   ["src/verdict-withdrawal.js","packages/verify/src/core/verdict-withdrawal.js","seed"],
-  ["test/evidence.test.js","packages/verify/tests/evidence.test.js","seed"]
+  ["test/evidence.test.js","packages/verify/tests/evidence.test.js","seed"],
+  ["src/reject-clause.js","packages/verify/src/shell/reject-clause.js","imports"],
+  ["src/review-tier.js","packages/verify/src/core/review-tier.js","rule"],
+  ["src/check-widen.js","packages/verify/src/core/check-widen.js","imports"],
+  ["src/review-reachability.js","packages/verify/src/core/review-reachability.js","imports"]
  ],
  "reexports": [
   "src/bar-actor.js",

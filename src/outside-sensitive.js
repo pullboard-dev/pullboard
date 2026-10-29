@@ -12,10 +12,45 @@ export const OUTSIDE_SENSITIVE_PATHS = Object.freeze([
   'src/hooks.js', 'src/commands/hook.js', 'src/commands/hooks.js', 'pullboard.json',
 ]);
 
+/** Cells that hold gate, landing, merge, verdict or credential code; the committed plan names them, so a move follows. */
+export const SENSITIVE_CELLS = Object.freeze(['gate', 'landing', 'merge', 'verify', 'keys', 'person']);
+
+/** Every path a sensitive cell owns: its package root, its pre-move directory and each file the plan moves for it. */
+export function planSensitivePaths(plan) {
+  const found = new Set();
+  for (const name of SENSITIVE_CELLS) {
+    const cell = plan.cells.find(row => row.name === name);
+    if (!cell) throw new Refused('SENSITIVE_CELL_MISSING', `the trusted cells plan has no ${name} cell; the outside sensitive list cannot be derived without it`);
+    if (cell.root) found.add(`${cell.root}/`);
+    found.add(`src/${cell.name}/`);
+    for (const [from, to] of cell.paths) found.add(from).add(to);
+  }
+  return [...found].sort();
+}
+
+/** The fixed trust boundaries plus the plan-derived sensitive cell paths, as the classifier reads them. */
+export function outsideSensitivePaths(plan) {
+  return Object.freeze([...OUTSIDE_SENSITIVE_PATHS, ...planSensitivePaths(plan)]);
+}
+
+/** Read the cells plan at a trusted commit, the same index and shards bin/cells-plan.js reads. A project with no plan
+ * returns null and keeps the fixed list; a plan that exists but cannot be read fails closed, never as a shorter list. */
+function planAt(root, commit) {
+  let index;
+  try { index = git(root, ['show', `${commit}:bin/cells-plan.json`], { maxBuffer: 1024 * 1024 }); } catch { return null; }
+  try {
+    const head = JSON.parse(index);
+    const cells = head.cells.map(row => JSON.parse(git(root, ['show', `${commit}:${row.file}`], { maxBuffer: 1024 * 1024 })));
+    return { ...head, cells };
+  } catch (error) {
+    throw new Refused('NO_CELLS_PLAN', `the trusted main at ${commit} has a cells plan that cannot be read; outside intake refuses to classify without the sensitive set (${error.message})`);
+  }
+}
+
 /** Read a committed text blob; unreadable, binary and invalid UTF-8 input fails closed as sensitive. */
 function textAt(root, commit, path) {
   const text = git(root, ['show', `${commit}:${path}`], { maxBuffer: 1024 * 1024 });
-  if (text.includes('\0') || text.includes('\ufffd')) throw new Error('not readable text');
+  if (text.includes('\0') || text.includes('�')) throw new Error('not readable text');
   return text;
 }
 
@@ -26,13 +61,15 @@ function declared(path, pattern) {
 
 /** Record a reason for every rule/path match; a display can explain the hold without rerunning the classifier. */
 export function outsideSensitivity(root, base, commit, paths, { mainPolicy }) {
-  const configured = mainPolicy(root).config.intake?.sensitivePaths ?? [];
+  const trusted = mainPolicy(root);
+  const configured = trusted.config.intake?.sensitivePaths ?? [];
   if (!Array.isArray(configured) || configured.some(path => typeof path !== 'string' || !path || path.startsWith('/') || path.split('/').includes('..') || /[\r\n\0]/u.test(path))) {
     throw new Refused('BAD_CONFIG', 'intake.sensitivePaths in trusted main is a list of relative exact files or trailing-slash prefixes; correct it before intake');
   }
+  const fixed = outsidePlanPaths(root, trusted.commit);
   const reasons = [];
   for (const path of paths) {
-    for (const pattern of OUTSIDE_SENSITIVE_PATHS) if (declared(path, pattern)) reasons.push({ path, rule: 'declared-sensitive-path', detail: pattern });
+    for (const pattern of fixed) if (declared(path, pattern)) reasons.push({ path, rule: 'declared-sensitive-path', detail: pattern });
     for (const pattern of configured) if (declared(path, pattern)) reasons.push({ path, rule: 'configured-sensitive-path', detail: pattern });
     if (/(^|\/)(?:\.?(?:huskyrc|lintstagedrc)(?:\..*)?|\.?lefthook(?:\..*)?|\.pre-commit-config\.(?:yaml|yml))$/iu.test(path)) reasons.push({ path, rule: 'hook-configuration', detail: 'hook tool configuration' });
     try {
@@ -55,4 +92,10 @@ export function outsideSensitivity(root, base, commit, paths, { mainPolicy }) {
     }
   }
   return reasons;
+}
+
+/** Fixed boundaries plus the plan-derived cell paths, read from the trusted main commit. */
+function outsidePlanPaths(root, commit) {
+  const plan = planAt(root, commit);
+  return plan ? outsideSensitivePaths(plan) : OUTSIDE_SENSITIVE_PATHS;
 }

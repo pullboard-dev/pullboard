@@ -11,7 +11,7 @@ import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles, toolSourcePath } from '../src/package-files.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
@@ -242,7 +242,7 @@ test('an asynchronous runner dispatch never uses a preloaded resource generation
   mkdirSync(installed);
   copyPackageFiles(join(import.meta.dirname, '..'), installed);
   const observations = join(box.dir, 'resource-generation.jsonl');
-  const resources = join(installed, 'src/resources.js');
+  const resources = toolSourcePath(installed, 'src/resources.js');
   const signature = 'export function recordRunnerGui(host, gui) {';
   const observer = `\n  observeGeneration(${JSON.stringify(observations)}, JSON.stringify({ pid: process.pid, generation: 'resource-generation-before' }) + '\\n');`;
   const original = readFileSync(resources, 'utf8');

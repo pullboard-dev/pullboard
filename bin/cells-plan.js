@@ -27,6 +27,7 @@ import { Refused } from '../src/refused.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { fileCuts } from './cells-plan-cuts.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';
+import { readMoveDataReads, staleDataReads } from './cells-data-reads.js';
 
 export const PLAN_FILE = 'bin/cells-plan.json';
 export const PLAN_DIR = 'bin/cells-plan';
@@ -86,11 +87,12 @@ export function writePlan(root, plan) {
 }
 
 /** Read the committed plan back as one object, refusing an index whose shard is missing. */
-export function readPlan(root) {
-  const index = JSON.parse(readFileSync(join(root, PLAN_FILE), 'utf8'));
+export function readPlan(root, read = file => readFileSync(join(root, file), 'utf8')) {
+  const index = JSON.parse(read(PLAN_FILE));
   const cells = index.cells.map(row => {
-    if (!existsSync(join(root, row.file))) throw new Refused('CELLS_PLAN_SHARD', `${row.file} is missing; regenerate with node bin/cells-plan.js --write`);
-    return JSON.parse(readFileSync(join(root, row.file), 'utf8'));
+    let source;
+    try { source = read(row.file); } catch { throw new Refused('CELLS_PLAN_SHARD', `${row.file} is missing; regenerate with node bin/cells-plan.js --write`); }
+    return JSON.parse(source);
   });
   return { ...index, cells };
 }
@@ -145,6 +147,8 @@ export function checkMoved(root, plan, name) {
   }
   const listed = tryGit(root, ['ls-files', '-z', '--', 'test', 'docs']);
   if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot inventory tracked fixture readers');
+  const data = readMoveDataReads(root, cell.name), matchedDataReads = [];
+  problems.push(...data.problems);
   for (const file of listed.stdout.split('\0').filter(file => /\.[cm]?js$/u.test(file))) {
     const path = join(root, file);
     let stat;
@@ -155,14 +159,16 @@ export function checkMoved(root, plan, name) {
     }
     if (!stat.isFile() || stat.isSymbolicLink()) { problems.push(`cannot prove fixture source through ${file}`); continue; }
     const source = readFileSync(path, 'utf8');
-    if (!cell.paths.some(([from]) => source.includes(from.split('/').at(-1)))) continue;
-    const uses = fixtureSourceEdits(source, { file, moves: cell.paths.map(([from, to]) => [from, to]), readSource });
+    if (!data.reads.some(row => row.file === file) && !cell.paths.some(([from]) => source.includes(from.split('/').at(-1)))) continue;
+    const uses = fixtureSourceEdits(source, { file, moves: cell.paths.map(([from, to]) => [from, to]), readSource, dataReads: data.reads, mentionsOnly: true });
+    matchedDataReads.push(...uses.matchedDataReads ?? []);
     problems.push(...uses.problems);
     for (const edit of uses.edits) {
       const line = source.slice(0, edit.start).split('\n').length;
       problems.push(`${file}:${line} still hand-copies or reads a moved source path; repoint its source operand before submitting the move`);
     }
   }
+  problems.push(...staleDataReads(data.reads, matchedDataReads));
   if (existsSync(join(root, CELL_BASELINE_DESCRIPTOR))) {
     for (const row of cellLintGrowth(cellLintReport(root, { importsIn, commonJsIn }), readCellLintBaseline(root), { enforcedOnly: true })) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
   }

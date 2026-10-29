@@ -6,8 +6,8 @@
  "frontDoor": "packages/seats/index.js",
  "placedBy": {
   "seed": 24,
-  "rule": 0,
-  "imports": 0
+  "rule": 1,
+  "imports": 1
  },
  "paths": [
   ["src/agent-hook-work.js","packages/seats/src/core/agent-hook-work.js","seed"],
@@ -33,7 +33,9 @@
   ["src/route-escalation.js","packages/seats/src/core/route-escalation.js","seed"],
   ["src/seat-address.js","packages/seats/src/core/seat-address.js","seed"],
   ["src/seat-checkout.js","packages/seats/src/shell/seat-checkout.js","seed"],
-  ["src/seats.js","packages/seats/src/shell/seats.js","seed"]
+  ["src/seats.js","packages/seats/src/shell/seats.js","seed"],
+  ["src/routing-presence.js","packages/seats/src/core/routing-presence.js","imports"],
+  ["src/seat-review-read.js","packages/seats/src/core/seat-review-read.js","rule"]
  ],
  "reexports": [
   "src/agent-hook.js",

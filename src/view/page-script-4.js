@@ -9,8 +9,8 @@ export function pageScriptPart4(scope) {
 return `function showFlow(shown) {
   keep('pb.flow', shown ? 'shown' : 'hidden');
   $('flow-panel').hidden = !shown;
-  $('flow-show').hidden = shown;
-  if (shown && data && data.project) $('flow').innerHTML = flowSvg(data.project);
+  $('flow-show').setAttribute('aria-expanded', String(shown));
+  if (shown && data && data.project) $('flow').innerHTML = lifecycleChart(data.project, data.project.moveCounts ? new Map(Object.entries(data.project.moveCounts)) : moveCounts(data.project.items), data.project.items.filter(item => stateOf(item) === 'back').length);
 }
 
 function showTab() {
@@ -842,6 +842,19 @@ document.addEventListener('click', (event) => {
     view.dashboardList = dashboardList.dataset.dashboardList; view.state = view.dashboardList === 'review' ? 'verify' : 'ready';
     view.lane = null; view.before = null; $('q').value = ''; openTab('items'); render(); return;
   }
+  const timelineMore = event.target.closest('[data-timeline-more]');
+  if (timelineMore) {
+    const key = JSON.stringify([view.root, view.item]);
+    view.timelineOpen ||= new Map();
+    const open = new Set(view.timelineOpen.get(key) || []), id = timelineMore.dataset.timelineMore;
+    if (open.has(id)) open.delete(id); else open.add(id);
+    view.timelineOpen.set(key, [...open]);
+    const expanded = open.has(id);
+    timelineMore.closest('.tl-note').classList.toggle('expanded', expanded);
+    timelineMore.setAttribute('aria-expanded', String(expanded));
+    timelineMore.textContent = expanded ? 'Show less' : 'Show all';
+    return;
+  }
   if (view.filterOpen && !event.target.closest('.filter-control')) { view.filterOpen = false; render(); }
   const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
@@ -929,7 +942,16 @@ document.addEventListener('click', (event) => {
   }
   else if (t.dataset.codeAll) showAllCode(t.dataset.codeAll, t.dataset.before || '');
   else if (t.dataset.codeLess) showLessCode(t.dataset.codeLess, t.dataset.before || '');
-  else if (t.dataset.code) code(t.dataset.code, t.dataset.before || '');
+  else if (t.dataset.code) {
+    const note = t.closest('.tl-note');
+    if (note) {
+      view.timelineOpen ||= new Map();
+      const key = JSON.stringify([view.root, view.item]), open = new Set(view.timelineOpen.get(key) || []);
+      open.add(note.querySelector('[data-timeline-more]').dataset.timelineMore);
+      view.timelineOpen.set(key, [...open]);
+    }
+    code(t.dataset.code, t.dataset.before || '');
+  }
   else if (t.dataset.release) act('release', { lane: t.dataset.release }, t);
   else if (t.dataset.shout) { answer(null); addressTo(t.dataset.shout); $('shout-text').value = '#' + t.dataset.about + ': '; openTab('shouts'); showTab(); $('shout-text').focus(); }
   else if (t.dataset.new !== undefined) { view.adding = true; render(); $('add-title').focus(); }
@@ -1010,10 +1032,9 @@ $('spec-approve-form').addEventListener('submit', (event) => {
   if (asked && asked.root === view.root) decideRow('spec', 'spec-approve', { ids: asked.ids.join(' ') });
 });
 $('answer-cancel').addEventListener('click', () => answer(null));
-$('flow-hide').addEventListener('click', () => showFlow(false));
-$('flow-show').addEventListener('click', () => showFlow(true));
-$('flow-panel').hidden = keep('pb.flow') === 'hidden';
-$('flow-show').hidden = !$('flow-panel').hidden;
+$('flow-show').addEventListener('click', () => showFlow($('flow-panel').hidden));
+$('flow-panel').hidden = keep('pb.flow') !== 'shown';
+$('flow-show').setAttribute('aria-expanded', String(!$('flow-panel').hidden));
 // Each press moves on one, from the system's theme to light, then dark, and back; this browser keeps it.
 $('side-toggle').addEventListener('click', () => {
   // A phone always shows the switcher, so there the logo is only the logo.

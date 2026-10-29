@@ -22,9 +22,10 @@ import { shownPath } from '../packages/kernel/src/core/registry-guards.js';
  * @param {{ ordered: (operation: string, args: any[]) => Promise<any>, trunkMerge: (root: string, commit: string) => { commit: string, files: string[] | null } }} deps
  * @returns {Promise<{ id: number, files: string[] }[]>}
  */
-export async function returnUnmergeable(root, board, me, { ordered, trunkMerge, listItems, itemById }) {
+export async function returnUnmergeable(root, board, me, { ordered, trunkMerge, listItems, itemById, phase }) {
   const returned = [];
   for (const item of listItems(board).filter((entry) => entry.item_status === 'submitted' && entry.item_commit)) {
+    phase?.('review merge check', item.item_id);
     let merge;
     try { merge = trunkMerge(root, effectiveItemHead(board, item) ?? item.item_commit); }
     catch (error) { if (error instanceof Refused) return returned; throw error; }
@@ -70,7 +71,7 @@ export function ownSessionReviews(info, board, digest = agentSessionDigest(), { 
  * @param {{ ordered: (operation: string, args: any[]) => Promise<any>, idArg: (value: any, what: string) => number, trunkMerge: Function, listItems: Function, itemById: Function, getItem: Function, mainRedReviewItems: Function }} deps
  */
 export async function nextReview(ctx, board, me, values, { ordered, idArg, trunkMerge, listItems, itemById, getItem, mainRedReviewItems }) {
-  for (const { id, files } of await returnUnmergeable(ctx.info.root, board, me, { ordered, trunkMerge, listItems, itemById })) {
+  for (const { id, files } of await returnUnmergeable(ctx.info.root, board, me, { ordered, trunkMerge, listItems, itemById, phase: ctx.io.nextPhase })) {
     // Stderr in every mode, so a --json caller still sees why the queue shrank.
     const line = `returned #${id} to its builder unreviewed: it no longer merges onto the trunk (${files.map(shownPath).join(', ')})`;
     if (ctx.io.stderr) ctx.io.stderr.write(line + '\n'); else ctx.io.err?.(line);
@@ -80,8 +81,9 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
     const id = idArg(values.verifyId, 'an item id after --verify');
     const item = getItem(board, id);
     refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard' });
+    ctx.io.nextPhase?.('review reservation', id);
     return { item: await ordered('reserveReview', [id, reservation]), reasons: [] };
   }
   return await ordered('reserveNextReview', [{ agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy,
-    familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes, skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems }), priority: mainRedReviewItems(ctx.info.root, board) }]);
+    familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes, observeIdle: values.observeIdle, skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems }), priority: mainRedReviewItems(ctx.info.root, board) }]);
 }

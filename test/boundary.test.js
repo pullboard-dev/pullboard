@@ -5,9 +5,11 @@
  * the tools that run models, however useful they are. Agent tools are another matter: helping
  * Claude Code, Codex and others read the repo's rules (AGENTS.md, skills) is the core's job.
  */
+import { cockpitPage } from '../src/cockpit.js';
 import assert from 'node:assert/strict';
+import { workingSourceInventory } from '../bin/checks/scan.js';
 import { spawnSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -21,12 +23,10 @@ const SECRET_LABELS = /\['(Anthropic|OpenAI) key',/;
  * Every source file of the core, with its lines.
  */
 function sources() {
-  return ['src', 'bin'].flatMap((dir) =>
-    readdirSync(join(ROOT, dir)).filter((name) => name.endsWith('.js')).map((name) => ({
-      file: `${dir}/${name}`,
-      lines: readFileSync(join(ROOT, dir, name), 'utf8').split('\n'),
-    })),
-  );
+  return workingSourceInventory(ROOT, ['src', 'bin']).map(({ file, body }) => ({
+    file,
+    lines: body.toString('utf8').split('\n'),
+  }));
 }
 
 test('the core names no model, engine or vendor; secret patterns may name the keys they catch [P5]', () => {
@@ -47,13 +47,13 @@ test('only explicit relay commands open outbound connections; the view defaults 
     (file === 'src/local-fetch.js' && line.trim() === "import { request as httpRequest } from 'node:http';") ||
     (file === 'src/serve.js' && line.trim() === "const reply = await fetch(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });") ||
     (file === 'src/view-session.js' && line.trim() === "const response = await fetch(`http://${LOOPBACK}:${view.port}/api/v1/boards?k=${encodeURIComponent(view.secret)}`, {") ||
-    (file === 'src/cockpit.js' && /^\s*const res = await fetch\(path, /.test(line)) ||
+    (file === 'src/view/cockpit-live.js' && /^\s*const res = await fetch\(path, /.test(line)) ||
     (file === 'src/cockpit.js' && line.trim() === "try { reply = await fetch(base + '/local/protocol', { signal: AbortSignal.timeout(3000), credentials: 'omit', redirect: 'error' }); }");
   const found = sources().flatMap(({ file, lines }) =>
     lines.flatMap((line, index) => (NETWORK.test(line) && !allowed(file, line) ? [`${file}:${index + 1}: ${line.trim()}`] : [])),
   );
   assert.deepEqual(found, []);
-  const cockpitSource = readFileSync(join(ROOT, 'src', 'cockpit.js'), 'utf8');
+  const cockpitSource = cockpitPage();
   const discoveryLines = cockpitSource.split('\n').filter((line) => /\bfetch\s*\(/u.test(line) && /\/local\/protocol\b/u.test(line));
   if (discoveryLines.length) {
     assert.equal(discoveryLines.length, 1, 'the cockpit makes only one local discovery request');

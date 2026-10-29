@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { IN_STATE, MACHINE, effectiveGuards } from '../../src/machine.js';
 import { cockpitPage } from '../../src/cockpit.js';
-import { machine, project, build, sendBack, fetchLive, startView, styleOf, element, storage, openPage, timelineRows, agentEntries, drawing, textBoxes, meet, accept, itemRow, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
+import { machine, project, build, sendBack, fetchLive, startView, styleOf, element, storage, openPage, timelineRows, agentEntries, drawing, textBoxes, meet, accept, itemRow, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 
 const verifiedIsFinal = Boolean(MACHINE.states.find((state) => state.id === 'verified').final);
 
@@ -37,9 +37,9 @@ test('the timeline times a verified item that goes back to open [N26, M1]', asyn
     })()`));
     const [finalRows, nonFinalRows] = rendered.map(timelineRows);
     for (const rows of [finalRows, nonFinalRows]) {
-      assert.equal(rows.find((row) => row.event.startsWith('accept ')).stay, 'verified for 2m');
-      assert.equal(rows.find((row) => row.event.startsWith('merged ')).stay, '', 'a quiet event does not end the verified stay');
-      assert.equal(rows.find((row) => row.event.startsWith('reopen ')).dot, 'tl-open');
+      assert.equal(rows.find((row) => row.event === 'coordinator passed it').stay, 'verified for 2m');
+      assert.equal(rows.find((row) => row.event === 'coordinator landed it').stay, '', 'a quiet event does not end the verified stay');
+      assert.equal(rows.find((row) => row.event === 'coordinator sent it back').dot, 'tl-open');
     }
   } finally {
     await view.stop();
@@ -133,16 +133,16 @@ test("the history is a timeline of the item's states [N26]", async () => {
     await page.click({ go: 'item:1' });
     const done = timelineRows(page.show('detail'));
     assert.deepEqual(done.map((row) => [row.dot, row.event]), [
-      ['tl-open', 'add coordinator (unknown)'],
-      ['tl-claimed', 'claim web-1 (Test Model)'],
-      ['tl-claimed tl-quiet', 'proof-run web-1 (Test Model)'],
-      ['tl-submitted', 'submit web-1 (Test Model)'],
-      ['tl-open tl-back', 'reject coordinator (unknown)'],
-      ['tl-claimed', 'claim web-1 (Test Model)'],
-      ['tl-claimed tl-quiet', 'proof-run web-1 (Test Model)'],
-      ['tl-submitted', 'submit web-1 (Test Model)'],
-      ['tl-verified', 'accept coordinator (unknown)'],
-      ['tl-verified tl-quiet', 'merged coordinator (unknown)'],
+      ['tl-open', 'coordinator added this work'],
+      ['tl-claimed', 'web-1 claimed it'],
+      ['tl-claimed tl-quiet', 'web-1 ran the proof'],
+      ['tl-submitted', 'web-1 submitted it for review'],
+      ['tl-open tl-back', 'coordinator sent it back'],
+      ['tl-claimed', 'web-1 claimed it'],
+      ['tl-claimed tl-quiet', 'web-1 ran the proof'],
+      ['tl-submitted', 'web-1 submitted it for review'],
+      ['tl-verified', 'coordinator passed it'],
+      ['tl-verified tl-quiet', 'coordinator landed it'],
     ], 'a dot per event in the colour of the state it led to; a merge moves nothing');
     assert.deepEqual(done.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', 'claimed for', '', 'submitted for', 'sent back for', 'claimed for', '', 'submitted for', verifiedIsFinal ? '' : 'verified for', ''], 'each stay until the next move; a final state has none and quiet proof receipts and merge stay untimed');
     assert.ok(done.filter(row => !row.dot.includes('tl-quiet')).slice(0, 6).every((row) => / for (under a minute|\d+m)$/.test(row.stay)), done.map((row) => row.stay).join(', '));
@@ -159,10 +159,10 @@ test("the history is a timeline of the item's states [N26]", async () => {
     const item = { status: 'claimed', history: [{ kind: 'add', by: 'web-1', at: at(0) }, { kind: 'claim', by: 'web-1', at: at(5) }, { kind: 'claim', by: 'web-2', at: at(200) }] };
     const lapsed = timelineRows(page.run(`timeline(${JSON.stringify(item)})`));
     assert.deepEqual(lapsed.map((row) => [row.dot, row.event, row.time === '']), [
-      ['tl-open', 'add web-1 (Test Model)', false],
-      ['tl-claimed', 'claim web-1 (Test Model)', false],
-      ['tl-open', 'lapse the clock', true],
-      ['tl-claimed', 'claim web-2', false],
+      ['tl-open', 'web-1 added this work', false],
+      ['tl-claimed', 'web-1 claimed it', false],
+      ['tl-open', 'the clock released an expired lease', true],
+      ['tl-claimed', 'web-2 claimed it', false],
     ]);
     assert.deepEqual(lapsed.map((row) => row.stay.replace(/ for .*/, ' for')), [
       'open for',
@@ -175,9 +175,9 @@ test("the history is a timeline of the item's states [N26]", async () => {
     // A lease that ran out with nothing after it: the item reads open, and has been since the lapse.
     const idle = { status: 'open', history: [{ kind: 'add', by: 'web-1', at: at(0) }, { kind: 'claim', by: 'web-1', at: at(5) }] };
     assert.deepEqual(timelineRows(page.run(`timeline(${JSON.stringify(idle)})`)).map((row) => [row.event, row.stay]), [
-      ['add web-1 (Test Model)', 'open for 5m'],
-      ['claim web-1 (Test Model)', 'claimed until the lapse, length not logged'],
-      ['lapse the clock', 'open so far since the lapse, length not logged'],
+      ['web-1 added this work', 'open for 5m'],
+      ['web-1 claimed it', 'claimed until the lapse, length not logged'],
+      ['the clock released an expired lease', 'open so far since the lapse, length not logged'],
     ]);
   } finally {
     await view.stop();
@@ -208,7 +208,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
     assert.doesNotMatch(page.html, /id="metrics"/, 'the drawing replaces the metric cards');
     assert.ok(!page.html.includes('pullboard claim <id>'), 'the declaration is embedded with < escaped');
     await page.click({ tab: 'activity' });
-    const svg = page.show('flow');
+    const svg = page.run('flowSvg(data.project)');
     const { boxes, routes, sentBack } = drawing(svg);
 
     const esc = (text) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
@@ -328,13 +328,15 @@ test('a closed lifecycle stays closed, across a reload and a restart of the view
     port = first.link.port;
     const page = await openPage(first, { store });
     await page.click({ tab: 'activity' });
-    assert.match(page.show('flow'), /^<svg /, 'the figure shows at first');
-    assert.deepEqual([page.element('flow-panel').hidden, page.element('flow-show').hidden], [false, true]);
-    await page.fire('flow-hide', 'click');
-    assert.deepEqual([page.element('flow-panel').hidden, page.element('flow-show').hidden], [true, false], 'closed, with a way to show it again');
+    assert.equal(page.element('flow-panel').hidden, true, 'Activity starts with its feed');
+    assert.equal(page.element('flow').writes, 0, 'the default-hidden chart is not rendered');
+    await page.fire('flow-show', 'click');
+    assert.equal(page.element('flow-panel').hidden, false, 'the ghost button opens the chart');
+    await page.fire('flow-show', 'click');
+    assert.equal(page.element('flow-panel').hidden, true, 'the same ghost button closes it');
 
     const reloaded = await openPage(first, { store });
-    assert.deepEqual([reloaded.element('flow-panel').hidden, reloaded.element('flow-show').hidden], [true, false], 'a reload keeps it closed');
+    assert.equal(reloaded.element('flow-panel').hidden, true, 'a reload keeps it closed');
     assert.equal(reloaded.element('flow').writes, 0, 'and a closed figure is not drawn');
   } finally {
     await first.stop();
@@ -346,7 +348,7 @@ test('a closed lifecycle stays closed, across a reload and a restart of the view
     const page = await openPage(second, { store });
     assert.equal(page.element('flow-panel').hidden, true, 'still closed');
     await page.fire('flow-show', 'click');
-    assert.deepEqual([page.element('flow-panel').hidden, page.element('flow-show').hidden], [false, true], 'shown again on request');
+    assert.equal(page.element('flow-panel').hidden, false, 'shown again on request');
     assert.match(page.show('flow'), /^<svg /, 'and drawn');
     assert.equal(store.getItem('pb.flow'), 'shown');
   } finally {
@@ -477,21 +479,24 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
     await chrome.waitFor("typeof data === 'object' && !!data && !!data.project");
     await chrome.click('document.querySelector(\'[data-tab="activity"]\')');
     await chrome.waitFor(`[...document.querySelectorAll('#activity .activity-say')].some(row => row.textContent.includes('Yes, ship it once'))`);
+    await press(chrome, "document.querySelector('#flow-show')");
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       // Measure only laid-out previews: on Activity, at this width, each preview with a box of its own.
       const laidOut = `innerWidth === ${width} && !document.querySelector('[data-pane="activity"]').hidden && [...document.querySelectorAll('#activity .activity-quote')].every((said) => said.getBoundingClientRect().height > 0)`;
       await chrome.waitFor(laidOut).catch(async (error) => { throw new Error(`${error.message}; showing ${await chrome.stable("[...document.querySelectorAll('[data-pane]')].filter((pane) => !pane.hidden).map((pane) => pane.dataset.pane).join()")}`); });
-      await chrome.waitFor("[...document.querySelectorAll('#flow svg text.tag')].some(node => node.textContent === 'intake' && node.getBoundingClientRect().width > 0)");
+      await chrome.waitFor("document.querySelectorAll('#flow [data-lifecycle-route] text.tag').length === 6");
       const labels = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#flow svg text.tag')].map(node => {
         const box = node.getBoundingClientRect();
         return { words: node.textContent, left: box.left, right: box.right, top: box.top, bottom: box.bottom };
       }))`));
-      const intake = labels.find(label => label.words === 'intake');
-      assert.ok(intake && intake.right > intake.left, `${width}: the intake route has a visible label`);
-      for (const other of labels.filter(label => label !== intake)) {
-        assert.ok(intake.right <= other.left || intake.left >= other.right || intake.bottom <= other.top || intake.top >= other.bottom,
-          `${width}: intake stays clear of ${other.words} in the actual browser layout`);
+      assert.equal(labels.length, 7, 'six ordinary move labels and the withdrawn total are visible');
+      for (const [index, label] of labels.entries()) {
+        assert.ok(label.right > label.left, `${width}: ${label.words} has a visible label`);
+        for (const other of labels.slice(index + 1)) {
+          assert.ok(label.right <= other.left || label.left >= other.right || label.bottom <= other.top || label.top >= other.bottom,
+            `${width}: ${label.words} stays clear of ${other.words} in the actual browser layout`);
+        }
       }
       const rows = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity .activity-say')].map(row => {
         const quote = row.querySelector('.activity-quote');

@@ -109,13 +109,13 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, timing?:boolean, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, executionServices }) {
+export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, runnerAdmission = {}, executionServices }) {
   if (!config.gate.trim()) throw missingGate(root);
   // One pinned main per submit: every phase reads this commit, so a landing mid-submit cannot split the seal (#1777).
   if (trunk !== undefined && trunk !== null && !contains(root, trunk, mainPolicy(root).commit)) {
     throw new Refused('SUBMIT_PIN_NOT_MAIN', `submit pinned main ${trunk.slice(0, 12)}, which is not an ancestor of main; run pullboard submit again so it captures main`);
   }
-  await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, executionServices });
+  await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices });
   const plan = submitGatePlan(root, config, { base, trunk, changed, check, sourceAdvance });
   const { selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
     proofFiles, fullConfig, hasFinalProof } = plan;
@@ -147,6 +147,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: lease,
     }) : { isGreen: true, output: '', seconds: 0 };
     if (check) writeFileSync(checkLog, safeLog(criterion.output), { mode: 0o600 });
+    await recordRun(onFailure, criterion);
     const receipt = { command: check, green: criterion.isGreen, seconds: criterion.seconds, checked: Boolean(check),
       ...(check ? { log: checkLog, profilePath: criterion.profilePath, profile: criterion.profile } : {}) };
     /** Persist the whole submission's wall time and queue wait once, alongside its combined raw log. */
@@ -196,6 +197,6 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       command: !deferFullFallback && selection.full ? fullConfig.gate : `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`, lease });
     await recordRun(onFailure, proof);
     return finish(proof);
-  }, { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait });
+  }, { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait, ...runnerAdmission });
 }
 

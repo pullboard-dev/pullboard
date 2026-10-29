@@ -6,12 +6,14 @@
  "frontDoor": "packages/queue/index.js",
  "placedBy": {
   "seed": 2,
-  "rule": 0,
-  "imports": 0
+  "rule": 1,
+  "imports": 1
  },
  "paths": [
   ["src/queue-order.js","packages/queue/src/shell/queue-order.js","seed"],
-  ["src/queue-settings.js","packages/queue/src/shell/queue-settings.js","seed"]
+  ["src/queue-settings.js","packages/queue/src/shell/queue-settings.js","seed"],
+  ["src/queue-readiness.js","packages/queue/src/core/queue-readiness.js","rule"],
+  ["src/routing-capacity.js","packages/queue/src/core/routing-capacity.js","imports"]
  ],
  "reexports": ["src/queue-order.js","src/queue-settings.js"],
  "imports": [

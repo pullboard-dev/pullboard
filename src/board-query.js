@@ -1,3 +1,5 @@
+import { withDerivedFamily } from './family-declaration.js';
+import { withDerivedFamilies } from './family-declaration.js';
 import { effectiveItemHead } from './source-advance-state.js';
 import { projectReviewFamily } from './required-review-family.js';
 import { withSeatPresence } from './seat-presence.js';
@@ -243,7 +245,7 @@ export function openDecisions(board, recipient = null) {
  * @returns {number}
  */
 export function unreadCount(board, agentId) {
-  const agent = board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(agentId);
+  const agent = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(agentId));
   if (!agent) return 0;
   const query = workerInboxQuery(board, agent, 'COUNT(*) AS total');
   const { total } = board.db.prepare(query.sql).get(...query.bindings);
@@ -318,8 +320,7 @@ export const UNREAD_SQL = UNREAD_SHOUT_SQL;
  * @returns {any}
  */
 export function agentAt(board, path) {
-  const agent = board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path);
-  return withModel(board, agent);
+  return withModel(board, board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path));
 }
 
 /** Read one seat and its model without loading every registered seat and model on the board. */
@@ -334,7 +335,7 @@ export function agentModel(board, id) {
 
 /** Attach an agent's model to a row from the legacy stable agent table. */
 export function withModel(board, agent) {
-  return agent ? withSeatPresence(board, [{ ...agent, agent_model: agentModel(board, agent.agent_id), agent_parent_session: agentParent(board, agent.agent_id) }])[0] : agent;
+  return agent ? withSeatPresence(board, [{ ...withDerivedFamily(board, agent), agent_model: agentModel(board, agent.agent_id), agent_parent_session: agentParent(board, agent.agent_id) }])[0] : agent;
 }
 
 /**
@@ -344,9 +345,9 @@ export function withModel(board, agent) {
  * @returns {any[]}
  */
 export function listAgents(board) {
-  return withSeatPresence(board, board.db.prepare(`SELECT agent.*, model.meta_value AS agent_model, parent.meta_value AS agent_parent_session FROM agent
+  return withSeatPresence(board, withDerivedFamilies(board, board.db.prepare(`SELECT agent.*, model.meta_value AS agent_model, parent.meta_value AS agent_parent_session FROM agent
     LEFT JOIN board_meta model ON model.meta_key='agent_model:' || agent.agent_id
-    LEFT JOIN board_meta parent ON parent.meta_key='agent_parent_session:' || agent.agent_id ORDER BY agent.rowid`).all());
+    LEFT JOIN board_meta parent ON parent.meta_key='agent_parent_session:' || agent.agent_id ORDER BY agent.rowid`).all()));
 }
 
 
@@ -499,7 +500,7 @@ function activityBatchBase(board, event) {
  * re-reading every global landing receipt for each item. Projection never acknowledges messages.
  */
 export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workingFiles = [], changesForMain, sessionStart = false } = {}) {
-  const agent = board.db.prepare('SELECT * FROM agent WHERE agent_id=?').get(agentId);
+  const agent = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_id=?').get(agentId));
   if (!agent) throw new Refused('NO_AGENT', `no agent ${agentId}; join your own worktree first`);
   if (![after, newsAfter].every(value => Number.isSafeInteger(value) && value >= 0)) {
     throw new Refused('BAD_ACTIVITY_CURSOR', 'activity cursors are nonnegative event ids; remove the damaged local inbox cursor and read inbox again');

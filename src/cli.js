@@ -1,3 +1,4 @@
+import { seatFamily } from './family-declaration.js';
 import { itemCheckBaseline } from './board-query.js';
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import { laneSeatContext } from './seat-checkout.js';
@@ -323,7 +324,7 @@ import {
 import {
   exportView,
   serveView,
-} from './serve.js';
+} from './commands/view.js';
 import {
   forgetView,
   busyViewPortRefusal,
@@ -371,7 +372,7 @@ import {
 } from './verdict-freshness.js';
 import { proofStats } from './stats.js';
 import { flowAlertLine } from './stats-flow.js';
-import { releaseHeadlinesBetween } from './changelog.js';
+import { releaseHeadlinesBetween } from './release-headlines.js';
 import {
   addSigner,
   assertRequiredSigners,
@@ -1555,11 +1556,12 @@ export async function nextOnce(ctx, values) {
     const routed = seats ? await laneSeatContext(ctx, board, me, item, seats, context) : { context: ctx };
     const target = routed.context;
     const holder = whoAmI(target, board);
+    ctx.io.nextPhase?.('claim', item.item_id);
     try {
       await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped }]);
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, ...routed, specMerged: { item: item.item_id, rows: error.rows } };
-      if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true };
+      if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
       throw error;
     }
     return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons, ...routed };
@@ -1577,20 +1579,21 @@ function nextPick(ctx, board, values) {
     && item.item_parent_id === null && item.item_owner === me.id
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
   const selection = { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
-    priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [] };
+    priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle };
   const own = heldItem ? { item: heldItem, reasons: [], shared: [] } : store.nextFor(board, selection);
-  const { item, reasons, shared } = own.item || !seats ? own : store.nextFor(board, { ...selection,
+  const picked = own.item || !seats ? own : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
+  const { item, reasons, shared } = picked;
   const held = item?.item_status === 'claimed';
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
   const findOffer = () => store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
     familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
-    omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
+    observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   const offer = held ? null : relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
-  if (offer && !values.build && (offer.urgent || focusReviewFirst(board, offer.item, item, { milestones: store.milestones }))) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item, [], { milestones: store.milestones }) };
-  if (!item) return { reasons, laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
+  if (offer?.item && !values.build && (offer.urgent || focusReviewFirst(board, offer.item, item, { milestones: store.milestones }))) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item, [], { milestones: store.milestones }) };
+  if (!item) return { reasons, ...(values.observeIdle ? { idleReason: [picked.idleReason, !values.build && offer?.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? picked.idleReason ?? 'unknown' } : {}), laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
   const reviewSkipped = values.build && !held
-    ? { offeredItem: offer?.item.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
+    ? { offeredItem: offer?.item?.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
   return { claim: true, me, item, held, shared, reasons, reviewSkipped, seats };
 }
 
@@ -1724,7 +1727,7 @@ export function privateNames(root, board, spec) {
     for (const part of text.split(/[\s@.<>()]+/u)) if (part.length >= 3 && part !== 'unknown' && part !== text) parts.add(part);
   };
   for (const agent of store.listAgents(board)) {
-    add(agent.agent_id); add(agent.agent_model); add(agent.agent_family); add(displayAgentName(agent)); add(displayAgentName(agent, 'prefix'));
+    add(agent.agent_id); add(agent.agent_model); add(seatFamily(board, agent.agent_id)); add(displayAgentName(agent)); add(displayAgentName(agent, 'prefix'));
   }
   for (const key of ['user.name', 'user.email']) add(tryGit(root, ['config', '--get', key]).stdout);
   for (const ident of ['GIT_AUTHOR_IDENT', 'GIT_COMMITTER_IDENT']) {

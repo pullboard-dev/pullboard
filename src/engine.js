@@ -1,5 +1,6 @@
 import { recordReviewPolicyActivation } from '../packages/state/index.js';
 import { agentGrantMinimum } from './agent-grant.js';
+import { recordFamilyDeclareActivation } from './family-declaration.js';
 import { requireAgentGrant } from './agent-grant.js';
 import { rejectedWorkReturns } from '../packages/state/index.js';
 import { handoffMoveProblem } from '../packages/state/index.js';
@@ -102,6 +103,7 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
     values[1] = { ...values[1], presubmit: true };
   }
   if (operation === 'submit') values[1] = ports.sealItemPatchSubmit(board, values[0], values[1]);
+  if (operation === 'followItemPatches') values[1] = ports.sealItemPatchFollow(board, values[0], values[1]);
   if (operation === 'submit' && ENGINE_VERSION >= SUBMISSION_PROOF_ENGINE) submissionProof(values[1]?.submissionProof);
   // Derive once before sealing; replicas never re-decide a recorded carry from their local objects.
   if (operation === 'submit' && ENGINE_VERSION >= MERGE_ONLY_VERDICT_ENGINE && values[1]) {
@@ -375,6 +377,7 @@ export function applyEngineMove(board, move, { sequence, at, standing = null, en
         else board.executionEngineVersion = engineVersion;
       }
       recordReviewPolicyActivation(board, move.engine);
+      recordFamilyDeclareActivation(board, move.engine);
       ports.recordRequestMove(board, move, outcome, sequence, at);
       metadata(board, 'relay_receipt_' + move.id, JSON.stringify({ sequence, move: encoded, outcome }));
     }

@@ -1,7 +1,12 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-test-gui */
 /** Bounded compile-only binding proof never executes candidate source or weakens shadow uncertainty [C7,CD62]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import {
+  machine as snapshotMachine,
+  project as snapshotProject,
+} from './cockpit/fixture.js';
 import {
   mkdirSync,
   mkdtempSync,
@@ -24,12 +29,19 @@ import {
   runFixtureGit,
 } from './fixture-child.js';
 import { lex } from '../packages/kernel/index.js';
-import { bindingReadsForModules } from '../src/cell-binding-uses.js';
+import {
+  bindingReadsForModules,
+  localFunctionCallSets,
+  readOnlyMemberRanges,
+} from '../src/cell-binding-uses.js';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
 import { mainAuditKey } from '../src/main-audit-state.js';
 import { readAuditJob } from './main-audit-project.js';
 import { relayClientFixture } from './relay-client-fixture.js';
-import { mappedWorkingSource } from '../bin/checks/scan.js';
+import {
+  mappedWorkingSource,
+  workingSourceInventory,
+} from '../bin/checks/scan.js';
 import { importsIn } from '../src/module-imports.js';
 
 const IMPORT = "import { join } from 'node:path';\n";
@@ -146,6 +158,102 @@ test('mapped working source preserves implementation, shim and exact Buffer obli
   writeFileSync(join(root, 'bin', 'cells-plan', 'path-map', 'duplicate.json'), JSON.stringify({ [oldPath]: bodyPath }));
   git('add', '-A'); git('commit', '-q', '-m', 'chore: ambiguous map format control');
   assert.throws(() => mappedWorkingSource(root, oldPath), { code: 'NO_POLICY' });
+});
+
+test('native file URL composition retains the actual repository body and refuses unknown roots [C7]', () => {
+  const prefix = "import {readFileSync} from 'node:fs'; import {join} from 'node:path'; import {fileURLToPath} from 'node:url';\n";
+  const root = "const ROOT = fileURLToPath(new URL('..', import.meta.url));\n";
+  const read = "readFileSync(join(ROOT, 'src', 'local-fetch.js'), 'utf8');";
+  const options = { file: 'test/boundary.test.js', moves: [['src/local-fetch.js', 'packages/sync/src/shell/local-fetch.js']] };
+  const proved = fixtureSourceEdits(prefix + root + read, options);
+  assert.deepEqual(proved.problems, []);
+  assert.equal(proved.edits.length, 1);
+  assert.match(proved.edits[0].text, /packages\/sync\/src\/shell\/local-fetch\.js/u);
+  const moved = read.replace("'src', 'local-fetch.js'", "'packages', 'sync', 'src', 'shell', 'local-fetch.js'");
+  assert.deepEqual(fixtureSourceEdits(prefix + root + moved, options), { edits: [], problems: [] });
+  const alias = (prefix + root + read).replace('{fileURLToPath}', '{fileURLToPath as nativePath}').replace('= fileURLToPath(', '= nativePath(');
+  assert.deepEqual(fixtureSourceEdits(alias, options).problems, []);
+  for (const unknown of [
+    root.replace("new URL('..', import.meta.url)", 'unknown'),
+    root.replace("new URL('..', import.meta.url)", 'new URL(unknown, import.meta.url)'),
+    root.replace("'..'", "'https://outside.invalid/source'"),
+    root.replace("'..'", "'../%2e/source'"),
+    root.replace("'..'", "'../source?query'"),
+    root.replace("'..'", "'../source#fragment'"),
+    "const URL = unknown;\n" + root,
+    root.replace('fileURLToPath(', 'arbitraryPath('),
+  ]) assert.ok(fixtureSourceEdits(prefix + unknown + read, options).problems.length, unknown);
+});
+
+test('working source inventory retains shim, mapped and private body bytes without source filters [C7]', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'pb-source-inventory-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, 'src')); mkdirSync(join(root, 'bin'));
+  mkdirSync(join(root, 'packages', 'sample'), { recursive: true });
+  const bodyPath = 'packages/sample/body.js', privatePath = 'packages/sample/private.js';
+  const shim = "export * from '../packages/sample/body.js';\n";
+  const original = Buffer.from([0x2f, 0x2f, 0xff, 0x0a]);
+  writeFileSync(join(root, 'src/value.js'), shim);
+  writeFileSync(join(root, bodyPath), original);
+  writeFileSync(join(root, privatePath), 'export const privateValue = true;\n');
+  writeFileSync(join(root, 'bin/check.js'), 'void 0;\n');
+  writeFileSync(join(root, 'path-map.json'), JSON.stringify({ 'src/value.js': bodyPath, 'src/private.js': privatePath }));
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
+    GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
+  /** Commit only this real private source map; subsequent working bytes remain actual test inputs. */
+  function git(...args) { return runFixtureGit(args, { cwd: root, env }); }
+  git('init', '-q', '-b', 'main'); git('add', '-A'); git('commit', '-q', '-m', 'chore: working source inventory');
+  writeFileSync(join(root, 'src/untracked.js'), 'void 1;\n');
+  const rows = workingSourceInventory(root, ['src', 'bin']);
+  const byPath = new Map(rows.map(row => [row.file, row.body]));
+  assert.deepEqual(byPath.get(bodyPath), original, 'actual invalid UTF-8 bytes are never replaced by a seed or shim');
+  assert.deepEqual(byPath.get('src/value.js'), Buffer.from(shim));
+  assert.ok(byPath.has(privatePath), 'a mapped body with no surviving old shim remains scanned');
+  assert.ok(byPath.has('src/untracked.js'), 'the original working-directory enumeration is not narrowed to Git files');
+  const changedBody = "import 'node:https';\n";
+  writeFileSync(join(root, bodyPath), changedBody);
+  const changed = workingSourceInventory(root, ['src', 'bin']);
+  assert.throws(() => assert.deepEqual(changed.filter(row => row.body.includes(Buffer.from('node:https'))), []),
+    'the unchanged network guard catches changed implementation bytes even when the shim is unchanged');
+  writeFileSync(join(root, 'src/value.js'), "import 'node:net';\n" + shim);
+  assert.ok(workingSourceInventory(root, ['src', 'bin']).some(row => row.file === 'src/value.js' && row.body.includes(Buffer.from('node:net'))));
+  assert.throws(() => workingSourceInventory(root, ['../outside']), /invalid working source directory/u);
+  symlinkSync(tmpdir(), join(root, 'outside'));
+  assert.throws(() => workingSourceInventory(root, ['outside']), /contained and regular/u);
+  symlinkSync(join(root, 'bin/check.js'), join(root, 'src/linked.js'));
+  assert.throws(() => workingSourceInventory(root, ['src']), /contained regular file/u);
+});
+
+test('snapshot output capability retains all actual export bytes and refuses foreign roots [C7,N26]', async (t) => {
+  const box = snapshotMachine(), alpha = snapshotProject(box, 'private export inputs');
+  const output = box.exportSnapshot(alpha.repo, 'owned-export');
+  const index = join(output.root, 'index.html');
+  assert.deepEqual(output.readFile(index), readFileSync(index), 'HTTP input retains the actual export Buffer');
+  mkdirSync(join(output.root, 'extra-source', 'nested'), { recursive: true });
+  const secret = Buffer.from(box.dir), raw = Buffer.from([0xff, 0x00, 0xfe]);
+  const planted = join(output.root, 'extra-source', 'nested', 'body.js');
+  writeFileSync(planted, secret);
+  writeFileSync(join(output.root, 'unexpected.lock'), raw);
+  const bytes = output.files();
+  assert.ok(bytes.some(row => row.file === planted && row.body.equals(secret)), 'nested copied source is never filtered from the privacy audit');
+  assert.ok(bytes.some(row => row.body.equals(raw)), 'every extension and invalid UTF-8 Buffer remains covered');
+  assert.throws(() => assert.ok(!bytes.map(row => row.body.toString('utf8')).join('\n').includes(box.dir)),
+    'the original privacy assertion catches a planted actual private path');
+  writeFileSync(planted, 'changed actual export bytes');
+  assert.deepEqual(output.readFile(planted), Buffer.from('changed actual export bytes'), 'reads never return seeded or cached output');
+  assert.throws(() => output.readFile(join(output.root, 'missing.json')), { code: 'ENOENT' });
+  const outsider = mkdtempSync(join(tmpdir(), 'pb-foreign-output-'));
+  t.after(() => rmSync(outsider, { recursive: true, force: true }));
+  const before = box.invocations.length;
+  assert.throws(() => box.exportSnapshot(outsider, 'foreign-export'), /belongs/u);
+  assert.throws(() => box.exportSnapshot(alpha.repo, '../escape'), /private leaf/u);
+  assert.throws(() => box.exportSnapshot(alpha.repo, 'owned-export'), /fresh/u);
+  assert.equal(box.invocations.length, before, 'refused roots never launch a substitute producer');
+  assert.throws(() => output.readFile(join(outsider, 'source.js')), /belongs/u);
+  assert.throws(() => output.readFile(join(output.root, '..', 'source.js')), /belongs/u);
+  symlinkSync(outsider, join(output.root, 'outside'));
+  assert.throws(() => output.files(), /contained regular file/u);
 });
 
 test('mechanical fixture input owns its origin and reads actual post-component bytes [C7]', (t) => {
@@ -617,4 +725,107 @@ for (const [name, body] of [
   assert.ok(result.problems.every(problem => problem.startsWith('test/conservative-obligations.js:')
     && problem.includes('unsupported fixture source:')), 'every retained obligation names its actual source site');
   assert.deepEqual(result.edits, [], 'an unknown path never gains a guessed move or passing artifact classification');
+});
+
+
+test('local function call sets preserve literal-aware offsets and raw parameter grammar [C7]', () => {
+  const source = `function read(path = { value: ')' }, { mode } = {}) {
+    return path;
+  }
+  read(new URL('../a.yml', import.meta.url), { mode: ',' });
+  const value = read(\`value, \${other({ nested: true })}\`, /[,)]/u);
+  `;
+  const rows = localFunctionCallSets(source, { file: 'test/callsets.js' });
+  assert.equal(rows.length, 1);
+  const row = rows[0];
+  assert.equal(row.name, 'read');
+  assert.equal(source.slice(row.nameAt, row.nameAt + 4), 'read');
+  assert.equal(source.slice(row.parameterStart, row.parameterEnd), "path = { value: ')' }, { mode } = {}");
+  assert.equal(source.slice(row.bodyStart, row.bodyEnd).trim(), 'return path;');
+  assert.equal(row.calls.length, 2);
+  assert.deepEqual(row.calls.map(call => call.args.map(arg => source.slice(arg.start, arg.end))), [
+    ["new URL('../a.yml', import.meta.url)", "{ mode: ',' }"],
+    ['`value, ${other({ nested: true })}`', '/[,)]/u'],
+  ]);
+  assert.ok(row.calls.every(call => source.slice(call.at, call.at + 4) === 'read'));
+});
+
+test('local function authority rejects escapes, shadowing, writes and nonordinary calls [C7]', () => {
+  const declaration = 'function read(path) { return path; }\n';
+  for (const tail of [
+    'const alias = read; alias(input);',
+    'consume(read);',
+    'read.call(null, input);',
+    'new read(input);',
+    'read?.(input);',
+    'read(...inputs);',
+    'read = other; read(input);',
+    'function inner(read) { return read(input); }',
+    'export { read };',
+    'eval(code); read(input);',
+    "Function('return 1')(); read(input);",
+  ]) assert.ok(!localFunctionCallSets(declaration + tail, { file: 'test/callsets.js' }).some(row => row.name === 'read'), tail);
+  for (const source of [
+    'export function read(path) { return path; } read(input);',
+    'const outer = function read(path) { return path; };',
+    'function read(path) {} { function read(path) {} read(input); }',
+  ]) assert.ok(!localFunctionCallSets(source, { file: 'test/callsets.js' }).some(row => row.name === 'read'), source);
+});
+
+test('local call set complexity bounds never authorize partial call inventories [C7]', () => {
+  const declaration = 'function read(path) { return path; }\n';
+  const excessiveCalls = declaration + Array.from({ length: 129 }, () => 'read(input);').join('\n');
+  const excessiveArgs = declaration + 'read(' + Array.from({ length: 65 }, () => 'input').join(',') + ');';
+  for (const source of [excessiveCalls, excessiveArgs, declaration + ' '.repeat(1024 * 1024)]) {
+    assert.ok(!localFunctionCallSets(source, { file: 'test/callsets.js' }).some(row => row.name === 'read'));
+  }
+});
+
+
+test('whole member substitution proves rvalue grammar without evaluating candidate effects [C7]', () => {
+  const source = "throw new Error('candidate must never execute'); const first = box.marker; consume(box.other);";
+  const ranges = ['box.marker', 'box.other'].map(text => ({ start: source.indexOf(text), end: source.indexOf(text) + text.length }));
+  assert.deepEqual([...readOnlyMemberRanges(source, ranges)], ranges.map(range => range.start));
+});
+
+test('whole member writes and destructuring or loop targets cannot accept a constant expression [C7]', () => {
+  for (const body of [
+    'box.marker = input;',
+    'box.marker += input;',
+    'box.marker ??= input;',
+    '++box.marker;',
+    '--box.marker;',
+    'box.marker++;',
+    'box.marker--;',
+    '({ value: box.marker } = input);',
+    '[box.marker] = input;',
+    'for (box.marker of input) {}',
+    'for (box.marker in input) {}',
+  ]) {
+    const start = body.indexOf('box.marker');
+    assert.deepEqual([...readOnlyMemberRanges(body, [{ start, end: start + 'box.marker'.length }])], [], body);
+  }
+});
+
+test('member grammar proof fails closed on invalid modules and bounded or ambiguous ranges [C7]', () => {
+  const source = 'consume(box.marker);', start = source.indexOf('box.marker'), range = { start, end: start + 'box.marker'.length };
+  for (const [text, ranges] of [
+    ['const = ; ' + source, [{ start: start + 10, end: range.end + 10 }]],
+    [source, [{ start: -1, end: range.end }]],
+    [source, [{ start, end: source.length + 1 }]],
+    [source, [{ start, end: start }]],
+    [source, [{ start: 0.5, end: range.end }]],
+    [source, [range, { start, end: range.end - 1 }]],
+    [source, Array.from({ length: 129 }, () => range)],
+    [source + ' '.repeat(1024 * 1024), [range]],
+    [source + '\n//' + 'é'.repeat(600_000), [range]],
+  ]) assert.deepEqual([...readOnlyMemberRanges(text, ranges)], []);
+});
+
+test('member substitution alone is not delete or call authority [C7]', () => {
+  for (const source of ['delete box.marker;', 'box.marker();']) {
+    const start = source.indexOf('box.marker');
+    assert.deepEqual([...readOnlyMemberRanges(source, [{ start, end: start + 'box.marker'.length }])], [start],
+      'callers must retain their independent delete and method-call guards even though expression substitution compiles');
+  }
 });

@@ -1,9 +1,21 @@
 /** Render only the selected board pane while preserving shared navigation and status [N26]. */
+import { needsActionsHtml } from './needs-actions.js';
 import { needsPanelHtml } from './needs-panel.js';
+import { agentsPanelModel } from './agents-panel-model.js';
+import { agentsPanelHtml } from './agents-panel-render.js';
+import { needsPanelModel } from './needs-panel.js';
+import { ruleListModel } from './rule-list-model.js';
+import { selectItemsView } from './items-selection.js';
 
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
 export function pageRenderScript() {
   return `let drawnRoadmap = null;
+const agentsPanelModel = (${agentsPanelModel.toString()});
+const agentsPanelHtml = (${agentsPanelHtml.toString()});
+const ruleListModel = (${ruleListModel.toString()});
+const selectItemsView = (${selectItemsView.toString()});
+const needsPanelModel = (${needsPanelModel.toString()});
+const needsActionsHtml = (${needsActionsHtml.toString()});
 
 function render() {
   renderIndexes = new WeakMap();
@@ -90,22 +102,29 @@ function render() {
   const person = !snapshot && (!readOnly || requests);
   const expandedNeeds = [...document.querySelectorAll('details[data-needs-key][open]')].filter(entry => !entry.closest('[hidden]')).map(entry => entry.dataset.needsKey);
   /** Actions retain the existing person/request handlers and advertised row identities. */
-  const needsControls = row => {
-    if (!person) return '';
-    if (row.kind === 'agent-approved') return agentApprovalActions(row);
-    if (row.kind === 'sentinel-draft') return sentinelDraftActions(row);
-    if (row.kind === 'relay-health' || row.kind === 'block') return '';
-    if (row.kind === 'spec-revision') return '<div class="actions">'+(row.actions??[]).filter(action => ['spec-approve','spec-decline'].includes(action.verb) && action.args?.ids===row.id).map(action => '<button type="button" class="'+(action.verb==='spec-approve'?'approve-row':'decline-row')+'" data-row-kind="spec" data-row-id="'+esc(row.id)+'" data-row-decision="'+(action.verb==='spec-approve'?'approve':'decline')+'">'+(action.verb==='spec-approve'?'Approve':'Decline')+'</button>').join('')+'</div>';
-    const target = row.kind==='decision' ? 'decide:'+row.id : row.kind==='pending' ? 'spec:'+row.id : row.kind==='hold' ? 'tab:shouts' : row.target;
-    if (!target || row.unproved && !row.materialized) return '';
-    return '<div class="actions"><button type="button" class="approve-row" data-go="'+esc(target)+'">'+(row.kind==='decision'?'Decide':'Review')+'</button></div>';
-  };
+  const needsControls = row => needsActionsHtml(row, { person,
+    approvalHtml: row.kind === 'agent-approved' ? agentApprovalActions(row) : '',
+    sentinelHtml: row.kind === 'sentinel-draft' ? sentinelDraftActions(row) : '',
+  });
   const needsFeedback = row => view.specFeedback?.root===view.root && view.specFeedback.kind==='spec' && view.specFeedback.id===row.id ? specFeedback(view.specFeedback) : '';
-  const needsOptions = { person, expanded: expandedNeeds, controls: needsControls, feedback: needsFeedback, rich: text => rich(text,titles,!readOnly), age };
+  const approvalDateLabel = value => {
+    const date = new Date(value), hour = date.getHours();
+    return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][date.getMonth()] + ' ' + date.getDate() + ', ' + (hour % 12 || 12) + ':' + String(date.getMinutes()).padStart(2, '0') + ' ' + (hour < 12 ? 'AM' : 'PM');
+  };
+  const needsModel = needsPanelModel(personalNeeds,p,{ person, expanded: expandedNeeds });
+  // Browser-dependent presentation is prepared from the same descriptors the pure renderer consumes.
+  const needsPresentation = new Map([...needsModel.questions,...needsModel.approvals].map(row => {
+    const approvedAt = row.fields.find(([label]) => label === 'Approved in Git')?.[3]?.date;
+    return [row.key, {
+      ageHtml: row.ageAt ? age(row.ageAt) : '', bodyHtml: row.body ? rich(row.body,titles,!readOnly) : '',
+      feedbackHtml: needsFeedback(row.source), controlsHtml: needsControls(row.source),
+      approvalDateLabel: Number.isFinite(Date.parse(approvedAt)) ? approvalDateLabel(approvedAt) : 'Date unknown',
+    }];
+  }));
   const needsPanel = ${needsPanelHtml.toString()};
-  if (view.tab === 'dashboard') dashboardView.draw(p,needsPanel(personalNeeds,p,{...needsOptions,compact:true}));
+  if (view.tab === 'dashboard') dashboardView.draw(p,needsPanel({...needsModel,compact:true},needsPresentation));
   else {
-    const needsHtml = needsPanel(personalNeeds,p,needsOptions);
+    const needsHtml = needsPanel(needsModel,needsPresentation);
     if (view.tab === 'items') {
       $('needs').hidden = !personalNeeds.length || view.state !== 'active' || Boolean(view.lane);
       $('needs').tabIndex = -1;
@@ -137,27 +156,22 @@ function render() {
   // Each Show choice counts what it would show under the lane and the search. A search looks through every
   // state, withdrawn items included; browsing leaves those out.
   const found = searchIds(p, q);
-  const matching = (q ? p.items : items).filter((item) => !q || found.has(item.id));
-  // Gated is one test, shared by the rows, the Gated filter and the status bar: open and waiting on an item or a held lane.
-  const dashboardReady = new Set((dashboardModel(p, [], { complete: false })).next.map(item => item.id));
-  const inState = (s) => (i) => s === 'ready' ? dashboardReady.has(i.id) : s === 'all' || (s === 'active' ? !['verified', 'withdrawn'].includes(stateOf(i)) : s === 'gated' ? gatedOf(i) : stateOf(i) === s);
-  const names = { active: 'Active', verified: 'Verified', all: 'All' };
-  // The status bar can open a narrower list; it shows as a fourth choice until another is picked.
-  if (view.state === 'verify') names.verify = 'To verify';
-  if (view.state === 'gated') names.gated = 'Gated';
-  if (view.state === 'ready') names.ready = 'Ready, in rank order';
-  // A lane narrows the list as a state does, and each counts within the other's choice.
-  const inLane = (lane) => (i) => !lane || i.lane === lane;
-  if (view.lane && !matching.some(inLane(view.lane))) view.lane = null;
-  const stateOptions = Object.keys(names).map((s) => '<button class="filter-option" role="menuitemradio" aria-checked="' + (view.state === s) + '" data-filter-choice="state:' + s + '" data-filter-kind="state" data-filter-value="' + s + '" data-state="' + s + '" type="button"><span class="filter-option-label">' + names[s] + '</span><b>' + matching.filter(inLane(view.lane)).filter(inState(s)).length + '</b></button>');
-  const inView = pipeline ? matching.filter((item) => item.status !== 'withdrawn') : matching.filter(inState(view.state));
-  const laneCounts = [...inView.reduce((m, i) => m.set(i.lane, (m.get(i.lane) || 0) + 1), new Map())].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  if (view.lane && !laneCounts.some(([lane]) => lane === view.lane)) laneCounts.push([view.lane, 0]);
-  const laneOptions = [['', 'All lanes', null], ...laneCounts.map(([lane, n]) => [lane, lane, n])].map(([lane, label, count]) => '<button class="filter-option" role="menuitemradio" aria-checked="' + ((view.lane || '') === lane) + '" data-filter-choice="lane:' + esc(lane) + '" data-filter-kind="lane" data-filter-value="' + esc(lane) + '" aria-label="' + esc(label) + (count === null ? '' : ' · ' + count) + '" title="' + esc(label) + (count === null ? '' : ' · ' + count) + '" type="button"><span class="filter-option-label">' + esc(label) + '</span>' + (count === null ? '' : '<b>' + count + '</b>') + '</button>');
+  // Gated is shared by the rows, filter and status bar. Capture all clocks/derived state here;
+  // the pure selector receives observations and ids, never the page's data/view globals.
+  const readyIds = dashboardModel(p, [], { complete: false, now: Date.now() }).next.map(item => item.id);
+  const stateById = new Map(p.items.map(item => [item.id, { state: stateOf(item), gated: gatedOf(item) }]));
+  const itemsSelection = selectItemsView({ items: p.items, query: q, matchedIds: found, readyIds, stateById, state: view.state,
+    lane: view.lane, pipeline, dashboardList: view.dashboardList, dashboardNext: p.dashboardNext || [], selectedId: view.item,
+    currentBoard: data.root === view.root, adding: view.adding,
+    addressDetail: view.tab === 'items' ? view.addressDetail : null, tab: view.tab, snapshot });
+  view.lane = itemsSelection.selectedLane;
+  const { matching, stateOptions, laneOptions, inView, shown, finishedUnderAll } = itemsSelection;
+  const stateButtons = stateOptions.map(({ value, label, count }) => '<button class="filter-option" role="menuitemradio" aria-checked="' + (view.state === value) + '" data-filter-choice="state:' + value + '" data-filter-kind="state" data-filter-value="' + value + '" data-state="' + value + '" type="button"><span class="filter-option-label">' + label + '</span><b>' + count + '</b></button>');
+  const laneButtons = laneOptions.map(({ value, label, count }) => '<button class="filter-option" role="menuitemradio" aria-checked="' + ((view.lane || '') === value) + '" data-filter-choice="lane:' + esc(value) + '" data-filter-kind="lane" data-filter-value="' + esc(value) + '" aria-label="' + esc(label) + (count === null ? '' : ' · ' + count) + '" title="' + esc(label) + (count === null ? '' : ' · ' + count) + '" type="button"><span class="filter-option-label">' + esc(label) + '</span>' + (count === null ? '' : '<b>' + count + '</b>') + '</button>');
   const activeChoice = document.activeElement?.dataset?.filterChoice;
   const menu = $('filter-menu');
-  menu.innerHTML = (pipeline ? '' : '<section class="filter-group" role="group" aria-label="Show"><h3>Show</h3>' + stateOptions.join('') + '</section>')
-    + '<section class="filter-group" role="group" aria-label="Lane"><h3>Lane</h3>' + laneOptions.join('') + '</section>';
+  menu.innerHTML = (pipeline ? '' : '<section class="filter-group" role="group" aria-label="Show"><h3>Show</h3>' + stateButtons.join('') + '</section>')
+    + '<section class="filter-group" role="group" aria-label="Lane"><h3>Lane</h3>' + laneButtons.join('') + '</section>';
   menu.hidden = !view.filterOpen;
   menu.style.left = '0px';
   menu.style.maxWidth = '';
@@ -171,23 +185,19 @@ function render() {
     menu.style.left = Math.max(left - at.left, Math.min(0, right - at.right)) + 'px';
   }
   $('filter-toggle').setAttribute('aria-expanded', String(view.filterOpen));
-  const stateLabel = pipeline || view.state === 'active' ? '' : names[view.state] || '';
-  const laneLabel = view.lane || '';
-  const filterLabel = stateLabel || laneLabel ? 'Filter: ' + [stateLabel, laneLabel].filter(Boolean).join(' · ') : 'Filter';
+  const filterLabel = itemsSelection.filterLabel;
   $('filter-label').textContent = filterLabel;
   $('filter-toggle').setAttribute('aria-label', filterLabel);
   $('filter-toggle').title = filterLabel;
   if (view.filterOpen && activeChoice) [...menu.querySelectorAll('[data-filter-choice]')].find((option) => option.dataset.filterChoice === activeChoice)?.focus({ preventScroll: true });
-  const readyOrder = new Map((p.dashboardNext || []).map((id, index) => [id,index]));
-  const shown = inView.filter(inLane(view.lane)).sort((a, b) => view.dashboardList === 'next' && view.state === 'ready' ? (readyOrder.get(a.id) ?? Infinity)-(readyOrder.get(b.id) ?? Infinity) || a.id-b.id : view.dashboardList === 'review' && view.state === 'verify' ? (a.since || a.updatedAt).localeCompare(b.since || b.updatedAt) : b.updatedAt.localeCompare(a.updatedAt));
-  const finishedUnderAll = !shown.length && p.items.length > 0 && p.items.every((item) => stateOf(item) === 'verified')
-    && view.tab === 'items' && view.itemsView === 'list' && view.state === 'active' && !view.lane && !q && !snapshot;
   $('pipeline').innerHTML = pipeline ? pipelineCard(shown) : '';
+  const { nextSelectedId } = itemsSelection;
+  if (nextSelectedId !== view.item) view.item = nextSelectedId;
   // With nothing picked, the detail shows the first row, and keeps it when a refresh reorders the list.
   // While another project loads, the item picked there waits for its own board.
-  if (data.root === view.root && !view.adding && !(view.tab === 'items' && view.addressDetail !== null && view.addressDetail !== 'pipeline') && !p.items.some((i) => i.id === view.item)) view.item = shown.length ? shown[0].id : null;
+
   // An open item's chip, the same in its row and its detail: gated, its lane held, or unclaimed.
-  const openChip = (i) => (p.itemHolds || []).some((h) => h.item === i.id) ? heldChip(heldNote(i, p)) : i.blockedBy.length || heldLanes.has(i.lane) ? '<span class="chip gate">' + (i.blockedBy.length ? 'gated' : 'lane held') + '</span>' : chip('open');
+  const openChip = (i) => (p.itemHolds || []).some((h) => h.item === i.id) ? heldChip(heldNote(i, p, undefined, Date.now())) : i.blockedBy.length || heldLanes.has(i.lane) ? '<span class="chip gate">' + (i.blockedBy.length ? 'gated' : 'lane held') + '</span>' : chip('open');
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
     // What an open item waits on, if anything: items not yet verified, or a hold on its lane.
@@ -338,42 +348,29 @@ function render() {
     // Asks waiting on someone else are not the person's to answer: they show only once the composer's toggle opens them.
     + (p.asked.length && view.open.waiting ? p.asked.map((d) => card(d, '', false)).join('') : '');
   foldShouts();
-  // Each agent with what it holds: its claim, then its work sent back or with a stale verdict to redo, then its work waiting
-  // for a verdict. The worktree path is there on hover; what the person reads is who is doing what.
-  // A review an agent holds (V15) comes right after its claim.
-  const rank = (a, i) => i.status === 'claimed' ? 0 : reviewerOf(i) === a.agent_id ? 1 : stateOf(i) === 'back' || staleChip(i) ? 2 : 3;
-  const holding = (a) => items.filter((i) => i.status === 'claimed' ? holderOf(i) === a.agent_id : reviewerOf(i) === a.agent_id || (i.builtBy === a.agent_id && (['back', 'verify'].includes(stateOf(i)) || staleChip(i)))).sort((x, y) => rank(a, x) - rank(a, y));
-  // The agents at work: holding a claim or a review now, or moved in the last hour. Every agent is one click away;
-  // work an idle agent left sent back or waiting stays on the Items tab.
-  const recent = (a) => p.items.some((i) => (i.status === 'claimed' && holderOf(i) === a.agent_id) || (i.status === 'submitted' && reviewerOf(i) === a.agent_id))
-    || (a.lastMoveAt && Date.now() - Date.parse(a.lastMoveAt) < 36e5);
-  const listed = view.allAgents ? p.agents : p.agents.filter(recent);
-  // As little room as the panel can take: an agent holding work is one row, with its avatar and colour from the feed,
-  // the age of its latest move and what it holds; an agent holding nothing is a pill. A row or a pill filters the feed
-  // to that agent's shouts, its lane and route on hover, and the picked agent's row opens out to each thing it holds.
-  const busy = listed.filter((a) => holding(a).length), idle = listed.filter((a) => !holding(a).length);
-  const face = (a) => lead(a.agent_id) ? '<span class="avatar">' + LEAD + '</span>' : '<span class="avatar' + (initials(a.agent_id).length > 3 ? ' wide' : '') + '" aria-hidden="true">' + esc(initials(a.agent_id)) + '</span>';
-  const tip = (a) => 'Shouts with ' + agentName(a.agent_id) + ' · ' + a.agent_lane + ' · ' + a.agent_route + ' (' + a.agent_path + ')';
-  // Beside the name there is room for one word, so a stale verdict says stale there; the opened rows say verified and stale.
-  const state = (a, i, brief = false) => reviewerOf(i) === a.agent_id ? '<span class="chip warn">reviewing</span>' : (brief && staleChip(i)) || chip(stateOf(i)) + staleChip(i);
-  const marks = (a) => ' h' + hue(a.agent_id) + (lead(a.agent_id) ? ' lead' : '') + (view.agent === a.agent_id ? ' on' : '');
-  const row = (a) => {
-    const mine = holding(a), first = mine[0];
-    return '<div class="agent-card' + marks(a) + '"><button class="agent-row" data-agent="' + esc(a.agent_id) + '" title="' + esc(tip(a)) + '" type="button">' + face(a)
-      + '<span class="agent-who"><b>' + esc(agentName(a.agent_id)) + '</b>' + state(a, first, true) + (mine.length > 1 ? '<span class="agent-more">+' + (mine.length - 1) + '</span>' : '') + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</span>'
-      + '<span class="agent-doing"><span class="agent-what"><i>#' + first.id + '</i> ' + esc(first.title) + '</span></span></button>'
-      + (view.agent === a.agent_id ? mine.map((i) => '<div class="agent-work" data-item="' + i.id + '" data-go="item:' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span>' + state(a, i) + '</div>').join('') : '') + '</div>';
-  };
-  // The panel is for who is doing what: agents holding nothing fold to one line that opens to each of them, and stays
-  // open while one of them is picked.
-  if (idle.some((a) => a.agent_id === view.agent)) view.open.idle = true;
-  // Show all ends the open fold while some agents have not moved lately, or stands alone when none is idle.
-  const allAgents = p.agents.length > p.agents.filter(recent).length ? '<button class="link all-agents" data-all-agents type="button">' + (view.allAgents ? 'show only agents at work' : 'show all ' + p.agents.length) + '</button>' : '';
-  const idleBlock = () => !idle.length ? allAgents : '<div class="agents-idle">' + foldLine('idle', idle.length + ' idle', idle.map((a) => agentName(a.agent_id)).join(', '))
-    + (view.open.idle ? '<div class="idle-list">' + idle.map(pill).join('') + '</div>' + allAgents : '') + '</div>';
-  const pill = (a) => '<button class="agent-pill' + marks(a) + '" data-agent="' + esc(a.agent_id) + '" title="' + esc(tip(a)) + '" type="button"><span>' + face(a) + esc(agentName(a.agent_id)) + '</span></button>';
-  $('agents').innerHTML = (listed.length ? busy.map(row).join('') + idleBlock()
-    : '<div class="empty">' + (p.agents.length ? 'No agent has moved today.' : 'No agents yet.') + '</div>');
+  // Prepare agent, item-state and display observations before the pure selection and HTML functions.
+  const panelNow = Date.now();
+  const agentItems = items.map((item) => {
+    const stale = staleChip(item);
+    const state = stateOf(item);
+    return { id: item.id, status: item.status, holder: holderOf(item), reviewer: reviewerOf(item), builtBy: item.builtBy,
+      state, stale: Boolean(stale), titleTextHtml: esc(item.title), titleHtml: rich(item.title, titles),
+      stateHtml: chip(state) + stale, briefStateHtml: stale || chip(state) };
+  });
+  const agentRows = p.agents.map((agent) => {
+    const isLead = lead(agent.agent_id);
+    const letters = initials(agent.agent_id);
+    return { agentId: agent.agent_id, name: agentName(agent.agent_id), nameHtml: esc(agentName(agent.agent_id)),
+      lane: agent.agent_lane, route: agent.agent_route, path: agent.agent_path, lastMoveAt: agent.lastMoveAt,
+      faceHtml: isLead ? '<span class="avatar">' + LEAD + '</span>' : '<span class="avatar' + (letters.length > 3 ? ' wide' : '') + '" aria-hidden="true">' + esc(letters) + '</span>',
+      tipHtml: esc('Shouts with ' + agentName(agent.agent_id) + ' · ' + agent.agent_lane + ' · ' + agent.agent_route + ' (' + agent.agent_path + ')'),
+      markClasses: ' h' + hue(agent.agent_id) + (isLead ? ' lead' : '') + (view.agent === agent.agent_id ? ' on' : ''),
+      ageHtml: agent.lastMoveAt ? '<time data-ago="' + esc(agent.lastMoveAt) + '">' + ago(agent.lastMoveAt) + '</time>' : '' };
+  });
+  const panelSelection = agentsPanelModel({ agents: agentRows, items: agentItems, now: panelNow,
+    activeAgent: view.agent, allAgents: view.allAgents, idleOpen: Boolean(view.open.idle) });
+  if (panelSelection.idle.some((agent) => agent.agentId === view.agent)) view.open.idle = true;
+  $('agents').innerHTML = agentsPanelHtml({ ...panelSelection, idleOpen: Boolean(view.open.idle) });
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
   $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no" title="held by ' + esc(agentName(held.get(l).hold_by)) + '">held by ' + esc(agentName(held.get(l).hold_by)) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
 
@@ -406,19 +403,15 @@ function render() {
   for (const kind of ['spec', 'doctrine'].filter(kind => kind === view.tab)) {
     const rows = kind === 'spec' ? p.spec : p.practice;
     const filter = view.rows[kind];
-    const defaults = kind === 'doctrine' ? rows.filter((r) => r.origin === 'standard') : [];
-    const labels = { decide: 'Needs your decision', ...(defaults.length ? { defaults: 'Defaults to review' } : {}), all: 'All rows', approved: 'Approved' };
-    /** Inherited defaults are reviewed in the repo's doctrine; only local proposals ask for a decision. */
-    const undecided = (r) => (['pending', 'draft'].includes(r.status) && !r.decision || !!r.staleDecision || kind === 'spec' && agentApprovals.some(approval => approval.id === r.id)) && !(kind === 'doctrine' && r.origin === 'standard');
-    const n = { decide: rows.filter(undecided).length, defaults: defaults.length, all: rows.length, approved: rows.filter((r) => r.status === 'approved').length };
-    $(kind + '-chips').innerHTML = segmentedToggle({ label: kind === 'spec' ? 'Spec rows' : 'Doctrine rows', attribute: 'data-rows', value: kind + ':' + filter, options: Object.keys(labels).map(key => ({ value: kind + ':' + key, label: labels[key], count: n[key] })) });
-    const shownRows = rows.filter((r) => filter === 'all' || (filter === 'decide' ? undecided(r) : filter === 'defaults' ? r.origin === 'standard' : r.status === 'approved'));
-    // With no row picked, or the pick filtered out, the detail opens on the first row shown, as Items does.
-    if (!(view.tab === kind && view.addressDetail !== null) && !shownRows.some((r) => r.id === view.row[kind])) view.row[kind] = shownRows[0]?.id ?? null;
     const feedback = view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'list' ? view.specFeedback : null;
-    const feedbackId = feedback && (shownRows.some((r) => r.id === feedback.id) ? feedback.id : shownRows.some((r) => r.id === feedback.next) ? feedback.next : shownRows[0]?.id);
-    const sectionCounts = new Map();
-    for (const row of shownRows) sectionCounts.set(row.section, (sectionCounts.get(row.section) || 0) + 1);
+    const selectedRows = ruleListModel(rows, { kind, filter, selectedId: view.row[kind],
+      addressed: view.tab === kind && view.addressDetail !== null, approvalIds: agentApprovals.map(row => row.id), feedback });
+    const { labels, counts: n, shown: shownRows, feedbackId, sectionCounts } = selectedRows;
+    const undecidedIds = new Set(selectedRows.undecidedIds);
+    const undecided = row => undecidedIds.has(row.id);
+    $(kind + '-chips').innerHTML = segmentedToggle({ label: kind === 'spec' ? 'Spec rows' : 'Doctrine rows', attribute: 'data-rows', value: kind + ':' + filter, options: Object.keys(labels).map(key => ({ value: kind + ':' + key, label: labels[key], count: n[key] })) });
+    // With no row picked, or the pick filtered out, the detail opens on the first row shown, as Items does.
+    view.row[kind] = selectedRows.nextSelectedId;
     let section = null;
     $(kind + '-list').innerHTML = shownRows.length ? shownRows.map((r) => {
       const sectionRows = !snapshot && (!readOnly || requests) && kind === 'spec' && r.section !== section ? rows.filter((entry) => entry.section === r.section && undecided(entry)) : [];
@@ -455,11 +448,36 @@ function render() {
   }
 
   if (view.tab === 'activity') {
-  if (keep('pb.flow') !== 'hidden') $('flow').innerHTML = flowSvg(p);
+  if (keep('pb.flow') === 'shown') $('flow').innerHTML = lifecycleChart(p, p.moveCounts ? new Map(Object.entries(p.moveCounts)) : moveCounts(p.items), p.items.filter(item => stateOf(item) === 'back').length);
+  $('activity-filters').innerHTML = activityFilters(activityModel(p), view.activityFilter || 'all');
   const activity = $('activity');
   const activityOpen = activity.dataset.boardRoot === p.root ? [...activity.querySelectorAll('[data-activity-run][open]')].map(entry => entry.dataset.activityRun) : [];
   activity.dataset.boardRoot = p.root;
-  activity.innerHTML = activityHtml(activityModel(p), { words: activityWords, filter: view.activityFilter || 'all', itemHref: itemAddress, open: activityOpen, dayLabel: dayName, quote: text => inline(text, titles) });
+  const activityTime = value => new Date(value).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const activityLabels = new Map();
+  const collectActivityTimes = text => {
+    for (const match of String(text ?? '').matchAll(/\\b\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(?:\\.\\d+)?(?:Z|[+-]\\d\\d:\\d\\d)\\b/gu))
+      if (!activityLabels.has(match[0])) activityLabels.set(match[0], Number.isFinite(Date.parse(match[0])) ? activityTime(match[0]) : match[0]);
+  };
+  const localActivityTimes = text => String(text ?? '').replace(/\\b\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(?:\\.\\d+)?(?:Z|[+-]\\d\\d:\\d\\d)\\b/gu,
+    value => Number.isFinite(Date.parse(value)) ? activityLabels.get(value) ?? value : value);
+  const activityModelData = activityModel(p);
+  const activityRows = activityModelData.rows.map(entry => {
+    collectActivityTimes(entry.words);
+    for (const finding of [...(entry.findings || []), ...(entry.stillStuck || [])]) {
+      for (const value of Object.values(finding)) if (typeof value === 'string') collectActivityTimes(value);
+      if (Number.isFinite(Date.parse(finding.since))) activityLabels.set(finding.since, activityTime(finding.since));
+    }
+    return entry;
+  }).map(entry => {
+    const prepareFinding = finding => ({ ...finding, words: activityWords(finding, { now: Date.parse(entry.at), timestampLabels: activityLabels }) });
+    return { ...entry, timeLabel: activityTime(entry.at), dayKey: new Date(entry.at).toDateString(), dayLabel: dayName(entry.at),
+      itemHref: entry.item ? itemAddress(entry.item.id) : null,
+      quoteHtml: entry.kind === 'shout' && entry.words ? inline(localActivityTimes(entry.words), titles) : '',
+      findings: entry.findings?.map(prepareFinding), stillStuck: entry.stillStuck?.map(prepareFinding),
+    };
+  });
+  activity.innerHTML = activityHtml({ ...activityModelData, rows: activityRows }, { controls: false, filter: view.activityFilter || 'all', open: activityOpen });
   }
   showTab();
   revealPlace();

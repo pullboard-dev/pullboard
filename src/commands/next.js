@@ -1,11 +1,13 @@
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
+import { startNextProgressMonitor } from '../next-progress-monitor.js';
 import { mainRedReviewItems } from '../main-red.js';
 import { mainRedReworkItems } from '../main-red.js';
 import { computedReturnArgs } from '../computed-conflict-return.js';
 import {
   mainRedBuildOffer,
   nextTake,
+  nextProgress,
 } from '../next-take.js';
 import {
   sayCheckBaseline,
@@ -62,6 +64,16 @@ function inboxReasons(ctx) {
  * @returns {Promise<number>}
  */
 export async function nextHere(io, values) {
+  const monitor = await startNextProgressMonitor(io);
+  const progress = nextProgress(io, { monitor }), previous = io.nextPhase;
+  io.nextPhase = progress.enter;
+  try { return await nextWithProgress(io, values, progress); }
+  finally { progress.stop(); await monitor?.close(); if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous; }
+}
+
+/** Keep native routing and deliberate idle waits separate from bounded nonprogress retries. */
+async function nextWithProgress(io, values, progress) {
+  progress.enter('context');
   let ctx = context(io);
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
     whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, computedReturnArgs };
@@ -77,15 +89,18 @@ export async function nextHere(io, values) {
   if (!Number.isFinite(minutes) || minutes < 0 || minutes > 240) {
     throw new Refused('USAGE', '--wait is a number of minutes from 0 to 240');
   }
+  values = { ...values, observeIdle: true };
+  let lastIdleReason;
   const deadline = Date.now() + minutes * 60_000;
   const origin = ctx.info.root;
   for (;;) {
-    const takeMainRed = !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices);
-    const found = values.take || takeMainRed ? await nextTake(ctx, values, takeServices) : await nextOnce(ctx, values);
+    const takeMainRed = await progress.run('main-red routing', null, () => !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices));
+    const found = await progress.run('selection', values.verifyId === undefined ? null : Number(values.verifyId), () => values.take || takeMainRed ? nextTake(ctx, values, takeServices) : nextOnce(ctx, values));
     if (found.context) ctx = found.context;
     if (found.specMerged) {
       io.say(`merged main before claiming #${found.specMerged.item}: added spec rows ${found.specMerged.rows.join(', ')}`);
       ctx = context(io);
+      await progress.retry({ retryDetail: { phase: 'main spec merge', item: found.specMerged.item, code: 'MAIN_SPEC_MERGED' } });
       continue;
     }
     if (found.item) {
@@ -124,10 +139,21 @@ export async function nextHere(io, values) {
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
         sayBrief(io, item.item_brief);
-        await sayMapSlice(io, ctx, item);
+        await progress.run('code map', item.item_id, () => sayMapSlice(io, ctx, item));
         io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id} --wait`);
       }
       return 0;
+    }
+    const idleReason = found.idleReason ?? 'unknown';
+    if (!found.retry && idleReason !== lastIdleReason) {
+      try {
+        await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, reason: idleReason }])));
+      } catch (error) {
+        if (!(error instanceof Refused) || !['RELAY_RECOVERY_PENDING', 'RELAY_KEY_MISSING', 'AUTH_REQUIRED', 'ENGINE_VERSION'].includes(error.code)) throw error;
+        // Reading eligibility stays available while canonical writes are fenced; this interval remains unknown.
+        io.err(`next idle observation was not recorded (${error.code}); the idle reason remains unmeasured`);
+      }
+      lastIdleReason = idleReason;
     }
     if (!found.retry && (found.laneWork || Date.now() >= deadline)) {
       if (values.verify) refuseWhileBuilding(ctx);
@@ -136,7 +162,8 @@ export async function nextHere(io, values) {
       const seat = withBoardRead(ctx, (board) => whoAmI(ctx, board));
       return refuseNextIdle(io, found.reasons, found.reasons.map((reason) => displayedWait(reason, agents, ctx.config)), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
-    if (!found.retry) await new Promise((done) => setTimeout(done, 5000));
+    if (found.retry) await progress.retry(found);
+    else await progress.idle(found.reasons, () => new Promise((done) => setTimeout(done, 5000)));
   }
 }
 

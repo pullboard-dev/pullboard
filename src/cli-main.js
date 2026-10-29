@@ -88,6 +88,8 @@ const OPTIONS = {
   check: { type: 'string' },
   // The watch command's options.
   every: { type: 'string' },
+  scale: { type: 'boolean' },
+  cycles: { type: 'string' },
   owner: { type: 'string' },
   directory: { type: 'string' },
   timeout: { type: 'string' },
@@ -142,6 +144,7 @@ const OPTIONS = {
   verbose: { type: 'boolean' },
   since: { type: 'string' },
   window: { type: 'string' },
+  compare: { type: 'boolean' },
   policy: { type: 'string' },
   decision: { type: 'boolean' },
   kind: { type: 'string' },

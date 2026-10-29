@@ -1,5 +1,7 @@
 import { eligibilityProblem } from './review-eligibility.js';
 import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
+import { familyIndex } from './review-policy.js';
+import { unreviewableStrict } from './review-reachability.js';
 import { withLocalSeatPresence } from './seat-presence.js';
 import { mechanicalConflictFiles } from './mechanical-merge.js';
 import { localDependencyIds } from './item-dependencies.js';
@@ -118,7 +120,7 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
   if (typeof dispatchHealth !== 'function') throw new TypeError('healthReport requires its dispatchHealth observation port');
   const at = now.getTime();
   const age = (iso) => at - Date.parse(iso);
-  const board = { db, clock: { now: () => now } };
+  const board = { db, clock: { now: () => now }, familyAliases: familyIndex(config?.families) };
   report.stuck.push(...missedJobFindings(board, at), ...dispatchHealth(board, config).findings);
   for (const stale of staleRowDecisions(rowDecisions(board), root, config)) {
     report.stuck.push(finding('STALE_ROW_DECISION', null, {
@@ -170,7 +172,17 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
           next: `take the review with pullboard next --verify ${id}`, command: `pullboard next --verify ${id}`,
           owner: { role: 'reviewer', who: null }, detail: { reviewer, commit: item.item_commit },
         }));
-      } else if (!reviewer && age(submittedAt) >= limits.ms.stuck) {
+      } else if (!reviewer) {
+        const blocked = unreviewableStrict(board, item, { policy: config?.verify?.policy, familyPolicy: config?.verify?.family });
+        if (blocked) found(report.stuck, finding('NO_ELIGIBLE_REVIEWER', item, {
+          since: submittedAt, now: at,
+          title: 'no seat can review',
+          why: blocked.message,
+          next: blocked.fix, command: `pullboard show ${id}`,
+          owner: { role: 'coordinator', who: COORDINATOR }, detail: { builder: item.item_built_by, undeclared: blocked.undeclared, excluding: blocked.excluding },
+        }));
+      }
+      if (!lapsed && !reviewer && age(submittedAt) >= limits.ms.stuck) {
         found(report.stuck, finding('NO_REVIEWER', item, {
           since: submittedAt, now: at,
           title: 'no reviewer',

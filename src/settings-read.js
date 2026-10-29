@@ -24,6 +24,9 @@ export function loadMachineSettings() {
   if (value.gate?.browserFreeChecks !== undefined && typeof value.gate.browserFreeChecks !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.browserFreeChecks in ${file} must be true or false`);
   }
+  if (value.gate?.runnersOnly !== undefined && typeof value.gate.runnersOnly !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnersOnly in ${file} must be true or false`);
+  }
   if (value.gate?.runnersFirst !== undefined && typeof value.gate.runnersFirst !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnersFirst in ${file} must be true or false`);
   }
@@ -40,6 +43,12 @@ export function loadMachineSettings() {
   }
   const canaryProblem = relayCanaryProblem(value.relay?.canary);
   if (canaryProblem) throw new Refused('BAD_MACHINE_SETTINGS', `relay.canary in ${file} is invalid: ${canaryProblem}`);
+  const workerBudget = value.workers?.budget;
+  if (workerBudget !== undefined && (!workerBudget || typeof workerBudget !== 'object' || Array.isArray(workerBudget)
+    || !(typeof workerBudget.seatHours === 'number' && Number.isFinite(workerBudget.seatHours) && workerBudget.seatHours >= 0)
+    || !['day', 'week'].includes(workerBudget.window) || Object.keys(workerBudget).some(key => !['seatHours', 'window'].includes(key)))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `workers.budget in ${file} must be seat-hours over a day or week; run pullboard settings workers.budget 40/day`);
+  }
   if (value.gate?.memoryFloorMB !== undefined && (!Number.isSafeInteger(value.gate.memoryFloorMB) || value.gate.memoryFloorMB < 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.memoryFloorMB in ${file} must be a whole number of megabytes, 0 or more; fix it before running Pullboard`);
   }

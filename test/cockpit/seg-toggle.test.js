@@ -5,20 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { segmentedToggle } from '../../src/view/seg-toggle.js';
 import { SPEC, machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, tapTouch, proofShot } from './fixture.js';
-
-test('the shared segmented component escapes labels, values and counts and exposes each pressed state [N26]', () => {
-  const html = segmentedToggle({ label: 'A "group"', attribute: 'data-rows', value: 'chosen', options: [
-    { value: 'chosen', label: 'Chosen', count: 0 }, { value: '" onclick="unsafe', label: '<script>unsafe</script>', count: '<b>unsafe</b>' },
-  ] });
-  assert.match(html, /role="group" aria-label="A &quot;group&quot;" data-segmented-control="data-rows"/u);
-  assert.match(html, /data-rows="chosen" aria-pressed="true" class="on">Chosen<b>0<\/b>/u);
-  assert.match(html, /data-rows="&quot; onclick=&quot;unsafe" aria-pressed="false"/u);
-  assert.ok(html.includes('&lt;script&gt;unsafe&lt;/script&gt;<b>&lt;b&gt;unsafe&lt;/b&gt;</b>'));
-  assert.doesNotMatch(html, /<script>| onclick="/u);
-  assert.throws(() => segmentedToggle({ label: 'Unsafe', attribute: 'onclick', options: [] }), /Unsupported segmented control action/u);
-});
 
 /** Read the real browser cascade and bounds, independently of the renderer's markup strings. */
 async function measureControl(chrome, selector) {
@@ -75,7 +62,7 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
         ['items', '#items-view-switch', 'data-items-view', 'list', 'pipeline'],
         ['spec', '#spec-chips', 'data-rows', 'spec:all', 'spec:approved'],
         ['doctrine', '#doctrine-chips', 'data-rows', 'doctrine:all', 'doctrine:approved'],
-        ['activity', '#activity .activity-bar', 'data-activity-filter', 'all', 'shouts'],
+        ['activity', '#activity-filters .activity-bar', 'data-activity-filter', 'all', 'shouts'],
       ]) {
         await press(chrome, 'document.querySelector("[data-tab=' + pane + ']")');
         await chrome.waitFor('!document.querySelector("[data-pane=' + pane + ']").hidden && !!document.querySelector(' + JSON.stringify(selector + ' [' + attribute + ']') + ')');

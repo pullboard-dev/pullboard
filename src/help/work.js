@@ -28,6 +28,9 @@ export const workHelp = `Work
                                         the context pack at $PULLBOARD_PACK (and $PULLBOARD_CHECK, $PULLBOARD_ITEM,
                                         $PULLBOARD_ATTEMPT, $PULLBOARD_TIER); green work is submitted, red escalated
                 [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier
+  pullboard run --scale --lane <lane> --model "<model name>" --agent "<command>" [--every 60] [--cycles N]
+                                        from the main checkout: run as many worker seats as are worth running,
+                                        within pullboard settings workers.budget seat-hours; idle seats stop first
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
   pullboard queue                       the work queue in pull order: releases, then route, lane, holder, waits,
                                         and each item's unblock count, effort and why it sits there
@@ -109,7 +112,7 @@ export const workHelp = `Work
   pullboard inbox --acted-on <interrupt-ids>     acknowledge comma-separated ids only after acting; reading is not acting
   pullboard shout --item <id> <text>             message the item builder, reviewer and coordinator
   A seat shout to all reaches only coordinator and person; their broadcasts reach everyone.
-  pullboard shout coordinator <text> --kind question|blocker|decision|exception|idea  declare the coordinator message kind
+  pullboard shout coordinator <text> --kind question|blocker|decision|exception|idea  declare the kind; a submit or verdict the board recorded is not shouted
   Coordinator shouts without --kind, or with --kind status, refuse; record item updates with pullboard fact.
   A named lane lead receives question and blocker kinds first; exception and idea reach the coordinator.
   pullboard lanes lead <lane> <seat|off>          coordinator names or removes the existing lane seat
