@@ -84,10 +84,8 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       await chrome.waitFor("document.querySelectorAll('#roadmap .milestone-item').length === 2");
       listed.roadmap = await chrome.stable("[...document.querySelectorAll('#roadmap .milestone-item')].map((row) => row.querySelector('.id').textContent + ' ' + row.querySelector('.chip').textContent)");
       assert.deepEqual([...listed.roadmap].sort(), ['#1 accepted', '#2 to verify'], 'the roadmap reads every member and its exact state from summaries');
-      // Shipping groups follow the approved legend order, independently of item IDs or milestone membership order.
-      const group = { accepted: 0, 'to verify': 1, building: 2, unclaimed: 3, 'sent back': 3, held: 4, verified: 5 };
-      const ranks = listed.roadmap.map((row) => group[row.slice(row.indexOf(' ') + 1)]);
-      assert.ok(ranks.every((rank, index) => Number.isInteger(rank) && (!index || ranks[index - 1] <= rank)), `the roadmap groups accepted, review, building, waiting, held, then landed: ${JSON.stringify(listed.roadmap)}`);
+      // Positioned work follows the backend queue; accepted items have no queue position.
+      assert.deepEqual(listed.roadmap, ['#2 to verify', '#1 accepted'], 'the roadmap shows queue-positioned work before unpositioned accepted items');
       assert.deepEqual(itemReads(listed.reads), [], 'Shouts renders the board summaries with no item detail fetched');
       assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), [], 'opening Roadmap renders summaries without fetching item detail');
       await press(chrome, "document.querySelector('[data-tab=shouts]')");

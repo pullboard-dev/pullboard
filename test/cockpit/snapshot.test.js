@@ -13,6 +13,7 @@ import { closeBoard } from '../../src/board.js';
 import { events } from '../../src/board.js';
 import { openBoardForRead } from '../../src/board-read-open.js';
 import { proofStats } from '../../src/stats.js';
+import { compareFlowWindows } from '../../src/stats-flow.js';
 import { portableSnapshot } from '../../src/serve.js';
 import { viewProofSummary } from '../../src/view-state-summary.js';
 import { exportView } from '../../src/commands/view.js';
@@ -35,7 +36,14 @@ function assertSnapshotObservation(expected, actual, board, root, message) {
   assert.deepEqual(expected.proofStats, statisticsAt(expected), 'the live projection matches the public statistics reader at its clock');
   const actualStatistics = statisticsAt(actual);
   assert.deepEqual(actual.proofStats, actualStatistics, 'the export projection matches the public statistics reader at its clock');
-  assert.deepEqual(actual, { ...expected, observedAt: actual.observedAt, proofStats: actualStatistics }, message);
+  /** Check the complete comparison window against the same locked event prefix at each read clock. */
+  const comparisonAt = observation => portableSnapshot(JSON.parse(JSON.stringify(compareFlowWindows(readStatsEvents(board), {
+    now: Date.parse(observation.observedAt), windowMinutes: 120, complete: true,
+  }))), root);
+  assert.deepEqual(expected.statsComparison, comparisonAt(expected), 'the live comparison matches its public reader at its observation clock');
+  const actualComparison = comparisonAt(actual);
+  assert.deepEqual(actual.statsComparison, actualComparison, 'the export comparison matches its public reader at its observation clock');
+  assert.deepEqual(actual, { ...expected, observedAt: actual.observedAt, proofStats: actualStatistics, statsComparison: actualComparison }, message);
 }
 
 test('static export stays in its prefix and replays read-only in Chrome [A10,A3]', { timeout: 90_000 }, async (t) => {
@@ -658,8 +666,8 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     await openRoadmapParts(chrome);
     const seen = await readRoadmap(chrome);
     assert.deepEqual(seen.cards[0].rows.map(({ id, label, tone, button }) => ({ id, label, tone, button })), [
-      { id: '#1', label: 'accepted', tone: 'ok', button: true },
       { id: '#2', label: 'unclaimed', tone: 'free', button: true },
+      { id: '#1', label: 'accepted', tone: 'ok', button: true },
       { id: 'beacon#1', label: 'unclaimed', tone: 'free', button: true },
     ], "the snapshot's rows expand in place; another repo's unavailable item has no Items link");
     assert.equal(seen.cards[0].rows.find((row) => row.id === 'beacon#1').tip, 'Billing webhook retries (not in this snapshot)', 'and says why');
