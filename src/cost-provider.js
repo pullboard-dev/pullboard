@@ -1,5 +1,6 @@
 /** Native session usage only: values unavailable from a provider stay null. */
 import { readFileSync } from 'node:fs';
+import { unknownInputSplit } from './cost-read.js';
 
 /** Accept a provider's finite nonnegative count, never a string coercion. */
 function count(value) {
@@ -29,7 +30,7 @@ function codex(rows) {
     const at = Date.parse(row.timestamp);
     if (!Number.isFinite(at)) return [];
     if (input === null || output === null) {
-      result.push({ at, inputTokens: null, outputTokens: null, model: typeof model === 'string' && model.trim() ? model : null });
+      result.push({ at, ...unknownInputSplit(), inputTokens: null, outputTokens: null, model: typeof model === 'string' && model.trim() ? model : null });
       previous = undefined;
       continue;
     }
@@ -37,8 +38,12 @@ function codex(rows) {
     // A decreased field is independently unknown; never turn resets into positive spend.
     const deltaInput = !previous ? input : input >= previous.input ? input - previous.input : null;
     const deltaOutput = !previous ? output : output >= previous.output ? output - previous.output : null;
-    previous = { input, output };
-    result.push({ at, inputTokens: deltaInput, outputTokens: deltaOutput, model: typeof model === 'string' && model.trim() ? model : null });
+    const read = count(usage.cached_input_tokens);
+    const fresh = read !== null && read <= input ? input - read : null;
+    const deltaRead = read !== null && (!previous || previous.read !== null && read >= previous.read) ? read - (previous?.read ?? 0) : null;
+    const deltaFresh = fresh !== null && (!previous || previous.fresh !== null && fresh >= previous.fresh) ? fresh - (previous?.fresh ?? 0) : null;
+    previous = { input, output, read, fresh };
+    result.push({ at, freshInputTokens: deltaFresh, cacheReadInputTokens: deltaRead, cacheWriteInputTokens: null, inputTokens: deltaInput, outputTokens: deltaOutput, model: typeof model === 'string' && model.trim() ? model : null });
   }
   return result;
 }
@@ -58,10 +63,11 @@ function claude(rows) {
     const earlier = messages.get(message.id);
     if ([raw, output, read, write].includes(null) || !Number.isFinite(at) || !Number.isSafeInteger(raw + read + write)) {
       // Keep a valid streamed version; a new unreadable usage message is unknown, never zero.
-      if (!earlier && Number.isFinite(at)) messages.set(message.id, { at, inputTokens: null, outputTokens: null, model: typeof message.model === 'string' && message.model.trim() ? message.model : null });
+      if (!earlier && Number.isFinite(at)) messages.set(message.id, { at, ...unknownInputSplit(), inputTokens: null, outputTokens: null, model: typeof message.model === 'string' && message.model.trim() ? message.model : null });
       continue;
     }
     messages.set(message.id, { at: earlier?.at ?? at, inputTokens: raw + read + write, outputTokens: output,
+      freshInputTokens: raw, cacheReadInputTokens: count(usage.cache_read_input_tokens), cacheWriteInputTokens: count(usage.cache_creation_input_tokens),
       model: typeof message.model === 'string' && message.model.trim() ? message.model : null });
   }
   return [...messages.values()].sort((a, b) => a.at - b.at);
