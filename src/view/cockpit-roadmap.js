@@ -1,6 +1,6 @@
 /** Return the original roadmap section of the self-contained cockpit document. */
 export function cockpitRoadmap(sections) {
-  const { milestoneRowHtml, readMilestoneModel, roadmapCardsHtml } = sections;
+  const { milestoneRowHtml, readMilestoneModel, roadmapRemainingCount, roadmapCardsHtml } = sections;
   return `/** Index only the immutable board objects used during this synchronous render. */
 function renderIndex(project) {
   if (!project) return { items: new Map(), titles: new Map(), releases: new Map(), citations: new Map() };
@@ -127,6 +127,7 @@ function jumpToRoadmap(key) {
  */
 const milestoneRowHtml = (${milestoneRowHtml.toString()});
 const readMilestoneModel = (${readMilestoneModel.toString()});
+const roadmapRemainingCount = (${roadmapRemainingCount.toString()});
 const roadmapCardsHtml = (${roadmapCardsHtml.toString()});
 /** Prepare rich title markup and the native state chip from the current page only. */
 function milestonePresentation(row, titles) {
@@ -158,7 +159,7 @@ function nextMilestone(p) {
  * Headers show the backend's summary; accepted and landed rows stay distinct; shipped history carries its commit; old
  * exports keep their legacy completion rule; each part keeps the person's disclosure choice for this visit.
  */
-/** Prepare links, localized dates and current disclosure choices before rendering Roadmap HTML. */
+/** Prepare one exact set of release reads for both Roadmap HTML and its browser-title count. */
 function roadmapCards(p, titles) {
   const only = view.roadmapOnly && (p.milestones || []).some(m => m.name === view.roadmapOnly) ? view.roadmapOnly : null;
   const reads = (p.milestones || []).filter(m => !only || m.name === only).map(m => readMilestone(m, p));
@@ -174,7 +175,8 @@ function roadmapCards(p, titles) {
     headings.set(read, linked(read.milestone.name, titles));
     if (read.milestone.note) notes.set(read, rich(read.milestone.note, titles));
   }
-  return roadmapCardsHtml(reads, { only, root: view.root, held: view.roadmapHeld, open: view.roadmapOpen, headers, headings, rows, notes, targets });
+  return { html: roadmapCardsHtml(reads, { only, root: view.root, held: view.roadmapHeld, open: view.roadmapOpen, headers, headings, rows, notes, targets }),
+    remaining: roadmapRemainingCount(reads) };
 }
 
 `;
