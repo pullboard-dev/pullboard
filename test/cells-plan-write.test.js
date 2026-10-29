@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -12,6 +13,8 @@ import { computePlan } from '../bin/cells-plan.js';
 import { placePath } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
+import { checkMoved } from '../bin/cells-plan.js';
+import { stalePlanRows } from '../bin/cells-plan.js';
 import { runFixtureChild } from './fixture-child.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
@@ -59,6 +62,78 @@ for (const mode of ['writePlan', '--place']) test(`${mode} keeps a two-space ind
   const lines = git(root, 'diff', '--numstat', '--', 'bin/cells-plan.json').trim().split('\t');
   assert.deepEqual(lines, ['4', '0', 'bin/cells-plan.json'], 'one appended object, without a shared counter or formatting rewrite');
   for (const [file, bytes] of shards) assert.equal(readFileSync(join(root, file), 'utf8'), bytes, `${file} keeps its compact shard format`);
+});
+
+test('a deleted planned file is named stale by --check and --moved, and --retire moves its row to retired [C7,D3,CD64]', t => {
+  const { root, put } = fixture(t);
+  writePlan(root, computePlan(root));
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'fixture plan');
+  const deleted = 'src/stats-flow.js';
+  const owner = readPlan(root).cells.find(cell => cell.paths.some(([from]) => from === deleted));
+  assert.ok(owner, 'the fixture plans the file before its deletion');
+  rmSync(join(root, deleted));
+  put('src/cli.js', "import { stats } from './stats.js';\nconsole.log(stats);\n");
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'an item deletes a planned file');
+  assert.deepEqual(stalePlanRows(root, readPlan(root)).map(entry => [entry.cell, entry.row[0]]), [[owner.name, deleted]]);
+  const check = runFixtureChild(process.execPath, [BIN, '--check'], { cwd: root, encoding: 'utf8' });
+  assert.equal(check.status, 1, 'a stale row fails the plan check');
+  assert.match(check.stderr, new RegExp(`stale plan row in \\S+: ${deleted} no longer exists; retire it: node bin/cells-plan.js --retire ${deleted}`, 'u'));
+  assert.ok(checkMoved(root, readPlan(root), owner.name).includes(`${deleted} was deleted, so its plan row is stale; retire it: node bin/cells-plan.js --retire ${deleted}`),
+    'the move check names the retire step rather than a missing target');
+  const live = runFixtureChild(process.execPath, [BIN, '--retire', 'src/stats.js'], { cwd: root, encoding: 'utf8' });
+  assert.notEqual(live.status, 0);
+  assert.match(live.stderr, /CELLS_PLAN_RETIRE/u, 'a file that still exists never retires');
+  const retire = runFixtureChild(process.execPath, [BIN, '--retire', deleted], { cwd: root, encoding: 'utf8' });
+  assert.equal(retire.status, 0, retire.stderr);
+  const plan = readPlan(root);
+  assert.ok(!plan.cells.some(cell => cell.paths.some(([from]) => from === deleted) || cell.reexports.includes(deleted)
+    || cell.cuts.some(link => link.edges.some(edge => edge.split('->').includes(deleted)))), 'no active row, shim or cut names the file');
+  assert.deepEqual(plan.retired, [{ cell: owner.name, row: owner.paths.find(([from]) => from === deleted) }], 'its row keeps its provenance as retired');
+  assert.equal(plan.totals.movedPaths, readPlan(root).cells.reduce((sum, cell) => sum + cell.paths.length, 0));
+  assert.equal(runFixtureChild(process.execPath, [BIN, '--check'], { cwd: root, encoding: 'utf8' }).status, 0, 'the retired plan checks clean');
+});
+
+test('--retire refuses a deleted file that a live import still names [C7,D3,CD64]', t => {
+  const { root } = fixture(t);
+  writePlan(root, computePlan(root));
+  rmSync(join(root, 'src/claims.js'));
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'delete a file its importer still names');
+  const before = readFileSync(join(root, 'bin/cells-plan.json'), 'utf8');
+  const retire = runFixtureChild(process.execPath, [BIN, '--retire', 'src/claims.js'], { cwd: root, encoding: 'utf8' });
+  assert.notEqual(retire.status, 0);
+  assert.match(retire.stderr, /CELLS_PLAN_RETIRED[\s\S]*live import/u);
+  assert.equal(readFileSync(join(root, 'bin/cells-plan.json'), 'utf8'), before, 'a refused retirement writes nothing');
+});
+
+test('--moved counts only unproven fixture reads the move made: exact main-base sites are notes, new or path-naming ones still refuse [C7,D3,CD64]', t => {
+  const { root, put } = fixture(t);
+  writePlan(root, computePlan(root));
+  const reader = 'test/reader.test.js';
+  const header = "import { readFileSync } from 'node:fs';\nconst moved = 'stats.js';\n";
+  put(reader, header + "readFileSync(outputOf(box));\nreadFileSync(pick('stats.js'));\n");
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'main with an unproven fixture read');
+  git(root, 'checkout', '-q', '-b', 'move');
+  put(reader, header + "\nreadFileSync(outputOf(box));\nreadFileSync(pick('stats.js'));\nreadFileSync(outputOf(box));\n");
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'the move branch shifts a line and adds a second occurrence');
+  const cell = readPlan(root).cells.find(entry => entry.paths.some(([from]) => from === 'src/stats.js'));
+  const notes = [], problems = checkMoved(root, readPlan(root), cell.name, { notes }).filter(problem => problem.startsWith(reader));
+  assert.deepEqual(notes.map(note => note.split(':')[1]), ['4'], 'the main-base site, found by its text even on a shifted line, is a note');
+  assert.match(notes[0], /also at main [a-f0-9]{12}; not this move's obligation/u);
+  assert.deepEqual(problems.map(problem => problem.split(':')[1]).sort(), ['5', '6'],
+    'a read naming a moved basename and an extra occurrence of a known site both still count');
+  /** Name the lines of every counted unproven read in the reader. */
+  const counted = () => checkMoved(root, readPlan(root), cell.name).filter(problem => problem.startsWith(reader)).map(problem => problem.split(':')[1]).sort();
+  git(root, 'checkout', '-q', 'main');
+  git(root, 'merge', '-q', '--ff-only', 'move');
+  assert.deepEqual(counted(), ['4', '5', '6'], 'on main itself there is no earlier base, so every unproven read counts');
+  git(root, 'checkout', '-q', 'move');
+  git(root, 'branch', '-q', '-D', 'main');
+  assert.deepEqual(counted(), ['4', '5', '6'], 'without a main base every unproven read counts');
 });
 
 test('independent cell placements merge without a shared counter and read both new rows [C7,D3,CD60]', t => {
