@@ -20,7 +20,7 @@ test('the HTTP-served browser module import closure includes the SSE transport a
   await once(server, 'listening');
   t.after(() => new Promise(resolveClose => server.close(resolveClose)));
   const origin = 'http://127.0.0.1:' + server.address().port;
-  const pending = ['/relay/client.js'];
+  const pending = ['/relay/client.js', '/relay/page-layout.js', '/relay/sealed-pages.js'];
   const seen = new Set();
   while (pending.length) {
     const path = pending.pop();
@@ -32,8 +32,9 @@ test('the HTTP-served browser module import closure includes the SSE transport a
     assert.match(response.headers.get('content-security-policy') ?? '', /default-src 'none'/u);
     assert.match(response.headers.get('content-type') ?? '', /javascript/u);
     const source = await response.text();
-    for (const match of source.matchAll(/\bimport\s+(?:[^'";]+?\s+from\s+)?['"]([^'"]+)['"]/gu)) {
+    for (const match of source.matchAll(/\b(?:import\s+(?:[^'";]+?\s+from\s+)?|export\s+(?:\*|\{[^}]*\})\s+from\s*)['"]([^'"]+)['"]/gu)) {
       const specifier = match[1];
+      assert.ok(!specifier.startsWith('node:'), 'public browser modules never depend on Node builtins');
       if (!specifier.startsWith('.')) continue;
       const child = new URL(specifier, origin + path).pathname;
       assert.ok(child.startsWith('/relay/'), 'browser module imports remain inside the fixed public asset namespace');
