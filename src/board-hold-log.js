@@ -79,7 +79,7 @@ export function boardHoldStats({ since, until = Date.now() } = {}) {
     let row;
     try { row = JSON.parse(line); }
     catch { invalidLines++; continue; }
-    if (!row || typeof row !== 'object' || Array.isArray(row)) { invalidLines++; continue; }
+    if (!row || typeof row !== 'object' || Array.isArray(row) || typeof row.at !== 'string') { invalidLines++; continue; }
     const at = Date.parse(row.at);
     if (row.version !== 1 || !Number.isFinite(at) || !Number.isSafeInteger(row.heldMs) || row.heldMs <= BOARD_HOLD_MS
       || label(row.command, null) === null || label(row.seat, null) === null) { invalidLines++; continue; }

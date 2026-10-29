@@ -54,11 +54,12 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   assert.equal(rows.some(row => row.command === 'fixture-fast'), false);
   assert.deepEqual(Object.keys(holds[0]).sort(), ['at', 'command', 'heldMs', 'item', 'outcome', 'seat', 'version'],
     'no SQL, notes, CLI arguments, session ids or board data are published');
-  appendFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'board-holds.jsonl'), 'null\n{}\n');
+  appendFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'board-holds.jsonl'), 'null\n{}\n'
+    + JSON.stringify({ version: 1, at: { toString: null }, heldMs: 1_200, command: 'invalid', seat: 'web-1' }) + '\n');
   const result = box.run(box.repo, 'stats', '--window', '24h', '--json');
   assert.equal(result.code, 0, result.err);
   const stats = JSON.parse(result.out).boardHolds;
-  assert.equal(stats.invalidLines, 2, 'malformed diagnostic rows cannot crash a stats query or count as a hold');
+  assert.equal(stats.invalidLines, 3, 'malformed diagnostic rows cannot crash a stats query or count as a hold');
   assert.equal(stats.commands.find(row => row.command === 'fixture-hold').count, 1);
   assert.equal(stats.commands.find(row => row.command === 'fixture-hold').slowestMs, holds[0].heldMs);
   const narrow = box.run(box.repo, 'stats', '--since', new Date(Date.now() + 60_000).toISOString(), '--json');
