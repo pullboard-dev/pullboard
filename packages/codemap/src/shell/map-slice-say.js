@@ -1,6 +1,5 @@
 /** Print an item's code map slice after a claim, only when the board's map.slice setting is on [1203]. */
 import { join } from 'node:path';
-import { primaryCheckoutRoot } from '../../../../src/cli.js';
 import { mainCheckout } from '../../../../src/git.js';
 
 /**
@@ -12,9 +11,10 @@ import { mainCheckout } from '../../../../src/git.js';
  * @param {{ say: (text: string) => void }} io
  * @param {{ config: any, info: any }} ctx
  * @param {{ item_id: number }|undefined} item - The claimed item, as the board stores it.
+ * @param {(info: any) => string|null} primaryCheckoutRoot - The caller's resolver; passed in so this cell never imports the CLI.
  * @returns {Promise<void>}
  */
-export async function sayMapSlice(io, ctx, item) {
+export async function sayMapSlice(io, ctx, item, primaryCheckoutRoot) {
   if (ctx.config.map?.slice !== true || !item) return;
   const root = primaryCheckoutRoot(ctx.info);
   const trunk = root ? mainCheckout(root) : null;

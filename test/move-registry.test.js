@@ -40,7 +40,7 @@ import { registryProblems } from './move-registry-invariants.js';
 import {
   mappedWorkingSources,
 } from '../bin/checks/scan.js';
-import { readPathMap } from '../src/path-map.js';
+import { readPathMap } from '../packages/codemap/index.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
 import { historyProblems } from './move-registry-history.js';
 import { installRegistryMergeCase } from './move-registry-merge-cases.js';

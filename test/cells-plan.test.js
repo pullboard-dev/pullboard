@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** The committed cells move plan places each path once and orders cells leaf-first by real imports [D3,CD60,CD64]. */
-import { sourceAdvancePlan } from '../src/source-advance-plan.js';
+import { sourceAdvancePlan } from '../packages/codemap/index.js';
 import { selectAffectedTests } from '../src/affected-tests.js';
 import { selectTestTreeGuards } from '../src/affected-tests.js';
 import { importsIn } from '../src/module-imports.js';
@@ -9,13 +9,13 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { cellInventory } from '../src/cell-lint-inventory.js';
-import { testFile } from '../src/cell-lint-inventory.js';
-import { inPlanScope } from '../src/cells-plan.js';
-import { readPathMap } from '../src/path-map.js';
-import { mappedPath } from '../src/path-map.js';
+import { cellInventory } from '../packages/codemap/index.js';
+import { testFile } from '../packages/codemap/index.js';
+import { inPlanScope } from '../packages/codemap/index.js';
+import { readPathMap } from '../packages/codemap/index.js';
+import { mappedPath } from '../packages/codemap/index.js';
 import { computePlan } from '../bin/cells-plan.js';
-import { refreshPlanCuts } from '../src/cells-plan-cuts.js';
+import { refreshPlanCuts } from '../packages/codemap/index.js';
 import { checkMoved } from '../bin/cells-plan.js';
 import { itemCommands } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';

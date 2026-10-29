@@ -16,8 +16,8 @@ import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
 import { selectAffectedTests } from '../src/affected-tests.js';
 import { testClosures } from '../src/affected-tests.js';
-import { repositoryImport } from '../src/import-map.js';
-import { styleSources } from '../src/source-inventory.js';
+import { repositoryImport } from '../packages/codemap/index.js';
+import { styleSources } from '../packages/codemap/index.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import { copyPackageSubset } from './package-copy-fixture.js';
 
@@ -138,13 +138,13 @@ test('an installed cell resolver upgrade invalidates memo keys outside the candi
     assert.match(record.key, /^[a-f0-9]{64}$/u, record.reason);
     return record.key;
   };
-  const resolver = join(tool, 'src/import-map.js');
+  const resolver = join(tool, 'packages/codemap/src/core/import-map.js');
   const analyzer = join(tool, 'src/test-action-cache.js');
   const fixedAnalyzer = readFileSync(analyzer, 'utf8');
   const originalResolver = readFileSync(resolver, 'utf8');
   const revisedResolver = originalResolver + '\n// Installed resolver revision: candidate tree deliberately unchanged.\n';
   // Reproduce the old installed analyzer in this private copy only; the owning checkout stays untouched.
-  writeFileSync(analyzer, fixedAnalyzer.replace(", 'import-map.js'", ''));
+  writeFileSync(analyzer, fixedAnalyzer.replace(", '../packages/codemap/src/core/import-map.js'", ''));
   const oldBefore = key();
   writeFileSync(resolver, revisedResolver);
   const oldAfter = key();

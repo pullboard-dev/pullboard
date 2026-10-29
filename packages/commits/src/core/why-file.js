@@ -12,7 +12,7 @@ import {
   historicalPaths,
   mappedPath,
   readPathMap,
-} from "../../../../src/path-map.js";
+} from "../../../codemap/index.js";
 
 /**
  * Split `path` or `path:line` into the file and an optional line.

@@ -3,11 +3,11 @@ import { matchingDataRead } from './cells-data-reads.js';
 import { posix } from 'node:path';
 import { createHash } from 'node:crypto';
 import { lex } from '../packages/kernel/index.js';
-import { bindingReadsForModules } from '../src/cell-binding-uses.js';
-import { localFunctionCallSets } from '../src/cell-binding-uses.js';
-import { readOnlyMemberRanges } from '../src/cell-binding-uses.js';
-import { stringSuffixDisjoint } from '../src/path-map-operands.js';
-import { repositoryImport } from '../src/import-map.js';
+import { bindingReadsForModules } from '../packages/codemap/index.js';
+import { localFunctionCallSets } from '../packages/codemap/index.js';
+import { readOnlyMemberRanges } from '../packages/codemap/index.js';
+import { stringSuffixDisjoint } from '../packages/codemap/index.js';
+import { repositoryImport } from '../packages/codemap/index.js';
 import { canonicalCopierPaths, operationalMentions } from './cells-move-mentions.js';
 
 const ID = '[A-Za-z_$][\\w$]*';
