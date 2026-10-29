@@ -149,7 +149,7 @@ export function costTabModel(project, events, prices = null) {
   const total = rows.length ? completeSum(knownCosts) : null;
   const middle = median(knownCosts);
   const rework = rows.flatMap(row => row.sessions.filter(session => session.role === 'rework').map(session => session.costUSD));
-  const reworkCost = rework.length ? completeSum(rework) : null;
+  const reworkCost = rework.length ? completeSum(rework) : total !== null ? 0 : null;
   const reworkShare = total !== null && total > 0 && reworkCost !== null ? reworkCost / total : null;
   const vendors = [...new Set(rows.flatMap(row => row.sessions.map(session => session.vendor)))].sort().map(vendor => ({
     vendor,

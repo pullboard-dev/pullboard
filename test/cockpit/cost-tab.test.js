@@ -48,6 +48,7 @@ test('the Cost presenter keeps the newest twenty landings, median bands and sess
   assert.equal(model.total, 660);
   assert.equal(model.perLanding, 33);
   assert.equal(model.median, 29.5);
+  assert.equal(model.reworkShare, 0);
   assert.equal(model.rows[0].agentHours, 1.5);
   assert.equal(model.rows[0].rounds, 1);
   const html = costTabHtml(model, 30);
