@@ -16,6 +16,7 @@
   ["src/view-session.js","apps/view/src/shell/view-session.js","seed"],
   ["src/view.css","apps/view/src/shell/view.css","seed"],
   ["src/view.js","apps/view/src/core/view.js","seed"],
+  ["src/view-binding-reads.js","apps/view/src/core/view-binding-reads.js","rule"],
   ["src/view/agent-approval.js","apps/view/src/core/view/agent-approval.js","seed"],
   ["src/view/cockpit-live.js","apps/view/src/core/view/cockpit-live.js","rule"],
   ["src/view/cockpit-markup.js","apps/view/src/core/view/cockpit-markup.js","rule"],

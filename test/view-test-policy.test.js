@@ -18,6 +18,7 @@ import { ENFORCED_FILE } from '../bin/checks/view-pure.js';
 import { enforcedRoots } from '../bin/checks/view-pure.js';
 import { viewPureGate } from '../bin/checks/view-pure.js';
 import { viewPureReport } from '../bin/checks/view-pure.js';
+import { viewTestProblems } from '../src/view/test-policy.js';
 
 const REPO = resolve(import.meta.dirname, '..');
 const GOOD = 'test/cockpit/good.test.js', BAD = 'test/cockpit/bad.test.js', RENDER = 'src/view/example.js';
@@ -26,6 +27,59 @@ const ROLES = {
   [BAD]: { kind: 'logic', reason: 'Seeded data through the actual renderer' },
 };
 const COVERAGE = [{ module: RENDER, names: ['render'], tests: [GOOD] }];
+
+/** Exercise the authoritative policy API over a pure imported module, without executing source. */
+function importedPolicy(source, requests = []) {
+  return viewTestProblems({ sources: new Map([[GOOD, "import { read } from '../../src/pure.js'; read();"], ['src/pure.js', source],
+    ['src/data.js', 'export const supplied = { durationMinutes: 120 }; export const window = supplied;']]),
+    edges: new Map([[GOOD, ['../../src/pure.js']], ['src/pure.js', requests], ['src/data.js', []]]), roots: [GOOD],
+    roles: { [GOOD]: ROLES[GOOD] }, coverage: [] });
+}
+
+test('the policy resolves local window bindings and literal minute comparisons in imported pure code [N26,C7]', () => {
+  for (const source of [
+    'const window = { durationMinutes: 120 }; export function read() { return window.durationMinutes === 120; }',
+    'export function read(window) { return window.durationMinutes === 120; }',
+    'export const read = (window) => window.durationMinutes === 120;',
+    'export const read = window => window.durationMinutes === 120;',
+    'export function read({ window }) { return window.durationMinutes === 120; }',
+    'export function read({ value: window }) { return window.durationMinutes === 120; }',
+    'export function read(input) { const { value: window } = input; return window.durationMinutes === 120; }',
+    'export function read(input) { { var window = input; } return window.durationMinutes === 120; }',
+    'export function read(input) { for (const window of input) { if (window.durationMinutes === 120) return true; } }',
+    'const read = function window() { return window; }; export { read };',
+    'const Supplied = class window { read() { return window; } }; export function read() { return Supplied; }',
+    'const supplied = { window() { return 120; } }; export function read() { return supplied.window(); }',
+    'export function read() { try { throw 120; } catch (window) { return window === 120; } }',
+  ]) assert.deepEqual(importedPolicy(source), [], source);
+});
+
+test('local window bindings never conceal a free read in another scope, even on the same line [N26,C7]', () => {
+  for (const source of [
+    'export function read() { return window.document; }',
+    'function supplied(window) { return window; } export function read() { return window.document; }',
+    '{ const window = {}; } export function read() { return window.document; }',
+    'const supplied = window => window; export function read() { return window.document; }',
+    'export function read(input) { for (const window of input) { void window; } return window.document; }',
+    'export function read(input) { const { window: supplied } = input; return window.document; }',
+    'const supplied = function window() { return window; }; export function read() { return window.document; }',
+    'const Supplied = class window { read() { return window; } }; export function read() { return window.document; }',
+    'const supplied = { window }; export function read() { return supplied; }',
+    'const supplied = { [window]: 120 }; export function read() { return supplied; }',
+  ]) assert.ok(importedPolicy(source).some(finding => /ambient execution\/DOM port window/u.test(finding.text)), source);
+});
+
+test('import bindings distinguish the local name from a foreign export named window [N26,C7]', () => {
+  assert.deepEqual(importedPolicy("import { supplied as window } from './data.js'; export function read() { return window.durationMinutes === 120; }", ['./data.js']), []);
+  const found = importedPolicy("import { window as supplied } from './data.js'; export function read() { return window.document; }", ['./data.js']);
+  assert.ok(found.some(finding => /src\/pure\.js:.*ambient execution\/DOM port window/u.test(finding.text)));
+});
+
+test('the policy retains real elapsed-clock margin failures while allowing literal duration data [N26,C7]', () => {
+  assert.deepEqual(importedPolicy('export function read(durationMinutes) { return durationMinutes === 120; }'), []);
+  const found = importedPolicy('export function read() { const start = Date.now(); return Date.now() - start < 120; }');
+  assert.ok(found.some(finding => /ambient clock/u.test(finding.text)));
+});
 
 /** A private source tree: both roots import the renderer, and BAD also reaches an impure helper. */
 function tree(t, enforcedList) {
