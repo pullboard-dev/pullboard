@@ -4,7 +4,7 @@ import {
   decisionsImplying,
   whyLine,
 } from '../implies.js';
-import { whyFile } from '../why-file.js';
+import { whyFile } from '../../packages/commits/index.js';
 import {
   Refused,
 } from '../refused.js';

@@ -13,7 +13,7 @@ import { fixtureChildMessage, runFixtureChild, runFixtureGit, startFixtureChild 
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { personNeeds } from '../src/row-decision-text.js';
 import { personNeedsState } from '../src/needs-state.js';
-import { serveMcp } from '../src/mcp.js';
+import { serveMcp } from '../packages/mcp/index.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const SPEC = `# MCP fixture

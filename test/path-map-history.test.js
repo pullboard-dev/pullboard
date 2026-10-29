@@ -9,7 +9,7 @@ import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 import { checkBaseline } from '../src/check-baseline.js';
-import { itemsTouching } from '../src/why-file.js';
+import { itemsTouching } from '../packages/commits/index.js';
 import { rigorReport } from '../src/board-rigor.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
 import { coChangedPaths, historicalPaths, mappedCheck, readPathMap } from '../packages/codemap/index.js';

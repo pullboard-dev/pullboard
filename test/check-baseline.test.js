@@ -11,7 +11,7 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { CHECK_ACCEPT_ENGINE, acceptCheck, checkDigest } from '../src/check-accept.js';
-import { refusePersonMove } from '../src/mcp.js';
+import { refusePersonMove } from '../packages/mcp/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { nativeBoardPorts } from '../src/native-board.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;

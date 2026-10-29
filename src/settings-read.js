@@ -1,9 +1,10 @@
 import { isAbsolute } from 'node:path';
 /** Read-only machine settings retain the same validation as admission, without loading writers [C7]. */
+import { validateCostPrices } from './cost-prices.js';
 import { Refused } from './refused.js';
 import { machineSettingsFile } from './machine-home.js';
-import { readMachineSettingsFile } from './queue-settings.js';
-import { validateGateQueue } from './queue-settings.js';
+import { readMachineSettingsFile } from '../packages/queue/index.js';
+import { validateGateQueue } from '../packages/queue/index.js';
 const DEFAULT_GATE_SLOTS = 2;
 const DEFAULT_BROWSER_SLOTS = 1;
 
@@ -34,6 +35,7 @@ export function loadMachineSettings() {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.browserByLaunch in ${file} must be true or false`);
   }
   validateGateQueue(value, file);
+  validateCostPrices(value.costPrices);
   if (value.view !== undefined && (!value.view || typeof value.view !== 'object' || Array.isArray(value.view)
     || (value.view.background !== undefined && typeof value.view.background !== 'boolean'))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `view in ${file} must be an object whose background is true or false; fix it before running Pullboard`);

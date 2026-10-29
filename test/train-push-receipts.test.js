@@ -32,7 +32,7 @@ import { safeFixtureDiagnostic } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { mainAuditKey } from '../src/main-audit-state.js';
-import { prepareCommitMetadata } from '../src/commit-metadata.js';
+import { prepareCommitMetadata } from '../packages/commits/index.js';
 
 /** Exercise the production evaluator with its genuine native store, policy and receipt providers. */
 function nativePushReceiptProblems(root, board, commits) {

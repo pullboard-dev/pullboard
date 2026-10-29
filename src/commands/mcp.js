@@ -1,7 +1,7 @@
 /** The pullboard mcp command, in its own module so an item adding another command never edits these lines. */
 import {
   serveMcp,
-} from '../mcp.js';
+} from '../../packages/mcp/index.js';
 import {
   Refused,
 } from '../refused.js';
