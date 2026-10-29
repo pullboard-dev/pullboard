@@ -12,7 +12,7 @@ import {
   runFixtureGit,
 } from './fixture-child.js';
 import { cleanGitEnvironment } from '../src/git.js';
-import { conflictFiles } from '../src/health.js';
+import { conflictFiles } from '../packages/health/index.js';
 import { recordedTrunkMerge, trunkMerge } from '../src/trunk-merge.js';
 import { resolveMechanicalMerge } from '../src/train-mechanical-merge.js';
 import { createE2eHelpers } from './e2e-helpers.js';

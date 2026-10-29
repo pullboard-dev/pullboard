@@ -1,7 +1,7 @@
 import { readCapacity } from '../capacity-read.js';
 import { capacityLines } from '../capacity-model.js';
-import { releaseBlockingItems } from '../stale-state-blockers.js';
-import { staleStateSnapshot } from '../stale-state-query.js';
+import { releaseBlockingItems } from '../../packages/health/index.js';
+import { staleStateSnapshot } from '../../packages/health/index.js';
 import { staleStateLine } from '../board-stale-state-policy.js';
 import { routingCapacity } from '../routing-capacity.js';
 import { foreignBlockers } from '../cross-repo-dependencies.js';

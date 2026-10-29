@@ -3,7 +3,7 @@ import { runningView } from '../view-session.js';
 import { refusalDocument } from '../next-step-words.js';
 import {
   watchCommand,
-} from '../watch.js';
+} from '../../packages/shouts/index.js';
 import {
   context,
   main,

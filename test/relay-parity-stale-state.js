@@ -1,6 +1,6 @@
 /** Actual captured hold expiry participates in the unchanged full reader oracle [B4,H16,A2]. */
 import assert from 'node:assert/strict';
-import { staleStateSnapshot } from '../src/stale-state-query.js';
+import { staleStateSnapshot } from '../packages/health/index.js';
 
 /** Create a genuinely expired private hold using the fixture clock, then apply the native coordinator move. */
 export async function seedStaleState({ board, box, store, exercise }) {

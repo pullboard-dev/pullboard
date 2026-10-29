@@ -175,10 +175,10 @@ test('DCO rejects unsigned PR and push commits even when the contribution replac
     box.git(repo, 'reset', '--hard', base);
     writeFileSync(join(repo, 'bin/check-signoffs.js'), change === 'entry point'
       ? "process.stdout.write('replacement checker says success\\n');\n" : originalChecker);
-    writeFileSync(join(repo, 'src/commit-signoff.js'),
+    writeFileSync(join(repo, 'packages/commits/src/shell/commit-signoff.js'),
       'export function contributionSignoffProblem() { return { checked: 1 }; }\n');
     writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ maintainers: ['outside@example.test'] }));
-    box.git(repo, 'add', 'bin/check-signoffs.js', 'src/commit-signoff.js', 'pullboard.json');
+    box.git(repo, 'add', 'bin/check-signoffs.js', 'packages/commits/src/shell/commit-signoff.js', 'pullboard.json');
     box.git(repo, 'commit', '-q', '-m', 'test: replace ' + change);
     const unsigned = box.git(repo, 'rev-parse', 'HEAD').trim();
     for (const eventName of ['pull_request', 'push']) {

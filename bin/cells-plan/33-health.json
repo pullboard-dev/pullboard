@@ -17,19 +17,12 @@
  ],
  "reexports": [
   "src/conditional-holds.js",
-  "src/doctor.js",
   "src/health-receipts.js",
-  "src/health.js",
   "src/recurring-jobs.js",
   "src/release-claim.js",
-  "src/stale-state-blockers.js",
-  "src/stale-state-capture.js",
-  "src/stale-state-command.js",
   "src/stale-state-engine.js",
-  "src/stale-state-floor.js",
   "src/stale-state-maintenance.js",
   "src/stale-state-policy.js",
-  "src/stale-state-query.js",
   "src/stale-state-store.js"
  ],
  "imports": [

@@ -10,7 +10,7 @@
   ["src/queue-readiness.js","packages/queue/src/core/queue-readiness.js","rule"],
   ["src/routing-capacity.js","packages/queue/src/core/routing-capacity.js","imports"]
  ],
- "reexports": ["src/queue-order.js","src/queue-settings.js"],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":1,"before":true},
   {"cell":"config","imports":1,"before":false}

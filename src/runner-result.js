@@ -4,7 +4,7 @@ import { testRuntimeRows } from './execution-environment.js';
 import { RunnerDropped } from './gate-policy-load.js';
 import { gateStages } from './gate-stages.js';
 import { readStages } from './gate-stages.js';
-import { secretsIn } from './hooks.js';
+import { secretsIn } from '../packages/commits/index.js';
 import { Refused } from './refused.js';
 import { recordRunnerGui } from './resources.js';
 import { sourcePreparationFields } from './runner-overhead.js';

@@ -73,8 +73,8 @@ import {
 } from '../git.js';
 import {
   machineNameProblems,
-} from '../hooks.js';
-import * as infraNotes from '../infra-note.js';
+} from '../../packages/commits/index.js';
+import * as infraNotes from '../../packages/commits/index.js';
 import {
   accountedFailures,
   waivedFailures,
@@ -302,13 +302,13 @@ export async function submitHere(ctx, id, infra) {
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : acceptedMain.commit;
   withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }, { atomic: store.atomic, submit: store.submit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }) }));
   const trunk = requireTrunkMerge(root, commit);
-  requirePlannedSource(root, trunk.commit, commit);
   const companion = await withBoard(ctx, async board => {
     if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
       await ordered(ctx, board, 'followItemPatches', [id, { agentId: me.id, commit }]);
     }
     return prepareItemPatchSubmit(root, board, held, commit);
   });
+  requirePlannedSource(root, trunk.commit, companion?.commit ?? commit);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit);
   withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));

@@ -5,7 +5,7 @@ import { Refused } from '../refused.js';
 import { addressedSeat } from '../seat-address.js';
 /** The pullboard shout command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
-import { requireReadableShout } from '../shout-readable.js';
+import { requireReadableShout } from '../../packages/shouts/index.js';
 import { requireCoordinatorShoutPurpose } from '../coordinator-shout-purpose.js';
 import { refuseRestatedReport } from '../coordinator-shout-purpose.js';
 import { handoffMoveProblem } from '../../packages/state/index.js';

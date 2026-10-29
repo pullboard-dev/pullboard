@@ -6,7 +6,7 @@ import {
   withBoardRead,
 } from './cli.js';
 import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
-import { LINE_SETTING_DEFINITIONS } from './queue-settings.js';
+import { LINE_SETTING_DEFINITIONS } from '../packages/queue/index.js';
 import { Refused } from './refused.js';
 
 /** Decode explicit triggering observations without confusing stats --window durations with this command's JSON. */

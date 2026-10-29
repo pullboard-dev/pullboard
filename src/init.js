@@ -36,7 +36,7 @@ import {
   loadConfig,
 } from './config.js';
 import { loadDoctrine } from './doctrine.js';
-import { installHooks } from './hooks.js';
+import { installHooks } from '../packages/commits/index.js';
 import {
   configureAgentHooks,
   LEGACY_RESUME_HOOK,

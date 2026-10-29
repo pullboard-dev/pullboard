@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { defaults } from '../src/config.js';
-import { addedLines, blockedPaths, commitCitationWarnings, commitMsgProblems, hookScript, matchesPattern, preCommitProblems, secretsIn, unwiredHookProblems } from '../src/hooks.js';
+import { addedLines, blockedPaths, commitCitationWarnings, commitMsgProblems, hookScript, matchesPattern, preCommitProblems, secretsIn, unwiredHookProblems } from '../packages/commits/index.js';
 import { parseSpec } from '../src/spec.js';
 import { Refused } from '../src/refused.js';
 import { createE2eHelpers } from './e2e-helpers.js';

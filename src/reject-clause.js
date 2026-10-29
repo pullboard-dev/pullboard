@@ -5,7 +5,7 @@ import { REJECT_CLAUSE_ENGINE } from './reject-clause-engine.js';
 import { REOPEN_FIRST_REFUSAL_ENGINE } from './reopen-first-refusal-engine.js';
 import { RIGOR_AUTO_ENGINE } from './rigor-auto-engine.js';
 import { SPEC_APPROVAL_ENGINE } from './spec-approval-engine.js';
-import { validateKnownLineSetting } from './queue-settings.js';
+import { validateKnownLineSetting } from '../packages/queue/index.js';
 
 /** A shout carries at most 400 characters (proof-receipts.js refuses longer). */
 const SHOUT_LIMIT = 400;

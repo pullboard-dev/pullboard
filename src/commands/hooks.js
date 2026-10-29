@@ -4,7 +4,7 @@ import {
 } from '../git.js';
 import {
   installHooks,
-} from '../hooks.js';
+} from '../../packages/commits/index.js';
 import { configureAgentHooks } from '../agent-hooks.js';
 
 /** Run `pullboard hooks` and return its exit code. */

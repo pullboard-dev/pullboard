@@ -1,13 +1,11 @@
 /** Bridge private provider attribution to authenticated numeric board moves [N2]. */
+import { USAGE_BATCH_LIMIT } from './cost-read.js';
 import { publicUsage } from './cost-read.js';
 import { usageCheckpoint } from './cost-ledger.js';
 import { sharedSessionTotals } from './cost-shared.js';
 import { storedSeatUsage } from './cost.js';
 import { agentModel } from './board-query.js';
 import { ordered } from './cli.js';
-
-/** Usage writes one lifecycle move may order before the rest wait for the next move (#1867). */
-const USAGE_WRITES_PER_MOVE = 4;
 
 /** Recover missed local checkpoints as unknown usage bounded by actual ordered claim/end times. */
 function lifecycleIntervals(board, agent, now) {
@@ -36,13 +34,16 @@ export async function publishUsage(ctx, board, { agent, item, operation }) {
     existing: storedSeatUsage(board, agent), existingShared: sharedSessionTotals(board), intervals: history.intervals,
     newClaim: operation === 'claim' && history.latest?.event_kind === 'claim' && history.latest.item_id === item });
   // A claim only opens its private anchor: its own zero-length interval publishes at submit, release or refresh.
-  // #1867 stopgap: each ordered usage write holds the board lock for seconds, so one move publishes at most
-  // USAGE_WRITES_PER_MOVE of them; the rest stay pending and the next claim, submit or release continues.
-  const items = changes.items.filter(change => operation !== 'claim' || change.item !== item);
-  const writes = [...items.map(change => ['recordUsage', { ...change, records: publicUsage(change.records) }]),
-    ...changes.sharedSessions.map(change => ['recordSharedUsage', { agentId: agent, ...change, records: publicUsage(change.records) }])];
-  for (const [move, payload] of writes.slice(0, USAGE_WRITES_PER_MOVE)) await ordered(ctx, board, move, [payload]);
-  if (writes.length > USAGE_WRITES_PER_MOVE) ctx.io.err(`pullboard: USAGE_PENDING: published ${USAGE_WRITES_PER_MOVE} of ${writes.length} usage revisions; ${writes.length - USAGE_WRITES_PER_MOVE} remain for the next native claim, submit or release.`);
+  // Attribution above reads private files before ordering; the actual writer records only numeric revisions.
+  const pendingItems = changes.items.filter(change => operation !== 'claim' || change.item !== item);
+  const items = pendingItems.slice(0, USAGE_BATCH_LIMIT)
+    .map(change => ({ ...change, records: publicUsage(change.records) }));
+  const sharedSessions = changes.sharedSessions.slice(0, USAGE_BATCH_LIMIT - items.length)
+    .map(change => ({ ...change, records: publicUsage(change.records) }));
+  const published = items.length + sharedSessions.length;
+  if (published) await ordered(ctx, board, 'recordUsageBatch', [{ agentId: agent, items, sharedSessions }]);
+  const pending = pendingItems.length + changes.sharedSessions.length - published;
+  if (pending) ctx.io.err(`pullboard: USAGE_PENDING: published ${published} usage revisions in one batch; ${pending} remain for the next native claim, submit or release.`);
 }
 
 /** Name only fixed attribution stages; provider paths, identities and exception messages stay private. */

@@ -17,7 +17,7 @@ import {
 import {
   context,
 } from '../cli.js';
-import { healthReport } from '../health.js';
+import { healthReport } from '../../packages/health/index.js';
 import { dispatchHealth } from '../dispatch-health.js';
 
 /** Bind the upper dispatch operation while preserving the digest reader's exact SQLite snapshot. */

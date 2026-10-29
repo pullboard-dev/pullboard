@@ -153,6 +153,7 @@ export { landingFlakes, landingWaiverCovers, landingWaiverKind };
 export { acceptCheck } from './check-accept.js';
 export { declareJob, recordJobRun } from './board-recurring-jobs.js';
 export { recordUsage } from './cost.js';
+export { recordUsageBatch } from './cost-usage-batch.js';
 export { recordSharedUsage } from './cost-shared.js';
 export { proofReceipts, recordProofRun } from './proof-receipts.js';
 /** The seat readers live in seats.js; the board re-exports them so `store.*` callers keep one import. */

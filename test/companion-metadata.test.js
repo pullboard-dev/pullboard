@@ -7,12 +7,12 @@ import {
   buildCommitMessage,
   commitMessageProblems,
   parseCommitMessage,
-} from '../src/commit-message.js';
+} from '../packages/commits/index.js';
 import { landingMessage } from '../src/landing-message.js';
-import { commitMsgProblems } from '../src/hooks.js';
+import { commitMsgProblems } from '../packages/commits/index.js';
 import { defaults } from '../src/config.js';
 import { parseSpec } from '../src/spec.js';
-import { itemsTouching } from '../src/why-file.js';
+import { itemsTouching } from '../packages/commits/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const helpers = createE2eHelpers();
