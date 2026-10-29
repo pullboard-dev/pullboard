@@ -10,6 +10,22 @@
  */
 
 export * from './engine-metadata.js';
+import { IN_STATE } from './machine-shared.js';
+import { MOVES as patchMoves } from './machine-move-patch.js';
+import { MOVES as rehomeImportMoves } from './machine-move-rehome-import.js';
+import { MOVES as intakeMoves } from './machine-move-intake.js';
+import { MOVES as claimMoves } from './machine-move-claim.js';
+import { MOVES as releaseMoves } from './machine-move-release.js';
+import { MOVES as lapseMoves } from './machine-move-lapse.js';
+import { MOVES as submitMoves } from './machine-move-submit.js';
+import { MOVES as submitMergeMoves } from './machine-move-submit-merge.js';
+import { MOVES as reserveMoves } from './machine-move-reserve.js';
+import { MOVES as acceptMoves } from './machine-move-accept.js';
+import { MOVES as rejectMoves } from './machine-move-reject.js';
+import { MOVES as reopenMoves } from './machine-move-reopen.js';
+import { MOVES as escalateMoves } from './machine-move-escalate.js';
+import { MOVES as refreezeMoves } from './machine-move-refreeze.js';
+import { MOVES as withdrawMoves } from './machine-move-withdraw.js';
 
 /** @typedef {'agent' | 'coordinator' | 'clock'} Role */
 
@@ -62,7 +78,7 @@ export * from './engine-metadata.js';
  */
 
 /** The guard id that marks where a move checks the item's state; its code is the move's own. */
-export const IN_STATE = 'inState';
+export { IN_STATE };
 
 /** @type {Role[]} */
 export const ROLES = ['agent', 'coordinator', 'clock'];
@@ -165,113 +181,23 @@ export const GUARDS = [
   { id: 'conflictAccepted', refuse: 'NOT_ACCEPTED', alsoRefuses: [{ code: 'BAD_CONFLICT', next: 'run pullboard reopen <id> --conflict <file> from the main checkout' }, { code: 'ENGINE_VERSION', next: 'upgrade Pullboard on every linked device before using --conflict' }], rule: 'a trunk conflict reopens an accepted item, names its files and the full trunk commit, and replays only under engine 52 or later', next: 'reopen a submission with --note "why"', source: 'board', when: 'only for reopen --conflict' },
 ];
 
-/** Shared named item-grant refusals reachable through native dispatch. */
-const AGENT_GRANT_REFUSALS = [
-  { code: 'AGENT_GRANT_EXPIRED', rule: 'an item mutation has a live claim or review grant', next: 'claim the intended item, or shout the coordinator if its claim is unavailable' },
-  { code: 'AGENT_GRANT_ITEM', rule: 'an item mutation belongs to the current claim or review grant', next: 'finish or release the claim, then claim the intended item; use shout for coordination' },
-  { code: 'AGENT_GRANT_LANE', rule: 'an item mutation stays inside the unclaimed seat lane', next: 'join a seat in the intended lane or ask its owner to make the item change' },
-];
-
-/** A restore may only lift guards whose installed complete shape has its valid stamp. */
-const PATCH_METADATA_REFUSAL = { code: 'ITEM_PATCH_FORMAT', rule: 'native patch metadata is readable', next: 'restore the native patch metadata from its ordered history' };
-const SOURCE_STATE_REFUSAL = { code: 'SOURCE_ADVANCE_STATE', rule: 'the ordered effective-head history is readable and bounded', next: 'restore the ordered source-advance history before using its effective head' };
-const BOARD_SHAPE_REFUSALS = [PATCH_METADATA_REFUSAL, SOURCE_STATE_REFUSAL, { code: 'SCHEMA_DRIFT', rule: 'the installed board guards and complete schema match their stored stamp', next: 'run pullboard inbox from the main checkout; if drift remains, preserve the board and ask the coordinator to inspect its schema' }];
-
-const VERDICT_PATCH_REFUSALS = [{ code: 'ITEM_PATCH', rule: 'native companion input composes safely against its source', next: 'replace the unsafe or conflicting patch with a source-bound correction' },
-  { code: 'ITEM_PATCH_AUTHOR', rule: 'every patch has its registered source author', next: 'restore the native author before reviewing the patch' }];
-
 /** @type {Move[]} */
 export const MOVES = [
-  { verb: 'patch-claimed', from: ['claimed'], to: 'claimed', by: ['coordinator'], refuse: 'ITEM_PATCH_STATE',
-    guards: ['joined', 'itemExists', IN_STATE, 'coordinatorOnly', 'notMerged'],
-    sets: [], command: 'pullboard patch attach|remove <id>' },
-  { verb: 'patch', from: ['submitted', 'verified'], to: 'submitted', by: ['coordinator'], refuse: 'ITEM_PATCH_STATE',
-    guards: ['joined', 'itemExists', IN_STATE, 'coordinatorOnly', 'notMerged'],
-    sets: ['item_built_by', 'item_frozen_digest', 'item_verdict', 'item_verified_by', 'item_review_by', 'item_review_until'], command: 'pullboard patch attach|remove <id>' },
-  { verb: 'rehomeImport', from: ['open'], to: 'verified', by: ['agent'], refuse: 'REHOME_VERDICT',
-    guards: ['joined', 'itemExists', IN_STATE, 'sourceAcceptance', 'atSubmittedCommit', 'notBuilder', 'criterionUnchanged', 'proofNoted'],
-    sets: ['item_verified_by', 'item_commit'],
-    command: 'pullboard move <item reference> --to <handle>' },
-  { verb: 'intake', from: ['open'], to: 'submitted', by: ['agent', 'coordinator'], refuse: 'NOT_CLAIMABLE',
-    guards: ['joined', 'itemExists', IN_STATE, 'outsideSubmission'], sets: ['item_built_by', 'item_commit', 'item_frozen_digest'], command: 'pullboard intake <PR> --criterion \"...\" --check \"...\"' },
-  {
-    verb: 'claim', from: ['open', 'claimed'], to: 'claimed', by: ['agent', 'coordinator'], refuse: 'NOT_CLAIMABLE',
-    alsoRefuses: [SOURCE_STATE_REFUSAL, PATCH_METADATA_REFUSAL, { code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' },
-      { code: 'ITEM_LEASE_LOST', rule: 'a submit admission renews the same still-live build claim', next: 'claim the item before starting a new submit' },
-      { code: 'ENGINE_VERSION', rule: 'adopting a coordinator correction replays only under an engine defining atomic correction adoption', next: 'upgrade Pullboard on every linked device before adopting a coordinator correction' }],
-    guards: ['joined', 'itemExists', IN_STATE, 'checkProvesSomething', 'barReady', 'itemNotHeld', 'inLane', 'routeAllows', 'dependenciesVerified', 'notHeldByAnother', 'builderFirstRefusal', 'correctionRefrozen', 'laneOpen', 'lineCapacity', 'oneLiveClaim', 'rowsInForce'],
-    sets: ['item_owner', 'item_lease_until', 'item_frozen_digest'], command: 'pullboard claim <id>',
-  },
-  {
-    verb: 'release', from: ['open', 'claimed'], to: 'open', by: ['agent', 'coordinator'], refuse: 'NOT_YOURS',
-    guards: ['joined', 'itemExists', IN_STATE, 'releaseOwnsWork', 'reviewReleaseExplained'], command: 'pullboard release <id>',
-  },
-  { verb: 'lapse', from: ['claimed'], to: 'open', by: ['clock'], guards: [], when: 'its lease runs out' },
-  {
-    verb: 'submit', from: ['claimed'], to: 'submitted', by: ['agent', 'coordinator'], refuse: 'NOT_YOURS',
-    alsoRefuses: [...BOARD_SHAPE_REFUSALS, { code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' }, ...AGENT_GRANT_REFUSALS, { code: 'LINE_SETTING_RANGE', rule: 'the recorded board line setting has a valid registry value', next: 'restore the recorded board line setting from its ordered event history, then retry submit' },
-      { code: 'UNDECLARED_BUILDER_FAMILY', rule: 'a strict item is submitted by a builder with a declared vendor family', next: 'rejoin with: pullboard join <lane> --family <vendor> --model "<model name>", then submit again' },
-      { code: 'BAD_REVIEW_POLICY', rule: 'the native review policy of the item is readable', next: 'restore the native review policy before reviewing this item' },
-      { code: 'MERGE_ONLY_PROOF', rule: 'a requested carry matches the recorded conflict return, acceptance and exact gated source', next: 'submit normally for outside review' },
-      { code: 'SELF_VERIFY', rule: 'the retained original verifier did not author the merge resubmission', next: 'submit the changed source for outside review' },
-      { code: 'SELF_SESSION_VERIFY', rule: 'the retained verifier shares no author parent with the resubmitting builder', next: 'submit for another parent session to review' },
-      { code: 'PROOF_REQUIRED', rule: 'a carried acceptance records the actual resolution diff', next: 'submit with the current CLI or get an outside review' }],
-    guards: ['joined', 'itemExists', IN_STATE, 'isHolder', 'correctionRefrozen', 'checkProvesSomething', 'barReady', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'sourcePlaced', 'trunkInCandidate', 'noUnverifiedStack', 'infraExplained', 'doctrineHolds', 'gateConfigured', 'queuedItemLease', 'gateGreen', 'proofRecorded', 'treeStillDuringGate', 'submissionProofValid', 'childrenDone', 'headIsNew'],
-    sets: ['item_built_by', 'item_commit'], command: 'pullboard submit <id>',
-  },
-  {
-    verb: 'submit-merge', from: ['claimed'], to: 'verified', by: ['agent', 'coordinator'], refuse: 'NOT_YOURS',
-    alsoRefuses: [...BOARD_SHAPE_REFUSALS, { code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' }, ...AGENT_GRANT_REFUSALS],
-    guards: ['joined', 'itemExists', IN_STATE, 'isHolder', 'correctionRefrozen', 'checkProvesSomething', 'barReady', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'sourcePlaced', 'trunkInCandidate', 'noUnverifiedStack', 'infraExplained', 'doctrineHolds', 'gateConfigured', 'queuedItemLease', 'gateGreen', 'proofRecorded', 'treeStillDuringGate', 'submissionProofValid', 'childrenDone', 'headIsNew', 'mergeOnlyRecorded', 'atSubmittedCommit', 'notBuilder', 'proofNoted'],
-    sets: ['item_built_by', 'item_commit', 'item_verified_by'], command: 'pullboard submit <id>',
-    when: 'only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created',
-  },
-  {
-    verb: 'reserve', from: ['submitted'], to: 'submitted', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
-    alsoRefuses: [SOURCE_STATE_REFUSAL, { code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' }],
-    guards: ['coordinatorSaysAs', 'joined', 'roadmapReadable', 'itemExists', IN_STATE, 'reviewCooldownElapsed', 'notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree'],
-    sets: ['item_review_by', 'item_review_until'], command: 'pullboard next --verify',
-  },
-  {
-    verb: 'accept', from: ['submitted', 'verified'], to: 'verified', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
-    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent', 'notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree', 'criterionUnchanged', 'reasonIsMet', 'trunkMergeClean', 'noUnverifiedStack', 'queuedItemLease', 'itemCheckGreen', 'proofRecorded', 'proofNoted'],
-    alsoRefuses: [{ code: 'SOURCE_ADVANCE_STALE', rule: 'a verdict binds the effective head captured before its real check; a later automatic advance needs a fresh check', next: 'read the current item, bar, patches and main, then let the worker check the new exact composition' }, ...BOARD_SHAPE_REFUSALS, { code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' }, ...AGENT_GRANT_REFUSALS, ...VERDICT_PATCH_REFUSALS, { code: 'VERDICT_ENVIRONMENT', rule: 'optional recorded verdict environment contains exact platform, architecture and Node version', next: 'run the frozen check with current Pullboard, then have an independent reviewer record a fresh verdict with its actual executor environment' }, { code: 'LAND_HEADER', rule: 'a displayed merge command carries a landing message that passes its own check', next: 'shout the coordinator the item id; landing writes the message, so the item itself needs no change' }, { code: 'ENGINE_VERSION', rule: 'a verdict that implies items replays only under engine 20 or later', next: 'upgrade Pullboard on every linked device before using --implies' }],
-    sets: ['item_verified_by'], command: 'pullboard verify <id> accept --note "..."',
-  },
-  {
-    verb: 'reject', from: ['submitted', 'verified'], to: 'open', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
-    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent', 'notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree', 'criterionUnchanged', 'reasonCoded', 'noteGiven', 'causeWellFormed', 'clauseWellFormed'],
-    alsoRefuses: [{ code: 'SOURCE_ADVANCE_STALE', rule: 'a verdict binds the effective head captured before its real check; a later automatic advance needs a fresh check', next: 'read the current item, bar, patches and main, then let the worker check the new exact composition' }, ...BOARD_SHAPE_REFUSALS, { code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' }, ...AGENT_GRANT_REFUSALS, ...VERDICT_PATCH_REFUSALS, { code: 'VERDICT_ENVIRONMENT', rule: 'optional recorded verdict environment contains exact platform, architecture and Node version', next: 'run the frozen check with current Pullboard, then have an independent reviewer record a fresh verdict with its actual executor environment' }, { code: 'LAND_HEADER', rule: 'a displayed merge command carries a landing message that passes its own check', next: 'shout the coordinator the item id; landing writes the message, so the item itself needs no change' }, { code: 'ENGINE_VERSION', rule: 'a verdict that implies items replays only under engine 20 or later', next: 'upgrade Pullboard on every linked device before using --implies' }, { code: 'NOT_YOURS', rule: 'the automatic escalation is authorized as the coordinator or item holder', next: 'ask the coordinator to inspect the item and its route' }, { code: 'CLOSED', rule: 'the rejected item remains open or claimed when automatic escalation starts', next: 'pullboard show <id>, then ask the coordinator to inspect its current state' }],
-    command: 'pullboard verify <id> reject --reason CODE --clause "failing requirement" --note "..."',
-  },
-  {
-    verb: 'reopen', from: ['submitted', 'verified'], to: 'open', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
-    guards: ['joined', 'itemExists', IN_STATE, 'reopenAuthority', 'noteGiven', 'causeWellFormed', 'notMerged', 'landingFailureRecorded', 'trunkConflicts', 'conflictAccepted'],
-    alsoRefuses: [{ code: 'SOURCE_ADVANCE_STALE', rule: 'an autonomous return binds the exact submitted source, current effective head, bar, patch set, verdict and episode', next: 'read the current item, bar, patches and main, then let the worker check the new exact composition' }, { code: 'SOURCE_ADVANCE_PROOF', rule: 'an autonomous return retains actual Git conflict paths or a native exact-source named red receipt; unknown infrastructure remains incomplete', next: 'run the exact frozen check and every affected test through the ordinary gate on the clean composition' }, SOURCE_STATE_REFUSAL, PATCH_METADATA_REFUSAL, { code: 'BAD_VERDICT_WITHDRAW', rule: 'the explicit withdrawal flag is boolean and is not combined with a conflict', next: 'use --withdraw-verdict with --note only, or report a conflict separately' }, { code: 'ENGINE_VERSION', rule: 'the withdrawal move is replayed by an engine defining its meaning', next: 'update Pullboard before withdrawing a verdict' }, { code: 'BAD_CONFIG', rule: 'the configured first-refusal duration fits a valid UTC deadline', next: 'set claim.reopenFirstRefusalMinutes to a non-negative whole number within the supported date range, or 0 to disable' }],
-    sets: ['item_verdict', 'item_verified_by', 'item_owner', 'item_lease_until', 'item_review_by', 'item_review_until'],
-    command: 'pullboard reopen <id> [--withdraw-verdict] --note "why" | --conflict <file> [--conflict <file>]',
-  },
-  {
-    verb: 'escalate', from: ['open', 'claimed'], to: 'open', by: ['agent', 'coordinator'], refuse: 'CLOSED',
-    guards: ['joined', 'noteGiven', 'itemExists', 'holderOrCoordinator', IN_STATE], command: 'pullboard escalate <id> --note "..."',
-  },
-  {
-    verb: 'refreeze', from: ['open', 'claimed', 'submitted', 'verified'], to: 'open', by: ['coordinator'], refuse: 'CLOSED',
-    guards: ['joined', 'coordinatorOnly', 'itemExists', IN_STATE, 'specRefreezeAllowed', 'barReady', 'rowsInForce'],
-    when: 'there is no live claim awaiting a coordinator correction',
-    sets: ['item_frozen_digest'], command: 'pullboard refreeze <id>',
-  },
-  {
-    verb: 'refreeze', from: ['claimed'], to: 'claimed', by: ['agent', 'coordinator'], refuse: 'CLOSED',
-    guards: ['joined', 'itemExists', 'holderOrCoordinator', IN_STATE, 'specRefreezeAllowed', 'barReady', 'rowsInForce'],
-    when: 'a live claim has a pending coordinator correction or a validated cited-spec correction',
-    sets: ['item_frozen', 'item_frozen_digest'], command: 'pullboard refreeze <id>',
-  },
-  {
-    verb: 'withdraw', from: ['open', 'claimed', 'submitted'], to: 'withdrawn', by: ['coordinator'], refuse: 'CLOSED',
-    guards: ['joined', 'coordinatorOnly', 'noteGiven', 'itemExists', IN_STATE],
-    sets: ['item_withdrawn_reason'], command: 'pullboard withdraw <id> <reason>',
-  },
+  ...patchMoves,
+  ...rehomeImportMoves,
+  ...intakeMoves,
+  ...claimMoves,
+  ...releaseMoves,
+  ...lapseMoves,
+  ...submitMoves,
+  ...submitMergeMoves,
+  ...reserveMoves,
+  ...acceptMoves,
+  ...rejectMoves,
+  ...reopenMoves,
+  ...escalateMoves,
+  ...refreezeMoves,
+  ...withdrawMoves,
 ];
 
 /**

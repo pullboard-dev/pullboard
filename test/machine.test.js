@@ -157,7 +157,7 @@ const CALLBACKS = {
     boardNotWritable: 'board-access.js#boardNotWritable',
     boardBusyError: 'board-access.js#boardBusyError',
   },
-  'board.js': { freeze: 'cli.js#freezer' },
+  'board.js': { freeze: 'cli.js#freezer' }, 'board-claim.js': { freeze: 'cli.js#freezer' }, 'board-refreeze.js': { freeze: 'cli.js#freezer' },
   'line-capacity-board.js': {
     nextFor: 'board.js#nextFor',
     reviewerChecks: 'board.js#reviewerChecks',
@@ -303,7 +303,7 @@ function codeProblems(machine, read = fromDisk) {
     }
   }
   const commandFiles = fs.readdirSync(new URL('../src/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `commands/${name}`);
-  const raised = new Set(['board.js', 'cli.js', 'spec.js', ...commandFiles].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
+  const moveFiles = new Set([...read('board.js').matchAll(/^import \{ \w+ \} from '\.\/(board-[\w-]+\.js)';$/gmu)].map((match) => match[1])), raised = new Set(['board.js', ...moveFiles, 'cli.js', 'spec.js', ...commandFiles].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
 }
