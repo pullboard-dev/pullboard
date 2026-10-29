@@ -57,6 +57,37 @@ export function versionedRefusal({ code, message, next }, { version = 1 } = {}) 
   return { version, error: { code, message, next } };
 }
 
+/** The keys named by --fields a,b,c or --fields=a,b,c before any `--`, or null when the flag is absent. */
+export function requestedFields(argv) {
+  const flags = argv.slice(0, argv.indexOf('--') < 0 ? argv.length : argv.indexOf('--'));
+  const at = flags.findIndex(arg => arg === '--fields' || arg.startsWith('--fields='));
+  if (at < 0) return null;
+  const value = flags[at] === '--fields' ? flags[at + 1] ?? '' : flags[at].slice('--fields='.length);
+  const fields = value.split(',').map(field => field.trim()).filter(Boolean);
+  return fields.length ? fields : null;
+}
+
+/**
+ * Keep only the named keys of a successful JSON document: named top-level keys (a flat record such as show, or a
+ * cursor such as next), and every top-level array of rows that carries a named key, each row trimmed to the named
+ * keys (list, queue, inbox). Why: agents piped about 15.8k JSON reads through scripts just to pick fields [#1895].
+ * The version always stays; a list whose rows carry none of the named keys is dropped rather than left as {} rows.
+ */
+export function selectFields(document, fields) {
+  const wanted = new Set(fields);
+  const row = value => value && typeof value === 'object' && !Array.isArray(value);
+  const trimmed = { version: document.version };
+  for (const [key, value] of Object.entries(document)) {
+    if (key === 'version') continue;
+    if (wanted.has(key)) trimmed[key] = value;
+    else if (Array.isArray(value) && value.length && value.every(row)
+      && value.some(entry => fields.some(field => Object.hasOwn(entry, field)))) {
+      trimmed[key] = value.map(entry => Object.fromEntries(Object.entries(entry).filter(([name]) => wanted.has(name))));
+    }
+  }
+  return trimmed;
+}
+
 /**
  * Collect one command's output; text mode writes immediately and JSON mode writes one document.
  * Long-running view explicitly flushes its address before waiting for a shutdown signal.
@@ -77,6 +108,7 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     return renderer(error, options);
   }
   let enabled = argv.slice(0, argv.indexOf('--') < 0 ? argv.length : argv.indexOf('--')).includes('--json');
+  const fields = requestedFields(argv);
   let result;
   let refusal;
   let remote;
@@ -113,6 +145,8 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
       const { counts, failures, omittedFailures, logPath } = refusal.testOutput;
       Object.assign(document, { counts, failures, omittedFailures, logPath });
     }
+    // A refusal keeps its whole shape; only a successful read is trimmed to the requested keys.
+    if (fields && !refusal && !document.error) document = selectFields(document, fields);
     if (remote) document.remote = remote;
     streams.stdout.write(`${JSON.stringify(document, null, 2)}\n`);
   };
