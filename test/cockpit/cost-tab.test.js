@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { costTabHtml } from '../../src/view/cost-tab.js';
 import { costTabModel } from '../../src/view/cost-tab.js';
+import { counterDelta } from '../../src/view/cost-tab.js';
 import { SPEC } from './fixture.js';
 import { machine } from './fixture.js';
 import { project } from './fixture.js';
@@ -84,7 +85,13 @@ test('items without native usage render dashes instead of zero-dollar claims [N2
   assert.match(html, /Model A/u, 'the builder model remains available from native seat metadata without usage');
 });
 
-test('cumulative usage revisions split build, rework and review costs by their event phase [N26]', () => {
+test('unknown and decreasing cumulative baselines stay unknown [N26]', () => {
+  assert.equal(counterDelta({ inputTokens: 12 }, undefined, 'inputTokens'), 12);
+  assert.equal(counterDelta({ inputTokens: 12 }, {}, 'inputTokens'), null);
+  assert.equal(counterDelta({ inputTokens: 8 }, { inputTokens: 12 }, 'inputTokens'), null);
+});
+
+test('cumulative usage preserves priced totals but leaves collapsed lifecycle attribution unknown [N26]', () => {
   const row = (model, freshInputTokens, wallMs) => ({ model, freshInputTokens, cacheReadInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 0, wallMs });
   const usage = (event_id, event_by, revision, records) => ({ event_id, event_kind: 'usage', event_by,
     event_detail: JSON.stringify({ item: 77, revision, records }) });
@@ -94,11 +101,18 @@ test('cumulative usage revisions split build, rework and review costs by their e
     usage(3, 'builder', 1, [row('Model A', 2_000_000, 60_000)]),
     { event_id: 4, event_kind: 'reject', item_id: 77, event_by: 'reviewer' },
     { event_id: 5, event_kind: 'claim', item_id: 77, event_by: 'builder' },
-    usage(6, 'builder', 2, [row('Model A', 5_000_000, 180_000), row('Model B', 2_000_000, 30_000)]),
-    { event_id: 7, event_kind: 'submit', item_id: 77, event_by: 'builder' },
-    { event_id: 8, event_kind: 'accept', item_id: 77, event_by: 'reviewer' },
-    usage(9, 'reviewer', 1, [row('Model C', 1_000_000, 45_000)]),
-    { event_id: 10, event_kind: 'merged', item_id: 77, event_detail: '{}', event_at: '2026-10-29T00:00:00.000Z' },
+    usage(6, 'builder', 3, [row('Model A', 5_000_000, 180_000), row('Model B', 2_000_000, 30_000)]),
+    usage(7, 'builder', 4, [row('Model A', 5_000_000, 180_000), row('Model B', 2_000_000, 30_000)]),
+    usage(8, 'builder', 5, [row('Model A', 8_000_000, 240_000), row('Model B', 4_000_000, 60_000)]),
+    { event_id: 9, event_kind: 'submit', item_id: 77, event_by: 'builder' },
+    { event_id: 10, event_kind: 'reopen', item_id: 77, event_by: 'reviewer' },
+    { event_id: 11, event_kind: 'claim', item_id: 77, event_by: 'builder' },
+    usage(12, 'builder', 7, [row('Model A', 10_000_000, 300_000), row('Model B', 5_000_000, 90_000)]),
+    usage(13, 'builder', 8, [row('Model A', 12_000_000, 360_000), row('Model B', 6_000_000, 120_000)]),
+    { event_id: 14, event_kind: 'submit', item_id: 77, event_by: 'builder' },
+    { event_id: 15, event_kind: 'accept', item_id: 77, event_by: 'reviewer' },
+    usage(16, 'reviewer', 1, [row('Model C', 1_000_000, 45_000)]),
+    { event_id: 17, event_kind: 'merged', item_id: 77, event_detail: '{}', event_at: '2026-10-29T00:00:00.000Z' },
   ];
   const prices = Object.fromEntries(['Model A', 'Model B', 'Model C'].map(model => [model,
     { freshInput: 1, cacheReadInput: 0, cacheWriteInput: 0, output: 0 }]));
@@ -106,12 +120,16 @@ test('cumulative usage revisions split build, rework and review costs by their e
     { agent_id: 'builder', model: 'Model A', family: 'Vendor A' },
     { agent_id: 'reviewer', model: 'Model C', family: 'Vendor C' },
   ] }, events, prices);
-  assert.equal(model.rows[0].rounds, 2);
-  assert.equal(model.rows[0].totalCost, 7, 'the cumulative 5M Model A snapshot contributes only its 3M delta after the reject');
-  assert.equal(model.rows[0].returns[0].costUSD, 5, 'the reject shows only the Model A and Model B rework deltas');
-  assert.ok(Math.abs(model.reworkShare - 5 / 7) < 1e-10);
-  assert.deepEqual(model.rows[0].sessions.map(session => session.role).sort(), ['build', 'review', 'rework', 'rework']);
-  assert.ok(Math.abs(model.rows[0].agentHours - (255_000 / 3_600_000)) < 1e-10, 'wall time also uses cumulative deltas');
+  assert.equal(model.rows[0].rounds, 3);
+  assert.equal(model.rows[0].totalCost, 19, 'complete cumulative deltas remain in the priced item total across revision gaps');
+  assert.equal(model.rows[0].returns[0].costUSD, null, 'the reject window includes an unattributable delta');
+  assert.equal(model.rows[0].returns[1].costUSD, null, 'the reopen window includes an unattributable delta');
+  assert.equal(model.reworkShare, null, 'phase totals stay unknown when a checkpoint interval crosses lifecycle events');
+  assert.deepEqual(model.rows[0].usageRows.map(entry => entry.role).sort(), ['build', 'rework', 'rework', 'unattributed', 'unattributed', 'unattributed']);
+  assert.equal(model.rows[0].usageRows.filter(entry => entry.role === 'rework').reduce((sum, entry) => sum + entry.costUSD, 0), 8,
+    'the two fully observed multi-model rework intervals remain priced even while collapsed intervals stay unallocated');
+  assert.ok(Math.abs(model.rows[0].agentHours - (525_000 / 3_600_000)) < 1e-10, 'wall time also uses cumulative deltas');
+  assert.match(costTabHtml(model, 77), /Usage by agent, model and phase/u, 'aggregate rows are not described as native sessions');
 });
 
 test('the private view shows its last twenty native landings; a public export keeps Cost hidden [N26]', { timeout: 360_000 }, async () => {
