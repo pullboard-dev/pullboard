@@ -55,6 +55,7 @@ function countPairs() {
     }
   }
   if (view.tab === 'shouts') {
+    add('Shouts/working agents footer', number(document.querySelector('[data-status="agents"] b')), all('#agents .agent-card').length);
     add('Shouts/asks waiting', number(document.querySelector('[data-fold="waiting"]')), p.asked.length);
     add('Shouts/decision rows', all('#decisions .shout').length, p.decisions.length + (view.open.waiting ? p.asked.length : 0));
     const idle = document.querySelector('#agents [data-fold="idle"][aria-expanded="true"]');
@@ -109,13 +110,33 @@ function countPairs() {
     const since = Date.now() - 24 * 3_600_000;
     const landedInDay = new Set(p.events.filter(event => event.event_kind === 'merged' && Date.parse(event.event_at) > since && p.dashboardLanded.some(item => item.id === event.item_id && item.commit === JSON.parse(event.event_detail).commit)).map(event => event.item_id));
     add('Dashboard/landed 24h', number(document.querySelector('.dash-accent')), p.dashboardPace?.last24h ?? landedInDay.size);
+    const recentEvents = p.events.filter(event => Date.parse(event.event_at) > Date.now() - 4 * 3_600_000);
+    const recentLandings = new Set(recentEvents.filter(event => event.event_kind === 'merged' && p.dashboardLanded.some(item => item.id === event.item_id && item.commit === JSON.parse(event.event_detail).commit)).map(event => event.item_id));
+    const chips = all('.dash-chips > span').slice(1);
+    for (const [index, expected] of [recentLandings.size, recentEvents.filter(event => event.event_kind === 'accept').length,
+      recentEvents.filter(event => ['reject', 'reopen'].includes(event.event_kind)).length,
+      recentEvents.filter(event => event.event_kind === 'shout' && JSON.parse(event.event_detail).to === 'person').length].entries()) {
+      add('Dashboard/4h chip/' + index, number(chips[index]), expected);
+    }
+    const rate = document.querySelector('.dash-rate');
+    add('Dashboard/all-time landed', Number(/(\d[\d,]*) landed all time/.exec(rate.textContent)?.[1].replaceAll(',', '')), p.dashboardLanded.length);
+    const bins = all('.dash-chart rect title').map(node => Number(/(\d+) landed$/.exec(node.textContent)?.[1] || 0));
+    if (bins.length) {
+      add('Dashboard/landing histogram total', bins.reduce((sum, count) => sum + count, 0), landedInDay.size);
+      add('Dashboard/landing histogram peak', Number(/busiest hour (\d+)/.exec(document.querySelector('.dash-chart-caption').textContent)?.[1]), Math.max(...bins));
+    }
     for (const flight of all('.dash-flight')) add('Dashboard/' + flight.querySelector('h3').textContent, Number(/\d+$/.exec(flight.querySelector('h3').textContent)?.[0] || 0), flight.querySelectorAll('li').length);
     const building = document.querySelector('[data-dashboard-stat="building"]');
     add('Dashboard/building', Number(building.dataset.value), items.filter(item => item.status === 'claimed').length);
     const release = p.milestones.find(milestone => !milestone.shipped && milestone.summary?.left > 0);
-    if (release) add('Dashboard/release remaining', number(document.querySelector('.dash-release b')), release.items.filter(ref => {
-      const item = items.find(item => item.id === ref.id); return item && !p.dashboardLanded.some(landed => landed.id === item.id);
-    }).length);
+    if (release) {
+      const entries = release.items.filter(ref => items.some(item => item.id === ref.id));
+      const landed = entries.filter(ref => p.dashboardLanded.some(item => item.id === ref.id)).length;
+      add('Dashboard/release remaining', number(document.querySelector('.dash-release b')), entries.length - landed);
+      const progress = document.querySelector('.dash-release + p').textContent.match(/(\d+) of (\d+) landed/);
+      add('Dashboard/release landed', Number(progress?.[1]), landed);
+      add('Dashboard/release total', Number(progress?.[2]), entries.length);
+    }
     source('.dash-hero h1, .dash-accent, .dash-rate, .dash-chips > span:not(:first-child), .dash-release, .dash-release + p, .dash-stats');
   }
   if (view.tab === 'dashboard' && view.addressDetail === 'floor') {
@@ -224,6 +245,7 @@ test('every tab count describes its real list or named native set across landing
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, server.link.href, profile);
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('data?.project?.items?.length === 5');
     await chrome.stable('window.countSweepPairs = ' + countPairs.toString());
     await sweep(chrome, 'initial');
