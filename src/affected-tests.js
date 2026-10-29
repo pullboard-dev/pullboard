@@ -83,6 +83,11 @@ function declaredLoads(source, modulePaths, declaration = LOADS, strict = false)
   return loads;
 }
 
+/** Resolve strict source loader declarations; malformed or unmatched declarations remain unknown. */
+export function declaredSourceLoads(source, modulePaths) {
+  return declaredLoads(source, modulePaths, SOURCE_LOADS, true);
+}
+
 /** Resolve tag-led committed inputs; prose quotations stay inert and malformed annotations stay unknown. */
 function declaredInputs(source, paths) {
   const declarations = headerLines(source).filter(line => /^\s*(?:\/\*+|\*|\/\/)\s*@pullboard-test-input\b/u.test(line));

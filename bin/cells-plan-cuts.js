@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { cellInventory } from '../src/cell-lint-inventory.js';
 import { testFile } from '../src/cell-lint-inventory.js';
 import { temporaryCellEdges } from '../src/cell-lint-inventory.js';
+import { declaredSourceLoads } from '../src/affected-tests.js';
 import { cutItemCommands } from '../src/cells-plan-cuts.js';
 import { cutTitle } from '../src/cells-plan-cuts.js';
 import { importCuts } from '../src/cells-plan-cuts.js';
@@ -34,6 +35,23 @@ function onlyForwards(source, computed) {
   const code = chars.join('').replace(/\s/gu, '');
   return /^(?:export(?:\*(?:as\w+)?|\{[^}]*\})from(?:'[^']*'|"[^"]*");?)+$/u.test(code)
     || computed && /^(?:await)?import\([^;]*\);?$/u.test(code);
+}
+
+/** Expand strict declared loaders while retaining their original forwarding identity and unrelated unknowns. */
+function withDeclaredLoads(files, edges, unknown) {
+  const modules = [...files.keys()].filter(file => /\.[cm]?js$/u.test(file));
+  const declared = new Map(), rest = [];
+  const computed = new Set(unknown.filter(row => row.reason.includes('computed loader')).map(row => row.file));
+  for (const row of unknown) {
+    if (row.specifier !== '(computed)') { rest.push(row); continue; }
+    if (!declared.has(row.file)) declared.set(row.file, declaredSourceLoads(files.get(row.file)?.toString('utf8') ?? '', modules) ?? []);
+    if (!declared.get(row.file).length) rest.push(row);
+  }
+  const merged = new Map(edges);
+  for (const [file, loads] of declared) {
+    if (loads.length) merged.set(file, [...(edges.get(file) ?? []), ...loads.filter(target => target !== file).map(target => ({ target, specifier: '(computed)' }))]);
+  }
+  return { edges: merged, unknown: rest, computed };
 }
 
 /** A historical anchor is retired only while neither endpoint exists or has a live resolved import. */
@@ -66,7 +84,8 @@ export function checkCuts(root, plan, name) {
   const group = importCuts(plan).find(row => row.cell === name);
   if (!group) throw new Refused('CELLS_PLAN_CELL', `no import-cut group ${name}; use an importing cell from node bin/cells-plan.js --file-cuts`);
   const inventory = cellInventory(root, { importsIn, commonJsIn });
-  const { files, edges, unknown } = inventory;
+  const { files } = inventory;
+  const { edges, unknown, computed } = withDeclaredLoads(files, inventory.edges, inventory.unknown);
   const map = readPathMap(root);
   const owner = ownerFor(plan, map);
   const temporary = temporaryCellEdges(files);
@@ -80,7 +99,7 @@ export function checkCuts(root, plan, name) {
     const unresolved = unknown.filter(row => row.file === file);
     const cell = owner(file);
     if (cell !== name && !onlyForwards(files.get(file)?.toString('utf8') ?? '',
-      unresolved.some(row => row.reason.includes('computed loader')))) continue;
+      computed.has(file))) continue;
     for (const row of unresolved) problems.add(`cannot prove cut through ${file}: ${row.reason}`);
     for (const { target } of edges.get(file) ?? []) {
       if (testFile(target)) continue;
