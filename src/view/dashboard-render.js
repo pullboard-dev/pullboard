@@ -62,5 +62,27 @@ export function dashboardHtml(model, { needs = '', progress = '', deferQuiet, fl
   const landing = card('Landing now', m.landing.length?'<ul class="dash-list">'+m.landing.map(entry=>'<li>'+item(entry)+'<small>'+esc(entry.builtBy||'unknown builder')+' · '+esc(entry.verifiedBy||'unknown reviewer')+' · passed '+age(m.last(entry,'accept'))+' ago</small></li>').join('')+'</ul>':'<p>No accepted items are waiting to land.</p>');
   /** Complete list links reuse the established item filters and Activity tab. */
   const listCard = (title, entries, footer, target) => card(title,'<ul class="dash-list">'+entries.slice(0,8).map(({entry,at})=>'<li>'+item(entry)+'<small'+(title==='In review'&&m.now-at>3_600_000?' class="dash-old"':'')+'>'+age(at)+'</small></li>').join('')+'</ul><button type="button" class="link" '+target+'>'+esc(footer)+' →</button>');
-  return hero+needsCard+shipping+'<div class="dash-two">'+card('Landed per hour',m.complete?bars:'<p>Loading complete landing history…</p>')+card('Agent time',m.complete?split:'<p>Loading complete agent history…</p>')+'</div>'+agents+landing+'<div class="dash-three">'+listCard('Just landed',m.landed.map(row=>({entry:row.item,at:row.at})),'All landed in Activity','data-tab="activity"')+listCard('In review',m.inReview.map(entry=>({entry,at:m.last(entry,'submit')})),'All in review, oldest first','data-dashboard-list="review"')+listCard('Next up',m.next.map(entry=>({entry,at:Date.parse(entry.updatedAt)||m.now})),'All ready, in rank order','data-dashboard-list="next"')+'</div>';
+  /** Render only canonical API scalars; the Dashboard never reconstructs their lifecycle or idle causes. */
+  const comparison = () => {
+    const observed = m.comparison;
+    if (!observed) return '';
+    if (!observed.available) return card('Window comparison', '<p>'+esc(observed.reason || 'Comparison unavailable')+'</p>');
+    const { current, previous, change } = observed;
+    /** Missing evidence stays visibly unmeasured, and share changes use absolute percentage points. */
+    const figure = (value, share = false, delta = false) => value === null || value === undefined ? 'unmeasured'
+      : (delta && value > 0 ? '+' : '') + (share ? (100*value).toFixed(1)+(delta?' pp':'%') : Number.isInteger(value)?String(value):value.toFixed(2));
+    /** Bind displayed figures to exact API numbers for the native Dashboard journey. */
+    const line = (label, key, share = false, group = null) => {
+      const a = group ? current[group][key] : current[key], b = group ? previous[group][key] : previous[key], d = group ? change[group][key] : change[key];
+      return '<tr data-stats-comparison="'+esc(group ? group+'.'+key : key)+'" data-current="'+esc(JSON.stringify(a))+'" data-previous="'+esc(JSON.stringify(b))+'" data-change="'+esc(JSON.stringify(d))+'"><th scope="row">'+esc(label)+'</th><td>'+esc(figure(a,share))+'</td><td>'+esc(figure(b,share))+'</td><td>'+esc(figure(d,share,true))+'</td></tr>';
+    };
+    const totals = [['Landed','landed'],['Agent-hours','agentHours'],['Agent-hours / landing','agentHoursPerLanding'],['Idle share','idleShare',true],['Submits / item','submitsPerItem'],['Reject rate','rejectRate',true],['Coordinator shouts / landing','shoutsPerLanding']].map(row=>line(...row)).join('');
+    const idle = [['Nothing eligible','nothing-eligible'],['Held','held'],['Waiting for review family','review-family'],['Main red','main-red'],['Unknown','unknown']].map(([label,key])=>line('Idle: '+label,key,true,'idleReasons')).join('');
+    const stages = [['Build','build'],['Rework','rework'],['Review wait','reviewWait'],['Review','review'],['Land','land']].map(([label,key])=>line('Stage: '+label,key,true,'stageShares')).join('');
+    /** Present canonical observation times in the same explicit locale and zone as the other Dashboard clocks. */
+    const stamp = value => new Date(value).toLocaleString(locale, { timeZone });
+    const caption = '<p data-stats-as-of="'+esc(current.until)+'">As of '+esc(stamp(current.until))+'; '+esc(observed.durationMinutes)+'-minute windows: '+esc(stamp(current.since))+' to '+esc(stamp(current.until))+' versus '+esc(stamp(previous.since))+' to '+esc(stamp(previous.until))+'.</p>';
+    return card('Window comparison', '<details class="dash-comparison" data-dashboard-disclosure="comparison"><summary>Compare the last two windows</summary>'+caption+'<table><thead><tr><th>Metric</th><th>Current</th><th>Previous</th><th>Change</th></tr></thead><tbody>'+totals+idle+stages+'</tbody></table><p>Idle reasons use all observed seat-hours as their denominator and add up to the idle share; older reasons remain unknown. Stage shares use the five recorded stage durations. Rework is time returned to open. Share changes are percentage points.</p></details>');
+  };
+  return hero+needsCard+comparison()+shipping+'<div class="dash-two">'+card('Landed per hour',m.complete?bars:'<p>Loading complete landing history…</p>')+card('Agent time',m.complete?split:'<p>Loading complete agent history…</p>')+'</div>'+agents+landing+'<div class="dash-three">'+listCard('Just landed',m.landed.map(row=>({entry:row.item,at:row.at})),'All landed in Activity','data-tab="activity"')+listCard('In review',m.inReview.map(entry=>({entry,at:m.last(entry,'submit')})),'All in review, oldest first','data-dashboard-list="review"')+listCard('Next up',m.next.map(entry=>({entry,at:Date.parse(entry.updatedAt)||m.now})),'All ready, in rank order','data-dashboard-list="next"')+'</div>';
 }

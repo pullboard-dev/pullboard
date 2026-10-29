@@ -32,7 +32,7 @@ const HOUR = 60 * 60 * 1000;
 const REVIEW_LEASE = 1_000;
 
 /** Create an in-memory board with deterministic agent routes, families and a controllable clock. */
-function fixture(t) {
+function fixture(t, { reviewerFamilies = ['Alpha', 'Beta'] } = {}) {
   let milliseconds = Date.parse('2026-10-08T12:00:00.000Z');
   const clock = {
     now: () => new Date(milliseconds),
@@ -45,8 +45,8 @@ function fixture(t) {
     alphaBuilder: store.register(board, { lane: 'web', path: '/fixture/web-alpha', route: 'strong', family: 'Alpha' }),
     betaBuilder: store.register(board, { lane: 'web', path: '/fixture/web-beta', route: 'strong', family: 'Beta' }),
     lightBuilder: store.register(board, { lane: 'web', path: '/fixture/web-light', route: 'light', family: 'Gamma' }),
-    alphaReviewer: store.register(board, { lane: 'review', path: '/fixture/review-alpha', route: 'strong', family: 'Alpha' }),
-    betaReviewer: store.register(board, { lane: 'review', path: '/fixture/review-beta', route: 'strong', family: 'Beta' }),
+    alphaReviewer: store.register(board, { lane: 'review', path: '/fixture/review-alpha', route: 'strong', family: reviewerFamilies[0] }),
+    betaReviewer: store.register(board, { lane: 'review', path: '/fixture/review-beta', route: 'strong', family: reviewerFamilies[1] }),
     lightReviewer: store.register(board, { lane: 'review', path: '/fixture/review-light', route: 'light', family: 'Gamma' }),
   };
   return { board, clock, agents };
@@ -110,9 +110,7 @@ test('[Q1,V15] a short queue and a reviewer who built every submitted item recei
 });
 
 test('[Q1,V15] live reservations count distinct agents; renewal leaves submitted age anchored to submit events', (t) => {
-  const { board, clock, agents } = fixture(t);
-  store.register(board, { lane: 'review', path: '/fixture/review-alpha', family: 'Fixture Counter Reviewer One' });
-  store.register(board, { lane: 'review', path: '/fixture/review-beta', family: 'Fixture Counter Reviewer Two' });
+  const { board, clock, agents } = fixture(t, { reviewerFamilies: ['Fixture Counter Reviewer One', 'Fixture Counter Reviewer Two'] });
   const first = submitted(board, { builder: agents.alphaBuilder, title: 'Oldest item' });
   const firstSubmittedAt = store.events(board, { itemId: first }).filter((event) => event.event_kind === 'submit').at(-1).event_at;
   clock.advance(10_000);

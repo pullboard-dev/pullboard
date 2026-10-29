@@ -37,7 +37,7 @@ test('the agents panel says what each agent holds [N26]', async () => {
     const page = await openPage(view);
     await page.click({ tab: 'shouts' });
     assert.deepEqual(agentEntries(page.show('agents')).map((agent) => agent.id), ['web-1', 'web-2'], 'an agent holding nothing waits in the idle fold, closed');
-    assert.match(page.show('agents'), /<button class="fold-line" data-fold="idle" type="button" aria-expanded="false" title="coordinator \(unknown\)"><span>1 idle<\/span>/);
+    assert.match(page.show('agents'), /<button class="fold-line" data-fold="idle" type="button" aria-expanded="false" title="coordinator"><span>1 idle<\/span>/);
     page.run('view.open.idle = true; render();');
     const agents = agentEntries(page.show('agents'));
     assert.deepEqual(agents.map((agent) => [agent.id, agent.holds, agent.more, agent.idle]), [
@@ -260,11 +260,12 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         box.git(alpha.repo, 'commit', '-q', '-m', 'chore: use prefix names');
         await chrome.stable('refresh()');
       }
-      const expected = style === 'suffix'
+      const apiExpected = style === 'suffix'
         ? { builder: 'web-1 (' + model + ')', reviewer: 'coordinator (Claude)', unknown: 'web-2 (unknown)' }
         : { builder: 'gpt-6-with-a-very-long-model-declaration-for-readable-agent-names-web-1', reviewer: 'claude-coordinator', unknown: 'unknown-web-2' };
+      const expected = { ...apiExpected, unknown: 'web-2' };
       const apiNames = JSON.parse(await chrome.stable('JSON.stringify(Object.fromEntries(data.project.agents.map(a => [a.agent_id, a.displayName])))'));
-      assert.deepEqual(apiNames, { coordinator: expected.reviewer, 'web-1': expected.builder, 'web-2': expected.unknown }, `${style}: authoritative API names`);
+      assert.deepEqual(apiNames, { coordinator: apiExpected.reviewer, 'web-1': apiExpected.builder, 'web-2': apiExpected.unknown }, `${style}: authoritative API names`);
       for (const width of [375, 1280]) {
         await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
         await settled(chrome, `innerWidth === ${width}`);

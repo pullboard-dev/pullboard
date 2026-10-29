@@ -1,6 +1,6 @@
 /** Return the original markup section of the self-contained cockpit document. */
 export function cockpitMarkup(sections) {
-  const { cssAttribute, hostedLocal, snapshot, readOnly, requestMode, hostedMarkup, signIn, settingsMarkup, starMarkup } = sections;
+  const { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, hostedMarkup, signIn, settingsMarkup, starMarkup } = sections;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -20,12 +20,12 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <button class="theme-btn" id="theme" type="button" title="Theme: system"><svg class="sys" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="currentColor" d="M8 2a6 6 0 0 1 0 12Z"/></svg><svg class="sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.4 3.4l.85.85M11.75 11.75l.85.85M3.4 12.6l.85-.85M11.75 4.25l.85-.85"/></svg><svg class="moon" viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M13.6 9.6A6 6 0 1 1 6.4 2.4a5.2 5.2 0 0 0 7.2 7.2Z"/></svg></button>
   </div>
   <div class="side-body" id="side-body">
-    <button class="ghost" data-tab="settings" type="button">Settings</button>
     <div class="label">Projects</div>
     <nav id="proj-list" aria-label="Projects on this machine"></nav>
     <button class="share-again" id="share-again" type="button" hidden>Link boards to pullboard.dev&hellip;</button>
     <section class="products" id="products" aria-label="Products" hidden><div class="label">Products</div><div id="prod-list"></div></section>
   </div>
+  <nav class="side-footer" aria-label="Project tools"><button class="ghost" data-tab="settings" type="button">Settings</button><a class="ghost" href="${repositoryAttribute}" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a></nav>
 </aside>
 <div class="body">
 <header class="top">

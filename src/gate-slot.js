@@ -157,6 +157,8 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     ...(restriction ? { requiredExecutor: restriction } : {}),
     runnerProvider: () => loadMachineSettings().runners ?? [],
     runnerHealthProbe: probeRunnerHealth,
+    /** Keep legacy fallback distinct from the ordinary exact-job health observation. */
+    runnerIdleProbe: runner => probeRunnerHealth(runner, undefined, { idle: true }),
     runnersFirstProvider: gateRunnersFirstEnabled,
     runnerWaitMs: runnerWaitMs ?? gateRunnerWaitMs(),
     runnerDeadlineAt,

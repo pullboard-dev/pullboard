@@ -19,12 +19,12 @@
   },
   "totals": {
     "cells": 43,
-    "movedPaths": 1327,
+    "movedPaths": 1348,
     "stays": 41,
     "placedBy": {
       "seed": 893,
-      "rule": 349,
-      "imports": 85
+      "rule": 356,
+      "imports": 99
     },
     "shims": 655,
     "cutImports": 363,

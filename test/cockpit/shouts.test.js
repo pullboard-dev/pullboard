@@ -138,7 +138,7 @@ test('a shout from the view shows the person as its author [N26,A9]', { timeout:
     const cards = () => [...shoutNameText(page.show('feed')).matchAll(/<b class="who">([^<]*)<\/b><span class="to">→ ([^<]*)<\/span>[^]*?<div class="text">([^<]*)<\/div>/g)].map((m) => m.slice(1));
     assert.deepEqual(cards(), [
       ['you', 'web', 'Web, keep it short'],
-      ['you', 'coordinator (unknown)', 'Hello from the person'],
+      ['you', 'coordinator', 'Hello from the person'],
       ['web-1 (Test Model)', 'coordinator and you', 'web-1 is on the greeting'],
     ], 'the view reads "you" for the person, to the coordinator and to a lane, and an agent keeps its seat and model');
 
@@ -556,7 +556,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
           assert.ok(c.text.box.top >= c.header.bottom - 1, `${at}: ${name}: the text sits below the header`);
           for (const edge of c.edges) assert.deepEqual(edge.left, edge.right, `${at}: ${name}: no box in the card carries a coloured edge`);
         }
-        assert.deepEqual([old.avatar.text, old.who.text, old.to], ['W1', 'web-1 (Test Model)', '→ coordinator (unknown)'], `${at}: initials, name, arrow and recipient`);
+        assert.deepEqual([old.avatar.text, old.who.text, old.to], ['W1', 'web-1 (Test Model)', '→ coordinator'], `${at}: initials, name, arrow and recipient`);
         assert.equal(old.avatar.radius, '50%', `${at}: an agent's avatar is a circle`);
         assert.equal(chipCard.avatar.color, old.avatar.color, `${at}: one agent keeps one colour`);
         assert.notEqual(asking.avatar.color, old.avatar.color, `${at}: another agent has its own`);
@@ -590,7 +590,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
 
         // Decisions: a band until answered, then who answered and a link to the answer.
         assert.deepEqual(asking.band, { text: 'Decision needed', done: false, href: null }, `${at}: an open ask carries a Decision needed band`);
-        assert.deepEqual(shipped.band, { text: 'Answered by coordinator (unknown): see the answer', done: true, href: `#shout-${answerId}` }, `${at}: an answered one says who answered, linking the answer`);
+        assert.deepEqual(shipped.band, { text: 'Answered by coordinator: see the answer', done: true, href: `#shout-${answerId}` }, `${at}: an answered one says who answered, linking the answer`);
         assert.ok(r.answerTarget, `${at}: the link lands on the answer`);
         assert.deepEqual(r.repeated, [], `${at}: an ask shown in the feed and above the composer never repeats an id`);
 
@@ -604,7 +604,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
         assert.deepEqual(r.heads, ['Decision needed'], `${at}: the asks above the composer: the person's under their head, the rest opened from their fold line`);
         assert.deepEqual([r.asks.friday.answer, r.asks.colour.answer], ['Answer', null], `${at}: the person's ask has an Answer button; one waiting on others has none`);
         assert.deepEqual([r.asks.colour.text.lines, r.asks.colour.text.clamped, r.asks.colour.more], [3, true, 'more'], `${at}: an ask folds at three lines`);
-        assert.ok(r.asks.friday.avatar.svg && r.asks.friday.who.text === 'coordinator (unknown)', `${at}: the asks are the feed's cards`);
+        assert.ok(r.asks.friday.avatar.svg && r.asks.friday.who.text === 'coordinator', `${at}: the asks are the feed's cards`);
 
         // Days: none above today's shouts; a rule in the middle names the earlier day where the feed crosses into it.
         let day = new Date().toDateString();
@@ -733,8 +733,8 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     // An agent's name filters the feed to its shouts, from or to it, and addresses the composer to it.
     await click('#agents [data-agent="web-2"]');
     s = await state();
-    assert.deepEqual(s.cards, [['coordinator (unknown)', 'web-2 (unknown)'], ['web-2 (unknown)', 'coordinator (unknown)']], 'only shouts from or to web-2');
-    assert.deepEqual([s.bar, s.to, s.on], ['Shouts with web-2 (unknown) show all', 'web-2', ['web-2']], 'the bar says whose, the composer is addressed to them, and the agent is marked');
+    assert.deepEqual(s.cards, [['coordinator', 'web-2'], ['web-2', 'coordinator']], 'only shouts from or to web-2');
+    assert.deepEqual([s.bar, s.to, s.on], ['Shouts with web-2 show all', 'web-2', ['web-2']], 'the bar says whose, the composer is addressed to them, and the agent is marked');
     await click('#feed .feed-bar [data-agent=""]');
     s = await state();
     assert.deepEqual([s.cards.length, s.bar, s.on, s.to], [total, '', [], 'coordinator'], 'show all undoes the filter, and the composer goes back to the coordinator');
@@ -851,16 +851,16 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
     await chrome.waitFor("data.project.shouts.some((s) => s.shout_from === 'person' && s.shout_to === 'coordinator' && s.shout_text === 'Ship the greeting?')", 15_000); // budget: hang ceiling for the person shout to be recorded; no throughput claim.
     await chrome.waitFor(`${heardOf('Ship the greeting?')} === 'Not heard yet'`, 15_000); // budget: hang ceiling for the initial unread state to appear; no throughput claim.
     box.run(alpha.repo, 'inbox');
-    await chrome.waitFor(`${heardOf('Ship the greeting?')} === 'Heard by coordinator (unknown)'`, 15_000); // budget: hang ceiling for coordinator inbox to mark the shout heard; no throughput claim.
+    await chrome.waitFor(`${heardOf('Ship the greeting?')} === 'Heard by coordinator'`, 15_000); // budget: hang ceiling for coordinator inbox to mark the shout heard; no throughput claim.
     // A shout that reaches everyone says who of them has read it: the coordinator first, then how many agents.
     // (The person reaches every agent through the relay's requests; here the board records one directly.)
     earlier(alpha.repo, Date.now(), (board) => shoutOnBoard(board, { from: 'person', to: 'all', text: 'Hold the merge, please.', lanes: ['web'] }));
     await chrome.waitFor("data.project.shouts.some((s) => s.shout_from === 'person' && s.shout_to === 'all')", 15_000); // budget: hang ceiling for the addressed-to-all shout to be recorded; no throughput claim.
     box.run(alpha.repo, 'inbox');
     box.run(alpha.web, 'inbox');
-    await chrome.waitFor(`${heardOf('Hold the merge, please.')} === 'Heard by coordinator (unknown) and 1 agent'`, 15_000); // budget: hang ceiling for both inbox reads to appear; no throughput claim.
+    await chrome.waitFor(`${heardOf('Hold the merge, please.')} === 'Heard by coordinator and 1 agent'`, 15_000); // budget: hang ceiling for both inbox reads to appear; no throughput claim.
     const all = (await read()).heard.find(([text]) => text === 'Hold the merge, please.');
-    assert.deepEqual(all.slice(2), [2, 'Heard by coordinator (unknown), web-1 (Test Model)'], 'with their avatars, and every name on hover');
+    assert.deepEqual(all.slice(2), [2, 'Heard by coordinator, web-1 (Test Model)'], 'with their avatars, and every name on hover');
 
     // Picking an agent addresses the composer to it; the chip's x returns it to the coordinator.
     await chrome.click(`document.querySelector('#agents [data-agent="web-1"]')`);

@@ -64,19 +64,19 @@ function withReviewFacts(board, work) {
   finally { board.db.exec('RELEASE review_eligibility'); }
 }
 
-/** Expose the tier and eligible seats, keeping each ineligible seat's explanation to its first native rule. */
-export function reviewEligibility(board, item, options = {}) {
-  return withReviewFacts(board, observed => projectEligibility(observed, item, options));
+/** Expose native eligibility; the strict reachability guard may skip seats whose result it discards. */
+export function reviewEligibility(board, item, options = {}, { strictOnly = false } = {}) {
+  return withReviewFacts(board, observed => projectEligibility(observed, item, options, strictOnly));
 }
 
 /** Apply the unchanged native eligibility guards to every candidate in the same read projection. */
-function projectEligibility(board, item, options) {
+function projectEligibility(board, item, options, strictOnly) {
   const policy = itemReviewPolicy(board, item.item_id);
-  const agents = board.db.prepare('SELECT agent_id,agent_route FROM agent ORDER BY agent_id').all();
   const result = { tier: twoTierReviews(board) ? policy.tier : 'legacy', requiredFamily: policy.reviewFamily,
     ready: item.item_status === 'submitted' || item.item_status === 'verified' && !item.item_merged_commit,
     eligible: [], ineligible: [] };
-  if (!result.ready) return result;
+  if (!result.ready || strictOnly && result.tier !== 'strict') return result;
+  const agents = board.db.prepare('SELECT agent_id,agent_route FROM agent ORDER BY agent_id').all();
   for (const agent of agents) {
     const problem = eligibilityProblem(board, item, agent, options);
     if (problem) result.ineligible.push({ agent: agent.agent_id, code: problem.code, rule: problem.message });

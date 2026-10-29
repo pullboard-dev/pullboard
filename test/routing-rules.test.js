@@ -12,6 +12,7 @@ import { effectiveAgentParent } from '../src/seat-review-read.js';
 import shoutMove from '../src/moves/shout.js';
 import releaseMove from '../src/moves/release.js';
 import { ROUTING_RULES_ENGINE } from '../src/routing-rules-engine.js';
+import { applyEngineMove, appliedSequence, prepareEngineMove } from '../src/engine.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const LEASE = 3_600_000;
@@ -119,6 +120,34 @@ test('a release without a reason code is refused naming the list, and a coded re
   assert.equal(released.code, 0, released.err + released.out);
   const log = JSON.parse(box.run(box.repo, 'log', String(added), '--json').out).events.findLast(event => event.event_kind === 'release');
   assert.equal(JSON.parse(log.event_detail ?? JSON.stringify(log.detail ?? {})).reasonCode, 'OTHER');
+});
+
+test('native and ordered releases require a reason code while historical releases keep their meaning [C7,H16]', t => {
+  const f = fixture(t), id = f.add();
+  store.claim(f.board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE, freeze });
+  const before = store.getItem(f.board, id), events = store.events(f.board);
+  for (const code of [undefined, 'NOPE', 'OTHER']) {
+    assert.throws(() => store.release(f.board, id, 'core-1', '', code), { code: 'RELEASE_REASON' });
+    assert.deepEqual(store.getItem(f.board, id), before, 'a direct refused release preserves the claim');
+    assert.deepEqual(store.events(f.board), events, 'a direct refusal appends nothing');
+  }
+  const at = f.board.clock.now().toISOString();
+  const bare = prepareEngineMove(f.board, 'release', [id, 'core-1', 'dependency merge conflict'], { id: 'routing-release-no-code' });
+  const refused = applyEngineMove(f.board, bare, { sequence: 1, at });
+  assert.equal(refused.error.code, 'RELEASE_REASON', 'the engine enforces the code without a CLI');
+  assert.deepEqual(store.getItem(f.board, id), before);
+  assert.deepEqual(store.events(f.board), events);
+  assert.equal(appliedSequence(f.board), 1, 'an admitted refusal retains its normal replay receipt and cursor');
+  assert.deepEqual(applyEngineMove(f.board, bare, { sequence: 1, at }), refused, 'duplicate refusal replay is stable');
+  const coded = prepareEngineMove(f.board, 'release', [id, 'core-1', 'dependency merge conflict', 'BLOCKED'], { id: 'routing-release-blocked' });
+  assert.equal(applyEngineMove(f.board, coded, { sequence: 2, at }).error, undefined);
+  assert.equal(store.getItem(f.board, id).item_status, 'open');
+  assert.equal(JSON.parse(store.events(f.board).findLast(event => event.event_kind === 'release').event_detail).reasonCode, 'BLOCKED');
+  const old = fixture(t), historicalId = old.add();
+  store.claim(old.board, historicalId, { agentId: 'core-1', lane: 'core', leaseMs: LEASE, freeze });
+  const historical = { ...prepareEngineMove(old.board, 'release', [historicalId, 'core-1', 'historical uncoded release'], { id: 'routing-release-historical' }), engine: ROUTING_RULES_ENGINE - 1 };
+  assert.equal(applyEngineMove(old.board, historical, { sequence: 1, at: old.board.clock.now().toISOString() }).error, undefined);
+  assert.equal(store.getItem(old.board, historicalId).item_status, 'open', 'the pre-routing engine preserves an old uncoded release');
 });
 
 test('a session rule reads the persisted session separately from its shared parent pool [C7]', t => {

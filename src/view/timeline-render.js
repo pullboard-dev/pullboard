@@ -38,9 +38,9 @@ export function timelineHtml({ entries, steps, flow, open = [] }) {
     const next = steps.slice(index + 1).find(row => row.move);
     const named = step.kind === 'reject' ? 'sent back' : state;
     const stay = !enters || (final && !next) ? ''
-      : !step.at ? esc(named + (next ? ' after the ' : ' so far since the ') + step.kind + ', length not logged')
+      : !step.at ? esc(named + (next ? ' after the ' : ' so far since the ') + (step.momentLabel || step.kind) + ', length not logged')
       : !next ? esc(named) + ' for ' + step.ageHtml + ' so far'
-      : !next.at ? esc(named + ' until the ' + next.kind + ', length not logged')
+      : !next.at ? esc(named + ' until the ' + (next.momentLabel || next.kind) + ', length not logged')
       : esc(named + ' for ' + span(Date.parse(next.at) - Date.parse(step.at)));
     const previous = steps.slice(0, index).findLast(row => row.move);
     const waited = step.kind === 'reserve' && previous?.at && step.at
@@ -48,7 +48,7 @@ export function timelineHtml({ entries, steps, flow, open = [] }) {
     rows.push({ type: 'move', kind: step.kind, by: step.by, model: step.model, state, enters, from: step.from,
       classes: 'tl-' + state + (step.kind === 'reject' ? ' tl-back' : '') + (enters ? '' : ' tl-quiet'),
       eventIds: event ? [event.eventId] : [], time: step.timeLabel, lastTime: step.timeLabel,
-      sentence: who(step) + ' ' + esc(verbs[step.kind] ?? step.kind.replaceAll('-', ' ')),
+      sentence: who(step) + ' ' + esc(verbs[step.kind] ?? step.kindLabel ?? step.kind.replaceAll('-', ' ')),
       label: step.kind === 'proof-run' ? '<span class="tl-kind tl-kind-proof">proof</span>' : '',
       stay: waited || stay, count: 1 });
   };
@@ -64,8 +64,8 @@ export function timelineHtml({ entries, steps, flow, open = [] }) {
     rows.push({ type: 'fact', kind, by: fact.by, state: judgement ? 'back' : kind === 'measurement' ? 'measure' : kind === 'proof' ? 'proof' : 'note',
       classes: 'tl-fact' + (judgement ? ' tl-judgement' : '') + (replacement ? ' tl-superseded' : ''),
       id: key, eventIds: [fact.eventId], time: fact.timeLabel,
-      sentence: who(fact) + ' ' + verb + ' <span class="tl-kind tl-kind-' + kind + '">' + esc(fact.kind) + '</span>' + (kind === 'fact' ? ' <span class="tl-kind-type">fact</span>' : ''),
-      stay: fact.ageHtml + (replacement ? ' · <a class="thread-replacement" href="#fact-' + esc(replacement.id) + '">replaced by ' + esc(replacement.kind) + '</a>' : ''),
+      sentence: who(fact) + ' ' + esc(fact.kindLabel || verb) + ' <span class="tl-kind tl-kind-' + kind + '">' + esc(fact.kindLabel ? fact.kind.replaceAll('-', ' ') : fact.kind) + '</span>' + (kind === 'fact' ? ' <span class="tl-kind-type">fact</span>' : ''),
+      stay: fact.ageHtml + (replacement ? ' · <a class="thread-replacement" href="#fact-' + esc(replacement.id) + '">replaced by ' + esc(replacement.kindLabel || replacement.kind) + '</a>' : ''),
       body: body + (fact.hasCodeRef ? '<div class="tl-code">' + (fact.codeHtml || '') + '</div>' : '') });
   };
   for (const entry of entries) {

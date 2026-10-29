@@ -166,8 +166,8 @@ test("the history is a timeline of the item's states [N26]", async () => {
     ]);
     assert.deepEqual(lapsed.map((row) => row.stay.replace(/ for .*/, ' for')), [
       'open for',
-      'claimed until the lapse, length not logged',
-      'open after the lapse, length not logged',
+      'claimed until the lease expiry, length not logged',
+      'open after the lease expiry, length not logged',
       'claimed for',
     ], 'a stay that ends or begins at an untimed lapse says its length was not logged');
     assert.equal(lapsed[0].stay, 'open for 5m');
@@ -176,8 +176,8 @@ test("the history is a timeline of the item's states [N26]", async () => {
     const idle = { status: 'open', history: [{ kind: 'add', by: 'web-1', at: at(0) }, { kind: 'claim', by: 'web-1', at: at(5) }] };
     assert.deepEqual(timelineRows(page.run(`timeline(${JSON.stringify(idle)})`)).map((row) => [row.event, row.stay]), [
       ['web-1 added this work', 'open for 5m'],
-      ['web-1 claimed it', 'claimed until the lapse, length not logged'],
-      ['the clock released an expired lease', 'open so far since the lapse, length not logged'],
+      ['web-1 claimed it', 'claimed until the lease expiry, length not logged'],
+      ['the clock released an expired lease', 'open so far since the lease expiry, length not logged'],
     ]);
   } finally {
     await view.stop();
@@ -517,7 +517,7 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
       assert.equal(find(asker + ' told the coordinator', 'Ship the greeting today?').model, 'Test Model', 'the model is a hover title');
       assert.ok(find('The coordinator told ' + asker, 'Yes, ship it once'), 'the answer retains both addresses and its words');
       assert.ok(rows.some(row => row.sentence === 'The coordinator told web' && row.said === null), 'older unloaded shout words are not invented');
-      assert.ok(rows.some(row => row.sentence === 'The coordinator added' && row.text.includes('#1Greet the visitor')), 'other work has a sentence and item underneath');
+      assert.ok(rows.some(row => row.sentence === 'The coordinator added work' && row.text.includes('#1Greet the visitor')), 'other work has a sentence and item underneath');
       assert.ok(rows.every(row => !row.sentence?.includes('(unknown)')), 'unknown models are omitted');
     }
   } finally {

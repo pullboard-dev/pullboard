@@ -62,10 +62,10 @@ export function advanceReport(item, policy, at, windows) {
   for (const end of [...boundaries, at]) {
     const key = stage(item, policy, report.at);
     if (key && end >= report.at) report.totals[key] += (end - report.at) / 60_000;
-    for (const window of report.windows ?? []) {
-      const elapsed = Math.max(0, Math.min(end, window.end) - Math.max(report.at, window.start));
-      if (key) window.milliseconds[key] += elapsed;
-      else if (!['merged', 'withdrawn'].includes(item.state)) window.unknownMilliseconds += elapsed;
+    for (const rangeTotals of report.windows ?? []) {
+      const elapsed = Math.max(0, Math.min(end, rangeTotals.end) - Math.max(report.at, rangeTotals.start));
+      if (key) rangeTotals.milliseconds[key] += elapsed;
+      else if (!['merged', 'withdrawn'].includes(item.state)) rangeTotals.unknownMilliseconds += elapsed;
     }
     report.at = end;
   }

@@ -6,8 +6,10 @@ import { fixtureBoard } from './board-fixture.js';
 import { submitPreflight } from '../src/submit-preflight.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
 import { refuseUnreviewable } from '../src/review-reachability.js';
+import { reviewEligibility } from '../src/review-eligibility.js';
 import { refuseLiveAttach } from '../src/item-patches.js';
 import { healthReport } from '../src/health.js';
+import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
 
 const LEASE = 3_600_000;
 const freeze = () => ({ text: '{}', digest: 'synthetic-review-bar' });
@@ -32,6 +34,42 @@ function fixture(t, seats, clock) {
   const preflight = (id, builder) => submitPreflight(board, id, { agentId: builder, commit: 'a'.repeat(40), tree: 'b'.repeat(40) }, { atomic: store.atomic, submit: store.submit }, { refuse: (board, item) => refuseUnreviewable(board, item, REVIEW) });
   return { board, claimed, credit, preflight };
 }
+
+test('Standard reachability skips the seat scan while the normal projection still lists reviewers [C7,V4]', t => {
+  const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b']]);
+  const id = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'Standard reachability fixture' });
+  store.claim(f.board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE, freeze });
+  const original = f.board.db.prepare.bind(f.board.db);
+  let enumerations = 0;
+  /** Count the real candidate enumeration without replacing its statement or native database identity. */
+  f.board.db.prepare = sql => {
+    if (sql === 'SELECT agent_id,agent_route FROM agent ORDER BY agent_id') enumerations++;
+    return original(sql);
+  };
+  t.after(() => { f.board.db.prepare = original; });
+  const before = store.events(f.board);
+  f.preflight(id, 'core-1');
+  assert.equal(enumerations, 0, 'Standard preflight never enumerates candidates it would discard');
+  assert.deepEqual(store.events(f.board), before, 'the real preflight still rolls back its native submit');
+  assert.equal(store.getItem(f.board, id).item_status, 'claimed');
+  const projected = reviewEligibility(f.board, { ...store.getItem(f.board, id), item_status: 'submitted',
+    item_built_by: 'core-1', item_builder_family: 'openai' }, REVIEW);
+  assert.equal(projected.tier, 'standard');
+  assert.deepEqual(projected.eligible, ['core-2'], 'the default read projection retains Standard reviewer details');
+  assert.equal(enumerations, 1);
+});
+
+test('reachability rereads current Strict policy after a Standard projection [C7,V4]', t => {
+  const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b']]);
+  const id = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'Changed review policy fixture' });
+  const standard = { ...store.getItem(f.board, id), item_status: 'submitted', item_built_by: 'core-1', item_builder_family: 'openai' };
+  assert.doesNotThrow(() => refuseUnreviewable(f.board, standard, REVIEW));
+  store.editItem(f.board, id, { agentId: 'coordinator', sensitive: true });
+  store.claim(f.board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE, freeze });
+  f.credit(id, 'core-2');
+  assert.throws(() => f.preflight(id, 'core-1'), { code: 'NO_ELIGIBLE_REVIEWER' },
+    'an earlier Standard observation cannot suppress the current Strict guard');
+});
 
 test('an OpenAI builder with a Claude-credited companion on a strict item is refused by name [C7,V4]', t => {
   const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b'], ['core-3', 'claude', 'c'], ['core-4', 'openai', 'd']]);
@@ -68,7 +106,7 @@ test('seats with no declared family leave strict review unroutable and are named
   const id = f.claimed('core-1');
   assert.throws(() => f.preflight(id, 'core-1'), error => error.code === 'NO_ELIGIBLE_REVIEWER'
     && /core-2, core-3 declare no vendor family/u.test(error.message));
-  f.board.db.prepare('UPDATE agent SET agent_family=? WHERE agent_id=?').run('claude', 'core-3');
+  store.register(f.board, { lane: 'core', path: '/fixture/core-3', family: 'claude', parentDigest: 'c'.repeat(64), model: 'Synthetic fixture model' });
   f.preflight(id, 'core-1');
 });
 
@@ -110,6 +148,21 @@ test('attaching a Claude-credited companion to a claimed OpenAI-built strict ite
     && error.message.includes('builder core-1 (openai)') && error.message.includes('companion author core-2 (claude)'));
   assert.deepEqual(store.events(f.board), before, 'the refused attach recorded nothing');
   assert.equal(attach(f, id, 'companion', 'core-4').changed, true, 'an OpenAI-credited companion still attaches');
+});
+
+test('historical family clears cannot hide the builder or companion from strict reachability [C7,V4,H16]', t => {
+  const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b'], ['core-3', 'openai', 'c']]);
+  const id = f.claimed('core-1');
+  f.board.executionEngineVersion = FAMILY_DECLARE_ENGINE - 1;
+  try {
+    for (const [agent, parent] of [['core-1', 'a'], ['core-2', 'b']]) {
+      store.register(f.board, { lane: 'core', path: `/fixture/${agent}`, family: null, parentDigest: parent.repeat(64), model: 'Synthetic fixture model' });
+    }
+  } finally { delete f.board.executionEngineVersion; }
+  const before = store.events(f.board);
+  assert.throws(() => attach(f, id, 'cleared-companion', 'core-2'), error => error.code === 'NO_ELIGIBLE_REVIEWER'
+    && error.message.includes('builder core-1 (openai)') && error.message.includes('companion author core-2 (claude)'));
+  assert.deepEqual(store.events(f.board), before, 'a refused attach leaves the historical clears factual and adds no event');
 });
 
 test('a live attach is refused when the only eligible reviewer is gone, while replaying the recorded move succeeds [C7,V4]', t => {
