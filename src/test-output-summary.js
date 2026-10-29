@@ -62,7 +62,7 @@ export function testOutputSummary(logPath, { root = process.cwd(), profile } = {
   if (!rows.length && output.trim()) failed.push({ file: null, name: 'command output',
     error: short(diagnostics[0] ?? lines[0]) });
   return { counts, failures: failed.slice(0, FAILURE_LIMIT),
-    ...(diagnostics.length ? { diagnostics, omittedOutputLines: Math.max(0, lines.length - diagnostics.length) } : {}),
+    ...(diagnostics.length ? { diagnostics: rows.length ? diagnostics : diagnostics.slice(1), omittedOutputLines: Math.max(0, lines.length - diagnostics.length) } : {}),
     omittedFailures: Math.max(0, failed.length - FAILURE_LIMIT), logPath };
 }
 
