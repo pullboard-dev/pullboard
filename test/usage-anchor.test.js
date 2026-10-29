@@ -7,6 +7,7 @@ import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import { checkpointAfterMove } from '../src/cost-checkpoint.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -62,6 +63,7 @@ test('a normal native claim, work and submit preserves its real counter anchor [
 test('a synthetic claim-time ledger lock alone produces recovered missed-claim-anchor [N2]', () => {
   const { item, claim, usage, run } = fixture({ locked: true });
   assert.match(JSON.stringify(JSON.parse(claim.stdout).diagnostics), /USAGE_PENDING/);
+  assert.match(JSON.stringify(JSON.parse(claim.stdout).diagnostics), /stage=private-ledger/);
   usage(37, 6);
   run('release', String(item), '--no-next');
   const shown = JSON.parse(run('show', String(item), '--json').stdout);
@@ -78,4 +80,23 @@ test('provider discovery failure with a persisted claim is distinct from a misse
   assert.equal(shown.usage.inputTokens, null);
   assert.ok(shown.usage.unknownReasons.includes('native-session-unavailable'));
   assert.ok(!shown.usage.unknownReasons.includes('missed-claim-anchor'));
+});
+
+test('unexpected checkpoint failures expose only a fixed stage and preserve lifecycle success [N2]', async () => {
+  const diagnostics = [];
+  const ctx = {
+    clock: {
+      /** Fail before any source read using explicitly synthetic private-looking input. */
+      now() { throw Object.assign(new Error('synthetic private provider path and session'), { code: 'SYNTHETIC_PRIVATE_ID' }); },
+    },
+    io: {
+      /** Collect the actual public checkpoint diagnostic without exposing the thrown error. */
+      err(message) { diagnostics.push(message); },
+    },
+  };
+  await checkpointAfterMove(ctx, {}, {});
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0], /USAGE_PENDING: \[stage=checkpoint\]/);
+  assert.match(diagnostics[0], /lifecycle move was recorded/);
+  assert.doesNotMatch(diagnostics[0], /synthetic|provider path|SYNTHETIC_PRIVATE_ID/);
 });
