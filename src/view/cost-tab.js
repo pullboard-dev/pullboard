@@ -124,9 +124,15 @@ function usageByItem(events) {
 function sharedUsageItems(events) {
   const items = new Set();
   for (const event of events ?? []) {
-    if (kindOf(event) !== 'shared-usage') continue;
-    for (const allocation of costEventDetail(event).allocations ?? []) {
-      if (Number.isSafeInteger(allocation?.item) && allocation.item > 0) items.add(allocation.item);
+    const detail = costEventDetail(event);
+    if (kindOf(event) === 'usage' && detail.shared === true) {
+      const item = Number(detail.item);
+      if (Number.isSafeInteger(item) && item > 0) items.add(item);
+    }
+    if (kindOf(event) === 'shared-usage') {
+      for (const allocation of detail.allocations ?? []) {
+        if (Number.isSafeInteger(allocation?.item) && allocation.item > 0) items.add(allocation.item);
+      }
     }
   }
   return items;

@@ -111,6 +111,21 @@ test('shared usage never appears as per-item or vendor dollars [N26]', () => {
   assert.equal(model.rows[0].returns[0].costUSD, null);
   assert.equal(model.vendors[0].costUSD, null);
   assert.equal(model.reworkShare, null);
+
+  const sharedCheckpointEvents = events.filter(event => event.event_kind !== 'shared-usage').map(event => {
+    if (event.event_id !== 3) return event;
+    const detail = JSON.parse(event.event_detail);
+    detail.shared = true;
+    return { ...event, event_detail: JSON.stringify(detail) };
+  });
+  const checkpointModel = costTabModel({ items: [{ id: 88, title: 'Shared checkpoint', builtBy: 'builder' }], agents: [
+    { agent_id: 'builder', model: 'Model A', family: 'Vendor A' },
+  ] }, sharedCheckpointEvents, { 'Model A': { freshInput: 1, cacheReadInput: 0, cacheWriteInput: 0, output: 0 } });
+  assert.equal(checkpointModel.rows[0].totalCost, null);
+  assert.ok(checkpointModel.rows[0].usageRows.every(entry => entry.costUSD === null));
+  assert.equal(checkpointModel.rows[0].returns[0].costUSD, null);
+  assert.equal(checkpointModel.vendors[0].costUSD, null,
+    'a shared checkpoint remains unattributed even when no shared-usage allocation event was published');
 });
 
 test('cumulative usage preserves priced totals but leaves collapsed lifecycle attribution unknown [N26]', () => {
