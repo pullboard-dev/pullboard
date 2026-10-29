@@ -143,16 +143,16 @@ export function projectFlowWindow(prepared, minutes, now) {
 }
 
 /** Render the measured window without substituting zero for absent quartiles or undocumented eligibility. */
-export function flowWindowLines(window) {
+export function flowWindowLines(flowWindow) {
   const time = value => value === null ? 'unmeasured' : `${Number(value.toFixed(2))} min`;
-  return [`flow window: ${window.since} to ${window.until} · ${window.arrivals.added} added · ${window.landedItems} landed`,
+  return [`flow window: ${flowWindow.since} to ${flowWindow.until} · ${flowWindow.arrivals.added} added · ${flowWindow.landedItems} landed`,
     ...WINDOW_STAGES.flatMap(stage => {
-      const row = window.stages[stage];
+      const row = flowWindow.stages[stage];
       return [`${LABELS[stage]}: ${row.count} measured · fast quarter ${time(row.fastQuarterMinutes)} · median ${time(row.medianMinutes)} · slow quarter ${time(row.slowQuarterMinutes)} · worst ${time(row.worstMinutes)} · ${row.unmeasuredCompleted} unmeasured`,
         `  ${row.arrivals} arrivals · ${row.completions} completions · seats ${row.seats.join(', ') || 'none observed'} · ${time(row.overTargetMinutes)} over ${time(row.targetMinutes)} target`,
         ...row.tail.map(item => `  #${item.id}: ${time(item.minutes)} · ${item.cause}${item.eligibility ? ' (eligibility unmeasured; check eligible reviewers)' : ''}`)];
     }),
-    `constraint: ${window.constraint.stage ? LABELS[window.constraint.stage] : 'none measured over target'} · ${time(window.constraint.overTargetMinutes)} over target`];
+    `constraint: ${flowWindow.constraint.stage ? LABELS[flowWindow.constraint.stage] : 'none measured over target'} · ${time(flowWindow.constraint.overTargetMinutes)} over target`];
 }
 
 /** Share exact validated window boundaries with line-capacity decisions. */
@@ -285,7 +285,7 @@ function comparisonChange(current, previous) {
 
 /** One canonical two-window JSON contract is shared by stats, the coordinator line and Dashboard composition. */
 export function projectWindowComparison(history, prepared, bounds, stageReports) {
-  const [previous, current] = bounds.map((window, index) => comparisonWindow(history, prepared, window, stageReports[index]));
+  const [previous, current] = bounds.map((rangeBounds, index) => comparisonWindow(history, prepared, rangeBounds, stageReports[index]));
   return { version: 1, available: true, durationMinutes: bounds[1].durationMinutes,
     bounds: '(since,until]', current, previous, change: comparisonChange(current, previous) };
 }
