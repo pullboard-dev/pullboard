@@ -15,6 +15,10 @@ import { localDependencyIds } from './item-dependencies.js';
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { machineHome } from './machine-home.js';
+import { runnerRecoveryStatus } from './runner-recovery.js';
 import { missedJobFindings } from './board-recurring-jobs.js';
 import {
   COORDINATOR,
@@ -100,6 +104,7 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
   const report = { asOf, thresholds: { stuck: limits.stuck, holds: limits.holds, release: limits.release }, stuck: [], waiting: [] };
   // Gate alarms read the git directory, so they report even before a board exists (U41).
   report.stuck.push(...gateControlFindings(root, config ?? {}, now));
+  report.stuck.push(...unavailableRunnerFindings(now));
   const canary = readRelayHealth(root);
   if (typeof canary.alertSince === 'string' && Number.isFinite(Date.parse(canary.alertSince))) {
     const step = typeof canary.step === 'string' ? canary.step : 'unknown';
@@ -308,6 +313,27 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
   const overdue = releaseOverdue(db, root, at, limits.ms.release, history);
   if (overdue) found(report.stuck, overdue);
   return report;
+}
+
+/** Report hosts still unavailable after thirty minutes from the read-only machine queue. */
+function unavailableRunnerFindings(now) {
+  const file = join(machineHome(), 'resources.sqlite');
+  if (!existsSync(file)) return [];
+  let queue;
+  try {
+    queue = new DatabaseSync(file, { readOnly: true });
+    return queue.prepare('SELECT host,since,detail,failure FROM runner_unavailable').all()
+      .filter(row => Number.isFinite(Date.parse(row.since)) && now.getTime() - Date.parse(row.since) >= 1_800_000)
+      .map(row => finding('RUNNER_UNAVAILABLE', null, {
+        subject: row.host, key: `RUNNER_UNAVAILABLE:${row.host}`, since: row.since, now: now.getTime(),
+        title: `runner ${row.host} unavailable over 30 minutes`,
+        why: `${row.host} remains unavailable (${row.detail}); ${runnerRecoveryStatus(row.failure).reason}`,
+        next: `inspect ${row.host}'s recorded recovery probe and restore it only after no job is running and its root is writable`,
+        owner: { role: 'coordinator', who: COORDINATOR },
+        detail: { host: row.host, reason: row.detail, recovery: runnerRecoveryStatus(row.failure) },
+      }));
+  } catch { return []; }
+  finally { queue?.close(); }
 }
 
 /** An agent with no claim, review or event for this long is idle, not active; its own submitted work awaits review, so it is not idle (N2). */

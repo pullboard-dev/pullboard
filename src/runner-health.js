@@ -13,12 +13,12 @@ import { probeRunnerTransport } from './runner-transport.js';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
-/** Ask the pinned real worker to prove readiness plus the exact failed job's completed cleanup. */
-export async function probeRunnerHealth(runner, previous) {
+/** Ask the pinned worker for exact cleanup or an explicitly requested idle and writable proof. */
+export async function probeRunnerHealth(runner, previous, { idle = false } = {}) {
   runner = validateRunner(runner);
   const { worker, tooling, runtime } = trustedTooling();
   const nonce = randomUUID();
-  const request = { nonce, previous, ...(runner.root ? { root: runner.root } : {}) };
+  const request = { nonce, ...(idle ? { idle: true } : { previous }), ...(runner.root ? { root: runner.root } : {}) };
   const remote = remoteWorkerCommand(runner, worker, tooling, runtime,
     ' --health ' + shellWord(Buffer.from(JSON.stringify(request)).toString('base64')));
   const args = ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
@@ -37,7 +37,9 @@ export async function probeRunnerHealth(runner, previous) {
   try { reply = JSON.parse(output); } catch { /* Unknown or foreign replies do not attest health. */ }
   const workerReady = !error && !timedOut && result.code === 0 && !result.signal
     && reply?.version === 1 && reply.nonce === nonce && reply.worker === true;
-  return { healthy: Boolean(workerReady && reply.cleanup === true), step: !workerReady ? 'worker readiness' : 'cleanup',
+  return { healthy: Boolean(workerReady && (idle ? reply.idle === true && reply.writable === true : reply.cleanup === true)),
+    ...(idle ? { idle: workerReady && reply.idle === true, writable: workerReady && reply.writable === true } : {}),
+    step: !workerReady ? 'worker readiness' : idle ? 'idle proof' : 'cleanup',
     reason: workerReady ? reply.reason : 'pinned worker did not answer health request', ...result, timedOut, error };
 }
 

@@ -28,9 +28,9 @@ export async function serveRunnerController(ports) {
   return inRunnerGeneration(GENERATION, () => serveRunnerControllerStep(ports));
 }
 
-/** Ask the worker this instance pinned to prove readiness plus the failed job's cleanup. */
-export async function probeRunnerHealth(runner, previous) {
-  return inRunnerGeneration(GENERATION, () => probeRunnerHealthStep(runner, previous));
+/** Ask this instance's pinned worker for exact cleanup or an explicit idle and writable proof. */
+export async function probeRunnerHealth(runner, previous, options) {
+  return inRunnerGeneration(GENERATION, () => probeRunnerHealthStep(runner, previous, options));
 }
 
 /** Supply the canonical late-bound runner operations, bound to this instance's generation. */
