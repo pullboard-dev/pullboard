@@ -648,12 +648,12 @@ function timingDrainEvents(db) {
 }
 
 /** Start due health work on its own connection so a free executor never waits for another host's probe. */
-function startRunnerRecovery(db, file, runners, probe) {
+function startRunnerRecovery(db, file, runners, probe, idleProbe) {
   if (typeof probe !== 'function' || !db.prepare('SELECT 1 FROM runner_unavailable WHERE probe_after<=? AND probe_until<=? LIMIT 1').get(Date.now(), Date.now())) return;
   let recovery;
   try { recovery = open(file); }
   catch { process.stderr.write('runner recovery storage unavailable; failed hosts remain unavailable\n'); return; }
-  void recoverUnavailableRunners(recovery, runners, { probe }).finally(() => recovery.close())
+  void recoverUnavailableRunners(recovery, runners, { probe, idleProbe }).finally(() => recovery.close())
     .catch(() => process.stderr.write('runner recovery observation unavailable; failed hosts remain unavailable\n'));
 }
 
@@ -1124,7 +1124,7 @@ export async function takeResource(options) {
       }));
       lateAdmissionClosed ||= Boolean(acquired.state.runnerDeadline);
       if (acquired.acquired) {
-        if (runnerProvider) startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe);
+        if (runnerProvider) startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe);
         runnerDispatched ||= Boolean(acquired.runner);
         lateRunnerDispatch = acquired.lateRunnerDispatch ?? lateRunnerDispatch;
         if (acquired.state.runnerDeadline && !acquired.runner) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '; running locally\n');
@@ -1228,7 +1228,7 @@ export async function takeResource(options) {
       }
       if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
       await keepItemLease(acquired.state, 'waiter');
-      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), { probe: options.runnerHealthProbe })) continue;
+      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), { probe: options.runnerHealthProbe, idleProbe: options.runnerIdleProbe })) continue;
       await pause(POLL_MS);
     }
   } catch (error) {

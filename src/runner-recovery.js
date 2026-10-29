@@ -13,14 +13,14 @@ export function initializeRunnerRecovery(db) {
   }
 }
 
-/** Describe missing legacy custody before a probe, without promising automatic recovery for it. */
+/** Describe the latest explicit recovery observation, including a legacy idle probe. */
 export function runnerRecoveryStatus(failure) {
   let value;
   try { value = JSON.parse(failure); } catch { value = {}; }
+  if (value.latestProbe) return { ...value.latestProbe, step: value.latestProbe.step ?? 'health' };
   const pending = value?.pending ?? [value?.original?.recovery];
-  if (!pending.length || !pending.every(recoveryIdentity)) return { step: 'cleanup', reason: 'missing exact request ID or completion record; inspect the host and use the existing manual runner command' };
-  return value.latestProbe ? { ...value.latestProbe, step: value.latestProbe.step ?? 'health' }
-    : { step: 'health', reason: 'waiting for pinned-worker readiness and exact-job cleanup proof' };
+  if (!pending.length || !pending.every(recoveryIdentity)) return { step: 'idle proof', reason: 'missing exact request ID or completion record; waiting for pinned-worker idle and writable proof or the existing manual runner command' };
+  return { step: 'health', reason: 'waiting for pinned-worker readiness and exact-job cleanup proof' };
 }
 
 /** Keep each availability transition and its audit record in the same SQLite commit, including nested callers. */
@@ -58,8 +58,8 @@ export function recordRunnerFailure(db, host, reason, diagnostic, { quarantine =
   });
 }
 
-/** Probe due failed generations outside transactions; only exact completion proofs restore availability. */
-export async function recoverUnavailableRunners(db, runners, { probe, now = Date.now() } = {}) {
+/** Probe due failed generations outside transactions; only exact or explicit idle proofs restore availability. */
+export async function recoverUnavailableRunners(db, runners, { probe, idleProbe, now = Date.now() } = {}) {
   if (typeof probe !== 'function') return false;
   const configured = new Map(runners.map(runner => [runner.host, runner]));
   const rows = db.prepare(`SELECT * FROM runner_unavailable WHERE probe_after<=? AND probe_until<=?
@@ -74,8 +74,16 @@ export async function recoverUnavailableRunners(db, runners, { probe, now = Date
     try { retained = JSON.parse(row.failure); } catch { retained = { original: null }; }
     const pending = retained.pending ?? [retained.original?.recovery ?? null];
     let result;
-    if (!pending.length || !pending.every(recoveryIdentity)) {
-      result = { healthy: false, step: 'cleanup', reason: 'legacy failure: missing exact request ID or completion record; use the existing runner command after inspecting the host' };
+    const legacy = !pending.length || !pending.every(recoveryIdentity);
+    if (legacy) {
+      if (typeof idleProbe === 'function') {
+        try { result = await idleProbe(configured.get(row.host)); }
+        catch { result = { healthy: false, step: 'idle proof', reason: 'pinned-worker idle observation unavailable' }; }
+        if (result?.healthy !== true || result.idle !== true || result.writable !== true)
+          result = { ...result, healthy: false, step: 'idle proof', reason: result?.reason ?? 'pinned-worker idle and writable proof missing' };
+      } else {
+        result = { healthy: false, step: 'idle proof', reason: 'legacy failure: missing exact request ID or completion record; use the existing runner command after inspecting the host' };
+      }
     } else {
       try { result = await probe(configured.get(row.host), pending); }
       catch { result = { healthy: false, step: 'worker readiness', reason: 'health observation unavailable' }; }
@@ -85,12 +93,13 @@ export async function recoverUnavailableRunners(db, runners, { probe, now = Date
       const removed = db.prepare(`DELETE FROM runner_unavailable WHERE host=? AND since=? AND probe_token=?
         AND NOT EXISTS(SELECT 1 FROM runner_draining WHERE host=runner_unavailable.host)`).run(row.host, row.since, token).changes > 0;
       if (removed) db.prepare('INSERT INTO runner_recovery_event VALUES(?,?,?,?,?)')
-        .run(randomUUID(), row.host, new Date().toISOString(), 'available', JSON.stringify({ failure: retained.original, probe: result }));
+        .run(randomUUID(), row.host, new Date().toISOString(), 'available', JSON.stringify({ priorReason: row.detail, failure: retained.original, probe: result }));
       return removed;
       });
     }
     const attempts = Math.min(16, row.probe_attempts + 1);
-    const delay = Math.min(60_000, 1_000 * 2 ** Math.min(6, attempts));
+    const delay = ['CLEANUP_UNVERIFIED', 'WORKER_UNRESPONSIVE'].includes(row.detail)
+      ? 300_000 : Math.min(60_000, 1_000 * 2 ** Math.min(6, attempts));
     db.prepare(`UPDATE runner_unavailable SET probe_token='',probe_until=0,probe_after=?,probe_attempts=?,failure=?
       WHERE host=? AND since=? AND probe_token=?`)
       .run(now + delay, attempts, JSON.stringify({ ...retained, latestProbe: result }), row.host, row.since, token);
