@@ -108,6 +108,26 @@ test('Settings has a bottom sidebar address and isolates a bad row at desktop an
       assert.ok(shown.thresholds.some(row => row.error && /whole number at least 1/u.test(row.text)), 'the one bad row includes its real API repair');
       assert.ok(shown.healthy, 'an unrelated configured row survives');
       assert.equal(shown.overflow, false, width + ': the settings page fits its viewport');
+      for (const scope of ['machine', 'board', 'repo']) {
+        await press(chrome, 'document.querySelector("[data-settings-scope=' + scope + ']")');
+        const switcher = await chrome.stable(`(() => {
+          const track = document.querySelector('#settings-content .settings-scopes');
+          const bounds = track.getBoundingClientRect();
+          const buttons = [...track.querySelectorAll('button')];
+          const selected = buttons.filter(button => button.getAttribute('aria-selected') === 'true');
+          const active = selected[0], style = active && getComputedStyle(active);
+          return {
+            fits: buttons.every(button => {
+              const box = button.getBoundingClientRect();
+              return box.top >= bounds.top && box.bottom <= bounds.bottom && box.left >= bounds.left && box.right <= bounds.right;
+            }),
+            selectedPill: selected.length === 1 && active.dataset.settingsScope === '${scope}' &&
+              style.fontWeight === '600' && style.boxShadow !== 'none' &&
+              buttons.filter(button => button !== active).every(button => getComputedStyle(button).backgroundColor !== style.backgroundColor)
+          };
+        })()`);
+        assert.deepEqual(switcher, { fits: true, selectedPill: true }, width + ': ' + scope + ' fits its track and shows the selected pill');
+      }
       const provenance = await chrome.stable(`(() => {
         const rows = [...document.querySelectorAll('#settings-content [data-setting-key]')];
         return { sources: rows.map(row => ({ label: row.querySelector('.setting-source')?.textContent, path: row.querySelector('.setting-source')?.title, root: row.querySelector('.setting-root')?.textContent })),
