@@ -1,6 +1,6 @@
 /** Private CLI journeys preserve one transport while recovering foreign local state [H11,C7]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { readGitSyncRepairs } from '../src/git-sync-files.js';
@@ -24,6 +24,7 @@ function commonPullboard(box) {
 test('submit on a relay-linked board never creates Git sync state and later writes still work [H11,C7]', async t => {
   // The fixture runs its provider on loopback and generates all credentials locally; no live relay is contacted.
   const box = await relayClientFixture(t);
+  symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(box.env.PATH, 'pullboard'));
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   config.gate = 'test -f source/repair-fixture.txt';
   config.lanes[box.lane].owns = ['source/'];
