@@ -420,7 +420,7 @@ test('help watch and the generated agent instructions teach seats to listen with
     'Claude Code: run pullboard watch --to <your id> under the Monitor tool, and each event line wakes the seat.',
     'Any other harness: run it as a long-running command and treat each stdout line as an event.',
   ], 'two lines after the example: the Claude Code way and the way for any other harness');
-  const { agentsBlock } = await import('../src/templates.js');
+  const { agentsBlock } = await import('../src/doctrine.js');
   const listen = agentsBlock().split('\n').find((line) => line.startsWith('**Listen.**'));
   assert.ok(listen, 'the AGENTS.md that init writes has a Listen paragraph');
   assert.match(listen, /run `pullboard watch --to <your id>` there/u);
