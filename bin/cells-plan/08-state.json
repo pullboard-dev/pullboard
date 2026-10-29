@@ -174,7 +174,8 @@
   ["src/family-declare-engine.js","packages/state/src/core/family-declare-engine.js","rule"],
   ["src/main-audit-engine.js","packages/state/src/core/main-audit-engine.js","rule"],
   ["src/stale-state-engine.js","packages/state/src/core/stale-state-engine.js","rule"],
-  ["src/move-history/171.json","packages/state/src/shell/move-history/171.json","rule"]
+  ["src/move-history/171.json","packages/state/src/shell/move-history/171.json","rule"],
+  ["src/move-history/172.json","packages/state/src/shell/move-history/172.json","rule"]
  ],
  "reexports": [
   "src/activity-delivery-engine.js",
