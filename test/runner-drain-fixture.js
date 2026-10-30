@@ -35,6 +35,10 @@ export function runnerRemoveKeepsSettings(t, e2e) {
   remaining.gui = JSON.parse(secondAdded.out).runner.gui;
   removed.cores = JSON.parse(firstAdded.out).runner.cores;
   remaining.cores = JSON.parse(secondAdded.out).runner.cores;
+  removed.memoryMB = JSON.parse(firstAdded.out).runner.memoryMB;
+  remaining.memoryMB = JSON.parse(secondAdded.out).runner.memoryMB;
+  removed.measuredAt = JSON.parse(firstAdded.out).runner.measuredAt;
+  remaining.measuredAt = JSON.parse(secondAdded.out).runner.measuredAt;
   removed.fixed = true;
   remaining.fixed = true;
   assert.ok([true, false, null].includes(removed.gui));
