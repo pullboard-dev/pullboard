@@ -11,7 +11,7 @@ import {
 } from './machine.js';
 import { firstRefusal } from './board-item-read.js';
 import { GONE_CLAIM_ENGINE } from './gone-claim-engine.js';
-import { RELEASE_REASONS_ENGINE } from './release-reasons-engine.js';
+import { RELEASE_REASONS_ENGINE } from '../packages/state/index.js';
 
 /** Validate frozen maintenance evidence without reading a replica's private presence cache. */
 function goneRelease(board, item, actor, observation) {

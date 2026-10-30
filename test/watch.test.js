@@ -349,8 +349,8 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.ok(kinds.includes('accept') && kinds.includes('reject'), 'the verdicts print as events too');
   const recorded = events(box).slice(before);
   assert.deepEqual(recorded.map(event => event.event_kind), [
-    'add', 'add', 'claim', 'check_accept', 'release', 'usage', 'claim', 'proof-run', 'proof-run',
-    'submit', 'usage', ...(firstSubmission.activity.digests.length ? ['activity-delivered'] : []), 'join', 'reserve', 'proof-run', 'accept', 'claim', 'proof-run', 'proof-run',
+    'add', 'add', 'claim', 'check_accept', 'release', 'usage', 'claim', 'renew', 'proof-run', 'proof-run',
+    'submit', 'usage', ...(firstSubmission.activity.digests.length ? ['activity-delivered'] : []), 'join', 'reserve', 'proof-run', 'accept', 'claim', 'renew', 'proof-run', 'proof-run',
     'submit', 'usage', ...(secondSubmission.activity.digests.length ? ['activity-delivered'] : []), 'reserve', 'reject',
   ], 'watch wrote no event: only the explicit moves, their usage checkpoints and native proof receipts were recorded');
   const proofs = recorded.filter(event => event.event_kind === 'proof-run');
@@ -420,7 +420,8 @@ test('help watch and the generated agent instructions teach seats to listen with
   assert.deepEqual(lines.slice(example + 2), [
     'Claude Code: run pullboard watch --to <your id> under the Monitor tool, and each event line wakes the seat.',
     'Any other harness: run it as a long-running command and treat each stdout line as an event.',
-  ], 'two lines after the example: the Claude Code way and the way for any other harness');
+    'next: pullboard status',
+  ], 'the original two harness instructions and the final interactive help action stay exact');
   const { agentsBlock } = await import('../src/doctrine.js');
   const listen = agentsBlock().split('\n').find((line) => line.startsWith('**Listen.**'));
   assert.ok(listen, 'the AGENTS.md that init writes has a Listen paragraph');

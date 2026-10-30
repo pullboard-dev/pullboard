@@ -1,5 +1,5 @@
 /** The fixed reasons a release names, kept free of board imports so the release path loads without a cycle [C7]. */
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** The fixed list a release names; OTHER alone carries free text in the release note. */
 export const RELEASE_REASONS = Object.freeze(['INELIGIBLE', 'ROUTED_ELSEWHERE', 'BLOCKED', 'BUDGET', 'OTHER']);

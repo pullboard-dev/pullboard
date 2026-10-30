@@ -4,7 +4,7 @@ import { IN_STATE } from './machine.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { LEASE_LAPSE_ENGINE } from './lease-lapse-engine.js';
 import { STALE_STATE_ENGINE } from './stale-state-engine.js';
-import { RELEASE_REASONS_ENGINE } from './release-reasons-engine.js';
+import { RELEASE_REASONS_ENGINE } from '../packages/state/index.js';
 import {
   staleInstant,
   staleStateLimits,

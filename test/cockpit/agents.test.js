@@ -286,7 +286,8 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
       const apiExpected = style === 'suffix'
         ? { builder: 'web-1 (' + model + ')', reviewer: 'coordinator (Claude)', unknown: 'web-2 (unknown)' }
         : { builder: 'gpt-6-with-a-very-long-model-declaration-for-readable-agent-names-web-1', reviewer: 'claude-coordinator', unknown: 'unknown-web-2' };
-      const expected = { ...apiExpected, unknown: 'web-2' };
+      const displayModel = 'GPT-6 With A Very Long Model Declaration For Readable Agent Names';
+      const expected = style === 'suffix' ? { builder: 'web-1 (' + displayModel + ')', reviewer: 'coordinator (Claude)', unknown: 'web-2' } : { builder: displayModel + '-web-1', reviewer: 'Claude-coordinator', unknown: 'web-2' };
       const apiNames = JSON.parse(await chrome.stable('JSON.stringify(Object.fromEntries(data.project.agents.map(a => [a.agent_id, a.displayName])))'));
       assert.deepEqual(apiNames, { coordinator: apiExpected.reviewer, 'web-1': apiExpected.builder, 'web-2': apiExpected.unknown }, `${style}: authoritative API names`);
       for (const width of [375, 1280]) {
@@ -296,7 +297,8 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         await tab('items');
         await chooseFilter(chrome, 'state:active');
         await settled(chrome, '!!document.querySelector("#chain [data-item=\\"1\\"]")');
-        assert.equal(await text('#chain [data-item="1"] .chip'), expected.builder, `${at}: item row holder`);
+        assert.equal(await text('#chain [data-item="1"] .item-seat'), 'web-1', `${at}: accepted compact row keeps the native holder`);
+        assert.ok(await chrome.stable("document.querySelector('#chain [data-item=\"1\"] .item-seat').title.includes(" + JSON.stringify(displayModel) + ")"), `${at}: the private row model is canonical on hover`);
         assert.equal(await text('#chain [data-item="3"] .chip'), expected.unknown, `${at}: unknown model row`);
         await press(chrome, 'document.querySelector("#chain [data-item=\\"1\\"]")');
         await settled(chrome, `view.item === 1 && !!document.querySelector("#detail h2") && !document.querySelector('#detail [aria-busy="true"]')`);
@@ -319,7 +321,7 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         await tab('shouts');
         for (const [id, label] of [['web-1', expected.builder], ['web-2', expected.unknown]]) {
           assert.equal(await text(`#agents [data-agent="${id}"] .agent-who b`), id, `${at}: compact agent panel keeps the seat ${id}`);
-          assert.equal(await text(`#agents [data-agent="${id}"] .agent-model`), id === 'web-1' ? model : 'unknown', `${at}: model stays a separate faint field`);
+          assert.equal(await text(`#agents [data-agent="${id}"] .agent-model`), id === 'web-1' ? displayModel : 'unknown', `${at}: model stays a separate faint field`);
         }
         if (!await chrome.stable('Boolean(view.open.idle)')) await press(chrome, 'document.querySelector("[data-fold=idle]")');
         assert.equal((await text('#agents [data-agent="coordinator"]')).trim(), 'coordinator', `${at}: idle agent seat`);
@@ -347,13 +349,13 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         for (const header of headers) {
           assert.ok(header.height <= header.line + 1, `${at}: shout identity stays on one line: ${JSON.stringify(header)}`);
           for (const label of header.labels) {
-            assert.equal(label.title, ({ 'web-1': model, coordinator: 'Claude', 'web-2': 'unknown' })[label.id], `${at}: full model stays only in the tooltip`);
+            assert.equal(label.title, ({ 'web-1': displayModel, coordinator: 'Claude', 'web-2': 'unknown' })[label.id], `${at}: full model stays only in the tooltip`);
             assert.equal(label.aria, ({ 'web-1': expected.builder, coordinator: expected.reviewer, 'web-2': expected.unknown })[label.id], `${at}: full native API name stays accessible`);
             assert.equal(label.idWidth, label.idScroll, `${at}: the address is never clipped`);
             assert.ok(label.left >= label.headerLeft - 1 && label.right <= label.headerRight + 1, `${at}: address stays inside its header`);
           }
         }
-        assert.ok(headers.flatMap(header => header.labels).every(label => !label.name.includes(model)), `${at}: the model is on hover while every complete seat address stays visible`);
+        assert.ok(headers.flatMap(header => header.labels).every(label => !label.name.includes(displayModel)), `${at}: the model is on hover while every complete seat address stays visible`);
 
         await press(chrome, 'document.querySelector("#agents [data-agent=\\"web-1\\"]")');
         await settled(chrome, 'view.agent === "web-1"');
@@ -362,7 +364,7 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         await tab('activity');
         const activityNames = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#activity .activity-who')].map(node => ({ text: node.textContent, title: node.title })))"));
         for (const identity of [
-          { text: 'web-1', title: model },
+          { text: 'web-1', title: displayModel },
           { text: 'web-2', title: '' },
           { text: 'The coordinator', title: 'Claude' }
         ]) assert.ok(activityNames.some(actual => actual.text === identity.text && actual.title === identity.title), `${at}: Activity retains seat identity and the known model hover: ${JSON.stringify(identity)}`);

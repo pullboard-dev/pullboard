@@ -442,7 +442,7 @@ await assert.rejects(runOnRunnerAsync(process.cwd(),'true',{runner:{host:'privat
   run('transport');
   assert.equal(readFileSync(marker, 'utf8'), 'called', 'exact Git bytes, including literal path characters and Unicode, reach the private transport');
   rmSync(marker);
-  const resource = toolSourcePath(installed, 'packages/resources/index.js'), resourcePath = relative(installed, resource);
+  const resource = toolSourcePath(installed, 'packages/resources/src/shell/resources.js'), resourcePath = relative(installed, resource);
   writeFileSync(resource, readFileSync(resource, 'utf8').replace(/\r?\n/gu, '\r\n'));
   box.git(installed, 'config', 'core.autocrlf', 'true');
   writeFileSync(join(installed, '.git/info/attributes'), `${resourcePath} text eol=crlf\n`);
@@ -460,7 +460,7 @@ import {readFileSync,writeFileSync} from 'node:fs';
 const {runOnRunnerAsync}=await import(${JSON.stringify(pathToFileURL(join(f.installed, 'src/runners.js')).href)});
 const options={runner:{host:'private-unused.invalid',slots:1,browser:0}};
 await assert.rejects(runOnRunnerAsync(process.cwd(),'true',options),error=>error.code==='RUNNER_SOURCE_CHANGED');
-const resource=${JSON.stringify(toolSourcePath(f.installed, 'packages/resources/index.js'))};
+const resource=${JSON.stringify(toolSourcePath(f.installed, 'packages/resources/src/shell/resources.js'))};
 writeFileSync(resource,readFileSync(resource,'utf8')+'\\n// changed after controller load\\n');
 await assert.rejects(runOnRunnerAsync(process.cwd(),'true',options),error=>error.code==='RUNNER_TOOLING_CHANGED');`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: f.root, encoding: 'utf8' });
