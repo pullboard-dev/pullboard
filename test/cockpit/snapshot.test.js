@@ -715,7 +715,29 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
       await chrome.send('Page.navigate', { url: 'about:blank' });
       await settled(chrome, "location.href === 'about:blank'");
       await chrome.send('Page.navigate', { url: `${host.base}${address}` });
-      await settled(chrome, `${ready} && ${showing(pane, address)}`);
+      const navigationReady = `${ready} && ${showing(pane, address)}`;
+      try {
+        await settled(chrome, navigationReady);
+      } catch (error) {
+        const actual = await chrome.stable(`JSON.stringify({
+          snapshotClass: document.body?.classList.contains('snapshot') ?? false,
+          projectPresent: typeof data !== 'undefined' && !!data?.project,
+          replay: typeof snapshotReplay === 'object' && snapshotReplay ? {
+            index: snapshotReplay.index,
+            eventsLength: Array.isArray(snapshotReplay.events) ? snapshotReplay.events.length : null,
+            atEnd: Array.isArray(snapshotReplay.events) && snapshotReplay.index === snapshotReplay.events.length,
+          } : null,
+          visiblePanes: [...document.querySelectorAll('[data-pane]')].filter((each) => !each.hidden).map((each) => each.dataset.pane),
+          paneMatches: [...document.querySelectorAll('[data-pane]')].filter((each) => !each.hidden).map((each) => each.dataset.pane).join() === ${JSON.stringify(pane)},
+          pathname: location.pathname,
+          hash: location.hash,
+          address: location.pathname + location.hash,
+          expectedPane: ${JSON.stringify(pane)},
+          expectedAddress: ${JSON.stringify(address)},
+          addressMatches: location.pathname + location.hash === ${JSON.stringify(address)},
+        })`).catch((captureError) => `capture unavailable: ${captureError.message}`);
+        throw new Error(`${error.message}; fresh-navigation state ${actual}`, { cause: error });
+      }
     }
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
