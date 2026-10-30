@@ -112,7 +112,7 @@ test('recorded event model survives later seat relabeling [N26]', () => {
 
 test('a seeded native board yields actual cohorts, Wilson bounds and verdicts [N26]', t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-cost-cohort-'));
-  const board = openBoard(join(dir, 'board.sqlite'));
+  const board = openBoard(':memory:');
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
   const coordinator = store.register(board, { lane: 'coordinator', path: dir });
   const alpha = store.register(board, { lane: 'core', path: join(dir, 'alpha'), model: 'Alpha' });
