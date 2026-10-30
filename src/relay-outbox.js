@@ -210,6 +210,7 @@ export const ITEM_SLOTS = Object.freeze({
   reserveRehomeItemId: [], rehomeItem: [[0]], applyRehomeItem: [[0, 'destinationItemId']],
   ...Object.fromEntries(FIRST_ITEM.map((operation) => [operation, [[0]]])),
   advanceItemSource: [[0]],
+  submit: [[0], [1, 'autoMainReds', 'candidates', '*', 'proof', 'item']],
   intakeOutside: [[0, 'item', 'parentId'], [0, 'item', 'after', '*']],
   addItem: [[0, 'parentId'], [0, 'after', '*']],
   editItem: [[0], [1, 'after', '*']],

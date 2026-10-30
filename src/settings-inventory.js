@@ -25,12 +25,13 @@ import {
   loadMachineSettings,
 } from './settings.js';
 import { Refused } from './refused.js';
+import { describeSetting } from './settings-descriptions.js';
 import { environmentProblem } from './config.js';
 
 const MACHINE_DEFAULTS = {
   gateSlots: 2, browserSlots: 1, 'gate.shortSlots': 0, 'gate.runnerWaitMs': 300_000,
   'gate.queue.reviewsFirst': false, 'gate.queue.currentReleaseFirst': false, 'gate.queue.agingMinutes': 30,
-  'gate.memoryFloorMB': null, 'gate.browserFreeChecks': false, 'gate.browserByLaunch': false, 'gate.runnersFirst': false, 'gate.runnersOnly': false,
+  'gate.memoryFloorMB': null, 'gate.browserFreeChecks': false, 'gate.browserByLaunch': false, 'gate.runnersFirst': false, 'gate.runnersOnly': false, 'gate.measuredSlots': false,
   'health.sentinel': true, 'view.background': true, 'relay.offerAtInit': true, runners: [], 'landing.pools': [],
 };
 const OPTIONAL_REPO_DEFAULTS = {
@@ -103,7 +104,7 @@ function checkedValue(key, value, fallback) {
 function add(rows, { scope, board, root, file, raw, effective = raw }, key, fallback, { secret = false, value = at(effective, key), source, origin, error } = {}) {
   rows.push({ key, scope, ...(board ? { board, root } : {}), value: error ? null : secret ? (value ? 'set' : 'not set') : checkedValue(key, value ?? fallback, fallback),
     default: secret ? 'not set' : fallback, source: source ?? file,
-    origin: origin ?? (at(raw, key) === undefined ? 'default' : 'configured'), ...(secret ? { secret: true } : {}), ...(error ? { error } : {}) });
+    origin: origin ?? (at(raw, key) === undefined ? 'default' : 'configured'), ...describeSetting(key), ...(secret ? { secret: true } : {}), ...(error ? { error } : {}) });
 }
 
 /** Remove one configured leaf in memory so the ordinary parser can isolate one bad setting. */
@@ -238,7 +239,7 @@ function boardLineSettings(rows, board) {
       }
       validateLineSetting(key, value);
       rows.push({ key: 'line.' + key, scope: 'board', board: board.id, root: board.root,
-        value, default: false, source: file, origin: stored ? 'configured' : 'default' });
+        value, default: false, source: file, origin: stored ? 'configured' : 'default', ...describeSetting('line.' + key) });
     }
   } finally { db.close(); }
 }

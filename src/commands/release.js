@@ -6,6 +6,7 @@ import { Refused } from '../refused.js';
 import { releaseReasonProblem } from '../release-reasons.js';
 /** The pullboard release command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
+import { agentSessionDigest } from '../person.js';
 import * as seatCheckout from '../seat-checkout.js';
 import {
   nextOnce,
@@ -35,7 +36,7 @@ export async function run(io, args) {
     if (!row) throw new Refused('NOT_YOURS', 'this item has no current claim to release as stale');
     args.push({ leaseLapse: true, staleClaim: row, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: ctx.config.health ?? {} }, reasonCode);
   } else {
-    seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), store.getItem(board, args[0]), 'release');
+    seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), store.getItem(board, args[0]), 'release', agentSessionDigest);
     const missing = releaseReasonProblem(values.reason, args[2]);
     if (missing) throw missing;
     args.push(values.reason);

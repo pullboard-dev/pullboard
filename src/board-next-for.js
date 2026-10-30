@@ -2,6 +2,7 @@ import { firstRefusal } from './board-item-read.js';
 import * as reviewRouting from './review-routing.js';
 import { idleReason } from './routing-presence.js';
 import { liveRouteProblem } from './routing-presence.js';
+import { withLocalSeatPresence } from './seat-presence.js';
 import * as itemDependencies from './item-dependencies.js';
 import { criticalPathEnabled } from './critical-path-order.js';
 import { criticalPathOrder } from './critical-path-order.js';
@@ -15,6 +16,7 @@ import { reviewerScarcity } from './line-order.js';
 import { current } from './board-query.js';
 import { itemById } from './board-query.js';
 import { listItems } from './board-query.js';
+import { listAgents } from './board-query.js';
 import { reviewHolder } from './board-query.js';
 import { itemHold } from './board-query.js';
 import { laneHold } from './board-query.js';
@@ -87,12 +89,12 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     }));
     const heldByMe = candidates.find((candidate) => candidate.holder === agentId)?.entry;
     if (heldByMe) return { item: heldByMe, reasons: [] };
-    const presenceProblem = liveRouteProblem(board, agentId);
+    const presenceProblem = liveRouteProblem(board, agentId, { withLocalSeatPresence });
     if (presenceProblem) return empty('unknown', { item: null, reasons: [presenceProblem] });
     const milestonePriority = milestonePriorities(board);
     const rank = milestoneRanks(board, milestonePriority, { milestones });
     const scarcity = lineOrderEnabled(board) ? reviewerScarcity(board, candidates.map(candidate => candidate.entry), (entry, reviewer) =>
-      Object.values(reviewerChecks(board, { agentId: reviewer, policy, familyPolicy })).every(guard => !guard(entry))) : null;
+      Object.values(reviewerChecks(board, { agentId: reviewer, policy, familyPolicy })).every(guard => !guard(entry)), { listAgents }) : null;
     const lineCompare = scarcity ? buildOrder(board, { agentId }) : null;
     const previousOrder = (first, second) => scarcity ? scarcity.get(first.item_id) - scarcity.get(second.item_id)
       || lineCompare(first, second) : milestonePriority(first) - milestonePriority(second)
@@ -115,7 +117,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
   const plannedRelease = held && held.item_id === afterRelease ? held.item_id : null;
   if (held && plannedRelease === null) return { item: held, reasons: [] };
-  const presenceProblem = liveRouteProblem(board, agentId);
+  const presenceProblem = liveRouteProblem(board, agentId, { withLocalSeatPresence });
   if (presenceProblem) return empty('unknown', { item: null, reasons: [presenceProblem] });
   const selectedLanes = new Set(lanes ?? [lane]);
   const reasons = allItems.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane) && entry.item_hold_reason)

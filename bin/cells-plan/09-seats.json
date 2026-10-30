@@ -29,7 +29,13 @@
   ["src/seat-checkout.js","packages/seats/src/shell/seat-checkout.js","seed"],
   ["src/seats.js","packages/seats/src/shell/seats.js","seed"],
   ["src/routing-presence.js","packages/seats/src/core/routing-presence.js","imports"],
-  ["src/seat-review-read.js","packages/seats/src/core/seat-review-read.js","rule"]
+  ["src/seat-review-read.js","packages/seats/src/core/seat-review-read.js","rule"],
+  ["src/flow-window-bounds.js","packages/seats/src/core/flow-window-bounds.js","rule"],
+  ["src/dependency-references.js","packages/seats/src/core/dependency-references.js","rule"],
+  ["src/review-routing-enabled.js","packages/seats/src/core/review-routing-enabled.js","rule"],
+  ["src/verdict-rows.js","packages/seats/src/core/verdict-rows.js","rule"],
+  ["src/seat-parent.js","packages/seats/src/core/seat-parent.js","rule"],
+  ["src/github-remote.js","packages/seats/src/core/github-remote.js","rule"]
  ],
  "reexports": [
   "src/agent-hook.js",

@@ -20,6 +20,7 @@ import {
   setGateShortSlots,
   setGateSlots,
   setGateRunnersFirst,
+  setGateMeasuredSlots,
   setGateRunnersOnly,
   setGateRunnerWaitMs,
   setLandingPool,
@@ -30,13 +31,26 @@ import {
 import {
   actOn,
   context,
+  ordered,
   withBoard,
+  withBoardRead,
 } from '../cli.js';
 import { boardId } from '../board.js';
+import { describeSetting } from '../settings-descriptions.js';
+
+const PRINTED = ['gateSlots', 'browserSlots', 'gate.queue.reviewsFirst', 'gate.queue.currentReleaseFirst', 'gate.queue.agingMinutes', 'gate.memoryFloorMB', 'view.background', 'relay.offerAtInit', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget'];
+
+/** Print one setting line; with --detail also its plain label and sentence beneath it. */
+function sayDescribed(io, line, detail) {
+  io.say(line);
+  if (!detail) return;
+  const described = describeSetting(line.slice(0, line.indexOf(':')));
+  if (described) io.say(`  ${described.label}: ${described.description} (${described.group}, ${described.unit})`);
+}
 
 /** Read or update machine capacity, or delegate explicit board-owned line inputs. */
 export function settingsCommand(io, { first, second, rest, values }) {
-  if (first === 'line') return lineSettingsCommand(io, { second, rest, values });
+  if (first === 'line') return lineSettingsCommand(io, { second, rest, values }, { actOn, context, ordered, withBoardRead });
   if (first === 'landing.pool') {
     if (!['on', 'off'].includes(second) || rest.length) throw new Refused('USAGE', 'pullboard settings landing.pool on|off in the board this machine should land');
     const ctx = context(io);
@@ -55,21 +69,23 @@ export function settingsCommand(io, { first, second, rest, values }) {
     const shortSlots = gateShortSlots();
     const runnersOnly = settings.gate?.runnersOnly === true;
     const runnersFirst = settings.gate?.runnersFirst === true;
-    io.result?.({ settings: { ...settings, gate: { ...settings.gate, queue: { ...settings.gate?.queue, ...queue }, shortSlots, runnersFirst, runnersOnly, runnerWaitMs: gateRunnerWaitMs() }, relay: { ...settings.relay, offerAtInit } }, memoryFloorMB: memoryFloorMB() });
-    io.say(`gateSlots: ${settings.gateSlots}`);
-    io.say(`browserSlots: ${settings.browserSlots}`);
-    io.say(`gate.queue.reviewsFirst: ${queue.reviewsFirst}${queue.reviewsFirst ? '' : ' (landings first, then arrival order)'}`);
-    io.say(`gate.queue.currentReleaseFirst: ${queue.currentReleaseFirst}${queue.currentReleaseFirst ? '' : ' (release priority is off)'}`);
-    io.say(`gate.queue.agingMinutes: ${queue.agingMinutes}${queue.reviewsFirst || queue.currentReleaseFirst ? '' : ' (used only while reviewsFirst or currentReleaseFirst is true)'}`);
-    io.say(`gate.memoryFloorMB: ${memoryFloorMB() ?? 'off (the gate queue does not wait for memory)'}`);
-    io.say(`view.background: ${settings.view?.background !== false}${settings.view?.background === false ? ' (init and resume leave the view to you)' : ' (init and resume keep pullboard view running for pullboard.dev)'}`);
-    io.say(`relay.offerAtInit: ${offerAtInit}${offerAtInit ? ' (init asks once to share your boards with your phone)' : ' (init stays quiet about sharing)'}`);
-    io.say(`gate.shortSlots: ${shortSlots}${shortSlots ? '' : ' (off; runs that name their test files wait for a gate slot)'}`);
-    io.say(`gate.runnersFirst: ${runnersFirst} (registered runners are preferred before local slots when on)`);
-    io.say(`gate.runnersOnly: ${runnersOnly} (submit and verify wait for registered runners, with no local fallback when on)`);
-    io.say(`gate.runnerWaitMs: ${gateRunnerWaitMs()} (runner-only submit/review refuses; other runs retain ordinary local admission)`);
+    const measuredSlots = settings.gate?.measuredSlots === true;
+    io.result?.({ settings: { ...settings, gate: { ...settings.gate, queue: { ...settings.gate?.queue, ...queue }, shortSlots, runnersFirst, runnersOnly, measuredSlots, runnerWaitMs: gateRunnerWaitMs() }, relay: { ...settings.relay, offerAtInit } }, memoryFloorMB: memoryFloorMB(), descriptions: Object.fromEntries(PRINTED.map(key => [key, describeSetting(key)])) });
+    sayDescribed(io, `gateSlots: ${settings.gateSlots}`, values.detail === true);
+    sayDescribed(io, `browserSlots: ${settings.browserSlots}`, values.detail === true);
+    sayDescribed(io, `gate.queue.reviewsFirst: ${queue.reviewsFirst}${queue.reviewsFirst ? '' : ' (landings first, then arrival order)'}`, values.detail === true);
+    sayDescribed(io, `gate.queue.currentReleaseFirst: ${queue.currentReleaseFirst}${queue.currentReleaseFirst ? '' : ' (release priority is off)'}`, values.detail === true);
+    sayDescribed(io, `gate.queue.agingMinutes: ${queue.agingMinutes}${queue.reviewsFirst || queue.currentReleaseFirst ? '' : ' (used only while reviewsFirst or currentReleaseFirst is true)'}`, values.detail === true);
+    sayDescribed(io, `gate.memoryFloorMB: ${memoryFloorMB() ?? 'off (the gate queue does not wait for memory)'}`, values.detail === true);
+    sayDescribed(io, `view.background: ${settings.view?.background !== false}${settings.view?.background === false ? ' (init and resume leave the view to you)' : ' (init and resume keep pullboard view running for pullboard.dev)'}`, values.detail === true);
+    sayDescribed(io, `relay.offerAtInit: ${offerAtInit}${offerAtInit ? ' (init asks once to share your boards with your phone)' : ' (init stays quiet about sharing)'}`, values.detail === true);
+    sayDescribed(io, `gate.shortSlots: ${shortSlots}${shortSlots ? '' : ' (off; runs that name their test files wait for a gate slot)'}`, values.detail === true);
+    sayDescribed(io, `gate.runnersFirst: ${runnersFirst} (registered runners are preferred before local slots when on)`, values.detail === true);
+    sayDescribed(io, `gate.measuredSlots: ${measuredSlots} (${measuredSlots ? 'each measured runner offers slots from its own cores and memory unless declared fixed' : 'runners offer the slot counts they were registered with'})`, values.detail === true);
+    sayDescribed(io, `gate.runnersOnly: ${runnersOnly} (submit and verify wait for registered runners, with no local fallback when on)`, values.detail === true);
+    sayDescribed(io, `gate.runnerWaitMs: ${gateRunnerWaitMs()} (runner-only submit/review refuses; other runs retain ordinary local admission)`, values.detail === true);
     const budget = workerBudget();
-    io.say(`workers.budget: ${budget?.seatHours ? `${budget.seatHours}/${budget.window} (seat-hours pullboard run --scale may spend across every live seat on this machine)` : 'off (pullboard run --scale launches no workers)'}`);
+    sayDescribed(io, `workers.budget: ${budget?.seatHours ? `${budget.seatHours}/${budget.window} (seat-hours pullboard run --scale may spend across every live seat on this machine)` : 'off (pullboard run --scale launches no workers)'}`, values.detail === true);
     return 0;
   }
   if (!SETTING_FORMS.includes(first) || !second || rest.length) {
@@ -80,6 +96,13 @@ export function settingsCommand(io, { first, second, rest, values }) {
     const settings = setGateRunnersFirst(second === 'on');
     io.result?.({ settings });
     io.say(`gate.runnersFirst set to ${second}`);
+    return 0;
+  }
+  if (first === 'gate.measuredSlots') {
+    if (!['on', 'off'].includes(second)) throw new Refused('BAD_MACHINE_SETTINGS', 'gate.measuredSlots must be on or off; run pullboard settings gate.measuredSlots on|off');
+    const settings = setGateMeasuredSlots(second === 'on');
+    io.result?.({ settings });
+    io.say(`gate.measuredSlots set to ${second}`);
     return 0;
   }
   if (first === 'gate.runnersOnly') {

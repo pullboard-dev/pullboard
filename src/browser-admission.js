@@ -67,7 +67,7 @@ const SAFE_CHILD_PROCESS_MODULES = new Map([
 ]);
 /** Reviewed generic executors and fixed Git/Node calls retain prior import behavior; all other calls stay conservative. */
 const REVIEWED_EXECUTORS = new Map([
-  ['src/cli.js', [{ function: 'sweepHere',
+  ['src/cli/sweep.js', [{ function: 'sweepHere',
     site: "spawnSync(item.check, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })",
     reason: 'sweep runs the separately selected checker; importing the CLI does not select or run it' }]],
   ['src/sentinel-runner.js', [{ function: 'executeSentinel',

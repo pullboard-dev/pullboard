@@ -163,7 +163,7 @@ For recurring checks, \`pullboard sentinels\` lists this board's watches, their 
 
 Read recorded tokens, wall time and model with \`pullboard show <id>\` and \`pullboard stats\`; shared-session totals stay separate when an item split cannot be measured. Claim, submit and release checkpoint this seat’s own native usage. Missing usage stays unknown; never estimate it from text length.
 
-For spare test capacity, use \`pullboard runner add <ssh-host> --slots <n> --browser <n>\`. It registers SSH capacity on this machine; \`pullboard runner list\` shows each runner's registered slots and browsers, and \`pullboard resources\` shows their usage. Only committed source goes to a runner, and board moves stay here. To see whether this board is linked to the relay, and for which GitHub account, run \`pullboard relay status\`.
+For spare test capacity, use \`pullboard runner add <ssh-host> --slots <n> --browser <n>\`. It registers SSH capacity on this machine; \`pullboard runner list\` shows each runner's slots, browsers, measured cores and memory, \`pullboard runner measure\` measures them again, and \`pullboard resources\` shows their usage. Only committed source goes to a runner, and board moves stay here. To see whether this board is linked to the relay, and for which GitHub account, run \`pullboard relay status\`.
 
 The board computes review and build eligibility from the current native guards. Every \`pullboard release <id>\` names why with \`--reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|OTHER\`; OTHER also needs \`--note\`.
 

@@ -4,6 +4,11 @@ import {
   agentsReport,
 } from '../agent-tree.js';
 import {
+  boardId,
+  listAgents,
+  listItems,
+} from '../board.js';
+import {
   context,
   withBoard,
 } from '../cli.js';
@@ -11,5 +16,5 @@ import {
 /** Run `pullboard agents` and return its exit code. */
 export function run(io) {
   const ctx = context(io);
-  return agentsReport(io, withBoard(ctx, (board) => agentTree(ctx.info, ctx.config, board)));
+  return agentsReport(io, withBoard(ctx, (board) => agentTree(ctx.info, ctx.config, board, { listAgents, boardId, listItems })));
 }

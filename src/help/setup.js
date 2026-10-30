@@ -28,12 +28,15 @@ export const setupHelp = `Set up
                                         short slots for runs that name their test files are opt-in: pullboard settings gate.shortSlots <n> (default 0)
                                         signed person moves are opt-in: pullboard settings person.signed on makes each wait for your passkey; only the passkey turns it off
                                         runner-first dispatch is opt-in: pullboard settings gate.runnersFirst on|off (default off)
+                                        measured runner slots are opt-in: pullboard settings gate.measuredSlots on|off (default off); reserve 1 core and 2 GB, then cap mixed plain/browser capacity at 512 MB/2 GB per slot
                                         test/gate/submit/verify runner-only admission is opt-in: pullboard settings gate.runnersOnly on|off (default off)
                                         runner admission deadline: pullboard settings gate.runnerWaitMs <n> (default 300000ms)
                                         worker budget: pullboard settings workers.budget 40/day (or /week), seat-hours run --scale may spend (default off)
-  pullboard runner add <ssh-host> --slots <n> --browser <n> [--node <remote-path>] [--root <remote-path>]
+  pullboard runner add <ssh-host> [--slots <n> --browser <n>] [--node <remote-path>] [--root <remote-path>]
                                         register SSH test capacity; no runner sign-in; root defaults to ~/.pullboard-runner
-  pullboard runner list                 each runner's registered slots and browsers, which it runs at
+                                        measures the runner's cores and memory; --slots declares a fixed count that always wins
+  pullboard runner measure [<ssh-host>]  re-measure cores and memory on the runner itself (run it again after a hardware change)
+  pullboard runner list                 each runner's slots and browsers, measured cores and memory, and the slots the formula gives
   pullboard view [--project] [--port N] [--no-open]  every project on this machine in your browser; default http://127.0.0.1:${DEFAULT_VIEW_PORT}
   pullboard view --lan                  a private link for a phone on the local IPv4 network
                                         items, shouts, doctrine, agents and activity; --port 0 chooses a free port

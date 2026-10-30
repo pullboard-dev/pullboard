@@ -45,7 +45,7 @@ export function defaults() {
     spec: 'SPEC.md',
     practice: DOCTRINE_FILE,
     gate: '',
-    submit: { requireInfraNote: false },
+    submit: { requireInfraNote: false, autoFileMainReds: false },
     testEconomics: { costOfEscape: 3600, costOfWaiting: 1, costOfFalseRed: 300 },
     itemSizeBudget: 100,
     submitInvariants: [],
@@ -307,8 +307,9 @@ export function configProblems(config) {
     problems.push('"check" is an object with optional "install" and "timeout" fields');
   }
   if (!config.submit || typeof config.submit !== 'object' || Array.isArray(config.submit)
-      || Object.keys(config.submit).some(key => key !== 'requireInfraNote') || typeof config.submit.requireInfraNote !== 'boolean') {
-    problems.push('"submit" is an object with a boolean "requireInfraNote" setting');
+      || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds'].includes(key))
+      || typeof config.submit.requireInfraNote !== 'boolean' || typeof config.submit.autoFileMainReds !== 'boolean') {
+    problems.push('"submit" is an object with boolean "requireInfraNote" and "autoFileMainReds" settings');
   }
   // Absent, a check already green on main is only a warning, as on boards made before the setting.
   if (config.checks !== undefined && (typeof config.checks !== 'object' || config.checks === null || Array.isArray(config.checks)

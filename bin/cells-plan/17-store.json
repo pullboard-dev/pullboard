@@ -5,6 +5,7 @@
  "root": "packages/store",
  "frontDoor": "packages/store/index.js",
  "paths": [
+  ["src/known-main-autofile.js","packages/store/src/core/known-main-autofile.js","rule"],
   ["src/board-access.js","packages/store/src/shell/board-access.js","seed"],
   ["src/board-busy.js","packages/store/src/shell/board-busy.js","seed"],
   ["src/board-capture.js","packages/store/src/shell/board-capture.js","seed"],
@@ -142,6 +143,8 @@
   ["src/board-withdraw.js","packages/store/src/shell/board-withdraw.js","rule"],
   ["src/board-escalate.js","packages/store/src/core/board-escalate.js","rule"],
   ["src/board-record-attempt.js","packages/store/src/core/board-record-attempt.js","rule"],
+  ["src/board-line-settings.js","packages/store/src/shell/board-line-settings.js","rule"],
+  ["src/board-coordinator-hold.js","packages/store/src/shell/board-coordinator-hold.js","rule"],
   ["src/release-reasons.js","packages/store/src/core/release-reasons.js","rule"]
  ],
  "reexports": [

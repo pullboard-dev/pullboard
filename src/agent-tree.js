@@ -4,7 +4,6 @@ import { dirname } from 'node:path';
 import { COORDINATOR } from './config.js';
 import { displayAgentName } from './agent-names.js';
 import { seatLinks } from './agent-session.js';
-import * as store from './board.js';
 
 /**
  * Every joined agent with its seats, its helpers and what each holds, helpers nested under the agent that opened them
@@ -13,9 +12,10 @@ import * as store from './board.js';
  * @param {any} info - the checkout's repository info
  * @param {any} config
  * @param {any} board
+ * @param {{ listAgents: Function, boardId: Function, listItems: Function }} store the caller's board readers, so seats never load the board
  * @returns {any[]}
  */
-export function agentTree(info, config, board) {
+export function agentTree(info, config, board, store) {
   const agents = store.listAgents(board);
   const boardId = store.boardId(board);
   const { parents, digests } = seatLinks(info, agents);

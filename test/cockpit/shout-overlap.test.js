@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
-import { machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
+import { openShoutConversation, machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 import { holdPriorShoutResponse } from './shout-response-barrier.mjs';
 
 const PRIOR = 'Prior shout held while a newer answer is composed';
@@ -59,6 +59,7 @@ test('a delayed prior shout cannot clear a newer person answer [N26,H5,C7]', {
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor("innerWidth===375&&document.querySelector('#proj-list .pname')?.textContent==='prior-shout-overlap'");
     await press(chrome, `document.querySelector(${JSON.stringify('[data-tab="shouts"]')})`);
+    await openShoutConversation(chrome);
     const armed = await armWitness(chrome);
     captureArmed = armed.armed === true;
     assert.ok(captureArmed, 'the native shout composer observer arms');
@@ -75,7 +76,7 @@ test('a delayed prior shout cannot clear a newer person answer [N26,H5,C7]', {
     assert.ok(committed.shouts.some((shout) => shout.shout_text === PRIOR), 'the real server committed the prior shout while its response was held');
     const ask = committed.shouts.find((shout) => shout.shout_to === 'person' && shout.shout_text === QUESTION);
     assert.ok(ask, 'the private fixture contains the expected real pending person question');
-    const selector = '#decisions [data-go="decide:' + ask.shout_id + '"]';
+    const selector = '#feed [data-go="decide:' + ask.shout_id + '"]';
     await chrome.waitFor('!!document.querySelector(' + JSON.stringify(selector) + ')');
     await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
     const fillAnswer = "(()=>{const field=document.querySelector('#shout-text');field.value=" + JSON.stringify(ANSWER)
@@ -155,6 +156,7 @@ test('a delayed prior shout cannot turn a newer answer into a plain shout [N26,H
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor("innerWidth===375&&document.querySelector('#proj-list .pname')?.textContent==='prior-shout-mode-order'");
     await press(chrome, `document.querySelector(${JSON.stringify('[data-tab="shouts"]')})`);
+    await openShoutConversation(chrome);
     const armed = await armWitness(chrome);
     captureArmed = armed.armed === true;
     assert.ok(captureArmed, 'the native shout composer observer arms');
@@ -172,7 +174,7 @@ test('a delayed prior shout cannot turn a newer answer into a plain shout [N26,H
     assert.ok(committedPrior, 'the real server committed the prior shout before releasing its response');
     const ask = committed.shouts.find((shout) => shout.shout_to === 'person' && shout.shout_text === QUESTION);
     assert.ok(ask, 'the private fixture contains the expected real pending person question');
-    const selector = '#decisions [data-go="decide:' + ask.shout_id + '"]';
+    const selector = '#feed [data-go="decide:' + ask.shout_id + '"]';
     await chrome.waitFor('!!document.querySelector(' + JSON.stringify(selector) + ')');
     await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
     const selected = JSON.parse(await chrome.stable("JSON.stringify({answerId:typeof view==='object'?(view.answering?.id??null):null,text:document.querySelector('#shout-text').value,to:document.querySelector('#shout-to').value})"));

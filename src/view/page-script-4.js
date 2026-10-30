@@ -36,7 +36,7 @@ function placeAtAddress(page = data) {
   const named = (repo || group) && (tabs.includes(parts[1]) || parts[1] === 'home');
   const root = named ? repo?.root || group.key : null;
   if (named) parts.shift();
-  const requested = tabs.includes(parts[0]) || parts[0] === 'home' ? parts.shift() : (!path && transportModule && globalThis.history?.state?.tab) || landingTab(page);
+  const requested = tabs.includes(parts[0]) || parts[0] === 'home' ? parts.shift() : (!path && !addressReady && startupTabMigration) || (!path && transportModule && globalThis.history?.state?.tab) || landingTab(page);
   const tab = requested === 'home' ? 'dashboard' : requested;
   return { root, tab, detail: parts[0] ?? null };
 }
@@ -72,6 +72,7 @@ function address(push = true) {
 
 /** Apply a parsed selection without recording another history entry. */
 function applyPlace(place, kept = null) {
+  if (place.root && place.root !== view.root) view.shoutThread = null;
   if (place.root) view.root = place.root;
   view.tab = place.tab === 'home' ? 'dashboard' : place.tab === 'cost' && !privateCost ? landingTab() : place.tab;
   view.addressDetail = place.detail;
@@ -126,6 +127,7 @@ function openTab(tab, detail = null) {
   tab = view.tab;
   view.addressDetail = detail;
   view.shout = tab === 'shouts' && detail !== null ? Number(detail) : null;
+  view.shoutThread = null;
   view.scrollPlace = detail !== null;
   if (tab !== 'roadmap') keep('pb.tab', tab);
   address();
@@ -237,10 +239,11 @@ function statusGo(to) {
     const key = 'pb.seen.' + view.root;
     view.unread = { root: view.root, after: Number(view.seen[key] ?? keep(key) ?? 0) };
     view.agent = null;
+    view.shoutFilter = 'all';
     openTab('shouts');
   }
-  // The agents it counts are the panel's rows, so it opens the panel even where the person hid it.
-  else if (to === 'agents') { view.agentsHidden = false; keep('pb.agents', 'shown'); view.agent = null; openTab('shouts'); }
+  // The agents it counts are the floor's, so it opens the agent floor.
+  else if (to === 'agents') openTab('dashboard', 'floor');
   // The release it counts is one milestone, so the Roadmap opens on that one alone.
   else if (to === 'release') { view.roadmapOnly = nextMilestone(data.project)?.name ?? null; openTab('roadmap'); }
   else openTab(to);
@@ -728,10 +731,10 @@ async function act(command, args, anchor) {
  * changes, so a click is never lost to a rebuild; on a quiet board the ages would otherwise stay
  * as old as the page.
  */
-/** Shouts the person opened past their six lines, kept across refreshes. */
+/** Shouts the person opened past their three lines, kept across refreshes. */
 const openShouts = new Set();
 
-/** Fold each shout taller than six lines, with 'more' to open it; measured only while Shouts shows. */
+/** Fold each shout taller than three lines, with 'more' to open it; measured only while Shouts shows. */
 function foldShouts() {
   if ($('feed').offsetParent === null) return;
   document.querySelectorAll('#feed .shout, #decisions .shout').forEach((card) => {
@@ -758,7 +761,7 @@ function tickDays() {
   before.setDate(then.getDate() - 1);
   const names = { Today: dayName(then.toISOString()), Yesterday: dayName(before.toISOString()) };
   document.querySelectorAll('.feed .day, #feed > .day-rule span').forEach((node) => { if (names[node.textContent]) node.textContent = names[node.textContent]; });
-  const first = $('feed')?.querySelector?.('.shout');
+  const first = $('feed')?.querySelector?.('.shout, .conversation-row');
   if (first && !first.previousElementSibling?.classList?.contains('day-rule')) first.insertAdjacentHTML('beforebegin', '<div class="day-rule" role="separator"><span>' + names.Today + '</span></div>');
   daysNamedAt = now;
 }
@@ -796,6 +799,7 @@ function switchTo(root, target = null, record = true) {
   leaveDialogs();
   const generation = ++switchGeneration;
   answer(null);
+  view.shoutThread = null;
   view.root = root;
   syncBoardMode(root);
   const item = typeof target === 'number' ? target : /^item:(\\d+)$/.exec(target || '');
@@ -822,12 +826,17 @@ $('shouts-pane').addEventListener('click', (event) => {
   if (event.target.closest('[data-credentials]')) { void loadCredentials(); return; }
   const revoke = event.target.closest('[data-revoke-token]');
   if (revoke) { void revokeCredential(revoke.dataset.revokeToken); return; }
+  const filter = event.target.closest('[data-shout-filter]');
+  if (filter) { view.shoutFilter = filter.dataset.shoutFilter; view.shoutThread = null; view.shout = null; render(); return; }
+  const thread = event.target.closest('[data-shout-thread]');
+  if (thread) { view.shoutThread = thread.dataset.shoutThread || null; view.shout = null; render(); return; }
   const more = event.target.closest('[data-more]'), pick = event.target.closest('[data-agent]');
   if (more) {
     const card = more.closest('.shout'), id = Number(card.dataset.shoutId);
     if (openShouts.has(id)) openShouts.delete(id); else openShouts.add(id);
     card.classList.toggle('open', openShouts.has(id));
-    more.textContent = openShouts.has(id) ? 'less' : 'more';
+    more.textContent = openShouts.has(id) ? 'Show less' : 'Show all';
+    more.setAttribute('aria-expanded', String(openShouts.has(id)));
     return;
   }
   if (event.target.closest('[data-to-clear]')) { addressTo('coordinator'); $('shout-text').focus(); return; }

@@ -324,12 +324,13 @@ function render() {
   // below. An ask carries a band until it is answered; a long shout folds at six lines.
   const hue = (id) => [...String(id)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 8;
   const initials = (id) => { const [name, rest = ''] = String(id).split(/[-_ ]/); const digits = rest.replace(/\\D/g, ''); return (name.slice(0, digits ? 1 : 2) + digits.slice(0, 3)).toUpperCase(); };
-  const open = new Set([...p.decisions, ...p.asked].map((d) => d.shout_id));
+  const questions = [...p.decisions, ...p.asked, ...(p.decisionQueue || [])];
+  const open = new Set(questions.map((d) => d.shout_id));
   const answerOf = new Map(p.shouts.filter((y) => y.shout_answers).map((y) => [y.shout_answers, y]));
   const band = (x) => !x.shout_decision ? '' : open.has(x.shout_id) ? '<div class="band">Decision needed</div>'
     : '<div class="band done">Answered' + (answerOf.has(x.shout_id) ? ' by ' + esc(agentName(answerOf.get(x.shout_id).shout_from)) + ': <a href="#shout-' + answerOf.get(x.shout_id).shout_id + '">see the answer</a>' : '') + '</div>';
   // The shout's item: the first #N in its text that names an item on this board, or else its evidence's.
-  const itemOf = (x) => [...String(x.shout_text).matchAll(/#(\\d+)/g)].map((m) => String(Number(m[1]))).find((id) => titles.has(id)) || x.shout_evidence_item;
+  const itemOf = (x) => /^item:([1-9]\\d*)$/.exec(String(x.shout_to))?.[1] || [...String(x.shout_text).matchAll(/#(\\d+)/g)].map((m) => String(Number(m[1]))).find((id) => titles.has(id)) || x.shout_evidence_item;
   // The coordinator's mark is the board's own: a square with the Pullboard logo, so it stands out from the agents.
   const LEAD = '<svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg>';
   const lead = (from) => from === 'coordinator';
@@ -337,7 +338,7 @@ function render() {
   const shoutTo = (to) => {
     if (to === 'coordinator+person') return 'coordinator and you';
     const item = /^item:([1-9]\\d*)$/.exec(String(to));
-    return item ? '<a class="ref" href="' + esc(itemAddress(item[1], view.root)) + '" data-go="item:' + item[1] + '">#' + item[1] + '</a>' : shoutAgentName(to);
+    return item ? '<a class="ref" href="' + esc(itemAddress(item[1], view.root)) + '" data-go="item:' + item[1] + '">#' + item[1] + '</a>' : p.agents.some(agent => agent.agent_id === to) ? '<span data-agent-address="' + esc(to) + '" role="group" aria-label="' + esc(agentName(to)) + '" title="' + esc(modelOf(to)) + '">' + esc(to) + '</span>' : esc(to === 'person' ? 'you' : to);
   };
   // Opened from the status bar's unread, the feed is exactly those shouts, the ones after the mark the person had.
   const unread = view.unread?.root === view.root ? view.unread : null;
@@ -358,27 +359,70 @@ function render() {
     // A shout that reaches no agent at all, such as one to a lane nobody has joined, has not been heard either.
     if (!by.length) return '<div class="heard not">Not heard yet</div>';
     const first = by.find((a) => lead(a.agent_id)) || by[0], rest = by.length - 1;
-    return '<div class="heard" title="Heard by ' + esc(by.map((a) => agentName(a.agent_id)).join(', ')) + '"><span class="heard-faces">' + [first, ...by.filter((a) => a !== first)].slice(0, 4).map(dot).join('') + '</span>Heard by ' + esc(agentName(first.agent_id)) + (rest ? ' and ' + rest + (rest === 1 ? ' agent' : ' agents') : '') + '</div>';
+    return '<div class="heard" title="Heard by ' + esc(by.map((a) => agentName(a.agent_id)).join(', ')) + '">Heard by ' + esc(agentName(first.agent_id)) + (rest ? ' and ' + rest + (rest === 1 ? ' agent' : ' agents') : '') + '</div>';
   };
   // One card for a shout, in the feed and among the asks; tail adds what the place needs, such as Answer. Only the
   // feed's copy carries the band and the id an answer's link lands on, so an ask shown twice never repeats an id.
   // The person's own shout is signed "you", plainly, never as the coordinator that ran it.
-  const card = (x, tail = '', inFeed = true) => '<article class="shout h' + hue(x.shout_from) + (lead(x.shout_from) ? ' lead' : '') + (openShouts.has(x.shout_id) ? ' open' : '') + (inFeed && x.shout_id === view.shout ? ' found' : '') + '"' + (inFeed ? ' id="shout-' + x.shout_id + '"' : '') + ' data-shout-id="' + x.shout_id + '">'
-    + (lead(x.shout_from) ? '<span class="avatar">' + LEAD + '</span>' : '<span class="avatar' + (initials(x.shout_from).length > 3 ? ' wide' : '') + '" aria-hidden="true">' + esc(initials(x.shout_from)) + '</span>') + '<div class="shout-main">' + (inFeed && x.shout_id === view.shout ? '<h2 class="visually-hidden">Shout #' + x.shout_id + '</h2>' : '') + '<header><b class="who">' + (x.shout_from === 'person' ? 'you' : shoutAgentName(x.shout_from)) + '</b><span class="to">→ ' + shoutTo(x.shout_to) + '</span>'
-    + (itemOf(x) ? '<span class="item">#' + esc(itemOf(x)) + '</span>' : '') + mark(x) + '<time class="long" data-ago="' + esc(x.shout_at) + '" title="' + esc(when(x.shout_at)) + '">' + agoLong(x.shout_at) + '</time></header>'
-    + '<div class="text">' + rich(findingWords({ why: x.shout_text }, x.shout_from !== 'sentinel').text, titles) + (x.options ? '<ol>' + x.options.map((option) => '<li>' + esc(option) + '</li>').join('') + '</ol>' : '') + '</div><button class="more" data-more type="button">' + (openShouts.has(x.shout_id) ? 'less' : 'more') + '</button>' + (inFeed ? band(x) + heardBy(x) : '') + evidence(x) + tail + '</div></article>';
-  $('feed').innerHTML = (view.shout !== null && !feedShouts.some((entry) => entry.shout_id === view.shout) ? '<p class="empty" id="shout-address-status" role="status">' + esc(addressed?.error || 'Loading shout #' + view.shout + '…') + '</p>' : '') + bar + (heard.length ? dayRules(heard, (x) => x.shout_at, card) : '<div class="empty">' + (unread ? 'No unread shouts.' : view.agent ? 'No shouts with ' + esc(agentName(view.agent)) + ' among the last forty.' : 'No shouts yet.') + '</div>');
-  foldShouts();
-  // Each ask waits here until answered (B21), typed in the form below; the person answers those passed up, the rest wait on their holder (B26).
-  const coordinatorQueue = p.decisionQueue || []; $('coordinator-decisions').hidden = !coordinatorQueue.length; $('coordinator-decisions').innerHTML = coordinatorQueue.length ? '<div class="head"><i></i>Coordinator decisions</div>' + coordinatorQueue.map((d) => card(d, !readOnly && !requests && !snapshot ? '<button class="ghost answer" data-go="coordinate:' + d.shout_id + '" type="button">Answer as coordinator</button>' : '', false)).join('') : '';
-  $('decisions').hidden = !p.decisions.length && !(p.asked.length && view.open.waiting);
-  // The asks waiting on others are a toggle at the end of the composer's line, beside Show agents while the panel is hidden.
-  $('asks-slot').innerHTML = (p.asked.length ? '<button class="asks-toggle" data-fold="waiting" type="button" aria-expanded="' + Boolean(view.open.waiting) + '" title="' + esc('Asks between agents, waiting on others: ' + p.asked.map((d) => agentName(d.shout_from) + ' asks ' + agentName(d.shout_to)).join(', ')) + '">' + p.asked.length + (p.asked.length === 1 ? ' ask' : ' asks') + ' waiting <span aria-hidden="true">' + (view.open.waiting ? '▴' : '▾') + '</span></button>' : '')
+  /** Keep model spelling consistent without rewriting the recorded message or native seat id. */
+  const modelLabel = value => {
+    const model = String(value || 'unknown').trim();
+    if (/^gpt[- ]6[.]1[- ]sol$/i.test(model)) return 'GPT-6.1 Sol';
+    if (/^(?:claude[- ]?)?opus[- ]5[.]5$/i.test(model)) return 'Claude Opus 5.5';
+    if (/^codex$/i.test(model)) return 'Codex';
+    return model;
+  };
+  const modelOf = id => modelLabel(p.agents.find(agent => agent.agent_id === id)?.model);
+  /** Share the original native notice formatting between previews and full messages, preserving authored words. */
+  const messageText = message => findingWords({ why: message.shout_text }, message.shout_from !== 'sentinel').text;
+  /** A message keeps the exact native words; only references and disclosure add presentation. */
+  const card = (x, tail = '') => '<article class="shout' + (lead(x.shout_from) ? ' lead' : '') + (openShouts.has(x.shout_id) ? ' open' : '') + (x.shout_id === view.shout ? ' found' : '') + '" id="shout-' + x.shout_id + '" data-shout-id="' + x.shout_id + '"><div class="shout-main">'
+    + (x.shout_id === view.shout ? '<h2 class="visually-hidden">Shout #' + x.shout_id + '</h2>' : '')
+    + '<header><b class="who" data-agent-address="' + esc(x.shout_from) + '" role="group" aria-label="' + esc(agentName(x.shout_from)) + '" title="' + esc(modelOf(x.shout_from)) + '">' + esc(x.shout_from === 'person' ? 'you' : x.shout_from) + '</b><span class="to">→ ' + shoutTo(x.shout_to) + '</span>' + mark(x) + '<time title="' + esc(when(x.shout_at)) + '">' + esc(clock(x.shout_at)) + '</time></header>'
+    + '<div class="text">' + rich(messageText(x), titles, true, view.root, true) + (x.options ? '<ol>' + x.options.map(option => '<li>' + esc(option) + '</li>').join('') + '</ol>' : '') + '</div><button class="more" data-more type="button" aria-expanded="' + openShouts.has(x.shout_id) + '">' + (openShouts.has(x.shout_id) ? 'Show less' : 'Show all') + '</button>' + band(x) + evidence(x) + heardBy(x) + tail + '</div></article>';
+  // Native pending-question lists are authoritative: answered or stale asks never keep a thread amber.
+  const uniqueShouts = new Map((unread ? heard : [...heard, ...questions]).map(x => [x.shout_id, x]));
+  /** Replies inherit their original question's item even when the answer names no item. */
+  const conversationItem = message => {
+    const visited = new Set();
+    for (let entry = message; entry && !visited.has(entry.shout_id); entry = uniqueShouts.get(entry.shout_answers)) {
+      visited.add(entry.shout_id);
+      const item = itemOf(entry);
+      if (item) return item;
+    }
+    return null;
+  };
+  const conversations = new Map();
+  for (const message of uniqueShouts.values()) {
+    const item = conversationItem(message), key = item ? 'item:' + item : 'none';
+    if (!conversations.has(key)) conversations.set(key, { key, item, messages: [], open: false, toYou: false });
+    const conversation = conversations.get(key);
+    conversation.messages.push(message);
+    conversation.open ||= open.has(message.shout_id);
+    conversation.toYou ||= ['person', 'coordinator+person'].includes(message.shout_to);
+  }
+  const threads = [...conversations.values()].map(thread => ({ ...thread,
+    messages: thread.messages.sort((a, b) => a.shout_id - b.shout_id) })).sort((a, b) => b.messages.at(-1).shout_id - a.messages.at(-1).shout_id);
+  const filter = view.shoutFilter || 'all';
+  $('asks-slot').innerHTML = segmentedToggle({ label: 'Shouts filter', attribute: 'data-shout-filter', value: filter,
+    options: [{ value: 'all', label: 'All' }, { value: 'questions', label: 'Questions', count: open.size }, { value: 'you', label: 'To you' }] })
     + (view.agentsHidden ? '<button class="asks-toggle" data-agents-toggle type="button">Show agents</button>' : '');
-  // The asks as the feed's cards, folded to three lines: the person's to answer, then those waiting on others.
-  $('decisions').innerHTML = (p.decisions.length ? '<div class="head"><i></i>Decision needed</div>' + p.decisions.map((d) => card(d, '<button class="ghost answer" data-go="decide:' + d.shout_id + '" type="button">Answer</button>', false)).join('') : '')
-    // Asks waiting on someone else are not the person's to answer: they show only once the composer's toggle opens them.
-    + (p.asked.length && view.open.waiting ? p.asked.map((d) => card(d, '', false)).join('') : '');
+  const selected = view.shout !== null ? threads.find(thread => thread.messages.some(message => message.shout_id === view.shout))
+    : threads.find(thread => thread.key === view.shoutThread);
+  /** Render one item conversation as a real button with bounded title and preview columns. */
+  const conversationRow = thread => {
+    const last = thread.messages.at(-1), title = thread.item ? titles.get(String(thread.item)) : 'No item';
+    return '<button class="conversation-row" data-shout-thread="' + esc(thread.key) + '" type="button"><span class="conversation-copy"><span class="conversation-title">'
+      + (thread.item ? '<code>#' + esc(thread.item) + '</code> ' : '') + esc(title || 'Item #' + thread.item) + '</span><span class="conversation-preview">' + esc(last.shout_from + ': ' + messageText(last)) + '</span></span><span class="conversation-meta"><time class="long" data-ago="' + esc(last.shout_at) + '" title="' + esc(when(last.shout_at)) + '">' + agoLong(last.shout_at) + '</time><span class="chip' + (thread.open ? ' warn' : '') + '">' + (thread.open ? 'Question open' : thread.messages.length + (thread.messages.length === 1 ? ' message' : ' messages')) + '</span></span></button>';
+  };
+  const rows = threads.filter(thread => filter === 'all' || (filter === 'questions' ? thread.open : thread.toYou));
+  const missingAddress = view.shout !== null && !selected ? '<p class="empty" id="shout-address-status" role="status">' + esc(addressed?.error || 'Loading shout #' + view.shout + '…') + '</p>' : '';
+  $('feed').innerHTML = missingAddress + bar + (selected ? '<div class="conversation-heading"><button class="link" data-shout-thread="" type="button">All conversations</button><b>' + (selected.item ? '#' + esc(selected.item) + ' ' + esc(titles.get(String(selected.item)) || '') : 'No item') + '</b></div>'
+    + dayRules(selected.messages, message => message.shout_at, message => card(message, open.has(message.shout_id) && message.shout_to === 'person' && !readOnly ? '<button class="ghost answer" data-go="decide:' + message.shout_id + '" type="button">Answer</button>' : ''))
+    : rows.length ? dayRules(rows, thread => thread.messages.at(-1).shout_at, conversationRow) : '<div class="empty">' + (filter === 'questions' ? 'No open questions.' : filter === 'you' ? 'No shouts to you.' : 'No shouts yet.') + '</div>');
+  // Keep legacy DOM anchors for older pages and automation; the decisions wall has no visible content.
+  $('coordinator-decisions').hidden = true; $('coordinator-decisions').innerHTML = '';
+  $('decisions').hidden = true; $('decisions').innerHTML = '';
   foldShouts();
   // Prepare agent, item-state and display observations before the pure selection and HTML functions.
   const panelNow = Date.now();
@@ -386,13 +430,13 @@ function render() {
     const stale = staleChip(item);
     const state = stateOf(item);
     return { id: item.id, status: item.status, holder: holderOf(item), reviewer: reviewerOf(item), builtBy: item.builtBy,
-      state, stale: Boolean(stale), titleTextHtml: esc(item.title), titleHtml: rich(item.title, titles),
+      state, since: item.since, ageHtml: item.since ? '<time data-ago="' + esc(item.since) + '">' + ago(item.since) + '</time>' : '', stale: Boolean(stale), titleTextHtml: esc(item.title), titleHtml: rich(item.title, titles),
       stateHtml: chip(state) + stale, briefStateHtml: stale || chip(state) };
   });
   const agentRows = p.agents.map((agent) => {
     const isLead = lead(agent.agent_id);
     const letters = initials(agent.agent_id);
-    return { agentId: agent.agent_id, name: agentName(agent.agent_id), nameHtml: esc(agentName(agent.agent_id)),
+    return { agentId: agent.agent_id, name: agentName(agent.agent_id), nameHtml: esc(agent.agent_id), modelHtml: esc(modelOf(agent.agent_id)),
       lane: agent.agent_lane, route: agent.agent_route, path: agent.agent_path, lastMoveAt: agent.lastMoveAt,
       faceHtml: isLead ? '<span class="avatar">' + LEAD + '</span>' : '<span class="avatar' + (letters.length > 3 ? ' wide' : '') + '" aria-hidden="true">' + esc(letters) + '</span>',
       tipHtml: esc('Shouts with ' + agentName(agent.agent_id) + ' · ' + agent.agent_lane + ' · ' + agent.agent_route + ' (' + agent.agent_path + ')'),
@@ -426,7 +470,7 @@ function render() {
   const release = nextMilestone(p), last = p.events[0];
   const part = (to, n, words, title) => n ? '<button type="button" data-status="' + to + '" title="' + esc(title) + '"><b>' + n + '</b> ' + words + '</button>' : '';
   $('status-board').innerHTML = part('items', active.length, 'items', 'Show the active items') + '<button type="button" id="status-unread" data-status="unread" title="Show the shouts you have not read" hidden></button>'
-    + part('agents', footerBusy.length, footerBusy.length === 1 ? 'agent' : 'agents', 'Show the agents holding work: ' + footerBusy.map((a) => agentName(a.agent_id)).join(', '))
+    + part('agents', footerBusy.length, footerBusy.length === 1 ? 'agent' : 'agents', 'Open the agent floor: ' + footerBusy.map((a) => agentName(a.agent_id)).join(', '))
     + part('verify', active.filter((i) => stateOf(i) === 'verify').length, 'to verify', 'Show the items waiting on a verdict')
     + part('gated', active.filter(gatedOf).length, 'gated', 'Show the open items waiting on another item or a held lane')
     + (release ? '<button type="button" data-status="release" title="' + esc('Show this release on the Roadmap: ' + (release.note || release.name)) + '">' + esc(release.name) + ' <b>' + release.done + '/' + release.total + '</b></button>' : '')
@@ -498,6 +542,7 @@ function render() {
       const actions = rowDecisionActions ? pendingQuestion ? rowDecisionActions + change : rowDecisionActions.replace('<button class="decline-row"', change + '<button class="decline-row"') : change;
       $('spec-detail').innerHTML = '<div class="spec-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + '</div>'
         + '<div class="spec-fact"><span>Proved by</span><div>' + (row.gate ? specGateFiles(row, true) : 'No gate yet') + '</div></div><div class="spec-fact"><span>Cited by</span><div class="links">' + (citing.length ? citing.map(item => '<div class="links-item spec-citing" role="button" tabindex="0" data-item="' + item.id + '"><span>#' + item.id + ' ' + rich(item.title, titles) + '</span></div>').join('') : 'No items yet') + '</div></div>'
+        + (row.serves?.length ? '<div class="spec-fact"><span>Serves</span><div>' + esc(row.serves.join(', ')) + '</div></div>' : '')
         + (reason ? '<dl class="kv">' + reason + '</dl>' : '') + (view.specFeedback?.root === view.root && view.specFeedback.kind === kind && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '')
         + '<div class="spec-detail-actions">' + actions + '</div><p class="spec-authority">Only you can decide a row.</p></div>';
       continue;
