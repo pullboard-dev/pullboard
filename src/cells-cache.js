@@ -1,7 +1,14 @@
 /** Cache the cells checks per exact repository state so a repeat on unchanged inputs replays in well under a second [C7]. */
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const KEEP = 60;
