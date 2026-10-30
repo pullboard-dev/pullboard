@@ -939,9 +939,9 @@ test("a waiting ask's who and when stay on one line with wide fonts [N26]", { ti
       const range = document.createRange(); range.selectNodeContents(address);
       const recipient = header.querySelector('.to .agent-id') || header.querySelector('.to'), recipientRange = document.createRange(); recipientRange.selectNodeContents(recipient);
       const copy = header.cloneNode(true); copy.style.cssText += ';position:fixed;visibility:hidden;width:max-content'; header.parentElement.append(copy);
-      const natural = copy.getBoundingClientRect().width; copy.remove();
+      const naturalBox = copy.getBoundingClientRect(), natural = naturalBox.width, line = naturalBox.height; copy.remove();
       return { header:rect(header), age:rect(age), ageText:age.textContent, ageWidth:age.clientWidth, ageScroll:age.scrollWidth,
-        address:rect(address), addressText:address.textContent, addressInk:rect(range), line:parseFloat(getComputedStyle(who).lineHeight),
+        address:rect(address), addressText:address.textContent, addressInk:rect(range), line,
         recipient:rect(recipient), recipientInk:rect(recipientRange), recipientText:recipient.textContent, spacing:getComputedStyle(header).letterSpacing, natural, kind:{ text:kind.textContent, width:kind.clientWidth, scroll:kind.scrollWidth, overflow:getComputedStyle(kind).textOverflow, title:kind.title, label:kind.getAttribute('aria-label') },
         page:[document.documentElement.clientWidth, document.documentElement.scrollWidth] };
     })())`));
