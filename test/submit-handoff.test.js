@@ -223,7 +223,9 @@ function checkoutBarrier(box) {
     ` while(!fs.existsSync(${JSON.stringify(release)})) { if(Date.now()>deadline) throw Error('checkout release never arrived'); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20); }`,
     '}',
   ].join('\n'));
-  const hooks = join(box.repo, '.git', 'hooks');
+  const hooks = box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-path', 'hooks');
+  // Use an absolute spelling of the same active native directory, so linked worktrees share the barrier; all existing guards stay intact.
+  box.git(box.repo, 'config', 'core.hooksPath', hooks);
   mkdirSync(hooks, { recursive: true });
   const hook = join(hooks, 'post-checkout');
   let original = '';
