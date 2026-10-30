@@ -25,6 +25,7 @@ import { readPathMap } from '../packages/codemap/index.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { tryGit } from '../src/git.js';
 import { Refused } from '../src/refused.js';
+import { cachedCellsRun } from '../src/cells-cache.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { fileCuts } from './cells-plan-cuts.js';
 import { refreshPlanCuts } from '../packages/codemap/index.js';
@@ -457,34 +458,33 @@ function main(argv) {
     placePath(root, file, { cell: values['--cell'], stay: values['--stay'] === true, part: values['--part'] ?? 'shell', entry: values['--entry'] === true });
     return 0;
   }
-  const plan = readPlan(root);
-  if (mode === '--check') {
-    const missing = unplanned(root, plan), stale = stalePlanRows(root, plan);
+  if (mode === '--check') return cachedCellsRun(root, [mode], () => {
+    const plan = readPlan(root), missing = unplanned(root, plan), stale = stalePlanRows(root, plan);
     const entries = entryPlacementProblems(root, plan);
     for (const problem of entries) console.error(problem);
     for (const path of missing) console.error(`not in ${PLAN_FILE}: ${path}`);
     if (missing.length) console.error('regenerate the plan: node bin/cells-plan.js --write');
     for (const { file, row } of stale) console.error(`stale plan row in ${file}: ${row[0]} no longer exists; retire it: node bin/cells-plan.js --retire ${row[0]}`);
     return missing.length || stale.length || entries.length ? 1 : 0;
-  }
+  });
   if (mode === '--retire') {
     const { file, row } = retirePath(root, rest[0]);
     console.log(`retired ${row[0]} from ${file}`);
     return 0;
   }
-  if (mode === '--moved') {
-    const notes = [], problems = checkMoved(root, plan, rest[0], { notes });
+  if (mode === '--moved') return cachedCellsRun(root, [mode, ...rest], () => {
+    const notes = [], problems = checkMoved(root, readPlan(root), rest[0], { notes });
     for (const note of notes) console.log(note);
     for (const problem of problems) console.error(problem);
     return problems.length ? 1 : 0;
-  }
-  if (mode === '--file-cuts') { fileCuts(root, plan, rest.includes('--yes')); return 0; }
-  if (mode === '--cuts') {
-    const problems = checkCuts(root, plan, rest[0]);
+  });
+  if (mode === '--file-cuts') { fileCuts(root, readPlan(root), rest.includes('--yes')); return 0; }
+  if (mode === '--cuts') return cachedCellsRun(root, [mode, ...rest], () => {
+    const problems = checkCuts(root, readPlan(root), rest[0]);
     for (const problem of problems) console.error(problem);
     return problems.length ? 1 : 0;
-  }
-  if (mode === '--file') { fileItems(root, plan, rest.includes('--yes')); return 0; }
+  });
+  if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
   throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
 }
 

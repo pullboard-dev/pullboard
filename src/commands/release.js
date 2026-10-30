@@ -35,6 +35,10 @@ export async function run(io, args) {
   const problem = store.reviewReleaseNoteProblem(board, ...args);
   if (problem) throw problem;
   const review = await ordered(ctx, board, 'release', args);
+  if (!review && ctx.config.worktreeMaintenance?.enabled === true) {
+    const { cleanupMaintenanceLifecycle } = await import('../worktree-maintenance-command.js');
+    await cleanupMaintenanceLifecycle(ctx, me.id, { path: ctx.info.root, item: idArg(first), agent: me.id });
+  }
   io.result?.({ id: idArg(first) });
   io.say(review ? `released the review of #${first}; the review is free again` : `released #${first}`);
   return 0;
