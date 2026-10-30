@@ -28,6 +28,7 @@ test('known settings still reject wrong types and invalid values beside future s
   for (const raw of [
     { submit: { futureSwitch: true, autoFileMainReds: 'true' } },
     { submit: { futureSwitch: true, requireInfraNote: 1 } },
+    { submit: { handoff: 'true' } },
     { landing: { futureSwitch: true, parallel: 'yes' } },
     { landing: { environment: { platform: 'darwin', arch: 'arm64', node: 'latest' } } },
     { landing: { cadence: { every: '10m', accepted: 0 } } },
@@ -59,4 +60,11 @@ test('malformed configuration roots and known groups are not converted into defa
   for (const raw of [null, [], true, { submit: [] }, { submit: null }, { landing: [] }, { claims: 'yes' }]) {
     assert.throws(() => configFromSource(JSON.stringify(raw)), { code: 'BAD_CONFIG' });
   }
+});
+
+/** The known optional handoff survives forward compatibility filtering without changing defaults. */
+test('optional handoff setting is retained and validated [N26,V4]', () => {
+  assert.equal(configFromSource('{}').submit.handoff, undefined);
+  assert.equal(configFromSource(JSON.stringify({ submit: { handoff: true } })).submit.handoff, true);
+  assert.equal(configFromSource(JSON.stringify({ submit: { handoff: false } })).submit.handoff, false);
 });
