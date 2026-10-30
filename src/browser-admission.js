@@ -73,7 +73,7 @@ const REVIEWED_EXECUTORS = new Map([
   ['src/sentinel-runner.js', [{ function: 'executeSentinel',
     site: "spawn(row.check, { cwd: directory, env: environment, shell: true, stdio: ['ignore', 'pipe', 'pipe'] })",
     reason: 'the Windows sentinel executor runs an approved check only when explicitly invoked' }]],
-  ['src/rigor-proof.js', [{ function: 'runOwnedCheck',
+  ['packages/rigor/src/shell/rigor-proof.js', [{ function: 'runOwnedCheck',
     site: "spawn(runner?.executable ?? '/bin/sh', runner?.args ?? ['-c', check], { cwd: tree, env: environment, detached: true, stdio: ['ignore', 'pipe', 'pipe'], })",
     reason: 'prepareCauseProof validates the named runner executable against the real process.execPath' }]],
   ['test/cli-startup.test.js', [{ function: 'fixture',
