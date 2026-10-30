@@ -151,7 +151,7 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
   const guidanceCommand = command === 'help' || argv.includes('--help') || !command && !argv.includes('--version') ? 'help' : command;
   // Installed Git hooks use --version's last line as a protocol handshake, unlike interactive `version`.
   const finalAction = nextActions && (guidanceCommand === 'help' || interactiveNext(command) && !argv.includes('--version'));
-  let explicitNext;
+  let explicitNext, lastLine, previousLine;
   let renderer = suppliedRenderer;
   let preparing;
   /** Load recovery declarations only when this command actually needs a refusal document. */
@@ -188,16 +188,21 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
   };
   /** Write one default-text line within the budget, keeping only a count (and a final next step) of the rest. */
   const say = (line) => {
-    if (finalAction && /^next:[ \t]*\S/u.test(String(line)) && !String(line).includes('\n')) {
-      explicitNext = String(line).replace(/^next:[ \t]*/u, '');
-      return;
-    }
     if (enabled) return emit(streams.stdout, messages, line);
-    // A whole JSON document printed as text (export) is machine-readable: cutting it would only corrupt it.
-    if (budget === Infinity || /^\s*[[{]/u.test(String(line))) return streams.stdout.write(`${line}\n`);
-    // One message may hold many lines, such as a red gate's output; each printed line is cut and counted alone.
+    // A whole JSON document printed as text (export) owns its bytes.
+    if (/^\s*[[{]/u.test(String(line))) {
+      lastLine = previousLine = String(line).split('\n').at(-1);
+      return streams.stdout.write(`${line}\n`);
+    }
+    // Preserve native body positions; only identical adjacent action lines are redundant.
     for (const part of String(line).split('\n')) {
-      const text = `${cutLine(part)}\n`;
+      const action = finalAction && /^next:[ \t]*\S/u.test(part);
+      if (action) explicitNext = part.replace(/^next:[ \t]*/u, '');
+      const duplicate = action && previousLine === part;
+      previousLine = part;
+      if (duplicate) continue;
+      const shown = budget === Infinity ? part : cutLine(part);
+      const text = `${shown}\n`;
       const size = Buffer.byteLength(text);
       if (withheld || printed + size > budget - notice) {
         withheld += 1;
@@ -205,16 +210,21 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
         continue;
       }
       printed += size;
+      lastLine = shown;
       streams.stdout.write(text);
     }
   };
   const flush = (code) => {
     if (!enabled && !written) {
       written = true;
-      if (withheld) streams.stdout.write(`${withheld} more lines withheld to keep this output within ${budget} bytes; add --detail for all of it, or --json\n`);
+      if (withheld) {
+        lastLine = `${withheld} more lines withheld to keep this output within ${budget} bytes; add --detail for all of it, or --json`;
+        streams.stdout.write(lastLine + '\n');
+      }
       if (!code && !refusal && finalAction) {
         const action = explicitNext ?? withheldNext?.replace(/^next:[ \t]*/u, '') ?? successfulNext(guidanceCommand, result);
-        streams.stdout.write(`${cutLine(`next: ${action.replace(/[\r\n]+/gu, ' ')}`)}\n`);
+        const footer = cutLine(`next: ${action.replace(/[\r\n]+/gu, ' ')}`);
+        if (lastLine !== footer) streams.stdout.write(footer + '\n');
       }
       else if (withheldNext) streams.stdout.write(`${withheldNext}\n`);
       return;

@@ -175,11 +175,18 @@ test('finite output ends with one next move while raw export and refusal wire re
   };
   for (const name of ['stats', 'status', 'show', 'inbox', 'claim', 'help', 'version']) {
     const human = output([name], io => { io.say('result'); io.say('next: an older action'); io.say('next: the chosen action'); });
-    assert.equal(human.text.match(/^next:/gmu)?.length, 1, name);
+    assert.equal(human.text, 'result\nnext: an older action\nnext: the chosen action\n', 'distinct native actions retain their body positions: ' + name);
     assert.match(human.text, /next: the chosen action\n$/u);
     const json = JSON.parse(output([name, '--json', '--fields', 'value'], io => io.result({ value: 1, hidden: true })).text);
     assert.deepEqual(json, { version: 1, value: 1 }, '--fields retains exactly its selected keys');
   }
+  assert.equal(output(['status'], io => io.say('result')).text, 'result\nnext: pullboard next --wait 1\n');
+  assert.equal(output(['resume'], io => { io.say('resume'); io.say('next: native action'); io.say('flow: original alert'); }).text,
+    'resume\nnext: native action\nflow: original alert\nnext: native action\n', 'the original next/flow body remains byte-for-byte before the new footer');
+  assert.equal(output(['status'], io => { io.say('next: same'); io.say('next: same'); }).text, 'next: same\n',
+    'only identical consecutive terminal actions are deduplicated');
+  assert.deepEqual(JSON.parse(output(['resume', '--json'], io => { io.say('resume'); io.say('next: original'); }).text),
+    { version: 1, messages: ['resume', 'next: original'] }, 'JSON message bodies retain their native action lines');
   const held = JSON.parse(output(['submit', '--json'], io => io.result({ id: 1, next: { item: { item_id: 2 }, held: true } })).text);
   assert.deepEqual(held, { version: 1, id: 1, next: { item: { item_id: 2 }, held: true } }, 'native handoff metadata stays unchanged');
   const selected = JSON.parse(output(['submit', '--json', '--fields', 'commit'], io => io.result({
