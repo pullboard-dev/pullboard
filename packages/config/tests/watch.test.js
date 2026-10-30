@@ -460,6 +460,7 @@ test('a shout about an item reaches only the people on it [B7,A2,N19]', async (t
   runFixtureGit(['commit', '-q', '-m', 'feat(app): directed message fixture [G1]'], { cwd: builder.path, env: box.env, stdio: 'pipe' });
   box.cli(builder.path, 'submit', String(item.item_id));
   // Fixture setup uses the public board API: routing needs a reviewer role, not a second runtime session's verdict.
+  // @pullboard-board-file journey: seed the persisted reservation read by later independent CLI watch processes.
   const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   try { reserveReview(board, item.item_id, { agentId: reviewer.agent, leaseMs: 30 * 60_000, policy: 'any' }); }
   finally { board.db.close(); }
