@@ -257,7 +257,16 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   assert.equal(lines[400], 'not ok 401 - the page renders a heading', 'stdout and stderr in one stream, in order');
   box.run(box.repo, 'add', 'coordinator', 'Coordinator work');
   box.run(box.repo, 'claim', '1');
-  assert.match(box.run(box.repo, 'submit', '1').err, /GATE_RED[\s\S]*not ok 401 - the page renders a heading/);
+  const refused = box.run(box.repo, 'submit', '1');
+  // #1884 (b24440d3) intentionally replaced submit's raw TAP with a bounded failure summary and full run log.
+  assert.equal(refused.code, 1, refused.err);
+  assert.match(refused.err, /GATE_RED[\s\S]*the page renders a heading/);
+  assert.ok(refused.err.trimEnd().split('\n').length < 40, 'the refusal stays bounded instead of repeating the TAP stream');
+  const retained = /full log: ([^\n]+)/u.exec(refused.err);
+  assert.ok(retained, 'the refusal points to its complete run log');
+  const submissionLog = readFileSync(retained[1], 'utf8');
+  assert.match(submissionLog, /^not ok 401 - the page renders a heading$/mu);
+  assert.match(submissionLog, /^# note 99$/mu, 'the bounded refusal retains the complete noisy output');
 });
 
 test('submit refuses a bar that moved since the claim, before any verifier runs; a refreeze and a fresh claim recover [V11]', () => {

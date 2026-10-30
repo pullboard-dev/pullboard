@@ -180,6 +180,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     while (true) {
       lease.source = source;
       lease.runMetadata = { landing, itemCheck, diagnostic, gui, timing, item: String(item), kind,
+        ...(lease.runner && lease.token && lease.pool ? { resourceOwner: { token: lease.token, pool: lease.pool } } : {}),
         ...(policyTrunk?.commit ? { trunk: { ref: policyTrunk.branch ?? policyTrunk.ref, commit: policyTrunk.commit } } : {}) };
       timed(lease).tracker.mark('actionAt');
       try {
@@ -192,6 +193,13 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         return result;
       }
       catch (error) {
+        if (error instanceof Refused && error.code === 'RUNNER_SOURCE_CHANGED' && error.runnerCancellation?.version === 1) {
+          if (lease.runner) {
+            if (typeof lease.cancelRunner !== 'function') throw new Refused('RESOURCE_LEASE_LOST', 'source cancellation needs the owned remote lease cancellation operation');
+            lease.cancelRunner(error.runnerCancellation.diagnostic);
+          }
+          throw error;
+        }
         // A cleanup the runner could not verify is the runner's failure, not the run's: rerun it locally (#1063).
         const cleanup = error instanceof Refused && error.code === 'RUNNER_CLEANUP_TIMEOUT';
         if (!(error instanceof RunnerDropped || cleanup) || !lease.runner || !lease.requeueRunner) {
