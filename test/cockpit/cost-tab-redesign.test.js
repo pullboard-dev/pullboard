@@ -31,6 +31,9 @@ test('the private Cost overview renders prepared analytics and each confidence [
     await chrome.click("document.querySelector('[data-cost-copy]')");
     await chrome.click("document.querySelector('[data-cost-all]')");
     assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify(window.calls)')), ['item:1', 'Add model prices to Pullboard', 'all']);
+    const unknown = costOverviewHtml({...fixture, longest:[{id:2,title:'Unknown',agentMs:null,sentBack:0,sessions:[{label:'Unknown model',count:null,agentMs:null,tokensIn:null}]}]}, 2);
+    assert.doesNotMatch(unknown, /0 sessions|cost-time-bar/u);
+    assert.match(unknown, /No token count/u);
     assert.deepEqual(chrome.exceptions, []);
   } finally { if (chrome) await closeSnapshotChrome(chrome); await new Promise(resolve => server.close(resolve)); rmSync(dir,{recursive:true,force:true}); }
 });
