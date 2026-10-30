@@ -140,12 +140,15 @@ function countPairs() {
     if (release) {
       const entries = release.items.filter(ref => items.some(item => item.id === ref.id));
       const landed = entries.filter(ref => p.dashboardLanded.some(item => item.id === ref.id)).length;
-      add('Dashboard/release remaining', number(document.querySelector('.dash-release b')), entries.length - landed);
-      const progress = document.querySelector('.dash-release + p').textContent.match(/(\d+) of (\d+) landed/);
+      const headline = document.querySelector('.dash-release-card .roadmap-left');
+      const progress = headline?.querySelector('[aria-label]')?.getAttribute('aria-label').match(/^(\d+)\/(\d+) landed$/);
+      const summary = document.querySelector('.dash-release-card .roadmap-summary-bar');
+      add('Dashboard/release remaining', number(headline?.querySelector('b')), entries.length - landed);
       add('Dashboard/release landed', Number(progress?.[1]), landed);
       add('Dashboard/release total', Number(progress?.[2]), entries.length);
+      add('Dashboard/release accessible summary source', Boolean(summary?.getAttribute('aria-label')?.includes(release.name)), true);
     }
-    source('.dash-hero h1, .dash-accent, .dash-rate, .dash-chips > span:not(:first-child), .dash-release, .dash-release + p, .dash-stats');
+    source('.dash-hero h1, .dash-accent, .dash-rate, .dash-chips > span:not(:first-child)');
   }
   if (view.tab === 'dashboard' && view.addressDetail === 'floor') {
     source('[data-floor-stat], .floor-foot');

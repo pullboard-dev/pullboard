@@ -34,26 +34,29 @@ test('a roadmap summary card separates its counts, legend and forecast at phone 
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
     await chrome.waitFor("document.querySelector('[data-key=\"m:Capacity\"] .milestone-head')");
     // This is a presenter-only scenario; the native API input above remains separately checked as real board data.
-    await chrome.stable("(()=>{const m=data.project.milestones.find(milestone=>milestone.name==='Capacity');m.count=512;m.limit=700;m.summary={total:512,left:512,landed:0,landing:7,review:0,building:0,waiting:493,held:12,needsYou:[],pace:{last6h:7,last2h:7},estimate:{low:71,high:212.5},window:'6h',reason:null};render();return true;})()");
+    await chrome.stable("(()=>{const m=data.project.milestones.find(milestone=>milestone.name==='Capacity');data.project.observedAt='2026-10-28T12:00:00Z';m.count=512;m.limit=700;m.summary={total:512,left:512,landed:0,landing:7,review:0,building:0,waiting:493,held:12,needsYou:[],pace:{last6h:7,last2h:7},estimate:{low:71,high:212.5},window:'6h',reason:null};render();return true;})()");
     for (const width of [320, 375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       for (const scheme of ['light', 'dark']) {
         await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
-        const label = await chrome.stable("document.querySelector('[data-key=\"m:Capacity\"] .milestone-limit')?.textContent");
-        assert.equal(label, '512 items', `${width}/${scheme}: the distant 700-item limit is hidden`);
-        const card = JSON.parse(await chrome.stable("JSON.stringify((()=>{const m=document.querySelector('[data-key=\"m:Capacity\"]'),entries=[...m.querySelectorAll('[data-summary-state]')],held=entries.at(-1),forecast=m.querySelector('.roadmap-forecast'),estimate=m.querySelector('.roadmap-estimate'),pace=m.querySelector('.roadmap-pace');return {text:m.textContent,legend:entries.map(x=>x.textContent.trim()),rows:entries.map(x=>{const r=x.getBoundingClientRect();return {top:r.top,center:r.top+r.height/2};}),heldHeight:held.getBoundingClientRect().height,heldColor:getComputedStyle(held).color,colors:[...new Set(entries.map(x=>getComputedStyle(x).color))],alignment:entries.map(entry=>{const nodes=[...entry.children],style=getComputedStyle(entry),centers=nodes.map(node=>{const r=node.getBoundingClientRect();return r.top+r.height/2;});return {display:style.display,alignItems:style.alignItems,tags:nodes.map(node=>node.tagName),weight:getComputedStyle(nodes[1]).fontWeight,centers,centered:centers.every(center=>Math.abs(center-centers[0])<.75)};}),forecast:{estimate:estimate.textContent,pace:pace.textContent,estimateBold:estimate.querySelectorAll('b').length,paceBold:pace.querySelectorAll('b').length,separate:pace.getBoundingClientRect().top>estimate.getBoundingClientRect().top,display:getComputedStyle(forecast).display}};})())"));
-        assert.match(card.text, /512 items/u);
+        const label = await chrome.stable("document.querySelector('[data-key=\"m:Capacity\"] .milestone-limit')?.textContent||''");
+        assert.equal(label, '', `${width}/${scheme}: the shared release header replaces the extra total-and-limit line`);
+        const card = JSON.parse(await chrome.stable("JSON.stringify((()=>{const m=document.querySelector('[data-key=\"m:Capacity\"]'),entries=[...m.querySelectorAll('[data-summary-state]')],held=entries.at(-1),forecast=m.querySelector('.roadmap-forecast'),rate=m.querySelector('.roadmap-estimate'),pace=m.querySelector('.roadmap-pace'),completion=m.querySelector('.roadmap-completion'),legend=m.querySelector('.roadmap-summary-legend');return {text:m.textContent,legend:entries.map(x=>x.textContent.trim()),legendWrap:getComputedStyle(legend).flexWrap,rows:entries.map(x=>{const r=x.getBoundingClientRect();return {top:r.top,center:r.top+r.height/2};}),heldHeight:held.getBoundingClientRect().height,heldColor:getComputedStyle(held).color,colors:[...new Set(entries.map(x=>getComputedStyle(x).color))],alignment:entries.map(entry=>{const nodes=[...entry.children],style=getComputedStyle(entry),centers=nodes.map(node=>{const r=node.getBoundingClientRect();return r.top+r.height/2;});return {display:style.display,alignItems:style.alignItems,tags:nodes.map(node=>node.tagName),weight:getComputedStyle(nodes[1]).fontWeight,centers,centered:centers.every(center=>Math.abs(center-centers[0])<.75)};}),forecast:{rate:rate.textContent,pace:pace.textContent,completion:completion.textContent,rateBold:rate.querySelectorAll('b').length,paceBold:pace.querySelectorAll('b').length,display:getComputedStyle(forecast).display}};})())"));
+        assert.match(card.text, /512 to go/u);
         assert.doesNotMatch(card.text, /limit 700/u);
         assert.deepEqual(card.legend, ['0 landed', '7 accepted, landing', '0 in review', '0 building', '493 waiting', '12 held'], `${width}/${scheme}: legend text keeps a real space before each label`);
         assert.ok(card.alignment.every(entry => ['flex', 'inline-flex'].includes(entry.display) && entry.alignItems === 'center' && Number(entry.weight) >= 600 && entry.tags.join(',') === 'I,B,SPAN' && entry.centered),
           `${width}/${scheme}: every legend entry aligns a dot, bold count and label: ${JSON.stringify(card.alignment)}`);
         assert.equal(card.colors.length, 1, `${width}/${scheme}: the held control shares the legend text color`);
         assert.ok(card.heldHeight >= (width < 900 ? 44 : 32), `${width}/${scheme}: the held control keeps its ${width < 900 ? 44 : 32}px target`);
-        if (width === 1280) assert.equal(new Set(card.rows.map(row => row.top)).size, 1, 'desktop legend entries share one row');
-        assert.deepEqual(card.forecast, { estimate: 'About 3 to 9 days at today’s pace', pace: '7 landed in the last 6 h, 7 in the last 2 h',
-          estimateBold: 2, paceBold: 2, separate: true, display: 'grid' }, `${width}/${scheme}: forecast facts are separated and key numbers are bold`);
+        assert.equal(card.legendWrap, 'wrap', `${width}/${scheme}: long key labels wrap when their container requires it`);
+        assert.deepEqual(card.forecast, { rate: '1.2 items an hour', pace: '7 landed in the last 6 h, 7 in the last 2 h',
+          completion: 'done in about 6 days, Tuesday morning', rateBold: 0, paceBold: 0, display: 'block' }, `${width}/${scheme}: the shared line retains its rate, actual counts and completion estimate`);
       }
     }
+    await chrome.stable("(()=>{const m=data.project.milestones.find(milestone=>milestone.name==='Capacity');m.summary={...m.summary,estimate:null,pace:null,reason:null,needsYou:[]};render();return true;})()");
+    const unavailable=JSON.parse(await chrome.stable("JSON.stringify((()=>{const m=document.querySelector('[data-key=\"m:Capacity\"]');return {rate:m.querySelector('.roadmap-estimate')?.textContent||'',pace:m.querySelector('.roadmap-pace')?.textContent||'',completion:m.querySelector('.roadmap-completion')?.textContent||'',needs:m.querySelectorAll('.roadmap-summary-needs').length};})())"));
+    assert.deepEqual(unavailable,{rate:'— items an hour',pace:'— landed in the last 6 h, — in the last 2 h',completion:'completion time unavailable',needs:0},'missing summary values remain explicit rather than disappearing or becoming zero');
     assert.deepEqual(chrome.exceptions, []);
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
