@@ -27,7 +27,7 @@ function needEntries(html) {
 
 /** Read one exact native message from the opened conversation without accepting an overview preview. */
 function conversationMessage(page, id) {
-  return page.show('feed').match(new RegExp('<article[^>]*data-shout-id="' + id + '"[^>]*>([\s\S]*?)</article>'))?.[1] ?? '';
+  return page.show('feed').match(new RegExp('<article[^>]*data-shout-id="' + id + '"[^>]*>([^]*?)</article>'))?.[1] ?? '';
 }
 
 /** Confirm the fixture's baseline approvals through the real person-view channel. */
