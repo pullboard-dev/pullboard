@@ -1,8 +1,9 @@
 /** @pullboard-test-input source-tree */
-/** Routing rulings are board records next enforces, and every release names a coded reason [C7,H16]. */
+/** Live routing uses computed native eligibility; legacy rule records and coded releases retain compatibility [C7,H16]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import * as store from '../src/board.js';
+import { board as store } from '../src/native-board.js';
+import { reviewEligibility } from '../src/review-eligibility.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { dispatchWork } from '../src/dispatch-eligibility.js';
@@ -40,32 +41,66 @@ function fixture(t) {
   return { board, add, submit, rule, review, join };
 }
 
-test('a seat barred by a recorded rule is never offered the review, by next or by reservation [C7]', t => {
+/** Compare computed selection/projection/dispatch with actual native reservation and verdict guards. */
+function assertComputedReview(f, id, agentId, expectedCode = null, options = {}) {
+  const who = { agentId, policy: 'any', familyPolicy: 'off', ...options };
+  const item = store.getItem(f.board, id), before = store.events(f.board);
+  let problem = null;
+  for (const check of Object.values(store.reviewerChecks(f.board, who))) {
+    problem = check(item);
+    if (problem) break;
+  }
+  assert.equal(problem?.code ?? null, expectedCode, 'hand-specified computed guard result');
+  const view = reviewEligibility(f.board, item, options);
+  assert.equal(view.eligible.includes(agentId), expectedCode === null);
+  if (expectedCode) assert.equal(view.ineligible.find(row => row.agent === agentId)?.code, expectedCode);
+  const next = store.nextFor(f.board, { ...who, lane: 'core', verify: true });
+  const dispatched = dispatchWork(f.board, store.agentById(f.board, agentId), options);
+  const verdict = { ...who, decision: 'ACCEPT', head: item.item_commit,
+    digest: item.item_frozen_digest, note: 'Private component comparison of actual native eligibility guards.' };
+  if (expectedCode) {
+    assert.equal(next.item, null);
+    assert.equal(dispatched.item, null);
+    assert.throws(() => store.reserveReview(f.board, id, { ...who, leaseMs: LEASE }), { code: expectedCode });
+    assert.throws(() => store.verify(f.board, id, verdict), { code: expectedCode });
+    assert.deepEqual(store.getItem(f.board, id), item, 'both refused native admissions preserve the submitted row');
+    assert.deepEqual(store.events(f.board), before, 'both refused admissions append nothing');
+  } else {
+    assert.equal(next.item?.item_id, id);
+    assert.equal(dispatched.item?.item_id, id);
+    assert.equal(dispatched.review, true);
+    assert.equal(store.reserveReview(f.board, id, { ...who, leaseMs: LEASE }).item_review_by, agentId);
+    assert.deepEqual(store.nextFor(f.board, { ...who, lane: 'core', verify: true }),
+      { item: store.listItems(f.board).find(row => row.item_id === id), reasons: [] }, 'own held review retains its historical return shape');
+    assert.equal(store.verify(f.board, id, verdict).decision, 'ACCEPT');
+    assert.equal(store.getItem(f.board, id).item_verified_by, agentId);
+  }
+}
+
+test('planted stored routing records never replace computed next, dispatch, reservation or verdict eligibility [C7,V1,H16]', t => {
   const f = fixture(t), id = f.add();
-  f.submit(id);
-  assert.equal(f.review('core-2').item?.item_id, id, 'before the rule the claude seat is offered the review');
-  const ruleId = f.rule({ act: 'review', scope: { item: id }, effect: 'bar-family', value: 'claude', source: 32288 });
-  const barred = f.review('core-2');
-  assert.equal(barred.item, null, 'the barred seat is offered nothing');
-  assert.match(barred.reasons.join('\n'), new RegExp(`routing rule #${ruleId} \\(shout 32288\\)`, 'u'), 'the refusal names the rule and its source shout');
-  assert.equal(dispatchWork(f.board, store.agentById(f.board, 'core-2')).item, null, 'next --take shares the same filter');
-  assert.throws(() => store.reserveReview(f.board, id, { agentId: 'core-2', leaseMs: LEASE, policy: 'any', familyPolicy: 'off' }), { code: 'ROUTING_RULE' });
-  assert.equal(store.getItem(f.board, id).item_review_by, null, 'a refused reservation reserves nothing');
+  const item = f.submit(id);
+  f.rule({ act: 'review', scope: { item: id }, effect: 'bar-family', value: 'claude', source: 32288 });
+  assert.equal(routingRuleProblem(f.board, item, 'core-2', 'review')?.code, 'ROUTING_RULE',
+    'the compatibility reader proves that the planted record really bars this seat in its retired model');
+  const rules = store.routingRules(f.board);
+  assertComputedReview(f, id, 'core-2');
+  assert.deepEqual(store.routingRules(f.board), rules, 'live admission does not heal, revoke or rewrite stored records');
 });
 
-test('an eligible seat is still offered the review and the build [C7]', t => {
+test('planted only-seat and build records do not override native computed review or claim guards [C7,V1]', t => {
   const f = fixture(t), id = f.add();
   f.submit(id);
   f.rule({ act: 'review', scope: { item: id }, effect: 'only-seat', value: 'core-4', source: 42630 });
-  assert.equal(f.review('core-4').item?.item_id, id);
-  assert.equal(dispatchWork(f.board, store.agentById(f.board, 'core-4')).item?.item_id, id);
-  assert.equal(f.review('core-2').item, null, 'only the routed seat reviews');
+  assertComputedReview(f, id, 'core-2');
   const open = f.add();
   f.rule({ act: 'build', scope: { item: open }, effect: 'bar-pool', value: 'core-2', source: 43048 });
-  const seen = agentId => store.nextFor(f.board, { agentId, lane: 'core' });
-  assert.notEqual(seen('core-2').item?.item_id, open, 'the barred builder is not offered the item');
-  assert.equal(seen('core-4').item?.item_id, open, 'another builder is');
-  assert.throws(() => store.claim(f.board, open, { agentId: 'core-2', lane: 'core', leaseMs: LEASE, freeze }), { code: 'ROUTING_RULE' });
+  assert.equal(routingRuleProblem(f.board, store.getItem(f.board, open), 'core-2', 'build')?.code, 'ROUTING_RULE');
+  const next = store.nextFor(f.board, { agentId: 'core-2', lane: 'core' });
+  assert.equal(next.item?.item_id, open);
+  assert.equal(dispatchWork(f.board, store.agentById(f.board, 'core-2')).item?.item_id, open);
+  store.claim(f.board, open, { agentId: 'core-2', lane: 'core', leaseMs: LEASE, freeze });
+  assert.equal(store.getItem(f.board, open).item_owner, 'core-2', 'the actual native claim succeeds without stored-rule authority');
 });
 
 test('only the coordinator sets a rule, a bad rule is refused, and an identical rule records once [C7]', t => {
@@ -81,7 +116,7 @@ test('only the coordinator sets a rule, a bad rule is refused, and an identical 
   assert.ok(store.events(f.board).some(event => event.event_kind === 'routing-rule'), 'each change is an event');
 });
 
-test('the standing rulings are rules, each naming its source shout, and they are enforced [C7]', t => {
+test('legacy standing-rule records retain compatibility reader bytes without live admission authority [C7]', t => {
   const f = fixture(t);
   const standard = f.submit(f.add());
   const strictCodex = f.submit(f.add({ sensitive: true }));
@@ -150,34 +185,76 @@ test('native and ordered releases require a reason code while historical release
   assert.equal(store.getItem(old.board, historicalId).item_status, 'open', 'the pre-routing engine preserves an old uncoded release');
 });
 
-test('a session rule reads the persisted session separately from its shared parent pool [C7]', t => {
-  const f = fixture(t), id = f.add();
-  f.submit(id);
-  f.join('core-5', 'claude', 'b', 'd');
-  const session = 'b'.repeat(64);
-  assert.equal(effectiveAgentParent(f.board, 'core-2'), effectiveAgentParent(f.board, 'core-5'), 'these sessions share one parent pool');
-  assert.notEqual(effectiveAgentParent(f.board, 'core-4'), session, 'the fixture seats have distinct lineages');
-  const bar = f.rule({ act: 'review', scope: { item: id }, effect: 'bar-session', value: session, source: 43048 });
-  assert.equal(f.review('core-2').item, null, 'the barred session is offered nothing');
-  assert.equal(f.review('core-4').item?.item_id, id, 'another session is');
-  assert.equal(f.review('core-5').item?.item_id, id, 'a different session in the barred session\'s parent pool remains eligible');
-  f.rule({ revoke: bar });
-  f.rule({ act: 'review', scope: { item: id }, effect: 'require-session', value: session, source: 43048 });
-  assert.equal(f.review('core-2').item?.item_id, id, 'the required session is offered the review');
-  assert.equal(f.review('core-4').item, null, 'every other session is barred');
-  assert.equal(f.review('core-5').item, null, 'sharing the required session\'s parent does not satisfy a session requirement');
-  assert.throws(() => store.reserveReview(f.board, id, { agentId: 'core-4', leaseMs: LEASE, policy: 'any', familyPolicy: 'off' }), { code: 'ROUTING_RULE' });
+test('computed session identity rejects shared parents and shared author sessions across native review paths [C7,V1,H16]', t => {
+  for (const [reviewer, parent, session] of [['core-5', 'a', 'd'], ['core-6', 'd', 'a']]) {
+    const f = fixture(t), id = f.add();
+    f.submit(id);
+    f.join(reviewer, 'claude', parent, session);
+    if (parent === 'a') assert.equal(effectiveAgentParent(f.board, reviewer), effectiveAgentParent(f.board, 'core-1'));
+    else assert.notEqual(effectiveAgentParent(f.board, reviewer), effectiveAgentParent(f.board, 'core-1'));
+    assertComputedReview(f, id, reviewer, 'SELF_SESSION_VERIFY');
+  }
+  const independent = fixture(t), id = independent.add();
+  independent.submit(id);
+  independent.join('core-5', 'claude', 'b', 'd');
+  assert.equal(effectiveAgentParent(independent.board, 'core-2'), effectiveAgentParent(independent.board, 'core-5'),
+    'sharing another independent reviewer pool does not make it a builder pool');
+  assertComputedReview(independent, id, 'core-5');
 });
 
-test('family rules use the native immutable declaration and unknown sessions cannot evade session rules [C7]', t => {
+test('computed strict, required family, route and policy rules agree with native reservation and verdict [C7,V1,B13]', t => {
+  for (const [itemOptions, agentId, code, policy] of [
+    [{ sensitive: true }, 'core-4', 'O2_FAMILY_MATCH', {}],
+    [{ reviewFamily: 'claude' }, 'core-4', 'REQUIRED_REVIEW_FAMILY', {}],
+    [{}, 'core-2', 'COORDINATOR_VERIFIES', { policy: 'coordinator' }],
+    [{}, 'core-4', 'O2_FAMILY_MATCH', { familyPolicy: 'require' }],
+    [{}, 'core-8', 'ROUTE', {}],
+  ]) {
+    const f = fixture(t), id = f.add(itemOptions);
+    f.submit(id);
+    if (agentId === 'core-8') store.register(f.board, { id: agentId, lane: 'core', path: '/fixture/core-8',
+      route: 'light', family: 'claude', parentDigest: 'f'.repeat(64), sessionDigest: 'f'.repeat(64), model: 'Synthetic fixture model' });
+    assertComputedReview(f, id, agentId, code, policy);
+  }
+  for (const itemOptions of [{ sensitive: true }, { reviewFamily: 'claude' }]) {
+    const f = fixture(t), id = f.add(itemOptions);
+    f.submit(id);
+    f.board.db.prepare('UPDATE agent SET agent_family=? WHERE agent_id=?').run('stale physical label', 'core-2');
+    assertComputedReview(f, id, 'core-2');
+  }
+});
+
+test('computed review selection preserves held diagnostics, coded-release cooldown and another eligible seat [C7,V1]', t => {
   const f = fixture(t), id = f.add();
   f.submit(id);
-  f.rule({ act: 'review', scope: { item: id }, effect: 'require-family', value: 'claude', source: 43048 });
-  f.board.db.prepare('UPDATE agent SET agent_family=? WHERE agent_id=?').run('stale physical label', 'core-2');
-  assert.equal(f.review('core-2').item?.item_id, id, 'the immutable native declaration still says Claude');
-  f.rule({ act: 'review', scope: { item: id }, effect: 'bar-session', value: 'b'.repeat(64), source: 43048 });
-  store.register(f.board, { id: 'core-6', lane: 'core', path: '/fixture/core-6', family: 'claude', model: 'Synthetic fixture model' });
-  assert.equal(f.review('core-6').item, null, 'missing session metadata never establishes that this seat is outside a barred session');
+  store.reserveReview(f.board, id, { agentId: 'core-2', leaseMs: LEASE, policy: 'any' });
+  const held = f.review('core-4');
+  assert.equal(held.item, null);
+  assert.match(held.reasons.join('\n'), new RegExp('core-2 holds the review of #' + id, 'u'));
+  assert.deepEqual(Object.keys(held), ['item', 'reasons'], 'ordinary query shape gains no diagnostic field');
+  assert.throws(() => store.reserveReview(f.board, id, { agentId: 'core-4', leaseMs: LEASE, policy: 'any' }), { code: 'REVIEW_HELD' });
+  assert.equal(store.release(f.board, id, 'core-2', 'Private component handoff after native eligibility comparison.', undefined, 'BLOCKED'), true);
+  const cooling = f.review('core-2');
+  assert.equal(cooling.item, null);
+  assert.match(cooling.reasons.join('\n'), /you released the review/u);
+  assert.throws(() => store.reserveReview(f.board, id, { agentId: 'core-2', leaseMs: LEASE, policy: 'any' }), { code: 'REVIEW_COOLDOWN' });
+  assert.equal(f.review('core-4').item?.item_id, id, 'the release cooldown is specific to the releasing reviewer');
+  assertComputedReview(f, id, 'core-4');
+});
+
+test('computed review filtering preserves native urgency, skip and omit ordering [C7,V1,N2]', t => {
+  const f = fixture(t), first = f.add(), second = f.add();
+  f.submit(first);
+  f.submit(second);
+  /** Exercise the real query with only its existing selection options. */
+  const next = options => store.nextFor(f.board, { agentId: 'core-2', lane: 'core', verify: true,
+    policy: 'any', familyPolicy: 'off', ...options });
+  const before = store.events(f.board);
+  assert.equal(next({}).item?.item_id, first, 'the oldest native submission remains first');
+  assert.equal(next({ priority: [second] }).item?.item_id, second, 'actual main-red urgency still precedes age');
+  assert.equal(next({ skipIds: [first] }).item?.item_id, second);
+  assert.equal(next({ omitIds: [first] }).item?.item_id, second);
+  assert.deepEqual(store.events(f.board), before, 'all ordering probes remain read-only');
 });
 
 test('a rule-bearing native board fences fresh legacy shout and release senders [C7,H16]', t => {

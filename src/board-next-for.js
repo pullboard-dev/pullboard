@@ -1,13 +1,8 @@
-import { committedItemAuthors } from './review-independence.js';
-import { strictReviewProblem } from './review-independence.js';
 import { firstRefusal } from './board-item-read.js';
 import * as reviewRouting from './review-routing.js';
-import { reviewFamilyProblem } from './review-independence.js';
-import { twoTierReviews } from './review-independence.js';
 import { idleReason } from './routing-presence.js';
 import { liveRouteProblem } from './routing-presence.js';
 import * as itemDependencies from './item-dependencies.js';
-import * as reviewFamilies from './required-review-family.js';
 import { criticalPathEnabled } from './critical-path-order.js';
 import { criticalPathOrder } from './critical-path-order.js';
 import { focusOrder } from './focus-milestone.js';
@@ -25,11 +20,9 @@ import { itemHold } from './board-query.js';
 import { laneHold } from './board-query.js';
 import { itemFiles } from './item-files.js';
 import { itemFileCollisions } from './item-files.js';
-import { COORDINATOR } from './config.js';
 import { firstRefusalReason } from './claims.js';
 import { ENGINE_VERSION } from './machine.js';
 import { MILESTONE_RANK_ENGINE } from './machine.js';
-import { itemAuthorProblem } from './item-authors.js';
 import { ROUTES } from './route-escalation.js';
 import { canTake } from './route-escalation.js';
 import { routeOf } from './seats.js';
@@ -71,15 +64,25 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const family = reviewRouting.seatFamily(board, agentId);
     const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, entry.item_builder_family);
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
-    const standingRefusal = unrelated.map((entry) => itemAuthorProblem(board, entry, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }) ?? reviewFamilyProblem(board, entry, agentId, familyPolicy)).find(Boolean);
-    const requiredRefusals = unrelated.map(entry => reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId) ?? reviewRouting.routingRuleProblem(board, entry, agentId, 'review')).filter(Boolean);
-    let reviewable = unrelated.filter((entry) => !itemAuthorProblem(board, entry, agentId, { committedItemAuthors, twoTierReviews, strictReviewProblem }) && !reviewFamilyProblem(board, entry, agentId, familyPolicy) && !reviewFamilies.requiredReviewFamilyProblem(board, entry, agentId) && !reviewRouting.routingRuleProblem(board, entry, agentId, 'review') && !reviewRouting.strictReviewProblem(board, entry, agentId));
-    if (policy === COORDINATOR && agentId !== COORDINATOR) reviewable = reviewable.filter((entry) => entry.item_lane === COORDINATOR);
-    if (familyPolicy === 'require') reviewable = reviewable.filter(hasDifferentFamily);
+    const checks = reviewerChecks(board, { agentId, policy, familyPolicy });
+    /** Use the native reservation/verdict guard order, preserving its first refusal and short circuit. */
+    function failure(entry) {
+      for (const [guard, check] of Object.entries(checks)) {
+        const problem = check(entry);
+        if (problem) return { guard, problem };
+      }
+      return null;
+    }
+    const failures = new Map(unrelated.map(entry => [entry, failure(entry)]));
+    const standingRefusal = [...failures.values()].find(value => ['notBuilder', 'familyAllows'].includes(value?.guard))?.problem;
+    const requiredRefusals = [...failures.values()].filter(value => value?.guard === 'requiredReviewFamily').map(value => value.problem);
+    // Keep other holders only for the existing diagnostic; they can never become selected work.
+    const reviewable = unrelated.filter(entry => !failures.get(entry) || failures.get(entry).guard === 'reviewFree');
     if (familyPolicy === 'prefer') reviewable.sort((first, second) => Number(hasDifferentFamily(second)) - Number(hasDifferentFamily(first)));
     const candidates = reviewable.map((entry) => ({
       entry,
       holder: reviewHolder(board, entry),
+      problem: failures.get(entry)?.problem,
       cooldown: reviewReleaseCooldown(board, entry.item_id, agentId),
     }));
     const heldByMe = candidates.find((candidate) => candidate.holder === agentId)?.entry;
@@ -99,7 +102,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const order = criticalPathEnabled(board) ? criticalPathOrder({ items: listItems(board, { all: true }), group, fallback: previousOrder }) : previousOrder;
     candidates.sort((first, second) => order(first.entry, second.entry));
     reviewRouting.prioritizeReviews(board, candidates, priority, focusCompare);
-    const item = candidates.find((candidate) => !candidate.holder && !candidate.cooldown)?.entry;
+    const item = candidates.find((candidate) => !candidate.problem && !candidate.holder && !candidate.cooldown)?.entry;
     if (item) return { item, reasons: focusReasons(board, item, [], { milestones }) };
     const held = candidates.filter((candidate) => candidate.holder && candidate.holder !== agentId)
       .map(({ entry, holder: reviewer }) => `${reviewer} holds the review of #${entry.item_id} until ${entry.item_review_until}`);
@@ -155,7 +158,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const waiting = itemDependencies.localDependencyIds(entry)
       .map((id) => current(board, itemById(board, id)))
       .filter((before) => before.item_status !== 'verified');
-    const reserved = reviewRouting.routingRuleProblem(board, entry, agentId, 'build')?.message ?? firstRefusalReason(board, entry.item_id, agentId, { firstRefusal });
+    const reserved = firstRefusalReason(board, entry.item_id, agentId, { firstRefusal });
     if (reserved) { reasons.push(reserved); continue; }
     const collisions = itemFileCollisions(entry, inFlight);
     if (collisions.length) { reasons.push(...collisions); continue; }

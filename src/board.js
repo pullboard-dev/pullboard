@@ -303,7 +303,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off' })
     },
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
-    requiredReviewFamily: found => reviewFamilies.requiredReviewFamilyProblem(board, found, agentId) ?? reviewRouting.routingRuleProblem(board, found, agentId, 'review'),
+    requiredReviewFamily: found => reviewFamilies.requiredReviewFamilyProblem(board, found, agentId),
     familyAllows: (found) => reviewRouting.strictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
       : null),

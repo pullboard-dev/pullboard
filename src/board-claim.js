@@ -29,7 +29,6 @@ import { barReadyProblem } from './bar-readiness.js';
 import { COORDINATOR } from './config.js';
 import { Refused } from './refused.js';
 import { routeOf } from './seats.js';
-import { routingRuleProblem } from './routing-rules.js';
 import { canTake } from './route-escalation.js';
 import * as itemDependencies from './item-dependencies.js';
 import { firstRefusalProblem } from './claims.js';
@@ -91,7 +90,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       notHeldByAnother: (found) => (isHeld(board, found) && found.item_owner !== agentId ? new Refused('HELD', `item #${id} is held by ${found.item_owner} until ${found.item_lease_until}`) : null),
       builderFirstRefusal: () => (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalProblem(board, id, agentId, { firstRefusal }) : null,
       correctionRefrozen: () => adopts ? null : pendingRefreezeProblem(board, id),
-      routingRules: found => routingRuleProblem(board, found, agentId, 'build'),
+      routingRules: null, // Retired stored-rule admission; retain the declared historical guard slot.
       laneOpen: (found) => {
         // Declared: not checked when the caller renews its own live claim.
         const paused = laneHold(board, found.item_lane);
