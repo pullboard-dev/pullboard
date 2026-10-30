@@ -109,7 +109,7 @@ export function observeWorkers(board, { lane, managed, now = Date.now() }) {
     worth: readCapacity(board, now).agents?.recommended ?? null,
     workers: ids.map(id => ({ id, busy: seatHoldsWork(board, id, items), managed: managed.includes(id) })),
     reviews: items.filter(item => item.item_status === 'submitted' && !store.reviewHolder(board, item)).length,
-    builds: readyItems(board, store.foreignBlockers).filter(item => item.item_lane === lane).length,
+    builds: readyItems(board, store.foreignBlockers, store).filter(item => item.item_lane === lane).length,
   };
 }
 
