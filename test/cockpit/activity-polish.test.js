@@ -42,7 +42,7 @@ test('Activity keeps shout words light, questions and item chips clear, and work
     for (const width of [1280, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 700 });
       await chrome.waitFor('innerWidth === ' + width);
-      const state = JSON.parse(await chrome.stable('JSON.stringify((() => { const rows=[...document.querySelectorAll("#activity [data-activity-kind=shout]")]; return { overflow:document.documentElement.scrollWidth>innerWidth, rows:rows.map(row=>{const q=row.querySelector(".activity-quote"),s=getComputedStyle(q),chip=row.querySelector(".activity-about");return {coordinator:row.querySelector(".activity-who").textContent==="The coordinator",sentence:row.querySelector(".activity-say p").textContent,text:q.textContent,clamp:s.webkitLineClamp,background:s.backgroundColor,padding:s.padding,color:s.color,height:q.getBoundingClientRect().height,lineHeight:parseFloat(s.lineHeight),chip:chip?.textContent??null,chipInSentence:!!chip?.closest("p"),target:chip?.dataset.go??null,literalElements:q.querySelectorAll("word").length};})}; })())'));
+      const state = JSON.parse(await chrome.stable('JSON.stringify((() => { const rows=[...document.querySelectorAll("#activity [data-activity-kind=shout]")]; return { overflow:document.documentElement.scrollWidth>innerWidth, accent:getComputedStyle(document.querySelector("#activity [data-activity-kind=claim] .activity-verb")).backgroundColor, rows:rows.map(row=>{const q=row.querySelector(".activity-quote"),s=getComputedStyle(q),chip=row.querySelector(".activity-about");return {coordinator:row.querySelector(".activity-who").textContent==="The coordinator",sentence:row.querySelector(".activity-say p").textContent,text:q.textContent,clamp:s.webkitLineClamp,background:s.backgroundColor,padding:s.padding,color:s.color,height:q.getBoundingClientRect().height,lineHeight:parseFloat(s.lineHeight),chip:chip?.textContent??null,chipInSentence:!!chip?.closest("p"),chipColor:chip?getComputedStyle(chip).color:null,target:chip?.dataset.go??null,literalElements:q.querySelectorAll("word").length};})}; })())'));
       assert.equal(state.overflow, false, width + ': Activity has no horizontal overflow');
       const agent = state.rows.find(row => row.sentence.startsWith('web-1'));
       const coordinator = state.rows.find(row => row.coordinator);
@@ -62,7 +62,8 @@ test('Activity keeps shout words light, questions and item chips clear, and work
       assert.equal(agent.background, 'rgba(0, 0, 0, 0)', 'agent words lose the grey box');
       assert.equal(agent.padding, '0px');
       assert.equal(coordinator.padding, '4px 8px', 'coordinator padding follows the approved mockup');
-      assert.notEqual(coordinator.background, agent.background, 'coordinator words retain a tint');
+      assert.equal(coordinator.background, state.accent, 'coordinator words use the established accent-soft tint');
+      assert.equal(agent.chipColor, agent.color, 'the related item chip keeps the muted text tone');
       assert.notEqual(coordinator.color, agent.color, 'agent words use the quieter text tone');
       assert.match(await chrome.stable('document.querySelector("#activity [data-activity-kind=claim]").textContent'), /started building.*#1/u);
       assert.equal(await chrome.stable('document.querySelector("#activity [data-activity-kind=claim] .activity-about")'), null, 'work rows retain their existing item presentation');
