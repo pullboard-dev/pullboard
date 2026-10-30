@@ -119,3 +119,15 @@ test('the renderer shortens home to ~, escapes hostile text and marks only real 
   assert.equal((html.match(/data-copy-command/gu) || []).length, 1);
   assert.match(html, /<b title="0">0<\/b>/u, 'zero stays visible');
 });
+
+test('the renderer shows what the API row says: changing an inventory description or label changes the rendered row [O5,O6,N26]', () => {
+  const base = { scope: 'machine', key: 'gateSlots', label: 'Checks at once', description: 'First wording.', group: 'Capacity', unit: 'count', cli: 'gateSlots', value: 2, default: 2, source: '/x/settings.json' };
+  const first = settingsContentHtml({ rows: [base] }, 'machine');
+  const second = settingsContentHtml({ rows: [{ ...base, label: 'Parallel runs', description: 'Second wording.', group: 'Order' }] }, 'machine');
+  assert.match(first, /First wording\./u);
+  assert.match(second, /Second wording\./u);
+  assert.doesNotMatch(second, /First wording|Checks at once|Capacity/u, 'no description, label or group is held inside the view');
+  assert.match(second, /Parallel runs/u);
+  assert.match(second, /<h3>Order/u);
+  assert.doesNotMatch(settingsContentHtml({ rows: [{ ...base, cli: null }] }, 'machine'), /data-copy-command/u, 'the copy button follows the row\'s own cli flag');
+});
