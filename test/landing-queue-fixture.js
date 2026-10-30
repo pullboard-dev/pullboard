@@ -201,6 +201,18 @@ function sourceAdvancePolicyCall(box, batches, record, board, audits) {
   return true;
 }
 
+/** Close only a recorded native wake, never infer completion from current process absence. */
+async function closePolicySourceWake(box, helpers, expectedGeneration) {
+  const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
+  assert.ok(Number.isSafeInteger(expectedGeneration) && expectedGeneration > 0);
+  return helpers.waitFor(() => { // Budget: 120s runaway ceiling for actual native source publication and owner drain.
+    const wake = readMainAudit(join(directory, 'wake.json'));
+    const settled = readMainAudit(join(directory, 'settled.json'));
+    return !existsSync(join(directory, 'owner.json')) && settled?.generation >= expectedGeneration
+      && settled.generation === wake?.generation ? settled : false;
+  }, 'the exact native source wake closes before private branch repair or cleanup', 120_000);
+}
+
 /** Count every foreground invocation; exclude only independently source-bound native work for these batches. */
 function landingPolicyCalls(box, batches, records) {
   const roots = new Set(batches.map(batch => batch.root));
@@ -394,6 +406,12 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
         /accepted.*policy|accepted new policy/u, 'a bound background root never excuses the wrong policy');
     }
     t.diagnostic(`policy journal: ${calls.length} foreground invocations; ${records.length - calls.length} independently bound audit invocations`);
+    const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
+    if (existsSync(directory) && readdirSync(directory).filter(name => /^[a-f0-9]{64}\.json$/u.test(name))
+      .some(name => records.some(record => record.cwd === readMainAudit(join(directory, name))?.directory))) {
+      const wake = readMainAudit(join(directory, 'wake.json'));
+      await closePolicySourceWake(box, helpers, wake?.generation);
+    }
   }
   for (const entry of entries) {
     assert.equal(readFileSync(join(box.repo, `web/queue-${entry.id}.txt`), 'utf8'), 'works\n');
@@ -407,9 +425,13 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   const sandbox = helpers.sandbox({ declareFamilies: true });
   const callsFile = join(sandbox.dir, 'source-policy-calls.jsonl');
   const gate = join(sandbox.dir, 'source-policy-gate.cjs');
+  const entered = join(sandbox.dir, 'source-policy-entered');
+  const released = join(sandbox.dir, 'source-policy-released');
+  t.after(() => writeFileSync(released, 'released'));
   writeFileSync(gate, [
     "const fs = require('node:fs'); const assert = require('node:assert/strict');",
     `fs.appendFileSync(${JSON.stringify(callsFile)}, JSON.stringify({cwd:process.cwd(),args:process.argv.slice(2)}) + '\\n');`,
+    `if (process.argv.includes('--new-policy') && !fs.existsSync(${JSON.stringify(released)})) { fs.writeFileSync(${JSON.stringify(entered)}, process.cwd()); const end = Date.now()+20000; while (!fs.existsSync(${JSON.stringify(released)}) && Date.now()<end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20); assert.ok(fs.existsSync(${JSON.stringify(released)}), 'owning test releases actual source gate'); }`,
     "for (const name of (fs.existsSync('web') ? fs.readdirSync('web') : []).filter(name => /^queue-\\d+\\.txt$/.test(name))) assert.match(fs.readFileSync('web/'+name,'utf8'), /^works/);",
     "console.log('TAP version 13\\nok 1 - actual source composition preserves queue behavior\\n1..1\\n# tests 1\\n# pass 1\\n# fail 0');",
   ].join('\n'));
@@ -431,6 +453,13 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   const expectedGeneration = (readMainAudit(wakeFile)?.generation ?? 0) + 1;
   run(box, box.repo, 'land', '--max', '1');
   run(box, box.repo, 'sentinel', 'run', '--health-only', '--json');
+  await helpers.waitFor(() => existsSync(entered), 'the actual new-policy source gate enters');
+  const liveOwner = readMainAudit(join(directory, 'owner.json'));
+  assert.ok(Number.isSafeInteger(liveOwner?.pid), 'the held source gate has a real native worker owner');
+  const enteredRoot = readFileSync(entered, 'utf8');
+  assert.ok(readdirSync(directory).filter(name => /^[a-f0-9]{64}\.json$/u.test(name))
+    .some(name => readMainAudit(join(directory, name))?.directory === enteredRoot), 'the held gate belongs to a recorded source job');
+  writeFileSync(released, 'released');
   const sourceJob = await helpers.waitFor(() => { // Budget: 120s runaway ceiling for an actual detached native gate and closed wake.
     const done = readMainAudit(join(directory, 'settled.json'));
     if (existsSync(join(directory, 'owner.json')) || !(done?.generation >= expectedGeneration)) return false;
@@ -438,7 +467,9 @@ export async function sourceAdvancePolicyCase(t, helpers) {
       .map(name => readMainAudit(join(directory, name)))
       .find(job => job.item === entries[0].id && job.state === 'advanced' && job.receiptIds?.length);
   }, 'the genuine source-advance gate closes its expected generation', 120_000);
+  const finalGeneration = (readMainAudit(wakeFile)?.generation ?? 0) + 1;
   run(box, box.repo, 'land', '--max', '1');
+  await closePolicySourceWake(box, helpers, finalGeneration);
   const batches = readBoard(box, board => store.landingBatches(board).filter(batch => batch.state === 'landed'));
   assert.equal(batches.length, 2);
   const records = readFileSync(callsFile, 'utf8').trim().split(/\r?\n/u).map(line => JSON.parse(line));
@@ -449,7 +480,8 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   assert.throws(() => landingPolicyCalls(box, batches, [...records, background[0]]), /duplicate audit invocation/u);
   assert.throws(() => landingPolicyCalls(box, batches, records.map(record => record === background[0] ? { ...record, args: [] } : record)), /accepted policy/u);
   assert.throws(() => landingPolicyCalls(box, batches, [...records, { cwd: join(box.dir, 'unbound-source'), args: ['--new-policy'] }]), /unknown gate root/u);
-  t.diagnostic(JSON.stringify({ foreground: foreground.length, independentlyBound: background.length,
+  await repairedPolicyControls(box, batches[0]);
+  t.diagnostic(JSON.stringify({ liveOwner, finalGeneration, foreground: foreground.length, independentlyBound: background.length,
     expectedGeneration, items: entries.map(entry => entry.id), policyTip: batches[0].tip,
     sourceJob: { item: sourceJob.item, state: sourceJob.state, head: sourceJob.head, tree: sourceJob.tree,
       basis: sourceJob.basis, receiptIds: sourceJob.receiptIds } }));
