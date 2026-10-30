@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import * as store from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { context } from '../../src/cli-read-context.js';
 import { freezer } from '../../src/cli.js';
 import { build } from './fixture.js';
@@ -55,7 +56,7 @@ export function seedNativeOrdinary(box, demo, { includeForward = false, keepClai
   // @pullboard-board-file journey: only this native private fixture uses a deterministic board clock.
   // The freezer reads the real committed spec and policy; no frozen envelope or event is manufactured.
   let at = Date.now() - 60_000;
-  const board = store.openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(at) });
+  const board = openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(at) });
   try {
     const holder = store.listAgents(board).find(agent => agent.agent_path === clockSeat)?.agent_id;
     assert.ok(holder, 'the clock cases use their own actually registered seat');

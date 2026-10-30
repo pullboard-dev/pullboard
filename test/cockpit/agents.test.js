@@ -6,7 +6,8 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { closeBoard, openBoard, register } from '../../src/board.js';
+import { closeBoard, register } from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { exportBoard, importBoard } from '../../src/exchange.js';
 import { projectState } from '../../src/serve.js';
 import { exportView } from '../../src/commands/view.js';

@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { createE2eHelpers } from '../test/e2e-helpers.js';
 import { runFixtureChild } from '../test/fixture-child.js';
 
@@ -53,7 +54,7 @@ test('the hand-off guide matches the board [B3,N19]', () => {
       branch: 'refs/heads/main', root: join(directory, 'worktree'),
       owner: 'outgoing-coordinator-session', logPath: join(directory, 'logs', 'batch.log'),
       items: [{ id, commit: accepted }] };
-    const board = store.openBoard(join(common, 'pullboard', 'board.sqlite'));
+    const board = openBoard(join(common, 'pullboard', 'board.sqlite'));
     try { store.recordLandingBatch(board, { agentId: 'coordinator', batch }); }
     finally { store.closeBoard(board); }
 
