@@ -61,6 +61,8 @@ test('pipeline exact stage times use native admission, reservation and merge bou
   assert.equal(report.totals.submit.measuredMs, 20000);
   assert.equal(report.totals.submit.unmeasuredItems, 0);
   assert.equal(report.causes.unknown, 0);
+  assert.deepEqual(report.unmeasuredGaps.map(gap => [gap.kind, gap.count, gap.durationMs]), [['unrecorded-attempts', null, null]]);
+  assert.match(pipelineLines(report).join('\n'), /unmeasured unrecorded-attempts/u);
 });
 
 test('pipeline retains every recorded retry/reopen cause and unknown without prose inference [R1,R2,C7]', t => {

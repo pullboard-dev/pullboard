@@ -131,6 +131,7 @@ export function pipelineStats(history, { limit = 20 } = {}) {
   const causes = Object.fromEntries(CAUSES.map(key => [key, 0]));
   for (const item of items) for (const retry of item.retries) causes[retry.cause] += 1;
   return { version: 1, limit, count: items.length, items, causes,
+    unmeasuredGaps: [{ kind: 'unrecorded-attempts', count: null, durationMs: null, reason: 'Commands failing before native admission have no recorded event; their count, cause and duration are unmeasured.' }],
     totals: Object.fromEntries(STAGES.map(key => [key, { measuredMs: items.reduce((sum, item) => sum + item.measuredMs[key], 0), unmeasuredItems: items.filter(item => item.stages[key] === null).length }])),
     evidence: 'Recorded native events only; commands failing before admission leave no event and are unmeasured. Landing includes the recorded acceptance-to-merge wait.' };
 }
@@ -144,6 +145,7 @@ export function pipelineLines(report) {
     for (const gap of item.gaps) lines.push(`  unmeasured: ${gap.reason} (event ${gap.eventId})`);
   }
   lines.push(`retry/reopen causes: ${Object.entries(report.causes).map(([key, count]) => `${key} ${count}`).join(' · ')}`);
+  for (const gap of report.unmeasuredGaps) lines.push(`unmeasured ${gap.kind}: ${gap.reason}`);
   lines.push(report.evidence);
   return lines;
 }
