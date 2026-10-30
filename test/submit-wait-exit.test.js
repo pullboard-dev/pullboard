@@ -30,14 +30,14 @@ async function submitToGate(t, options) {
     await child.closed;
     if (options?.handoff) {
       // Observe cleanup before removing a repository still owned by its detached worker.
-      await helpers.waitFor(() => handoffFinished(box), 'the actual queued worker cleanup', 120_000); // budget: wait for actual owned-worker cleanup before fixture removal; no throughput assertion.
+      await helpers.waitFor(() => handoffFinished(box), 'the actual queued worker cleanup', 120_000); // budget: hang ceiling for actual owned-worker cleanup before fixture removal.
     }
   });
   box = fixture(t, { check: 'node test/runner.js test/inherited.test.js', ...options });
   child = helpers.launch(box, box.builder, process.execPath,
     [BIN, 'submit', String(box.item), '--wait', '--no-next', '--json']);
   // budget: hang ceiling for the actual CLI exit; no elapsed-time assertion defines correct behavior.
-  await helpers.waitFor(() => child.exitCode !== null || child.signalCode !== null,
+  await helpers.waitFor(() => child.exitCode !== null || child.signalCode !== null, // budget: hang ceiling for observed actual CLI exit.
     'the final gate outcome to end submit without a reviewer', 30_000); // budget: fail only a hung CLI; no elapsed-time performance assertion.
   await child.closed;
   return { box, child, document: JSON.parse(child.stdoutText) };
@@ -103,7 +103,7 @@ test('a queued wait names an actually lost worker before any gate admission [V4,
       if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
       await child.closed;
     }
-    if (barrier) await helpers.waitFor(() => exactStart(barrier.git) !== barrier.gitStart,
+    if (barrier) await helpers.waitFor(() => exactStart(barrier.git) !== barrier.gitStart, // budget: hang ceiling for the owned Git child cleanup.
       'the owned checkout Git child to actually exit', 30_000); // budget: owned-child cleanup ceiling before fixture removal.
   });
   const box = fixture(t, { handoff: true });
@@ -127,7 +127,7 @@ test('a queued wait names an actually lost worker before any gate admission [V4,
   runFixtureGit(['config', 'core.hooksPath', join(box.root, '.git/hooks')], { cwd: box.root, env: box.env });
   child = helpers.launch(box, box.builder, process.execPath,
     [BIN, 'submit', String(box.item), '--wait', '--no-next', '--json']);
-  await helpers.waitFor(() => existsSync(ready), 'the real private checkout barrier', 30_000); // budget: wait for the actual private checkout handshake, not a timing margin.
+  await helpers.waitFor(() => existsSync(ready), 'the real private checkout barrier', 30_000); // budget: hang ceiling for the actual private checkout handshake.
   barrier = JSON.parse(readFileSync(ready, 'utf8'));
   assert.ok(barrier.gitStart, 'cleanup observes an exact owned Git incarnation');
   // @pullboard-board-file journey: locate the real enqueued worker without creating a native job or receipt.
@@ -136,12 +136,12 @@ test('a queued wait names an actually lost worker before any gate admission [V4,
   try { job = submitHandoff(board, box.item); } finally { board.db.close(); }
   assert.equal(job.state, 'queued', 'the checkout barrier precedes all gate holder/waiter admission');
   const workerFile = join(box.root, '.git/pullboard/submit-handoffs', job.id, 'worker.json');
-  await helpers.waitFor(() => existsSync(workerFile), 'the real worker incarnation receipt', 30_000); // budget: wait for actual owned-worker identity before signaling it.
+  await helpers.waitFor(() => existsSync(workerFile), 'the real worker incarnation receipt', 30_000); // budget: hang ceiling for actual owned-worker identity before signaling it.
   worker = JSON.parse(readFileSync(workerFile, 'utf8'));
   assert.ok(worker.started);
   assert.equal(exactStart(worker.pid), worker.started, 'only this owned fixture worker may be terminated');
   process.kill(worker.pid, 'SIGKILL');
-  await helpers.waitFor(() => child.exitCode !== null, 'the lost-job named refusal', 30_000); // budget: fail only an immortal lost-job CLI; no performance threshold.
+  await helpers.waitFor(() => child.exitCode !== null, 'the lost-job named refusal', 30_000); // budget: hang ceiling for a lost-job CLI; no performance threshold.
   await child.closed;
   assert.equal(child.exitCode, 1, child.stdoutText + child.stderrText);
   const refusal = JSON.parse(child.stdoutText);
