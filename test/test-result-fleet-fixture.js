@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { copyPackageFiles } from '../src/package-files.js';
+import { selectedTestResults } from '../src/test-result-store.js';
+import { testActionKeys } from '../src/test-action-cache.js';
 import { testResultStore } from '../src/test-action-cache.js';
 import { runOnRunnerAsync } from '../src/runners.js';
 import { runFixtureGit } from './fixture-child.js';
@@ -110,9 +112,16 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
     assert.match(differentEnvironment.output, new RegExp(EXECUTED), 'a material execution environment change requires a fresh body');
     assert.doesNotMatch(differentEnvironment.output, /^# reused /mu);
     if (composition) assert.match(differentEnvironment.output, /EXECUTED-STABLE/u);
+    const beforeComposition = composition ? await testActionKeys(repo, { files: ['test/probe.test.js', 'test/stable.test.js'] }) : null;
     writeFileSync(join(repo, 'lib', 'value.js'), 'export const value = 2;\n');
     git('add', 'lib/value.js');
     git('commit', '-q', '-m', 'test: edit reached value');
+    if (composition) {
+      const afterComposition = await testActionKeys(repo, { files: ['test/probe.test.js', 'test/stable.test.js'] });
+      assert.equal(afterComposition.get('test/stable.test.js').inputKey, beforeComposition.get('test/stable.test.js').inputKey, 'the unchanged file retains its input identity');
+      const rows = selectedTestResults(testResultStore(repo), [afterComposition.get('test/stable.test.js').inputKey]);
+      assert.ok(rows.some(row => row.origin.completion?.id === first.executionReceipt.id), JSON.stringify(rows));
+    }
     const changed = await run(homeB, `${HOST}-setup`, 'land');
     assert.equal(changed.isGreen, true, changed.output);
     assert.match(changed.output, new RegExp(EXECUTED), 'editing a reached module executes its file again');
