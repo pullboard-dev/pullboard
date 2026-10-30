@@ -1,7 +1,6 @@
 import { registrationProblem } from './engine-move-register.js';
 import { recordReviewPolicyActivation } from '../packages/state/index.js';
 import { agentGrantMinimum } from './agent-grant.js';
-import { recordFamilyDeclareActivation } from './family-declaration.js';
 import { requireAgentGrant } from './agent-grant.js';
 import { handoffMoveProblem } from '../packages/state/index.js';
 import { requireHandoffActive } from '../packages/state/index.js';
@@ -234,7 +233,7 @@ export function applyEngineMove(board, move, { sequence, at, standing = null, en
         else board.executionEngineVersion = engineVersion;
       }
       recordReviewPolicyActivation(board, move.engine);
-      recordFamilyDeclareActivation(board, move.engine);
+      ports.recordFamilyDeclareActivation(board, move.engine);
       ports.recordRequestMove(board, move, outcome, sequence, at);
       metadata(board, 'relay_receipt_' + move.id, JSON.stringify({ sequence, move: encoded, outcome }));
     }

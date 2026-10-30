@@ -1,3 +1,5 @@
+import { recordFamilyDeclareActivation } from './family-declaration.js';
+import { withDerivedFamily } from './family-declaration.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { SUBMIT_HANDOFF_ENGINE } from './submit-handoff-engine.js';
 import { firstRefusalDetail } from './claims.js';
@@ -270,6 +272,7 @@ export function nativeBoardPorts() {
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
   });
   const enginePorts = boardEnginePorts({
+    recordFamilyDeclareActivation, withDerivedFamily,
     submitHandoffEngines, firstRefusalDetail, itemPatchDigest,
     MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor,
     recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel,
