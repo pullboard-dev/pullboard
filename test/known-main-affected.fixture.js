@@ -57,7 +57,7 @@ function source(expected) {
 }
 
 /** A claimed item with a green frozen check whose affected test/affected.test.js is red or green on main per `main`. */
-export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled = false } = {}) {
+export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled = false, affected } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-known-affected-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const root = join(directory, 'repo');
@@ -86,9 +86,9 @@ export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled 
     lanes: { core: { owns: ['test/', 'change.txt'], specs: ['G'] } } }));
   put(root, 'SPEC.md', '# Fixture\n\n## G · Goals\n- G1 [approved, must] The change works. | gate: test/frozen.test.js\n');
   put(root, 'test/frozen.test.js', source(1));
-  put(root, 'test/affected.test.js', cancelled
+  put(root, 'test/affected.test.js', affected ?? (cancelled
     ? "import { test } from 'node:test';\ntest('cancelled case [G1]', () => new Promise(() => {}));\n"
-    : source(main).replace('frozen case', 'affected case'));
+    : source(main).replace('frozen case', 'affected case')));
   put(root, 'test/runner.js', [
     "import { spawnSync } from 'node:child_process';",
     "const files = process.argv.slice(2).length ? process.argv.slice(2) : ['test/affected.test.js'];",
