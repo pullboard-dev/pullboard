@@ -1,3 +1,4 @@
+/** @pullboard-test-gui */
 /** A live view keeps serving when a landing removes a shipped dependency [N26]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
