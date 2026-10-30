@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
 import { createLocalApiHandler } from '../src/api.js';
+import { main } from '../src/cli.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { apiHttpFixture } from './api-fixture.js';
@@ -76,7 +77,7 @@ test('a later seat model change never relabels an earlier submission [N26]', () 
 test('private local endpoint serves analytics and refuses hosted origins and missing credentials [N26]', async t => {
   const box = apiHttpFixture(t);
   let port;
-  const handler = createLocalApiHandler({ secret: 'fixture-secret', getPort: () => port, projects: () => [{ root: box.root, name: 'fixture' }], boardOpeners: apiBoardOpeners, refusalDocument, costModelPresentation: presentation, allowedOrigins: ['https://app.pullboard.dev'] });
+  const handler = createLocalApiHandler({ runCommand: main, secret: 'fixture-secret', getPort: () => port, projects: () => [{ root: box.root, name: 'fixture' }], boardOpeners: apiBoardOpeners, refusalDocument, costModelPresentation: presentation, allowedOrigins: ['https://app.pullboard.dev'] });
   const server = createServer(handler);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   port = server.address().port;
