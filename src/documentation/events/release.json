@@ -4,7 +4,7 @@
     {
       "order": 14,
       "actor": "builder",
-      "detail": "\u2014"
+      "detail": "`reasonCode`, optional `reason`"
     }
   ]
 }

@@ -44,6 +44,7 @@ import { laneHold } from '../../../../src/board.js';
 import { reviewHolder } from '../../../../src/board.js';
 import { listAgents } from '../../../../src/board.js';
 import { openBoardReadOnly } from '../../../../src/board.js';
+import { readBoardSnapshot } from '../../../../src/board.js';
 import { PERSON } from '../../../../src/board.js';
 import { ROUTES } from '../../../../src/board.js';
 import { rowDecisions } from '../../../../src/board.js';
@@ -147,7 +148,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
   if (typeof dispatchHealth !== 'function') throw new TypeError('healthReport requires its dispatchHealth observation port');
   const at = now.getTime();
   const age = (iso) => at - Date.parse(iso);
-  const board = { db, clock: { now: () => now }, familyAliases: familyIndex(config?.families) };
+  const board = { ...readBoardSnapshot(db, { now: () => now }), familyAliases: familyIndex(config?.families) };
   report.stuck.push(...missedJobFindings(board, at), ...dispatchHealth(board, config).findings);
   for (const stale of staleRowDecisions(rowDecisions(board), root, config)) {
     report.stuck.push(finding('STALE_ROW_DECISION', null, {
@@ -536,8 +537,8 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
       subject: `#${claim.item_id}`, key: `RANK_INVERSION:item:${claim.item_id}`, since: since(claim.item_id), now,
       title: 'a free item ranks ahead',
       why: `${holder.id} claimed #${claim.item_id} while #${first.item_id} ranks ahead in the ${holder.lane} lane and sits free`,
-      next: `release #${claim.item_id} with pullboard release ${claim.item_id}, then claim #${first.item_id}`,
-      command: `pullboard release ${claim.item_id}`,
+      next: `release #${claim.item_id} with pullboard release ${claim.item_id} --reason ROUTED_ELSEWHERE, then claim #${first.item_id}`,
+      command: `pullboard release ${claim.item_id} --reason ROUTED_ELSEWHERE`,
       owner: { role: 'builder', who: holder.id }, detail: { holder: holder.id, ahead: first.item_id },
     }));
   }

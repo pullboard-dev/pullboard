@@ -98,7 +98,7 @@ test('a new stuck finding reaches the coordinator and owner once [A6]', t => {
   for (let index = 0; index < 3; index += 1) assert.equal(box.scan(), null);
   assert.deepEqual(exportBoard(box.board), before, 'persisting findings create no repeated events or shouts');
   store.claim(box.board, id, { agentId: box.builders[0], lane: 'core', leaseMs: HOUR, freeze: box.freeze });
-  store.release(box.board, id, box.builders[0]);
+  store.release(box.board, id, box.builders[0], 'Return the sentinel fixture claim.', 'OTHER');
   assert.deepEqual(box.scan().resolved, [`CLAIM_LAPSED:item:${id}`]);
   assert.equal(store.allShouts(box.board).filter(notice => notice.shout_text.startsWith('Resolved:')).length, 2,
     'one resolution reaches each reader');
@@ -167,7 +167,7 @@ test('a recurring health episode needs no changed code commit and legacy lookali
   const id = box.claimed(0);
   box.clock.offset += 2 * HOUR; box.scan();
   store.claim(box.board, id, { agentId: box.builders[0], lane: 'core', leaseMs: HOUR, freeze: box.freeze });
-  store.release(box.board, id, box.builders[0]); box.scan();
+  store.release(box.board, id, box.builders[0], 'Return the sentinel fixture claim.', 'OTHER'); box.scan();
   store.claim(box.board, id, { agentId: box.builders[0], lane: 'core', leaseMs: HOUR, freeze: box.freeze });
   box.clock.offset += 2 * HOUR; box.scan();
   const report = rigorReport(store.events(box.board), { person: store.PERSON });
