@@ -15,6 +15,8 @@ import { readCellLintBaseline } from '../packages/codemap/index.js';
 import { CELL_BASELINE_DESCRIPTOR } from '../packages/codemap/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
+import { cutTitle } from '../packages/codemap/index.js';
+import { frontDoorBypasses } from './cells-plan-cuts.js';
 import { checkMoved } from './cells-plan.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 import { readPlan } from './cells-plan.js';
@@ -31,6 +33,29 @@ function additions(before, after) {
     counts.set(value, counts.get(value) - 1);
     return false;
   });
+}
+
+/** Read only landed core cut candidates through the controller's already-open connection. */
+export function landedCutItemRows(db) {
+  return db.prepare(`SELECT item_id, item_lane, item_title, item_status, item_merged_commit FROM item
+    WHERE item_lane='core' AND item_status='verified' AND item_merged_commit IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM board_meta WHERE meta_key='item_redirect:' || item_id)`).all();
+}
+
+/** Read cut authority only from the trusted controller's board snapshot and pinned accepted ancestry. */
+function landedCutCells(root, acceptedMain, plan, readCutItems) {
+  if (typeof readCutItems !== 'function') throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader is required');
+  const items = readCutItems(acceptedMain, root);
+  if (!Array.isArray(items)) throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader must return actual item rows');
+  const titles = new Map(plan.cells.map(cell => [cutTitle(cell.name), cell.name]));
+  const landed = new Set();
+  for (const item of items) {
+    const cell = titles.get(item.item_title);
+    if (!cell || item.item_lane !== 'core' || item.item_status !== 'verified'
+      || !/^[a-f0-9]{40,64}$/u.test(item.item_merged_commit ?? '')) continue;
+    if (tryGit(root, ['merge-base', '--is-ancestor', item.item_merged_commit, acceptedMain]).status === 0) landed.add(cell);
+  }
+  return landed;
 }
 
 /** A malformed analysis is a refusal, never an empty set of findings. */
@@ -131,13 +156,10 @@ export function cellsSnapshotProblems(mainRoot, candidateRoot, options) {
   return options.withImportParseCache(() => withBindingReadCache(() => inspectCellsSnapshotProblems(mainRoot, candidateRoot, options), { eligible: options.cacheEligible }));
 }
 
-/** Analyze clean real snapshots with loaded controller code; no candidate module is imported or executed. */
-function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', files, parsers } = {}) {
-  if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical parser services are required');
-  if (!existsSync(join(mainRoot, 'bin/cells-plan.json'))) return { cells: [], problems: [] };
-  const before = readPlan(mainRoot);
+/** Read candidate plan data without allowing shard aliases or symbolic paths outside the snapshot. */
+function candidatePlan(candidateRoot) {
   // Even the index's shard names are untrusted data; no metadata alias may read outside this snapshot.
-  const after = readPlan(candidateRoot, file => {
+  return readPlan(candidateRoot, file => {
     if (file !== 'bin/cells-plan.json' && !/^bin\/cells-plan\/\d{2,}-[a-z-]+\.json$/u.test(file)) throw new Refused('CELLS_SUBMIT', 'invalid candidate plan shard path');
     let path = candidateRoot;
     for (const part of file.split('/')) { path = join(path, part); if (lstatSync(path).isSymbolicLink()) throw new Refused('CELLS_SUBMIT', `symbolic candidate plan path: ${file}`); }
@@ -149,6 +171,14 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
     }
     return source;
   });
+}
+
+/** Analyze clean real snapshots with loaded controller code; no candidate module is imported or executed. */
+function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', files, parsers } = {}) {
+  if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical parser services are required');
+  if (!existsSync(join(mainRoot, 'bin/cells-plan.json'))) return { cells: [], problems: [] };
+  const before = readPlan(mainRoot);
+  const after = candidatePlan(candidateRoot);
   const mainMap = readPathMap(mainRoot), candidateMap = readPathMap(candidateRoot);
   const policy = policyProblems(before, after, mainMap, candidateMap, candidateRoot);
   policy.push(...unplanned(candidateRoot, after).map(file => `unplaced ${file}`));
@@ -170,9 +200,6 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
     .map(row => `cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
   for (const name of cells) {
     const previous = before.cells.some(cell => cell.name === name);
-    const oldCuts = previous ? checkCuts(mainRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory, acceptedInventory: oldInventory }) : [];
-    const newCuts = checkCuts(candidateRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory, acceptedInventory: oldInventory });
-    problems.push(...additions(oldCuts, newCuts).map(problem => `${name} --cuts: ${problem}`));
     const moved = [before, after].some((plan, index) => plan.cells.find(cell => cell.name === name)?.paths
       .some(([from, to]) => [mainMap, candidateMap][index].get(from) === to));
     if (!moved) continue;
@@ -181,6 +208,36 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
     problems.push(...additions(oldMoved, newMoved).map(problem => `${name} --moved: ${problem}`));
   }
   return { cells, problems };
+}
+
+/** Compare only the candidate's own graph delta with its actual merge base, using trusted landed authority. */
+function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers }) {
+  if (!existsSync(join(baseRoot, 'bin/cells-plan.json'))) return { problems: [], existingCuts: [] };
+  const before = readPlan(baseRoot), after = candidatePlan(sourceRoot);
+  const changed = git(sourceRoot, ['diff', '--name-only', '--no-renames', '-z', cutBase, 'HEAD']).split('\0').filter(Boolean);
+  const oldInventory = cellInventory(baseRoot, parsers), newInventory = cellInventory(sourceRoot, parsers);
+  const cells = touchedCells(changed, before, after, [oldInventory, newInventory]);
+  const problems = [], existingCuts = [];
+  for (const name of cells) {
+    const previous = before.cells.some(cell => cell.name === name);
+    const oldCuts = previous ? checkCuts(baseRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory, acceptedInventory: oldInventory }) : [];
+    existingCuts.push(...oldCuts.map(problem => `${name} --cuts: ${problem}`));
+    if (!landedCells.has(name) || !after.cells.some(cell => cell.name === name)) continue;
+    const newCuts = checkCuts(sourceRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory, acceptedInventory: oldInventory });
+    problems.push(...additions(oldCuts, newCuts).map(problem => `${name} --cuts: ${problem}; import a lower cell or take a port`));
+    const oldDoors = previous ? frontDoorBypasses(baseRoot, before, name, { inventory: oldInventory, acceptedInventory: oldInventory }) : new Map();
+    for (const [key, text] of frontDoorBypasses(sourceRoot, after, name, { inventory: newInventory, acceptedInventory: oldInventory })) {
+      if (!oldDoors.has(key)) problems.push(`${name} --cuts: ${text}; import the lower cell's front door or take a port`);
+    }
+  }
+  return { problems, existingCuts };
+}
+
+/** Immutable snapshot callbacks may not leave changed files or a moved checkout behind. */
+function unchangedSnapshot(root, commit) {
+  if (git(root, ['rev-parse', 'HEAD']) !== commit || git(root, ['status', '--porcelain', '--untracked-files=all'])) {
+    throw new Refused('CELLS_SUBMIT', 'immutable analysis snapshot changed during inspection');
+  }
 }
 
 /** Analyze the clean immutable union with pinned main without moving a ref, index or checkout. */
@@ -205,14 +262,26 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   if (typeof criterion !== 'string' || ![acceptedMain, commit].every(value => /^[a-f0-9]{40,64}$/u.test(value))) throw new Refused('CELLS_SUBMIT', 'submit needs exact immutable commits and its frozen criterion');
   const source = commit;
   commit = cellsComposition(root, acceptedMain, source);
-  const result = await withMainCheckout(root, acceptedMain, mainRoot => withMainCheckout(root, commit, candidateRoot => {
+  const cutBase = git(root, ['merge-base', acceptedMain, source]);
+  const result = await withMainCheckout(root, acceptedMain, mainRoot => withMainCheckout(root, commit, async candidateRoot => {
+    const landedCells = existsSync(join(mainRoot, 'bin/cells-plan.json'))
+      ? landedCutCells(root, acceptedMain, readPlan(mainRoot), services.readCutItems) : new Set();
     const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible });
-    refuse(result.problems);
-    if (git(mainRoot, ['rev-parse', 'HEAD']) !== acceptedMain || git(candidateRoot, ['rev-parse', 'HEAD']) !== commit
-      || git(mainRoot, ['status', '--porcelain', '--untracked-files=all']) || git(candidateRoot, ['status', '--porcelain', '--untracked-files=all'])) {
-      throw new Refused('CELLS_SUBMIT', 'immutable analysis snapshot changed during inspection');
-    }
-    return { ...result, acceptedMain, commit, source };
+    /** Keep comparison code trusted and raw source separate from the union used for accepted-policy checks. */
+    const inspect = (baseRoot, sourceRoot) => {
+      const cuts = withImportParseCache(() => cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers }));
+      unchangedSnapshot(baseRoot, cutBase);
+      unchangedSnapshot(sourceRoot, source);
+      return cuts;
+    };
+    const cuts = cutBase === acceptedMain
+      ? source === commit ? inspect(mainRoot, candidateRoot) : await withMainCheckout(root, source, sourceRoot => inspect(mainRoot, sourceRoot))
+      : await withMainCheckout(root, cutBase, baseRoot => withMainCheckout(root, source, sourceRoot => inspect(baseRoot, sourceRoot)));
+    if (cuts?.unavailable) throw new Refused('CELLS_SUBMIT', cuts.unavailable);
+    refuse([...result.problems, ...cuts.problems]);
+    unchangedSnapshot(mainRoot, acceptedMain);
+    unchangedSnapshot(candidateRoot, commit);
+    return { ...result, existingCuts: cuts.existingCuts, acceptedMain, cutBase, commit, source };
   }));
   if (result?.unavailable) throw new Refused('CELLS_SUBMIT', result.unavailable);
   return result;

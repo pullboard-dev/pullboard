@@ -6,6 +6,7 @@ import { foreignNodeOptions } from '../test-isolation.js';
 import { importsIn } from '../module-imports.js';
 import { commonJsIn } from '../module-imports.js';
 import { requireSubmitCells } from '../../bin/cells-submit-checks.js';
+import { landedCutItemRows } from '../../bin/cells-submit-checks.js';
 import { privateCheckEnvelope } from '../runner-private-mode.js';
 import { trunkRef } from '../trusted-policy-read.js';
 import {
@@ -332,7 +333,9 @@ export async function submitHere(ctx, id, infra) {
     return prepareItemPatchSubmit(root, board, held, commit);
   });
   requirePlannedSource(root, trunk.commit, companion?.commit ?? commit);
-  await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
+  const cells = await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
+    readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)) });
+  for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit);
   withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
@@ -544,7 +547,7 @@ export async function submitHere(ctx, id, infra) {
   const report = knownMainFailures || unowned.length
     ? `submission proof red with ${(knownMainFailures?.failures.length ?? 0) + unownedNames.length} known main failure(s) at ${unownedMain ?? knownMainFailures.main}; ${criterionMatched ? 'item check red only in known main cases' : 'item check green'}; no new failures accepted.${unownedNames.length ? ` Unowned${autoMainReds ? ", repairs filed by submit" : ", shouted to the coordinator"}: ${unownedNames.join('; ')}.` : ''} ${displayedReport}`
     : waived
-    ? `submission proof waived, not green: ${waived.length} failure(s), each covered by a live person waiver. ${displayedReport}`
+    ? `submission proof waived, not green: ${waived.length} failure(s), each covered by a live person waiver.\n${waivedLines.join('\n')}\n${displayedReport}`
     : displayedReport;
   if (trunkMove) ctx.io.say(trunkMoveFact(trunkMove));
   for (const notice of mainFailures) ctx.io.say(notice.message);

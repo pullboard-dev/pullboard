@@ -23,8 +23,6 @@ import { ITEM_PATCH_SUBMIT_ENGINE } from './item-patch-submit-engine.js';
 import { Refused } from './refused.js';
 import { nativeProofBlockingGreen } from './quarantine-verdict.js';
 import { receiptBlockingGreen } from './quarantine-verdict.js';
-import { validateQuarantineVerdict } from './quarantine.js';
-import { sealQuarantineVerdict } from './quarantine.js';
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
@@ -113,7 +111,7 @@ export function checkItemPatchSubmit(board, id, options) {
       || !Number.isSafeInteger(receipt.exitCode) || options.gateGreen === true && !nativeProofBlockingGreen(receipt)) {
       throw new Refused('ITEM_PATCH_CHANGED', 'the composed source needs its own recorded green native submit receipts');
     }
-    if (Object.hasOwn(receipt, 'blockingVerdict')) validateQuarantineVerdict(board, {
+    if (Object.hasOwn(receipt, 'blockingVerdict')) board.nativePorts.quarantine.validateQuarantineVerdict(board, {
       green: receipt.exitCode === 0, failures: receipt.failures, blockingVerdict: receipt.blockingVerdict });
   }
   return binding;
@@ -137,7 +135,7 @@ export function sealItemPatchSubmit(board, id, options) {
       || options.gateGreen === true && !receiptBlockingGreen(receipt)
       || receipt.proof.seat !== options.agentId || receipt.proof.item !== id
       || receipt.proof.frozenDigest !== item.item_frozen_digest || !receipt.proof.sourceClean)) throw new Error('unbound native proof');
-    for (const receipt of receipts) sealQuarantineVerdict(board, receipt);
+    for (const receipt of receipts) board.nativePorts.quarantine.sealQuarantineVerdict(board, receipt);
     const config = submitGateConfig(policyAt(root, binding.commit).config, policyAt(root, options.policyCommit).config);
     const plan = submitGatePlan(root, config, { base: item.item_claim_head, trunk: options.policyCommit,
       check: frozenCheck(item), commit: binding.commit });

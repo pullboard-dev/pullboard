@@ -1,3 +1,7 @@
+import { readMainAudit } from '../src/main-audit-state.js';
+import { closePolicySourceWake } from './landing-queue-fixture.js';
+import { writeFileSync } from 'node:fs';
+import { waitForFixtureProgress } from './fixture-progress.js';
 /** Shared board observations and owned-process helpers for real landing fixtures [B3,R3]. */
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
@@ -66,4 +70,57 @@ export function startExclusiveBoardWriter(box, boardFile, name) {
     cwd: box.repo, env: box.env, detached: true, stdio: ['ignore', 'ignore', 'pipe'],
   });
   return { child, closed: childOutcome(child), ready, release, released };
+}
+
+/** Start the actual owned lander and watch its progress without turning startup load into a speed assertion. */
+export function startInterruptedLanding(box, entry, t) {
+  const startup = join(box.dir, 'adoption-startup.jsonl');
+  const env = { ...box.env, PULLBOARD_STARTUP_TRACE_FILE: startup, PULLBOARD_STARTUP_TRACE_ENTRY: entry };
+  const child = startFixtureChild(process.execPath, [entry, 'land', '--json'], {
+    cwd: box.repo, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let outputBytes = 0;
+  child.stdout.on('data', part => { outputBytes += Buffer.byteLength(part); });
+  child.stderr.on('data', part => { outputBytes += Buffer.byteLength(part); });
+  const closed = new Promise(resolveClose => child.once('close', (status, signal) => resolveClose({ status, signal })));
+  t.after(() => {
+    writeFileSync(box.release, 'release');
+    if (child.exitCode === null && child.signalCode === null) {
+      try { process.kill(-child.pid, 'SIGKILL'); }
+      catch (error) {
+        // The test deliberately kills this owned group; cleanup may observe it already gone.
+        if (error.code !== 'ESRCH') throw error;
+      }
+    }
+  });
+  return { child, closed, waitForGate: () => waitForFixtureProgress({
+    child,
+    ready: () => existsSync(box.entered),
+    progress: () => outputBytes + [box.calls, box.trace, startup].reduce((bytes, file) =>
+      bytes + (existsSync(file) ? readFileSync(file).length : 0), 0),
+    description: 'landing gate entered',
+  }) };
+}
+
+/** Settle only the exact native wake recorded by this private fixture before counting foreground publish calls. */
+export async function settleRecordedSourceWake(box, helpers) {
+  const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
+  const path = join(directory, 'wake.json');
+  if (!existsSync(path)) {
+    assert.equal(existsSync(join(directory, 'owner.json')), false, 'an unrecorded source worker cannot be treated as settled');
+    return null;
+  }
+  const wake = readMainAudit(path);
+  assert.ok(Number.isSafeInteger(wake?.generation) && wake.generation > 0, 'the fixture records a valid exact native wake');
+  return closePolicySourceWake(box, helpers, wake.generation);
+}
+
+
+/** Merge checked fixture items through real Git and the native per-item merged receipt, without pushing. */
+export function recordManualMergedItems(box, entries) {
+  for (const entry of entries) {
+    box.git(box.repo, 'merge', '-q', '--no-ff', '-m', `chore(merge): land fixture ${entry.item} [G1]`, entry.commit);
+    const merged = box.run(box.repo, 'merged', String(entry.item), box.git(box.repo, 'rev-parse', 'HEAD'));
+    assert.equal(merged.code, 0, merged.err);
+  }
 }

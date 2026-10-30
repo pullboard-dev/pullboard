@@ -31,6 +31,9 @@ import {
   startExclusiveBoardWriter,
 } from './land-board-fixture.js';
 import { landingTimeoutFixture } from './landing-timeout-fixture.js';
+import { startInterruptedLanding } from './land-board-fixture.js';
+import { settleRecordedSourceWake } from './land-board-fixture.js';
+import { recordManualMergedItems } from './land-board-fixture.js';
 import { assertParallelLanding, assertParallelCliLease, assertParallelNestedGate } from './land-parallel-fixture.js';
 import { landEnginesInOrder } from './land-engine-fixture.js';
 import { assertWholeQueueBatch } from './land-batch-fixture.js';
@@ -1013,14 +1016,8 @@ test('land adoption recovers an interrupted gate and keeps one receipt under a n
   const box = landProject();
   const entries = verifiedFour(box);
   writeFileSync(box.hold, 'armed');
-  const child = startFixtureChild(process.execPath, [BIN, 'land', '--json'], { cwd: box.repo, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  child.stdout.resume(); child.stderr.resume();
-  const closed = new Promise((resolveClose) => child.once('close', (status, signal) => resolveClose({ status, signal })));
-  t.after(() => {
-    writeFileSync(box.release, 'release');
-    if (child.exitCode === null && child.signalCode === null) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} }
-  });
-  await waitFor(() => existsSync(box.entered), 'landing gate entered');
+  const { child, closed, waitForGate } = startInterruptedLanding(box, BIN, t);
+  await waitForGate();
   const card = json(box, box.repo, 'resume');
   const batch = card.landingBatches.at(-1);
   assert.equal(batch.state, 'gating');
@@ -1356,16 +1353,14 @@ test('an item with no spec rows lands under a header its commit hook accepts [B3
   assert.equal(subject, 'docs(merge): docs fixture with no rows', 'a docs-lane item with no rows lands under docs(merge)');
 });
 
-test('publish pushes only a head the whole suite passed and names every red [B3,R3]', () => {
+test('publish pushes only a head the whole suite passed and names every red [B3,R3]', async () => {
   const box = landProject();
   const entries = verifiedFour(box, { red: 1 });
   const before = box.git(box.remote, 'rev-parse', 'main');
   // Tier 1 by hand: each verified item lands on the local trunk only, as pullboard merged records it.
-  for (const entry of entries) {
-    box.git(box.repo, 'merge', '-q', '--no-ff', '-m', `chore(merge): land fixture ${entry.item} [G1]`, entry.commit);
-    const merged = box.run(box.repo, 'merged', String(entry.item), box.git(box.repo, 'rev-parse', 'HEAD'));
-    assert.equal(merged.code, 0, merged.err);
-  }
+  recordManualMergedItems(box, entries);
+  // Manual merged calls start native source advances; close their exact recorded wake before measuring publish.
+  await settleRecordedSourceWake(box, { waitFor });
   const head = box.git(box.repo, 'rev-parse', 'main');
   const start = calls(box).length;
   const red = box.run(box.repo, 'publish', '--json');
