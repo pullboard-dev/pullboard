@@ -59,7 +59,7 @@ export function recordRunnerFailure(db, host, reason, diagnostic, { quarantine =
 }
 
 /** Probe due failed generations outside transactions; only exact or explicit idle proofs restore availability. */
-export async function recoverUnavailableRunners(db, runners, { probe, idleProbe, now = Date.now() } = {}) {
+export async function recoverUnavailableRunners(db, runners, { probe, idleProbe, restartProbe, now = Date.now() } = {}) {
   if (typeof probe !== 'function') return false;
   const configured = new Map(runners.map(runner => [runner.host, runner]));
   const rows = db.prepare(`SELECT * FROM runner_unavailable WHERE probe_after<=? AND probe_until<=?
@@ -97,6 +97,18 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
       }
       if (failedProbe) db.prepare('INSERT INTO runner_recovery_event VALUES(?,?,?,?,?)')
         .run(randomUUID(), row.host, new Date().toISOString(), 'worker-probe-failed', JSON.stringify({ failedProbe, workerState: result }));
+      // An idle runner whose pinned worker will not answer restarts that worker itself; a busy one is left alone and named (#2035).
+      if (failedProbe && row.detail === 'WORKER_UNRESPONSIVE' && result?.healthy !== true && typeof restartProbe === 'function') {
+        let restart;
+        try { restart = await restartProbe(configured.get(row.host)); }
+        catch { restart = { healthy: false, step: 'idle proof', reason: 'worker restart observation unavailable' }; }
+        const restarted = Array.isArray(restart?.restarted) ? restart.restarted : [];
+        if (restart?.healthy !== true || restart.idle !== true || restart.writable !== true)
+          restart = { ...restart, healthy: false, step: 'idle proof', reason: restart?.reason ?? 'worker restart proof missing' };
+        if (restarted.length) db.prepare('INSERT INTO runner_recovery_event VALUES(?,?,?,?,?)')
+          .run(randomUUID(), row.host, new Date().toISOString(), 'worker-restarted', JSON.stringify({ restarted, workerState: restart }));
+        result = restart;
+      }
     }
     if (result?.healthy === true) {
       const recovered = auditedChange(db, () => {
