@@ -62,6 +62,6 @@ test('Needs you summarizes item809, keeps raw questions in details and places na
     assert.equal(await chrome.stable('document.querySelector("#dashboard .needs-card header [data-needs-list]").textContent'),'1 more and 2 draft rows →','redraw retains the header navigation');
     await chrome.click('document.querySelector("#dashboard .needs-card header [data-needs-list]")');
     await chrome.waitFor('view.tab === "items" && document.querySelectorAll("#needs [data-needs-key]").length === 4');
-    assert.equal(await chrome.stable('document.querySelector("#needs .needs-copy b").textContent'),'#809Decide: '+title);
+    assert.equal(await chrome.stable('document.querySelector("#needs .needs-copy b").textContent'),'#'+asks[0]+question+' Choice 1.', 'the complete Needs list retains the original native question after compact navigation');
   } finally {if(chrome) await closeSnapshotChrome(chrome);await server.stop();}
 });

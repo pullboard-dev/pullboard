@@ -28,7 +28,7 @@ export function needsPanelModel(calls, project, { compact = false, person = fals
       ['Command', row.check, true], ['Directory', row.directory, true], ['Schedule', row.every], ['Owner', row.owner], ['Proposed by', row.evidence ? 'An agent · ' + row.evidence.occurrences + ' repeats' : 'An agent, with no repeat cited'], ...evidenceFields(row)], body: '' };
     if (row.kind === 'rigor-draft') return { kind: 'question', id: row.ref, title: row.text, context: (row.unproved ? 'an unproved Rigor proposal' : 'a proved Rigor draft') + (row.evidence ? ', repeated ' + row.evidence.occurrences + ' times' : ''), action: 'Review', fields: [['Next step', row.what], ...evidenceFields(row)], body: row.text };
     if (row.kind === 'spec-revision') return { kind: 'question', id: row.ref ?? row.id, title: row.reason || 'Review the proposed row revision', context: 'Proposed spec revision · ' + (row.what || 'approve or decline'), action: 'Review', fields: [['Current row', row.source], ['Proposed row', row.replacement]], body: row.reason };
-    if (row.kind === 'decision') {
+    if (row.kind === 'decision' && compact) {
       const cited = [...String(row.text ?? '').matchAll(/#(\d+)/gu)].map(match => (project.items || []).find(item => String(item.id) === match[1])).find(Boolean);
       return { kind: 'question', id: cited ? '#' + cited.id : '', title: cited ? 'Decide: ' + cited.title : 'Decision from ' + row.ref,
         context: 'Asked by ' + row.ref, action: 'Decide', fields: [['Asked by', row.ref]], body: row.text };
