@@ -13,6 +13,15 @@ import { BIN, fetchLive, boardOf, shoutNameText, tapTarget, SPEC, machine, proje
 import { assertFirstStateDelay, press as sharedPress } from './stable.js';
 
 
+/** Open a native conversation before measuring its messages; overview rows intentionally carry only previews. */
+async function openConversation(chrome, key = 'none') {
+  const selector = '#feed [data-shout-thread="' + key + '"]';
+  await chrome.waitFor(`!!document.querySelector(${JSON.stringify(selector)})`);
+  await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
+  await chrome.waitFor("!!document.querySelector('#feed .conversation-heading')");
+}
+
+
 test('the shouts tab counts shouts you have not seen [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
@@ -105,14 +114,17 @@ test('a shout shows the evidence it carries [B22]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
-    page.run("openTab('shouts'); render();");
+    page.run("openTab('shouts'); view.shoutThread = 'item:1'; render();");
     const feed = page.show('feed');
     const card = (kind, outcome) => `<div class="receipt"><div><span class="badge">${kind}</span> <span class="outcome">${outcome}</span></div><div class="receipt-foot"><a class="ref" href="/items/1" data-go="item:1" title="Greeting">#1</a> · web-1 (Test Model) · <button class="hash-copy" type="button" title="${head}" aria-label="Copy full hash ${head}" data-copy="${head}"><code class="inline sha" title="${head}">${head.slice(0, 12)}</code></button></div></div>`;
-    const after = (text) => feed.slice(feed.indexOf(text + '</div>') + text.length + 6).replace(/^<button class="more" data-more type="button">more<\/button>/, '');
+    const after = (text) => feed.slice(feed.indexOf(text + '</div>') + text.length + 6).replace(/^<button class="more" data-more type="button" aria-expanded="false">Show all<\/button>/, '');
     assert.ok(after('the page loads in 80ms').startsWith(card('receipt', 'measured &lt;fast&gt;')), `what was measured, for which item, by whom, at which commit: ${after('the page loads in 80ms').slice(0, 400)}`);
     assert.ok(after('tried a cache').startsWith(card('attempt', 'failed')), 'and what was tried');
-    assert.match(feed, /<span class="item">#1<\/span>/, 'the card names its item on top');
-    assert.ok(feed.includes('nothing to show</div>'), 'a shout with no evidence has no card');
+    assert.match(feed, /<b>#1 Greeting<\/b>/, 'the opened conversation names the real item above its messages');
+    page.run("view.shoutThread = 'none'; render();");
+    const plain = page.show('feed');
+    assert.ok(plain.includes('nothing to show</div>'), 'the No item conversation retains its native words');
+    assert.doesNotMatch(plain, /class="receipt"/, 'a shout with no evidence has no receipt');
   } finally {
     await view.stop();
   }
@@ -138,12 +150,13 @@ test('a shout from the view shows the person as its author [N26,A9]', { timeout:
     page.element('shout-text').value = 'Web, keep it short';
     await page.fire('shout-form', 'submit');
     await page.run('refresh()');
-    const cards = () => [...shoutNameText(page.show('feed')).matchAll(/<b class="who">([^<]*)<\/b><span class="to">→ ([^<]*)<\/span>[^]*?<div class="text">([^<]*)<\/div>/g)].map((m) => m.slice(1));
+    page.run("view.shoutThread = 'none'; render();");
+    const cards = () => [...page.show('feed').matchAll(/<b class="who" title="([^"]*)">([^<]*)<\/b><span class="to">→ ([^<]*)<\/span>[^]*?<div class="text">([^<]*)<\/div>/g)].map((m) => m.slice(1));
     assert.deepEqual(cards(), [
-      ['you', 'web', 'Web, keep it short'],
-      ['you', 'coordinator', 'Hello from the person'],
-      ['web-1 (Test Model)', 'coordinator and you', 'web-1 is on the greeting'],
-    ], 'the view reads "you" for the person, to the coordinator and to a lane, and an agent keeps its seat and model');
+      ['Test Model', 'web-1', 'coordinator and you', 'web-1 is on the greeting'],
+      ['unknown', 'you', 'coordinator', 'Hello from the person'],
+      ['unknown', 'you', 'web', 'Web, keep it short'],
+    ], 'the conversation keeps native author and recipient order, naming the model only on hover');
 
     const said = (events) => events.filter((event) => event.event_kind === 'shout').map((event) => event.event_by);
     assert.deepEqual(said(JSON.parse(box.run(alpha.repo, 'log', '--json')).events), ['web-1', 'person', 'person'], 'pullboard log --json records the person as the author');
@@ -198,6 +211,7 @@ test('a short code chip at a line end stays whole, and long code stays one chip 
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('!!document.querySelector(\'[data-tab="shouts"]\')');
     await chrome.click('document.querySelector(\'[data-tab="shouts"]\')');
+    await openConversation(chrome);
     await chrome.waitFor(`[...document.querySelectorAll('#feed code.inline')].some((code) => code.textContent === ${JSON.stringify(wide)})`);
     for (const width of [320, 375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -810,6 +824,7 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 1');
     await chrome.click("document.querySelector('[data-tab=shouts]')");
+    await openConversation(chrome);
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
     await chrome.click("document.querySelector('#agents .fold-line[data-fold=\"idle\"]')");
     /** The composer and every shout of the person's, with what its Heard line says. */
@@ -866,7 +881,7 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
     box.run(alpha.web, 'inbox');
     await chrome.waitFor(`${heardOf('Hold the merge, please.')} === 'Heard by coordinator and 1 agent'`, 15_000); // budget: hang ceiling for both inbox reads to appear; no throughput claim.
     const all = (await read()).heard.find(([text]) => text === 'Hold the merge, please.');
-    assert.deepEqual(all.slice(2), [2, 'Heard by coordinator, web-1 (Test Model)'], 'with their avatars, and every name on hover');
+    assert.deepEqual(all.slice(2), [0, 'Heard by coordinator, web-1 (Test Model)'], 'with no avatars, retaining every native recipient name on hover');
 
     // Picking an agent addresses the composer to it; the chip's x returns it to the coordinator.
     await chrome.click(`document.querySelector('#agents [data-agent="web-1"]')`);
