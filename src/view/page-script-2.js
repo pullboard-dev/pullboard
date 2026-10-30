@@ -470,10 +470,10 @@ function factCodeRef(ref) {
   return ref.path + ':' + lines + '@' + ref.commit;
 }
 const tone = (s) => s === 'approved' ? 'ok' : s === 'pending' ? 'no' : s === 'draft' ? 'warn' : '';
-/** Name a rule's actual packaged version or its repository source, including explicit overrides. */
-const ruleSource = (row) => row.standardVersion != null ? 'Pullboard v' + row.standardVersion + (row.overrides ? row.status === 'wont' ? ', declined here' : ', overridden here' : '') : 'this repo';
-/** Keep the full source label available when a narrow row clips it. */
-const ruleSourceTitle = (row) => ruleSource(row);
+/** Name the visible source category while keeping the full version and override detail in the title. */
+const ruleSource = (row) => row.standardVersion != null && !row.overrides ? 'Standard' : 'This repo';
+/** Keep the actual packaged version or repository override available on hover. */
+const ruleSourceTitle = (row) => row.standardVersion != null ? 'Pullboard v' + row.standardVersion + (row.overrides ? row.status === 'wont' ? ', declined here' : ', overridden here' : '') : 'This repo';
 // The same data-in, HTML-out renderer runs here and in the pure view tests.
 const recordRow = (${recordRowHtml.toString()});
 const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
