@@ -87,7 +87,7 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
     } else {
       try { result = await probe(configured.get(row.host), pending); }
       catch { result = { healthy: false, step: 'worker readiness', reason: 'health observation unavailable' }; }
-      const unresponsive = row.detail === 'WORKER_UNRESPONSIVE' && result?.step === 'worker readiness';
+      const unresponsive = ['WORKER_UNRESPONSIVE', 'CLEANUP_UNVERIFIED'].includes(row.detail) && result?.step === 'worker readiness';
       const failedProbe = unresponsive ? result : null;
       if (result?.healthy !== true && (result?.idleRequired === true || unresponsive) && typeof idleProbe === 'function') {
         try { result = await idleProbe(configured.get(row.host), pending); }
