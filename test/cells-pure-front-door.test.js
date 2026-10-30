@@ -12,6 +12,13 @@ import { writePlan } from '../bin/cells-plan.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
+import { cellLintReport } from '../packages/codemap/index.js';
+import { cellLintGrowth } from '../packages/codemap/index.js';
+import { planCellLintBaseline } from '../packages/codemap/index.js';
+import { readCellLintBaseline } from '../packages/codemap/index.js';
+import { writeCellLintBaseline } from '../packages/codemap/index.js';
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
 
 const BIN = fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url));
 const CORE = 'packages/kernel/core.js';
@@ -92,4 +99,21 @@ test('pure front-door validation refuses alternate paths, executable entry code 
   put('outside.js', 'export const Refused = Error;\n');
   symlinkSync('../../../../outside.js', join(root, BODY));
   assert.ok(problems().some(problem => problem.includes(BODY) && problem.includes('regular pure source')));
+});
+
+test('only a declared pure entry fits cell anatomy and a real falling baseline keeps undeclared core stray [C7,D3]', t => {
+  const { root, plan, cell, problems } = moved(t);
+  const report = () => cellLintReport(root, { importsIn, commonJsIn });
+  assert.ok(!report().metrics.strays.findings.some(row => row.key === CORE));
+  const baseline = planCellLintBaseline(report());
+  writeCellLintBaseline(root, baseline.baseline, { initialize: true });
+  assert.deepEqual(problems(), [], 'a declared core entry passes with an actual recorded baseline');
+  delete cell.pureFrontDoor;
+  writePlan(root, plan);
+  assert.ok(report().metrics.strays.findings.some(row => row.key === CORE), 'undeclared core.js remains a stray');
+  assert.ok(cellLintGrowth(report(), readCellLintBaseline(root)).some(row => row.metric === 'strays' && row.key === CORE));
+  assert.ok(problems().some(problem => problem.includes(`cell lint strays:${CORE}`)), 'the ordinary moved guard still enforces that rise');
+  cell.pureFrontDoor = CORE;
+  writePlan(root, plan);
+  assert.deepEqual(problems(), [], 'restoring the declaration does not need any raised allowance');
 });
