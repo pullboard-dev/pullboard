@@ -37,6 +37,7 @@ import { value } from '../lib/value.js';
 test('fleet cache probe [C7]', () => { console.log('${EXECUTED}'); assert.ok(value > 0); });
 `);
   if (composition) {
+    writeFileSync(join(repo, 'reporter.mjs'), "export { tap as default } from 'node:test/reporters';\n");
     writeFileSync(join(repo, 'lib', 'stable.js'), 'export const stable = 1;\n');
     writeFileSync(join(repo, 'test', 'stable.test.js'), `import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -68,11 +69,13 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
   /** Use a fresh worker HOME and persistent namespace, through the unchanged authenticated SSH transport. */
   const languagePreload = join(homeB, 'language.mjs');
   writeFileSync(languagePreload, "process.env.LANG = 'cache-material-language';\n");
-  const run = async (home, host, stage, differentLanguage = false) => {
+  let invocation = 0;
+  const run = async (home, host, stage, differentLanguage = false, customReporter = false) => {
+    invocation++;
     installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'),
       requests: join(home, 'requests.jsonl'), nodeCommand: process.execPath,
       nodeOptions: differentLanguage ? `--import=${pathToFileURL(languagePreload).href}` : '' });
-    const command = `node bin/run-tests.js test/probe.test.js${composition ? ' test/stable.test.js' : ''}`;
+    const command = `node bin/run-tests.js test/probe.test.js${composition ? ' test/stable.test.js' : ''}${customReporter ? ' --test-reporter=./reporter.mjs' : ''}`;
     const checkedSource = { commit: git('rev-parse', 'HEAD').trim(), tree: git('rev-parse', 'HEAD^{tree}').trim() };
     const result = await runOnRunnerAsync(repo, command, {
       runner: { host, slots: 1, browser: 0, node: process.execPath, root: join(home, 'runner') },
@@ -80,7 +83,7 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
       ...(composition && stage === 'verify' ? { checkedSource,
         privateCheck: { kind: 'private-check', version: 1, install: '', check: command, timeoutMs: 120000,
           policyCommit, trunk: { ref: 'refs/heads/main', commit: policyCommit }, guard: null },
-        rawOutputPath: join(directory, `private-${differentLanguage ? 'changed-env' : 'same-tree'}.raw.log`) } : {}),
+        rawOutputPath: join(directory, `private-${invocation}.raw.log`) } : {}),
     });
     if (composition && stage === 'verify') assert.equal(result.privateCheck.state, 'pass', result.output);
     return result;
@@ -107,6 +110,13 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
     assert.equal(retained.id, first.executionReceipt.id);
     assert.equal(retained.outputSha256, origin.completion.outputSha256);
     assert.equal(retained.code, 0);
+    if (composition) {
+      const reporter = await run(homeB, `${HOST}-setup`, 'verify', false, true);
+      assert.equal(reporter.isGreen, true, reporter.output);
+      assert.match(reporter.output, new RegExp(EXECUTED));
+      assert.match(reporter.output, /EXECUTED-STABLE/u);
+      assert.doesNotMatch(reporter.output, /^# reused /mu, 'caller-selected reporters cannot use the reporter-free harness shortcut');
+    }
     const differentEnvironment = await run(homeB, `${HOST}-setup`, 'verify', true);
     assert.equal(differentEnvironment.isGreen, true, differentEnvironment.output);
     assert.match(differentEnvironment.output, new RegExp(EXECUTED), 'a material execution environment change requires a fresh body');
@@ -134,6 +144,17 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
     assert.equal(pushed.isGreen, true, pushed.output);
     assert.doesNotMatch(pushed.output, new RegExp(EXECUTED));
     assert.match(pushed.output, /^# reused [0-9a-f]{64} from land /mu, 'the result crosses back to the first machine and another stage');
+    if (composition) {
+      const harnessPath = join(repo, 'src', 'test-action-reporter.js');
+      writeFileSync(harnessPath, readFileSync(harnessPath, 'utf8') + '\n// fixture: changed actual harness input\n');
+      git('add', 'src/test-action-reporter.js');
+      git('commit', '-q', '-m', 'test: change actual harness bytes');
+      const harnessChanged = await run(homeA, HOST, 'land');
+      assert.equal(harnessChanged.isGreen, true, harnessChanged.output);
+      assert.match(harnessChanged.output, new RegExp(EXECUTED));
+      assert.match(harnessChanged.output, /EXECUTED-STABLE/u);
+      assert.doesNotMatch(harnessChanged.output, /^# reused /mu, 'changed real harness invalidates both file receipts');
+    }
     writeFileSync(join(repo, 'lib', 'value.js'), 'export const value = -1;\n');
     git('add', 'lib/value.js');
     git('commit', '-q', '-m', 'test: make reached value fail');

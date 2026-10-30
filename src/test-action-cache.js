@@ -254,7 +254,7 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   // A test runs inside the harness, so everything the harness reaches (its isolation, dispatch, admission
   // and reporting modules) is an input of every result, as well as the runner files themselves.
   // Test files and docs the graph links through declared tree reads are never harness code, so they stay out.
-  const harness = reach(RUNNER_INPUTS).filter(path => !path.startsWith('test/') && !path.startsWith('docs/'));
+  const harness = reach(RUNNER_INPUTS, { withoutSelectedRunnerModules: true }).filter(path => !path.startsWith('test/') && !path.startsWith('docs/'));
   const runner = [...new Set([...RUNNER_INPUTS, ...harness])].sort().map(path => [path, blobs.get(path) ?? null]);
   const keys = new Map();
   for (const [test, closure] of closures) {
