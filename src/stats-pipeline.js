@@ -52,11 +52,23 @@ function retry(item, event, detail, kind = event.event_kind) {
   item.retries.push({ eventId: event.event_id, at: event.event_at, kind, cause: causeOf(event.event_kind, detail) });
 }
 
+/** Respect recorded lease deadlines; a clock transition is evidence only when its deadline was recorded. */
+function expire(item, at, event) {
+  if (item.stage === 'claim' && Number.isFinite(item.claimUntil) && item.claimUntil <= at) {
+    close(item, item.claimUntil, event.event_id); item.stage = null; item.since = item.claimUntil;
+  }
+  if (item.stage === 'review' && Number.isFinite(item.reviewUntil) && (item.reviewUntil < at || item.reviewUntil === at && !['accept', 'reject'].includes(event.event_kind))) {
+    close(item, item.reviewUntil, event.event_id); item.stage = 'reviewWait'; item.since = item.reviewUntil;
+  }
+}
+
 /** Replay one native item event without inferring unrecorded attempts or command start times. */
 function observe(item, event) {
   const detail = proofEventDetail(event), kind = event.event_kind, at = Date.parse(event.event_at);
+  expire(item, at, event);
   if (kind === 'add') item.title = detail.title ?? item.title;
   if (kind === 'claim' || kind === 'renew') {
+    item.claimUntil = Date.parse(detail.leaseUntil);
     if (detail.submitAdmission?.id) {
       if (item.admissions++ > 0) retry(item, event, detail, 'submit-retry');
       close(item, at, event.event_id);
@@ -73,6 +85,7 @@ function observe(item, event) {
     else gap(item, ['claim', 'submit'], event.event_id, 'no recorded submit admission; claim and submit time cannot be separated');
     item.stage = 'reviewWait'; item.since = at; item.activeAdmission = false;
   } else if (kind === 'reserve') {
+    item.reviewUntil = Date.parse(detail.until);
     if (item.stage !== 'review') {
       close(item, at, event.event_id);
       if (item.stage !== 'reviewWait') gap(item, ['reviewWait'], event.event_id, 'no recorded submission before review');
@@ -86,8 +99,8 @@ function observe(item, event) {
   } else if (kind === 'release') {
     close(item, at, event.event_id);
     item.stage = detail.review ? 'reviewWait' : null; item.since = at;
-  } else if (['reopen', 'refreeze', 'withdraw'].includes(kind)) {
-    retry(item, event, detail);
+  } else if (['reopen', 'refreeze', 'withdraw', 'lapse', 'escalate'].includes(kind)) {
+    if (!['lapse', 'escalate'].includes(kind)) retry(item, event, detail);
     if (!(kind === 'refreeze' && detail.retainedClaim)) { close(item, at, event.event_id); item.stage = null; item.since = at; item.activeAdmission = false; }
   } else if (kind === 'merged') {
     if (item.stage === 'landing') close(item, at, event.event_id);

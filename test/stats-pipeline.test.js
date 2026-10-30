@@ -109,3 +109,12 @@ test('pipeline real CLI and authenticated API expose identical read-only native 
   assert.deepEqual(document.statsPipeline, JSON.parse(cli.stdout).pipeline);
   assert.deepEqual(store.events(board), history, 'both readers leave native events unchanged');
 });
+
+
+test('pipeline recorded lease expiry excludes open time and restores review wait [R1,R2,C7]', t => {
+  const at = seconds => new Date(BASE + seconds * 1000).toISOString();
+  const { history } = fixture(t, [[0, 'add', 1], [1, 'claim', 1, { leaseUntil: at(11) }],
+    [21, 'claim', 1, { leaseUntil: at(200) }], [31, 'renew', 1, admission(1)], [51, 'submit', 1],
+    [61, 'reserve', 1, { until: at(71) }], [81, 'reserve', 1, { until: at(200) }], [101, 'accept', 1], [151, 'merged', 1]]);
+  assert.deepEqual(pipelineStats(history).items[0].stages, { claim: 20000, submit: 20000, reviewWait: 20000, review: 30000, landing: 50000 });
+});
