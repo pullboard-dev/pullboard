@@ -1,4 +1,5 @@
 /** Concern-specific gate stage; public callers keep the gate facade. */
+import { testOutcomeFields } from './test-outcomes.js';
 import { sourceAdvancePlan } from '../packages/codemap/index.js';
 import {
   withGateSlot,
@@ -100,6 +101,23 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
     proofFiles, fullConfig, hasFinalProof, proofCommand, phases };
 }
 
+/** Retain all phase identities; conflicting observations never become an arbitrary file binding [V4,H16]. */
+function submitTestOutcomes(profiles) {
+  const combined = new Map();
+  for (const profile of profiles) {
+    if (profile.testOutcomes === undefined) continue;
+    const outcomes = testOutcomeFields(profile.testOutcomes);
+    if (!outcomes) return null;
+    for (const row of outcomes) {
+      const key = JSON.stringify([row.file, row.name]);
+      const previous = combined.get(key);
+      if (previous && (previous.passed !== row.passed || previous.skipped !== row.skipped)) return null;
+      combined.set(key, row);
+    }
+  }
+  return testOutcomeFields([...combined.values()]);
+}
+
 /**
  * Prove the frozen item check and selected imports under one lease. Subsets neither read nor write
  * the full-gate stamp. An uncertain selection runs the full configured gate and records its reason.
@@ -157,6 +175,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       const profile = writeTimingProfile(profilePath, {
         waitMs: lease.waitMs, wallMs: Math.max(0, Date.now() - startedAt),
         files: profiles.flatMap(value => value.files), tests: profiles.flatMap(value => value.tests),
+        testOutcomes: submitTestOutcomes(profiles),
         runner: [...new Set(profiles.map(value => value.runner))].join(', '),
         format: [...new Set(profiles.map(value => value.format))].join('+'),
         unavailable: profiles.some(value => value.unavailable) ? 'per-test timing unavailable: output was not TAP or JUnit (one or more phases)' : null,
