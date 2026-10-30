@@ -72,16 +72,25 @@ const keep = (name, value) => { name = snapshot ? 'snapshot.' + name : name; try
 // Whether the host serves this page at /roadmap as well as at /, so the Roadmap's address is a path;
 // anywhere else it is a #roadmap fragment on the page's own address (N38).
 const routed = ${JSON.stringify(Boolean(paths) && !snapshot)};
-/** The tab the address names: the Roadmap at its own address, or null at the board's. */
+/** Resolve a routed tab, legacy Home address, or embedded/export fragment before remembered state. */
 function addressTab() {
   if (typeof location === 'undefined') return null;
+  const tabs = ['dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings'];
+  const read = value => {
+    let parts;
+    try { parts = value.split('/').filter(Boolean).map(decodeURIComponent); }
+    catch { return null; }
+    const tab = tabs.includes(parts[0]) ? parts[0] : null;
+    return tab === 'home' ? 'dashboard' : tab;
+  };
   if (snapshot) {
-    const tab = (location.hash || '').slice(1).split('/')[0] || '';
-    return ['home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap'].includes(tab) ? tab : null;
+    return read((location.hash || '').slice(1));
   }
-  if (location.hash === '#items/pipeline') return 'items';
-  if (/^#items\\/\\d+$/.test(location.hash)) return 'items';
-  return (routed ? location.pathname === '/roadmap' : location.hash === '#roadmap') ? 'roadmap' : null;
+  if (routed) {
+    const parts = (location.pathname || '/').split('/').filter(Boolean);
+    return read(tabs.includes(parts[0]) ? parts[0] : parts[1] || '');
+  }
+  return read((location.hash || '').slice(1));
 }
 /** Build an address for an item in the current app or an exported snapshot, preserving repo scope. */
 function itemAddress(id, root = view.root) {
@@ -93,14 +102,14 @@ function itemAddress(id, root = view.root) {
   const path = prefix + '/items/' + encodeURIComponent(String(id));
   return routed ? path + location.search : location.pathname + location.search + '#' + path.slice(1);
 }
-/** Live routed boards open on Dashboard; exports and embedded pages retain their own default and remembered tab. */
-function homeTab(page) {
-  if (routed) return 'dashboard';
+/** Use Dashboard for a fresh page and migrate saved Home selections; preserve other remembered destinations. */
+function landingTab() {
   const kept = keep('pb.tab');
-  return kept && kept !== 'roadmap' ? kept : page?.project && !page.project.items?.length ? 'home' : 'items';
+  if (kept === 'home') { keep('pb.tab', 'dashboard'); return 'dashboard'; }
+  return kept || 'dashboard';
 }
 
-const view = { roadmapOpen: new Map(), root: keep('pb.project'), tab: addressTab() || homeTab(), itemsView: typeof location !== 'undefined' && location.hash === '#items/pipeline' ? 'pipeline' : 'list', filterOpen: false, seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', statsOpen: false, open: {}, addressDetail: null, shout: null, scrollPlace: false };
+const view = { roadmapOpen: new Map(), root: keep('pb.project'), tab: addressTab() || landingTab(), itemsView: typeof location !== 'undefined' && location.hash === '#items/pipeline' ? 'pipeline' : 'list', filterOpen: false, seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', statsOpen: false, open: {}, addressDetail: null, shout: null, scrollPlace: false };
 let switchGeneration = 0;
 // Each board read in the order it started, and the newest one drawn: an answer older than that one is stale.
 let refreshStarted = 0;
