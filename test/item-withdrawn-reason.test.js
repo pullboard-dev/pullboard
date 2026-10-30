@@ -121,6 +121,7 @@ test('legacy hosted snapshots replay the same withdrawal lifecycle including ret
 
 test('withdrawal facts agree in HTTP summary, detail and sealed projection [A2,C15,N26]', async t => {
   const box = await httpBox(t);
+  // @pullboard-board-file journey: HTTP and sealed readers must observe the same persisted withdrawal.
   const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   let withdrawn;
   let open;
