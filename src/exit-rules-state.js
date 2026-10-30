@@ -17,8 +17,8 @@ export function exitClaim(board, id, actor) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < EXIT_RULES_ENGINE) return null;
   const row = board.db.prepare("SELECT event_id,event_at,event_detail FROM event WHERE item_id=? AND event_by=? AND event_kind='claim' ORDER BY event_id DESC LIMIT 1").get(id, actor);
   if (!row) return null;
-  const policy = JSON.parse(row.event_detail).exitRules;
-  return policy?.enabled === true ? { id: row.event_id, at: row.event_at, policy } : null;
+  const detail = JSON.parse(row.event_detail), policy = detail.exitRules;
+  return policy?.enabled === true ? { id: row.event_id, key: detail.exitClaimKey, at: row.event_at, policy } : null;
 }
 
 /** Read only shared numeric progress that the authenticated seat recorded for this exact claim. */
@@ -32,12 +32,12 @@ export function recordExitProgress(board, request) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < EXIT_RULES_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade every writer before recording exit-rule progress');
   const { agentId, item, claim, tokens, calls } = request ?? {};
   if (!request || Object.keys(request).some(key => !['agentId', 'item', 'claim', 'tokens', 'calls'].includes(key))
-    || !Number.isSafeInteger(item) || !Number.isSafeInteger(claim)
+    || !Number.isSafeInteger(item) || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u.test(claim ?? '')
     || [tokens, calls].some(value => value !== null && (!Number.isSafeInteger(value) || value < 0)))
     throw new Refused('EXIT_USAGE', 'exit progress requires exact claim identity and known numeric counters or explicit null');
   return atomic(board, () => {
     const held = itemById(board, item), current = exitClaim(board, item, agentId);
-    if (held.item_status !== 'claimed' || held.item_owner !== agentId || current?.id !== claim)
+    if (held.item_status !== 'claimed' || held.item_owner !== agentId || current?.key !== claim)
       throw new Refused('NOT_YOURS', 'record exit progress only for your current native claim');
     const old = progress(board, claim);
     // Native capture precedes the checkout/board lock: a valid older capture may commit last.
@@ -63,12 +63,12 @@ export function recordExitProgress(board, request) {
 export function exitClaimDecision(board, id, actor) {
   const claim = exitClaim(board, id, actor);
   if (!claim) return null;
-  const stopped = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`exit-stop:${claim.id}`);
-  if (stopped) return { ...JSON.parse(stopped.meta_value), item: id, claim: claim.id };
+  const stopped = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`exit-stop:${claim.key}`);
+  if (stopped) return { ...JSON.parse(stopped.meta_value), item: id, claim: claim.key };
   const receipts = board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_by=? AND event_kind='proof-run' AND event_id>? ORDER BY event_id").all(id, actor, claim.id)
     .map(row => JSON.parse(row.event_detail).receipt).filter(Boolean);
-  const decision = exitRulesDecision(claim.policy, progress(board, claim.id), receipts);
-  return decision ? { ...decision, item: id, claim: claim.id } : null;
+  const decision = exitRulesDecision(claim.policy, progress(board, claim.key), receipts);
+  return decision ? { ...decision, item: id, claim: claim.key } : null;
 }
 
 /** Validate a short structured summary, preserving source custody in the same transaction as release. */
@@ -88,7 +88,7 @@ export function releaseExitClaim(board, id, actor, note) {
   put.run(`exit-handoff:${id}`, JSON.stringify(handoff));
   put.run(`exit-session:${identity}`, JSON.stringify(handoff));
   appendFact(board, id, { agentId: actor, kind: 'note', text: note,
-    factId: createHash('sha256').update(`${id}:${decision.claim}:${at}`).digest('hex') });
+    factId: createHash('sha256').update(`${decision.claim}:${at}`).digest('hex') });
   return handoff;
 }
 

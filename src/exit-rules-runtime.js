@@ -40,7 +40,7 @@ export function captureExitAnchor(ctx, board, id, actor) {
     const baseline = source ? sessionSnapshot(source) : null;
     const prefix = observed ? { dev: observed.dev, ino: observed.ino, bytes: observed.length, sha256: observed.sha256 } : null;
     mkdirSync(join(ctx.info.commonDir, 'pullboard'), { recursive: true, mode: 0o700 });
-    writeFileSync(anchorFile(ctx, claim.id), JSON.stringify({ actor, item: id, claim: claim.id, source, prefix, baseline, calls }), { flag: 'wx', mode: 0o600 });
+    writeFileSync(anchorFile(ctx, claim.key), JSON.stringify({ actor, item: id, claim: claim.key, source, prefix, baseline, calls }), { flag: 'wx', mode: 0o600 });
   } catch { ctx.io.err?.('Exit-rule native anchor unavailable; usage remains unknown, never a fresh zero.'); }
 }
 
@@ -48,11 +48,11 @@ export function captureExitAnchor(ctx, board, id, actor) {
 function counters(ctx, claim, actor, item) {
   let fd;
   try {
-    fd = openSync(anchorFile(ctx, claim.id), constants.O_RDONLY | constants.O_NOFOLLOW);
+    fd = openSync(anchorFile(ctx, claim.key), constants.O_RDONLY | constants.O_NOFOLLOW);
     const stat = fstatSync(fd);
     if (!stat.isFile() || stat.mode & 0o077 || stat.size > 16 * 1024 * 1024) return { tokens: null, calls: null };
     const anchor = JSON.parse(readFileSync(fd, 'utf8'));
-    if (anchor.actor !== actor || anchor.item !== item || anchor.claim !== claim.id || !anchor.prefix) return { tokens: null, calls: null };
+    if (anchor.actor !== actor || anchor.item !== item || anchor.claim !== claim.key || !anchor.prefix) return { tokens: null, calls: null };
     const observed = sourceBytes(anchor.source, anchor.prefix);
     if (!observed) return { tokens: null, calls: null };
     const ids = nativeToolCallIds(anchor.source.provider, observed.bytes);
@@ -85,7 +85,7 @@ export async function enforceExitBoundary(io, command) {
     const held = board.db.prepare("SELECT item_id FROM item WHERE item_owner=? AND item_status='claimed'").all(actor);
     for (const item of held) {
       const claim = exitClaim(board, item.item_id, actor);
-      if (claim) await ordered(ctx, board, 'recordExitProgress', [{ agentId: actor, item: item.item_id, claim: claim.id, ...counters(ctx, claim, actor, item.item_id) }]);
+      if (claim) await ordered(ctx, board, 'recordExitProgress', [{ agentId: actor, item: item.item_id, claim: claim.key, ...counters(ctx, claim, actor, item.item_id) }]);
     }
     // Release is the sole recovery write: it atomically validates and records the structured summary.
     if (command !== 'release') requireExitActive(board, actor, command);

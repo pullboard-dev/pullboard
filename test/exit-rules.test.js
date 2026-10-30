@@ -3,6 +3,7 @@
 /** Fixture claims exercise real native atomic exit and same-family continuation, never shared sessions [B3,C7,N2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { randomUUID } from 'node:crypto';
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -17,22 +18,25 @@ import { exitRulesDecision } from '../src/exit-rules-policy.js';
 import { exitClaim, exitClaimDecision, exitedSession, requireExitActive, exitContinuationSummary } from '../src/exit-rules-state.js';
 import { writeBoardCommand } from '../src/board-command-write.js';
 import { EXIT_RULES_ENGINE } from '../src/exit-rules-engine.js';
+import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
+import { bindRefs, resolveMove, strayItemRefs } from '../src/relay-outbox.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 
 const policy = { enabled: true, tokens: 100, calls: 3 };
 const summary = 'Done: preserved the candidate and native logs; Failed: named fixture case; Next: inspect the retained failure from a fresh session';
 
 /** Actual production SQLite schema, declared synthetic native sessions and ordinary claim APIs. */
-function setup(t, enabled = true) {
+function setup(t, enabled = true, claimKey = randomUUID(), padding = 0) {
   const board = fixtureBoard(t);
   store.register(board, { id: 'coordinator', lane: 'coordinator', path: '/exit-fixture/main', session: 'fixture-coordinator', model: 'Fixture coordinator' });
   for (const [id, family, session] of [['core-1', 'openai', 'first'], ['core-2', 'openai', 'fresh'],
     ['core-3', 'claude', 'other'], ['core-4', 'openai', 'first']]) {
     store.register(board, { id, lane: 'core', path: `/exit-fixture/${id}`, family, session: `fixture-${session}`, model: 'Fixture model' });
   }
+  for (let n = 0; n < padding; n++) store.shout(board, { from: 'coordinator', to: 'all', text: 'Private extra replica history.', kind: 'idea' });
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Private exit-rule claim', criterion: 'Retain evidence and hand off.' });
   store.claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: 3_600_000,
-    freeze: () => ({ text: '{}', digest: 'private-exit-bar' }), ...(enabled ? { exitRules: policy } : {}) });
+    freeze: () => ({ text: '{}', digest: 'private-exit-bar' }), ...(enabled ? { exitRules: policy, exitClaimKey: claimKey } : {}) });
   return { board, id, claim: exitClaim(board, id, 'core-1') };
 }
 
@@ -57,7 +61,7 @@ test('default-off and unknown usage never stop, while native tool calls deduplic
 
 test('budget exit atomically records summary and release then offers only a fresh same-family session [B3,C7,N2]', t => {
   const f = setup(t);
-  store.recordExitProgress(f.board, { agentId: 'core-1', item: f.id, claim: f.claim.id, tokens: 100, calls: 1 });
+  store.recordExitProgress(f.board, { agentId: 'core-1', item: f.id, claim: f.claim.key, tokens: 100, calls: 1 });
   assert.throws(() => writeBoardCommand(f.board, 'shout', [{ from: 'core-1', to: 'all', text: 'Private post-budget write.' }], 'core-1'), error => error.code === 'EXIT_BUDGET');
   assert.throws(() => store.release(f.board, f.id, 'core-1', 'not a complete summary'), error => error.code === 'EXIT_SUMMARY');
   assert.equal(itemById(f.board, f.id).item_status, 'claimed', 'failed summary rolls back the release');
@@ -73,7 +77,7 @@ test('budget exit atomically records summary and release then offers only a fres
   assert.equal(offered?.item_id, f.id);
   assert.equal(offered.continuationSummary, summary);
   const taken = store.claim(f.board, f.id, { agentId: 'core-2', lane: 'core', leaseMs: 60000,
-    freeze: () => ({ text: '{}', digest: 'new' }), exitRules: policy });
+    freeze: () => ({ text: '{}', digest: 'new' }), exitRules: policy, exitClaimKey: randomUUID() });
   assert.equal(taken.continuationSummary, summary);
   assert.throws(() => requireExitActive(f.board, 'core-4', 'shout'), error => error.code === 'EXIT_BUDGET', 'a renamed seat of the old session cannot continue');
 });
@@ -93,13 +97,13 @@ test('two consecutive exact native case failures stop, with a green or changed c
 
 test('claim counters reject stale owners and preserve a proven stop across unknown later observations [B3,C7,H16]', t => {
   const f = setup(t);
-  assert.throws(() => store.recordExitProgress(f.board, { agentId: 'core-2', item: f.id, claim: f.claim.id, tokens: 100, calls: 0 }), error => error.code === 'NOT_YOURS');
-  store.recordExitProgress(f.board, { agentId: 'core-1', item: f.id, claim: f.claim.id, tokens: null, calls: 3 });
-  store.recordExitProgress(f.board, { agentId: 'core-1', item: f.id, claim: f.claim.id, tokens: null, calls: null });
+  assert.throws(() => store.recordExitProgress(f.board, { agentId: 'core-2', item: f.id, claim: f.claim.key, tokens: 100, calls: 0 }), error => error.code === 'NOT_YOURS');
+  store.recordExitProgress(f.board, { agentId: 'core-1', item: f.id, claim: f.claim.key, tokens: null, calls: 3 });
+  store.recordExitProgress(f.board, { agentId: 'core-1', item: f.id, claim: f.claim.key, tokens: null, calls: null });
   assert.equal(exitClaimDecision(f.board, f.id, 'core-1').code, 'EXIT_BUDGET');
   assert.equal(minimumMoveEngine('recordExitProgress', [{}]), EXIT_RULES_ENGINE);
   f.board.executionEngineVersion = EXIT_RULES_ENGINE - 1;
-  assert.throws(() => store.recordExitProgress(f.board, { agentId: 'core-1', item: f.id, claim: f.claim.id, tokens: 100, calls: 3 }), error => error.code === 'ENGINE_VERSION');
+  assert.throws(() => store.recordExitProgress(f.board, { agentId: 'core-1', item: f.id, claim: f.claim.key, tokens: 100, calls: 3 }), error => error.code === 'ENGINE_VERSION');
 });
 
 test('an external native CLI captures the claim prefix, refuses its next command and seals the release summary [B3,C7,N2]', { timeout: 120000 }, t => {
@@ -146,7 +150,7 @@ test('an external native CLI captures the claim prefix, refuses its next command
 test('out-of-order captures retain independent counter high-water through unknowns without false refusals [B3,C7,N2]', t => {
   const f = setup(t);
   const record = (tokens, calls) => store.recordExitProgress(f.board, {
-    agentId: 'core-1', item: f.id, claim: f.claim.id, tokens, calls });
+    agentId: 'core-1', item: f.id, claim: f.claim.key, tokens, calls });
   record(12, 1); // The newer token capture obtains the writer before the older capture below.
   const stale = record(10, 2); // Call and token observations need not arrive in the same order.
   assert.deepEqual(stale, { tokens: 12, calls: 2, highWater: { tokens: 12, calls: 2 } });
@@ -156,9 +160,27 @@ test('out-of-order captures retain independent counter high-water through unknow
   assert.deepEqual(record(9, 1), { tokens: 12, calls: 2, highWater: { tokens: 12, calls: 2 } });
   assert.equal(exitClaimDecision(f.board, f.id, 'core-1'), null);
   assert.throws(() => store.recordExitProgress(f.board, { agentId: 'core-1', item: f.id,
-    claim: f.claim.id + 1000, tokens: 100, calls: 3 }), error => error.code === 'NOT_YOURS');
+    claim: randomUUID(), tokens: 100, calls: 3 }), error => error.code === 'NOT_YOURS');
   record(100, 2);
   record(null, null);
   record(10, 0);
   assert.equal(exitClaimDecision(f.board, f.id, 'core-1').code, 'EXIT_BUDGET', 'known stop cannot be erased by unknown or late captures');
+});
+
+test('immutable claim keys survive different replica history and nested item remapping [B3,C7,H16]', t => {
+  const key = randomUUID(), origin = setup(t, true, key), replica = setup(t, true, key, 2);
+  assert.notEqual(origin.claim.id, replica.claim.id, 'the real private boards have different local event sequences');
+  assert.equal(origin.claim.key, replica.claim.key);
+  const request = { agentId: 'core-1', item: origin.id, claim: key, tokens: 100, calls: 1 };
+  const move = prepareEngineMove(origin.board, 'recordExitProgress', [request], { actor: 'core-1' });
+  const outcome = applyEngineMove(replica.board, move, { sequence: 1, at: new Date().toISOString() });
+  assert.equal(outcome.error, undefined, JSON.stringify(outcome));
+  assert.equal(exitClaimDecision(replica.board, replica.id, 'core-1').code, 'EXIT_BUDGET');
+  assert.equal(exitClaimDecision(replica.board, replica.id, 'core-1').claim, key);
+  const outbox = { moves: [{ move: { id: 'private-add', operation: 'addItem', args: [{ by: 'coordinator', lane: 'core', title: 'Private provisional item' }] }, visible: origin.id }], results: { 'private-add': origin.id + 10 } };
+  const queued = { move, refs: bindRefs(outbox, move) };
+  assert.deepEqual(strayItemRefs(outbox, move), []);
+  const remapped = resolveMove(queued, outbox).move;
+  assert.equal(remapped.args[0].item, origin.id + 10);
+  assert.equal(remapped.args[0].claim, key, 'the native opaque claim identity is never mistaken for a local item number');
 });
