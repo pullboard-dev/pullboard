@@ -2,8 +2,10 @@
 /** Synthetic tool generations exercise real Git, native full-gate receipts and actual CLI dispatch [C7]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { runFixtureChild, startFixtureChild } from './fixture-child.js';
@@ -168,4 +170,32 @@ test('automatic main gate is opt-in and refuses an unregistered timer [C7]', asy
   assert.throws(() => configFromSource('{"toolBuild":{"autoGate":"yes"}}'), { code: 'BAD_CONFIG' });
   assert.deepEqual(await scheduleToolBuildGate({ config: { toolBuild: { autoGate: false } } }), { scheduled: false, reason: 'disabled' });
   assert.deepEqual(await runScheduledToolBuildGate({}, 'not-a-native-token'), { ran: false, reason: 'unregistered' });
+});
+
+test('timer honors committed main opt-out and retains an observed live owner [C7]', async () => {
+  const box = project(resolve(import.meta.dirname, '..'));
+  mkdirSync(join(box.repo, 'test'), { recursive: true });
+  writeFileSync(join(box.repo, 'test', 'pin-audit.test.js'), "import { test } from 'node:test'; test('timer source [C7]',()=>{});\n");
+  generation(box, 'timer');
+  const commonDir = realpathSync(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'));
+  const ctx = { info: { root: box.repo, commonDir }, config: { toolBuild: { autoGate: true } } };
+  assert.deepEqual(await scheduleToolBuildGate(ctx), { scheduled: false, reason: 'disabled-on-main' });
+  const directory = join(commonDir, 'pullboard', 'tool-build-scheduler');
+  assert.equal(existsSync(directory), false, 'a stale caller cannot create a timer while main opts out');
+  const path = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(path, 'utf8'));
+  config.toolBuild = { enabled: false, autoGate: true, refreshMs: 3_600_000 };
+  writeFileSync(path, JSON.stringify(config));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-qm', 'test: opt into private timer');
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  writeFileSync(join(directory, 'timer.guard.sqlite'), '', { mode: 0o600 });
+  const started = execFileSync('/bin/ps', ['-p', String(process.pid), '-o', 'lstart='],
+    { encoding: 'utf8', env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' } }).trim();
+  const owner = { version: 1, token: randomUUID(), pid: process.pid, started,
+    dueAt: new Date(Date.now() + 3_600_000).toISOString(), root: realpathSync(box.repo), common: commonDir };
+  const marker = join(directory, 'timer.json'), bytes = JSON.stringify(owner) + '\n';
+  writeFileSync(marker, bytes, { mode: 0o600 });
+  assert.equal((await scheduleToolBuildGate(ctx)).reason, 'existing-timer');
+  assert.equal(readFileSync(marker, 'utf8'), bytes, 'a live native identity is not replaced or signalled');
 });
