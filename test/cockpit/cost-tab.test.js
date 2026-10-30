@@ -183,6 +183,8 @@ test('the private view shows its last twenty native landings; a public export ke
   const claudeSession = 'cost-tab-fixture';
   box.env.CLAUDE_CONFIG_DIR = claudeHome;
   box.env.CLAUDE_CODE_SESSION_ID = claudeSession;
+  delete box.env.CODEX_THREAD_ID;
+  delete box.env.CODEX_SESSION_ID;
   mkdirSync(claudeProject, { recursive: true });
   writeFileSync(join(claudeProject, `${claudeSession}.jsonl`), JSON.stringify({
     timestamp: new Date().toISOString(),
@@ -195,8 +197,10 @@ test('the private view shows its last twenty native landings; a public export ke
   }) + '\n');
   for (let id = 1; id <= 22; id++) {
     box.run(alpha.repo, 'add', 'web', 'Private cost fixture ' + id, '--specs', 'G1', '--criterion', 'The private view shows its landed row.');
-    build(box, alpha, id, `cost-fixture-${id}.txt`);
     const fixtureSession = box.env.CLAUDE_CODE_SESSION_ID;
+    if (id === 3) delete box.env.CLAUDE_CODE_SESSION_ID;
+    try { build(box, alpha, id, `cost-fixture-${id}.txt`); }
+    finally { box.env.CLAUDE_CODE_SESSION_ID = fixtureSession; }
     delete box.env.CLAUDE_CODE_SESSION_ID;
     try { accept(box, alpha, id); }
     finally { box.env.CLAUDE_CODE_SESSION_ID = fixtureSession; }
@@ -304,7 +308,8 @@ test('the private view shows its last twenty native landings; a public export ke
     await press(chrome, "document.querySelector('[data-cost-row=\"3\"]')");
     await chrome.waitFor("document.querySelector('#cost-detail-3')");
     const detail = await chrome.stable("document.querySelector('#cost-detail-3').innerText");
-    assert.match(detail, /No usage record/u, 'a landing without a usage record keeps its explanatory dash');
+    assert.match(detail, /Fresh input\s+—/u, 'a landing without a private session baseline keeps its token figure unknown');
+    assert.match(detail, /Cost\s+—/u, 'a landing without a private session baseline keeps its cost figure unknown');
     await press(chrome, "document.querySelector('[data-cost-row=\"22\"]')");
     await chrome.waitFor("document.querySelector('#cost-detail-22')");
     const pricedDetail = await chrome.stable("document.querySelector('#cost-detail-22').innerText");
