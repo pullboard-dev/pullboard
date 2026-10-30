@@ -14,6 +14,10 @@ import {
 import { COLLECTION_REPORT_PREFIX } from './gate-run-receipt.js';
 import { formatCollectionReport } from './gate-run-receipt.js';
 import { parseCollectionReports } from './gate-run-receipt.js';
+import {
+  readTestOutcomes,
+  formatTestOutcomes,
+} from './test-outcomes.js';
 
 export const TIMING_RUN_ID_ENV = 'PULLBOARD_TIMING_RUN_ID';
 export const SUITE_TIMING_PREFIX = '# pullboard suite timing ';
@@ -95,6 +99,13 @@ export function timingAccountingOutput(output, id, source, { collectionId = id }
         && formatCollectionReport(value).slice(0, -1) === line;
     });
     if (reports.length === 1) removed.add(reports[0]);
+  }
+  const outcomes = readTestOutcomes(output, id);
+  if (outcomes) {
+    const canonicalOutcomes = new Set(formatTestOutcomes(id, outcomes).trimEnd().split('\n'));
+    for (const chunk of chunks) {
+      if (canonicalOutcomes.has(chunk.replace(/\r?\n$/u, ''))) removed.add(chunk);
+    }
   }
   return chunks.filter(chunk => !removed.has(chunk)).join('');
 }

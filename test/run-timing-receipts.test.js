@@ -167,6 +167,8 @@ test('a selected real landing failure remains accounted under its native private
   const source = `import {readFileSync,existsSync} from 'node:fs';
 import {runGate} from './src/gate.js'; import * as store from './src/board.js'; import {openBoard} from './src/native-board.js';
 import {accountedFailures,waivedFailures,liveWaiverProjection} from './src/land.js';
+import {quarantineWaivers} from './src/quarantine.js';
+const landingPorts={quarantineWaivers};
 import {runnerExecutionServices} from './src/runners.js';
 import {landingExecutionServices} from './src/landing-shards.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
@@ -177,8 +179,8 @@ const board=openBoard('.git/pullboard/board.sqlite');
 try {
 const waiver=store.recordLandingWaiver(board,{agentId:'person',channel:'terminal',id:'timing-selected-native-waiver',
  test:'test/one.test.js',until:'2099-01-01',reason:'private selected landing accounting regression'});
-const run=await runGate(root,config,{executionServices,landing:true,stages:true,trustStamp:false,agent:'coordinator',waivers:liveWaiverProjection(board)});
-const accounted=accountedFailures(run,root),covered=waivedFailures(board,accounted);
+const run=await runGate(root,config,{executionServices,landing:true,stages:true,trustStamp:false,agent:'coordinator',waivers:liveWaiverProjection(board,landingPorts)});
+const accounted=accountedFailures(run,root),covered=waivedFailures(board,accounted,landingPorts);
 const receipt=readGateReceipt(receiptStore(root),run.receiptId);
 console.log(JSON.stringify({raw:run.output,stages:run.stages,source:{commit:receipt.head,tree:receipt.tree},
  green:run.isGreen,waiver,accounted,covered,stamp:existsSync('.git/pullboard-gate-green')}));
