@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
@@ -37,7 +38,7 @@ function cli(box,cwd,...args){const r=box.run(cwd,...args,'--json');assert.equal
 
 /** Read genuine native operation events produced by the original coordinator commands. */
 // @pullboard-board-file journey: read the durable native events written by the preceding separate coordinator CLI commands.
-function eventFor(box,item,kind){const board=store.openBoard(join(box.repo,'.git/pullboard/board.sqlite'));try{return history(board).findLast(row=>row.item_id===item&&row.event_kind===kind).event_id;}finally{store.closeBoard(board);}}
+function eventFor(box,item,kind){const board=openBoard(join(box.repo,'.git/pullboard/board.sqlite'));try{return history(board).findLast(row=>row.item_id===item&&row.event_kind===kind).event_id;}finally{store.closeBoard(board);}}
 
 test('actual CLI files, lists, delivers and batch-answers typed coordinator requests [B3,N26]',()=>{
   const box=helpers.project('true');

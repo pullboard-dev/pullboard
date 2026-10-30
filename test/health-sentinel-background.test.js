@@ -76,6 +76,7 @@ async function answers(port, secret) {
 }
 
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { loadConfig } from '../src/config.js';
 import { loadDoctrine } from '../src/doctrine.js';
 import { frozenCriterion, loadSpec } from '../src/spec.js';
@@ -125,7 +126,7 @@ test('the actual background sentinel scans once, honors off switches and drains 
   const configFile = join(repo, 'pullboard.json'), config = loadConfig(repo);
   const boardFile = join(repo, '.git/pullboard/board.sqlite');
   const expiredClock = { now: () => new Date(Date.now() - 2 * 3_600_000) };
-  const board = store.openBoard(boardFile, expiredClock);
+  const board = openBoard(boardFile, expiredClock);
   const lane = Object.keys(config.lanes)[0];
   const builder = store.register(board, { lane, path: join(box.dir, 'sentinel-builder') });
   const id = store.addItem(board, { by: 'coordinator', lane, title: 'A real background finding', criterion: 'The private board remains readable.' });
@@ -161,7 +162,7 @@ test('the actual background sentinel scans once, honors off switches and drains 
   assert.ok(first.notices.every(row => row.shout_text.includes('CLAIM_LAPSED')));
   assert.deepEqual({ ...first.item }, { item_status: 'claimed', item_owner: builder });
   await tick(); assert.equal(receipts().notices.length, 2, 'a persisting finding posts nothing again');
-  const renewed = store.openBoard(boardFile);
+  const renewed = openBoard(boardFile);
   store.claim(renewed, id, { agentId: builder, lane, leaseMs: 3_600_000, freeze: item => frozenCriterion(loadSpec(repo, config), item, loadDoctrine(repo, config)) });
   store.release(renewed, id, builder); store.closeBoard(renewed);
   await tick();

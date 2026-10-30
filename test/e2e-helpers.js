@@ -12,6 +12,7 @@ import { request } from 'node:http';
 import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { fetchFresh } from './http-fixture.js';
 import { fetchPrintedViewLink } from './view-link-fixture.js';
@@ -264,7 +265,7 @@ function attackCommit(box, cwd) {
 /** Reopen the CLI's actual SQLite file to seed private integration data that later CLI processes read. */
 function withFixtureBoard(box, work) {
   // File-backed boundary: subsequent real CLI processes must read these exact persisted fixture rows.
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { return work(board); }
   finally { store.closeBoard(board); }
 }

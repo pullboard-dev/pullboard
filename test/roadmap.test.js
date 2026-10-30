@@ -8,6 +8,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { addMilestone, shipMilestone, roadmap } from '../src/board-milestones.js';
 import { main } from '../src/cli.js';
 import { milestoneRoadmap } from '../src/roadmap.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -66,7 +68,7 @@ function withdrawFixture(t) {
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ name: 'Local Alias', gate: 'true', verify: 'any', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }));
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: initialize fixture');
-  const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   store.ensureCoordinator(board, repo);
   const builder = store.register(board, { lane: 'web', path: join(dir, 'builder'), model: 'Fixture Model' });
@@ -111,7 +113,7 @@ function fixture(t) {
   const commit = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   let instant = Date.parse('2026-10-17T12:00:00Z');
   const clock = { now: () => new Date(instant) };
-  const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), clock);
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(board));
   store.ensureCoordinator(board, repo);
   const builder = store.register(board, { lane: 'web', path: join(dir, 'builder'), model: 'Fixture Model' });
@@ -157,7 +159,7 @@ test('withdraw leaves every milestone and the roadmap lists work to ship first [
   mkdirSync(foreignRepo);
   gitAt(dir, 'init', '-q', '-b', 'main', foreignRepo);
   runAt(foreignRepo, 'init');
-  const foreignBoard = store.openBoard(join(foreignRepo, '.git', 'pullboard', 'board.sqlite'));
+  const foreignBoard = openBoard(join(foreignRepo, '.git', 'pullboard', 'board.sqlite'));
   let foreignItem;
   try {
     store.ensureCoordinator(foreignBoard, foreignRepo);
@@ -248,7 +250,7 @@ test('[N26] each milestone sums its items by state with an estimate', async t =>
   const withdrawn = box.item('waiting');
   store.withdraw(box.board, withdrawn, { agentId: 'coordinator', reason: 'No longer planned' });
   const ids = [landings.at(-1), landing, review, building, held, waiting, withdrawn];
-  store.addMilestone(box.board, { agentId: 'coordinator', name: 'A', items: ids });
+  addMilestone(box.board, { agentId: 'coordinator', name: 'A', items: ids });
   const ask = store.shout(box.board, { from: 'coordinator', to: store.PERSON, lanes: ['web'], decision: true,
     text: `Choose for #${waiting}, #${waiting}, #${withdrawn}; foreign#${review} and https://example.invalid/#${landing} are outside`,
     evidence: { kind: 'attempt', outcome: 'Needs judgment', item: held, commit: box.commit } });
@@ -256,7 +258,7 @@ test('[N26] each milestone sums its items by state with an estimate', async t =>
     needsYou: [held, waiting], pace: { last6h: 5, last2h: 3, last24h: 7 }, estimate: { low: 3.5, high: 6 }, window: '6h', reason: null };
   assert.deepEqual((await box.run()).milestones[0].summary, expected);
   assert.match(await box.run(false), /^  5 left of 6: 1 landed, 1 landing, 1 in review, 1 building, 1 waiting, 1 held; about 3.5 to 6 h at today's pace\.$/m);
-  const direct = milestoneRoadmap(box.repo, box.board, { projects: () => [], ports: store })[0];
+  const direct = milestoneRoadmap(box.repo, box.board, { projects: () => [], ports: { ...store, roadmap, openBoard } })[0];
   assert.equal(direct.total, 6, 'withdrawn work is excluded from milestone membership');
   assert.equal(direct.withdrawn, 1, 'the omitted withdrawn member remains reported separately');
   assert.ok(direct.items.every(entry => entry.status !== 'withdrawn'));
@@ -275,8 +277,8 @@ test('[N26] each milestone sums its items by state with an estimate', async t =>
   box.at(now + 6 * HOUR);
   assert.deepEqual((await box.run()).milestones[0].summary.estimate, { low: 17, high: 17 }, 'sparse recent progress falls back to the full day');
   box.at(now);
-  store.addMilestone(box.board, { agentId: 'coordinator', name: 'B', items: [] });
-  store.shipMilestone(box.board, 'A', { agentId: 'coordinator', commit: box.commit });
+  addMilestone(box.board, { agentId: 'coordinator', name: 'B', items: [] });
+  shipMilestone(box.board, 'A', { agentId: 'coordinator', commit: box.commit });
   const shipped = (await box.run()).milestones[0];
   assert.equal(shipped.summary.estimate, null, 'a shipped milestone has no estimate even at a known pace');
   assert.doesNotMatch((await box.run(false)).split('B:')[0], /left of/, 'the shipped milestone has no summary line');
@@ -290,8 +292,8 @@ test('[N26] roadmap holds and unavailable scoped references partition without le
   store.holdItem(box.board, building, { agentId: 'coordinator', reason: 'Next stage waits' });
   const paused = box.item('waiting', 'paused');
   store.holdLane(box.board, 'paused', { agentId: 'coordinator', reason: 'Paused lane' });
-  store.addMilestone(box.board, { agentId: 'coordinator', name: 'Scoped', items: [building, paused, 'unregistered-private#7'] });
-  const scoped = milestoneRoadmap(box.repo, box.board, { projects: () => [], hideOutOfScope: true, ports: store })[0];
+  addMilestone(box.board, { agentId: 'coordinator', name: 'Scoped', items: [building, paused, 'unregistered-private#7'] });
+  const scoped = milestoneRoadmap(box.repo, box.board, { projects: () => [], hideOutOfScope: true, ports: { ...store, roadmap, openBoard } })[0];
   assert.equal(scoped.summary.building, 1, 'a live builder takes precedence over a hold');
   assert.equal(scoped.summary.held, 1, 'a held lane counts its open work');
   assert.equal(scoped.summary.waiting, 1, 'an unresolved foreign item remains in the total');
@@ -299,7 +301,7 @@ test('[N26] roadmap holds and unavailable scoped references partition without le
   assert.equal(scoped.summary.estimate, null);
   assert.doesNotMatch(JSON.stringify(scoped), /unregistered-private/, 'the summary preserves scoped reference redaction');
   box.at(now + 2 * HOUR);
-  const expired = milestoneRoadmap(box.repo, box.board, { projects: () => [], hideOutOfScope: true, ports: store })[0].summary;
+  const expired = milestoneRoadmap(box.repo, box.board, { projects: () => [], hideOutOfScope: true, ports: { ...store, roadmap, openBoard } })[0].summary;
   assert.equal(expired.building, 0);
   assert.equal(expired.held, 2, 'the expired builder is held instead of waiting');
   assert.equal(expired.waiting, 1);
@@ -316,7 +318,7 @@ test('[N26] an estimate with equal bounds prints one number', async t => {
   }
   box.at(now);
   const items = Array.from({ length: 5 }, () => box.item('waiting'));
-  store.addMilestone(box.board, { agentId: 'coordinator', name: 'Estimate', items });
+  addMilestone(box.board, { agentId: 'coordinator', name: 'Estimate', items });
   assert.deepEqual((await box.run()).milestones[0].summary.estimate, { low: 2.5, high: 2.5 },
     'JSON retains both equal bounds');
   const equal = await box.run(false);
@@ -340,7 +342,7 @@ test('[N26] a slow day estimates from the last 24 hours', async t => {
   }
   box.at(now);
   const items = Array.from({ length: 3 }, () => box.item('waiting'));
-  store.addMilestone(box.board, { agentId: 'coordinator', name: 'Slow', items });
+  addMilestone(box.board, { agentId: 'coordinator', name: 'Slow', items });
   // These are observations of the same real history; no moves are written while changing its query clock.
   box.at(now + 7 * HOUR);
   const slow = (await box.run()).milestones[0].summary;
@@ -376,8 +378,8 @@ test('[N26] a slow day estimates from the last 24 hours', async t => {
   assert.equal(sparse.reason, 'few-landings');
   assert.match(await box.run(false), /; too few landings yet to estimate\./u);
 
-  store.addMilestone(box.board, { agentId: 'coordinator', name: 'Next', items: [] });
-  store.shipMilestone(box.board, 'Slow', { agentId: 'coordinator', commit: box.commit });
+  addMilestone(box.board, { agentId: 'coordinator', name: 'Next', items: [] });
+  shipMilestone(box.board, 'Slow', { agentId: 'coordinator', commit: box.commit });
   const shipped = (await box.run()).milestones[0].summary;
   assert.deepEqual({ estimate: shipped.estimate, window: shipped.window, reason: shipped.reason },
     { estimate: null, window: null, reason: null }, 'shipping is not mislabeled as sparse history');
@@ -386,7 +388,7 @@ test('[N26] a slow day estimates from the last 24 hours', async t => {
 
 /** Missing store providers must refuse before a roadmap operation reads or mutates a real board. */
 test('roadmap ports refuse before board access while canonical composition retains native events [N26,H16,C7]', () => {
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   try {
     const before = store.events(board);
     assert.throws(() => addMilestoneWithPorts(board, { agentId: 'coordinator', name: 'Missing' }), TypeError);
@@ -394,7 +396,7 @@ test('roadmap ports refuse before board access while canonical composition retai
     assert.throws(() => milestoneFocus(board), TypeError);
     assert.deepEqual(store.events(board), before, 'missing ports add no native events');
     assert.deepEqual(store.milestones(board), [], 'missing ports never write roadmap metadata');
-    store.addMilestone(board, { agentId: 'coordinator', name: 'Bound' });
+    addMilestone(board, { agentId: 'coordinator', name: 'Bound' });
     assert.equal(store.milestones(board)[0].name, 'Bound');
     assert.equal(store.events(board).at(-1).event_kind, 'milestone_add', 'the public adapter still records the real native event');
   } finally { store.closeBoard(board); }

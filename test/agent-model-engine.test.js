@@ -3,6 +3,7 @@ import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import {
@@ -41,7 +42,7 @@ test('model declarations and event snapshots retain all supported engine semanti
   assert.equal(BOARD_SENTINEL_ENGINE, 56, 'board watches retain their allocated feature engine');
   assert.ok(ENGINE_VERSION >= BOARD_SENTINEL_ENGINE, 'the current writer retains board-watch semantics');
   for (const version of Array.from({ length: ENGINE_VERSION }, (_, index) => index + 1)) {
-    const board = store.openBoard(':memory:');
+    const board = openBoard(':memory:');
     t.after(() => store.closeBoard(board));
     const registration = prepareEngineMove(board, 'register', [{ lane: 'web', path: '/web', model: 'First Model' }]);
     const first = applyEngineMove(board, { ...registration, engine: version }, { sequence: 1, at: '2026-10-10T07:00:00Z' });
@@ -68,8 +69,8 @@ test('model declarations and event snapshots retain all supported engine semanti
 });
 
 test('exchanged replicas keep models and record identical later agent moves [O8,O3,H16]', (t) => {
-  const source = store.openBoard(':memory:');
-  const replica = store.openBoard(':memory:');
+  const source = openBoard(':memory:');
+  const replica = openBoard(':memory:');
   t.after(() => { store.closeBoard(source); store.closeBoard(replica); });
   const id = store.register(source, { lane: 'web', path: '/web', model: 'Declared Model' });
   importBoard(replica, exportBoard(source));

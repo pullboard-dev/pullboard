@@ -13,6 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
 import { applyEngineMove, applyRelayMove, appliedSequence, prepareEngineMove } from '../src/engine.js';
@@ -88,7 +89,7 @@ function refused(result, code, why) {
  * and a reviewer in one lane, and helpers to submit, reject and land-reopen an item.
  */
 function history(file, { freeze: suppliedFreeze } = {}) {
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   const builder = store.register(board, { lane: 'app', path: '/fixture/app-1', model: 'Builder model' });
   const reviewer = store.register(board, { lane: 'app', path: '/fixture/app-2', model: 'Reviewer model' });
   /** Freeze the item's title, as the real freezer digests its criterion. */
@@ -642,7 +643,7 @@ test('a repeated cause becomes a draft row with its proof [D1,D3,S1,P6]', async 
   const api = await executeMove(box.repo, { verb: 'spec-approve', args: { ids: drafted.join(',') } }, main, true, 'api');
   assert.equal(api.body.error?.code, 'B26_PERSON_CHANNEL', 'the standalone API cannot approve a drafted row');
   assert.throws(() => refusePersonMove('spec_approve'), (error) => error.code === 'HUMAN_REQUIRED', 'MCP cannot approve a drafted row');
-  const sealedBoard = store.openBoard(box.file);
+  const sealedBoard = openBoard(box.file);
   try {
     const forged = prepareEngineMove(sealedBoard, 'recordRowDecisions', [{ agentId: store.PERSON, channel: 'view', decisions: [] }], { id: 'rigor-forged-approval' });
     for (const sender of [{ kind: 'agent', userId: 'fixture', agent: 'coordinator' }, { kind: 'machine', userId: 'fixture', machine: 'fixture-machine' }]) {

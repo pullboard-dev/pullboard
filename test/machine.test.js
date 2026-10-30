@@ -26,6 +26,7 @@ import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import { HELP } from '../src/cli.js';
@@ -632,7 +633,7 @@ const freeze = (item) => ({ text: item.item_title, digest: `digest:${item.item_t
 function boardOnDisk(clock) {
   const dir = fs.mkdtempSync(join(tmpdir(), 'pullboard-machine-'));
   const file = join(dir, 'board.sqlite');
-  const board = store.openBoard(file, clock);
+  const board = openBoard(file, clock);
   store.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
   store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
   store.register(board, { lane: 'web', path: '/repo-web-2', family: 'review-vendor' });
@@ -787,7 +788,7 @@ test('an older board gets the triggers quietly on its next open; one dropped by 
     older.prepare("UPDATE item SET item_status = 'open' WHERE item_id = ?").run(id);
     older.close();
 
-    const upgraded = store.openBoard(lab.file);
+    const upgraded = openBoard(lab.file);
     assert.deepEqual(triggerNames(upgraded), every);
     assert.equal(upgraded.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'guards'").get().n, 0, 'an older board gets them quietly');
     store.closeBoard(upgraded);
@@ -800,7 +801,7 @@ test('an older board gets the triggers quietly on its next open; one dropped by 
     tampered.exec('PRAGMA user_version = 1');
     tampered.close();
 
-    const restored = store.openBoard(lab.file);
+    const restored = openBoard(lab.file);
     try {
       assert.deepEqual(triggerNames(restored), every);
       const logged = restored.db.prepare("SELECT event_by, event_detail FROM event WHERE event_kind = 'guards'").all();
@@ -1220,14 +1221,14 @@ test('next --verify looks and reserves in one transaction, so no other verifier 
     const fourth = store.register(lab.board, { lane: 'web', path: '/repo-web-4', family: 'review-vendor' });
     // A reservation that has already lapsed, so the look has a lease to read the clock for.
     store.reserveReview(lab.board, id, { agentId: fourth, leaseMs: 1, policy: 'any' });
-    const rival = store.openBoard(lab.file);
+    const rival = openBoard(lab.file);
     rival.db.exec('PRAGMA busy_timeout = 0');
     let armed = false;
     let rivalSaw = null;
     // web-2's own connection. Its clock runs a minute ahead, so the lapsed lease is plainly lapsed,
     // and the first time the look reads it, a rival verifier on another connection tries to
     // reserve the same review.
-    const looking = store.openBoard(lab.file, {
+    const looking = openBoard(lab.file, {
       now: () => {
         if (armed && rivalSaw === null) {
           try {
@@ -1363,7 +1364,8 @@ test('a helper added to the board that changes a status outside moveItem is refu
     const boardFile = join(dir, 'src', 'board.js');
     fs.appendFileSync(boardFile, `\nexport function reopenByHand(board, id) {\n  board.db.prepare("update item set item_status = 'open', item_owner = null, item_lease_until = null where item_id = ?").run(id);\n}\n`);
     const copy = await import(pathToFileURL(boardFile).href);
-    const board = copy.openBoard(':memory:');
+    const copyNative = await import(pathToFileURL(join(dir, 'src', 'native-board.js')).href);
+    const board = copyNative.openBoard(':memory:');
     copy.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
     copy.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
     const id = copy.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });

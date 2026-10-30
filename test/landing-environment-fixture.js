@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { readGateReceipt, receiptBinds, receiptBody, receiptFields, receiptStore } from '../src/gate-run-receipt.js';
 import { gateRuns } from '../src/gate-control.js';
 
 /** Read the private board through its public store without rewriting historical receipts. */
 function boardRead(box, action, clock) {
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'), clock);
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), clock);
   try { return action(board); } finally { store.closeBoard(board); }
 }
 

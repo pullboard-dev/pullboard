@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { main } from '../src/cli.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
@@ -32,7 +33,7 @@ function fixture(t, { registrationEngine = ENGINE_VERSION, replayEngine = ENGINE
   const settings = machineSettingsFile(); mkdirSync(dirname(settings), { recursive: true });
   writeFileSync(settings, JSON.stringify({ view: { background: false }, relay: { offerAtInit: false } }));
   const clock = { value: Date.parse('2026-10-24T10:00:00Z'), now() { return new Date(this.value); } };
-  const board = store.openBoard(join(root, '.git/pullboard/board.sqlite'), clock);
+  const board = openBoard(join(root, '.git/pullboard/board.sqlite'), clock);
   // Historical replay tests need actual old join bytes, not current grants followed by an old move.
   board.executionEngineVersion = registrationEngine;
   store.register(board, { lane: 'coordinator', path: root });

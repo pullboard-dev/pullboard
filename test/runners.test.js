@@ -1370,7 +1370,8 @@ test('review655 a registered runner honors the same live person waiver at landin
   box.git(repo, 'add', '.');
   box.git(repo, 'commit', '-q', '-m', 'test: commit private registered-runner waiver fixture');
   const store = await import('../src/board.js');
-  const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const nativeBoard = await import('../src/native-board.js');
+  const board = nativeBoard.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   let waiver;
   try { waiver = store.recordLandingWaiver(board, { agentId: 'person', channel: 'terminal', id: 'review655-remote-person-waiver', test: failing, until: '2099-01-01', reason: 'same live person exception on either execution machine' }); }
   finally { store.closeBoard(board); }

@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { createLocalApiHandler } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from '../src/cli.js';
@@ -17,7 +18,7 @@ import { fetchFresh } from './http-fixture.js';
 function boardFor(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-api-requests-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const board = store.openBoard(join(directory, 'board.sqlite'));
+  const board = openBoard(join(directory, 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: join(directory, 'repo') });
   store.register(board, { lane: 'app', path: join(directory, 'app-1') });

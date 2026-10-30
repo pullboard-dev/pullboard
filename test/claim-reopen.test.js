@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { configFromSource, defaults } from '../src/config.js';
 import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
@@ -19,7 +20,7 @@ const TRUNK = 'b'.repeat(40);
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-reopen-'));
   let at = Date.parse('2026-01-01T00:00:00Z');
-  const board = store.openBoard(join(directory, 'board.sqlite'), { now: () => new Date(at) });
+  const board = openBoard(join(directory, 'board.sqlite'), { now: () => new Date(at) });
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const builder = store.register(board, { lane: 'core', path: '/builder', route: 'mid' });
@@ -160,14 +161,14 @@ test('[B13,B5,H16] a sealed return persists one window and notice across replay 
   assert.throws(() => applyEngineMove(f.board, { ...historical, engine: REOPEN_FIRST_REFUSAL_ENGINE - 1 },
     { sequence: 1, at: '2026-01-01T00:00:00Z' }), /engine/);
   const receipt = { sequence: 1, at: '2026-01-01T00:00:00Z' };
-  const legacy = store.openBoard(':memory:');
+  const legacy = openBoard(':memory:');
   t.after(() => store.closeBoard(legacy));
   importBoard(legacy, exportBoard(f.board));
   assert.equal(applyEngineMove(legacy, historical, receipt).error, undefined, 'the clause-free historical return keeps its original floor');
   applyEngineMove(f.board, move, receipt);
   applyEngineMove(f.board, move, receipt);
   assert.equal(store.recentShouts(f.board).filter(row => row.shout_text.includes('waits for you')).length, 1);
-  const replica = store.openBoard(join(f.directory, 'replica.sqlite'), { now: () => new Date('2026-01-01T00:05:00Z') });
+  const replica = openBoard(join(f.directory, 'replica.sqlite'), { now: () => new Date('2026-01-01T00:05:00Z') });
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(f.board));
   assert.throws(() => store.claim(replica, id, { agentId: f.other, lane: 'core', leaseMs: 7_200_000, freeze: () => null }),
@@ -233,7 +234,7 @@ test('[B4,V2,V1,H16] a claim waits for a bar signed by another session', (t) => 
   assert.throws(() => signBar(f.board, id, { agentId: f.other, revision: before.revision, digest: before.digest, note: 'stale' }), error => error.code === 'BAR_SIGN_STALE');
   signReady(f, id);
   claim(f, id, f.builder);
-  const replica = store.openBoard(join(f.directory, 'ready-replica.sqlite'));
+  const replica = openBoard(join(f.directory, 'ready-replica.sqlite'));
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(f.board));
   assert.equal(barReadiness(replica, store.getItem(replica, id), {}, replica.runtimePorts.verification).missing.length, 0);

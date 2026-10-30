@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { applyRelayMove, appliedSequence, prepareEngineMove } from '../src/engine.js';
 import { BAR_READY_ENGINE } from '../src/bar-ready-engine.js';
@@ -13,7 +14,7 @@ const ACTORS={coordinator:{session:'a'.repeat(64),parent:'a'.repeat(64)},'core-1
 /** Private SQLite copies share one initial history; all observations here are synthetic protocol fixtures. */
 function copies(t) {
   const clock={now:()=>new Date('2026-10-24T00:00:00Z')};
-  const first=store.openBoard(':memory:',clock);const second=store.openBoard(':memory:',clock);
+  const first=openBoard(':memory:',clock);const second=openBoard(':memory:',clock);
   t.after(()=>{store.closeBoard(second);store.closeBoard(first);});
   store.register(first,{lane:'coordinator',path:'/private/bar-replay-root',sessionDigest:ACTORS.coordinator.session});
   for (const [index,id] of ['core-1','core-2'].entries()) store.register(first,{lane:'core',path:`/private/bar-replay-${index}`,sessionDigest:ACTORS[id].session,parentDigest:ACTORS[id].parent});

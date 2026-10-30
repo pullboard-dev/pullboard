@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { main } from '../src/cli.js';
 import { defaults, configFromSource } from '../src/config.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
@@ -51,7 +52,7 @@ function fixture(t) {
   let now = new Date(NOW);
   const clock = { now: () => new Date(now) };
   // @pullboard-board-file journey: the public report CLI reopens this Git project's persisted synthetic receipt history.
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: root });
   /** Append explicitly synthetic history to the real fixture board, never the shared project board. */

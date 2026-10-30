@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { UNCHANGED_REFREEZE_ENGINE } from '../src/unchanged-refreeze-engine.js';
 import { runFixtureGit } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -84,7 +85,7 @@ test('[V2] the actual CLI reports an identical refreeze as retained and preserve
   const claimed = box.run(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err || claimed.out);
   // @pullboard-board-file journey: the actual CLI and this reader share the same durable board
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     const before = store.getItem(board, id);
     const repeated = box.run(box.repo, 'refreeze', String(id), '--json');

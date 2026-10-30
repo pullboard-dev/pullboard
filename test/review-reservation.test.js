@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { main } from '../src/cli.js';
 import { exportBoard } from '../src/exchange.js';
 import { importBoard } from '../src/exchange.js';
@@ -41,7 +42,7 @@ function fixture(t) {
   let at = Date.parse('2026-10-28T05:03:07.314Z');
   const clock = { now: () => new Date(at), advance: ms => { at += ms; } };
   // @pullboard-board-file persistence: the real CLI reopens this Git board to observe the reservation through another connection.
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: root });
   const builder = store.register(board, { lane: 'web', path: paths[0], family: 'Fixture Builder' });
@@ -127,7 +128,7 @@ test('older ordered companion changes replay eviction and the new engine retains
   const move = prepareEngineMove(box.board, 'attachItemPatch', [box.id, options], { id: 'review-custody-order' });
   assert.ok(move.engine >= PATCH_REVIEW_CUSTODY_ENGINE, 'the producer stamps the engine that defines retained custody');
   for (const engine of [PATCH_REVIEW_CUSTODY_ENGINE - 1, PATCH_REVIEW_CUSTODY_ENGINE]) {
-    const replica = store.openBoard(':memory:', box.clock);
+    const replica = openBoard(':memory:', box.clock);
     t.after(() => store.closeBoard(replica));
     importBoard(replica, exportBoard(box.board));
     const outcome = applyEngineMove(replica, { ...move, engine }, { sequence: 1, at: box.clock.now().toISOString() });

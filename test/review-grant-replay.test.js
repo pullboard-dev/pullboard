@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { REVIEW_GRANT_ENGINE } from '../src/review-grant-engine.js';
@@ -16,7 +17,7 @@ const AT = '2026-10-26T08:00:00.000Z';
 
 /** Build a submitted web item whose builder holds a current-engine grant, with an api reviewer seat. */
 function submitted(t) {
-  const board = store.openBoard(':memory:', { now: () => new Date(AT) });
+  const board = openBoard(':memory:', { now: () => new Date(AT) });
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: '/fixture' });
   store.register(board, { lane: 'web', path: '/fixture/web-1' });
@@ -30,7 +31,7 @@ function submitted(t) {
 
 /** Open an independent replica of the seed through the public exchange format. */
 function replica(t, seed) {
-  const board = store.openBoard(':memory:', { now: () => new Date(AT) });
+  const board = openBoard(':memory:', { now: () => new Date(AT) });
   t.after(() => store.closeBoard(board));
   importBoard(board, exportBoard(seed));
   return board;

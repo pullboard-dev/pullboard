@@ -9,6 +9,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { git } from '../src/git.js';
 import { runGate } from '../src/gate.js';
 import { boardReceiptStore, readGateReceipt, receiptBinds, receiptStore } from '../src/gate-run-receipt.js';
@@ -27,7 +28,7 @@ function nativePushReceiptProblems(root, board, commits) {
 
 /** Close the real fixture database before running any admitted child workload. */
 function board(root, action) {
-  const opened = store.openBoard(join(root, '.git/pullboard/board.sqlite'), undefined, { isMain: true });
+  const opened = openBoard(join(root, '.git/pullboard/board.sqlite'), undefined, { isMain: true });
   try { return action(opened); } finally { store.closeBoard(opened); }
 }
 

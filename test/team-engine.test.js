@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { applyEngineMove, appliedSequence, engineReceipt, prepareEngineMove } from '../src/engine.js';
@@ -26,7 +27,7 @@ const AT = '2026-10-16T00:00:00.000Z';
  * a seat or claim marked by a newer engine rightly refuses old-engine moves.
  */
 function submitted(t) {
-  const board = store.openBoard(':memory:', { now: () => new Date(AT) });
+  const board = openBoard(':memory:', { now: () => new Date(AT) });
   t.after(() => store.closeBoard(board));
   board.executionEngineVersion = AGENT_GRANT_ENGINE - 1;
   store.register(board, { lane: 'coordinator', path: '/fixture' });
@@ -42,7 +43,7 @@ function submitted(t) {
 
 /** Produce one independent replica through the public board exchange format. */
 function replica(t, seed) {
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   importBoard(board, exportBoard(seed));
   return board;
@@ -244,9 +245,9 @@ test('an actual engine 12 finish records its landing without borrowing a newer c
   const record = oldEngine.prepareEngineMove(old, 'recordLandingBatch', [{ agentId: 'coordinator', batch }], { id: 'legacy-pushed-batch' });
   assert.equal(oldEngine.applyEngineMove(old, record, { sequence: 2, at: AT }).error, undefined);
   const finish = oldEngine.prepareEngineMove(old, 'finishLandingBatch', [{ agentId: 'coordinator', id: batch.id, tip: COMMIT }], { id: 'legacy-in-flight-finish' });
-  const one = store.openBoard(':memory:');
-  const two = store.openBoard(':memory:');
-  const historical = store.openBoard(':memory:');
+  const one = openBoard(':memory:');
+  const two = openBoard(':memory:');
+  const historical = openBoard(':memory:');
   t.after(() => { for (const board of [one, two, historical]) store.closeBoard(board); });
   for (const board of [one, two, historical]) importBoard(board, oldExchange.exportBoard(old));
 

@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { appliedSequence, applyRelayMove } from '../src/engine.js';
 import { ENGINE_VERSION, VERIFIER_STANDING_ENGINE } from '../src/machine.js';
@@ -119,7 +120,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
   const boardCopy = join(mkdtempSync(join(tmpdir(), 'pullboard-mint-board-')), 'board.sqlite');
   t.after(() => rmSync(dirname(boardCopy), { recursive: true, force: true }));
   copyFileSync(join(box.root, '.git', 'pullboard', 'board.sqlite'), boardCopy);
-  const board = store.openBoard(boardCopy);
+  const board = openBoard(boardCopy);
   t.after(() => store.closeBoard(board));
   assert.equal(store.agentCreator(board, manual), 'machine', 'a manual join records that no seat made it');
   assert.equal(store.agentCreator(board, builder.id), 'coordinator');
@@ -315,7 +316,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
   for (const engine of [11, 12, 19, 20]) await t.test(`an engine-${engine} journal replays as before`, (t) => {
     const directory = mkdtempSync(join(tmpdir(), `pullboard-mint-engine${engine}-`));
     t.after(() => rmSync(directory, { recursive: true, force: true }));
-    const historical = store.openBoard(':memory:');
+    const historical = openBoard(':memory:');
     t.after(() => store.closeBoard(historical));
     historical.executionEngineVersion = engine;
     store.register(historical, { lane: 'coordinator', path: '/repo' });
@@ -346,7 +347,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
     assert.deepEqual(record.sender, { kind: 'agent', userId: '202', agent: legacyReviewer }, `the engine-${engine} record gains no stamp`);
     assert.equal(record.registration, undefined);
     assert.deepEqual(JSON.parse(record.bytes.toString('utf8')), recorded, 'its move bytes are unchanged');
-    const fresh = store.openBoard(':memory:');
+    const fresh = openBoard(':memory:');
     t.after(() => store.closeBoard(fresh));
     const stamped = applyRelayMove(fresh, recorded, { sequence: 1, at: record.receivedAt, kind: 'move',
       sender: { ...record.sender, policy: VERIFIER_STANDING_ENGINE } });
@@ -357,7 +358,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
   });
 
   await t.test('an unlinked board verifies exactly as before', (t) => {
-    const local = store.openBoard(':memory:');
+    const local = openBoard(':memory:');
     t.after(() => store.closeBoard(local));
     store.register(local, { lane: 'coordinator', path: '/repo' });
     const localBuilder = store.register(local, { lane: 'web', path: '/repo-web-1', createdBy: 'machine' });

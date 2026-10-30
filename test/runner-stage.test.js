@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { main } from '../src/cli.js';
 import { localRunnerDescriptor } from '../src/runner-load.js';
 import { recordReceipt } from '../src/gate-receipt.js';
@@ -30,7 +31,7 @@ test('[C7,O5] stats --window includes measured runner capacity and slot-wait qua
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: { web: { owns: ['web/'] } } }));
   const now = Date.parse('2026-10-24T12:00:00.000Z');
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(now) });
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(now) });
   t.after(() => store.closeBoard(board));
 
   const priorMachineHome = process.env.PULLBOARD_MACHINE_HOME;
@@ -98,7 +99,7 @@ test('[C7,O5] legacy receipt timestamps leave runner shares and counts unknown',
 test('[C7,O5] an ongoing physical local holder contributes window occupancy without a completion', async t => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-live-runner-stage-')));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   const machineHome = join(root, 'machine');
   mkdirSync(machineHome, { recursive: true });
   writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 2, browserSlots: 1 }));
