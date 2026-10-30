@@ -3,10 +3,11 @@ import { createQueuedItemLease } from '../queued-item-lease.js';
 import * as personIdentity from '../person.js';
 import { barActorForCommand as commandBarActor } from '../bar-actor.js';
 import * as store from '../board.js';
-import { context } from '../cli-context.js';
+import { personCommandContext } from '../cli-context.js';
 import { withBoard } from '../cli-context.js';
 import { CHECKOUT_BOARD_ONLY } from '../cli-main.js';
 import { CHECKOUT_LEASES } from '../cli-main.js';
+import { main } from '../cli-main.js';
 import { COORDINATOR } from '../config.js';
 import { Refused } from '../refused.js';
 import { runPrivateBoard } from '../private-board.js';
@@ -36,7 +37,7 @@ export function personMode(ctx, me, values) {
 }
 /** Run board work for the caller's checkout, or select its device-local repo board for a private add. */
 export function actOn(io, work, { privateBoard = false } = {}) {
-  const ctx = context(io);
+  const ctx = personCommandContext(io, { main, ordered });
   if (privateBoard) return runPrivateBoard(ctx, work, { withBoard, whoAmI,
     checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY });
   return withBoard(ctx, (board) => work(ctx, board, whoAmI(ctx, board)));

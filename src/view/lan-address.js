@@ -1,7 +1,7 @@
 /** Choose an assigned local-network address only for an explicit LAN view [H19]. */
 import { isIP } from 'node:net';
 import { networkInterfaces } from 'node:os';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 
 /** Recognize private and link-local IPv4 addresses; the initial LAN transport does not bind a public interface. */
 function localAddress(address) {

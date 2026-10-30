@@ -1,3 +1,4 @@
+import { itemReviewPolicyEngine } from '../review-policy.js';
 import { checkTimingEngine } from '../check-timing.js';
 import { itemPatchRecords } from '../item-patch-state.js';
 import { ITEM_PATCH_SUBMIT_ENGINE } from '../item-patch-submit-engine.js';
@@ -31,7 +32,7 @@ function existingEngine(args, board, at) {
 function minimumEngine(args, board, at) {
   const outside = board && Boolean(outsideSource(board, args[0]));
   const presubmit = board && itemPatchRecords(board, args[0]).some(record => record.presubmit === true);
-  return Math.max(args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
+  return Math.max(itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
     Array.isArray(args[1]?.submissionProof?.knownMainFailures?.failures)
       && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined) ? KNOWN_MAIN_REWORKS_ENGINE : 1,
     args[1]?.submissionSize !== undefined ? FLOW_SIZE_ENGINE : 1,
@@ -83,6 +84,7 @@ export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   "RATCHET_ROSE": "fix the new doctrine problems named in the report, commit, and submit again; only the person can sign an increased count",
   "RATCHET_UNCOUNTED": "fix the named doctrine check to exit zero or one within its configured timeout, or ask the coordinator to repair it, then submit again",
   "RUNNER_RESULT_INVALID": "inspect the retained transport diagnostic and repair the named protocol or capsule failure before retrying",
+  "RUNNER_INFRA_RETRY_EXHAUSTED": "inspect the retained runner diagnostic, restore the named runner, then retry this command",
   "RUNNER_BROWSER_SLOT_REQUIRED": "nothing to do: the run reruns on a local gate slot; if it repeats, set gate.browserByLaunch the same on this machine and that runner",
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again",
   "RUNNER_WAIT_DEADLINE": "check the runners the message names, or restore local gate capacity with pullboard settings, then retry",

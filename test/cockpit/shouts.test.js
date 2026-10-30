@@ -83,6 +83,7 @@ test('an empty feed says so on one line [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    page.run("openTab('shouts'); render();");
     assert.equal(page.show('feed'), '<div class="empty">No shouts yet.</div>', 'one line, with no bar while the feed shows everything');
     assert.match(page.html, /<div class="card-panel shouts-card">[^]*<div class="feed" id="feed"><\/div><\/div>/, 'the shouts feed, in the Shouts card');
     assert.match(page.html, /<div class="card-panel feed" id="activity"><\/div>/, 'and the activity feed are both feeds');
@@ -96,15 +97,17 @@ test('a shout shows the evidence it carries [B22]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  build(box, alpha, 1, 'greeting.html');
+  box.run(alpha.web, 'claim', '1'); // Evidence needs a bound item and commit, not a restated submit.
   const head = box.git(alpha.web, 'rev-parse', 'HEAD');
   box.run(alpha.web, 'shout', 'all', 'the page loads in 80ms', '--evidence', 'receipt', '--outcome', 'measured <fast>', '--item', '1', '--commit', head.slice(0, 7));
   box.run(alpha.web, 'shout', 'all', 'tried a cache', '--evidence', 'attempt', '--outcome', 'failed', '--item', '1', '--commit', 'HEAD');
   box.run(alpha.web, 'shout', 'all', 'nothing to show');
   const view = await startView(box);
   try {
-    const feed = (await openPage(view)).show('feed');
-    const card = (kind, outcome) => `<div class="receipt"><div><span class="badge">${kind}</span> <span class="outcome">${outcome}</span></div><div class="receipt-foot"><a class="ref" href="/items/1" data-go="item:1" title="Greeting">#1</a> · web-1 (Test Model) · <code class="inline sha" title="${head}">${head.slice(0, 10)}</code></div></div>`;
+    const page = await openPage(view);
+    page.run("openTab('shouts'); render();");
+    const feed = page.show('feed');
+    const card = (kind, outcome) => `<div class="receipt"><div><span class="badge">${kind}</span> <span class="outcome">${outcome}</span></div><div class="receipt-foot"><a class="ref" href="/items/1" data-go="item:1" title="Greeting">#1</a> · web-1 (Test Model) · <button class="hash-copy" type="button" title="${head}" aria-label="Copy full hash ${head}" data-copy="${head}"><code class="inline sha" title="${head}">${head.slice(0, 12)}</code></button></div></div>`;
     const after = (text) => feed.slice(feed.indexOf(text + '</div>') + text.length + 6).replace(/^<button class="more" data-more type="button">more<\/button>/, '');
     assert.ok(after('the page loads in 80ms').startsWith(card('receipt', 'measured &lt;fast&gt;')), `what was measured, for which item, by whom, at which commit: ${after('the page loads in 80ms').slice(0, 400)}`);
     assert.ok(after('tried a cache').startsWith(card('attempt', 'failed')), 'and what was tried');
@@ -266,7 +269,9 @@ test('real Chrome styles shout code and item text without growing linked lines [
       if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error') consoleErrors.push(message.params.entry.text);
     });
     await chrome.send('Log.enable');
-    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 4 && document.querySelectorAll("#feed > .shout").length >= 4');
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 4');
+    await chrome.click("document.querySelector('[data-tab=items]')");
+    await chrome.click("document.querySelector('#chain [data-item=\"1\"]')");
     await assertFirstStateDelay(chrome, t);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 1280 && document.querySelector("#detail .text.muted code.inline")?.getBoundingClientRect().width > 0');
@@ -291,6 +296,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
     await chrome.click("document.querySelector('#add-cancel')");
     await chrome.waitFor("document.querySelector('#add-form').hidden");
     await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+    await chrome.waitFor('document.querySelectorAll("#feed > .shout").length >= 4');
 
     const rendered = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const shout = [...document.querySelectorAll('#feed > .shout')].find((row) => row.textContent.includes('Inline'));
@@ -574,18 +580,18 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
           assert.equal(c.rects, 1, `${at}: the ${kind} chip never breaks across lines`);
         }
         assert.equal(new Set([r.chips.ref.color, r.chips.path.color, r.chips.sha.color]).size, 3, `${at}: item refs, paths and hashes each have a colour: ${JSON.stringify(r.chips)}`);
-        assert.deepEqual([r.chips.sha.text, r.chips.sha.title], [sha.slice(0, 10), sha], `${at}: a full sha shows its first ten characters, the whole on hover`);
+        assert.deepEqual([r.chips.sha.text, r.chips.sha.title], [sha.slice(0, 12), sha], `${at}: a full sha shows its first twelve characters, the whole on hover`);
         assert.deepEqual([r.chips.ref.text, r.chips.path.text, r.chips.cmd.text, r.chips.code.text], ['#1', 'src/cockpit.js', 'pullboard check --json', 'npm test']);
         // Long chips too: each one piece inside the text, the whole of it on hover; one longer than the line is cut short.
         assert.deepEqual(r.longs.map((c) => [c.text, c.title, c.rects, c.inside]), [longCommand, longPath, longerPath].map((text) => [text, text, 1, true]),
           `${at}: a long command, path and code stay one chip each: ${JSON.stringify(r.longs)}`);
         if (width === 375) assert.ok(r.longs[2].cut && r.longs[2].ends === 'ellipsis', `${at}: a chip longer than its line is cut short with an ellipsis: ${JSON.stringify(r.longs)}`);
         // A code reference reads path:lines@ten characters as one piece, the whole reference on hover and in its action.
-        assert.deepEqual(r.refs.map((c) => [c.text, c.title, c.code, c.rects, c.inside, c.tail]), sourceRefs.map((ref) => [ref.replace(head, head.slice(0, 10)), ref, ref, 1, true, true]),
+        assert.deepEqual(r.refs.map((c) => [c.text, c.title, c.code, c.rects, c.inside, c.tail]), sourceRefs.map((ref) => [ref.replace(head, head.slice(0, 12)), ref, ref, 1, true, true]),
           `${at}: each code reference is one piece with its lines and short commit in view: ${JSON.stringify(r.refs)}`);
         if (width === 375) assert.ok(r.refs[1].cut && r.refs[1].ends === 'ellipsis', `${at}: a path too long for the line is cut short first: ${JSON.stringify(r.refs)}`);
         // A reference on a line of its own is a block, collapsed: a caret header the width of the text, no coloured edge.
-        assert.deepEqual(r.block && [r.block.label, r.block.height >= tapTarget(width), r.block.full, r.block.caret, r.block.edges], [sourceRefs[0].replace(head, head.slice(0, 10)), true, true, 'drawn', true],
+        assert.deepEqual(r.block && [r.block.label, r.block.height >= tapTarget(width), r.block.full, r.block.caret, r.block.edges], [sourceRefs[0].replace(head, head.slice(0, 12)), true, true, 'drawn', true],
           `${at}: a whole-line reference is a collapsed block: ${JSON.stringify(r.block)}`);
 
         // Decisions: a band until answered, then who answered and a link to the answer.
@@ -596,7 +602,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
 
         // Evidence: a receipt with kind, outcome and a footer of item, agent and short sha.
         assert.deepEqual([receipt.receipt.badge, receipt.receipt.outcome], ['receipt', 'measured 80ms']);
-        assert.ok(receipt.receipt.foot.startsWith('#1 · web-1 (Test Model) · ') && receipt.receipt.sha === head.slice(0, 10) && receipt.receipt.shaTitle === head, `${at}: the receipt's footer: ${JSON.stringify(receipt.receipt)}`);
+        assert.ok(receipt.receipt.foot.startsWith('#1 · web-1 (Test Model) · ') && receipt.receipt.sha === head.slice(0, 12) && receipt.receipt.shaTitle === head, `${at}: the receipt's footer: ${JSON.stringify(receipt.receipt)}`);
 
         // A long shout folds at six lines; the asks above the composer are the same cards, folded at three.
         assert.deepEqual([folded.text.lines, folded.text.clamped, folded.more], [6, true, 'more'], `${at}: a long shout folds at six lines with more`);

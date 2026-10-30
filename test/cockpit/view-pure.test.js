@@ -278,7 +278,15 @@ test('Needs HTML keeps grouped calls, exact confirmation identities and compact 
   assert.equal((compact.match(/<li class="needs-call /gu) || []).length, 3);
   assert.match(compact, /3 more and 2 draft rows in Needs you/u);
   assert.doesNotMatch(needsPanelHtml(needsPanelModel(calls, project)), /data-needs-confirm=/u, 'read-only presentation advertises no bulk confirmation');
-  assert.doesNotMatch(needsPanelHtml(needsPanelModel(calls, project)), /<button|data-go=/u, 'read-only draft summaries contain text without navigation controls');
+  const readOnly = needsPanelHtml(needsPanelModel(calls, project));
+  assert.doesNotMatch(readOnly, /data-go=/u, 'read-only draft summaries contain no navigation controls');
+  const copyControls = [...readOnly.matchAll(/<button\b[^>]*>/gu)];
+  assert.equal(copyControls.length, 4, 'each approved row retains its copy control in read-only summaries');
+  for (const [control] of copyControls) {
+    assert.match(control, /class="hash-copy" type="button"/u, 'read-only summaries allow only hash-copy buttons');
+    assert.match(control, new RegExp('title="' + 'a'.repeat(40) + '"', 'u'));
+    assert.match(control, new RegExp('data-copy="' + 'a'.repeat(40) + '"', 'u'));
+  }
   assert.match(html, /needs-drafts"><button type="button" data-go="tab:spec">/u, 'normal draft summaries retain their Spec navigation');
   const invalidAction = structuredClone(calls);
   invalidAction.find(row => row.id === 'G4').actions[0].args.ids = 'G1';
@@ -325,8 +333,8 @@ test('Roadmap headers display supplied counts, estimates and linked needs withou
   assert.match(result.detail, /viewBox="0 0 10 1"/u);
   assert.deepEqual([...result.detail.matchAll(/data-count="(\d+)"/gu)].map(match => Number(match[1])), [2, 1, 3, 1, 2, 1]);
   assert.match(result.detail, /aria-pressed="true" data-summary-state="held"/u);
-  assert.match(result.detail, /About 2 to 4 h at today’s pace/u);
-  assert.match(result.detail, /2 landed in the last 6 h, 1 in the last 2 h/u);
+  assert.match(result.detail, /About <b>2<\/b> to <b>4<\/b> hours at today’s pace/u);
+  assert.match(result.detail, /<b>2<\/b> landed in the last 6 h, <b>1<\/b> in the last 2 h/u);
   assert.match(result.detail, /display:2026-10-29T12:00:00Z/u);
   assert.match(result.detail, /past target/u);
   assert.match(result.detail, /href="\/other\/item\/8" data-go="item:8" data-board="\/other"/u);
@@ -403,7 +411,7 @@ test('timeline prose ratios and diff prefixes stay text while a hash beside a sl
     codeLink: ref => { refs.push(ref); return '<button data-code="' + ref + '">code</button>'; } });
   assert.deepEqual(refs, [], 'slash-separated prose and diff prefixes name no repository file');
   assert.ok(html.startsWith('2/2 Items24/25 clamp/words/grouping/references a/test/cockpit/agents.test.js '), 'original prose stays intact');
-  assert.ok(html.includes('data-copy="' + sha + '">' + sha.slice(0, 12) + '</code>/tree' + sha), 'a commit followed by a slash retains its hash chip');
+  assert.ok(html.includes('data-copy="' + sha + '"><code class="inline sha" title="' + sha + '">' + sha.slice(0, 12) + '</code></button>/tree' + sha), 'a commit followed by a slash retains its copyable hash chip');
 });
 
 test('timeline text keeps quoted words, escapes markup and binds only detected references [N26,B23]', () => {
@@ -418,7 +426,7 @@ test('timeline text keeps quoted words, escapes markup and binds only detected r
   assert.match(html, /data-go="item:2" href="#items\/2"/u);
   assert.deepEqual(refs, ['src/example.js:2@' + sha, 'README.md:1@' + sha]);
   assert.match(html, /title="Finish or release the current claim\."/u);
-  assert.match(html, new RegExp('title="' + sha + '" data-copy="' + sha + '">abcdef123456<'));
+  assert.match(html, new RegExp('title="' + sha + '" aria-label="Copy full hash ' + sha + '" data-copy="' + sha + '"><code class="inline sha" title="' + sha + '">abcdef123456</code></button>'));
   assert.match(html, />7:34 AM<\/time>/u);
   assert.match(html, /\.\.\/outside\.js stays text\./u);
   const at = '2026-10-28T12:00:00Z';

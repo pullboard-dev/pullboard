@@ -47,6 +47,9 @@ import {
   COORDINATOR,
 } from '../config.js';
 import {
+  laneNames,
+} from '../lanes.js';
+import {
   hasSubmitRules,
   holdDoctrine,
   ruleLine,
@@ -135,6 +138,7 @@ import { recordedRecovery } from '../recorded-recovery.js';
 import { failureSignatures } from '../main-failure-matches.js';
 import { matchingMainFailures } from '../main-failure-matches.js';
 import { linkKnownMainReworks } from '../known-main-reworks.js';
+import { unownedMainReds } from '../known-main-reworks.js';
 import { submitReferenceReminders } from '../reference-lines.js';
 import { waitForSubmissionVerdict } from '../submit-wait.js';
 
@@ -299,8 +303,10 @@ export async function submitHere(ctx, id, infra) {
   const commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   // A trunk checkout can have advanced since the claim; comparing it with itself would bless its own new red test.
-  const mainFailureBase = acceptedMain.commit === commit ? claimHead : acceptedMain.commit;
-  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }, { atomic: store.atomic, submit: store.submit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }) }));
+  const mainFailureBase = acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
+  const preflightLines = changedLines(root, acceptedMain.commit, commit);
+  const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
+  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize }, { atomic: store.atomic, submit: store.submit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }) }));
   const trunk = requireTrunkMerge(root, commit);
   const companion = await withBoard(ctx, async board => {
     if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
@@ -329,9 +335,50 @@ export async function submitHere(ctx, id, infra) {
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
   const submitConfig = submitGateConfig(companion ? policyAt(root, companion.commit).config : ctx.config, acceptedMain.config);
   const admission = { commit: companion?.commit ?? commit, tree: companion?.tree ?? headTree(root) };
-  const gate = await withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, outputRoot: root, runnerAdmission, base: claimHead, trunk: acceptedMain.commit, check: frozenCheck(held), timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: queuedItemLease(ctx, held, me.id, 'build', admission), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
+  const runGate = (check) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, outputRoot: root, runnerAdmission, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: queuedItemLease(ctx, held, me.id, 'build', admission), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission },
     onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
+  let gate = await runGate(frozenCheck(held));
+  for (const proofReceiptId of gate.proofReceiptIds ?? []) {
+    await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt });
+  }
+  if (companion) {
+    companion.receiptIds = gate.proofReceiptIds.filter(id => typeof id === 'string');
+    companion.phases = gate.phasePlan.map(({ role, command }) => ({ role, command: createHash('sha256').update(command).digest('hex') }));
+  }
+  const onMeasuredReceipt = receiptId => nativeFlakes.recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent });
+  let comparison;
+  // A red frozen check is judged like a red proof: a case failing identically on the base is a known main red, and any other case refuses (#1917).
+  const criterionRed = gate.criterionRed && gate.check?.checked && !gate.check.green ? gate.criterionRed : null;
+  let criterionKnown = null;
+  let criterionMatched = null;
+  let criterionUnowned = [];
+  let criterionProblem = '';
+  const criterionCases = criterionRed && mainFailureBase && !companion ? failureSignatures(criterionRed, root) : null;
+  if (criterionCases) {
+    try {
+      comparison = await compareMainFailures(root, criterionRed.profile, gateWaitReporter(ctx.io), criterionRed.output, { commit: mainFailureBase, detailed: true, onMeasuredReceipt, runnerAdmission,
+        execution: { executor: criterionRed.executionRunner ? { kind: 'ssh', host: criterionRed.executionRunner } : { kind: 'local' }, environment: criterionRed.environment } });
+      const matched = matchingMainFailures(criterionCases, comparison, mainFailureBase);
+      const rows = () => withBoard(ctx, board => store.listItems(board, { all: true }));
+      // Cases with a unique open Main red repair link to it; the rest are recorded as unowned for the coordinator, never filed here.
+      const missing = matched ? unownedMainReds(matched, rows(), id) : null;
+      if (missing) {
+        criterionMatched = matched;
+        criterionUnowned = missing;
+        const owned = matched.failures.filter(row => !missing.some(red => red.file === row.file));
+        criterionKnown = owned.length ? linkKnownMainReworks({ main: matched.main, failures: owned }, rows(), id) : null;
+      }
+    } catch (error) { criterionProblem = `\nknown-main acceptance of the frozen check failed: ${error?.message ?? error}`; /* Unavailable exact-main proof never authorizes a red frozen check. */ }
+  }
+  if (criterionMatched) {
+    // The known red stands in for the criterion; the selected proof still runs on this commit, without re-running the check.
+    const proof = await runGate(undefined);
+    for (const proofReceiptId of proof.proofReceiptIds ?? []) {
+      await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt });
+    }
+    gate = { ...proof, check: gate.check, criterionRed: gate.criterionRed };
+  }
   const summary = retainTestOutput(root, readFileSync(gate.log, 'utf8'), { root, profile: gate.profile });
   const selected = gate.files.slice(0, 8).join(', ') || 'none';
   const files = `${selected}${gate.files.length > 8 ? `, … ${gate.files.length - 8} more in the full log` : ''}`;
@@ -342,29 +389,25 @@ export async function submitHere(ctx, id, infra) {
     : gate.full ? `full gate: ${gate.reason}` : `affected tests: ${files}`;
   const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'}` : 'no item check';
   const displayedReport = `${check}; ${scope}\n${renderTestSummary(summary)}`;
-  for (const proofReceiptId of gate.proofReceiptIds ?? []) {
-    await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt });
-  }
-  if (companion) {
-    companion.receiptIds = gate.proofReceiptIds.filter(id => typeof id === 'string');
-    companion.phases = gate.phasePlan.map(({ role, command }) => ({ role, command: createHash('sha256').update(command).digest('hex') }));
-  }
+  const checkAccepted = Boolean(gate.check?.green || criterionMatched);
   // Only fully accounted exact-main failures or live person waivers pass a red proof; the item check stays mandatory [B3].
-  const waived = !gate.isGreen && gate.check?.green ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, root), { quarantineWaivers })) : null;
-  const onMeasuredReceipt = receiptId => nativeFlakes.recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent });
-  let comparison;
-  let knownMainFailures;
-  const failures = !gate.isGreen && gate.check?.green && !waived ? failureSignatures(gate, root) : null;
+  const waived = !gate.isGreen && checkAccepted ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, root), { quarantineWaivers })) : null;
+  let proofKnown;
+  const failures = !gate.isGreen && checkAccepted && !waived ? failureSignatures(gate, root) : null;
   if (failures && mainFailureBase && !companion) {
     try {
       comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, onMeasuredReceipt, runnerAdmission });
       const matched = matchingMainFailures(failures, comparison, mainFailureBase);
-      knownMainFailures = matched && withBoard(ctx, board => linkKnownMainReworks(matched, store.listItems(board, { all: true }), id));
+      proofKnown = matched && withBoard(ctx, board => linkKnownMainReworks(matched, store.listItems(board, { all: true }), id));
     } catch { /* Unavailable exact-main proof never authorizes a red submission. */ }
   }
-  if (!gate.isGreen && !waived && !knownMainFailures) {
-    const accountingNote = gate.check?.green && !failures ? '\nknown-main acceptance unavailable: the proof has no complete named failure diagnostics' : '';
-    const message = `the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${displayedReport}${accountingNote}`;
+  const redCriterion = criterionRed && !criterionMatched;
+  const criterionNames = criterionKnown ? criterionKnown.failures : [];
+  const knownMainFailures = criterionKnown && proofKnown ? { main: proofKnown.main, failures: [...criterionKnown.failures, ...proofKnown.failures] }
+    : criterionKnown ?? proofKnown;
+  if (redCriterion || !gate.isGreen && !waived && !proofKnown) {
+    const accountingNote = checkAccepted && !failures ? '\nknown-main acceptance unavailable: the proof has no complete named failure diagnostics' : '';
+    const message = `the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${displayedReport}${accountingNote}${criterionProblem}`;
     // No submission can follow this verdict. Read-only main comparisons must not retain the seat's write lease.
     CHECKOUT_LEASES.get(ctx.io)?.release();
     CHECKOUT_LEASES.delete(ctx.io);
@@ -402,15 +445,20 @@ export async function submitHere(ctx, id, infra) {
     refuseUnverifiedStack(root, board, store.getItem(board, id), submitted, currentTrunk);
     // The waived run is written to the item's thread before the submission, so no waived proof reads as green.
     if (waived) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof at ${commit.slice(0, 12)} was red and is recorded as waived, not green; every failure is covered by a live person waiver:\n${waivedLines.join('\n')}` }]);
+    if (criterionNames.length) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `frozen check red at ${commit.slice(0, 12)} only in cases that fail identically on main at ${criterionMatched.main}: ${criterionNames.map(row => `${row.file} (${row.name}), open repair #${row.item}`).join('; ')}. Reviewers: these known main reds are listed, not blocking; any case green on main would have refused.` }]);
+    if (criterionUnowned.length) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `unowned known main red: the frozen check fails identically on main at ${criterionMatched.main} in ${criterionUnowned.map(red => `${red.file} (${red.names.join('; ')})`).join('; ')}, and no open Main red item names the file; a decision was shouted to the coordinator.` }]);
     if (knownMainFailures) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof at ${commit.slice(0, 12)} remains red; known main failures at ${knownMainFailures.main}: ${knownMainFailures.failures.map(row => `${row.file} (${row.name}), open repair #${row.item}`).join('; ')}. The item check passed; no new or unaccounted failure is accepted.` }]);
     const submittedMove = await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit: submitted, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...(infraRecord ? { infra: infraRecord } : {}),
-      gateGreen: gate.isGreen && !waived,
+      gateGreen: gate.isGreen && !waived && !criterionMatched,
       ...(size ? { submissionSize: size } : {}),
       ...(companion ? { companion } : {}),
       submissionProof: { version: 1, files: gate.files, full: gate.full, deferred: gate.deferred, reason: boundedProofReason(gate.reason), ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), ...(knownMainFailures ? { knownMainFailures } : {}) },
       ...(gate.deferred ? { note: gate.deferredFiles ? deferredSelectionNote(gate.deferredFiles) : 'full suite deferred to the landing gate' } : {}) }]);
     // One fact records the merge and the evidence that the main move touched nothing this proof depends on.
     if (trunkMove) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: trunkMoveFact(trunkMove) }]);
+    // One decision shout (a lane question, routed to the lead or coordinator because a builder cannot send kind decision) asks the coordinator to own the repair; it is sent only once the submission is recorded.
+    if (criterionUnowned.length) await ordered(ctx, board, 'shout', [{ from: me.id, to: COORDINATOR, lanes: laneNames(ctx.config), decision: true,
+      text: `#${id}: known main red with no open Main red item: ${criterionUnowned.map(red => `${red.file} (${red.names.join('; ')})`).join('; ')} fails identically on main at ${criterionMatched.main.slice(0, 12)}; file or assign its repair.` }]);
     return submittedMove;
   });
   // A large submit still goes through; the note only suggests a chain of smaller items (#1162).
@@ -418,12 +466,12 @@ export async function submitHere(ctx, id, infra) {
   if (sizeNote) ctx.io.say(`note: ${sizeNote}`);
   for (const reminder of submitReferenceReminders(root, held, commit)) ctx.io.err(reminder);
   const report = knownMainFailures
-    ? `submission proof red with ${knownMainFailures.failures.length} known main failure(s) at ${knownMainFailures.main}; item check green; no new failures accepted. ${displayedReport}`
+    ? `submission proof red with ${knownMainFailures.failures.length} known main failure(s) at ${knownMainFailures.main}; ${criterionMatched ? 'item check red only in known main cases' : 'item check green'}; no new failures accepted. ${displayedReport}`
     : waived
     ? `submission proof waived, not green: ${waived.length} failure(s), each covered by a live person waiver. ${displayedReport}`
     : displayedReport;
   if (trunkMove) ctx.io.say(trunkMoveFact(trunkMove));
-  return reportSubmission(ctx, id, submitted, { green: gate.isGreen, report, files: gate.files, full: gate.full, deferred: gate.deferred, deferFullFallback: gate.deferFullFallback, ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), reason: gate.reason, check: { ...gate.check, profile: summaryProfile(gate.check.profile) },
+  return reportSubmission(ctx, id, submitted, { green: gate.isGreen && !criterionMatched, report, files: gate.files, full: gate.full, deferred: gate.deferred, deferFullFallback: gate.deferFullFallback, ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), reason: gate.reason, check: { ...gate.check, profile: summaryProfile(gate.check.profile) },
     ...summary, log: gate.log, profile: summaryProfile(gate.profile), profilePath: gate.profilePath, proofLog: gate.proofLog, proofProfilePath: gate.proofProfilePath,
     ...(companion ? { companion } : {}),
     ...(knownMainFailures ? { knownMainFailures } : {}),

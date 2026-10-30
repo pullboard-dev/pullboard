@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { loadDoctrine, standardDoctrine } from '../../src/doctrine.js';
+import { loadDoctrine, standardDoctrine } from '../../packages/doctrine/index.js';
 import { tapTarget, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, SPEC, machine, project, startView, styleOf, openPage } from './fixture.js';
 
 

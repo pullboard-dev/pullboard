@@ -31,6 +31,7 @@ import { refreshPlanCuts } from '../packages/codemap/index.js';
 import { retiredProblems } from './cells-plan-cuts.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';
 import { readMoveDataReads, staleDataReads } from './cells-data-reads.js';
+import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 
 export const PLAN_FILE = 'bin/cells-plan.json';
 export const PLAN_DIR = 'bin/cells-plan';
@@ -280,6 +281,7 @@ export function checkMoved(root, plan, name, { notes = [] } = {}) {
   const cell = plan.cells.find(row => row.name === name);
   if (!cell) throw new Refused('CELLS_PLAN_CELL', `no cell ${name} in ${PLAN_FILE}; use a name from its cells list`);
   const problems = [];
+  problems.push(...pureFrontDoorProblems(root, cell));
   if (!existsSync(join(root, cell.frontDoor))) problems.push(`missing front door ${cell.frontDoor}`);
   const stale = new Set(stalePlanRows(root, plan).filter(entry => entry.cell === name).map(entry => entry.row[0]));
   for (const [from, to] of cell.paths) {
@@ -290,7 +292,7 @@ export function checkMoved(root, plan, name, { notes = [] } = {}) {
       if (!/^(?:export(?:\*|\{[^}]*\})from(?:'[^']*'|"[^"]*");)+$/u.test(code)) problems.push(`${from} still holds code; leave only a re-export shim`);
       else for (const match of code.matchAll(/from(['"])([^'"]*)\1;/gu)) {
         const target = match[2].startsWith('.') ? posix.normalize(posix.join(posix.dirname(from), match[2])) : null;
-        if (target !== cell.frontDoor) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
+        if (target !== cell.frontDoor && target !== cell.pureFrontDoor) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
       }
     } else if (existsSync(join(root, from))) problems.push(`${from} still exists; move the asset to ${to}`);
   }

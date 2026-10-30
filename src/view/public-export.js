@@ -1,5 +1,5 @@
 /** Fail closed on public snapshot prose; coordinator rulings 064965a1, 919d562b, f15ecdcb, 5b1543f9, 8540102d, a9b48855 and 785d4f8d [N26]. */
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 
 /** The complete public export block list; internal messages are omitted before prose is checked. */
 export const PUBLIC_EXPORT_BLOCKS = Object.freeze({

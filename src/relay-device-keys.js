@@ -1,5 +1,8 @@
 /** Authenticate device enrollment and wrap board keys only on clients [H5,H15,H17]. */
 import { Refused } from './refused.js';
+import { devicePublicKey } from './person-enrollment.js';
+
+export { devicePublicKey };
 
 const encoder = new TextEncoder();
 const DEVICE = /^device-[0-9a-f]{32}$/u;
@@ -26,17 +29,6 @@ function decode(value, length) {
 function platform() {
   if (!globalThis.crypto?.subtle) throw new Refused('DEVICE_CRYPTO', 'Use Node 22 or a secure browser with WebCrypto.');
   return globalThis.crypto;
-}
-
-/** Copy only the public coordinates of a P-256 key, rejecting a supplied private half. */
-export function devicePublicKey(value) {
-  if (!value || value.kty !== 'EC' || value.crv !== 'P-256' || value.d !== undefined ||
-      Object.keys(value).some(key => !['kty', 'crv', 'x', 'y', 'ext', 'key_ops'].includes(key))) {
-    throw new Refused('DEVICE_KEY', 'Pair a device with a public ECDH P-256 key.');
-  }
-  decode(value.x, 32);
-  decode(value.y, 32);
-  return { kty: 'EC', crv: 'P-256', x: value.x, y: value.y };
 }
 
 /** Make a persistent non-extractable private device key for IndexedDB storage. */

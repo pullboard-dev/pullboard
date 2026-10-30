@@ -1,3 +1,4 @@
+import { itemReviewPolicyEngine } from '../review-policy.js';
 import { ITEM_PATCH_SUBMIT_ENGINE } from '../item-patch-submit-engine.js';
 import { PATCH_FOLLOW_ENGINE } from '../patch-follow-engine.js';
 import { itemPatchRecords } from '../item-patch-state.js';
@@ -5,8 +6,8 @@ import { itemPatchRecords } from '../item-patch-state.js';
 import { ITEM_PATCH_ENGINE } from '../item-patch-engine.js';
 /** Old engines must never interpret new patch payloads. */
 function minimumEngine(args, board) {
-  if (board && itemPatchRecords(board, args[0]).some(record => record.attachedCommit)) return PATCH_FOLLOW_ENGINE;
-  return args[1]?.presubmit === true ? ITEM_PATCH_SUBMIT_ENGINE : ITEM_PATCH_ENGINE;
+  if (board && itemPatchRecords(board, args[0]).some(record => record.attachedCommit)) return Math.max(itemReviewPolicyEngine(board, args[0]), PATCH_FOLLOW_ENGINE);
+  return Math.max(itemReviewPolicyEngine(board, args[0]), args[1]?.presubmit === true ? ITEM_PATCH_SUBMIT_ENGINE : ITEM_PATCH_ENGINE);
 }
 /** The actor is the explicit coordinator argument, not the patch author. */
 function actor(move) { return move.args[1]?.agentId ?? null; }

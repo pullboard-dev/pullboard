@@ -13,6 +13,6 @@ export function verdictHtml({ verdict, agentLabel, timeLabel, noteHtml, decision
   const { decision, reason, commit } = verdict;
   const shownReason = reasonLabel === undefined ? esc(reason) : '<span title="' + esc(reason) + '">' + esc(reasonLabel) + '</span>';
   return '<div class="verdict ' + (decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(decisionLabel ?? decision) + (reasonLabel === undefined ? ' ' : ' · ') + shownReason
-    + '</b><span class="by">' + esc(agentLabel) + ' · ' + esc(timeLabel) + ' · at ' + esc(String(commit || '').slice(0, 12))
+    + '</b><span class="by">' + esc(agentLabel) + ' · ' + esc(timeLabel) + ' · at ' + (commit ? '<button class="hash-copy" type="button" title="' + esc(commit) + '" aria-label="Copy full hash ' + esc(commit) + '" data-copy="' + esc(commit) + '"><code class="inline sha" title="' + esc(commit) + '">' + esc(String(commit).slice(0, 12)) + '</code></button>' : '')
     + '</span><div class="note">' + noteHtml + '</div></div>';
 }

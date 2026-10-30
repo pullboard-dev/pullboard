@@ -39,7 +39,8 @@
   ["src/reject-clause.js","packages/verify/src/shell/reject-clause.js","imports"],
   ["src/review-tier.js","packages/verify/src/core/review-tier.js","rule"],
   ["src/check-widen.js","packages/verify/src/core/check-widen.js","imports"],
-  ["src/review-reachability.js","packages/verify/src/core/review-reachability.js","imports"]
+  ["src/review-reachability.js","packages/verify/src/core/review-reachability.js","imports"],
+  ["src/review-composition.js","packages/verify/src/core/review-composition.js","rule"]
  ],
  "reexports": [
   "src/bar-actor.js",
@@ -94,8 +95,9 @@
   {"cell":"seats","imports":2,"edges":["src/line-capacity-board.js->src/review-routing.js","src/route-escalation.js->src/verdict-reviews.js"]},
   {
    "cell": "items",
-   "imports": 3,
+   "imports": 4,
    "edges": [
+    "src/item-authors.js->src/review-composition.js",
     "src/item-patches.js->src/review-reachability.js",
     "src/parent-session.js->src/review-policy.js",
     "src/submit-composition.js->src/verdict-trunk.js"

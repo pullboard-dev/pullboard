@@ -87,6 +87,12 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
     } else {
       try { result = await probe(configured.get(row.host), pending); }
       catch { result = { healthy: false, step: 'worker readiness', reason: 'health observation unavailable' }; }
+      if (result?.healthy !== true && result?.idleRequired === true && typeof idleProbe === 'function') {
+        try { result = await idleProbe(configured.get(row.host), pending); }
+        catch { result = { healthy: false, step: 'idle proof', reason: 'exact launch idle observation unavailable' }; }
+        if (result?.healthy !== true || result.idle !== true || result.writable !== true)
+          result = { ...result, healthy: false, step: 'idle proof', reason: result?.reason ?? 'exact launch idle and writable proof missing' };
+      }
     }
     if (result?.healthy === true) {
       return auditedChange(db, () => {
