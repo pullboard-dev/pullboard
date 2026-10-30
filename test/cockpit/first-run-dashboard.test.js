@@ -162,6 +162,10 @@ test('a fresh board opens on the first-run page: three boxes, the loop, the chec
     assert.deepEqual(diagram.labels.sort(), ['back to fix', 'next task']);
     // The auto tour: one box lit at a time, the dwell is 2.5 s plus 0.33 s a word, arrows and dots step it.
     const tour = () => chrome.stable('JSON.stringify({ step: document.querySelector("[data-first-run-tour]").dataset.step, lit: [...document.querySelectorAll("[data-first-run-node].now")].map(node => node.dataset.firstRunNode), caption: document.querySelector("[data-first-run-caption]").textContent, dwell: Number(document.querySelector("[data-first-run-caption]").dataset.dwell), dots: document.querySelectorAll("[data-first-run-dot]").length, on: [...document.querySelectorAll("[data-first-run-dot]")].findIndex(dot => dot.classList.contains("on")) })').then(JSON.parse);
+    // The harness forces reduced motion, which keeps the tour still; answer that one query as a motion-friendly person's browser would, then reload.
+    await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: "{ const real = window.matchMedia.bind(window); window.matchMedia = query => /prefers-reduced-motion/u.test(query) ? { matches: false, media: query, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} } : real(query); }" });
+    await chrome.send('Page.navigate', { url: view.link.href });
+    await chrome.waitFor('!!data?.project && !!document.querySelector("#dashboard [data-first-run-tour]")');
     const start = Date.now(), first = await tour();
     assert.deepEqual([first.step, first.lit, first.caption, first.dots, first.on], ['0', ['0'], kit.steps[0][1], 5, 0], 'the tour opens on You with one caption');
     assert.equal(first.dwell, kit.dwell(0));
