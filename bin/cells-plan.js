@@ -274,7 +274,7 @@ function baseUnsupported(root, base, file, { moves, dataReads }) {
 
 /**
  * Check that one cell's move happened as planned: every path sits at its target, every old path is gone or is
- * only a re-export, the front door exists, and no enforced cell lint rose. This is each move item's frozen check.
+ * only a re-export through the reachable front door, and no enforced cell lint rose. This is each move item's frozen check.
  */
 export function checkMoved(root, plan, name, { notes = [] } = {}) {
   const cell = plan.cells.find(row => row.name === name);
@@ -288,6 +288,10 @@ export function checkMoved(root, plan, name, { notes = [] } = {}) {
     if (existsSync(join(root, from)) && /\.[cm]?js$/u.test(from)) {
       const code = readFileSync(join(root, from), 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/gu, '').replace(/\s/gu, '');
       if (!/^(?:export(?:\*|\{[^}]*\})from(?:'[^']*'|"[^"]*");)+$/u.test(code)) problems.push(`${from} still holds code; leave only a re-export shim`);
+      else for (const match of code.matchAll(/from(['"])([^'"]*)\1;/gu)) {
+        const target = match[2].startsWith('.') ? posix.normalize(posix.join(posix.dirname(from), match[2])) : null;
+        if (target !== cell.frontDoor) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
+      }
     } else if (existsSync(join(root, from))) problems.push(`${from} still exists; move the asset to ${to}`);
   }
   const snapshot = tryGit(root, ['rev-parse', 'HEAD']);
@@ -334,8 +338,14 @@ export function checkMoved(root, plan, name, { notes = [] } = {}) {
     }
   }
   problems.push(...staleDataReads(data.reads, matchedDataReads));
+  const report = cellLintReport(root, { importsIn, commonJsIn });
+  const cellRoot = posix.dirname(cell.frontDoor);
+  if (report.metrics.unreachable.findings.some(row => row.key === cell.frontDoor)
+    || report.metrics.unreachablePackages.findings.some(row => row.key === cellRoot)) {
+    problems.push(`unreachable front door ${cell.frontDoor}; ${cellRoot} must remain reachable from a production app through its front door`);
+  }
   if (existsSync(join(root, CELL_BASELINE_DESCRIPTOR))) {
-    for (const row of cellLintGrowth(cellLintReport(root, { importsIn, commonJsIn }), readCellLintBaseline(root), { enforcedOnly: true })) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
+    for (const row of cellLintGrowth(report, readCellLintBaseline(root), { enforcedOnly: true })) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
   }
   return problems;
 }
@@ -355,7 +365,7 @@ export function itemCommands(plan, ids = new Map(), first = 1395) {
     const after = cell.item.after.map(name => ids.get(name) ?? `<${name}>`);
     if (!after.length) after.push(String(first));
     return { cell, args: ['add', cell.item.lane, cell.item.title, '--criterion', cell.item.criterion, '--specs', cell.item.specs.join(','),
-      '--check', cell.item.check, '--after', after.join(','), '--brief', `Plan entry ${cell.order} in ${shardFile(cell)} (item #1473) lists the paths, targets, cuts and ratchet counts.`, '--json'] };
+      '--check', cell.item.check, '--after', after.join(','), '--brief', `Plan entry ${cell.order} in ${shardFile(cell)} (item #1473) lists the paths, targets, cuts and ratchet counts. Shims re-export through ${cell.frontDoor}, never a moved leaf directly; keep that front door reachable from a production app.`, '--json'] };
   });
 }
 
