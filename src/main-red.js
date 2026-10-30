@@ -280,6 +280,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   if (!files.length) return { main: main.commit, files: [], unavailable: 'could not read which tests failed' };
   const file = pinned ? null : cacheFile(root);
   const pinnedEntries = Object.create(null);
+  const coarse = Object.create(null);
   /** A detailed comparison cannot reuse an old file-only or obsolete-signature cache entry. */
   const usable = outcome => ['red', 'green'].includes(outcome?.result)
     && (!detailed || Array.isArray(outcome.failures));
@@ -317,6 +318,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
               if (id && onMeasuredReceipt) await onMeasuredReceipt(id);
             } catch { /* Timing retention never changes the exact-main failure verdict. */ }
           }
+          coarse[path] = { file: path, result: run.isGreen ? 'green' : 'red', ...(receiptId ? { receiptId } : {}) };
           const failures = detailed ? run.isGreen ? [] : failureSignatures(run, checkout) : null;
           if (detailed && !run.isGreen && !failures) throw new Error('focused main output has no complete named failure account');
           return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}), ...(receiptId ? { receiptId } : {}) };
@@ -347,8 +349,13 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   }
   cache = await snapshot();
   const incomplete = files.some(path => !usable(cache.entries[main.commit]?.[path]));
-  if (failed && (fresh || incomplete)) return { main: main.commit, files: [], unavailable: failed.message ?? 'main comparison could not be completed', ...(runnerAdmission.runnerOnly ? { runnerOnly: true } : {}) };
-  if (incomplete) return { main: main.commit, files: [], unavailable: 'main comparison cache changed before the completed results could be read' };
+  // A timeout still has a real file verdict; it never supplies the missing case signatures.
+  const coarseFiles = files.flatMap(path => {
+    const row = coarse[path] ?? cache.entries[main.commit]?.[path];
+    return row ? [{ file: path, result: row.result, ...(row.receiptId ? { receiptId: row.receiptId } : {}) }] : [];
+  });
+  if (failed && (fresh || incomplete)) return { main: main.commit, files: [], ...(detailed ? { coarseFiles } : {}), unavailable: failed.message ?? 'main comparison could not be completed', ...(runnerAdmission.runnerOnly ? { runnerOnly: true } : {}) };
+  if (incomplete) return { main: main.commit, files: [], ...(detailed ? { coarseFiles } : {}), unavailable: 'main comparison cache changed before the completed results could be read' };
   return { main: main.commit, files: files.map(path => ({ file: path, ...(detailed
     ? cache.entries[main.commit][path] : { result: cache.entries[main.commit][path].result }) })) };
 }

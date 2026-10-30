@@ -151,3 +151,20 @@ test('async named accounting retains producer status, opaque unknowns and event-
     assert.match(run.output, /released/u);
   } finally { clearInterval(timer); }
 });
+
+test('an unaccountable cancelled main file retains a coarse verdict without accepted-case words [V4,B3,C7]', t => {
+  const box = fixture(t, { cancelled: true });
+  const tested = cli(box, box.builder, 'test', FILE);
+  assert.equal(tested.status, 1, tested.stdout + tested.stderr);
+  const report = JSON.parse(tested.stdout);
+  assert.equal(report.green, false);
+  assert.equal(report.known.find(row => row.file === FILE)?.result, 'red', tested.stdout);
+  assert.deepEqual(report.mainFailures, [], 'cancellation never becomes an identical accepted case');
+  assert.equal(report.mainFileFailures.length, 1);
+  assert.equal(report.mainFileFailures[0].result, 'red');
+  assert.equal(report.mainFileFailures[0].message, `file also fails on main at ${box.main}: ${FILE} (case comparison unavailable)`);
+  const plain = text(box, 'test', FILE);
+  assert.equal(plain.status, 1, plain.stdout + plain.stderr);
+  assert.equal(plain.stdout.split('\n')[0], report.mainFileFailures[0].message);
+  assert.doesNotMatch(plain.stdout, /not yours; accepted/u);
+});

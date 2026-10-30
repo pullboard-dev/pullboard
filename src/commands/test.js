@@ -31,9 +31,14 @@ export async function run(io, { first, second, rest, values }) {
   const result = await runTestFiles(ctx.info.root, ctx.config, files, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, compareMainFailures, withMainCheckout, affected: values.affected === true, agent, item, onWait: gateWaitReporter(io) });
   result.mainFailures = mainFailureNotices(ctx.info.root, result.failureCases, result.mainComparison,
     { items: withBoardRead(ctx, board => listItems(board, { all: true })), exclude: item });
+  const covered = new Set(result.mainFailures.map(row => row.file));
+  result.mainFileFailures = result.known.filter(row => !covered.has(row.file)).map(row => ({
+    file: row.file, main: result.main, result: row.result,
+    message: `file ${row.result === 'red' ? 'also fails on' : row.result === 'absent' ? 'is absent on' : 'passes on'} main at ${result.main}: ${row.file} (case comparison unavailable)`,
+  }));
   delete result.failureCases;
   delete result.mainComparison;
-  for (const notice of result.mainFailures) io.say(notice.message);
+  for (const notice of [...result.mainFailures, ...result.mainFileFailures]) io.say(notice.message);
   io.result?.(result);
   if (!values.json && result.output) io.say(result.output.trimEnd());
   io.err(`pullboard test: ${result.green ? 'green' : 'red'} on ${result.runner} in ${result.seconds}s${result.local ? `: ${result.local}` : ''}`);

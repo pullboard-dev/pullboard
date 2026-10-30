@@ -171,7 +171,7 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, a
     result.mainComparison = compared;
     result.failureCases = failureSignatures(run, run.executionRoot ?? root);
     // A file main does not have yet cannot fail there: its failure is new, whatever main's run of it said.
-    result.known = compared.files.map((entry) => compared.main && spawnSync('git', ['cat-file', '-e', `${compared.main}:${entry.file}`], { cwd: root, env: cleanGitEnvironment(), stdio: 'ignore' }).status !== 0
+    result.known = (compared.files.length ? compared.files : compared.coarseFiles ?? []).map((entry) => compared.main && spawnSync('git', ['cat-file', '-e', `${compared.main}:${entry.file}`], { cwd: root, env: cleanGitEnvironment(), stdio: 'ignore' }).status !== 0
       ? { ...entry, result: 'absent' } : entry);
     if (compared.unavailable) result.mainUnavailable = compared.unavailable;
   }
