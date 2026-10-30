@@ -1178,7 +1178,8 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .dash-agent-legend [data-dashboard-icon=build] { color: var(--accent); }
 .dash-agent-legend [data-dashboard-icon=review] { color: var(--blue); }
 .dash-agent-legend [data-dashboard-icon=back] { color: var(--reject); }
-.dash-agent-group { font: 600 var(--text-2xs) var(--mono); letter-spacing: var(--tracking-label); color: var(--ink-faint); }
+.dash-agent-group.label { font: 600 var(--text-2xs) var(--mono); letter-spacing: var(--tracking-label); color: var(--ink-faint); }
+.dash-shipping .roadmap-summary-legend > [data-summary-state] { align-items: baseline; }
 .dash-agent rect.dash-sent-back { fill: var(--reject); }
 @media (max-width: 700px) {
   .release-header-top { column-gap: var(--space-3); }
