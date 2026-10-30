@@ -1,10 +1,7 @@
 /** Recover an unresponsive pinned worker only with exact launch fencing and a fresh idle proof [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { chmodSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
@@ -12,7 +9,6 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
-import { shellQuote } from './runner-ssh-fixture.js';
 
 /** Fail the first actual worker probe, then execute the real pinned idle worker on a private host. */
 function observe(t, live) {
@@ -26,12 +22,6 @@ function observe(t, live) {
   for (const directory of [bin, worker, root, join(root, 'jobs'), machineHome]) mkdirSync(directory, { recursive: true });
   installSshStandIn({ bin, worker, home, machineHome, requests,
     nodeCommand: process.execPath, healthFailures: 1, stderrLog });
-  const ssh = join(bin, 'ssh');
-  renameSync(ssh, ssh + '.mjs');
-  writeFileSync(ssh, `#!/bin/sh
-exec ${shellQuote(process.execPath)} ${shellQuote(ssh + '.mjs')} "$@" 2>>${shellQuote(stderrLog)}
-`);
-  chmodSync(ssh, 0o700);
   const url = name => pathToFileURL(join(import.meta.dirname, '../src', name)).href;
   const script = `
     import { DatabaseSync } from 'node:sqlite';
@@ -42,11 +32,11 @@ exec ${shellQuote(process.execPath)} ${shellQuote(ssh + '.mjs')} "$@" 2>>${shell
     import { join } from 'node:path';
     import { probeRunnerHealth } from ${JSON.stringify(url('runners.js'))};
     import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('runner-recovery.js'))};
-    const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: 1, browser: 0 };
+    const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, root: ${JSON.stringify(root)}, slots: 1, browser: 0 };
     const db = new DatabaseSync(':memory:');
     db.exec('CREATE TABLE runner_unavailable(host TEXT PRIMARY KEY,since TEXT NOT NULL,detail TEXT NOT NULL);CREATE TABLE runner_draining(host TEXT PRIMARY KEY,runner TEXT NOT NULL)');
     initializeRunnerRecovery(db);
-    const identity = { request: randomUUID(), nonce: randomUUID(), tooling: 'a'.repeat(64), launchFence: 1 };
+    const identity = { version: 1, request: randomUUID(), nonce: randomUUID(), tooling: 'a'.repeat(64), launchFence: 1 };
     let owner;
     if (${live}) {
       const job = join(${JSON.stringify(root)}, 'jobs', 'live-job'); mkdirSync(job);
