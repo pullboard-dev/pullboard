@@ -264,6 +264,10 @@ export function withOpenedBoard(ctx, work, board) {
   /** Forward committed events before releasing either synchronous or asynchronous work. */
   const finish = () => {
     for (const event of board.emittedEvents?.slice(firstEvent) ?? []) ctx.io.onEvent?.(event);
+    // The migration belongs to the committing command, never a later read or a write-lock callback.
+    const notice = board.reviewDefaultNotice;
+    delete board.reviewDefaultNotice;
+    for (const line of notice ?? []) ctx.io.err(line);
     store.closeBoard(board);
   };
   let result;

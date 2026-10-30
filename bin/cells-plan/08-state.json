@@ -5,6 +5,7 @@
  "root": "packages/state",
  "frontDoor": "packages/state/index.js",
  "paths": [
+  ["src/review-default-engine.js","packages/state/src/core/review-default-engine.js","rule"],
   ["src/activity-delivery-engine.js","packages/state/src/core/activity-delivery-engine.js","seed"],
   ["src/activity-news-engine.js","packages/state/src/core/activity-news-engine.js","seed"],
   ["src/agent-grant-engine.js","packages/state/src/core/agent-grant-engine.js","seed"],

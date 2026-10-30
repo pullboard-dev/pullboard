@@ -5,6 +5,7 @@
  "root": "packages/verify",
  "frontDoor": "packages/verify/index.js",
  "paths": [
+  ["src/review-default.js","packages/verify/src/core/review-default.js","rule"],
   ["src/bar-actor.js","packages/verify/src/shell/bar-actor.js","seed"],
   ["src/bar-check.js","packages/verify/src/core/bar-check.js","seed"],
   ["src/bar-corrections.js","packages/verify/src/core/bar-corrections.js","seed"],
