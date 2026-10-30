@@ -57,7 +57,7 @@ function source(expected) {
 }
 
 /** A claimed item with a green frozen check whose affected test/affected.test.js is red or green on main per `main`. */
-export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled = false, affected, autoFileMainReds = false, companion = false } = {}) {
+export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled = false, affected, autoFileMainReds = false, companion = false, extra = {} } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-known-affected-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const root = join(directory, 'repo');
@@ -97,6 +97,7 @@ export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled 
     'process.exitCode = run.status ?? 1;',
   ].join('\n') + '\n');
   if (companion) put(root, 'docs/companion.md', 'Before.\n');
+  for (const [file, text] of Object.entries(extra)) put(root, file, text);
   box.main = commit(box, root);
   result = cli(box, root, 'add', 'core', 'Change behind a red affected case', '--specs', 'G1', '--route', 'mid',
     '--criterion', 'The change works.', '--check', check, '--brief', 'Files: change.txt, test/\nTest: affected known main');

@@ -36,7 +36,7 @@ function diagnostics(output, root) {
 /** Legacy coarse outcomes remain useful, but old detailed hashes cannot authorize equality under a new scheme. */
 export function cachedFailureSignatures(outcome, file) {
   const failures = outcome.failures;
-  if (!Array.isArray(failures) || failures.some(row => row?.file !== file
+  if (!Array.isArray(failures) || failures.some(row => row?.file !== file && row?.ran !== file
     || typeof row.name !== 'string' || !row.name || !/^[a-f0-9]{64}$/u.test(row.signature))) return undefined;
   return outcome.signatureVersion === MAIN_FAILURE_SIGNATURE_VERSION || outcome.result === 'green' && failures.length === 0
     ? failures : undefined;
@@ -49,12 +49,20 @@ export function failureSignatures(run, root, { raw = false } = {}) {
     try { executionRoot = realpathSync(executionRoot); }
     catch { /* An unavailable path cannot invent a failure location. */ }
   }
-  const failures = accountedFailures({ ...run, ...(raw ? { isGreen: run.rawIsGreen ?? run.isGreen } : {}), executionRoot }, executionRoot, { nativeLeaves: Boolean(run.blockingVerdict) });
-  if (!failures) return null;
+  const accounted = accountedFailures({ ...run, ...(raw ? { isGreen: run.rawIsGreen ?? run.isGreen } : {}), executionRoot }, executionRoot, { nativeLeaves: Boolean(run.blockingVerdict) });
+  if (!accounted) return null;
   const stages = run.stages.flatMap(stage => stage.pipeline ?? [stage]);
   const details = stages.filter(stage => stage.status !== 0).flatMap(stage => diagnostics(stage.output ?? '', executionRoot))
     .filter(row => !run.blockingVerdict || !row.lines.some(line => /^failureType:\s*['"]?subtestsFailed['"]?\s*$/u.test(line)));
-  if (details.length !== failures.length) return null;
+  if (details.length !== accounted.length) return null;
+  const failures = [], kept = [];
+  for (const [index, failure] of accounted.entries()) {
+    // A nested copy of a named case that reports no file inside this root is that case again, never a second failure (#2064).
+    if (!failure.file && accounted.some(other => other.file && other.name === failure.name)) continue;
+    if (failures.some(seen => seen.file === failure.file && seen.name === failure.name)) continue;
+    failures.push(failure); kept.push(details[index]);
+  }
+  details.splice(0, details.length, ...kept);
   const signed = failures.map((failure, index) => ({ ...failure, signature: details[index].name === failure.name ? details[index].signature : null }))
     .every(row => row.file && row.signature) ? failures.map((failure, index) => ({ ...failure, signature: details[index].signature })) : null;
   return signed ? raw ? signed : blockingFailures(run, signed) : null;
@@ -63,12 +71,16 @@ export function failureSignatures(run, root, { raw = false } = {}) {
 /** Every actual candidate failure must match the exact main test and its failure details. */
 export function matchingMainFailures(failures, comparison, main) {
   if (!failures?.length || comparison.main !== main || comparison.unavailable) return null;
+  const carried = [];
   for (const failure of failures) {
     if (typeof failure.file !== 'string' || !failure.file || /[:\\\p{Cc}]/u.test(failure.file)
       || failure.file.split('/').some(part => !part || part === '.' || part === '..')) return null;
-    const file = comparison.files.find(row => row.file === failure.file);
+    // A case defined in a helper reports the helper as its file; main ran it under the test file that imports the helper.
+    const file = comparison.files.find(row => row.file === failure.file)
+      ?? comparison.files.find(row => row.failures?.some(main => main.file === failure.file && main.name === failure.name));
     const matches = file?.failures?.filter(row => row.file === failure.file && row.name === failure.name);
     if (file?.result !== 'red' || matches?.length !== 1 || matches[0].signature !== failure.signature) return null;
+    carried.push(file.file === failure.file ? failure : { ...failure, ran: file.file });
   }
-  return { main, failures };
+  return { main, failures: carried };
 }
