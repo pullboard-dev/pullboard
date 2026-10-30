@@ -8,10 +8,12 @@ import { spawnSync } from 'node:child_process';
 import { loadDoctrine } from '../../../packages/doctrine/index.js';
 import { STATUSES, frozenCriterion, loadSpec } from '../../../src/spec.js';
 import {
-  ACCEPT_REASON, addItem, addMilestone, allShouts, appendFact, atomic, claim, closeBoard,
-  ensureCoordinator, events, getItem, listAgents, listItems, milestones, openBoard, recordAttempt,
+  ACCEPT_REASON, addItem, allShouts, appendFact, atomic, claim, closeBoard,
+  ensureCoordinator, events, getItem, listAgents, listItems, milestones, recordAttempt,
   register, reopen, shout, verify, withdraw,
 } from '../../../src/board.js';
+import { addMilestone } from '../../../src/board-milestones.js';
+import { openBoard } from '../../../src/native-board.js';
 import { submitFixture } from '../../board-submit-fixture.js';
 import { appliedSequence, applyEngineMove } from '../../../src/engine.js';
 import { PROOF_RUN_ENGINE } from '../../../src/proof-run-engine.js';
