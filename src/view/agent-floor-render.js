@@ -29,21 +29,29 @@ export function agentFloorHtml(floor, { back = '#dashboard', locale = 'en-US', t
   const head = '<nav class="floor-crumbs" aria-label="Where you are"><a class="link" href="' + esc(back) + '" data-tab="dashboard">← Dashboard</a><span aria-hidden="true">/</span><b>Agent floor</b>' + live + '</nav>';
   const hero = '<section class="floor-hero" aria-label="Headline"><h1>' + n.live + plural(n.live, ' agent, ', ' agents, ') + n.building + ' building, ' + n.reviewing + ' reviewing, <em>' + count(n.landed) + ' landed in 24 hours.</em></h1><p>Each agent claims one item, a different agent reviews it, and what passes lands.</p></section>';
 
-  const numbers = [
-    ['live', n.live, 'Agents live', n.seen + ' seen in 4 h', '', 'Agents holding work or active in the last 20 minutes; the note counts all agents seen in 4 hours'],
-    ['building', n.building, 'Building', 'one item each', 'build', 'Agents currently building an item'],
-    ['reviewing', n.reviewing, 'Reviewing', 'a different agent', 'review', 'Agents currently reviewing an item'],
-    ['between', n.between, 'Between items', 'just finished one', '', 'Active agents currently between items'],
-    ['landed', n.landed, 'Landed · 24 h', count(n.landedRecent) + ' in the last 4 h', 'build', 'Items landed in the last 24 hours; the note shows the last 4 hours'],
-    ['accepted', n.accepted, 'Accepted', 'in 4 h', 'review', 'Recorded review acceptances during the last 4 hours'],
-    ['sent-back', n.sentBack, 'Sent back', 'in 4 h', 'back', 'Recorded rejections and reopenings during the last 4 hours'],
-    ['in-review', n.inReview, 'In review', n.unreviewed + ' waiting for a reviewer', '', 'Items currently in review; the note identifies those without a reviewer'],
-    ['waiting', n.waiting, 'Waiting to land', 'accepted, in line', '', 'Accepted items waiting to land'],
-    ['ready', n.ready, 'Ready to build', 'nothing in the way', '', 'Items ready for an agent to build'],
-    ['shouts', n.shouts, 'Shouts', 'in 4 h', 'shout', 'Shouts during the last 4 hours'],
+  /** One number: its key, value, one- or two-word label, tone and the hover that carries what the old sub-line said. */
+  const stat = ([key, value, label, tone, source]) => '<div class="floor-number' + (tone ? ' floor-' + tone : '') + '" title="' + esc(source) + '" data-floor-stat="' + key + '" data-value="' + esc(value ?? '') + '"><b>' + count(value) + '</b><span>' + esc(label) + '</span></div>';
+  const bands = [
+    ['agents', 'Agents', n.seen + ' seen in 4 h', 4, [
+      ['live', n.live, 'Live', '', 'Agents holding work or active in the last 20 minutes; ' + n.seen + ' agents were seen in 4 hours'],
+      ['building', n.building, 'Building', 'build', 'Agents currently building an item, one item each'],
+      ['reviewing', n.reviewing, 'Reviewing', 'review', 'Agents currently checking another agent\'s work'],
+      ['between', n.between, 'Between', '', 'Active agents that just finished an item and are picking the next'],
+    ]],
+    ['recent', 'Last 4 hours', count(n.landed) + ' landed in 24 h', 4, [
+      ['landed', n.landedRecent, 'Landed', 'build', 'Items landed in the last 4 hours; ' + count(n.landed) + ' in the last 24 hours'],
+      ['accepted', n.accepted, 'Passed', 'review', 'Recorded review acceptances during the last 4 hours'],
+      ['sent-back', n.sentBack, 'Sent back', 'back', 'Recorded rejections and reopenings during the last 4 hours'],
+      ['shouts', n.shouts, 'Shouts', 'shout', 'Shouts during the last 4 hours'],
+    ]],
+    ['waiting', 'Waiting', '', 3, [
+      ['in-review', n.inReview, 'In review', '', 'Items currently in review; ' + n.unreviewed + ' waiting for a reviewer'],
+      ['waiting', n.waiting, 'To land', '', 'Accepted items waiting to land, in line'],
+      ['ready', n.ready, 'Ready', '', 'Items ready for an agent to build, nothing in the way'],
+    ]],
   ];
-  const band = '<section class="floor-band" aria-label="Board numbers">' + numbers.map(([key, value, label, note, tone, source]) =>
-    '<div class="floor-number' + (tone ? ' floor-' + tone : '') + '" title="' + esc(source) + '" data-floor-stat="' + key + '" data-value="' + esc(value ?? '') + '"><b>' + count(value) + '</b><span>' + esc(label) + '</span><small>' + esc(note) + '</small></div>').join('') + '</section>';
+  const band = '<section class="floor-band" aria-label="Board numbers">' + bands.map(([key, heading, note, columns, stats]) =>
+    '<div class="floor-grp" data-floor-group="' + key + '"><h2>' + esc(heading) + '<span>' + esc(note) + '</span></h2><div class="floor-nums floor-g' + columns + '">' + stats.map(stat).join('') + '</div></div>').join('') + '</section>';
 
   const peak = Math.max(0, ...f.bins.map(bin => bin.count)), tallest = Math.max(1, peak);
   const landedBars = '<svg class="floor-bars" viewBox="0 0 960 80" preserveAspectRatio="none" role="img" aria-label="Items landed per hour, last 24 hours">' + f.bins.map((bin, index) => {

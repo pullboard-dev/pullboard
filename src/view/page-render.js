@@ -470,7 +470,7 @@ function render() {
   const release = nextMilestone(p), last = p.events[0];
   const part = (to, n, words, title) => n ? '<button type="button" data-status="' + to + '" title="' + esc(title) + '"><b>' + n + '</b> ' + words + '</button>' : '';
   $('status-board').innerHTML = part('items', active.length, 'items', 'Show the active items') + '<button type="button" id="status-unread" data-status="unread" title="Show the shouts you have not read" hidden></button>'
-    + part('agents', footerBusy.length, footerBusy.length === 1 ? 'agent' : 'agents', 'Show the agents holding work: ' + footerBusy.map((a) => agentName(a.agent_id)).join(', '))
+    + part('agents', footerBusy.length, footerBusy.length === 1 ? 'agent' : 'agents', 'Open the agent floor: ' + footerBusy.map((a) => agentName(a.agent_id)).join(', '))
     + part('verify', active.filter((i) => stateOf(i) === 'verify').length, 'to verify', 'Show the items waiting on a verdict')
     + part('gated', active.filter(gatedOf).length, 'gated', 'Show the open items waiting on another item or a held lane')
     + (release ? '<button type="button" data-status="release" title="' + esc('Show this release on the Roadmap: ' + (release.note || release.name)) + '">' + esc(release.name) + ' <b>' + release.done + '/' + release.total + '</b></button>' : '')

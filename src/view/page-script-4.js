@@ -242,8 +242,8 @@ function statusGo(to) {
     view.shoutFilter = 'all';
     openTab('shouts');
   }
-  // The agents it counts are the panel's rows, so it opens the panel even where the person hid it.
-  else if (to === 'agents') { view.agentsHidden = false; keep('pb.agents', 'shown'); view.agent = null; openTab('shouts'); }
+  // The agents it counts are the floor's, so it opens the agent floor.
+  else if (to === 'agents') openTab('dashboard', 'floor');
   // The release it counts is one milestone, so the Roadmap opens on that one alone.
   else if (to === 'release') { view.roadmapOnly = nextMilestone(data.project)?.name ?? null; openTab('roadmap'); }
   else openTab(to);
