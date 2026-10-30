@@ -36,7 +36,7 @@ test('shared row variants retain their layout and the default row expands in pla
       const title = document.querySelector('#item-row .t');
       return { activityTime:rect('#activity-row time'), activityCircle:rect('#activity-row .activity-verb'),
         needsAge:rect('#needs-row .needs-age'), needsAction:rect('#needs-row .needs-action'),
-        itemCircle:rect('#item-row .dot'), itemTime:rect('#item-row .row-age'), itemChip:rect('#item-row > .chip'),
+        itemCircle:rect('#item-row .dot'), itemTime:rect('#item-row .row-age'), itemChip:rect('#item-row > .row-side > .chip'),
         title:rect('#item-row .t'), clips:title.scrollWidth > title.clientWidth, ellipsis:getComputedStyle(title).textOverflow };
     })()`);
     assert.equal(layout.activityCircle.width, 22, 'Activity retains its accepted circle size');

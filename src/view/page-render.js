@@ -238,13 +238,14 @@ function render() {
     const hold = s === 'open' ? heldLanes.get(i.lane) : null;
     const pills = hold ? '<span class="gate">lane held: ' + linked(hold.hold_reason, titles) + '</span>' : '';
     const holder = holderOf(i), reviewer = reviewerOf(i);
-    const tag = s === 'building' && holder ? '<span class="chip busy" title="building, held by ' + esc(agentName(holder)) + '">' + esc(agentName(holder)) + '</span>'
-      : s === 'verify' && reviewer ? '<span class="chip warn" title="reviewing until ' + esc(when(i.claim?.until ?? i.reviewUntil)) + '">' + esc(agentName(reviewer)) + ' reviewing</span>'
-      : s === 'open' ? openChip(i) : chip(s);
+    const seat = holder || reviewer || (s === 'back' ? i.verdict?.by : null);
+    const agent = p.agents.find(entry => entry.agent_id === seat);
+    const model = [agent?.model, agent?.agent_model].find(value => typeof value === 'string' && value.trim() && value.trim().toLowerCase() !== 'unknown');
+    const tag = s === 'open' && gatedOf(i) ? openChip(i) : '<span class="chip item-status ' + s + '">' + (s === 'verified' ? 'Verified' : s === 'verify' ? 'In review' : s === 'back' ? 'Sent back' : s === 'withdrawn' ? 'Withdrawn' : 'Ready') + '</span>';
     return sharedRowHtml({ className: (view.item === i.id ? 'on ' : '') + (gatedOf(i) ? 'gated ' : ''), attributes: { 'data-item': i.id }, title: i.title, state: s,
-      primaryHtml: '<span>#' + i.id + '</span>' + rich(i.title, titles), timeHtml: age(i.updatedAt), chipHtml: tag,
+      primaryHtml: '<span>#' + i.id + '</span>' + rich(i.title, titles), timeHtml: age(i.updatedAt), chipHtml: tag, seat, chipTitle: model,
       // A rejected row's second line is its verdict; any other row's is its lane and the spec ids it serves.
-      metaHtml: (rejected(i) ? '<span class="why"><b>' + reasonHtml(i.verdict.reason) + '</b> ' + linked(firstLine(visibleVerdictNote(i.verdict.reason, i.verdict.note)), titles) + '</span>'
+      metaHtml: (rejected(i) ? '<b class="item-reason">' + reasonHtml(i.verdict.reason) + '</b> <span class="why">' + linked(firstLine(visibleVerdictNote(i.verdict.reason, i.verdict.note)), titles) + '</span>'
         : '<span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span class="specs" title="' + esc(i.specs.join(', ')) + '">' + esc(i.specs.slice(0, 3).join(', ') + (i.specs.length > 3 ? ' +' + (i.specs.length - 3) : '')) + '</span>' : '')) + pills + staleChip(i) });
   }).join('') : '<li class="empty">' + (finishedUnderAll
     ? 'Finished work is under All. <button class="link" data-filter-choice="state:all" data-filter-kind="state" data-filter-value="all" type="button">Show all</button>'
