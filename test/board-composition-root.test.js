@@ -1,3 +1,4 @@
+import { PIPELINE_CAUSE_ENGINE } from '../src/pipeline-cause-engine.js';
 import { firstRefusalDetail } from '../src/claims.js';
 import { itemPatchDigest } from '../src/item-patch-state.js';
 import { ENGINE_VERSION } from '../src/engine-metadata.js';
@@ -333,6 +334,7 @@ test('native engine composition keeps supplied upper operations and refuses miss
   assert.equal(original.firstRefusalDetail, firstRefusalDetail);
   assert.equal(original.itemPatchDigest, itemPatchDigest);
   assert.deepEqual(original.submitHandoffEngines(), { current: ENGINE_VERSION, handoff: SUBMIT_HANDOFF_ENGINE });
+  assert.deepEqual(original.pipelineCauseEngines(), { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE });
   assert.equal(original.store.recordTrainLanding, recordTrainLanding);
   assert.equal(native.recordTrainLanding, recordTrainLanding);
   assert.equal(library.recordTrainLanding, native.recordTrainLanding, 'the existing board public name retains exact native identity');
