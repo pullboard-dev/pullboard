@@ -12,7 +12,6 @@ import { tmpdir } from 'node:os';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
@@ -108,11 +107,10 @@ function fileMainRed(box) {
 
 /** Read the canonical submitted receipt rather than trusting a successful shell exit alone. */
 function submittedProof(box) {
-  const db = new DatabaseSync(join(box.root, '.git/pullboard/board.sqlite'), { readOnly: true });
-  try {
-    const row = db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1").get(box.item);
-    return row ? JSON.parse(row.event_detail) : null;
-  } finally { db.close(); }
+  const result = cli(box, box.root, 'log', String(box.item));
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const row = JSON.parse(result.stdout).events.filter(event => event.event_kind === 'submit').at(-1);
+  return row ? JSON.parse(row.event_detail) : null;
 }
 
 export { cli, fixture, submittedProof, put, source };

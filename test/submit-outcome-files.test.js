@@ -16,10 +16,19 @@ import { TIMING_RUN_ID_ENV } from '../src/run-timing.js';
 import { testOutputSummary } from '../src/test-output-summary.js';
 
 /** A portable copy of the production collector observes real Node events inside the worker's source tree. */
-function beforeMain({ duplicate = false } = {}) {
+function beforeMain({ duplicate = false, phases = false } = {}) {
   return box => {
-    const files = ['test/inherited.test.js', ...(duplicate ? ['test/second.test.js'] : [])];
+    const files = ['test/inherited.test.js', ...(duplicate ? ['test/second.test.js'] : []), ...(phases ? ['test/shared-pass.test.js'] : [])];
     if (duplicate) put(box.root, 'test/second.test.js', source());
+    if (phases) {
+      put(box.root, 'test/check-only.test.js', "import { test } from 'node:test';\ntest('criterion only pass [G1]', () => {});\n");
+      put(box.root, 'test/shared-pass.test.js', "import { test } from 'node:test';\ntest('shared phase pass [G1]', () => {});\n");
+      put(box.root, 'test/check-runner.js', `import { spawnSync } from 'node:child_process';
+const run = spawnSync(process.execPath, ['--test', '--test-reporter=./test/outcome-reporter.js',
+  'test/check-only.test.js', 'test/shared-pass.test.js'], { encoding: 'utf8', env: process.env });
+process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? ''); process.exitCode = run.status ?? 1;
+`);
+    }
     put(box.root, 'test/native-outcomes.js', readFileSync(new URL('../src/test-outcomes.js', import.meta.url), 'utf8'));
     put(box.root, 'test/outcome-reporter.js', `import { tap } from 'node:test/reporters';
 import { testOutcomeCollector, formatTestOutcomes } from './native-outcomes.js';
@@ -55,7 +64,7 @@ function remote(box) {
   installSshStandIn({ bin, worker, home, machineHome, requests });
   let result = cli(box, box.root, 'runner', 'add', HOST, '--slots', '1', '--browser', '1');
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  for (const [key, value] of [['gate.runnersFirst', 'on'], ['gateSlots', '0'], ['browserSlots', '0']]) {
+  for (const [key, value] of [['gate.runnersFirst', 'on'], ['browserSlots', '0'], ['gateSlots', '0']]) {
     result = cli(box, box.root, 'settings', key, value);
     assert.equal(result.status, 0, result.stdout + result.stderr);
   }
@@ -66,7 +75,7 @@ function remote(box) {
 function readProfile(path) { return JSON.parse(readFileSync(path, 'utf8')); }
 
 test('a real remote submit retains the failing source file and exact main failure receipt [V4,B3,H16]', t => {
-  const box = fixture(t, { beforeMain: beforeMain() });
+  const box = fixture(t, { beforeMain: beforeMain({ phases: true }), check: 'node test/check-runner.js' });
   const requests = remote(box);
   const result = cli(box, box.builder, 'submit', String(box.item));
   assert.equal(result.status, 0, result.stdout + result.stderr);
@@ -78,7 +87,14 @@ test('a real remote submit retains the failing source file and exact main failur
   const phase = readProfile(gate.proofProfilePath), combined = readProfile(gate.profilePath);
   assert.equal(phase.executionRunner, HOST);
   assert.equal(phase.executionSource.commit, box.head);
-  assert.deepEqual(combined.testOutcomes, phase.testOutcomes);
+  const check = readProfile(gate.check.profilePath);
+  assert.equal(check.executionRunner, HOST);
+  assert.equal(check.executionSource.commit, box.head);
+  assert.deepEqual(combined.testOutcomes.map(({ file, name, passed }) => ({ file, name, passed })), [
+    { file: 'test/check-only.test.js', name: 'criterion only pass [G1]', passed: true },
+    { file: 'test/shared-pass.test.js', name: 'shared phase pass [G1]', passed: true },
+    { file: 'test/inherited.test.js', name: 'shared failure [G1]', passed: false },
+  ], 'both phases survive and repeated identical source cases stay unique');
   const summary = testOutputSummary(gate.log, { root: box.builder, profile: combined });
   assert.equal(summary.failures[0].file, 'test/inherited.test.js');
   assert.equal(summary.failures[0].name, 'shared failure [G1]');
