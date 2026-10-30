@@ -86,14 +86,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .group-view { display: grid; gap: var(--space-5); max-width: 1000px; }
 .group-panel { padding: var(--space-5) var(--space-5); }
 .group-panel h2 { margin: 0 0 var(--space-4); font-size: var(--text-xl); }
-.home { display: grid; gap: var(--space-5); max-width: 760px; }
-.home-card { padding: var(--space-5) var(--space-5); }
-.home-card h2 { margin: 0 0 var(--space-4); font-size: var(--text-xl); }
-.home-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); margin: 0 0 var(--space-4); }
-.home-counts dt { color: var(--ink-muted); font-size: var(--text-sm); }
-.home-counts dd { margin: var(--space-0) 0 0; font-size: var(--text-3xl); font-weight: 600; font-variant-numeric: tabular-nums; }
-.home-needs { margin: 0; padding: 0; border-bottom: 0; }
-.home-capacity p { margin: var(--space-2) 0; overflow-wrap: anywhere; }
+#dashboard .home-needs { margin: 0; padding: 0; border-bottom: 0; }
+#dashboard-rules .home-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); margin: 0 0 var(--space-4); }
+#dashboard-rules .home-counts dt { color: var(--ink-muted); font-size: var(--text-sm); }
+#dashboard-rules .home-counts dd { margin: var(--space-0) 0 0; font-size: var(--text-3xl); font-weight: 600; font-variant-numeric: tabular-nums; }
+#dashboard-capacity p { margin: var(--space-2) 0; overflow-wrap: anywhere; }
 .capacity-main strong { font-size: var(--text-3xl); font-variant-numeric: tabular-nums; }
 .capacity-note, .capacity-curve figcaption { color: var(--ink-muted); font-size: var(--text-xs); }
 .capacity-warning { color: var(--warn); }

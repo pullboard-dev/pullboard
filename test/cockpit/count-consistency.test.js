@@ -38,18 +38,22 @@ function countPairs() {
       add('Pipeline/' + stage.dataset.pipelineStage, number(stage.querySelector('[data-stage-count]')), stage.querySelectorAll('.pipeline-item').length);
     }
   }
-  if (view.tab === 'home' || view.tab === 'items') {
-    const root = view.tab === 'home' ? '#home-needs' : '#needs';
+  if (view.tab === 'dashboard' || view.tab === 'items') {
+    const root = view.tab === 'dashboard' ? '#dashboard' : '#needs';
     for (const group of all(root + ' .needs-group')) {
       const heading = group.querySelector('.needs-group-head h3');
       if (heading) add('Needs/' + heading.textContent, Number(heading.textContent.split('·').at(-1).trim()), group.querySelector('ol').children.length);
     }
     const draft = document.querySelector(root + ' .needs-drafts .needs-copy b');
     if (draft) add('Needs/draft rows', number(draft), p.needs.find(row => row.kind === 'draft')?.count ?? 0);
-    if (view.tab === 'home') {
+    if (view.tab === 'dashboard' && view.addressDetail !== 'floor') {
       const approved = p.spec.filter(row => row.status === 'approved');
+      const ruleCounts = all('#dashboard-rules [data-home-count]');
+      add('Dashboard/rules card rows', ruleCounts.length, 3);
       for (const [key, expected] of [['approved', approved.length], ['gated', approved.filter(row => String(row.gate ?? '').trim()).length], ['ungated', approved.filter(row => !String(row.gate ?? '').trim()).length]]) {
-        add('Home/rules/' + key, number(document.querySelector('[data-home-count="' + key + '"] dd')), expected);
+        const count = document.querySelector('[data-home-count="' + key + '"] dd');
+        add('Dashboard/rules/' + key + ' exists', Boolean(count), true);
+        add('Dashboard/rules/' + key, number(count), expected);
       }
       source('[data-home-count]');
     }
@@ -226,7 +230,7 @@ async function pane(chrome, name, phase) {
 
 /** Check every tab, each counted filter choice, pipeline stage, and the separate Dashboard floor. */
 async function sweep(chrome, phase) {
-  for (const tab of ['dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings']) {
+  for (const tab of ['dashboard', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings']) {
     await pane(chrome, tab, phase);
     if (tab === 'items') {
       const states = await chrome.stable('[...document.querySelectorAll("[data-filter-kind=state]")].map(node => node.dataset.filterValue)');

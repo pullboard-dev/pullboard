@@ -16,12 +16,13 @@ import {
   pickProject, press, project, startView,
 } from './fixture.js';
 
-test('Dashboard is the first board tab without removing the existing destinations [N26]', () => {
+test('Dashboard is the first board tab and Home is removed [N26]', () => {
   const page = cockpitPage();
   const tabs = [...page.matchAll(/<button\b[^>]*\bdata-tab="([^"]+)"[^>]*>([^<]+)<\/button>/gu)]
     .filter(([, tab]) => tab !== 'settings');
   assert.equal(tabs[0]?.[1], 'dashboard');
   assert.equal(tabs[0]?.[2], 'Dashboard');
+  assert.ok(!tabs.some(([, tab]) => tab === 'home'), 'Home is not a board tab');
   for (const tab of ['items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap']) {
     assert.ok(tabs.some(([, id]) => id === tab), `${tab} remains available`);
   }
@@ -150,6 +151,9 @@ test('a board opens on Dashboard with API-backed work, shared pace and existing 
     }
     await chrome.send('Page.navigate', { url: view.base + '/dashboard' });
     await chrome.waitFor(`typeof view !== 'undefined' && view.tab === 'dashboard' && data?.project?.root === ${JSON.stringify(alpha.repo)}`);
+    await chrome.send('Page.navigate', { url: view.base + '/home' });
+    await chrome.waitFor(`view.tab === 'dashboard' && data?.project?.root === ${JSON.stringify(alpha.repo)}`);
+    assert.equal(await chrome.stable('location.pathname'), '/dashboard', 'a legacy Home address opens the Dashboard');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     await view.stop();
