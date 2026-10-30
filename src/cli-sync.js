@@ -26,6 +26,7 @@ import {
 import {
   context,
   withBoard,
+  withBoardRead,
 } from './cli-context.js';
 
 /** Codes a checkout with no board refuses with, which the sync around a command keeps quiet. */
@@ -85,7 +86,9 @@ export async function retrySync(io) {
   try {
     if (io.relayCommand?.cliOperation !== 'sync' && gitSyncLinked(io.cwd)) {
       const ctx = context(io);
-      await withBoard(ctx, board => import('./sync.js').then(sync => sync.syncGitBoard(io.cwd, board, io)));
+      const sync = await import('./sync.js');
+      const compatible = withBoardRead(ctx, board => sync.gitSyncCompatibility(io.cwd, board).compatible);
+      if (compatible) await withBoard(ctx, board => sync.syncGitBoard(io.cwd, board, io));
     }
     io.relayOutbox ??= () => relayOutboxSetting(io.cwd);
     await syncRelay(io.cwd, io);
