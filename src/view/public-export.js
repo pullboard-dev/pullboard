@@ -37,7 +37,7 @@ function internalShout(value) {
 }
 
 /** Native event locations in the three exported API documents, not arbitrary JSON objects. */
-const EVENT_PATH = /^(?:events\/events\/\*|state\/state\/(?:events\/\*|items\/\*\/thread\/\*))$/u;
+const EVENT_PATH = /^(?:events\/events\/\*|state\/state\/(?:events\/\*|items\/\*\/(?:thread|history)\/\*))$/u;
 /** Exact native event fields and their hexadecimal widths; other detail fields remain prose. */
 const EVENT_IDENTITIES = Object.freeze({
   claim: { digest: 64 }, renew: { digest: 64 },
@@ -142,6 +142,8 @@ export function publicSnapshot(document, { privateBoard = false } = {}) {
     if (location === 'state/state/personRequests') return []; // Phone intent is person-addressed, including its status projection.
     if (Array.isArray(value)) return value.map(entry => visit(entry, [...path, '*'], eventKind)).filter(entry => entry !== undefined);
     if (value && typeof value === 'object') {
+      const nativeKind = value.event_kind ?? value.kind;
+      if (EVENT_PATH.test(location) && ['usage', 'shared-usage'].includes(nativeKind)) return undefined;
       if (location === 'state/state/needs/*' && value.kind === 'decision') return undefined;
       if ((EVENT_PATH.test(location) || /^state\/state\/(?:shouts|asked|decisions|decisionQueue|requests)\/\*$/u.test(location)
         || /^state\/state\/items\/\*\/history\/\*$/u.test(location)) && internalShout(value)) return undefined;

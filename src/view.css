@@ -1,6 +1,6 @@
 /*
- * The styles of `pullboard view` (N26), served at /view.css behind the view's secret. Every colour is
- * a token holding a light and a dark value; the theme button only picks which one the page shows.
+ * Shared cockpit styles for `pullboard view` (N26). Every colour is a token holding a light and a dark
+ * value; the authenticated local view appends its private Cost styles from src/view/cost.css.
  */
 :root {
   color-scheme: light dark;
@@ -1068,6 +1068,8 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* The hosted page paints only its neutral mark until its script knows which screen applies (#932). */
 .hosted-mark { display: none; }
 .hosted-page.loading .shell { display: none; }
+/* @private-view-css src/view/cost.css */
+
 .hosted-page.loading .hosted-mark { display: grid; place-items: center; min-height: 100vh; color: var(--ink-muted); }
 .hosted-page.loading .hosted-mark svg { width: 56px; height: 56px; }
 
