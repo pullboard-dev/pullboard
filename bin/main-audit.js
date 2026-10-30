@@ -23,5 +23,5 @@ if ((args.length && !(args.length === 1 && (scheduled || forceFull)) && !wakeAt)
   throw new Error('main-audit requires an explicit root and native UUID token, optionally --scheduled or --release');
 }
 if (!wakeAt || await waitMainAudit(mainAuditDirectory(repoInfo(root)), token, wakeAt)) {
-  await runMainAudits(root, token, { scheduled, forceFull }, { openBoardForRead, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, testValue: { flakeLedger, eventCauses } });
+  await runMainAudits(root, token, { scheduled, forceFull }, { workerUrl: new URL(import.meta.url), openBoardForRead, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, testValue: { flakeLedger, eventCauses } });
 }

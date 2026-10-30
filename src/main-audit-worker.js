@@ -274,7 +274,7 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const schedule = readMainAudit(join(directory, 'schedule.json'));
   if (scheduled && (!schedule || schedule.dueAt === null || Date.parse(schedule.dueAt) > Date.now())) {
-    if (schedule?.dueAt) await scheduleMainAudit(root, directory, schedule.dueAt);
+    if (schedule?.dueAt) await scheduleMainAudit(root, directory, schedule.dueAt, services.workerUrl);
     return; // Unknown cadence needs an explicit manual/release audit, never an invented immediate schedule.
   }
   const ownerFile = join(directory, 'owner.json'), lock = join(directory, 'owner.guard.sqlite');
@@ -325,7 +325,7 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
       });
       if (next === null) {
         const cadence = readMainAudit(join(directory, 'schedule.json'));
-        if (scheduled && cadence?.dueAt && Date.parse(cadence.dueAt) > Date.now()) await scheduleMainAudit(root, directory, cadence.dueAt);
+        if (scheduled && cadence?.dueAt && Date.parse(cadence.dueAt) > Date.now()) await scheduleMainAudit(root, directory, cadence.dueAt, services.workerUrl);
         return;
       }
       generation = next;

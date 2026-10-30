@@ -412,7 +412,7 @@ async function runMain(argv, streams) {
       catch { io.err('pullboard: the automatic main-merge worker could not start; run pullboard sentinel run --health-only to retry'); }
     }
     if (auditAfterCommand) {
-      try { await (await import('./main-audit-nudge.js')).nudgeMainAudit(io.cwd); }
+      try { await (await import('./main-audit-nudge.js')).nudgeMainAudit(io.cwd, new URL('../bin/main-audit.js', import.meta.url)); }
       catch { io.err('pullboard: the full-suite audit could not start; run pullboard land again to retry'); }
     }
   }
