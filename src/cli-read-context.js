@@ -265,9 +265,12 @@ function policyRefBytes(file) {
 function writePolicySignature(ctx, ref) {
   if (ref && (!ref.startsWith('refs/heads/') || ref.includes('\\')
     || ref.split('/').some(part => !part || part === '.' || part === '..'))) return null;
-  const primary = gitReadSignature(resolve(ctx.info.commonDir, '..'), []);
-  const local = gitReadSignature(ctx.info.root, []);
-  const runner = gitReadSignature(ctx.info.root, [relative(ctx.info.root, join(ctx.info.gitDir, 'pullboard-runner-policy.json'))]);
+  // Directory stats are left out: the command's own Git reads (index refresh, locks) touch them, and the policy-bearing
+  // files (config, HEAD, refs, packed-refs, runner policy) keep their own markers, so a foreign write still shows [#2081].
+  const options = { directories: false };
+  const primary = gitReadSignature(resolve(ctx.info.commonDir, '..'), [], options);
+  const local = gitReadSignature(ctx.info.root, [], options);
+  const runner = gitReadSignature(ctx.info.root, [relative(ctx.info.root, join(ctx.info.gitDir, 'pullboard-runner-policy.json'))], options);
   const loose = ref ? policyRefBytes(join(ctx.info.commonDir, ref)) : null;
   // Symbolic ref chains and alternate backends retain their original guarded reader until explicitly supported.
   if (loose?.startsWith('ref: ')) return null;
