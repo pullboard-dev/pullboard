@@ -274,7 +274,8 @@ function mainAdvanceFixture(t) {
   writeFileSync(join(box.repo, 'web/feature.js'), "export const feature = 'base';\n");
   writeFileSync(join(box.repo, 'bin/run-tests.js'), [
     "import {spawnSync} from 'node:child_process';",
-    "const run=spawnSync(process.execPath,['--test',...process.argv.slice(2)],{encoding:'utf8',env:process.env});",
+    "const env={...process.env};delete env.NODE_TEST_CONTEXT;",
+    "const run=spawnSync(process.execPath,['--test','--test-reporter=tap',...process.argv.slice(2)],{encoding:'utf8',env});",
     "process.stdout.write(run.stdout??'');process.stderr.write(run.stderr??'');process.exitCode=run.status??1;",
   ].join('\n'));
   writeFileSync(join(box.repo, 'test/feature.test.js'), [
@@ -311,7 +312,8 @@ function mainAdvanceFixture(t) {
 test('queued submit keeps the ordinary hook-checked unrelated-main merge after captured proof [V4,H16,C7]', async t => {
   const box = mainAdvanceFixture(t);
   const queued = document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
-  await box.helpers.waitFor(() => existsSync(box.started), 'real captured feature gate', 120000);
+  try { await box.helpers.waitFor(() => existsSync(box.started), 'real captured feature gate', 120000); }
+  catch (error) { throw new Error(`${error.message}\n${workerDiagnostic(box, box.id)}`, { cause: error }); }
   mkdirSync(join(box.repo, 'docs'), { recursive: true });
   writeFileSync(join(box.repo, 'docs/unrelated.md'), 'accepted unrelated main content\n');
   box.git(box.repo, 'add', 'docs/unrelated.md');
