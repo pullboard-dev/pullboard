@@ -672,7 +672,9 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, `${host.base}/demo/`, profile);
-    await settled(chrome, `${ready} && ${showing('dashboard', '/demo/')}`);
+    await settled(chrome, ready);
+    assert.equal(await chrome.stable("[...document.querySelectorAll('[data-pane]')].filter((each) => !each.hidden).map((each) => each.dataset.pane).join()"), 'dashboard', 'a fresh snapshot opens on Dashboard');
+    assert.equal(await chrome.stable('location.pathname + location.hash'), '/demo/', 'Dashboard keeps the snapshot folder address');
     await press(chrome, `document.querySelector('[data-tab="roadmap"]')`);
     await chrome.waitFor(showing('roadmap', '/demo/#roadmap'));
     await openRoadmapParts(chrome);
