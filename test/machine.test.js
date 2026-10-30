@@ -12,6 +12,7 @@ import { sourceReader } from './machine-source-functions.fixture.js';
 import { sourceDirectories } from './machine-source-functions.fixture.js';
 import { packageFiles } from '../src/package-files.js';
 import { assertSyncFacadeAudit } from './machine-source-functions.fixture.js';
+import { assertGitFacadeAudit } from './machine-source-functions.fixture.js';
 import { workingSourceInventory } from '../bin/checks/scan.js';
 import { fileURLToPath } from 'node:url';
 import { assertCommitShimRefusals, machineSourceModule } from './commits-machine-fixture.js';
@@ -1421,4 +1422,8 @@ test('native landing ports retain guard refusals without trusting unrelated chai
 
 test('lifecycle source walks follow sync shims and catch a planted body refusal [M1,M4,H16]', () => {
   assertSyncFacadeAudit(codeWalk, fromDisk, editedSource);
+});
+
+test('lifecycle source walks follow Git shims and catch a planted body refusal [M1,M4,H16]', () => {
+  assertGitFacadeAudit(codeWalk, fromDisk, editedSource);
 });
