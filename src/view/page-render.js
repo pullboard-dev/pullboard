@@ -105,7 +105,7 @@ function render() {
   // What needs the person, first, and only the person's calls (B26): the decisions passed up to them,
   // questions in the spec, held lanes, then draft rows. Work waiting for a verdict or sent back shows
   // on the board with who holds it; it is the agents' to move.
-  const needsTab = ['home', 'items', 'dashboard'].includes(view.tab);
+  const needsTab = ['items', 'dashboard'].includes(view.tab);
   const needsProject = { ...p, agents: (p.agents || []).map(agent => ({ ...agent, displayName: agentName(agent.agent_id, p) })) };
   const personalNeeds = needsTab || ['spec', 'doctrine'].includes(view.tab) ? personNeeds(needsProject) : [];
   const agentApprovals = personalNeeds.filter(row => row.kind === 'agent-approved');
@@ -133,18 +133,16 @@ function render() {
     }];
   }));
   const needsPanel = ${needsPanelHtml.toString()};
-  if (view.tab === 'dashboard') dashboardView.draw(p,needsPanel({...needsModel,compact:true},needsPresentation));
+  if (view.tab === 'dashboard') dashboardView.draw(p, needsPanel({...needsModel,compact:true},needsPresentation), {
+    rules: homeRules(p.spec),
+    capacity: homeCapacity(p.capacityForecast),
+  });
   else {
     const needsHtml = needsPanel(needsModel,needsPresentation);
     if (view.tab === 'items') {
       $('needs').hidden = !personalNeeds.length || view.state !== 'active' || Boolean(view.lane);
       $('needs').tabIndex = -1;
       $('needs').innerHTML = needsHtml;
-    } else {
-      $('home-rules').innerHTML = homeRules(p.spec);
-      $('home-capacity').innerHTML = homeCapacity(p.capacityForecast);
-      $('home-needs').innerHTML = needsHtml;
-      $('home-calm').hidden = Boolean(needsHtml);
     }
   }
   }
