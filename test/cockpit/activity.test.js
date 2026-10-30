@@ -500,7 +500,9 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
       }
       const rows = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity .activity-say')].map(row => {
         const quote = row.querySelector('.activity-quote');
-        return { sentence: row.querySelector('p')?.textContent, text: row.textContent, said: quote?.textContent ?? null,
+        const sentence = row.querySelector('p'), about = sentence?.querySelector('.activity-about'), plain = sentence?.cloneNode(true);
+        plain?.querySelector('.activity-about')?.remove();
+        return { sentence: plain?.textContent.trim(), fullSentence: sentence?.textContent, about: about ? { text: about.textContent, target: about.dataset.go, last: about === sentence.lastElementChild } : null, text: row.textContent, said: quote?.textContent ?? null,
           refs: quote ? quote.querySelectorAll('a.ref[data-go]').length : 0,
           code: quote ? [...quote.querySelectorAll('code')].map(code => code.textContent) : [],
           fullQuote: quote ? getComputedStyle(quote).whiteSpace === 'pre-wrap' : null,
@@ -509,12 +511,14 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
       const find = (sentence, said) => rows.find(row => row.sentence === sentence && row.said?.startsWith(said));
       const told = find('The coordinator told web', 'Please take');
       assert.ok(told, `${width}: sender, recipient and original words remain visible`);
+      assert.equal(told.fullSentence, 'The coordinator told web about #1', `${width}: the related item follows the original sentence`);
+      assert.deepEqual(told.about, { text: 'about #1', target: 'item:1', last: true }, `${width}: the approved item chip remains an inline navigation target`);
       assert.equal(told.said, long.replaceAll('`', '') + '\nA second line the row leaves out.', `${width}: the approved quote retains every line`);
       assert.equal(told.fullQuote, true, 'full quotes wrap rather than hiding the second line');
       assert.deepEqual([told.refs, told.code], [1, ['pullboard next']], `${width}: item links and inline code still work`);
       assert.ok(find('The coordinator told all', 'The private news release is ready.'), 'typed news retains its actual words');
-      assert.ok(find(asker + ' told the coordinator', 'Ship the greeting today?'), 'a decision retains its sender, recipient and question');
-      assert.equal(find(asker + ' told the coordinator', 'Ship the greeting today?').model, 'Test Model', 'the model is a hover title');
+      assert.ok(find(asker + ' asked the coordinator', 'Ship the greeting today?'), 'a question retains its sender, recipient and words with the approved verb');
+      assert.equal(find(asker + ' asked the coordinator', 'Ship the greeting today?').model, 'Test Model', 'the model is a hover title');
       assert.ok(find('The coordinator told ' + asker, 'Yes, ship it once'), 'the answer retains both addresses and its words');
       assert.ok(rows.some(row => row.sentence === 'The coordinator told web' && row.said === null), 'older unloaded shout words are not invented');
       assert.ok(rows.some(row => row.sentence === 'The coordinator added work' && row.text.includes('#1Greet the visitor')), 'other work has a sentence and item underneath');

@@ -46,7 +46,7 @@ test('a held item shows held with its reason in the roadmap list, matching the h
       assert.match(byId['#1'].why, /waits on the vendor reply/u, `${width}: hovering the held chip names the item's hold reason`);
       assert.equal(byId['#3'].chip, 'held', `${width}: an item in a held lane reads held`);
       assert.match(byId['#3'].why, /docs frozen for the release/u, `${width}: hovering names the lane's hold reason`);
-      assert.equal(byId['#2'].chip, 'unclaimed', `${width}: an item nobody held stays unclaimed`);
+      assert.equal(byId['#2'].chip, 'Ready', `${width}: an item nobody held stays ready`);
       assert.equal(seen.rows.filter((row) => row.chip === 'held').length, seen.held, `${width}: the list's held rows match the header's held count`);
       assert.equal(seen.held, 2, `${width}: the header counts both holds`);
       assert.ok(seen.link, `${width}: the header's held count is a link`);
