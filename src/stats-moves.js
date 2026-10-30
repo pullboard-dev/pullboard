@@ -47,19 +47,24 @@ export function movesStats(history, { limit = 20, transcripts } = {}) {
   const ordered = [...history].sort((a, b) => a.event_id - b.event_id), landed = new Map();
   for (const event of ordered) if (event.event_kind === 'merged' && event.item_id != null) landed.set(event.item_id, event.event_id);
   const selected = new Map([...landed].sort((a, b) => b[1] - a[1]).slice(0, limit));
-  const traces = new Map();
+  const traces = new Map(), otherTraces = new Map();
   for (const event of ordered) {
-    if (!selected.has(event.item_id) || event.event_id > selected.get(event.item_id) || !MOVES.has(event.event_kind)) continue;
+    if (!selected.has(event.item_id) || event.event_id > selected.get(event.item_id)) continue;
+    const rows = MOVES.has(event.event_kind) ? traces : otherTraces;
     const key = JSON.stringify([event.item_id, event.event_by]);
-    if (!traces.has(key)) traces.set(key, []);
-    traces.get(key).push(event.event_kind);
+    if (!rows.has(key)) rows.set(key, []);
+    rows.get(key).push(event.event_kind);
   }
   const sessions = transcripts === undefined ? [] : moveTranscripts(transcripts);
   const supplied = sessions.filter(session => selected.has(session.item));
   const covered = new Set(supplied.map(session => session.item));
   const commands = summarize(supplied.map(session => session.commands), covered.size);
+  const work = summarize([...otherTraces.values()], selected.size);
   return { version: 1, limit, landedItems: [...selected.keys()], count: selected.size,
-    eventMoves: { ...summarize([...traces.values()], selected.size), evidence: 'Native move events, not CLI invocation counts: one command may emit several events; read-only and refused commands may emit none.' },
+    eventMoves: { ...summarize([...traces.values()], selected.size), includedKinds: [...MOVES], evidence: 'Native lifecycle move events, not CLI invocation counts: one command may emit several events; read-only and refused commands may emit none.' },
+    otherEvents: { count: work.count, perLandedItem: work.perLandedItem,
+      byKind: work.byCommand.map(({ command, ...row }) => ({ kind: command, ...row })),
+      evidence: 'Item-scoped facts, proofs, usage and other non-lifecycle events are separate agent work, excluded from lifecycle moves and supplied commands.' },
     suppliedCommands: { ...commands, sessions: supplied.length, coveredItems: [...covered].sort((a, b) => a - b),
       unmeasuredItems: [...selected.keys()].filter(id => !covered.has(id)), ignoredSessions: sessions.length - supplied.length,
       evidence: 'Only explicitly supplied session commands; averages use covered landed items. Supplied sessions do not establish complete item coverage.' },
@@ -77,6 +82,8 @@ export function movesLines(report) {
     `native event moves: ${report.eventMoves.count}; per landed item ${show(report.eventMoves.perLandedItem)}`, report.eventMoves.evidence];
   for (const row of report.eventMoves.byCommand) lines.push(`  event ${row.command}: ${row.count}; per landed item ${show(row.perLandedItem)}`);
   for (const row of report.eventMoves.repeatedSequences) lines.push(`  repeated event moves: ${row.commands.join(' → ')} (${row.count})`);
+  lines.push(`other item events: ${report.otherEvents.count}; per landed item ${show(report.otherEvents.perLandedItem)}`, report.otherEvents.evidence);
+  for (const row of report.otherEvents.byKind) lines.push(`  ${row.kind}: ${row.count}; per landed item ${show(row.perLandedItem)}`);
   lines.push(`supplied commands: ${report.suppliedCommands.sessions ? report.suppliedCommands.count : 'unmeasured'}; ${report.suppliedCommands.coveredItems.length} landed items with supplied sessions`, report.suppliedCommands.evidence);
   for (const row of report.suppliedCommands.byCommand) lines.push(`  command ${row.command}: ${row.count}; per covered landed item ${show(row.perLandedItem)}`);
   for (const row of report.suppliedCommands.repeatedSequences) lines.push(`  repeated commands: ${row.commands.join(' → ')} (${row.count})`);

@@ -28,7 +28,8 @@ function fixture(t) {
   store.register(seed, { lane: 'coordinator', path: root });
   for (let id = 1; id <= 3; id += 1) store.addItem(seed, { by: 'coordinator', lane: 'core', title: `Moves ${id}` });
   const document = exportBoard(seed); store.closeBoard(seed);
-  const entries = [[1, 'claim'], [1, 'renew'], [1, 'submit'], [1, 'reopen'], [1, 'claim'], [1, 'submit'], [1, 'merged'],
+  const entries = [[1, 'claim'], [1, 'renew'], [1, 'submit'], [1, 'reopen'], [1, 'claim'], [1, 'submit'],
+    [1, 'fact'], [1, 'proof_run'], [1, 'usage'], [1, 'merged'],
     [2, 'claim'], [2, 'submit'], [2, 'merged'], [1, 'claim'], [3, 'claim']];
   document.tables.event = entries.map(([id, kind], index) => ({ event_id: index + 1, event_at: new Date(Date.UTC(2026, 9, 1, 0, index)).toISOString(),
     event_by: 'coordinator', event_kind: kind, item_id: id, event_detail: '{}' }));
@@ -53,12 +54,17 @@ test('moves exact native counts keep unrecorded commands and numeric targets unk
   assert.equal(report.eventMoves.count, 10);
   assert.equal(report.eventMoves.perLandedItem, 5);
   assert.equal(report.eventMoves.byCommand.find(row => row.command === 'claim').count, 3);
+  assert.ok(report.eventMoves.includedKinds.includes('claim'));
+  assert.equal(report.otherEvents.count, 3);
+  assert.equal(report.otherEvents.perLandedItem, 1.5);
+  assert.deepEqual(report.otherEvents.byKind.map(row => row.kind).sort(), ['fact', 'proof_run', 'usage']);
   assert.equal(report.polling.status, null); assert.equal(report.polling.show, null);
   assert.deepEqual(report.suppliedCommands.unmeasuredItems, [2, 1]);
   assert.equal(report.numericTarget, null);
   assert.match(movesLines(report).join('\n'), /not CLI invocation counts/u);
   assert.equal(JSON.stringify(history), before);
   assert.equal(movesStats(history, { limit: 1 }).eventMoves.count, 3);
+  assert.equal(movesStats(history, { limit: 1 }).otherEvents.count, 0);
 });
 
 test('supplied transcripts measure exact commands and sequences without joining seats or inventing coverage [R1,R2,C7]', t => {
