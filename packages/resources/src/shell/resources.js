@@ -1,3 +1,8 @@
+import { createControllerCustody } from './controller-custody.js';
+import { controllerLeaseHealth } from './controller-custody.js';
+import { spawnSync } from 'node:child_process';
+import { isAbsolute } from 'node:path';
+import { cleanGitEnvironment } from '../../../../src/git.js';
 /** Machine and repository queues persist leases; landings first, then arrival order, or by class (landing, review, submit, other) aging up over time where the machine opts in [Q1,Q2,Q3]. */
 import {
   existsSync,
@@ -1176,6 +1181,7 @@ export async function takeResource(options) {
         let released = false;
         let transferred = false;
         let lost = false;
+        let cancellationDiagnostic = null;
         let heartbeat;
         /** Keep the active holder lease alive while its executor is running. */
         const startHeartbeat = () => {
@@ -1193,12 +1199,19 @@ export async function takeResource(options) {
         const release = () => {
           if (released || transferred) return;
           update(db, () => {
+            if (cancellationDiagnostic) recordRunnerFailure(db, acquired.runner.host, 'cleanup-unverified', cancellationDiagnostic);
             db.prepare('DELETE FROM holder WHERE token = ?').run(token);
             removeEmptyViewPortResource(db, name);
           });
           released = true;
           clearInterval(heartbeat);
           db.close();
+        };
+        /** Stop this exact remote attempt without readmission, retaining unknown remote cleanup atomically. */
+        const cancelRunner = diagnostic => {
+          if (!acquired.runner || released || transferred || lost) throw new Refused('RESOURCE_LEASE_LOST', 'the owned remote lease is no longer cancellable');
+          cancellationDiagnostic = diagnostic ?? { reason: 'source-cancelled', phase: 'controller' };
+          release();
         };
         /** Refresh this lease, or refuse if another process already evicted it. */
         const renew = () => {
@@ -1265,7 +1278,7 @@ export async function takeResource(options) {
           ...(infrastructureAttempts.length ? { infrastructureAttempts: [...infrastructureAttempts] } : {}),
           waitMs: acquiredWaitMs, ...(runnerDeadlineAt ? { runnerWaitDeadline: acquired.lateRunnerDispatch?.startupDeadlineAt ?? runnerDeadlineAt } : {}),
           ...(lateRunnerDispatch ? { lateRunnerDispatch } : {}), release, renew, timingEvidence,
-          ...(acquired.runner ? { requeueRunner } : {}) };
+          ...(acquired.runner ? { requeueRunner, cancelRunner } : {}) };
       }
       if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
       await keepItemLease(acquired.state, 'waiter');
@@ -1371,5 +1384,43 @@ export function listResources({ scope = 'machine', root = process.cwd() } = {}) 
       removeEmptyViewPortResources(db);
       return db.prepare('SELECT name, capacity FROM resource ORDER BY name').all().map(({ name, capacity }) => ({ name, capacity, ...snapshot(db, name, order) }));
     });
+  } finally { db.close(); }
+}
+
+/** Bind controller diagnostic custody to the resource owner's canonical process identities. */
+export function controllerDeadline(owner, parentPid) { return createControllerCustody(owner, parentPid, { processStarted, machineHome }); }
+
+/** Read active controller health without changing availability or releasing a holder. */
+export function runnerLeaseHealth(now = Date.now()) { return controllerLeaseHealth(now, { processStarted, machineHome }); }
+
+/** Preserve the finite-deadline projection independently of lifecycle observation failures. */
+export function overdueRunnerLeases(now = Date.now()) { return runnerLeaseHealth(now).filter(row => row.deadline !== undefined); }
+
+/** Resolve the actual board of this checkout or its private clone origin, never a request-selected database. */
+export function runnerBoardFile(root, hops = 3) {
+  let info;
+  try { info = repoInfo(root); } catch { return null; }
+  const file = join(info.commonDir, 'pullboard', 'board.sqlite');
+  if (existsSync(file)) return file;
+  if (hops <= 0) return null;
+  const origin = spawnSync('git', ['config', '--get', 'remote.origin.url'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
+  const url = origin.status === 0 ? origin.stdout.trim() : '';
+  return url && isAbsolute(url) && existsSync(url) ? runnerBoardFile(url, hops - 1) : null;
+}
+
+/** Observe only board identity and item terminal state for resource lifecycle; no native or write authority. */
+export function runnerItemState(root, item) {
+  if (!/^[1-9][0-9]*$/u.test(String(item ?? ''))) return null;
+  const id = Number(item);
+  if (!Number.isSafeInteger(id)) return null;
+  const file = runnerBoardFile(root);
+  if (!file) return null;
+  const db = new DatabaseSync(file, { readOnly: true });
+  try {
+    const row = db.prepare("SELECT meta.meta_value AS board, item.item_id, item.item_status, item.item_merged_commit FROM item JOIN board_meta meta ON meta.meta_key='board_id' WHERE item.item_id=? AND NOT EXISTS(SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)").get(id);
+    if (!row) return null;
+    if (!['open', 'claimed', 'submitted', 'verified', 'withdrawn'].includes(row.item_status)) throw new Error('unknown item lifecycle status');
+    return { board: row.board, item: row.item_id,
+      terminal: Boolean(row.item_merged_commit || row.item_status === 'withdrawn') };
   } finally { db.close(); }
 }
