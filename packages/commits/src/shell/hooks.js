@@ -44,6 +44,7 @@ import { Refused } from "../../../../src/refused.js";
 import { parseCommitMessage } from "../core/commit-message.js";
 import { outOfLane } from "../../../../src/lanes.js";
 import { importOnlyChange } from "../../../../src/import-only-change.js";
+import { planRowChange } from "../../../../src/plan-row-change.js";
 import {
   citedIds,
   deletedIds,
@@ -443,13 +444,24 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile, preM
   resolved.forEach((path) => onNotice?.(`resolved accepted-main conflict in ${path}; the coordinator owns ${path}`));
   const checkedForeign = foreignPaths.filter((path) => !resolved.includes(path)
     && !(path === ownershipConfig.spec && specGateMoveOnly(root, path)));
-  const mechanical = checkedForeign.filter(path => stagedImportOnlyChange(root, path));
-  for (const path of mechanical) onNotice?.(`cross-lane mechanical import edit: ${JSON.stringify(path)}; this path will be flagged for the reviewer on submit`);
+  /** Read exact index or HEAD blobs, never unstaged worktree bytes. */
+  const planRead = (revision, path) => {
+    const entry = importFileEntry(root, revision, path);
+    return entry && { ...entry, bytes: importFileBlob(root, entry.oid) };
+  };
+  const planChanges = new Map(checkedForeign.map(path => [path, planRowChange(path, {
+    before: path => planRead('HEAD', path), after: path => planRead(':index', path),
+    ownNewFile: path => !outOfLane(ownershipConfig, agent.agent_lane, [path]).length
+      && !git(root, ['ls-tree', '-z', 'HEAD', '--', `:(literal)${path}`])
+      && Boolean(importFileEntry(root, ':index', path)),
+  })]));
+  const mechanical = checkedForeign.filter(path => stagedImportOnlyChange(root, path) || planChanges.get(path).allowed);
+  for (const path of mechanical) onNotice?.(`cross-lane mechanical ${planChanges.get(path).allowed ? 'new-file placement' : 'import edit'}: ${JSON.stringify(path)}; this path will be flagged for the reviewer on submit`);
   problems.push(...checkedForeign.filter(path => !mechanical.includes(path))
     .flatMap((path) => outOfLane(ownershipConfig, agent.agent_lane, [path]).map(label => ({ path, label })))
     .map(({ path, label }) => {
       const lines = stagedChangedLines(root, path);
-      return `outside the ${agent.agent_lane} lane: ${label}${lines.length ? ` at ${lines.join(', ')}` : ''}; only a static import binding or specifier change is permitted mechanically; shout its owner for any other edit`;
+      return `outside the ${agent.agent_lane} lane: ${label}${lines.length ? ` at ${lines.join(', ')}` : ''}${planChanges.get(path).problem ? ` (${planChanges.get(path).problem})` : ''}; only static import changes or canonical rows for owned new files are permitted mechanically; shout its owner for any other edit`;
     }));
   return problems;
 }
