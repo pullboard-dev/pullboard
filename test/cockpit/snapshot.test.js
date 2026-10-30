@@ -350,14 +350,14 @@ test("the static export's Pause keeps its box through a press [A10,N26,C7]", { t
           clearTimeout(snapshotReplay.timer);
           const pause = document.querySelector('#replay-pause');
           window.__pauseEndWitness = { before: { index: snapshotReplay.index, playing: snapshotReplay.playing,
-            disabled: pause.disabled, label: pause.textContent }, moves: 0 };
+            disabled: pause.disabled, label: pause.getAttribute('aria-label') }, moves: 0 };
           /** Finish the actual replay between the original shared press's aim and assertion. */
           pause.addEventListener('mousemove', () => {
             window.__pauseEndWitness.moves++;
             while (snapshotReplay.playing) { clearTimeout(snapshotReplay.timer); advanceReplay(); }
             clearTimeout(snapshotReplay.timer);
             window.__pauseEndWitness.after = { index: snapshotReplay.index, playing: snapshotReplay.playing,
-              disabled: pause.disabled, label: pause.textContent };
+              disabled: pause.disabled, label: pause.getAttribute('aria-label') };
           }, { once: true });
           return window.__pauseEndWitness.before;
         })()`);
