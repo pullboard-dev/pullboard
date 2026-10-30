@@ -9,6 +9,7 @@ import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard } from '../src/exchange.js';
 import { snapshotState } from '../relay/browser-model.js';
+import { presentationState } from '../relay/browser-model.js';
 
 /** Use actual board moves; synthetic submit proof is only a lifecycle input, not a gate claim. */
 function fixture(t) {
@@ -35,7 +36,11 @@ test('withdrawn summary and detail keep the actual open, claimed or submitted or
     assert.equal(store.recentEvents(f.board, 80).some(event => event.event_kind === 'withdraw'), false);
     const detail = f.project();
     const summary = itemSummary(detail);
-    for (const projected of [detail, summary, JSON.parse(JSON.stringify(summary))]) {
+    const legacy = snapshotState(exportBoard(f.board), store.boardId(f.board));
+    const olderPresentation = structuredClone(legacy);
+    for (const item of olderPresentation.items) { delete item.withdrawnReason; delete item.withdrawnFrom; }
+    const presented = presentationState({ version: 1, state: olderPresentation }, store.boardId(f.board));
+    for (const projected of [detail, summary, JSON.parse(JSON.stringify(summary)), legacy.items[0], presented.items[0]]) {
       assert.equal(projected.withdrawnReason, 'Superseded by the new design');
       assert.equal(projected.withdrawnFrom, stage);
       assert.ok(Object.hasOwn(projected, 'withdrawnReason'));
