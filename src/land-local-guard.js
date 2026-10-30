@@ -12,10 +12,12 @@ import { browserFreeChecksEnabled } from './settings.js';
 import { Refused } from './refused.js';
 
 /** Retain native admission, complete stage output and failure observation under the actual run's lease. */
-export async function runLocalLandingGuard(root, config, { files, directory, label, onWait, waivers, onFailure }) {
+export async function runLocalLandingGuard(root, config, { files, directory, label, onWait, waivers, onFailure, quarantines = [], proofContext }) {
   const browser = !browserFreeChecksEnabled() || await testsNeedBrowser(root, files);
   return withLandingGateSlot(root, async lease => {
     pinRunMain(lease, onFailure);
+    lease.quarantines = quarantines;
+    if (quarantines.length) lease.proof = proofContext;
     const run = runProfiledShell(root, config.gate, { waitMs: lease.waitMs, gateLease: lease,
       stages: true, landing: true, waivers, persistLog: true, artifactDirectory: directory, artifactPrefix: label,
       timeoutMs: config.landing?.timeoutMs });
