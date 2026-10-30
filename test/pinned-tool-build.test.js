@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** Synthetic tool generations exercise real Git, native full-gate receipts and actual CLI dispatch [C7]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
