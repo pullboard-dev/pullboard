@@ -371,6 +371,7 @@ Additional commands
   pullboard maintenance [--json]      archive and prune idle worktrees when worktreeMaintenance.enabled is true
   pullboard stats moves [--limit <N>] [--transcripts <file>]  native event moves and separately supplied command transcripts per landed item
   pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items
+  pullboard tool-build [promote <commit> --gate-receipt <native-full-gate-id>]  show the board's pinned tools or promote a gated build for new commands
 
 Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD, OTHER.
 --json prints one versioned document for every command, and one per line for watch; refusals include their code and next step.

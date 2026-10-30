@@ -61,6 +61,8 @@ Close each finding with its next step in the same cycle. When the step belongs t
 
 A recurring job that runs on a cadence, such as a listener loop or a sentinel, records each run with `pullboard loop ran <name>`, and `pullboard health` flags one that stays silent for 1.5 cadences. The coordinator declares the cadence with `pullboard loop declare <name> --every 10m --owner <seat or lane>`; `pullboard loop` lists the jobs and their last runs.
 
+The tool build every seat runs is pinned, so a landing never changes the tool under work in flight. `pullboard tool-build` shows the pinned build and its age; after a build's gate is green, promote it with `pullboard tool-build promote <commit> --gate-receipt <gate-id>`.
+
 `pullboard maintenance` cleans up after the agents: it archives any uncommitted work in a finished, orphaned or scratch worktree, then prunes it after the grace period, and prints one line per run with the counts and the space freed. It runs on a schedule; run it by hand from the main checkout when health names worktrees left behind.
 
 Approved sentinels never run inside an agent's session. A timer (cron on a server, or a scheduled CI job) runs `pullboard sentinel run`, which runs the due sentinels in a trunk checkout it prepares and records each result; `pullboard resume` only says when sentinels are due and where they run.
