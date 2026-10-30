@@ -39,7 +39,9 @@ export async function run(io) {
   for (const entry of report.autoQuarantines) io.say(`Automatic quarantine: ${entry.file} :: ${entry.name}; repair #${entry.item} must land`);
   for (const repair of report.gitSyncRepairs) io.say('Git sync recovery: ' + JSON.stringify(repair));
   for (const line of blockLines(report.blocks)) io.say(line);
-  for (const row of report.dirtyWorktrees) io.say(`worktree has uncommitted work since ${row.since} without a live seat: ${JSON.stringify(row.path)}`);
+  for (const row of report.dirtyWorktrees) io.say(row.kind === 'withdrawal-retained'
+    ? `withdrawal cleanup deferred for #${row.item}: ${JSON.stringify(row.path)}; ${row.reason}`
+    : `worktree has uncommitted work since ${row.since} without a live seat: ${JSON.stringify(row.path)}`);
   return report.stuck.length || report.autoQuarantines.length || report.overdueRunnerLeases.length || report.runnerLifecycleProblems.length || report.dirtyWorktrees.length ? 1 : 0;
 
 }
