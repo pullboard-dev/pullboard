@@ -47,8 +47,13 @@ test('the private Cost tab consumes the server projection and routes controls [N
   try {
     chrome = await openSnapshotChrome(chromeExecutable(), view.link.href, join(dir, 'chrome'));
     await chrome.waitFor('!!data?.project');
+    await press(chrome, 'document.querySelector("[data-tab=cost]")');
+    await chrome.waitFor('!!document.querySelector("#cost .cost-model-card")');
+    assert.ok((await chrome.stable('document.querySelector("#cost").innerText')).includes('Showing agent time'));
+    await press(chrome, 'document.querySelector("[data-tab=items]")');
     const projection = { version:1, window:'7d', totals:{agentMs:7200000,itemCount:1,medianItemMs:7200000,sentBack:{items:0,itemShare:0,agentMs:0,agentMsShare:0}}, days:[{date:'2026-10-30',firstTimeMs:7200000,sentBackMs:0,items:1}], builders:{verdict:'nothing-to-compare',best:'a',runnerUp:null,rows:[{model:'a',label:'Fixture model',vendor:'Fixture',built:30,passedFirst:29,rate:.967,low:.83,high:.99,typicalItemMs:7200000,judged:true,tooFew:false}]}, verifiers:{verdict:'clear',best:'b',runnerUp:'c',rows:[{model:'b',label:'Reviewer B',vendor:'Fixture',verdicts:31,accepts:30,reopenedLater:1,rate:.03,low:.01,high:.16,judged:true,tooFew:false},{model:'c',label:'Reviewer C',vendor:'Fixture',verdicts:35,accepts:32,reopenedLater:8,rate:.25,low:.13,high:.42,judged:true,tooFew:false}]}, unknownBuilderModelShare:0,longest:[{id:1,title:'Seeded item',agentMs:7200000,sentBack:0,verifiedBy:'Reviewer B',landedAt:'2026-10-30T12:00:00Z',sessions:[{model:'a',label:'Fixture model',count:null,agentMs:7200000,tokensIn:null}]}],allItems:1 };
     await chrome.stable(`(() => { const original=window.fetch; window.costRequests=[]; window.fetch=(input,init) => { const url=String(input); if (!url.includes('/cost-analytics?')) return original(input,init); const windowName=new URL(url,location.href).searchParams.get('window'); costRequests.push(windowName); return Promise.resolve(new Response(JSON.stringify({costAnalytics:{...${JSON.stringify(projection)},window:windowName}}),{status:200,headers:{'content-type':'application/json'}})); }; })()`);
+    await chrome.stable('costHistory.clear()');
     await press(chrome, 'document.querySelector("[data-tab=cost]")');
     await chrome.waitFor('!!document.querySelector("#cost .cost-model-card")');
     let text = await chrome.stable('document.querySelector("#cost").innerText');
