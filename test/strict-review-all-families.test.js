@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 import { NO_ELIGIBLE_REVIEWER_ENGINE } from '../src/no-eligible-reviewer-engine.js';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
