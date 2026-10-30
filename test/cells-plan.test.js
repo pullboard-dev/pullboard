@@ -313,7 +313,7 @@ test('two disjoint plan-row appends merge clean in both orders and keep the one-
   for (const [ours, theirs] of [heads, [...heads].reverse()]) {
     assert.deepEqual(mechanicalConflictFiles(root, ours, theirs), [], 'git alone conflicts on the shared tail; the mechanical merge does not');
     git(root, 'checkout', '-q', '--detach', ours);
-    git(root, 'merge', '--no-commit', '--no-ff', theirs).toString();
+    try { git(root, 'merge', '--no-commit', '--no-ff', theirs); } catch { /* git alone reports the conflict */ }
     assert.deepEqual(resolveMechanicalIndex(root, [SHARD_FILE]).files, []);
     const rows = JSON.parse(readFileSync(join(root, SHARD_FILE), 'utf8')).paths;
     assert.deepEqual(rows.map(row => row[0]).sort(), ['src/m-1.js', 'src/m-2.js', 'src/m-3.js', 'src/m-4.js']);

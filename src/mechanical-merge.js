@@ -265,6 +265,8 @@ function sourceResolution(path, base, ours, theirs, version = MECHANICAL_VERSION
     } catch { return null; /* Invalid snapshots remain ordinary conflicts, never guessed data. */ }
   }
   const keyed = mergeMechanicalSources(path, base, ours, theirs, version);
+  // A defaults object has one value per key: two differing additions of a key never union into a duplicate.
+  if (!keyed && path === 'src/config.js' && version >= 4 && region(path, base, version)) return null;
   const source = keyed?.source ?? additiveSource(base, ours, theirs);
   if (source === null) return null;
   if (/\.(?:js|mjs|cjs)$/u.test(path)) {
