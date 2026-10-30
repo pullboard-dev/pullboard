@@ -1,11 +1,10 @@
 /** Read-only queued-submit projections never grant proof or actor authority [V4,H16]. */
-import { ENGINE_VERSION } from './engine-metadata.js';
-import { SUBMIT_HANDOFF_ENGINE } from './submit-handoff-engine.js';
 const PREFIX = 'submit_handoff:';
 
 /** Read only new-engine queue observations; historical selection has no new metadata. */
 export function submitHandoff(board, id) {
-  if ((board.executionEngineVersion ?? ENGINE_VERSION) < SUBMIT_HANDOFF_ENGINE) return null;
+  const engines = board.enginePorts.submitHandoffEngines();
+  if ((board.executionEngineVersion ?? engines.current) < engines.handoff) return null;
   const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(PREFIX + id);
   return row ? JSON.parse(row.meta_value) : null;
 }

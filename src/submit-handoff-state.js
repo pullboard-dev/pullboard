@@ -14,14 +14,12 @@ import {
   logEvent,
 } from './board-event-log.js';
 import { release } from './board.js';
-import { firstRefusalDetail } from './claims.js';
-import { itemPatchDigest } from './item-patch-state.js';
 import {
   getItem,
   now,
   proofReceipts,
 } from './board-query.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const PREFIX = 'submit_handoff:';
 const PREPARED = new WeakMap();
@@ -76,7 +74,7 @@ export function queueSubmitHandoff(board, id, options) {
       || !Number.isFinite(until) || until <= Date.parse(now(board))) {
       throw new Refused('NOT_YOURS', 'claim this item before submitting it');
     }
-    if (item.item_frozen_digest !== options.digest || itemPatchDigest(board, id, options.commit) !== options.companionDigest) throw new Refused('SUBMIT_HANDOFF_CHANGED', 'read and claim the current frozen bar before queuing a gate');
+    if (item.item_frozen_digest !== options.digest || board.enginePorts.itemPatchDigest(board, id, options.commit) !== options.companionDigest) throw new Refused('SUBMIT_HANDOFF_CHANGED', 'read and claim the current frozen bar before queuing a gate');
     const pending = pendingSubmitHandoff(board, item);
     if (pending) {
       if (pending.commit !== options.commit || pending.tree !== options.tree || pending.digest !== options.digest || pending.companionDigest !== options.companionDigest) {
@@ -107,7 +105,7 @@ export function requireSubmitHandoffHookProof(board, id, job, projection) {
   if (projection?.job !== job.id || projection.commit !== job.executionCommit || projection.tree !== job.executionTree
     || projection.digest !== job.digest || job.state !== 'running' || item.item_status !== 'claimed'
     || item.item_owner !== job.agentId || item.item_frozen_digest !== job.digest
-    || !(item.item_lease_until > now(board)) || itemPatchDigest(board, id, job.commit) !== job.companionDigest
+    || !(item.item_lease_until > now(board)) || board.enginePorts.itemPatchDigest(board, id, job.commit) !== job.companionDigest
     || !Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length
     || ids.some(id => !receipts.some(receipt => receipt.id === id && receipt.kind === 'submit'
       && receipt.item === item.item_id && receipt.seat === job.agentId && receipt.commit === job.executionCommit
@@ -162,7 +160,7 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
     const state = item.item_status === 'submitted' ? 'incomplete' : 'red';
     if (state === 'red' && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
       const reservation = reopenFirstRefusalMinutes > 0
-        ? firstRefusalDetail(board, { ...item, item_built_by: job.agentId }, reopenFirstRefusalMinutes)
+        ? board.enginePorts.firstRefusalDetail(board, { ...item, item_built_by: job.agentId }, reopenFirstRefusalMinutes)
         : { reopenFirstRefusal: { builder: job.agentId, until: new Date(board.clock.now().getTime() + job.leaseMs).toISOString() } };
       release(board, id, job.agentId, 'the queued canonical submit was refused');
       logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, ...reservation });

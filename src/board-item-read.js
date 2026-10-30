@@ -1,4 +1,3 @@
-import { SUBMIT_HANDOFF_ENGINE } from './submit-handoff-engine.js';
 import { LEASE_LAPSE_ENGINE } from './lease-lapse-engine.js';
 import { CHECK_TIMING_ENGINE } from './check-timing-engine.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
@@ -27,7 +26,7 @@ export function itemById(board, id) {
 
 /** Read the latest return's window, ignoring review releases and earlier submissions. */
 export function firstRefusal(board, id, at = board.clock.now()) {
-  const kinds = (board.executionEngineVersion ?? ENGINE_VERSION) >= SUBMIT_HANDOFF_ENGINE
+  const kinds = (board.executionEngineVersion ?? ENGINE_VERSION) >= board.enginePorts.submitHandoffEngines().handoff
     ? "'reject', 'reopen', 'submit', 'release', 'reject_returned', 'submit_handoff_returned'"
     : "'reject', 'reopen', 'submit', 'release', 'reject_returned'";
   const history = board.db.prepare(`SELECT event_id, event_kind, event_detail, event_by FROM event WHERE item_id = ? AND event_kind IN (${kinds}) ORDER BY event_id DESC`).all(id);
