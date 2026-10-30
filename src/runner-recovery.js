@@ -96,13 +96,16 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
       }
     }
     if (result?.healthy === true) {
-      return auditedChange(db, () => {
+      const recovered = auditedChange(db, () => {
       const removed = db.prepare(`DELETE FROM runner_unavailable WHERE host=? AND since=? AND probe_token=?
         AND NOT EXISTS(SELECT 1 FROM runner_draining WHERE host=runner_unavailable.host)`).run(row.host, row.since, token).changes > 0;
       if (removed) db.prepare('INSERT INTO runner_recovery_event VALUES(?,?,?,?,?)')
         .run(randomUUID(), row.host, new Date().toISOString(), 'available', JSON.stringify({ priorReason: row.detail, failure: retained.original, probe: result }));
       return removed;
       });
+      if (recovered && row.detail === 'WORKER_UNRESPONSIVE')
+        process.stderr.write(`runner ${row.host} recovered: pinned worker ready; ${result.reason ?? 'health proof passed'}\n`);
+      return recovered;
     }
     const attempts = Math.min(16, row.probe_attempts + 1);
     const delay = ['CLEANUP_UNVERIFIED', 'WORKER_UNRESPONSIVE'].includes(row.detail)

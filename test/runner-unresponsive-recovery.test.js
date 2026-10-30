@@ -68,11 +68,11 @@ function observe(t, live) {
   const probes = readFileSync(requests + '.health-probes', 'utf8').trim().split('\n').map(JSON.parse);
   let workerError = '';
   try { workerError = readFileSync(stderrLog, 'utf8'); } catch { /* A refused transport never starts the worker. */ }
-  return { actual: { ...JSON.parse(result.stdout), probes, workerError }, probes };
+  return { actual: { ...JSON.parse(result.stdout), probes, workerError }, probes, healthLine: result.stderr };
 }
 
 test('an unresponsive exact worker restarts through the pinned idle proof on the next probe [C7]', t => {
-  const { actual, probes } = observe(t, false);
+  const { actual, probes, healthLine } = observe(t, false);
   assert.equal(actual.recovered, true, JSON.stringify(actual));
   assert.equal(actual.held, undefined);
   assert.deepEqual(actual.events.map(event => event.kind), ['unavailable', 'available']);
@@ -82,6 +82,7 @@ test('an unresponsive exact worker restarts through the pinned idle proof on the
   assert.equal(probes.length, 2);
   assert.equal(probes[0].healthProbeFailed, true);
   assert.equal(probes[1].code, 0);
+  assert.match(healthLine, /runner fixture-host recovered: pinned worker ready; no live runner process/u);
 });
 
 test('an unresponsive worker with a live job stays held and names its actual pid [C7]', t => {
