@@ -1,3 +1,4 @@
+import { KNOWN_MAIN_AUTOFILE_ENGINE } from '../known-main-autofile-engine.js';
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from '../known-main-owner-pattern-engine.js';
 import { ENGINE_VERSION } from '../engine-metadata.js';
 import { QUARANTINE_VERDICT_ENGINE } from '../quarantine-verdict-engine.js';
@@ -35,7 +36,7 @@ function existingEngine(args, board, at) {
 function minimumEngine(args, board, at) {
   const outside = board && Boolean(outsideSource(board, args[0]));
   const presubmit = board && itemPatchRecords(board, args[0]).some(record => record.presubmit === true);
-  return Math.max(Object.hasOwn(args[1] ?? {}, 'quarantineProofIds') ? QUARANTINE_VERDICT_ENGINE : 1, itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
+  return Math.max(args[1]?.autoMainReds !== undefined ? KNOWN_MAIN_AUTOFILE_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofIds') ? QUARANTINE_VERDICT_ENGINE : 1, itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
     Array.isArray(args[1]?.submissionProof?.knownMainFailures?.failures)
       && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined) ? ((board?.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE
         ? KNOWN_MAIN_OWNER_PATTERN_ENGINE : KNOWN_MAIN_REWORKS_ENGINE) : 1,
@@ -49,6 +50,22 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+  "B26_PERSON_CHANNEL": "record it as the person through pullboard view or the person's own terminal",
+  "BAD_CHECK": "ask your coordinator to set the check: pullboard edit <id> --check \"<command>\"",
+  "BAD_CHECK_BASELINE": "the coordinator sets the check again: pullboard edit <id> --check \"<command>\"",
+  "BAD_REVIEW_FAMILY": "use --review-family with a nonempty declared reviewer family of at most 100 characters",
+  "BAR_PARENT_UNKNOWN": "join a fresh worktree from the current native session with its real parent; an outside session must sign a bar whose author identities are known",
+  "BRIEF_TOO_LONG": "shorten the brief and point to a longer doc by path, or pass --brief-file <file>",
+  "CHECK_MASKS_EXIT": "set the check to run its proof alone, or capture the output first and test it, then retry: pullboard edit <id> --check \"<command>\"",
+  "COORDINATOR_CHECK": "ask your coordinator to set the check: pullboard shout coordinator --kind question \"please set a check on #<id>\"",
+  "DEPENDENCY_CYCLE": "change --after so no item waits on itself",
+  "NO_BRIEF": "add the missing fields with pullboard edit <id> --brief \"...\" --criterion \"...\"",
+  "NO_TITLE": "give a title: pullboard add <lane> \"<title>\"",
+  "PARENT_CLOSED": "add the item without --parent, or under an open parent",
+  "PARENT_LANE": "add the child in its parent's lane",
+  "REFERENCE_AUTHOR": "use the issue or pull request author's handle, or remove the handle from its Reference line, then add or edit the item again",
+  "REFERENCE_IS_BOARD": "use --specs for spec rows, --after for item dependencies, or --parent for a parent item",
+  "WITHDRAWN": "wait on an item that is not withdrawn; see pullboard list --all",
   "MAIN_FACTS_BUSY": "wait for the immutable main facts derivation to finish, then retry",
   "SUBMIT_PIN_NOT_MAIN": "run pullboard submit again so it captures the current main",
   "RUNNER_WORK_SPEC": "upgrade or repair the controller and runner together, then retry the named invalid work specification",

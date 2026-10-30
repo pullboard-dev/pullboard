@@ -80,6 +80,14 @@ function collectionFields(value) {
     planDigest: value.planDigest, completedDigest: value.completedDigest };
 }
 
+/** Optional producer metadata never invalidates a valid raw receipt; receivers reject a malformed present field. */
+export function observedFailureSignatures(value, failures) {
+  if (!value || !Number.isSafeInteger(value.version) || value.version < 1 || !Array.isArray(value.failures)
+    || value.failures.length !== failures.length || value.failures.some((row, index) => !row || typeof row !== 'object'
+      || row.file !== failures[index].file || row.name !== failures[index].name || !DIGEST.test(row.signature ?? ''))) return null;
+  return { version: value.version, failures: value.failures.map(({ file, name, signature }) => ({ file, name, signature })) };
+}
+
 /** The checks behind receiptFields; each malformed field throws, and receiptFields turns that into null. */
 function checkedFields(value) {
   const bad = () => new TypeError('malformed gate receipt');
@@ -114,6 +122,9 @@ function checkedFields(value) {
     if (!line(file, 4096) || file.startsWith('/') || file.includes('\\') || file.split('/').some((part) => !part || part === '.' || part === '..') || !line(name, 8192)) throw bad();
     return { file, name };
   });
+  const hasSignatures = Object.hasOwn(value, 'failureSignatures');
+  const signed = hasSignatures ? observedFailureSignatures(value.failureSignatures, failures) : null;
+  if (hasSignatures && !signed) throw bad();
   const blockingVerdict = hasBlockingVerdict ? quarantineVerdictFields(value.blockingVerdict,
     { green: value.green, exitCode: version === 2 ? proof?.exitCode : value.blockingVerdict?.exitCode, failures }) : null;
   if (hasBlockingVerdict && (!blockingVerdict || version === 2 && !proof.sourceClean
@@ -126,6 +137,7 @@ function checkedFields(value) {
     green: value.green, failures, load: load === null ? null : { average: [...load.average], cpus: load.cpus, freeMB: load.freeMB }, at: value.at,
     ...(proof ? { proof } : {}), ...(Object.hasOwn(value, 'environment') ? { environment: value.environment } : {}),
     ...(hasTestOutcomes ? { testOutcomes } : {}),
+    ...(signed ? { failureSignatures: signed } : {}),
     ...(hasBlockingVerdict ? { blockingVerdict } : {}),
     ...(hasCollection ? { collection } : {}), ...(hasParticipation ? { participationDigest: value.participationDigest } : {}),
     ...(hasTiming ? { full: value.full, timing } : {}) };
