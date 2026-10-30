@@ -45,12 +45,7 @@ export default async function* recordSelectedTests(events) {
   writeFileSync(process.env.PULLBOARD_TEST_SELECTION, JSON.stringify({ cases }), { mode: 0o600 });
 }
 
-/** Select repository test entry files while keeping imported helpers out of direct discovery. */
-export function isDefaultTestFile(path) {
-  const normalized = path.replaceAll('\\', '/');
-  if (normalized.split('/').some(part => part === 'node_modules' || part.startsWith('.'))) return false;
-  return /(?:^|\/)[^/]+\.test\.(?:js|mjs)$/u.test(normalized);
-}
+export { isDefaultTestFile } from '../packages/codemap/index.js';
 
 /** Preserve native discovery outside Git, but never hide a repository access failure. */
 export function isGitWorkTree(cwd, env) {
