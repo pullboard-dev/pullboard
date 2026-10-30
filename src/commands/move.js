@@ -5,6 +5,7 @@ import { localBoardInventory } from '../board-inventory.js';
 import { resolveLocalBoard } from '../board-inventory.js';
 import { resolveLocalItemReference } from '../board-inventory.js';
 import { runPrivateBoard } from '../private-board.js';
+import { nativeBoardOpeners } from '../cli-context.js';
 import { projectBoardIdentity } from '../projects.js';
 import { registerProject } from '../projects.js';
 import { relayCommandReceipt } from '../relay.js';
@@ -27,7 +28,7 @@ async function withLocalBoard(ctx, teamBoard, teamAgent, currentBoardId, referen
   }
   if (reference.repoBoardId !== currentBoardId) throw new Refused('BOARD_REFERENCE', 'open the repo checkout that owns this private board before moving its items');
   if (ctx.privateBoard) return withBoard(ctx, board => work(ctx, board, whoAmI(ctx, board)));
-  return runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY });
+  return runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY, ...nativeBoardOpeners() });
 }
 
 /** Run an internal ordered operation without reusing the outer CLI command's relay receipt. */
@@ -50,7 +51,7 @@ async function moveFromContext(io, teamCtx, currentCtx, teamBoard, teamAgent, cu
     const projectRoot = primaryCheckoutRoot(teamCtx.info);
     if (!projectRoot) throw new Refused('NO_POLICY', 'cannot safely register the project without locating its main checkout; restore Git worktree metadata and retry the move');
     registerProject(projectRoot, new Date(), teamCtx.config, projectBoardIdentity(projectRoot, teamBoardId));
-    const inventory = await localBoardInventory();
+    const inventory = await localBoardInventory(nativeBoardOpeners());
     const sourceRef = resolveLocalItemReference(inventory, first, store.boardId(currentBoard));
     const sourceBoardRef = inventory.find(entry => entry.boardId === sourceRef.boardId);
     if (!sourceBoardRef) throw new Refused('BOARD_REFERENCE', 'use a team handle recorded at init or join, or this repo’s signed-in private handle');
@@ -158,6 +159,6 @@ export async function run(io, args) {
     if (!args.values.private) return moveFromContext(io, ctx, ctx, teamBoard, teamAgent, teamBoard, args);
     return runPrivateBoard(ctx, (privateCtx, privateBoard, privateAgent) =>
       moveFromContext(io, ctx, privateCtx, teamBoard, teamAgent, privateBoard, args),
-    { withBoard, whoAmI, checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY });
+    { withBoard, whoAmI, checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY, ...nativeBoardOpeners() });
   });
 }

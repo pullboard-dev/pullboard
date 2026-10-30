@@ -10,6 +10,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { withPrivateBoard } from '../../src/projects.js';
+import { atomic } from '../../src/board.js';
 import { closeBoard } from '../../src/board.js';
 import { finishLandingBatch } from '../../src/board.js';
 import { getItem } from '../../src/board.js';
@@ -228,7 +229,7 @@ test('native private-board identity refuses a misplaced private snapshot [N26]',
       ensureCoordinator(board, alpha.repo);
       addItem(board, { by: 'coordinator', lane: 'web', title: 'Private fixture item' });
       privateFile = file;
-    }, { create: true });
+    }, { create: true, store: { openBoard, atomic, closeBoard } });
   } finally {
     if (previous === undefined) delete process.env.PULLBOARD_HOME;
     else process.env.PULLBOARD_HOME = previous;

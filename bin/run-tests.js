@@ -40,7 +40,7 @@ import { explicitTestFiles as selectedFiles } from '../src/test-selection.js';
 import { formatTestOutcomes } from '../src/test-outcomes.js';
 import { removeGitRepositorySelectors } from '../src/git-child-selectors.js';
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.
-removeGitRepositorySelectors(process.env, process.stderr.write.bind(process.stderr));
+removeGitRepositorySelectors(process.env, text => process.stderr.write(text));
 /** Keep selected path parsing on the same native option-arity contract. */
 const explicitTestFiles = args => selectedFiles(args, optionTakesValue);
 /** Distinguish actual files from option values before admission. */

@@ -6,7 +6,7 @@ import { requireHandoffActive } from '../packages/state/src/core/handoff-state.j
 import { ENGINE_VERSION } from './machine.js';
 import { writeSync } from 'node:fs';
 import { Refused } from './refused.js';
-import { agentModel } from './seats.js';
+import { agentModel } from './board-query.js';
 import { appendProofCounter } from './proof-counters.js';
 import { ensureProofCounters } from './proof-counters.js';
 

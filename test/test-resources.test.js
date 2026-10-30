@@ -544,7 +544,7 @@ test('later executable assignments retain every possible browser launch value [C
 test('reviewed executor imports stay browser-free only at their exact call sites [C7,O5]', async t => {
   const repository = resolve(import.meta.dirname, '..');
   const entries = [
-    ['src/cli.js', 'sweepHere', 'spawnSync(item.check,'],
+    ['src/cli/sweep.js', 'sweepHere', 'spawnSync(item.check,'],
     ['src/sentinel-runner.js', 'executeSentinel', 'spawn(row.check,'],
     ['packages/rigor/src/shell/rigor-proof.js', 'runOwnedCheck', "spawn(runner?.executable ?? '/bin/sh',"],
     ['test/cli-startup.test.js', 'fixture', 'runFixtureChild(env.PULLBOARD_REAL_GIT,'],
@@ -555,7 +555,7 @@ test('reviewed executor imports stay browser-free only at their exact call sites
   cpSync(join(repository, 'test'), join(root, 'test'), { recursive: true });
   for (const [index, [file, name, call]] of entries.entries()) {
     const importer = `test/reviewed-executor-${index}.test.js`;
-    const request = file.startsWith('src/') ? `../${file}` : `./${file.slice(5)}`;
+    const request = file.startsWith('test/') ? `./${file.slice(5)}` : `../${file}`;
     writeFileSync(join(root, importer), `import '${request}';\n`);
     const source = readFileSync(join(root, file), 'utf8');
     assert.ok(source.includes(`function ${name}(`) && source.includes(call), `${file}: the reviewed function and call still exist`);
