@@ -12,6 +12,7 @@ import { cutTitle } from '../packages/codemap/index.js';
 import { importCuts } from '../packages/codemap/index.js';
 import { retiredRows } from '../packages/codemap/src/core/cells-plan-cuts.js';
 import { lstatSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { repositoryImport } from '../packages/codemap/src/core/import-map.js';
 import { lex } from '../src/js-lex.js';
@@ -26,7 +27,89 @@ function ownerFor(plan, map) {
     paths.set(cell.frontDoor, cell.name);
     for (const [from, to] of cell.paths) for (const file of [from, to, mappedPath(map, from)]) paths.set(file, cell.name);
   }
-  return file => plan.cells.find(cell => file.startsWith(`${cell.root}/`))?.name ?? paths.get(file) ?? null;
+  const entries = new Map();
+  for (const entry of plan.entries ?? []) for (const file of [entry.path, mappedPath(map, entry.path)]) entries.set(file, entry.cell);
+  return file => entries.get(file) ?? plan.cells.find(cell => file.startsWith(`${cell.root}/`))?.name ?? paths.get(file) ?? null;
+}
+
+/** Find a condition's matching parenthesis in lexed code, without interpreting quoted examples. */
+function closeParenthesis(code, start) {
+  let depth = 0;
+  for (let at = start; at < code.length; at++) {
+    if (code[at] === '(') depth++;
+    if (code[at] === ')' && --depth === 0) return at;
+  }
+  return -1;
+}
+
+/** Recognize a literal Node binding rather than a similarly named fixture or local callback. */
+function nodeBinding(parsed, module, name) {
+  return parsed.strings.some(row => row.text === module &&
+    /\bimport\s*\{([^{}]*)\}\s*from\s*$/u.exec(parsed.code.slice(0, row.start))?.[1]
+      .split(',').some(binding => binding.trim() === name));
+}
+
+/** Prove an own-file main guard, or a non-exporting Node script that actually awaits its program. */
+function processEntry(file, source) {
+  const parsed = lex(source), code = parsed.code;
+  if (/\b(?:const|let|var|function|class)\s+process\b/u.test(code)) return false;
+  const identities = [];
+  if (nodeBinding(parsed, 'node:url', 'fileURLToPath')) {
+    const targets = ['fileURLToPath(import.meta.url)', ...[...code.matchAll(/\bconst\s+([\w$]+)\s*=\s*fileURLToPath\s*\(\s*import\s*\.\s*meta\s*\.\s*url\s*\)\s*;/gu)].map(row => row[1])];
+    for (const target of targets) {
+      identities.push(`process.argv[1]===${target}`);
+      if (nodeBinding(parsed, 'node:path', 'resolve')) identities.push(`resolve(process.argv[1])===${target}`);
+    }
+  }
+  let depth = 0, start = 0, processInput = false;
+  for (let at = 0; at < code.length; at++) {
+    if (code[at] === '{') depth++;
+    if (code[at] === '}') depth--;
+    if (depth === 0 && /[;}]/u.test(code[at])) start = at + 1;
+    if (depth === 0 && /^if\s*\(/u.test(code.slice(at)) && !/[\w$]/u.test(code[at - 1] ?? '')) {
+      const open = code.indexOf('(', at), end = closeParenthesis(code, open);
+      const condition = code.slice(open + 1, end).replace(/\s/gu, '');
+      if (end > open && !/[!?]|\|\|/u.test(condition) && condition.split('&&').some(part => identities.includes(part))) return true;
+    }
+    if (depth !== 0 || !code.startsWith('process', at) || /[\w$.]/u.test(code[at - 1] ?? '')) continue;
+    const tail = code.slice(at), prefix = code.slice(start, at);
+    if (!/^process\s*\.\s*(?:argv|send)\b/u.test(tail) || prefix.includes('=>') || /^\s*export\b/u.test(prefix)) continue;
+    processInput = true;
+  }
+  return file.startsWith('bin/') && /^#!\/usr\/bin\/env node\b/u.test(source) && processInput
+    && !/\b(?:export|function|class)\b|\basync\s*(?:\([^)]*\)|[\w$]+)\s*(?:=>|\()/u.test(code)
+    && /\bawait\s+[\w$]+\s*\(/u.test(code);
+}
+
+/** Entry ownership is explicit app composition, backed by the actual process source on every check. */
+export function entryPlacementProblems(root, plan, files) {
+  if (plan.entries === undefined) return [];
+  if (!Array.isArray(plan.entries)) return ['process entries must be an array'];
+  const problems = [], seen = new Set(), map = readPathMap(root);
+  for (const row of plan.entries) {
+    const cell = plan.cells.find(cell => cell.name === row?.cell);
+    if (!row || Object.keys(row).sort().join(',') !== 'cell,path' || typeof row.path !== 'string'
+      || !/^(?:bin|src|relay)\/.+\.[cm]?js$/u.test(row.path) || row.path.split('/').some(part => !part || part === '.' || part === '..')
+      || /[\\\0\r\n]/u.test(row.path) || !cell?.name.startsWith('app:') || seen.has(row.path)) {
+      problems.push('each process entry needs one unique path and an existing app cell'); continue;
+    }
+    seen.add(row.path);
+    const placed = cell.paths.some(([from]) => from === row.path)
+      || plan.stays.some(stay => stay.path === row.path);
+    let source;
+    const file = mappedPath(map, row.path);
+    try {
+      if (files) source = files.get(file)?.toString('utf8');
+      else if (lstatSync(join(root, file)).isFile()) source = readFileSync(join(root, file), 'utf8');
+    } catch { /* Missing or non-regular entry source is refused below, without trusting its metadata. */ }
+    let executable = false;
+    try { if (typeof source === 'string' && processEntry(row.path, source)) { importsIn([source]); executable = true; } }
+    catch { /* Invalid module bytes cannot establish a process boundary. */ }
+    if (!placed || !executable) {
+      problems.push(`${row.path} is not a placed process entry; ordinary library ownership cannot be overridden`);
+    }
+  }
+  return problems;
 }
 
 /** Recognize a module that only passes imports onward, including an unresolved computed loader. */
@@ -102,6 +185,8 @@ export function checkCuts(root, plan, name, { allLaterCells = false, temporaryEx
   if (!cell || !group && !allLaterCells) throw new Refused('CELLS_PLAN_CELL', `no import-cut group ${name}; use an importing cell from node bin/cells-plan.js --file-cuts`);
   const inventory = sharedInventory ?? cellInventory(root, { importsIn, commonJsIn });
   const { files } = inventory;
+  const entries = entryPlacementProblems(root, plan, files);
+  if (entries.length) return entries;
   if (acceptedInventory !== undefined && !(acceptedInventory?.files instanceof Map)) throw new TypeError('accepted cut inventory must be an actual snapshot');
   const { edges, unknown, computed } = withDeclaredLoads(files, inventory.edges, inventory.unknown, acceptedInventory);
   const map = readPathMap(root);
@@ -136,6 +221,8 @@ export function frontDoorBypasses(root, plan, name, { inventory: sharedInventory
   const cell = plan.cells.find(row => row.name === name);
   if (!cell) throw new Refused('CELLS_PLAN_CELL', `no cell ${name}; use a cell from node bin/cells-plan.js --cuts <cell>`);
   const inventory = sharedInventory ?? cellInventory(root, { importsIn, commonJsIn });
+  const entries = entryPlacementProblems(root, plan, inventory.files);
+  if (entries.length) throw new Refused('CELLS_ENTRY', entries.join('; '));
   const { edges } = withDeclaredLoads(inventory.files, inventory.edges, inventory.unknown, acceptedInventory);
   const map = readPathMap(root), owner = ownerFor(plan, map);
   const origin = new Map([...map].map(([from, to]) => [to, from]));

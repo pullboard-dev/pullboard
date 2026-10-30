@@ -58,6 +58,7 @@ export function settleReceipt(lease) {
   lease.receipt = { ...receiptOf(lease.tracker, { kind: lease.receiptKind, slot: lease.slot }), environment: lease.environment ?? null,
     runner: descriptor, admittedAt, finishedAt, timing: lease.timing === true, inherited: lease.inherited === true,
     occupiedSlots: lease.timing ? descriptor.slots.current : 1, load,
+    ...(lease.runner?.dispatch ? { runnerDispatch: lease.runner.dispatch } : {}),
     executionPhases: lease.executionPhases ?? null,
     ...(sourcePreparation ? { sourcePreparation } : {}),
     ...(lease.lateRunnerDispatch ? { lateRunnerDispatch: { ...lease.lateRunnerDispatch } } : {}),
@@ -165,6 +166,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     runnerOnly,
     ...(restriction ? { requiredExecutor: restriction } : {}),
     runnerProvider: () => effectiveRunners(loadMachineSettings()),
+    runnerLoadPolicyProvider: () => ({ enabled: settingsProvider().gate?.loadAwareDispatch === true, ceiling: settingsProvider().gate?.runnerBusyCeiling ?? 90 }),
     runnerHealthProbe: probeRunnerHealth,
     /** Keep legacy fallback distinct from the ordinary exact-job health observation. */
     runnerIdleProbe: (runner, previous) => probeRunnerHealth(runner, previous, { idle: true }),
@@ -175,7 +177,10 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     runnerDeadlineAt,
     releaseContext,
     memory: floorMB === null ? undefined : memoryAdmission({ floorBytes: () => (memoryFloorMB() ?? floorMB) * 1024 ** 2, read: readMemory }),
-    onWait,
+    onWait: async state => {
+      if (remote && !state.admitted) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement });
+      return onWait?.(state);
+    },
   });
   infrastructureAttempts.push(...(lease.infrastructureAttempts ?? []));
   tracker.mark('admittedAt');

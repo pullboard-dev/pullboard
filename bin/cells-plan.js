@@ -29,6 +29,7 @@ import { checkCuts } from './cells-plan-cuts.js';
 import { fileCuts } from './cells-plan-cuts.js';
 import { refreshPlanCuts } from '../packages/codemap/index.js';
 import { retiredProblems } from './cells-plan-cuts.js';
+import { entryPlacementProblems } from './cells-plan-cuts.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';
 import { readMoveDataReads, staleDataReads } from './cells-data-reads.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
@@ -98,6 +99,8 @@ function planCounts(cells, stays) {
 
 /** Write the plan as an index plus one shard per cell, removing shards a regenerated plan no longer names. */
 export function writePlan(root, plan) {
+  const entries = entryPlacementProblems(root, plan);
+  if (entries.length) throw new Refused('CELLS_ENTRY', entries.join('; '));
   const retired = retiredProblems(root, plan);
   if (retired.length) throw new Refused('CELLS_PLAN_RETIRED', retired.join('; '));
   // Persist authoritative rows; readers derive summaries from the exact rows they return.
@@ -134,14 +137,34 @@ export function readPlan(root, read = file => readFileSync(join(root, file), 'ut
 }
 
 /** Append one explicit placement; preserve every existing row, cut, contract and ordering decision. */
-export function placePath(root, file, { cell, stay = false, part = 'shell' } = {}) {
+export function placePath(root, file, { cell, stay = false, part = 'shell', entry = false } = {}) {
   if (typeof file !== 'string' || !inPlanScope(file) || file.split('/').some(piece => !piece || piece === '.' || piece === '..')
-    || /[\0\r\n\\]/u.test(file) || stay === Boolean(cell) || !['core', 'shell'].includes(part)) {
+    || /[\0\r\n\\]/u.test(file) || stay === Boolean(cell) || typeof entry !== 'boolean' || !['core', 'shell'].includes(part)) {
     throw new Refused('CELLS_UNPLACED', 'use --place <in-scope path> with exactly one --cell <existing cell> or --stay');
   }
   const tracked = tryGit(root, ['ls-files', '--error-unmatch', '--', file]);
   if (tracked.status !== 0 || !lstatSync(join(root, file)).isFile()) throw new Refused('CELLS_UNPLACED', `stage a regular source file before placing it: ${file}`);
   const plan = readPlan(root);
+  if (entry) {
+    const destination = plan.cells.find(row => row.name === cell);
+    if (!destination?.name.startsWith('app:') || stay || part !== 'shell') throw new Refused('CELLS_ENTRY', 'a process entry needs the shell of an existing app cell');
+    if ((plan.entries ?? []).some(row => row.path === file)) throw new Refused('CELLS_ENTRY', `${file} already has explicit process ownership`);
+    if (file.startsWith('bin/')) {
+      if (!plan.stays.some(row => row.path === file)) plan.stays.push({ path: file, reason: 'process entry keeps its public executable path' });
+    } else {
+      const target = `${destination.root}/src/${part}/${file.slice(file.indexOf('/') + 1)}`;
+      if (plan.cells.some(row => row.paths.some(([from, to]) => from !== file && to === target))) throw new Refused('CELLS_ENTRY', `entry target already belongs to another path: ${target}`);
+      for (const row of plan.cells) {
+        row.paths = row.paths.filter(([from]) => from !== file);
+        row.reexports = row.reexports.filter(path => path !== file);
+      }
+      plan.stays = plan.stays.filter(row => row.path !== file);
+      destination.paths.push([file, target, 'rule']);
+    }
+    plan.entries = [...(plan.entries ?? []), { path: file, cell }];
+    writePlan(root, plan);
+    return plan;
+  }
   const assigned = plan.cells.flatMap(entry => entry.paths).some(([from, to]) => from === file || to === file)
     || plan.stays.some(row => row.path === file);
   if (assigned) throw new Refused('CELLS_UNPLACED', `${file} is already placed; retain its existing plan row`);
@@ -423,24 +446,26 @@ function main(argv) {
   }
   if (mode === '--place') {
     const [file, ...options] = rest;
-    const allowed = new Set(['--cell', '--part', '--stay']);
+    const allowed = new Set(['--cell', '--part', '--stay', '--entry']);
     const values = {};
     for (let i = 0; i < options.length; i++) {
       const flag = options[i];
-      if (!allowed.has(flag) || Object.hasOwn(values, flag)) throw new Refused('CELLS_PLAN_MODE', 'use --place <path> --cell <cell> [--part core|shell], or --place <path> --stay');
-      values[flag] = flag === '--stay' ? true : options[++i];
+      if (!allowed.has(flag) || Object.hasOwn(values, flag)) throw new Refused('CELLS_PLAN_MODE', 'use --place <path> --cell <cell> [--entry | --part core|shell], or --place <path> --stay');
+      values[flag] = ['--stay', '--entry'].includes(flag) ? true : options[++i];
       if (values[flag] === undefined) throw new Refused('CELLS_PLAN_MODE', `supply the value for ${flag}`);
     }
-    placePath(root, file, { cell: values['--cell'], stay: values['--stay'] === true, part: values['--part'] ?? 'shell' });
+    placePath(root, file, { cell: values['--cell'], stay: values['--stay'] === true, part: values['--part'] ?? 'shell', entry: values['--entry'] === true });
     return 0;
   }
   const plan = readPlan(root);
   if (mode === '--check') {
     const missing = unplanned(root, plan), stale = stalePlanRows(root, plan);
+    const entries = entryPlacementProblems(root, plan);
+    for (const problem of entries) console.error(problem);
     for (const path of missing) console.error(`not in ${PLAN_FILE}: ${path}`);
     if (missing.length) console.error('regenerate the plan: node bin/cells-plan.js --write');
     for (const { file, row } of stale) console.error(`stale plan row in ${file}: ${row[0]} no longer exists; retire it: node bin/cells-plan.js --retire ${row[0]}`);
-    return missing.length || stale.length ? 1 : 0;
+    return missing.length || stale.length || entries.length ? 1 : 0;
   }
   if (mode === '--retire') {
     const { file, row } = retirePath(root, rest[0]);
@@ -460,7 +485,7 @@ function main(argv) {
     return problems.length ? 1 : 0;
   }
   if (mode === '--file') { fileItems(root, plan, rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> (or --stay) | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));
