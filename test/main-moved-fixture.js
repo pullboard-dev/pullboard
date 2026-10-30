@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-module-loads src/board.js */
+/** @pullboard-module-loads src/native-board.js */
 /** Real Git and native historical state are setup; only the production worker supplies rerun evidence [C7,V4,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -69,7 +69,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
   git(candidate,'add','web/feature.js',...(generated?['docs/lifecycle.md']:[]));git(candidate,'commit','-q','-m','feat(web): submitted native source [C7,V4]');
   const accepted = git(candidate,'rev-parse','HEAD'), tree = git(candidate,'rev-parse','HEAD^{tree}');
   git(repo,'worktree','remove',candidate);
-  const store = await import(pathToFileURL(join(installed,'src/board.js')));
+  const { board: store } = await import(pathToFileURL(join(installed,'src/native-board.js')));
   const native = await import(pathToFileURL(join(installed,'src/native-board.js')));
   const boardFile = join(repo,'.git','pullboard','board.sqlite');
   /** @pullboard-board-file journey: real native worker writes and private-file lifetime; close before every admitted child. */

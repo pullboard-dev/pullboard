@@ -1,4 +1,4 @@
-/** @pullboard-module-loads src/board.js src/main-audit-state.js src/gate-run-receipt.js */
+/** @pullboard-module-loads src/native-board.js src/main-audit-state.js src/gate-run-receipt.js */
 /** Shared real main-audit fixture; synthetic acceptance is setup, never runtime proof [C7]. */
 /** @pullboard-test-input source-tree */
 import { executionServicesSource } from './gate-execution-fixture.js';
@@ -47,7 +47,7 @@ export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:'node bin/run-tests.js',landingShards:2,verify:'any',lanes:{alpha:{owns:['test/a.test.js'],specs:[]},beta:{owns:['test/b.test.js','test/c.test.js'],specs:[]}},shared:['src/','bin/','package.json','pullboard.json']}));
   mkdirSync(join(repo,'test'));for(const name of ['a','b','c'])writeFileSync(join(repo,'test',name+'.test.js'),`import {test} from 'node:test';test('base ${name}',()=>{});\n`);
   git(repo,env,'init','-q','-b','main');git(repo,env,'add','-A');git(repo,env,'commit','-q','-m','chore: base audit fixture');const base=git(repo,env,'rev-parse','HEAD');
-  const store=await import(pathToFileURL(join(installed,'src/board.js')));
+  const { board: store }=await import(pathToFileURL(join(installed,'src/native-board.js')));
   const native = await import(pathToFileURL(join(installed,'src/native-board.js')));
   const {activateMainAudits,mainAuditKey}=await import(pathToFileURL(join(installed,'src/main-audit-state.js')));
   const {readGateReceipt,receiptStore}=await import(pathToFileURL(join(installed,'src/gate-run-receipt.js')));
