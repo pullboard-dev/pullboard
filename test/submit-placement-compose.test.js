@@ -2,57 +2,15 @@
 /** @pullboard-test-loads bin/cells-plan.js */
 /** A builder's new source may carry exactly its own canonical placement across lane boundaries [L3,C7]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { computePlan, readPlan, writePlan, placePath, stalePlanRows, unplanned } from '../bin/cells-plan.js';
-import { cellLintReport, cellLintBaseline, writeCellLintBaseline } from '../packages/codemap/index.js';
-import { importsIn, commonJsIn } from '../src/module-imports.js';
+import { readPlan, writePlan, placePath } from '../bin/cells-plan.js';
 import { planRowChange } from '../src/plan-row-change.js';
 import { requirePlannedSource } from '../src/submit-preflight.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { plannedProject } from './placement-project.fixture.js';
+import { success } from './placement-project.fixture.js';
 import { runFixtureChild } from './fixture-child.js';
-const SOURCE = join(import.meta.dirname, '..');
-const PLAN = join(SOURCE, 'bin/cells-plan.js');
-
-/** A real committed source checkout with the actual plan, native agents and normal hooks. */
-function plannedProject(t, { companionLanes = false } = {}) {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.project('node check.cjs');
-  const marker = join(box.dir, 'check-ran');
-  writeFileSync(join(box.repo, 'check.cjs'), `require('node:fs').appendFileSync(${JSON.stringify(marker)}, 'ran\\n');\n`);
-  writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
-  // This is a small real repository, so its plan and allowances describe its own source.
-  const existing = 'src/view/placement-existing.js';
-  mkdirSync(join(box.repo, 'src/view'), { recursive: true });
-  writeFileSync(join(box.repo, existing), "import { readFileSync } from 'node:fs';\nexport const existingPlacement = readFileSync;\n");
-  mkdirSync(join(box.repo, 'bin/cells-plan'), { recursive: true });
-  writeFileSync(join(box.repo, 'bin/cells-plan/seed.json'), JSON.stringify({ source: 'placement fixture',
-    sha256: 'fixture', order: ['app:view'], cells: { 'app:view': [existing] }, tests: {} }) + '\n');
-  const plan = computePlan(box.repo);
-  writePlan(box.repo, plan);
-  assert.deepEqual(stalePlanRows(box.repo, plan), [], 'every planned source really exists');
-  writeCellLintBaseline(box.repo, cellLintBaseline(cellLintReport(box.repo, { importsIn, commonJsIn })), { initialize: true });
-  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  if (companionLanes) {
-    config.lanes.view = { owns: ['src/view/'], specs: ['G1'] };
-    config.lanes.core = { owns: ['bin/cells-plan.json', 'bin/cells-plan/'], specs: ['G1'] };
-  } else config.lanes.web.owns.push('src/', 'bin/cells-plan.json', 'bin/cells-plan/');
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2) + '\n');
-  box.git(box.repo, 'add', '-A');
-  assert.deepEqual(unplanned(box.repo, plan), [], 'the fixture commits a complete canonical plan');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize the real placement fixture');
-  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  return { ...box, marker };
-}
-
-/** Keep actual native command failures in every setup assertion. */
-function success(box, cwd, ...args) {
-  const run = box.run(cwd, ...args, '--no-next', '--json');
-  assert.equal(run.code, 0, run.out + run.err);
-  return JSON.parse(run.out);
-}
 
 /** Join a real view seat and claim a completed-baseline item through the native CLI. */
 function ownPlacementFixture(t) {
