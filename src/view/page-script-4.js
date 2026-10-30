@@ -989,6 +989,8 @@ document.addEventListener('keydown', (event) => {
 /** Let a Roadmap row with independent inline links keep its keyboard button behavior. */
 document.addEventListener('keydown', (event) => {
   if (!['Enter', ' '].includes(event.key)) return;
+  const citation = event.target.closest('.spec-citing[role="button"]');
+  if (citation && event.target === citation) { event.preventDefault(); citation.click(); return; }
   const head = event.target.closest('.milestone-head');
   if (head && event.target === head) { event.preventDefault(); head.click(); return; }
   const row = event.target.closest('.milestone-item[role="button"]');
