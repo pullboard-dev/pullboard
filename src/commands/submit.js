@@ -391,7 +391,7 @@ export async function submitHere(ctx, id, infra) {
     : gate.full ? `full gate: ${gate.reason}` : `affected tests: ${files}`;
   const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'}` : 'no item check';
   const mechanicalFlag = mechanicalPaths.length
-    ? `cross-lane mechanical import edits: ${mechanicalPaths.join(', ')}` : '';
+    ? `cross-lane mechanical edits: ${mechanicalPaths.join(', ')}` : '';
   const displayedReport = `${check}; ${scope}${mechanicalFlag ? `\n${mechanicalFlag}` : ''}\n${renderTestSummary(summary)}`;
   const checkAccepted = Boolean(gate.check?.green || criterionMatched);
   // Only fully accounted exact-main failures or live person waivers pass a red proof; the item check stays mandatory [B3].
