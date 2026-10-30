@@ -12,7 +12,7 @@ import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { git } from './git.js';
 import { mainCheckout } from './git.js';
-import { trunkRef } from './git-trunk-ref.js';
+import { trunkRef } from '../packages/git/index.js';
 import { cleanGitEnvironment } from './git.js';
 
 const LIMIT = 64 * 1024 * 1024;
