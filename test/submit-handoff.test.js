@@ -1,3 +1,4 @@
+import { submitHandoffEventContract } from './generated-doc-handoff-fixture.js';
 /** Real queued submissions retain immutable source and native gate authority [V4,H16,E18]. */
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -17,6 +18,7 @@ function document(result) {
 
 /** Read the real SQLite state without writing or inventing a proof receipt. */
 function state(box, id) {
+  // @pullboard-board-file journey: observe the separate native worker's actual persisted queue and proof identity.
   const board = openBoard(box.boardFile);
   try { return { item: getItem(board, id), job: submitHandoff(board, id) }; }
   finally { board.db.close(); }
@@ -203,6 +205,7 @@ test('setting off retains foreground submit until the real gate finishes [V4]', 
 test('a handoff result cannot invent a green submission or complete another sender job [V4,E18]', async t => {
   const box = fixture(t);
   document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
+  // @pullboard-board-file journey: observe the separate native worker's actual persisted queue and proof identity.
   const board = openBoard(box.boardFile);
   try {
     const job = submitHandoff(board, box.id);
@@ -329,6 +332,7 @@ test('queued submit keeps the ordinary hook-checked unrelated-main merge after c
   assert.equal(completed.job.hookProjection.job, completed.job.id, 'the native job receipt retains its exact hook projection');
   assert.equal(completed.job.hookProjection.commit, queued.commit);
   assert.ok(completed.job.hookProjection.receipts.length > 0, 'actual proof receipt ids bind the hook');
+  // @pullboard-board-file journey: observe the separate native worker's actual persisted queue and proof identity.
   const board = openBoard(box.boardFile);
   try {
     assert.throws(() => startSubmitHandoff(board, box.id, { agentId: completed.job.agentId,
@@ -339,4 +343,13 @@ test('queued submit keeps the ordinary hook-checked unrelated-main merge after c
   box.git(box.repo, 'merge-base', '--is-ancestor', queued.commit, completed.item.item_commit);
   box.git(box.repo, 'merge-base', '--is-ancestor', accepted, completed.item.item_commit);
   assert.equal(box.git(box.repo, 'show', `${completed.item.item_commit}:docs/unrelated.md`), 'accepted unrelated main content');
+});
+
+
+test('the handoff documentation receives actual detached-worker event kinds and fields [A5,V4,H16]', async t => {
+  const rows = await submitHandoffEventContract(t);
+  const queued = rows.filter(row => row.event_kind === 'submit-handoff');
+  assert.ok(queued.some(row => row.detail.state === 'queued'));
+  assert.ok(queued.some(row => row.detail.state === 'red'));
+  assert.ok(rows.find(row => row.event_kind === 'submit_handoff_returned').detail.reopenFirstRefusal);
 });

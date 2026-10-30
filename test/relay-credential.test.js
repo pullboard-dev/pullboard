@@ -92,6 +92,8 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'decideSpecRevisions') { args = [{ agentId: 'person', channel: 'terminal', decisions: [] }]; kind = 'person'; }
     // A gate run with no receipt from this machine's own gate is refused before it reaches transport.
     // An automatic source advance, like a gate receipt, requires private native origin custody before transport.
+    // A queue without an immutable captured job is refused by the genuine origin sealer before transport.
+    if (operation === 'queueSubmitHandoff') return { operation, args, kind, sent: false, expected: 'BAD_SUBMIT_HANDOFF' };
     if (operation === 'advanceItemSource') return { operation, args, kind, sent: false, expected: 'SOURCE_ADVANCE_STALE' };
     // The earlier claim case now owns this row; a non-HEAD source must stop at native origin sealing.
     if (operation === 'followItemPatches') return { operation, args: [box.before.tables.item[0].item_id, { agentId: actor, commit: '0'.repeat(40) }],
