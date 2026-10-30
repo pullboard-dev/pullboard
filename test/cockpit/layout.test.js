@@ -283,6 +283,11 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
   /** The page as it reads: the header, the bar's parts, the list's rows and the toolbar, measured where they stand. */
   const read = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
     const box = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
+    /** Count the shared segmented control's actual hit extensions as part of its touch target. */
+    const hitHeight = element => {
+      const boxes = [element, ...element.querySelectorAll('.seg-hit')].map(node => node.getBoundingClientRect());
+      return Math.max(...boxes.map(rect => rect.bottom)) - Math.min(...boxes.map(rect => rect.top));
+    };
     const rgb = (css) => { const n = (css.match(/[\\d.]+/g) || []).map(Number); return css.startsWith('color(srgb') ? [n[0] * 255, n[1] * 255, n[2] * 255, n[3] ?? 1] : [n[0], n[1], n[2], n[3] ?? 1]; };
     const words = (e) => [...e.children].map((child) => child.textContent.replace(/\\s+/g, ' ').trim()).join(' ');
     const probe = document.createElement('i');
@@ -309,7 +314,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
       chips: [...document.querySelectorAll('[data-filter-kind="state"]')].map((choice) => [choice.dataset.state, choice.querySelector('b').textContent, choice.getAttribute('aria-checked') === 'true']),
       lanes: [...document.querySelectorAll('[data-filter-kind="lane"]')].map((choice) => choice.querySelector('.filter-option-label').textContent + (choice.querySelector('b') ? ' · ' + choice.querySelector('b').textContent : '')), pick: box(document.querySelector('#filter-toggle')),
       seg: box(document.querySelector('.items-view-switch')), go: box(document.querySelector('#new-item')), toolbar: box(document.querySelector('.toolbar')),
-      waiting: (() => { const fold = document.querySelector('[data-shout-filter=questions]'); return fold && { text: fold.textContent.replace(/\\s+/g, ' ').trim(), open: fold.getAttribute('aria-pressed'), height: fold.getBoundingClientRect().height, offset: fold.getBoundingClientRect().top - fold.closest('.shouts-card').getBoundingClientRect().top, cards: document.querySelectorAll('#feed .shout .mark.ask').length }; })(),
+      waiting: (() => { const fold = document.querySelector('[data-shout-filter=questions]'); return fold && { text: fold.textContent.replace(/\\s+/g, ' ').trim(), open: fold.getAttribute('aria-pressed'), height: hitHeight(fold), offset: fold.getBoundingClientRect().top - fold.closest('.shouts-card').getBoundingClientRect().top, cards: document.querySelectorAll('#feed .shout .mark.ask').length }; })(),
       idle: (() => { const fold = document.querySelector('#agents .fold-line[data-fold="idle"]'); return fold && { text: words(fold), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, pills: document.querySelectorAll('#agents .agent-pill').length }; })(),
       agentRows: [...document.querySelectorAll('#agents .agent-card')].filter((card) => card.getBoundingClientRect().height > 0).length,
     };
@@ -707,9 +712,9 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
           // In a narrow window every action is a 44px target, as a finger needs.
           assert.equal(items.tap, '44px', `${at}: the target is 44px`);
           for (const [name, r] of [['Items', items], ['Shouts', shouts]]) assert.deepEqual(r.short, [], `${at} ${name}: every action at least 44px high: ${JSON.stringify(r.short)}`);
-          // The named references: the #2 standing alone is a 44px target; only the #2 inside the shout's sentence, in a
+          // In native ascending message order, the named references retain their sizes: #2 alone is a 44px target; only the #2 inside the shout's sentence, in a
           // line of its words, is exempt. The same check refuses a standalone button.
-          assert.deepEqual([items.exempt, shouts.exempt.map((e) => [e.text, e.inLine, e.height >= 44])], [[], [['#2', false, true], ['#2', true, false]]], `${at}: #2 alone is a target, #2 in its sentence the only exemption: ${JSON.stringify([items.exempt, shouts.exempt])}`);
+          assert.deepEqual([items.exempt, shouts.exempt.map((e) => [e.text, e.inLine, e.height >= 44])], [[], [['#2', true, false], ['#2', false, true]]], `${at}: #2 alone is a target, #2 in its sentence the only exemption: ${JSON.stringify([items.exempt, shouts.exempt])}`);
           assert.equal(items.standalone, false, `${at}: a standalone button is never inside a line of text`);
         } else {
           // Under a mouse on a wide screen controls size to their words: the Items toolbar at 32px, the composer one line.
@@ -734,9 +739,9 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
     assert.equal(touchItems.tap, '44px', 'under touch the target is 44px');
     for (const [name, r] of [['Items', touchItems], ['Shouts', touchShouts]]) assert.deepEqual(r.short, [], `touch ${name}: every action at least 44px high: ${JSON.stringify(r.short)}`);
     assert.ok(touchItems.status.every((h) => h >= 44), `touch: the status bar's parts are 44px: ${JSON.stringify(touchItems.status)}`);
-    // The named references: the #2 standing alone is a 44px target; only the #2 inside the shout's sentence, in a
+    // In native ascending message order, the named references retain their sizes: #2 alone is a 44px target; only the #2 inside the shout's sentence, in a
     // line of its words, is exempt. The same check refuses a standalone button.
-    assert.deepEqual([touchItems.exempt, touchShouts.exempt.map((e) => [e.text, e.inLine, e.height >= 44])], [[], [['#2', false, true], ['#2', true, false]]], `touch: #2 alone is a target, #2 in its sentence the only exemption: ${JSON.stringify([touchItems.exempt, touchShouts.exempt])}`);
+    assert.deepEqual([touchItems.exempt, touchShouts.exempt.map((e) => [e.text, e.inLine, e.height >= 44])], [[], [['#2', true, false], ['#2', false, true]]], `touch: #2 alone is a target, #2 in its sentence the only exemption: ${JSON.stringify([touchItems.exempt, touchShouts.exempt])}`);
     assert.equal(touchItems.standalone, false, `touch: a standalone button is never inside a line of text`);
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
