@@ -3,7 +3,7 @@ import { literalShellWords } from './literal-shell-words.js';
 import { Refused } from './refused.js';
 
 /** A repair is still open until its accepted source lands; a broad spec-row match grants nothing. */
-function covers(item, files, exclude) {
+function covers(item, file, exclude) {
   if (item.item_id === exclude || !['open', 'claimed', 'submitted', 'verified'].includes(item.item_status)
     || item.item_merged_commit || !/^main red\s*:/iu.test(item.item_title)) return false;
   let check = item.item_check;
@@ -11,7 +11,7 @@ function covers(item, files, exclude) {
     try { check = JSON.parse(item.item_frozen).check ?? ''; }
     catch { return false; }
   }
-  return (literalShellWords(check) ?? []).some(word => files.includes(word.replace(/^\.\//u, '')));
+  return (literalShellWords(check) ?? []).some(word => word.replace(/^\.\//u, '') === file);
 }
 
 /** The criterion a repair was frozen with, or its current one before any claim. */
@@ -49,8 +49,7 @@ function selects(item, name) {
  * shared by several Main red items stays matchable case by case (#2016). Anything but one result is no single owner.
  */
 export function ownersOf(failure, items, exclude, modern = true) {
-  // A case defined in a helper is owned by a repair naming the helper or the test file that runs it (#2064).
-  const named = items.filter(item => covers(item, [failure.file, ...[].concat(failure.ran ?? [])], exclude));
+  const named = items.filter(item => covers(item, failure.file, exclude));
   const titles = [failure.name, failure.name.replace(/\s*\[[^\]]*\]\s*$/u, '')].filter(Boolean);
   if (!modern) {
     if (named.length <= 1) return named;

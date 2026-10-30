@@ -17,13 +17,17 @@ function diagnostics(output, root) {
   let omitted = false;
   for (const line of output.split('\n')) {
     const start = /^(\s*)not ok\s+\d+\s+-\s+(.*)$/u.exec(line);
-    if (start) {
+    // A `not ok` or `ok` line indented inside the active failure's own diagnostics is text that failure printed, such as a
+    // nested run's TAP; it is part of that failure, never a second failure or the end of this one (#2064).
+    const embedded = active && !active.done && line.startsWith(' '.repeat(active.indent));
+    if (start && !embedded) {
       active = { name: start[2].replace(/\s+#.*$/u, ''), indent: start[1].length + 2, lines: [] };
       rows.push(active); omitted = false; continue;
     }
-    if (/^\s*ok\s+\d+/u.test(line)) { active = null; continue; }
+    if (!embedded && /^\s*ok\s+\d+/u.test(line)) { active = null; continue; }
     if (!active || !line.startsWith(' '.repeat(active.indent))) continue;
     const value = line.slice(active.indent);
+    if (value === '...') active.done = true;
     if (/^(?:duration_ms|location|stack):/u.test(value)) { omitted = true; continue; }
     if (/^[\w-]+:/u.test(value)) omitted = false;
     if (!omitted && value !== '---' && value !== '...') active.lines.push(value);
@@ -71,7 +75,6 @@ export function failureSignatures(run, root, { raw = false } = {}) {
 /** Every actual candidate failure must match the exact main test and its failure details. */
 export function matchingMainFailures(failures, comparison, main) {
   if (!failures?.length || comparison.main !== main || comparison.unavailable) return null;
-  const carried = [];
   for (const failure of failures) {
     if (typeof failure.file !== 'string' || !failure.file || /[:\\\p{Cc}]/u.test(failure.file)
       || failure.file.split('/').some(part => !part || part === '.' || part === '..')) return null;
@@ -80,7 +83,6 @@ export function matchingMainFailures(failures, comparison, main) {
       ?? comparison.files.find(row => row.failures?.some(main => main.file === failure.file && main.name === failure.name));
     const matches = file?.failures?.filter(row => row.file === failure.file && row.name === failure.name);
     if (file?.result !== 'red' || matches?.length !== 1 || matches[0].signature !== failure.signature) return null;
-    carried.push(file.file === failure.file ? failure : { ...failure, ran: file.file });
   }
-  return { main, failures: carried };
+  return { main, failures };
 }

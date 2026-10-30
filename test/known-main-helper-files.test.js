@@ -19,14 +19,14 @@ function fileMainRed(box, file) {
   return JSON.parse(result.stdout).item.item_id;
 }
 
-for (const owned of ['test/helper-cases.js', 'test/affected.test.js']) {
+{
+  const owned = 'test/helper-cases.js';
   test(`a helper-defined case failing identically on main is accepted when the owner names ${owned} [V4,B3]`, t => {
     const box = fixture(t, { affected: RUNNER, extra: { 'test/helper-cases.js': HELPER } });
     const owner = fileMainRed(box, owned);
     const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
     assert.equal(result.status, 0, result.stdout + result.stderr);
     const known = JSON.parse(result.stdout).gate.knownMainReworks;
-    assert.ok(known, JSON.stringify(JSON.parse(result.stdout).gate.report).slice(0, 1500));
     assert.deepEqual(known.map(row => [row.name, row.item]), [['helper case [G1]', owner]], 'one failure, owned once');
   });
 }
@@ -56,14 +56,37 @@ test('a nested copy of a case with no file in this root is the same case, counte
   assert.deepEqual([failures[0].file, failures[0].name], ['test/a.test.js', 'dup case']);
 });
 
-test('a failure whose file is a helper matches main under the test file that ran it, and either file owns it [V4,B3]', () => {
+test('a failure whose file is a helper matches main under the test file that ran it [V4,B3]', () => {
   const signature = 'a'.repeat(64);
   const failure = { file: 'test/helper-cases.js', name: 'helper case [G1]', signature };
   const comparison = { main: 'm', files: [{ file: 'test/affected.test.js', result: 'red', failures: [{ ...failure, ran: 'test/affected.test.js' }] }] };
-  const matched = matchingMainFailures([failure], comparison, 'm');
-  assert.equal(matched?.failures[0].ran, 'test/affected.test.js');
-  const repair = file => ({ item_id: 7, item_status: 'open', item_title: 'Main red: helper', item_check: `node test/runner.js ${file}`, item_criterion: '' });
-  for (const file of ['test/helper-cases.js', 'test/affected.test.js']) assert.deepEqual(ownersOf(matched.failures[0], [repair(file)]).map(item => item.item_id), [7], file);
-  assert.deepEqual(ownersOf(matched.failures[0], [repair('test/other.test.js')]), []);
+  assert.deepEqual(matchingMainFailures([failure], comparison, 'm'), { main: 'm', failures: [failure] }, 'the failure keeps its helper file');
   assert.equal(matchingMainFailures([{ ...failure, signature: 'b'.repeat(64) }], comparison, 'm'), null, 'a different failure on main is still refused');
+  assert.equal(matchingMainFailures([{ ...failure, name: 'other [G1]' }], comparison, 'm'), null, 'a case main does not fail is still refused');
+});
+
+/** The real shape from run 864e4c0d: a helper case whose error text embeds a nested run's TAP, nested not ok line included. */
+const EMBEDDED = `TAP version 13
+not ok 1 - helper merge case
+  ---
+  duration_ms: 9
+  location: '/repo/test/helper-cases.js:90:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    node --test test/a.test.js
+    ok 1 - nested passing case
+    not ok 2 - nested failing case
+      ---
+      location: '/tmp/elsewhere/repo/test/a.test.js:87:1'
+      ...
+  ...
+1..1
+# tests 1
+# fail 1
+`;
+
+test('a nested run\'s TAP printed inside a failure\'s error is part of that failure, not extra failures [V4,B3]', () => {
+  const failures = failureSignatures({ isGreen: false, executionRoot: '/repo', stages: [{ status: 1, output: EMBEDDED }] }, '/repo');
+  assert.equal(failures?.length, 1, 'one named failure, not a refusal for lack of a complete account');
+  assert.deepEqual([failures[0].file, failures[0].name], ['test/helper-cases.js', 'helper merge case']);
 });
