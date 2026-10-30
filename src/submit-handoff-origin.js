@@ -1,10 +1,11 @@
+import { requireSubmitHandoffHookProof } from './submit-handoff-state.js';
 import { mainPolicy, policyAt } from './trusted-policy-read.js';
 import { contains } from './git.js';
 import { itemPatchDigest } from './item-patch-state.js';
 /** Private worker origins retain the queued sender without registering or lending a second seat [E18,V4]. */
 import { realpathSync } from 'node:fs';
-import { join } from 'node:path';
-import { repoInfo, headCommit, headTree, isClean } from './git.js';
+import { join, resolve } from 'node:path';
+import { repoInfo, headCommit, headTree, isClean, git, untracked } from './git.js';
 import { submitHandoff } from './submit-handoff-read.js';
 import { Refused } from './refused.js';
 
@@ -95,4 +96,27 @@ export function requireSubmitHandoffExecution(ctx, board, commit, tree) {
   submitHandoffActor(ctx, board);
   const job = submitHandoff(board, origin.itemId);
   if (job.executionCommit !== commit || job.executionTree !== tree) throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the deterministic composition differs from the immutable queued execution source');
+}
+
+/** Project only a real running job's proved actor while Git holds the exact accepted-main merge index. */
+export function submitHandoffHookActor(ctx, board) {
+  const prefix = resolve(ctx.info.commonDir, 'pullboard', 'submit-handoffs') + '/';
+  if (!resolve(ctx.info.root).startsWith(prefix)) return null;
+  const entry = board.db.prepare("SELECT meta_key,meta_value FROM board_meta WHERE meta_key LIKE 'submit_handoff:%'").all()
+    .map(row => ({ id: Number(row.meta_key.slice('submit_handoff:'.length)), job: JSON.parse(row.meta_value) }))
+    .find(({ job }) => resolve(submitHandoffRoot(ctx.info.commonDir, job)) === resolve(ctx.info.root));
+  if (!entry) throw new Refused('SUBMIT_HANDOFF_AUTHORITY', 'the hook source is not the exact native queued job');
+  const { id, job } = entry;
+  requireSubmitHandoffHookProof(board, id, job, job.hookProjection);
+  const main = mainPolicy(ctx.info.root).commit;
+  const merge = git(ctx.info.root, ['rev-parse', '--verify', 'MERGE_HEAD']);
+  const source = headCommit(ctx.info.root);
+  const expected = git(ctx.info.root, ['merge-tree', '--write-tree', source, main]).split('\n')[0];
+  if (realpathSync(ctx.info.root) !== realpathSync(submitHandoffRoot(ctx.info.commonDir, job))
+    || source !== job.executionCommit || headTree(ctx.info.root) !== job.executionTree || merge !== main
+    || !contains(ctx.info.root, job.main, main) || git(ctx.info.root, ['write-tree']) !== expected
+    || git(ctx.info.root, ['diff', '--name-only']).trim() || untracked(ctx.info.root).length) {
+    throw new Refused('SUBMIT_HANDOFF_AUTHORITY', 'the job hook accepts only its proved source and exact current accepted-main merge tree');
+  }
+  return board.db.prepare('SELECT * FROM agent WHERE agent_id=?').get(job.agentId);
 }

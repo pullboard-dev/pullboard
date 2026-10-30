@@ -7,7 +7,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../src/native-board.js';
 import { getItem } from '../src/board-query.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
-import { completeSubmitHandoff } from '../src/submit-handoff-state.js';
+import { completeSubmitHandoff, startSubmitHandoff } from '../src/submit-handoff-state.js';
 
 /** Require authentic command success before interpreting any native result. */
 function document(result) {
@@ -324,6 +324,15 @@ test('queued submit keeps the ordinary hook-checked unrelated-main merge after c
   writeFileSync(box.release, 'release\n');
   await waitJob(box, 'green');
   const completed = state(box, box.id);
+  assert.equal(completed.job.hookProjection.job, completed.job.id, 'the native job receipt retains its exact hook projection');
+  assert.equal(completed.job.hookProjection.commit, queued.commit);
+  assert.ok(completed.job.hookProjection.receipts.length > 0, 'actual proof receipt ids bind the hook');
+  const board = openBoard(box.boardFile);
+  try {
+    assert.throws(() => startSubmitHandoff(board, box.id, { agentId: completed.job.agentId,
+      job: '00000000-0000-4000-8000-000000000000', hookProjection: completed.job.hookProjection }),
+    { code: 'SUBMIT_HANDOFF_CHANGED' }, 'another job cannot reuse even the genuine source/bar/proof projection');
+  } finally { board.db.close(); }
   assert.notEqual(completed.item.item_commit, queued.commit);
   box.git(box.repo, 'merge-base', '--is-ancestor', queued.commit, completed.item.item_commit);
   box.git(box.repo, 'merge-base', '--is-ancestor', accepted, completed.item.item_commit);

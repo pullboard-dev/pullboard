@@ -1,4 +1,4 @@
-import { pendingSubmitHandoff } from '../submit-handoff-read.js';
+import { pendingSubmitHandoff, submitHandoff } from '../submit-handoff-read.js';
 import { isSubmitHandoffWorker, copySubmitHandoffOrigin, submitHandoffPolicy, requireSubmitHandoffExecution } from '../submit-handoff-origin.js';
 import { blockingFailures } from '../quarantine-verdict.js';
 import { boundProofReceipt } from '../proof-receipts.js';
@@ -496,6 +496,12 @@ export async function submitHere(ctx, id, infra) {
   let submitted = commit;
   let trunkMove = null;
   if (requireComposition && !companion && currentTrunk.commit !== acceptedMain.commit) {
+    if (isSubmitHandoffWorker(ctx)) await withBoard(ctx, async board => {
+      const job = submitHandoff(board, id);
+      await ordered(ctx, board, 'startSubmitHandoff', [id, { agentId: me.id, job: job.id,
+        hookProjection: { job: job.id, commit: job.executionCommit, tree: job.executionTree,
+          digest: job.digest, receipts: [...new Set(submissionReceiptIds)] } }]);
+    });
     const composed = await composeAfterProof(root, { id, proofCommit: commit, proved: acceptedMain.commit, item: held, check: frozenCheck(held),
       readTrunk: () => requireTrunkMerge(root, commit) }, { selectAffectedTests, explicitCheckFiles });
     submitted = composed.commit;

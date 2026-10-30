@@ -86,10 +86,33 @@ function matching(board, id, { agentId, job }) {
   return saved;
 }
 
+/** Require genuine clean green native receipts for this exact immutable job, never a claimed receipt body. */
+export function requireSubmitHandoffHookProof(board, id, job, projection) {
+  const item = getItem(board, id);
+  const ids = projection?.receipts;
+  const receipts = proofReceipts(board, id);
+  if (projection?.job !== job.id || projection.commit !== job.executionCommit || projection.tree !== job.executionTree
+    || projection.digest !== job.digest || job.state !== 'running' || item.item_status !== 'claimed'
+    || item.item_owner !== job.agentId || item.item_frozen_digest !== job.digest
+    || !(item.item_lease_until > now(board)) || itemPatchDigest(board, id, job.commit) !== job.companionDigest
+    || !Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length
+    || ids.some(id => !receipts.some(receipt => receipt.id === id && receipt.kind === 'submit'
+      && receipt.item === item.item_id && receipt.seat === job.agentId && receipt.commit === job.executionCommit
+      && receipt.tree === job.executionTree && receipt.frozenDigest === job.digest && receipt.sourceClean === true
+      && receipt.exitCode === 0 && receipt.counts?.failed === 0))) {
+    throw new Refused('SUBMIT_HANDOFF_AUTHORITY', 'the merge hook needs this exact native job, source, frozen bar and successful proof receipts');
+  }
+  return projection;
+}
+
 /** Exactly one detached worker enters the existing canonical submit path. */
 export function startSubmitHandoff(board, id, options) {
   return atomic(board, () => {
     const job = matching(board, id, options);
+    if (options.hookProjection) {
+      const projection = requireSubmitHandoffHookProof(board, id, job, options.hookProjection);
+      return { started: false, job: record(board, id, { ...job, hookProjection: { ...projection, at: now(board) } }) };
+    }
     if (job.state !== 'queued') return { started: false, job };
     const item = getItem(board, id);
     if (item.item_status !== 'claimed' || item.item_owner !== options.agentId || item.item_frozen_digest !== job.digest) {
