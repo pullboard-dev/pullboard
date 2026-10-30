@@ -316,24 +316,32 @@ test('literal Git launch ratchet counts code and aliases, rejects growth, and re
   assert.equal(lowered.originalTotal, 89);
 });
 
-/** A package move retains the original launch allowance and cannot hide a duplicate legacy launcher. */
-test('moving a Git launcher preserves its original ratchet identity and rejects duplicate growth [C7,doctrine:CD64]', t => {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-moved-git-launch-'));
+/** The scan covers packages at their true paths, so a launcher cannot hide in a cell. */
+test('the Git launch scan counts package launchers at their true path and fails a planted one naming the file [C7,doctrine:CD64]', t => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-package-git-launch-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  mkdirSync(join(root, 'src'));
   const moved = join(root, 'packages/git/src/shell');
+  const cell = join(root, 'packages/widget/src/shell');
+  mkdirSync(join(root, 'src'));
   mkdirSync(moved, { recursive: true });
-  const legacy = join(root, 'src/committed-file-reader.js');
-  writeFileSync(legacy, "export * from '../packages/git/index.js';\n");
-  writeFileSync(join(moved, 'committed-file-reader.js'), "spawn('git', ['cat-file', '--batch']);\n");
+  mkdirSync(cell, { recursive: true });
+  mkdirSync(join(root, 'packages/widget/tests'));
+  writeFileSync(join(root, 'src/legacy.js'), "spawnSync('git', ['status']);\n");
   writeFileSync(join(moved, 'git-adapter.js'), "spawn('git', []);\n");
-  const original = { 'src/committed-file-reader.js': 1 };
+  writeFileSync(join(root, 'packages/widget/tests/fixture.js'), "spawnSync('git', ['init']);\n");
+  const allowed = { 'src/legacy.js': 1 };
   const report = gitLaunchReport(root);
-  assert.equal(report.total, 1, 'the moved launcher remains counted and the adapter remains excluded');
-  assert.deepEqual(Object.keys(report.files), Object.keys(original), 'the committed baseline identity survives the move');
-  assert.deepEqual(gitLaunchGrowth(report, original), []);
-  writeFileSync(legacy, "spawn('git', ['status']);\n");
-  const duplicate = gitLaunchReport(root);
-  assert.equal(duplicate.total, 2, 'a live legacy launcher cannot be overwritten by its package counterpart');
-  assert.deepEqual(gitLaunchGrowth(duplicate, original), [{ file: 'src/committed-file-reader.js', actual: 2, allowed: 1 }]);
+  assert.deepEqual(Object.keys(report.files), ['src/legacy.js'], 'the adapter and test fixtures are excluded');
+  assert.deepEqual(gitLaunchGrowth(report, allowed), []);
+  writeFileSync(join(cell, 'planted.js'), "import { execFileSync } from 'node:child_process';\nexecFileSync('git', ['log']);\n");
+  const planted = gitLaunchReport(root);
+  assert.equal(planted.total, 2);
+  assert.deepEqual(gitLaunchGrowth(planted, allowed), [{ file: 'packages/widget/src/shell/planted.js', actual: 1, allowed: 0 }]);
+  assert.deepEqual(loweredGitLaunchBaseline(planted, { files: allowed }).growth.map(entry => entry.file), ['packages/widget/src/shell/planted.js']);
+});
+
+test('the committed Git launch allowance names only files that still launch Git at that path [C7]', () => {
+  const baseline = JSON.parse(readFileSync(join(ROOT, 'packages/git/src/shell/git-launch-baseline.json'), 'utf8'));
+  const report = gitLaunchReport(ROOT);
+  assert.deepEqual(Object.keys(baseline.files).filter(file => !report.files[file]), [], 'a moved or migrated file leaves a stale allowance');
 });

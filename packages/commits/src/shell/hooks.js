@@ -8,6 +8,7 @@ import {
   execFileSync,
   spawnSync,
 } from 'node:child_process';
+import { gitExecFileSync } from "../../../../src/git-adapter.js";
 import { gitBoardDataPush } from "../core/board-format.js";
 import { hostname } from 'node:os';
 import {
@@ -293,7 +294,7 @@ function importFileEntry(root, revision, path) {
 /** Read one bounded text blob by its already parsed object identity. */
 function importFileBlob(root, oid) {
   try {
-    const bytes = execFileSync('git', ['cat-file', 'blob', oid], {
+    const bytes = gitExecFileSync(['cat-file', 'blob', oid], {
       cwd: root, env: gitChildEnv(root), encoding: null, maxBuffer: 8 * 1024 * 1024,
     });
     return Buffer.isBuffer(bytes) && bytes.length <= 8 * 1024 * 1024 ? bytes : null;
