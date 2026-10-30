@@ -5,6 +5,7 @@ import {
 } from './trusted-policy-read.js';
 import { contains } from './git.js';
 import { itemPatchDigest } from './item-patch-state.js';
+import { agentById } from './board-query.js';
 /** Private worker origins retain the queued sender without registering or lending a second seat [E18,V4]. */
 import { realpathSync } from 'node:fs';
 import {
@@ -62,7 +63,7 @@ export function submitHandoffActor(ctx, board, operation, args) {
     throw new Refused('SUBMIT_HANDOFF_AUTHORITY', 'a queued worker may only finish its own captured submission');
   }
   BOARDS.set(board, origin);
-  return board.db.prepare('SELECT * FROM agent WHERE agent_id=?').get(origin.actor);
+  return agentById(board, origin.actor);
 }
 
 /** Constrain every write to this sender and item; normal move guards remain authoritative. */
@@ -137,5 +138,5 @@ export function submitHandoffHookActor(ctx, board) {
     || git(ctx.info.root, ['diff', '--name-only']).trim() || untracked(ctx.info.root).length) {
     throw new Refused('SUBMIT_HANDOFF_AUTHORITY', 'the job hook accepts only its proved source and exact current accepted-main merge tree');
   }
-  return board.db.prepare('SELECT * FROM agent WHERE agent_id=?').get(job.agentId);
+  return agentById(board, job.agentId);
 }
