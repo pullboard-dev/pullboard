@@ -1,5 +1,9 @@
 import { recordFamilyDeclareActivation } from './family-declaration.js';
 import { withDerivedFamily } from './family-declaration.js';
+import { policyAt } from './trusted-policy-read.js';
+import { frozenCheck } from './trusted-policy.js';
+import { itemPolicy } from './trusted-policy.js';
+import { requireTrunkMerge } from './trusted-policy.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { PIPELINE_CAUSE_ENGINE } from './pipeline-cause-engine.js';
 import { SUBMIT_HANDOFF_ENGINE } from './submit-handoff-engine.js';
@@ -277,6 +281,7 @@ export function nativeBoardPorts() {
   });
   const enginePorts = boardEnginePorts({
     recordFamilyDeclareActivation, withDerivedFamily,
+    sandboxPolicyReads: Object.freeze({ policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),
     submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest,
     MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor,
     recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel,

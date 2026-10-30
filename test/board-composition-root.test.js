@@ -1,5 +1,9 @@
 import { recordFamilyDeclareActivation } from '../src/family-declaration.js';
 import { withDerivedFamily } from '../src/family-declaration.js';
+import { policyAt } from '../src/trusted-policy-read.js';
+import { frozenCheck } from '../src/trusted-policy.js';
+import { itemPolicy } from '../src/trusted-policy.js';
+import { requireTrunkMerge } from '../src/trusted-policy.js';
 import { PIPELINE_CAUSE_ENGINE } from '../src/pipeline-cause-engine.js';
 import { firstRefusalDetail } from '../src/claims.js';
 import { itemPatchDigest } from '../src/item-patch-state.js';
@@ -333,6 +337,8 @@ test('the native operation bag and counted public bridge retain actual authority
 test('native engine composition keeps supplied upper operations and refuses missing providers before storage [C7,B1,H16]', t => {
   const board = fixtureBoard(t);
   const original = native.nativeBoardPorts().enginePorts;
+  assert.deepEqual(original.sandboxPolicyReads, { policyAt, frozenCheck, itemPolicy, requireTrunkMerge });
+  assert.ok(Object.isFrozen(original.sandboxPolicyReads));
   assert.equal(original.firstRefusalDetail, firstRefusalDetail);
   assert.equal(original.itemPatchDigest, itemPatchDigest);
   assert.equal(original.recordFamilyDeclareActivation, recordFamilyDeclareActivation);
@@ -355,6 +361,13 @@ test('native engine composition keeps supplied upper operations and refuses miss
   const providers = { ...original.store, ...original, validPresence, recordTrainLanding: trainProvider, MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor };
   const composed = boardEnginePorts(providers);
   assert.equal(composed.store.recordTrainLanding, trainProvider);
+  assert.equal(composed.sandboxPolicyReads, original.sandboxPolicyReads, 'the root passes exact canonical function identities without a cache or fallback');
+  for (const name of ['policyAt', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge']) {
+    const missingReads = { ...original.sandboxPolicyReads };
+    delete missingReads[name];
+    assert.throws(() => boardEnginePorts({ ...providers, sandboxPolicyReads: missingReads }),
+      error => error.code === 'NO_POLICY' && error.message.includes(`sandboxPolicyReads.${name}`));
+  }
   assert.throws(() => composed.store.recordTrainLanding(board, { agentId: 'coordinator' }), error => error === refusal);
   assert.equal(calls, 1);
   assert.deepEqual(legacy.events(board), before);
@@ -385,5 +398,24 @@ test('presentation providers retain exact identities and all missing ports refus
   for (const invoke of [() => relayPresentation(root, options), () => relaySnapshot(root, options), () => relayPresentationShout(root, 1)]) {
     assert.throws(invoke, error => error.code === 'RELAY_PRESENTATION_PORTS');
     assert.equal(effects, 0);
+  }
+});
+
+/** Supplied custom runtime ports must not bypass the composition factory's missing-provider guard. */
+test('sandbox policy capabilities refuse before any SQLite path is created [C7,B1]', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-sandbox-policy-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'never-created', 'board.sqlite');
+  const ports = native.nativeBoardPorts();
+  for (const name of ['policyAt', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge']) {
+    const sandboxPolicyReads = { ...ports.enginePorts.sandboxPolicyReads };
+    delete sandboxPolicyReads[name];
+    const enginePorts = { ...ports.enginePorts, sandboxPolicyReads };
+    assert.throws(() => {
+      // @pullboard-board-file persistence: missing sandbox policy must refuse before storage exists.
+      const board = native.openBoard(file, undefined, { ports: { ...ports, enginePorts } });
+      native.closeBoard(board);
+    }, error => error.code === 'NO_POLICY' && error.message.includes(`sandboxPolicyReads.${name}`));
+    assert.equal(existsSync(join(directory, 'never-created')), false);
   }
 });
