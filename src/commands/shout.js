@@ -57,7 +57,7 @@ export async function run(io, { first, second, rest, values }) {
   const retired = handoffMoveProblem(board, personShout(io, me) ? store.PERSON : me.id, 'shout', [{ item: values.item === undefined ? undefined : Number(values.item) }]);
   if (retired) throw retired;
   requireCoordinatorShoutPurpose({ from: personShout(io, me) ? store.PERSON : me.id, to, kind: values.kind });
-  refuseRestatedReport(board, { from: personShout(io, me) ? store.PERSON : me.id, to, kind: values.kind, text, item: values.item, decision: values.decision });
+  refuseRestatedReport(board, { from: personShout(io, me) ? store.PERSON : me.id, to, kind: values.kind, text, item: values.item, decision: values.decision, evidence });
   const id = await ordered(ctx, board, 'shout', [{ from: personShout(io, me) ? store.PERSON : me.id, to, text, ...(values.item !== undefined ? { item: Number(values.item) } : {}), lanes: laneNames(ctx.config), decision: Boolean(values.decision), ...(options !== undefined ? { options } : {}), ...(effects === undefined ? {} : { effects }), ...(values.kind === undefined ? {} : { kind: values.kind }), ...(values.news ? { news: true } : {}), evidence }]);
   io.result?.({ id, decision: Boolean(values.decision), ...(ruling ? { ruling } : {}) });
   if (ruling) io.say(`computed call: ${ruling.owner}; execution guards still apply`);
