@@ -11,9 +11,9 @@ import { parseImplies } from './implies.js';
 import {
   PERSON_REQUESTS_INDEX,
   personRequestRecords,
-  requestIntentDigest,
   validatePersonRequest,
 } from './person-request.js';
+import { requestIntentDigest } from './person-request-digest.js';
 import {
   barDigest,
   barReadiness,

@@ -1,5 +1,4 @@
 /** Browser-sealed person intent is CLI input, never an executable engine move [H12,H16]. */
-import { createHash } from 'node:crypto';
 import { normalizePersonBarEffect } from './person-bar-effect.js';
 import { Refused } from './refused.js';
 
@@ -12,11 +11,6 @@ export const PERSON_REQUESTS_INDEX = 'relay_person_requests';
 export function personRequestRecords(board) {
   const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(PERSON_REQUESTS_INDEX);
   return row ? JSON.parse(row.meta_value) : [];
-}
-
-/** Bind a person request's durable executor receipt to its exact serialized intent. */
-export function requestIntentDigest(record) {
-  return createHash('sha256').update(record.encoded).digest('hex');
 }
 
 /** Declarative CLI forms keep API calls on the same argument parser and engine as terminal moves. */

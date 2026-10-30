@@ -6,8 +6,7 @@ import {
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
 
-/** The largest decoded pairing package; relay limits re-export it so both cells share one value. */
-export const PAIR_PACKAGE_BYTES = 90_000_000;
+import { PAIR_PACKAGE_BYTES } from './person-pairing-limit.js';
 
 const LOCATOR = /^[A-Za-z0-9_-]{22}$/;
 const SECRET = /^[A-Za-z0-9_-]{43}$/;

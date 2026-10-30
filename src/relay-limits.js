@@ -1,5 +1,5 @@
 /** Shared decoded payload, request-body and pairing-package limits for every relay client. */
-import { PAIR_PACKAGE_BYTES } from './pairing.js';
+import { PAIR_PACKAGE_BYTES } from './person-pairing-limit.js';
 
 export const SEALED_SNAPSHOT_BYTES = 64_000_000;
 export const SNAPSHOT_BODY_BYTES = 90_000_000;
