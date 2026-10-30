@@ -3,6 +3,7 @@ import { compositionAuthors } from './review-composition.js';
 import { compositionFamilyFallback } from './review-composition.js';
 import { seatFamily } from './family-declaration.js';
 /** Native review policy and explanations replace prose lineage screening [V4,B26,H16]. */
+import { REVIEW_DEFAULT_ENGINE } from './review-default-engine.js';
 import { REVIEW_TIER_ENGINE } from './review-tier-engine.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from './review-independence-engine.js';
@@ -41,7 +42,8 @@ export function reviewPolicyChange(board, id, { sensitive, reviewFamily, reviewT
     throw new Refused('BAD_REVIEW_POLICY', 'sensitive is a boolean and review-family is a declared family name of at most 80 characters');
   }
   const before = id === null ? { sensitive: false, reviewFamily: null } : itemReviewPolicy(board, id);
-  return { version: 1, sensitive: sensitive ?? before.sensitive,
+  return { version: 1, sensitive: (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_DEFAULT_ENGINE
+    && (reviewTier === 'strict' || before.reviewTier === 'strict') ? true : sensitive ?? before.sensitive,
     ...(reviewTier === 'strict' || before.reviewTier === 'strict' ? { reviewTier: 'strict' } : {}),
     reviewFamily: reviewFamily === undefined ? before.reviewFamily : reviewFamily === null ? null : reviewFamily.trim() };
 }
