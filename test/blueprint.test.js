@@ -11,6 +11,7 @@ import { blueprintRowIds, starterStates } from '../src/blueprint-report.js';
 import { parseSpec } from '../src/spec.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { assertStarterChecks } from './blueprint-starter-fixture.js';
+import { legacyWebQuestions } from './blueprint-question.fixture.js';
 import { assertArchitectureBlueprintCoverage } from './blueprint-architecture-coverage.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -1289,7 +1290,8 @@ function batchCode(reading) {
 function fitBoard() {
   const box = freshBoard({ lanes: { web: { owns: ['web/'] } } });
   writeFileSync(join(box.repo, 'package.json'), `${JSON.stringify({ name: 'lib', scripts: { test: 'node --test' } })}\n`);
-  const added = json(box, 'blueprint', 'add', 'web-app');
+  writeFileSync(join(box.repo, 'legacy-web-app.json'), JSON.stringify(legacyWebQuestions(PUBLISHED)));
+  const added = json(box, 'blueprint', 'add', 'legacy-web-app.json');
   box.git('add', '-A');
   box.git('commit', '-q', '-m', 'chore: add the web-app blueprint');
   const worktree = join(box.dir, 'seat');
@@ -1336,14 +1338,14 @@ test('a fit proposal waits for the person and keeps its reason [S1,E3]', () => {
   ];
   const by = new Set();
   for (const args of proposals) {
-    const recorded = ok(seat('blueprint', 'fit', 'web-app', ...args, '--json'), `fit ${args.join(' ')}`).proposals[0];
+    const recorded = ok(seat('blueprint', 'fit', 'legacy-web-app.json', ...args, '--json'), `fit ${args.join(' ')}`).proposals[0];
     by.add(recorded.by);
   }
   assert.equal(by.size, 1, 'one seat recorded every proposal');
   const seatId = [...by][0];
   assert.match(seatId, /^web-/u, "the proposer is the seat's own id");
-  assert.equal(refusal(seat('blueprint', 'fit', 'web-app', W2, 'keep', '--by', 'person', '--json'), 'a flag naming the proposer'), 'FLAG_NOT_ALLOWED');
-  assert.equal(refusal(seat('blueprint', 'fit', 'web-app', W3, 'drop', '--json'), 'a drop with no reason'), 'FIT_PROPOSAL');
+  assert.equal(refusal(seat('blueprint', 'fit', 'legacy-web-app.json', W2, 'keep', '--by', 'person', '--json'), 'a flag naming the proposer'), 'FLAG_NOT_ALLOWED');
+  assert.equal(refusal(seat('blueprint', 'fit', 'legacy-web-app.json', W3, 'drop', '--json'), 'a drop with no reason'), 'FIT_PROPOSAL');
 
   // Nothing applies before the person approves: SPEC.md, the row decisions and the starters are as they were.
   assert.equal(readFileSync(join(box.repo, 'SPEC.md'), 'utf8'), specBefore, 'SPEC.md is unchanged');
@@ -1406,7 +1408,7 @@ test('a fit proposal waits for the person and keeps its reason [S1,E3]', () => {
 test('an agent cannot approve its own fit proposal [S1,E3,B26]', () => {
   const { box, worktree, seat, as, key } = fitBoard();
   const W3 = key('W3');
-  ok(seat('blueprint', 'fit', 'web-app', W3, 'drop', '--reason', 'no pages here', '--json'), 'propose');
+  ok(seat('blueprint', 'fit', 'legacy-web-app.json', W3, 'drop', '--reason', 'no pages here', '--json'), 'propose');
   const specBefore = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   // The proposing session is refused by name, from its worktree or the main checkout, for approve and edit.
   assert.equal(refusal(seat('spec', 'fit', 'approve', 'any-code', '--json'), 'approve from the seat'), 'FIT_OWN_PROPOSAL');
@@ -1441,7 +1443,7 @@ test('an agent cannot approve its own fit proposal [S1,E3,B26]', () => {
   const second = ok(box.run('spec', 'fit', '--json'), 'the person reads it again');
   assert.equal(second.proposals[0].reason, 'a different reason slipped in after the reading');
   const W4 = key('W4');
-  ok(seat('blueprint', 'fit', 'web-app', W4, 'keep', '--json'), 'a later proposal');
+  ok(seat('blueprint', 'fit', 'legacy-web-app.json', W4, 'keep', '--json'), 'a later proposal');
   ok(seat('spec', 'fit', '--json'), 'the seat reads the batch');
   assert.match(refusedWith('FIT_CHANGED', second.batch, 'approve after a new proposal'), new RegExp(`^${W4} \\(new\\) differ from`, 'u'), 'the refusal names only the unread proposal');
 
@@ -1471,7 +1473,7 @@ test('an agent cannot approve its own fit proposal [S1,E3,B26]', () => {
   // An unread proposal given a read one's id, and placed first, is refused by name: ids are never merged.
   writeFileSync(file, read);
   const W5 = key('W5');
-  ok(seat('blueprint', 'fit', 'web-app', W5, 'keep', '--json'), 'an unread proposal');
+  ok(seat('blueprint', 'fit', 'legacy-web-app.json', W5, 'keep', '--json'), 'an unread proposal');
   const withW5 = JSON.parse(readFileSync(file, 'utf8'));
   const unread = withW5.proposals.find((proposal) => proposal.target === W5);
   unread.id = withW5.proposals.find((proposal) => proposal.target === W3).id;
@@ -1491,7 +1493,7 @@ test('a Something else answer that names the stack fits a plain Node project [A8
   // A plain Node project is not one of A8's named frameworks, so Something else takes the stack's name (#916).
   const { seat, key } = fitBoard();
   const stack = 'Node.js with built-in node:http and node:test';
-  const proposal = ok(seat('blueprint', 'fit', 'web-app', key('Q1'), 'answer', '--text', stack, '--reason', 'a plain Node project with no web framework', '--json'), 'answer the stack question').proposals[0];
+  const proposal = ok(seat('blueprint', 'fit', 'legacy-web-app.json', key('Q1'), 'answer', '--text', stack, '--reason', 'a plain Node project with no web framework', '--json'), 'answer the stack question').proposals[0];
   assert.equal(proposal.decision, 'answer');
   assert.equal(proposal.text, `The app is built with: ${stack}. Choices: Next.js, SvelteKit, Rails, Something else.`);
 });
