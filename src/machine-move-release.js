@@ -9,6 +9,6 @@ import { IN_STATE } from './machine-shared.js';
 export const MOVES = [
   {
     verb: 'release', from: ['open', 'claimed'], to: 'open', by: ['agent', 'coordinator'], refuse: 'NOT_YOURS',
-    guards: ['joined', 'itemExists', IN_STATE, 'releaseOwnsWork', 'reviewReleaseExplained'], command: 'pullboard release <id>',
+    guards: ['joined', 'itemExists', IN_STATE, 'releaseOwnsWork', 'reviewReleaseExplained'], command: 'pullboard release <id> --reason <code>',
   },
 ];

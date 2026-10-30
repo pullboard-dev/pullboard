@@ -138,7 +138,7 @@ test('new native activation fences downgraded review while preserving genuine hi
   const first = applyEngineMove(f.board, old, { sequence: 1, at: f.board.clock.now().toISOString() });
   assert.equal(first.error, undefined);
   const receipt = f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value;
-  store.release(f.board, f.id, 'core-2', 'Private historical reservation ends before rollout');
+  store.release(f.board, f.id, 'core-2', 'Private historical reservation ends before rollout', 'OTHER');
   const activate = prepareEngineMove(f.board, 'appendFact', [f.id, { agentId: 'coordinator', kind: 'note', text: 'Private native activation control.' }]);
   assert.equal(applyEngineMove(f.board, activate, { sequence: 2, at: f.board.clock.now().toISOString() }).error, undefined);
   const fresh = prepareEngineMove(f.board, 'reserveReview', [f.id, { ...args[1], agentId: 'core-4' }]);

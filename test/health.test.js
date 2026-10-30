@@ -481,7 +481,7 @@ test('health models only its named release when a child claim keeps the preferre
     const advice = after.stuck.find(entry => entry.key === `RANK_INVERSION:item:${held}`);
     assert.ok(advice, 'once the child occupancy is actually removed, older free work ranks ahead');
     assert.equal(advice.detail.ahead, earlier);
-    assert.equal(advice.command, `pullboard release ${held}`);
+    assert.equal(advice.command, `pullboard release ${held} --reason ROUTED_ELSEWHERE`);
     const [, verb, id] = advice.command.split(' ');
     assert.equal(verb, 'release');
     store.release(board, Number(id), builder, 'Apply the health advice to the fixture claim.', 'OTHER');

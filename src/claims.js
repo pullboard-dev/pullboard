@@ -31,7 +31,7 @@ export function firstRefusalDetail(board, item, minutes, at) {
 export function tellFirstRefusal(board, item, detail, persistShout) {
   const window = detail.reopenFirstRefusal;
   if (window) persistShout(board, { from: 'coordinator', to: window.builder,
-    text: `Item #${item.item_id} waits for you until ${window.until}; claim it to resume, or run pullboard release ${item.item_id} to let another builder take it.` });
+    text: `Item #${item.item_id} waits for you until ${window.until}; claim it to resume, or run pullboard release ${item.item_id} --reason ROUTED_ELSEWHERE to let another builder take it.` });
 }
 
 /** Copy only enabled coordinator policy into ordered moves before they are sealed for replay. */

@@ -488,8 +488,8 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
       subject: `#${claim.item_id}`, key: `RANK_INVERSION:item:${claim.item_id}`, since: since(claim.item_id), now,
       title: 'a free item ranks ahead',
       why: `${holder.id} claimed #${claim.item_id} while #${first.item_id} ranks ahead in the ${holder.lane} lane and sits free`,
-      next: `release #${claim.item_id} with pullboard release ${claim.item_id}, then claim #${first.item_id}`,
-      command: `pullboard release ${claim.item_id}`,
+      next: `release #${claim.item_id} with pullboard release ${claim.item_id} --reason ROUTED_ELSEWHERE, then claim #${first.item_id}`,
+      command: `pullboard release ${claim.item_id} --reason ROUTED_ELSEWHERE`,
       owner: { role: 'builder', who: holder.id }, detail: { holder: holder.id, ahead: first.item_id },
     }));
   }

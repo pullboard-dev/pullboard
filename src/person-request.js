@@ -28,7 +28,7 @@ const MOVES = {
   edit: { item: true, flags: ['criterion', 'brief', 'route', 'check', 'reason', 'after', 'as', 'review-tier'], booleans: ['wait'] },
   fact: { item: true, positions: ['kind', 'text'], flags: ['answers', 'supersedes', 'ref', 'implies', 'as', 'cause'], booleans: ['never-again'] },
   claim: { item: true },
-  release: { item: true, flags: ['note'] },
+  release: { item: true, flags: ['note', 'reason'] },
   submit: { item: true },
   done: { item: true },
   verify: { item: true, positions: ['decision'], flags: ['reason', 'note', 'cause', 'clause', 'as', 'implies'] },
