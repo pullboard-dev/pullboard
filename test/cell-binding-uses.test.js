@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import {
   machine as snapshotMachine,
   project as snapshotProject,
-} from './cockpit/fixture.js';
+} from './cockpit/machine-fixture.js';
 import {
   mkdirSync,
   mkdtempSync,
