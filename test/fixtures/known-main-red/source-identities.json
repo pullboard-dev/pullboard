@@ -1,0 +1,43 @@
+{
+  "qualification": "Retained actual TAP diagnostics only; parsing these bytes is not a fresh runtime or an independent verdict. Original material core805; custody fact457c707a.",
+  "runs": [
+    {
+      "label": "reported main control",
+      "originalLog": "/Users/coreyolson/Documents/Codex/2026-10-29/sol805-1836-native-evidence/1836-main2-control-0f45a1f1-9714-40ae-92e9-953d65d7ac48.log",
+      "originalSHA256": "b4af37fa3b7cf5a222eda57ef95cd19e0900b2cd0211444236bd841b34a69e2b",
+      "executionRoot": "/Users/coreyolson/.pullboard-runner/jobs/126ad0c6-e03f-4a0b-a480-68c37784dd61-ooMtfl/checkout",
+      "source": {
+        "commit": "6640e0498745cd26972eabb6a9665acc94381742",
+        "tree": "bbe65d0d88d66ec8bd75ae328a74e627cd8fd52c",
+        "tooling": {
+          "kind": "git-checkout",
+          "name": "pullboard",
+          "version": "0.9.3",
+          "commit": "6640e0498745cd26972eabb6a9665acc94381742",
+          "tree": "bbe65d0d88d66ec8bd75ae328a74e627cd8fd52c",
+          "sha256": "e6e9e8bdc1aa28020ab0af8482a698fb587b09e6538c97c66b61f1492d83d423"
+        }
+      },
+      "block": "not ok 1 - a person's waiver lets a submit and a landing gate through only the waived test [B3,R3,C7]\n  ---\n  duration_ms: 19937.189375\n  type: 'test'\n  location: '/Users/coreyolson/.pullboard-runner/jobs/126ad0c6-e03f-4a0b-a480-68c37784dd61-ooMtfl/checkout/test/land.test.js:791:1'\n  failureType: 'testCodeFailure'\n  error: 'the submission names the waiver, its reason and its expiry'\n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected:\n  actual: |-\n    16 lane updates; details remain on the board\n    submitted #1 at 3626478f0faa; submission proof waived, not green: 1 failure(s), each covered by a live person waiver. item check green; full gate: import selection could not be computed: CommonJS or nested package scopes cannot supply a complete ES-module import graph\n    0 passed, 1 failed, unknown skipped\n    web/land-1.test.js: web/land-1.test.js keeps the landed behavior: fixture behavior is red\n    full log: /Users/coreyolson/.pullboard-runner/jobs/126ad0c6-e03f-4a0b-a480-68c37784dd61-ooMtfl/tmp/pullboard-test-run-oAMC44/pullboard-e2e-eD1i5T/repo/.git/worktrees/land-1/pullboard-runs/4bf6f3c5-46c2-416c-b527-86056c04dea3/output.log\n    pinned as refs/pullboard/items/1/3626478f0faa, so this work can't be lost; keep your worktree until it is merged\n    next: Use a different agent session; the reviewer must not be the builder and must declare a different vendor family. Run: cd '/Users/coreyolson/.pullboard-runner/jobs/126ad0c6-e03f-4a0b-a480-68c37784dd61-ooMtfl/tmp/pullboard-test-run-oAMC44/pullboard-e2e-eD1i5T/repo' && mkdir -p '/Users/coreyolson/.pullboard-runner/jobs/126ad0c6-e03f-4a0b-a480-68c37784dd61-ooMtfl/tmp/pullboard-test-run-oAMC44/pullboard-e2e-eD1i5T' && git worktree add --detach '/Users/coreyolson/.pullboard-runner/jobs/126ad0c6-e03f-4a0b-a480-68c37784dd61-ooMtfl/tmp/pullboard-test-run-oAMC44/pullboard-e2e-eD1i5T/repo-reviewer-1' HEAD && cd '/Users/coreyolson/.pullboard-runner/jobs/126ad0c6-e03f-4a0b-a480-68c37784dd61-ooMtfl/tmp/pullboard-test-run-oAMC44/pullboard-e2e-eD1i5T/repo-reviewer-1' && pullboard join web --model \"<model name>\" --family \"<vendor family>\" && pullboard next --verify 1\n    \n  operator: 'match'\n  stack: |-\n    TestContext.<anonymous> (file:///Users/coreyolson/.pullboard-runner/jobs/126ad0c6-e03f-4a0b-a480-68c37784dd61-ooMtfl/checkout/test/land.test.js:831:10)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)\n  ..."
+    },
+    {
+      "label": "reported candidate",
+      "originalLog": "/Users/coreyolson/Documents/Codex/2026-10-29/sol805-1836-native-evidence/1836-merged5-control-89f7c73d-2f42-44e5-9bb8-0df9c86123a8.log",
+      "originalSHA256": "9d5e5183a86e766503d9dc651dd99ff6f1fc1c9f7049b109eb49cdbf80716a08",
+      "executionRoot": "/Users/coreyolson/.pullboard-runner/jobs/13b4f8df-306e-4dba-aebc-66fdd7abba04-dlu9rG/checkout",
+      "source": {
+        "commit": "52c0d13cc31acf0b2b6329afbde48e15f6f84c45",
+        "tree": "34ec841e7917f862447e8d542f1d6082af4406c1",
+        "tooling": {
+          "kind": "git-checkout",
+          "name": "pullboard",
+          "version": "0.9.3",
+          "commit": "6640e0498745cd26972eabb6a9665acc94381742",
+          "tree": "bbe65d0d88d66ec8bd75ae328a74e627cd8fd52c",
+          "sha256": "e6e9e8bdc1aa28020ab0af8482a698fb587b09e6538c97c66b61f1492d83d423"
+        }
+      },
+      "block": "not ok 2 - a person's waiver lets a submit and a landing gate through only the waived test [B3,R3,C7]\n  ---\n  duration_ms: 29476.617\n  type: 'test'\n  location: '/Users/coreyolson/.pullboard-runner/jobs/13b4f8df-306e-4dba-aebc-66fdd7abba04-dlu9rG/checkout/test/land.test.js:792:1'\n  failureType: 'testCodeFailure'\n  error: 'the submission names the waiver, its reason and its expiry'\n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected:\n  actual: |-\n    16 lane updates; details remain on the board\n    submitted #1 at 6f389df8bbab; submission proof waived, not green: 1 failure(s), each covered by a live person waiver. item check green; full gate: import selection could not be computed: CommonJS or nested package scopes cannot supply a complete ES-module import graph\n    0 passed, 1 failed, unknown skipped\n    web/land-1.test.js: web/land-1.test.js keeps the landed behavior: fixture behavior is red\n    full log: /Users/coreyolson/.pullboard-runner/jobs/13b4f8df-306e-4dba-aebc-66fdd7abba04-dlu9rG/tmp/pullboard-test-run-yR1vtu/pullboard-e2e-27Q18s/repo/.git/worktrees/land-1/pullboard-runs/bc951257-5122-415c-81f6-e12448186e5d/output.log\n    pinned as refs/pullboard/items/1/6f389df8bbab, so this work can't be lost; keep your worktree until it is merged\n    next: Use a different agent session; the reviewer must not be the builder and must declare a different vendor family. Run: cd '/Users/coreyolson/.pullboard-runner/jobs/13b4f8df-306e-4dba-aebc-66fdd7abba04-dlu9rG/tmp/pullboard-test-run-yR1vtu/pullboard-e2e-27Q18s/repo' && mkdir -p '/Users/coreyolson/.pullboard-runner/jobs/13b4f8df-306e-4dba-aebc-66fdd7abba04-dlu9rG/tmp/pullboard-test-run-yR1vtu/pullboard-e2e-27Q18s' && git worktree add --detach '/Users/coreyolson/.pullboard-runner/jobs/13b4f8df-306e-4dba-aebc-66fdd7abba04-dlu9rG/tmp/pullboard-test-run-yR1vtu/pullboard-e2e-27Q18s/repo-reviewer-1' HEAD && cd '/Users/coreyolson/.pullboard-runner/jobs/13b4f8df-306e-4dba-aebc-66fdd7abba04-dlu9rG/tmp/pullboard-test-run-yR1vtu/pullboard-e2e-27Q18s/repo-reviewer-1' && pullboard join web --model \"<model name>\" --family \"<vendor family>\" && pullboard next --verify 1\n    \n  operator: 'match'\n  stack: |-\n    TestContext.<anonymous> (file:///Users/coreyolson/.pullboard-runner/jobs/13b4f8df-306e-4dba-aebc-66fdd7abba04-dlu9rG/checkout/test/land.test.js:832:10)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)\n  ..."
+    }
+  ]
+}
