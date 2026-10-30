@@ -1,4 +1,4 @@
-/** Report remaining literal Git launches, retaining a per-file ratchet during adapter conversion [C7]. */
+/** Report remaining literal Git launches, with a per-file ratchet keyed by true location [C7]. */
 import {
   existsSync,
   readdirSync,
@@ -13,6 +13,8 @@ import {
   lineAt,
 } from "../../../../src/js-lex.js";
 
+const SKIPPED_DIRECTORIES = new Set(['node_modules', 'tests', 'test']);
+const ADAPTERS = new Set(['src/git-adapter.js', 'packages/git/src/shell/git-adapter.js']);
 const PROCESS_NAMES = ['spawn', 'spawnSync', 'execFile', 'execFileSync', 'exec', 'execSync'];
 
 /** Find literal executable arguments in executable code, including namespace calls and imported aliases.
@@ -37,26 +39,24 @@ export function gitLaunches(source) {
   return result;
 }
 
-/** Retain legacy Git-launch identities when this cell moves; exclude only the actual adapter boundary. */
+/** Count every physical literal Git launch under src and packages at its true path; exclude only the adapter itself. */
 export function gitLaunchReport(root) {
   const files = {};
-  /** Walk source files without following symlinks or searching dependencies. */
+  /** Walk production source without following symlinks, searching dependencies or counting test fixtures. */
   function walk(directory) {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
-      if (entry.isDirectory()) walk(path);
-      else if (entry.isFile() && entry.name.endsWith('.js')) {
-        const actual = relative(root, path).replaceAll('\\', '/');
-        const file = actual.replace(/^packages\/git\/src\/shell\//u, 'src/');
-        if (file === 'src/git-adapter.js') continue;
+      if (entry.isDirectory()) {
+        if (!SKIPPED_DIRECTORIES.has(entry.name)) walk(path);
+      } else if (entry.isFile() && entry.name.endsWith('.js') && !entry.name.endsWith('.test.js')) {
+        const file = relative(root, path).replaceAll('\\', '/');
+        if (ADAPTERS.has(file)) continue;
         const launches = gitLaunches(readFileSync(path, 'utf8'));
-        if (launches.length) files[file] = [...(files[file] ?? []), ...launches];
+        if (launches.length) files[file] = launches;
       }
     }
   }
-  walk(join(root, 'src'));
-  const moved = join(root, 'packages/git/src/shell');
-  if (existsSync(moved)) walk(moved);
+  for (const top of ['src', 'packages']) if (existsSync(join(root, top))) walk(join(root, top));
   return { total: Object.values(files).reduce((sum, launches) => sum + launches.length, 0), files };
 }
 

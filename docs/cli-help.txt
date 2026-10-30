@@ -367,6 +367,7 @@ Lifecycle, read from src/machine.js
 
 Additional commands
   pullboard heartbeat                 record this seat's local session activity; no board move
+  pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items
 
 Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD, OTHER.
 --json prints one versioned document for every command, and one per line for watch; refusals include their code and next step.
