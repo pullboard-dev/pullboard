@@ -291,14 +291,16 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     const rgb = (css) => { const n = (css.match(/[\\d.]+/g) || []).map(Number); return css.startsWith('color(srgb') ? [n[0] * 255, n[1] * 255, n[2] * 255, n[3] ?? 1] : [n[0], n[1], n[2], n[3] ?? 1]; };
     const words = (e) => [...e.children].map((child) => child.textContent.replace(/\\s+/g, ' ').trim()).join(' ');
     const probe = document.createElement('i');
-    probe.style.color = 'var(--reject)';
+    probe.style.color = 'var(--warn)';
     document.body.append(probe);
     const warn = getComputedStyle(probe).color;
+    probe.style.color = 'var(--reject)';
+    const reject = getComputedStyle(probe).color;
     probe.remove();
     const rows = [...document.querySelectorAll('#chain .row')].map((row) => {
       const s = getComputedStyle(row), why = row.querySelector('.meta .item-reason');
       return { id: row.dataset.item, row: box(row), title: box(row.querySelector('.t')), age: box(row.querySelector('.row-age')),
-        meta: words(row.querySelector('.meta')), chip: row.querySelector(':scope > .row-side > .chip')?.textContent ?? null, waitTarget: row.querySelector('.meta [data-go]')?.dataset.go ?? null,
+        meta: words(row.querySelector('.meta')), chip: row.querySelector(':scope > .row-side > .chip')?.textContent ?? null, waitTarget: row.querySelector(':scope > .row-side > .chip [data-go]')?.dataset.go ?? null,
         why: why ? { text: why.textContent, code: why.querySelector('[title]')?.title, color: getComputedStyle(why).color } : null, gated: row.classList.contains('gated'),
         border: rgb(s.borderTopColor), borderWidth: s.borderTopWidth, edges: [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor].every((c) => c === s.borderTopColor),
         tint: rgb(s.backgroundColor) };
@@ -310,7 +312,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
       header: document.querySelector('.top').innerText.replace(/\\s+/g, ' ').trim(), live: document.querySelector('#live').textContent, liveInBar: !!document.querySelector('.status #live'),
       bar: [...document.querySelectorAll('.status [data-status]')].filter((part) => !part.hidden).map((part) => ({ to: part.dataset.status, text: part.textContent.replace(/\\s+/g, ' ').trim(), height: part.getBoundingClientRect().height })),
       barShown: getComputedStyle(status).display !== 'none', barBox: box(status), barTint: rgb(getComputedStyle(status).backgroundColor), barBlur: getComputedStyle(status).backdropFilter,
-      rows, warn, state: view.state, lane: view.lane, tab: view.tab,
+      rows, warn, reject, state: view.state, lane: view.lane, tab: view.tab,
       chips: [...document.querySelectorAll('[data-filter-kind="state"]')].map((choice) => [choice.dataset.state, choice.querySelector('b').textContent, choice.getAttribute('aria-checked') === 'true']),
       lanes: [...document.querySelectorAll('[data-filter-kind="lane"]')].map((choice) => choice.querySelector('.filter-option-label').textContent + (choice.querySelector('b') ? ' · ' + choice.querySelector('b').textContent : '')), pick: box(document.querySelector('#filter-toggle')),
       seg: box(document.querySelector('.items-view-switch')), go: box(document.querySelector('#new-item')), toolbar: box(document.querySelector('.toolbar')),
@@ -363,7 +365,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
           assert.ok(x.row.right - x.age.right <= 14 && x.age.top < x.title.bottom && x.age.bottom > x.title.top, `${at}: #${x.id}'s age stands at the top right: ${JSON.stringify([x.row, x.title, x.age])}`);
         }
         assert.equal(row['1'].meta, 'web G1, G2, G3 +1', `${at}: the lane and the first three spec ids, then how many more`);
-        assert.deepEqual([row['6'].why?.text, row['6'].why?.color === r.warn, /\bweb\b/.test(row['6'].meta.replace('Behavior did not match', '')), /next line/.test(row['6'].meta)], ['Behavior did not match', true, false, false],
+        assert.deepEqual([row['6'].why?.text, row['6'].why?.color === r.reject, /\bweb\b/.test(row['6'].meta.replace('Behavior did not match', '')), /next line/.test(row['6'].meta)], ['Behavior did not match', true, false, false],
           `${at}: a sent-back row says why in the warning colour, first line only, in place of its lane: ${row['6'].meta}`);
         assert.equal(row['6'].why?.code, 'BEHAVIOR_MISMATCH', `${at}: the row keeps its native reason code in the tooltip`);
         // A lane hold keeps its warning edge; dependency waits use the approved plain linked chip. Review stays gold.
@@ -524,7 +526,7 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
     const box = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; };
     const shown = (e) => !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0;
     const rgb = (css) => (css.match(/[\\d.]+/g) || []).map(Number);
-    const probe = document.createElement('i'); probe.style.color = 'var(--reject)'; document.body.append(probe); const warn = getComputedStyle(probe).color; probe.remove();
+    const probe = document.createElement('i'); probe.style.color = 'var(--warn)'; document.body.append(probe); const warn = getComputedStyle(probe).color; probe.remove();
     const theme = document.querySelector('#theme'), bar = document.querySelector('header.top'), side = document.querySelector('#side');
     return {
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
