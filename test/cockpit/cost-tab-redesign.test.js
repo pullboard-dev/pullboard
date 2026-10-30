@@ -27,7 +27,6 @@ test('the private Cost overview renders prepared analytics and each confidence [
     assert.ok(geometry.ranges >= 2); assert.equal(geometry.split,2);
     await chrome.click("document.querySelector('[data-cost-window=\"30d\"]')");
     await chrome.waitFor("document.querySelector('[data-cost-window=\"30d\"]').getAttribute('aria-pressed') === 'true'");
-    await chrome.click("document.querySelector('[data-cost-row]')");
     await chrome.click("document.querySelector('[data-go]')");
     await chrome.click("document.querySelector('[data-cost-copy]')");
     await chrome.click("document.querySelector('[data-cost-all]')");
