@@ -1,3 +1,4 @@
+import { compositionFamilyFallback } from '../../../../src/review-composition.js';
 import { reviewWait } from '../../../../src/review-routing.js';
 import { eligibilityProblem } from '../../../../src/review-eligibility.js';
 import { lineSettings } from '../../../state/src/core/line-settings-read.js';
@@ -167,6 +168,13 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
     }
 
     if (status === 'submitted') {
+      const fallback = compositionFamilyFallback(board, item);
+      if (fallback) found(report.waiting, finding('REVIEW_FAMILY_FALLBACK', item, {
+        since: events.last.get('submit')?.event_at ?? item.item_updated_at, now: at,
+        title: 'independent family review', why: `Current composition spans the joined families; owner ${fallback.owner} (${fallback.family}) sets the different-family boundary; all material author and session exclusions remain`,
+        next: 'an independent seat from another family takes the review', command: `pullboard next --verify ${id}`,
+        owner: { role: 'builder', who: fallback.owner }, detail: fallback,
+      }));
       const reviewer = item.item_review_by;
       const lapsed = reviewer && (item.item_review_until ?? '') <= asOf;
       const submittedAt = events.last.get('submit')?.event_at ?? item.item_updated_at;
