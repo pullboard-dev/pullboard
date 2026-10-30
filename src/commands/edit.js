@@ -25,6 +25,7 @@ import {
 } from '../relay.js';
 import {
   actOn,
+  personMode,
   barActorForCommand,
   briefArg,
   briefInLane,
@@ -69,7 +70,7 @@ export async function run(io, args) {
     ...(values.reason !== undefined ? { reason: values.reason } : {}),
   };
   if (sealed) change = { ...sealed };
-  const asPerson = personBarMode(ctx, board, me, values);
+  const asPerson = personBarMode(ctx, board, me, values, personMode);
   const confirmed = await confirmBarEffect(ctx, board, me, { verb: 'edit', item: id,
     args: { as: 'person', ...(values.wait ? { wait: true } : {}) } }, change, asPerson);
   if (confirmed !== null) return confirmed;
