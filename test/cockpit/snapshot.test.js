@@ -141,10 +141,16 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
 
     const initial = JSON.parse(await evaluate(`JSON.stringify({ project: data.project, index: snapshotReplay.index, total: snapshotReplay.events.length, playing: snapshotReplay.playing, speedOptions: [...document.querySelector('#replay-speed').options].map((option) => option.value), bodyClass: document.body.classList.contains('snapshot') })`));
     assert.equal(initial.bodyClass, true);
+    assert.equal(await evaluate('view.tab'), 'dashboard', 'a static export lands on Dashboard');
+    assert.equal(await evaluate("Boolean(document.querySelector('[data-tab=home]'))"), false, 'a static export has no Home tab');
     assertSnapshotObservation(expected, initial.project, observationBoard, alpha.repo, 'the initial snapshot is the final live API state');
     assert.deepEqual(initial.speedOptions, ['1', '4', '16']);
     assert.ok(initial.total >= 6, 'the exported board contains the complete claim/submit/reject/claim/submit/accept history');
     assert.ok(initial.index >= initial.total - 1, 'the initial replay position is the exported final state');
+
+    await chrome.send('Page.navigate', { url: `${base}${prefix}#home` });
+    await chrome.waitFor("document.body.classList.contains('snapshot') && view.tab === 'dashboard' && snapshotReplay.index === snapshotReplay.events.length");
+    assert.equal(await evaluate('location.hash'), '#dashboard', 'a saved or shared Home address normalizes to Dashboard');
 
     // Static export opens on Dashboard; materialize the lazy Shouts pane before reading its feed.
     await press(chrome, "document.querySelector('[data-tab=shouts]')");
@@ -666,7 +672,9 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, `${host.base}/demo/`, profile);
-    await settled(chrome, `${ready} && ${showing('items', '/demo/')}`);
+    await settled(chrome, ready);
+    assert.equal(await chrome.stable("[...document.querySelectorAll('[data-pane]')].filter((each) => !each.hidden).map((each) => each.dataset.pane).join()"), 'dashboard', 'a fresh snapshot opens on Dashboard');
+    assert.equal(await chrome.stable('location.pathname + location.hash'), '/demo/', 'Dashboard keeps the snapshot folder address');
     await press(chrome, `document.querySelector('[data-tab="roadmap"]')`);
     await chrome.waitFor(showing('roadmap', '/demo/#roadmap'));
     await openRoadmapParts(chrome);
@@ -691,7 +699,7 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     await chrome.send('Page.reload');
     await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')} && !!${roadmapRow('#1')}`);
     await travel(chrome, -1);
-    await settled(chrome, `${ready} && ${showing('items', '/demo/')}`);
+    await settled(chrome, `${ready} && ${showing('dashboard', '/demo/')}`);
     await travel(chrome, 1);
     await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')} && !!${roadmapRow('#2')}`);
     await press(chrome, roadmapRow('#2'));
@@ -701,13 +709,36 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     await chrome.waitFor(`${showing('items', '/demo/#items/2')} && document.querySelector('#detail h2')?.innerText.includes('Open page')`);
     await travel(chrome, -1);
     await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')}`);
+    assert.equal(await chrome.stable("localStorage.getItem('snapshot.pb.tab')"), 'items', 'the earlier Items navigation remains the saved tab for this Chrome profile');
 
-    // Opened afresh, the folder shows the board's tab, and its #roadmap address the Roadmap.
+    // A fresh navigation in this profile restores Items, while an explicit #roadmap address still selects Roadmap.
     for (const [address, pane] of [['/demo/', 'items'], ['/demo/#roadmap', 'roadmap']]) {
       await chrome.send('Page.navigate', { url: 'about:blank' });
       await settled(chrome, "location.href === 'about:blank'");
       await chrome.send('Page.navigate', { url: `${host.base}${address}` });
-      await settled(chrome, `${ready} && ${showing(pane, address)}`);
+      const navigationReady = `${ready} && ${showing(pane, address)}`;
+      try {
+        await settled(chrome, navigationReady);
+      } catch (error) {
+        const actual = await chrome.stable(`JSON.stringify({
+          snapshotClass: document.body?.classList.contains('snapshot') ?? false,
+          projectPresent: typeof data !== 'undefined' && !!data?.project,
+          replay: typeof snapshotReplay === 'object' && snapshotReplay ? {
+            index: snapshotReplay.index,
+            eventsLength: Array.isArray(snapshotReplay.events) ? snapshotReplay.events.length : null,
+            atEnd: Array.isArray(snapshotReplay.events) && snapshotReplay.index === snapshotReplay.events.length,
+          } : null,
+          visiblePanes: [...document.querySelectorAll('[data-pane]')].filter((each) => !each.hidden).map((each) => each.dataset.pane),
+          paneMatches: [...document.querySelectorAll('[data-pane]')].filter((each) => !each.hidden).map((each) => each.dataset.pane).join() === ${JSON.stringify(pane)},
+          pathname: location.pathname,
+          hash: location.hash,
+          address: location.pathname + location.hash,
+          expectedPane: ${JSON.stringify(pane)},
+          expectedAddress: ${JSON.stringify(address)},
+          addressMatches: location.pathname + location.hash === ${JSON.stringify(address)},
+        })`).catch((captureError) => `capture unavailable: ${captureError.message}`);
+        throw new Error(`${error.message}; fresh-navigation state ${actual}`, { cause: error });
+      }
     }
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
