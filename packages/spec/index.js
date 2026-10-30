@@ -8,7 +8,7 @@ export { validateReferences, referenceAuthority, validateReferenceAuthority, ref
 export { handledReferences, referenceAcknowledged, submitReferenceReminders, referenceLines, validateReferenceTargets, briefSections } from "./src/shell/reference-lines.js";
 export { checkReleaseReferences } from "./src/shell/reference-release.js";
 export { rowDecisionContext, staleRowDecision, staleRowDecisions } from "./src/shell/row-decision-state.js";
-export { rowDecisionReplacement, personNeeds } from "./src/core/row-decision-text.js";
+export { rowDecisionReplacement, personNeeds } from "./core.js";
 export { rowDecisions } from "./src/core/row-decisions-query.js";
 export { shownDecisionRows, prepareRowDecisions, pendingAnswers, pendingRowDecision, decisionAnswer, decisionProjection, projectRowDecisions, rowDecisionView, handAnsweredQuestions, planRowApply, writeRowApply, restoreRowApply } from "./src/shell/row-decisions.js";
 export { recordRowDraft } from "./src/core/row-draft-store.js";

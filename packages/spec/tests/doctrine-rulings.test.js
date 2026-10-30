@@ -4,7 +4,10 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
-import { join, resolve } from 'node:path';
+import {
+  join,
+  resolve,
+} from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';

@@ -1,1 +1,1 @@
-export { rowDecisionReplacement, personNeeds } from "../packages/spec/index.js";
+export { rowDecisionReplacement, personNeeds } from "../packages/spec/core.js";
