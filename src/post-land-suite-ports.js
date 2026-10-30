@@ -1,0 +1,32 @@
+/** The real capabilities behind the post-land suite: the machine setting, the runner suite, board reads and Main red ownership [C7,H16]. */
+import { join } from 'node:path';
+import { git } from './git.js';
+import { laneOf } from './lanes.js';
+import { listItems } from './board-query.js';
+import { unownedMainReds } from './known-main-reworks.js';
+import { postLandSuiteEnabled } from './settings.js';
+import { runFullSuite } from './test-run.js';
+import { failureSignatures } from './main-failure-matches.js';
+import { runnerExecutionServices } from './runners.js';
+import { landingExecutionServices } from './landing-shards.js';
+
+/** The previous batch's result lives beside the board's other private Git state, never in the tracked tree. */
+function storePath(root) {
+  return join(git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim(), 'pullboard', 'post-land-suite.json');
+}
+
+/** Run the project's full suite on the runners at the landed tree; null failures means a red the signatures cannot account for. */
+async function runSuite(root) {
+  const run = await runFullSuite(root, join(root, 'bin', 'run-tests.js'),
+    { runners: runnerExecutionServices(), landing: landingExecutionServices() });
+  if (!run) return { unavailable: 'this project has no full-suite runner the post-land run can use' };
+  if (run.isGreen) return { green: true, failures: [] };
+  const failures = failureSignatures(run, run.executionRoot ?? root, { raw: true });
+  return failures ? { green: false, failures: failures.map(({ file, name }) => ({ file, name })) } : { green: false, failures: null };
+}
+
+/** The ports a landing passes to postLandSuite. */
+export function postLandSuitePorts() {
+  return Object.freeze({ enabled: postLandSuiteEnabled, runSuite, storePath, laneOf, unownedMainReds,
+    readItems: board => listItems(board, { all: true }) });
+}
