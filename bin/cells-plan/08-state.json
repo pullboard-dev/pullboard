@@ -237,7 +237,8 @@
   ["src/pipeline-cause-engine.js","packages/state/src/core/pipeline-cause-engine.js","rule"],
   ["src/move-history/182.json","packages/state/src/shell/move-history/182.json","rule"],
   ["src/move-history/183.json","packages/state/src/shell/move-history/183.json","rule"],
-  ["src/move-history/184.json","packages/state/src/shell/move-history/184.json","rule"]
+  ["src/move-history/184.json","packages/state/src/shell/move-history/184.json","rule"],
+  ["src/plan-merge-engine.js","packages/state/src/shell/plan-merge-engine.js","rule"]
  ],
  "reexports": [
   "src/activity-delivery-engine.js",
