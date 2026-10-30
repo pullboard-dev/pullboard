@@ -182,6 +182,7 @@
   ["src/documentation/events/reserve.json","apps/cli/src/shell/documentation/events/reserve.json","rule"],
   ["src/documentation/events/rigor-draft.json","apps/cli/src/shell/documentation/events/rigor-draft.json","rule"],
   ["src/documentation/events/rigor-notice.json","apps/cli/src/shell/documentation/events/rigor-notice.json","rule"],
+  ["src/documentation/events/routing-rule.json","apps/cli/src/shell/documentation/events/routing-rule.json","rule"],
   ["src/documentation/events/row_apply.json","apps/cli/src/shell/documentation/events/row_apply.json","rule"],
   ["src/documentation/events/row_decision.json","apps/cli/src/shell/documentation/events/row_decision.json","rule"],
   ["src/documentation/events/row_draft.json","apps/cli/src/shell/documentation/events/row_draft.json","rule"],

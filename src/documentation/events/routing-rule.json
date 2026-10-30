@@ -1,0 +1,10 @@
+{
+  "kind": "routing-rule",
+  "entries": [
+    {
+      "order": 14,
+      "actor": "coordinator",
+      "detail": "`rule` on recording, or `revoke` on revocation"
+    }
+  ]
+}
