@@ -709,6 +709,8 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .lane .chip { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
 #spec-chips, #doctrine-chips { min-width: 0; max-width: 100%; }
 .rows-filter { display: flex; padding: var(--space-4) var(--space-4) var(--space-0); }
+.rows-filter.rule-description-wrap { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.rule-tab-description { max-width: 100%; margin: 0; color: var(--ink-muted); font-size: var(--text-sm); line-height: var(--leading-body); }
 .rows { padding: var(--space-1) var(--space-4) var(--space-4); }
 .section-count { margin-left: var(--space-2); color: var(--ink-faint); font: 500 var(--text-2xs) var(--mono); }
 .spec-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin: var(--space-4) 0 var(--space-1); }
