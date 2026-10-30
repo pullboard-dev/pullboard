@@ -1,5 +1,5 @@
 /** @pullboard-test-gui */
-/** @pullboard-test-input src/view.css src/view/cost.css */
+/** @pullboard-test-input src/view.css src/view/cost.css src/view/doctrine.css */
 /** Private cost presentation and actual local-board rendering with configured machine prices [N26]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -233,16 +233,17 @@ test('the private view shows its last twenty native landings; a public export ke
   writeFileSync(settingsFile, JSON.stringify({ ...previousSettings, costPrices: fixturePrices }));
   // @pullboard-board-file journey: compare the Cost presenter with actual usage events from the rendered private board.
   const diagnosticBoard = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
-  let pricingDiagnostic;
+  let pricingDiagnostic, nativeVendor;
   try {
     const nativeEvents = store.events(diagnosticBoard);
     const usageEvent = nativeEvents.find(event => event.event_kind === 'usage' && JSON.parse(event.event_detail).item === 22);
     const usageDetail = usageEvent ? JSON.parse(usageEvent.event_detail) : null;
     const nativeProject = {
       items: store.listItems(diagnosticBoard, { all: true }).map(item => ({ id: item.item_id, title: item.item_title, builtBy: item.item_built_by })),
-      agents: store.listAgents(diagnosticBoard).map(agent => ({ agent_id: agent.agent_id, model: agent.agent_model, family: agent.agent_family })),
+      agents: store.listAgents(diagnosticBoard).map(agent => ({ agent_id: agent.agent_id, model: agent.agent_model, family: agent.family })),
     };
     const nativeModel = costTabModel(nativeProject, nativeEvents, fixturePrices);
+    nativeVendor = nativeProject.agents.find(agent => agent.agent_id === usageEvent?.event_by)?.family ?? null;
     pricingDiagnostic = JSON.stringify({
       eventKind: usageEvent?.event_kind ?? null,
       eventItemId: usageEvent?.item_id ?? null,
@@ -288,6 +289,8 @@ test('the private view shows its last twenty native landings; a public export ke
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("data?.project?.items?.some(item => item.id === 1)");
+    const nativeBuilder = JSON.parse(await chrome.stable("JSON.stringify(data.project.agents.find(agent => agent.agent_lane === 'web'))"));
+    assert.equal(nativeBuilder.family, nativeVendor, 'the actual private API keeps the canonical native vendor');
     await press(chrome, "document.querySelector('[data-tab=cost]')");
     await chrome.waitFor("document.querySelector('[data-cost-row=\"22\"]')");
     assert.equal(await chrome.stable("JSON.stringify(data.project.costPrices)"), JSON.stringify(fixturePrices),
@@ -320,6 +323,9 @@ test('the private view shows its last twenty native landings; a public export ke
     await chrome.waitFor("document.querySelector('#cost-detail-22')");
     const pricedDetail = await chrome.stable("document.querySelector('#cost-detail-22').innerText");
     assert.match(pricedDetail, /fixture-priced-model/u, 'the real journey exposes the priced model in its session detail');
+    const vendorSummary = await chrome.stable("document.querySelector('#cost .cost-vendors').innerText");
+    assert.ok(vendorSummary.includes(nativeVendor ?? 'Vendor unknown'),
+      'the actual By vendor tile renders the API vendor, including an explicit unknown');
     assert.match(pricedDetail, /Cost\s+\$3\.00/u, 'the session detail uses the configured private rate');
     const publicView = await serveFolder(publicOutput, '/public/');
     try {

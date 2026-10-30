@@ -38,8 +38,14 @@ test('Spec and Doctrine selection keeps local decisions, inherited defaults and 
   const doctrine = ruleListModel(rows, { kind: 'doctrine', filter: 'decide', approvalIds: ['G3'] });
   assert.deepEqual(doctrine.shown.map(row => row.id), ['G1', 'G4']);
   assert.equal(doctrine.counts.defaults, 1);
-  assert.equal(doctrine.labels.defaults, 'Defaults to review');
-  assert.deepEqual(ruleListModel(rows, { kind: 'doctrine', filter: 'defaults' }).shown.map(row => row.id), ['G5']);
+  assert.equal(doctrine.labels.defaults, 'To review');
+  const defaults = ruleListModel(rows, { kind: 'doctrine', filter: 'defaults' });
+  assert.deepEqual(defaults.shown.map(row => row.id), ['G5']);
+  assert.deepEqual([...defaults.sectionCounts], [['standard:Defaults', 1]]);
+  assert.deepEqual([...defaults.sectionReviewCounts], [['standard:Defaults', 1]], 'only pending defaults contribute to the section count');
+  const approvedDefault = ruleListModel([...rows, { id: 'G6', section: 'Defaults', status: 'approved', origin: 'standard' }],
+    { kind: 'doctrine', filter: 'approved' });
+  assert.deepEqual([...approvedDefault.sectionReviewCounts], [['standard:Defaults', 1]], 'the header count still includes pending rules hidden by the current filter');
   assert.deepEqual(ruleListModel(rows, { kind: 'spec', filter: 'approved' }).shown.map(row => row.id), ['G3', 'G4']);
   const addressed = ruleListModel(rows, { kind: 'spec', filter: 'decide', selectedId: 'missing', addressed: true });
   assert.equal(addressed.nextSelectedId, 'missing', 'a missing addressed row must retain its not-found detail');
