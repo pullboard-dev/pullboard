@@ -8,10 +8,11 @@ import { applyEngineMove } from '../src/engine.js';
 import { prepareEngineMove } from '../src/engine.js';
 import { defaults } from '../src/config.js';
 import { reworkFamilyRoute } from '../src/rework-family-routing.js';
-import { reworkRoutingWindows } from '../src/rework-family-routing.js';
 import { sealReworkRoutingPolicy } from '../src/rework-family-routing.js';
 import { canTake } from '../src/route-escalation.js';
 import { routeOf } from '../src/seats.js';
+import { SEAT_LIVE_WINDOW_MS } from '../src/seat-presence.js';
+import { maintenanceDurations } from '../src/worktree-maintenance-config.js';
 
 const COMMIT = 'a'.repeat(40);
 
@@ -28,7 +29,10 @@ function fixture(t, { enabled = true, builderFamily = 'OpenAI' } = {}) {
   store.setLineSetting(board, { agentId: 'coordinator', key: 'takeoverMinutes', value: 15,
     reason: 'Exercise the configured native seat takeover window.', window: { fixture: 1 } });
   const advance = milliseconds => { at += milliseconds; };
-  return { board, builder, peer, other, advance, windows: reworkRoutingWindows(board, defaults()) };
+  const takeoverMinutes = store.lineSettings(board).takeoverMinutes;
+  const windows = { takeoverMs: typeof takeoverMinutes === 'number' ? takeoverMinutes * 60_000 : SEAT_LIVE_WINDOW_MS,
+    graceMs: maintenanceDurations(defaults().worktreeMaintenance).graceMs };
+  return { board, builder, peer, other, advance, windows };
 }
 
 /** Record a real native claim, optionally carrying the captured family-routing policy. */
@@ -52,7 +56,8 @@ function returned(f) {
 /** Resolve one builder's route through the production native-seat classifier. */
 function route(board, id, agentId, policy) {
   return reworkFamilyRoute(board, store.getItem(board, id), { listAgents: store.listAgents,
-    routeOf, canTake, policy, now: board.clock.now().getTime() });
+    routeOf, canTake, seatFamily: board.nativePorts.seatFamily, canonicalFamily: board.nativePorts.canonicalFamily,
+    policy, now: board.clock.now().getTime() });
 }
 
 test('[H16] returned work waits for its builder until gone, then prefers live same-family work and records portable fallback', t => {

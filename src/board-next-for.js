@@ -139,7 +139,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     .sort((first, second) => compare(first.entry, second.entry));
   const familyRework = lineSettings(board).reworkSameFamily === true;
   if (familyRework) for (const candidate of mine) {
-    const routing = reworkFamilyRoute(board, candidate.entry, { listAgents, routeOf, canTake, policy: reworkRoutingPolicy });
+    const routing = reworkFamilyRoute(board, candidate.entry, { listAgents, routeOf, canTake,
+      seatFamily: board.nativePorts.seatFamily, canonicalFamily: board.nativePorts.canonicalFamily, policy: reworkRoutingPolicy });
     if (routing.applies) candidate.reworkRouting = routing;
   }
   // Move only evidenced reworks ahead of their own tier; with no evidence, normal order is exact.

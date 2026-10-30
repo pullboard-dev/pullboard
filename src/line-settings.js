@@ -10,7 +10,7 @@ import { LAND_COLLISION_ENGINE } from './landing-collision-engine.js';
 import { Refused } from './refused.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from './review-independence-engine.js';
 import { LIVE_ROUTE_ENGINE } from './live-route-engine.js';
-import { REWORK_SAME_FAMILY_ENGINE } from './rework-same-family-engine.js';
+import { REWORK_SAME_FAMILY_ENGINE } from '../packages/state/index.js';
 
 const PREFIX = 'line_setting:';
 

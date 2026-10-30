@@ -36,7 +36,7 @@ import * as itemDependencies from './item-dependencies.js';
 import { firstRefusalProblem } from './claims.js';
 import { firstRefusal } from './board-item-read.js';
 import { reworkFamilyRoute } from './rework-family-routing.js';
-import { REWORK_SAME_FAMILY_ENGINE } from './rework-same-family-engine.js';
+import { REWORK_SAME_FAMILY_ENGINE } from '../packages/state/index.js';
 import * as capacity from './line-capacity-board.js';
 import {
   atomic,
@@ -96,7 +96,8 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       builderFirstRefusal: (found) => {
         if (reworkRoutingPolicy && (board.executionEngineVersion ?? ENGINE_VERSION) >= REWORK_SAME_FAMILY_ENGINE) {
           reworkRouting = reworkFamilyRoute(board, found, { agentId, listAgents: board.nativePorts.listAgents,
-            routeOf, canTake, policy: reworkRoutingPolicy, now: board.clock.now().getTime() });
+            routeOf, canTake, seatFamily: board.nativePorts.seatFamily, canonicalFamily: board.nativePorts.canonicalFamily,
+            policy: reworkRoutingPolicy, now: board.clock.now().getTime() });
           if (reworkRouting.applies) {
             if (reworkRouting.mode === 'policy-unknown') return new Refused('NO_POLICY', `item #${id} needs the accepted takeover and maintenance windows sealed into its claim; retry through the current CLI`);
             if (reworkRouting.allowed !== null && !reworkRouting.allowed.includes(agentId)) {

@@ -56,13 +56,20 @@ import { relayOperation } from '../relay.js';
 import { relayRecovered } from '../relay.js';
 import { coordinatorFile } from './spec.js';
 import { isReturnedRework } from '../rework-family-routing.js';
-import { reworkRoutingWindows } from '../rework-family-routing.js';
 import { sealReworkRoutingPolicy } from '../rework-family-routing.js';
+import { SEAT_LIVE_WINDOW_MS } from '../seat-presence.js';
+import { maintenanceDurations } from '../worktree-maintenance-config.js';
 
 /** Capture accepted coordinator retirement grace beside the native line takeover window. */
 export function currentReworkRoutingPolicy(ctx, board) {
   if (store.lineSettings(board).reworkSameFamily !== true) return null;
-  return reworkRoutingWindows(board, mainPolicy(ctx.info.root).config);
+  const takeoverMinutes = store.lineSettings(board).takeoverMinutes;
+  const takeoverMs = typeof takeoverMinutes === 'number' ? takeoverMinutes * 60_000 : SEAT_LIVE_WINDOW_MS;
+  let graceMs;
+  try { graceMs = maintenanceDurations(mainPolicy(ctx.info.root).config?.worktreeMaintenance).graceMs; }
+  catch { return null; }
+  if (!Number.isSafeInteger(takeoverMs) || takeoverMs < 0 || !Number.isSafeInteger(graceMs) || graceMs <= 0) return null;
+  return { takeoverMs, graceMs };
 }
 
 /** Note the session behind a claim or submit (#921): its ledger must be writable before the move, and record after it. */

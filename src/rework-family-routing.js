@@ -1,10 +1,5 @@
 import { agentHandoff } from '../packages/state/index.js';
-import { seatFamily } from './family-declaration.js';
-import { canonicalFamily } from './review-routing.js';
 import { staleInstant } from './board-stale-state-policy.js';
-import { lineSettings } from '../packages/state/index.js';
-import { SEAT_LIVE_WINDOW_MS } from './seat-presence.js';
-import { maintenanceDurations } from './worktree-maintenance-config.js';
 import { randomUUID } from 'node:crypto';
 const ACTIVITY_KINDS = "'claim','renew','submit','accept','reject','release'";
 
@@ -49,7 +44,7 @@ function returnedEpisode(board, item) {
 }
 
 /** Resolve the permitted builder seats for one returned item; this read is pure and is rechecked by claim. */
-export function reworkFamilyRoute(board, item, { listAgents, routeOf, canTake, policy, now = board.clock.now().getTime() } = {}) {
+export function reworkFamilyRoute(board, item, { listAgents, routeOf, canTake, seatFamily, canonicalFamily, policy, now = board.clock.now().getTime() } = {}) {
   const episode = returnedEpisode(board, item);
   if (!episode) return { applies: false, allowed: null };
   if (!policy || !Number.isSafeInteger(policy.takeoverMs) || !Number.isSafeInteger(policy.graceMs)) {
@@ -71,17 +66,6 @@ export function reworkFamilyRoute(board, item, { listAgents, routeOf, canTake, p
   const checkedFamilies = [...new Set(listAgents(board).filter(seat => seat.agent_lane === item.item_lane)
     .map(seat => canonicalFamily(board, seatFamily(board, seat.agent_id))).filter(Boolean))].sort();
   return { applies: true, mode: 'fallback', builder, builderFamily, episode: episode.event_id, allowed: null, checkedFamilies };
-}
-
-/** Resolve the per-operation policy from accepted coordinator settings and native line controls. */
-export function reworkRoutingWindows(board, acceptedConfig) {
-  const takeoverMinutes = lineSettings(board).takeoverMinutes;
-  const takeoverMs = typeof takeoverMinutes === 'number' ? takeoverMinutes * 60_000 : SEAT_LIVE_WINDOW_MS;
-  let graceMs;
-  try { graceMs = maintenanceDurations(acceptedConfig?.worktreeMaintenance).graceMs; }
-  catch { return null; }
-  if (!Number.isSafeInteger(takeoverMs) || takeoverMs < 0 || !Number.isSafeInteger(graceMs) || graceMs <= 0) return null;
-  return { takeoverMs, graceMs };
 }
 
 /** Seal one captured policy and portable fallback identity before the claim enters the native writer. */
