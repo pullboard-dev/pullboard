@@ -1,13 +1,28 @@
 import { refusalDocument } from './next-step-words.js';
 /** A detached continuation runs canonical Submit from its captured private source, never the builder checkout. */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+} from 'node:fs';
+import {
+  dirname,
+  join,
+  resolve,
+} from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gitSpawnSync } from './git-adapter.js';
 import { cleanGitEnvironment } from './git.js';
-import { context, withBoard } from './cli-context.js';
+import {
+  context,
+  withBoard,
+} from './cli-context.js';
 import { ordered } from './cli/claim.js';
-import { bindSubmitHandoffOrigin, submitHandoffRoot, isSubmitHandoffWorker } from './submit-handoff-origin.js';
+import {
+  bindSubmitHandoffOrigin,
+  submitHandoffRoot,
+  isSubmitHandoffWorker,
+} from './submit-handoff-origin.js';
 import { submitHandoff } from './submit-handoff-read.js';
 import { submitHere } from './commands/submit.js';
 import { Refused } from './refused.js';

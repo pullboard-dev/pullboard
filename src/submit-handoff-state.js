@@ -1,13 +1,26 @@
-import { boardWriteSnapshot, requireBoardWriteSnapshot } from './board-write-preparation.js';
+import {
+  boardWriteSnapshot,
+  requireBoardWriteSnapshot,
+} from './board-write-preparation.js';
 import { insertShout } from './board-shout.js';
-import { submitHandoff, pendingSubmitHandoff } from './submit-handoff-read.js';
+import {
+  submitHandoff,
+  pendingSubmitHandoff,
+} from './submit-handoff-read.js';
 export { submitHandoff, pendingSubmitHandoff, submitHandoffFailure } from './submit-handoff-read.js';
 /** Durable queue observations do not grant submission or review authority [C7,V4,H16]. */
-import { atomic, logEvent } from './board-event-log.js';
+import {
+  atomic,
+  logEvent,
+} from './board-event-log.js';
 import { release } from './board.js';
 import { firstRefusalDetail } from './claims.js';
 import { itemPatchDigest } from './item-patch-state.js';
-import { getItem, now, proofReceipts } from './board-query.js';
+import {
+  getItem,
+  now,
+  proofReceipts,
+} from './board-query.js';
 import { Refused } from './refused.js';
 
 const PREFIX = 'submit_handoff:';

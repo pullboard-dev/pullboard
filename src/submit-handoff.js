@@ -2,8 +2,16 @@ import { git } from './git.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { mkdirSync, openSync, closeSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import {
+  mkdirSync,
+  openSync,
+  closeSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  dirname,
+  join,
+} from 'node:path';
 import { withBoard } from './cli-context.js';
 import { ordered } from './cli/claim.js';
 import { itemPatchDigest } from './item-patch-state.js';

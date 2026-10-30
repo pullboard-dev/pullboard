@@ -1,4 +1,7 @@
-import { submitHandoffActor, isSubmitHandoffWorker } from '../submit-handoff-origin.js';
+import {
+  submitHandoffActor,
+  isSubmitHandoffWorker,
+} from '../submit-handoff-origin.js';
 import { captureLapsedClaims } from '../../packages/health/index.js';
 /** Helpers for `pullboard claim`: ordered moves and the criterion freeze. Split from src/cli.js, which re-exports it [C7]. */
 import { itemCheckBaseline } from '../board-query.js';

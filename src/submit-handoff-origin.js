@@ -1,11 +1,25 @@
 import { requireSubmitHandoffHookProof } from './submit-handoff-state.js';
-import { mainPolicy, policyAt } from './trusted-policy-read.js';
+import {
+  mainPolicy,
+  policyAt,
+} from './trusted-policy-read.js';
 import { contains } from './git.js';
 import { itemPatchDigest } from './item-patch-state.js';
 /** Private worker origins retain the queued sender without registering or lending a second seat [E18,V4]. */
 import { realpathSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { repoInfo, headCommit, headTree, isClean, git, tryGit, untracked } from './git.js';
+import {
+  join,
+  resolve,
+} from 'node:path';
+import {
+  repoInfo,
+  headCommit,
+  headTree,
+  isClean,
+  git,
+  tryGit,
+  untracked,
+} from './git.js';
 import { submitHandoff } from './submit-handoff-read.js';
 import { Refused } from './refused.js';
 

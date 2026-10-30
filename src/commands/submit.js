@@ -1,5 +1,13 @@
-import { pendingSubmitHandoff, submitHandoff } from '../submit-handoff-read.js';
-import { isSubmitHandoffWorker, copySubmitHandoffOrigin, submitHandoffPolicy, requireSubmitHandoffExecution } from '../submit-handoff-origin.js';
+import {
+  pendingSubmitHandoff,
+  submitHandoff,
+} from '../submit-handoff-read.js';
+import {
+  isSubmitHandoffWorker,
+  copySubmitHandoffOrigin,
+  submitHandoffPolicy,
+  requireSubmitHandoffExecution,
+} from '../submit-handoff-origin.js';
 import { blockingFailures } from '../quarantine-verdict.js';
 import { boundProofReceipt } from '../proof-receipts.js';
 import { sealQuarantineVerdict } from '../quarantine.js';

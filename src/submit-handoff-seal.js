@@ -2,7 +2,12 @@ import { mainPolicy } from './trusted-policy-read.js';
 /** Capture queued source at the genuine registered origin before the native writer; replay consumes values only. */
 import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
-import { repoInfo, headCommit, headTree, isClean } from './git.js';
+import {
+  repoInfo,
+  headCommit,
+  headTree,
+  isClean,
+} from './git.js';
 import { prepareItemPatchSubmit } from './item-patch-submit.js';
 import { itemPatchDigest } from './item-patch-state.js';
 import { getItem } from './board-query.js';
