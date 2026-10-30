@@ -321,7 +321,7 @@ test('cache evicts old commits transactionally and reclaims its configured size 
     const db = cache(box);
     try {
       const groups = db.prepare('SELECT DISTINCT commit_id FROM facts ORDER BY commit_id').all().map(row => row.commit_id);
-      assert.ok(groups.length <= 3, JSON.stringify(groups));
+      assert.ok(groups.length <= 2, JSON.stringify(groups));
       assert.ok(groups.includes('commit-7'), JSON.stringify(groups));
       assert.ok(db.prepare('PRAGMA page_count').get().page_count * db.prepare('PRAGMA page_size').get().page_size <= 65536);
     } finally { db.close(); }
@@ -368,7 +368,7 @@ test('current main retains all namespace facts while older commits rotate [B6,C7
     const db = cache(box);
     try {
       assert.equal(db.prepare('SELECT COUNT(*) AS n FROM facts WHERE commit_id=?').get(current).n, 2);
-      assert.ok(db.prepare('SELECT COUNT(DISTINCT commit_id) AS n FROM facts').get().n <= 3);
+      assert.equal(db.prepare('SELECT COUNT(DISTINCT commit_id) AS n FROM facts').get().n, 2);
     } finally { db.close(); }
   } finally {
     if (prior === undefined) delete process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS; else process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS = prior;

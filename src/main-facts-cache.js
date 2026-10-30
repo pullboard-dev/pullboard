@@ -140,7 +140,7 @@ export function cachedMainFact(root, namespace, identity, derive, validate) {
     if (Buffer.byteLength(derived) <= LIMIT) {
       const { bytes, recent } = cacheLimits();
       const previous = db.prepare('SELECT commit_id, MAX(touched) AS touched FROM facts GROUP BY commit_id ORDER BY touched DESC').all();
-      const keep = new Set([commit, ...(current ? [current] : []), ...previous.filter(row => row.commit_id !== commit && row.commit_id !== current).slice(0, recent).map(row => row.commit_id)]);
+      const keep = new Set([commit, ...(current ? [current] : []), ...previous.filter(row => row.commit_id !== commit && row.commit_id !== current).slice(0, Math.max(0, recent - (commit === current ? 0 : 1))).map(row => row.commit_id)]);
       let removed = 0;
       for (const row of previous) if (!keep.has(row.commit_id)) removed += db.prepare('DELETE FROM facts WHERE commit_id=?').run(row.commit_id).changes;
       const size = () => db.prepare('SELECT COALESCE(SUM(length(CAST(body AS BLOB)) + 256), 0) AS bytes FROM facts').get().bytes;
