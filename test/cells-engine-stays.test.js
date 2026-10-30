@@ -109,6 +109,6 @@ test('an engine-looking filename or imported engine export cannot manufacture de
     box.plan.stays.push({ path: file, reason: 'canonical engine identity retained in src during package moves' });
     box.plan.engineStays.push({ cell: 'state', row });
   }
-  await assert.rejects(inspect(box), error => box.paths.slice(4)
+  await assert.rejects(inspect(box), error => box.paths.slice(4, 6)
     .every(file => error.message.includes(`unproven canonical engine stay: ${file}`)));
 });

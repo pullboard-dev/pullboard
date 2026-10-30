@@ -4,7 +4,7 @@ import { IN_STATE } from './machine-shared.js';
  * The `patch-claimed` and `patch` lifecycle moves, declared in their own module so a change to one move's
  * guards never edits the file every other move shares; src/machine.js lists every move in order [M1,C7].
  *
- * @type {import('./machine.js').Move[]}
+ * @type {import('../shell/machine.js').Move[]}
  */
 export const MOVES = [
   { verb: 'patch-claimed', from: ['claimed'], to: 'claimed', by: ['coordinator'], refuse: 'ITEM_PATCH_STATE',
