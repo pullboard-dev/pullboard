@@ -14,7 +14,7 @@ import { closeBoard } from '../../src/board.js';
 import { finishLandingBatch } from '../../src/board.js';
 import { getItem } from '../../src/board.js';
 import { landingBatches } from '../../src/board.js';
-import { openBoard } from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { recordLandingBatch } from '../../src/board.js';
 import { addItem } from '../../src/board.js';
 import { ensureCoordinator } from '../../src/board.js';

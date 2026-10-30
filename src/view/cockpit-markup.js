@@ -58,9 +58,11 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
   </section>
   <section class="card-panel snapshot-controls" id="snapshot-controls" ${snapshot ? '' : 'hidden'} aria-label="Snapshot replay">
     <span>Read-only snapshot</span>
-    <button class="ghost" id="replay-play" type="button">Play from first event</button>
-    <button class="ghost" id="replay-pause" type="button" disabled>Pause</button>
-    <label>Speed <select id="replay-speed"><option value="1">1×</option><option value="4">4×</option><option value="16">16×</option></select></label>
+    <div class="snapshot-control-actions">
+      <button class="ghost" id="replay-play" type="button">Play from first event</button>
+      <button class="ghost" id="replay-pause" type="button" disabled>Pause</button>
+      <label>Speed <select id="replay-speed"><option value="1">1×</option><option value="4">4×</option><option value="16">16×</option></select></label>
+    </div>
     <output id="replay-progress" aria-live="polite">Loading events…</output>
   </section>
   <section id="group-view" class="group-view" hidden>

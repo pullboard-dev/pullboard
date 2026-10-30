@@ -294,7 +294,6 @@
   {"cell":"app:runner","imports":1,"before":true}
  ],
  "cuts": [
-  {"cell":"codemap","imports":1,"edges":["src/map-slice-say.js->src/cli.js"]},
   {
    "cell": "seats",
    "imports": 5,
@@ -307,6 +306,7 @@
    ]
   },
   {"cell":"stats","imports":1,"edges":["src/cost-checkpoint.js->src/cli.js"]},
+  {"cell":"store","imports":1,"edges":["src/exchange.js->src/command-phase.js"]},
   {
    "cell": "person",
    "imports": 3,

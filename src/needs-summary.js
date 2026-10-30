@@ -5,7 +5,7 @@ import { repoInfo } from './git.js';
 import { projectRowDecisions } from './row-decisions.js';
 import { loadSpec } from './spec.js';
 import { loadDoctrine } from './doctrine.js';
-import { rigorDraftNeeds } from './rigor-notices.js';
+import { rigorDraftNeeds } from '../packages/rigor/index.js';
 import { personBlockWords } from './blocks.js';
 import { displayAgentName } from './agent-names.js';
 import {

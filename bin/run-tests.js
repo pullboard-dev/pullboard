@@ -1317,7 +1317,7 @@ async function main(args) {
     }
   };
   try {
-    const { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, gateSlotEnvironment, inheritedGateSlot } = await import('../src/resources.js');
+    const { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, gateSlotEnvironment, inheritedGateSlot } = await import('../packages/resources/index.js');
     const scopedMarker = process.env[GATE_SLOT_POOL_ENV] || process.env[GATE_SLOT_TOKEN_ENV];
     const legacyHeld = process.env[GATE_SLOT_HELD_ENV] === '1';
     // Shard payloads carry files only; filtered discovery keeps the existing admitted run and its name filter.
@@ -1448,7 +1448,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
     delete process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH;
     const { testsNeedBrowser } = await import('../src/browser-admission.js');
     if (await testsNeedBrowser(process.cwd(), [process.argv[1]], { byLaunch })) {
-      const { takeResource } = await import('../src/resources.js');
+      const { takeResource } = await import('../packages/resources/index.js');
       const lease = await takeResource({ name: process.env.PULLBOARD_TEST_BROWSER_RESOURCE,
         capacity: Number(process.env.PULLBOARD_TEST_BROWSER_CAPACITY), kind: 'test-browser-file', root: process.cwd() });
       // Hold through file cleanup and process exit, including abort/watchdog paths.

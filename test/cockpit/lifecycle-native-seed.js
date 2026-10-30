@@ -6,6 +6,7 @@ import { join, dirname } from 'node:path';
 import { project, build } from './fixture.js';
 import { intakeFixture, fixtureJSON } from '../intake-fixture.js';
 import * as store from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 
 /** Observe genuine rare journeys and reject absent/non-native receipts before checking the live API.
  * Ports must run existing real CLI journeys, not return fabricated events or precomputed counts.
@@ -109,8 +110,8 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
       build(box, source, id, 'import-proof.txt');
       const head = box.git(source.web, 'rev-parse', 'HEAD');
       accept(source.repo, id, head);
-      const from = store.openBoard(join(source.repo, '.git', 'pullboard', 'board.sqlite'));
-      const to = store.openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
+      const from = openBoard(join(source.repo, '.git', 'pullboard', 'board.sqlite'));
+      const to = openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
       try {
         assert.equal(store.getItem(from, id).item_status, 'verified');
         const moveId = 'lifecycle-accepted-import';
@@ -189,7 +190,7 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
       const path = join(box.dir, 'lifecycle-companion.patch');
       writeFileSync(path, bytes);
       json(demo.repo, 'patch', 'attach', String(id), path, '--key', 'lifecycle-route', '--author', 'coordinator', '--source', head);
-      const board = store.openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
+      const board = openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
       try {
         assert.equal(store.itemPatches(board, id)[0].patch, bytes);
         assert.equal(store.itemPatches(board, id)[0].commit, head);

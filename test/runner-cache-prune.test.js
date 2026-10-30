@@ -13,7 +13,7 @@ import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
-import { takeResource } from '../src/resources.js';
+import { takeResource } from '../packages/resources/index.js';
 import { pinSourceCacheJob } from '../src/runner-source-cache.js';
 import { pruneSourceCache } from '../src/runner-source-cache.js';
 import { SOURCE_CACHE_CANDIDATES } from '../src/runner-source-cache.js';

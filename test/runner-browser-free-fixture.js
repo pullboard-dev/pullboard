@@ -8,7 +8,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync,
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { listResources, takeResource } from '../src/resources.js';
+import { listResources, takeResource } from '../packages/resources/index.js';
 import { runFixtureChild, runFixtureChildAsync } from './fixture-child.js';
 import { HOST, installSshStandIn, shellQuote } from './runner-ssh-fixture.js';
 import { CHROME, FREE, MARKER } from './runner-browser-free-sources.js';

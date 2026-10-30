@@ -10,17 +10,17 @@ import {
 import {
   conflictLines,
   conflictReport,
-} from '../rigor-conflicts.js';
+} from '../../packages/rigor/index.js';
 import {
   rigorDraftCommand,
-} from '../rigor-draft.js';
+} from '../../packages/rigor/index.js';
 import {
   draftConflictSplits,
-} from '../rigor-splits.js';
+} from '../../packages/rigor/index.js';
 import {
   draftQualityRows,
   rigorQualityCommand,
-} from '../rigor-quality-draft.js';
+} from '../../packages/rigor/index.js';
 import {
   rigorLines,
   rigorReport,

@@ -56,6 +56,7 @@ export function defaults() {
     reviewLease: '30m',
     worktrees: 'beside',
     verify: { policy: 'any', family: 'off', reviewRatio: 3 },
+    review: { starveMinutes: 10 },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
     families: {},
     // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
@@ -124,6 +125,8 @@ function merge(base, raw) {
     verify: typeof raw.verify === 'string'
       ? { ...base.verify, policy: raw.verify }
       : { ...base.verify, ...(raw.verify ?? {}) },
+    review: raw.review && typeof raw.review === 'object' && !Array.isArray(raw.review)
+      ? { ...base.review, ...raw.review } : raw.review === undefined ? base.review : raw.review,
     inbox: raw.inbox === undefined ? base.inbox
       : raw.inbox && typeof raw.inbox === 'object' && !Array.isArray(raw.inbox)
         ? { ...base.inbox, ...raw.inbox } : raw.inbox,
@@ -333,6 +336,11 @@ export function configProblems(config) {
   }
   if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
     problems.push('"map.slice" is true or false');
+  }
+  if (!config.review || typeof config.review !== 'object' || Array.isArray(config.review)
+    || Object.keys(config.review).some(key => key !== 'starveMinutes')
+    || !Number.isFinite(config.review.starveMinutes) || config.review.starveMinutes <= 0) {
+    problems.push('"review.starveMinutes" is a positive number of minutes');
   }
   if (!Number.isFinite(config.verify?.reviewRatio) || config.verify.reviewRatio <= 0) {
     problems.push('"verify.reviewRatio" is a positive number, such as 3');

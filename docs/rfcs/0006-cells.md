@@ -88,6 +88,8 @@ packages/pricing/
 - During the move, a package still in a cycle may import a named file inside another (`#store/src/board.js`) until it leaves the cycle. [R59]
 - A split keeps the old name as a front door that re-exports, until its callers move. [R62]
 
+During a move behind shims, each old source path re-exports through the cell's `packages/<cell>/index.js`, never a moved leaf directly. Keep that front door and its package reachable from a production app. `node bin/cells-plan.js --moved <cell>` checks the shim targets and production reachability before the move is submitted.
+
 **Why.** Importing by name means regrouping or splitting folders later changes only the root map. Declaring dependencies would duplicate the imports (K2, K5); approving each *new* edge records the intent at the moment it changes. A trial move of Pullboard found 40 of 44 proposed cells in one import cycle; importing by package name fails until that cycle is cut, while importing named files loads, so the transition rule is explicit and counted down.
 
 ## 4. Comments and types

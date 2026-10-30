@@ -5,7 +5,7 @@ import {
   memoryVerdict,
   readMachineMemory,
   runnerResourceStatus,
-} from '../resources.js';
+} from '../../packages/resources/index.js';
 import { runnerDeadlineLine } from '../runner-wait.js';
 import {
   gateQueueSettings,

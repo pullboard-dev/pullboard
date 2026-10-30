@@ -18,16 +18,16 @@ import {
 import { lineWipLimit } from './line-wip-limit.js';
 
 /** Offer the existing eligible review with either the historical ratio or enabled total-cap threshold. */
-export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy = 'off', ratio = 3, runnable = false, routes = ROUTES, omitIds = [], skipIds = [], priority = [], observeIdle = false }, nextFor) {
+export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy = 'off', ratio = 3, runnable = false, routes = ROUTES, omitIds = [], skipIds = [], priority = [], observeIdle = false, starveMinutes = 10 }, nextFor) {
   const offered = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, omitIds, skipIds, priority, observeIdle });
   if (observeIdle && !offered.item) return { item: null, idleReason: offered.idleReason };
   const queue = reviewQueue(board);
   const held = offered.item && reviewHolder(board, offered.item) === agentId;
   if (reviewRoutingEnabled(board) && held) return { item: offered.item, queue, ratio, urgent: 'held-review', held: true };
+  const urgent = held ? { item: null } : nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, omitIds, priority: [],
+    skipIds: [...skipIds, ...listItems(board).filter(item => !overdueReview(board, item, starveMinutes)).map(item => item.item_id)] });
+  if (urgent.item) return { item: urgent.item, queue, ratio, urgent: 'age', starveMinutes };
   if (!held && reviewRoutingEnabled(board) && offered.item && priority.includes(offered.item.item_id)) return { item: offered.item, queue, ratio, urgent: 'main-red' };
-  const urgent = held ? { item: null } : nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, omitIds, priority,
-    skipIds: [...skipIds, ...listItems(board).filter(item => !overdueReview(board, item)).map(item => item.item_id)] });
-  if (urgent.item) return { item: urgent.item, queue, ratio, urgent: 'age' };
   const settings = capacitySettings(board);
   const capacity = settings.reviewsFirst === true ? lineCapacitySnapshot(board) : null;
   if (capacity) ratio = typeof settings.wipPerReviewer === 'number' ? settings.wipPerReviewer : 3;
