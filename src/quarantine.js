@@ -1,3 +1,6 @@
+import { proofReceipts } from './board-query.js';
+import { nativeProofBlockingGreen } from './quarantine-verdict.js';
+import { landingGateRecords } from './quarantine-verdict.js';
 import { MAIN_AUDIT_ENGINE } from './main-audit-engine.js';
 import { landingBatches } from './landing-batch-history.js';
 /**
@@ -107,10 +110,11 @@ export function quarantineWaivers(board) {
 /** Snapshot current native exceptions only from this board's actual, bound proving receipts. */
 export function quarantineVerdictSnapshot(board) {
   if (!quarantineOn(board)) return [];
+  const active = flakeQuarantines(board).filter(entry => entry.nativeCore && entry.status === 'quarantined');
+  if (!active.length) return [];
   const store = boardReceiptStore(board);
   const runs = new Map(gateRuns(board).map(({ eventId, by, ...run }) => [run.id, run]));
-  return flakeQuarantines(board).filter(entry => entry.nativeCore && entry.status === 'quarantined'
-    && entry.runs.every(id => runs.has(id) && receiptBinds(store, runs.get(id))))
+  return active.filter(entry => entry.runs.every(id => runs.has(id) && receiptBinds(store, runs.get(id))))
     .map(({ eventId, item, file, name }) => ({ eventId, item, file, name }));
 }
 
@@ -145,6 +149,37 @@ export function validateQuarantineGate(board, gate, options) {
     throw new Refused('PROOF_RUN_UNBOUND', 'a computed landing verdict needs its exact recorded raw receipt');
   }
   validateQuarantineVerdict(board, run, options);
+}
+
+/** Recheck event authority inside the outcome transaction, using only already-recorded native execution identities. */
+export function validateQuarantineProofIds(board, item, { agentId, ids, kind, commit, requireGreen = false }) {
+  if (!Array.isArray(ids) || !ids.length || ids.length > (kind === 'verdict' ? 1 : 2) || new Set(ids).size !== ids.length) {
+    throw new Refused('PROOF_RUN_UNBOUND', 'a computed outcome needs its exact recorded native proof ids');
+  }
+  const runs = proofReceipts(board, item.item_id);
+  for (const id of ids) {
+    const run = runs.find(row => row.id === id);
+    if (!run || !Object.hasOwn(run, 'blockingVerdict') || run.kind !== kind || run.seat !== agentId
+      || run.item !== item.item_id || run.frozenDigest !== item.item_frozen_digest || run.sourceClean !== true
+      || run.exitCode !== 1 || commit !== undefined && run.commit !== commit || requireGreen && !nativeProofBlockingGreen(run)) {
+      throw new Refused('PROOF_RUN_UNBOUND', 'the quarantine outcome must bind this actor, item, bar and actual native execution');
+    }
+    validateQuarantineVerdict(board, { green: false, failures: run.failures, blockingVerdict: run.blockingVerdict });
+  }
+}
+
+/** Only the selected proof grants publication authority; other immutable cache history stays historical. */
+export function validateQuarantineLandingProof(board, batch) {
+  if (batch.proof?.receipt) {
+    validateQuarantineVerdict(board, batch.proof.receipt);
+    return;
+  }
+  const records = landingGateRecords(batch);
+  const selected = records.filter(gate => gate?.tree === batch.proof?.tree && gate.logPath === batch.proof?.logPath);
+  if (!selected.length && records.some(gate => gate?.tree === batch.proof?.tree && Object.hasOwn(gate, 'blockingVerdict'))) {
+    throw new Refused('PROOF_RUN_UNBOUND', 'a computed landing must identify its exact selected gate log');
+  }
+  for (const gate of selected) validateQuarantineGate(board, gate);
 }
 
 /** The open repair item the older paired-rerun ledger already holds for this test, so one test never gets two. */

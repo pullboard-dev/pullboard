@@ -39,7 +39,7 @@ export function checkTrainLandingReceipt(receipt, commit) {
  * @param {string} commit exact envelope commit to be recorded
  * @returns {object} canonical native receipt suitable for origin sealing
  */
-export function readTrainLandingReceipt(root, board, id, commit) {
+export function readTrainLandingReceipt(root, board, id, commit, { historical = false } = {}) {
   if (typeof id !== 'string' || !id.trim()) {
     throw new Refused('LAND_RECEIPT_REQUIRED',
       'run the native landing gate on the batch envelope and pass its receipt ID when recording the landing');
@@ -48,7 +48,7 @@ export function readTrainLandingReceipt(root, board, id, commit) {
     const store = boardReceiptStore(board);
     const value = checkTrainLandingReceipt(readGateReceipt(store, id), commit);
     if (!receiptBinds(store, value)) throw unboundReceipt();
-    validateQuarantineVerdict(board, value);
+    validateQuarantineVerdict(board, value, { historical });
     const tree = git(root, ['rev-parse', '--verify', `${commit}^{tree}`]).trim();
     const command = policyAt(root, value.main).config.gate;
     if (typeof command !== 'string' || !command.trim() || tree !== value.tree

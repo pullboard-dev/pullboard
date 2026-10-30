@@ -1,3 +1,4 @@
+import { blockingFailures } from './quarantine-verdict.js';
 import { quarantineVerdictSnapshot } from './quarantine.js';
 import { validateQuarantineGate } from './quarantine.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
@@ -122,13 +123,15 @@ export async function gateGroup(state, label, options) {
   if (headCommit(state.batch.root) !== commit || headTree(state.batch.root) !== tree || !isClean(state.batch.root)) {
     throw new Refused('LAND_SOURCE_CHANGED', `the landing source changed while the gate ran; inspect ${logPath} and restore the recorded batch before adopting`);
   }
-  const result = { ...gate, failures: landingFailures(gate.output, state.batch.root), accounted: accountedFailures(gate, state.batch.root), complete: completeGate(gate),
+  const failures = blockingFailures(gate, landingFailures(gate.output, state.batch.root));
+  if (!failures) throw new Refused('LAND_DIAGNOSTIC', 'the gate lost its complete native quarantine failure account');
+  const result = { ...gate, failures, accounted: blockingFailures(gate, accountedFailures(gate, state.batch.root)), complete: completeGate(gate),
     requiresGreen: Boolean(cached && !completeGate(cached)), tree, logPath, affectedGate };
   state.gates.set(tree, result);
   const evidence = state.batch.invariantEvidence ?? { version: 1, gates: [], diagnostics: [] };
   const tested = { commit, isGreen: gate.isGreen && completeGate(gate),
     submissions: state.batch.items.map(({ id, commit }) => ({ id, commit })),
-    failures: [...new Set(landingFailures(gate.output, state.batch.root, { excludeCancelled: true }).map(failure => failure.file).filter(Boolean))],
+    failures: [...new Set((gate.blockingVerdict ? failures : landingFailures(gate.output, state.batch.root, { excludeCancelled: true })).map(failure => failure.file).filter(Boolean))],
     fileTimes: landingFileTimes(state.batch.root, gate.profile) };
   const warnings = gate.environment ? environmentWarnings(state.board, state.batch.items, gate.environment) : [];
   for (const warning of warnings) state.say(`#${warning.item} was checked on ${environmentLabel(warning.recorded)}; this landing ran on ${environmentLabel(warning.landing)}`);

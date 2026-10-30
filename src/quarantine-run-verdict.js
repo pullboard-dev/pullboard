@@ -27,7 +27,7 @@ export function quarantineRunVerdict(run, quarantines, { root, sourceClean, priv
     if (run.state !== 'red' || !run.executed || !run.checked || plan?.length !== 1 || plan[0].pipeline.length !== 1) return run;
     stages = timingAccountingStages([{ status: run.exitCode, output }], outcomeId, source);
   }
-  const failures = accountedFailures({ ...run, isGreen: false, stages }, run.executionRoot ?? root);
+  const failures = accountedFailures({ ...run, isGreen: false, stages }, run.executionRoot ?? root, { nativeLeaves: true });
   if (!failures || failures.length !== counts.failed || failures.some(failure => !outcomes.some(row =>
     row.file === failure.file && row.name === failure.name && !row.passed && !row.skipped))) return run;
   const verdict = quarantineVerdict(failures, quarantines, { green: false, exitCode: run.exitCode });

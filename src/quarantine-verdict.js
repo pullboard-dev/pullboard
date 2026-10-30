@@ -60,9 +60,26 @@ export function nativeProofBlockingGreen(receipt) {
 }
 
 /** Every serialized landing cache location has the same quarantine authority contract. */
-export function quarantineBatchGates(batch) {
+export function landingGateRecords(batch) {
   return [...(batch?.gateResults ?? []), ...(batch?.deferredGateResults ?? []), ...(batch?.parallelCandidates ?? []).flatMap(candidate =>
-    [...(candidate.snapshot?.gateResults ?? []), ...(candidate.snapshot?.deferredGateResults ?? []), ...(candidate.gate ? [candidate.gate] : [])])]
-    .filter(gate => Object.hasOwn(gate ?? {}, 'blockingVerdict'));
+    [...(candidate.snapshot?.gateResults ?? []), ...(candidate.snapshot?.deferredGateResults ?? []), ...(candidate.gate ? [candidate.gate] : [])])];
 }
 
+/** Presence, including malformed values, requires a receiver that understands the new evidence. */
+export function quarantineBatchGates(batch) {
+  return landingGateRecords(batch).filter(gate => Object.hasOwn(gate ?? {}, 'blockingVerdict'));
+}
+
+
+/** Remove covered identities only from an already authenticated complete raw account; callers validate board authority. */
+export function blockingFailures(run, failures) {
+  if (!Object.hasOwn(run ?? {}, 'blockingVerdict')) return failures;
+  const raw = run.quarantineFailures ?? run.failures ?? failures;
+  const verdict = quarantineVerdictFields(run.blockingVerdict, { green: run.rawIsGreen ?? run.green ?? false,
+    exitCode: run.exitCode ?? run.proof?.exitCode ?? run.blockingVerdict?.exitCode, failures: raw });
+  if (!verdict) return null;
+  const rows = Array.isArray(failures) ? failures.filter(row => raw.some(entry => key(entry) === key(row))) : raw;
+  if (rows.length !== raw.length || raw.some(entry => !rows.some(row => key(entry) === key(row)))) return null;
+  const covered = new Set(verdict.quarantines.map(key));
+  return rows.filter(row => !covered.has(key(row)));
+}

@@ -104,7 +104,9 @@ export async function runDeferredGuards(state, { deferredSelections, landingFail
       blockingVerdict: run.blockingVerdict, quarantineFailures: run.quarantineFailures, proofReceiptId: run.proofReceiptId, logPath: run.logPath }
   ] } : {}) });
   if (run.blockingVerdict) validateQuarantineGate(state.board, gate);
-  if (run.isGreen) { state.say(`deferred affected tests: ${files.length} file(s) green on the merged tree`); return; }
+  if (run.isGreen) { state.say(run.blockingVerdict
+    ? `deferred affected tests: blocking verdict green; raw exit ${run.exitCode}; quarantine events ${run.blockingVerdict.quarantines.map(row => row.eventId).join(', ')}; log ${run.logPath}`
+    : `deferred affected tests: ${files.length} file(s) green on the merged tree`); return; }
   const held = run.blockingVerdict?.quarantines ?? [];
   const failures = landingFailures(run.output, root).filter(failure => !held.some(row => row.file === failure.file && row.name === failure.name));
   const failed = new Set(failures.map((failure) => failure.file).filter(Boolean));

@@ -1,3 +1,4 @@
+import { blockingFailures } from '../quarantine-verdict.js';
 import { quarantineWaivers } from '../quarantine.js';
 import { quarantineVerdictSnapshot } from '../quarantine.js';
 import { validateQuarantineVerdict } from '../quarantine.js';
@@ -89,7 +90,7 @@ export async function run(io, { first, second, rest, values }) {
     validateQuarantineVerdict(board, receipt);
   });
   // A landing gate honours the person's live waivers exactly as land does; a red run never stamps, so it stays waived, not green [B3,R3].
-  const waived = values.landing && !gate.isGreen ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, ctx.info.root), { quarantineWaivers })) : null;
+  const waived = values.landing && !gate.isGreen ? withBoard(ctx, (board) => waivedFailures(board, blockingFailures(gate, accountedFailures(gate, ctx.info.root)), { quarantineWaivers })) : null;
   if (waived) {
     const lines = waived.map(waiverLine);
     const report = `landing gate waived, not green: ${waived.length} failure(s), each covered by a live person waiver; the whole output is in ${gate.log}\n${lines.join('\n')}`;
@@ -98,7 +99,9 @@ export async function run(io, { first, second, rest, values }) {
     return 0;
   }
   if (needsReceipt && gate.isGreen && !gate.receiptId) throw new Refused('LAND_RECEIPT_UNBOUND', 'the native gate could not bind its exact clean envelope; restore committed source and run gate --landing --receipt');
-  io.result?.({ green: gate.isGreen, report: gateReport(gate), ...(gate.blockingVerdict ? { rawExitCode: gate.exitCode, blockingVerdict: gate.blockingVerdict } : {}), ...(values.landing ? { receiptId: gate.receiptId ?? null } : {}) });
+  io.result?.({ green: gate.isGreen, report: gateReport(gate), ...(gate.blockingVerdict ? { rawExitCode: gate.exitCode, quarantine: { proofReceiptId: gate.proofReceiptId ?? gate.receiptId,
+    coveredCases: gate.blockingVerdict.quarantines.length, eventIds: gate.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId),
+    omittedEvents: Math.max(0, gate.blockingVerdict.quarantines.length - 8) } } : {}), ...(values.landing ? { receiptId: gate.receiptId ?? null } : {}) });
   io.say(gateReport(gate));
   return gate.isGreen ? 0 : 1;
 }

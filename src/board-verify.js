@@ -1,3 +1,4 @@
+import { validateQuarantineProofIds } from './quarantine.js';
 import * as rejectClause from './reject-clause.js';
 import { requireSourceAdvanceReview } from './source-advance-state.js';
 import { SOURCE_ADVANCE_ENGINE } from './source-advance-engine.js';
@@ -49,7 +50,7 @@ import { shout } from './board-shout.js';
  * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, clause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
  * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead }) {
+export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
@@ -64,6 +65,12 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
   const transition = newReview ? declaration : { ...declaration, from: ['submitted'],
     guards: declaration.guards.filter(guard => !['notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent'].includes(guard)) };
   return atomic(board, () => {
+    if (quarantineProofId !== undefined) {
+      if (!isAccept) throw new Refused('PROOF_RUN_UNBOUND', 'quarantine proof authority only accompanies an accepting verdict');
+      const found = getItem(board, id);
+      validateQuarantineProofIds(board, found, { agentId, ids: [quarantineProofId], kind: 'verdict',
+        commit: review?.head ?? found.item_commit, requireGreen: true });
+    }
     if (engine >= SOURCE_ADVANCE_ENGINE) requireSourceAdvanceReview(board, getItem(board, id), sourceAdvanceHead);
     const item = moveItem(board, id, verb, {
       transition,
@@ -103,7 +110,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     });
     if (isAccept && sandbox && outsideSource(board, id)) saveOutsideSource(board, id, { ...outsideSource(board, id), sandbox });
     const trigger = rejectClause.finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
-      agentId, code, cause, clauseDetail, companionDigest, note, check, environment, sandbox, newReview,
+      agentId, code, cause, clauseDetail, companionDigest, note, check, quarantineProofId, environment, sandbox, newReview,
       review, implies, impliesId, decision, verb }, { firstRefusalDetail, deriveRigorCause: board.nativePorts.deriveRigorCause, logEvent, holdItem,
       shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications });
     if (!isAccept) postRigorNotices(board, trigger);

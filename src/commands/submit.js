@@ -1,3 +1,4 @@
+import { blockingFailures } from '../quarantine-verdict.js';
 import { boundProofReceipt } from '../proof-receipts.js';
 import { validateQuarantineVerdict } from '../quarantine.js';
 import { privateCheckEnvelope } from '../runner-private-mode.js';
@@ -345,6 +346,7 @@ export async function submitHere(ctx, id, infra) {
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
     onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
   let gate = await runGate(frozenCheck(held));
+  const submissionReceiptIds = [...(gate.proofReceiptIds ?? [])];
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
     await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt });
   }
@@ -383,6 +385,7 @@ export async function submitHere(ctx, id, infra) {
     for (const proofReceiptId of proof.proofReceiptIds ?? []) {
       await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt });
     }
+    submissionReceiptIds.push(...(proof.proofReceiptIds ?? []));
     gate = { ...proof, check: gate.check, criterionRed: gate.criterionRed };
   }
   const summary = retainTestOutput(root, readFileSync(gate.log, 'utf8'), { root, profile: gate.profile });
@@ -396,11 +399,11 @@ export async function submitHere(ctx, id, infra) {
   const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'}` : 'no item check';
   const mechanicalFlag = mechanicalPaths.length
     ? `cross-lane mechanical import edits: ${mechanicalPaths.join(', ')}` : '';
-  const quarantineReport = (gate.phaseVerdicts ?? []).map(phase => `${phase.role} computed quarantine verdict ${phase.blockingVerdict.green ? 'green' : 'red'}; raw exit ${phase.rawExitCode}; events ${phase.blockingVerdict.quarantines.map(row => row.eventId).join(', ')}`).join('\n');
+  const quarantineReport = (gate.phaseVerdicts ?? []).map(phase => `${phase.role} computed quarantine verdict ${phase.blockingVerdict.green ? 'green' : 'red'}; raw exit ${phase.rawExitCode}; ${phase.blockingVerdict.quarantines.length} covered case(s); first events ${phase.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}`).join('\n');
   const displayedReport = `${check}; ${scope}${quarantineReport ? `\n${quarantineReport}` : ''}${mechanicalFlag ? `\n${mechanicalFlag}` : ''}\n${renderTestSummary(summary)}`;
   const checkAccepted = Boolean(gate.check?.green || criterionMatched);
   // Only fully accounted exact-main failures or live person waivers pass a red proof; the item check stays mandatory [B3].
-  const waived = !gate.isGreen && checkAccepted ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, root), { quarantineWaivers })) : null;
+  const waived = !gate.isGreen && checkAccepted ? withBoard(ctx, (board) => waivedFailures(board, blockingFailures(gate, accountedFailures(gate, root)), { quarantineWaivers })) : null;
   let proofKnown;
   let proofMatched = null;
   let proofUnowned = [];
@@ -470,12 +473,15 @@ export async function submitHere(ctx, id, infra) {
     if (criterionUnowned.length) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `unowned known main red: the frozen check fails identically on main at ${criterionMatched.main} in ${criterionUnowned.map(red => `${red.file} (${red.names.join('; ')})`).join('; ')}, and no open Main red item names the file; a decision was shouted to the coordinator.` }]);
     if (proofUnowned.length) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `unowned known main red: the submission proof at ${commit.slice(0, 12)} fails identically on main at ${proofMatched.main} in ${proofUnowned.map(red => `${red.file} (${red.names.join('; ')})`).join('; ')}, and no open Main red item names the file; a decision was shouted to the coordinator. The item check passed; no new failure is accepted.` }]);
     if (knownMainFailures) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof at ${commit.slice(0, 12)} remains red; known main failures at ${knownMainFailures.main}: ${knownMainFailures.failures.map(row => `${row.file} (${row.name}), open repair #${row.item}`).join('; ')}. The item check passed; no new or unaccounted failure is accepted.` }]);
-    for (const receiptId of gate.proofReceiptIds ?? []) {
+    const quarantineProofIds = [];
+    for (const receiptId of submissionReceiptIds) {
       const receipt = boundProofReceipt(board, { receiptId });
       validateQuarantineVerdict(board, receipt);
+      if (Object.hasOwn(receipt, 'blockingVerdict')) quarantineProofIds.push(receiptId);
     }
     const submittedMove = await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit: submitted, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...(infraRecord ? { infra: infraRecord } : {}),
       gateGreen: gate.isGreen && !waived && !criterionMatched,
+      ...(quarantineProofIds.length ? { quarantineProofIds } : {}),
       ...(size ? { submissionSize: size } : {}),
       ...(companion ? { companion } : {}),
       submissionProof: { version: 1, files: gate.files, full: gate.full, deferred: gate.deferred, reason: boundedProofReason(gate.reason), ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), ...(knownMainFailures ? { knownMainFailures } : {}) },

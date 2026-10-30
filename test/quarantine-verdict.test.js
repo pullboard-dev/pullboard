@@ -35,7 +35,7 @@ function quarantineProject(t, { legacy = false } = {}) {
   writeFileSync(join(box.repo, FILE), `import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 const mode=process.env.PULLBOARD_QUARANTINE_CASE_MODE;
-if(!['unrelated','suite'].includes(mode))test(${JSON.stringify(TARGET)},{skip:mode==='skip',todo:mode==='todo'},()=>assert.ok(!['red','mixed'].includes(mode)));
+if(!['unrelated','suite'].includes(mode))describe('native aggregate [C7]',()=>test(${JSON.stringify(TARGET)},{skip:mode==='skip',todo:mode==='todo'},()=>assert.ok(!['red','mixed'].includes(mode))));
 if(mode==='suite')describe('unrelated suite [C7]',()=>test('suite child [C7]',()=>assert.equal(3+3,6)));
 test('unrelated positive [C7]',()=>assert.notEqual(mode,'mixed'));\n`);
   writeFileSync(join(box.repo, 'quarantine-driver.mjs'), DRIVER);
@@ -48,6 +48,7 @@ test('unrelated positive [C7]',()=>assert.notEqual(mode,'mixed'));\n`);
 // The installed private program executes real red/green children and canonical ordered receipt moves.
 const DRIVER = `import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {randomUUID} from 'node:crypto';
 import {git} from './src/git.js';
 import {runGate,runProfiledShell,runFrozenProof,runSubmitGate,withGateSlot} from './src/gate.js';
 import {receiptRecorder} from './src/native-flake-receipts.js';
@@ -57,16 +58,23 @@ import {landingExecutionServices} from './src/landing-shards.js';
 import {readGateReceipt,receiptStore,receiptBody,receiptFields} from './src/gate-run-receipt.js';
 import {prepareEngineMove,applyEngineMove,appliedSequence} from './src/engine.js';
 import {QUARANTINE_VERDICT_ENGINE} from './src/quarantine-verdict-engine.js';
-import {quarantineVerdictSnapshot,validateQuarantineVerdict,validateQuarantineGate,recordGateRun} from './src/quarantine.js';
-import {receiptBlockingGreen,nativeProofBlockingGreen} from './src/quarantine-verdict.js';
+import {quarantineVerdictSnapshot,validateQuarantineVerdict,validateQuarantineGate,recordGateRun,quarantineWaivers,validateQuarantineProofIds,validateQuarantineLandingProof} from './src/quarantine.js';
+import {receiptBlockingGreen,nativeProofBlockingGreen,blockingFailures} from './src/quarantine-verdict.js';
 import {proofRunReceipt} from './src/proof-receipts.js';
+import submitMove from './src/moves/submit.js';
+import verifyMove from './src/moves/verify.js';
+import finishMove from './src/moves/finishLandingBatch.js';
 import {checkTrainLandingReceipt,readTrainLandingReceipt} from './src/train-landing-receipt.js';
 import {runLocalLandingGuard} from './src/land-local-guard.js';
+import {gateGroup} from './src/landing-step-gate.js';
+import {flakeSource,observeNativeFailure} from './src/native-flakes.js';
 import {runDeferredAffectedTests} from './src/landing-deferred-run.js';
 import {sourceAdvanceProblem} from './src/source-advance.js';
 import {sourceAdvanceEpisode,sourceAdvanceReviewEpisode} from './src/source-advance-state.js';
 import {itemPatchDigest} from './src/item-patch-state.js';
 import {proofCounts} from './src/proof-provenance.js';
+import {failureSignatures} from './src/main-failure-matches.js';
+import {accountedFailures} from './src/landing-step-failures.js';
 import {checkAtCommit} from './src/runner-private-check.js';
 import * as store from './src/board.js';
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));
@@ -97,6 +105,9 @@ withBoard(ctx,board=>assert.throws(()=>validateQuarantineGate(board,{...gateReco
 const mixed=await gate('mixed',quarantines);
 assert.equal(mixed.exitCode,1);assert.equal(mixed.isGreen,false,'a second unquarantined case still blocks');
 assert.equal(mixed.blockingVerdict.green,false);
+assert.equal(accountedFailures(mixed,root),null,'the old raw waiver parser remains strict about aggregate TAP');
+assert.deepEqual(blockingFailures(mixed,accountedFailures(mixed,root)).map(row=>row.name),['unrelated positive [C7]']);
+assert.deepEqual(failureSignatures(mixed,root).map(row=>row.name),['unrelated positive [C7]'],'known-main diagnostics retain only the uncovered actual case');
 assert.equal(readGateReceipt(receiptStore(root),mixed.receiptId).failures.length,2);
 const exit2=await runGate(root,{...config,gate:config.gate+'; exit 2'},
  {trustStamp:false,agent:agentId,onFailure:observer,executionServices,quarantines});
@@ -122,6 +133,10 @@ await withBoard(ctx,async board=>{
  {sequence,at:new Date().toISOString()}),error=>error.code==='RELAY_MOVE');
  assert.equal(appliedSequence(board),sequence-1);
 });
+withBoard(ctx,board=>{
+ validateQuarantineProofIds(board,store.getItem(board,item.item_id),{agentId,ids:[nativeReceipt.id],kind:'submit'});
+ assert.ok(submitMove.minimumEngine([item.item_id,{quarantineProofIds:[nativeReceipt.id]}],board)>=QUARANTINE_VERDICT_ENGINE);
+});
 assert.equal(nativeBoardReceipt.exitCode,1);assert.equal(nativeProofBlockingGreen(nativeBoardReceipt),true);
 // The source-advance reader consumes actual native receipt bytes; CAS identities are fixture inputs, not proof.
 withBoard(ctx,board=>{
@@ -142,6 +157,27 @@ assert.equal(land.isGreen,true,JSON.stringify({output:land.output,stages:land.st
 const landReceipt=readGateReceipt(receiptStore(root),land.receiptId);
 assert.equal(checkTrainLandingReceipt(landReceipt,landReceipt.head).green,false);
 withBoard(ctx,board=>assert.equal(readTrainLandingReceipt(root,board,landReceipt.id,landReceipt.head).id,landReceipt.id));
+let savedBatch;
+await withBoard(ctx,async board=>{
+ const commit=git(root,['rev-parse','HEAD']);
+ const state={board,config:{...config,affectedTests:null,registryGuards:[],submitInvariants:[]},
+  batch:{version:1,id:randomUUID(),state:'merging',root,base:commit,tip:commit,branch:'refs/heads/main',
+   owner:'coordinator-fixture',logPath:root+'/../logs/qfixture.log',items:[{id:item.item_id,commit}],revision:0},
+  gates:new Map(),say(){},checkAtCommit,landingPorts:{flakeSource,observeNativeFailure,quarantineWaivers},
+  write:(operation,args)=>ordered(ctx,board,operation,args)};
+ const grouped=await gateGroup(state,'qfixture',{});
+ assert.equal(grouped.isGreen,true);assert.equal(grouped.exitCode,1);
+ assert.deepEqual(grouped.failures,[]);assert.deepEqual(grouped.accounted,[]);
+ savedBatch=state.batch;
+ assert.equal(savedBatch.gateResults[0].exitCode,1);
+ assert.equal(savedBatch.gateResults[0].blockingVerdict.green,true);
+ assert.deepEqual(savedBatch.invariantEvidence.gates[0].failures,[]);
+ savedBatch=await state.write('recordLandingBatch',[{agentId,batch:{...savedBatch,proof:{tree:grouped.tree,logPath:grouped.logPath,failures:[]}},revision:savedBatch.revision}]);
+ validateQuarantineLandingProof(board,savedBatch);
+ assert.ok(finishMove.minimumEngine([{id:savedBatch.id}],board)>=QUARANTINE_VERDICT_ENGINE);
+ const move=prepareEngineMove(board,'recordLandingBatch',[{agentId,batch:savedBatch,revision:savedBatch.revision}]);
+ assert.ok(move.engine>=QUARANTINE_VERDICT_ENGINE);
+});
 const guards=await runLocalLandingGuard(root,config,{files:['test/control.test.js'],directory:root+'/../logs',label:'guard',onFailure:observer,
  quarantines,proofContext:{...proofContext,kind:'land'}});
 assert.equal(guards.isGreen,true);assert.equal(guards.exitCode,1);
@@ -164,6 +200,11 @@ assert.equal(privateRun.exitCode,1);assert.equal(privateRun.rawState,'red');
 const privateReceipt=readGateReceipt(receiptStore(root),privateRun.proofReceiptId);
 assert.equal(privateReceipt.kind,'verdict');assert.equal(privateReceipt.proof.exitCode,1);
 assert.equal(privateReceipt.green,false);assert.equal(receiptBlockingGreen(privateReceipt),true);
+await withBoard(ctx,async board=>{
+ await ordered(ctx,board,'recordProofRun',[{agentId,itemId:checkedItem.item_id,receiptId:privateReceipt.id}]);
+ validateQuarantineProofIds(board,store.getItem(board,checkedItem.item_id),{agentId,ids:[privateReceipt.id],kind:'verdict',commit:privateReceipt.head,requireGreen:true});
+ assert.ok(verifyMove.minimumEngine([checkedItem.item_id,{quarantineProofId:privateReceipt.id}],board)>=QUARANTINE_VERDICT_ENGINE);
+});
 const submit=await runSubmitGate(root,{...config,staticChecks:'',submitGate:'landing',submitInvariants:[],registryGuards:[],affectedTests:null},
  {base:git(root,['rev-parse','HEAD^']),trunk:git(root,['rev-parse','HEAD']),check:config.gate,agent:agentId,
   proofContext:{item:checkedItem.item_id,frozenDigest:checkedItem.item_frozen_digest,seat:agentId,quarantines},onFailure:observer,executionServices});
@@ -184,7 +225,12 @@ assert.deepEqual(snapshot(),[]);
 withBoard(ctx,board=>{
  assert.throws(()=>validateQuarantineVerdict(board,nativeReceipt),error=>error.code==='PROOF_RUN_UNBOUND');
  assert.throws(()=>validateQuarantineGate(board,gateRecord),error=>error.code==='PROOF_RUN_UNBOUND');
+ assert.throws(()=>store.submit(board,item.item_id,{agentId,commit:nativeReceipt.head,tree:nativeReceipt.tree,gateGreen:true,quarantineProofIds:[nativeReceipt.id]}),error=>error.code==='PROOF_RUN_UNBOUND','expiry between native proof/preflight and atomic submit refuses');
+ assert.throws(()=>store.verify(board,checkedItem.item_id,{agentId,decision:'ACCEPT',note:'actual native private check',head:privateReceipt.head,digest:checkedItem.item_frozen_digest,review:{commit:privateReceipt.head,head:privateReceipt.head,trunk:privateReceipt.main,paths:[]},quarantineProofId:privateReceipt.id}),error=>error.code==='PROOF_RUN_UNBOUND','atomic acceptance also refuses a closed quarantine');
+ assert.throws(()=>store.finishLandingBatch(board,{agentId,id:savedBatch.id,tip:savedBatch.tip}),error=>error.code==='PROOF_RUN_UNBOUND','atomic landing finish cannot revive its closed exception');
+ assert.throws(()=>validateQuarantineLandingProof(board,savedBatch),error=>error.code==='PROOF_RUN_UNBOUND');
  validateQuarantineGate(board,gateRecord,{historical:true});
+ store.recordLandingBatch(board,{agentId,batch:savedBatch,revision:savedBatch.revision});
  assert.equal(recordGateRun(board,{agentId,receipt,lane:'web'}).duplicate,true,'the original immutable event remains idempotent after closure');
  assert.equal(proofRunReceipt(board,{agentId,itemId:item.item_id,receiptId:native.proofReceiptId}).existing.id,nativeReceipt.id);
 });

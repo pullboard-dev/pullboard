@@ -188,8 +188,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       return { ...proof, ...(criterion.cleanupUnverified || proof.cleanupUnverified ? { cleanupUnverified: true } : {}), log, seconds: criterion.seconds + proof.seconds, ...selection, files: proofFiles, registryGuards, ...(deferred ? { submitInvariants: invariants } : {}),
         ...(deferSelection ? { deferredFiles: selection.files, deferAbove: config.submitDeferAbove } : {}), deferred, deferFullFallback, check: receipt,
         profile, profilePath, proofProfilePath: proof.profilePath, proofLog: proof.log,
-        phaseVerdicts: [criterion, proof].flatMap((phase, index) => phase.blockingVerdict ? [{
-          role: index === 0 ? 'criterion' : 'proof', rawExitCode: phase.exitCode, blockingVerdict: phase.blockingVerdict }] : []),
+        ...(criterion.blockingVerdict || proof.blockingVerdict ? { phaseVerdicts: [criterion, proof].flatMap((phase, index) => phase.blockingVerdict ? [{
+          role: index === 0 ? 'criterion' : 'proof', rawExitCode: phase.exitCode, blockingVerdict: phase.blockingVerdict }] : []) } : {}),
         phasePlan: plan.phases,
         proofReceiptIds: [...(check ? [criterion.proofReceiptId ?? null] : []),
           ...(proof.profile ? [proof.proofReceiptId ?? null] : [])] };
@@ -200,6 +200,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       // The red criterion's stage accounting travels with the refusal so submit can compare its cases with main (#1917).
       const red = finish({ isGreen: false, sandboxBlocked: criterion.sandboxBlocked, isCached: false, output: criterion.output, seconds: 0, log: '' });
       return { ...red, criterionRed: { isGreen: false, output: criterion.output, stages: criterion.stages,
+        ...(criterion.blockingVerdict ? { blockingVerdict: criterion.blockingVerdict, exitCode: criterion.exitCode, rawIsGreen: false, quarantineFailures: criterion.quarantineFailures } : {}),
         executionRoot: criterion.executionRoot, executionRunner: criterion.executionRunner, environment: criterion.environment, profile: criterion.profile } };
     }
     // The proof already owns this lease: its phase profile has no additional queue wait.
