@@ -146,7 +146,7 @@ test("the history is a timeline of the item's states [N26]", async () => {
     ], 'a dot per event in the colour of the state it led to; a merge moves nothing');
     assert.deepEqual(done.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', 'claimed for', '', 'submitted for', 'sent back for', 'claimed for', '', 'submitted for', verifiedIsFinal ? '' : 'verified for', ''], 'each stay until the next move; a final state has none and quiet proof receipts and merge stay untimed');
     assert.ok(done.filter(row => !row.dot.includes('tl-quiet')).slice(0, 6).every((row) => / for (under a minute|\d+m)$/.test(row.stay)), done.map((row) => row.stay).join(', '));
-    assert.ok(done.every((row) => /^\d\d:\d\d$/.test(row.time)), 'every event keeps its time');
+    assert.ok(done.every((row) => /^\d{1,2}:\d\d [AP]M$/.test(row.time)), 'every event keeps its time');
 
     await page.click({ go: 'item:2' });
     assert.deepEqual(timelineRows(page.show('detail')).map((row) => [row.dot, row.stay]).slice(1), [['tl-claimed', 'claimed for now so far']]);
@@ -409,14 +409,14 @@ test('times say which day they were [N26]', async () => {
     // A shout says how long ago it was, with its clock time on hover.
     const ages = (html) => [...html.matchAll(/<time class="long" data-ago="[^"]+" title="([^"]*)">([^<]*)<\/time>/g)].map((match) => [match[2], match[1]]);
     const times = (html) => [...html.matchAll(/<time>([^<]*)<\/time>/g)].map((match) => match[1]);
-    const bare = (list) => list.length > 0 && list.every((time) => /^\d\d:\d\d$/.test(time));
+    const bare = (list) => list.length > 0 && list.every((time) => /^\d{1,2}:\d\d [AP]M$/.test(time));
 
     const now = await openPage(view);
     await now.click({ tab: 'shouts' });
     await now.click({ tab: 'items' });
     await now.click({ tab: 'activity' });
     assert.deepEqual([days(now.show('feed')), days(now.show('activity'))], [[], ['Today']], 'shouts from today need no rule above them');
-    assert.deepEqual(ages(now.show('feed')).map(([age, clock]) => [age, /^\d\d:\d\d$/.test(clock)]), [['now', true]], 'a shout from today says now, its clock time on hover');
+    assert.deepEqual(ages(now.show('feed')).map(([age, clock]) => [age, /^\d{1,2}:\d\d [AP]M$/.test(clock)]), [['now', true]], 'a shout from today says now, its clock time on hover');
     assert.ok(bare(times(now.show('detail'))), 'a history from today shows bare times');
 
     const tomorrow = await openPage(view, { later: 1 });
@@ -432,9 +432,9 @@ test('times say which day they were [N26]', async () => {
     await later.click({ tab: 'activity' });
     assert.deepEqual([days(later.show('feed')), days(later.show('activity'))], [[weekday], [weekday]], 'two days on, the feeds name the day');
     assert.ok(times(later.show('activity')).length > 0 && times(later.show('activity')).every(time => /^\d{1,2}:\d\d [AP]M$/.test(time)), 'Activity uses the approved person-clock format');
-    assert.deepEqual(ages(later.show('feed')).map(([age, clock]) => [age, new RegExp(`^${date} \\d\\d:\\d\\d$`).test(clock)]), [['2d ago', true]], 'a shout says how long ago, with its date and time on hover');
+    assert.deepEqual(ages(later.show('feed')).map(([age, clock]) => [age, new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(clock)]), [['2d ago', true]], 'a shout says how long ago, with its date and time on hover');
     const history = times(later.show('detail'));
-    assert.ok(history.length === 4 && history.every((time) => new RegExp(`^${date} \\d\\d:\\d\\d$`).test(time)), `the history dates every move including its proof receipt: ${history}`);
+    assert.ok(history.length === 4 && history.every((time) => new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(time)), `the history dates every move including its proof receipt: ${history}`);
 
     // A heading wherever the day changes, and only there.
     const at = (day, hour) => new Date(2026, 9, day, hour).toISOString();
@@ -598,6 +598,8 @@ export async function createTransport({ onUpdate }) {
     // Streaming: the feed ends in the line, with how far along it is, and its end reads ten older shouts at a time.
     await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
     await chrome.waitFor(`${note('shouts')} === 'Older shouts are still loading (30%).'`);
+    await chrome.click(`document.querySelector('[data-shout-thread="none"]')`);
+    await chrome.waitFor('!!document.querySelector("#feed .shout")');
     assert.equal(await chrome.stable(`document.querySelector('#feed').lastElementChild.dataset.historyNote`), 'shouts', 'the line ends the feed');
     assert.equal(await chrome.stable(`document.querySelector('#feed').textContent.includes('The oldest shout')`), false, 'the oldest shout is not among the forty on hand');
     await chrome.stable(`document.querySelector('[data-history-note="shouts"]').scrollIntoView({ block: 'end' })`);
