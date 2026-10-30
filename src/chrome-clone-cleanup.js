@@ -1,5 +1,5 @@
 /** Conservative current-account Chrome clone cleanup; uncertain or live browser custody always wins [C7]. */
-import { spawnSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
@@ -13,11 +13,20 @@ import { chromeCloneDirectories } from './chrome-clone-check.js';
 const HOUR = 60 * 60 * 1000;
 const NAME = /^code_sign_clone\.[A-Za-z0-9._-]{6}$/u;
 
+/** Run only an owned metadata probe, yielding to the existing cleanup timer and never extending its deadline. */
+async function nativeProbe(file, args, deadline, cap, maxBuffer) {
+  const remaining = Math.min(cap, deadline - Date.now());
+  if (!(remaining > 0)) return null;
+  return new Promise(resolve => {
+    execFile(file, args, { encoding: 'utf8', timeout: remaining, killSignal: 'SIGKILL', maxBuffer },
+      (error, stdout, stderr) => resolve(error || stderr.trim() || Date.now() >= deadline ? null : { stdout }));
+  });
+}
+
 /** Read a bounded native census and retain only clone-relevant facts, never unrelated command or path text. */
-function chromeCloneCustody(directory) {
-  const ps = spawnSync('/bin/ps', ['-axo', 'pid=,comm='], { encoding: 'utf8', timeout: 2000,
-    maxBuffer: 8 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
-  if (ps.error || ps.status !== 0 || ps.stderr.trim()) return null;
+async function chromeCloneCustody(directory, { deadline }) {
+  const ps = await nativeProbe('/bin/ps', ['-axo', 'pid=,comm='], deadline, 2000, 8 * 1024 * 1024);
+  if (!ps) return null;
   for (const line of ps.stdout.split('\n')) {
     if (!line.trim()) continue;
     const match = /^\s*(\d+)\s+(.+)$/u.exec(line);
@@ -25,9 +34,8 @@ function chromeCloneCustody(directory) {
     // Executables are hard-linked: absence of a clone path in lsof does not prove Chrome has released it.
     if (/chrome|chromium/iu.test(match[2])) return { browserLive: true, paths: [] };
   }
-  const files = spawnSync('/usr/sbin/lsof', ['-b', '-nP', '-Fpcfn'], { encoding: 'utf8', timeout: 8000,
-    maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
-  if (files.error || files.status !== 0 || files.stderr.trim()) return null;
+  const files = await nativeProbe('/usr/sbin/lsof', ['-b', '-nP', '-Fpcfn'], deadline, 8000, 16 * 1024 * 1024);
+  if (!files) return null;
   const paths = [];
   const namespaces = [directory];
   let pid = null;
@@ -49,7 +57,7 @@ function sameDirectory(path, expected) {
   try {
     const stat = lstatSync(path);
     return stat.isDirectory() && !stat.isSymbolicLink() && stat.dev === expected.dev && stat.ino === expected.ino
-      && stat.uid === process.getuid();
+      && stat.uid === process.getuid() && stat.mtimeMs === expected.mtimeMs && stat.birthtimeMs === expected.birthtimeMs;
   } catch { return false; }
 }
 
@@ -61,7 +69,7 @@ function available(path) {
 /** Remove only old unheld native clones; injected private roots and census ports exist solely for isolated fixtures. */
 export async function sweepChromeClones({ directories = chromeCloneDirectories(), custody = chromeCloneCustody,
   now = Date.now(), deadline = Infinity, log = line => process.stderr.write(`${line}\n`) } = {}) {
-  const summary = { removed: 0, kept: 0, unknown: false, observedFreeBytesDelta: 0 };
+  const summary = { removed: 0, kept: 0, unknown: false, deferred: 0, observedFreeBytesDelta: 0 };
   for (const directory of directories) {
     if (Date.now() >= deadline) { summary.unknown = true; break; }
     let canonical;
@@ -74,16 +82,20 @@ export async function sweepChromeClones({ directories = chromeCloneDirectories()
     } catch (error) { if (error.code !== 'ENOENT') summary.unknown = true; continue; }
     const before = available(canonical);
     // One complete census per namespace, never O(clones × process-table-size).
-    const observed = custody(canonical);
+    const observed = await custody(canonical, { deadline });
     if (!observed || observed.browserLive) { summary.kept += names.length; summary.unknown ||= !observed; continue; }
-    for (const name of names) {
-      if (Date.now() >= deadline) { summary.unknown = true; break; }
+    for (const [index, name] of names.entries()) {
+      if (Date.now() >= deadline || summary.removed >= 16) { summary.deferred += names.length - index; break; }
       const path = join(canonical, name);
       let stat;
       try { stat = lstatSync(path); } catch { summary.unknown = true; continue; }
       if (!sameDirectory(path, stat) || now - Math.max(stat.birthtimeMs, stat.mtimeMs) < HOUR) { summary.kept++; continue; }
       if (observed.paths.some(open => open === path || open.startsWith(`${path}/`))) { summary.kept++; continue; }
-      if (!sameDirectory(path, stat)) { summary.kept++; continue; }
+      const fresh = await custody(canonical, { deadline });
+      if (!fresh || fresh.browserLive || fresh.paths.some(open => open === path || open.startsWith(`${path}/`))
+        || Date.now() >= deadline || !sameDirectory(path, stat)) {
+        summary.kept++; summary.unknown ||= !fresh; continue;
+      }
       try { await rm(path, { recursive: true }); summary.removed++; }
       catch { summary.unknown = true; summary.kept++; }
     }

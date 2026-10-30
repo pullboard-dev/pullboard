@@ -9,6 +9,7 @@ import { mkdtempSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { symlinkSync } from 'node:fs';
+import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -74,6 +75,15 @@ test('young clones, symlinks, live Chrome and unknown census never authorize rem
     assert.ok(existsSync(clone));
   }
   assert.ok(existsSync(link), 'symlink target is never traversed or deleted');
+  assert.equal((await sweepChromeClones({ ...options, now: Date.now() + 3600001, deadline: Date.now() - 1 })).removed, 0,
+    'expired cleanup budget never authorizes removal');
+  let observations = 0;
+  const changing = () => {
+    if (++observations === 2) utimesSync(clone, new Date(), new Date(Date.now() + 7200000));
+    return { browserLive: false, paths: [] };
+  };
+  assert.equal((await sweepChromeClones({ ...options, custody: changing, now: Date.now() + 3600001 })).removed, 0,
+    'a directory changed after initial custody must be preserved');
 });
 
 test('fixture close quits actual Chrome cleanly before any signal fallback [C7]', { timeout: 40000 }, async t => {
