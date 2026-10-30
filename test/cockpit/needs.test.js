@@ -548,7 +548,7 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
         assert.deepEqual(r.card, ['shout-form', 'coordinator-decisions', 'decisions', 'feed'], `${at}: Shouts stays one card`);
         assert.ok(r.wallsHidden, `${at}: the replaced decisions walls carry no content`);
         assert.deepEqual([r.questions, r.selected], ['Questions2', 'true'], `${at}: both native questions are counted in the shared segment`);
-        assert.deepEqual(r.messages, ['Which colour for the button?', 'Which colour for the button?', 'Ship the footer first?'], `${at}: the original question, native person-forward and second question retain their exact bodies and chronological order`);
+        assert.deepEqual(r.messages, ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], `${at}: the original question, native person-forward and second question retain their exact bodies and chronological order`);
         if (width === 1280) assert.ok(Math.abs((r.composer.top + r.composer.height / 2) - (r.asks.top + r.asks.height / 2)) <= 4 && r.asks.left >= r.composer.right, `${at}: the Questions segment stays on the composer's line: ${JSON.stringify([r.composer, r.asks])}`);
         assert.equal(r.feedBar, false, `${at}: no bar above the feed while it shows every shout`);
         assert.ok(r.hide && r.panelShown, `${at}: the agents panel carries its own hide`);
@@ -565,7 +565,7 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
     await click('[data-shout-filter=all]');
     await click('#feed [data-shout-thread="none"]');
     let r = await read();
-    assert.deepEqual(r.messages, ['Which colour for the button?', 'Which colour for the button?', 'Ship the footer first?'], 'All retains both questions and the native person-forward in one conversation');
+    assert.deepEqual(r.messages, ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], 'All retains both questions and the native person-forward in one conversation');
     // Hidden, the agents come back from the composer's line, after the asks.
     await click('.panel-head [data-agents-toggle]');
     r = await read();
