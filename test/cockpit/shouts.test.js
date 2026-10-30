@@ -499,8 +499,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 12');
     await chrome.click("document.querySelector('[data-tab=shouts]')");
-    await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
-    await chrome.stable("(document.querySelector('.asks-toggle[data-fold=\"waiting\"]'))?.getAttribute('aria-expanded') !== 'true' && !!(document.querySelector('.asks-toggle[data-fold=\"waiting\"]'))").then(open => open ? chrome.click("document.querySelector('.asks-toggle[data-fold=\"waiting\"]')") : undefined);
+    await openConversation(chrome, 'item:1');
     const ids = JSON.parse(await chrome.stable('JSON.stringify(Object.fromEntries(data.project.shouts.map((s) => [s.shout_text, s.shout_id])))'));
     const answerId = await chrome.stable(`data.project.shouts.find((s) => s.shout_answers === ${asked.shout_id}).shout_id`);
     const stamps = JSON.parse(await chrome.stable('JSON.stringify(data.project.shouts.map((s) => [s.shout_id, s.shout_at]))'));
@@ -512,11 +511,11 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
       const card = (place, id) => {
         const e = document.querySelector(place + ' #shout-' + id) ?? [...document.querySelectorAll(place + ' .shout')].find((c) => c.dataset.shoutId === String(id));
         if (!e) return null;
-        const avatar = e.querySelector('.avatar'), who = e.querySelector('.who'), time = e.querySelector('header time'), text = e.querySelector('.text');
+        const who = e.querySelector('.who'), time = e.querySelector('header time'), text = e.querySelector('.text');
         const edges = [e, ...e.querySelectorAll('.receipt, .band')].map((part) => { const s = style(part); return { left: [s.borderLeftWidth, s.borderLeftColor], right: [s.borderRightWidth, s.borderRightColor] }; });
         return {
-          classes: e.className, avatar: { text: avatar.textContent, svg: !!avatar.querySelector('svg'), radius: style(avatar).borderTopLeftRadius, color: style(avatar).color, background: style(avatar).backgroundColor, box: box(avatar) },
-          who: { text: who.textContent, color: style(who).color }, to: e.querySelector('.to')?.textContent, item: e.querySelector('header .item')?.textContent ?? null,
+          classes: e.className, avatars: e.querySelectorAll('.avatar').length,
+          who: { text: who.textContent, color: style(who).color, model: who.title }, to: e.querySelector('.to')?.textContent, item: document.querySelector('#feed .conversation-heading b')?.textContent ?? null,
           item_color: e.querySelector('header .item') && style(e.querySelector('header .item')).color, ink: style(text).color,
           time: { text: time.textContent, title: time.title, box: box(time) }, header: box(e.querySelector('header')), text: { box: box(text), lines: Math.round(text.clientHeight / parseFloat(style(text).lineHeight)), clamped: text.scrollHeight > text.clientHeight + 1 },
           more: (() => { const m = e.querySelector('.more'); return m && style(m).display !== 'none' ? m.textContent : null; })(),
@@ -530,7 +529,8 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
       const feed = document.querySelector('#feed'), rule = feed.querySelector('.day-rule'), label = rule?.querySelector('span');
       return {
         page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
-        feedKinds: [...feed.children].map((e) => e.classList.contains('day-rule') ? 'rule:' + e.textContent : e.classList.contains('shout') ? 'shout:' + e.dataset.shoutId : e.className),
+        messageIds: [...feed.querySelectorAll('.shout')].map(e => Number(e.dataset.shoutId)),
+        feedKinds: [...feed.children].filter(e => e.matches('.day-rule,.shout')).map((e) => e.classList.contains('day-rule') ? 'rule:' + e.textContent : e.classList.contains('shout') ? 'shout:' + e.dataset.shoutId : e.className),
         rule: rule && { box: box(rule), label: box(label) },
         heads: [...document.querySelectorAll('#decisions .head')].map((h) => h.textContent),
         decisions: [...document.querySelectorAll('#decisions .shout')].map((e) => e.dataset.shoutId),
@@ -559,33 +559,60 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
       };
     })())`));
 
+    /** Visit every real thread before combining measured observations; no message is supplied by a different fixture. */
+    const readConversations = async () => {
+      const threads = {};
+      for (const key of ['item:1', 'none', 'item:2']) {
+        if (await chrome.stable("!!document.querySelector('#feed .conversation-heading')")) await press(chrome, "document.querySelector('#feed [data-shout-thread=\"\"]')");
+        await openConversation(chrome, key);
+        threads[key] = await read();
+      }
+      const one = threads['item:1'], none = threads.none;
+      return { ...none, threads, chips: one.chips, answerTarget: one.answerTarget, rule: one.rule,
+        repeated: Object.values(threads).flatMap(thread => thread.repeated),
+        feed: Object.fromEntries(Object.values(threads).flatMap(thread => Object.entries(thread.feed).filter(([, card]) => card))) };
+    };
+
     const seen = {};
     for (const scheme of ['light', 'dark']) {
       for (const width of [1280, 375]) {
         await shoutsAt(chrome, width, scheme);
         const at = `${width}px ${scheme}`;
-        const r = await read();
-        assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll: ${JSON.stringify(r.page)}`);
+        const r = await readConversations();
+        for (const [key, thread] of Object.entries(r.threads)) assert.ok(thread.page.scroll <= thread.page.width && thread.page.body <= thread.page.width,
+          `${at} ${key}: no sideways scroll: ${JSON.stringify(thread.page)}`);
+        const expectedThreads = {
+          'item:1': [ids[older], ids[ship], answerId, ids['the page loads in 80ms'], ids[chips]],
+          'item:2': [ids[mixed]],
+          none: [ids[colour], ids[longChips], ids[refsShout], ids[blockShout], ids['Launch on Friday?'], ids[long]],
+        };
+        for (const [key, expected] of Object.entries(expectedThreads)) assert.deepEqual(r.threads[key].messageIds, expected.sort((a,b)=>a-b),
+          `${at}: exact native ${key} membership, including answer inheritance and first-item precedence`);
+        assert.deepEqual(Object.values(r.threads).flatMap(thread => thread.messageIds).sort((a,b)=>a-b), stamps.map(([id]) => id).sort((a,b)=>a-b),
+          `${at}: every original native message is measured exactly once`);
         const { older: old, colour: asking, ship: shipped, chips: chipCard, long: folded, receipt, answer, friday, mixed: both } = r.feed;
 
-        // A card: avatar, name in its colour, arrow and recipient, item, and the age at the top right over the text.
+        // Native identity and geometry remain; the approved design has no avatar and moves the model to a tooltip.
         for (const [name, c] of Object.entries(r.feed)) {
-          assert.ok(c, `${at}: the ${name} shout is a card`);
-          assert.equal(c.classes.includes('lead') ? c.avatar.background : c.avatar.color, c.who.color, `${at}: ${name}: the name is in its avatar's colour`);
-          assert.ok(Math.abs(c.time.box.right - c.header.right) <= 1 && c.time.box.top < c.text.box.top, `${at}: ${name}: the age sits at the top right: ${JSON.stringify([c.time, c.header])}`);
-          assert.ok(c.text.box.top >= c.header.bottom - 1, `${at}: ${name}: the text sits below the header`);
-          for (const edge of c.edges) assert.deepEqual(edge.left, edge.right, `${at}: ${name}: no box in the card carries a coloured edge`);
+          assert.ok(c, `${at}: the ${name} native message renders`);
+          assert.equal(c.avatars, 0, `${at}: ${name} has no avatar`);
+          assert.ok(Math.abs(c.time.box.right - c.header.right) <= 1 && c.time.box.top < c.text.box.top, `${at}: ${name}: the clock sits at the top right`);
+          assert.ok(c.text.box.top >= c.header.bottom - 1, `${at}: ${name}: the text sits below its header`);
+          for (const edge of c.edges) assert.deepEqual(edge.left, edge.right, `${at}: ${name}: no colored border edge`);
         }
-        assert.deepEqual([old.avatar.text, old.who.text, old.to], ['W1', 'web-1 (Test Model)', '→ coordinator'], `${at}: initials, name, arrow and recipient`);
-        assert.equal(old.avatar.radius, '50%', `${at}: an agent's avatar is a circle`);
-        assert.equal(chipCard.avatar.color, old.avatar.color, `${at}: one agent keeps one colour`);
-        assert.notEqual(asking.avatar.color, old.avatar.color, `${at}: another agent has its own`);
-        assert.ok(answer.avatar.svg && answer.avatar.radius !== '50%' && Math.abs(answer.avatar.box.width - answer.avatar.box.height) < 1 && answer.classes.includes('lead'),
-          `${at}: the coordinator's avatar is a square with the Pullboard mark: ${JSON.stringify(answer.avatar)}`);
-        assert.deepEqual([old.item, chipCard.item, receipt.item, asking.item, both.item], ['#1', '#1', '#1', null, '#2'], `${at}: the item is the first #N that names one, or else the evidence's`);
-        assert.notEqual(old.item_color, old.who.color, `${at}: the item is muted, not the agent's colour`);
-        assert.deepEqual([folded.time.text, shipped.time.text, asking.time.text], ['now', '2m ago', '1h ago'], `${at}: ages read now, 2m ago, 1h ago`);
-        assert.ok(/\d\d:\d\d$/.test(shipped.time.title) && /^\S+ \d+ \d\d:\d\d$/.test(old.time.title), `${at}: the clock time is on hover, with the date when it was another day`);
+        assert.deepEqual([old.who.text, old.who.model, old.to], ['web-1', 'Test Model', '→ coordinator'], `${at}: the exact sender, model hover and recipient`);
+        assert.equal(asking.who.color, old.who.color, `${at}: agent names use the same approved violet`);
+        assert.notEqual(answer.who.color, old.who.color, `${at}: the coordinator uses the accent color`);
+        assert.ok(answer.classes.includes('lead') && answer.who.text === 'coordinator', `${at}: a native coordinator answer keeps its identity`);
+        assert.deepEqual([old.item, chipCard.item, receipt.item, asking.item, both.item], ['#1 Greeting', '#1 Greeting', '#1 Greeting', 'No item', '#2 Farewell'],
+          `${at}: real item titles identify the conversation, including unknown #99 and text #2 over evidence #1`);
+        const clockOf = id => {
+          const date = new Date(stamps.find(([key]) => key === id)[1]), hour = date.getHours();
+          return (hour % 12 || 12) + ':' + String(date.getMinutes()).padStart(2, '0') + ' ' + (hour < 12 ? 'AM' : 'PM');
+        };
+        assert.deepEqual([folded.time.text, shipped.time.text, asking.time.text].map(value => value.replace(/\s/gu,' ')),
+          [ids[long], ids[ship], ids[colour]].map(clockOf), `${at}: every clock comes from its exact native timestamp`);
+        assert.ok(shipped.time.title.endsWith(clockOf(ids[ship])) && old.time.title.includes(clockOf(ids[older])), `${at}: native clock details remain on hover`);
 
         // Chips: inline, whole, ref, path and hash each in a colour of their own; a sha shows ten characters.
         for (const [kind, c] of Object.entries(r.chips)) {
@@ -618,35 +645,46 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
         assert.deepEqual([receipt.receipt.badge, receipt.receipt.outcome], ['receipt', 'measured 80ms']);
         assert.ok(receipt.receipt.foot.startsWith('#1 · web-1 (Test Model) · ') && receipt.receipt.sha === head.slice(0, 12) && receipt.receipt.shaTitle === head, `${at}: the receipt's footer: ${JSON.stringify(receipt.receipt)}`);
 
-        // A long shout folds at six lines; the asks above the composer are the same cards, folded at three.
-        assert.deepEqual([folded.text.lines, folded.text.clamped, folded.more], [6, true, 'more'], `${at}: a long shout folds at six lines with more`);
-        assert.equal(old.more, null, `${at}: a short shout has no more`);
-        assert.deepEqual(r.heads, ['Decision needed'], `${at}: the asks above the composer: the person's under their head, the rest opened from their fold line`);
-        assert.deepEqual([r.asks.friday.answer, r.asks.colour.answer], ['Answer', null], `${at}: the person's ask has an Answer button; one waiting on others has none`);
-        assert.deepEqual([r.asks.colour.text.lines, r.asks.colour.text.clamped, r.asks.colour.more], [3, true, 'more'], `${at}: an ask folds at three lines`);
-        assert.ok(r.asks.friday.avatar.svg && r.asks.friday.who.text === 'coordinator', `${at}: the asks are the feed's cards`);
+        // The approved three-line disclosure applies to messages, while native person-only Answer controls remain.
+        assert.deepEqual([folded.text.lines, folded.text.clamped, folded.more], [3, true, 'Show all'], `${at}: a long native message folds at three lines`);
+        assert.equal(old.more, null, `${at}: a short message has no disclosure`);
+        assert.deepEqual(r.heads, [], `${at}: the superseded decisions wall is absent`);
+        assert.deepEqual([friday.answer, asking.answer], ['Answer', null], `${at}: only the person's native question has an Answer control`);
+        assert.deepEqual([asking.text.lines, asking.text.clamped, asking.more], [3, true, 'Show all'], `${at}: the pending question retains all its words behind disclosure`);
+        assert.equal(friday.who.text, 'coordinator', `${at}: the person's question keeps its recorded author`);
 
-        // Days: none above today's shouts; a rule in the middle names the earlier day where the feed crosses into it.
-        let day = new Date().toDateString();
-        const expected = [...stamps.flatMap(([id, iso]) => { const was = day; day = new Date(iso).toDateString(); return day === was ? [`shout:${id}`] : ['rule', `shout:${id}`]; })];
-        assert.deepEqual(r.feedKinds.map((k) => k.startsWith('rule:') ? 'rule' : k), expected, `${at}: a rule only where the day changes, none above today's: ${r.feedKinds}`);
-        assert.ok(r.feedKinds[r.feedKinds.indexOf(`shout:${ids[older]}`) - 1].startsWith('rule:') && !r.feedKinds.some((k) => k === 'rule:Today'), `${at}: the earlier day is named above its first shout`);
-        assert.ok(Math.abs((r.rule.label.left + r.rule.label.right) / 2 - (r.rule.box.left + r.rule.box.right) / 2) < 2, `${at}: the day sits in the middle of its rule`);
+        // Every actual conversation retains chronological native messages and every crossed day, including Today on return.
+        for (const [key, thread] of Object.entries(r.threads)) {
+          let day = new Date().toDateString();
+          const expected = thread.messageIds.flatMap(id => {
+            const before = day; day = new Date(stamps.find(([native]) => native === id)[1]).toDateString();
+            return day === before ? ['shout:' + id] : ['rule', 'shout:' + id];
+          });
+          assert.deepEqual(thread.feedKinds.map(kind => kind.startsWith('rule:') ? 'rule' : kind), expected,
+            `${at} ${key}: day rules occur only at native day transitions`);
+        }
+        const olderThread = r.threads['item:1'].feedKinds;
+        const olderDay = twoDays.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+        assert.equal(olderThread[olderThread.indexOf('shout:' + ids[older]) - 1], 'rule:' + olderDay, `${at}: the older native day is named exactly`);
+        assert.ok(olderThread.includes('rule:Today'), `${at}: the ascending conversation names its return to today`);
+        assert.ok(Math.abs((r.rule.label.left + r.rule.label.right) / 2 - (r.rule.box.left + r.rule.box.right) / 2) < 2, `${at}: the day stays centered`);
         seen[at] = { ink: old.ink, who: old.who.color };
       }
     }
     assert.notDeepEqual(seen['1280px light'], seen['1280px dark'], 'dark mode changes the cards');
 
     // Folding: more opens the whole shout, less closes it, and an open shout stays open across a refresh.
+    await press(chrome, "document.querySelector('#feed [data-shout-thread=\"\"]')");
+    await openConversation(chrome);
     await shoutsAt(chrome, 1280, 'light');
     const foldOf = () => chrome.stable(`JSON.stringify((() => { const c = document.querySelector('#feed #shout-${ids[long]}'), t = c.querySelector('.text'); return [c.querySelector('.more').textContent, Math.round(t.clientHeight / parseFloat(getComputedStyle(t).lineHeight))]; })())`).then(JSON.parse);
     await chrome.click(`document.querySelector('#feed #shout-${ids[long]} .more')`);
-    assert.deepEqual(await foldOf(), ['less', 12], 'more shows every line');
+    assert.deepEqual(await foldOf(), ['Show less', 12], 'more shows every line');
     box.run(alpha.web, 'shout', 'all', 'A later shout.');
-    await chrome.waitFor(`data.project.shouts.some((s) => s.shout_text === 'A later shout.') && document.querySelector('#feed .shout .text')?.textContent === 'A later shout.'`, 15_000); // budget: hang ceiling for the new shout to replace the feed card; no throughput claim.
-    assert.deepEqual(await foldOf(), ['less', 12], 'an open shout stays open across a refresh');
+    await chrome.waitFor(`data.project.shouts.some((s) => s.shout_text === 'A later shout.') && [...document.querySelectorAll('#feed .shout .text')].some(node => node.textContent === 'A later shout.')`, 15_000); // budget: hang ceiling for the new shout to replace the feed card; no throughput claim.
+    assert.deepEqual(await foldOf(), ['Show less', 12], 'an open shout stays open across a refresh');
     await chrome.click(`document.querySelector('#feed #shout-${ids[long]} .more')`);
-    assert.deepEqual(await foldOf(), ['more', 6], 'less folds it again');
+    assert.deepEqual(await foldOf(), ['Show all', 3], 'less folds it again');
 
     // The block opens on its header to the lines it names, in its own frame.
     const blockRef = `document.querySelector('#feed #shout-${ids[blockShout]} .code-ref > button.ref.block')`;
