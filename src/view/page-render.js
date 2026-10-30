@@ -366,7 +366,7 @@ function render() {
   /** A message keeps the exact native words; only references and disclosure add presentation. */
   const card = (x, tail = '') => '<article class="shout' + (lead(x.shout_from) ? ' lead' : '') + (openShouts.has(x.shout_id) ? ' open' : '') + (x.shout_id === view.shout ? ' found' : '') + '" id="shout-' + x.shout_id + '" data-shout-id="' + x.shout_id + '"><div class="shout-main">'
     + (x.shout_id === view.shout ? '<h2 class="visually-hidden">Shout #' + x.shout_id + '</h2>' : '')
-    + '<header><b class="who" title="' + esc(modelOf(x.shout_from)) + '">' + esc(x.shout_from === 'person' ? 'you' : x.shout_from) + '</b><span class="to">→ ' + shoutTo(x.shout_to) + '</span><time title="' + esc(when(x.shout_at)) + '">' + esc(clock(x.shout_at)) + '</time></header>'
+    + '<header><b class="who" title="' + esc(modelOf(x.shout_from)) + '">' + esc(x.shout_from === 'person' ? 'you' : x.shout_from) + '</b><span class="to">→ ' + shoutTo(x.shout_to) + '</span>' + mark(x) + '<time title="' + esc(when(x.shout_at)) + '">' + esc(clock(x.shout_at)) + '</time></header>'
     + '<div class="text">' + rich(x.shout_text, titles) + (x.options ? '<ol>' + x.options.map(option => '<li>' + esc(option) + '</li>').join('') + '</ol>' : '') + '</div><button class="more" data-more type="button" aria-expanded="' + openShouts.has(x.shout_id) + '">' + (openShouts.has(x.shout_id) ? 'Show less' : 'Show all') + '</button>' + band(x) + evidence(x) + heardBy(x) + tail + '</div></article>';
   // Native pending-question lists are authoritative: answered or stale asks never keep a thread amber.
   const uniqueShouts = new Map([...heard, ...questions].map(x => [x.shout_id, x]));

@@ -25,6 +25,11 @@ function needEntries(html) {
   });
 }
 
+/** Read one exact native message from the opened conversation without accepting an overview preview. */
+function conversationMessage(page, id) {
+  return page.show('feed').match(new RegExp('<article[^>]*data-shout-id="' + id + '"[^>]*>([\s\S]*?)</article>'))?.[1] ?? '';
+}
+
 /** Confirm the fixture's baseline approvals through the real person-view channel. */
 async function confirmBaseline(view, repo) {
   const id = await boardId(view, repo);
@@ -295,10 +300,16 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     assert.doesNotMatch(page.show('needs'), /decide:/, "an agent's ask is its coordinator's to answer");
     page.run("openTab('shouts'); render();");
     assert.equal(page.element('decisions').hidden, true, 'an ask waiting on others stays folded');
-    assert.match(page.show('asks-slot'), /^<button class="asks-toggle" data-fold="waiting" type="button" aria-expanded="false" title="Asks between agents, waiting on others: web-1 \(Test Model\) asks coordinator">1 ask waiting <span aria-hidden="true">▾<\/span><\/button>$/, 'its toggle sits at the end of the composer line');
-    page.run("openTab('shouts'); view.open.waiting = true; render();");
-    assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1 \\(Test Model\\)</b><span class="to">→ coordinator</span><span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">1m ago</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
-    assert.doesNotMatch(page.show('feed'), /Greet in/, 'though the feed no longer reaches it');
+    assert.match(page.show('asks-slot'), /data-shout-filter="questions"[^>]*>Questions<b>1<\/b>/,
+      'the shared Questions segment retains the one native pending ask');
+    page.run("view.shoutFilter = 'questions'; view.shoutThread = 'none'; render();");
+    const waitingMessage = conversationMessage(page, 1);
+    assert.match(waitingMessage, /<b class="who" title="Test Model">web-1<\/b><span class="to">→ coordinator<\/span>/,
+      'the opened native question retains its exact author, model hover and recipient');
+    assert.match(waitingMessage, new RegExp('<div class="text">' + question + '</div>'), 'its entire escaped question remains visible');
+    assert.match(waitingMessage, /<div class="band">Decision needed<\/div>/, 'the native pending status is retained');
+    assert.doesNotMatch(waitingMessage, /data-go="decide:/, 'an agent question has no person Answer control');
+
 
     // The coordinator passes it up with its note (B27): now it is the person's call.
     box.run(alpha.repo, 'pass', '1', 'over to you');
@@ -311,7 +322,15 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     assert.ok(page.show('needs').includes('Passed up from web-1: Greet in &lt;b&gt;French&lt;/b&gt; first?<br>Coordinator note: over to you'), 'expanded details preserve the entire passed question and coordinator note');
     assert.match(page.show('needs'), /<span class="needs-age"><time data-ago="[^"]+">1m<\/time><\/span>/u, 'the call retains its actual one-minute age');
     page.run("openTab('shouts'); render();");
-    assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<div class="head"><i></i>Decision needed</div><article class="shout h\\d lead" data-shout-id="42"><span class="avatar"><svg [\\s\\S]*?</svg></span><div class="shout-main"><header><b class="who">coordinator</b><span class="to">→ person</span><span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">1m ago</time></header><div class="text">${passed.replace('\n', '<br>')}</div><button class="more" data-more type="button">more</button><button class="ghost answer" data-go="decide:42" type="button">Answer</button></div></article>$`), 'and above the shouts as the coordinator\'s card, with an Answer button');
+    page.run("view.shoutThread = 'none'; render();");
+    const passedMessage = conversationMessage(page, 42);
+    assert.match(passedMessage, /<b class="who" title="[^"]*">coordinator<\/b><span class="to">→ you<\/span>/,
+      'the passed native call retains its coordinator author and person recipient');
+    assert.match(passedMessage, new RegExp('<div class="text">' + passed.replace('\n', '<br>') + '</div>'),
+      'the conversation keeps the complete passed question and coordinator note');
+    assert.match(passedMessage, /data-go="decide:42"/, 'the real passed call retains its Answer action');
+    assert.equal(page.element('decisions').hidden, true, 'the superseded decisions wall stays hidden');
+
 
     const form = () => ({
       answering: !page.element('answering').hidden,
@@ -347,8 +366,8 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     box.run(alpha.repo, 'pass', '45', 'yours');
     await page.run('refresh()');
     const feed = shoutNameText(page.show('feed'));
-    assert.match(feed, /<b class="who">web-1 \(Test Model\)<\/b><span class="to">→ coordinator<\/span><span class="mark ask" role="group" title="decision" aria-label="decision">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
-    assert.match(feed, /<b class="who">you<\/b><span class="to">→ coordinator<\/span><span class="mark" role="group" title="answer" aria-label="answer">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
+    assert.match(feed, /<b class="who" title="Test Model">web-1<\/b><span class="to">→ coordinator<\/span><span class="mark ask" role="group" title="decision" aria-label="decision">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
+    assert.match(feed, /<b class="who" title="unknown">you<\/b><span class="to">→ coordinator<\/span><span class="mark" role="group" title="answer" aria-label="answer">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
     page.run("openTab('items'); render();");
     assert.match(page.show('needs'), /data-go="decide:46"/);
 
@@ -410,8 +429,9 @@ test("needs-you holds only the person's calls; the rest show on the board with w
     assert.match(needs, /<span class="needs-id"(?: title="[^"]*")?>web<\/span>G3 is open<\/b><small>lane held by coordinator<\/small>[\s\S]*?<span class="needs-age"><time data-ago="[^"]+">(?:now|\d+[mhd])<\/time>/u, 'a held lane says who set it and shows the API-provided hold age');
 
     // Each of the rest is on the board, with who holds it.
-    page.run("openTab('shouts'); view.open.waiting = true; render();");
-    assert.match(shoutNameText(page.show('decisions')), /<article class="shout h\d" data-shout-id="\d+"><span class="avatar" aria-hidden="true">W1<\/span><div class="shout-main"><header><b class="who">web-1 \(Test Model\)<\/b><span class="to">→ coordinator<\/span>/, "the agent's ask waits on its coordinator");
+    page.run("openTab('shouts'); view.shoutFilter = 'questions'; view.shoutThread = 'none'; render();");
+    assert.match(page.show('feed'), /<b class="who" title="Test Model">web-1<\/b><span class="to">→ coordinator<\/span>/,
+      "the native agent question waits on its coordinator in the Questions conversation");
     page.run("openTab('items'); render();");
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip [^"]*">to verify<\/span><\/li>$/, 'work waiting for a verdict');
     assert.ok(itemRow(page.show('chain'), 2).includes('<b><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> no farewell yet'), 'and work sent back, with why');

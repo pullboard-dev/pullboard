@@ -569,10 +569,10 @@ function agentEntries(html) {
     const first = what && word ? [null, what[1], what[2], word[1]] : null;
     return {
       id: /data-agent="([^"]*)"/.exec(entry)?.[1],
-      path: /title="Shouts with [^"]* \(([^"]*)\)"/.exec(entry)?.[1],
+      path: /title="Shouts with [^"]* \(([^"()]*)\)(?: · \+\d+ more items?)?"/.exec(entry)?.[1],
       age: /<time[^>]*>([^<]*)<\/time>/.exec(entry)?.[1],
       holds: opened.length ? opened : first ? [`${first[1]} ${first[2]}: ${first[3]}`] : [],
-      more: Number(/<span class="agent-more">\+(\d+)<\/span>/.exec(entry)?.[1] ?? 0),
+      more: Number(/title="[^"]* · \+(\d+) more items?"/.exec(entry)?.[1] ?? 0),
       idle: false,
       text: entry.replace(/<[^>]*>/g, ' '),
     };
