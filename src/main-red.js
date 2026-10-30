@@ -39,7 +39,11 @@ import {
 } from './trusted-policy.js';
 import { parseSpec } from './spec.js';
 import { listItems } from './board.js';
-import { takeResource } from '../packages/resources/index.js';
+import {
+  takeResource,
+  requiredExecutorOf,
+} from '../packages/resources/index.js';
+import { sameEnvironment } from './execution-environment.js';
 import { Refused } from './refused.js';
 import {
   failureSignatures,
@@ -195,29 +199,42 @@ function retainComparisonReceipt(root, checkout, id) {
 /**
  * Compare named failed files against one captured main snapshot. Each result is cached by exact
  * commit and file; later submits reuse completed results rather than rerunning the same file.
+ * A frozen-check comparison pinned to an actual executor and runtime always executes without that generic cache.
  *
  * @param {string} root
  * @param {object} profile
  * @param {(state:object)=>void} [onWait]
  * @param {string} [output] - The failed phase's unchanged reporter output.
- * @param {{commit?: string, detailed?: boolean, fresh?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts.
+ * @param {{commit?: string, detailed?: boolean, fresh?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts.
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
  */
-export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, onMeasuredReceipt, runnerAdmission = {} } = {}) {
+export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, onMeasuredReceipt, runnerAdmission = {}, execution } = {}) {
   const main = commit ? { commit } : mainCheckout(root);
   if (!main?.commit) return { main: null, files: [], unavailable: 'the primary checkout has no committed main snapshot' };
   const policy = policyAt(root, main.commit);
   if (typeof policy.config.affectedTests !== 'string' || !policy.config.affectedTests.trim()) {
     return { main: main.commit, files: [], unavailable: 'no focused test runner configured' };
   }
+  const pinned = execution !== undefined;
+  let executor;
+  if (pinned) {
+    try { executor = requiredExecutorOf(execution?.executor); } catch { /* Invalid execution facts fail closed below. */ }
+    if (!executor || !sameEnvironment(execution?.environment, execution?.environment)) {
+      return { main: main.commit, files: [], unavailable: 'the candidate check has no complete executor and runtime identity' };
+    }
+  }
   const files = failingFiles(root, profile, output);
   if (!files.length) return { main: main.commit, files: [], unavailable: 'could not read which tests failed' };
-  const file = cacheFile(root);
+  const file = pinned ? null : cacheFile(root);
+  const pinnedEntries = Object.create(null);
   /** A detailed comparison cannot reuse an old file-only or obsolete-signature cache entry. */
   const usable = outcome => ['red', 'green'].includes(outcome?.result)
     && (!detailed || Array.isArray(outcome.failures));
   /** Read a consistent cache generation in a short metadata-only critical section. */
-  const snapshot = () => withComparisonCache(root, onWait, () => readCache(file));
+  // Executor-pinned evidence never reads or populates the generic commit/file cache.
+  const snapshot = () => pinned
+    ? Promise.resolve({ version: 1, entries: { [main.commit]: { ...pinnedEntries } } })
+    : withComparisonCache(root, onWait, () => readCache(file));
   let cache = await snapshot();
   const missing = files.filter(path => fresh || !usable(cache.entries[main.commit]?.[path]));
   let failed = null;
@@ -234,6 +251,10 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
         const measure = remote => withGateSlot(checkout, async lease => {
           // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
           const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs });
+          if (pinned && ((executor.kind === 'ssh' ? run.executionRunner !== executor.host : Boolean(run.executionRunner))
+            || !sameEnvironment(run.environment, execution.environment))) {
+            throw new Refused('LAND_ENVIRONMENT', 'the merge-base comparison did not execute on the candidate check executor and exact runtime');
+          }
           if (run.receiptId) {
             try {
               const id = retainComparisonReceipt(root, checkout, run.receiptId);
@@ -243,17 +264,18 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
           const failures = detailed ? run.isGreen ? [] : failureSignatures(run, checkout) : null;
           if (detailed && !run.isGreen && !failures) throw new Error('focused main output has no complete named failure account');
           return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}) };
-        }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission });
+        }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
         // History a runner may not receive keeps the comparison on this machine, as it ran before runners.
-        try { return await measure(true); }
+        try { return await measure(pinned ? executor.kind === 'ssh' : true); }
         catch (error) {
-          if (error?.code !== 'RUNNER_SECRET') throw error;
+          if (pinned || error?.code !== 'RUNNER_SECRET') throw error;
           if (runnerAdmission.runnerOnly) throw new Refused('RUNNER_SECRET', `${error.message}; gate.runnersOnly forbids local retry; correct the source privacy refusal and retry submit`);
           return measure(false);
         }
       });
       if (measured.unavailable) throw new Error(measured.unavailable);
-      await withComparisonCache(root, onWait, () => {
+      if (pinned) pinnedEntries[path] = measured;
+      else await withComparisonCache(root, onWait, () => {
         const current = readCache(file);
         // Preserve a completed exact-main result published while this measurement ran.
         if (!fresh && usable(current.entries[main.commit]?.[path])) return;

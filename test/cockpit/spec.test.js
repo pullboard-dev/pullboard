@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import vm from 'node:vm';
-import { standardDoctrine } from '../../src/doctrine.js';
+import { standardDoctrine } from '../../packages/doctrine/index.js';
 import { loadConfig } from '../../src/config.js';
 import { pageScriptPart4 } from '../../src/view/page-script-4.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../../packages/kernel/src/core/discovery.js';
