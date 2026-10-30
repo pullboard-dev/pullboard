@@ -15,7 +15,7 @@ import {
 } from './doctrine-checks.js';
 import { checkNeedsBrowser } from './browser-admission.js';
 import { withGateSlot } from './gate.js';
-import { gateSlotEnvironment } from './resources.js';
+import { gateSlotEnvironment } from '../packages/resources/index.js';
 import {
   git,
   headCommit,

@@ -22,16 +22,16 @@ import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { loadDoctrine } from '../src/doctrine.js';
 import { loadConfig } from '../src/config.js';
-import { draftConflictSplits } from '../src/rigor-splits.js';
+import { draftConflictSplits } from '../packages/rigor/index.js';
 import { proposeDoctrine } from '../src/doctrine-rulings.js';
 import { conflictNote } from '../packages/kernel/src/core/registry-guards.js';
-import { conflictNoteFiles, conflictReport } from '../src/rigor-conflicts.js';
+import { conflictNoteFiles, conflictReport } from '../packages/rigor/index.js';
 import { RIGOR_AUTO_ENGINE } from '../src/rigor-auto-engine.js';
 import {
   breachLine,
   changeRange,
   qualityBreaches,
-} from '../src/rigor-quality.js';
+} from '../packages/rigor/index.js';
 
 const conflictE2e = createE2eHelpers();
 after(conflictE2e.cleanup);

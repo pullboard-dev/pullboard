@@ -8,7 +8,7 @@ import {
   readMachineMemory,
   takeResource,
   requiredExecutorOf,
-} from './resources.js';
+} from '../packages/resources/index.js';
 import {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,

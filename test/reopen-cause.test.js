@@ -21,8 +21,8 @@ import {
   ensureRigorCounters,
   resumeRigorCounters,
   RIGOR_COLD_NOTICE,
-} from '../src/rigor-counters.js';
-import { conflictReport } from '../src/rigor-conflicts.js';
+} from '../packages/rigor/index.js';
+import { conflictReport } from '../packages/rigor/index.js';
 import { trunkMerge } from '../src/trunk-merge.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

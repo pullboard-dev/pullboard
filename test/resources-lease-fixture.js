@@ -286,7 +286,7 @@ function admittedCompletionReplicas(box, id, snapshot) {
 function inheritedAdmissionProof(box) {
   const program = `
 import assert from 'node:assert/strict';
-import { takeResource, gateSlotEnvironment } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/resources.js')).href)};
+import { takeResource, gateSlotEnvironment } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../packages/resources/index.js')).href)};
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href)};
 ${executionServicesSource(pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href)}
 const root = process.cwd();

@@ -546,7 +546,7 @@ test('reviewed executor imports stay browser-free only at their exact call sites
   const entries = [
     ['src/cli.js', 'sweepHere', 'spawnSync(item.check,'],
     ['src/sentinel-runner.js', 'executeSentinel', 'spawn(row.check,'],
-    ['src/rigor-proof.js', 'runOwnedCheck', "spawn(runner?.executable ?? '/bin/sh',"],
+    ['packages/rigor/src/shell/rigor-proof.js', 'runOwnedCheck', "spawn(runner?.executable ?? '/bin/sh',"],
     ['test/cli-startup.test.js', 'fixture', 'runFixtureChild(env.PULLBOARD_REAL_GIT,'],
     ['test/git-calls.test.js', 'advanceHead', 'execFileSync(box.env.PULLBOARD_REAL_GIT,'],
   ];

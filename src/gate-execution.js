@@ -113,7 +113,7 @@ import {
   GATE_SLOT_HELD_ENV,
   gateSlotEnvironment,
   requiredExecutorOf,
-} from './resources.js';
+} from '../packages/resources/index.js';
 import {
   timingFromOutput,
   timingRunner,

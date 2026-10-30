@@ -72,7 +72,7 @@ import {
   listResources,
   setResourceCapacity,
   takeResource,
-} from '../src/resources.js';
+} from '../packages/resources/index.js';
 import {
   parseProcessCensus,
 } from '../packages/kernel/src/core/process-census.js';
