@@ -23,7 +23,7 @@ function showTab() {
 
 /** Read the selected repo, tab and detail from a path or the hosted page's fragment. */
 function placeAtAddress(page = data) {
-  const tabs = ['dashboard', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings'];
+  const tabs = ['dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings', ...(privateCost ? ['cost'] : [])];
   const hash = location.hash || '';
   let path = routed ? location.pathname || '/' : hash.slice(1);
   if (hash === '#items/pipeline' || hash === '#roadmap') path = hash.slice(1);
@@ -73,7 +73,7 @@ function address(push = true) {
 /** Apply a parsed selection without recording another history entry. */
 function applyPlace(place, kept = null) {
   if (place.root) view.root = place.root;
-  view.tab = place.tab === 'home' ? 'dashboard' : place.tab;
+  view.tab = place.tab === 'home' ? 'dashboard' : place.tab === 'cost' && !privateCost ? landingTab() : place.tab;
   view.addressDetail = place.detail;
   view.item = place.tab === 'items' && place.detail !== null && place.detail !== 'pipeline' ? Number(place.detail) : null;
   view.itemsView = place.tab === 'items' && place.detail === 'pipeline' ? 'pipeline' : 'list';
@@ -121,6 +121,7 @@ function fromAddress(event) {
 
 /** Pick a tab or an explicit detail and record the complete place once. */
 function openTab(tab, detail = null) {
+  if (tab === 'cost' && !privateCost) return;
   view.tab = tab === 'home' ? 'dashboard' : tab;
   tab = view.tab;
   view.addressDetail = detail;
@@ -861,11 +862,18 @@ document.addEventListener('click', (event) => {
     return;
   }
   if (view.filterOpen && !event.target.closest('.filter-control')) { view.filterOpen = false; render(); }
-  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],#proj-switch,#console');
+  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
   if (!t) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
   if (t.id === 'console') { t.hidden = true; return; }
+  if (t.dataset.costRow && privateCost && view.tab === 'cost') {
+    const id = Number(t.dataset.costRow);
+    view.costOpen = view.costOpen === id ? null : id;
+    render();
+    $('cost').querySelector?.('[data-cost-row="' + id + '"]')?.focus({ preventScroll: true });
+    return;
+  }
   if (t.tagName === 'A' && (t.dataset.go?.startsWith('item:') || t.dataset.tab)) {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
@@ -981,6 +989,8 @@ document.addEventListener('keydown', (event) => {
 /** Let a Roadmap row with independent inline links keep its keyboard button behavior. */
 document.addEventListener('keydown', (event) => {
   if (!['Enter', ' '].includes(event.key)) return;
+  const citation = event.target.closest('.spec-citing[role="button"]');
+  if (citation && event.target === citation) { event.preventDefault(); citation.click(); return; }
   const head = event.target.closest('.milestone-head');
   if (head && event.target === head) { event.preventDefault(); head.click(); return; }
   const row = event.target.closest('.milestone-item[role="button"]');

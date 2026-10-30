@@ -1,3 +1,10 @@
+import { pipelineLimit } from '../stats-pipeline.js';
+import { pipelineStats } from '../stats-pipeline.js';
+import { pipelineLines } from '../stats-pipeline.js';
+import { movesStats } from '../stats-moves.js';
+import { movesLines } from '../stats-moves.js';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { loadMachineSettings } from '../settings-read.js';
 import { localUsage } from '../cost-prices.js';
 import { dollarText } from '../cost-prices.js';
@@ -39,8 +46,34 @@ import {
 } from '../cli.js';
 
 /** Run `pullboard stats` and return its exit code. */
-export function run(io, { values }) {
+export function run(io, { first, second, rest, values }) {
   const ctx = context(io);
+  if (first !== undefined && !['pipeline', 'moves'].includes(first)) throw new Refused('USAGE', 'use pullboard stats, pullboard stats pipeline, or pullboard stats moves --limit 20');
+  if (values.transcripts !== undefined && first !== 'moves') throw new Refused('USAGE', '--transcripts belongs to pullboard stats moves');
+  if (first === 'moves') {
+    if (second !== undefined || rest?.length || values.since !== undefined || values.window !== undefined || values.compare) throw new Refused('USAGE', 'select landed items with pullboard stats moves --limit 20');
+    const limit = pipelineLimit(values.limit);
+    let transcripts;
+    if (values.transcripts !== undefined) {
+      try {
+        const bytes = readFileSync(resolve(io.cwd, values.transcripts));
+        if (bytes.length > 4 * 1024 * 1024) throw new Error('larger than 4 MiB');
+        transcripts = JSON.parse(bytes.toString('utf8'));
+      } catch (error) { throw new Refused('USAGE', `cannot read supplied command transcripts: ${error.message}`); }
+    }
+    const moves = withBoard(ctx, board => movesStats(store.events(board), { limit, transcripts }));
+    io.result?.({ moves });
+    for (const line of movesLines(moves)) io.say(line);
+    return 0;
+  }
+  if (first === 'pipeline') {
+    if (second !== undefined || rest?.length || values.since !== undefined || values.window !== undefined || values.compare) throw new Refused('USAGE', 'select landed items with pullboard stats pipeline --limit 20; time windows belong to pullboard stats --window');
+    const limit = pipelineLimit(values.limit);
+    const pipeline = withBoard(ctx, board => pipelineStats(store.events(board), { limit }));
+    io.result?.({ pipeline });
+    for (const line of pipelineLines(pipeline)) io.say(line);
+    return 0;
+  }
   const prices = loadMachineSettings().costPrices;
   if (values.since !== undefined && values.window !== undefined) {
     throw new Refused('USAGE', 'choose either --since <date> or --window <duration>, for example pullboard stats --window 6h');

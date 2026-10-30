@@ -107,3 +107,27 @@ test('a real baseline worker completes during claim preparation without strandin
   assert.equal(store.events(board).filter(event => event.event_kind === 'claim').length, 1);
   assert.equal(calls, 2, 'fresh preparation excludes the completed writer and remains outside BEGIN');
 });
+
+test('a renewal whose board changes between preparation and the writer lock prepares again and succeeds [B2,C7,V2]', t => {
+  const e2e = createE2eHelpers();
+  const box = e2e.project('true');
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  // @pullboard-board-file locking: a persisted Git board, as the real concurrent renewals use.
+  const board = openBoard(file, undefined, { gitRoot: box.web });
+  t.after(() => { store.closeBoard(board); e2e.cleanup(); });
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Renewal race', specIds: ['G1'],
+    criterion: 'a renewal survives a peer write', check: 'true' });
+  const agentId = store.agentAt(board, box.web).agent_id;
+  const who = () => ({ agentId, lane: 'web', leaseMs: 7_200_000, freeze: claimFreezer(context({ cwd: box.web }), board) });
+  assert.equal(writeBoardCommand(board, 'claim', [id, who()], agentId).renewed, false);
+  // Control: the first writer-side claim sees a board that changed after preparation, as a peer's commit would.
+  const real = board.enginePorts.store.claim;
+  let calls = 0;
+  board.enginePorts = { ...board.enginePorts, store: { ...board.enginePorts.store, claim(b, ...rest) {
+    if (++calls === 1) b.db.prepare("INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES ('race-control', 'x')").run();
+    return real(b, ...rest);
+  } } };
+  const renewed = writeBoardCommand(board, 'claim', [id, who()], agentId);
+  assert.equal(renewed.renewed, true);
+  assert.equal(calls, 2, 'the stale preparation is discarded and rebuilt once');
+});

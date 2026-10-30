@@ -73,7 +73,8 @@ test('pullboard test runs files on the runner pool with a per-file timeout [C7]'
   const text = box.run(box.web, 'test', 'test/hang.test.js');
   assert.equal(text.code, 1);
   assert.match(text.err, new RegExp(`red on ${HOST}`, 'u'), 'the text form names where it ran');
-  assert.match(text.err, /known main failure: test\/hang\.test\.js fails on main/u, 'and names the failure main already has');
+  assert.match(text.out.split('\n')[0], /file also fails on main at [a-f0-9]+: test\/hang\.test\.js \(case comparison unavailable\)/u, 'the first result line keeps the real file verdict without inventing a case match');
+  assert.doesNotMatch(text.out, /not yours; accepted/u, 'a timeout is not an identical accepted case');
 });
 
 test('pullboard test names why it ran on this machine, and every installed hook points at it [C7]', { timeout: 120_000 }, () => { // budget: hang ceiling for real init, join and one local run; not a speed target.

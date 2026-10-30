@@ -1,8 +1,11 @@
 /** Fresh per-file main comparisons for inherited submit reds [V1]. */
+import { testClosures } from './affected-tests.js';
+import { selectAffectedTests } from './affected-tests.js';
 import { runnerExecutionServices } from './runners.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import {
   lstatSync,
   mkdirSync,
@@ -46,13 +49,17 @@ import {
 import { sameEnvironment } from './execution-environment.js';
 import { Refused } from './refused.js';
 import {
+  matchingMainFailures,
   failureSignatures,
   cachedFailureSignatures,
   MAIN_FAILURE_SIGNATURE_VERSION,
 } from './main-failure-matches.js';
+import { linkKnownMainReworks } from './known-main-reworks.js';
 import { testsNeedBrowser } from './browser-admission.js';
 import { testsNeedGui } from './gui-admission.js';
 import { browserFreeChecksEnabled } from './settings.js';
+import { loadMachineSettings } from './settings-read.js';
+import { recentReceipts } from './gate-receipt.js';
 
 const CACHE_RELATIVE = 'pullboard/main-red.json';
 
@@ -118,7 +125,8 @@ function readCache(file) {
       for (const [path, outcome] of Object.entries(files)) {
         if (typeof path === 'string' && path && ['red', 'green'].includes(outcome?.result)) {
           const failures = cachedFailureSignatures(outcome, path);
-          entries[commit][path] = { result: outcome.result, ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}) };
+          entries[commit][path] = { result: outcome.result, ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}),
+            ...(typeof outcome.receiptId === 'string' ? { receiptId: outcome.receiptId } : {}) };
         }
       }
     }
@@ -196,6 +204,72 @@ function retainComparisonReceipt(root, checkout, id) {
   return id;
 }
 
+/** Only a completed structured remote run can supply a peer's recorded comparison environment. */
+function comparisonObservationMatches(receipt, environment, browser) {
+  const admitted = Date.parse(receipt?.admittedAt);
+  const finished = Date.parse(receipt?.finishedAt);
+  const slots = receipt?.runner?.slots;
+  return receipt?.slot?.kind === 'runner' && receipt.inherited !== true
+    && Number.isFinite(admitted) && Number.isFinite(finished) && admitted <= finished
+    && Number.isSafeInteger(slots?.current) && slots.current > 0
+    && Number.isSafeInteger(slots.limit) && slots.limit >= slots.current && typeof slots.elastic === 'boolean'
+    && sameEnvironment(receipt.environment, environment)
+    && receipt.runner.capabilities?.os === environment.platform
+    && typeof browser === 'boolean' && receipt.runner.capabilities.browser === browser;
+}
+
+/** Select only registered peers with a fresh physical runtime and browser observation matching the red executor. */
+export function comparisonExecutor(root, execution) {
+  const original = requiredExecutorOf(execution?.executor);
+  if (original?.kind !== 'ssh') return { requiredExecutor: original, browser: null };
+  const registered = loadMachineSettings().runners ?? [];
+  const observed = new Map();
+  const now = Date.now();
+  for (const receipt of recentReceipts(root, now)) {
+    const at = Date.parse(receipt.finishedAt ?? receipt.at);
+    const host = receipt.runner?.id;
+    if (receipt.runner?.kind !== 'ssh' || typeof host !== 'string'
+      || !Number.isFinite(at) || at > now || now - at > 86_400_000) continue;
+    // Select newest first, including incomplete observations: an older match cannot mask a changed/unknown host.
+    if (!observed.has(host) || at >= observed.get(host).at) observed.set(host, { at, receipt });
+  }
+  const red = observed.get(original.host)?.receipt;
+  const browser = red?.runner?.capabilities?.browser;
+  const redMatches = comparisonObservationMatches(red, execution.environment, browser);
+  const hosts = registered.filter(runner => {
+    if (runner.host === original.host) return !red || redMatches && (runner.browser > 0) === browser;
+    const peer = observed.get(runner.host)?.receipt;
+    return redMatches && comparisonObservationMatches(peer, execution.environment, browser) && (runner.browser > 0) === browser;
+  }).map(runner => runner.host);
+  if (!hosts.length) throw new Refused('BAD_RUNNER_POOL', 'no registered runner has the candidate comparison environment; record a matching runner and retry');
+  const host = hosts.includes(original.host) ? original.host : hosts[0];
+  return { requiredExecutor: { kind: 'ssh', host, hosts: [host, ...hosts.filter(value => value !== host)] }, browser: redMatches ? browser : null };
+}
+
+/** Companions cannot inherit a red whose complete committed input closure they changed [V4,B3]. */
+export function companionMainFailuresUntouched(root, { base, source, composed }, failures) {
+  if (!base || !source || !composed || !Array.isArray(failures) || !failures.length) return false;
+  try {
+    const diff = spawnSync('git', ['diff', '--name-only', '-z', '--no-renames', source, composed, '--'],
+      { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+    if (diff.status !== 0) return false;
+    const changed = new Set(diff.stdout.split('\0').filter(Boolean));
+    // These inputs select execution itself; no source-import closure can prove them irrelevant.
+    if ([...changed].some(path => ['pullboard.json', 'package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'bin/run-tests.js'].includes(path))) return false;
+    const selection = selectAffectedTests(root, { base: source, commit: composed, changed: [...changed] });
+    if (selection.full || failures.some(failure => selection.files.includes(failure.file))) return false;
+    for (const commit of new Set([base, source, composed])) {
+      const { closures } = testClosures(root, commit);
+      for (const failure of failures) {
+        const closure = closures.get(failure.file);
+        if (!closure || !Array.isArray(closure.files) || !closure.files.includes(failure.file)
+          || closure.files.some(file => changed.has(file))) return false;
+      }
+    }
+    return true;
+  } catch { return false; } // Unavailable graph or Git evidence never grants known-main acceptance.
+}
+
 /**
  * Compare named failed files against one captured main snapshot. Each result is cached by exact
  * commit and file; later submits reuse completed results rather than rerunning the same file.
@@ -217,16 +291,22 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   }
   const pinned = execution !== undefined;
   let executor;
+  let comparisonBrowser = null;
   if (pinned) {
     try { executor = requiredExecutorOf(execution?.executor); } catch { /* Invalid execution facts fail closed below. */ }
     if (!executor || !sameEnvironment(execution?.environment, execution?.environment)) {
       return { main: main.commit, files: [], unavailable: 'the candidate check has no complete executor and runtime identity' };
     }
   }
+  if (pinned) {
+    try { ({ requiredExecutor: executor, browser: comparisonBrowser } = comparisonExecutor(root, execution)); }
+    catch (error) { return { main: main.commit, files: [], unavailable: error.message }; }
+  }
   const files = failingFiles(root, profile, output);
   if (!files.length) return { main: main.commit, files: [], unavailable: 'could not read which tests failed' };
   const file = pinned ? null : cacheFile(root);
   const pinnedEntries = Object.create(null);
+  const coarse = Object.create(null);
   /** A detailed comparison cannot reuse an old file-only or obsolete-signature cache entry. */
   const usable = outcome => ['red', 'green'].includes(outcome?.result)
     && (!detailed || Array.isArray(outcome.failures));
@@ -251,19 +331,23 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
         const measure = remote => withGateSlot(checkout, async lease => {
           // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
           const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs });
-          if (pinned && ((executor.kind === 'ssh' ? run.executionRunner !== executor.host : Boolean(run.executionRunner))
-            || !sameEnvironment(run.environment, execution.environment))) {
-            throw new Refused('LAND_ENVIRONMENT', 'the merge-base comparison did not execute on the candidate check executor and exact runtime');
+          if (pinned && ((executor.kind === 'ssh' ? !(executor.hosts ?? [executor.host]).includes(run.executionRunner) : Boolean(run.executionRunner))
+            || !sameEnvironment(run.environment, execution.environment)
+            || comparisonBrowser !== null && Boolean(lease.runner?.browser > 0) !== comparisonBrowser)) {
+            throw new Refused('LAND_ENVIRONMENT', 'the merge-base comparison did not execute on a registered matching candidate check executor and exact runtime');
           }
+          let receiptId;
           if (run.receiptId) {
             try {
               const id = retainComparisonReceipt(root, checkout, run.receiptId);
+              if (id) receiptId = id;
               if (id && onMeasuredReceipt) await onMeasuredReceipt(id);
             } catch { /* Timing retention never changes the exact-main failure verdict. */ }
           }
+          coarse[path] = { file: path, result: run.isGreen ? 'green' : 'red', ...(receiptId ? { receiptId } : {}) };
           const failures = detailed ? run.isGreen ? [] : failureSignatures(run, checkout) : null;
           if (detailed && !run.isGreen && !failures) throw new Error('focused main output has no complete named failure account');
-          return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}) };
+          return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}), ...(receiptId ? { receiptId } : {}) };
         }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
         // History a runner may not receive keeps the comparison on this machine, as it ran before runners.
         try { return await measure(pinned ? executor.kind === 'ssh' : true); }
@@ -291,8 +375,13 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   }
   cache = await snapshot();
   const incomplete = files.some(path => !usable(cache.entries[main.commit]?.[path]));
-  if (failed && (fresh || incomplete)) return { main: main.commit, files: [], unavailable: failed.message ?? 'main comparison could not be completed', ...(runnerAdmission.runnerOnly ? { runnerOnly: true } : {}) };
-  if (incomplete) return { main: main.commit, files: [], unavailable: 'main comparison cache changed before the completed results could be read' };
+  // A timeout still has a real file verdict; it never supplies the missing case signatures.
+  const coarseFiles = files.flatMap(path => {
+    const row = coarse[path] ?? cache.entries[main.commit]?.[path];
+    return row ? [{ file: path, result: row.result, ...(row.receiptId ? { receiptId: row.receiptId } : {}) }] : [];
+  });
+  if (failed && (fresh || incomplete)) return { main: main.commit, files: [], ...(detailed ? { coarseFiles } : {}), unavailable: failed.message ?? 'main comparison could not be completed', ...(runnerAdmission.runnerOnly ? { runnerOnly: true } : {}) };
+  if (incomplete) return { main: main.commit, files: [], ...(detailed ? { coarseFiles } : {}), unavailable: 'main comparison cache changed before the completed results could be read' };
   return { main: main.commit, files: files.map(path => ({ file: path, ...(detailed
     ? cache.entries[main.commit][path] : { result: cache.entries[main.commit][path].result }) })) };
 }
@@ -393,4 +482,38 @@ function matchingReworks(root, board, commit, files, loaded = null) {
     if (owners.length === 1) matches.push({ file, row, item: owners[0] });
   }
   return matches;
+}
+
+/** Present only complete case comparisons with a retained native receipt; these words grant no authority. */
+export function mainFailureNotices(root, failures, comparison, { items = [], exclude } = {}) {
+  if (!failures?.length || !comparison?.main || comparison.unavailable) return [];
+  let runner;
+  try { runner = policyAt(root, comparison.main).config.affectedTests; }
+  catch { return []; } // Missing accepted policy cannot bind a comparison receipt.
+  if (typeof runner !== 'string' || !runner.trim()) return [];
+  const store = receiptStore(root);
+  return failures.flatMap(failure => {
+    if (!cachedFailureSignatures({ result: 'red', failures: [failure], signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION }, failure.file)) return [];
+    const entries = comparison.files.filter(row => row.file === failure.file);
+    if (entries.length !== 1) return [];
+    const entry = entries[0];
+    const receipt = readGateReceipt(store, entry.receiptId);
+    const word = "'" + ('./' + failure.file).replaceAll("'", "'\\''") + "'";
+    const command = `PULLBOARD_TEST_REUSE=0 ${runner.trimEnd()} ${word}`;
+    if (!['red', 'green'].includes(entry.result) || !receipt || receipt.kind !== 'main-red' || receipt.head !== comparison.main || receipt.main !== comparison.main
+      || receipt.command !== createHash('sha256').update(command).digest('hex')
+      || receipt.green !== (entry.result === 'green') || !cachedFailureSignatures(entry, failure.file)) return [];
+    const matched = matchingMainFailures([failure], comparison, comparison.main);
+    const mainCases = entry.failures.filter(row => row.name === failure.name);
+    // A duplicate case or incomplete native failure account cannot become a candidate-only claim.
+    if (entry.result === 'red' && (mainCases.length > 1 || entry.failures.length !== receipt.failures.length || entry.failures.some(row =>
+      !receipt.failures.some(actual => actual.file === row.file && actual.name === row.name)))) return [];
+    const owner = matched && linkKnownMainReworks(matched, items, exclude)?.failures[0].item;
+    const status = matched ? 'also-main' : mainCases.length ? 'different-on-main' : 'candidate-only';
+    const message = matched
+      ? `also fails on main at ${comparison.main}: ${failure.file} :: ${failure.name} (not yours; ${owner ? `owner #${owner}` : 'accepted'})`
+      : `${mainCases.length ? 'fails differently with your change' : 'fails only with your change'}: ${failure.file} :: ${failure.name}`;
+    return [{ status, main: comparison.main, file: failure.file, name: failure.name,
+      receiptId: receipt.id, ...(owner ? { owner } : {}), message: `${message} [main receipt ${receipt.id}]` }];
+  });
 }

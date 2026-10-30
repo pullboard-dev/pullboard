@@ -37,9 +37,10 @@ const LEASE = 3_600_000;
 const freeze = () => ({ text: '{}', digest: 'synthetic-review-bar' });
 
 /** Declare every vendor and persisted parent explicitly; no model label supplies an inferred family. */
-function fixture(t, { historical = false, requireFamilies = true } = {}) {
+function fixture(t, { historical = false, requireFamilies = true, engine } = {}) {
   const board = fixtureBoard(t);
-  if (historical) board.executionEngineVersion = REVIEW_INDEPENDENCE_ENGINE - 1;
+  if (engine !== undefined) board.executionEngineVersion = engine;
+  else if (historical) board.executionEngineVersion = REVIEW_INDEPENDENCE_ENGINE - 1;
   const join = (id, family, parent) => store.register(board, { id, lane: id === 'coordinator' ? 'coordinator' : 'core', path: `/fixture/${id}`,
     family, parentDigest: parent.repeat(64), model: 'Synthetic fixture model' });
   join('coordinator', 'human', 'e');
@@ -357,7 +358,7 @@ test('strict vendor eligibility and native reservation agree while historical re
 
 test('routing activation fences vendor-rule downgrades while genuine historical receipts replay unchanged [C7,V4,B26,H16]', t => {
   for (const operation of ['reserveReview', 'reserveNextReview', 'verify']) {
-    const f = fixture(t, { requireFamilies: false });
+    const f = fixture(t, { requireFamilies: false, engine: REVIEW_ROUTING_ENGINE - 1 });
     f.board.clock = { now: () => new Date('2026-10-27T00:02:00.000Z') };
     const id = f.add({ sensitive: true, reviewFamily: null });
     store.claim(f.board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE,
@@ -369,6 +370,7 @@ test('routing activation fences vendor-rule downgrades while genuine historical 
     const first = applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-27T00:01:00.000Z' });
     assert.equal(first.error, undefined, 'the historical known-vendor policy allowed this untouched session');
     const receipt = f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value;
+    delete f.board.executionEngineVersion;
     store.release(f.board, id, 'core-4', 'Release the historical review before routing activation.');
     assert.throws(() => store.reserveReview(f.board, id, options), { code: 'REVIEW_COOLDOWN' });
     // Honor the real release cooldown before asking the independent vendor guard to decide.
@@ -466,7 +468,7 @@ test('the real withOpenedBoard installs the alias list from accepted main and th
 });
 
 test('aliases and the strict builder rule apply only from their engine; an older sealed move replays unchanged [C7,V4,B26,H16]', t => {
-  const f = fixture(t, { requireFamilies: false });
+  const f = fixture(t, { requireFamilies: false, engine: FAMILY_ALIAS_ENGINE - 1 });
   f.board.clock = { now: () => new Date('2026-10-28T00:02:00.000Z') };
   joinSeat(f.board, 'core-6', 'OpenAI', '6');
   const id = f.add({ sensitive: true, reviewFamily: null }), item = f.submit(id);
@@ -477,6 +479,7 @@ test('aliases and the strict builder rule apply only from their engine; an older
   const first = applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-28T00:01:00.000Z' });
   assert.equal(first.error, undefined, 'recorded before aliases existed, OpenAI and codex were two vendors');
   const receipt = f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value;
+  delete f.board.executionEngineVersion;
   store.release(f.board, id, 'core-6', 'Release the historical review before the alias engine applies.');
   f.board.clock = { now: () => new Date('2026-10-28T01:03:00.000Z') };
   const fresh = prepareEngineMove(f.board, 'reserveReview', [id, options]);

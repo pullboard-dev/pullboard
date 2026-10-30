@@ -30,7 +30,7 @@ const TRANSACTION_DEPTH = new WeakMap();
  * @param {() => T} work
  * @returns {T}
  */
-export function atomic(board, work) {
+export function atomic(board, work, { reviewPolicy = true } = {}) {
   const depth = TRANSACTION_DEPTH.get(board) ?? 0;
   const savepoint = `pullboard_atomic_${depth}`;
   if (!depth) prepareBoardWriteIdentity();
@@ -44,10 +44,12 @@ export function atomic(board, work) {
   let released = false;
   let outcome = 'release-failed';
   const lastEvent = board.lastEvent;
+  const reviewDefaultNotice = board.reviewDefaultNotice;
   const emitted = board.emittedEvents?.length ?? 0;
   try {
     capture = depth ? null : beginCapture(board.db);
     const result = work();
+    if (reviewPolicy) board.runtimePorts.lifecycle.normalizeReviewDefaults(board);
     capture?.prepare();
     board.db.exec(depth ? `RELEASE ${savepoint}` : 'COMMIT');
     if (writeRecord) writeRecord.releasedAt = performance.now();
@@ -62,6 +64,7 @@ export function atomic(board, work) {
       released = true;
       outcome = 'rolled-back';
       board.lastEvent = lastEvent;
+      board.reviewDefaultNotice = reviewDefaultNotice;
       board.emittedEvents?.splice(emitted);
     }
     throw error;

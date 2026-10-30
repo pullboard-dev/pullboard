@@ -67,9 +67,9 @@ function staticImportSpans(source) {
 }
 
 /** Blank only bindings and specifier contents while preserving all non-import text and line breaks. */
-function importSkeleton(source, spans) {
+function importSkeleton(source, spans, maskBindings = true) {
   const edits = spans.flatMap(({ binding, specifier }) => [
-    ...(binding ? [{ start: binding.start, end: binding.end, binding: true }] : []),
+    ...(binding && maskBindings ? [{ start: binding.start, end: binding.end, binding: true }] : []),
     { start: specifier.start + 1, end: specifier.end - 1, binding: false },
   ]).sort((left, right) => left.start - right.start);
   let cursor = 0;
@@ -84,8 +84,8 @@ function importSkeleton(source, spans) {
   return result + source.slice(cursor);
 }
 
-/** True only when both valid modules differ inside static import bindings or specifier text. */
-export function importOnlyChange(before, after) {
+/** True only for static import edits; specifiersOnly also preserves every binding byte. */
+export function importOnlyChange(before, after, { specifiersOnly = false } = {}) {
   const decode = value => {
     if (typeof value === 'string') return value;
     if (!Buffer.isBuffer(value) || value.includes(0)) return null;
@@ -100,7 +100,7 @@ export function importOnlyChange(before, after) {
     const beforeSpans = staticImportSpans(before);
     const afterSpans = staticImportSpans(after);
     return beforeSpans !== null && afterSpans !== null
-      && importSkeleton(before, beforeSpans) === importSkeleton(after, afterSpans);
+      && importSkeleton(before, beforeSpans, !specifiersOnly) === importSkeleton(after, afterSpans, !specifiersOnly);
   } catch {
     return false;
   }

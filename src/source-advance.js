@@ -1,3 +1,5 @@
+import { boardWriteSnapshot } from './board-write-preparation.js';
+import { requireBoardWriteSnapshot } from './board-write-preparation.js';
 /** Ordered exact-source completion never changes the original submission or its review [C7,V4,H16]. */
 import { sourceAdvanceReviewEpisode } from './source-advance-state.js';
 import { atomic } from './board-event-log.js';
@@ -13,6 +15,8 @@ import { acceptedVerdict } from './verdict-reviews.js';
 import { Refused } from './refused.js';
 import { frozenCheck } from './trusted-policy.js';
 import { sealSourceAdvance } from './source-advance-origin.js';
+import { receiptBlockingGreen } from './quarantine-verdict.js';
+import { validateQuarantineVerdict } from './quarantine.js';
 
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const HASH = /^[0-9a-f]{64}$/u;
@@ -69,11 +73,13 @@ export function sourceAdvanceProblem(board, item, proof) {
     if (!['criterion','affected'].includes(phase.role) || !HASH.test(phase.command ?? '') || !receipt
       || receipt.version !== 2 || receipt.kind !== 'submit' || receipt.command !== phase.command
       || receipt.head !== proof.head || receipt.tree !== proof.tree || receipt.main !== proof.trunk
-      || !receipt.green || receipt.proof.exitCode !== 0 || !receipt.proof.sourceClean
+      || !receiptBlockingGreen(receipt) || !receipt.proof.sourceClean
       || receipt.proof.item !== item.item_id || receipt.proof.seat !== 'coordinator'
       || receipt.proof.frozenDigest !== proof.bar || ids.has(receipt.id)) {
       return new Refused('SOURCE_ADVANCE_PROOF', 'the exact clean composition needs genuine green gate receipts for every required phase');
     }
+    try { validateQuarantineVerdict(board, receipt); }
+    catch { return new Refused('SOURCE_ADVANCE_PROOF', 'the computed phase verdict needs current exact quarantine event references'); }
     ids.add(receipt.id);
   }
   return null;
@@ -84,8 +90,11 @@ export function advanceItemSource(board, id, request) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < SOURCE_ADVANCE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before recording a source advance');
   if (request?.agentId !== 'coordinator') throw new Refused('COORDINATOR_ONLY', 'only the autonomous coordinator worker records checked main merges');
   if (!board.db.prepare("SELECT 1 FROM agent WHERE agent_id='coordinator'").get()) throw new Refused('NOT_JOINED', 'join the coordinator before recording a source advance');
+  const snapshot = board.executionEngineVersion === undefined ? boardWriteSnapshot(board) : null;
+  const proof = board.executionEngineVersion === undefined ? sealSourceAdvance(board, id, request).proof : request.proof;
   return atomic(board, () => {
-    const proof = board.executionEngineVersion === undefined ? sealSourceAdvance(board, id, request).proof : request.proof;
+    if (snapshot) requireBoardWriteSnapshot(board, snapshot, 'source advance');
+    if (snapshot) board.runtimePorts.sourceAdvanceReceipts.guardLandingWrite(board, request?.landingFence);
     const item = itemById(board, id);
     const stored = sourceAdvanceChain(board, item);
     const prior = stored.find(entry => entry.head === proof?.head);

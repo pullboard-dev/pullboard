@@ -1,3 +1,4 @@
+import { firstRefusal } from '../../../../src/board-item-read.js';
 import { compositionFamilyFallback } from '../../../../src/review-composition.js';
 import { reviewWait } from '../../../../src/review-routing.js';
 import { eligibilityProblem } from '../../../../src/review-eligibility.js';
@@ -50,7 +51,6 @@ import { localReleaseRank } from '../../../../src/release-queue.js';
 import { workQueue } from '../../../../src/queue.js';
 import { trunkRef } from '../../../../src/trusted-policy.js';
 import { routeWorkShortages } from '../../../../src/route-capacity.js';
-import { firstRefusal } from '../../../../src/board-item-read.js';
 import { readRelayHealth } from '../../../../src/relay-canary-health.js';
 
 /** Each threshold's pullboard.json key under "health" and its default. */
@@ -165,6 +165,17 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
         owner: { role: 'builder', who: holder }, detail: { holder },
       }));
     }
+
+    const released = events.last.get('release');
+    const expiry = released ? JSON.parse(released.event_detail) : null;
+    const refusal = status === 'open' && expiry?.expiredClaim ? firstRefusal(board, id) : null;
+    if (refusal) found(report.waiting, finding('CLAIM_EXPIRED', item, {
+      since: released.event_at, now: at, title: 'lapsed idle claim freed',
+      why: `${expiry.expiredClaim.holder}'s lapsed claim returned to open; first refusal lasts until ${refusal.until}`,
+      next: `${refusal.builder} resumes with pullboard claim ${id}, or releases its first refusal`,
+      command: `pullboard claim ${id}`, owner: { role: 'builder', who: refusal.builder },
+      detail: { ...expiry.expiredClaim, firstRefusalUntil: refusal.until },
+    }));
 
     if (status === 'submitted') {
       const fallback = compositionFamilyFallback(board, item);

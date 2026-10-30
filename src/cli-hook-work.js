@@ -11,7 +11,10 @@ async function heartbeat() {
 /** Dispatch one native CLI command under the worker's own process streams. */
 async function dispatch(args) {
   const { main } = await import('./cli.js');
-  return main(args, { cwd: process.cwd(), stdout: process.stdout, stderr: process.stderr, stdin: process.stdin });
+  return main(args, { cwd: process.cwd(), nextActions: false,
+    // Heartbeat is an internal observation, not part of the hook's context payload.
+    stdout: args[0] === 'heartbeat' ? { write() {} } : process.stdout,
+    stderr: process.stderr, stdin: process.stdin });
 }
 
 /** Warn only when committed work has advanced beyond this seat's recorded claim head. */

@@ -36,7 +36,7 @@ const revealSegmentedChoices = (${revealSegmentedChoices.toString()});
 const activityHtml = (${activityHtml.toString()});
 const lifecycleChart = (${lifecycleChart.toString()});
 const dashboardModel = (${dashboardModel.toString()});
-const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry) => roadmapSummary(entry), floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
+const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry, context) => roadmapSummary(entry, context), floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
 // The update note from src/view/hosted-release.js (#632): only a confirmed read of this machine's view says how far behind it is.
 // Only the hosted page builds it; every other page draws nothing and never touches the DOM for it.
 const renderHostedReleaseNote = ${releaseHosted ? `(${hostedReleaseNote.toString()})(${releaseInfo}, { $, keep, distance: (${hostedReleaseDistance.toString()}),
@@ -283,7 +283,7 @@ const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&am
 // is in columns, as a terminal counts them: CJK, full-width and emoji characters take two.
 const wideChar = (c) => { const p = c.codePointAt(0); return (p >= 0x1100 && p <= 0x115f) || (p >= 0x2e80 && p <= 0xa4cf) || (p >= 0xac00 && p <= 0xd7a3) || (p >= 0xf900 && p <= 0xfaff) || (p >= 0xfe30 && p <= 0xfe4f) || (p >= 0xff00 && p <= 0xff60) || (p >= 0xffe0 && p <= 0xffe6) || (p >= 0x1f300 && p <= 0x1faff) || (p >= 0x20000 && p <= 0x3fffd); };
 const columns = (text) => [...String(text)].reduce((n, c) => n + (wideChar(c) ? 2 : 1), 0);
-const codeChip = (text, kind = '') => kind === 'sha' && String(text).length > 10
+const codeChip = (text, kind = '') => (kind === 'sha' || /^[0-9a-fA-F]{40}$/.test(String(text))) && String(text).length > 10
   ? '<button class="hash-copy" type="button" title="' + esc(text) + '" aria-label="Copy full hash ' + esc(text) + '" data-copy="' + esc(text) + '"><code class="inline sha" title="' + esc(text) + '">' + esc(String(text).slice(0, 12)) + '</code></button>'
   : '<code class="inline' + (kind ? ' ' + kind : '') + (columns(text) > 24 ? ' long" title="' + esc(text) : '') + '">' + esc(text) + '</code>';
 // An age said in words, as a shout's card shows it: now, 2m ago, 1h ago.
@@ -291,7 +291,7 @@ const agoLong = (iso) => { const short = ago(iso); return short === 'now' ? 'now
 const ago = (iso) => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 2880 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
 // An age as the page shows it: the moment it counts from stays on it, so tickAges can move it on.
 const age = (iso) => '<time data-ago="' + esc(iso) + '">' + ago(iso) + '</time>';
-const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 const when = (iso) => (new Date(iso).toDateString() === new Date().toDateString() ? '' : new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ') + clock(iso);
 /** Keep the Roadmap detail's existing local display at the browser boundary. */
 const roadmapTime = iso => { const moment = new Date(iso), clock = moment.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); return moment.toDateString() === new Date().toDateString() ? clock : moment.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + clock; };
@@ -470,10 +470,10 @@ function factCodeRef(ref) {
   return ref.path + ':' + lines + '@' + ref.commit;
 }
 const tone = (s) => s === 'approved' ? 'ok' : s === 'pending' ? 'no' : s === 'draft' ? 'warn' : '';
-/** Name a rule's actual packaged version or its repository source, including explicit overrides. */
-const ruleSource = (row) => row.standardVersion != null ? 'Pullboard v' + row.standardVersion + (row.overrides ? row.status === 'wont' ? ', declined here' : ', overridden here' : '') : 'this repo';
-/** Keep the full source label available when a narrow row clips it. */
-const ruleSourceTitle = (row) => ruleSource(row);
+/** Name the visible source category while keeping the full version and override detail in the title. */
+const ruleSource = (row) => row.standardVersion != null && !row.overrides ? 'Standard' : 'This repo';
+/** Keep the actual packaged version or repository override available on hover. */
+const ruleSourceTitle = (row) => row.standardVersion != null ? 'Pullboard v' + row.standardVersion + (row.overrides ? row.status === 'wont' ? ', declined here' : ', overridden here' : '') : 'This repo';
 // The same data-in, HTML-out renderer runs here and in the pure view tests.
 const recordRow = (${recordRowHtml.toString()});
 const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);

@@ -20,6 +20,7 @@ import { captureSourceAdvanceBasis } from './source-advance-origin.js';
 import { prepareSourceAdvance } from './source-advance-origin.js';
 import { prepareSourceAdvanceReturn } from './source-advance-origin.js';
 import { withSourceComposition } from './source-advance-compose.js';
+import { quarantineVerdictSnapshot } from './quarantine.js';
 
 /** Read immutable Git facts with a bounded child; never execute repository hooks. */
 function git(root, args) {
@@ -148,10 +149,14 @@ async function advance(root, directory, job, write, services) {
       const policy = mainPolicy(root);
       if (policy.commit !== job.basis.trunk) throw new Error('main changed before source-advance admission');
       const config = policy.config;
+      const quarantines = readBoard(repoInfo(root), board => {
+        board.quarantineEnabled = () => config.flakes?.quarantine === true;
+        return quarantineVerdictSnapshot(board);
+      });
       custody.started();
       const gate = await runSubmitGate(composition.directory, config, { base: composition.inputHead, changed: composition.changed,
         executionServices: services.executionServices, check: frozenCheck(job.item), timing: frozenCheckTiming(job.item), agent: 'coordinator', item: String(job.item.item_id), sourceAdvance: true,
-        proofContext: { item: job.item.item_id, frozenDigest: job.basis.bar, seat: 'coordinator', kind: 'submit' } });
+        proofContext: { item: job.item.item_id, frozenDigest: job.basis.bar, seat: 'coordinator', kind: 'submit', quarantines } });
       if (!gate.cleanupUnverified && !(gate.profile?.landingShards?.unverified?.length > 0)) custody.terminal();
       const artifacts = retainArtifacts(directory, job, gate, composition, services);
       const result = await complete(root, write, services, async (board, order, lease) => {

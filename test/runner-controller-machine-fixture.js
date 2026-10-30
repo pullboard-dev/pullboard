@@ -12,7 +12,9 @@ export function runnerControllerCallees(file, body, source) {
     && entrySource.includes("import { serveRunnerController } from '../src/runners.js'")
     && entrySource.includes("import { privateCheckEnvelope } from '../src/runner-private-mode.js'")
     && entrySource.includes("import { privateCheckPhases } from '../src/runner-private-mode.js'")
-    && entrySource.includes('if (isRunnerControllerEntry()) serveRunnerController({ privateCheckEnvelope, privateCheckPhases })')) {
+    && entrySource.includes("import { runnerItemState } from '../packages/resources/index.js'")
+    && entrySource.includes("import { controllerDeadline } from '../packages/resources/index.js'")
+    && entrySource.includes('if (isRunnerControllerEntry()) serveRunnerController({ privateCheckEnvelope, privateCheckPhases, runnerItemState, controllerDeadline })')) {
     return ['runners.js#serveRunnerController'];
   }
   return [];

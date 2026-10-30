@@ -44,7 +44,7 @@ export function guardStore(board) {
     for (const { name, sql } of wanted) if (found.missing.includes(name) || found.changed.includes(name)) board.db.exec(sql);
     if (board.db.prepare('PRAGMA user_version').get().user_version >= GUARDED) logEvent(board, 'board', 'guards', null, found);
     if (board.db.prepare('PRAGMA user_version').get().user_version < SCHEMA_VERSION) board.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
-  });
+  }, { reviewPolicy: false });
 }
 
 /**
@@ -67,7 +67,7 @@ export function refreshStoreDeclarations(board) {
       throw new Refused('SCHEMA_DRIFT', 'the restored guards do not match the stored board stamp; keep the board and ask the coordinator to inspect its schema');
     }
     return true;
-  });
+  }, { reviewPolicy: false });
 }
 
 /**

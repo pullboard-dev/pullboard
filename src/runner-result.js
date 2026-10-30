@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { statSync } from 'node:fs';
 
 /** Bound diagnostic text, exclude protocol payloads, and suppress any possible credential instead of echoing it. */
-function transportText(value) {
+export function transportText(value) {
   const text = String(value ?? '').split(/\r?\n/u).filter(line => !line.startsWith('PULLBOARD_RUNNER_')).join('\n').slice(-8192);
   return secretsIn(text.split('\n').map((line, index) => ({ path: 'runner transport', line: index + 1, text: line }))).length
     ? '[possible credential redacted]' : text;

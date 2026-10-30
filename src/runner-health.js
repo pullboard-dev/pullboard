@@ -10,6 +10,7 @@ import { shellWord } from './runner-remote-tooling.js';
 import { sshEnvironment } from './runner-remote-tooling.js';
 import { trustedTooling } from './runner-remote-tooling.js';
 import { probeRunnerTransport } from './runner-transport.js';
+import { transportText } from './runner-result.js';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
@@ -24,13 +25,13 @@ export async function probeRunnerHealth(runner, previous, { idle = false } = {})
   const args = ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
     '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=2', '--', runner.host, remote];
   const child = spawn('ssh', args, { env: sshEnvironment(), stdio: ['ignore', 'pipe', 'pipe'] });
-  let output = '', timedOut = false, error = null, kill;
+  let output = '', stderr = '', stderrBytes = 0, timedOut = false, error = null, failure = null, kill;
   /** Bound the health connection and fully observe its close before releasing recovery ownership. */
   const stop = () => { child.kill('SIGTERM'); kill ??= setTimeout(() => child.kill('SIGKILL'), 500); };
   const timer = setTimeout(() => { timedOut = true; stop(); }, 5_000);
   child.stdout.on('data', bytes => { output = (output + bytes).slice(0, 4097); if (output.length > 4096) stop(); });
-  child.stderr.resume();
-  child.once('error', failure => { error = failure.code ?? failure.name; });
+  child.stderr.on('data', bytes => { stderrBytes += bytes.length; stderr = (stderr + bytes).slice(-8192); });
+  child.once('error', problem => { error = problem.code ?? problem.name; failure = { code: error, message: transportText(problem.message) }; });
   const result = await new Promise(resolve => child.once('close', (code, signal) => resolve({ code, signal })));
   clearTimeout(timer); clearTimeout(kill);
   let reply;
@@ -38,6 +39,9 @@ export async function probeRunnerHealth(runner, previous, { idle = false } = {})
   const workerReady = !error && !timedOut && result.code === 0 && !result.signal
     && reply?.version === 1 && reply.nonce === nonce && reply.worker === true;
   return { healthy: Boolean(workerReady && (idle ? reply.idle === true && reply.writable === true : reply.cleanup === true)),
+    ...(!workerReady ? { diagnostic: { host: runner.host, at: new Date().toISOString(), workerReady: false,
+      exitCode: result.code, signal: result.signal, timedOut, error: failure,
+      stderr: transportText(stderr), stderrBytes, responseBytes: Buffer.byteLength(output) } } : {}),
     ...(workerReady && reply.idleRequired === true ? { idleRequired: true } : {}),
     ...(idle ? { idle: workerReady && reply.idle === true, writable: workerReady && reply.writable === true } : {}),
     step: !workerReady ? 'worker readiness' : idle ? 'idle proof' : 'cleanup',

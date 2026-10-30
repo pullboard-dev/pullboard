@@ -242,13 +242,35 @@ test('ordered submit refuses a closed repair and an old-engine linked envelope w
     'historical engine-124 replay neither adds repair ownership nor rewrites its receipt');
 });
 
-test('an exact main red needs an open repair and its reviewer sees the repair link [V4,B3]', t => {
+// #1986 accepts exact unowned main reds while retaining their durable accounting.
+test('an exact unowned main red submits with its receipt, fact and decision shout [V4,B3]', t => {
   const box = fixture(t, { mainRed: false });
-  const refused = cli(box, box.builder, 'submit', String(box.item));
-  assert.equal(refused.status, 1, refused.stdout + refused.stderr);
-  assert.equal(JSON.parse(refused.stdout).error.code, 'GATE_RED');
-  assert.equal(submittedProof(box), null, 'an unowned exact main failure cannot authorize submission');
-  box.rework = fileMainRed(box);
+  const accepted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
+  assert.equal(accepted.status, 0, accepted.stdout + accepted.stderr);
+  const report = JSON.parse(accepted.stdout);
+  assert.equal(report.gate.green, false, 'the exact inherited failure remains visibly red');
+  assert.deepEqual(report.gate.knownMainUnowned, [{ file: 'test/inherited.test.js', name: 'shared failure [G1]' }]);
+  assert.equal(report.gate.knownMainReworks, undefined, 'no repair ownership is invented');
+  assert.ok(submittedProof(box), 'the successful response has a canonical submitted event');
+  const shown = cli(box, box.root, 'show', String(box.item));
+  assert.equal(shown.status, 0, shown.stdout + shown.stderr);
+  assert.ok(JSON.parse(shown.stdout).thread.some(entry => entry.type === 'fact'
+    && entry.text.includes('unowned known main red: the submission proof')
+    && entry.text.includes(box.main) && entry.text.includes('test/inherited.test.js')
+    && entry.text.includes('shared failure [G1]')), 'the durable fact identifies the exact main source, file and case');
+  const db = new DatabaseSync(join(box.root, '.git/pullboard/board.sqlite'), { readOnly: true });
+  try {
+    const asked = db.prepare('SELECT * FROM shout').all().filter(row => row.shout_to === 'coordinator'
+      && row.shout_decision === 1 && String(row.shout_text).includes(`#${box.item}: known main red`));
+    assert.equal(asked.length, 1, 'exactly one decision reaches the coordinator');
+    assert.ok(asked[0].shout_text.includes('test/inherited.test.js')
+      && asked[0].shout_text.includes('shared failure [G1]')
+      && asked[0].shout_text.includes(box.main.slice(0, 12)), 'the decision names the exact main failure');
+  } finally { db.close(); }
+});
+
+test('an exact main red with an open repair retains its reviewer repair link [V4,B3]', t => {
+  const box = fixture(t);
   const accepted = cli(box, box.builder, 'submit', String(box.item));
   assert.equal(accepted.status, 0, accepted.stdout + accepted.stderr);
   const report = JSON.parse(accepted.stdout);

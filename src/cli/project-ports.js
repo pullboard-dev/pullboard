@@ -1,6 +1,9 @@
 /** The CLI's explicit ports into project registration, so the seats cell never loads the board or relay setup [C7,H5]. */
 import * as boardStore from '../board.js';
-import { openBoard, openBoardForRead } from '../native-board.js';
+import {
+  openBoard,
+  openBoardForRead,
+} from '../native-board.js';
 
 /** Complete opted-in automatic relay linking, loading relay setup only when a project registers, as before. */
 async function autoLinkProject(root, io) {

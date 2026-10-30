@@ -337,6 +337,7 @@ function fixture(t, { wait = null, age = null, reservation = null, otherAge = nu
 /** Require exactly one final line while preserving the ordinary next-step line immediately before it. */
 function alert(text, expected) {
   const lines = text.split('\n');
+  assert.match(lines.pop(), /^next: \S/u, 'only the appended final action is removed');
   assert.deepEqual(lines.filter(line => line.startsWith('flow:')), [expected]);
   assert.equal(lines.at(-1), expected);
   assert.match(lines.at(-2), /^next: /u);

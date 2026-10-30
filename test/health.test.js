@@ -332,6 +332,23 @@ test('health on a healthy board says nothing is stuck [A6]', async (t) => {
   assert.deepEqual(boardDigest(box.file), before, 'health changes nothing on a healthy board');
 });
 
+test('health preserves a real stuck finding instead of the exact healthy body [A6]', async t => {
+  const box = repo(t);
+  const { board, at } = boardAt(box);
+  store.register(board, { lane: 'coordinator', path: box.root });
+  at(48 * HOUR);
+  store.holdLane(board, 'docs', { agentId: 'coordinator', reason: 'A genuinely stale fixture lane hold.' });
+  store.closeBoard(board);
+  const result = await cli(box.root, ['health']);
+  assert.equal(result.code, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /^\d+ stuck:/mu);
+  assert.notEqual(result.stdout, 'nothing is stuck\n', 'the unchanged healthy-body oracle still refuses a genuine finding');
+  assert.ok(!result.stdout.includes('nothing is stuck'));
+  const json = await cli(box.root, ['health', '--json']);
+  assert.equal(json.code, 1, json.stdout + json.stderr);
+  assert.ok(JSON.parse(json.stdout).stuck.some(finding => finding.cause === 'HOLD_STALE' && finding.subject === 'lane docs'));
+});
+
 test('a submitted item with no reviewer goes to the coordinator, not its builder [A6]', async (t) => {
   // A board with no review lane still gets a command the real shout path accepts: it goes to the
   // coordinator, and the builder is never the owner of their own review (#910).

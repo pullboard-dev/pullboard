@@ -1,4 +1,4 @@
-/** The approved Roadmap header, displaying the backend's summary without deriving board counts [N26]. */
+/** The approved release header shared by Dashboard and Roadmap, using only backend summary counts [N26]. */
 export function roadmapSummary(milestone, context = {}) {
   /** Escape supplied milestone text before placing it in HTML or attributes. */
   const escape = text => String(text ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
@@ -10,7 +10,7 @@ export function roadmapSummary(milestone, context = {}) {
   // Only a milestone with work left has a header: a finished one or an empty plan never reads "0 remaining" or
   // "About 0 hours"; an empty plan keeps its No items yet reading, as before this header.
   if (summary.left === 0) return null;
-  const count = '<span class="roadmap-left"><b>'+escape(summary.left)+' remaining</b><span aria-label="'+escape(summary.landed)+'/'+escape(summary.total)+' landed">'+escape(summary.landed)+' of '+escape(summary.total)+' landed</span></span>';
+  const count = '<span class="roadmap-left"><b>'+escape(summary.left)+' to go</b><span aria-label="'+escape(summary.landed)+'/'+escape(summary.total)+' landed">'+escape(summary.landed)+' of '+escape(summary.total)+' landed</span></span>';
   const description = states.map(([key,label]) => summary[key]+' '+label).join(', ');
   let offset = 0;
   const segments = states.map(([key]) => { const x = offset; offset += summary[key]; return '<rect class="roadmap-summary-segment ' + key + '" data-summary-segment="' + key + '" data-count="' + summary[key] + '" x="' + x + '" width="' + summary[key] + '" height="1"/>'; }).join('');
@@ -25,28 +25,38 @@ export function roadmapSummary(milestone, context = {}) {
   const legend = '<div class="roadmap-summary-legend">'+states.map(legendEntry).join('')+'</div>';
   const target = milestone.target ? '<span class="roadmap-target">Target <time datetime="'+escape(milestone.target)+'">'+escape(context.targetLabel !== undefined ? context.targetLabel : milestone.target)+'</time>'+(milestone.pastTarget?' <span class="chip warn">past target</span>':'')+'</span>' : '';
   const estimate = summary.estimate, pace = summary.pace;
-  // The time line reads the summary's estimate, window and reason as given (#853): today's pace for the 6 h
-  // window, the last day's for the 24 h window, and plain words when too few items have landed to estimate.
-  /** Round the estimate to whole hours, or whole days once its lower bound reaches a day. */
-  const formatEstimate = () => {
+  // Convert a backend remaining-time range into the one-person estimate shared by both release surfaces.
+  /** Read a weekday and part of day at the browser's explicit locale and time zone. */
+  const completionTime = () => {
     if (!estimate || !Number.isFinite(estimate.low) || !Number.isFinite(estimate.high)) return '';
-    const days = estimate.low >= 24, divisor = days ? 24 : 1;
-    const low = Math.round(estimate.low / divisor), high = Math.round(estimate.high / divisor), unit = days ? 'day' : 'hour';
-    const range = low === high ? '<b>'+low+'</b>' : '<b>'+low+'</b> to <b>'+high+'</b>';
-    return range+' '+unit+(high === 1 ? '' : 's');
+    if (!Number.isFinite(context.now)) return '';
+    const now = context.now;
+    const hours = Math.max(0, Math.round((estimate.low + estimate.high) / 2));
+    const completionAt = now + hours * 3_600_000;
+    if (!Number.isFinite(completionAt) || Math.abs(completionAt) > 8.64e15) return '';
+    const locale = context.locale || 'en-US', timeZone = context.timeZone || 'UTC';
+    const parts = new Intl.DateTimeFormat(locale, { timeZone, weekday: 'long', hour: 'numeric', hourCycle: 'h23' })
+      .formatToParts(new Date(completionAt));
+    const weekday = parts.find(part => part.type === 'weekday')?.value || '';
+    const hour = Number(parts.find(part => part.type === 'hour')?.value);
+    const part = hour < 5 ? 'overnight' : hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : hour < 21 ? 'evening' : 'night';
+    const days = hours >= 24, amount = days ? Math.max(1, Math.round(hours / 24)) : Math.max(1, hours);
+    const unit = days ? 'day' : 'hour';
+    return 'done in about '+amount+' '+unit+(amount === 1 ? '' : 's')+', '+weekday+' '+part;
   };
-  const bounds = formatEstimate();
-  const when = bounds ? 'About '+bounds+(summary.window === '24h' ? ' at the last day’s pace' : ' at today’s pace')
-    : summary.reason === 'few-landings' ? 'Too few landings yet to estimate' : '';
+  const completion = completionTime() || (summary.reason === 'few-landings' ? 'too few landings yet to estimate' : 'completion time unavailable');
   const paced = pace && number(pace.last6h) && number(pace.last2h);
-  const forecast = when ? '<span class="roadmap-forecast"><span class="roadmap-estimate">'+when+'</span>'+(paced ? '<span class="roadmap-pace"><b>'+escape(pace.last6h)+'</b> landed in the last 6 h, <b>'+escape(pace.last2h)+'</b> in the last 2 h</span>' : '')+'</span>' : '';
-  const meta = target || forecast ? '<div class="roadmap-summary-meta">'+target+forecast+'</div>' : '';
+  const rate = paced ? (pace.last6h / 6).toFixed(1) : '—';
+  const forecast = '<p class="roadmap-forecast"><span class="roadmap-estimate">'+rate+' items an hour</span> · <span class="roadmap-pace">'+escape(paced ? pace.last6h : '—')+' landed in the last 6 h, '+escape(paced ? pace.last2h : '—')+' in the last 2 h</span> · <span class="roadmap-completion">'+escape(completion)+'</span></p>';
+  const meta = target ? '<div class="roadmap-summary-meta">'+target+'</div>' : '';
   const needs = Array.isArray(summary.needsYou) ? summary.needsYou.map(id => {
     const item = context.needs?.get(id);
     const text = escape(item?.label || '#'+id)+(item?.title?' '+escape(item.title):'');
     return item?.address ? '<a class="ref" href="'+escape(item.address)+'" data-go="item:'+escape(item.id)+'"'+(item.board?' data-board="'+escape(item.board)+'"':'')+'>'+text+'</a>' : '<span>'+text+'</span>';
   }).join(', ') : '';
-  return { count, detail: '<div class="roadmap-summary">'+bar+legend+meta+(needs?'<div class="roadmap-summary-needs"><b>Needs you:</b> '+needs+'</div>':'')+'</div>' };
+  const top = '<div class="release-header-top"><h2 class="release-name" data-release-name="">'+escape(milestone.name)+'</h2>'+count+forecast+'</div>';
+  const detail = '<div class="roadmap-summary"><div class="roadmap-summary-row"><div class="roadmap-summary-track">'+bar+'</div>'+legend+'</div>'+meta+(needs?'<div class="roadmap-summary-needs"><b>Needs you:</b> '+needs+'</div>':'')+'</div>';
+  return { count, top, detail, header: '<div class="release-header">'+top+detail+'</div>' };
 }
 
 /**
@@ -66,7 +76,8 @@ export function roadmapHeaders(page) {
         return [id, row ? { label, title: row.title, id: row.open?.id, address: row.open ? page.addresses.get(row) : null,
           board: row.open?.root !== page.root ? row.open?.root : null } : null];
       }));
-      made.set(read, roadmapSummary(read.milestone, { targetLabel: page.targetLabels.get(read), held: page.held, needs }));
+      made.set(read, roadmapSummary(read.milestone, { targetLabel: page.targetLabels.get(read), held: page.held, needs,
+        now: page.now, locale: page.locale, timeZone: page.timeZone }));
     }
     return made.get(read);
   };
