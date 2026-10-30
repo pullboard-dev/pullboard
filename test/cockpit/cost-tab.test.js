@@ -205,6 +205,26 @@ test('the private view shows its last twenty native landings; a public export ke
   const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const previousSettings = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, 'utf8')) : {};
   writeFileSync(settingsFile, JSON.stringify({ ...previousSettings, costPrices: fixturePrices }));
+  const diagnosticBoard = store.openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  let pricingDiagnostic;
+  try {
+    const nativeEvents = store.events(diagnosticBoard);
+    const usageEvent = nativeEvents.find(event => event.event_kind === 'usage' && JSON.parse(event.event_detail).item === 22);
+    const usageDetail = usageEvent ? JSON.parse(usageEvent.event_detail) : null;
+    const nativeProject = {
+      items: store.listItems(diagnosticBoard, { all: true }).map(item => ({ id: item.item_id, title: item.item_title, builtBy: item.item_built_by })),
+      agents: store.listAgents(diagnosticBoard).map(agent => ({ agent_id: agent.agent_id, model: agent.agent_model, family: agent.agent_family })),
+    };
+    const nativeModel = costTabModel(nativeProject, nativeEvents, fixturePrices);
+    pricingDiagnostic = JSON.stringify({
+      eventKind: usageEvent?.event_kind ?? null,
+      eventItemId: usageEvent?.item_id ?? null,
+      usageDetail: usageDetail ? { item: usageDetail.item, revision: usageDetail.revision, records: usageDetail.records } : null,
+      configuredRate: usageDetail?.records?.[0] ? fixturePrices[usageDetail.records[0].model] ?? null : null,
+      nativeRow: nativeModel.rows.find(row => row.id === 22) ?? null,
+      totals: { total: nativeModel.total, median: nativeModel.median },
+    });
+  } finally { store.closeBoard(diagnosticBoard); }
   const privateRates = { 'Private Cost Rate Sentinel <script> </script>': { freshInput: 1, cacheReadInput: 0, cacheWriteInput: 0, output: 0 } };
   const privatePage = cockpitPage('', { costPrices: privateRates });
   assert.match(privatePage, /Private Cost Rate Sentinel \\u003cscript>/u,
@@ -251,7 +271,7 @@ test('the private view shows its last twenty native landings; a public export ke
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       const layout = JSON.parse(await chrome.stable("JSON.stringify({text:document.querySelector('#cost').innerText,documentWidth:document.documentElement.scrollWidth,viewportWidth:innerWidth,buttonHeight:document.querySelector('[data-cost-row=\"22\"]').getBoundingClientRect().height})"));
       assert.match(layout.text, /Private cost fixture 22/u);
-      assert.match(layout.text, /\$3\.00/u, 'the configured machine rate prices the latest landing');
+      assert.match(layout.text, /\$3\.00/u, `the configured machine rate prices the latest landing; native diagnostic ${pricingDiagnostic}`);
       assert.match(layout.text, /—/u, 'a landing without usage remains a visible dash');
       assert.match(layout.text, /Median \$1\.00/u, 'the live page shows its calculated median');
       assert.doesNotMatch(layout.text, /\$0\.00/u, 'a zero-token field does not fabricate a zero-priced row');
