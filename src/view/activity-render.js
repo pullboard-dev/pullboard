@@ -11,6 +11,8 @@ export function activityHtml(model, { filter = 'all', open = [], controls = true
     return '<span class="activity-who"' + (model ? ' title="' + esc(model) + '"' : '') + '>' + esc(id === 'coordinator' ? 'The coordinator' : id === 'person' ? 'The person' : id) + '</span>';
   };
   const item = (entry, href) => '<span class="activity-item" title="' + esc(entry.title) + '"><a class="ref" href="' + esc(href) + '" data-go="item:' + entry.id + '">#' + entry.id + '</a>' + esc(entry.title) + '</span>';
+  /** Keep a shout's item beside its sentence without repeating the work-row title below it. */
+  const about = entry => entry.item ? ' <a class="activity-about ref" href="' + esc(entry.itemHref) + '" data-go="item:' + entry.item.id + '">about #' + entry.item.id + '</a>' : '';
   const paths = {
     build: '<path d="m9.5 2.5 4 4-1.5 1.5-4-4zM8 4 2.5 9.5l4 4L12 8"/>',
     release: '<path d="M4 8h8M9 5l3 3-3 3"/>', back: '<path d="m6 4-3.5 3.5L6 11M2.5 7.5H10a3.5 3.5 0 0 1 0 7H8"/>',
@@ -41,11 +43,13 @@ export function activityHtml(model, { filter = 'all', open = [], controls = true
       else if (['reserve', 'proof-run', 'submit'].includes(entry.kind)) { tone = 'review'; glyph = 'proof'; }
       else if (['reject', 'reopen'].includes(entry.kind)) { tone = 'back'; glyph = 'back'; }
       const sentence = entry.released ? 'let go of <b>#' + entry.released.id + '</b> and started building <b>#' + entry.item.id + '</b>' : esc(entry.verb);
-      content = '<p>' + who(entry.by, entry.agent) + ' ' + sentence + (entry.kind === 'shout' ? ' ' + esc(entry.to === 'coordinator' ? 'the coordinator' : entry.to === 'person' ? 'the person' : entry.to || 'the board') : '') + '</p>'
-        + (entry.item ? item(entry.item, entry.itemHref) : '') + (entry.kind === 'shout' && entry.words ? '<blockquote class="activity-quote">' + entry.quoteHtml + '</blockquote>' : '');
+      const recipient = entry.to === 'coordinator' ? 'the coordinator' : entry.to === 'person' ? 'the person'
+        : /^item:\d+$/u.test(entry.to || '') ? 'the item’s followers' : entry.to || 'the board';
+      content = '<p>' + who(entry.by, entry.agent) + ' ' + sentence + (entry.kind === 'shout' ? ' ' + esc(recipient) + about(entry) : '') + '</p>'
+        + (entry.kind !== 'shout' && entry.item ? item(entry.item, entry.itemHref) : '') + (entry.kind === 'shout' && entry.words ? '<blockquote class="activity-quote">' + entry.quoteHtml + '</blockquote>' : '');
     }
     return sharedRowHtml({ variant: 'activity', state: tone, time: entry.timeLabel, iconHtml: icon(glyph), mainHtml: content,
-      attributes: { 'data-activity-kind': entry.kind } });
+      attributes: { 'data-activity-kind': entry.kind, ...(entry.kind === 'shout' && entry.by === 'coordinator' ? { 'data-activity-coordinator': 'true' } : {}) } });
   };
 
   const rows = model.rows.filter(entry => filter === 'all' || entry.category === filter);

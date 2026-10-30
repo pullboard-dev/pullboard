@@ -5,6 +5,7 @@ import { requireHandoffActive } from '../packages/state/src/core/handoff-state.j
 /** Append native events and their rebuildable proof projection in the same transaction [R2]. */
 import { ENGINE_VERSION } from './machine.js';
 import { writeSync } from 'node:fs';
+import { Refused } from './refused.js';
 import { agentModel } from './board-query.js';
 import { appendProofCounter } from './proof-counters.js';
 import { ensureProofCounters } from './proof-counters.js';
@@ -35,8 +36,18 @@ export function atomic(board, work, { reviewPolicy = true } = {}) {
   const savepoint = `pullboard_atomic_${depth}`;
   if (!depth) prepareBoardWriteIdentity();
   const startedAt = Date.now();
+  let policy;
   if (depth) board.db.exec(`SAVEPOINT ${savepoint}`);
-  else beginImmediateQueued(board.db, startedAt);
+  else {
+    for (let attempt = 0; ; attempt++) {
+      policy = board.prepareWritePolicy?.();
+      beginImmediateQueued(board.db, startedAt);
+      if (!policy || policy.current()) break;
+      board.db.exec('ROLLBACK');
+      if (attempt >= 3) throw new Refused('POLICY_SNAPSHOT_STALE', 'accepted policy changed before this write; retry the command against current main');
+    }
+    policy?.enter();
+  }
   TRANSACTION_DEPTH.set(board, depth + 1);
   const writeRecord = depth ? null : beginBoardWrite(board.db, board.writeContext);
   // A local-first move records the rows it changed, so the relay's order can take it back later (#1013).
@@ -50,6 +61,7 @@ export function atomic(board, work, { reviewPolicy = true } = {}) {
     capture = depth ? null : beginCapture(board.db);
     const result = work();
     if (reviewPolicy) board.runtimePorts.lifecycle.normalizeReviewDefaults(board);
+    policy?.assertCurrent();
     capture?.prepare();
     board.db.exec(depth ? `RELEASE ${savepoint}` : 'COMMIT');
     if (writeRecord) writeRecord.releasedAt = performance.now();
@@ -76,6 +88,7 @@ export function atomic(board, work, { reviewPolicy = true } = {}) {
       catch { /* A closed diagnostic stream cannot change the committed result or original refusal. */ }
     }
     finally {
+      policy?.leave();
       TRANSACTION_DEPTH.set(board, depth);
       finishBoardWrite(writeRecord, released, outcome);
     }

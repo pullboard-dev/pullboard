@@ -120,5 +120,25 @@ test('Roadmap renders open items in the backend queue position order and shows e
   assert.deepEqual(read.rows.map(row => row.label), ['#101', '#102']);
   const html = milestoneRowHtml({ label: '#101', state: 'open', stage: 'open', position: 1, why: '', title: 'T', block: { detail: '' } }, {});
   assert.match(html, /data-position="1"/);
-  assert.match(html, /queue-position[^>]*>1\./);
+  assert.match(html, /queue-position[^>]*>1</);
+});
+
+test('Roadmap rows use the approved plain status words and quiet linked waits [N26]', () => {
+  const cases = [
+    [{ stage: 'open', state: 'open' }, 'Ready'],
+    [{ stage: 'claimed', state: 'building' }, 'Building'],
+    [{ stage: 'submitted', state: 'verify' }, 'In review'],
+    [{ stage: 'open', state: 'back' }, 'Sent back'],
+    [{ stage: 'accepted', state: 'verified' }, 'Accepted'],
+    [{ stage: 'merged', state: 'verified' }, 'Landed'],
+  ];
+  for (const [state, label] of cases) {
+    const html = milestoneRowHtml({ label: '#7', title: 'Row title', ...state }, {});
+    assert.match(html, new RegExp('roadmap-stage-chip">' + label + '<', 'u'));
+  }
+  const waiting = milestoneRowHtml({ label: '#8', title: 'Waiting row', state: 'open', stage: 'open', after: [7],
+    block: { dot: '<span class="block-dot"></span>', detail: '' } }, { afterHtml: '<span class="roadmap-after">after <a href="#items/7">#7</a></span>' });
+  assert.ok(waiting.indexOf('Waiting row') < waiting.indexOf('roadmap-after'), 'the dependency follows the item title');
+  assert.match(waiting, /after <a href="#items\/7">#7<\/a>/u);
+  assert.doesNotMatch(waiting, /block-dot/u, 'the after link replaces the bare blocking dot');
 });

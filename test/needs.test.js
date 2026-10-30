@@ -12,6 +12,8 @@ import { parseSpec } from '../src/spec.js';
 import { serveMcp } from '../packages/mcp/index.js';
 import { personNeedsState } from '../src/needs-state.js';
 import { refusalDocument } from '../src/next-step-words.js';
+import { writeLegacyWebQuestions } from './blueprint-question.fixture.js';
+import { readBlueprint } from '../src/blueprints.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 test('one builder lists what needs the person [N26,A9]', async (t) => {
@@ -89,14 +91,14 @@ test('a pending question names pullboard spec answer [S1,B26]', async (t) => {
   const repo = join(box.dir, 'newcomer');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  const initialized = box.run(repo, 'init', '--blueprint', 'web-app');
+  const initialized = box.run(repo, 'init', '--blueprint', writeLegacyWebQuestions(repo, readBlueprint('web-app')));
   assert.equal(initialized.code, 0, initialized.err || initialized.out);
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: preserve newcomer setup');
   const file = join(repo, 'SPEC.md');
   const source = readFileSync(file, 'utf8');
   const question = parseSpec(source).rows.find(row => row.status === 'pending' && row.text.startsWith('The app is built with:'));
-  assert.ok(question, 'the actual web-app blueprint files its framework question');
+  assert.ok(question, 'the explicit question template files its framework question');
 
   // Reproduce the dead end invited by the old wording, then restore the exact pending source.
   writeFileSync(file, source.replace(`- ${question.id} [pending,`, `- ${question.id} [approved,`));
@@ -108,7 +110,7 @@ test('a pending question names pullboard spec answer [S1,B26]', async (t) => {
   const resumed = box.run(repo, 'resume', '--json');
   assert.equal(resumed.code, 0, resumed.err || resumed.out);
   const pending = JSON.parse(resumed.out).needsYou.filter(need => need.kind === 'pending');
-  assert.equal(pending.length, 4, 'all four real blueprint questions remain visible');
+  assert.equal(pending.length, 4, 'all four explicit blueprint questions remain visible');
   for (const need of pending) assert.equal(need.what, `pullboard spec answer ${need.id} "<choice>"`);
   const human = box.run(repo, 'resume');
   assert.equal(human.code, 0, human.err || human.out);

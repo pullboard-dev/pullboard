@@ -10,6 +10,7 @@ import { patchId } from './git.js';
 import { tryGit } from './git.js';
 import { Refused } from './refused.js';
 import { readTrainLandingReceipt } from './train-landing-receipt.js';
+import { prepareTrainCheckRepointPlan } from './train-check-repoints.js';
 
 /** Derive a one-time migration annotation from the exact commit message and real parent objects. */
 function migrationEnvelope(root, board, commit, base) {
@@ -48,12 +49,14 @@ export function prepareTrainLanding(root, board, ids, commit, receiptId) {
     return { id, commit: item.item_commit, merge: commit,
       ...(checked === item.item_commit ? {} : { reviewedCommit: checked }) };
   });
-  return { agentId: COORDINATOR, receipt, batch: {
+  const batch = {
     version: 1, id: `train-${receipt.id}`, state: 'trunk', base: parent.stdout, tip: commit,
     root, branch: trunk.branch, owner: 'coordinator-train',
     logPath: git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']) + `/pullboard/gate-receipts/${receipt.id}.json`,
     items, proof: { tree: receipt.tree }, ...migrationEnvelope(root, board, commit, parent.stdout),
-  } };
+  };
+  return { agentId: COORDINATOR, receipt, batch,
+    checkRepointPlan: prepareTrainCheckRepointPlan(root, board, batch.base, batch.tip) };
 }
 
 /** Recover an existing native batch from board history; caller batch fields never replace its sealed identity. */
@@ -68,5 +71,6 @@ export function prepareNativeTrainLanding(root, board, id, receiptId) {
     || git(root, ['rev-parse', 'HEAD']).trim() !== batch.tip) {
     throw new Refused('LAND_RECEIPT_UNBOUND', 'gate and retain the exact native batch envelope before finishing it');
   }
-  return { agentId: COORDINATOR, nativeBatch: id, batch, receipt };
+  return { agentId: COORDINATOR, nativeBatch: id, batch, receipt,
+    checkRepointPlan: batch.state === 'landed' ? null : prepareTrainCheckRepointPlan(root, board, batch.base, batch.tip) };
 }
