@@ -23,6 +23,48 @@ function project(t) {
 
 /** Register only when the real frozen wrapper calls this component. */
 export function registerMaintenanceArchiveTests() {
+  test('prune archives retain literal linked Git metadata and evidence after the private worktree disappears [B3,C7]', t => {
+    const box = project(t), root = join(box.directory, 'retired');
+    assert.throws(() => archiveMaintenanceWorktree(box.root, box.common, { includeMetadata: true }), /linked worktree/u);
+    box.git('worktree', 'add', '-q', '--detach', root, 'HEAD');
+    const gitDir = fs.realpathSync(maintenanceGit(root, ['rev-parse', '--path-format=absolute', '--git-dir']).trim());
+    const evidence = join(gitDir, 'evidence'); fs.mkdirSync(evidence);
+    const raw = Buffer.from('private fixture raw evidence\n'), profile = Buffer.from('{"fixture":true,"passed":1}\n');
+    fs.writeFileSync(join(evidence, 'raw.log'), raw); fs.writeFileSync(join(evidence, 'run.profile.json'), profile);
+    fs.symlinkSync('evidence/raw.log', join(gitDir, 'evidence-link'));
+    const index = fs.readFileSync(join(gitDir, 'index'));
+    fs.writeFileSync(join(gitDir, 'HEAD.lock'), '');
+    assert.throws(() => archiveMaintenanceWorktree(root, box.common, { includeMetadata: true }), /lock/u);
+    fs.unlinkSync(join(gitDir, 'HEAD.lock'));
+    const archive = archiveMaintenanceWorktree(root, box.common, { includeMetadata: true });
+    assert.equal(archive.manifest.metadata.gitDir, gitDir);
+    assert.equal(maintenanceArchiveMatches(root, archive), true);
+    fs.appendFileSync(join(evidence, 'raw.log'), 'new bytes');
+    assert.equal(maintenanceArchiveMatches(root, archive), false, 'a changed metadata log forbids prune');
+    fs.writeFileSync(join(evidence, 'raw.log'), raw);
+    assert.equal(maintenanceArchiveMatches(root, archive), true);
+    const saved = path => {
+      const file = archive.manifest.metadata.files.find(file => file.path === path);
+      assert.ok(file, 'the complete linked Git directory includes ' + path);
+      return fs.readFileSync(join(archive.directory, 'blobs', file.sha256));
+    };
+    assert.deepEqual(saved('index'), index);
+    const indexFile = archive.manifest.metadata.files.find(file => file.path === 'index');
+    const indexBlob = join(archive.directory, 'blobs', indexFile.sha256);
+    fs.writeFileSync(indexBlob, 'corrupted');
+    assert.equal(maintenanceArchiveMatches(root, archive), false, 'metadata blob integrity is required too');
+    fs.writeFileSync(indexBlob, index);
+    assert.equal(maintenanceArchiveMatches(root, archive), true);
+    box.git('worktree', 'remove', '--force', root);
+    assert.equal(fs.existsSync(gitDir), false, 'only this private fixture simulates removal');
+    assert.deepEqual(saved('index'), index);
+    assert.deepEqual(saved('evidence/raw.log'), raw);
+    assert.deepEqual(saved('evidence/run.profile.json'), profile);
+    assert.deepEqual(saved('evidence-link'), Buffer.from('evidence/raw.log'));
+    assert.equal(box.git('rev-parse', archive.manifest.ref).trim(), archive.manifest.head);
+    assert.equal(maintenanceArchiveMatches(root, archive), false, 'archive custody is retained without inventing a surviving source');
+  });
+
   test('maintenance archive recovers separate staged and unstaged binary work plus all private leaves [B3,C7]', t => {
     const box = project(t), tracked = join(box.root, 'binary.dat');
     fs.writeFileSync(tracked, Buffer.from([0, 3, 4, 255])); box.git('add', 'binary.dat');

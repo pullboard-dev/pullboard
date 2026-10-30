@@ -1,7 +1,7 @@
 /** Preserve exact local work before maintenance may reset or remove a checkout [B3,C7]. */
 import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { constants, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readSync,
+import { constants, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readSync, readdirSync,
   readlinkSync, realpathSync, renameSync, writeSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { cleanGitEnvironment } from './git.js';
@@ -13,7 +13,7 @@ const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
 /** A failed observation supplies neither a recoverable archive nor permission to erase source. */
 export function maintenanceGit(root, args, { binary = false } = {}) {
-  const result = spawnSync('git', args, { cwd: root, env: cleanGitEnvironment(),
+  const result = spawnSync('git', args, { cwd: root, env: { ...cleanGitEnvironment(), GIT_OPTIONAL_LOCKS: '0' },
     encoding: binary ? undefined : 'utf8', timeout: 10_000, maxBuffer: MAX_OBSERVATION_BYTES });
   if (result.status !== 0 || result.error || result.signal) throw new Error('maintenance Git observation failed: ' + args[0]);
   return result.stdout;
@@ -119,8 +119,44 @@ function privateWrite(file, bytes) {
   } finally { closeSync(fd); }
 }
 
-/** Observe staged and unstaged changes separately, including ignored files removal would otherwise discard. */
-export function maintenanceSnapshot(root) {
+/** Preserve only a literal linked Git directory, never the primary or repository-wide metadata. */
+function metadataSnapshot(root, common) {
+  const gitDir = maintenanceGit(root, ['rev-parse', '--path-format=absolute', '--git-dir']).replace(/\n$/u, '');
+  const parent = join(common, 'worktrees'), name = relative(parent, gitDir);
+  if (!name || name === '..' || name.includes(sep) || isAbsolute(name) || resolve(parent, name) !== gitDir)
+    throw new Error('maintenance metadata needs a linked worktree Git directory');
+  for (const path of [parent, gitDir]) {
+    const state = lstatSync(path);
+    if (!state.isDirectory() || state.isSymbolicLink() || realpathSync(path) !== path)
+      throw new Error('maintenance metadata directory identity changed');
+  }
+  const state = lstatSync(gitDir), files = [], directories = [];
+  const visit = (path = '') => {
+    const directory = join(gitDir, path), before = lstatSync(directory);
+    if (!before.isDirectory() || before.isSymbolicLink()) throw new Error('maintenance metadata parent is not a directory');
+    directories.push({ path, mode: before.mode & 0o7777, dev: before.dev, ino: before.ino });
+    const entries = readdirSync(directory, { encoding: 'buffer' }).map(bytes => {
+      const name = bytes.toString('utf8');
+      if (!Buffer.from(name).equals(bytes) || !name || name === '.' || name === '..' || name.endsWith('.lock'))
+        throw new Error('maintenance metadata has an unsupported path or lock');
+      return name;
+    }).sort();
+    for (const name of entries) {
+      const child = path ? path + '/' + name : name, current = lstatSync(join(gitDir, child));
+      if (current.isDirectory() && !current.isSymbolicLink()) visit(child);
+      else files.push(localFile(gitDir, child));
+    }
+    if (!sameFile(before, lstatSync(directory))) throw new Error('maintenance metadata directory changed');
+  };
+  visit();
+  if (!sameFile(state, lstatSync(gitDir))) throw new Error('maintenance metadata changed during observation');
+  const identity = { gitDir, directories, files };
+  return { ...identity, signature: digest(JSON.stringify(identity)) };
+}
+
+/** Observe staged and unstaged changes separately, optionally retaining the linked Git directory too. */
+export function maintenanceSnapshot(root, { includeMetadata = false } = {}) {
+  if (typeof includeMetadata !== 'boolean') throw new Error('maintenance metadata option must be a boolean');
   const state = lstatSync(root);
   if (!state.isDirectory() || state.isSymbolicLink()) throw new Error('maintenance root identity changed');
   const canonical = realpathSync(root);
@@ -133,8 +169,9 @@ export function maintenanceSnapshot(root) {
   const untracked = paths(maintenanceGit(root, ['ls-files', '--others', '--exclude-standard', '-z'], { binary: true }));
   const ignored = paths(maintenanceGit(root, ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'], { binary: true }));
   const files = [...new Set([...untracked, ...ignored])].sort().map(path => localFile(canonical, path));
+  const metadata = includeMetadata ? metadataSnapshot(root, common) : undefined;
   const identity = { head, common, rootIdentity: { root: canonical, dev: state.dev, ino: state.ino },
-    staged: digest(stagedBuffer), unstaged: digest(unstagedBuffer), files };
+    staged: digest(stagedBuffer), unstaged: digest(unstagedBuffer), files, ...(metadata ? { metadata } : {}) };
   if (realpathSync(root) !== canonical || !sameFile(state, lstatSync(root))) throw new Error('maintenance root changed during observation');
   return { ...identity, stagedBuffer, unstagedBuffer, signature: digest(JSON.stringify(identity)),
     dirty: Boolean(stagedBuffer.length || unstagedBuffer.length || files.length) };
@@ -155,30 +192,35 @@ function archiveDirectory(common, id) {
 }
 
 /** Save complete private bytes and a durable HEAD ref before returning any reset permission. */
-export function archiveMaintenanceWorktree(root, common, { now = new Date().toISOString() } = {}) {
-  const before = maintenanceSnapshot(root);
+export function archiveMaintenanceWorktree(root, common, { now = new Date().toISOString(), includeMetadata = false } = {}) {
+  const before = maintenanceSnapshot(root, { includeMetadata });
   if (before.common !== realpathSync(common)) throw new Error('maintenance repository changed');
   const id = randomUUID(), directory = archiveDirectory(common, id);
   privateWrite(join(directory, 'staged.patch'), before.stagedBuffer);
   privateWrite(join(directory, 'unstaged.patch'), before.unstagedBuffer);
   const copied = new Set();
-  for (const file of before.files) {
+  for (const { source, file } of [
+    ...before.files.map(file => ({ source: before.rootIdentity.root, file })),
+    ...(before.metadata?.files ?? []).map(file => ({ source: before.metadata.gitDir, file })),
+  ]) {
     const blob = join(directory, 'blobs', file.sha256);
     if (copied.has(file.sha256)) {
-      const current = localFile(before.rootIdentity.root, file.path);
+      const current = localFile(source, file.path);
       if (JSON.stringify(current) !== JSON.stringify(file)) throw new Error('worktree changed during archive; source retained');
     } else {
-      const current = localFile(before.rootIdentity.root, file.path, blob);
+      const current = localFile(source, file.path, blob);
       if (JSON.stringify(current) !== JSON.stringify(file)) throw new Error('worktree changed during archive; source retained');
       copied.add(file.sha256);
     }
   }
   const ref = 'refs/pullboard/worktree-archives/' + id;
   maintenanceGit(root, ['update-ref', ref, before.head, '0'.repeat(before.head.length)]);
-  if (before.signature !== maintenanceSnapshot(root).signature) throw new Error('worktree changed during archive; source retained');
+  if (before.signature !== maintenanceSnapshot(root, { includeMetadata }).signature) throw new Error('worktree changed during archive; source retained');
   const manifest = { version: 1, id, root, common: before.common, head: before.head, ref, at: now,
     signature: before.signature, rootIdentity: before.rootIdentity, staged: before.staged, unstaged: before.unstaged, files: before.files,
-    bytes: before.stagedBuffer.length + before.unstagedBuffer.length + before.files.reduce((sum, file) => sum + file.size, 0) };
+    ...(before.metadata ? { metadata: before.metadata } : {}),
+    bytes: before.stagedBuffer.length + before.unstagedBuffer.length
+      + [...before.files, ...(before.metadata?.files ?? [])].reduce((sum, file) => sum + file.size, 0) };
   privateWrite(join(directory, 'manifest.tmp'), Buffer.from(JSON.stringify(manifest, null, 2) + '\n'));
   renameSync(join(directory, 'manifest.tmp'), join(directory, 'manifest.json'));
   const archive = { directory, manifest };
@@ -208,8 +250,9 @@ export function maintenanceArchiveMatches(root, archive) {
       return result.sha256 === expected && (size === undefined || result.size === size);
     };
     if (!verify('staged.patch', stored.staged) || !verify('unstaged.patch', stored.unstaged)) return false;
-    if (stored.files.some(file => !/^[a-f0-9]{64}$/u.test(file.sha256) || !verify('blobs/' + file.sha256, file.sha256, file.size))) return false;
+    if ([...stored.files, ...(stored.metadata?.files ?? [])].some(file => !/^[a-f0-9]{64}$/u.test(file.sha256)
+      || !verify('blobs/' + file.sha256, file.sha256, file.size))) return false;
     if (maintenanceGit(root, ['rev-parse', '--verify', stored.ref]).trim() !== stored.head) return false;
-    return maintenanceSnapshot(root).signature === stored.signature;
+    return maintenanceSnapshot(root, { includeMetadata: Boolean(stored.metadata) }).signature === stored.signature;
   } catch { return false; /* Unknown observations never authorize cleanup. */ }
 }
