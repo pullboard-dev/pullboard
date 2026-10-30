@@ -251,6 +251,19 @@ export function setGateRunnersFirst(enabled) {
   return next;
 }
 
+/** Opt in to runner slots computed from each runner's measured cores and memory, preserving other gate settings. */
+export function setGateMeasuredSlots(enabled) {
+  if (typeof enabled !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'gate.measuredSlots must be true or false; run pullboard settings gate.measuredSlots on|off');
+  let next;
+  const current = loadMachineSettings();
+  setResourceCapacity({ name: 'gate', capacity: current.gateSlots, scope: 'machine', allowZero: current.gateSlots === 0, persist: () => {
+    const latest = loadMachineSettings();
+    next = { ...latest, gate: { ...latest.gate, measuredSlots: enabled } };
+    writeMachineSettings(next);
+  } });
+  return next;
+}
+
 /** Register plain SSH capacity without storing credentials, and serialize updates with active dispatches. */
 export function addRunner(value) {
   const runner = validateRunner(value);
@@ -263,6 +276,21 @@ export function addRunner(value) {
     writeMachineSettings({ ...current, runners });
     return runner;
   });
+}
+
+/** Store measured facts on the latest registered host without changing fixed policy or clearing recovery fences. */
+export function recordRunnerMeasurement(host, observation) {
+  return updateRunnerSettings(host, () => {
+    const current = loadMachineSettings();
+    const index = (current.runners ?? []).findIndex(runner => runner.host === host);
+    if (index < 0) throw new Refused('RUNNER_NOT_REGISTERED', `runner ${host} is no longer registered; run pullboard runner list`);
+    const runner = validateRunner({ ...current.runners[index], cores: observation.cores,
+      memoryMB: observation.memoryMB, measuredAt: observation.measuredAt,
+      ...(observation.gui === undefined ? {} : { gui: observation.gui }) });
+    const runners = [...current.runners]; runners[index] = runner;
+    writeMachineSettings({ ...current, runners });
+    return runner;
+  }, { observation: true });
 }
 
 /** Stop dispatching to a runner immediately; admitted jobs keep their leases until they finish. */

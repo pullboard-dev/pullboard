@@ -14,7 +14,7 @@ import { PULLBOARD_COMMANDS } from '../../src/cockpit.js';
 import { HELP } from '../../src/cli.js';
 import { fetchFresh } from '../http-fixture.js';
 import { relayClientFixture } from '../relay-client-fixture.js';
-import { machine, project, startView, openPage, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
+import { openShoutConversation, machine, project, startView, openPage, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
 test('a pullboard command in prose chips only the command [N26]', async () => {
   // The page's command list is the CLI's: every "pullboard ..." that help --all prints (HELP.all) or a usage line
@@ -64,7 +64,7 @@ test('a pullboard command in prose chips only the command [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
-    page.run("view.tab = 'shouts'; render();");
+    page.run("view.tab = 'shouts'; view.shoutThread = 'none'; render();");
     const feed = page.show('feed');
     const chips = [...feed.matchAll(/<code class="inline(?: [a-z]+)*"(?: title="[^"]*")?>([^<]*)<\/code>/g)].map((match) => match[1].replaceAll('&quot;', '"'));
     assert.deepEqual(chips.filter((chip) => chip.startsWith('pullboard')), ['pullboard spec check', 'pullboard view', 'pullboard next --verify 235', 'pullboard verify 235', 'pullboard relay on', 'pullboard hold', 'pullboard milestone add', 'pullboard prompt review'],
@@ -97,7 +97,7 @@ test('the view chips a command the CLI adds [N26]', async (t) => {
   const view = await startView(box, { bin: copiedBin });
   /** Read actual rendered chips without depending on long-chip classes or title attributes. */
   const assertChips = (page, where) => {
-    page.run("view.tab = 'shouts'; render();");
+    page.run("view.tab = 'shouts'; view.shoutThread = 'none'; render();");
     const chips = [...page.show('feed').matchAll(/<code class="inline(?: [a-z]+)*"(?: title="[^"]*")?>([^<]*)<\/code>/g)].map(match => match[1]);
     for (const phrase of ['pullboard blueprint apply', 'pullboard blueprint inspect']) {
       assert.ok(chips.includes(phrase), `${where} chips the copied CLI command ${phrase}: ${JSON.stringify(chips)}`);
@@ -189,6 +189,7 @@ test('real Chrome renders brief lists with inline paths [N26]', { timeout: 90_00
       assert.ok(!seen.overflow, `${width}: nothing runs off the screen`);
     }
     await chrome.click("document.querySelector('[data-tab=\"shouts\"]')");
+    await openShoutConversation(chrome);
     await chrome.waitFor("[...document.querySelectorAll('#feed code.block')].some((code) => code.textContent.includes('const greeting'))");
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
