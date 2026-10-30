@@ -1,7 +1,7 @@
 import { projectItemState } from './api.js';
 import { performanceCores } from './gate.js';
 import { landingPace } from '../packages/roadmap/index.js';
-/** @pullboard-test-input src/view.css src/view/cost.css */
+/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css */
 /**
  * `pullboard view` (N26, N27): the person's micro site. One page on this machine shows every
  * registered project: items by state, what needs the person, shouts, doctrine, agents and activity,
@@ -80,8 +80,8 @@ import { publicSnapshot } from './view/public-export.js';
 import { openBoardForRead } from './board-read-open.js';
 import { loadMachineSettings } from './settings-read.js';
 
-/** Shared and private-local styles stay separate until the authenticated view assembles its sheet. */
-const SHARED_VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8');
+/** Shared Dashboard rules retain their cascade point before private-local styles are assembled. */
+const SHARED_VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('./view/dashboard.css', import.meta.url), 'utf8').trimEnd());
 const PRIVATE_COST_CSS = readFileSync(new URL('./view/cost.css', import.meta.url), 'utf8');
 const PRIVATE_VIEW_CSS_MARKER = '/* @private-view-css src/view/cost.css */';
 const VIEW_CSS = SHARED_VIEW_CSS.replace(PRIVATE_VIEW_CSS_MARKER, PRIVATE_COST_CSS);
