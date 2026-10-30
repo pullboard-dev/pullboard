@@ -436,7 +436,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .chain { list-style: none; margin: 0; padding: var(--space-2); display: grid; gap: var(--space-0); }
 .row { display: grid; grid-template-columns: var(--space-6) minmax(0, 1fr) auto; gap: var(--space-4); align-items: center; padding: var(--space-3) var(--space-3); border-radius: var(--radius-lg); border: 1px solid transparent; cursor: pointer; }
 .row:hover { background: var(--surface-2); }
-.row.gated { border-color: light-dark(#ca9d96, #86403b); }
+.row.gated:has(> .chip.gate) { border-color: light-dark(#ca9d96, #86403b); }
 .row.s-verify { background: light-dark(#fefaea, #262112); }
 .row.s-verify:hover { background: light-dark(#fcf3d6, #2e2816); }
 .row.s-verify:not(.gated) { border-color: light-dark(transparent, #6e5722); }

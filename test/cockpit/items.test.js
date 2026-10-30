@@ -136,15 +136,15 @@ test('each row says what it waits on [N26]', async () => {
     await page.click({ tab: 'items' });
     const rows = Object.fromEntries(page.show('chain').split('<li class="row').slice(1).map((row) => [/data-item="(\d+)"/.exec(row)[1], {
       chip: /<span class="chip ([^"]*)"[^>]*>(.*?)<\/span><\/li>$/.exec(row).slice(1).map(value => value.replace(/<[^>]*>/g, '')).join(': '),
-      edge: /^[^"]*\bgated\b/.test(row),
+      gated: /^[^"]*\bgated\b/.test(row),
       waits: [...row.matchAll(/<span class="gate">(.*?)<\/span>/g)].map((match) => match[1]),
     }]));
-    assert.deepEqual(rows['1'], { chip: 'free: unclaimed', edge: false, waits: [] }, 'free to claim');
-    assert.deepEqual(rows['2'], { chip: 'busy: web-1 (Test Model)', edge: false, waits: [] }, 'a claim names its holder');
-    assert.deepEqual(rows['3'], { chip: 'waiting: Waiting on #2', edge: false, waits: [] }, 'gated on #2, which is still being built');
-    assert.deepEqual(rows['4'], { chip: 'gate: lane held', edge: true, waits: ['lane held: API &lt;freeze&gt; until Friday'] });
-    assert.deepEqual(rows['5'], { chip: 'warn: to verify', edge: false, waits: [] });
-    assert.deepEqual(rows['6'], { chip: 'no: sent back', edge: false, waits: [] });
+    assert.deepEqual(rows['1'], { chip: 'free: unclaimed', gated: false, waits: [] }, 'free to claim');
+    assert.deepEqual(rows['2'], { chip: 'busy: web-1 (Test Model)', gated: false, waits: [] }, 'a claim names its holder');
+    assert.deepEqual(rows['3'], { chip: 'waiting: Waiting on #2', gated: true, waits: [] }, 'gated on #2, which is still being built');
+    assert.deepEqual(rows['4'], { chip: 'gate: lane held', gated: true, waits: ['lane held: API &lt;freeze&gt; until Friday'] });
+    assert.deepEqual(rows['5'], { chip: 'warn: to verify', gated: false, waits: [] });
+    assert.deepEqual(rows['6'], { chip: 'no: sent back', gated: false, waits: [] });
 
     await page.click({ go: 'item:2' });
     assert.match(page.show('detail'), /<h2><span>#2<\/span>Base<\/h2>/, 'the gate links to what it waits on');

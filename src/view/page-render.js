@@ -223,7 +223,7 @@ function render() {
     const tag = s === 'building' && holder ? '<span class="chip busy" title="building, held by ' + esc(agentName(holder)) + '">' + esc(agentName(holder)) + '</span>'
       : s === 'verify' && reviewer ? '<span class="chip warn" title="reviewing until ' + esc(when(i.claim?.until ?? i.reviewUntil)) + '">' + esc(agentName(reviewer)) + ' reviewing</span>'
       : s === 'open' ? openChip(i) : chip(s);
-    return sharedRowHtml({ className: (view.item === i.id ? 'on ' : '') + (hold && !i.blockedBy.length ? 'gated ' : ''), attributes: { 'data-item': i.id }, title: i.title, state: s,
+    return sharedRowHtml({ className: (view.item === i.id ? 'on ' : '') + (gatedOf(i) ? 'gated ' : ''), attributes: { 'data-item': i.id }, title: i.title, state: s,
       primaryHtml: '<span>#' + i.id + '</span>' + rich(i.title, titles), timeHtml: age(i.updatedAt), chipHtml: tag,
       // A rejected row's second line is its verdict; any other row's is its lane and the spec ids it serves.
       metaHtml: (rejected(i) ? '<span class="why"><b>' + reasonHtml(i.verdict.reason) + '</b> ' + linked(firstLine(visibleVerdictNote(i.verdict.reason, i.verdict.note)), titles) + '</span>'

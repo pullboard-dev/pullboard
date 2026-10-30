@@ -358,7 +358,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
           const [red, green, blue] = row[id].border;
           assert.ok(row[id].gated && row[id].edges && row[id].borderWidth === '1px' && red > green + 30 && red > blue + 30, `${at}: #${id} has a red outline: ${JSON.stringify(row[id])}`);
         }
-        assert.deepEqual([row['3'].gated, row['3'].border, row['3'].borderWidth, row['3'].edges], [false, row['1'].border, row['1'].borderWidth, true], `${at}: a dependency wait has the same plain edge as an unclaimed row`);
+        assert.deepEqual([row['3'].gated, row['3'].border, row['3'].borderWidth, row['3'].edges], [true, row['1'].border, row['1'].borderWidth, true], `${at}: a dependency wait has the same plain edge as an unclaimed row`);
         assert.deepEqual([row['3'].chip, row['3'].waitTarget], ['Waiting on #2', 'item:2'], `${at}: the chip names and links the native dependency`);
         const [tr, tg, tb] = row['5'].tint;
         assert.ok(tr >= tg && tg > tb && row['5'].tint.join() !== row['1'].tint.join(), `${at}: a row waiting on a verdict is shaded gold: ${JSON.stringify([row['5'].tint, row['1'].tint])}`);
