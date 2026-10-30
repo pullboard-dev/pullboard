@@ -1200,7 +1200,7 @@ test('a hosted wait that times out names the page state and Chrome\'s network se
     assert.ok(error, 'the impossible wait failed');  // budget: hang ceiling only; this judges the failure's text, never its timing.
     assert.match(error.message, /; the hosted page showed \{"origin":"[^"]*","search":"[^"]*","note":[^,]*,"rows":\d+,"detail":"[^"]*","relaySession":/u, 'the failure names the page state');  // budget: hang ceiling only; this judges the failure's text, never its timing.
     const marker = '; chrome ';
-    assert.ok(error.message.includes(marker), 'the failure carries Chrome health');
+    assert.ok(error.message.includes(marker), 'the failure carries Chrome health'); // budget: hang ceiling only; this judges diagnostic text, never its timing.
     const health = JSON.parse(error.message.slice(error.message.lastIndexOf(marker) + marker.length));
     assert.deepEqual(Object.keys(health.networkService), ['atStart', 'now'], 'both census observations are named');
     for (const [phase, pids] of Object.entries(health.networkService)) {
