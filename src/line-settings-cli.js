@@ -1,10 +1,4 @@
 /** Board-scoped line controls use ordered moves; the existing settings command still owns machine controls. */
-import {
-  actOn,
-  context,
-  ordered,
-  withBoardRead,
-} from './cli.js';
 import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
 import { LINE_SETTING_DEFINITIONS } from '../packages/queue/index.js';
 import { Refused } from './refused.js';
@@ -15,8 +9,11 @@ function parseWindow(value) {
   catch { throw new Refused('LINE_SETTING_WINDOW', 'use --window with a JSON object of measured numbers, for example \'{"windowMinutes":60,"activeReviewers":2}\''); }
 }
 
-/** Read all board controls or record one coordinator change; no controller enforcement is enabled here. */
-export function lineSettingsCommand(io, { second, rest, values = {} }) {
+/**
+ * Read all board controls or record one coordinator change; no controller enforcement is enabled here.
+ * The settings command passes the CLI's context, board read and ordered-move helpers as `cli`, so seats never load the CLI.
+ */
+export function lineSettingsCommand(io, { second, rest, values = {} }, { actOn, context, ordered, withBoardRead }) {
   if (!second && !rest.length) {
     const ctx = context(io);
     const settings = withBoardRead(ctx, lineSettings);
