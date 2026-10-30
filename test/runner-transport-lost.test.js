@@ -268,7 +268,7 @@ test('an asynchronous runner dispatch never uses a preloaded resource generation
   mkdirSync(installed);
   copyPackageFiles(join(import.meta.dirname, '..'), installed);
   const observations = join(box.dir, 'resource-generation.jsonl');
-  const resources = toolSourcePath(installed, 'packages/resources/index.js');
+  const resources = toolSourcePath(installed, 'packages/resources/src/shell/resources.js');
   const signature = 'export function recordRunnerGui(host, gui) {';
   const observer = `\n  observeGeneration(${JSON.stringify(observations)}, JSON.stringify({ pid: process.pid, generation: 'resource-generation-before' }) + '\\n');`;
   const original = readFileSync(resources, 'utf8');
