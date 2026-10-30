@@ -8,6 +8,11 @@ import {
 import { join } from 'node:path';
 import { Refused } from './refused.js';
 import { registryGuardsProblem } from './registry-guards.js';
+import {
+  exitRulesDefaults,
+  exitRulesConfigProblems,
+  mergeExitRules,
+} from './exit-rules-config.js';
 import * as maintenanceSettings from './worktree-maintenance-config.js';
 import { knownConfigKeys } from './config-forward-compat.js';
 
@@ -49,7 +54,7 @@ export function defaults() {
     registryGuards: [],
     staticChecks: '',
     lease: '2h',
-    claims: { releaseGone: false },
+    claims: { releaseGone: false }, exitRules: exitRulesDefaults(),
     reviewLease: '30m',
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
@@ -113,7 +118,7 @@ function merge(base, raw) {
   if (spec && Object.keys(spec).some(key => !['file', 'agentApproval'].includes(key))) throw new Refused('BAD_CONFIG', '"spec" has only "file" and "agentApproval"');
   return {
     ...base,
-    ...raw,
+    ...raw, exitRules: mergeExitRules(base.exitRules, raw.exitRules),
     worktreeMaintenance: raw.worktreeMaintenance === undefined ? base.worktreeMaintenance
       : raw.worktreeMaintenance && typeof raw.worktreeMaintenance === 'object' && !Array.isArray(raw.worktreeMaintenance)
         ? { ...base.worktreeMaintenance, ...raw.worktreeMaintenance } : raw.worktreeMaintenance,
@@ -194,7 +199,7 @@ function laneProblems(name, lane) {
  * @returns {string[]}
  */
 export function configProblems(config) {
-  const problems = maintenanceSettings.maintenanceConfigProblems(config.worktreeMaintenance);
+  const problems = [...exitRulesConfigProblems(config.exitRules), ...maintenanceSettings.maintenanceConfigProblems(config.worktreeMaintenance)];
   const costs = config.testEconomics;
   if (!costs || typeof costs !== 'object' || Array.isArray(costs)
     || Object.keys(costs).some(key => !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].includes(key))

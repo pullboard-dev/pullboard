@@ -1,0 +1,111 @@
+/** Private native claim anchors feed authenticated numeric records, never transcript bytes [N2,C7]. */
+import { createHash } from 'node:crypto';
+import {
+  constants,
+  closeSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import {
+  sessionSource,
+  sessionSnapshot,
+  usageDifference,
+} from './cost-session.js';
+import { nativeToolCallIds } from './exit-rules-calls.js';
+import {
+  parentSessionDigest,
+  runtimeSessionIdentity,
+} from './parent-session.js';
+import { exitedSessionIdentity } from './exit-rules-continuation.js';
+import { Refused } from './refused.js';
+import {
+  exitClaim,
+  requireExitActive,
+} from './exit-rules-state.js';
+import { mainPolicy } from './trusted-policy.js';
+
+/** Read only the same regular native transcript and verify its complete claim prefix. */
+function sourceBytes(source, previous) {
+  if (!source) return null;
+  let fd;
+  try {
+    fd = openSync(source.file, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const stat = fstatSync(fd), bytes = readFileSync(fd);
+    if (!stat.isFile() || previous && (stat.dev !== previous.dev || stat.ino !== previous.ino
+      || bytes.length < previous.bytes || digest(bytes.subarray(0, previous.bytes)) !== previous.sha256)) return null;
+    return { bytes, dev: stat.dev, ino: stat.ino, length: bytes.length, sha256: digest(bytes) };
+  } catch { return null; }
+  finally { if (fd !== undefined) closeSync(fd); }
+}
+
+/** A private prefix digest proves append-only custody without publishing native identifiers. */
+function digest(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
+
+/** One private file per immutable claim; a lost anchor is unknown rather than a fresh allowance. */
+function anchorFile(ctx, claim) { return join(ctx.info.commonDir, 'pullboard', `exit-anchor-${claim}.json`); }
+
+/** Capture once after the real claim; renewals and later commands never recreate missing anchors. */
+export function captureExitAnchor(ctx, board, id, actor) {
+  const claim = exitClaim(board, id, actor);
+  if (!claim) return;
+  try {
+    const source = sessionSource(), observed = sourceBytes(source);
+    const calls = observed ? nativeToolCallIds(source.provider, observed.bytes) : null;
+    const baseline = source ? sessionSnapshot(source) : null;
+    const prefix = observed ? { dev: observed.dev, ino: observed.ino, bytes: observed.length, sha256: observed.sha256 } : null;
+    mkdirSync(join(ctx.info.commonDir, 'pullboard'), { recursive: true, mode: 0o700 });
+    writeFileSync(anchorFile(ctx, claim.key), JSON.stringify({ actor, item: id, claim: claim.key, source, prefix, baseline, calls }), { flag: 'wx', mode: 0o600 });
+  } catch { ctx.io.err?.('Exit-rule native anchor unavailable; usage remains unknown, never a fresh zero.'); }
+}
+
+/** Derive one exact claim's counters; all unverified, reset or malformed native evidence stays unknown. */
+function counters(ctx, claim, actor, item) {
+  let fd;
+  try {
+    fd = openSync(anchorFile(ctx, claim.key), constants.O_RDONLY | constants.O_NOFOLLOW);
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.mode & 0o077 || stat.size > 16 * 1024 * 1024) return { tokens: null, calls: null };
+    const anchor = JSON.parse(readFileSync(fd, 'utf8'));
+    if (anchor.actor !== actor || anchor.item !== item || anchor.claim !== claim.key || !anchor.prefix) return { tokens: null, calls: null };
+    const observed = sourceBytes(anchor.source, anchor.prefix);
+    if (!observed) return { tokens: null, calls: null };
+    const ids = nativeToolCallIds(anchor.source.provider, observed.bytes);
+    const calls = ids && Array.isArray(anchor.calls) ? ids.filter(id => !anchor.calls.includes(id)).length : null;
+    const current = sessionSnapshot(anchor.source, anchor.baseline);
+    const delta = usageDifference(anchor.baseline, current, null);
+    const tokens = delta.reduce((sum, row) => sum === null || row.inputTokens === null || row.outputTokens === null
+      || !Number.isSafeInteger(sum + row.inputTokens + row.outputTokens) ? null : sum + row.inputTokens + row.outputTokens, 0);
+    return { tokens, calls };
+  } catch { return { tokens: null, calls: null }; }
+  finally { if (fd !== undefined) closeSync(fd); }
+}
+
+/** Check every external command before dispatch; this function never signals another process. */
+export async function enforceExitBoundary(io, command) {
+  if (['init', 'settings', 'hook', 'mcp', 'view', 'serve'].includes(command)) return;
+  const { context, withBoard } = await import('./cli-context.js');
+  let ctx;
+  try { ctx = context(io); }
+  catch (error) { if (['NO_REPO', 'NOT_A_REPO', 'NO_CONFIG'].includes(error.code)) return; throw error; }
+  if (ctx.info.isMain || mainPolicy(ctx.info.root).config.exitRules?.enabled !== true) return;
+  const { agentAt } = await import('./board.js');
+  const { ordered } = await import('./cli/claim.js');
+  await withBoard(ctx, async board => {
+    const native = runtimeSessionIdentity();
+    const stopped = native?.session ? exitedSessionIdentity(board, parentSessionDigest(native.session)) : null;
+    if (stopped && command !== 'release') throw new Refused(stopped.code, 'this native session handed off its work; stop and let a fresh same-family session continue');
+    const actor = agentAt(board, ctx.info.root)?.agent_id;
+    if (!actor) return;
+    const held = board.db.prepare("SELECT item_id FROM item WHERE item_owner=? AND item_status='claimed'").all(actor);
+    for (const item of held) {
+      const claim = exitClaim(board, item.item_id, actor);
+      if (claim) await ordered(ctx, board, 'recordExitProgress', [{ agentId: actor, item: item.item_id, claim: claim.key, ...counters(ctx, claim, actor, item.item_id) }]);
+    }
+    // Release is the sole recovery write: it atomically validates and records the structured summary.
+    if (command !== 'release') requireExitActive(board, actor, command);
+  });
+}

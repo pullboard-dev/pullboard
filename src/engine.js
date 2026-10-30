@@ -1,3 +1,4 @@
+import { EXIT_RULES_ENGINE } from './exit-rules-engine.js';
 import { registrationProblem } from './engine-move-register.js';
 import { recordReviewPolicyActivation } from '../packages/state/index.js';
 import { agentGrantMinimum } from './agent-grant.js';
@@ -212,6 +213,7 @@ export function applyEngineMove(board, move, { sequence, at, standing = null, en
           // One main checkout coordinates a linked board at a time; another is refused by name (#347).
           ports.requireCoordinatorHold(board, move, standing?.lineage, at);
           requireHandoffActive(board, ports.relayMoveActor(move), move.operation, move.args);
+          if (move.engine >= EXIT_RULES_ENGINE) store.requireExitActive(board, ports.relayMoveActor(move), move.operation, move.args);
           requireAgentGrant(board, move);
           return store[move.operation](board, ...executableArgs(move, board));
         });
