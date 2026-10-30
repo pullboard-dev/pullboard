@@ -1,4 +1,6 @@
 /** Fresh per-file main comparisons for inherited submit reds [V1]. */
+import { testClosures } from './affected-tests.js';
+import { selectAffectedTests } from './affected-tests.js';
 import { runnerExecutionServices } from './runners.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { spawnSync } from 'node:child_process';
@@ -242,6 +244,30 @@ export function comparisonExecutor(root, execution) {
   if (!hosts.length) throw new Refused('BAD_RUNNER_POOL', 'no registered runner has the candidate comparison environment; record a matching runner and retry');
   const host = hosts.includes(original.host) ? original.host : hosts[0];
   return { requiredExecutor: { kind: 'ssh', host, hosts: [host, ...hosts.filter(value => value !== host)] }, browser: redMatches ? browser : null };
+}
+
+/** Companions cannot inherit a red whose complete committed input closure they changed [V4,B3]. */
+export function companionMainFailuresUntouched(root, { base, source, composed }, failures) {
+  if (!base || !source || !composed || !Array.isArray(failures) || !failures.length) return false;
+  try {
+    const diff = spawnSync('git', ['diff', '--name-only', '-z', '--no-renames', source, composed, '--'],
+      { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+    if (diff.status !== 0) return false;
+    const changed = new Set(diff.stdout.split('\0').filter(Boolean));
+    // These inputs select execution itself; no source-import closure can prove them irrelevant.
+    if ([...changed].some(path => ['pullboard.json', 'package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'bin/run-tests.js'].includes(path))) return false;
+    const selection = selectAffectedTests(root, { base: source, commit: composed, changed: [...changed] });
+    if (selection.full || failures.some(failure => selection.files.includes(failure.file))) return false;
+    for (const commit of new Set([base, source, composed])) {
+      const { closures } = testClosures(root, commit);
+      for (const failure of failures) {
+        const closure = closures.get(failure.file);
+        if (!closure || !Array.isArray(closure.files) || !closure.files.includes(failure.file)
+          || closure.files.some(file => changed.has(file))) return false;
+      }
+    }
+    return true;
+  } catch { return false; } // Unavailable graph or Git evidence never grants known-main acceptance.
 }
 
 /**
