@@ -18,7 +18,7 @@ import * as testReporters from 'node:test/reporters';
 import { glob } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { testsNeedBrowser } from './browser-admission.js';
-import { takeResource } from './resources.js';
+import { takeResource } from '../packages/resources/index.js';
 import { reserveTestFileToken } from './test-file-pool.js';
 import { testOutcomeCollector } from './test-outcomes.js';
 import { TEST_FILE_POOL_ENV } from './test-file-pool.js';

@@ -30,7 +30,7 @@ import { mainPolicy } from '../src/trusted-policy.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../src/resources.js';
+import { BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -239,7 +239,7 @@ test('pullboard gate status refuses instead of running the gate [C7,P4]', async 
   const box = repoWithGate('echo run >> ../runs.log');
   for (const name of [BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV]) delete box.env[name];
   assert.equal(box.run('settings', 'gateSlots', '1').status, 0, 'the fixture uses the holder pool\'s single gate slot');
-  const resourceModule = pathToFileURL(resolve(import.meta.dirname, '../src/resources.js')).href;
+  const resourceModule = pathToFileURL(resolve(import.meta.dirname, '../packages/resources/index.js')).href;
   const holderSource = `import { takeResource } from ${JSON.stringify(resourceModule)};
 const lease = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', root: process.cwd(), agent: 'gate-argument-holder' });
 try {

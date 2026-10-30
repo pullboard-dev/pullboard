@@ -42,7 +42,7 @@ import { listItems } from './board.js';
 import {
   takeResource,
   requiredExecutorOf,
-} from './resources.js';
+} from '../packages/resources/index.js';
 import { sameEnvironment } from './execution-environment.js';
 import { Refused } from './refused.js';
 import {

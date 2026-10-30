@@ -8,7 +8,7 @@ import { delimiter, dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
-import { GATE_SLOT_HELD_ENV } from '../src/resources.js';
+import { GATE_SLOT_HELD_ENV } from '../packages/resources/index.js';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
 
 const BIN = join(import.meta.dirname, '../bin/pullboard.js');

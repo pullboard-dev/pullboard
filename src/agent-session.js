@@ -16,7 +16,7 @@ import {
 import {
   holdsLease,
   takeResource,
-} from './resources.js';
+} from '../packages/resources/index.js';
 import { Refused } from './refused.js';
 
 /**

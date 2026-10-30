@@ -232,7 +232,7 @@ import {writeFileSync} from 'node:fs';
 import {
   takeResource,
   listResources,
-} from ${JSON.stringify(new URL('../src/resources.js', import.meta.url).href)};
+} from ${JSON.stringify(new URL('../packages/resources/index.js', import.meta.url).href)};
 import {loadMachineSettings} from ${JSON.stringify(new URL('../src/settings.js', import.meta.url).href)};
 const [root,ready,observed]=process.argv.slice(1);
 const capacity=loadMachineSettings().gateSlots;

@@ -10,7 +10,7 @@ import { localRunnerDescriptor } from '../src/runner-load.js';
 import { recordReceipt } from '../src/gate-receipt.js';
 import * as runnerApi from '../src/runners.js';
 import { runFixtureGit } from './fixture-child.js';
-import { takeResource } from '../src/resources.js';
+import { takeResource } from '../packages/resources/index.js';
 import { readRunnerStage } from '../src/runner-stage-read.js';
 
 /** Capture the actual CLI response while supplying a deterministic observation clock. */

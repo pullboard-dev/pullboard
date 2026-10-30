@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { takeResource } from '../src/resources.js';
+import { takeResource } from '../packages/resources/index.js';
 import { HOST, SECRET, installSshStandIn, shellQuote } from './runner-ssh-fixture.js';
 
 /** Force Git's own checkout lock failure and require an actionable, path-free setup result. */
