@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { runtimeCaptureSource } from './execution-environment.js';
 import { childJournalPreloadSource } from './child-journal-preload.js';
 
-/** Stands in for the OS account home when machine state falls back to it (src/machine-home.js). */
+/** Stands in for the OS account home when machine state falls back to it (packages/resources/src/shell/machine-home.js). */
 export const ACCOUNT_HOME_ENV = 'PULLBOARD_ACCOUNT_HOME';
 
 /** An SSH runner names the spawn-journal preload it puts in NODE_OPTIONS, so classifiers can tell it from a foreign one. */

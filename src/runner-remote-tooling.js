@@ -9,7 +9,7 @@ import { sourceGit } from './runner-source-scan.js';
 import { captureRunnerTooling } from './runner-tooling-snapshot.js';
 import { currentRunnerTooling } from './runner-tooling-snapshot.js';
 import { claimRunnerLaunch } from './runner-transport.js';
-import { recoveryIdentity } from './runner-transport.js';
+import { recoveryIdentity } from '../packages/resources/index.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';

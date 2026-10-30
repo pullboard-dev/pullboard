@@ -1,3 +1,4 @@
+import { pipelineCause } from '../packages/kernel/index.js';
 /** Identify the frozen requirement a rejection disputes and stop repeated unchanged rounds [V6,R2,B30,H16]. */
 import { createHash } from 'node:crypto';
 import { Refused } from './refused.js';
@@ -101,7 +102,7 @@ export function finishVerdict(board, item, { id, isAccept, engine, reopenFirstRe
   const reservation = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalDetail(board, item, reopenFirstRefusalMinutes, returnedAt) : {};
   const derivedCause = !isAccept && engine >= RIGOR_AUTO_ENGINE
     ? deriveRigorCause(board, item, { cause, reason: code, agentId }) : !isAccept && cause != null ? { cause } : {};
-  const detail = { ...reservation, reason: code, commit: item.item_commit, ...derivedCause, ...clauseDetail,
+  const detail = { ...reservation, ...(!isAccept && engine >= board.enginePorts.pipelineCauseEngines().pipeline ? { pipelineCause: pipelineCause({ ...derivedCause, reason: code, note }) } : {}), reason: code, commit: item.item_commit, ...derivedCause, ...clauseDetail,
     ...(companionDigest ? { companionDigest } : {}) };
   if (isAccept && engine >= SPEC_APPROVAL_ENGINE) detail.note = note.trim();
   if (isAccept && check !== undefined) detail.check = check;

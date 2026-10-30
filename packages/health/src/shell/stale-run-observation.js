@@ -5,7 +5,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { machineHome } from '../../../../src/machine-home.js';
+import { machineHome } from '../../../resources/index.js';
 
 /** Any matching retained holder prevents proving silence; this observer never prunes another process's custody. */
 export function staleRunQuiet(repo) {

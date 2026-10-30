@@ -66,7 +66,7 @@ function render() {
   if (heldClickPointer !== null || pageDialogs.size) { deferredClickRender = true; return; }
   deferredClickRender = false;
   const statsFocus = document.activeElement?.id === 'proof-stats-summary' ? document.activeElement.id : null;
-  const p = data.project;
+  const p = privateModelProject(data.project);
   const group = data.group;
   renderSide();
   // A list that names a board no read has answered yet is still loading, never a machine without boards (#1035).
@@ -461,6 +461,7 @@ function render() {
   /** Keep model spelling consistent without rewriting the recorded message or native seat id. */
   const modelLabel = value => {
     const model = String(value || 'unknown').trim();
+    if (privateCost) return modelPresentation(model).name;
     if (/^gpt[- ]6[.]1[- ]sol$/i.test(model)) return 'GPT-6.1 Sol';
     if (/^(?:claude[- ]?)?opus[- ]5[.]5$/i.test(model)) return 'Claude Opus 5.5';
     if (/^codex$/i.test(model)) return 'Codex';

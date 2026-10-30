@@ -1,3 +1,4 @@
+/** @pullboard-test-loads packages/resources/index.js */
 /** An idle runner whose pinned worker stops answering restarts that worker itself; a busy one is left alone [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -34,7 +35,7 @@ function observe(t, busy) {
     import { join } from 'node:path';
     import { probeRunnerHealth } from ${JSON.stringify(url('runners.js'))};
     import { processCensus } from ${JSON.stringify(url('runner-custody.js'))};
-    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('runner-recovery.js'))};
+    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('../packages/resources/index.js'))};
     const root = ${JSON.stringify(root)};
     const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, root, slots: 1, browser: 0 };
     const db = new DatabaseSync(':memory:');
