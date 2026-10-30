@@ -1375,6 +1375,7 @@ test('publish pushes only a head the whole suite passed and names every red [B3,
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), before, 'a red head is never pushed');
   assert.deepEqual(report.red.map((entry) => entry.file), [FILES[1]], 'every failing test is named from the one run');
   assert.deepEqual(report.red[0].items, [entries[1].item], 'the failing file names the landed item whose merge touched it');
+  if (calls(box).length - start !== 1) console.error('publish invocation diagnostic:', JSON.stringify(calls(box).slice(start)));
   assert.equal(calls(box).length - start, 1, 'one whole-suite run');
   const again = box.run(box.repo, 'publish', '--json');
   assert.equal(again.code, 0);

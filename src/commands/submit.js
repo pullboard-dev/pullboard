@@ -530,7 +530,7 @@ export async function submitHere(ctx, id, infra) {
   const report = knownMainFailures || unowned.length
     ? `submission proof red with ${(knownMainFailures?.failures.length ?? 0) + unownedNames.length} known main failure(s) at ${unownedMain ?? knownMainFailures.main}; ${criterionMatched ? 'item check red only in known main cases' : 'item check green'}; no new failures accepted.${unownedNames.length ? ` Unowned, shouted to the coordinator: ${unownedNames.join('; ')}.` : ''} ${displayedReport}`
     : waived
-    ? `submission proof waived, not green: ${waived.length} failure(s), each covered by a live person waiver. ${displayedReport}`
+    ? `submission proof waived, not green: ${waived.length} failure(s), each covered by a live person waiver.\n${waivedLines.join('\n')}\n${displayedReport}`
     : displayedReport;
   if (trunkMove) ctx.io.say(trunkMoveFact(trunkMove));
   for (const notice of mainFailures) ctx.io.say(notice.message);
