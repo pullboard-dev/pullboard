@@ -1,4 +1,6 @@
-import { compositionReviews, compositionAuthors, compositionFamilyFallback } from './review-composition.js';
+import { compositionReviews } from './review-composition.js';
+import { compositionAuthors } from './review-composition.js';
+import { compositionFamilyFallback } from './review-composition.js';
 import { seatFamily } from './family-declaration.js';
 /** Native review policy and explanations replace prose lineage screening [V4,B26,H16]. */
 import { REVIEW_TIER_ENGINE } from './review-tier-engine.js';

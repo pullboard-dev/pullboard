@@ -4,7 +4,8 @@ import { STRICT_COMPOSITION_ENGINE } from './strict-composition-engine.js';
 import { itemPatchAuthors } from './item-patch-state.js';
 import { itemPatches } from './item-patch-state.js';
 import { itemReviewPolicy } from './review-policy.js';
-import { familyName, familyAliasesOf } from './review-policy.js';
+import { familyName } from './review-policy.js';
+import { familyAliasesOf } from './review-policy.js';
 import { seatFamily } from './family-declaration.js';
 
 /** Genuine historical moves retain their recorded exclusion rules. */
