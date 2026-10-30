@@ -86,7 +86,7 @@ test('an agent grant narrows at claim and expires identically on independent rep
   // Administrative communication and release cannot be trapped behind the grant being reported.
   assert.equal(replay('shout', [{ from: actor, to: 'coordinator', text: 'My claim expired; arranging the next work.', lanes: ['web', 'api'] }], expired).error,
     undefined, 'ordinary coordination remains available after expiry');
-  assert.equal(replay('release', [1, actor, 'Done with this claim.'], expired).error, undefined);
+  assert.equal(replay('release', [1, actor, 'Done with this claim.', 'OTHER'], expired).error, undefined);
   assert.equal(change(1, 'Release does not revive an expired grant', expired).error?.code, 'AGENT_GRANT_EXPIRED',
     'a fresh claim is required after expiry even after administrative release');
   assert.equal(change(3, 'An agent cannot mutate another lane', expired, freshActor).error?.code, 'AGENT_GRANT_LANE',

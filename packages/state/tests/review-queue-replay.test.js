@@ -140,11 +140,11 @@ test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1
   assert.equal(missingModernNote.error.code, 'NOTE_REQUIRED', 'the v5 replay receiver enforces the new construction contract');
   assert.equal(missingModernNote.events, undefined);
   assert.equal(currentBoard.executionEngineVersion, undefined, 'a refused replay restores the live engine context');
-  const modernRelease = prepareEngineMove(currentBoard, 'release', [item, 'web-2', 'recheck the submitted tree'], { id: 'current-review-release' });
+  const modernRelease = prepareEngineMove(currentBoard, 'release', [item, 'web-2', 'recheck the submitted tree', 'OTHER'], { id: 'current-review-release' });
   assert.equal(modernRelease.engine, ENGINE_VERSION);
   const modern = applyEngineMove(currentBoard, modernRelease, { sequence: 2, at: '2026-10-08T09:00:31.000Z' });
   assert.equal(modern.error, undefined);
-  assert.deepEqual(JSON.parse(modern.events[0].event_detail), { review: true, reason: 'recheck the submitted tree', model: 'unknown' });
+  assert.deepEqual(JSON.parse(modern.events[0].event_detail), { review: true, reason: 'recheck the submitted tree', reasonCode: 'OTHER', model: 'unknown' });
   assert.equal(currentBoard.executionEngineVersion, undefined);
   const filtered = store.reserveNextReview(currentBoard, { agentId: 'web-2', lane: 'web', leaseMs: LEASE_MS, policy: 'any' });
   assert.equal(filtered.item, null, 'engine 5 nextFor hides work released by this reviewer during cooldown');
