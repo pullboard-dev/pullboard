@@ -123,6 +123,7 @@ function openTab(tab, detail = null) {
   view.tab = tab;
   view.addressDetail = detail;
   view.shout = tab === 'shouts' && detail !== null ? Number(detail) : null;
+  view.shoutThread = null;
   view.scrollPlace = detail !== null;
   if (tab !== 'roadmap') keep('pb.tab', tab);
   address();
@@ -718,10 +719,10 @@ async function act(command, args, anchor) {
  * changes, so a click is never lost to a rebuild; on a quiet board the ages would otherwise stay
  * as old as the page.
  */
-/** Shouts the person opened past their six lines, kept across refreshes. */
+/** Shouts the person opened past their three lines, kept across refreshes. */
 const openShouts = new Set();
 
-/** Fold each shout taller than six lines, with 'more' to open it; measured only while Shouts shows. */
+/** Fold each shout taller than three lines, with 'more' to open it; measured only while Shouts shows. */
 function foldShouts() {
   if ($('feed').offsetParent === null) return;
   document.querySelectorAll('#feed .shout, #decisions .shout').forEach((card) => {
@@ -749,7 +750,7 @@ function tickDays() {
   const names = { Today: dayName(then.toISOString()), Yesterday: dayName(before.toISOString()) };
   document.querySelectorAll('.feed .day, #feed > .day-rule span').forEach((node) => { if (names[node.textContent]) node.textContent = names[node.textContent]; });
   const first = $('feed')?.querySelector?.('.shout');
-  if (first && !first.previousElementSibling?.classList?.contains('day-rule')) first.insertAdjacentHTML('beforebegin', '<div class="day-rule" role="separator"><span>' + names.Today + '</span></div>');
+  if (first && !$('feed').querySelector('.conversation-heading') && !first.previousElementSibling?.classList?.contains('day-rule')) first.insertAdjacentHTML('beforebegin', '<div class="day-rule" role="separator"><span>' + names.Today + '</span></div>');
   daysNamedAt = now;
 }
 
@@ -812,12 +813,17 @@ $('shouts-pane').addEventListener('click', (event) => {
   if (event.target.closest('[data-credentials]')) { void loadCredentials(); return; }
   const revoke = event.target.closest('[data-revoke-token]');
   if (revoke) { void revokeCredential(revoke.dataset.revokeToken); return; }
+  const filter = event.target.closest('[data-shout-filter]');
+  if (filter) { view.shoutFilter = filter.dataset.shoutFilter; view.shoutThread = null; view.shout = null; render(); return; }
+  const thread = event.target.closest('[data-shout-thread]');
+  if (thread) { view.shoutThread = thread.dataset.shoutThread || null; view.shout = null; render(); return; }
   const more = event.target.closest('[data-more]'), pick = event.target.closest('[data-agent]');
   if (more) {
     const card = more.closest('.shout'), id = Number(card.dataset.shoutId);
     if (openShouts.has(id)) openShouts.delete(id); else openShouts.add(id);
     card.classList.toggle('open', openShouts.has(id));
-    more.textContent = openShouts.has(id) ? 'less' : 'more';
+    more.textContent = openShouts.has(id) ? 'Show less' : 'Show all';
+    more.setAttribute('aria-expanded', String(openShouts.has(id)));
     return;
   }
   if (event.target.closest('[data-to-clear]')) { addressTo('coordinator'); $('shout-text').focus(); return; }

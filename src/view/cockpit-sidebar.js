@@ -57,7 +57,7 @@ function renderSide() {
    * @param {boolean|'in-place'} allowLinks
    * @returns {string}
    */
-  function inline(text, titles, allowLinks = true, root = view.root) { return String(text ?? '').split(/(\`[^\`]*\`|(?:[^\\s:@()[\\]{}"'\`]+)?:\\d+(?:-\\d+)?@[0-9a-f]{0,40}|${COMMAND_SOURCE}|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b|#\\d+)/g).map((part, n, parts) => {
+  function inline(text, titles, allowLinks = true, root = view.root) { return String(text ?? '').split(/(\`[^\`]*\`|(?:[^\\s:@()[\\]{}"'\`]+)?:\\d+(?:-\\d+)?@[0-9a-f]{0,40}|${COMMAND_SOURCE}|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b|\\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\\b|#\\d+)/g).map((part, n, parts) => {
     if (part.startsWith('\`') && part.endsWith('\`')) return codeChip(part.slice(1, -1));
     if (part.includes('@') && part.includes(':')) {
       const textBefore = parts.slice(0, n).join('');
@@ -77,6 +77,7 @@ function renderSide() {
     if (/^(?:${COMMAND_SOURCE}|--[\\w-]+)$/.test(part)) return codeChip(part, 'cmd');
     if (/^(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+$/.test(part)) return codeChip(part, 'path');
     if (/^[0-9a-fA-F]{7,40}$/.test(part)) return codeChip(part, 'sha');
+    if (/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/.test(part)) return codeChip(part, 'code');
     return linked(part, titles, allowLinks, root);
   }).join(''); }
   /** Render inline text and fenced or shell command blocks with escaped contents.
