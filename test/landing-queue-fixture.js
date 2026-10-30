@@ -108,7 +108,7 @@ async function withFixtureLease(box, branch, action) {
   let fence;
   try {
     const grant = store.landingLeaseMove(board, request);
-    assert.equal(grant.acquired, true, 'the private fixture has no remaining lander');
+    assert.equal(grant.acquired, true, 'the private fixture has no remaining lander: ' + JSON.stringify(grant));
     fence = { ...request, generation: grant.generation };
     invalidateGitFacts();
     const check = () => assertLandingLease(board, fence);
