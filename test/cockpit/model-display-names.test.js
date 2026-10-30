@@ -1,8 +1,11 @@
+/** @pullboard-test-gui */
 /** Approved private model names, aliases and rate matching [N26,N2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { modelPresentation, costTabModel } from '../../src/view/cost-tab.js';
-import { machine, project } from './fixture.js';
+import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
+import { join } from 'node:path';
+import { cockpitPage } from '../../src/view/cockpit-page.js';
 
 test('private model names follow the approved known, family and fallback rules [N26]', () => {
   const fixtures = [
@@ -49,4 +52,36 @@ test('a new model and family can join a native board without a naming-table entr
   const joined = JSON.parse(box.run(demo.web, 'join', 'web', '--model', 'Future Model Not In A Table', '--family', 'future custom vendor', '--json'));
   assert.equal(joined.model, 'Future Model Not In A Table');
   assert.ok(joined.agent);
+});
+
+
+test('private naming code is absent from public and relay pages [N26,N2]', () => {
+  assert.match(cockpitPage(''), /const modelPresentation =/u);
+  for (const options of [{ snapshot: true }, { readOnly: true }, { transportModule: '/relay/client.js' }, { hostedLocal: true }]) {
+    assert.doesNotMatch(cockpitPage('', options), /const modelPresentation =/u, 'private naming tables stay out of public surfaces');
+  }
+});
+
+test('private Items and Shouts share a model name without rewriting the native API [N26,P5]', { timeout: 120_000 }, async () => {
+  const box = machine();
+  const demo = project(box, 'private-model-view');
+  box.run(demo.web, 'join', 'web', '--model', 'gpt-6.1-sol', '--family', 'openai');
+  box.run(demo.repo, 'add', 'web', 'Private model presentation', '--specs', 'G1', '--criterion', 'the native seat keeps its model');
+  box.run(demo.web, 'claim', '1');
+  const server = await startView(box);
+  let chrome;
+  try {
+    const executable = chromeExecutable(); assert.ok(executable, 'real Chrome is required');
+    chrome = await openSnapshotChrome(executable, server.link.href, join(box.dir, 'private-model-chrome'));
+    await chrome.waitFor('!!data?.project');
+    await press(chrome, "document.querySelector('[data-tab=items]')");
+    await chrome.waitFor("document.querySelector('#chain [data-item=\"1\"] .item-seat')");
+    assert.equal(await chrome.stable("document.querySelector('#chain [data-item=\"1\"] .item-seat').textContent.trim()"), 'web-1');
+    assert.equal(await chrome.stable("document.querySelector('#chain [data-item=\"1\"] .item-seat').title"), 'GPT-6.1 Sol');
+    await press(chrome, "document.querySelector('[data-tab=shouts]')");
+    await chrome.waitFor("document.querySelector('.agent-card .agent-model')");
+    assert.ok((await chrome.stable("document.querySelector('#agents').textContent")).includes('GPT-6.1 Sol'));
+    assert.equal(await chrome.stable("data.project.agents.find(agent => agent.agent_id === 'web-1').model"), 'gpt-6.1-sol', 'presentation never rewrites the native observation');
+    assert.deepEqual(chrome.exceptions, []);
+  } finally { if (chrome) await closeSnapshotChrome(chrome); await server.stop(); }
 });
