@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { chmodSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { readlinkSync } from 'node:fs';
@@ -339,6 +340,7 @@ test('legacy oversized cache is reclaimed and a smaller limit never changes deri
   legacy.exec('CREATE TABLE facts(key TEXT PRIMARY KEY, body TEXT NOT NULL, digest TEXT NOT NULL)');
   legacy.prepare('INSERT INTO facts VALUES (?,?,?)').run('old', 'x'.repeat(150000), 'old');
   legacy.close();
+  chmodSync(file, 0o600);
   const prior = process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES;
   process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES = '65536';
   try {
