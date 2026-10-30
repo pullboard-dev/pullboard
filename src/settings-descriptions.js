@@ -124,12 +124,16 @@ const ROWS = [
   ['line.landingCadenceMinutes', 'Landing interval', 'The time between landing batches when replaying board flow.', 'Line', 'minutes'],
 ];
 
-export const SETTING_DESCRIPTIONS = Object.freeze(Object.fromEntries(ROWS.map(([key, label, description, group, unit]) => [key, Object.freeze({ label, description, group, unit })])));
+// The settings the CLI can set, by the form `pullboard settings <form> <value>` takes; test/settings-descriptions.test.js holds this equal to help.js SETTING_FORMS.
+const CLI_FORMS = new Set(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.runnersOnly', 'gate.runnerWaitMs']);
+
+export const SETTING_DESCRIPTIONS = Object.freeze(Object.fromEntries(ROWS.map(([key, label, description, group, unit]) => [key, Object.freeze({ label, description, group, unit, cli: CLI_FORMS.has(key) ? key : null })])));
+export const CLI_SETTABLE = Object.freeze([...CLI_FORMS]);
 
 /** The label, sentence, group and unit for a setting key, or null for a key nobody has described. */
 export function describeSetting(key) {
   if (Object.hasOwn(SETTING_DESCRIPTIONS, key)) return SETTING_DESCRIPTIONS[key];
   const named = /^resources\.(.+)\.capacity$/u.exec(key);
-  if (named) return { label: `${named[1]} capacity`, description: `How many runs may use the ${named[1]} resource at the same time.`, group: 'Capacity', unit: 'count' };
+  if (named) return { label: `${named[1]} capacity`, description: `How many runs may use the ${named[1]} resource at the same time.`, group: 'Capacity', unit: 'count', cli: null };
   return null;
 }
