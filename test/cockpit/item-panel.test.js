@@ -99,6 +99,7 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
     const fullCommit = item.verdict.commit;
     for (const [width, mobile] of [[1440, false], [375, true]]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile });
+      await press(chrome, "document.querySelector('#detail [data-item-panel-tab=overview]')");
       const shown = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const panel = document.querySelector('#detail .item-panel'), latest = panel.querySelector('.item-panel-latest .verdict'), note = latest.querySelector('.note');
         const title = panel.querySelector('.item-panel-head h2'), files = panel.querySelector('.item-panel-files'), criterion = panel.querySelector('.item-panel-expand-text');
