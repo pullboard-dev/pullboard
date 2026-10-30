@@ -85,7 +85,13 @@ export function startInterruptedLanding(box, entry, t) {
   const closed = new Promise(resolveClose => child.once('close', (status, signal) => resolveClose({ status, signal })));
   t.after(() => {
     writeFileSync(box.release, 'release');
-    if (child.exitCode === null && child.signalCode === null) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} }
+    if (child.exitCode === null && child.signalCode === null) {
+      try { process.kill(-child.pid, 'SIGKILL'); }
+      catch (error) {
+        // The test deliberately kills this owned group; cleanup may observe it already gone.
+        if (error.code !== 'ESRCH') throw error;
+      }
+    }
   });
   return { child, closed, waitForGate: () => waitForFixtureProgress({
     child,
