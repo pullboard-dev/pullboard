@@ -10,6 +10,7 @@ import { placePath } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { checkCuts } from '../bin/cells-plan-cuts.js';
+import { frontDoorBypasses } from '../bin/cells-plan-cuts.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
@@ -121,6 +122,7 @@ test('stale or forged entry metadata cannot suppress a library edge [C7,D3,CD64]
   const plan = readPlan(root);
   put(path, 'export const ordinaryLibrary = true;\n');
   assert.ok(checkCuts(root, plan, 'low', { allLaterCells: true }).some(problem => problem.includes('not a placed process entry')));
+  assert.throws(() => frontDoorBypasses(root, plan, 'low'), error => error.code === 'CELLS_ENTRY');
   assert.throws(() => writePlan(root, plan), error => error.code === 'CELLS_ENTRY');
   assert.throws(() => placePath(root, 'src/native.js', { cell: 'low', entry: true }), error => error.code === 'CELLS_ENTRY');
 });
