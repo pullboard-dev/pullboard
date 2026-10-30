@@ -217,7 +217,8 @@
   ["src/move-history/172.json","packages/state/src/shell/move-history/172.json","rule"],
   ["src/move-history/173.json","packages/state/src/shell/move-history/173.json","rule"],
   ["src/strict-composition-engine.js","packages/state/src/core/strict-composition-engine.js","rule"],
-  ["src/move-history/174.json","packages/state/src/shell/move-history/174.json","rule"]
+  ["src/move-history/174.json","packages/state/src/shell/move-history/174.json","rule"],
+  ["src/move-history/175.json","packages/state/src/shell/move-history/175.json","rule"]
  ],
  "reexports": [
   "src/activity-delivery-engine.js",
