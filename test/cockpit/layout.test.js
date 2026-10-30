@@ -1,4 +1,4 @@
-/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-rows.css */
+/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-panel.css src/view/item-rows.css */
 /** @pullboard-test-gui */
 /** Cockpit layout checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
@@ -160,10 +160,13 @@ test("the authenticated local view assembles its shared and private styles [N26]
     const sharedCss = readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', dashboardCss).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('../../src/view/item-rows.css', import.meta.url), 'utf8').trimEnd());
     const privateCss = readFileSync(new URL('../../src/view/cost.css', import.meta.url), 'utf8');
     const doctrineCss = readFileSync(new URL('../../src/view/doctrine.css', import.meta.url), 'utf8');
+    const itemPanelCss = readFileSync(new URL('../../src/view/item-panel.css', import.meta.url), 'utf8');
     assert.equal(sharedCss.split('/* @private-view-css src/view/cost.css */').length - 1, 1, 'the local view has one private-style insertion point');
     assert.equal(sharedCss.split('/* @shared-view-css src/view/doctrine.css */').length - 1, 1, 'the shared view has one Doctrine-style insertion point');
-    const expectedCss = sharedCss.replace('/* @shared-view-css src/view/doctrine.css */', doctrineCss).replace('/* @private-view-css src/view/cost.css */', privateCss);
-    assert.equal(await css.text(), expectedCss, 'the authenticated view assembles shared Dashboard and Doctrine styles plus private Cost styles in source order');
+    assert.equal(sharedCss.split('/* @shared-view-css src/view/item-panel.css */').length - 1, 1, 'the shared view has one item-panel style insertion point');
+    const expectedCss = sharedCss.replace('/* @shared-view-css src/view/doctrine.css */', doctrineCss)
+      .replace('/* @shared-view-css src/view/item-panel.css */', itemPanelCss).replace('/* @private-view-css src/view/cost.css */', privateCss);
+    assert.equal(await css.text(), expectedCss, 'the authenticated view assembles shared Dashboard, Doctrine and item-panel styles plus private Cost styles in source order');
     assert.equal((await fetchLive(`${view.base}/view.css`)).status, 403, 'nothing without the secret');
     const stranger = await new Promise((done, fail) => {
       request({ host: '127.0.0.1', port: view.link.port, path: `/view.css?k=${view.key}`, headers: { host: 'pullboard.example' } }, (res) => done(res.statusCode)).on('error', fail).end();

@@ -85,6 +85,7 @@
   ["src/view/cost.css","apps/view/src/shell/view/cost.css","rule"],
   ["src/view/dashboard.css","apps/view/src/shell/view/dashboard.css","rule"],
   ["src/view/doctrine.css","apps/view/src/shell/view/doctrine.css","rule"],
+  ["src/view/item-panel.css","apps/view/src/shell/view/item-panel.css","rule"],
   ["src/view/item-rows.css","apps/view/src/shell/view/item-rows.css","rule"]
  ],
  "reexports": [

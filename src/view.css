@@ -1,6 +1,6 @@
 /*
  * Shared cockpit styles for `pullboard view` (N26). Every colour is a token holding a light and a dark
- * value; the view assembles shared Doctrine styles and appends private Cost styles from src/view/cost.css.
+ * value; the view assembles shared Doctrine and item-panel styles and appends private Cost styles from src/view/cost.css.
  */
 :root {
   color-scheme: light dark;
@@ -25,6 +25,7 @@
   --radius-lg: calc(10px * var(--round)); --radius-card: calc(14px * var(--round)); --radius-pill: 999px;
   --top: 56px; --side-w: 236px; --agents-w: clamp(240px, 30%, 306px);
 }
+/* @shared-view-css src/view/item-panel.css */
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; }
 @media (max-width: 1100px) { :root { --side-w: 208px; } }

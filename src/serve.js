@@ -1,7 +1,7 @@
 import { projectItemState } from './api.js';
 import { performanceCores } from './gate.js';
 import { landingPace } from '../packages/roadmap/index.js';
-/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-rows.css */
+/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-panel.css src/view/item-rows.css */
 /**
  * `pullboard view` (N26, N27): the person's micro site. One page on this machine shows every
  * registered project: items by state, what needs the person, shouts, doctrine, agents and activity,
@@ -86,10 +86,12 @@ import { loadMachineSettings } from './settings-read.js';
 const SHARED_VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('./view/dashboard.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('./view/item-rows.css', import.meta.url), 'utf8').trimEnd());
 const PRIVATE_COST_CSS = readFileSync(new URL('./view/cost.css', import.meta.url), 'utf8');
 const SHARED_DOCTRINE_CSS = readFileSync(new URL('./view/doctrine.css', import.meta.url), 'utf8');
+const SHARED_ITEM_PANEL_CSS = readFileSync(new URL('./view/item-panel.css', import.meta.url), 'utf8');
 const PRIVATE_VIEW_CSS_MARKER = '/* @private-view-css src/view/cost.css */';
 const SHARED_DOCTRINE_CSS_MARKER = '/* @shared-view-css src/view/doctrine.css */';
-const VIEW_CSS = SHARED_VIEW_CSS.replace(SHARED_DOCTRINE_CSS_MARKER, SHARED_DOCTRINE_CSS).replace(PRIVATE_VIEW_CSS_MARKER, PRIVATE_COST_CSS);
-const SNAPSHOT_VIEW_CSS = SHARED_VIEW_CSS.replace(SHARED_DOCTRINE_CSS_MARKER, SHARED_DOCTRINE_CSS).replace(PRIVATE_VIEW_CSS_MARKER, '');
+const SHARED_ITEM_PANEL_CSS_MARKER = '/* @shared-view-css src/view/item-panel.css */';
+const VIEW_CSS = SHARED_VIEW_CSS.replace(SHARED_DOCTRINE_CSS_MARKER, SHARED_DOCTRINE_CSS).replace(SHARED_ITEM_PANEL_CSS_MARKER, SHARED_ITEM_PANEL_CSS).replace(PRIVATE_VIEW_CSS_MARKER, PRIVATE_COST_CSS);
+const SNAPSHOT_VIEW_CSS = SHARED_VIEW_CSS.replace(SHARED_DOCTRINE_CSS_MARKER, SHARED_DOCTRINE_CSS).replace(SHARED_ITEM_PANEL_CSS_MARKER, SHARED_ITEM_PANEL_CSS).replace(PRIVATE_VIEW_CSS_MARKER, '');
 export const LOOPBACK = '127.0.0.1';
 /**
  * The hosted page's origin (N26, A2): the one origin besides the view's own page that may call the view, and the only
