@@ -55,15 +55,6 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <button class="ghost" id="share-pair" type="button" hidden>Pair a device</button>
     <button class="ghost" id="share-close" type="button">Cancel sign-in</button>
   </section>
-  <section class="card-panel snapshot-controls" id="snapshot-controls" ${snapshot ? '' : 'hidden'} aria-label="Snapshot replay">
-    <span>Read-only snapshot</span>
-    <div class="snapshot-control-actions">
-      <button class="ghost" id="replay-play" type="button">Play from first event</button>
-      <button class="ghost" id="replay-pause" type="button" disabled>Pause</button>
-      <label>Speed <select id="replay-speed"><option value="1">1×</option><option value="4">4×</option><option value="16">16×</option></select></label>
-    </div>
-    <output id="replay-progress" aria-live="polite">Loading events…</output>
-  </section>
   <section id="group-view" class="group-view" hidden>
     <section class="card-panel group-panel"><h2>Needs you</h2><div id="group-needs"></div></section>
     <section class="card-panel group-panel"><h2>Activity</h2><div class="feed" id="group-activity"></div></section>
@@ -125,7 +116,12 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
 </main>
 </div>
 </div>
-<footer class="status${snapshot ? ' snap' : ''}" aria-label="Board status"><span class="live" id="live"></span><span class="status-board" id="status-board"></span></footer>
+<footer class="status${snapshot ? ' snap' : ''}" aria-label="Board status"><span class="live" id="live"></span><span class="status-board" id="status-board"></span>${snapshot ? `<div class="snapshot-controls" id="snapshot-controls" aria-label="Snapshot replay">
+  <button class="snapshot-play" id="replay-play" type="button" aria-label="Play from first event" title="Play from first event"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5 13 8l-9 5.5z" fill="currentColor"/></svg></button>
+  <button class="snapshot-pause" id="replay-pause" type="button" aria-label="Pause replay" title="Pause replay" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3h3v10H4zm5 0h3v10H9z" fill="currentColor"/></svg></button>
+  <label class="snapshot-speed">Speed <select id="replay-speed" aria-label="Replay speed"><option value="1">1×</option><option value="4">4×</option><option value="16">16×</option></select></label>
+  <output id="replay-progress" aria-live="polite">event 0 of 0</output>
+</div>` : ''}</footer>
 <div class="spec-reason-backdrop" id="spec-decline-dialog" hidden>
   <form class="spec-reason-dialog" id="spec-decline-form" aria-labelledby="spec-decline-title">
     <h2 id="spec-decline-title">Decline spec row</h2>
