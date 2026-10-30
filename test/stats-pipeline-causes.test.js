@@ -37,19 +37,21 @@ function fixture(t) {
 
 test('native pipeline measures claim, admissions, deadline retry, test reject and landing exactly [R1,R2,V4,C7]', t => {
   const f = fixture(t);
-  f.at(1); f.claim(); f.at(11); f.admit();
-  f.at(16); f.claim({ submitOutcome: { digest: 'typed-pipeline-bar', code: 'RUNNER_WAIT_DEADLINE', text: 'The fixture runner deadline elapsed.' } });
+  f.at(1); f.claim();
+  f.at(11); f.claim({ submitOutcome: { digest: 'typed-pipeline-bar', code: 'RUNNER_WAIT_DEADLINE', text: 'The fixture runner deadline elapsed.' } });
   f.at(21); f.admit(); f.at(31); f.submit(); f.at(41); f.reserve(); f.at(51); f.verdict('REJECT');
   f.at(61); f.claim(); f.at(71); f.admit(); f.at(81); f.submit(); f.at(91); f.reserve(); f.at(101); f.verdict('ACCEPT');
   f.at(111); store.merged(f.board, f.id, { agentId: 'coordinator', commit: 'c'.repeat(40) });
   const report = pipelineStats(store.events(f.board));
-  assert.deepEqual(report.items[0].stages, { claim: 25000, submit: 25000, reviewWait: 20000, review: 20000, landing: 10000 });
+  assert.deepEqual(report.items[0].stages, { claim: 30000, submit: 20000, reviewWait: 20000, review: 20000, landing: 10000 });
   assert.deepEqual(report.items[0].gaps, []);
   assert.deepEqual(report.items[0].retries.map(row => row.cause), ['runner-wait', 'test-failure']);
   assert.equal(report.causes.unknown, 0);
   const outcomes = store.events(f.board).map(e => JSON.parse(e.event_detail)).filter(d => d.submitOutcome);
   assert.equal(outcomes.length, 1);
   assert.equal(outcomes[0].submitOutcome.pipelineCause.type, 'runner-wait');
+  const admissions = store.events(f.board).filter(e => JSON.parse(e.event_detail).submitAdmission);
+  assert.ok(admissions.every(e => Date.parse(e.event_at) > BASE + 11000), 'the runner deadline precedes real admission; a failed wait gets no invented witness');
   const rejected = store.events(f.board).find(e => e.event_kind === 'reject');
   assert.equal(JSON.parse(rejected.event_detail).pipelineCause.type, 'test-failure');
 });

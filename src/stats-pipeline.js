@@ -139,9 +139,9 @@ export function pipelineStats(history, { limit = 20 } = {}) {
   const causes = Object.fromEntries(CAUSES.map(key => [key, 0]));
   for (const item of items) for (const retry of item.retries) causes[retry.cause] += 1;
   return { version: 1, limit, count: items.length, items, causes,
-    unmeasuredGaps: [{ kind: 'unrecorded-attempts', count: null, durationMs: null, reason: 'Commands failing before native admission have no recorded event; their count, cause and duration are unmeasured.' }],
+    unmeasuredGaps: [{ kind: 'unrecorded-attempts', count: null, durationMs: null, reason: 'Legacy attempts and failures before a live submit attempt may have no recorded event; their count, cause and duration are unmeasured.' }],
     totals: Object.fromEntries(STAGES.map(key => [key, { measuredMs: items.reduce((sum, item) => sum + item.measuredMs[key], 0), unmeasuredItems: items.filter(item => item.stages[key] === null).length }])),
-    evidence: 'Recorded native events only; commands failing before admission leave no event and are unmeasured. Landing includes the recorded acceptance-to-merge wait.' };
+    evidence: 'Recorded native events only; attempts without native admission or outcome evidence remain unmeasured. Landing includes the recorded acceptance-to-merge wait.' };
 }
 
 /** Render the same exact millisecond projection for people and keep unknowns explicit. */
