@@ -568,7 +568,7 @@ test('health reports a gate that refused every run [C7,D1]', async (t) => {
 
 test('a positive control inherits the gate slot it runs under [C7,D1]', async (t) => {
   const box = repo(t);
-  const resources = pathToFileURL(resolve('src/resources.js')).href;
+  const resources = pathToFileURL(resolve('packages/resources/index.js')).href;
   // The control asks whether it inherited the gate's admission; a child that does not is refused and reads red.
   const probe = `node --input-type=module -e "const { inheritedGateSlot } = await import('${resources}'); process.exit(inheritedGateSlot({ root: process.cwd() }) ? 0 : 1)"`;
   commitPolicy(box, { gate: 'true', positiveControl: probe });

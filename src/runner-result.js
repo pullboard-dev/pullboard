@@ -6,7 +6,7 @@ import { gateStages } from './gate-stages.js';
 import { readStages } from './gate-stages.js';
 import { secretsIn } from '../packages/commits/index.js';
 import { Refused } from './refused.js';
-import { recordRunnerGui } from './resources.js';
+import { recordRunnerGui } from '../packages/resources/index.js';
 import { sourcePreparationFields } from './runner-overhead.js';
 import { remoteFileDenial } from './sandbox-denial.js';
 import { importTestResults } from './test-result-store.js';

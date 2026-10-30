@@ -8,14 +8,14 @@ import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, re
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { listResources } from '../src/resources.js';
+import { listResources } from '../packages/resources/index.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 import * as store from '../src/board.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
 const CALLER_REPORTER = resolve(import.meta.dirname, 'timing-reporter-fixture.js');
-const RESOURCE_MODULE = resolve(import.meta.dirname, '../src/resources.js');
+const RESOURCE_MODULE = resolve(import.meta.dirname, '../packages/resources/index.js');
 const TEMP = [];
 const SPEC = '# Demo\n\n## G · Goals\n- G1 [approved, must] The page renders. | gate: web test\n- G2 [approved, must] The API answers. | gate: api test\n';
 const CONFIG = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } }, shared: ['docs/'] };

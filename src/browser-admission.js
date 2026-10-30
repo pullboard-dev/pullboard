@@ -63,7 +63,7 @@ const SAFE_CHILD_PROCESS_MODULES = new Map([
   ['test/fixture-child.js', 'shared fixture runner for explicit fixture commands'],
   ['src/git.js', 'runs Git commands for repository inspection'],
   ['src/module-imports.js', 'runs the Node parser in an isolated child'],
-  ['src/resources.js', 'reads process identity with /bin/ps'],
+  ['packages/resources/index.js', 'reads process identity with /bin/ps'],
 ]);
 /** Reviewed generic executors and fixed Git/Node calls retain prior import behavior; all other calls stay conservative. */
 const REVIEWED_EXECUTORS = new Map([

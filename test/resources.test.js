@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { listResources, setResourceCapacity, takeResource } from '../src/resources.js';
+import { listResources, setResourceCapacity, takeResource } from '../packages/resources/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { capacityChangeCases } from './resources-capacity-fixture.js';
 import { checkNeedsBrowser } from '../src/browser-admission.js';
@@ -23,7 +23,7 @@ import { openPrivateScopedView, queuedLeaseProof, resourceNames, resourceWorkerS
 import { checkProject, verificationProject } from './resources-verify-fixture.js';
 const TEMP = [];
 const CHILDREN = new Set();
-const MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/resources.js')).href;
+const MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/resources/index.js')).href;
 const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href;
 const LEASE_HELPERS = createE2eHelpers();
 const PRE_RUNNER_MODULE = pathToFileURL(resolve(import.meta.dirname, './fixtures/resources-pre-runners.js')).href;
@@ -867,7 +867,7 @@ test('the pool admits reviews before submits before focused runs, and waiting ru
   assert.deepEqual(requeued.admitted, ['review-later', 'submit-later', 'focused-early', 'remote-focused']);
 
   // The class rule itself, against an injected clock rather than real waiting.
-  const { QUEUE_AGE_MS, queueClass } = await import('../src/resources.js');
+  const { QUEUE_AGE_MS, queueClass } = await import('../packages/resources/index.js');
   const queuedAt = Date.parse('2026-10-15T19:37:00.000Z');
   const at = (minutes) => queuedAt + minutes * 60_000;
   const since = new Date(queuedAt).toISOString();
@@ -990,7 +990,7 @@ test('queue order follows the machine settings [C7,O5]', async () => {
   await release(agingFocused);
   await release(agingSubmit);
   // The class rule against an injected clock: one class per agingMinutes waited.
-  const { queueClass } = await import('../src/resources.js');
+  const { queueClass } = await import('../packages/resources/index.js');
   const queuedAt = Date.parse('2026-10-16T16:00:00.000Z');
   const since = new Date(queuedAt).toISOString();
   assert.deepEqual([0, 0.99, 1, 2, 3].map((minutes) => queueClass({ kind: 'focused', since }, queuedAt + minutes * 60_000, 60_000).name),
@@ -1018,7 +1018,7 @@ test('queue order follows the machine settings [C7,O5]', async () => {
   // Mixed versions agree on the next waiter. A #651-only process ranks by class only when every
   // waiter is marked classed=1, and otherwise landings first, then ticket; a #697 process follows
   // its setting and marks its waiters to match, so both rankers pick the same waiter off and on.
-  const { queueClass: classOf } = await import('../src/resources.js');
+  const { queueClass: classOf } = await import('../packages/resources/index.js');
   const agree = fixture();
   const agreeHolders = [poolWorker(agree, { agent: 'agree-holder-one' }), poolWorker(agree, { agent: 'agree-holder-two' })];
   for (const holder of agreeHolders) await acquired(holder);

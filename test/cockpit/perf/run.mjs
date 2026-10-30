@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { performance as nodePerformance } from 'node:perf_hooks';
 import { closeBoard, openBoard, shout } from '../../../src/board.js';
 import * as gate from '../../../src/gate.js';
-import * as resources from '../../../src/resources.js';
+import * as resources from '../../../packages/resources/index.js';
 import { findChromeExecutable, startChrome } from '../../chrome-fixture.js';
 import { press, stableChrome } from '../stable.js';
 import { generateStressBoard, removeStressBoard } from './generate.mjs';

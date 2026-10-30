@@ -131,7 +131,7 @@ const NON_MOVE_ENTRY_POINTS = [
   'native-board.js#openBoard', // Physical storage is composed before any item move.
   'cli.js#refuseRemoteCoordinatorModel',
   // Child-process commands may be serialized into scripts, so audit this exported setup guard directly.
-  'resources.js#gateSlotEnvironment',
+  '../packages/resources/src/shell/resources.js#gateSlotEnvironment',
   'person-signing-cli.js#pinRelayAuthority', // Reads the relay's authority before a person command (#408).
 ];
 
