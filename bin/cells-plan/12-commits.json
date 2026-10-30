@@ -14,7 +14,8 @@
   ["src/why-file.js","packages/commits/src/core/why-file.js","seed"],
   ["test/agent-guidance.test.js","packages/commits/tests/agent-guidance.test.js","seed"],
   ["test/landing-message.test.js","packages/commits/tests/landing-message.test.js","seed"],
-  ["test/merge-hooks.test.js","packages/commits/tests/merge-hooks.test.js","seed"]
+  ["test/merge-hooks.test.js","packages/commits/tests/merge-hooks.test.js","seed"],
+  ["src/plan-row-change.js","packages/commits/src/core/plan-row-change.js","rule"]
  ],
  "reexports": [],
  "imports": [

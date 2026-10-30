@@ -398,7 +398,7 @@ export async function submitHere(ctx, id, infra) {
     : gate.full ? `full gate: ${gate.reason}` : `affected tests: ${files}`;
   const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'}` : 'no item check';
   const mechanicalFlag = mechanicalPaths.length
-    ? `cross-lane mechanical import edits: ${mechanicalPaths.join(', ')}` : '';
+    ? `cross-lane mechanical edits: ${mechanicalPaths.join(', ')}` : '';
   const quarantineReport = (gate.phaseVerdicts ?? []).map(phase => `${phase.role} computed quarantine verdict ${phase.blockingVerdict.green ? 'green' : 'red'}; raw exit ${phase.rawExitCode}; ${phase.blockingVerdict.quarantines.length} covered case(s); first events ${phase.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}`).join('\n');
   const displayedReport = `${check}; ${scope}${quarantineReport ? `\n${quarantineReport}` : ''}${mechanicalFlag ? `\n${mechanicalFlag}` : ''}\n${renderTestSummary(summary)}`;
   const checkAccepted = Boolean(gate.check?.green || criterionMatched);
