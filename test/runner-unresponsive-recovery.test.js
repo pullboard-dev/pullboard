@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
@@ -22,6 +23,9 @@ function observe(t, live) {
   for (const directory of [bin, worker, root, join(root, 'jobs'), machineHome]) mkdirSync(directory, { recursive: true });
   installSshStandIn({ bin, worker, home, machineHome, requests,
     nodeCommand: process.execPath, healthFailures: 1, stderrLog });
+  const ssh = join(bin, 'ssh');
+  writeFileSync(ssh, readFileSync(ssh, 'utf8').replace("const argv = process.argv.slice(2);",
+    `process.on('uncaughtException', error => { appendFileSync(${JSON.stringify(stderrLog)}, error.stack + '\\n'); process.exitCode = 255; });\nconst argv = process.argv.slice(2);`));
   const url = name => pathToFileURL(join(import.meta.dirname, '../src', name)).href;
   const script = `
     import { DatabaseSync } from 'node:sqlite';
