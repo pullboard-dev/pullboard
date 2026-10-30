@@ -20,7 +20,6 @@ import { captureSourceAdvanceBasis } from './source-advance-origin.js';
 import { prepareSourceAdvance } from './source-advance-origin.js';
 import { prepareSourceAdvanceReturn } from './source-advance-origin.js';
 import { withSourceComposition } from './source-advance-compose.js';
-import { quarantineVerdictSnapshot } from './quarantine.js';
 
 /** Read immutable Git facts with a bounded child; never execute repository hooks. */
 function git(root, args) {
@@ -151,7 +150,7 @@ async function advance(root, directory, job, write, services) {
       const config = policy.config;
       const quarantines = readBoard(repoInfo(root), board => {
         board.quarantineEnabled = () => config.flakes?.quarantine === true;
-        return quarantineVerdictSnapshot(board);
+        return board.nativePorts.quarantine.quarantineVerdictSnapshot(board);
       });
       custody.started();
       const gate = await runSubmitGate(composition.directory, config, { base: composition.inputHead, changed: composition.changed,

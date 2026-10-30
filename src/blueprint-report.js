@@ -22,8 +22,8 @@ import { loadSpec } from './spec.js';
  */
 
 /**
- * The row id each rule and question key of a blueprint got on this board, read from its SPEC.md
- * section. Blueprint add numbers the rules, then the questions, in blueprint order, as the rows it
+ * The row id each rule, question and default key of a blueprint got on this board, read from its SPEC.md
+ * section. Blueprint add numbers the rules, then the questions and defaults, in blueprint order, as the rows it
  * writes just before its finished marker for that name and version; a row the person rewords or
  * declines keeps its id, so the positions still name the same keys. Why the marker: two versions of
  * one blueprint share a title, so the first section by title is the older version's on an upgraded
@@ -31,7 +31,7 @@ import { loadSpec } from './spec.js';
  * blueprint's marker in it, up to this marker. With no marker, the first section by title. Empty
  * when the blueprint has no rows here.
  *
- * @param {{ name: string, version: number, title: string, rules: { key: string }[], questions: { key: string }[] }} blueprint
+ * @param {{ name: string, version: number, title: string, rules: { key: string }[], questions: { key: string }[], defaults?: { key: string }[] }} blueprint
  * @param {{ sections: { name: string, line: number }[], rows: { id: string, section: string, line: number }[] }} spec - loadSpec's result.
  * @param {string} [source] - SPEC.md's text, where the markers are.
  * @returns {Record<string, string>}
@@ -52,7 +52,7 @@ export function blueprintRowIds(blueprint, spec, source = '') {
     if (!section) return {};
     rows = spec.rows.filter((row) => row.section === section.name);
   }
-  const keys = [...blueprint.rules, ...blueprint.questions].map((entry) => entry.key);
+  const keys = [...blueprint.rules, ...blueprint.questions, ...(blueprint.defaults ?? [])].map((entry) => entry.key);
   return Object.fromEntries(keys.flatMap((key, index) => (rows[index] ? [[key, rows[index].id]] : [])));
 }
 
@@ -147,7 +147,7 @@ export function starterLines(blueprint, starters) {
  */
 export function waitingRows(rows, doctrine, specFile) {
   return [
-    ...rows.map(({ id, status, text }) => ({ id, status, text, file: specFile })),
+    ...rows.filter((row) => ['draft', 'pending'].includes(row.status)).map(({ id, status, text }) => ({ id, status, text, file: specFile })),
     ...doctrine.rows.filter((row) => ['draft', 'pending'].includes(row.status))
       .map(({ id, status, text, file }) => ({ id, status, text, file: file ?? 'doctrine' })),
   ];

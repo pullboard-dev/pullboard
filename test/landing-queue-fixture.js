@@ -204,7 +204,7 @@ function sourceAdvancePolicyCall(box, batches, record, board, audits) {
 }
 
 /** Close only a recorded native wake, never infer completion from current process absence. */
-async function closePolicySourceWake(box, helpers, expectedGeneration) {
+export async function closePolicySourceWake(box, helpers, expectedGeneration) {
   const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
   assert.ok(Number.isSafeInteger(expectedGeneration) && expectedGeneration > 0);
   return helpers.waitFor(() => { // Budget: 120s runaway ceiling for actual native source publication and owner drain.
