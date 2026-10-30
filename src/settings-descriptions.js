@@ -54,6 +54,8 @@ const ROWS = [
   ['project', 'Project name', 'The name shown for this project.', 'Project', 'text'],
   ['name', 'Repository name', 'The name shown for this repository.', 'Project', 'text'],
   ['worktrees', 'Worktree placement', 'Agent worktrees are made inside this repository or beside it.', 'Project', 'choice'],
+  ['toolBuild.enabled', 'Pinned tool builds', 'Run board commands from a gated tool build instead of the live trunk when enabled.', 'Project', 'on/off'],
+  ['toolBuild.refreshMs', 'Tool build refresh interval', 'How often commands check for a newer gated tool build, in milliseconds.', 'Project', 'milliseconds'],
   ['worktreeMaintenance.enabled', 'Automatic worktree maintenance', 'Opt in to archiving recoverable work before maintenance cleans eligible retired checkouts; off by default.', 'Project', 'on/off'],
   ['worktreeMaintenance.every', 'Maintenance interval', 'How often enabled maintenance checks for retired worktrees; one hour by default.', 'Project', 'duration'],
   ['worktreeMaintenance.grace', 'Retirement grace', 'How long a retired worktree waits before archive-first cleanup; one day by default.', 'Project', 'duration'],

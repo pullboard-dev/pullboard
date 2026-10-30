@@ -1,7 +1,5 @@
 import { compositionSessionOptions } from './review-composition.js';
 import { reviewCompanionOffer } from './item-patch-review.js';
-import { itemPolicy } from './trusted-policy.js';
-import { requireTrunkMerge } from './trusted-policy.js';
 import { retryReviewCommit } from './verdict-retry.js';
 import { git } from './git.js';
 import { isClean } from './git.js';
@@ -73,6 +71,7 @@ export function ownSessionReviews(info, board, digest = agentSessionDigest(), { 
 function composedReservation(ctx, board, found, getItem) {
   if (!found.item) return found;
   const root = ctx.info.root;
+  const { itemPolicy, requireTrunkMerge } = board.enginePorts.sandboxPolicyReads;
   const companions = reviewCompanionOffer(root, board, found.item,
     { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem });
   if (!companions) return found;

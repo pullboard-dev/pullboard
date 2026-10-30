@@ -1,0 +1,5 @@
+{
+  "name": "tool-build",
+  "help": "  pullboard tool-build [promote <commit> --gate-receipt <native-full-gate-id>]  show the board's pinned tools or promote a gated build for new commands\n",
+  "required": { "build": "object|null" }
+}
