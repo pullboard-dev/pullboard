@@ -228,7 +228,10 @@
   ["src/cli/submit.js","apps/cli/src/shell/cli/submit.js","imports"],
   ["src/cli/sweep.js","apps/cli/src/shell/cli/sweep.js","imports"],
   ["src/cli/verify.js","apps/cli/src/shell/cli/verify.js","imports"],
-  ["src/cli/worktree.js","apps/cli/src/shell/cli/worktree.js","imports"]
+  ["src/cli/worktree.js","apps/cli/src/shell/cli/worktree.js","imports"],
+  ["src/cli-hook-work.js","apps/cli/src/shell/cli-hook-work.js","rule"],
+  ["src/cli/seat-ports.js","apps/cli/src/shell/cli/seat-ports.js","rule"],
+  ["src/cli/project-ports.js","apps/cli/src/shell/cli/project-ports.js","rule"]
  ],
  "reexports": [
   "src/cli-context.js",

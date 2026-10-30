@@ -129,7 +129,7 @@ export {
   unverifiedSubmissions,
 } from './board-read-auxiliary.js';
 export { lineSettings } from '../packages/state/src/core/line-settings-read.js';
-export { setLineSetting } from './line-settings.js';
+export { setLineSetting } from './board-line-settings.js';
 
 export {
   itemRedirect,
@@ -156,8 +156,10 @@ export { recordUsage } from './cost.js';
 export { recordUsageBatch } from './cost-usage-batch.js';
 export { recordSharedUsage } from './cost-shared.js';
 export { proofReceipts, recordProofRun } from './proof-receipts.js';
-/** The seat readers live in seats.js; the board re-exports them so `store.*` callers keep one import. */
-export { agentAt, agentById, agentCreator, coordinatorHolder, listAgents, nextSeatId, seatEnrolled, seatLineage, takeCoordinator, withVerifierStanding } from './seats.js';
+/** Seat rules live in seats.js and agent readers in board-query.js; the board re-exports them so `store.*` callers keep one import. */
+export { agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding } from './seats.js';
+export { agentAt, agentById, listAgents } from './board-query.js';
+export { takeCoordinator } from './board-coordinator-hold.js';
 
 export const ACCEPT_REASON = 'CRITERION_MET';
 export { PERSON } from './board-query.js';

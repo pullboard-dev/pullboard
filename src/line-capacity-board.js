@@ -1,15 +1,7 @@
-import {
-  overdueReview,
-  reviewRoutingEnabled,
-} from './review-routing.js';
 /** Capacity adapters retain the board's canonical review eligibility checks [N2,B13,H16]. */
+import { reviewRoutingEnabled } from './review-routing-enabled.js';
 import { Refused } from './refused.js';
 import { ROUTES } from './route-escalation.js';
-import {
-  listItems,
-  reviewQueue,
-  reviewHolder,
-} from './board-query.js';
 import {
   capacitySettings,
   lineCapacitySnapshot,
@@ -17,8 +9,13 @@ import {
 } from './line-capacity.js';
 import { lineWipLimit } from './line-wip-limit.js';
 
-/** Offer the existing eligible review with either the historical ratio or enabled total-cap threshold. */
-export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy = 'off', ratio = 3, runnable = false, routes = ROUTES, omitIds = [], skipIds = [], priority = [], observeIdle = false }, nextFor) {
+/**
+ * Offer the existing eligible review with either the historical ratio or enabled total-cap threshold.
+ *
+ * The store cell supplies its queue and item readers through `reads`, so seat capacity never loads board queries.
+ */
+export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy = 'off', ratio = 3, runnable = false, routes = ROUTES, omitIds = [], skipIds = [], priority = [], observeIdle = false }, nextFor,
+  { reviewQueue, reviewHolder, listItems, overdueReview }) {
   const offered = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, omitIds, skipIds, priority, observeIdle });
   if (observeIdle && !offered.item) return { item: null, idleReason: offered.idleReason };
   const queue = reviewQueue(board);
@@ -36,13 +33,13 @@ export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy
   return item ? { item, queue, ratio } : null;
 }
 
-/** Pass only the board's renewal fact and canonical eligibility callbacks into the capacity guard. */
+/** Pass only the board's renewal fact and canonical eligibility callbacks, including the review holder reader, into the capacity guard. */
 export function claimProblem(board, renewal, who, checks) {
   return lineCapacityProblem(board, { renewal, oldestReview: pending => oldestCapacityReview(board, pending, who, checks) });
 }
 
 /** Find the oldest eligible submission with exactly the reservation guards, including cooldown and ownership. */
-function oldestCapacityReview(board, pending, who, { reviewerChecks, reviewReleaseCooldown }) {
+function oldestCapacityReview(board, pending, who, { reviewerChecks, reviewReleaseCooldown, reviewHolder }) {
   try {
     const checks = Object.values(reviewerChecks(board, who));
     return pending.find(item => !reviewHolder(board, item) && !reviewReleaseCooldown(board, item.item_id, who.agentId)

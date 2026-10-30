@@ -5,7 +5,7 @@ import { requireHandoffActive } from '../packages/state/src/core/handoff-state.j
 /** Append native events and their rebuildable proof projection in the same transaction [R2]. */
 import { ENGINE_VERSION } from './machine.js';
 import { writeSync } from 'node:fs';
-import { agentModel } from './seats.js';
+import { agentModel } from './board-query.js';
 import { appendProofCounter } from './proof-counters.js';
 import { ensureProofCounters } from './proof-counters.js';
 

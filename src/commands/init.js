@@ -35,6 +35,7 @@ import {
   projectBoardIdentity,
   registerProjectAndLink,
 } from '../projects.js';
+import { projectLinkPorts } from '../cli/project-ports.js';
 import {
   Refused,
 } from '../refused.js';
@@ -103,7 +104,7 @@ export async function run(io, { values }) {
   const setupCommit = await finishInitCommit(setupPlan, { io, yes: values.yes, landed, permissions: !values['no-permissions'] });
   result.setupCommit = setupCommit;
   const handleIdentity = await withBoard(context(io), board => projectBoardIdentity(info.root, store.boardId(board)));
-  if (await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io, handleIdentity)) io.say('registered this project on this machine, so pullboard view lists it');
+  if (await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io, handleIdentity, projectLinkPorts)) io.say('registered this project on this machine, so pullboard view lists it');
   // Once registered, a background view lists this board for pullboard.dev [H5,N26].
   const view = await keepViewRunning();
   io.result?.({ ...result, view });

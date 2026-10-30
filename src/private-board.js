@@ -43,6 +43,6 @@ export function runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases, 
       } finally {
         if (privateIo.recordedMove) ctx.io.recordedMove = true;
       }
-    }, { create: true, clock: ctx.clock, reference: repository ? { handle: repoName, organization: repoOwner, owner: signedOwner } : null });
+    }, { create: true, clock: ctx.clock, reference: repository ? { handle: repoName, organization: repoOwner, owner: signedOwner } : null, store });
   });
 }

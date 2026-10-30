@@ -18,7 +18,7 @@ async function privateReference(project) {
           || typeof value.organization !== 'string' || typeof value.handle !== 'string') return null;
       return { ...boardReference({ boardId: store.boardId(board), organization: value.organization, handle: value.handle }),
         kind: 'private', root: project.root, repoBoardId: project.boardId };
-    }, { create: false });
+    }, { create: false, store });
   } catch { return null; }
 }
 

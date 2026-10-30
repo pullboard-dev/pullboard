@@ -50,6 +50,7 @@ import { localReleaseRank } from '../../../../src/release-queue.js';
 import { workQueue } from '../../../../src/queue.js';
 import { trunkRef } from '../../../../src/trusted-policy.js';
 import { routeWorkShortages } from '../../../../src/route-capacity.js';
+import { firstRefusal } from '../../../../src/board-item-read.js';
 import { readRelayHealth } from '../../../../src/relay-canary-health.js';
 
 /** Each threshold's pullboard.json key under "health" and its default. */
@@ -385,7 +386,7 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
   const now = at;
   const findings = [];
 
-  for (const shortage of routeWorkShortages(board, waiting, agents)) {
+  for (const shortage of routeWorkShortages(board, waiting, agents, { firstRefusal })) {
     const { route, free, idle, since } = shortage;
     findings.push(finding('ROUTE_WORK_SHORTAGE', null, {
       subject: `${route} route`, key: `ROUTE_WORK_SHORTAGE:route:${route}:free:${free}:idle:${idle}`, since, now,

@@ -338,7 +338,7 @@ async function runMain(argv, streams) {
   // Agent nudges never enter Git-hook identity, synchronization or refusal machinery.
   if (parsed?.positionals[0] === 'hook' && !parsed.values.help && !parsed.values.version
       && !['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push'].includes(parsed.positionals[1])) {
-    return (await import('./agent-hook.js')).runAgentHook(io, parsed.positionals[1]);
+    return (await import('./agent-hook.js')).runAgentHook(io, parsed.positionals[1], (await import('./cli-hook-work.js')).HOOK_WORKER);
   }
   const git = needsRepo ? await import('./git.js') : null;
   git?.setResumeSourceFacts(parsed?.positionals[0] === 'resume');

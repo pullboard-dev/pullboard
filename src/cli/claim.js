@@ -4,6 +4,8 @@ import { writeBoardCommand } from '../board-command-write.js';
 import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
 import { laneSeatContext } from '../seat-checkout.js';
 import { nextSessionSeats } from '../seat-checkout.js';
+import { seatRoutingPorts } from './seat-ports.js';
+import { sessionSeatReaders } from './seat-ports.js';
 import * as personIdentity from '../person.js';
 import { requireHandoffActive } from '../../packages/state/src/core/handoff-state.js';
 import { requestedCommandMove } from '../recorded-move.js';
@@ -227,11 +229,11 @@ export function claimFreezer(ctx, board) {
 /** Enrich the ordinary lane refusal with a clean destination owned by this session; never widen claim authority. */
 export async function wrongLaneGuidance(ctx, board, me, id, error) {
   if (!(error instanceof Refused) || error.code !== 'WRONG_LANE') return error;
-  const seats = nextSessionSeats(ctx, board);
+  const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
   if (!seats) return error;
   const item = store.getItem(board, id);
   if (item.item_lane === COORDINATOR || store.ROUTES.indexOf(item.item_route) > store.ROUTES.indexOf(me.route)) return error;
-  const { seat } = await laneSeatContext(ctx, board, me, item, seats, context);
+  const { seat } = await laneSeatContext(ctx, board, me, item, seats, context, seatRoutingPorts);
   return new Refused('WRONG_LANE', `item #${id} is in the ${item.item_lane} lane; this checkout is in ${me.lane}. Build it in ${seat.agent} at ${seat.path}`,
     `${cdTo(seat.path)} pullboard claim ${id}`);
 }

@@ -24,11 +24,11 @@ import {
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { loadConfig } from './config.js';
-import { originRepository } from './github-origin.js';
+import { remoteRepository } from './github-remote.js';
 import { withMachineHomeWrite } from './machine-home.js';
 import { boardReferenceId } from '../packages/kernel/src/core/registry-guards.js';
 import { repoInfo } from './git.js';
-import * as store from './board.js';
+import { tryGit } from './git.js';
 import { Refused } from './refused.js';
 
 /**
@@ -43,7 +43,7 @@ export function registryFile() {
 /** Return a stable team handle only when Git origin and the opened board identity are both exact. */
 export function projectBoardIdentity(root, boardId) {
   const id = boardReferenceId(boardId);
-  const repository = originRepository(root, { optional: true });
+  const repository = remoteRepository(tryGit(root, ['remote', 'get-url', 'origin']), { optional: true });
   if (!repository) return null;
   const [owner, name] = repository.split('/');
   return { boardId: id, owner, name };
@@ -86,12 +86,13 @@ export function protectPrivateBoard(file) {
 
 /**
  * Open this device's private board for one repo; a reader may require an existing board, while add creates it.
+ * The caller passes the store's openBoard, atomic and closeBoard as `store`, so the seats cell never loads the board.
  * @param {string} repoBoardId
  * @param {(board: any, file: string) => any} work
- * @param {{ create?: boolean, clock?: any }} [options]
+ * @param {{ create?: boolean, clock?: any, reference?: any, store: { openBoard: Function, atomic: Function, closeBoard: Function } }} options
  * @returns {Promise<any>}
  */
-export async function withPrivateBoard(repoBoardId, work, { create = false, clock, reference = null } = {}) {
+export async function withPrivateBoard(repoBoardId, work, { create = false, clock, reference = null, store }) {
   const ownerBoardId = boardReferenceId(repoBoardId);
   const file = create ? preparePrivateBoardPath(repoBoardId) : privateBoardPath(repoBoardId);
   if (!create && !existsSync(file)) throw new Refused('PRIVATE_BOARD_NOT_FOUND', 'this device has no private board for that repo; open it from the repo checkout first');
@@ -395,8 +396,11 @@ export function forgetProject(path) {
   });
 }
 
-/** Register locally and complete opted-in automatic relay linking before the CLI returns. */
-export async function registerProjectAndLink(root, now, config, io, identity) {
+/**
+ * Register locally and complete opted-in automatic relay linking before the CLI returns.
+ * The CLI passes the store's board readers and the relay linker as `ports`, so the seats cell loads neither.
+ */
+export async function registerProjectAndLink(root, now, config, io, identity, { store, autoLinkProject }) {
   let exactIdentity = identity;
   if (!exactIdentity) {
     const file = join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite');
@@ -407,7 +411,6 @@ export async function registerProjectAndLink(root, now, config, io, identity) {
     }
   }
   const added = registerProject(root, now, config, exactIdentity);
-  const { autoLinkProject } = await import('./relay-setup.js');
   await autoLinkProject(root, io);
   return added;
 }

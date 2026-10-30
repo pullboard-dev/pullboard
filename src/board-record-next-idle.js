@@ -1,5 +1,5 @@
 import { recordNextIdle as recordNextIdleObservation } from './board-stats.js';
-import { agentById } from './seats.js';
+import { agentById } from './board-query.js';
 import { atomic } from './board-event-log.js';
 import { logEvent } from './board-event-log.js';
 

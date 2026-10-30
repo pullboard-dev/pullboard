@@ -1,6 +1,6 @@
 import * as store from '../board.js';
 import { eligibilityProblem } from '../review-eligibility.js';
-import { agentAt } from '../seats.js';
+import { agentAt } from '../board-query.js';
 /** The pullboard queue command, in its own module so an item adding another command never edits these lines. */
 import * as queueView from '../queue.js';
 import {

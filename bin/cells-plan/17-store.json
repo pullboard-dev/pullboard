@@ -141,7 +141,9 @@
   ["src/board-verify.js","packages/store/src/shell/board-verify.js","rule"],
   ["src/board-withdraw.js","packages/store/src/shell/board-withdraw.js","rule"],
   ["src/board-escalate.js","packages/store/src/core/board-escalate.js","rule"],
-  ["src/board-record-attempt.js","packages/store/src/core/board-record-attempt.js","rule"]
+  ["src/board-record-attempt.js","packages/store/src/core/board-record-attempt.js","rule"],
+  ["src/board-line-settings.js","packages/store/src/shell/board-line-settings.js","rule"],
+  ["src/board-coordinator-hold.js","packages/store/src/shell/board-coordinator-hold.js","rule"]
  ],
  "reexports": [
   "src/board-access.js",

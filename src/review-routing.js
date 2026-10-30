@@ -3,7 +3,6 @@ import { seatFamily } from './family-declaration.js';
 export { seatFamily };
 /** Shared review urgency and tier adapter for selection and reservation [C7,V1,B3]. */
 import { ENGINE_VERSION } from './engine-metadata.js';
-import { REVIEW_ROUTING_ENGINE } from './review-routing-engine.js';
 import { FAMILY_ALIAS_ENGINE } from './family-alias-engine.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from './review-independence-engine.js';
 import { familyName } from './review-policy.js';
@@ -13,11 +12,9 @@ export { familiesDiffer } from './review-policy.js';
 import { itemReviewPolicy } from './review-policy.js';
 import { itemPatchAuthors } from './item-patch-state.js';
 import { Refused } from './refused.js';
+import { reviewRoutingEnabled } from './review-routing-enabled.js';
+export { reviewRoutingEnabled } from './review-routing-enabled.js';
 
-/** Historical recorded reservations retain the ordering and eligibility they originally used. */
-export function reviewRoutingEnabled(board) {
-  return (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_ROUTING_ENGINE;
-}
 
 /** Read the canonical native tier; sensitive work is strict even without a required reviewer family. */
 function strictReview(board, item) {

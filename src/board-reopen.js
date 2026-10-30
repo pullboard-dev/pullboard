@@ -17,7 +17,7 @@ import { REOPEN_FIRST_REFUSAL_ENGINE } from './machine.js';
 import { IN_STATE } from './machine.js';
 import { MOVES } from './machine.js';
 import { Refused } from './refused.js';
-import { listAgents } from './seats.js';
+import { listAgents } from './board-query.js';
 import { RIGOR_AUTO_ENGINE } from './rigor-auto-engine.js';
 import { causeProblem } from './board-rigor.js';
 import { conflictDetail } from './trunk-conflict.js';
