@@ -222,7 +222,8 @@
   ["src/move-history/175.json","packages/state/src/shell/move-history/175.json","rule"],
   ["src/quarantine-verdict-engine.js","packages/state/src/shell/quarantine-verdict-engine.js","rule"],
   ["src/move-history/176.json","packages/state/src/shell/move-history/176.json","rule"],
-  ["src/move-history/177.json","packages/state/src/shell/move-history/177.json","rule"]
+  ["src/move-history/177.json","packages/state/src/shell/move-history/177.json","rule"],
+  ["src/known-main-owner-pattern-engine.js","packages/state/src/shell/known-main-owner-pattern-engine.js","rule"]
  ],
  "reexports": [
   "src/activity-delivery-engine.js",
