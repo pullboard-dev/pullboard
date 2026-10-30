@@ -2,7 +2,7 @@
 import { COORDINATOR } from './config.js';
 import { AUTO_ESCALATE_ENGINE } from './engine-metadata.js';
 import { STRONG_REJECTION_NOTICE_ENGINE } from './engine-metadata.js';
-import { verdictsFor } from './verdict-reviews.js';
+import { verdictRows } from './verdict-rows.js';
 
 /**
  * Who can take an item (B13), as tiers in order of the model an item needs: `light` is work a small
@@ -40,7 +40,7 @@ function rejectionsSinceRouteChange(board, id, engine) {
     if (event.event_kind === 'edit' && Object.hasOwn(JSON.parse(event.event_detail), 'route')) lastRouteChange = index;
   }
   const verdictEvents = thread.filter((event) => ['accept', 'reject'].includes(event.event_kind));
-  const verdicts = verdictsFor(board, id);
+  const verdicts = verdictRows(board, id);
   const byEvent = new Map(verdictEvents.map((event, index) => [event.event_id, verdicts[index]]));
   return thread.slice(lastRouteChange + 1).flatMap((event) => {
     if (event.event_kind !== 'reject') return [];

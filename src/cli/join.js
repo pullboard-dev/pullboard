@@ -50,7 +50,7 @@ export async function bindWriteSession(io, positionals, values) {
     const ownsLandingRoot = command === 'hook' ? (await import('../landing-candidates.js')).landingBatchOwnsRoot : () => false;
     agent = withBoard(ctx, (board) => store.agentAt(board, info.root)?.agent_id
       ?? (command === 'hook' && store.landingBatches(board).some((batch) => ownsLandingRoot(batch, info.root)) ? COORDINATOR : null));
-    if (!agent && command !== 'join') throw withBoard(ctx, (board) => seatCheckout.unjoinedRefusal(info, store.listAgents(board)));
+    if (!agent && command !== 'join') throw withBoard(ctx, (board) => seatCheckout.unjoinedRefusal(info, store.listAgents(board), personIdentity.agentSessionDigest));
   }
   if (['shout', 'fact'].includes(command) && localSessionMatches(info, { agent: agent ?? 'unjoined agent', digest })) {
     CHECKOUT_BOARD_ONLY.set(io, command);

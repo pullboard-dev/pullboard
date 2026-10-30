@@ -1,5 +1,4 @@
 import { AGENT_SESSION_IDS } from '../packages/kernel/src/core/discovery.js';
-import * as store from './board.js';
 import { repoInfo } from './git.js';
 import { isClean } from './git.js';
 import { untracked } from './git.js';
@@ -10,7 +9,6 @@ import { bindLocalSession } from './agent-session.js';
  * will do the work: an unjoined checkout is pointed at its session's seats instead of borrowing one, and an item held
  * by this session's seat elsewhere is named with that seat and its path.
  */
-import { agentSessionDigest } from './person.js';
 import { localSessionSeats } from './agent-session.js';
 import { Refused } from './refused.js';
 
@@ -19,9 +17,9 @@ function cdTo(path) {
   return `cd '${path.replaceAll("'", "'\\''")}' &&`;
 }
 
-/** This session's seats in other checkouts of the board, by local binding only. */
-function sessionSeats(info, agents) {
-  const digest = agentSessionDigest();
+/** This session's seats in other checkouts of the board, by local binding only; the caller supplies the session digest reader. */
+function sessionSeats(info, agents, sessionDigest) {
+  const digest = sessionDigest();
   return digest ? localSessionSeats(info, { agents, digest }).filter((seat) => seat.agent_path !== info.root) : [];
 }
 
@@ -31,9 +29,10 @@ function sessionSeats(info, agents) {
  *
  * @param {{ root: string, commonDir: string }} info
  * @param {any[]} agents
+ * @param {() => string | null} sessionDigest - the person cell's session digest reader, passed in so seats never load it
  */
-export function unjoinedRefusal(info, agents) {
-  const seats = sessionSeats(info, agents);
+export function unjoinedRefusal(info, agents, sessionDigest) {
+  const seats = sessionSeats(info, agents, sessionDigest);
   const join = 'pullboard join <lane> --model "<model name>"';
   if (!seats.length) return new Refused('NOT_JOINED', `this worktree has not joined a lane; run ${join}`);
   const named = seats.map((seat) => `${seat.agent_id} (${seat.agent_lane} lane) in ${seat.agent_path}`).join('; ');
@@ -48,10 +47,11 @@ export function unjoinedRefusal(info, agents) {
  * @param {any[]} agents
  * @param {object} item - the item as getItem returns it; its id, status and owner are read
  * @param {string} command - The command to repeat in the holder's checkout.
+ * @param {() => string | null} sessionDigest - the person cell's session digest reader
  */
-export function refuseHeldElsewhere(info, agents, item, command) {
+export function refuseHeldElsewhere(info, agents, item, command, sessionDigest) {
   if (item.item_status !== 'claimed') return;
-  const holder = sessionSeats(info, agents).find((seat) => seat.agent_id === item.item_owner);
+  const holder = sessionSeats(info, agents, sessionDigest).find((seat) => seat.agent_id === item.item_owner);
   if (!holder) return;
   throw new Refused('NOT_YOURS', `#${item.item_id} is held by ${holder.agent_id} in ${holder.agent_path}, not by this checkout`,
     `${command} it from that seat's checkout: ${cdTo(holder.agent_path)} pullboard ${command} ${item.item_id}`);
@@ -62,8 +62,13 @@ export function seatLeadLine(seat, item, held) {
   return `${seat.agent} (${seat.lane} lane) ${held ? 'holds' : 'now holds'} #${item.item_id} in ${seat.path}; continue there: ${cdTo(seat.path)} pullboard next`;
 }
 
-/** Choose or open the matching lane seat, retaining ordinary checkout ownership and lane guards. */
-export async function laneSeatContext(ctx, board, me, item, seats, contextAt) {
+/**
+ * Choose or open the matching lane seat, retaining ordinary checkout ownership and lane guards.
+ *
+ * The CLI supplies the board readers, the session digest reader and the worktree opener as one explicit port,
+ * so the seats cell never loads the board, the person cell or the CLI's commands.
+ */
+export async function laneSeatContext(ctx, board, me, item, seats, contextAt, { store, sessionDigest, openWorktree }) {
   const held = item.item_status === 'claimed';
   const occupied = new Set(store.listItems(board).filter(entry => entry.item_status === 'claimed'
     && entry.item_parent_id === null).map(entry => entry.item_owner));
@@ -82,21 +87,20 @@ export async function laneSeatContext(ctx, board, me, item, seats, contextAt) {
   let created = false;
   if (!agent) {
     let opened;
-    const { worktreeFor } = await import('./commands/worktree.js');
-    await worktreeFor({ ...ctx.io, say: () => {}, result: (value) => { opened = value; } }, item.item_lane, me.route, me.family, me.model, false);
+    await openWorktree({ ...ctx.io, say: () => {}, result: (value) => { opened = value; } }, item.item_lane, me.route, me.family, me.model, false);
     agent = store.agentAt(board, opened.path);
     created = true;
   }
   const target = agent.agent_path === ctx.info.root ? ctx : contextAt({ ...ctx.io, cwd: agent.agent_path });
   if (target.info.commonDir !== ctx.info.commonDir) throw new Refused('NOT_YOUR_CHECKOUT', 'the selected lane seat no longer belongs to this board; run pullboard next again');
-  await bindLocalSession(target.info, { agent: agent.agent_id, digest: agentSessionDigest() });
+  await bindLocalSession(target.info, { agent: agent.agent_id, digest: sessionDigest() });
   return { context: target, seat: { agent: agent.agent_id, lane: agent.agent_lane, path: target.info.root, created } };
 }
 
-/** A real runtime session may route across its own local seats; marker-only shells stay isolated. */
-export function nextSessionSeats(ctx, board) {
+/** A real runtime session may route across its own local seats; marker-only shells stay isolated. The CLI supplies its readers. */
+export function nextSessionSeats(ctx, board, { listAgents, sessionDigest }) {
   if (ctx.info.isMain || ctx.io.personChannel === 'view' || ctx.io.personRequest
     || !AGENT_SESSION_IDS.some((name) => Boolean(process.env[name]))) return null;
-  const digest = agentSessionDigest();
-  return digest ? localSessionSeats(ctx.info, { agents: store.listAgents(board), digest }) : null;
+  const digest = sessionDigest();
+  return digest ? localSessionSeats(ctx.info, { agents: listAgents(board), digest }) : null;
 }

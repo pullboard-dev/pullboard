@@ -1,29 +1,14 @@
-import {
-  agentAt,
-  agentById,
-  agentModel,
-  agentParent,
-  withModel,
-  listAgents,
-} from './board-query.js';
 /**
  * Seats (B3, H2, V1): who each registered agent is on the board, read from the agent table and the
  * metadata kept beside it: its model, its route, and from engine 48 the seat that created it, whether
  * the relay enrolled it, and its machine lineage. Verifier standing on a linked board (#579) is
- * decided here from that line of creators. board.js registers seats and re-exports the readers.
+ * decided here from that line of creators. board.js registers seats; the store's board queries own the agent readers.
  */
 import { Refused } from './refused.js';
+import { agentParent } from './seat-parent.js';
 
 /** The board's coordinator hold travels with its seats: one main checkout coordinates a linked board (#347). */
-export { coordinatorHolder, takeCoordinator } from './coordinator-hold.js';
-
-export { agentAt } from './board-query.js';
-
-export { agentById } from './board-query.js';
-
-export { agentModel } from './board-query.js';
-
-export { withModel } from './board-query.js';
+export { coordinatorHolder } from './coordinator-hold.js';
 
 /** Save or clear a model label without changing the shared SQLite schema. */
 export function saveAgentModel(board, id, model) {
@@ -34,8 +19,6 @@ export function saveAgentModel(board, id, model) {
   board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?) ON CONFLICT(meta_key) DO UPDATE SET meta_value = excluded.meta_value')
     .run(`agent_model:${id}`, model);
 }
-
-export { listAgents } from './board-query.js';
 
 /**
  * The route an agent joined on; strong for the coordinator and for ids the board does not know.
@@ -118,7 +101,7 @@ export function withVerifierStanding(board, standing, work) {
   }
 }
 
-export { agentParent } from './board-query.js';
+export { agentParent } from './seat-parent.js';
 export {
   agentCreator,
   seatEnrolled,

@@ -7,8 +7,8 @@ import { relayMachineOwner } from './relay-machine.js';
 import { relayStatus } from './relay.js';
 import { Refused } from './refused.js';
 
-/** Run one add on its device-local board while keeping the repo checkout's own seat binding. */
-export function runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases, checkoutBoardOnly }) {
+/** Run one add with the caller's native opener while keeping the repo checkout's own seat binding. */
+export function runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases, checkoutBoardOnly, openBoard }) {
   return withBoard(ctx, async (repoBoard) => {
     const repoActor = whoAmI(ctx, repoBoard);
     const repository = originRepository(ctx.info.root, { optional: true });
@@ -43,6 +43,6 @@ export function runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases, 
       } finally {
         if (privateIo.recordedMove) ctx.io.recordedMove = true;
       }
-    }, { create: true, clock: ctx.clock, reference: repository ? { handle: repoName, organization: repoOwner, owner: signedOwner } : null });
+    }, { create: true, clock: ctx.clock, reference: repository ? { handle: repoName, organization: repoOwner, owner: signedOwner } : null, store: { ...store, openBoard } });
   });
 }
