@@ -13,13 +13,17 @@ import { submittedProof } from './submit-outcome-fixture.js';
 import { put } from './submit-outcome-fixture.js';
 import { source } from './submit-outcome-fixture.js';
 import { TIMING_RUN_ID_ENV } from '../src/run-timing.js';
+import { SUITE_TIMING_PREFIX } from '../src/run-timing.js';
+import { timingAccountingStages } from '../src/run-timing.js';
+import { accountedFailures } from '../src/landing-step-failures.js';
 import { testOutputSummary } from '../src/test-output-summary.js';
 
 /** A portable copy of the production collector observes real Node events inside the worker's source tree. */
-function beforeMain({ duplicate = false, phases = false } = {}) {
+function beforeMain({ duplicate = false, phases = false, timing = true, corrupt = null } = {}) {
   return box => {
     const files = ['test/inherited.test.js', ...(duplicate ? ['test/second.test.js'] : []), ...(phases ? ['test/shared-pass.test.js'] : [])];
     const timingModule = new URL('../src/run-timing.js', import.meta.url).href;
+    const beginTiming = timing ? 'beginSuiteTiming(process.cwd(), process.argv.slice(2));' : '';
     if (duplicate) put(box.root, 'test/second.test.js', source());
     if (phases) {
       put(box.root, 'test/check-only.test.js', "import { test } from 'node:test';\ntest('criterion only pass [G1]', () => {});\n");
@@ -27,7 +31,7 @@ function beforeMain({ duplicate = false, phases = false } = {}) {
       put(box.root, 'test/check-runner.js', `import { spawnSync } from 'node:child_process';
 import { beginSuiteTiming } from ${JSON.stringify(timingModule)};
 // The actual private controller observes its own clean source and wall duration.
-beginSuiteTiming(process.cwd(), process.argv.slice(2));
+${beginTiming}
 const run = spawnSync(process.execPath, ['--test', '--test-reporter=./test/outcome-reporter.js',
   'test/check-only.test.js', 'test/shared-pass.test.js'], { encoding: 'utf8', env: process.env });
 process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? ''); process.exitCode = run.status ?? 1;
@@ -47,13 +51,15 @@ export default async function* report(events) {
     }
   }
   for await (const chunk of tap(observe())) yield chunk;
-  yield formatTestOutcomes(process.env[${JSON.stringify(TIMING_RUN_ID_ENV)}], collector.finish(count !== null, count));
+  const outcomes = formatTestOutcomes(process.env[${JSON.stringify(TIMING_RUN_ID_ENV)}], collector.finish(count !== null, count));
+  yield ${corrupt === 'malformed' ? "outcomes.replace('version', 'invalidVersion')" : 'outcomes'};
+  ${corrupt === 'foreign' ? "yield formatTestOutcomes('00000000-0000-4000-8000-000000000000', collector.finish(count !== null, count));" : ''}
 }
 `);
     put(box.root, 'test/runner.js', `import { spawnSync } from 'node:child_process';
 import { beginSuiteTiming } from ${JSON.stringify(timingModule)};
 // Preserve genuine producer timing; no fabricated frame or completed-file claim.
-beginSuiteTiming(process.cwd(), process.argv.slice(2));
+${beginTiming}
 const run = spawnSync(process.execPath, ['--test', '--test-reporter=./test/outcome-reporter.js', ...${JSON.stringify(files)}],
   { encoding: 'utf8', env: process.env });
 process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? '');
@@ -106,6 +112,17 @@ test('a real remote submit retains the failing source file and exact main failur
   assert.equal(summary.failures[0].file, 'test/inherited.test.js');
   assert.equal(summary.failures[0].name, 'shared failure [G1]');
   assert.deepEqual(submittedProof(box).submissionProof.knownMainFailures, gate.knownMainFailures);
+  const raw = readFileSync(gate.proofLog, 'utf8');
+  const timingLine = raw.split('\n').find(line => line.startsWith(SUITE_TIMING_PREFIX));
+  assert.ok(timingLine, 'the real private controller published its own suite timing');
+  const timing = JSON.parse(timingLine.slice(SUITE_TIMING_PREFIX.length));
+  const unbound = raw.split('\n').filter(line => !line.startsWith(SUITE_TIMING_PREFIX)).join('\n');
+  const stages = timingAccountingStages([{ status: 1, pipeline: [
+    { status: 1, output: raw }, { status: 1, output: unbound },
+  ] }], timing.id, { head: timing.head, tree: timing.tree });
+  assert.equal(stages[0].pipeline[0].testOutcomeRunId, timing.id);
+  assert.equal(stages[0].pipeline[1].testOutcomeRunId, null, 'a sibling cannot lend its source-bound producer');
+  assert.equal(accountedFailures({ isGreen: false, stages }, box.builder), null);
   const launched = readFileSync(requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.ok(launched.some(row => row.workerStarted), 'the real private worker executed');
 });
@@ -133,3 +150,18 @@ test('a remote same-title item regression stays red when its assertion differs f
   assert.equal(report.failures[0].file, 'test/inherited.test.js');
   assert.equal(submittedProof(box), null, 'complete file identity does not relax the exact assertion signature guard');
 });
+
+for (const control of [
+  { name: 'unbound', timing: false },
+  { name: 'foreign', corrupt: 'foreign' },
+  { name: 'malformed', corrupt: 'malformed' },
+]) {
+  test(`a real remote submit refuses ${control.name} native outcome records [V4,B3,H16]`, t => {
+    const box = fixture(t, { beforeMain: beforeMain(control) });
+    remote(box);
+    const result = cli(box, box.builder, 'submit', String(box.item));
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.equal(JSON.parse(result.stdout).error.code, 'GATE_RED');
+    assert.equal(submittedProof(box), null, 'native diagnostics cannot authorize an unbound failure account');
+  });
+}
