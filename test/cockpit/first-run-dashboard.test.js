@@ -28,7 +28,10 @@ test('the checklist ticks from native events, in the approved order, and Walk aw
   assert.equal(tick({ milestones: [{ items: [1, 2] }] })[6], false, 'two items are not a plan');
   assert.equal(tick({ milestones: [{ items: [1, 2, 3] }] })[6], true, 'a release of three or more ticks step 7');
   const all = kit.model({ agents: [{ agent_id: 'coordinator-1', agent_lane: 'coordinator' }], spec: [{ status: 'approved' }], milestones: [{ items: [1, 2, 3] }] }, [{ event_kind: 'submit' }, { event_kind: 'accept' }, { event_kind: 'merged' }, { event_kind: 'merged' }]);
-  assert.equal(all.done, true, 'seven ticks end the first-run page');
+  assert.equal(all.done, true, 'seven ticks finish the checklist');
+  assert.equal(kit.visible(all, false), true, 'a finished page stays up until the person hides it');
+  assert.equal(kit.visible(all, true), false, 'hiding it brings back the usual Dashboard');
+  assert.match(kit.html({ ...all, landed: 3 }), /Walk away\.[\s\S]*Set up your phone[\s\S]*data-first-run-hide>Hide this page/u, 'step 7 shows Walk away, the phone line and Hide this page');
   const finished = kit.html(all);
   assert.match(finished, /data-first-run-walk[^>]*>Walk away\.<small class="hint">We'll call you if it's on fire 🔥 · <a [^>]*data-first-run-phone[^>]*>Set up your phone →<\/a>/u, 'the end shows the phone line');
   assert.doesNotMatch(kit.html(kit.model({}, [])), /Set up your phone/u, 'the phone line waits for the end');

@@ -114,5 +114,8 @@ export function firstRunKit() {
       + (state.landed ? '<p class="first-run-later"><button type="button" class="link" data-first-run-hide>Hide this page</button></p>' : '<p class="first-run-later">Your agents, their progress and what landed show up here once work starts.</p>') + '</div>';
   }
 
-  return { steps, dwell, model, html, paint, copy: COPY };
+  /** The page stays up, finished or not, until the person hides it; ticking step 7 only changes what it says. */
+  const visible = (state, hidden) => Boolean(state && !hidden);
+
+  return { steps, dwell, model, html, paint, visible, copy: COPY };
 }

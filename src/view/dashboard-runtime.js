@@ -61,9 +61,9 @@ export function dashboardRuntime({ model, html, api, boardPath, current, redraw,
     const note = held.error?'<p class="muted" role="status">Dashboard history is unavailable; live work remains visible.</p>':'';
     let quietRows;
     const quietOpen = expanded.includes('quiet');
-    // Until its checklist is complete, or the person hides it, the first-run page is the Dashboard; the usual cards follow once work has landed.
+    // Until the person hides it (finished or not), the first-run page is the Dashboard; the usual cards follow once work has landed.
     const started = firstRun && !onFloor ? firstRun.kit.model(project, held.events.filter(event=>event.event_id<=prefix)) : null;
-    const showFirstRun = Boolean(started && !started.done && !firstRun.hidden(project.root));
+    const showFirstRun = firstRun?.kit.visible(started, firstRun.hidden(project.root));
     const usual = () => html(state, { needs, needsHeader, progress, rules, capacity, locale, timeZone, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') });
     region.innerHTML = (onFloor ? floor.html(floor.model(state, held.events.filter(event=>event.event_id<=prefix)), { back: floor.href(null), locale, timeZone })
       : showFirstRun ? firstRun.kit.html(started, { href: firstRun.href, tour: tour.index }) + (started.landed ? usual() : '') : usual())+note;
