@@ -241,5 +241,5 @@ export function applyEngineMove(board, move, { sequence, at, standing = null, en
     metadata(board, 'relay_applied_sequence', String(sequence));
     metadata(board, 'relay_engine_version', String(ENGINE_VERSION));
     return outcome;
-  });
+  }, { reviewPolicy: false });
 }
