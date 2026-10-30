@@ -1,5 +1,5 @@
 /** @pullboard-test-loads src/worktree-maintenance.js src/worktree-maintenance-observation.js src/worktree-maintenance-archive.js */
-/** @pullboard-test-loads packages/state/src/core/handoff-state.js */
+/** @pullboard-test-loads packages/state/index.js */
 /** Private Git/native-board integration cases for the owning maintenance test [B3,C7]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -10,7 +10,7 @@ import * as store from '../src/board.js';
 import { closeBoard, openBoard } from '../src/native-board.js';
 import { repoInfo } from '../src/git.js';
 import { heartbeatSeat, withLocalSeatPresence } from '../src/seat-presence.js';
-import { agentHandoff } from '../packages/state/src/core/handoff-state.js';
+import { agentHandoff } from '../packages/state/index.js';
 import { cleanMaintenanceSeat, maintenanceHealth, runWorktreeMaintenance } from '../src/worktree-maintenance.js';
 import { maintenanceGit, maintenanceSnapshot } from '../src/worktree-maintenance-archive.js';
 import { writeMaintenanceState } from '../src/worktree-maintenance-observation.js';
