@@ -436,6 +436,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "RUNNER_JOB_LOST": "inspect the exact runner and job named in the diagnostic; cleanup remains unknown until the pinned worker proves it, then retry",
   "RUNNER_CLEANUP_TIMEOUT": "inspect the named job under that runner's namespace and confirm its cleanup before starting another run",
   "RUNNER_INFRA_RETRY_EXHAUSTED": "inspect the retained runner diagnostic, restore the named runner, then retry this command",
+  "RUNNER_NOT_MEASURED": "restore SSH access and run pullboard runner refresh <ssh-host> to measure cores and memory, or register the host with explicit --slots <n> --browser <n>",
   "RUNNER_NOT_REGISTERED": "choose a host already registered in this machine's runner settings, then run pullboard runner remove <ssh-host> again",
   "RUNNER_WAIT_DEADLINE": "check the runners the message names, or restore local gate capacity with pullboard settings, then retry",
   "SCALE_FROM_MAIN": "cd to the main checkout, then run pullboard run --scale --lane <lane> --model \"<model name>\" --agent \"<command>\" there",
