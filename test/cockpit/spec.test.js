@@ -611,8 +611,8 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
         const chip=row.querySelector('.spec-row-side .chip').getBoundingClientRect();
         const words=[...row.querySelector('.srow-text').childNodes].find(n=>n.nodeType===3&&n.textContent.trim());
         const range=document.createRange(); range.selectNodeContents(words); const text=range.getClientRects()[0];
-        return chip.right <= text.left || chip.bottom <= text.top || chip.top >= text.bottom;
-      })()`), '1280: the approved pending stage does not cover row text');
+        return chip.right <= text.left || chip.left >= text.right || chip.bottom <= text.top || chip.top >= text.bottom;
+      })()`), '1280: the approved row tier does not cover row text');
 
       await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]')");
       assert.equal(await chrome.stable("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]')"), false, `${width}: approval immediately leaves Needs your decision`);
@@ -684,7 +684,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
         const chip=row.querySelector('.spec-row-side .chip').getBoundingClientRect();
         const words=[...row.querySelector('.srow-text').childNodes].find(n=>n.nodeType===3&&n.textContent.trim());
         const range=document.createRange(); range.selectNodeContents(words); const text=range.getClientRects()[0];
-        return chip.right <= text.left || chip.bottom <= text.top || chip.top >= text.bottom;
+        return chip.right <= text.left || chip.left >= text.right || chip.bottom <= text.top || chip.top >= text.bottom;
       })`), '1280: the tier of every pending decision has room beside its row text');
       await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]')");
       await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:G3\"]') && !document.querySelector('#spec-list [data-row=\"spec:G1\"]') && !document.querySelector('#spec-list [data-row=\"spec:G2\"]') && !document.querySelector('#spec-list [data-row=\"spec:K1\"]') && !document.querySelector('#spec-list [data-row=\"spec:K2\"]')");
