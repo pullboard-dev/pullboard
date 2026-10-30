@@ -23,6 +23,7 @@ async function project(t) {
   mkdirSync(repo);
   const env = {
     PULLBOARD_HOME: join(directory, 'home'),
+    PULLBOARD_MACHINE_HOME: join(directory, 'machine-home'),
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'API Events Test',

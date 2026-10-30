@@ -20,6 +20,7 @@ import { Refused } from '../src/refused.js';
 import { board as store } from '../src/native-board.js';
 import { preparePersonRequest } from '../src/person-request.js';
 import { receivePersonRequest } from '../src/relay-requests.js';
+import { apiFixtureEnvironment, bindApiFixtureMachine } from './api-fixture.js';
 import { fetchFresh } from './http-fixture.js';
 import { liveFrames } from './http-stream-fixture.js';
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -301,12 +302,8 @@ function fixture(t) {
   mkdirSync(bin);
   writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
   chmodSync(join(bin, 'pullboard'), 0o755);
-  const env = {
-    ...process.env, HOME: join(dir, 'home'), PULLBOARD_HOME: join(dir, 'home'),
-    PATH: bin + ':' + process.env.PATH, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'HTTP Agent', GIT_AUTHOR_EMAIL: 'agent@example.invalid',
-    GIT_COMMITTER_NAME: 'HTTP Agent', GIT_COMMITTER_EMAIL: 'agent@example.invalid',
-  };
+  const env = apiFixtureEnvironment(dir, bin);
+  bindApiFixtureMachine(t, env);
   mkdirSync(env.HOME);
   /** Run Git only inside the private fixture. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
