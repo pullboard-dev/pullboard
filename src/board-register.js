@@ -10,7 +10,7 @@ import { ENGINE_VERSION } from './machine.js';
 import { VERIFIER_STANDING_ENGINE } from './machine.js';
 import { Refused } from './refused.js';
 import { saveJoinedSession } from './parent-session.js';
-import { agentAt } from './seats.js';
+import { agentAt } from './board-query.js';
 import { newSeatId } from './seats.js';
 import { saveAgentModel } from './seats.js';
 import { seatLineage } from './seats.js';

@@ -1,6 +1,8 @@
 /** Helpers for `pullboard next`: one pick-and-claim loop and its wait labels. Split from src/cli.js, which re-exports it [C7]. */
 import { laneSeatContext } from '../seat-checkout.js';
 import { nextSessionSeats } from '../seat-checkout.js';
+import { seatRoutingPorts } from './seat-ports.js';
+import { sessionSeatReaders } from './seat-ports.js';
 import { mainRedReviewItems } from '../main-red.js';
 import { computedReturnArgs } from '../computed-conflict-return.js';
 import { focusReviewFirst } from '../focus-milestone.js';
@@ -73,7 +75,7 @@ export async function nextOnce(ctx, values) {
     const picked = nextPick(ctx, board, values);
     if (!picked.claim) return picked;
     const { me, item, held, shared, reasons, reviewSkipped, seats } = picked;
-    const routed = seats ? await laneSeatContext(ctx, board, me, item, seats, context) : { context: ctx };
+    const routed = seats ? await laneSeatContext(ctx, board, me, item, seats, context, seatRoutingPorts) : { context: ctx };
     const target = routed.context;
     const holder = whoAmI(target, board);
     ctx.io.nextPhase?.('claim', item.item_id);
@@ -92,7 +94,7 @@ export async function nextOnce(ctx, values) {
 function nextPick(ctx, board, values) {
   const me = whoAmI(ctx, board);
   const warm = warmFiles(ctx, board, me);
-  const seats = nextSessionSeats(ctx, board);
+  const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
   // A claim belongs to the seat that made it: seats of one session share its environment, so a sibling's claim is
   // never this seat's to resume or be pointed at (#958).
   const heldItem = seats ? store.listItems(board).find((item) => item.item_status === 'claimed'

@@ -2,6 +2,7 @@ import { frozenCheckTiming } from '../check-timing.js';
 import { checkAtCommit } from '../runner-private-check.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../landing-shards.js';
+import { agentSessionDigest } from '../person.js';
 import { requirePersonChannel } from '../person.js';
 /** The pullboard check command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
@@ -59,7 +60,7 @@ export async function run(io, { first, second, rest, values }) {
     const held = first ? store.getItem(board, idArg(first))
       : store.listItems(board).find((entry) => entry.item_status === 'claimed' && entry.item_owner === me.id && entry.item_parent_id === null);
     if (!held) throw new Refused('NOT_HOLDING', 'you hold no item; name one, pullboard check <id>, or run the project gate: pullboard gate');
-    seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), held, 'check');
+    seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), held, 'check', agentSessionDigest);
     return { item: held, author: store.itemCheckAuthor(board, held.item_id), caller: me.id, agents: store.listAgents(board) };
   });
   const check = frozenCheck(item);

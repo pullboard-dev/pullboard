@@ -15,6 +15,7 @@ import {
   listApiProjects,
   registerProjectAndLink,
 } from '../projects.js';
+import { projectLinkPorts } from '../cli/project-ports.js';
 import { assertPublicExportSupported } from '../public-export-guard.js';
 import {
   Refused,
@@ -110,7 +111,7 @@ export async function viewHere(io, values) {
       projectRoot = matches[0].root;
       scopeCommonDir = info.commonDir;
     } else if (info.isMain && existsSync(join(info.root, CONFIG_FILE))) {
-      await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io);
+      await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io, undefined, projectLinkPorts());
     }
   } catch (error) {
     if (projectRequested && error instanceof Refused && error.code !== 'PROJECT_NOT_REGISTERED') {
