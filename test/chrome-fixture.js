@@ -1,3 +1,4 @@
+import { CHROME_GUARDIAN_SOURCE } from './chrome-graceful-shutdown.js';
 import { chromeLeaderIdentity } from './chrome-graceful-shutdown.js';
 import { quitOwnedChrome } from './chrome-graceful-shutdown.js';
 import { chromeLaunchArgs } from './chrome-launch-args.js';
@@ -153,31 +154,6 @@ export function requireBrowserSlot() {
   if (process.env.PULLBOARD_TEST_BROWSER_SLOT === 'none') throw browserSlotRefusal('through test/chrome-fixture.js');
 }
 
-/**
- * The guardian program: poll the watched pids and, once any is gone, take down the Chrome process group.
- * It runs in its own session so the owner's death, by any signal, cannot take it along, and it ends by itself
- * once the group is empty. Escalating to SIGKILL after two seconds covers Chrome helpers that ignore SIGTERM.
- */
-const GUARDIAN_SOURCE = `
-const [groupText, profile, helper, identity, ...watchText] = process.argv.slice(1);
-const group = Number(groupText);
-const watched = watchText.map(Number);
-const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; } };
-let signalledAt = 0;
-let quitting = false;
-setInterval(async () => {
-  if (!alive(-group)) process.exit(0);
-  if (watched.every(alive)) return;
-  if (!signalledAt) {
-    if (quitting) return;
-    quitting = true;
-    if (profile) { try { const { quitGuardedChrome } = await import(helper); await quitGuardedChrome(group, profile, identity); } catch {} }
-    signalledAt = Date.now();
-    try { process.kill(-group, 'SIGTERM'); } catch {}
-  }
-  else if (Date.now() - signalledAt >= 2000) { try { process.kill(-group, 'SIGKILL'); } catch {} }
-}, 250);
-`;
 
 let runnerAncestor;
 
@@ -227,7 +203,7 @@ function parentPid(pid) {
 export function guardChromeGroup(groupId, { ownerPid = process.pid, profile = '' } = {}) {
   if (process.platform === 'win32' || !Number.isSafeInteger(groupId) || groupId <= 1) return null;
   const watched = [ownerPid, findRunnerAncestor()].filter((pid) => Number.isSafeInteger(pid) && pid > 1);
-  const guardian = spawnGuardian(process.execPath, ['-e', GUARDIAN_SOURCE, String(groupId), profile, new URL('./chrome-graceful-shutdown.js', import.meta.url).href, chromeLeaderIdentity(groupId) ?? '', ...watched.map(String)],
+  const guardian = spawnGuardian(process.execPath, ['-e', CHROME_GUARDIAN_SOURCE, String(groupId), profile, new URL('./chrome-graceful-shutdown.js', import.meta.url).href, chromeLeaderIdentity(groupId) ?? '', ...watched.map(String)],
     { detached: true, stdio: 'ignore' });
   guardian.on('error', () => {});
   guardian.unref();

@@ -88,3 +88,29 @@ export async function quitGuardedChrome(pid, profile, identity) {
   try { await quitOwnedChrome(child, profile, stopped); }
   finally { clearInterval(poll); }
 }
+
+/**
+ * The guardian program: poll the watched pids and, once any is gone, take down the Chrome process group.
+ * It runs in its own session so the owner's death, by any signal, cannot take it along, and it ends by itself
+ * once the group is empty. Escalating to SIGKILL after two seconds covers Chrome helpers that ignore SIGTERM.
+ */
+export const CHROME_GUARDIAN_SOURCE = `
+const [groupText, profile, helper, identity, ...watchText] = process.argv.slice(1);
+const group = Number(groupText);
+const watched = watchText.map(Number);
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; } };
+let signalledAt = 0;
+let quitting = false;
+setInterval(async () => {
+  if (!alive(-group)) process.exit(0);
+  if (watched.every(alive)) return;
+  if (!signalledAt) {
+    if (quitting) return;
+    quitting = true;
+    if (profile) { try { const { quitGuardedChrome } = await import(helper); await quitGuardedChrome(group, profile, identity); } catch {} }
+    signalledAt = Date.now();
+    try { process.kill(-group, 'SIGTERM'); } catch {}
+  }
+  else if (Date.now() - signalledAt >= 2000) { try { process.kill(-group, 'SIGKILL'); } catch {} }
+}, 250);
+`;
