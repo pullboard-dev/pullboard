@@ -1,1 +1,1 @@
-export { gitSyncLinked, syncGitBoard, gitBoardOperation } from '../packages/sync/index.js';
+export { gitSyncLinked, syncGitBoard, gitBoardOperation, gitSyncCompatibility } from '../packages/sync/index.js';

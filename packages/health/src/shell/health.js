@@ -1,3 +1,4 @@
+import { reviewWait } from '../../../../src/review-routing.js';
 import { eligibilityProblem } from '../../../../src/review-eligibility.js';
 import { lineSettings } from '../../../state/src/core/line-settings-read.js';
 import { familyIndex } from '../../../../src/review-policy.js';
@@ -185,6 +186,21 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
           why: blocked.message,
           next: blocked.fix, command: `pullboard show ${id}`,
           owner: { role: 'coordinator', who: COORDINATOR }, detail: { builder: item.item_built_by, undeclared: blocked.undeclared, excluding: blocked.excluding },
+        }));
+      }
+      const wait = reviewWait(board, item);
+      if (wait && wait.ageMs > (config?.review?.starveMinutes ?? 10) * 60_000) {
+        const exclusions = [...seats().values()].map(agent => ({ agent: agent.agent_id,
+          problem: eligibilityProblem(board, item, agent, { policy: config?.verify?.policy, familyPolicy: config?.verify?.family }) }));
+        const eligible = exclusions.filter(entry => !entry.problem).map(entry => entry.agent);
+        const excluding = exclusions.filter(entry => entry.problem).map(entry => ({ agent: entry.agent, code: entry.problem.code, rule: entry.problem.message }));
+        found(report.stuck, finding('REVIEW_STARVED', item, {
+          since: wait.since, now: at, title: 'review starved',
+          why: eligible.length ? `submitted ${Math.floor(wait.ageMs / 60_000)} minutes ago without a live reviewer`
+            : `no joined agent is eligible: ${excluding.map(entry => `${entry.agent}: ${entry.code}`).join('; ') || 'no joined agents'}`,
+          next: eligible.length ? `an eligible idle agent takes pullboard next before new build work` : `inspect the eligibility checks with pullboard show ${id}`,
+          command: `pullboard show ${id}`, owner: { role: 'coordinator', who: COORDINATOR },
+          detail: { ageMs: wait.ageMs, eligible, excluding },
         }));
       }
       if (!lapsed && !reviewer && age(submittedAt) >= limits.ms.stuck) {

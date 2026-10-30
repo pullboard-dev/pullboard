@@ -1,12 +1,12 @@
 /** Every history prefix retains the legacy repeat and exact person-decline semantics [D1,N19,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { advanceRigorCounter } from '../src/rigor-counter-state.js';
-import { rigorCounterEligible } from '../src/rigor-counter-state.js';
-import { rigorCounterKeys } from '../src/rigor-counter-state.js';
-import { rigorCounterResult } from '../src/rigor-counter-state.js';
-import { sortRigorCounters } from '../src/rigor-counter-state.js';
-import { undraftedRigor } from '../src/rigor-notices.js';
+import { advanceRigorCounter } from '../packages/rigor/index.js';
+import { rigorCounterEligible } from '../packages/rigor/index.js';
+import { rigorCounterKeys } from '../packages/rigor/index.js';
+import { rigorCounterResult } from '../packages/rigor/index.js';
+import { sortRigorCounters } from '../packages/rigor/index.js';
+import { undraftedRigor } from '../packages/rigor/index.js';
 import { rigorSource } from '../src/board-rigor-source.js';
 import { automaticRigorSource } from '../src/board-rigor-auto-source.js';
 import { HEALTH_SENTINEL_ENGINE } from '../src/board-health-receipts.js';

@@ -11,6 +11,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { repoInfo } from './git.js';
 import { Refused } from './refused.js';
+import { gitSyncMarkerLinked } from './git-sync-files.js';
 
 /** A pending baseline result's file name: one per request id. */
 export const BASELINE_RECEIPT = /^[a-f0-9-]{36}\.json$/;
@@ -37,7 +38,7 @@ export function relayLinkFile(commonDir) {
 
 /** Whether this machine explicitly enabled account-free Git board sharing [H11]. */
 export function gitSyncLinked(root) {
-  return existsSync(join(repoInfo(root).commonDir, 'pullboard', 'git-sync.json'));
+  return gitSyncMarkerLinked(root);
 }
 
 /** A repository's notice that its relay copy was deleted, which relay status still reads. */

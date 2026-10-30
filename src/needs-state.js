@@ -1,5 +1,5 @@
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
-import { resumeRigorCounters } from './rigor-counters.js';
+import { resumeRigorCounters } from '../packages/rigor/index.js';
 /** Read the existing shared board projection with current unapplied person decisions [N26,A9]. */
 import { join } from 'node:path';
 import * as store from './board.js';
@@ -14,7 +14,7 @@ import { projectState } from './serve.js';
 import { loadConfig } from './config.js';
 import { loadSpec } from './spec.js';
 import { loadDoctrine } from './doctrine.js';
-import { rigorDraftNeeds } from './rigor-notices.js';
+import { rigorDraftNeeds } from '../packages/rigor/index.js';
 import { personNeeds } from './row-decision-text.js';
 import { recentBlocks } from './needs-summary.js';
 export { personNeedsSummary, recentBlocks } from './needs-summary.js';
