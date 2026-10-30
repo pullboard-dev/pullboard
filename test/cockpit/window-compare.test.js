@@ -93,7 +93,7 @@ test('window overview renders canonical seeded values, directions, shares and mi
       if (['rejectRate','idleShare'].includes(tile.key)) assert.match(tile.change,/pts|No change/u);
     }
     assert.equal(result.stages.length,10);
-    for (const [shown,expected,flex] of result.stages) {assert.equal(shown,expected);assert.ok(Math.abs(flex-expected)<0.000001,'CSS serializes the canonical share at browser precision');}
+    for (const [shown,expected,flex] of result.stages) {assert.equal(shown,expected);assert.ok(Math.abs(flex-expected)<0.000001,'CSS share mismatch: ' + JSON.stringify({shown,expected,flex,stages:result.stages}));}
     assert.equal(result.visible,true); assert.equal(result.tableOpen,false); assert.equal(result.summary,'All 17 measures →');
     await chrome.click('document.querySelector("#dashboard .window-comparison summary")');
     await chrome.waitFor('document.querySelector("#dashboard .window-comparison details").open');
