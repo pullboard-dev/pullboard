@@ -39,7 +39,7 @@ import { milestonePriorities } from '../../../../src/board.js';
 import { milestones } from '../../../../src/board.js';
 import { canTake } from '../../../../src/board.js';
 import { listItems } from '../../../../src/board.js';
-import { itemById, laneHold, laneHolds } from '../../../../src/board.js';
+import { itemById, laneHold } from '../../../../src/board.js';
 import { listAgents } from '../../../../src/board.js';
 import { openBoardReadOnly } from '../../../../src/board.js';
 import { PERSON } from '../../../../src/board.js';
@@ -387,7 +387,7 @@ const QUEUE_ACTIVE_MS = 30 * 60_000;
  * @returns {Finding[]}
  */
 function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
-  const queue = workQueue(board, { itemById, laneHold, laneHolds, buildOrder, canTake, listItems, milestonePriorities, milestones, roadmap, ROUTES, foreignBlockers, eligibilityProblem });
+  const queue = workQueue(board, { buildOrder, canTake, listItems, milestonePriorities, milestones, roadmap, ROUTES, foreignBlockers, eligibilityProblem }, null, {}, { itemById, laneHold });
   const current = (queue.releases.find((release) => release.landed < release.total)?.items ?? queue.unreleased)
     .filter((entry) => entry.status === 'open' && !entry.waits.length);
   const waiting = [...queue.releases.flatMap((release) => release.items), ...queue.unreleased]
