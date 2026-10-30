@@ -84,7 +84,9 @@ console.log(JSON.stringify({wrong,actual:actual.isGreen,first,beforeBackoff,firs
       assert.equal(actual.firstFailure.step, 'worker readiness');
       assert.equal(actual.second, failures === 1);
       assert.equal(actual.remaining, failures === 1 ? 0 : 1);
-      assert.deepEqual(actual.events.map(event => event.kind), failures === 1 ? ['unavailable', 'available'] : ['unavailable']);
+      assert.deepEqual(actual.events.map(event => event.kind), failures === 1
+        ? ['unavailable', 'worker-probe-failed', 'available']
+        : ['unavailable', 'worker-probe-failed', 'worker-probe-failed']);
       const probes = readFileSync(requests + '.health-probes', 'utf8').trim().split('\n');
       if (failures === 1) { assert.equal(actual.wrong.healthy, false); assert.equal(actual.wrong.step, 'cleanup'); }
       assert.equal(probes.length, failures === 1 ? 3 : 2, 'backoff prevents another SSH call before its due time');
