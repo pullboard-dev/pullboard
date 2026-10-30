@@ -13,7 +13,8 @@ import {
 } from './board-schema-source.js';
 import { Refused } from './refused.js';
 // Preserve eager validation of feature declarations without loading lifecycle guards.
-import { ENGINE_REGISTRY, ENGINE_VERSION } from './engine-metadata.js';
+import { ENGINE_REGISTRY } from './engine-metadata.js';
+import { ENGINE_VERSION } from './engine-metadata.js';
 
 /** Supply exact discovered engine thresholds to read-only projections. */
 function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: ENGINE_REGISTRY['submit-handoff'] }; }
