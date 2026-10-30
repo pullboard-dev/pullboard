@@ -410,7 +410,7 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   writeFileSync(gate, [
     "const fs = require('node:fs'); const assert = require('node:assert/strict');",
     `fs.appendFileSync(${JSON.stringify(callsFile)}, JSON.stringify({cwd:process.cwd(),args:process.argv.slice(2)}) + '\\n');`,
-    "for (const name of fs.readdirSync('web').filter(name => /^queue-\\d+\\.txt$/.test(name))) assert.match(fs.readFileSync('web/'+name,'utf8'), /^works/);",
+    "for (const name of (fs.existsSync('web') ? fs.readdirSync('web') : []).filter(name => /^queue-\\d+\\.txt$/.test(name))) assert.match(fs.readFileSync('web/'+name,'utf8'), /^works/);",
     "console.log('TAP version 13\\nok 1 - actual source composition preserves queue behavior\\n1..1\\n# tests 1\\n# pass 1\\n# fail 0');",
   ].join('\n'));
   const box = helpers.project(`node ${JSON.stringify(gate)}`, sandbox);
@@ -426,10 +426,10 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
   const entries = acceptedPair(helpers, box, false, true);
   writeFileSync(callsFile, '');
-  run(box, box.repo, 'land', '--max', '1');
   const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
   const wakeFile = join(directory, 'wake.json');
   const expectedGeneration = (readMainAudit(wakeFile)?.generation ?? 0) + 1;
+  run(box, box.repo, 'land', '--max', '1');
   run(box, box.repo, 'sentinel', 'run', '--health-only', '--json');
   // Budget: a real detached native worker must close its expected wake and actual checked job.
   await helpers.waitFor(() => {
