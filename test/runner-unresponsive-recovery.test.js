@@ -1,6 +1,8 @@
 /** Recover an unresponsive pinned worker only with exact launch fencing and a fresh idle proof [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { chmodSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -10,6 +12,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
+import { shellQuote } from './runner-ssh-fixture.js';
 
 /** Fail the first actual worker probe, then execute the real pinned idle worker on a private host. */
 function observe(t, live) {
@@ -24,8 +27,11 @@ function observe(t, live) {
   installSshStandIn({ bin, worker, home, machineHome, requests,
     nodeCommand: process.execPath, healthFailures: 1, stderrLog });
   const ssh = join(bin, 'ssh');
-  writeFileSync(ssh, readFileSync(ssh, 'utf8').replace("const argv = process.argv.slice(2);",
-    `process.on('uncaughtException', error => { appendFileSync(${JSON.stringify(stderrLog)}, error.stack + '\\n'); process.exitCode = 255; });\nconst argv = process.argv.slice(2);`));
+  renameSync(ssh, ssh + '.mjs');
+  writeFileSync(ssh, `#!/bin/sh
+exec ${shellQuote(process.execPath)} ${shellQuote(ssh + '.mjs')} "$@" 2>>${shellQuote(stderrLog)}
+`);
+  chmodSync(ssh, 0o700);
   const url = name => pathToFileURL(join(import.meta.dirname, '../src', name)).href;
   const script = `
     import { DatabaseSync } from 'node:sqlite';
