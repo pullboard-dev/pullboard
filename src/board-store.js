@@ -41,11 +41,12 @@ export function requireRuntimePorts(ports) {
   for (const name of ['agentAt', 'itemById', 'itemCheckBaseline', 'events', 'acceptedVerdict', 'verdictReviewProblem', 'boardId', 'appendRigorCounter', 'ensureRigorCounters']) {
     if (typeof ports.verification[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply verification.${name}.`);
   }
-  for (const name of ['atomic', 'logEvent', 'rowDrafts', 'rowDecisions', 'recordRowDecisions', 'now', 'sourceAdvanceCASProblem', 'beginCommandPhase', 'exportedMeta', 'guardRestore', 'sealSourceAdvanceReturn', 'conflictValue', 'deriveRigorCause', 'recordAutomaticRigorDrafts', 'normalizedDispatch', 'rejectedWorkReturns', 'newRigorNotices', 'rigorNoticeText']) {
+  for (const name of ['agentModel', 'proofReceipts', 'itemById', 'laneHold', 'laneHolds', 'getItem', 'listAgents', 'reviewHolder', 'listItems',
+    'atomic', 'logEvent', 'rowDrafts', 'rowDecisions', 'recordRowDecisions', 'now', 'sourceAdvanceCASProblem', 'beginCommandPhase', 'exportedMeta', 'guardRestore', 'sealSourceAdvanceReturn', 'conflictValue', 'deriveRigorCause', 'recordAutomaticRigorDrafts', 'normalizedDispatch', 'rejectedWorkReturns', 'newRigorNotices', 'rigorNoticeText']) {
     if (typeof ports.nativePorts[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply nativePorts.${name}.`);
   }
   for (const name of ['quarantineVerdictSnapshot', 'validateQuarantineGate', 'validateQuarantineLandingProof',
-    'validateQuarantineVerdict', 'recordSealedGateRun', 'sealQuarantineVerdict', 'gateRuns', 'requireBound']) {
+    'validateQuarantineVerdict', 'recordSealedGateRun', 'sealQuarantineVerdict', 'gateRuns', 'requireBound', 'validateQuarantineProofIds']) {
     if (typeof ports.nativePorts.quarantine?.[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply nativePorts.quarantine.${name}.`);
   }
   if (!ports.nativePorts.nextSteps || typeof ports.nativePorts.nextSteps.LANDING_FAILURE_REQUIRED !== 'string') throw new Refused('NO_POLICY', 'The native board root must supply its exact refusal guidance.');

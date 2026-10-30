@@ -1,3 +1,4 @@
+import { acceptedCutItems } from './cells-plan-fixture.js';
 import { withImportParseCache } from '../src/module-import-cache.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
@@ -61,7 +62,7 @@ import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
 
 /** Bind real higher-controller services for every immutable fixture inspection. */
-const requireSubmitCells = (...args) => preflight(...args, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
+const requireSubmitCells = (...args) => preflight(...args, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
 
 /** Commit the actual small plan and complete canonical baseline, with no production-source substitution. */
 function plannedFixture(t, prepare = () => {}) {

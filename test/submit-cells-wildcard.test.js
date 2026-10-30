@@ -1,3 +1,4 @@
+import { acceptedCutItems } from './cells-plan-fixture.js';
 /** Submit compares accepted wildcard authority without exempting genuine static or newly widened imports [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -18,7 +19,7 @@ import { withImportParseCache } from '../src/module-import-cache.js';
 import { foreignNodeOptions } from '../src/test-isolation.js';
 
 const parsers = { importsIn, commonJsIn };
-const services = { withMainCheckout, parsers, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) };
+const services = { withMainCheckout, parsers, withImportParseCache, readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) };
 
 /** Commit a real accepted loader and its complete existing debt; candidate source is never executed. */
 function acceptedLoader(t, pattern = '**') {

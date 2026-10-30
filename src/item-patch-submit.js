@@ -19,14 +19,10 @@ import { itemPatchDigest } from './item-patch-state.js';
 import { composeItemPatches } from './item-patch-compose.js';
 import { validateItemPatchInput } from './item-patch-review.js';
 import { itemPolicy } from './trusted-policy.js';
-import { getItem } from './board-query.js';
-import { proofReceipts } from './board-query.js';
 import { ITEM_PATCH_SUBMIT_ENGINE } from './item-patch-submit-engine.js';
 import { Refused } from './refused.js';
 import { nativeProofBlockingGreen } from './quarantine-verdict.js';
 import { receiptBlockingGreen } from './quarantine-verdict.js';
-import { validateQuarantineVerdict } from './quarantine.js';
-import { sealQuarantineVerdict } from './quarantine.js';
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
@@ -57,7 +53,7 @@ export function prepareItemPatchSubmit(root, board, item, source) {
 
 /** Seal applicability at the registered origin; replay receives values and never probes local Git. */
 export function sealItemPatchFollow(board, id, options) {
-  const item = getItem(board, id);
+  const item = board.nativePorts.getItem(board, id);
   if (item.item_status !== 'claimed' || item.item_owner !== options?.agentId
     || !(item.item_lease_until > board.clock.now().toISOString())) {
     throw new Refused('NOT_YOURS', 'claim this item before following its companions');
@@ -87,7 +83,7 @@ export function sealItemPatchFollow(board, id, options) {
 export function checkItemPatchSubmit(board, id, options) {
   const binding = options.companion;
   if (!binding) return null;
-  const item = getItem(board, id);
+  const item = board.nativePorts.getItem(board, id);
   const keys = ['version', 'source', 'sourceTree', 'commit', 'tree', 'digest', 'receiptIds', 'phases'];
   if (board.executionEngineVersion !== undefined && board.executionEngineVersion < ITEM_PATCH_SUBMIT_ENGINE
     || !binding || typeof binding !== 'object' || Array.isArray(binding)
@@ -105,7 +101,7 @@ export function checkItemPatchSubmit(board, id, options) {
     || new Set(binding.phases.map(phase => phase.role)).size !== binding.phases.length) {
     throw new Refused('ITEM_PATCH_CHANGED', 'the source or companion set changed; compose and prove the current exact inputs before submitting');
   }
-  const receipts = proofReceipts(board, id);
+  const receipts = board.nativePorts.proofReceipts(board, id);
   for (const [index, receiptId] of binding.receiptIds.entries()) {
     const receipt = receipts.find(row => row.id === receiptId);
     const phase = binding.phases[index];
@@ -115,7 +111,7 @@ export function checkItemPatchSubmit(board, id, options) {
       || !Number.isSafeInteger(receipt.exitCode) || options.gateGreen === true && !nativeProofBlockingGreen(receipt)) {
       throw new Refused('ITEM_PATCH_CHANGED', 'the composed source needs its own recorded green native submit receipts');
     }
-    if (Object.hasOwn(receipt, 'blockingVerdict')) validateQuarantineVerdict(board, {
+    if (Object.hasOwn(receipt, 'blockingVerdict')) board.nativePorts.quarantine.validateQuarantineVerdict(board, {
       green: receipt.exitCode === 0, failures: receipt.failures, blockingVerdict: receipt.blockingVerdict });
   }
   return binding;
@@ -127,7 +123,7 @@ export function sealItemPatchSubmit(board, id, options) {
   if (!patches.length && !options.companion) return options;
   const binding = checkItemPatchSubmit(board, id, options);
   if (!binding) throw new Refused('ITEM_PATCH_CHANGED', 'submit must prove the attached companions on their exact composed source');
-  const item = getItem(board, id);
+  const item = board.nativePorts.getItem(board, id);
   const root = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(options.agentId)?.agent_path;
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   try {
@@ -139,7 +135,7 @@ export function sealItemPatchSubmit(board, id, options) {
       || options.gateGreen === true && !receiptBlockingGreen(receipt)
       || receipt.proof.seat !== options.agentId || receipt.proof.item !== id
       || receipt.proof.frozenDigest !== item.item_frozen_digest || !receipt.proof.sourceClean)) throw new Error('unbound native proof');
-    for (const receipt of receipts) sealQuarantineVerdict(board, receipt);
+    for (const receipt of receipts) board.nativePorts.quarantine.sealQuarantineVerdict(board, receipt);
     const config = submitGateConfig(policyAt(root, binding.commit).config, policyAt(root, options.policyCommit).config);
     const plan = submitGatePlan(root, config, { base: item.item_claim_head, trunk: options.policyCommit,
       check: frozenCheck(item), commit: binding.commit });

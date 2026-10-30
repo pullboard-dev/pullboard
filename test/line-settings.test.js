@@ -14,6 +14,7 @@ import { openBoard } from '../src/native-board.js';
 import { configFromSource } from '../src/config.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { settingsInventory } from '../src/settings-inventory.js';
+import { describeSetting } from '../src/settings-descriptions.js';
 import { performanceCores } from '../src/gate.js';
 import {
   defaultViewPort,
@@ -87,7 +88,7 @@ test('the settings inventory exposes board line values and defaults without audi
     `${row.key} exposes its configured value or default`);
   assert.deepEqual(rows.find(row => row.key === 'line.wipPerReviewer'), { key: 'line.wipPerReviewer', scope: 'board',
     board: store.boardId(board), root: box.repo, value: 2, default: false,
-    source: join(box.repo, '.git', 'pullboard', 'board.sqlite'), origin: 'configured' });
+    source: join(box.repo, '.git', 'pullboard', 'board.sqlite'), origin: 'configured', ...describeSetting('line.wipPerReviewer') });
   assert.equal(rows.find(row => row.key === 'line.focusMilestone').value, false);
   assert.equal(rows.find(row => row.key === 'line.reviewsFirst').value, false);
   assert.equal(rows.find(row => row.key === 'line.bar.check').value, false);

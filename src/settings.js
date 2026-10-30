@@ -264,6 +264,19 @@ export function setGateMeasuredSlots(enabled) {
   return next;
 }
 
+/** Set the opt-in measured CPU dispatch policy without changing registered capacity. */
+export function setGateLoadDispatch(key, value) {
+  if (key === 'loadAwareDispatch' ? typeof value !== 'boolean' : key !== 'runnerBusyCeiling' || !Number.isFinite(value) || value < 1 || value > 100) throw new Refused('BAD_MACHINE_SETTINGS', 'set gate.loadAwareDispatch on|off or gate.runnerBusyCeiling 1..100');
+  let next;
+  const current = loadMachineSettings();
+  setResourceCapacity({ name: 'gate', capacity: current.gateSlots, scope: 'machine', allowZero: current.gateSlots === 0, persist: () => {
+    const latest = loadMachineSettings();
+    next = { ...latest, gate: { ...latest.gate, [key]: value } };
+    writeMachineSettings(next);
+  } });
+  return next;
+}
+
 /** Register plain SSH capacity without storing credentials, and serialize updates with active dispatches. */
 export function addRunner(value) {
   const runner = validateRunner(value);
@@ -286,6 +299,7 @@ export function recordRunnerMeasurement(host, observation) {
     if (index < 0) throw new Refused('RUNNER_NOT_REGISTERED', `runner ${host} is no longer registered; run pullboard runner list`);
     const runner = validateRunner({ ...current.runners[index], cores: observation.cores,
       memoryMB: observation.memoryMB, measuredAt: observation.measuredAt,
+      ...(observation.cpuLoad === undefined ? {} : { cpuLoad: observation.cpuLoad }),
       ...(observation.gui === undefined ? {} : { gui: observation.gui }) });
     const runners = [...current.runners]; runners[index] = runner;
     writeMachineSettings({ ...current, runners });

@@ -177,6 +177,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "BLUEPRINT_NO_SOURCE": "give the rule named in the message the reference it paraphrases as source { name, id, url }, then run pullboard blueprint add <file> again",
   "BLUEPRINT_URL": "download and read the blueprint yourself, then run pullboard blueprint add <local-file>",
   "BOARD_BUSY": "wait for the other pullboard process to finish, then retry",
+  "POLICY_SNAPSHOT_STALE": "retry the original command from the top against current accepted main; its stale database transaction was rolled back",
   "BOARD_NOT_WRITABLE": "give the agent write access to the repo's .git/pullboard folder, or run the command outside the sandbox",
   "BOARD_SCHEMA_BEHIND": "run a command that changes the board, such as pullboard shout or pullboard add, which upgrades it; then run this again",
   "BOARD_SCOPE_UNAVAILABLE": "link the board: pullboard relay on",

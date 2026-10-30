@@ -1,6 +1,7 @@
 /**
  * Blueprints: a starter spec as one JSON file (I1). A blueprint's rules become draft rows with their
- * reasons, its questions become pending rows with their defaults filled in, and its starter items
+ * reasons, its questions become pending rows with their defaults filled in, its selected defaults
+ * become editable fact rows, and its starter items
  * become open items citing those rows, all in one new SPEC.md section named after it. Nothing is
  * approved: the person approves rows the usual way.
  *
@@ -20,6 +21,7 @@
  *              source { name, id?, url? }: the reference the rule paraphrases, such as a standard
  *              and its numbered practice; the drafted row keeps it as | source: <name> <id> <url>
  *   questions  [{ key, ask, choices, default }]            default is one of choices
+ *   defaults   [{ key, text }]                            selected setup facts, not approvals
  *   items      [{ key, title, cites?, after?, lane?, route?, criterion, brief?, check }]
  *
  * Every starter item carries a criterion and a check, or the blueprint is refused with
@@ -138,6 +140,7 @@ export function readBlueprint(reference, cwd) {
  * @property {string} [prefix]
  * @property {string} [gate]
  * @property {{ key: string, text: string, why: string, tier: string, gate: string, source?: { name: string, id?: string, url?: string } }[]} rules
+ * @property {{ key: string, text: string }[]} defaults
  * @property {{ key: string, ask: string, choices: string[], default: string }[]} questions
  * @property {{ key: string, title: string, cites: string[], after: string[], lane?: string, route: string, criterion: string, brief: string, check: string }[]} items
  */
@@ -173,8 +176,9 @@ export function validateBlueprint(value, source = 'blueprint') {
   if (value.prefix !== undefined && (typeof value.prefix !== 'string' || !PREFIX_RE.test(value.prefix))) fail('prefix', 'must be capital letters, such as W');
   const rules = Array.isArray(value.rules) ? value.rules : (value.rules === undefined ? [] : (fail('rules', 'must be an array'), []));
   const questions = Array.isArray(value.questions) ? value.questions : (value.questions === undefined ? [] : (fail('questions', 'must be an array'), []));
+  const defaults = Array.isArray(value.defaults) ? value.defaults : (value.defaults === undefined ? [] : (fail('defaults', 'must be an array'), []));
   const items = Array.isArray(value.items) ? value.items : (value.items === undefined ? [] : (fail('items', 'must be an array'), []));
-  if (!rules.length && !questions.length) fail('rules', 'or questions must hold at least one entry');
+  if (!rules.length && !questions.length && !defaults.length) fail('rules', 'or questions or defaults must hold at least one entry');
   const keys = new Set();
   const key = (path, text, seen) => {
     if (typeof text !== 'string' || !KEY_RE.test(text)) fail(path, 'must be letters and digits, such as W1');
@@ -215,14 +219,20 @@ export function validateBlueprint(value, source = 'blueprint') {
     if (Array.isArray(question.choices) && question.choices.includes(NO_ANSWER)) fail(`${at}.choices`, `must not offer ${NO_ANSWER}, which marks an unanswered question`);
     if (question.detect !== undefined && !BLUEPRINT_DETECTS.includes(question.detect)) fail(`${at}.detect`, `must be one of ${BLUEPRINT_DETECTS.join(', ')}`);
   });
+  defaults.forEach((entry, index) => {
+    const at = `defaults[${index}]`;
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return fail(at, 'must be an object');
+    key(`${at}.key`, entry.key, keys);
+    line(`${at}.text`, entry.text);
+  });
   const itemKeys = new Set();
   items.forEach((item, index) => {
     const at = `items[${index}]`;
     if (!item || typeof item !== 'object') return fail(at, 'must be an object');
     key(`${at}.key`, item.key, itemKeys);
     line(`${at}.title`, item.title);
-    if (item.cites !== undefined && !Array.isArray(item.cites)) fail(`${at}.cites`, 'must be an array of rule or question keys');
-    for (const cited of item.cites ?? []) if (!keys.has(cited)) fail(`${at}.cites`, `names ${JSON.stringify(cited)}, which is no rule or question key here`);
+    if (item.cites !== undefined && !Array.isArray(item.cites)) fail(`${at}.cites`, 'must be an array of rule, question or default keys');
+    for (const cited of item.cites ?? []) if (!keys.has(cited)) fail(`${at}.cites`, `names ${JSON.stringify(cited)}, which is no rule, question or default key here`);
     if (item.after !== undefined && !Array.isArray(item.after)) fail(`${at}.after`, 'must be an array of earlier item keys');
     for (const before of item.after ?? []) {
       if (!itemKeys.has(before) || before === item.key) fail(`${at}.after`, `names ${JSON.stringify(before)}, which is no earlier item key`);
@@ -246,6 +256,7 @@ export function validateBlueprint(value, source = 'blueprint') {
     ...(kind === undefined ? {} : { kind }),
     rules: rules.map((rule) => ({ ...rule, tier: rule.tier ?? 'must', gate: rule.gate ?? 'review' })),
     questions,
+    defaults,
     items: items.map((item) => ({ ...item, cites: item.cites ?? [], after: item.after ?? [], route: item.route ?? 'strong', criterion: item.criterion ?? '', brief: item.brief ?? '' })),
   };
 }
@@ -565,6 +576,13 @@ export function planBlueprint(blueprint, { source, spec, doctrine, existingItems
       const id = allocate();
       ids[question.key] = id;
       rows.push({ key: question.key, id, status: 'pending', text, line: `- ${id} [pending, must] ${text} | gate: review` });
+    }
+    for (const entry of blueprint.defaults ?? []) {
+      const text = entry.text.trim();
+      const id = allocate();
+      ids[entry.key] = id;
+      // A selected default describes today's setup; it grants no approval or requirement.
+      rows.push({ key: entry.key, id, status: 'fact', text, line: `- ${id} [fact, must] ${text} | gate: review` });
     }
     const kindLine = blueprintKindMarker(blueprint);
     const kindLines = lines.some((text) => text.trim() === kindLine) ? [] : [kindLine];

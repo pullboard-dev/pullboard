@@ -24,13 +24,16 @@ function observe(t, busy) {
   installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath, healthFailures: 1 });
   const url = name => pathToFileURL(join(import.meta.dirname, '../src', name)).href;
   const script = `
+    import assert from 'node:assert/strict';
     import { DatabaseSync } from 'node:sqlite';
     import { randomUUID } from 'node:crypto';
-    import { spawn, spawnSync } from 'node:child_process';
+    import { spawn } from 'node:child_process';
     import { once } from 'node:events';
     import { writeFileSync, mkdirSync } from 'node:fs';
+    import { readFileSync } from 'node:fs';
     import { join } from 'node:path';
     import { probeRunnerHealth } from ${JSON.stringify(url('runners.js'))};
+    import { processCensus } from ${JSON.stringify(url('runner-custody.js'))};
     import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('runner-recovery.js'))};
     const root = ${JSON.stringify(root)};
     const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, root, slots: 1, browser: 0 };
@@ -40,11 +43,20 @@ function observe(t, busy) {
     const identity = { version: 1, request: randomUUID(), nonce: randomUUID(), tooling: 'a'.repeat(64), launchFence: 1 };
     const stale = spawn(process.execPath, [join(root, 'runtime', 'b'.repeat(64), 'src', 'runner-worker.js')], { stdio: 'ignore' });
     const exited = once(stale, 'exit');
+    let ownerWitness;
     try {
       if (${busy}) {
-        const lstart = spawnSync('/bin/ps', ['-o', 'lstart=', '-p', String(stale.pid)], { encoding: 'utf8', env: { LC_ALL: 'C' } }).stdout.trim().replace(/\\s+/gu, ' ');
+        const owner = processCensus()?.get(stale.pid);
+        assert.ok(owner, 'the real hung worker must appear in the native UTC census');
+        assert.equal(owner.pid, stale.pid);
+        assert.ok(typeof owner.started === 'string' && owner.started.trim(), 'native owner start must be nonempty');
         mkdirSync(join(root, 'jobs', 'live-job'));
-        writeFileSync(join(root, 'jobs', 'live-job', 'worker-owner.json'), JSON.stringify({ pid: stale.pid, started: lstart }));
+        const ownerFile = join(root, 'jobs', 'live-job', 'worker-owner.json');
+        writeFileSync(ownerFile, JSON.stringify({ pid: owner.pid, started: owner.started }));
+        const observed = processCensus()?.get(stale.pid);
+        assert.ok(observed, 'the recorded owner must still be a live native census row');
+        ownerWitness = { recorded: JSON.parse(readFileSync(ownerFile, 'utf8')), observed: { pid: observed.pid, started: observed.started } };
+        assert.deepEqual(ownerWitness.recorded, ownerWitness.observed, 'the job owner must name this current worker before recovery');
       }
       recordRunnerFailure(db, runner.host, 'worker-unresponsive', { recovery: identity });
       const recovered = await recoverUnavailableRunners(db, [runner], { now: Date.now() + 2000, probe: probeRunnerHealth,
@@ -53,7 +65,7 @@ function observe(t, busy) {
       await new Promise(resolve => setTimeout(resolve, 1200));
       const held = db.prepare('SELECT * FROM runner_unavailable').get();
       const events = db.prepare('SELECT kind,detail FROM runner_recovery_event ORDER BY rowid').all();
-      console.log(JSON.stringify({ recovered, pid: stale.pid, alive: stale.exitCode === null && stale.signalCode === null,
+      console.log(JSON.stringify({ recovered, pid: stale.pid, ownerWitness, alive: stale.exitCode === null && stale.signalCode === null,
         held: held && { ...held, failure: JSON.parse(held.failure) },
         events: events.map(event => ({ kind: event.kind, detail: JSON.parse(event.detail) })) }));
     } finally {
@@ -82,7 +94,10 @@ test('an idle unresponsive worker is restarted by the next recovery and the runn
 
 test('a worker that owns a running job is never restarted and the hold names its pid [C7]', t => {
   const actual = observe(t, true);
-  assert.equal(actual.recovered, false);
+  assert.deepEqual(actual.ownerWitness.recorded, actual.ownerWitness.observed);
+  assert.equal(actual.ownerWitness.observed.pid, actual.pid);
+  assert.ok(actual.ownerWitness.observed.started);
+  assert.equal(actual.recovered, false, JSON.stringify(actual));
   assert.equal(actual.alive, true, 'the busy worker was left running');
   assert.equal(actual.held.detail, 'WORKER_UNRESPONSIVE');
   assert.match(actual.held.failure.latestProbe.reason, new RegExp('pid ' + actual.pid + '(?:\\D|$)', 'u'));

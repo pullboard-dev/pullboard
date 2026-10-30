@@ -62,6 +62,7 @@ function milestoneItem(entry, p) {
   return {
     label: local ? '#' + entry.id : String(entry.id),
     position: entry.position,
+    after: item?.blockedBy || [],
     title: item ? item.title : read ? entry.title : '',
     root,
     titles: renderIndex(source).titles,
@@ -129,11 +130,13 @@ const milestoneRowHtml = (${milestoneRowHtml.toString()});
 const readMilestoneModel = (${readMilestoneModel.toString()});
 const roadmapRemainingCount = (${roadmapRemainingCount.toString()});
 const roadmapCardsHtml = (${roadmapCardsHtml.toString()});
-/** Prepare rich title markup and the native state chip from the current page only. */
+/** Prepare rich title markup and linked prerequisite notes from the current page only. */
 function milestonePresentation(row, titles) {
+  let afterHtml = '';
+  for (const id of row.after || []) afterHtml += '<span class="roadmap-after"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg>after <a class="ref" href="' + itemAddress(id, row.root) + '" data-go="item:' + id + '">#' + id + '</a></span>';
   return { root: view.root, open: view.roadmapOpen.get(JSON.stringify([view.root, 'i:' + row.label])) === true,
     titleHtml: row.title ? inline(String(row.title).replace(/\\s+/g, ' '), row.titles || titles, 'in-place', row.root) : undefined,
-    stateChipHtml: row.state ? chip(row.state) : '' };
+    afterHtml };
 }
 /** Preserve the existing browser helper while delegating its actual HTML to the pure renderer. */
 function milestoneRow(row, titles, hidden = false) { return milestoneRowHtml(row, { ...milestonePresentation(row, titles), hidden }); }

@@ -1,5 +1,4 @@
 import { receiptBlockingGreen } from './quarantine-verdict.js';
-import { validateQuarantineVerdict } from './quarantine.js';
 /** A late worker cannot reopen a new submission, bar, patch set or review episode [C7,V4,H16]. */
 import { Refused } from './refused.js';
 
@@ -22,7 +21,7 @@ export function sourceAdvanceReturnProblem(board, item, request) {
     const receipt = board.runtimePorts.sourceAdvanceReceipts.receiptFields(proof.phases[0]?.receipt);
     const held = receipt?.blockingVerdict?.quarantines ?? [];
     const failures = receipt?.failures?.filter(failure => !held.some(row => row.file === failure.file && row.name === failure.name)) ?? [];
-    try { if (receipt) validateQuarantineVerdict(board, receipt); }
+    try { if (receipt) board.nativePorts.quarantine.validateQuarantineVerdict(board, receipt); }
     catch { return new Refused('SOURCE_ADVANCE_PROOF', 'the measured red needs current quarantine event references'); }
     if (receipt?.version === 2 && receipt.kind === 'submit' && receipt.head === proof.head && receipt.tree === proof.tree && receipt.main === proof.trunk
       && receipt.proof.item === item.item_id && receipt.proof.seat === 'coordinator' && receipt.proof.frozenDigest === proof.bar

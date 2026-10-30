@@ -47,7 +47,7 @@ function inspect(box) {
   return requireSubmitCells(box.root, box.main, git(box.root, 'rev-parse', 'HEAD').trim(),
     { item_frozen: JSON.stringify({ criterion: 'Add a valid pureFrontDoor without changing accepted identity.' }) },
     { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
-      cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
+      readCutItems: () => [], cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
 }
 
 test('submit accepts the first valid canonical pure front door [C7,D3,CD64]', async t => {
