@@ -3,6 +3,7 @@ import {
   boardWriteSnapshot,
   requireBoardWriteSnapshot,
 } from './board-write-preparation.js';
+import { checkedSubmitOutcome } from './submit-outcome.js';
 import { submitAdmission as checkedSubmitAdmission } from '../packages/state/src/core/submit-admission.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from './automatic-dispatch-engine.js';
 import {
@@ -40,8 +41,9 @@ import {
 } from './board-event-log.js';
 
 /** Build the original claim guards once; only a successful preflight captures source bytes. */
-function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, adoptCorrection = false }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
+function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
   const admission = checkedSubmitAdmission(board, id, agentId, submitAdmission);
+  const outcome = checkedSubmitOutcome(board, id, agentId, submitOutcome, admission);
   if (adoptCorrection && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTOMATIC_DISPATCH_ENGINE) {
     throw new Refused('ENGINE_VERSION', `automatic correction adoption requires engine ${AUTOMATIC_DISPATCH_ENGINE}; upgrade Pullboard`);
   }
@@ -134,7 +136,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       item_lease_until: leaseUntil,
     }),
   };
-  return { how, leaseUntil, isRenewal, admission, adopts, frozen: () => frozen };
+  return { how, leaseUntil, isRenewal, admission, outcome, adopts, frozen: () => frozen };
 }
 
 const PREPARED_CLAIMS = new WeakMap();
@@ -189,7 +191,7 @@ export function claim(board, id, options, ports) {
   const prepared = prepareClaim(board, id, options, ports);
   const { snapshot, plan } = PREPARED_CLAIMS.get(prepared);
   const { agentId, head = null, reviewSkipped = null } = prepared;
-  const { leaseUntil, isRenewal, admission, adopts } = plan;
+  const { leaseUntil, isRenewal, admission, outcome, adopts } = plan;
   return atomic(board, () => {
     requireBoardWriteSnapshot(board, snapshot, 'claim');
     const item = moveItem(board, id, 'claim', plan.how);
@@ -203,6 +205,7 @@ export function claim(board, id, options, ports) {
     }
     logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(adopts ? { adoptedCorrection: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
       ...(admission ? { submitAdmission: admission } : {}),
+      ...(outcome ? { submitOutcome: outcome } : {}),
       ...((board.executionEngineVersion ?? ENGINE_VERSION) >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}) });
     return { leaseUntil, digest, renewed };
   });
