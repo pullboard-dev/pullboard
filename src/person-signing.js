@@ -16,10 +16,8 @@ import {
 import { createHash } from 'node:crypto';
 import { Refused } from './refused.js';
 import { validatePersonRequest } from './person-request.js';
-import {
-  personRequestRecords,
-  requestIntentDigest,
-} from './relay-requests.js';
+import { personRequestRecords } from './person-request.js';
+import { requestIntentDigest } from './person-request-digest.js';
 import { validPresence } from './person-presence.js';
 import { presenceSigned } from './person-presence.js';
 import {

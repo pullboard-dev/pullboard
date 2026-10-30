@@ -52,6 +52,8 @@ export function createRelayBrowserHandler({ authenticate }) {
     ['/relay/browser-approval-card.js', ['text/javascript', readFileSync(new URL('./browser-approval-card.js', import.meta.url), 'utf8')]],
     ['/relay/browser-passkeys.js', ['text/javascript', readFileSync(new URL('./browser-passkeys.js', import.meta.url), 'utf8')]],
     ['/relay/client.js', ['text/javascript', readFileSync(new URL('./browser-client.js', import.meta.url), 'utf8')]],
+    ['/relay/person-pairing-limit.js', ['text/javascript', readFileSync(new URL('../src/person-pairing-limit.js', import.meta.url), 'utf8')]],
+    ['/relay/person-enrollment.js', ['text/javascript', readFileSync(new URL('../src/person-enrollment.js', import.meta.url), 'utf8')]],
     ['/relay/relay-limits.js', ['text/javascript', readFileSync(new URL('../src/relay-limits.js', import.meta.url), 'utf8')]],
     ['/relay/sign-in.js', ['text/javascript', SIGN_IN_TRANSPORT]],
     ['/relay/browser-notice.js', ['text/javascript', readFileSync(new URL('./browser-notice.js', import.meta.url), 'utf8')]],

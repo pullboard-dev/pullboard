@@ -2,6 +2,12 @@
 import { board as store } from './native-board.js';
 import { Refused } from './refused.js';
 import {
+  DEFAULT_RELAY,
+  relayStatus,
+  syncRelay,
+} from './relay.js';
+import { executePersonRequests } from './relay-request-execution.js';
+import {
   agentDisplayName,
   context,
   withOpenedBoard,
@@ -30,6 +36,13 @@ export {
   uncommittedSetup,
   span,
 };
+
+/** Build a CLI context with the signed-person capabilities of its application layer. */
+export function personCommandContext(io, { main, ordered } = {}) {
+  const ctx = context(io);
+  ctx.personPorts = { DEFAULT_RELAY, relayStatus, syncRelay, executePersonRequests, main, ordered };
+  return ctx;
+}
 
 /**
  * Open the board, run `work`, and always close it.

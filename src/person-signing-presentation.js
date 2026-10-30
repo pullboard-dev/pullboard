@@ -6,7 +6,7 @@ import * as store from './board.js';
 import { loadSpec } from './spec.js';
 import { loadDoctrine } from './doctrine.js';
 import { shownDecisionRows } from './row-decisions.js';
-import { personRequestRecords } from './relay-requests.js';
+import { personRequestRecords } from './person-request.js';
 import {
   barDigest,
   barReadiness,
