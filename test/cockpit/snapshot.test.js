@@ -533,7 +533,7 @@ const replayControlsStayPut = (wideFonts = false, classicScrollbar = false) => a
           sheet.insertRule('.snapshot-controls, .snapshot-controls * { letter-spacing: .12em !important; }', sheet.cssRules.length);
         })()`);
         const spacing = JSON.parse(await chrome.stable(`JSON.stringify(
-          ['#snapshot-controls > span', '#replay-play', '#replay-pause', '#replay-speed', '#replay-progress']
+          ['#snapshot-controls', '#replay-play', '#replay-pause', '#replay-speed', '#replay-progress']
             .map(selector => getComputedStyle(document.querySelector(selector)).letterSpacing)
         )`));
         assert.ok(spacing.every(value => Number.parseFloat(value) > 0),
@@ -546,7 +546,7 @@ const replayControlsStayPut = (wideFonts = false, classicScrollbar = false) => a
         speed.dispatchEvent(new Event('change', { bubbles: true }));
       })()`);
       const atStart = await readControlBoxes(width, 'start');
-      assert.equal(await chrome.stable("document.querySelector('#replay-play').textContent"), 'Play',
+      assert.equal(await chrome.stable("document.querySelector('#replay-play').getAttribute('aria-label')"), 'Play',
         `${width}: the start-state label is the short Play label`);
       await press(chrome, "document.querySelector('#replay-play')");
       assert.equal(await chrome.stable('snapshotReplay.playing'), true, `${width}: native Play starts replay`);
@@ -563,7 +563,7 @@ const replayControlsStayPut = (wideFonts = false, classicScrollbar = false) => a
       assert.equal(await chrome.stable('snapshotReplay.index'), total, `${width}: final Play renders the end state`);
       assert.equal(await chrome.stable('snapshotReplay.playing'), false, `${width}: replay stops at its final event`);
       const atEnd = await readControlBoxes(width, 'end');
-      assert.equal(await chrome.stable("document.querySelector('#replay-play').textContent"), 'Play from first event',
+      assert.equal(await chrome.stable("document.querySelector('#replay-play').getAttribute('aria-label')"), 'Play from first event',
         `${width}: the end-state label exercises the longer Play text`);
       for (const [state, boxes] of Object.entries({ whilePlaying, whilePaused, atEnd })) {
         assert.deepEqual(boxes, atStart, `${width}: every interactive replay control keeps its box unchanged ${state}`);
