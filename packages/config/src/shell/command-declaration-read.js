@@ -3,10 +3,11 @@ import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** Read independent data declarations without loading command implementations. */
-export function commandDocs(root = fileURLToPath(new URL('../../../../', import.meta.url))) {
+export function commandDocs(root = dirname(fileURLToPath(new URL('../../../../package.json', import.meta.url)))) {
   const directory = join(root, 'src', 'command-docs');
   const names = new Set();
   return readdirSync(directory).filter(file => file.endsWith('.json')).sort().map(file => {
