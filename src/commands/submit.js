@@ -397,19 +397,31 @@ export async function submitHere(ctx, id, infra) {
   // Only fully accounted exact-main failures or live person waivers pass a red proof; the item check stays mandatory [B3].
   const waived = !gate.isGreen && checkAccepted ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, root), { quarantineWaivers })) : null;
   let proofKnown;
+  let proofMatched = null;
+  let proofUnowned = [];
   const failures = !gate.isGreen && checkAccepted && !waived ? failureSignatures(gate, root) : null;
   if (failures && mainFailureBase && !companion) {
     try {
       comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, onMeasuredReceipt, runnerAdmission });
       const matched = matchingMainFailures(failures, comparison, mainFailureBase);
-      proofKnown = matched && withBoard(ctx, board => linkKnownMainReworks(matched, store.listItems(board, { all: true }), id));
+      const rows = () => withBoard(ctx, board => store.listItems(board, { all: true }));
+      // Affected cases are judged like the frozen check (#1917, #1986): owned reds link to their repair, unowned ones are recorded for the coordinator.
+      const missing = matched ? unownedMainReds(matched, rows(), id) : null;
+      if (missing) {
+        proofMatched = matched;
+        proofUnowned = missing;
+        const owned = matched.failures.filter(row => !missing.some(red => red.file === row.file));
+        proofKnown = owned.length ? linkKnownMainReworks({ main: matched.main, failures: owned }, rows(), id) : null;
+      }
     } catch { /* Unavailable exact-main proof never authorizes a red submission. */ }
   }
+  const unowned = [...criterionUnowned, ...proofUnowned];
+  const unownedMain = (criterionMatched ?? proofMatched)?.main;
   const redCriterion = criterionRed && !criterionMatched;
   const criterionNames = criterionKnown ? criterionKnown.failures : [];
   const knownMainFailures = criterionKnown && proofKnown ? { main: proofKnown.main, failures: [...criterionKnown.failures, ...proofKnown.failures] }
     : criterionKnown ?? proofKnown;
-  if (redCriterion || !gate.isGreen && !waived && !proofKnown) {
+  if (redCriterion || !gate.isGreen && !waived && !proofMatched) {
     const accountingNote = checkAccepted && !failures ? '\nknown-main acceptance unavailable: the proof has no complete named failure diagnostics' : '';
     const message = `the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${displayedReport}${accountingNote}${criterionProblem}`;
     // No submission can follow this verdict. Read-only main comparisons must not retain the seat's write lease.
@@ -451,6 +463,7 @@ export async function submitHere(ctx, id, infra) {
     if (waived) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof at ${commit.slice(0, 12)} was red and is recorded as waived, not green; every failure is covered by a live person waiver:\n${waivedLines.join('\n')}` }]);
     if (criterionNames.length) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `frozen check red at ${commit.slice(0, 12)} only in cases that fail identically on main at ${criterionMatched.main}: ${criterionNames.map(row => `${row.file} (${row.name}), open repair #${row.item}`).join('; ')}. Reviewers: these known main reds are listed, not blocking; any case green on main would have refused.` }]);
     if (criterionUnowned.length) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `unowned known main red: the frozen check fails identically on main at ${criterionMatched.main} in ${criterionUnowned.map(red => `${red.file} (${red.names.join('; ')})`).join('; ')}, and no open Main red item names the file; a decision was shouted to the coordinator.` }]);
+    if (proofUnowned.length) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `unowned known main red: the submission proof at ${commit.slice(0, 12)} fails identically on main at ${proofMatched.main} in ${proofUnowned.map(red => `${red.file} (${red.names.join('; ')})`).join('; ')}, and no open Main red item names the file; a decision was shouted to the coordinator. The item check passed; no new failure is accepted.` }]);
     if (knownMainFailures) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof at ${commit.slice(0, 12)} remains red; known main failures at ${knownMainFailures.main}: ${knownMainFailures.failures.map(row => `${row.file} (${row.name}), open repair #${row.item}`).join('; ')}. The item check passed; no new or unaccounted failure is accepted.` }]);
     const submittedMove = await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit: submitted, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...(infraRecord ? { infra: infraRecord } : {}),
       gateGreen: gate.isGreen && !waived && !criterionMatched,
@@ -464,16 +477,17 @@ export async function submitHere(ctx, id, infra) {
     // One fact records the merge and the evidence that the main move touched nothing this proof depends on.
     if (trunkMove) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: trunkMoveFact(trunkMove) }]);
     // One decision shout (a lane question, routed to the lead or coordinator because a builder cannot send kind decision) asks the coordinator to own the repair; it is sent only once the submission is recorded.
-    if (criterionUnowned.length) await ordered(ctx, board, 'shout', [{ from: me.id, to: COORDINATOR, lanes: laneNames(ctx.config), decision: true,
-      text: `#${id}: known main red with no open Main red item: ${criterionUnowned.map(red => `${red.file} (${red.names.join('; ')})`).join('; ')} fails identically on main at ${criterionMatched.main.slice(0, 12)}; file or assign its repair.` }]);
+    if (unowned.length) await ordered(ctx, board, 'shout', [{ from: me.id, to: COORDINATOR, lanes: laneNames(ctx.config), decision: true,
+      text: `#${id}: known main red with no open Main red item: ${unowned.map(red => `${red.file} (${red.names.join('; ')})`).join('; ')} fails identically on main at ${unownedMain.slice(0, 12)}; file or assign its repair.` }]);
     return submittedMove;
   });
   // A large submit still goes through; the note only suggests a chain of smaller items (#1162).
   const sizeNote = oversizeNote(measuredLines, acceptedMain.config.itemSizeBudget);
   if (sizeNote) ctx.io.say(`note: ${sizeNote}`);
   for (const reminder of submitReferenceReminders(root, held, commit)) ctx.io.err(reminder);
-  const report = knownMainFailures
-    ? `submission proof red with ${knownMainFailures.failures.length} known main failure(s) at ${knownMainFailures.main}; ${criterionMatched ? 'item check red only in known main cases' : 'item check green'}; no new failures accepted. ${displayedReport}`
+  const unownedNames = unowned.flatMap(red => red.names.map(name => `${red.file} (${name})`));
+  const report = knownMainFailures || unowned.length
+    ? `submission proof red with ${(knownMainFailures?.failures.length ?? 0) + unownedNames.length} known main failure(s) at ${unownedMain ?? knownMainFailures.main}; ${criterionMatched ? 'item check red only in known main cases' : 'item check green'}; no new failures accepted.${unownedNames.length ? ` Unowned, shouted to the coordinator: ${unownedNames.join('; ')}.` : ''} ${displayedReport}`
     : waived
     ? `submission proof waived, not green: ${waived.length} failure(s), each covered by a live person waiver. ${displayedReport}`
     : displayedReport;
@@ -483,6 +497,7 @@ export async function submitHere(ctx, id, infra) {
     ...(companion ? { companion } : {}),
     ...(knownMainFailures ? { knownMainFailures } : {}),
     ...(knownMainFailures ? { knownMainReworks: knownMainFailures.failures.map(({ file, name, item }) => ({ file, name, item })) } : {}),
+    ...(unowned.length ? { knownMainUnowned: unowned.flatMap(red => red.names.map(name => ({ file: red.file, name }))) } : {}),
     ...(waived ? { waived: waived.map(({ file, name, waiver }) => ({ file, name, waiver: waiver.id, reason: waiver.reason, until: waiver.until })) } : {}) }, doctrine);
 }
 
