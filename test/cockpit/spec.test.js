@@ -608,7 +608,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       assert.equal(await chrome.stable("document.querySelector('#spec-chips [data-rows=\"spec:decide\"] b').textContent"), '30', `${width}: Needs your decision excludes the decided row`);
       if (width === 1280) assert.ok(await chrome.stable(`(() => {
         const row=document.querySelector('#spec-list [data-row="spec:G1"]');
-        const chip=row.querySelector(':scope > .chip').getBoundingClientRect();
+        const chip=row.querySelector('.spec-row-side .chip').getBoundingClientRect();
         const words=[...row.querySelector('.srow-text').childNodes].find(n=>n.nodeType===3&&n.textContent.trim());
         const range=document.createRange(); range.selectNodeContents(words); const text=range.getClientRects()[0];
         return chip.right <= text.left || chip.bottom <= text.top || chip.top >= text.bottom;
@@ -668,7 +668,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       await chrome.click(followUp);
       await chrome.waitFor("!document.querySelector('#spec-approve-dialog').hidden");
       await click(chrome, '#spec-approve-submit');
-      await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:K1\"]').innerText.includes('approved, pending apply') && document.querySelector('#spec-list [data-row=\"spec:K2\"]').innerText.includes('approved, pending apply')");
+      await chrome.waitFor("['K1','K2'].every(id => data.project.spec.find(row => row.id === id)?.stage === 'approved, pending apply' && document.querySelector('#spec-list [data-row=\"spec:' + id + '\"] .spec-row-side .chip')?.textContent === 'must')");
       state = await boardOf(view, demo.repo);
       const decisions = state.events.filter((event) => event.event_kind === 'row_decision');
       assert.equal(decisions.length, 4, `${width}: approve, decline and two section rows produce four events`);
@@ -681,11 +681,11 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       assert.equal(state.spec.find((row) => row.id === 'G3')?.decision, undefined, `${width}: other section rows remain undecided`);
       if (width === 1280) assert.ok(await chrome.stable(`['G1','G2','K1','K2'].every(id => {
         const row=document.querySelector('#spec-list [data-row="spec:'+id+'"]');
-        const chip=row.querySelector(':scope > .chip').getBoundingClientRect();
+        const chip=row.querySelector('.spec-row-side .chip').getBoundingClientRect();
         const words=[...row.querySelector('.srow-text').childNodes].find(n=>n.nodeType===3&&n.textContent.trim());
         const range=document.createRange(); range.selectNodeContents(words); const text=range.getClientRects()[0];
         return chip.right <= text.left || chip.bottom <= text.top || chip.top >= text.bottom;
-      })`), '1280: every pending decision stage has room beside its row text');
+      })`), '1280: the tier of every pending decision has room beside its row text');
       await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]')");
       await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:G3\"]') && !document.querySelector('#spec-list [data-row=\"spec:G1\"]') && !document.querySelector('#spec-list [data-row=\"spec:G2\"]') && !document.querySelector('#spec-list [data-row=\"spec:K1\"]') && !document.querySelector('#spec-list [data-row=\"spec:K2\"]')");
       assert.ok(await chrome.stable("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]').innerText.includes('27')"), `${width}: Needs your decision excludes all four decided rows`);
@@ -1251,8 +1251,9 @@ test('doctrine and spec rows share the items row [N26]', { timeout: 300_000 }, a
         assert.equal(pb2.titleStyle.overflow, 'ellipsis');
         assert.equal(pb2.titleStyle.lines, 1);
         assert.ok(pb2.titleBox.width > 0, `${width}px ${theme}: the full-width detail rule still has a visible title line`);
-        const sectionCounts = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#doctrine-list .spec-section-head')].map(e=>({name:e.querySelector('h4')?.innerText??'', count:e.querySelector('.section-count')?.textContent.trim()??null})))`));
-        assert.ok(sectionCounts.some(e => e.count === String(standard.rows.length)), `${width}px ${theme}: the standard Rules header counts all merged standard ids`);
+        const sectionCounts = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#doctrine-list .spec-section-head')].map(e=>({name:e.querySelector('h4')?.innerText??'', count:e.querySelector('.section-count')?.textContent.trim()??null, review:e.querySelector('.doctrine-review-count')?.textContent??null})))`));
+        assert.ok(sectionCounts.some(e => e.name.startsWith('PB · Pullboard rules') && e.count === String(standard.rows.length - 2) && e.review === '1 to review'), `${width}px ${theme}: the inherited section excludes the two repository overrides and counts its one awaiting review`);
+        assert.equal(sectionCounts.reduce((n, e) => n + Number(e.count), 0), standard.rows.length + 2, `${width}px ${theme}: separated source sections retain every merged rule exactly once`);
         assert.ok(sectionCounts.some(e => e.count === '2'), `${width}px ${theme}: the repo-only section keeps its own row count`);
         const citedRule = await rowState('#doctrine-list [data-row="doctrine:G1"]');
         assert.equal(citedRule.count, '1 item', `${width}px ${theme}: Doctrine counts its actual citing item on line one`);
