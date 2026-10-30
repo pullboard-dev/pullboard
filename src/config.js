@@ -46,6 +46,7 @@ export function defaults() {
     practice: DOCTRINE_FILE,
     gate: '',
     submit: { requireInfraNote: false, autoFileMainReds: false },
+    toolBuild: { enabled: false, refreshMs: 3_600_000 },
     testEconomics: { costOfEscape: 3600, costOfWaiting: 1, costOfFalseRed: 300 },
     itemSizeBudget: 100,
     submitInvariants: [],
@@ -190,6 +191,11 @@ function laneProblems(name, lane) {
  */
 export function configProblems(config) {
   const problems = [];
+  if (!config.toolBuild || typeof config.toolBuild.enabled !== 'boolean'
+    || !Number.isSafeInteger(config.toolBuild.refreshMs) || config.toolBuild.refreshMs < 1
+    || Object.keys(config.toolBuild).some(key => !['enabled', 'refreshMs'].includes(key))) {
+    problems.push('"toolBuild" has enabled true|false and positive integer refreshMs (default hourly)');
+  }
   const costs = config.testEconomics;
   if (!costs || typeof costs !== 'object' || Array.isArray(costs)
     || Object.keys(costs).some(key => !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].includes(key))

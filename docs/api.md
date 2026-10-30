@@ -230,6 +230,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `heartbeat` | `version:number`, `seat:string\|null`, `presence:string`, `heartbeatAt:string\|null` |
 | `stats moves` | `version:number`, `moves:object` |
 | `stats pipeline` | `version:number`, `pipeline:object` |
+| `tool-build` | `version:number`, `build:object\|null` |
 <!-- api-command-shapes:end -->
 
 `spec draft "<rule>" --doctrine --source "chat, 2026-10-16"` proposes a sourced doctrine row and returns a qualified `id`, such as `doctrine:DR1`, for the existing person approval commands. Resume adds `doctrineNotes`, an array of newly seen approved rules with `id`, `text` and `gate`; each checkout consumes its own notices. Drafts and pending applications are excluded. The shared approved doctrine also supplies frozen citations and stale-item comparisons in older checkouts.

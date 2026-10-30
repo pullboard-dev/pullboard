@@ -235,7 +235,10 @@
   ["src/cli-hook-work.js","apps/cli/src/shell/cli-hook-work.js","rule"],
   ["src/cli/seat-ports.js","apps/cli/src/shell/cli/seat-ports.js","rule"],
   ["src/cli/project-ports.js","apps/cli/src/shell/cli/project-ports.js","rule"],
-  ["src/commands/ship.js","apps/cli/src/shell/commands/ship.js","rule"]
+  ["src/commands/ship.js","apps/cli/src/shell/commands/ship.js","rule"],
+  ["src/pinned-tool-build.js","apps/cli/src/shell/pinned-tool-build.js","rule"],
+  ["src/pinned-tool-publish.js","apps/cli/src/shell/pinned-tool-publish.js","rule"],
+  ["src/commands/tool-build.js","apps/cli/src/shell/commands/tool-build.js","rule"]
  ],
  "reexports": [
   "src/cli-context.js",
