@@ -79,6 +79,8 @@ test('[H16] returned work waits for its builder until gone, then prefers live sa
   const liveFamily = route(f.board, id, f.peer, f.windows);
   assert.equal(liveFamily.mode, 'family');
   assert.deepEqual(liveFamily.allowed, [f.peer]);
+  assert.throws(() => claim(f.board, id, f.other, sealReworkRoutingPolicy(f.windows)), { code: 'REOPEN_HELD_FOR_BUILDER' },
+    'the native writer refuses a different family while a same-family seat is live');
   assert.equal(store.nextFor(f.board, { agentId: f.peer, lane: 'core', reworkRoutingPolicy: f.windows }).item.item_id, id);
   assert.equal(store.nextFor(f.board, { agentId: f.other, lane: 'core', reworkRoutingPolicy: f.windows }).item, null,
     'a live same-family seat excludes other families from next');
