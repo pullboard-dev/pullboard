@@ -138,6 +138,10 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "Actual native summary/history HTTP shape, complete prefix, claim/review lease and merge receipt binding"
   },
+  "test/cockpit/dashboard-walk-1029.test.js": {
+    "kind": "journey",
+    "reason": "A private native board with live review and held work is rendered in real Chrome at desktop and phone widths; Dashboard geometry, time labels, duration units, group labels, reviewer status and held-key alignment are measured."
+  },
   "test/cockpit/pipeline-panel.test.js": {
     "kind": "journey",
     "reason": "A private landed native item is rendered in real Chrome and its stage times, retry causes, totals and unmeasured gaps are compared with the exact API projection."
@@ -165,6 +169,10 @@ export const VIEW_TEST_ROLES = Object.freeze({
   "test/cockpit/dashboard.test.js": {
     "kind": "journey",
     "reason": "dashboard: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
+  },
+  "test/cockpit/release-header.test.js": {
+    "kind": "journey",
+    "reason": "Real native landings and a seeded release are compared in authenticated Chrome on Dashboard and Roadmap at desktop and phone widths."
   },
   "test/cockpit/demo.test.js": {
     "kind": "journey",

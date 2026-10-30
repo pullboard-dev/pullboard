@@ -149,7 +149,7 @@ test('historical reviewers keep earliest-milestone submissions first [B16,H16]',
   const first = store.reserveNextReview(board, { agentId: reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' });
   assert.equal(first.item.item_id, earliestMid, 'roadmap position precedes the stronger later release');
 
-  store.release(board, earliestMid, reviewer, 'preserve the existing review cooldown');
+  store.release(board, earliestMid, reviewer, 'preserve the existing review cooldown', 'ROUTED_ELSEWHERE');
   const second = store.reserveNextReview(board, { agentId: reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' });
   assert.equal(second.item.item_id, laterStrong, 'the existing cooldown still skips the released review');
 

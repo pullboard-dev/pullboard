@@ -55,7 +55,7 @@ test('Strict uses current material authors, excluding earlier holders and remove
   f.claim('core-2');
   f.attach('core-2', 'removed');
   store.removeItemPatch(f.board, f.id, { agentId: 'coordinator', key: 'removed' });
-  store.release(f.board, f.id, 'core-2', 'Private fixture hands off without source adoption');
+  store.release(f.board, f.id, 'core-2', 'Private fixture hands off without source adoption', 'ROUTED_ELSEWHERE');
   f.claim('core-1');
   f.attach('core-3', 'current');
   f.submit();

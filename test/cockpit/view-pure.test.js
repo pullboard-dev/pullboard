@@ -326,7 +326,8 @@ test('Roadmap headers display supplied counts, estimates and linked needs withou
   const summary = { total: 10, left: 8, landed: 2, landing: 1, review: 3, building: 1, waiting: 2, held: 1,
     estimate: { low: 2, high: 4 }, pace: { last6h: 2, last2h: 1 }, window: '6h', needsYou: [7, 'other#8'] };
   const milestone = { name: '0.9 <release>', target: '2026-10-29T12:00:00Z', pastTarget: true, summary };
-  const page = { root: '/local', held: milestone.name, targetLabels: new Map(), addresses: new Map() };
+  const page = { root: '/local', held: milestone.name, targetLabels: new Map(), addresses: new Map(),
+    now: Date.parse('2026-10-28T12:00:00Z'), locale: 'en-US', timeZone: 'UTC' };
   const read = { milestone, rows: [{ label: '#7', title: 'Local <need>', open: { id: 7, root: '/local' } },
     { label: 'other#8', title: 'Remote & need', open: { id: 8, root: '/other' } }] };
   page.targetLabels.set(read, 'display:' + milestone.target);
@@ -335,12 +336,11 @@ test('Roadmap headers display supplied counts, estimates and linked needs withou
   const result = headers(read);
   assert.equal(headers(read), result, 'all surfaces reuse one header for the same immutable read');
   assert.equal(headers(null), null);
-  assert.match(result.count, /8 remaining/u);
+  assert.match(result.count, /8 to go/u);
+  assert.match(result.top.replace(/<[^>]*>/gu, ''), /0\.3 items an hour · 2 landed in the last 6 h, 1 in the last 2 h · done in about 3 hours, Wednesday afternoon/u);
   assert.match(result.detail, /viewBox="0 0 10 1"/u);
   assert.deepEqual([...result.detail.matchAll(/data-count="(\d+)"/gu)].map(match => Number(match[1])), [2, 1, 3, 1, 2, 1]);
   assert.match(result.detail, /aria-pressed="true" data-summary-state="held"/u);
-  assert.match(result.detail, /About <b>2<\/b> to <b>4<\/b> hours at today’s pace/u);
-  assert.match(result.detail, /<b>2<\/b> landed in the last 6 h, <b>1<\/b> in the last 2 h/u);
   assert.match(result.detail, /display:2026-10-29T12:00:00Z/u);
   assert.match(result.detail, /past target/u);
   assert.match(result.detail, /href="\/other\/item\/8" data-go="item:8" data-board="\/other"/u);
@@ -354,8 +354,8 @@ test('Roadmap headers display supplied counts, estimates and linked needs withou
   assert.equal(roadmapSummary({ ...milestone, summary: { ...summary, left: 0 } }), null);
   assert.equal(roadmapSummary({ ...milestone, summary: { ...summary, held: -1 } }), null);
   const unknown = roadmapSummary({ ...milestone, summary: { ...summary, estimate: null, reason: 'few-landings' } });
-  assert.match(unknown.detail, /Too few landings yet to estimate/u);
-  assert.doesNotMatch(unknown.detail, /About 0/u);
+  assert.match(unknown.top, /too few landings yet to estimate/u);
+  assert.doesNotMatch(unknown.top, /done in about 0/u);
 });
 
 test('Roadmap item HTML retains blockers, provenance and escaped detail from explicit display inputs [N26,C7]', () => {

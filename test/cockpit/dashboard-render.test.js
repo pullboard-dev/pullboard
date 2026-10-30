@@ -24,16 +24,18 @@ test('Dashboard time and number labels depend on supplied locale and zone, not t
   const model = dashboardModel(input.project, input.events, { now: input.clockBase, complete: true });
   model.totals.allTime = 1234;
   const before = JSON.stringify(model);
-  const utc = dashboardHtml(model, { locale: 'en-GB', timeZone: 'UTC' });
-  const tokyo = dashboardHtml(model, { locale: 'en-GB', timeZone: 'Asia/Tokyo' });
-  assert.match(section(utc, 'Shipping now'), /Wednesday(?: at)? 14:00 – Wednesday(?: at)? 16:00/u);
-  assert.match(section(tokyo, 'Shipping now'), /Wednesday(?: at)? 23:00 – Thursday(?: at)? 01:00/u);
+  const utcProgress = roadmapSummary(model.milestone, { now: model.now, locale: 'en-GB', timeZone: 'UTC' })?.header ?? '';
+  const tokyoProgress = roadmapSummary(model.milestone, { now: model.now, locale: 'en-GB', timeZone: 'Asia/Tokyo' })?.header ?? '';
+  const utc = dashboardHtml(model, { locale: 'en-GB', timeZone: 'UTC', progress: utcProgress });
+  const tokyo = dashboardHtml(model, { locale: 'en-GB', timeZone: 'Asia/Tokyo', progress: tokyoProgress });
+  assert.match(section(utc, 'Shipping now'), /done in about 3 hours, Wednesday afternoon/u);
+  assert.match(section(tokyo, 'Shipping now'), /done in about 3 hours, Thursday overnight/u);
   assert.match(section(utc, 'Landed per hour'), /28\/10\/2026, 11:00:00 – 12:00:00/u);
   assert.match(section(tokyo, 'Landed per hour'), /28\/10\/2026, 20:00:00 – 21:00:00/u);
   assert.match(utc, /1,234 landed all time/u);
   assert.match(dashboardHtml(model, { locale: 'de-DE', timeZone: 'UTC' }), /1\.234 landed all time/u);
   assert.equal(dashboardHtml(model), dashboardHtml(model, { locale: 'en-US', timeZone: 'UTC' }), 'omitted preferences have deterministic defaults');
-  assert.equal(dashboardHtml(model, { locale: 'en-GB', timeZone: 'UTC' }), utc);
+  assert.equal(dashboardHtml(model, { locale: 'en-GB', timeZone: 'UTC', progress: utcProgress }), utc);
   assert.equal(JSON.stringify(model), before, 'formatting never changes its model');
 });
 
@@ -52,18 +54,17 @@ test('Dashboard renders release, charts, agents, landings and capped lists from 
 
     const now = clockBase + 61 * 60_000;
     const model = dashboardModel(input.project, input.events, { now, complete: true });
-    const progress = model.milestone ? roadmapSummary(model.milestone)?.detail ?? '' : '';
+    const progress = model.milestone ? roadmapSummary(model.milestone, { now: model.now, locale: 'en-US', timeZone: 'UTC' })?.header ?? '' : '';
     const html = dashboardHtml(model, { progress });
     const shipping = section(html, 'Shipping now');
     const summary = model.milestone.summary;
     assert.match(shipping, new RegExp(`${summary.left} to go`, 'u'));
     assert.match(shipping, new RegExp(`${summary.landed} of ${summary.total} landed`, 'u'));
     assert.match(shipping, new RegExp(`data-summary-segment="landed" data-count="${summary.landed}"`, 'u'));
-    assert.match(shipping, new RegExp(`${(model.pace.last2h / 2).toFixed(1)} <small>items an hour</small>`, 'u'));
-    assert.match(shipping, new RegExp(`${(model.pace.last6h / 6).toFixed(1)} <small>items an hour</small>`, 'u'));
-    assert.match(shipping, new RegExp(`${summary.estimate.low === summary.estimate.high
-      ? `${summary.estimate.low} h` : `${summary.estimate.low}–${summary.estimate.high} h`}`, 'u'));
-    assert.match(shipping, /\d{1,2}:\d{2}/u, 'the shared estimate includes a weekday time');
+    assert.match(shipping, new RegExp(`${(model.pace.last6h / 6).toFixed(1)} items an hour`, 'u'));
+    assert.match(shipping, new RegExp(`${model.pace.last6h} landed in the last 6 h, ${model.pace.last2h} in the last 2 h`, 'u'));
+    assert.match(shipping, /done in about 3 hours, Wednesday afternoon/u, 'the shared estimate includes a weekday part of day');
+    assert.doesNotMatch(shipping, /dash-stats|Right now|Done at this pace/u, 'the old pace boxes are removed');
     assert.match(shipping, /In review 6/u);
     assert.match(shipping, /<summary>Show 2 more<\/summary>/u, 'the in-flight review column expands beyond four rows');
 

@@ -91,7 +91,7 @@ test('[B29,B30,B31,H16] renewals keep the current note and a new claim starts a 
   const note = store.appendFact(board, id, { agentId: 'core-1', kind: 'bar-check', text: BUILDER_NOTE, factId: 'renew-note' });
   store.claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: 2 * HOUR, freeze: () => ({ text: '', digest: '' }) });
   assert.equal(barCheckState(board, store.getItem(board, id)).note.id, note.id);
-  store.release(board, id, 'core-1');
+  store.release(board, id, 'core-1', 'Return the fixture claim before checking the bar.', 'OTHER');
   claim(board, id);
   assert.equal(barCheckState(board, store.getItem(board, id)).note, null);
   assert.match(barCheckWarning(board, store.getItem(board, id)), /has no builder note/u);
