@@ -8,9 +8,45 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { IN_STATE, MACHINE, effectiveGuards } from '../../src/machine.js';
 import { cockpitPage } from '../../src/cockpit.js';
+import { openBoard } from '../../src/native-board.js';
+import { closeBoard, logEvent } from '../../src/board.js';
 import { machine, project, build, sendBack, fetchLive, startView, styleOf, element, storage, openPage, timelineRows, agentEntries, drawing, textBoxes, meet, accept, itemRow, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 
 const verifiedIsFinal = Boolean(MACHINE.states.find((state) => state.id === 'verified').final);
+
+test('activity shows each submit note and verdict with landing evidence [N26]', { timeout: 120_000 }, async () => {
+  const box = machine(), alpha = project(box, 'activity-evidence');
+  box.run(alpha.repo, 'add', 'web', 'Readable evidence', '--specs', 'G1', '--criterion', 'Evidence is readable.');
+  // @pullboard-board-file journey: native event records are served to the real Activity browser view.
+  const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    logEvent(board, 'web-1', 'submit', 1, { note: 'Builder note <safe>', gateGreen: true, submissionProof: { files: ['test/example.test.js'], reason: 'Focused evidence' } });
+    logEvent(board, 'reviewer', 'accept', 1, { note: 'Reviewer note <safe>' });
+    logEvent(board, 'coordinator', 'merged', 1, { commit: 'a'.repeat(40) });
+    logEvent(board, 'coordinator', 'main-moved', null, { sha: 'b'.repeat(40), items: [1] });
+  } finally { closeBoard(board); }
+  const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-activity-evidence-'));
+  let chrome;
+  try {
+    const executable = chromeExecutable();
+    assert.ok(executable, 'real Chrome is required');
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('!!data?.project');
+    await press(chrome, "document.querySelector('[data-tab=activity]')");
+    await chrome.waitFor("document.querySelector('#activity [data-activity-kind=main-moved]')");
+    for (const width of [1440, 375]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      const result = JSON.parse(await chrome.stable(`JSON.stringify({ text: document.querySelector('#activity').innerText, html: document.querySelector('#activity').innerHTML, overflow: document.documentElement.scrollWidth > innerWidth })`));
+      assert.match(result.text, /Builder note <safe>[\s\S]*Checks: test\/example\.test\.js[\s\S]*Focused evidence[\s\S]*Check passed/u);
+      assert.match(result.text, /Reviewer note <safe>/u);
+      assert.match(result.text, /Landed at a{12}/u);
+      assert.match(result.text, /Items: #1[\s\S]*Main at b{12}/u);
+      assert.doesNotMatch(result.html, /<safe>/u, 'event prose is escaped');
+      assert.equal(result.overflow, false, `${width}px stays within the viewport`);
+    }
+    assert.deepEqual(chrome.exceptions, []);
+  } finally { if (chrome) await closeSnapshotChrome(chrome); await view.stop(); rmSync(profile, { recursive: true, force: true }); }
+});
 
 
 /** Verify a verified stay ends at its next state move, while a quiet merge remains untimed. */
