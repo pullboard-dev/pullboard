@@ -16,11 +16,11 @@ import { routeOf } from '../src/seats.js';
 const COMMIT = 'a'.repeat(40);
 
 /** Build a clock-controlled private SQLite board for native rework-routing cases. */
-function fixture(t, { enabled = true } = {}) {
+function fixture(t, { enabled = true, builderFamily = 'OpenAI' } = {}) {
   let at = Date.parse('2026-01-01T00:00:00.000Z');
   const board = fixtureBoard(t, { clock: { now: () => new Date(at) } });
   store.register(board, { lane: 'coordinator', path: '/repo' });
-  const builder = store.register(board, { lane: 'core', path: '/builder', route: 'mid', family: 'OpenAI' });
+  const builder = store.register(board, { lane: 'core', path: '/builder', route: 'mid', family: builderFamily });
   const peer = store.register(board, { lane: 'core', path: '/peer', route: 'mid', family: 'OpenAI' });
   const other = store.register(board, { lane: 'core', path: '/other', route: 'mid', family: 'Claude' });
   if (enabled) store.setLineSetting(board, { agentId: 'coordinator', key: 'reworkSameFamily', value: true,
@@ -59,6 +59,11 @@ test('[H16] returned work waits for its builder until gone, then prefers live sa
   const f = fixture(t);
   const id = returned(f);
   assert.deepEqual(route(f.board, id, f.peer, f.windows).allowed, [f.builder], 'the recent builder event keeps first refusal');
+  const peerNext = store.nextFor(f.board, { agentId: f.peer, lane: 'core', reworkRoutingPolicy: f.windows });
+  assert.equal(peerNext.item, null, 'next does not offer the returned item to a different family while its builder is live');
+  assert.ok(peerNext.reasons.some(reason => reason.includes(`reserved for ${f.builder}`)));
+  assert.throws(() => claim(f.board, id, f.peer, sealReworkRoutingPolicy(f.windows)), { code: 'REOPEN_HELD_FOR_BUILDER' },
+    'the native writer rechecks the live builder instead of trusting next');
 
   f.advance(f.windows.takeoverMs + 1);
   assert.deepEqual(route(f.board, id, f.peer, f.windows).allowed, [f.builder], 'an idle builder is retained until the shared gone grace expires');
@@ -72,11 +77,17 @@ test('[H16] returned work waits for its builder until gone, then prefers live sa
   const liveFamily = route(f.board, id, f.peer, f.windows);
   assert.equal(liveFamily.mode, 'family');
   assert.deepEqual(liveFamily.allowed, [f.peer]);
+  assert.equal(store.nextFor(f.board, { agentId: f.peer, lane: 'core', reworkRoutingPolicy: f.windows }).item.item_id, id);
+  assert.equal(store.nextFor(f.board, { agentId: f.other, lane: 'core', reworkRoutingPolicy: f.windows }).item, null,
+    'a live same-family seat excludes other families from next');
 
   store.release(f.board, unrelated, f.peer, 'finish the presence fixture');
+  store.holdItem(f.board, unrelated, { agentId: 'coordinator', reason: 'Keep the presence fixture out of ordinary next.' });
   f.advance(f.windows.graceMs);
   const fallback = route(f.board, id, f.other, f.windows);
   assert.equal(fallback.mode, 'fallback', 'no same-family work event is still live');
+  assert.equal(store.nextFor(f.board, { agentId: f.other, lane: 'core', reworkRoutingPolicy: f.windows }).item.item_id, id,
+    'ordinary next offers the item after the family grace expires');
   const routingPolicy = sealReworkRoutingPolicy(f.windows);
   const move = prepareEngineMove(f.board, 'claim', [id, { agentId: f.other, lane: 'core', leaseMs: 60 * 60_000,
     reworkRoutingPolicy: routingPolicy,
@@ -88,6 +99,22 @@ test('[H16] returned work waits for its builder until gone, then prefers live sa
   assert.match(fact.text, /checked families: Claude, OpenAI/u);
 });
 
+test('[H16] an unknown recorded family returns to the ordinary queue without a family fact', t => {
+  const f = fixture(t, { builderFamily: null });
+  const id = returned(f);
+  f.advance(f.windows.graceMs + 1);
+
+  const ordinary = route(f.board, id, f.other, f.windows);
+  assert.equal(ordinary.mode, 'ordinary');
+  assert.equal(ordinary.builderFamily, null);
+  assert.equal(store.nextFor(f.board, { agentId: f.other, lane: 'core', reworkRoutingPolicy: f.windows }).item.item_id, id);
+
+  claim(f.board, id, f.other, sealReworkRoutingPolicy(f.windows));
+  assert.equal(store.getItem(f.board, id).item_owner, f.other);
+  assert.equal(store.itemThread(f.board, id).some(row => row.type === 'fact' && /checked families/u.test(row.text)), false,
+    'unknown family uses ordinary routing and does not invent a family fallback fact');
+});
+
 test('[H16] enabling family routing does not change an already sealed legacy claim', t => {
   const f = fixture(t, { enabled: false });
   const id = returned(f);
@@ -97,7 +124,7 @@ test('[H16] enabling family routing does not change an already sealed legacy cla
   assert.equal(oldMove.args[1].reworkSameFamily, undefined);
   store.setLineSetting(f.board, { agentId: 'coordinator', key: 'reworkSameFamily', value: true,
     reason: 'Enable the new routing for future moves only.', window: { fixture: 1 } });
-  const outcome = applyEngineMove(f.board, oldMove, { sequence: 1, at: '2026-01-01T00:00:00.000Z' });
+  const outcome = applyEngineMove(f.board, oldMove, { sequence: 1, at: f.board.clock.now().toISOString() });
   assert.equal(outcome.error, undefined);
   assert.equal(store.getItem(f.board, id).item_owner, f.peer);
 });
