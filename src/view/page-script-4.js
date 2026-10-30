@@ -444,6 +444,11 @@ function pageMove(command, args = {}) {
     if (!ids || !reason) throw new Error('Choose a spec row and enter a reason to decline it.');
     return { body: { verb: 'spec-decline', args: { ids, reason } }, label: 'spec decline ' + ids + ' --reason ' + reason };
   }
+  if (command === 'spec-answer') {
+    const row = text(args.row || args.ids), answer = text(args.answer);
+    if (!row || !answer || /[\\r\\n|]/u.test(answer)) throw new Error('Choose a pending question and enter a one-line answer.');
+    return { body: { verb: 'spec-answer', args: { row, answer } }, label: 'spec answer ' + row + ' ' + answer };
+  }
   if (command === 'sentinel-approve' || command === 'sentinel-decline') {
     const name = text(args.name), digest = text(args.digest), reason = text(args.reason);
     if (!name || !/^[a-f0-9]{64}$/u.test(digest)) throw new Error('Refresh the pending sentinel before deciding it.');
@@ -461,6 +466,7 @@ function moveMessage(move, result) {
   if (move.verb === 'answer') return 'answered #' + move.item;
   if (move.verb === 'spec-approve') return 'approved rows ' + move.args.ids + ' (pending apply)';
   if (move.verb === 'spec-decline') return 'declined rows ' + move.args.ids + ' (pending apply)';
+  if (move.verb === 'spec-answer') return 'answered row ' + move.args.row + ' (pending apply)';
   if (move.verb === 'sentinel-approve') return 'approved sentinel ' + move.args.name;
   if (move.verb === 'sentinel-decline') return 'declined sentinel ' + move.args.name;
   return move.args.off ? 'released the ' + move.args.lane + ' lane' : 'holding the ' + move.args.lane + ' lane: ' + move.args.reason;
@@ -1029,6 +1035,16 @@ $('upgrade-note').addEventListener('click', (event) => {
 });
 $('add-cancel').addEventListener('click', () => { view.adding = false; render(); });
 $('spec-decline-cancel').addEventListener('click', () => { closeDecline(); });
+/** Record the exact one-line answer from a pending Spec question through the same person channel as the CLI. */
+function submitSpecAnswer(event) {
+  const form = event.target.closest('[data-spec-answer]');
+  if (!form) return;
+  event.preventDefault();
+  const row = form.dataset.specAnswer;
+  if (data.project?.spec?.find(entry => entry.id === row)?.status !== 'pending') { render(); return; }
+  decideRow('spec', 'spec-answer', { ids: row, answer: form.elements.answer.value }, form);
+}
+$('spec-detail').addEventListener('submit', submitSpecAnswer);
 $('spec-decline-form').addEventListener('keydown', trapFocus);
 // The row the dialog named is declined, with its reason, on the board it was opened on and only there.
 $('spec-decline-form').addEventListener('submit', (event) => {
