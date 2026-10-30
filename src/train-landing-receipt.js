@@ -1,5 +1,4 @@
 import { receiptBlockingGreen } from './quarantine-verdict.js';
-import { sealQuarantineVerdict } from './quarantine.js';
 /** Native exact-envelope landing evidence; origin binds bytes and replay checks sealed fields [C7,B3]. */
 import { createHash } from 'node:crypto';
 import { git } from './git.js';
@@ -48,7 +47,7 @@ export function readTrainLandingReceipt(root, board, id, commit, { historical = 
     const store = boardReceiptStore(board);
     const value = checkTrainLandingReceipt(readGateReceipt(store, id), commit);
     if (!receiptBinds(store, value)) throw unboundReceipt();
-    sealQuarantineVerdict(board, value, { historical });
+    board.nativePorts.quarantine.sealQuarantineVerdict(board, value, { historical });
     const tree = git(root, ['rev-parse', '--verify', `${commit}^{tree}`]).trim();
     const command = policyAt(root, value.main).config.gate;
     if (typeof command !== 'string' || !command.trim() || tree !== value.tree
