@@ -17,6 +17,7 @@ import { test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { flakeSource, observeNativeFailure } from '../src/native-flakes.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { land } from '../src/land.js';
 import { nudgeMainAudit } from '../src/main-audit-nudge.js';
 import { nudgeSourceAdvances } from '../src/source-advance-nudge.js';
@@ -481,7 +482,7 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
   // The direct public API call cannot inherit cliAt's private identity environment; set only this synthetic repo's identity.
   box.git('config', '--local', 'user.name', 'Fixture Agent');
   box.git('config', '--local', 'user.email', 'fixture@example.com');
-  const board = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
   try {
     const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
     // A direct API call must not hand Node's outer test-worker protocol to its own configured Node test command.

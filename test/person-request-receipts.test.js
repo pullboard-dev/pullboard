@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { COORDINATOR } from '../src/config.js';
 import { appliedSequence, applyEngineMove, engineReceipt, prepareEngineMove } from '../src/engine.js';
 import { refusalDocument } from '../src/next-step-words.js';
@@ -20,7 +21,7 @@ const person = { kind: 'person', userId: 'github-person-1' };
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-person-request-receipts-'));
   const file = join(directory, 'board.sqlite');
-  let board = store.openBoard(file);
+  let board = openBoard(file);
   store.register(board, { lane: COORDINATOR, path: join(directory, 'coordinator') });
   t.after(() => {
     try { store.closeBoard(board); } catch { /* A test may have closed before its final reopen. */ }
@@ -28,7 +29,7 @@ function fixture(t) {
   });
   return {
     get board() { return board; },
-    reopen() { store.closeBoard(board); board = store.openBoard(file); return board; },
+    reopen() { store.closeBoard(board); board = openBoard(file); return board; },
   };
 }
 

@@ -1,4 +1,4 @@
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard, draftSpecRow } from '../src/native-board.js';
 import { proposeSentinel as nativeProposeSentinel } from '../src/sentinels.js';
 import { decideSentinel as nativeDecideSentinel } from '../src/sentinels.js';
 import { beginSentinelRun as nativeBeginSentinelRun } from '../src/sentinels.js';
@@ -11,6 +11,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { addMilestone, editMilestoneItems, orderMilestoneItems, editMilestone, moveMilestone, shipMilestone, removeMilestone } from '../src/board-milestones.js';
 import * as milestones from '../src/board.js';
 import { MOVE_OPERATIONS } from '../src/move-registry.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
@@ -30,7 +31,7 @@ const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 test('relay study compares each exercised move effect through the real API2 reader [H5,H17]', { timeout: 180_000 }, async t => {
   const box = await relayClientFixture(t);
   await box.link();
-  const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const covered = new Set(), setupRefusals = [], nativeParity = [];
   const api = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'study', project: '', added: '2026-10-26T00:00:00.000Z' }], stateDetail: 'full' });
@@ -100,16 +101,16 @@ test('relay study compares each exercised move effect through the real API2 read
   await exercise('setLineSetting', () => store.setLineSetting(board, { agentId: 'coordinator', key: 'order', value: true, reason: 'Study projection.', window: { samples: 1 } }));
   await exercise('setBarReady', () => store.setBarReady(board, { agentId: 'coordinator', enabled: true }));
   await exercise('setBarReady', () => store.setBarReady(board, { agentId: 'coordinator', enabled: false }));
-  await exercise('addMilestone', () => milestones.addMilestone(board, { agentId: 'coordinator', name: 'Study A', items: [item] }));
+  await exercise('addMilestone', () => addMilestone(board, { agentId: 'coordinator', name: 'Study A', items: [item] }));
   const other = store.addItem(board, { by: 'coordinator', lane: box.lane, title: 'Second study item', criterion: 'Second seed.' });
-  await exercise('editMilestoneItems', () => milestones.editMilestoneItems(board, 'Study A', { agentId: 'coordinator', add: [other] }));
-  await exercise('orderMilestoneItems', () => milestones.orderMilestoneItems(board, 'Study A', { agentId: 'coordinator', items: [other, item] }));
-  await exercise('editMilestone', () => milestones.editMilestone(board, 'Study A', { agentId: 'coordinator', note: 'Changed roadmap note.', target: '2026-12-01' }));
-  milestones.addMilestone(board, { agentId: 'coordinator', name: 'Study B' });
-  await exercise('moveMilestone', () => milestones.moveMilestone(board, 'Study B', { agentId: 'coordinator', before: 'Study A' }));
-  await exercise('shipMilestone', () => milestones.shipMilestone(board, 'Study B', { agentId: 'coordinator', commit: 'a'.repeat(40) }));
-  milestones.addMilestone(board, { agentId: 'coordinator', name: 'Study removable' });
-  await exercise('removeMilestone', () => milestones.removeMilestone(board, 'Study removable', { agentId: 'coordinator' }));
+  await exercise('editMilestoneItems', () => editMilestoneItems(board, 'Study A', { agentId: 'coordinator', add: [other] }));
+  await exercise('orderMilestoneItems', () => orderMilestoneItems(board, 'Study A', { agentId: 'coordinator', items: [other, item] }));
+  await exercise('editMilestone', () => editMilestone(board, 'Study A', { agentId: 'coordinator', note: 'Changed roadmap note.', target: '2026-12-01' }));
+  addMilestone(board, { agentId: 'coordinator', name: 'Study B' });
+  await exercise('moveMilestone', () => moveMilestone(board, 'Study B', { agentId: 'coordinator', before: 'Study A' }));
+  await exercise('shipMilestone', () => shipMilestone(board, 'Study B', { agentId: 'coordinator', commit: 'a'.repeat(40) }));
+  addMilestone(board, { agentId: 'coordinator', name: 'Study removable' });
+  await exercise('removeMilestone', () => removeMilestone(board, 'Study removable', { agentId: 'coordinator' }));
   const claim = { agentId: agent, lane: box.lane, leaseMs: 3600000,
     freeze: () => ({ text: '{"rows":[]}', digest: 'study-frozen' }) };
   await exercise('claim', () => store.claim(board, item, claim));
@@ -168,7 +169,7 @@ test('relay study compares each exercised move effect through the real API2 read
   await exercise('recordActivityDelivery', () => store.recordActivityDelivery(board, { agentId: agent, through, digestThrough: through,
     interrupts: answered ? [{ id: 'event:' + answered, eventId: answered, reason: 'answered' }] : [] }));
   if (answered) await exercise('actOnActivity', () => store.actOnActivity(board, { agentId: agent, ids: ['event:' + answered] }));
-  await exercise('draftSpecRow', () => store.draftSpecRow(board, { agentId: agent,
+  await exercise('draftSpecRow', () => draftSpecRow(board, { agentId: agent,
     row: { id: 'Z1281', text: 'Study row.', gate: 'review', tier: 'must', section: 'Study', target: 'spec' } }));
   const row = { kind: 'spec', id: 'Z1281', file: 'SPEC.md', source: '- Z1281 [draft, must] Study row. | gate: review',
     replacement: '- Z1281 [approved, must] Study row. | gate: review', text: 'Study row.', decision: 'approve' };

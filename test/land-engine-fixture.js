@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 
 /** An unlanded engine leaf, as an item adds one under #1101. */
@@ -64,7 +65,7 @@ export function landEnginesInOrder({ landProject, itemWorktree, submitItem, acce
   assert.equal(box.git(box.repo, 'show', `${result.batch.tip}:src/game-engine.js`) + '\n', game, 'the project\'s own engine file is untouched');
   // The landed board replays: its events import into a fresh board unchanged.
   const document = onBoard(box, (board) => exportBoard(board));
-  const replayed = store.openBoard(join(box.dir, 'replayed.sqlite'));
+  const replayed = openBoard(join(box.dir, 'replayed.sqlite'));
   try {
     importBoard(replayed, document);
     assert.deepEqual(exportBoard(replayed).tables.event.map((event) => event.event_id), document.tables.event.map((event) => event.event_id));

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
 import { boardReceiptStore, receiptBody, receiptFields } from '../src/gate-run-receipt.js';
 import { proofCounts } from '../src/proof-provenance.js';
@@ -26,7 +27,7 @@ test('a real failed native check records its exit without invented runtime or co
   const program = `require('node:fs').writeFileSync(${JSON.stringify(trace)},JSON.stringify({pid:process.pid,environment:{node:process.versions.node,platform:process.platform,arch:process.arch}}));process.exit(7);`;
   const command = `${JSON.stringify(process.execPath)} -e ${JSON.stringify(program)}`;
   const box = helpers.project(command);
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(board));
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'A real red proof',
     criterion: 'The process exits successfully.', specIds: ['G1'], check: command });
@@ -72,7 +73,7 @@ test('native receipts carry each child reported runtime instead of borrowing the
     return JSON.parse(readFileSync(paths[index], 'utf8'));
   });
   const command = programs.map((program, index) => `${JSON.stringify(executables[index])} -e ${JSON.stringify(program)}`).join(' && ');
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(board));
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Two actual check runtimes',
     criterion: 'Both child processes report their runtimes.', check: command, specIds: ['G1'] });
@@ -112,7 +113,7 @@ test('a receipted native node test preserves caller output and records its actua
   const bare = runFixtureChild(process.execPath, ['--test', file], { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(bare.status, 0, bare.failure || bare.stderr);
   const expected = JSON.parse(readFileSync(trace, 'utf8'));
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(board));
   const item = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Native selected runtime',
     criterion: 'Actual native worker retains caller behavior.', check: `${JSON.stringify(process.execPath)} --test ${JSON.stringify(file)}`, specIds: ['G1'] });
@@ -241,8 +242,8 @@ test('an executed run without its receipt cannot publish an outcome [C7,H16]', a
 test('proof receipts bind the native actor and replay without the origin filesystem [C7,H16]', (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-proof-receipts-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const board = store.openBoard(join(directory, 'board.sqlite'));
-  const replica = store.openBoard(':memory:');
+  const board = openBoard(join(directory, 'board.sqlite'));
+  const replica = openBoard(':memory:');
   t.after(() => { store.closeBoard(replica); store.closeBoard(board); });
   let item;
   for (const target of [board, replica]) {
@@ -285,8 +286,8 @@ test('proof receipts bind the native actor and replay without the origin filesys
 test('an offline proof receipt follows the item its queued add actually creates [B26,H16,C7]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-proof-renumber-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const origin = store.openBoard(join(directory, 'origin.sqlite'));
-  const replica = store.openBoard(':memory:');
+  const origin = openBoard(join(directory, 'origin.sqlite'));
+  const replica = openBoard(':memory:');
   t.after(() => { store.closeBoard(replica); store.closeBoard(origin); });
   for (const target of [origin, replica]) {
     store.register(target, { lane: 'coordinator', path: '/renumber-coordinator' });
@@ -333,8 +334,8 @@ test('an offline proof receipt follows the item its queued add actually creates 
 test('child runtime fields preserve legacy bytes and replay mixed environments without a common runtime [C7,H16]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-child-runtime-replay-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const board = store.openBoard(join(directory, 'board.sqlite'));
-  const replica = store.openBoard(':memory:');
+  const board = openBoard(join(directory, 'board.sqlite'));
+  const replica = openBoard(':memory:');
   t.after(() => { store.closeBoard(replica); store.closeBoard(board); });
   let item;
   for (const target of [board, replica]) {

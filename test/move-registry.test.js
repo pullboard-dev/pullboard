@@ -19,6 +19,7 @@ import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
 import { unpackRelease } from './release-archive.js';
 import * as store from '../src/board.js';
+import { openBoard, nativeBoardPorts } from '../src/native-board.js';
 import { exportBoard } from '../src/exchange.js';
 import { importBoard } from '../src/exchange.js';
 import { applyEngineMove } from '../src/engine.js';
@@ -26,7 +27,6 @@ import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../src/move-registry.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { MOVE_REGISTRY } from '../src/move-registry.js';
 import { PROOF_RUN_ENGINE } from '../src/proof-run-engine.js';
-import { nativeBoardPorts } from '../src/native-board.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
 import { NEXT_STEPS } from '../src/next-step-words.js';
 import { REGISTRY_AT } from './move-registry-fixture.js';
@@ -117,7 +117,7 @@ test('live registry invariants and historical actors, order and SQLite replay ho
   assert.equal(relayMoveActor({ operation: 'recordTrainLanding', args: [] }), null);
   assert.equal(relayMoveActor({ operation: 'toString', args: [] }), null, 'object prototype names are not moves');
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-registry-replay-'));
-  const board = store.openBoard(join(directory, 'replica.sqlite'), { now: () => new Date(REGISTRY_AT) });
+  const board = openBoard(join(directory, 'replica.sqlite'), { now: () => new Date(REGISTRY_AT) });
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   importBoard(board, SNAPSHOT.replay.initial);
   for (const { move, options, outcome } of SNAPSHOT.replay.records) {
@@ -166,7 +166,6 @@ test('two new board moves declared in two files need no edit to engine.js, board
   run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'commit', '-m', 'fixture: two independent declarations']);
   const child = `
 import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from './src/move-registry.js';
-import { nativeBoardPorts } from './src/native-board.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
 import { NEXT_STEPS } from './src/next-step-words.js';
 import { readFileSync } from 'node:fs';
@@ -176,7 +175,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
-import * as store from './src/board.js';
+import * as store from './src/board.js'; import {openBoard,nativeBoardPorts} from './src/native-board.js';
 import { registryFixtureBoard } from './test/move-registry-fixture.js';
 import { REGISTRY_AT } from './test/move-registry-fixture.js';
 const root=process.cwd();

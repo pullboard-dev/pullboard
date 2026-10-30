@@ -6,6 +6,7 @@ import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'nod
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { buildCodeMap, renderItemSlice } from '../packages/codemap/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -178,7 +179,7 @@ test('pullboard map prints the overview, a card and an item slice from one scan 
     '--brief', 'Files: src/home.js, src/public.js, bin/start.js, test/home.test.js\nTest: map output follows imports and ignores misleading source text', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const itemId = JSON.parse(added.out).item.item_id;
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   store.ensureCoordinator(board, box.repo);
   const agent = store.agentAt(board, box.web);
   assert.ok(agent, 'the fixture builder remains joined to its web lane');

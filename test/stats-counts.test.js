@@ -16,7 +16,7 @@ import { events } from '../src/board.js';
 import { getItem } from '../src/board.js';
 import { logEvent } from '../src/board.js';
 import { merged } from '../src/board.js';
-import { openBoard } from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { register } from '../src/board.js';
 import { verify } from '../src/board.js';
 import { exportBoard } from '../src/exchange.js';

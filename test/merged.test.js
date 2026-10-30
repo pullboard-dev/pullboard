@@ -10,6 +10,7 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard } from '../src/exchange.js';
 import { unpackRelease } from './release-archive.js';
@@ -62,7 +63,7 @@ async function fixture(t) {
   git('worktree', 'add', '-q', builder, '-b', 'web/builder');
   const joined = await command({ repo, env }, ['join', 'web'], builder);
   assert.equal(joined.code, 0, `${joined.stdout}${joined.stderr}`);
-  const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   store.ensureCoordinator(board, repo);
   const agentId = store.listAgents(board).find((agent) => agent.agent_lane === 'web').agent_id;

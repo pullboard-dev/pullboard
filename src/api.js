@@ -41,6 +41,9 @@ import {
 } from 'node:fs';
 import { displayAgentName } from './agent-names.js';
 import * as store from './board.js';
+import { openBoardForRead } from './native-board.js';
+import { openBoard } from './native-board.js';
+import { roadmap } from './board-milestones.js';
 import {
   COORDINATOR,
   loadConfig,
@@ -148,8 +151,8 @@ function boardStateRevision(root, id, isMain, { projects = listApiProjects, scop
     const hasExternalMilestones = inputs.milestones.some((milestone) => milestone.items.some((item) => typeof item !== 'number'));
     return { ...inputs, externalMilestones: hasExternalMilestones
       ? scopeCommonDir === null
-        ? milestoneRoadmap(info.root, board, { ports: store })
-        : milestoneRoadmap(info.root, board, { projects, hideOutOfScope: true, ports: store })
+        ? milestoneRoadmap(info.root, board, { ports: { ...store, roadmap, openBoard } })
+        : milestoneRoadmap(info.root, board, { projects, hideOutOfScope: true, ports: { ...store, roadmap, openBoard } })
       : null };
   }, isMain);
   const inputs = {
@@ -598,11 +601,11 @@ function withBoard(root, read, isMain) {
   const file = join(info.commonDir, 'pullboard', 'board.sqlite');
   // A read takes no write lock and never migrates (#1047): main code reads an older board as it is,
   // branch code keeps the schema guard, and a read that writes after all runs again on a write open.
-  const opened = store.openBoardForRead(file);
+  const opened = openBoardForRead(file);
   const main = () => isMain !== false && codeIsFromMain();
   if (opened && (opened.current || main())) try { return read(opened, info); } catch (error) { if (!store.writeRefused(error)) throw error; } finally { store.closeBoard(opened); }
   else if (opened) store.closeBoard(opened);
-  const board = store.openBoard(file, undefined, { isMain: main() });
+  const board = openBoard(file, undefined, { isMain: main() });
   try { return read(board, info); } finally { store.closeBoard(board); }
 }
 
@@ -911,7 +914,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       observedAt,
       localRelayHealth: relayCanaryNeeds(board.root),
       localCapacity: true,
-    }, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary }), codeIsMain);
+    }, { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary }), codeIsMain);
     // Capture the complete prefix once in this transaction; each read projects its actual observation
     // windows from those cached canonical inputs without another database scan or state rebuild.
     const state = { ...built.state, sequence: built.sequence,

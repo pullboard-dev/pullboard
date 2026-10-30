@@ -20,6 +20,7 @@ import { performanceCores } from '../src/gate.js';
 import { defaultViewPort, DEFAULT_VIEW_PORT } from '../src/config.js';
 import { defaults } from '../src/config.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { runFixtureGit } from './fixture-child.js';
 
 /** Hash durable fixture files, including the registry, settings, credentials and SQLite bytes. */
@@ -51,7 +52,7 @@ export async function proveSettingsApi() {
     runFixtureGit(['init', '-q', '-b', 'main'], { cwd: repo, encoding: 'utf8' });
     const privateDir = join(repo, '.git', 'pullboard');
     mkdirSync(privateDir);
-    const board = store.openBoard(join(privateDir, 'board.sqlite'));
+    const board = openBoard(join(privateDir, 'board.sqlite'));
     const id = store.boardId(board);
     const events = board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n;
     store.closeBoard(board);

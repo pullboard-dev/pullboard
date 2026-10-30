@@ -7,6 +7,7 @@ import { selectFields } from '../src/json-output.js';
 import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -72,7 +73,7 @@ test('a history row larger than the whole budget is cut to fit and marked, so no
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   writeFileSync(configPath, JSON.stringify({ ...config, inbox: { tokenBudget: 1024 } }));
   // @pullboard-board-file journey: the real CLI subprocess reads this oversized multibyte shout from the project board.
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { store.shout(board, { from: 'coordinator', to: 'web-1', text: 'historical ' + '界'.repeat(380), lanes: ['web'] }); }
   finally { store.closeBoard(board); }
   const text = box.run(box.web, 'inbox', '--history', '--since', '0');

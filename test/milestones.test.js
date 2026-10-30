@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { shipMilestone, addMilestone } from '../src/board-milestones.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 
@@ -58,7 +60,7 @@ function fixture(t) {
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', verify: 'any', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }));
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: initialize fixture');
-  const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   store.ensureCoordinator(board, repo);
   const builder = store.register(board, { lane: 'web', path: join(dir, 'builder'), model: 'Fixture Model' });
@@ -118,7 +120,7 @@ test('[N26] a milestone ships what landed and moves the rest', async (t) => {
   assert.match(text.stdout, /^ {2}#\d+ Open work — open$/m);
 
   // Shipping is the coordinator's move, not a builder's.
-  assert.throws(() => store.shipMilestone(box.board, 'A', { agentId: box.builder, commit: box.git('rev-parse', 'main') }),
+  assert.throws(() => shipMilestone(box.board, 'A', { agentId: box.builder, commit: box.git('rev-parse', 'main') }),
     (error) => error.code === 'COORDINATOR_ONLY');
 
   // Ship: A records main's commit, and the two unlanded items move into B.
@@ -155,7 +157,7 @@ test('[N26] a milestone ships what landed and moves the rest', async (t) => {
   // in an ordered envelope is refused alike in every zone instead of read in each one's own.
   const { prepareEngineMove, applyEngineMove } = await import('../src/engine.js');
   const { exportBoard, importBoard } = await import('../src/exchange.js');
-  store.addMilestone(box.board, { agentId: 'coordinator', name: 'Z' });
+  addMilestone(box.board, { agentId: 'coordinator', name: 'Z' });
   const snapshot = exportBoard(box.board);
   const prepared = prepareEngineMove(box.board, 'editMilestone', ['Z', { agentId: 'coordinator', target: '2026-10-20T18:00' }], { id: 'zone-target', actor: 'coordinator' });
   assert.match(prepared.args[1].target, /Z$/u, 'the prepared move carries the instant in UTC');
@@ -166,7 +168,7 @@ test('[N26] a milestone ships what landed and moves the rest', async (t) => {
     for (const name of ['UTC', 'America/Chicago']) {
       const dir = mkdtempSync(join(tmpdir(), 'pullboard-target-zone-'));
       TEMP_DIRS.push(dir);
-      const replica = store.openBoard(join(dir, 'board.sqlite'));
+      const replica = openBoard(join(dir, 'board.sqlite'));
       t.after(() => store.closeBoard(replica));
       importBoard(replica, snapshot);
       process.env.TZ = name;
@@ -243,13 +245,13 @@ test('[N26,H16] engine 44 cannot ship a milestone or set its target', async (t) 
 test('[N26,H16] an older-engine client cannot add work after a milestone ships', async (t) => {
   const { applyRelayMove, prepareEngineMove } = await import('../src/engine.js');
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-milestone-legacy-'));
-  const board = store.openBoard(join(dir, 'board.sqlite'));
+  const board = openBoard(join(dir, 'board.sqlite'));
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
   store.ensureCoordinator(board, dir);
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Still owed',
     criterion: 'An obligation remains recorded', specIds: [] });
-  store.addMilestone(board, { agentId: 'coordinator', name: 'A', items: [] });
-  store.addMilestone(board, { agentId: 'coordinator', name: 'B', items: [] });
+  addMilestone(board, { agentId: 'coordinator', name: 'A', items: [] });
+  addMilestone(board, { agentId: 'coordinator', name: 'B', items: [] });
   const sender = { kind: 'person', userId: 'milestone-fixture-user' };
   const before = prepareEngineMove(board, 'editMilestoneItems',
     ['B', { agentId: 'coordinator', add: [id], remove: [] }], { id: 'before38', actor: 'coordinator' });

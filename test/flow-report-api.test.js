@@ -8,6 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createLocalApiHandler } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { logEvent } from '../src/board-event-log.js';
 import { main } from '../src/cli.js';
 import { apiFetch } from './api-fixture.js';
@@ -30,7 +31,7 @@ async function apiFixture(t) {
   const api = { secret, origin: `http://127.0.0.1:${port}` };
   const listing = await (await apiFetch(api, '/api/v1/boards')).json();
   const path = `/api/v1/boards/${listing.boards[0].id}/state`;
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { isMain: true });
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { isMain: true });
   t.after(() => store.closeBoard(board));
   return { api, path, board };
 }

@@ -3,6 +3,7 @@
  * `pullboard settings person.signed` switch, and pinning the relay's stamp key from this board's own relay origin.
  */
 import * as store from './board.js';
+import { openBoard } from './native-board.js';
 import {
   attestAuthority,
   authorityAttested,
@@ -82,7 +83,7 @@ export async function pinRelayAuthority(root, board, io = {}, { timeoutMs = 10_0
  */
 export async function attestBeforeCommand(root, io, relayPorts) {
   let board;
-  try { board = store.openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')); }
+  try { board = openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')); }
   catch { return; } // No board here: nothing to vouch for, and the command reports its own refusal.
   // Budget: ceiling for one small read before a command; a slow relay leaves passkey checks failing closed instead.
   try { if (authorityNeeded(board) && !authorityAttested(board)) await pinRelayAuthority(root, board, io, { ...relayPorts, timeoutMs: 2_000 }); }
@@ -182,7 +183,7 @@ export function signsPersonMoves(cwd) {
 export async function personMovesSigned(cwd, io, relayPorts) {
   if (!signsPersonMoves(cwd)) return false;
   let board;
-  try { board = store.openBoard(join(repoInfo(cwd).commonDir, 'pullboard', 'board.sqlite')); }
+  try { board = openBoard(join(repoInfo(cwd).commonDir, 'pullboard', 'board.sqlite')); }
   catch { return true; } // Unreadable here: keep the passkey step, which refuses by name if it cannot go on.
   try {
     if (!offPending(board) || authorityAttested(board)) return personSigning(board).signed;

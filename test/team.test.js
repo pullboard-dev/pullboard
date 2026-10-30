@@ -1,5 +1,5 @@
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 import { request as boardLinkRequest } from '../src/relay.js';
 import { personSigningCase } from './person-signing-case.js';
 import { submitFixture as submitBoardStateFixture } from './board-submit-fixture.js';
@@ -141,7 +141,7 @@ test('a suspended landing owner is fenced before the queued adopter runs [Q1,Q3]
 
 /** Open a fixture's independent board and always close it after its observation or public move. */
 function withBoard(root, action) {
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   try { return action(board); }
   finally { store.closeBoard(board); }
 }
@@ -184,7 +184,7 @@ test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: 
   const reopened = await relayFixtureChild(worker, sessionEnv, [CLI, 'add', box.lane, 'private item from another worktree', '--private', '--json']);
   assert.equal(reopened.code, 0, `another process opens the same repo’s private board: ${JSON.stringify(reopened.document?.error ?? null)}`);
   assert.equal(readFileSync(sessionFile, 'utf8'), checkoutBindingBefore, 'private-board identity does not rewrite the checkout’s repository-session binding');
-  const privateBoard = store.openBoard(privateFile);
+  const privateBoard = openBoard(privateFile);
   try {
     const privateItems = store.listItems(privateBoard, { all: true }).sort((left, right) => left.item_id - right.item_id);
     assert.deepEqual(privateItems.map(item => item.item_title), ['private item', 'private item from another worktree']);
@@ -1304,7 +1304,7 @@ test('an item waits across repos [B24,H16]', async t => {
   await announce(2);
   await readState();
   assert.ok(builds.includes(dependent), 'an authenticated global state announcement rebuilds its cached foreign dependents');
-  const replica = store.openBoard(':memory:', clock);
+  const replica = openBoard(':memory:', clock);
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(local));
   const options = { agentId: 'web-1', lane: 'web', leaseMs: 60_000, freeze };

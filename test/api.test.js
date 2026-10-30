@@ -1,4 +1,4 @@
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 /** The public, versioned JSON surface of every pullboard command (A1). */
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
@@ -28,7 +28,7 @@ import { createLocalApiHandler } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { serveApi } from '../src/api.js';
 import * as apiExports from '../src/api.js';
-import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, closeBoard, events as boardEvents, openBoard, verdictsFor } from '../src/board.js';
+import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../src/board.js';
 import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
 import { JSON_SHAPES } from '../src/json.js';
 import { projectState } from '../src/serve.js';
@@ -592,7 +592,8 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   writeFileSync(guardedSource, unguardedText);
   const mutationProbe = join(unguarded, '.schema-mutation-probe.mjs');
   writeFileSync(mutationProbe, `
-    import { openBoard, closeBoard } from './src/board.js';
+    import { closeBoard } from './src/board.js';
+    import { openBoard } from './src/native-board.js';
     const board = openBoard(process.env.PULLBOARD_FIXTURE_BOARD, undefined, { isMain: false });
     closeBoard(board);
   `);

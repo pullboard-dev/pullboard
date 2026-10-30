@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const e2e = createE2eHelpers();
@@ -70,7 +71,7 @@ test('[V17] accept refuses a historical candidate stacked on another item', () =
   const stacked = add(box, 'web', 'Historical stacked submission');
   assert.equal(box.run(box.web, 'claim', String(stacked)).code, 0);
   const stackedCommit = commitFile(box, box.web, 'web/stacked.txt', 'historical stacked submission');
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     submitFixture(board, stacked, {
       agentId: 'web-1',
@@ -102,7 +103,7 @@ function trunkStack(box, { historical = false } = {}) {
   const trunkHead = box.git(box.repo, 'rev-parse', 'HEAD');
   assert.equal(trunkHead, firstCommit);
   if (historical) {
-    const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+    const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
     try {
       submitFixture(board, stacked, {
         agentId: 'coordinator',

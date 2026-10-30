@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { preparePersonRequest } from '../src/person-request.js';
 import { personRequestRecords, personRequestStatuses, requestIntentDigest } from '../src/relay-requests.js';
 import { ENGINE_VERSION } from '../src/machine.js';
@@ -15,6 +16,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
 const BOARD_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/board.js')).href;
+const NATIVE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/native-board.js')).href;
 const EXCHANGE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/exchange.js')).href;
 const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay.js')).href;
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/config.js')).href;
@@ -40,7 +42,8 @@ function claimOnly(root, env, requestId) {
     const root = process.cwd();
     const { syncRelay, relayRequestDevice, relayOperation } = await import(${JSON.stringify(RELAY_MODULE)});
     const { personRequestRecords, requestIntentDigest, requestStageText } = await import(${JSON.stringify(REQUESTS_MODULE)});
-    const { openBoard, closeBoard } = await import(${JSON.stringify(BOARD_MODULE)});
+    const { closeBoard } = await import(${JSON.stringify(BOARD_MODULE)});
+    const { openBoard } = await import(${JSON.stringify(NATIVE_MODULE)});
     const { loadConfig } = await import(${JSON.stringify(CONFIG_MODULE)});
     const { laneNames } = await import(${JSON.stringify(LANES_MODULE)});
     const sink = { isTTY: false, write() {} };
@@ -65,7 +68,8 @@ function claimOnly(root, env, requestId) {
 /** Export the private board directly so inspection cannot trigger another request-processing pass. */
 async function privateExport(root, env) {
   const source = `
-    const { openBoard, closeBoard } = await import(${JSON.stringify(BOARD_MODULE)});
+    const { closeBoard } = await import(${JSON.stringify(BOARD_MODULE)});
+    const { openBoard } = await import(${JSON.stringify(NATIVE_MODULE)});
     const { exportBoard } = await import(${JSON.stringify(EXCHANGE_MODULE)});
     const board = openBoard(${JSON.stringify(join(root, '.git', 'pullboard', 'board.sqlite'))});
     try { process.stdout.write(JSON.stringify(exportBoard(board))); } finally { closeBoard(board); }
@@ -147,7 +151,7 @@ test('[H12,H16] an expired native executor lease transfers once and the old devi
   assert.equal(status.code, 0, status.failure ?? status.stderr);
   const beforeExpiry = await privateExport(secondRoot, secondEnv);
   assert.equal(beforeExpiry.tables.shout.filter(row => row.shout_text === 'RECOVERY_SHOUT_ONCE').length, 0);
-  let board = store.openBoard(join(secondRoot, '.git', 'pullboard', 'board.sqlite'));
+  let board = openBoard(join(secondRoot, '.git', 'pullboard', 'board.sqlite'));
   try { assert.equal(personRequestStatuses(board).find(record => record.id === requestId).status, 'waiting'); }
   finally { store.closeBoard(board); }
 
@@ -159,7 +163,7 @@ test('[H12,H16] an expired native executor lease transfers once and the old devi
   const secondExecutor = JSON.parse(readFileSync(secondLinkFile, 'utf8')).requestDevice;
   assert.ok(secondExecutor);
   assert.notEqual(secondExecutor, originalExecutor, 'the copied device link elects an independent native executor');
-  board = store.openBoard(join(secondRoot, '.git', 'pullboard', 'board.sqlite'));
+  board = openBoard(join(secondRoot, '.git', 'pullboard', 'board.sqlite'));
   try {
     const status = personRequestStatuses(board).find(record => record.id === requestId);
     assert.equal(status.status, 'done');
@@ -168,7 +172,7 @@ test('[H12,H16] an expired native executor lease transfers once and the old devi
 
   // The original device catches up to the committed execution, sees a terminal request, and cannot
   // emit a second person shout even though its native identity is still present in its link file.
-  board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   let originalDigest;
   try { originalDigest = requestIntentDigest(personRequestRecords(board).find(record => record.id === requestId)); }
   finally { store.closeBoard(board); }

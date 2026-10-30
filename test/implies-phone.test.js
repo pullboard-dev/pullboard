@@ -30,13 +30,14 @@ async function phoneAnswer(box, phone, { id, ask, args, options }) {
     const {syncRelay,relayRequestDevice,relayOperation}=await import(${JSON.stringify(url('relay'))});
     const {personRequestRecords,requestIntentDigest,requestStageText}=await import(${JSON.stringify(url('relay-requests'))});
     const store=await import(${JSON.stringify(url('board'))});
+    const {openBoard}=await import(${JSON.stringify(url("native-board"))});
     const {loadConfig}=await import(${JSON.stringify(url('config'))});
     const {laneNames}=await import(${JSON.stringify(url('lanes'))});
     const root=process.cwd(), sink={isTTY:false,write(){}};
     const io={cwd:root,stdout:sink,stderr:sink,say(){},err(){},onEvent(){},skipPersonRequests:true};
     await syncRelay(root,io);
     const executor=await relayRequestDevice(root);
-    const read=()=>{const b=store.openBoard(root+'/.git/pullboard/board.sqlite');try{return personRequestRecords(b).find(r=>r.id===${JSON.stringify(id)}&&!r.duplicateOf);}finally{store.closeBoard(b);}};
+    const read=()=>{const b=openBoard(root+'/.git/pullboard/board.sqlite');try{return personRequestRecords(b).find(r=>r.id===${JSON.stringify(id)}&&!r.duplicateOf);}finally{store.closeBoard(b);}};
     const record=read();
     if(record?.status!=='waiting'||JSON.parse(record.received).sender.kind!=='person') throw new Error('actual phone intake missing');
     const lanes=laneNames(loadConfig(root));
@@ -47,7 +48,7 @@ async function phoneAnswer(box, phone, { id, ask, args, options }) {
     let refused=null,result=null;
     try{result=await relayOperation(root,'answerDecision',[${ask},{agentId:'coordinator',asPerson:true,channel:'view',lanes,...${JSON.stringify(options)}}],
       {...io,personRequest:{...tag,phase:'execute'},personRequestMoveId:${JSON.stringify(id + '-execute')}});}catch(error){refused=error.code;}
-    const b=store.openBoard(root+'/.git/pullboard/board.sqlite');
+    const b=openBoard(root+'/.git/pullboard/board.sqlite');
     let personFacts;
     try{personFacts=b.db.prepare("SELECT json_extract(event_detail,'$.decision.id') AS answer FROM event WHERE event_kind='fact' AND event_by='person'").all().map(row=>row.answer);}finally{store.closeBoard(b);}
     process.stdout.write(JSON.stringify({refused,result,personFacts}));
