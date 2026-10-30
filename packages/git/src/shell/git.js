@@ -150,7 +150,9 @@ function repositorySignature(cwd, info = null, includeHead = false, { attributio
   while (true) {
     const markerPath = join(folder, '.git');
     const marker = fileSignature(markerPath);
-    markers.push([markerPath, marker]);
+    // A `.git` directory's own stat moves with every lock and scratch file inside it.
+    const isGitDirectory = !directories && marker && (BigInt(marker[2]) & 0o170000n) === 0o040000n;
+    markers.push([markerPath, isGitDirectory ? ['directory'] : marker]);
     if (marker) {
       if (info && folder === resolve(info.root)) {
         discoveredGitDir = info.gitDir;
