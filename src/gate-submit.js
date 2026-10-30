@@ -152,6 +152,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   const gui = (check ? await checkNeedsGui(root, check) : false)
     || ((selection.full && !deferFullFallback && !deferSelection) && projectNeedsGui(root)) || testsNeedGui(root, proofFiles);
   return await withGateSlot(root, async (lease) => {
+    // Immediate resource admission may have no queue poll. Bind this actual acquired lease through the same native claim callback.
+    if (proofContext?.admission && !proofContext.admission.id) await onWait?.({ admitted: true });
     lease.quarantines = proofContext?.quarantines ?? [];
     if (proofContext) lease.proof = { ...proofContext, kind: 'submit',
       ...(proofContext.companion ? { submitPhase: 'criterion' } : {}),
