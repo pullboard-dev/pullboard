@@ -418,6 +418,10 @@
     {
       "path": "bin/cells-pure-front-door.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/import-only-change.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
