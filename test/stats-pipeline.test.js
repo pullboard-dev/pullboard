@@ -33,6 +33,7 @@ function fixture(t, entries) {
     event_kind: kind, item_id: id, event_detail: JSON.stringify(detail),
   }));
   document.tables.sqlite_sequence.find(row => row.name === 'event').seq = entries.length;
+  // @pullboard-board-file persistence: the real CLI and HTTP server reopen this same SQLite fixture.
   const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   importBoard(board, document);
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });

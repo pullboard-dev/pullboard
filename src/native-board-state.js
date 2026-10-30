@@ -1,3 +1,4 @@
+import { pipelineStats } from './stats-pipeline.js';
 /** @pullboard-test-input packages/doctrine/src/shell/standard-doctrine.md */
 /** One complete native state builder for local HTTP and sealed relay projections [A2,H5,H16]. */
 import { counterProofStats } from './proof-counter-read.js';
@@ -131,6 +132,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       milestone: milestoneNames.get(item.item_id) ?? null,
     }]));
     const history = store.events(board);
+    // Both native and sealed relay readers use this exact recorded-history projection.
+    listFields.state.statsPipeline = pipelineStats(history);
     const clockWindow = nativeStateClockWindow({ ...listFields.state, agents: allAgents }, history, currentItems, observedAt);
     board.db.exec('COMMIT');
     return { state: listFields.state, itemMeta, itemMoveCounts: listFields.itemMoveCounts, sequence, history, clockWindow };

@@ -1,4 +1,3 @@
-import { pipelineStats } from './stats-pipeline.js';
 import { activeViewAgents } from './view-state-summary.js';
 import { viewProofSummary } from './view-state-summary.js';
 import { personSigningPresentation } from './person-signing-presentation.js';
@@ -952,7 +951,6 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     // Capture the complete prefix once in this transaction; each read projects its actual observation
     // windows from those cached canonical inputs without another database scan or state rebuild.
     const state = { ...built.state, sequence: built.sequence,
-      statsPipeline: pipelineStats(built.history),
       statsComparison: compareFlowWindows(built.history, { now: observedAt, windowMinutes: 120, complete: true }) };
     const entry = snapshotEntry(before.revision, state, prepareFlowHistory(built.history), {
       inputs: before.inputs,
