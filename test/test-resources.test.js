@@ -553,7 +553,7 @@ test('reviewed executor imports stay browser-free only at their exact call sites
   cpSync(join(repository, 'test'), join(root, 'test'), { recursive: true });
   for (const [index, [file, name, call]] of entries.entries()) {
     const importer = `test/reviewed-executor-${index}.test.js`;
-    const request = file.startsWith('src/') ? `../${file}` : `./${file.slice(5)}`;
+    const request = file.startsWith('test/') ? `./${file.slice(5)}` : `../${file}`;
     writeFileSync(join(root, importer), `import '${request}';\n`);
     const source = readFileSync(join(root, file), 'utf8');
     assert.ok(source.includes(`function ${name}(`) && source.includes(call), `${file}: the reviewed function and call still exist`);
