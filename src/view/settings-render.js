@@ -1,130 +1,69 @@
-/** Render the Settings pane; its only controls navigate scopes or refresh a GET. */
+/** Render the Settings pane; its only controls navigate scopes or refresh a GET, or copy a command. */
 export function settingsMarkup() {
-  return '<section data-pane="settings" class="card-panel" id="settings-pane" aria-label="Settings" hidden><div class="settings-heading"><div><p class="eyebrow">This computer</p><h2>Settings</h2><p>See what is configured, where it comes from, and what it changes.</p></div><button class="ghost" type="button" data-settings-open>All local boards</button></div><div id="settings-content" aria-live="polite"></div></section>';
+  return '<section data-pane="settings" class="settings-pane" id="settings-pane" aria-label="Settings" hidden><div id="settings-content" aria-live="polite"></div></section>';
 }
 
-/** Render a read-only API inventory, preserving false, zero, null and masked values as distinct data [O5,O6,N26]. */
-export function settingsContentHtml(entry, scope = 'machine') {
+/**
+ * Render a read-only API inventory as grouped cards of one-height rows, preserving false, zero, null
+ * and masked values as distinct data [O5,O6,N26]. Self-contained: the page embeds this function's source.
+ */
+export function settingsContentHtml(entry, scope = 'machine', forms = []) {
   /** Escape API labels and values before placing them in text or attributes. */
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-  /** Keep the API's value type visible instead of treating false or zero as absent. */
-  const settingText = value => value === null ? 'null' : typeof value === 'object' ? JSON.stringify(value) : String(value);
-  const descriptions = {
-  "gateSlots": "Local test runs allowed at once.",
-  "browserSlots": "Local browser runs allowed at once.",
-  "gate.shortSlots": "Extra slots reserved for short named checks.",
-  "gate.runnerWaitMs": "How long a check waits for a registered runner.",
-  "gate.queue.reviewsFirst": "Put review checks ahead of build checks.",
-  "gate.queue.currentReleaseFirst": "Put current-release work first.",
-  "gate.queue.agingMinutes": "Waiting time before queued work gains priority.",
-  "gate.memoryFloorMB": "Pause new checks below this free-memory level.",
-  "gate.browserFreeChecks": "Allow browser-free checks without a browser slot.",
-  "gate.browserByLaunch": "Classify browser work by actual Chrome launches.",
-  "gate.runnersFirst": "Try registered runners before local capacity.",
-  "gate.runnersOnly": "Require registered runners for submit and review checks.",
-  "health.sentinel": "Observe board health automatically.",
-  "view.background": "Keep the local view running after setup and resume.",
-  "view.port": "Port used by this computer’s local view.",
-  "relay.offerAtInit": "Offer device sharing during setup.",
-  "runners": "Registered test hosts and their capacity.",
-  "landing.pools": "Boards this computer helps land.",
-  "spec": "File containing the approved specification.",
-  "practice": "File containing the project’s doctrine.",
-  "gate": "Command that runs the project’s tests.",
-  "staticChecks": "Source checks run before tests.",
-  "check.install": "Setup command for a private check.",
-  "check.timeout": "Maximum duration of a frozen check.",
-  "lease": "How long a build claim lasts.",
-  "reviewLease": "How long a review reservation lasts.",
-  "claims.releaseGone": "Release work held by inactive seats.",
-  "worktrees": "Where agent checkouts are placed.",
-  "submit.requireInfraNote": "Require an explanation for test or infrastructure changes.",
-  "itemSizeBudget": "Change-size budget used for review.",
-  "submitInvariants": "Tests that always run at submission.",
-  "registryGuards": "Source guards selected for registry changes.",
-  "verify.policy": "Who may independently review work.",
-  "verify.family": "Required relationship between reviewer and builder families.",
-  "verify.reviewRatio": "Review-to-build scheduling ratio.",
-  "families": "Names treated as the same model family.",
-  "verify.unrelatedTrunkMoves": "Allow unrelated trunk moves during review.",
-  "verify.composeAtAdmission": "Compose with current trunk when review starts.",
-  "map.slice": "Show a relevant code-map slice with assigned work.",
-  "agents.names": "How agent names are displayed.",
-  "inbox.tokenBudget": "Maximum size of an inbox response.",
-  "claim.reopenFirstRefusalMinutes": "Repair window reserved for the original builder.",
-  "claim.barTestFiles": "File patterns accepted in frozen checks.",
-  "lanes": "File ownership, specification ownership, and starting rules.",
-  "products": "Products and their specification rows.",
-  "shared": "File patterns shared across lanes.",
-  "fix": "Allowed automatic fix commands and files.",
-  "project": "Displayed project name.",
-  "name": "Displayed repository name.",
-  "checks.provesNothing": "Handling for checks that establish no proof.",
-  "flakes.rerun": "Allow reruns of flaky tests.",
-  "flakes.quarantine": "Allow isolation of flaky tests.",
-  "rigor.budget": "Maximum non-test lines a change may add.",
-  "relay.outbox": "Send board updates through the relay outbox.",
-  "submitGate": "Where the full selected test suite runs.",
-  "submitDeferAbove": "Number of selected files above which tests defer to landing.",
-  "landingShards": "Parallel test partitions used at landing.",
-  "landing.publish": "Whether publishing runs separately from landing.",
-  "landing.pauseOnRed": "Pause landing after a failed publish suite.",
-  "landing.environment": "Required platform, architecture, and Node version.",
-  "positiveControl": "Known-good command the gate must pass.",
-  "affectedTests": "Runner command for selected test files.",
-  "testConcurrency.files": "Test files allowed to run at once.",
-  "testConcurrency.browser": "Browser test files allowed to run at once.",
-  "approvers": "GitHub accounts allowed to act as the person.",
-  "relay.autoLink": "Link local boards to device sharing automatically.",
-  "relay.excluded": "Repositories excluded from automatic linking.",
-  "relay.owner.account": "Account that owns device sharing.",
-  "relay.owner.url": "Origin of the sharing service.",
-  "relay.session.token": "Whether this device has a sharing credential; its value is hidden.",
-  "relay.token": "Whether this board has a sharing credential; its value is hidden.",
-  "relay.agentTokens": "Whether agent sharing credentials are present; values are hidden.",
-  "relay.key": "Whether a board encryption key is present; its value is hidden.",
-  "relay.deleted": "Whether this board’s sharing connection was removed.",
-  "relay.url": "Origin of this board’s sharing service.",
-  "relay.board": "Identifier of the linked remote board.",
-  "relay.agent": "Agent identity used for sharing.",
-  "relay.personReauth": "Require renewed person authentication.",
-  "relay.keyStorage": "Where this board’s encryption key is stored.",
-  "commits.types": "Allowed commit types.",
-  "commits.maxHeader": "Maximum commit-header length.",
-  "commits.requireIds": "Commit types that must cite specification identifiers.",
-  "commits.banned": "Text forbidden in commit headers.",
-  "commits.noEmoji": "Refuse emoji in commit messages.",
-  "commits.noCoAuthor": "Refuse co-author trailers.",
-  "commits.noHostName": "Refuse this computer’s hostname in commits.",
-  "protect.blocked": "File patterns excluded from changes.",
-  "protect.allowed": "Exceptions to blocked file patterns.",
-  "protect.secrets": "Scan changes for secret-shaped text.",
-  "line.route.liveOnly": "Offer work only to live seats.",
-  "line.order": "Use board-controlled queue ordering.",
-  "line.focusMilestone": "Milestone prioritized when assigning work.",
-  "line.reviewsFirst": "Offer reviews before builds.",
-  "line.requireReviewFamilies": "Require declared reviewer families.",
-  "line.wipPerReviewer": "Work-in-progress limit per available reviewer.",
-  "line.barReady": "Require a ready criterion before claiming work.",
-  "line.bar.check": "Require an executable frozen check.",
-  "line.bar.sharpenToPerson": "Send unclear criteria to the person.",
-  "line.takeoverMinutes": "Wait before another builder takes inactive work.",
-  "line.collisionFreeBatch": "Keep colliding changes out of the same landing batch.",
-  "line.landingBatchSize": "Maximum items in one landing batch.",
-  "line.landingCadenceMinutes": "Time between landing batches."
-};
-  /** Explain each supported setting without interpreting or changing its value. */
-  const description = key => descriptions[key] || (key.startsWith('resources.') ? 'Concurrent users allowed for this named resource.' : key.startsWith('testEconomics.') ? 'Cost assigned to this outcome, in equivalent seconds.' : 'Project-defined configuration value.');
+  const commas = number => String(number).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  /** A value as a person reads it: units, on/off and no raw milliseconds. */
+  const human = (value, unit) => {
+    if (value === null || value === undefined) return 'none';
+    if (typeof value === 'boolean') return value ? 'on' : 'off';
+    if (Array.isArray(value)) return !value.length ? 'none' : value.every(part => typeof part === 'string') && value.join(', ').length <= 40 ? value.join(', ') : value.length + (value.length === 1 ? ' item' : ' items');
+    if (typeof value === 'object') return JSON.stringify(value);
+    if (typeof value !== 'number') return value === '' ? 'empty' : String(value);
+    if (unit === 'ms') return value >= 60000 && value % 60000 === 0 ? commas(value / 60000) + ' min' : value >= 1000 && value % 1000 === 0 ? commas(value / 1000) + ' s' : commas(value) + ' ms';
+    const suffix = { minutes: ' min', MB: ' MB', bytes: ' bytes', lines: ' lines', characters: ' chars', seconds: ' s', 'seat-hours': ' seat-hours' }[unit] || '';
+    return (unit === 'port' ? String(value) : commas(value)) + suffix;
+  };
+  /** Show the exact value on hover when the human form shortens it. */
+  const exact = value => value !== null && typeof value === 'object' ? JSON.stringify(value) : String(value ?? '');
+  const about = { Capacity: 'How much this computer runs at once.', Order: 'What runs first when work is waiting.', Runners: 'Other machines that run checks for this one.',
+    Background: 'What keeps running on this computer.', Landing: 'How finished work reaches main.', Checks: 'How work is tested and held to its criterion.',
+    Relay: 'Sharing boards with your phone and other devices.', Project: 'Where the project keeps its files and how it names things.',
+    Review: 'Who may review work and how reviews are scheduled.', Claims: 'How long work stays claimed.', Commits: 'What a commit message must look like.',
+    Protection: 'Files and secrets no change may touch.', Line: 'How the board offers work to builders and reviewers.' };
+  const order = ['Capacity', 'Order', 'Runners', 'Background'];
   const labels = { machine: 'This machine', repo: 'This repo', board: 'This board' };
   const scopes = Object.entries(labels).map(([key, label]) => '<button type="button" role="tab" class="' + (key === scope ? 'on' : '') + '" data-settings-scope="' + key + '" aria-selected="' + (key === scope) + '">' + label + '</button>').join('');
   const rows = (entry.rows || []).filter(row => row.scope === scope);
-  /** Keep provenance readable while retaining the API's exact location in its tooltip. */
-  const sourceLabel = row => row.origin === 'default' ? 'Default' : String(row.source).startsWith('environment:') ? 'Environment'
-    : row.source === 'system keychain' ? 'System keychain' : row.scope === 'machine' ? 'Machine file' : row.scope === 'repo' ? 'Repo file' : 'Board data';
-  const cells = rows.map(row => '<tr data-setting-key="' + esc(row.key) + '"' + (row.error ? ' class="setting-invalid"' : '') + '><th scope="row"><code>' + esc(row.key) + '</code><span class="setting-description">' + esc(description(row.key)) + '</span>' + (row.root ? '<small class="setting-root">' + esc(String(row.root).replaceAll('\\', '/').split('/').at(-1)) + '</small>' : '') + '</th><td>' + esc(row.secret ? (row.value === 'set' ? 'set' : 'not set') : settingText(row.value)) + '</td><td>' + esc(row.secret ? 'not set' : settingText(row.default)) + '</td><td><span class="setting-source" title="' + esc(row.source) + '">' + esc(sourceLabel(row)) + '</span>' + (row.error ? '<p class="setting-error" role="alert">' + esc(row.error.message) + ' ' + esc(row.error.fix) + '</p>' : '') + '</td></tr>').join('');
-  return '<div class="settings-toolbar"><div><p class="settings-context">' + esc(entry.context || 'This computer') + '</p><div class="seg settings-scopes" role="tablist" aria-label="Settings scope">' + scopes + '</div></div><button class="ghost" type="button" data-settings-refresh>Refresh settings</button></div>'
+  const changed = row => !row.error && JSON.stringify(row.value) !== JSON.stringify(row.default);
+  const home = path => String(path).replace(/^\/(?:Users|home)\/[^/]+/, '~').replace(/^[A-Za-z]:[\\/]+Users[\\/]+[^\\/]+/, '~').replaceAll('\\', '/');
+  const sources = new Map();
+  for (const row of rows) sources.set(row.source, (sources.get(row.source) || 0) + 1);
+  const source = [...sources].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const rowHtml = row => {
+    const copyable = forms.includes(row.key) && (typeof row.value === 'boolean' || typeof row.value === 'number');
+    const command = copyable ? 'pullboard settings ' + row.key + ' ' + (typeof row.value === 'boolean' ? (row.value ? 'on' : 'off') : row.value) : '';
+    const label = row.label || row.key;
+    const value = row.secret ? (row.value === 'set' ? 'set' : 'not set') : human(row.value, row.unit);
+    const was = row.secret ? 'not set' : human(row.default, row.unit);
+    const mark = changed(row);
+    const what = row.error ? '<p class="setting-error" role="alert" title="' + esc(row.error.message + ' ' + row.error.fix) + '">' + esc(row.error.message) + ' ' + esc(row.error.fix) + '</p>'
+      : '<p class="setting-description" title="' + esc(row.description) + '">' + esc(row.description) + '</p>';
+    return '<div class="set' + (row.error ? ' setting-invalid' : '') + '" data-setting-key="' + esc(row.key) + '"><div class="name"><b>' + esc(label) + '</b><code class="k">' + esc(row.key) + '</code>'
+      + (entry.all && row.root ? '<span class="setting-root">' + esc(String(row.root).replaceAll('\\', '/').split('/').at(-1)) + '</span>' : '') + what + '</div>'
+      + '<div class="val"><span class="val-line">' + (mark ? '<span class="changed">changed</span>' : '') + '<b title="' + esc(exact(row.value)) + '">' + esc(row.error ? '' : value) + '</b></span><small>' + (mark ? 'default ' + esc(was) : 'default') + '</small></div>'
+      + (copyable ? '<button type="button" class="copy" data-copy-command="' + esc(command) + '" aria-label="Copy command to change ' + esc(label) + '" title="Copy: ' + esc(command) + '"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="8.5" height="8.5" rx="1.5"/><path d="M3 10.5V3.5A1 1 0 0 1 4 2.5h6.5"/></svg></button>' : '<span class="copy none"></span>') + '</div>';
+  };
+  const groups = new Map();
+  for (const row of rows) {
+    const name = row.group || 'Other', key = (entry.all && row.root ? row.root + '\n' : '') + name;
+    if (!groups.has(key)) groups.set(key, { name, root: entry.all ? row.root : '', rows: [] });
+    groups.get(key).rows.push(row);
+  }
+  const ranked = [...groups.values()].sort((a, b) => (order.indexOf(a.name) < 0 ? 99 : order.indexOf(a.name)) - (order.indexOf(b.name) < 0 ? 99 : order.indexOf(b.name)));
+  const cards = ranked.map(group => '<section class="set-group"><div class="ghead"><h3>' + esc(group.name) + (group.root ? ' · ' + esc(String(group.root).replaceAll('\\', '/').split('/').at(-1)) : '') + '</h3><p>' + esc(about[group.name] || '') + '</p><span>' + group.rows.filter(changed).length + ' changed</span></div>' + group.rows.map(rowHtml).join('') + '</section>').join('');
+  const boards = scope === 'board' ? '<button class="ghost" type="button" data-settings-open aria-pressed="' + Boolean(entry.all) + '">All local boards</button>' : '';
+  return '<section class="settings-head"><h2>Settings</h2><p>How Pullboard runs on this computer. Change a setting with the copy button beside it; this page shows what is in effect.</p>'
+    + '<div class="settings-bar"><div class="seg settings-scopes" role="tablist" aria-label="Settings scope">' + scopes + '</div>' + boards + '<button class="ghost settings-refresh" type="button" data-settings-refresh>Refresh</button></div>'
+    + (source && !entry.loading && !entry.error ? '<p class="settings-where">From <code>' + esc(home(source)) + '</code> · ' + rows.filter(changed).length + ' changed from the default</p>' : '') + '</section>'
     + (entry.error ? '<p class="setting-error" role="alert">' + esc(entry.error) + '</p>' : '')
-    + (entry.loading ? '<p role="status">Loading settings…</p>' : '<div class="settings-table"><table><thead><tr><th>Setting</th><th>Value</th><th>Default</th><th>Source</th></tr></thead><tbody>' + cells + '</tbody></table></div>' + (!rows.length && !entry.error ? '<p>No settings in this scope.</p>' : ''));
-
+    + (entry.loading ? '<p role="status">Loading settings…</p>' : '<div class="set-groups">' + cards + '</div>' + (!rows.length && !entry.error ? '<p>No settings in this scope.</p>' : ''));
 }
-

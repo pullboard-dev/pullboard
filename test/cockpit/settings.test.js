@@ -40,19 +40,17 @@ test('the Settings page lists every setting by scope from the settings API and e
       assert.equal((shown.match(/data-setting-key=/gu) || []).length, rows.length, 'every API setting appears once in its scope');
       for (const row of rows) {
         assert.ok(shown.includes(`data-setting-key="${row.key}"`), `${scope}: ${row.key}`);
-        assert.ok(shown.includes(text(row.source)), `source: ${row.key}`);
         const start = shown.indexOf(`data-setting-key="${row.key}"`);
-        const rendered = shown.slice(start, shown.indexOf('</tr>', start));
-        assert.ok(rendered.includes('<td>' + text(row.value) + '</td><td>' + text(row.default) + '</td>'), `literal current value and default: ${row.key}`);
+        const rendered = shown.slice(start, shown.indexOf('data-setting-key=', start + 1) < 0 ? undefined : shown.indexOf('data-setting-key=', start + 1));
+        const exact = row.value !== null && typeof row.value === 'object' ? JSON.stringify(row.value) : String(row.value ?? '');
+        assert.ok(rendered.includes('title="' + text(exact) + '"'), `the exact current value stays on hover: ${row.key}`);
+        assert.ok(row.label && row.description, `the API row carries its label and description: ${row.key}`);
       }
-      assert.match(shown, /Value/u);
-      assert.match(shown, /Default/u);
-      assert.match(shown, /Source/u);
       assert.doesNotMatch(shown, /<(?:input|select|textarea|form)\b/u, 'settings have no editor');
       assert.doesNotMatch(shown, /settings-page-private-fixture-key/u);
       if (scope === 'repo') {
         assert.match(shown, /47m/u);
-        assert.match(shown, />false</u, 'false remains visible');
+        assert.match(shown, />off</u, 'false reads as off');
         assert.match(shown, />0</u, 'zero remains visible');
         assert.match(shown, /&lt;img/u, 'hostile setting text is escaped');
         assert.doesNotMatch(shown, /<img\b|<script\b/u, 'API strings never become executable markup');
@@ -90,6 +88,7 @@ test('Settings has a bottom sidebar address and isolates a bad row at desktop an
         top: Boolean(document.querySelector('.side-body [data-tab="settings"]')) };
     })()`);
     assert.deepEqual(footer, { bottom: true, github: true, top: false });
+    await press(chrome, 'document.querySelector("[data-settings-scope=board]")');
     await press(chrome, 'document.querySelector("#settings-pane [data-settings-open]")');
     await press(chrome, 'document.querySelector("[data-settings-scope=repo]")');
     await chrome.waitFor('document.querySelectorAll("#settings-content [data-setting-key]").length > 0');
@@ -97,7 +96,7 @@ test('Settings has a bottom sidebar address and isolates a bad row at desktop an
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile });
       const shown = await chrome.stable(`(() => {
         const rows = [...document.querySelectorAll('#settings-content [data-setting-key]')];
-        return { descriptions: rows.map(row => row.querySelector('.setting-description')?.textContent.trim()),
+        return { descriptions: rows.map(row => row.querySelector('.setting-description, .setting-error')?.textContent.trim()),
           thresholds: rows.filter(row => row.dataset.settingKey === 'submitDeferAbove').map(row => ({ text: row.textContent, error: Boolean(row.querySelector('.setting-error')) })),
           healthy: rows.some(row => row.dataset.settingKey === 'lease' && row.textContent.includes('47m')),
           overflow: document.documentElement.scrollWidth > innerWidth };
@@ -130,15 +129,14 @@ test('Settings has a bottom sidebar address and isolates a bad row at desktop an
       }
       const provenance = await chrome.stable(`(() => {
         const rows = [...document.querySelectorAll('#settings-content [data-setting-key]')];
-        return { sources: rows.map(row => ({ label: row.querySelector('.setting-source')?.textContent, path: row.querySelector('.setting-source')?.title, root: row.querySelector('.setting-root')?.textContent })),
+        return { sources: rows.map(row => ({ cell: Boolean(row.querySelector('.setting-source')), root: row.querySelector('.setting-root')?.textContent })),
           errors: rows.flatMap(row => [...row.querySelectorAll('.setting-error')].map(node => ({ edge: getComputedStyle(node).borderLeftWidth, fill: getComputedStyle(node).backgroundColor }))) };
       })()`);
-      assert.ok(provenance.sources.every(source => source.label && source.path && !source.label.includes('/') && !source.root?.includes('/')), 'provenance has short labels and retains each exact source path in its tooltip');
+      assert.ok(provenance.sources.every(source => !source.cell && !source.root?.includes('/')), 'no row carries a source or a path; all-boards rows name their board only');
       assert.ok(provenance.errors.length > 0 && provenance.errors.every(error => error.edge === '0px' && error.fill === 'rgba(0, 0, 0, 0)'), 'a bad setting uses plain error words without an edge bar or tinted box');
       if (width === 1440) {
-        const geometry = await chrome.stable(`(() => { const row = document.querySelector('#settings-content tbody tr'); return { sourceWidth: row.lastElementChild.getBoundingClientRect().width, rowHeight: row.getBoundingClientRect().height }; })()`);
-        assert.ok(geometry.sourceWidth >= 200, 'desktop source paths have a readable column');
-        assert.ok(geometry.rowHeight < 300, 'the first scalar setting does not stretch down the page');
+        const geometry = await chrome.stable(`(() => { const row = document.querySelector('#settings-content .set'); return { rowHeight: row.getBoundingClientRect().height }; })()`);
+        assert.equal(geometry.rowHeight, 64, 'every scalar setting is one fixed-height row');
       }
       if (width === 320) {
         const scopes = await chrome.stable(`[...document.querySelectorAll('[data-settings-scope]')].map(node => { const box = node.getBoundingClientRect(); return { left: box.left, right: box.right, height: box.height }; })`);

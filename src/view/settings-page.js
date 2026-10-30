@@ -1,6 +1,7 @@
 /** Read-only Settings page markup and embedded API-only browser behavior [O5,O6,N26]. */
 
 import { settingsContentHtml } from './settings-render.js';
+import { SETTING_FORMS } from '../help.js';
 export { settingsMarkup } from './settings-render.js';
 
 /** Embed the scoped settings reader beside the existing page API and escaped-text renderer. */
@@ -9,9 +10,10 @@ function settingsReaderScript() {
 const settingsPages = new Map();
 let settingsScope = 'machine';
 let settingsAllBoards = false;
+const settingsForms = ${JSON.stringify(SETTING_FORMS)};
 const settingsContentHtml = (${settingsContentHtml.toString()});
 /** Draw the pure presentation into the one live region. */
-function drawSettings(entry) { $('settings-content').innerHTML = settingsContentHtml(entry, settingsScope); }
+function drawSettings(entry) { $('settings-content').innerHTML = settingsContentHtml({ ...entry, all: settingsAllBoards }, settingsScope, settingsForms); }
 /** Read only the selected local board; neither relay nor snapshot implies machine access. */
 async function showSettings(force = false) {
   if (view.tab !== 'settings' || !data) return;
@@ -47,10 +49,16 @@ export function settingsPageScript() {
 /** Settings controls only change the selected scope or issue another read. */
 document.addEventListener('click', event => {
   if (event.target.closest('[data-tab]') || event.target.closest('[data-root]')) settingsAllBoards = false;
-  if (event.target.closest('[data-settings-open]')) {
-    settingsAllBoards = true;
+  const open = event.target.closest('[data-settings-open]');
+  if (open) {
+    // The scope's own All local boards button toggles; the boardless sidebar entry only opens.
+    settingsAllBoards = open.closest('#settings-content') ? !settingsAllBoards : true;
     openTab('settings');
     render();
+  }
+  const copy = event.target.closest('[data-copy-command]');
+  if (copy) {
+    try { navigator.clipboard.writeText(copy.dataset.copyCommand).then(() => { copy.dataset.copied = 'yes'; setTimeout(() => delete copy.dataset.copied, 1500); }, () => {}); } catch {}
   }
   const scope = event.target.closest('[data-settings-scope]');
   if (scope && ['machine', 'repo', 'board'].includes(scope.dataset.settingsScope)) {
