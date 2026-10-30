@@ -46,6 +46,7 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+  "ENGINE_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "MAIN_FACTS_BUSY": "wait for the immutable main facts derivation to finish, then retry",
   "SUBMIT_PIN_NOT_MAIN": "run pullboard submit again so it captures the current main",
   "RUNNER_WORK_SPEC": "upgrade or repair the controller and runner together, then retry the named invalid work specification",
