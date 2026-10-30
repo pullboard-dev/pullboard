@@ -305,6 +305,14 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "roadmap-held: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
+  "test/cockpit/roadmap-redesign.test.js": {
+    "kind": "journey",
+    "reason": "The approved Roadmap design is checked against real seeded lifecycle rows, shipment data, and phone/desktop Chrome rendering."
+  },
+  "test/cockpit/roadmap-panel-counts.test.js": {
+    "kind": "journey",
+    "reason": "Real native item lifecycles and shipment receipts drive authenticated Chrome checks of stage counts, publish date privacy and phone/desktop layout in light and dark modes."
+  },
   "test/cockpit/roadmap.test.js": {
     "kind": "journey",
     "reason": "roadmap: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
