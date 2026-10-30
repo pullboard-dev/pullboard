@@ -19,6 +19,7 @@ import { isolateTestMachine } from '../src/test-isolation.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
+import { HOST } from './runner-ssh-fixture.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 
 /** Source URLs resolve in the actual checked implementation, not a second installed tool. */
@@ -91,7 +92,7 @@ if(command.includes(' --health ')||command.includes(' --restart ')||command.incl
 `;
   writeFileSync(ssh, wrapper, { mode: 0o700 });
   box.env.PATH = `${bin}:${box.env.PATH}`;
-  return { ...box, requests, probeReplies, runner: { host: 'fixture-job-loss', node: process.execPath, root, slots: 1, browser: 0 } };
+  return { ...box, requests, probeReplies, runner: { host: HOST, node: process.execPath, root, slots: 1, browser: 0 } };
 }
 
 /** Exercise the actual fresh controller; a fixture watchdog reports a failure instead of hanging the combined check. */
@@ -113,8 +114,9 @@ finally{clearInterval(watch);}`;
 
 /** Observe real job loss under its own lease, then verify that one controlled second failure exhausts its retry. */
 function retryContract(box) {
-  const gate = sourceURL('src/gate.js'), good = { ...box.runner, host: 'fixture-job-good', root: join(box.dir, 'good-root') };
+  const gate = sourceURL('src/gate.js'), good = { ...box.runner, host: `${HOST}-setup`, root: join(box.dir, 'good-root') };
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   writeFileSync(settings, JSON.stringify({ gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true }, runners: [box.runner] }));
   const source = `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
@@ -173,7 +175,7 @@ export function registerRunnerJobLostTests() {
     assert.match(result.message, /cleanup remains unknown/u);
     assert.equal(retry.code, 'RUNNER_INFRA_RETRY_EXHAUSTED');
     assert.equal(retry.attempts, 2, 'one observed loss permits one retry, never a third action');
-    assert.deepEqual(retry.seen, [box.runner.host, 'fixture-job-good']);
+    assert.deepEqual(retry.seen, [box.runner.host, `${HOST}-setup`]);
     assert.equal(retry.infrastructureAttempts[0].code, 'RUNNER_JOB_LOST');
     assert.match(retry.unavailable[0].until, /exact-job cleanup/u);
     assert.equal(retry.unavailable[0].diagnostic.confirmingProbe, null, 'ordinary healthy SSH cannot erase unknown cleanup');
