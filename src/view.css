@@ -37,7 +37,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .shell { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); min-height: 100vh; }
 .side { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 0 var(--space-4) var(--space-5); background: var(--surface); border-right: 1px solid var(--line); }
-.side-top { display: flex; align-items: center; gap: var(--space-4); height: var(--top); margin: 0 calc(var(--space-4) * -1) var(--space-2); padding: 0 var(--space-5); border-bottom: 1px solid var(--line); }
+.side-top { display: flex; flex: none; align-items: center; gap: var(--space-4); height: var(--top); margin: 0 calc(var(--space-4) * -1) var(--space-2); padding: 0 var(--space-5); border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: var(--space-3); margin-left: calc(var(--space-2) * -1); padding: 0 var(--space-2); border: 0; border-radius: var(--radius-lg); background: none; font-weight: 700; font-size: var(--text-lg); white-space: nowrap; cursor: pointer; }
 .brand:hover { background: var(--surface-2); }
 .brand svg { width: 22px; height: 22px; flex: none; }
@@ -51,8 +51,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .theme-btn:hover { color: var(--ink); background: var(--surface-2); }
 .theme-btn svg { display: none; width: 16px; height: 16px; }
 :root[data-scheme="light"] .theme-btn .sun, :root[data-scheme="dark"] .theme-btn .moon { display: block; }
-.side-body { display: flex; flex: 1; flex-direction: column; gap: var(--space-0); min-height: 0; }
-.side-list { display: grid; flex: 1 0 auto; gap: var(--space-0); align-content: start; }
+.side-body { display: grid; flex: 1; gap: var(--space-0); align-content: start; }
 /* Collapsed, as the person chose: the sidebar shrinks to the project switcher at the left of the tab bar,
  * the board below takes the whole width, and the project list opens as a dropdown. The logo collapses and
  * restores it; phones always show the switcher, so there the logo is only the logo. The theme button sits at the
@@ -69,8 +68,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
   :root[data-side="collapsed"] .brand span { display: none; }
   :root[data-side="collapsed"] .brand { justify-content: center; width: var(--tap); height: var(--tap); margin: 0; padding: 0; }
   :root[data-side="collapsed"] .switch-btn { display: flex; max-width: 16rem; }
-  :root[data-side="collapsed"] .side-body { display: none; }
-  :root[data-side="collapsed"] .side.open .side-body { display: flex; position: absolute; top: calc(var(--top) + 4px); left: 8px; width: 300px; max-height: calc(100vh - var(--top) - 16px); overflow-y: auto; padding: var(--space-3) var(--space-4) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); box-shadow: var(--shadow); }
+  :root[data-side="collapsed"] .side-body, :root[data-side="collapsed"] .side-footer { display: none; }
+  :root[data-side="collapsed"] .side.open .side-body { display: grid; flex: none; width: 300px; max-height: calc(100vh - var(--top) - 100px); overflow-y: auto; margin-top: 4px; padding: var(--space-3) var(--space-4) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card) var(--radius-card) 0 0; background: var(--surface); box-shadow: var(--shadow); }
+  :root[data-side="collapsed"] .side.open .side-footer { display: flex; flex: none; width: 300px; margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-top: 0; border-radius: 0 0 var(--radius-card) var(--radius-card); background: var(--surface); box-shadow: var(--shadow); }
 }
 .label { font: 600 var(--text-2xs)/1 var(--sans); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--ink-faint); padding: var(--space-3) var(--space-3) var(--space-2); }
 .proj { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px var(--space-3); align-items: center; width: 100%; text-align: left; border: 1px solid transparent; background: none; border-radius: var(--radius-lg); padding: var(--space-3) var(--space-3); cursor: pointer; }
@@ -332,7 +332,7 @@ a.ghost { color: var(--ink); }
   .brand { cursor: default; }
   .brand:hover { background: none; }
   .side-body { display: none; padding-top: var(--space-2); }
-  .side.open .side-body { display: flex; }
+  .side.open .side-body { display: grid; }
   .top { padding: 0 var(--space-2); }
   .tab { padding: var(--space-2); }
   .live { display: none; }
@@ -1420,7 +1420,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .setting-root { display: block; margin-top: var(--space-2); color: var(--ink-faint); font-weight: 400; overflow-wrap: anywhere; }
 .setting-origin { display: block; color: var(--ink-faint); font-size: var(--text-xs); }
 .setting-error { color: var(--reject); margin-block: var(--space-2) 0; }
-@media (width < 900px) { .side-footer { display: none; } .side.open .side-footer { display: flex; } .side.open .side-body { display: flex; } }
+@media (width < 900px) { .side-footer { display: none; } .side.open .side-footer { display: flex; } }
 @media (width < 600px) {
   #settings-pane { padding: var(--space-4); }
   #settings-content table, #settings-content tbody, #settings-content tr, #settings-content th, #settings-content td { display: block; width: 100%; max-width: none; box-sizing: border-box; }
