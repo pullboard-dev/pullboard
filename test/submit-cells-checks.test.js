@@ -113,7 +113,7 @@ test('submit keeps accepted placement authority when a candidate drops a row int
   writePlan(box.root, plan);
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /accepted row src\/refused.js disappeared/u);
   early.paths.push(row);
-  early.order = 44;
+  early.order = 999;
   writePlan(box.root, plan);
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /accepted cell kernel identity\/order\/front door changed/u);
 });

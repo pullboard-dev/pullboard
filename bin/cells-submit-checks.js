@@ -131,7 +131,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const before = readPlan(mainRoot);
   // Even the index's shard names are untrusted data; no metadata alias may read outside this snapshot.
   const after = readPlan(candidateRoot, file => {
-    if (file !== 'bin/cells-plan.json' && !/^bin\/cells-plan\/\d{2}-[a-z-]+\.json$/u.test(file)) throw new Refused('CELLS_SUBMIT', 'invalid candidate plan shard path');
+    if (file !== 'bin/cells-plan.json' && !/^bin\/cells-plan\/\d{2,}-[a-z-]+\.json$/u.test(file)) throw new Refused('CELLS_SUBMIT', 'invalid candidate plan shard path');
     let path = candidateRoot;
     for (const part of file.split('/')) { path = join(path, part); if (lstatSync(path).isSymbolicLink()) throw new Refused('CELLS_SUBMIT', `symbolic candidate plan path: ${file}`); }
     if (!lstatSync(path).isFile()) throw new Refused('CELLS_SUBMIT', `nonregular candidate plan: ${file}`);
