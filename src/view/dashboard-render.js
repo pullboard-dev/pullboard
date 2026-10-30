@@ -62,8 +62,13 @@ export function dashboardHtml(model, { needs = '', needsHeader = '', progress = 
   const totals = ['build','review','idle'].map(key=>activeAgents.reduce((sum,agent)=>sum+agent[key],0)), total = totals.reduce((sum,value)=>sum+value,0);
   const split = '<svg class="dash-split" viewBox="0 0 '+(total||1)+' 1" preserveAspectRatio="none" aria-label="Agent time split">'+totals.map((value,index)=>'<rect class="dash-time-'+index+'" x="'+totals.slice(0,index).reduce((sum,v)=>sum+v,0)+'" y="0" width="'+value+'" height="1"/>').join('')+'</svg>'+['Building','Reviewing','Between items'].map((label,index)=>'<p class="dash-time-key"><span>'+label+'</span><b>'+(total?Math.round(totals[index]/total*100):0)+'%</b><span>'+(totals[index]/3_600_000).toFixed(1)+' h</span></p>').join('');
   /** Each SVG interval has a real event-derived item and duration tooltip. */
-  /** Keep zero duration explicit in minutes rather than implying a tenth of an hour. */
-  const agentDuration = milliseconds => milliseconds === 0 ? '0m' : (milliseconds/3_600_000).toFixed(1)+'h';
+  /** Keep zero explicit and every positive sub-hour duration visible at minute precision. */
+  const agentDuration = milliseconds => {
+    if (milliseconds === 0) return '0m';
+    if (milliseconds < 60_000) return '<1m';
+    if (milliseconds < 3_600_000) return Math.floor(milliseconds/60_000)+'m';
+    return (milliseconds/3_600_000).toFixed(1)+'h';
+  };
   const agentRow = agent => '<div class="dash-agent" data-dashboard-agent="'+esc(agent.id)+'"><b title="'+esc(agent.model?agent.id+' · '+agent.model:agent.id)+'">'+icon(agent.group==='building'?'build':agent.group==='reviewing'?'review':'dots')+esc(agent.name)+'</b><svg viewBox="0 0 400 20" preserveAspectRatio="none" aria-label="'+esc(agent.id)+' last four hours"><path class="dash-track" d="M0 10H400"/>'+[1,2,3].map(index=>'<path class="dash-tick" d="M'+index*100+' 3V17"/>').join('')+agent.segments.map(segment=>'<rect class="'+segment.kind+'" x="'+((segment.start-m.start)/14_400_000*400)+'" y="4" height="12" width="'+Math.max(1,(segment.end-segment.start)/14_400_000*400)+'" rx="2"><title>#'+segment.item+' '+esc(segment.kind==='build'?'building':'reviewing')+' · '+((segment.end-segment.start)/60_000).toFixed(0)+'m</title></rect>').join('')+(agent.sentBack??[]).map(event=>'<rect class="dash-sent-back" x="'+((event.at-m.start)/14_400_000*400)+'" y="1" height="18" width="3"><title>#'+event.item+' sent back</title></rect>').join('')+'</svg><span class="dash-agent-now">'+(agent.current.length?agent.current.map(held=>item(held.item)).join(''):'between items')+'</span><span class="dash-agent-number">'+agentDuration(agent.build)+'</span><span class="dash-agent-number">'+agentDuration(agent.review)+'</span><span class="dash-agent-number">'+agent.shouts+'</span></div>';
   const groups = ['building','reviewing','between items'];
   const quiet = m.agents.filter(agent=>agent.group==='quiet');
