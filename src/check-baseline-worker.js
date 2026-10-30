@@ -14,7 +14,6 @@ import {
   resolve,
 } from 'node:path';
 import * as store from './board.js';
-import { openBoard } from './native-board.js';
 import { checkBaseline } from './check-baseline.js';
 import {
   codeIsFromMain,
@@ -40,16 +39,18 @@ function locations(root) {
 }
 
 /** Close a real board around one short operation; measurements never hold a database connection. */
-function withBoard(root, work) {
+function withBoard(root, work, services) {
+  const openBoard = services?.openBoard;
+  if (typeof openBoard !== 'function') throw new TypeError('baseline completion requires its actual native board opener');
   const board = openBoard(locations(root).board, undefined, { isMain: codeIsFromMain() });
   try { return work(board); } finally { store.closeBoard(board); }
 }
 
 /** Apply captured data through the same local or linked engine as the original add/edit. */
-async function complete(root, receipt, io) {
+async function complete(root, receipt, io, services) {
   const args = [receipt.id, { agentId: 'coordinator', expected: receipt.expected, baseline: receipt.baseline }];
   return relayLinked(root) ? relayOperation(root, 'completeCheckBaseline', args, io)
-    : withBoard(root, (board) => store.completeCheckBaseline(board, ...args));
+    : withBoard(root, (board) => store.completeCheckBaseline(board, ...args), services);
 }
 
 /** Persist a completed observation before attempting relay delivery; retries never rerun its shell. */
@@ -64,14 +65,14 @@ function saveReceipt(root, receipt) {
 }
 
 /** Retry only finished observations, retaining a receipt if the relay cannot acknowledge it yet. */
-export async function retryCheckBaselines(root, io) {
+export async function retryCheckBaselines(root, io, services) {
   const directory = locations(root).receipts;
   if (!existsSync(directory)) return;
   for (const name of readdirSync(directory).filter((name) => BASELINE_RECEIPT.test(name))) {
     const file = join(directory, name);
     try {
       const receipt = JSON.parse(readFileSync(file, 'utf8'));
-      await complete(root, receipt, io);
+      await complete(root, receipt, io, services);
       rmSync(file, { force: true });
     } catch (error) {
       if (error.code === 'ENOENT') continue; // Another delivery may have removed this same receipt.
@@ -94,8 +95,8 @@ export async function startCheckBaseline(root, id, baseline) {
 }
 
 /** Measure the captured main once, then seal its terminal result without overwriting a newer check. */
-export async function runCheckBaselineWorker(root, id, request) {
-  const expected = withBoard(root, (board) => store.getItem(board, id).item_check_baseline);
+export async function runCheckBaselineWorker(root, id, request, services) {
+  const expected = withBoard(root, (board) => store.getItem(board, id).item_check_baseline, services);
   if (expected?.result !== 'pending' || expected.request !== request) return;
   let baseline;
   try { baseline = checkBaseline(root, expected.command, { main: expected.main }); }
@@ -113,7 +114,7 @@ export async function runCheckBaselineWorker(root, id, request) {
     },
   };
   try {
-    await complete(root, receipt, io);
+    await complete(root, receipt, io, services);
     rmSync(file, { force: true });
   } catch { /* The next CLI command retries the durable captured result. */ }
 }

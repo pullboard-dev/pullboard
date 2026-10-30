@@ -1,4 +1,6 @@
 /** Exact pipeline accounting over an imported native SQLite fixture [R1,R2,A1,A2,C7]. */
+import { apiBoardOpeners } from './board-fixture.js';
+
 import assert from 'node:assert/strict';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -104,7 +106,7 @@ test('pipeline real CLI and authenticated API expose identical read-only native 
   const cli = await command(root, ['stats', 'pipeline', '--limit', '20', '--json']);
   assert.equal(cli.code, 0, cli.stderr);
   assert.deepEqual(JSON.parse(cli.stdout), { version: 1, pipeline: pipelineStats(history) });
-  const api = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root, name: 'Pipeline fixture' }] });
+  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root, name: 'Pipeline fixture' }] });
   t.after(() => api.close());
   const url = new URL(api.url), headers = { 'x-pullboard-key': url.searchParams.get('k') };
   const response = await fetchFresh(`${url.origin}/api/v1/boards/${store.boardId(board)}/state`, { headers });

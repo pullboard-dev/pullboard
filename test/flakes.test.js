@@ -20,6 +20,7 @@ import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { flakeSource, observeNativeFailure } from '../src/native-flakes.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
+import { openBoardForRead } from '../src/native-board.js';
 import { land } from '../src/land.js';
 import { nudgeMainAudit } from '../src/main-audit-nudge.js';
 import { nudgeSourceAdvances } from '../src/source-advance-nudge.js';
@@ -38,7 +39,7 @@ import { executionServices } from './gate-execution-fixture.js';
 import { flakeLedger } from '../src/flakes.js';
 import { eventCauses } from '../src/board-rigor.js';
 
-const workerServices = Object.freeze({ selectors: { selectAffectedTests, selectTestTreeGuards },
+const workerServices = Object.freeze({ openBoardForRead, selectors: { selectAffectedTests, selectTestTreeGuards },
   executionServices, context, ordered, withBoard, runSubmitGate, withFileLock,
   readMainAudit, saveMainAudit, landingLeaseState, testValue: { flakeLedger, eventCauses } });
 

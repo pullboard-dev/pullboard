@@ -5,7 +5,6 @@ import {
 } from 'node:crypto';
 import { join } from 'node:path';
 import * as store from './board.js';
-import { openBoard } from './native-board.js';
 import { executeMove } from './api.js';
 import { loadConfig } from './config.js';
 import {
@@ -27,7 +26,7 @@ import {
 } from './relay-requests.js';
 
 /** Read durable intake without retaining a SQLite connection while the CLI runs. */
-function requests(root) {
+function requests(root, { openBoard }) {
   const board = openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
   try { return personRequestRecords(board).filter(record => !record.duplicateOf); }
   finally { store.closeBoard(board); }
@@ -53,10 +52,11 @@ function transportRefusal(error) {
 }
 
 /** Fulfil queued browser intent once on its elected native device, preserving actual CLI refusals. */
-export async function executePersonRequests(root, io, runCommand) {
+export async function executePersonRequests(root, io, runCommand, boardOpeners) {
   if (io.skipPersonRequests || !relayLinked(root)) return;
+  if (typeof boardOpeners?.openBoard !== 'function' || typeof boardOpeners.openBoardForRead !== 'function') throw new TypeError('person request execution requires actual native board openers');
   const coordinatorRoot = git(root, ['worktree', 'list', '--porcelain']).split('\n')[0].slice('worktree '.length);
-  const pending = requests(coordinatorRoot).filter(record => record.status === 'waiting' && !record.coordinatorRequest);
+  const pending = requests(coordinatorRoot, boardOpeners).filter(record => record.status === 'waiting' && !record.coordinatorRequest);
   if (!pending.length) return;
   const executor = await relayRequestDevice(coordinatorRoot);
   if (!executor) return;
@@ -64,7 +64,7 @@ export async function executePersonRequests(root, io, runCommand) {
     if (initial.status !== 'waiting') continue;
     try {
       if (initial.executor !== executor) await receipt(coordinatorRoot, initial, executor, 'claim', io);
-      const record = requests(coordinatorRoot).find(entry => entry.id === initial.id);
+      const record = requests(coordinatorRoot, boardOpeners).find(entry => entry.id === initial.id);
       if (record.executor !== executor || record.status !== 'waiting') continue;
       if (!Object.hasOwn(record, 'result')) {
         const { refusalDocument } = await import('./next-step-words.js');
@@ -72,15 +72,15 @@ export async function executePersonRequests(root, io, runCommand) {
           ...streams, skipPersonRequests: true,
           personRequest: { id: record.id, executor, phase: 'execute', digest: requestIntentDigest(record) },
           personRequestMoveId: stageId(record.id, 'execute', executor),
-        }), undefined, undefined, refusalDocument);
+        }), undefined, undefined, refusalDocument, boardOpeners);
         if (response.status !== 200) {
           const error = response.body.error;
           if (transportRefusal(error) || error.code === 'PERSON_REQUEST_TAKEN') continue;
-          if (requests(coordinatorRoot).find(entry => entry.id === record.id)?.status === 'waiting') await receipt(coordinatorRoot, record, executor, 'refuse', io, error);
+          if (requests(coordinatorRoot, boardOpeners).find(entry => entry.id === record.id)?.status === 'waiting') await receipt(coordinatorRoot, record, executor, 'refuse', io, error);
           continue;
         }
       }
-      const completed = requests(coordinatorRoot).find(entry => entry.id === record.id);
+      const completed = requests(coordinatorRoot, boardOpeners).find(entry => entry.id === record.id);
       if (['spec-approve', 'spec-decline', 'spec-answer'].includes(record.move.verb) && completed.status === 'waiting' && !completed.coordinatorRequest) {
         await receipt(coordinatorRoot, completed, executor, 'repo-request', io);
       }
@@ -88,7 +88,7 @@ export async function executePersonRequests(root, io, runCommand) {
       if (!(error instanceof Refused)) throw error;
       if (['PERSON_REQUEST_TAKEN', 'PERSON_REQUEST_CLOSED', 'RELAY_PERSON_ONLY'].includes(error.code)) continue;
       if (transportRefusal(error)) { io.err('pullboard: ' + error.message); continue; }
-      const record = requests(coordinatorRoot).find(entry => entry.id === initial.id);
+      const record = requests(coordinatorRoot, boardOpeners).find(entry => entry.id === initial.id);
       if (record?.executor === executor && record.status === 'waiting') {
         const { refusalDocument } = await import('./next-step-words.js');
         await receipt(coordinatorRoot, record, executor, 'refuse', io, refusalDocument(error).error);

@@ -2,7 +2,6 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import * as store from "../../../../src/board.js";
-import { openBoard } from '../../../../src/native-board.js';
 import { exportBoard } from "../../../../src/exchange.js";
 import {
   codeIsFromMain,
@@ -24,7 +23,7 @@ const COMPARISON_CLOCK = Date.UTC(2000, 0, 1);
 
 /** Refuse incomplete upper bindings before repository discovery, clocks, Git or database effects. */
 function requirePresentationPorts(ports) {
-  if (!ports || typeof ports.verifiedPasskeyRowDecision !== 'function' || typeof ports.pendingFit !== 'function' || typeof ports.projectFit !== 'function' || typeof ports.projectState !== 'function' || typeof ports.personRequestStatuses !== 'function' || typeof ports.personSigningPresentation !== 'function' || typeof ports.activeViewAgents !== 'function' || typeof ports.viewProofSummary !== 'function' || typeof ports.fitFile !== 'function') {
+  if (!ports || typeof ports.openBoard !== 'function' || typeof ports.verifiedPasskeyRowDecision !== 'function' || typeof ports.pendingFit !== 'function' || typeof ports.projectFit !== 'function' || typeof ports.projectState !== 'function' || typeof ports.personRequestStatuses !== 'function' || typeof ports.personSigningPresentation !== 'function' || typeof ports.activeViewAgents !== 'function' || typeof ports.viewProofSummary !== 'function' || typeof ports.fitFile !== 'function') {
     throw new Refused('RELAY_PRESENTATION_PORTS', 'relay presentation requires its complete native upper provider map; use the current native composition entrypoint');
   }
   return ports;
@@ -43,7 +42,7 @@ function readRelayPresentation(root, providedBoard, observedAt, ports) {
   const { fitFile } = ports;
   const info = repoInfo(root);
   const isMain = codeIsFromMain();
-  const board = providedBoard ?? openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain });
+  const board = providedBoard ?? ports.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain });
   try {
     const boardId = store.boardId(board);
     const config = loadConfig(root);
@@ -52,7 +51,7 @@ function readRelayPresentation(root, providedBoard, observedAt, ports) {
     const freshnessReader = providedBoard ? null : cachedVerdictStates(root, board, info, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, boardId: store.boardId });
     /** Preserve a single authorized board, including existing unavailable external milestone entries. */
     const project = (clock) => {
-      const built = buildLocalBoardState(root, boardId, board, isMain, { projects, scopeCommonDir: info.commonDir, observedAt: clock, freshnessReader }, { ...ports, openBoard });
+      const built = buildLocalBoardState(root, boardId, board, isMain, { projects, scopeCommonDir: info.commonDir, observedAt: clock, freshnessReader }, { ...ports, openBoard: ports.openBoard });
       return { ...built.state, sequence: built.sequence,
         statsComparison: compareFlowWindows(built.history, { now: clock, windowMinutes: 120, complete: true }) };
     };
@@ -106,7 +105,7 @@ function readRelaySnapshot(root, providedBoard, observedAt, ports) {
   const info = repoInfo(root);
   for (let attempt = 0; attempt < 3; attempt++) {
     const before = providedBoard ? null : relayPresentation(info.root, { observedAt }, ports);
-    const board = providedBoard ?? openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
+    const board = providedBoard ?? ports.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
     let native;
     try { native = exportBoard(board); } finally { if (!providedBoard) store.closeBoard(board); }
     const presentation = relayPresentation(info.root, { board: providedBoard, observedAt }, ports);

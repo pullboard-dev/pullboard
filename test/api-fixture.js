@@ -14,10 +14,12 @@ import { writeFileSync } from 'node:fs';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
 import { serveApi } from '../src/api.js';
+import { apiBoardOpeners } from './board-fixture.js';
 import { main } from '../src/cli.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { JSON_SHAPES } from '../src/json.js';
 import { fetchFresh } from './http-fixture.js';
+import { safeFixtureDiagnostic } from './fixture-child.js';
 
 /** Quote a literal executable path for the fixture hook's POSIX shim. */
 export function shellWord(value) {
@@ -108,6 +110,24 @@ export function bindApiFixtureMachine(t, env) {
   process.env.PULLBOARD_MACHINE_HOME = env.PULLBOARD_MACHINE_HOME;
 }
 
+/** Include a fixture CLI result's timing and JSON output when a named test step fails. */
+export function fixtureCommandEvidence(step, result, env) {
+  return `${step}\n${result.context}\nstdout: ${safeFixtureDiagnostic(result.stdout, env)}`;
+}
+
+/** Scope one real API command to its clone's exact existing environment fields, then restore them. */
+export async function withApiCommandEnvironment(env, work) {
+  const names = ['PATH', 'HOME', 'PULLBOARD_HOME', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM'];
+  const previous = new Map(names.map((name) => [name, process.env[name]]));
+  try {
+    for (const name of names) process.env[name] = env[name];
+    return await work();
+  } finally {
+    for (const [name, value] of previous) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  }
+}
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
 /** Create a private, committed project, with an exact-build hook shim and no personal Git config. */
@@ -158,7 +178,7 @@ export function apiHttpFixture(t) {
 /** Serve this fixture's explicit project, avoiding any registry outside its private home. */
 export async function apiHttpBox(t, { includeMissing = false, onStateBuild, additionalProjects = [] } = {}) {
   const box = apiHttpFixture(t);
-  const api = await serveApi({ refusalDocument, runCommand: main, onStateBuild, projects: () => [...(includeMissing ? [{ root: join(box.dir, 'gone'), name: 'Missing fixture' }] : []), { root: box.root, name: 'HTTP fixture' }, ...additionalProjects] });
+  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, onStateBuild, projects: () => [...(includeMissing ? [{ root: join(box.dir, 'gone'), name: 'Missing fixture' }] : []), { root: box.root, name: 'HTTP fixture' }, ...additionalProjects] });
   t.after(() => api.close());
   const url = new URL(api.url);
   const key = url.searchParams.get('k');
