@@ -1,6 +1,9 @@
 /** Automatic repairs preserve exact-main matching and ordinary claim authority [V4,B3,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { createHash } from 'node:crypto';
+import { frozenCheck, policyAt } from '../src/trusted-policy.js';
+import { submitGatePlan, submitGateConfig } from '../src/gate-submit.js';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openBoard } from '../src/native-board.js';
@@ -24,8 +27,13 @@ test('opted-in submit files one linked repair for an identical unowned main fail
   assert.equal(generic.status, 1);
   assert.equal(JSON.parse(generic.stdout).error.code, 'AGENT_GRANT_ITEM', 'the opt-in never widens ordinary creation');
   const beforeBoard = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
-  let before;
-  try { before = exportBoard(beforeBoard); } finally { closeBoard(beforeBoard); }
+  let before, nativePlan;
+  try {
+    before = exportBoard(beforeBoard);
+    const item = store.getItem(beforeBoard, box.item);
+    nativePlan = submitGatePlan(box.builder, submitGateConfig(policyAt(box.builder, box.head).config, policyAt(box.builder, box.main).config),
+      { base: item.item_claim_head, trunk: box.main, check: frozenCheck(item), commit: box.head });
+  } finally { closeBoard(beforeBoard); }
   const result = submit(box);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const report = JSON.parse(result.stdout);
@@ -41,7 +49,15 @@ test('opted-in submit files one linked repair for an identical unowned main fail
   // Origin reads only actual gate-written private fixture receipts; replay needs none of the receiver's files.
   const folder = join(box.root, '.git', 'pullboard', 'gate-receipts');
   const receipts = readdirSync(folder).filter(file => file.endsWith('.json')).map(file => readGateReceipt(folder, file.slice(0, -5))).filter(Boolean);
-  const candidates = receipts.filter(row => row.kind === 'submit' && row.proof?.item === box.item);
+  // Receipt filenames are random UUIDs; retain the real criterion-then-proof protocol order.
+  const unordered = receipts.filter(row => row.kind === 'submit' && row.proof?.item === box.item);
+  const candidates = nativePlan.phases.map(({ command }) => {
+    const hash = createHash('sha256').update(command).digest('hex');
+    const matches = unordered.filter(row => row.command === hash);
+    assert.equal(matches.length, 1, 'each native phase has exactly one authentic receipt');
+    return matches[0];
+  });
+  assert.equal(new Set(candidates.map(row => row.id)).size, unordered.length, 'no phase or extra receipt is omitted');
   const comparisons = receipts.filter(row => row.kind === 'main-red');
   const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   try {

@@ -33,6 +33,7 @@ export function entryCreatedItems(entry) {
 /** Remember the local result after both initial application and a partial replay's rebase. */
 export function rememberCreatedItems(entry, result) {
   if (!createsItems(entry.move.operation)) return;
+  if (entry.move.operation === 'submit' && !Array.isArray(result?.mainRedRepairs)) return;
   entry.created = createdItems(entry.move.operation, result);
   if (entry.move.operation === 'addItem' && Number.isSafeInteger(result)) entry.visible = result;
 }
