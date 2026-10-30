@@ -5,7 +5,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { addMilestone, orderMilestoneItems, roadmap } from '../src/board-milestones.js';
 import { eligibilityProblem } from '../src/review-eligibility.js';
-import { milestoneRoadmap } from '../src/roadmap.js';
+import { milestoneRoadmap } from '../packages/roadmap/index.js';
 import { workQueue } from '../src/queue.js';
 
 test('roadmap lists open items in queue order with pins applied and agrees with queue on every item [C7]', (t) => {

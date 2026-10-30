@@ -5,7 +5,7 @@ import { openBoard } from '../native-board.js';
 import {
   Refused,
 } from '../refused.js';
-import * as roadmapView from '../roadmap.js';
+import * as roadmapView from '../../packages/roadmap/index.js';
 import {
   context,
   withBoard,
