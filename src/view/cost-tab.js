@@ -133,14 +133,21 @@ function usageByItem(events) {
     const revisionGap = Boolean(prior && revision > prior.revision + 1);
     const phaseKnown = !phaseChanged && !firstSampleAmbiguous && !revisionGap;
     if (prior && revision <= prior.revision) continue;
+    const fields = ['freshInputTokens', 'cacheReadInputTokens', 'cacheWriteInputTokens', 'inputTokens', 'outputTokens', 'wallMs', 'knownInputTokens', 'knownOutputTokens'];
     const records = new Map();
     for (const record of detail.records) {
       if (!record || typeof record.model !== 'string' || !record.model.trim()) continue;
-      const old = prior?.records.get(modelPresentation(record.model).key);
-      const fields = ['freshInputTokens', 'cacheReadInputTokens', 'cacheWriteInputTokens', 'inputTokens', 'outputTokens', 'wallMs', 'knownInputTokens', 'knownOutputTokens'];
+      const modelKey = modelPresentation(record.model).key, same = records.get(modelKey);
+      if (!same) records.set(modelKey, { ...record });
+      else for (const field of fields) {
+        const total = Number.isSafeInteger(same[field]) && same[field] >= 0 && Number.isSafeInteger(record[field]) && record[field] >= 0 ? same[field] + record[field] : null;
+        same[field] = Number.isSafeInteger(total) ? total : null;
+      }
+    }
+    for (const [modelKey, record] of records) {
+      const old = prior?.records.get(modelKey);
       const delta = Object.fromEntries(fields.map(field => [field, counterDelta(record, old, field)]));
       deltas.push({ item, agent, revision, eventId: Number(event.event_id ?? 0), model: record.model, phaseKnown, ...delta });
-      records.set(modelPresentation(record.model).key, record);
     }
     snapshots.set(key, { revision, records, eventId: Number(event.event_id ?? 0) });
   }

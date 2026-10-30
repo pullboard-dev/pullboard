@@ -75,7 +75,7 @@ test('the Cost presenter keeps the newest twenty landings, median bands and sess
   assert.match(html, /4000000/u);
   assert.match(html, /rework|review/iu);
   assert.match(html, /Reviewer model/u);
-  assert.match(html, /Fixture vendor/u);
+  assert.match(html, /Other/u);
   assert.match(html, /Cost item 30/u);
 });
 

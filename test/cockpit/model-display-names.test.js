@@ -40,6 +40,12 @@ test('private prices and cumulative usage use the same model alias key [N26,N2]'
   assert.equal(priced.rows[0].usageRows.length, 1, 'alias revisions remain one model session');
   assert.equal(priced.rows[0].usageRows[0].freshInputTokens, 2_000_000, 'the alias change does not count the cumulative first checkpoint twice');
   assert.equal(priced.total, 4);
+  const parallelAliases = [event(1, 'claim'), event(2, 'usage', { item: 1, revision: 1, records: [record('GPT-6.1 Sol', 1_000_000, 1000), record('gpt-6.1-sol', 2_000_000, 2000)] }),
+    event(3, 'usage', { item: 1, revision: 2, records: [record('GPT-6.1 Sol', 2_000_000, 2000), record('gpt-6.1-sol', 4_000_000, 4000)] }), event(4, 'submit'), event(5, 'merged')];
+  const merged = costTabModel(board, parallelAliases, { 'GPT-6.1 Sol': { freshInput: 2, cacheReadInput: 0, cacheWriteInput: 0, output: 0 } });
+  assert.equal(merged.rows[0].usageRows.length, 1);
+  assert.equal(merged.rows[0].usageRows[0].freshInputTokens, 6_000_000, 'aliases in the same revision share a cumulative baseline');
+  assert.equal(merged.total, 12);
   assert.deepEqual(priced.vendors.map(row => row.vendor), ['OpenAI']);
   assert.deepEqual(priced.rows[0].buildModels, ['GPT-6.1 Sol']);
   assert.equal(costTabModel(board, events).total, null, 'missing prices remain unknown');
@@ -77,7 +83,7 @@ test('private Items and Shouts share a model name without rewriting the native A
     await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.querySelector('#chain [data-item=\"1\"] .item-seat')");
     assert.equal(await chrome.stable("document.querySelector('#chain [data-item=\"1\"] .item-seat').textContent.trim()"), 'web-1');
-    assert.equal(await chrome.stable("document.querySelector('#chain [data-item=\"1\"] .item-seat').title"), 'GPT-6.1 Sol');
+    assert.equal(await chrome.stable("document.querySelector('#chain [data-item=\"1\"] .item-seat').title.split(' · ')[0]"), 'GPT-6.1 Sol');
     await press(chrome, "document.querySelector('[data-tab=shouts]')");
     await chrome.waitFor("document.querySelector('.agent-card .agent-model')");
     assert.ok((await chrome.stable("document.querySelector('#agents').textContent")).includes('GPT-6.1 Sol'));
