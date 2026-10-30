@@ -62,6 +62,8 @@ export function defaults() {
     families: {},
     // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
     map: { slice: false },
+    // Off by default: the cells checks replay a saved answer for an unchanged commit, tree and diff [#2076].
+    cells: { cache: false },
     agents: { names: 'suffix' },
     inbox: { tokenBudget: 8192 },
     check: { install: '', timeout: '5m' },
@@ -123,6 +125,8 @@ function merge(base, raw) {
     commits: { ...base.commits, ...(raw.commits ?? {}) },
     protect: { ...base.protect, ...(raw.protect ?? {}) },
     map: raw.map && typeof raw.map === 'object' && !Array.isArray(raw.map) ? { ...base.map, ...raw.map } : base.map,
+    cells: raw.cells === undefined ? base.cells
+      : raw.cells && typeof raw.cells === 'object' && !Array.isArray(raw.cells) ? { ...base.cells, ...raw.cells } : raw.cells,
     verify: typeof raw.verify === 'string'
       ? { ...base.verify, policy: raw.verify }
       : { ...base.verify, ...(raw.verify ?? {}) },
@@ -222,6 +226,8 @@ export function configProblems(config) {
   if (config.flakes !== undefined && (!config.flakes || typeof config.flakes !== 'object' || Array.isArray(config.flakes)
       || ['rerun', 'quarantine'].some(key => config.flakes[key] !== undefined && typeof config.flakes[key] !== 'boolean')
       || Object.keys(config.flakes).some(key => !['rerun', 'quarantine'].includes(key)))) problems.push('"flakes" has only the optional booleans "rerun" and "quarantine", each off by default');
+  if (config.cells !== undefined && (!config.cells || typeof config.cells !== 'object' || Array.isArray(config.cells)
+      || typeof config.cells.cache !== 'boolean' || Object.keys(config.cells).some(key => key !== 'cache'))) problems.push('"cells" has only the boolean "cache", off by default');
   if (config.rigor !== undefined && (!config.rigor || typeof config.rigor !== 'object' || Array.isArray(config.rigor)
       || config.rigor.budget !== undefined && (!Number.isSafeInteger(config.rigor.budget) || config.rigor.budget < 0)
       || Object.keys(config.rigor).some(key => key !== 'budget'))) problems.push('"rigor" has only the optional whole number "budget", the lines of non-test code one change may add; 400 by default');
