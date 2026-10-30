@@ -5,7 +5,6 @@ import {
 } from 'node:child_process';
 import { join } from 'node:path';
 import * as store from './board.js';
-import { openBoard } from './native-board.js';
 import {
   invalidateGitFacts,
   mainCheckout,
@@ -177,7 +176,7 @@ function channel(group) {
 }
 
 /** Enter batch execution only through the parent's private process channel. */
-async function workerMain(options, { checkAtCommit, candidateWorkerFile, landingPorts }) {
+async function workerMain(options, { checkAtCommit, candidateWorkerFile, landingPorts, openBoard }) {
   const pipe = channel(options.guardianPid);
   const { call } = pipe;
   const board = openBoard(join(repoInfo(options.root).commonDir, 'pullboard', 'board.sqlite'));
@@ -261,11 +260,14 @@ function guardianMain({ workerFile, parseProcessCensus }) {
 }
 
 /** Enter only from the literal bin composition, retaining the original private IPC modes. */
-export function landingWorkerEntry({ checkAtCommit, workerFile, candidateWorkerFile, landingPorts, parseProcessCensus }) {
+export function landingWorkerEntry({ checkAtCommit, workerFile, candidateWorkerFile, landingPorts, parseProcessCensus, openBoard }) {
   if (!process.send) return;
   if (['guardian', 'worker'].includes(process.argv[2]) && typeof parseProcessCensus !== 'function') throw new TypeError('landing IPC entry needs the explicit process census parser');
   if (process.argv[2] === 'guardian') guardianMain({ workerFile, parseProcessCensus });
-  else if (process.argv[2] === 'worker') process.once('message', message => {
-    if (message.type === 'start') void workerMain(message.options, { checkAtCommit, candidateWorkerFile, landingPorts });
-  });
+  else if (process.argv[2] === 'worker') {
+    if (typeof openBoard !== 'function') throw new TypeError('landing worker requires its actual native board opener');
+    process.once('message', message => {
+      if (message.type === 'start') void workerMain(message.options, { checkAtCommit, candidateWorkerFile, landingPorts, openBoard });
+    });
+  }
 }

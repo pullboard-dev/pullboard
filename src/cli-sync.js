@@ -1,3 +1,4 @@
+import { nativeBoardOpeners } from './cli-context.js';
 import { recordedMoveRefusal } from './recorded-move.js';
 import { readFileSync } from 'node:fs';
 import { readBoardKey } from './relay-key.js';
@@ -84,7 +85,7 @@ export async function retrySync(io) {
     try { tellLocalKeyDiagnostic(io, local); } catch (error) { await reportQuietly(io, error); }
     // No sync and no lock: hand the relay's work to the machine's sender, and deliver finished baselines here.
     nudgeRelaySender(local.root, local.file, io.launchRelaySender);
-    try { await retryCheckBaselines(io.cwd, io); } catch (error) { await reportQuietly(io, error); }
+    try { await retryCheckBaselines(io.cwd, io, { openBoard: nativeBoardOpeners().openBoard }); } catch (error) { await reportQuietly(io, error); }
     return;
   }
   try {
@@ -96,7 +97,7 @@ export async function retrySync(io) {
     }
     io.relayOutbox ??= () => relayOutboxSetting(io.cwd);
     await syncRelay(io.cwd, io);
-    await retryCheckBaselines(io.cwd, io);
+    await retryCheckBaselines(io.cwd, io, { openBoard: nativeBoardOpeners().openBoard });
   }
   catch (error) { await reportQuietly(io, error); }
 }
@@ -113,9 +114,9 @@ export async function syncBefore(io, main) {
   }
   await retrySync(io);
   // An off that only the relay can vouch for is checked against the relay's own authority before anything reads it (#408).
-  try { await (await import('./person-signing-cli.js')).attestBeforeCommand(io.cwd, io, { DEFAULT_RELAY, relayStatus }); }
+  try { await (await import('./person-signing-cli.js')).attestBeforeCommand(io.cwd, io, { DEFAULT_RELAY, relayStatus, openBoard: nativeBoardOpeners().openBoard }); }
   catch (error) { reportQuietly(io, error); }
-  try { await executePersonRequests(io.cwd, io, main); }
+  try { await executePersonRequests(io.cwd, io, main, nativeBoardOpeners()); }
   catch (error) { await reportQuietly(io, error); }
   tellConflicts(io, local);
 }

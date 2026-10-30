@@ -5,7 +5,6 @@
  */
 import { join } from 'node:path';
 import * as store from './board.js';
-import { openBoard } from './native-board.js';
 import * as conflictRecords from './relay-conflict-record.js';
 import {
   appliedSequence,
@@ -35,10 +34,11 @@ import {
  * Build catch-up and send over relay.js's helpers.
  *
  * @param {{ request: Function, localRecords: Function, decoded: Function, replayRelayRecord: Function,
- *   reportRecoveredReply: Function, saveLink: Function, sealedRecord: Function, flush: Function }} relay
+ *   reportRecoveredReply: Function, saveLink: Function, sealedRecord: Function, flush: Function, openBoard: Function }} relay
  * @returns {{ applyRecords: Function, fetchCheckpoint: Function, catchUp: Function, postPending: Function, sendPending: Function }}
  */
-export function relayOrdering({ request, localRecords, decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord, flush }) {
+export function relayOrdering({ request, localRecords, decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord, flush, openBoard }) {
+  if (typeof openBoard !== 'function') throw new TypeError('relay ordering requires its actual native board opener');
   /** Apply authenticated relay records in order, each in its own board transaction with a durable receipt. */
   async function applyRecords(root, key, state, records) {
     const outcomes = [];

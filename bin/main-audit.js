@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { openBoardForRead } from '../src/native-board.js';
 import { runnerExecutionServices } from '../src/runners.js';
 import { landingExecutionServices } from '../src/landing-shards.js';
 import { flakeLedger } from '../src/flakes.js';
@@ -22,5 +23,5 @@ if ((args.length && !(args.length === 1 && (scheduled || forceFull)) && !wakeAt)
   throw new Error('main-audit requires an explicit root and native UUID token, optionally --scheduled or --release');
 }
 if (!wakeAt || await waitMainAudit(mainAuditDirectory(repoInfo(root)), token, wakeAt)) {
-  await runMainAudits(root, token, { scheduled, forceFull }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, testValue: { flakeLedger, eventCauses } });
+  await runMainAudits(root, token, { scheduled, forceFull }, { openBoardForRead, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, testValue: { flakeLedger, eventCauses } });
 }

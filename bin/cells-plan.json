@@ -781,5 +781,27 @@
         "imports"
       ]
     }
+  ],
+  "entries": [
+    {
+      "path": "bin/check-baseline.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "bin/landing-worker.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "bin/landing-candidate.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "bin/main-audit.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "bin/source-advance.js",
+      "cell": "app:lib"
+    }
   ]
 }

@@ -42,8 +42,6 @@ import {
 } from 'node:fs';
 import { displayAgentName } from './agent-names.js';
 import * as store from './board.js';
-import { openBoardForRead } from './native-board.js';
-import { openBoard } from './native-board.js';
 import { roadmap } from './board-milestones.js';
 import {
   COORDINATOR,
@@ -143,7 +141,8 @@ function visibleMilestoneInputs(milestones, scoped) {
 }
 
 /** Capture the inexpensive inputs that can invalidate a complete board-state snapshot. */
-function boardStateRevision(root, id, isMain, { projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now() } = {}) {
+function boardStateRevision(root, id, isMain, { projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), boardOpeners } = {}) {
+  const { openBoard } = requireBoardOpeners(boardOpeners);
   const info = repoInfo(root);
   const config = loadConfig(info.root);
   const files = stateFileInputs(info.root, config, { fitFile }).map(fileRevision);
@@ -155,7 +154,7 @@ function boardStateRevision(root, id, isMain, { projects = listApiProjects, scop
         ? milestoneRoadmap(info.root, board, { ports: { ...store, roadmap, openBoard } })
         : milestoneRoadmap(info.root, board, { projects, hideOutOfScope: true, ports: { ...store, roadmap, openBoard } })
       : null };
-  }, isMain);
+  }, isMain, boardOpeners);
   const inputs = {
     identity: [info.commonDir, id],
     head: resolveCommit(info.root, 'HEAD'),
@@ -528,10 +527,10 @@ function stateDelta(bases, current, state) {
 }
 
 /** Add the request-specific unread count without mutating the reusable snapshot. */
-function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, observedAt, comparisonHistory) {
+function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, observedAt, comparisonHistory, boardOpeners) {
   const projection = seen === null ? { unseen: null } : withBoard(root, (board) => ({
     unseen: { since: seen, count: board.db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_id > ?').get(seen).n },
-  }), isMain);
+  }), isMain, boardOpeners);
   if (state.capacityForecast) projection.capacityForecast = capacityAtRead(state.capacityForecast, observedAt);
   if (refreshFlow && comparisonHistory) projection.statsComparison = compareFlowWindows(comparisonHistory, { now: observedAt, windowMinutes: 120, complete: true });
   if (refreshFlow && preparedFlow) {
@@ -620,6 +619,14 @@ function serializeState(state, fields, reportJson, validator = false) {
   return '{' + encoded.join(',') + '}';
 }
 
+/** Require actual native connection providers before any API board discovery or writes. */
+function requireBoardOpeners(ports) {
+  if (typeof ports?.openBoard !== 'function' || typeof ports.openBoardForRead !== 'function') {
+    throw new TypeError('API needs its actual native board openers from the higher composition root');
+  }
+  return ports;
+}
+
 const ADDRESS = '127.0.0.1';
 const VERSION = 1;
 
@@ -629,7 +636,8 @@ const VERSION = 1;
  * @param {(board: any, info: any) => any} read
  * @param {boolean} [isMain] Whether the running CLI code comes from the main checkout.
  */
-function withBoard(root, read, isMain) {
+function withBoard(root, read, isMain, boardOpeners) {
+  const { openBoard, openBoardForRead } = requireBoardOpeners(boardOpeners);
   const info = repoInfo(root);
   loadConfig(info.root);
   const file = join(info.commonDir, 'pullboard', 'board.sqlite');
@@ -648,7 +656,8 @@ function withBoard(root, read, isMain) {
  * Why: openBoard migrates, writes the board id and checkpoints the log on close, so every read
  * waited behind agents' writes (#1040). Any other board goes through withBoard, which upgrades or refuses it.
  */
-function withReadBoard(root, read, isMain) {
+function withReadBoard(root, read, isMain, boardOpeners) {
+  requireBoardOpeners(boardOpeners);
   const info = repoInfo(root);
   loadConfig(info.root);
   let db = null;
@@ -661,15 +670,16 @@ function withReadBoard(root, read, isMain) {
   }
   if (!current) {
     db?.close();
-    return withBoard(root, read, isMain);
+    return withBoard(root, read, isMain, boardOpeners);
   }
   try { return read({ db, clock: store.systemClock }, info); } finally { db.close(); }
 }
 
 /** Registered boards carry one persistent identity across local and relay addresses. */
-export function apiBoards(projects = listApiProjects, isMain) {
+export function apiBoards(projects = listApiProjects, isMain, boardOpeners) {
+  requireBoardOpeners(boardOpeners);
   return projects().flatMap((project) => {
-    try { return [withBoard(project.root, (board) => ({ ...project, id: store.boardId(board) }), isMain)]; }
+    try { return [withBoard(project.root, (board) => ({ ...project, id: store.boardId(board) }), isMain, boardOpeners)]; }
     catch { return []; }
   });
 }
@@ -680,13 +690,14 @@ export function apiBoards(projects = listApiProjects, isMain) {
  * @param {() => { root: string, name: string, project: string, added: string }[]} projects
  * @returns {{ boards: object[], warnings: object[] }}
  */
-export function apiBoardListing(projects = listApiProjects, isMain, refusalDocument) {
+export function apiBoardListing(projects = listApiProjects, isMain, refusalDocument, boardOpeners) {
+  requireBoardOpeners(boardOpeners);
   if (typeof refusalDocument !== 'function') throw new TypeError('apiBoardListing needs the caller\'s refusalDocument renderer');
   const boards = [];
   const warnings = [];
   for (const project of projects()) {
     try {
-      boards.push(withBoard(project.root, (board) => ({ ...project, id: store.boardId(board) }), isMain));
+      boards.push(withBoard(project.root, (board) => ({ ...project, id: store.boardId(board) }), isMain, boardOpeners));
     } catch (cause) {
       const error = ['EVENT_LOG_VERSION', 'UNMERGED_SCHEMA'].includes(cause.code) ? cause : new Refused('BOARD_UNAVAILABLE', `registered project ${project.root} cannot be read; restore the repo or run pullboard forget ${project.root}`);
       warnings.push({ ...project, error: refusalDocument(error) });
@@ -704,9 +715,9 @@ export function apiBoardListing(projects = listApiProjects, isMain, refusalDocum
  * @param {boolean | undefined} isMain
  * @returns {{ version: 1, project: string, decisions: object[], unreadable: string[] }}
  */
-function projectDecisionListing(selected, projects, isMain) {
+function projectDecisionListing(selected, projects, isMain, boardOpeners) {
   if (!selected) throw new Refused('BAD_REQUEST', 'name a registered board with ?board=<id> from GET /api/v1/boards');
-  const home = findBoard(selected, projects, isMain);
+  const home = findBoard(selected, projects, isMain, boardOpeners);
   const members = home.project ? projects().filter((entry) => entry.project === home.project) : [home];
   const decisions = [];
   const unreadable = [];
@@ -715,17 +726,17 @@ function projectDecisionListing(selected, projects, isMain) {
       withReadBoard(member.root, (board) => {
         const id = store.boardId(board);
         for (const ask of store.openDecisions(board, store.PERSON)) decisions.push({ ...ask, board: id, repo: member.name });
-      }, isMain);
+      }, isMain, boardOpeners);
     } catch { unreadable.push(member.name); }
   }
   return { version: 1, project: home.project ?? '', decisions, unreadable };
 }
 
 /** Resolve only registered boards, so a request cannot open an arbitrary path on the machine. */
-function findBoard(id, projects, isMain) {
+function findBoard(id, projects, isMain, boardOpeners) {
   // Each request resolves its board, so this opens boards read-only and stops at the match (#1040).
   const board = projects().find((project) => {
-    try { return withReadBoard(project.root, (current) => store.boardId(current), isMain) === id; }
+    try { return withReadBoard(project.root, (current) => store.boardId(current), isMain, boardOpeners) === id; }
     catch { return false; } // An unreadable board is left out, as the board listing leaves it out.
   });
   if (!board) throw new Refused('NO_BOARD', `no registered board ${id}; run pullboard serve in its repo and use GET /api/v1/boards`);
@@ -754,12 +765,12 @@ function apiProjectScope(projects, scope) {
 }
 
 /** Read events in sequence, including changes made by other processes on the same board. */
-function afterEvents(root, after, isMain) {
-  return withBoard(root, (board) => board.db.prepare('SELECT * FROM event WHERE event_id > ? ORDER BY event_id').all(after), isMain);
+function afterEvents(root, after, isMain, boardOpeners) {
+  return withBoard(root, (board) => board.db.prepare('SELECT * FROM event WHERE event_id > ? ORDER BY event_id').all(after), isMain, boardOpeners);
 }
 
 /** Resolve an authenticated local caller's agent to its own checkout, never another board. */
-function agentPath(root, name = COORDINATOR, isMain) {
+function agentPath(root, name = COORDINATOR, isMain, boardOpeners) {
   if (typeof name !== 'string' || !name) throw new Refused('BAD_REQUEST', 'agent needs a registered name; omit it to act as the coordinator');
   return withBoard(root, (board, info) => {
     if (name === COORDINATOR && !relayLinked(root)) store.ensureCoordinator(board, root);
@@ -769,15 +780,15 @@ function agentPath(root, name = COORDINATOR, isMain) {
     if (name === COORDINATOR && relayLinked(root)) return root;
     if (repoInfo(agent.agent_path).commonDir !== info.commonDir) throw new Refused('WRONG_BOARD', `agent ${name}'s worktree belongs to another board; join the agent in this board's worktree`);
     return agent.agent_path;
-  }, isMain);
+  }, isMain, boardOpeners);
 }
 
 /** Execute one actual CLI command and retain its emitted event without a latest-row race. */
-export async function executeMove(root, body, runCommand, isMain, personChannel = 'view', refusalDocument) {
+export async function executeMove(root, body, runCommand, isMain, personChannel = 'view', refusalDocument, boardOpeners) {
   if (Object.keys(body).some((key) => !['verb', 'item', 'args', 'agent'].includes(key))) throw new Refused('BAD_REQUEST', 'a move takes only verb, item, args and agent; remove the unknown fields');
   const argv = moveArgs(body);
   let cwd;
-  try { cwd = agentPath(root, body.agent, isMain); } catch (error) {
+  try { cwd = agentPath(root, body.agent, isMain, boardOpeners); } catch (error) {
     if (!(error instanceof Refused) || error.code === 'BAD_REQUEST') throw error;
     if (typeof refusalDocument !== 'function') throw new TypeError(`executeMove needs the caller's refusalDocument renderer to answer ${error.code}`);
     return { status: error.code === 'WRONG_BOARD' ? 403 : 409, body: refusalDocument(error) };
@@ -804,7 +815,7 @@ export async function executeMove(root, body, runCommand, isMain, personChannel 
 }
 
 /** Create a person's coordinator request through the view's channel, never a standalone serve key. */
-async function createRequest(root, body, isMain, personChannel) {
+async function createRequest(root, body, isMain, personChannel, boardOpeners) {
   if (personChannel !== 'view') throw new Refused('B26_PERSON_CHANNEL', 'person requests use the terminal or the view; run pullboard view');
   if (typeof body.text !== 'string' || !body.text.trim() || Object.keys(body).some((key) => key !== 'text')) throw new Refused('BAD_REQUEST', 'a request needs {text: "what the coordinator should do"}');
   const message = { from: 'person', to: COORDINATOR, text: body.text, request: true, lanes: laneNames(loadConfig(root)) };
@@ -812,12 +823,12 @@ async function createRequest(root, body, isMain, personChannel) {
     const id = await relayOperation(root, 'shout', [message], { err: () => {} });
     return withBoard(root, (board) => ({ version: VERSION,
       event: store.events(board).find((event) => JSON.parse(event.event_detail).shout === id),
-      result: { id, request: true } }), isMain);
+      result: { id, request: true } }), isMain, boardOpeners);
   }
   return withBoard(root, (board) => {
     const id = store.shout(board, message);
     return { version: VERSION, event: board.lastEvent, result: { id, request: true } };
-  }, isMain);
+  }, isMain, boardOpeners);
 }
 
 /** Return one unambiguous value for a named request cookie, or null when absent or duplicated. */
@@ -858,7 +869,8 @@ function isLiteralIPv4(host) {
 /** Share the local router with the person's view and other local transports; the standalone API explicitly denies person authority.
  * @param {{ secret: string | Buffer, getPort: () => number, runCommand: Function, projects?: () => any[], scope?: { projectRoot: string }, isMain?: boolean, allowedOrigins?: string[], allowedHosts?: string[], onStateBuild?: Function, onItemBuild?: Function, personChannel?: string, stateDetail?: string, now?: () => number, sessionCookie?: {name:string,value:string} }} [options]
  */
-export function createLocalApiHandler({ secret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument } = {}) {
+export function createLocalApiHandler({ secret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument, boardOpeners } = {}) {
+  const { openBoard } = requireBoardOpeners(boardOpeners);
   if (typeof now !== 'function') throw new TypeError('createLocalApiHandler needs an observation clock');
   if (typeof getPort !== 'function') throw new TypeError('createLocalApiHandler needs a bound-port getter');
   if (typeof runCommand !== 'function') throw new TypeError('createLocalApiHandler needs the actual CLI entry point as runCommand');
@@ -920,11 +932,11 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
    * input revision holds before and after the read, and building it again when one moved.
    */
   function withSnapshot(board, read, observedAt = now()) {
-    const before = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt });
+    const before = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt, boardOpeners });
     const cached = stateCache.get(before.cacheId);
     if (before.cacheable && cached?.revision === before.revision && nativeStateClockMatches(cached.clockWindow, observedAt)) {
       const result = read(cached, true);
-      const after = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt });
+      const after = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt, boardOpeners });
       if (after.cacheable && after.revision === before.revision) {
         cached.clockWindow.observedAt = observedAt; // A backwards request must rebuild even within the prior constant window.
         stateCache.delete(before.cacheId);
@@ -948,7 +960,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       observedAt,
       localRelayHealth: relayCanaryNeeds(board.root),
       localCapacity: true,
-    }, { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary }), codeIsMain);
+    }, { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary }), codeIsMain, boardOpeners);
     // Capture the complete prefix once in this transaction; each read projects its actual observation
     // windows from those cached canonical inputs without another database scan or state rebuild.
     const state = { ...built.state, sequence: built.sequence,
@@ -961,7 +973,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       comparisonHistory: built.history,
     });
     entry.cacheId = before.cacheId;
-    const after = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt });
+    const after = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt, boardOpeners });
     // Missing Git objects can arrive without a board event or trunk move; retry that uncertainty.
     if (before.cacheable && after.cacheable && before.revision === after.revision &&
         !state.items.some(item => item.verdictState?.reason)) {
@@ -979,7 +991,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     const full = !compact && (detail ?? stateDetail) === 'full';
     const sent = withSnapshot(board, (entry, cached) => {
       const base = full ? entry.state : compact ? (entry.compact ??= compactItemSummaries(entry.summary)) : entry.summary;
-      const state = stateForRequest(base, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory);
+      const state = stateForRequest(base, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory, boardOpeners);
       // Full fragments wait for the first full request, so a server sending summaries never builds them.
       const fields = full ? (entry.stateJsonFields ??= prepareStateJson(entry.state))
         : compact ? (entry.compactFields ??= prepareStateJson(base)) : entry.summaryFields;
@@ -1000,7 +1012,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     const observedAt = now();
     /** One build's answer: its delta from the summary states sent at `since`, or a reset naming why there is none. */
     const answerFor = (entry, cached) => {
-      const state = stateForRequest(entry.summary, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory);
+      const state = stateForRequest(entry.summary, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory, boardOpeners);
       const answer = { since, sequence: entry.sequence, eventLogVersion: store.EVENT_LOG_VERSION };
       const path = '/api/v1/boards/' + board.id + '/state';
       /** Tell the client to load a fresh snapshot, and why. */
@@ -1052,7 +1064,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
         try { currentBoard.db.exec('ROLLBACK'); } catch { /* Preserve the projection failure. */ }
         throw error;
       }
-    }, codeIsMain);
+    }, codeIsMain, boardOpeners);
   }
   /** Serve an item's cached detail while its key holds, building and keeping it when the key moved. */
   function itemDetailIn(board, currentBoard, info, id) {
@@ -1135,9 +1147,9 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       if (!settingsProviders) throw new Refused('SERVICE_ERROR', 'this API was started without its settings providers; start it through pullboard serve or pullboard view');
       return settingsInventory(settingsScope.projects(), selected, settingsProviders);
     },
-    boards: () => withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument)),
-    decisions: (selected) => withGitReadFacts(() => projectDecisionListing(selected, apiProjects, codeIsMain)),
-    board: (id) => withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain)),
+    boards: () => withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument, boardOpeners)),
+    decisions: (selected) => withGitReadFacts(() => projectDecisionListing(selected, apiProjects, codeIsMain, boardOpeners)),
+    board: (id) => withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain, boardOpeners)),
     state: (board, who, seen, options) => withGitReadFacts(() => localState(board, seen, options).state),
     stateJson: (board, who, seen, options) => withGitReadFacts(() => {
       const sent = localState(board, seen, options);
@@ -1155,17 +1167,17 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       const proof = report?.items?.find(item => item.id === id);
       if (!proof) throw new Refused('ITEM_NOT_AVAILABLE', 'this item exists, but its proof report is unavailable; run a normal writable board command to rebuild the derived report, then retry');
       return proof;
-    }, codeIsMain)),
+    }, codeIsMain, boardOpeners)),
     item: (board, id) => withGitReadFacts(() => localItem(board, id)),
     search: (board, text) => withGitReadFacts(() => localSearch(board, text)),
     shout: (board, id) => withGitReadFacts(() => relayLinked(board.root)
-      ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, fitFile })
-      : withBoard(board.root, (db) => store.shoutDetails(db, id), codeIsMain)),
+      ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, fitFile, openBoard })
+      : withBoard(board.root, (db) => store.shoutDetails(db, id), codeIsMain, boardOpeners)),
     code: (board, ref) => withGitReadFacts(() => codeAt(board.root, ref)),
-    events: (board, after) => withGitReadFacts(() => afterEvents(board.root, after, codeIsMain)),
+    events: (board, after) => withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners)),
     eventLogVersion: () => store.EVENT_LOG_VERSION,
-    move: (board, body) => executeMove(board.root, body, runCommand, codeIsMain, personChannel, refusalDocument),
-    request: (board, body) => createRequest(board.root, body, codeIsMain, personChannel),
+    move: (board, body) => executeMove(board.root, body, runCommand, codeIsMain, personChannel, refusalDocument, boardOpeners),
+    request: (board, body) => createRequest(board.root, body, codeIsMain, personChannel, boardOpeners),
     tokens: async (board) => (await relayTokens(board.root, { err() {} })).tokens,
     revokeToken: (board, id) => relayRevoke(board.root, id, { personChannel, say() {}, err() {} }),
   }, { tagState: true });
@@ -1175,11 +1187,11 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
  * Serve the RFC 0002 API only on loopback, behind the same session-secret boundary as the view. Its
  * state sends item summaries unless asked for detail=full; each item's detail has its own path (A2).
  */
-export function serveApi({ port = 0, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument } = {}) {
+export function serveApi({ port = 0, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument, boardOpeners } = {}) {
   if (typeof runCommand !== 'function') throw new TypeError('serveApi needs the actual CLI entry point as runCommand');
   let bound;
   // A serve key authenticates board access, never a person, even in an ordinary terminal.
-  const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders, refusalDocument });
+  const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders, refusalDocument, boardOpeners });
   const server = createServer(handler);
   server.requestTimeout = 15_000;
   return new Promise((ready, fail) => {

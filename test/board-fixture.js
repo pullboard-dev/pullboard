@@ -2,7 +2,9 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openBoard, closeBoard } from '../src/native-board.js';
+import { openBoard } from '../src/native-board.js';
+import { openBoardForRead } from '../src/native-board.js';
+import { closeBoard } from '../src/native-board.js';
 import { Refused } from '../src/refused.js';
 
 const FILE_PURPOSES = new Set(['persistence', 'locking', 'migration']);
@@ -36,3 +38,6 @@ export function fixtureBoard(t, { clock, storage = 'memory', purpose } = {}) {
     throw error;
   }
 }
+
+/** Bind the actual native openers at API fixture roots, never inside API projection code. */
+export const apiBoardOpeners = Object.freeze({ openBoard, openBoardForRead });

@@ -351,7 +351,8 @@ async function runMain(argv, streams) {
       const [command, verb] = parsed.positionals;
       const remoteRelayOn = command === 'relay' && verb === 'on' && !parsed.values.all;
       if (!parsed.values.help && !parsed.values.version &&
-          (parsed.values.as === 'person' && command !== 'decisions' && !await (await import('./person-signing-cli.js')).personMovesSigned(io.cwd, io, await import('./relay.js')) || command === 'relay' && ['on', 'join', 'revoke', 'members'].includes(verb) && !remoteRelayOn)) {
+          (parsed.values.as === 'person' && command !== 'decisions' && !await (await import('./person-signing-cli.js')).personMovesSigned(io.cwd, io, { ...(await import('./relay.js')),
+            openBoard: (await import('./cli-context.js')).nativeBoardOpeners().openBoard }) || command === 'relay' && ['on', 'join', 'revoke', 'members'].includes(verb) && !remoteRelayOn)) {
         (await import('./person.js')).requirePersonChannel(io.personChannel);
         io.caller('person');
       }
@@ -400,7 +401,8 @@ async function runMain(argv, streams) {
         let eligible = true;
         try {
           const { landingLeaseState } = await import('./board-landing-lease.js');
-          eligible = (await import('./source-advance-worker.js')).hasSourceAdvanceJobs(io.cwd, { landingLeaseState });
+          eligible = (await import('./source-advance-worker.js')).hasSourceAdvanceJobs(io.cwd, { landingLeaseState,
+            openBoardForRead: (await import('./cli-context.js')).nativeBoardOpeners().openBoardForRead });
         }
         catch { /* Unknown state keeps the normal worker path, which records incomplete work. */ }
         await (await import('./source-advance-nudge.js')).nudgeSourceAdvances(io.cwd, {
