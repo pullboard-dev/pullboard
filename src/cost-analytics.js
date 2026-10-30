@@ -1,5 +1,5 @@
 /** Private server-side cost cohorts from native board events [N26]. */
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Wilson's two-sided 95% score interval for a binomial proportion. */
 export function wilson(successes, total) {

@@ -1,4 +1,4 @@
-import { costAnalytics } from './cost-analytics.js';
+import { costAnalytics } from '../packages/stats/index.js';
 import { activeViewAgents } from './view-state-summary.js';
 import { viewProofSummary } from './view-state-summary.js';
 import { personSigningPresentation } from './person-signing-presentation.js';
