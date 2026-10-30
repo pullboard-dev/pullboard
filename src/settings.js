@@ -25,7 +25,7 @@ import {
   readGateQueueSettings,
   readMachineSettingsFile,
 } from '../packages/queue/index.js';
-import { machineSettingsFile } from './machine-home.js';
+import { machineSettingsFile } from '../packages/resources/index.js';
 
 // The gate queue's settings live in the queue cell so the runner runtime can read them too.
 export { machineSettingsFile };

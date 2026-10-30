@@ -37,7 +37,7 @@ function remoteFixture(t, body) {
 
 test('an idle pinned runner with stale job files and missing exact completion recovers once with an audited reason [C7]', t => {
   const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
-  const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
+  const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
   const { actual, requests } = remoteFixture(t, () => `
     import { DatabaseSync } from 'node:sqlite';
     import { probeRunnerHealth } from ${JSON.stringify(runners)};
@@ -69,7 +69,7 @@ test('an idle pinned runner with stale job files and missing exact completion re
 
 test('a live job stays unavailable and its next idle probe waits five minutes [C7]', t => {
   const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
-  const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
+  const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
   const { actual, requests } = remoteFixture(t, ({ root }) => `
     import { DatabaseSync } from 'node:sqlite';
     import { spawn } from 'node:child_process';
@@ -203,7 +203,7 @@ test('a runner resource lease prevents an idle proof even without a job cwd [C7]
 });
 
 test('a runner unavailable thirty minutes appears in the sentinel health findings [C7]', t => {
-  const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
+  const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
   const health = pathToFileURL(join(import.meta.dirname, '../packages/health/index.js')).href;
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);

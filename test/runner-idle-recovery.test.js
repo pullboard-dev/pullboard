@@ -1,3 +1,4 @@
+/** @pullboard-test-loads packages/resources/index.js */
 /** @pullboard-test-input source-tree */
 /** Exact started requests without completion need an idle proof, while live or foreign custody stays held [C7]. */
 import assert from 'node:assert/strict';
@@ -25,7 +26,7 @@ function control(t, body) {
     import { DatabaseSync } from 'node:sqlite';
     import { randomUUID } from 'node:crypto';
     import { probeRunnerHealth } from ${JSON.stringify(url('runners.js'))};
-    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('runner-recovery.js'))};
+    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('../packages/resources/index.js'))};
     import { claimRunnerLaunch, runnerLaunchAllowed, claimRunnerWorker } from ${JSON.stringify(url('runner-transport.js'))};
     const transportURL = ${JSON.stringify(url('runner-transport.js'))};
     const root = ${JSON.stringify(root)};

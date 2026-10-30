@@ -6,7 +6,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { repoInfo } from '../../src/git.js';
-import { machineHome } from '../../src/machine-home.js';
+import { machineHome } from '../../packages/resources/index.js';
 import { Refused } from '../../src/refused.js';
 
 const LEASE_MS = 20_000;

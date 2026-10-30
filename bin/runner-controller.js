@@ -7,6 +7,7 @@ import { privateCheckEnvelope } from '../src/runner-private-mode.js';
 import { privateCheckPhases } from '../src/runner-private-mode.js';
 import { runnerItemState } from '../packages/resources/index.js';
 import { controllerDeadline } from '../packages/resources/index.js';
+import { probeRunnerJob } from '../src/runners.js';
 
 /** Importing this module never starts a controller; only its exact direct entry accepts bridge input. */
 function isRunnerControllerEntry() {
@@ -15,5 +16,5 @@ function isRunnerControllerEntry() {
   catch { return false; }
 }
 
-if (isRunnerControllerEntry()) serveRunnerController({ privateCheckEnvelope, privateCheckPhases, runnerItemState, controllerDeadline })
+if (isRunnerControllerEntry()) serveRunnerController({ privateCheckEnvelope, privateCheckPhases, runnerItemState, controllerDeadline, probeRunnerJob })
   .catch(error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });

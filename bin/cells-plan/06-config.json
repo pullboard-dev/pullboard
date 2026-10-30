@@ -5,11 +5,11 @@
  "root": "packages/config",
  "frontDoor": "packages/config/index.js",
  "paths": [
+  ["src/exit-rules-config.js","packages/config/src/core/exit-rules-config.js","rule"],
   ["src/command-declaration-read.js","packages/config/src/shell/command-declaration-read.js","rule"],
   ["src/config.js","packages/config/src/shell/config.js","seed"],
   ["src/json-output.js","packages/config/src/core/json-output.js","seed"],
   ["src/json.js","packages/config/src/core/json.js","seed"],
-  ["src/machine-home.js","packages/config/src/shell/machine-home.js","seed"],
   ["src/settings-inventory.js","packages/config/src/shell/settings-inventory.js","seed"],
   ["src/cost-prices.js","packages/config/src/core/cost-prices.js","rule"],
   ["src/settings-read.js","packages/config/src/core/settings-read.js","rule"],
@@ -37,7 +37,6 @@
   "src/config.js",
   "src/json-output.js",
   "src/json.js",
-  "src/machine-home.js",
   "src/settings-inventory.js",
   "src/settings-read.js",
   "src/settings.js",
@@ -61,8 +60,7 @@
   {"cell":"app:cli","imports":1,"before":false}
  ],
  "cuts": [
-  {"cell":"queue","imports":1,"edges":["src/routing-capacity.js->src/config.js"]},
-  {"cell":"resources","imports":1,"edges":["src/resources.js->src/machine-home.js"]}
+  {"cell":"queue","imports":1,"edges":["src/routing-capacity.js->src/config.js"]}
  ],
  "ratchets": {
   "legacySource": 0,

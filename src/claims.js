@@ -10,7 +10,9 @@ export function firstRefusalProblem(board, id, agentId, ports) {
 }
 
 /** Explain ineligible build work without raising an item refusal from review selection. */
-export function firstRefusalReason(board, id, agentId, { firstRefusal }) {
+export function firstRefusalReason(board, id, agentId, { firstRefusal, exitContinuationProblem }) {
+  const continuation = exitContinuationProblem?.(board, id, agentId);
+  if (continuation) return continuation.message;
   const window = firstRefusal(board, id);
   return window && window.builder !== agentId && !takeoverReady(board, id)
     ? `item #${id} waits for ${window.builder} until ${window.until}; claim it after that time, or ask its builder to release it`

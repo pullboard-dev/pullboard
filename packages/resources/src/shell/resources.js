@@ -1,8 +1,10 @@
 import { createControllerCustody } from './controller-custody.js';
 import { controllerLeaseHealth } from './controller-custody.js';
-import { spawnSync } from 'node:child_process';
+import { pruneControllerOrphans } from './controller-custody.js';
+import { controllerRegistrationPorts } from './controller-custody.js';
+import { consumeControllerDisposition } from './controller-disposition.js';
+import { settleControllerCancellation } from './controller-disposition.js';
 import { isAbsolute } from 'node:path';
-import { cleanGitEnvironment } from '../../../../src/git.js';
 /** Machine and repository queues persist leases; landings first, then arrival order, or by class (landing, review, submit, other) aging up over time where the machine opts in [Q1,Q2,Q3]. */
 import {
   existsSync,
@@ -31,20 +33,20 @@ import {
   machineHome,
   machineSettingsFile,
   withMachineHomeWrite,
-} from '../../../../src/machine-home.js';
+} from './machine-home.js';
 import { Refused } from '../../../../src/refused.js';
 import {
   initializeRunnerRecovery,
   recordRunnerFailure,
   recoverUnavailableRunners,
   runnerRecoveryStatus,
-} from '../../../../src/runner-recovery.js';
+} from './resource-recovery.js';
 import { readGateQueueSettings } from '../../../queue/index.js';
 import {
   localWaitBranch,
   runnerDeadlineLine,
   runnerWaitReasons,
-} from '../../../../src/runner-wait.js';
+} from './runner-wait-reasons.js';
 import {
   ARRIVAL_ORDER,
   classedMarker,
@@ -154,6 +156,7 @@ function openQueue(file) {
       if (table === 'waiter' && !columns.includes('required_executor')) db.exec("ALTER TABLE waiter ADD COLUMN required_executor TEXT NOT NULL DEFAULT ''");
       if (table === 'waiter' && !columns.includes('runner_only')) db.exec('ALTER TABLE waiter ADD COLUMN runner_only INTEGER NOT NULL DEFAULT 0');
       if (table === 'holder' && !columns.includes('runner_execution')) db.exec('ALTER TABLE holder ADD COLUMN runner_execution INTEGER NOT NULL DEFAULT 0');
+      if (table === 'holder' && !columns.includes('controller_identity')) db.exec("ALTER TABLE holder ADD COLUMN controller_identity TEXT NOT NULL DEFAULT ''");
       if (!columns.includes('timing_aware')) db.exec(`ALTER TABLE ${table} ADD COLUMN timing_aware INTEGER NOT NULL DEFAULT 0`);
       if (!columns.includes('timing')) db.exec(`ALTER TABLE ${table} ADD COLUMN timing INTEGER NOT NULL DEFAULT 0`);
       if (!columns.includes('started')) db.exec(`ALTER TABLE ${table} ADD COLUMN started TEXT NOT NULL DEFAULT ''`);
@@ -318,6 +321,17 @@ function sameProcess(pid, started) {
   return !started || identity.started === started;
 }
 
+/** Recheck a cached mismatch before acting on custody; a new PID incarnation must never be mistaken for an old cache row. */
+function custodyProcessMatches(pid, started) {
+  if (!alive(pid)) return false;
+  let identity = processIdentity(pid);
+  if (identity && (identity.zombie || started && identity.started !== started)) {
+    processIdentities.delete(pid);
+    identity = processIdentity(pid);
+  }
+  return !identity || !identity.zombie && (!started || identity.started === started);
+}
+
 /** Return the Git root for display when the resource caller is inside a repository. */
 function repoRoot(root) {
   try { return repoInfo(root).root; } catch { return ''; }
@@ -327,6 +341,7 @@ function repoRoot(root) {
 function update(db, action) {
   db.exec('BEGIN IMMEDIATE');
   try {
+    pruneControllerOrphans(db, { sameProcess: custodyProcessMatches, recordRunnerFailure });
     const cutoff = Date.now() - LEASE_MS;
     for (const row of db.prepare('SELECT token, pid, started, heartbeat FROM holder').all()) {
       if (!alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) {
@@ -1217,7 +1232,7 @@ export async function takeResource(options) {
         const release = () => {
           if (released || transferred) return;
           update(db, () => {
-            if (cancellationDiagnostic) recordRunnerFailure(db, acquired.runner.host, 'cleanup-unverified', cancellationDiagnostic);
+            if (cancellationDiagnostic) settleControllerCancellation(db, { token, pid, started, repo, host: acquired.runner.host }, cancellationDiagnostic, recordRunnerFailure);
             db.prepare('DELETE FROM holder WHERE token = ?').run(token);
             removeEmptyViewPortResource(db, name);
           });
@@ -1227,8 +1242,8 @@ export async function takeResource(options) {
         };
         /** Stop this exact remote attempt without readmission, retaining unknown remote cleanup atomically. */
         const cancelRunner = diagnostic => {
-          if (!acquired.runner || released || transferred || lost) throw new Refused('RESOURCE_LEASE_LOST', 'the owned remote lease is no longer cancellable');
-          cancellationDiagnostic = diagnostic ?? { reason: 'source-cancelled', phase: 'controller' };
+          if (!acquired.runner || released || transferred || diagnostic?.version !== 1 || typeof diagnostic.root !== 'string') throw new Refused('RESOURCE_LEASE_LOST', 'the owned remote lease is no longer cancellable');
+          cancellationDiagnostic = diagnostic;
           release();
         };
         /** Refresh this lease, or refuse if another process already evicted it. */
@@ -1245,17 +1260,17 @@ export async function takeResource(options) {
         const requeueRunner = async (reason = 'transport-lost', { local = false, quarantine = true, diagnostic: transportDiagnostic,
           infrastructureRetryCount = 0, infrastructureAttempts: priorInfrastructureAttempts = [] } = {}) => {
           if (!acquired.runner) throw new Refused('LOCAL_RUNNER_REQUEUE', 'only a remote lease can be returned to the runner queue');
-          if (released || transferred || lost) throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
+          if (released || transferred) throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
           transferred = true;
           clearInterval(heartbeat);
           let requeueTicket = acquired.ticket;
           let requeueOpportunity = acquired.queueTicket;
           try {
             update(db, () => {
-              recordRunnerFailure(db, acquired.runner.host, reason, transportDiagnostic, { quarantine });
               const holderName = runnerResourceName(acquired.runner.host);
               const holder = db.prepare('SELECT token FROM holder WHERE token = ? AND name = ? AND runner = ?').get(token, holderName, acquired.runner.host);
-              if (!holder) throw new Refused('RESOURCE_LEASE_LOST', `remote lease for "${name}" is no longer held`);
+              if (!holder) consumeControllerDisposition(db, { token, pid, started, repo, host: acquired.runner.host }, 'requeue');
+              else recordRunnerFailure(db, acquired.runner.host, reason, transportDiagnostic, { quarantine });
               // Under the class order the run keeps its original arrival ticket, so first come, first
               // served holds within each class (and its queuedAt, so its aging). Under arrival order
               // (reviewsFirst off, or an older pullboard waiting in the line) it takes #663's front
@@ -1410,39 +1425,18 @@ export function listResources({ scope = 'machine', root = process.cwd() } = {}) 
 }
 
 /** Bind controller diagnostic custody to the resource owner's canonical process identities. */
-export function controllerDeadline(owner, parentPid) { return createControllerCustody(owner, parentPid, { processStarted, machineHome }); }
+export function controllerDeadline(owner, parentPid, sourceRoot) {
+  const registration = controllerRegistrationPorts({
+    pool: () => canonicalResourceFile(machineResourceFile()), open, update, processStarted,
+  });
+  return createControllerCustody(owner, parentPid, { processStarted, machineHome, ...registration }, sourceRoot);
+}
 
 /** Read active controller health without changing availability or releasing a holder. */
-export function runnerLeaseHealth(now = Date.now()) { return controllerLeaseHealth(now, { processStarted, machineHome }); }
+export function runnerLeaseHealth(now = Date.now()) { return controllerLeaseHealth(now, { processStarted, machineHome, sameProcess: custodyProcessMatches }); }
 
 /** Preserve the finite-deadline projection independently of lifecycle observation failures. */
 export function overdueRunnerLeases(now = Date.now()) { return runnerLeaseHealth(now).filter(row => row.deadline !== undefined); }
 
-/** Resolve the actual board of this checkout or its private clone origin, never a request-selected database. */
-export function runnerBoardFile(root, hops = 3) {
-  let info;
-  try { info = repoInfo(root); } catch { return null; }
-  const boardFile = join(info.commonDir, 'pullboard', 'board.sqlite');
-  if (existsSync(boardFile)) return boardFile;
-  if (hops <= 0) return null;
-  const origin = spawnSync('git', ['config', '--get', 'remote.origin.url'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
-  const url = origin.status === 0 ? origin.stdout.trim() : '';
-  return url && isAbsolute(url) && existsSync(url) ? runnerBoardFile(url, hops - 1) : null;
-}
-
-/** Observe only board identity and item terminal state for resource lifecycle; no native or write authority. */
-export function runnerItemState(root, item) {
-  if (!/^[1-9][0-9]*$/u.test(String(item ?? ''))) return null;
-  const id = Number(item);
-  if (!Number.isSafeInteger(id)) return null;
-  const boardFile = runnerBoardFile(root);
-  if (!boardFile) return null;
-  const db = new DatabaseSync(boardFile, { readOnly: true });
-  try {
-    const row = db.prepare("SELECT meta.meta_value AS board, item.item_id, item.item_status, item.item_merged_commit FROM item JOIN board_meta meta ON meta.meta_key='board_id' WHERE item.item_id=? AND NOT EXISTS(SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)").get(id);
-    if (!row) return null;
-    if (!['open', 'claimed', 'submitted', 'verified', 'withdrawn'].includes(row.item_status)) throw new Error('unknown item lifecycle status');
-    return { board: row.board, item: row.item_id,
-      terminal: Boolean(row.item_merged_commit || row.item_status === 'withdrawn') };
-  } finally { db.close(); }
-}
+export { runnerBoardFile } from './controller-custody.js';
+export { runnerItemState } from './controller-custody.js';
