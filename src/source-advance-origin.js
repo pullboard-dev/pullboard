@@ -1,4 +1,3 @@
-import { sealQuarantineVerdict } from './quarantine.js';
 import { receiptBlockingGreen } from './quarantine-verdict.js';
 import { effectiveItemHead } from './source-advance-state.js';
 import { itemPolicy } from './trusted-policy.js';
@@ -113,7 +112,7 @@ export function sealSourceAdvance(board, id, request) {
   for (const phase of prepared.proof.phases ?? []) {
     const stored = readGateReceipt(boardReceiptStore(board), phase.receipt.id);
     if (!stored || receiptBody(stored) !== receiptBody(phase.receipt)) throw new Refused('SOURCE_ADVANCE_PROOF', 'restore the unchanged gate-owned receipt before completing this source advance');
-    sealQuarantineVerdict(board, stored);
+    board.nativePorts.quarantine.sealQuarantineVerdict(board, stored);
   }
   return { agentId: 'coordinator', proof: prepared.proof };
 }
