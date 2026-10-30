@@ -94,7 +94,7 @@ export async function serveRunnerController(ports) {
   const request = JSON.parse(input);
   if (typeof ports.runnerItemState !== 'function' || typeof ports.controllerDeadline !== 'function') throw new Refused('RUNNER_LIFECYCLE_PROVIDER', 'runner controller needs its canonical item lifecycle and deadline observers');
   const canceled = new AbortController();
-  const custody = ports.controllerDeadline(request.options.metadata?.resourceOwner, request.parentPid);
+  const custody = ports.controllerDeadline(request.options.metadata?.resourceOwner, request.parentPid, request.root);
   let cancellation = null;
   const abort = () => canceled.abort();
   for (const signal of ['SIGTERM', 'SIGHUP', 'SIGINT']) process.on(signal, abort);

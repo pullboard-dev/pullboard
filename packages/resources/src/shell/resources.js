@@ -1,5 +1,6 @@
 import { createControllerCustody } from './controller-custody.js';
 import { controllerLeaseHealth } from './controller-custody.js';
+import { orphanedControllerLeases } from './controller-custody.js';
 import { spawnSync } from 'node:child_process';
 import { isAbsolute } from 'node:path';
 import { cleanGitEnvironment } from '../../../../src/git.js';
@@ -58,6 +59,7 @@ export { QUEUE_CLASSES, QUEUE_AGE_MS, queueClass } from '../../../queue/index.js
 const LEASE_MS = 20_000;
 const HEARTBEAT_MS = 3_000;
 const POLL_MS = 40;
+const QUEUE_FILES = new WeakMap();
 const PROCESS_IDENTITY_CACHE_MS = 3_000;
 const processIdentities = new Map();
 const SLOT_DB_BUSY_MS = 10_000;
@@ -132,6 +134,7 @@ function open(file, machine = false) {
 function openQueue(file) {
   mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
+  QUEUE_FILES.set(db, realpathSync(file));
   db.exec(`PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`);
   let transaction = false;
   try {
@@ -318,6 +321,33 @@ function sameProcess(pid, started) {
   return !started || identity.started === started;
 }
 
+/** Recheck a cached mismatch before acting on custody; a new PID incarnation must never be mistaken for an old cache row. */
+function custodyProcessMatches(pid, started) {
+  if (!alive(pid)) return false;
+  let identity = processIdentity(pid);
+  if (identity && (identity.zombie || started && identity.started !== started)) {
+    processIdentities.delete(pid);
+    identity = processIdentity(pid);
+  }
+  return !identity || !identity.zombie && (!started || identity.started === started);
+}
+
+/** Release only an exact proven orphan, with its cleanup audit and unknown-remote quarantine in the same queue commit. */
+function pruneControllerOrphans(db) {
+  const pool = QUEUE_FILES.get(db);
+  if (!pool) return;
+  const rows = orphanedControllerLeases(db, pool, { machineHome, sameProcess: custodyProcessMatches });
+  for (const row of rows) {
+    const diagnostic = { reason: 'controller-orphan', phase: 'cleanup', cause: row.cause,
+      holderPid: row.pid, controllerPid: row.controllerPid, item: row.item, source: row.repo,
+      remoteCleanup: 'unknown' };
+    recordRunnerFailure(db, row.runner, 'cleanup-unverified', diagnostic);
+    db.prepare('INSERT INTO runner_recovery_event VALUES(?,?,?,?,?)').run(randomUUID(), row.runner,
+      new Date().toISOString(), 'cleanup', JSON.stringify(diagnostic));
+    db.prepare('DELETE FROM holder WHERE token=? AND pid=? AND started=?').run(row.token, row.pid, row.started);
+  }
+}
+
 /** Return the Git root for display when the resource caller is inside a repository. */
 function repoRoot(root) {
   try { return repoInfo(root).root; } catch { return ''; }
@@ -327,6 +357,7 @@ function repoRoot(root) {
 function update(db, action) {
   db.exec('BEGIN IMMEDIATE');
   try {
+    pruneControllerOrphans(db);
     const cutoff = Date.now() - LEASE_MS;
     for (const row of db.prepare('SELECT token, pid, started, heartbeat FROM holder').all()) {
       if (!alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) {
@@ -1390,10 +1421,10 @@ export function listResources({ scope = 'machine', root = process.cwd() } = {}) 
 }
 
 /** Bind controller diagnostic custody to the resource owner's canonical process identities. */
-export function controllerDeadline(owner, parentPid) { return createControllerCustody(owner, parentPid, { processStarted, machineHome }); }
+export function controllerDeadline(owner, parentPid, sourceRoot) { return createControllerCustody(owner, parentPid, { processStarted, machineHome }, sourceRoot); }
 
 /** Read active controller health without changing availability or releasing a holder. */
-export function runnerLeaseHealth(now = Date.now()) { return controllerLeaseHealth(now, { processStarted, machineHome }); }
+export function runnerLeaseHealth(now = Date.now()) { return controllerLeaseHealth(now, { processStarted, machineHome, sameProcess: custodyProcessMatches }); }
 
 /** Preserve the finite-deadline projection independently of lifecycle observation failures. */
 export function overdueRunnerLeases(now = Date.now()) { return runnerLeaseHealth(now).filter(row => row.deadline !== undefined); }
