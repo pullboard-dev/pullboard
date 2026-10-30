@@ -84,7 +84,7 @@ ${pageScriptPart3(pageScope)}async function refresh(fresh = null, attempt = 1) {
     replayControls();
   }
   if (!snapshot) follow();
-  $('live').textContent = snapshot ? 'read-only snapshot' : liveLine();
+  $('live').textContent = snapshot ? 'read-only' : liveLine();
   sharingReady ??= sharingInvitation();
   transport?.didRender?.(); // The board drew: a transport holding a phone's shell may clear it; today's has no such call (#900).
 }
