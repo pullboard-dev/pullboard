@@ -232,6 +232,9 @@
   ["src/command-docs/stats-pipeline.json","apps/cli/src/shell/command-docs/stats-pipeline.json","rule"],
   ["src/documentation/events/review-default.json","apps/cli/src/shell/documentation/events/review-default.json","rule"],
   ["src/command-docs/stats-moves.json","apps/cli/src/shell/command-docs/stats-moves.json","rule"],
+  ["src/cli-hook-work.js","apps/cli/src/shell/cli-hook-work.js","rule"],
+  ["src/cli/seat-ports.js","apps/cli/src/shell/cli/seat-ports.js","rule"],
+  ["src/cli/project-ports.js","apps/cli/src/shell/cli/project-ports.js","rule"],
   ["src/commands/ship.js","apps/cli/src/shell/commands/ship.js","rule"]
  ],
  "reexports": [
