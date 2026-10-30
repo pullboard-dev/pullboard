@@ -277,7 +277,7 @@ test('store origin and restore capabilities refuse missing providers before stor
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'never-created', 'board.sqlite');
   const ports = native.nativeBoardPorts();
-  for (const key of ['sourceAdvanceCASProblem', 'beginCommandPhase', 'exportedMeta', 'guardRestore']) {
+  for (const key of ['sourceAdvanceCASProblem', 'beginCommandPhase', 'exportedMeta', 'guardRestore', 'quarantine']) {
     const nativePorts = { ...ports.nativePorts };
     delete nativePorts[key];
     assert.throws(() => {
@@ -298,6 +298,7 @@ test('the native operation bag and counted public bridge retain actual authority
     assert.equal(library[name], operation, 'the unchanged library namespace retains its public operation');
   }
   assert.equal(Object.isFrozen(board.enginePorts.store), true);
+  assert.equal(Object.isFrozen(board.nativePorts.quarantine), true, 'each connection retains immutable native quarantine authority');
   board.enginePorts.store.setPersonSigning(board, { agentId: 'person', signed: true });
   assert.equal(legacy.events(board).at(-1).event_kind, 'person_signing');
   const before = legacy.events(board);

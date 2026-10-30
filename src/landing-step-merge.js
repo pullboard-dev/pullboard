@@ -127,7 +127,8 @@ export function amendLandingEngines(root) {
 
 /** Validate and snapshot process-local providers before any landing admission or worker action. */
 export function landingOperations(ports) {
-  const names = ['badgeCounts', 'writeBadges', 'flakeSource', 'observeNativeFailure', 'quarantineWaivers', 'parseProcessCensus'];
+  const names = ['badgeCounts', 'writeBadges', 'flakeSource', 'observeNativeFailure', 'quarantineWaivers', 'parseProcessCensus',
+    'quarantineVerdictSnapshot', 'validateQuarantineGate', 'validateQuarantineLandingProof', 'gateRuns'];
   if (!names.every(name => typeof ports?.[name] === 'function')) throw new TypeError('landing needs explicit canonical operation ports');
   return Object.freeze(Object.fromEntries(names.map(name => [name, ports[name]])));
 }
