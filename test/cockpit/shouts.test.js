@@ -1028,9 +1028,14 @@ test('shout cards fit beside a classic scrollbar [N26]', { timeout: 120_000 }, a
       await sharedPress(chrome, `document.querySelector(${JSON.stringify(selector)})`);
     };
     await press('[data-tab="shouts"]');
-    await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
-    if (await chrome.stable(`document.querySelector('.asks-toggle[data-fold="waiting"]')?.getAttribute('aria-expanded') === 'false'`)) await press('.asks-toggle[data-fold="waiting"]');
+    await chrome.waitFor('!!document.querySelector("#feed .conversation-row")');
+    const threads = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#feed .conversation-row')].map(row => row.dataset.shoutThread))"));
+    const nativeIds = JSON.parse(await chrome.stable("JSON.stringify(data.project.shouts.map(row => row.shout_id).sort((a,b) => a-b))"));
     for (const font of ['monospace', '']) for (const scheme of ['light','dark']) {
+      const observed = [];
+      for (const thread of threads) {
+      if (await chrome.stable("!!document.querySelector('#feed .conversation-heading')")) await press('#feed [data-shout-thread=""]');
+      await openConversation(chrome, thread);
       // A portable fallback exercises the wider font metrics used by CI, alongside the native font.
       await chrome.stable(`document.documentElement.style.setProperty('--sans', ${JSON.stringify(font)})`);
       await shoutsAt(chrome,375,scheme);
@@ -1040,13 +1045,13 @@ test('shout cards fit beside a classic scrollbar [N26]', { timeout: 120_000 }, a
       const metrics=await chrome.stable(`(() => {
         const width=document.documentElement.clientWidth;
         const edge=e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width};};
-        const cards=[...document.querySelectorAll('#feed .shout,#decisions .shout')];
+        const cards=[...document.querySelectorAll('#feed .shout')];
         const contentOver=[...document.body.querySelectorAll('*')].filter(e=>e.getClientRects().length && (edge(e).right>width+0.1 || e.scrollWidth>e.clientWidth+1)).slice(0,30).map(e=>{
           const s=getComputedStyle(e);return {kind:e.id||e.className||e.tagName,...edge(e),client:e.clientWidth,scroll:e.scrollWidth,display:s.display,minWidth:s.minWidth,font:s.font,overflow:s.overflow};});
-        return {width,scroll:document.documentElement.scrollWidth,body:document.body.scrollWidth,contentOver,
+        return {width,scroll:document.documentElement.scrollWidth,body:document.body.scrollWidth,contentOver,messageIds:cards.map(card=>Number(card.dataset.shoutId)),
           headers:cards.map(card=>({box:edge(card.querySelector('header')),text:edge(card.querySelector('.text')),age:{...edge(card.querySelector('time')),whole:card.querySelector('time').scrollWidth<=card.querySelector('time').clientWidth},children:[...card.querySelector('header').children].map(e=>({kind:e.className||e.tagName,...edge(e)}))})),
-          models:[...document.querySelectorAll('#feed .agent-model')].map(e=>e.textContent),
-          ids:cards.flatMap(card=>[...card.querySelectorAll('.agent-id')].map(id=>({id:edge(id),card:edge(card)}))),
+          models:cards.map(card=>card.querySelector('.who').title),
+          ids:cards.flatMap(card=>[...card.querySelectorAll('.who,.to')].map(id=>({id:edge(id),card:edge(card)}))),
           over:cards.flatMap(card=>[...card.querySelectorAll('header,header>*')].filter(e=>edge(e).right>width).map(e=>({kind:e.className||e.tagName,...edge(e)})))};
       })()`);
       assert.equal(metrics.width,360, scheme+': actual page content is 360px, including on classic-scrollbar Chrome');
@@ -1056,6 +1061,9 @@ test('shout cards fit beside a classic scrollbar [N26]', { timeout: 120_000 }, a
         scheme+': each header fits one line with its complete age at the right: '+JSON.stringify(metrics.headers));
       assert.ok(metrics.ids.length>0&&metrics.ids.every(({id,card})=>id.width>0&&id.left>=card.left&&id.right<=card.right),
         scheme+': every address remains visible inside its card');
+      observed.push(...metrics.messageIds);
+      }
+      assert.deepEqual(observed.sort((a,b)=>a-b), nativeIds, 'every native message is measured once across its real conversations');
     }
     assert.deepEqual(chrome.exceptions, [], 'the real page raises no uncaught exception');
   } finally {
