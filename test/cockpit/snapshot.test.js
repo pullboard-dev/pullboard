@@ -709,9 +709,10 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     await chrome.waitFor(`${showing('items', '/demo/#items/2')} && document.querySelector('#detail h2')?.innerText.includes('Open page')`);
     await travel(chrome, -1);
     await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')}`);
+    assert.equal(await chrome.stable("localStorage.getItem('snapshot.pb.tab')"), 'items', 'the earlier Items navigation remains the saved tab for this Chrome profile');
 
-    // Opened afresh, the folder shows the board's tab, and its #roadmap address the Roadmap.
-    for (const [address, pane] of [['/demo/', 'dashboard'], ['/demo/#roadmap', 'roadmap']]) {
+    // A fresh navigation in this profile restores Items, while an explicit #roadmap address still selects Roadmap.
+    for (const [address, pane] of [['/demo/', 'items'], ['/demo/#roadmap', 'roadmap']]) {
       await chrome.send('Page.navigate', { url: 'about:blank' });
       await settled(chrome, "location.href === 'about:blank'");
       await chrome.send('Page.navigate', { url: `${host.base}${address}` });
