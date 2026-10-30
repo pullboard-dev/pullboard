@@ -267,11 +267,9 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
     const landedCells = existsSync(join(mainRoot, 'bin/cells-plan.json'))
       ? landedCutCells(root, acceptedMain, readPlan(mainRoot), services.readCutItems) : new Set();
     const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible });
-    refuse(result.problems);
     /** Keep comparison code trusted and raw source separate from the union used for accepted-policy checks. */
     const inspect = (baseRoot, sourceRoot) => {
       const cuts = withImportParseCache(() => cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers }));
-      refuse(cuts.problems);
       unchangedSnapshot(baseRoot, cutBase);
       unchangedSnapshot(sourceRoot, source);
       return cuts;
@@ -280,6 +278,7 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
       ? source === commit ? inspect(mainRoot, candidateRoot) : await withMainCheckout(root, source, sourceRoot => inspect(mainRoot, sourceRoot))
       : await withMainCheckout(root, cutBase, baseRoot => withMainCheckout(root, source, sourceRoot => inspect(baseRoot, sourceRoot)));
     if (cuts?.unavailable) throw new Refused('CELLS_SUBMIT', cuts.unavailable);
+    refuse([...result.problems, ...cuts.problems]);
     unchangedSnapshot(mainRoot, acceptedMain);
     unchangedSnapshot(candidateRoot, commit);
     return { ...result, existingCuts: cuts.existingCuts, acceptedMain, cutBase, commit, source };

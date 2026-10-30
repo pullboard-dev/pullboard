@@ -1,3 +1,6 @@
+import * as store from '../src/board.js';
+import { registerPreGrant } from './pre-grant-seats.js';
+import { submitFixture } from './board-submit-fixture.js';
 import { fixtureBoard } from './board-fixture.js';
 import { landedCutItemRows } from '../bin/cells-submit-checks.js';
 import { acceptedCutItems } from './cells-plan-fixture.js';
@@ -64,10 +67,25 @@ test('a landed cell adding a lower import past the front door refuses naming it 
     /app:cli imports lower store past its front door .*: src\/cli.js -> src\/board.js; import the lower cell's front door or take a port/u);
 });
 
-/** Add one actual private-board cut row; production schema and reader determine its authority. */
-function cutRow(board, name, status, merged) {
-  board.db.prepare(`INSERT INTO item (item_lane,item_title,item_status,item_merged_commit,item_created_by,item_created_at,item_updated_at)
-    VALUES ('core',?,?,?,?,?,?)`).run(`Cells import cuts: ${name} removes imports into later cells`, status, merged, 'coordinator', '2026-10-30', '2026-10-30');
+/** Create real private-board lifecycle state through the normal operations and immutable synthetic receipts. */
+function cutBoard(t, name, status, merged) {
+  const board = fixtureBoard(t);
+  const [, builder, reviewer] = registerPreGrant(board, [
+    ['coordinator', '/cut-coordinator', { family: 'Fixture Coordinator' }],
+    ['core', '/cut-builder', { family: 'Fixture Builder' }],
+    ['core', '/cut-reviewer', { family: 'Fixture Reviewer' }],
+  ]);
+  const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: `Cells import cuts: ${name} removes imports into later cells` });
+  if (status === 'open') return board;
+  if (status === 'withdrawn') { store.withdraw(board, id, { agentId: 'coordinator', reason: 'Private cut status control.' }); return board; }
+  const freeze = () => ({ text: JSON.stringify({ rows: [] }), digest: 'digest:cut' });
+  store.claim(board, id, { agentId: builder, lane: 'core', leaseMs: 3_600_000, freeze });
+  const commit = merged ?? 'a'.repeat(40);
+  submitFixture(board, id, { agentId: builder, commit, tree: 'b'.repeat(40) });
+  if (status === 'submitted') return board;
+  store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', head: commit, digest: 'digest:cut', policy: 'any', note: 'Private lifecycle authority fixture; no test-execution claim.' });
+  if (merged) store.merged(board, id, { agentId: 'coordinator', commit: merged });
+  return board;
 }
 
 test('an empty cut graph without a landed board item grants neither refusal [C7,D3]', async t => {
@@ -80,36 +98,35 @@ test('an empty cut graph without a landed board item grants neither refusal [C7,
 });
 
 test('actual board status and pinned ancestry activate the upward ratchet only after landing [C7,D3]', async t => {
-  const box = plannedFixture(t), board = fixtureBoard(t);
+  const box = plannedFixture(t);
   box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
-  const candidate = commitCandidate(box), read = () => landedCutItemRows(board.db);
+  const candidate = commitCandidate(box);
   for (const [status, merged] of [['open', box.main], ['submitted', box.main], ['verified', null], ['withdrawn', box.main], ['verified', candidate]]) {
-    board.db.prepare('DELETE FROM item').run();
-    cutRow(board, 'kernel', status, merged);
-    assert.deepEqual((await requireSubmitCells(box.root, box.main, candidate, box.item, read)).problems, [], `${status}/${merged} is not a cut landed on pinned main`);
+    const board = cutBoard(t, 'kernel', status, merged);
+    assert.deepEqual((await requireSubmitCells(box.root, box.main, candidate, box.item, () => landedCutItemRows(board.db))).problems, [],
+      `${status}/${merged} is not a cut landed on pinned main`);
   }
-  board.db.prepare('DELETE FROM item').run();
-  cutRow(board, 'kernel', 'verified', box.main);
+  const board = cutBoard(t, 'kernel', 'verified', box.main), read = () => landedCutItemRows(board.db);
   await assert.rejects(requireSubmitCells(box.root, box.main, candidate, box.item, read), /kernel still imports later stats: src\/refused.js -> src\/stats-flow.js/u);
   board.db.prepare("INSERT INTO board_meta(meta_key,meta_value) VALUES ('item_redirect:' || (SELECT item_id FROM item), '1')").run();
   assert.deepEqual((await requireSubmitCells(box.root, box.main, candidate, box.item, read)).problems, [], 'redirected historical cut rows cannot activate the ratchet');
 });
 
 test('a landed cut still refuses new edges when its accepted graph has older debt [C7,D3]', async t => {
-  const box = plannedFixture(t), board = fixtureBoard(t);
+  const box = plannedFixture(t);
   box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
   box.main = commitCandidate(box);
-  cutRow(board, 'kernel', 'verified', box.main);
+  const board = cutBoard(t, 'kernel', 'verified', box.main);
   box.put('src/refused.js', "import './stats-flow.js'; import './stats.js'; export class Refused extends Error {}\n");
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item, () => landedCutItemRows(board.db)),
     /kernel still imports later stats: src\/refused.js -> src\/stats.js/u);
 });
 
 test('landed front-door enforcement does not mistake older upward debt for an unlanded cut [C7,D3]', async t => {
-  const box = plannedFixture(t), board = fixtureBoard(t);
+  const box = plannedFixture(t);
   box.put('src/stats-flow.js', "import './cli.js'; export const flow = true;\n");
   box.main = commitCandidate(box);
-  cutRow(board, 'stats', 'verified', box.main);
+  const board = cutBoard(t, 'stats', 'verified', box.main);
   box.put('src/stats.js', "import { board } from './board.js'; import './refused.js'; export const stats = () => board;\n");
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item, () => landedCutItemRows(board.db)),
     /stats imports lower kernel past its front door .*src\/stats.js -> src\/refused.js/u);
