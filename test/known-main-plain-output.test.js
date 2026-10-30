@@ -111,7 +111,7 @@ test('async named accounting retains producer status, opaque unknowns and event-
   assert.equal(pipeline.isGreen, true, 'stage capture preserves ordinary shell pipeline exit semantics');
   assert.deepEqual(pipeline.stages[0].pipeline.map(row => row.status), [1, 0]);
   assert.match(pipeline.stages[0].pipeline[0].output, /producer/u);
-  const opaque = await runProfiledShellAsync(box.builder, 'if true; then false; fi', { stages: true });
+  const opaque = await runProfiledShellAsync(box.builder, '(false)', { stages: true });
   assert.equal(opaque.isGreen, false);
   assert.equal(opaque.stages, null, 'unsupported control flow is not guessed from stdout');
 
