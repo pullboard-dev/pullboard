@@ -52,7 +52,7 @@ function relayProject(root = view.root) {
 async function sendPersonRequest(root, move) {
   if (!requests || snapshot || !readOnly) throw new Error('This view cannot send person requests.');
   if (!relayProject(root)) throw new Error('Person requests through the relay require a linked relay board.');
-  if (!['add', 'shout', 'answer', 'hold', 'spec-approve', 'spec-decline', 'sentinel-approve', 'sentinel-decline'].includes(move.verb)) throw new Error('Choose a person action from the view controls.');
+  if (!['add', 'shout', 'answer', 'hold', 'spec-approve', 'spec-decline', 'spec-answer', 'sentinel-approve', 'sentinel-decline'].includes(move.verb)) throw new Error('Choose a person action from the view controls.');
   if (!transport) throw transportLoadError || new Error('The browser transport is still loading.');
   return transport.request(boardPath(root) + '/moves', move);
 }
@@ -67,6 +67,7 @@ function requestLabel(request) {
   if (move?.verb === 'hold') return (args.off ? 'Release ' : 'Hold ') + (args.lane || '') + ' lane' + (!args.off && args.reason ? ': ' + args.reason : '');
   if (move?.verb === 'spec-approve') return 'Approve row ' + (args.ids || '');
   if (move?.verb === 'spec-decline') return 'Decline row ' + (args.ids || '');
+  if (move?.verb === 'spec-answer') return 'Answer row ' + (args.row || '') + ': ' + (args.answer || '');
   if (move?.verb === 'sentinel-approve') return 'Approve sentinel ' + (args.name || '');
   if (move?.verb === 'sentinel-decline') return 'Decline sentinel ' + (args.name || '') + (args.reason ? ': ' + args.reason : '');
   return 'Person request';

@@ -7,6 +7,7 @@ import { pendingFit } from './blueprint-fit.js';
 import { fitFile } from './blueprint-fit.js';
 import { compactItemSummaries } from './view-state-summary.js';
 import { lifecycleEvent } from './item-list.js';
+import { withdrawnFrom } from './item-list.js';
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import { gitSpawnSync } from './git-adapter.js';
 import { counterProofStats } from './proof-counter-read.js';
@@ -440,7 +441,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
 
 /** Everything a summary leaves out, with the latest verdict whole: laid over its summary, it is the full item. */
 function itemDetail(item) {
-  return Object.fromEntries(Object.entries(item).filter(([key]) => key === 'id' || key === 'verdict' || key === 'verdictState' || !SUMMARY_KEYS.has(key)));
+  return Object.fromEntries(Object.entries(item).filter(([key]) => ['id', 'verdict', 'verdictState', 'withdrawnReason', 'withdrawnFrom'].includes(key) || !SUMMARY_KEYS.has(key)));
 }
 
 /** The text the view's search matches for an item, lowercased: its #id, title, lane, spec ids and criterion. */
@@ -1217,6 +1218,7 @@ function verdictOf(row) {
  */
 export function projectItemState(board, item, status) {
   const verdicts = store.verdictsFor(board, item.item_id).map(verdictOf);
+  const history = store.events(board, { itemId: item.item_id }).map(lifecycleEvent);
   const after = dependencyValues(item);
   const foreign = new Map(store.foreignDependencyStates(board, item).map(ref => [`${ref.repo}#${ref.id}`, ref.status]));
   return {
@@ -1224,6 +1226,8 @@ export function projectItemState(board, item, status) {
     title: item.item_title,
     lane: item.item_lane,
     status: item.item_status,
+    withdrawnReason: item.item_status === 'withdrawn' ? item.item_withdrawn_reason ?? null : null,
+    withdrawnFrom: withdrawnFrom(history, item.item_status),
     route: item.item_route,
     owner: item.item_owner,
     // Who holds the review under a live lease (V15), by the board's own rule.
@@ -1240,7 +1244,7 @@ export function projectItemState(board, item, status) {
     updatedAt: item.item_updated_at,
     verdict: verdicts.at(-1) ?? null,
     verdicts,
-    history: store.events(board, { itemId: item.item_id }).map(lifecycleEvent),
+    history,
   };
 }
 
