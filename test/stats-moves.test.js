@@ -97,6 +97,29 @@ test('moves real CLI reads explicit transcript file and leaves native history un
   assert.equal(missing.code, 1); assert.equal(JSON.parse(missing.stdout).error.code, 'USAGE');
 });
 
+test('real inbox history preserves numeric pagination and keeps its action distinct [A1,A2,R2]', t => {
+  const helpers = createE2eHelpers(); t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const sent = box.run(box.web, 'shout', 'coordinator', 'History cursor control', '--json');
+  assert.equal(sent.code, 0, sent.err);
+  const read = box.run(box.web, 'inbox', '--history', '--since', '0', '--json');
+  assert.equal(read.code, 0, read.err);
+  const page = JSON.parse(read.out);
+  assert.equal(page.shouts.length, 1);
+  assert.equal(page.next, page.shouts[0].shout_id, 'the original numeric cursor survives guidance');
+  assert.equal(typeof page.next, 'number');
+  assert.equal(typeof page.nextAction, 'string');
+  assert.equal(Object.keys(page).at(-1), 'nextAction');
+  const continued = box.run(box.web, 'inbox', '--history', '--since', String(page.next), '--json');
+  assert.equal(continued.code, 0, continued.err);
+  const empty = JSON.parse(continued.out);
+  assert.deepEqual(empty.shouts, []);
+  assert.equal(empty.next, page.next, 'an empty page preserves the continuation cursor');
+  const projected = box.run(box.web, 'inbox', '--history', '--since', '0', '--json', '--fields', 'next');
+  assert.equal(projected.code, 0, projected.err);
+  assert.deepEqual(JSON.parse(projected.out), { version: 1, next: page.next, nextAction: page.nextAction });
+});
+
 test('automatic infra proof permits only import-path contents, preserving bindings and assertion bytes [C7,V4]', t => {
   const { root, git } = fixture(t);
   const path = 'test/example.test.js';
@@ -162,6 +185,11 @@ test('finite output ends with one next move while raw export and refusal wire re
   }
   const held = JSON.parse(output(['submit', '--json'], io => io.result({ id: 1, next: { item: { item_id: 2 }, held: true } })).text);
   assert.equal(held.next.action, 'pullboard show 2'); assert.equal(held.next.held, true);
+  const selected = JSON.parse(output(['submit', '--json', '--fields', 'commit'], io => io.result({
+    commit: 'candidate', next: { item: { item_id: 2, privateDetail: 'omitted' }, held: true },
+  })).text);
+  assert.deepEqual(selected, { version: 1, commit: 'candidate', next: 'pullboard show 2' },
+    'mandatory action never restores omitted handoff metadata after field selection');
   const raw = '{"version":1,"tables":{}}';
   assert.equal(output(['export'], io => io.say(raw)).text, raw + '\n');
   assert.deepEqual(JSON.parse(output(['export', '--json'], io => io.say(raw)).text), JSON.parse(raw));

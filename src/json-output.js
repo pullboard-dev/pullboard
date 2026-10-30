@@ -245,11 +245,15 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     if (fields && !refusal && !document.error) document = selectFields(document, fields);
     if (remote) document.remote = remote;
     if (!code && !refusal && !document.error && finalAction) {
-      const next = result?.next && typeof result.next === 'object'
-        ? { ...result.next, action: successfulNext(guidanceCommand, result) }
-        : explicitNext ?? successfulNext(guidanceCommand, result);
-      delete document.next;
-      document.next = next;
+      const action = explicitNext ?? successfulNext(guidanceCommand, result);
+      // Pagination owns its numeric cursor; guidance must not overwrite protocol data.
+      if (typeof document.next === 'number') document.nextAction = action;
+      else {
+        const next = document.next && typeof document.next === 'object'
+          ? { ...document.next, action } : action;
+        delete document.next;
+        document.next = next;
+      }
     }
     streams.stdout.write(`${JSON.stringify(document, null, 2)}\n`);
   };
