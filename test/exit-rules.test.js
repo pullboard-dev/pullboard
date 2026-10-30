@@ -196,6 +196,7 @@ test('ordinary native failed checks retain cases through receipt recording and s
   const check = 'node --test test/private-exit-repeat.test.cjs';
   const box = helpers.project('true', sandbox);
   t.after(helpers.cleanup);
+  delete box.env.NODE_TEST_CONTEXT; // This child launches its own real Node test worker.
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   config.exitRules = { enabled: true, tokens: 150000000, calls: 2000 };
