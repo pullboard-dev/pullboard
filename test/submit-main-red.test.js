@@ -260,11 +260,11 @@ test('an exact main red needs an open repair and its reviewer sees the repair li
     && entry.text.includes(`#${box.rework}`)), 'the durable review thread links the exact known main red to its open repair');
 });
 
-test('submit refuses changed failure details, an unaccounted stage, and a red frozen check [V4,B3]', t => {
+test('submit refuses changed failure details, an unaccounted stage, and a frozen check red differently from main [V4,B3]', t => {
   for (const options of [
     { candidate: source('shared failure [G1]', 3) },
     { gateSuffix: '; exit 7' },
-    { check: 'node test/runner.js' },
+    { check: 'node test/runner.js', candidate: source('shared failure [G1]', 3) },
   ]) {
     const box = fixture(t, options);
     const result = cli(box, box.builder, 'submit', String(box.item));
