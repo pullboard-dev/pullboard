@@ -1553,3 +1553,5 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 @media (max-width: 1100px) { .first-run-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 1000px) { .first-run-two { grid-template-columns: 1fr; padding: 20px; } .first-run-how { border-right: 0; padding: 0 0 20px; border-bottom: 1px solid var(--line-soft); } .first-run-start { padding: 20px 0 0; } }
 @media (max-width: 700px) { .first-run-checks li { flex-wrap: wrap; } .first-run-checks li small.hint { margin-left: 30px; flex-basis: 100%; } .first-run-line { flex-wrap: wrap; } }
+/* Phone setup lives in the checklist's last line while the first-run page shows, so the sign-in banner steps aside. */
+body:has(#dashboard:not([hidden]) .first-run) #share-note { display: none; }
