@@ -30,10 +30,10 @@ export async function submitHandoffEventContract(t) {
     try { return action(board); } finally { board.db.close(); }
   }
   t.after(async () => {
-    await helpers.waitFor(() => {
+    await helpers.waitFor(() => { // budget: hang ceiling for observed worker cleanup; no elapsed-time assertion.
       const job = id ? read(board => submitHandoff(board, id)) : null;
       return !job || !existsSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'source'));
-    }, 'actual native handoff worker cleanup', 120000); // budget: hang ceiling for observed worker cleanup.
+    }, 'actual native handoff worker cleanup', 120000);
     helpers.cleanup();
   });
   const file = join(box.repo, 'pullboard.json');
