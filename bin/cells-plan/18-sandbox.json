@@ -55,10 +55,7 @@
   {"cell":"app:runner","imports":3,"before":false},
   {"cell":"app:cli","imports":2,"before":false}
  ],
- "cuts": [
-  {"cell":"items","imports":2,"edges":["src/item-patch-submit.js->src/trusted-policy-read.js","src/item-patch-submit.js->src/trusted-policy.js"]},
-  {"cell":"verify","imports":1,"edges":["src/next-review.js->src/trusted-policy.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": 0,
   "shims": 11,

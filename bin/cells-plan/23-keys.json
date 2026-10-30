@@ -22,9 +22,7 @@
   {"cell":"person","imports":6,"before":true},
   {"cell":"link","imports":3,"before":false}
  ],
- "cuts": [
-  {"cell":"person","imports":2,"edges":["src/person-credential-vault.js->src/relay-device-keys.js","src/person-enrollment.js->src/relay-device-keys.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": 0,
   "shims": 4,

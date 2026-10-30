@@ -29,7 +29,6 @@
   {"cell":"app:view","imports":1,"before":false}
  ],
  "cuts": [
-  {"cell":"person","imports":1,"edges":["src/person-request.js->src/api-moves.js"]},
   {"cell":"link","imports":1,"edges":["src/relay-request-execution.js->src/api.js"]}
  ],
  "ratchets": {

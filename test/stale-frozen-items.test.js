@@ -167,7 +167,7 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
 
   ids.open = addItem(box, 'Open stale item');
   claim(box, ids.open);
-  succeeds(box, box.web, 'release', String(ids.open));
+  succeeds(box, box.web, 'release', String(ids.open), '--reason', 'BLOCKED');
 
   ids.submitted = addItem(box, 'Submitted stale item');
   submit(box, ids.submitted, 'submitted');
@@ -184,12 +184,12 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
 
   ids.withdrawn = addItem(box, 'Withdrawn stale item');
   claim(box, ids.withdrawn);
-  succeeds(box, box.web, 'release', String(ids.withdrawn));
+  succeeds(box, box.web, 'release', String(ids.withdrawn), '--reason', 'BLOCKED');
   succeeds(box, box.root, 'withdraw', String(ids.withdrawn), 'no longer needed');
 
   ids.unaffected = addItem(box, 'Unaffected G3 item', 'G3');
   claim(box, ids.unaffected);
-  succeeds(box, box.web, 'release', String(ids.unaffected));
+  succeeds(box, box.web, 'release', String(ids.unaffected), '--reason', 'BLOCKED');
 
   ids.claimed = addItem(box, 'Claimed stale item');
   claim(box, ids.claimed);
@@ -269,10 +269,10 @@ test('[A5,S19,V3] doctor and resume distinguish unchanged doctrine citations fro
   const box = project(t);
   const doctrineItem = addItem(box, 'Doctrine citation', 'doctrine:PB1');
   claim(box, doctrineItem);
-  succeeds(box, box.web, 'release', String(doctrineItem));
+  succeeds(box, box.web, 'release', String(doctrineItem), '--reason', 'BLOCKED');
   const specItem = addItem(box, 'Unchanged spec citation', 'G3');
   claim(box, specItem);
-  succeeds(box, box.web, 'release', String(specItem));
+  succeeds(box, box.web, 'release', String(specItem), '--reason', 'BLOCKED');
   const baseline = receiptSnapshot(box);
   const before = jsonOf(succeeds(box, box.root, 'resume', '--diagnostics', '--json'));
   assert.deepEqual(before.stale, [], 'a namespaced citation with unchanged inherited text is current');

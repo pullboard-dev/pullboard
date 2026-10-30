@@ -106,24 +106,7 @@
   {"cell":"github","imports":2,"before":false},
   {"cell":"app:cli","imports":4,"before":false}
  ],
- "cuts": [
-  {"cell":"seats","imports":1,"edges":["src/projects.js->src/relay-setup.js"]},
-  {
-   "cell": "person",
-   "imports": 9,
-   "edges": [
-    "src/pairing.js->src/relay-limits.js",
-    "src/person-bar-cli.js->src/relay-requests.js",
-    "src/person-confirmation.js->src/relay-request-execution.js",
-    "src/person-confirmation.js->src/relay-requests.js",
-    "src/person-confirmation.js->src/relay.js",
-    "src/person-signing-cli.js->src/relay-requests.js",
-    "src/person-signing-cli.js->src/relay.js",
-    "src/person-signing-presentation.js->src/relay-requests.js",
-    "src/person-signing.js->src/relay-requests.js"
-   ]
-  }
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": -9,
   "shims": 32,

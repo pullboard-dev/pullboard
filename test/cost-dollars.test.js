@@ -36,7 +36,7 @@ test('local prices compute two models by hand while an unpriced model retains to
   const agent = document(box.run(box.web, 'whoami', '--json')).id;
   for (const id of ids) {
     document(box.run(box.web, 'claim', String(id), '--json'));
-    document(box.run(box.web, 'release', String(id), '--no-next', '--json'));
+    document(box.run(box.web, 'release', String(id), '--reason', 'OTHER', '--note', 'Close the pricing fixture claim.', '--no-next', '--json'));
   }
   // @pullboard-board-file journey: real CLI seats share this isolated board; supported recordUsage supplies synthetic numeric input.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
