@@ -331,7 +331,7 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         const headers = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#feed .shout header')].map(header => {
           const rect = header.getBoundingClientRect(), reference = header.cloneNode(true);
           reference.style.cssText = 'position:fixed;left:-10000px;width:max-content;max-width:none;height:auto;';
-          document.body.append(reference); const line = reference.getBoundingClientRect().height; reference.remove();
+          header.parentElement.append(reference); const line = reference.getBoundingClientRect().height; reference.remove();
           return { height: rect.height, line,
             labels: [...header.querySelectorAll('[data-agent-address]')].map(label => {
               const box = label.getBoundingClientRect();
