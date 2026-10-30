@@ -16,7 +16,7 @@ function equal(left, right) {
   return keys.length === Object.keys(right).length && keys.every(key => Object.hasOwn(right, key) && equal(left[key], right[key]));
 }
 
-/** Prove one existing shard changed only by appending unique rows for owned, newly created files.
+/** Prove one existing shard only inserts unique rows for owned new files, retaining every existing row in order.
  * The caller supplies immutable Git reads and checks absence at every relevant ancestry base.
  * Returning the offending row keeps refusal diagnostics actionable without broadening lane ownership.
  */
@@ -31,10 +31,15 @@ export function planRowChange(path, { before, after, ownNewFile }) {
     const { paths: oldPaths, ...oldMetadata } = old;
     const { paths: nextPaths, ...nextMetadata } = next;
     if (!equal(oldMetadata, nextMetadata) || old.name !== row.name || old.order !== row.order) return { allowed: false, problem: `${path} metadata changed` };
-    if (!Array.isArray(oldPaths) || !Array.isArray(nextPaths) || nextPaths.length <= oldPaths.length) return { allowed: false, problem: `${path} must only append new-file rows` };
-    for (let at = 0; at < oldPaths.length; at += 1) {
-      if (!equal(oldPaths[at], nextPaths[at])) return { allowed: false, problem: `existing plan row ${JSON.stringify(oldPaths[at])} changed` };
+    if (!Array.isArray(oldPaths) || !Array.isArray(nextPaths) || nextPaths.length <= oldPaths.length) return { allowed: false, problem: `${path} must only insert new-file rows` };
+    const additions = [];
+    let retained = 0;
+    for (const placement of nextPaths) {
+      if (retained < oldPaths.length && equal(oldPaths[retained], placement)) { retained += 1; continue; }
+      if (oldPaths.some(row => equal(row, placement))) return { allowed: false, problem: `existing plan row ${JSON.stringify(oldPaths[retained])} changed` };
+      additions.push(placement);
     }
+    if (retained !== oldPaths.length) return { allowed: false, problem: `existing plan row ${JSON.stringify(oldPaths[retained])} changed` };
     const occupied = new Set(index.stays?.map(stay => stay.path) ?? []);
     for (const cell of index.cells) {
       for (const placement of json(before(cell.file)).paths) {
@@ -42,7 +47,7 @@ export function planRowChange(path, { before, after, ownNewFile }) {
       }
     }
     const finalRows = index.cells.flatMap(cell => json(after(cell.file)).paths);
-    for (const placement of nextPaths.slice(oldPaths.length)) {
+    for (const placement of additions) {
       const [source, target, via] = Array.isArray(placement) ? placement : [];
       const safe = typeof source === 'string' && /^(?:src|relay)\//u.test(source)
         && !source.split('/').some(piece => !piece || piece === '.' || piece === '..') && !/[\0\r\n\\]/u.test(source);
