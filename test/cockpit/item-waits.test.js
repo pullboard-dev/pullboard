@@ -6,7 +6,8 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { addItem, closeBoard, completeCheckBaseline, openBoard } from '../../src/board.js';
+import { addItem, closeBoard, completeCheckBaseline } from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { tapTarget, SPEC, machine, project, build, sendBack, startView, element, target, openPage, agentEntries, accept, itemRow, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, settled, press } from './fixture.js';
 import { assertFirstStateDelay } from './stable.js';
 

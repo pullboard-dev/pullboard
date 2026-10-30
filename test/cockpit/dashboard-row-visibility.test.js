@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { chromeExecutable, closeSnapshotChrome, machine, openSnapshotChrome, press, project, startView } from './fixture.js';
 
 test('Dashboard retains offscreen agents and paints their real rows when scrolled into view [N26]', { timeout: 90000 }, async () => {
@@ -13,7 +14,7 @@ test('Dashboard retains offscreen agents and paints their real rows when scrolle
   assert.ok(executable, 'Chrome is required for the native row visibility contract.');
   const box = machine(), alpha = project(box, 'dashboard-offscreen');
   // @pullboard-board-file journey: normal native registration and shouts seed the real HTTP projection.
-  const board = store.openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   const agents = [];
   try {
     for (let index = 0; index < 48; index++) {
