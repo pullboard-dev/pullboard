@@ -431,8 +431,7 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   const expectedGeneration = (readMainAudit(wakeFile)?.generation ?? 0) + 1;
   run(box, box.repo, 'land', '--max', '1');
   run(box, box.repo, 'sentinel', 'run', '--health-only', '--json');
-  // Budget: a real detached native worker must close its expected wake and actual checked job.
-  await helpers.waitFor(() => {
+  const sourceJob = await helpers.waitFor(() => { // Budget: 120s runaway ceiling for an actual detached native gate and closed wake.
     const done = readMainAudit(join(directory, 'settled.json'));
     if (existsSync(join(directory, 'owner.json')) || !(done?.generation >= expectedGeneration)) return false;
     return readdirSync(directory).filter(name => /^[a-f0-9]{64}\.json$/u.test(name))
@@ -451,5 +450,7 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   assert.throws(() => landingPolicyCalls(box, batches, records.map(record => record === background[0] ? { ...record, args: [] } : record)), /accepted policy/u);
   assert.throws(() => landingPolicyCalls(box, batches, [...records, { cwd: join(box.dir, 'unbound-source'), args: ['--new-policy'] }]), /unknown gate root/u);
   t.diagnostic(JSON.stringify({ foreground: foreground.length, independentlyBound: background.length,
-    expectedGeneration, items: entries.map(entry => entry.id), policyTip: batches[0].tip }));
+    expectedGeneration, items: entries.map(entry => entry.id), policyTip: batches[0].tip,
+    sourceJob: { item: sourceJob.item, state: sourceJob.state, head: sourceJob.head, tree: sourceJob.tree,
+      basis: sourceJob.basis, receiptIds: sourceJob.receiptIds } }));
 }
