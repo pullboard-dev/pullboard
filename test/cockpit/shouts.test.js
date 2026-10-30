@@ -914,7 +914,7 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
 });
 
 /** Keep a waiting ask's address and age readable when a fallback font widens its header [N26]. */
-test("a waiting ask's who and when stay on one line with wide fonts [N26]", { timeout: 120_000 }, async () => {
+test("a waiting ask's who and when stay on one line with wide fonts [N26]", { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the wide-font regression');
   const box = machine();
@@ -942,9 +942,10 @@ test("a waiting ask's who and when stay on one line with wide fonts [N26]", { ti
       const naturalBox = copy.getBoundingClientRect(), natural = naturalBox.width, line = naturalBox.height; copy.remove();
       return { header:rect(header), age:rect(age), ageText:age.textContent, ageWidth:age.clientWidth, ageScroll:age.scrollWidth,
         address:rect(address), addressText:address.textContent, addressInk:rect(range), line,
-        recipient:rect(recipient), recipientInk:rect(recipientRange), recipientText:recipient.textContent, spacing:getComputedStyle(header).letterSpacing, natural, kind:{ text:kind.textContent, width:kind.clientWidth, scroll:kind.scrollWidth, overflow:getComputedStyle(kind).textOverflow, title:kind.title, label:kind.getAttribute('aria-label') },
+        recipient:rect(recipient), recipientInk:rect(recipientRange), recipientText:recipient.textContent, recipientStyle:{font:getComputedStyle(recipient).font,width:getComputedStyle(recipient).width,minWidth:getComputedStyle(recipient).minWidth,paddingRight:getComputedStyle(recipient).paddingRight,overflow:getComputedStyle(recipient).overflow,boxSizing:getComputedStyle(recipient).boxSizing}, spacing:getComputedStyle(header).letterSpacing, natural, kind:{ text:kind.textContent, width:kind.clientWidth, scroll:kind.scrollWidth, overflow:getComputedStyle(kind).textOverflow, title:kind.title, label:kind.getAttribute('aria-label') },
         page:[document.documentElement.clientWidth, document.documentElement.scrollWidth] };
     })())`));
+    t.diagnostic(JSON.stringify(result));
     assert.equal(result.spacing, '1px', 'the positive control widens the actual waiting header');
     assert.ok(result.natural > result.header.width, `the full header cannot fit without shortening text: ${JSON.stringify(result)}`);
     assert.ok(result.header.height <= result.line + 1, `the waiting ask stays on one line with wide fonts: ${JSON.stringify(result)}`);
