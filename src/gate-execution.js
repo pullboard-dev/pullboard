@@ -198,6 +198,8 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
   const logPath = persistLog ? join(directory, `${artifactPrefix}-${id}.log`) : null;
   const started = Date.now();
   const collectionId = landing && collectAll ? randomUUID() : null;
+  // Continuation only prevents early cancellation; the board-bound verdict is computed afterwards.
+  const continuation = [...waivers, ...(landing ? gateLease?.quarantines ?? [] : []).map(row => ({ kind: 'case', test: row.name, file: row.file }))];
   const inherited = {
     [TIMING_RUN_ID_ENV]: id,
     ...(auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('./audit-coverage-reporter.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
@@ -206,7 +208,7 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
     [LANDING_COLLECT_ALL_ENV]: landing && collectAll ? '1' : '0',
     [COLLECTION_ID_ENV]: collectionId ?? '',
     [RELEASE_EXECUTORS_ENV]: releaseRequest ? JSON.stringify(releaseRequest) : '',
-    [LANDING_WAIVERS_ENV]: landing ? JSON.stringify(waivers) : '[]',
+    [LANDING_WAIVERS_ENV]: landing ? JSON.stringify(continuation) : '[]',
     // A reused test result names the stage that ran it (#1045).
     PULLBOARD_TEST_STAGE: gateLease?.receiptKind ?? (landing ? 'land' : 'gate'),
   };
@@ -214,7 +216,7 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
   gateLease?.tracker?.mark('runAt');
   const remoteCommand = landing && collectAll ? `(export ${LANDING_COLLECT_ALL_ENV}=1 ${COLLECTION_ID_ENV}=${collectionId}\n${command}\n)` : command;
   const run = gateLease?.runner ? { ...gateLease.executionServices.runners.runOnRunner(root, remoteCommand, { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
-    browser: gateLease.browser, pipefail, stages, waivers: landing ? waivers : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,
+    browser: gateLease.browser, pipefail, stages, waivers: landing ? continuation : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,
       testStage: inherited.PULLBOARD_TEST_STAGE, timingRunId: id, ...(timeoutMs ? { timeoutMs } : {}) } }) }
     : runShell(root, command, { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease) });
   gateLease?.tracker?.mark('ranAt');

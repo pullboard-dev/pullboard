@@ -1,3 +1,5 @@
+import { landingWaiverProjection } from '../src/landing-test-policy.js';
+import { landingFailureWaived } from '../src/landing-test-policy.js';
 /** Structured native quarantine keeps actual red results and counts only executed identities [C7,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -174,4 +176,16 @@ test('every native quarantine verdict reader retains real raw red and rejects un
   assert.equal(result.status, 0, result.stderr + result.stdout);
   const report = JSON.parse(result.stdout.trim().split('\n').at(-1));
   assert.deepEqual(report, { actualGate: true, nativeProof: true, sourceAdvance: true, landing: true, rawExit: 1, closed: true });
+});
+
+
+test('quarantine continuation matches both file and name without granting a verdict [C7,H16]', () => {
+  const rows = landingWaiverProjection(JSON.stringify([{ kind: 'case', test: TARGET, file: FILE }]));
+  assert.equal(rows.length, 1);
+  assert.equal(landingFailureWaived(rows, join(process.cwd(), FILE), TARGET), true);
+  assert.equal(landingFailureWaived(rows, join(process.cwd(), 'test/another.test.js'), TARGET), false);
+  assert.equal(landingFailureWaived(rows, join(process.cwd(), FILE), 'another failure [C7]'), false);
+  for (const file of ['../escape.js', '/escape.js', 'test/../escape.js']) {
+    assert.deepEqual(landingWaiverProjection(JSON.stringify([{ kind: 'case', test: TARGET, file }])), []);
+  }
 });
