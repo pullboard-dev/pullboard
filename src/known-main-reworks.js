@@ -34,3 +34,14 @@ export function requireKnownMainReworks(known, items, exclude) {
     throw new Refused('SUBMISSION_PROOF', 'each known main failure needs its unique still-open Main red repair naming the exact test file; file or repair the item, then submit again');
   }
 }
+
+/** Failures lacking an owner, grouped by file; null when any file is already ambiguous, so filing never adds a second owner (#1917). */
+export function unownedMainReds(known, items, exclude) {
+  const missing = new Map();
+  for (const failure of known.failures) {
+    const owners = items.filter(item => covers(item, failure.file, exclude));
+    if (owners.length > 1) return null;
+    if (!owners.length) missing.set(failure.file, [...(missing.get(failure.file) ?? []), failure.name]);
+  }
+  return [...missing].map(([file, names]) => ({ file, names }));
+}
