@@ -100,8 +100,9 @@ function committedTest(root, revision, path) {
 }
 
 /** Draft a reason only when every guarded change preserves all bytes except static import-path contents. */
-function importPathNote(root, claimHead, commit, edited) {
-  if (!commit || !edited.length || !edited.every(path => TEST_FILE.test(path))) return null;
+function importPathNote(root, claimHead, commit, files, edited) {
+  if (!commit || !edited.length || !edited.every(path => TEST_FILE.test(path))
+    || files.some(path => TEST_FILE.test(path) && !edited.includes(path))) return null;
   for (const path of edited) {
     const before = committedTest(root, claimHead, path), after = committedTest(root, commit, path);
     if (!before || !after || before.mode !== after.mode
@@ -121,7 +122,7 @@ function importPathNote(root, claimHead, commit, edited) {
 export function infraNote({ root, claimHead, commit, files, gates, infra, requireInfraNote = false }) {
   const edited = existingGuardedEdits(root, claimHead, files, gates);
   if (infra === undefined) {
-    const drafted = importPathNote(root, claimHead, commit, edited);
+    const drafted = importPathNote(root, claimHead, commit, files, edited);
     if (drafted) return drafted;
     if (!requireInfraNote || !edited.length) return null;
     throw new Refused('INFRA_NOTE_REQUIRED', `this change edits existing test or gate file${edited.length > 1 ? 's' : ''} ${edited.join(', ')}; say why with --infra "<why>"`,

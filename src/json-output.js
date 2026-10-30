@@ -147,9 +147,9 @@ export function selectFields(document, fields) {
  */
 export function commandOutput(argv, streams, { version = 1, refusalDocument: suppliedRenderer, loadRefusal } = {}) {
   const command = commandName(argv);
-  const guidanceCommand = !command || command === 'help' || argv.includes('--help') ? 'help' : command;
+  const guidanceCommand = command === 'help' || argv.includes('--help') || !command && !argv.includes('--version') ? 'help' : command;
   // Installed Git hooks use --version's last line as a protocol handshake, unlike interactive `version`.
-  const finalAction = interactiveNext(command) && !argv.includes('--version');
+  const finalAction = guidanceCommand === 'help' || interactiveNext(command) && !argv.includes('--version');
   let explicitNext;
   let renderer = suppliedRenderer;
   let preparing;
@@ -211,7 +211,10 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     if (!enabled && !written) {
       written = true;
       if (withheld) streams.stdout.write(`${withheld} more lines withheld to keep this output within ${budget} bytes; add --detail for all of it, or --json\n`);
-      if (!code && !refusal && finalAction) streams.stdout.write(`next: ${cutLine(explicitNext ?? withheldNext?.replace(/^next:[ \t]*/u, '') ?? successfulNext(guidanceCommand, result))}\n`);
+      if (!code && !refusal && finalAction) {
+        const action = explicitNext ?? withheldNext?.replace(/^next:[ \t]*/u, '') ?? successfulNext(guidanceCommand, result);
+        streams.stdout.write(`${cutLine(`next: ${action.replace(/[\r\n]+/gu, ' ')}`)}\n`);
+      }
       else if (withheldNext) streams.stdout.write(`${withheldNext}\n`);
       return;
     }

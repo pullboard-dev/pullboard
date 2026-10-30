@@ -1,7 +1,8 @@
 import { pipelineLimit } from '../stats-pipeline.js';
 import { pipelineStats } from '../stats-pipeline.js';
 import { pipelineLines } from '../stats-pipeline.js';
-import { movesStats, movesLines } from '../stats-moves.js';
+import { movesStats } from '../stats-moves.js';
+import { movesLines } from '../stats-moves.js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { loadMachineSettings } from '../settings-read.js';

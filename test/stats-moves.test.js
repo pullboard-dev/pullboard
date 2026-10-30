@@ -106,6 +106,9 @@ test('automatic infra proof permits only import-path contents, preserving bindin
   // A mutable checkout cannot override the immutable candidate blobs.
   writeFileSync(join(root, path), changed.replace('value, 1', 'value, 0'));
   assert.ok(infraNote({ ...options, commit }));
+  writeFileSync(join(root, 'test/new.test.js'), 'assert.equal(value, 2);\n');
+  git('add', 'test/new.test.js'); git('commit', '-qm', 'chore: add a test');
+  assert.throws(() => infraNote({ ...options, commit: git('rev-parse', 'HEAD').trim(), files: [path, 'test/new.test.js'] }), { code: 'INFRA_NOTE_REQUIRED' });
   git('add', path); git('commit', '-qm', 'chore: alter assertion');
   assert.throws(() => infraNote({ ...options, commit: git('rev-parse', 'HEAD').trim() }), { code: 'INFRA_NOTE_REQUIRED' });
   assert.equal(importOnlyChange(before, before.replace('{ value }', '{ other }'), { specifiersOnly: true }), false);
@@ -157,6 +160,9 @@ test('finite output ends with one next move while raw export and refusal wire re
   assert.equal(output(['export'], io => io.say(raw)).text, raw + '\n');
   assert.deepEqual(JSON.parse(output(['export', '--json'], io => io.say(raw)).text), JSON.parse(raw));
   assert.equal(output(['--version'], io => io.say('0.9.3')).text, '0.9.3\n', 'installed hook version handshake stays byte-compatible');
+  assert.match(output(['mcp', '--help'], io => io.say('protocol help')).text, /next: pullboard status\n$/u);
+  const long = output(['show'], io => io.say('next: ' + 'x'.repeat(2000))).text.trimEnd();
+  assert.ok(Buffer.byteLength(long) <= 1024, 'the whole footer includes its prefix within the line cap');
   const refused = JSON.parse(output(['show', '--json'], io => io.refusal({ code: 'NO_ITEM', message: 'missing', next: 'pullboard list' }), 1).text);
   assert.deepEqual(refused, { version: 1, error: { code: 'NO_ITEM', message: 'missing', next: 'pullboard list' } });
 });
