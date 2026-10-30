@@ -147,6 +147,7 @@ export function selectFields(document, fields) {
  */
 export function commandOutput(argv, streams, { version = 1, refusalDocument: suppliedRenderer, loadRefusal } = {}) {
   const command = commandName(argv);
+  const guidanceCommand = !command || command === 'help' || argv.includes('--help') ? 'help' : command;
   // Installed Git hooks use --version's last line as a protocol handshake, unlike interactive `version`.
   const finalAction = interactiveNext(command) && !argv.includes('--version');
   let explicitNext;
@@ -210,7 +211,7 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     if (!enabled && !written) {
       written = true;
       if (withheld) streams.stdout.write(`${withheld} more lines withheld to keep this output within ${budget} bytes; add --detail for all of it, or --json\n`);
-      if (!code && !refusal && finalAction) streams.stdout.write(`next: ${cutLine(explicitNext ?? withheldNext?.replace(/^next:[ \t]*/u, '') ?? successfulNext(command, result))}\n`);
+      if (!code && !refusal && finalAction) streams.stdout.write(`next: ${cutLine(explicitNext ?? withheldNext?.replace(/^next:[ \t]*/u, '') ?? successfulNext(guidanceCommand, result))}\n`);
       else if (withheldNext) streams.stdout.write(`${withheldNext}\n`);
       return;
     }
@@ -242,8 +243,8 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     if (remote) document.remote = remote;
     if (!code && !refusal && !document.error && finalAction) {
       const next = result?.next && typeof result.next === 'object'
-        ? { ...result.next, action: successfulNext(command, result) }
-        : explicitNext ?? successfulNext(command, result);
+        ? { ...result.next, action: successfulNext(guidanceCommand, result) }
+        : explicitNext ?? successfulNext(guidanceCommand, result);
       delete document.next;
       document.next = next;
     }
