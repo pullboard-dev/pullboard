@@ -14,10 +14,7 @@ import {
 import { COLLECTION_REPORT_PREFIX } from './gate-run-receipt.js';
 import { formatCollectionReport } from './gate-run-receipt.js';
 import { parseCollectionReports } from './gate-run-receipt.js';
-import {
-  readTestOutcomes,
-  formatTestOutcomes,
-} from './test-outcomes.js';
+import { readTestOutcomes } from './test-outcomes.js';
 
 export const TIMING_RUN_ID_ENV = 'PULLBOARD_TIMING_RUN_ID';
 export const SUITE_TIMING_PREFIX = '# pullboard suite timing ';
@@ -100,13 +97,6 @@ export function timingAccountingOutput(output, id, source, { collectionId = id }
     });
     if (reports.length === 1) removed.add(reports[0]);
   }
-  const outcomes = readTestOutcomes(output, id);
-  if (outcomes) {
-    const canonicalOutcomes = new Set(formatTestOutcomes(id, outcomes).trimEnd().split('\n'));
-    for (const chunk of chunks) {
-      if (canonicalOutcomes.has(chunk.replace(/\r?\n$/u, ''))) removed.add(chunk);
-    }
-  }
   return chunks.filter(chunk => !removed.has(chunk)).join('');
 }
 
@@ -114,6 +104,9 @@ export function timingAccountingOutput(output, id, source, { collectionId = id }
 export function timingAccountingStages(stages, id, source, options) {
   if (!Array.isArray(stages)) return stages;
   return stages.map(stage => ({ ...stage,
+    // A pipeline component must authenticate its own producer, never borrow a sibling's frame.
+    testOutcomeRunId: typeof stage.output === 'string'
+      && suiteTimingFromOutput(stage.output, id, source) && readTestOutcomes(stage.output, id) ? id : null,
     ...(typeof stage.output === 'string' ? { output: timingAccountingOutput(stage.output, id, source, options) } : {}),
     ...(Array.isArray(stage.pipeline) ? { pipeline: timingAccountingStages(stage.pipeline, id, source, options) } : {}) }));
 }
