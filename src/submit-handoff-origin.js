@@ -5,7 +5,7 @@ import { itemPatchDigest } from './item-patch-state.js';
 /** Private worker origins retain the queued sender without registering or lending a second seat [E18,V4]. */
 import { realpathSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { repoInfo, headCommit, headTree, isClean, git, untracked } from './git.js';
+import { repoInfo, headCommit, headTree, isClean, git, tryGit, untracked } from './git.js';
 import { submitHandoff } from './submit-handoff-read.js';
 import { Refused } from './refused.js';
 
@@ -109,7 +109,12 @@ export function submitHandoffHookActor(ctx, board) {
   const { id, job } = entry;
   requireSubmitHandoffHookProof(board, id, job, job.hookProjection);
   const main = mainPolicy(ctx.info.root).commit;
-  const merge = git(ctx.info.root, ['rev-parse', '--verify', 'MERGE_HEAD']);
+  const mergeHead = tryGit(ctx.info.root, ['rev-parse', '--verify', 'MERGE_HEAD']);
+  // Git invokes pre-merge-commit before writing MERGE_HEAD; these are candidate SHAs, never actor authority.
+  const names = Object.keys(process.env).filter(name => name.startsWith('GITHEAD_'));
+  const candidates = names.every(name => /^GITHEAD_[a-f0-9]{40}$/u.test(name))
+    ? names.map(name => name.slice('GITHEAD_'.length)) : [];
+  const merge = mergeHead.status === 0 ? mergeHead.stdout.trim() : candidates.length === 1 ? candidates[0] : null;
   const source = headCommit(ctx.info.root);
   const expected = git(ctx.info.root, ['merge-tree', '--write-tree', source, main]).split('\n')[0];
   if (realpathSync(ctx.info.root) !== realpathSync(submitHandoffRoot(ctx.info.commonDir, job))
