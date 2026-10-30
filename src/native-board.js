@@ -1,3 +1,4 @@
+import { sealSubmitHandoffQueue } from './submit-handoff-seal.js';
 import { MOVE_REGISTRY } from './move-registry.js';
 import { MOVE_OPERATIONS } from './move-registry.js';
 import { minimumMoveEngine } from './move-registry.js';
@@ -221,7 +222,7 @@ export function nativeBoardPorts() {
     flakeQuarantines, gateRuns, recordGateRun, personProposals,
     personSigning, proposePersonMove, setPersonSigning, recordPublishFinding,
     landingWaivers, landingWaiverFor, waivedLandingProof, prepareTrainLanding,
-    prepareNativeTrainLanding, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
+    prepareNativeTrainLanding, sealSubmitHandoffQueue, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
     sealSourceAdvance, computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict,
     signedMoveProblem, requireBound, requestMoveProblem, recordRequestMove,
     relayPerson, requestPerson, validPresence,

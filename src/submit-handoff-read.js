@@ -1,0 +1,25 @@
+/** Read-only queued-submit projections never grant proof or actor authority [V4,H16]. */
+import { ENGINE_VERSION } from './engine-metadata.js';
+import { SUBMIT_HANDOFF_ENGINE } from './submit-handoff-engine.js';
+const PREFIX = 'submit_handoff:';
+
+/** Read only new-engine queue observations; historical selection has no new metadata. */
+export function submitHandoff(board, id) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < SUBMIT_HANDOFF_ENGINE) return null;
+  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(PREFIX + id);
+  return row ? JSON.parse(row.meta_value) : null;
+}
+
+/** An active immutable job frees its holder to claim ordinary work without making it reviewable. */
+export function pendingSubmitHandoff(board, item) {
+  const job = submitHandoff(board, item.item_id);
+  return item.item_status === 'claimed' && job?.agentId === item.item_owner
+    && ['queued', 'running'].includes(job.state) ? job : null;
+}
+
+/** Return an unchanged worker refusal only while its original claim and frozen bar still match. */
+export function submitHandoffFailure(board, item) {
+  const job = submitHandoff(board, item.item_id);
+  return job?.state === 'red' && (job.agentId === item.item_owner || item.item_status === 'open') && job.digest === item.item_frozen_digest
+    ? job.error : null;
+}

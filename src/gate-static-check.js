@@ -27,12 +27,12 @@ export function commandWord(value) {
 }
 
 /** Run the project's declared static guard before proof, retaining normal queue classification. */
-export async function runStaticChecks(root, config, { agent, item = '', onWait, onBrowserFallback, runnerAdmission = {}, executionServices } = {}) {
+export async function runStaticChecks(root, config, { agent, item = '', onWait, onBrowserFallback, runnerAdmission = {}, executionServices, artifactDirectory } = {}) {
   const command = config.staticChecks?.trim();
   if (!command) return null;
   const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(root, command, { onFallback: onBrowserFallback });
   return withGateSlot(root, lease => {
-    const run = runProfiledShell(root, command, { waitMs: lease.waitMs, artifactPrefix: 'pullboard-static-checks', persistLog: true, gateLease: lease });
+    const run = runProfiledShell(root, command, { waitMs: lease.waitMs, artifactDirectory, artifactPrefix: 'pullboard-static-checks', persistLog: true, gateLease: lease });
     refuseSandboxBlocked(run);
     if (!run.isGreen) throw new Refused('GATE_RED', `static checks are red; fix the named source before running proof:\n${digestOf(run.output)}`);
     return run;

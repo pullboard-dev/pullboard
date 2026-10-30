@@ -231,7 +231,11 @@
   ["src/cli/worktree.js","apps/cli/src/shell/cli/worktree.js","imports"],
   ["src/command-docs/stats-pipeline.json","apps/cli/src/shell/command-docs/stats-pipeline.json","rule"],
   ["src/documentation/events/review-default.json","apps/cli/src/shell/documentation/events/review-default.json","rule"],
-  ["src/command-docs/stats-moves.json","apps/cli/src/shell/command-docs/stats-moves.json","rule"]
+  ["src/command-docs/stats-moves.json","apps/cli/src/shell/command-docs/stats-moves.json","rule"],
+  ["src/submit-handoff.js","apps/cli/src/shell/submit-handoff.js","rule"],
+  ["src/submit-handoff-worker.js","apps/cli/src/shell/submit-handoff-worker.js","rule"],
+  ["src/documentation/events/submit-handoff.json","apps/cli/src/shell/documentation/events/submit-handoff.json","rule"],
+  ["src/documentation/events/submit_handoff_returned.json","apps/cli/src/shell/documentation/events/submit_handoff_returned.json","rule"]
  ],
  "reexports": [
   "src/cli-context.js",

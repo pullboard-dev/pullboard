@@ -7,7 +7,7 @@ import { recordedGrantActivation } from '../packages/state/index.js';
 import { completesAdmittedSubmit } from '../packages/state/index.js';
 
 // Attributed append-only findings never confer authority over item state.
-const ADMINISTRATIVE = new Set(['shout', 'claim', 'release', 'reserveReview', 'appendFact', 'recordAttempt']);
+const ADMINISTRATIVE = new Set(['shout', 'claim', 'release', 'reserveReview', 'appendFact', 'recordAttempt', 'completeSubmitHandoff']);
 
 /** Bind only item mutations declared by the public operation, including item creation. */
 function target(move, registry) {

@@ -1,0 +1,10 @@
+{
+  "kind": "submit-handoff",
+  "entries": [
+    {
+      "order": 1000,
+      "actor": "queued builder",
+      "detail": "Queue state (`queued`, `running`, `green`, `red` or `incomplete`) and captured source `commit`; job identifiers and refusal text stay in private board metadata."
+    }
+  ]
+}

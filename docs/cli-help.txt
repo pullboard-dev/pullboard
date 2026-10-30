@@ -175,6 +175,8 @@ Work
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id> [--no-next] [--stale --note "why"]  hand it back; coordinator --stale requires measured inactivity and a note
   pullboard submit <id> [--wait] [--no-next]        needs a clean tree, item check and affected tests green at HEAD (alias: done)
+    submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
+    The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
   pullboard verify <id> accept [--no-next] --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject [--no-next] --reason TEST_FAILURE --clause "failing frozen requirement" --note "what failed" [--cause <key>]

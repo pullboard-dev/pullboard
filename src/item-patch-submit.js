@@ -1,3 +1,4 @@
+import { submitHandoffBoardRoot } from './submit-handoff-origin.js';
 import { submitGateConfig } from './gate-submit.js';
 import { submitGatePlan } from './gate-submit.js';
 import { policyAt } from './trusted-policy-read.js';
@@ -128,7 +129,8 @@ export function sealItemPatchSubmit(board, id, options) {
   const binding = checkItemPatchSubmit(board, id, options);
   if (!binding) throw new Refused('ITEM_PATCH_CHANGED', 'submit must prove the attached companions on their exact composed source');
   const item = getItem(board, id);
-  const root = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(options.agentId)?.agent_path;
+  const root = submitHandoffBoardRoot(board, id, options.agentId)
+    ?? board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(options.agentId)?.agent_path;
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   try {
     if (!root || !file || realpathSync(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) !== realpathSync(file)) throw new Error('foreign board');
