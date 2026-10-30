@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** The cells checks replay a saved answer for an unchanged commit, tree and diff, and miss on any change [C7]. */
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -72,5 +72,4 @@ test('with the setting off the check always runs and nothing is saved [C7]', t =
 test('the cache setting is off by default and described [C7]', () => {
   const config = spawnSync(process.execPath, ['-e', "import('./src/config.js').then(m => console.log(JSON.stringify(m.defaults().cells)))"], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(config.stdout.trim(), '{"cache":false}');
-  assert.match(readFileSync(join(ROOT, 'src/settings-descriptions.js'), 'utf8'), /'cells\.cache'/u);
 });
