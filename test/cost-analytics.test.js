@@ -1,0 +1,58 @@
+/** Private cost cohorts, native model names and statistically honest comparisons [N26]. */
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { costAnalytics } from '../src/cost-analytics.js';
+import { wilson } from '../src/cost-analytics.js';
+
+const presentation = model => ({ key: model.toLowerCase(), name: model, vendor: 'Fixture' });
+/** Build a board's ordered item, verdict and usage events. */
+function seeded(groups) {
+  const items = [], agents = [], events = [];
+  let sequence = 0, id = 0;
+  const event = (kind, item, by, detail = {}) => events.push({ event_id: ++sequence, event_kind: kind, item_id: item, event_by: by, event_at: '2026-10-30T12:00:00.000Z', event_detail: JSON.stringify(detail) });
+  for (const [model, count, returns] of groups) for (let index = 0; index < count; index++) {
+    id++; const builder = `b${id}`, verifier = `v${id}`;
+    items.push({ item_id: id, item_title: `Item ${id}` });
+    agents.push({ agent_id: builder, model }, { agent_id: verifier, model: 'Reviewer' });
+    event('submit', id, builder);
+    if (index < returns) { event('reject', id, verifier); event('submit', id, builder); }
+    event('accept', id, verifier);
+    event('usage', null, builder, { item: id, revision: 1, records: [{ model, wallMs: 1000, inputTokens: 10 }] });
+    event('merged', id, 'coordinator');
+  }
+  return { items, agents, events, window: 'today', now: new Date('2026-10-30T14:00:00Z'), timeZone: 'UTC', modelPresentation: presentation };
+}
+
+test('native landing cohorts, duration, unknowns and Wilson score remain consistent [N26]', () => {
+  const input = seeded([['Alpha', 30, 0], ['Beta', 30, 20]]);
+  const result = costAnalytics(input);
+  assert.equal(result.totals.agentMs, 60000);
+  assert.equal(result.totals.medianItemMs, 1000);
+  assert.deepEqual(result.totals.sentBack, { items: 20, itemShare: 1 / 3, agentMs: 20000, agentMsShare: 1 / 3 });
+  assert.deepEqual(result.days, [{ date: '2026-10-30', firstTimeMs: 40000, sentBackMs: 20000, items: 60 }]);
+  assert.equal(result.builders.verdict, 'clear');
+  assert.equal(result.builders.best, 'alpha');
+  assert.equal(result.verifiers.rows[0].verdicts, 80);
+  assert.equal(result.longest[0].sessions[0].count, null, 'native cumulative summaries do not prove a session count');
+  const interval = wilson(5, 10);
+  assert.ok(Math.abs(interval.low - 0.236593) < 0.00001);
+  assert.ok(Math.abs(interval.high - 0.763407) < 0.00001);
+});
+
+test('model comparison distinguishes overlapping, small and single qualified cohorts [N26]', () => {
+  assert.equal(costAnalytics(seeded([['A', 30, 3], ['B', 30, 4]])).builders.verdict, 'leaning');
+  const one = costAnalytics(seeded([['A', 30, 3], ['B', 4, 0]])).builders;
+  assert.equal(one.verdict, 'nothing-to-compare');
+  assert.equal(one.rows.find(row => row.model === 'b').tooFew, true);
+  assert.equal(one.rows.find(row => row.model === 'b').low, null);
+});
+
+test('shared or absent usage remains unknown and windows honor local day boundaries [N26]', () => {
+  const input = seeded([['A', 1, 0]]);
+  input.events.find(event => event.event_kind === 'usage').event_detail = JSON.stringify({ item: 1, revision: 1, shared: true, records: [] });
+  const result = costAnalytics({ ...input, timeZone: 'America/Chicago' });
+  assert.equal(result.from, '2026-10-30T05:00:00.000Z');
+  assert.equal(result.totals.agentMs, null);
+  assert.equal(result.totals.medianItemMs, null);
+  assert.equal(result.longest.length, 0);
+});
