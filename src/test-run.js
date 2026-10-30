@@ -165,7 +165,8 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, a
   const result = { green: run.isGreen, output: renderTestSummary(summary), ...summary, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
     ...(run.executionRunner ? {} : { local: localReason() }) };
   if (!run.isGreen) {
-    const compared = await compareMainFailures(root, run.profile, onWait, readFileSync(summary.logPath, 'utf8'), { runnerAdmission: admission, detailed: true });
+    const compared = await compareMainFailures(root, run.profile, onWait, readFileSync(summary.logPath, 'utf8'), { runnerAdmission: admission, detailed: true,
+      execution: { executor: run.executionRunner ? { kind: 'ssh', host: run.executionRunner } : { kind: 'local' }, environment: run.environment } });
     result.main = compared.main;
     result.mainComparison = compared;
     result.failureCases = failureSignatures(run, run.executionRoot ?? root);

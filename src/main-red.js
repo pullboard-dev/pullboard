@@ -56,6 +56,8 @@ import { linkKnownMainReworks } from './known-main-reworks.js';
 import { testsNeedBrowser } from './browser-admission.js';
 import { testsNeedGui } from './gui-admission.js';
 import { browserFreeChecksEnabled } from './settings.js';
+import { loadMachineSettings } from './settings-read.js';
+import { recentReceipts } from './gate-receipt.js';
 
 const CACHE_RELATIVE = 'pullboard/main-red.json';
 
@@ -200,6 +202,48 @@ function retainComparisonReceipt(root, checkout, id) {
   return id;
 }
 
+/** Only a completed structured remote run can supply a peer's recorded comparison environment. */
+function comparisonObservationMatches(receipt, environment, browser) {
+  const admitted = Date.parse(receipt?.admittedAt);
+  const finished = Date.parse(receipt?.finishedAt);
+  const slots = receipt?.runner?.slots;
+  return receipt?.slot?.kind === 'runner' && receipt.inherited !== true
+    && Number.isFinite(admitted) && Number.isFinite(finished) && admitted <= finished
+    && Number.isSafeInteger(slots?.current) && slots.current > 0
+    && Number.isSafeInteger(slots.limit) && slots.limit >= slots.current && typeof slots.elastic === 'boolean'
+    && sameEnvironment(receipt.environment, environment)
+    && receipt.runner.capabilities?.os === environment.platform
+    && typeof browser === 'boolean' && receipt.runner.capabilities.browser === browser;
+}
+
+/** Select only registered peers with a fresh physical runtime and browser observation matching the red executor. */
+export function comparisonExecutor(root, execution) {
+  const original = requiredExecutorOf(execution?.executor);
+  if (original?.kind !== 'ssh') return { requiredExecutor: original, browser: null };
+  const registered = loadMachineSettings().runners ?? [];
+  const observed = new Map();
+  const now = Date.now();
+  for (const receipt of recentReceipts(root, now)) {
+    const at = Date.parse(receipt.finishedAt ?? receipt.at);
+    const host = receipt.runner?.id;
+    if (receipt.runner?.kind !== 'ssh' || typeof host !== 'string'
+      || !Number.isFinite(at) || at > now || now - at > 86_400_000) continue;
+    // Select newest first, including incomplete observations: an older match cannot mask a changed/unknown host.
+    if (!observed.has(host) || at >= observed.get(host).at) observed.set(host, { at, receipt });
+  }
+  const red = observed.get(original.host)?.receipt;
+  const browser = red?.runner?.capabilities?.browser;
+  const redMatches = comparisonObservationMatches(red, execution.environment, browser);
+  const hosts = registered.filter(runner => {
+    if (runner.host === original.host) return !red || redMatches && (runner.browser > 0) === browser;
+    const peer = observed.get(runner.host)?.receipt;
+    return redMatches && comparisonObservationMatches(peer, execution.environment, browser) && (runner.browser > 0) === browser;
+  }).map(runner => runner.host);
+  if (!hosts.length) throw new Refused('BAD_RUNNER_POOL', 'no registered runner has the candidate comparison environment; record a matching runner and retry');
+  const host = hosts.includes(original.host) ? original.host : hosts[0];
+  return { requiredExecutor: { kind: 'ssh', host, hosts: [host, ...hosts.filter(value => value !== host)] }, browser: redMatches ? browser : null };
+}
+
 /**
  * Compare named failed files against one captured main snapshot. Each result is cached by exact
  * commit and file; later submits reuse completed results rather than rerunning the same file.
@@ -221,11 +265,16 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   }
   const pinned = execution !== undefined;
   let executor;
+  let comparisonBrowser = null;
   if (pinned) {
     try { executor = requiredExecutorOf(execution?.executor); } catch { /* Invalid execution facts fail closed below. */ }
     if (!executor || !sameEnvironment(execution?.environment, execution?.environment)) {
       return { main: main.commit, files: [], unavailable: 'the candidate check has no complete executor and runtime identity' };
     }
+  }
+  if (pinned) {
+    try { ({ requiredExecutor: executor, browser: comparisonBrowser } = comparisonExecutor(root, execution)); }
+    catch (error) { return { main: main.commit, files: [], unavailable: error.message }; }
   }
   const files = failingFiles(root, profile, output);
   if (!files.length) return { main: main.commit, files: [], unavailable: 'could not read which tests failed' };
@@ -255,9 +304,10 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
         const measure = remote => withGateSlot(checkout, async lease => {
           // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
           const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs });
-          if (pinned && ((executor.kind === 'ssh' ? run.executionRunner !== executor.host : Boolean(run.executionRunner))
-            || !sameEnvironment(run.environment, execution.environment))) {
-            throw new Refused('LAND_ENVIRONMENT', 'the merge-base comparison did not execute on the candidate check executor and exact runtime');
+          if (pinned && ((executor.kind === 'ssh' ? !(executor.hosts ?? [executor.host]).includes(run.executionRunner) : Boolean(run.executionRunner))
+            || !sameEnvironment(run.environment, execution.environment)
+            || comparisonBrowser !== null && Boolean(lease.runner?.browser > 0) !== comparisonBrowser)) {
+            throw new Refused('LAND_ENVIRONMENT', 'the merge-base comparison did not execute on a registered matching candidate check executor and exact runtime');
           }
           let receiptId;
           if (run.receiptId) {

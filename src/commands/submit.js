@@ -407,7 +407,8 @@ export async function submitHere(ctx, id, infra) {
   const failures = !gate.isGreen && checkAccepted && !waived ? failureSignatures(gate, root) : null;
   if (failures && mainFailureBase && !companion) {
     try {
-      comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, onMeasuredReceipt, runnerAdmission });
+      comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, onMeasuredReceipt, runnerAdmission,
+        execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
       proofNotices = mainFailureNotices(root, failures, comparison,
         { items: withBoard(ctx, board => store.listItems(board, { all: true })), exclude: id });
       const matched = matchingMainFailures(failures, comparison, mainFailureBase);
