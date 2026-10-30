@@ -1,8 +1,8 @@
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DURATION = /^(\d+)(m|h|d)$/u;
-const UNIT_MS = { m: 60_000, h: 3_600_000, d: DAY_MS };
+const DURATION = /^(\d+)(ms|s|m|h|d)$/u;
+const UNIT_MS = { ms: 1, s: 1_000, m: 60_000, h: 3_600_000, d: DAY_MS };
 
 /** Normalize an absolute path without following symlinks, so classification is deterministic from Git metadata. */
 function absolutePath(value) {
@@ -25,7 +25,8 @@ function overlapsPath(left, right) {
 function graceMilliseconds(config) {
   const value = config?.worktreeMaintenance?.grace ?? '1d';
   const match = DURATION.exec(String(value));
-  return match ? Number(match[1]) * UNIT_MS[match[2]] : null;
+  const milliseconds = match ? Number(match[1]) * UNIT_MS[match[2]] : NaN;
+  return Number.isSafeInteger(milliseconds) && milliseconds > 0 ? milliseconds : null;
 }
 
 /** Read a native or persisted timestamp without accepting invalid or future values as elapsed time. */
@@ -36,7 +37,7 @@ function timestamp(value) {
 
 /** Return the newest actual timestamp supplied for a seat; a recent heartbeat must override old creation time. */
 function seatActivity(seat) {
-  const values = [seat.completedTakeoverAt, seat.goneAt, seat.lastNativeActivityAt, seat.heartbeatAt, seat.createdAt]
+  const values = [seat.completedTakeoverAt, seat.goneAt, seat.lastNativeActivityAt, seat.heartbeatAt, seat.createdAt, seat.agent_created_at]
     .map(timestamp).filter(value => value !== null);
   return values.length ? Math.max(...values) : null;
 }
@@ -56,7 +57,7 @@ function expectedWorktreeRoot(treePath, mainRoot, placement) {
 function processInTree(processes, treePath) {
   if (!Array.isArray(processes)) return { unknown: true, matched: false };
   for (const process of processes) {
-    const cwd = absolutePath(typeof process === 'string' ? process : process?.cwd);
+    const cwd = absolutePath(typeof process === 'string' ? process : process?.cwd ?? process?.path);
     if (!cwd) return { unknown: true, matched: false };
     if (containsPath(treePath, cwd)) return { unknown: false, matched: true };
   }
@@ -105,8 +106,9 @@ export function classifyMaintenanceTree(tree, {
   const grace = graceMilliseconds(config);
   if (grace === null || !Array.isArray(seats) || !Array.isArray(items)) return result('active', true, 'board-or-grace-unknown', allAgentIds, itemIds);
 
-  if (overlapsPath(main, path)) return result('active', true, 'main-checkout', agentIds, itemIds);
-  if (current && overlapsPath(current, path)) return result('active', true, 'current-checkout', agentIds, itemIds);
+  // A tree enclosing a protected checkout could remove it; a child worktree is a separate Git identity.
+  if (containsPath(path, main)) return result('active', true, 'main-checkout', agentIds, itemIds);
+  if (current && containsPath(path, current)) return result('active', true, 'current-checkout', agentIds, itemIds);
   if (tree?.locked) return result('active', true, 'git-worktree-locked', agentIds, itemIds);
   if (tree?.bare) return result('active', true, 'bare-repository', agentIds, itemIds);
 

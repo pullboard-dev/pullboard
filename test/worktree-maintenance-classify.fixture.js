@@ -48,6 +48,7 @@ export function registerMaintenanceClassificationTests() {
     assert.equal(classifyMaintenanceTree(root.tree, { ...root, workingDirectories: null }).protected, true);
     assert.equal(classifyMaintenanceTree(root.tree, { ...root, workingDirectories: [{ cwd: null }] }).protected, true);
     assert.equal(classifyMaintenanceTree(root.tree, { ...root, workingDirectories: [{ cwd: root.tree.path + '/child' }] }).reason, 'process-working-directory');
+    assert.equal(classifyMaintenanceTree(root.tree, { ...root, workingDirectories: [{ pid: 1234, path: root.tree.path + '/child' }] }).reason, 'process-working-directory');
   });
 
   test('maintenance classification protects repository roots and configured exclusions by path component [B3,I4,I16]', () => {
@@ -70,6 +71,11 @@ export function registerMaintenanceClassificationTests() {
     const siblingPrefix = input({ config: { worktrees: 'beside', worktreeMaintenance: { grace: '1d', exclude: [] } },
       tree: { path: '/tmp/pullboardish-agent-1', locked: false, bare: false } });
     assert.equal(classifyMaintenanceTree(siblingPrefix.tree, siblingPrefix).kind, 'scratch');
+    const insideCandidate = input({ previous: { firstSeenAt: NOW - DAY } });
+    const inside = classifyMaintenanceTree(insideCandidate.tree, insideCandidate);
+    assert.equal(inside.kind, 'orphaned');
+    assert.equal(inside.protected, false);
+    assert.equal(inside.oldEnough, true);
   });
 
   test('maintenance classification uses native gone age and exact grace boundaries, never inventing age from mtime [B3,I4,I16]', () => {
@@ -103,6 +109,14 @@ export function registerMaintenanceClassificationTests() {
     const finished = classifyMaintenanceTree(base.tree, { ...base, seats: [{ agent_id: 'core-1', path: base.tree.path, presence: 'gone', createdAt: NOW - 2 * DAY }],
       items: [{ item_id: 9, item_built_by: 'core-1', item_status: 'withdrawn' }] });
     assert.equal(finished.kind, 'finished');
+    const canonicalSeat = { agent_id: 'core-1', path: base.tree.path, presence: 'gone', agent_created_at: NOW - 1_000 };
+    const secondsGrace = { ...base, config: { ...base.config, worktreeMaintenance: { ...base.config.worktreeMaintenance, grace: '1s' } },
+      seats: [canonicalSeat], items: [{ item_id: 10, item_built_by: 'core-1', item_status: 'withdrawn' }] };
+    assert.equal(classifyMaintenanceTree(base.tree, secondsGrace).kind, 'finished');
+    assert.equal(classifyMaintenanceTree(base.tree, { ...secondsGrace, seats: [{ ...canonicalSeat, agent_created_at: NOW - 999 }] }).reason, 'seat-recent-or-clock-rollback');
+    const millisecondsGrace = { ...base, config: { ...base.config, worktreeMaintenance: { ...base.config.worktreeMaintenance, grace: '250ms' } },
+      seats: [{ ...canonicalSeat, agent_created_at: NOW - 250 }], items: secondsGrace.items };
+    assert.equal(classifyMaintenanceTree(base.tree, millisecondsGrace).oldEnough, true);
     const scratch = classifyMaintenanceTree({ path: '/tmp/other/worktree', locked: false, bare: false }, { ...base, previous: { firstSeenAt: NOW - DAY } });
     assert.equal(scratch.kind, 'scratch');
     assert.equal(scratch.oldEnough, true);
