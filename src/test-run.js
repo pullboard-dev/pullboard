@@ -132,7 +132,7 @@ function localReason() {
  *
  * @returns {Promise<{ green: boolean, output: string, runner: string, seconds: number, files: string[], known: Array<{file: string, result: string}>, main: string|null }>}
  */
-export async function runTestFiles(root, config, files, { agent, onWait, affected = false, executionServices, compareMainFailures, withMainCheckout } = {}) {
+export async function runTestFiles(root, config, files, { agent, item, onWait, affected = false, executionServices, compareMainFailures, withMainCheckout } = {}) {
   if (affected && files.length) throw new Refused('USAGE', 'use pullboard test --affected without file arguments, or name the files without --affected');
   const policy = affected ? mainPolicy(root) : null;
   if (policy) config = policy.config;
@@ -158,7 +158,7 @@ export async function runTestFiles(root, config, files, { agent, onWait, affecte
     const command = full ? `(${config.gate})${focused ? ' && ' + focused : ''}` : (focused || 'true');
     const browser = full || !browserFreeChecksEnabled() || await testsNeedBrowser(checkout, paths);
     return withGateSlot(checkout, (lease) => runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs }),
-      { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full, agent, kind: 'test', onWait });
+      { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full, agent, item, itemCheck: Boolean(item), kind: 'test', onWait });
   }, withMainCheckout);
   const summary = retainTestOutput(root, run.output, { root: run.executionRoot ?? root, profile: run.profile });
   const result = { green: run.isGreen, output: renderTestSummary(summary), ...summary, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
