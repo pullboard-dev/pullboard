@@ -1,6 +1,11 @@
 import { blockingFailures } from '../quarantine-verdict.js';
 import { boundProofReceipt } from '../proof-receipts.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
+import { withImportParseCache } from '../module-import-cache.js';
+import { foreignNodeOptions } from '../test-isolation.js';
+import { importsIn } from '../module-imports.js';
+import { commonJsIn } from '../module-imports.js';
+import { requireSubmitCells } from '../../bin/cells-submit-checks.js';
 import { privateCheckEnvelope } from '../runner-private-mode.js';
 import { trunkRef } from '../trusted-policy-read.js';
 import {
@@ -88,6 +93,7 @@ import {
   waiverLine,
 } from '../land.js';
 import {
+  withMainCheckout,
   compareMainFailures,
   mainRedMessage,
 } from '../main-red.js';
@@ -321,6 +327,7 @@ export async function submitHere(ctx, id, infra) {
     return prepareItemPatchSubmit(root, board, held, commit);
   });
   requirePlannedSource(root, trunk.commit, companion?.commit ?? commit);
+  await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit);
   withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
