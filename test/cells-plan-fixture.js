@@ -37,3 +37,11 @@ export function fixture(t) {
   return { root, put };
 }
 
+
+/** Trusted fixture controller authority: all original plan cells have accepted cut items on the pinned main. */
+export function acceptedCutItems(root, main) {
+  const plan = JSON.parse(git(root, 'show', `${main}:bin/cells-plan.json`));
+  return plan.cells.map((cell, index) => ({ item_id: index + 1, item_lane: 'core',
+    item_title: `Cells import cuts: ${cell.name} removes imports into later cells`,
+    item_status: 'verified', item_merged_commit: main }));
+}

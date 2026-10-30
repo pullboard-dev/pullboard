@@ -11,8 +11,6 @@ import { ENGINE_VERSION } from './machine.js';
 import { PROOF_RUN_ENGINE } from './proof-run-engine.js';
 import { Refused } from './refused.js';
 import * as seats from './seats.js';
-import { validateQuarantineVerdict } from './quarantine.js';
-import { sealQuarantineVerdict } from './quarantine.js';
 import { QUARANTINE_VERDICT_ENGINE } from './quarantine-verdict-engine.js';
 
 /** Read the native gate's file before sealing a replayable move; caller-supplied fields are not evidence. */
@@ -23,7 +21,7 @@ export function boundProofReceipt(board, request) {
   if (!stored || stored.version !== 2 || request?.receipt && receiptBody(request.receipt) !== receiptBody(stored)) {
     throw new Refused('PROOF_RUN_UNBOUND', 'proof provenance comes from the gate receipt it stored; run the check, then read pullboard show <id>');
   }
-  if (!proofReceipts(board, stored.proof.item).some(run => run.id === stored.id)) sealQuarantineVerdict(board, stored);
+  if (!proofReceipts(board, stored.proof.item).some(run => run.id === stored.id)) board.nativePorts.quarantine.sealQuarantineVerdict(board, stored);
   return stored;
 }
 
@@ -60,7 +58,7 @@ function proofReceiptFields(board, request, run) {
     receipt.parentSession = existing.parentSession;
     if (JSON.stringify(fields) !== JSON.stringify(receipt)) throw new Refused('PROOF_RUN_CHANGED', 'that receipt id already binds different facts; keep the original and run a new check');
   }
-  if (!existing) validateQuarantineVerdict(board, run);
+  if (!existing) board.nativePorts.quarantine.validateQuarantineVerdict(board, run);
   return { receipt, existing };
 }
 
