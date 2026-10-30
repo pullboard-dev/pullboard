@@ -1,7 +1,7 @@
 /** Typed native pipeline observations never grant proof or infer a cause from prose [R1,R2,V4,H16,C7]. */
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
@@ -131,6 +131,7 @@ test('real refused submit records its original coded outcome without changing th
 test('real successful submit records immediate admission before its bound proof receipts [V4,R2,H16]', () => {
   const gate = 'node --test web/title.test.js';
   const box = helpers.project(gate);
+  mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/title.js'), "export const title = 'before';\n");
   writeFileSync(join(box.repo, 'web/title.test.js'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { title } from './title.js';\ntest('the title is corrected [G1]', () => assert.equal(title, 'after'));\n");
   box.git(box.repo, 'add', 'web/title.js', 'web/title.test.js');
@@ -157,9 +158,10 @@ test('real successful submit records immediate admission before its bound proof 
     assert.ok(receipts.length > 0, 'the real gate produced native proof receipts');
     for (const { event, receipt } of receipts) {
       assert.ok(event.event_id > admissions[0].event_id);
-      assert.equal(receipt.submitAdmission, admission.id);
       assert.equal(receipt.commit, admission.commit);
       assert.equal(receipt.tree, admission.tree);
     }
+    const final = receipts.filter(({ receipt }) => receipt.submitAdmission === admission.id);
+    assert.ok(final.length > 0, 'the final formal proof binds the admitted claim; criterion receipts keep their separate authority');
   } finally { store.closeBoard(board); }
 });
