@@ -39,7 +39,10 @@ import {
 } from './trusted-policy.js';
 import { parseSpec } from './spec.js';
 import { listItems } from './board.js';
-import { takeResource, requiredExecutorOf } from './resources.js';
+import {
+  takeResource,
+  requiredExecutorOf,
+} from './resources.js';
 import { sameEnvironment } from './execution-environment.js';
 import { Refused } from './refused.js';
 import {
