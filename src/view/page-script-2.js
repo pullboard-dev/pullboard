@@ -444,7 +444,7 @@ function highlightCodeLine(line, path, state = {}) {
 }
 // A shout or thread fact's path:lines@commit reference: keep only the reference in this button until
 // the person opens it. The text before a shout ref is retained so ambiguous paths can be refused.
-const codeRef = (ref, before, block = false, hashLength = 12) => {
+const codeRef = (ref, before, block = false, hashLength = 12, labelText = null) => {
   const c = view.code[view.root + '\\n' + before + '\\n' + ref];
   const open = Boolean(c && c.open);
   const shownLines = c?.all ? c.allLines : c?.lines, carry = {};
@@ -456,7 +456,7 @@ const codeRef = (ref, before, block = false, hashLength = 12) => {
   // Its label is one piece: the path, cut short first where the line is narrow, then the lines and the commit's first
   // twelve characters by default. The whole reference is on hover.
   const colon = ref.indexOf(':'), at = ref.lastIndexOf('@');
-  const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at)) + '<span class="ref-sha">' + esc(ref.slice(at, at + 1 + hashLength)) + '</span></span>';
+  const label = labelText === null ? '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at)) + '<span class="ref-sha">' + esc(ref.slice(at, at + 1 + hashLength)) + '</span></span>' : esc(labelText);
   const button = (asBlock) => '<button class="ref' + (asBlock ? ' block' : '') + '" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' title="' + esc(ref) + '" aria-label="Open code reference ' + esc(ref) + '" type="button" aria-expanded="' + open + '">' + label + '</button>';
   // A reference on a line of its own is a block, collapsed until asked: a caret, the path and lines, the short commit.
   // One inside a sentence keeps its label, so the prose reads on, and opens that same block below it.
