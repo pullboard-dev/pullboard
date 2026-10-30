@@ -26,7 +26,8 @@ function control(t, body) {
     import { randomUUID } from 'node:crypto';
     import { probeRunnerHealth } from ${JSON.stringify(url('runners.js'))};
     import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('runner-recovery.js'))};
-    import { claimRunnerLaunch, runnerLaunchAllowed } from ${JSON.stringify(url('runner-transport.js'))};
+    import { claimRunnerLaunch, runnerLaunchAllowed, claimRunnerWorker } from ${JSON.stringify(url('runner-transport.js'))};
+    const transportURL = ${JSON.stringify(url('runner-transport.js'))};
     const root = ${JSON.stringify(root)};
     const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, root, slots: 1, browser: 0 };
     const identity = { version: 1, launchFence: 1, request: 'orphan-' + randomUUID(), nonce: randomUUID(), tooling: 'a'.repeat(64) };
@@ -52,11 +53,13 @@ test('a valid started request without completion recovers only after fencing and
     const first = await recoverUnavailableRunners(db, [runner], { ...options, now: Date.now() + 2000 });
     const events = db.prepare('SELECT kind,detail FROM runner_recovery_event ORDER BY rowid').all();
     console.log(JSON.stringify({ first, held: db.prepare('SELECT COUNT(*) n FROM runner_unavailable').get().n,
-      allowed: runnerLaunchAllowed(root, identity), events: events.map(row => ({ kind: row.kind, detail: JSON.parse(row.detail) })) }));
+      allowed: runnerLaunchAllowed(root, identity), startup: claimRunnerWorker(root, identity),
+      events: events.map(row => ({ kind: row.kind, detail: JSON.parse(row.detail) })) }));
   `);
   assert.equal(actual.first, true, JSON.stringify(actual));
   assert.equal(actual.held, 0);
   assert.equal(actual.allowed, false, 'a delayed original worker cannot start after idle recovery');
+  assert.equal(actual.startup, false, 'the actual worker startup claim loses to the cancellation fence');
   assert.deepEqual(actual.events.map(row => row.kind), ['unavailable', 'available']);
   assert.equal(actual.events[1].detail.probe.idle, true);
   assert.equal(actual.events[1].detail.probe.writable, true);
@@ -112,4 +115,48 @@ test('the existing legacy idle path remains a discriminating control for missing
   assert.equal(actual.first, true, JSON.stringify(actual));
   assert.equal(actual.held, 0);
   assert.equal(probes, 1);
+});
+
+test('a worker paused after startup admission prevents idle recovery before any job or lease exists [C7]', t => {
+  const { actual } = control(t, `
+    const { spawn } = await import('node:child_process');
+    const { existsSync, writeFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { once } = await import('node:events');
+    const ready = join(root, 'startup-ready'), resume = join(root, 'resume-startup'), spawned = join(root, 'job-spawned');
+    claimRunnerLaunch(root, identity);
+    const source = [
+      'import { claimRunnerWorker } from ' + JSON.stringify(transportURL) + ';',
+      'import { existsSync, writeFileSync } from "node:fs";',
+      'import { spawnSync } from "node:child_process";',
+      'if (!claimRunnerWorker(' + JSON.stringify(root) + ',' + JSON.stringify(identity) + ')) throw new Error("startup fenced");',
+      'writeFileSync(' + JSON.stringify(ready) + ', "ready");',
+      'while (!existsSync(' + JSON.stringify(resume) + ')) await new Promise(resolve => setTimeout(resolve, 20));',
+      'const result = spawnSync(process.execPath, ["-e", ' + JSON.stringify('require("node:fs").writeFileSync(' + JSON.stringify(spawned) + ', "spawned")') + ']);',
+      'if (result.status !== 0) throw new Error("private job failed");',
+    ].join('\\n');
+    const owner = spawn(process.execPath, ['--input-type=module', '-e', source], { cwd: process.cwd(), stdio: 'ignore' });
+    let observed;
+    try {
+      const deadline = Date.now() + 5000;
+      while (!existsSync(ready)) {
+        if (Date.now() > deadline || owner.exitCode !== null) throw new Error('paused startup never became ready');
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      recordRunnerFailure(db, runner.host, 'cleanup-unverified', { reason: 'missing completion during startup', recovery: identity });
+      const first = await recoverUnavailableRunners(db, [runner], { ...options, now: Date.now() + 2000 });
+      const held = db.prepare('SELECT * FROM runner_unavailable').get();
+      const exited = once(owner, 'exit'); writeFileSync(resume, 'go'); await exited;
+      const after = await recoverUnavailableRunners(db, [runner], { ...options, now: held.probe_after + 1 });
+      observed = { first, held: Boolean(held), pid: owner.pid, reason: JSON.parse(held.failure).latestProbe.reason,
+        spawned: existsSync(spawned), after, remaining: db.prepare('SELECT COUNT(*) n FROM runner_unavailable').get().n };
+    } finally { if (owner.exitCode === null) { const exited = once(owner, 'exit'); owner.kill('SIGTERM'); await exited; } }
+    console.log(JSON.stringify(observed));
+  `);
+  assert.equal(actual.first, false, 'admitted startup cannot be mistaken for idle capacity');
+  assert.equal(actual.held, true);
+  assert.match(actual.reason, new RegExp(`\\b${actual.pid}\\b`, 'u'));
+  assert.equal(actual.spawned, true, 'the admitted worker really spawns after the recovery observation');
+  assert.equal(actual.after, true, 'only a later idle observation after that owner exits clears the hold');
+  assert.equal(actual.remaining, 0);
 });
