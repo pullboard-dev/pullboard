@@ -1,12 +1,22 @@
 /** Promote only native full landing evidence; this module never creates or repairs proof receipts. */
-import { readdirSync, statSync } from 'node:fs';
+import {
+  readdirSync,
+  statSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { tryGit } from './git.js';
-import { readGateReceipt, receiptStore, receiptBinds } from './gate-run-receipt.js';
+import {
+  readGateReceipt,
+  receiptStore,
+  receiptBinds,
+} from './gate-run-receipt.js';
 import { checkTrainLandingReceipt } from './train-landing-receipt.js';
 import { policyAt } from './trusted-policy-read.js';
-import { writeToolBuild, readToolBuild } from './pinned-tool-build.js';
+import {
+  writeToolBuild,
+  readToolBuild,
+} from './pinned-tool-build.js';
 import { Refused } from './refused.js';
 
 /** Require origin-bound green full-suite evidence for an exact accepted ancestor, not a Submit/check receipt. */

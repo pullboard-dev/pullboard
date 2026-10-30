@@ -1,7 +1,18 @@
 /** Immutable board-local tool installations; project source and the command's cwd never move. */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  join,
+  resolve,
+} from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Refused } from './refused.js';
 

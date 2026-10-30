@@ -2,7 +2,11 @@
 import { actOn } from '../cli.js';
 import { Refused } from '../refused.js';
 import { gatedToolBuild } from '../pinned-tool-publish.js';
-import { toolBuildLocation, readToolBuild, writeToolBuild } from '../pinned-tool-build.js';
+import {
+  toolBuildLocation,
+  readToolBuild,
+  writeToolBuild,
+} from '../pinned-tool-build.js';
 
 /** Read the board's pin, or promote a real gated commit from the primary coordinator checkout. */
 export function run(io, { first, second, values }) {
