@@ -23,9 +23,10 @@ function changedTests(root, base, tip) {
 function successorsFor(oldPath, added) {
   const match = /^(.*\/)?([^/]+)\.test\.(js|mjs)$/u.exec(oldPath);
   if (!match) return [];
-  const prefix = `${match[1] ?? ''}${match[2]}-`;
+  const directory = match[1] ?? '';
+  const prefix = `${directory}${match[2]}-`;
   const suffix = `.test.${match[3]}`;
-  return added.filter(path => path.startsWith(prefix) && path.endsWith(suffix)
+  return added.filter(path => path.startsWith(prefix) && !path.slice(directory.length).includes('/') && path.endsWith(suffix)
     && path.length > prefix.length + suffix.length).sort();
 }
 
@@ -113,10 +114,13 @@ export function prepareTrainCheckRepointPlan(root, board, base, tip) {
   const entries = [], blocked = [];
   for (const item of listItems(board)) {
     if (!['open', 'claimed', 'submitted'].includes(item.item_status)) continue;
-    const rewritten = rewriteCheck(item.item_check ?? '', pathMap);
-    const mentions = rewritten.found ?? [];
-    const unmapped = deleted.filter(path => !successors.get(path)?.length
-      && shellWords(item.item_check ?? '').words.some(word => word.value === path || word.value === `./${path}`));
+    const check = item.item_check ?? '';
+    const parsedWords = shellWords(check).words;
+    const literalMentions = deleted.filter(path => parsedWords.some(word =>
+      word.value === path || word.value === `./${path}`));
+    const rewritten = rewriteCheck(check, pathMap);
+    const mentions = rewritten.found ?? literalMentions.filter(path => pathMap.has(path));
+    const unmapped = literalMentions.filter(path => !successors.get(path)?.length);
     if (!mentions.length && !unmapped.length) continue;
     const files = [...new Set([...mentions, ...unmapped])].sort();
     if (item.item_status === 'submitted') {
