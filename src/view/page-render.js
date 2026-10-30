@@ -8,7 +8,7 @@ import { ruleListModel } from './rule-list-model.js';
 import { selectItemsView } from './items-selection.js';
 
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
-export function pageRenderScript() {
+export function pageRenderScript(privateCost = false) {
   return `let drawnRoadmap = null;
 const agentsPanelModel = (${agentsPanelModel.toString()});
 const agentsPanelHtml = (${agentsPanelHtml.toString()});
@@ -115,12 +115,12 @@ function render() {
   const lanes = p.lanes, working = lanes.filter((lane) => lane !== 'coordinator');
   const heldLanes = new Map(p.holds.map((hold) => [hold.hold_lane, hold]));
   const gatedOf = (item) => stateOf(item) === 'open' && (item.blockedBy.length > 0 || heldLanes.has(item.lane));
-  if (view.tab === 'cost' && privateCost && !snapshot && !hosted.local && !readOnly && !data.group) {
+${privateCost ? `  if (view.tab === 'cost' && privateCost && !snapshot && !hosted.local && !readOnly && !data.group) {
     const history = readCostHistory(p);
     $('cost').innerHTML = history.loading ? '<p class="empty" role="status">Loading cost history…</p>' : history.error ? '<p class="empty" role="status">Cost history is unavailable.</p>' : costOverviewHtml(history.model, view.costOpen, { hasPrices: Boolean(p.costPrices && Object.keys(p.costPrices).length) });
     document.title = $('proj-name').textContent + ' · Cost · Pullboard';
   }
-  if (view.tab === 'roadmap') {
+` : ''}  if (view.tab === 'roadmap') {
   // Every refresh redraws the Roadmap. Left alone, that would send the phone's release chips back to their start
   // and the panel back to its top under a person mid-scroll, so both keep where they were.
   const chipsAt = $('roadmap-releases')?.scrollLeft ?? 0, panelAt = $('roadmap-panel')?.scrollTop ?? 0;
