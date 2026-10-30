@@ -36,6 +36,13 @@ const {
   startView, LIGHT_BRIEF,
 } = e2e;
 
+/** Assert and remove only the outer command's exact final text action; retain every body byte. */
+function withoutAction(text, action = 'pullboard next --wait 1') {
+  const footer = `next: ${action}\n`;
+  assert.ok(text.endsWith('\n' + footer), 'the intended final action is present');
+  return text.slice(0, -footer.length);
+}
+
 test('init adds a Claude Code session hook that runs resume, and keeps every other setting [I6]', () => {
   const box = sandbox();
   const repo = join(box.dir, 'repo');
@@ -148,7 +155,7 @@ test('the tour registers a labelled demo that view lists and forget removes [N10
     encoding: 'utf8',
   });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  assert.equal(result.stdout.trimEnd().split('\n').at(-1), 'see it: pullboard view');
+  assert.equal(withoutAction(result.stdout, 'pullboard view').trimEnd().split('\n').at(-1), 'see it: pullboard view');
   const demoRoot = /Look around: cd (\S+) && pullboard log/.exec(result.stdout)?.[1];
   assert.ok(demoRoot, 'the retained demo path is printed');
   const registered = JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'projects.json'), 'utf8')).projects;
@@ -231,8 +238,9 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   const log = join(box.repo, box.git(box.repo, 'rev-parse', '--git-path', 'pullboard-gate.log'));
   const green = box.run(box.repo, 'gate');
   assert.equal(green.code, 0, green.err);
-  assert.match(green.out, /^gate green in \d+s; timing \(node\): wall [0-9.]+s, slot wait [0-9.]+s; phases: wait [0-9.]+s, admission [0-9.]+s, setup [0-9.]+s, run [0-9.]+s, evidence [0-9.]+s; slot: .+?; per-test timing unavailable: output was not TAP or JUnit; timing profile: [^\n]+\n$/);
-  assert.equal(green.out.trimEnd().split('\n').length, 1, 'a green gate without file measurements remains one line');
+  const greenBody = withoutAction(green.out);
+  assert.match(greenBody, /^gate green in \d+s; timing \(node\): wall [0-9.]+s, slot wait [0-9.]+s; phases: wait [0-9.]+s, admission [0-9.]+s, setup [0-9.]+s, run [0-9.]+s, evidence [0-9.]+s; slot: .+?; per-test timing unavailable: output was not TAP or JUnit; timing profile: [^\n]+\n$/);
+  assert.equal(greenBody.trimEnd().split('\n').length, 1, 'a green gate without file measurements remains one line');
   assert.ok(readFileSync(log, 'utf8').length > 1_200_000, 'more than the default 1 MB pipe buffer, read whole');
   writeFileSync(join(box.repo, 'RED'), 'red');
   box.git(box.repo, 'add', 'RED');
@@ -298,7 +306,7 @@ test('check runs the item\'s own check command, yours by default, and prints a d
   const green = box.run(box.web, 'check', '--yes');
   assert.equal(green.code, 0, green.out);
   assert.match(green.out, /^check green in \d+s: test -f web\/a.html/m);
-  assert.equal(green.out.split('\n').filter(Boolean).length, 2);
+  assert.equal(withoutAction(green.out).split('\n').filter(Boolean).length, 2);
   assert.match(green.out, /timing \(test\): wall [0-9.]+s, slot wait [0-9.]+s; phases: wait [0-9.]+s, admission [0-9.]+s, setup [0-9.]+s, run [0-9.]+s, evidence [0-9.]+s; slot: .+?; per-test timing unavailable: output was not TAP or JUnit; timing profile: /);
   assert.match(green.out, /^check #1 set by coordinator \(unknown\):/);
   assert.equal(box.run(box.repo, 'check', '1').code, 1, 'named, from another checkout: there the file is missing');

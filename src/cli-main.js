@@ -309,6 +309,7 @@ export async function main(argv, streams) {
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
 async function runMain(argv, streams) {
   const io = commandOutput(argv, streams, {
+    nextActions: streams.nextActions !== false,
     loadRefusal: async () => (await import('./next-step-words.js')).refusalDocument,
   });
   // Background launch is a CLI operation; lower relay code receives it explicitly.

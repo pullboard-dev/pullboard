@@ -86,7 +86,8 @@ export function successfulNext(command, result) {
   const item = following?.item ?? (command === 'next' ? result?.item : null);
   if (item?.item_id) return `pullboard show ${item.item_id}`;
   if (command === 'claim') return 'git status';
-  if (['help', 'version', 'tour'].includes(command)) return 'pullboard status';
+  if (command === 'tour') return 'pullboard view';
+  if (['help', 'version'].includes(command)) return 'pullboard status';
   return 'pullboard next --wait 1';
 }
 
@@ -145,11 +146,11 @@ export function selectFields(document, fields) {
  * Collect one command's output; text mode writes immediately and JSON mode writes one document.
  * Long-running view explicitly flushes its address before waiting for a shutdown signal.
  */
-export function commandOutput(argv, streams, { version = 1, refusalDocument: suppliedRenderer, loadRefusal } = {}) {
+export function commandOutput(argv, streams, { version = 1, refusalDocument: suppliedRenderer, loadRefusal, nextActions = true } = {}) {
   const command = commandName(argv);
   const guidanceCommand = command === 'help' || argv.includes('--help') || !command && !argv.includes('--version') ? 'help' : command;
   // Installed Git hooks use --version's last line as a protocol handshake, unlike interactive `version`.
-  const finalAction = guidanceCommand === 'help' || interactiveNext(command) && !argv.includes('--version');
+  const finalAction = nextActions && (guidanceCommand === 'help' || interactiveNext(command) && !argv.includes('--version'));
   let explicitNext;
   let renderer = suppliedRenderer;
   let preparing;
