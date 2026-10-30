@@ -17,15 +17,16 @@
     { "key": "W6", "text": "An error a person sees says what to do next.", "why": "\"something went wrong\" is a support ticket waiting to happen." },
     { "key": "W7", "text": "Tests bind a local port, so a sandboxed agent asks the person instead of rewriting the tests.", "why": "a test rewritten into a fake passes inside the sandbox and proves nothing about the real server.", "tier": "must", "gate": "review" }
   ],
-  "questions": [
-    { "key": "Q1", "ask": "The app is built with", "choices": ["Next.js", "SvelteKit", "Rails", "Something else"], "detect": "framework" },
-    { "key": "Q2", "ask": "It deploys to", "choices": ["Vercel", "Netlify", "Fly.io", "My own server"], "default": "Vercel" },
-    { "key": "Q3", "ask": "People sign in with", "choices": ["Email links", "Passwords", "Google", "No sign-in yet"], "default": "Email links" },
-    { "key": "Q4", "ask": "A change is done when", "choices": ["It runs on a preview link", "Its tests pass", "I have looked at it"], "default": "It runs on a preview link" }
+  "questions": [],
+  "defaults": [
+    { "key": "Q1", "text": "Runs on: Node.js." },
+    { "key": "Q2", "text": "Hosting: Free; provider undecided." },
+    { "key": "Q3", "text": "Sign-in: Built in; no outside accounts needed." },
+    { "key": "Q4", "text": "Done means: Tests pass." }
   ],
   "items": [
     { "key": "1", "title": "Set up the test runner with one passing test", "cites": ["W1", "W2"], "criterion": "npm test runs the project's test runner and passes, with one real test in test/smoke.test.js that checks the app starts. Before this item npm test has no runner to start, so it fails.", "brief": "Files:\n- package.json (its test script)\n- test/smoke.test.js\nTest:\n- test/smoke.test.js checks the app starts\nUse the test runner your framework recommends, and give it a one-line reason (W5).", "check": "npm test" },
     { "key": "2", "title": "The home page works at phone width", "cites": ["W3"], "criterion": "The home page shows all of its content at 375 pixels wide without sideways scrolling. test/home-phone-width.test.js checks the page at that width and fails before the change.", "brief": "Files:\n- the home page\n- test/home-phone-width.test.js\nTest:\n- test/home-phone-width.test.js renders the home page 375 pixels wide and fails when anything scrolls sideways", "check": "npm test -- test/home-phone-width.test.js" },
-    { "key": "3", "title": "Every change gets a preview link", "cites": ["Q2", "Q4"], "after": ["1"], "criterion": "Every pull request gets a preview link from the host the deploy question names. test/preview-config.test.js reads the deploy settings, checks that previews are turned on, and fails before the change.", "brief": "Files:\n- the host's deploy settings file\n- test/preview-config.test.js\nTest:\n- test/preview-config.test.js reads the deploy settings and fails when previews are off", "check": "npm test -- test/preview-config.test.js" }
+    { "key": "3", "title": "Every change gets a preview link", "cites": ["Q2", "Q4"], "after": ["1"], "criterion": "Every pull request gets a preview link from the selected free host once its provider is chosen. test/preview-config.test.js reads the deploy settings, checks that previews are turned on, and fails before the change.", "brief": "Files:\n- the host's deploy settings file\n- test/preview-config.test.js\nTest:\n- test/preview-config.test.js reads the deploy settings and fails when previews are off", "check": "npm test -- test/preview-config.test.js" }
   ]
 }
