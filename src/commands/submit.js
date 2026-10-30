@@ -505,7 +505,7 @@ export async function submitHere(ctx, id, infra) {
       ...((gate.deferred || mechanicalFlag) ? { note: [
         ...(gate.deferred ? [gate.deferredFiles ? deferredSelectionNote(gate.deferredFiles) : 'full suite deferred to the landing gate'] : []),
         ...(mechanicalFlag ? [mechanicalFlag] : []),
-      ].join('\n') } : {}) }]);
+      ].map(part => part.replace(/[\r\n\u2028\u2029]/gu, ' ')).join('; ') } : {}) }]);
     // One fact records the merge and the evidence that the main move touched nothing this proof depends on.
     if (trunkMove) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: trunkMoveFact(trunkMove) }]);
     // One decision shout (a lane question, routed to the lead or coordinator because a builder cannot send kind decision) asks the coordinator to own the repair; it is sent only once the submission is recorded.
