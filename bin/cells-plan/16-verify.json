@@ -43,7 +43,8 @@
   ["src/review-reachability.js","packages/verify/src/core/review-reachability.js","imports"],
   ["src/review-composition.js","packages/verify/src/core/review-composition.js","rule"],
   ["src/routing-rules-floor.js","packages/verify/src/shell/routing-rules-floor.js","rule"],
-  ["src/routing-rules.js","packages/verify/src/shell/routing-rules.js","rule"]
+  ["src/routing-rules.js","packages/verify/src/shell/routing-rules.js","rule"],
+  ["src/quarantine-verdict.js","packages/verify/src/core/quarantine-verdict.js","rule"]
  ],
  "reexports": [
   "src/bar-actor.js",
@@ -98,9 +99,10 @@
   {"cell":"seats","imports":2,"edges":["src/line-capacity-board.js->src/review-routing.js","src/route-escalation.js->src/verdict-reviews.js"]},
   {
    "cell": "items",
-   "imports": 4,
+   "imports": 5,
    "edges": [
     "src/item-authors.js->src/review-composition.js",
+    "src/item-patch-submit.js->src/quarantine-verdict.js",
     "src/item-patches.js->src/review-reachability.js",
     "src/parent-session.js->src/review-policy.js",
     "src/submit-composition.js->src/verdict-trunk.js"

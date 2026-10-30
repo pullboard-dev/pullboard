@@ -3,10 +3,11 @@ export function cockpitReplay(sections) {
   return `/** Display the current event and make the replay's play, pause and end states explicit. */
 function replayControls() {
   const r = snapshotReplay;
-  const event = r.events.slice(0, r.index).findLast((entry) => !['usage', 'shared-usage'].includes(entry.event_kind));
-  $('replay-progress').textContent = 'Event ' + r.index + ' / ' + r.events.length + (event ? ' · ' + eventWords(event.event_kind) + (event.item_id ? ' #' + event.item_id : '') : '') + (r.index === r.events.length ? ' · End' : '');
+  $('replay-progress').textContent = 'event ' + r.index.toLocaleString('en-US') + ' of ' + r.events.length.toLocaleString('en-US');
   $('replay-play').disabled = r.playing || !r.final || !r.events.length;
-  $('replay-play').textContent = r.index === r.events.length ? 'Play from first event' : 'Play';
+  const playLabel = r.index === r.events.length ? 'Play from first event' : 'Play';
+  $('replay-play').setAttribute('aria-label', playLabel);
+  $('replay-play').title = playLabel;
   $('replay-pause').disabled = !r.playing;
 }
 

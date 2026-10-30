@@ -105,7 +105,8 @@
   {"cell":"app:runner","imports":2,"before":false}
  ],
  "cuts": [
-  {"cell":"link","imports":1,"edges":["src/relay.js->src/landing-relay.js"]}
+  {"cell":"link","imports":1,"edges":["src/relay.js->src/landing-relay.js"]},
+  {"cell":"gate","imports":1,"edges":["src/quarantine-run-verdict.js->src/landing-step-failures.js"]}
  ],
  "ratchets": {
   "legacySource": -4,

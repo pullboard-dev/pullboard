@@ -1,3 +1,5 @@
+import { boardWriteSnapshot } from './board-write-preparation.js';
+import { requireBoardWriteSnapshot } from './board-write-preparation.js';
 import { verdictWithdrawalTarget } from './verdict-withdrawal.js';
 import { sourceAdvanceReturnProblem } from './source-advance-return.js';
 import { reopenAuthority } from './reopen-authority.js';
@@ -38,9 +40,12 @@ import { persistShout } from './board-shout.js';
  * @returns {{ id: number, commit: string, supersedes?: number, landingFailure?: object }}
  */
 export function reopen(board, id, { agentId, note = '', conflict, cause, reopenFirstRefusalMinutes, quotedLandingFailure, withdrawVerdict, computedConflict, sourceAdvanceReturn, landingFence }) {
+  const snapshot = sourceAdvanceReturn !== undefined && board.executionEngineVersion === undefined ? boardWriteSnapshot(board) : null;
+  if (snapshot) ({ note, conflict, quotedLandingFailure, sourceAdvanceReturn } = board.nativePorts.sealSourceAdvanceReturn(board, id, { agentId, sourceAdvanceReturn, landingFence }));
   return atomic(board, () => {
+    if (snapshot) requireBoardWriteSnapshot(board, snapshot, 'source advance return');
+    if (snapshot) board.runtimePorts.sourceAdvanceReceipts.guardLandingWrite(board, landingFence);
     if (sourceAdvanceReturn !== undefined) {
-      if (board.executionEngineVersion === undefined) ({ note, conflict, quotedLandingFailure, sourceAdvanceReturn } = board.nativePorts.sealSourceAdvanceReturn(board, id, { agentId, sourceAdvanceReturn, landingFence }));
       const problem = sourceAdvanceReturnProblem(board, getItem(board, id), { agentId, note, conflict, quotedLandingFailure, sourceAdvanceReturn });
       if (problem) throw problem;
     }
