@@ -1,5 +1,6 @@
 /** Explicit test roles are an inventory, not completion evidence or a browser-admission exemption [N26,C7]. */
 export const VIEW_TEST_ROLES = Object.freeze({
+  'test/cockpit/activity-polish.test.js': { kind: 'journey', reason: 'Native item claim, person-decision shout and coordinator reply plus an actual ordered health scan are rendered through authenticated HTTP in real desktop and phone Chrome; quote clamps, escaped words, item navigation, work rows and folded sentinel rows are checked.' },
   'test/cockpit/shouts-redesign.test.js': { kind: 'journey', reason: 'Real native questions, answers, claims and submitted work drive authenticated Chrome conversation grouping, private clock labels, disclosure, filters and feed/agent/status geometry at desktop and phone widths.' },
   'test/cockpit/needs-you-rows.test.js': { kind: 'journey', reason: 'Native writers seed item809 and person questions; authenticated HTTP and real Chrome verify summary identity, preserved raw detail/action targets, header navigation, redraw and phone layout.' },
   'test/cockpit/items-walk-1029.test.js': { kind: 'journey', reason: 'Real private native build, review and health moves, authenticated HTTP and real desktop/phone Chrome verify hash display, waiting links, history verb tones and person clocks.' },
