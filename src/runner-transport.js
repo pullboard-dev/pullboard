@@ -49,8 +49,8 @@ export async function probeRunnerTransport(runner, { observeGui = false } = {}) 
     return { healthy: false, reason: 'invalid runner destination' };
   }
   const nonce = randomUUID();
-  const desktop = observeGui ? `/* pullboard registration GUI probe */const {spawnSync}=require('node:child_process');const guiSession=${guiSession.toString()};` : '';
-  const script = `${desktop}process.stdout.write(JSON.stringify({nonce:${JSON.stringify(nonce)},node:process.versions.node${observeGui ? ',gui:guiSession()' : ''}}))`;
+  const desktop = observeGui ? `/* pullboard registration GUI probe */const {spawnSync}=require('node:child_process');const guiSession=${guiSession.toString()};const os=require('node:os');` : '';
+  const script = `${desktop}process.stdout.write(JSON.stringify({nonce:${JSON.stringify(nonce)},node:process.versions.node${observeGui ? ',gui:guiSession(),cores:os.availableParallelism(),memoryMB:Math.floor(os.totalmem()/1048576)' : ''}}))`;
   const args = ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
     '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=2', '--', runner.host,
     `${word(runner.node ?? 'node')}${observeGui ? ' --input-type=commonjs' : ''} -e ${word(script)}`];
@@ -73,7 +73,8 @@ export async function probeRunnerTransport(runner, { observeGui = false } = {}) 
   const healthy = !error && !timedOut && result.code === 0 && !result.signal && reply?.nonce === nonce
     && version && (Number(version[1]) > 22 || Number(version[1]) === 22 && Number(version[2]) >= 13);
   // Arbitrary stderr is deliberately not returned by a health-only probe; the failed job retains its sanitized diagnostics.
-  return { healthy: Boolean(healthy), ...(observeGui ? { gui: healthy && typeof reply?.gui === 'boolean' ? reply.gui : null } : {}), command: ['ssh', ...args.slice(0, -1), `${runner.node ?? 'node'} [nonce health observation]`],
+  return { healthy: Boolean(healthy), ...(observeGui ? { gui: healthy && typeof reply?.gui === 'boolean' ? reply.gui : null,
+    ...(healthy && Number.isSafeInteger(reply?.cores) && reply.cores > 0 && Number.isSafeInteger(reply?.memoryMB) && reply.memoryMB > 0 ? { cores: reply.cores, memoryMB: reply.memoryMB } : {}) } : {}), command: ['ssh', ...args.slice(0, -1), `${runner.node ?? 'node'} [nonce health observation]`],
     ...result, error, timedOut, stderrBytes: Buffer.byteLength(stderr), reason: healthy ? 'configured Node answered nonce' : 'transport health not confirmed' };
 }
 
