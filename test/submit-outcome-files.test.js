@@ -19,11 +19,15 @@ import { testOutputSummary } from '../src/test-output-summary.js';
 function beforeMain({ duplicate = false, phases = false } = {}) {
   return box => {
     const files = ['test/inherited.test.js', ...(duplicate ? ['test/second.test.js'] : []), ...(phases ? ['test/shared-pass.test.js'] : [])];
+    const timingModule = new URL('../src/run-timing.js', import.meta.url).href;
     if (duplicate) put(box.root, 'test/second.test.js', source());
     if (phases) {
       put(box.root, 'test/check-only.test.js', "import { test } from 'node:test';\ntest('criterion only pass [G1]', () => {});\n");
       put(box.root, 'test/shared-pass.test.js', "import { test } from 'node:test';\ntest('shared phase pass [G1]', () => {});\n");
       put(box.root, 'test/check-runner.js', `import { spawnSync } from 'node:child_process';
+import { beginSuiteTiming } from ${JSON.stringify(timingModule)};
+// The actual private controller observes its own clean source and wall duration.
+beginSuiteTiming(process.cwd(), process.argv.slice(2));
 const run = spawnSync(process.execPath, ['--test', '--test-reporter=./test/outcome-reporter.js',
   'test/check-only.test.js', 'test/shared-pass.test.js'], { encoding: 'utf8', env: process.env });
 process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? ''); process.exitCode = run.status ?? 1;
@@ -47,6 +51,9 @@ export default async function* report(events) {
 }
 `);
     put(box.root, 'test/runner.js', `import { spawnSync } from 'node:child_process';
+import { beginSuiteTiming } from ${JSON.stringify(timingModule)};
+// Preserve genuine producer timing; no fabricated frame or completed-file claim.
+beginSuiteTiming(process.cwd(), process.argv.slice(2));
 const run = spawnSync(process.execPath, ['--test', '--test-reporter=./test/outcome-reporter.js', ...${JSON.stringify(files)}],
   { encoding: 'utf8', env: process.env });
 process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? '');
