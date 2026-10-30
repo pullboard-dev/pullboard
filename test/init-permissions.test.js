@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, parse, resolve } from 'node:path';
 import { test } from 'node:test';
 import { machineHomeWriteScopeIsNarrow } from '../src/init.js';
-import { machineHome } from '../src/machine-home.js';
+import { machineHome } from '../packages/resources/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');

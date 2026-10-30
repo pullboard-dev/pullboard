@@ -25,7 +25,7 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { loadConfig } from '../../../../src/config.js';
 import { remoteRepository } from '../core/github-remote.js';
-import { withMachineHomeWrite } from '../../../../src/machine-home.js';
+import { withMachineHomeWrite } from '../../../resources/index.js';
 import { boardReferenceId } from '../../../kernel/src/core/registry-guards.js';
 import { repoInfo } from '../../../../src/git.js';
 import { tryGit } from '../../../../src/git.js';
