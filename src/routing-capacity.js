@@ -5,9 +5,9 @@ import { withLocalSeatPresence } from './seat-presence.js';
 import { readyItems } from './queue-readiness.js';
 
 /** Display presence may include relay observations; those observations never supply routing capacity. */
-export function routingCapacity(board, agents, foreignBlockers) {
+export function routingCapacity(board, agents, foreignBlockers, reads = board.nativePorts) {
   const seats = withLocalSeatPresence(board, agents).filter(seat => seat.agent_id !== COORDINATOR);
   return { liveOnly: lineSettings(board)['route.liveOnly'],
     liveAgents: seats.filter(seat => seat.presence === 'live').length,
-    idleAgents: seats.filter(seat => seat.presence === 'idle').length, readyItems: readyItems(board, foreignBlockers).length };
+    idleAgents: seats.filter(seat => seat.presence === 'idle').length, readyItems: readyItems(board, foreignBlockers, reads).length };
 }

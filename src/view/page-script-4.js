@@ -876,6 +876,28 @@ document.addEventListener('click', (event) => {
     timelineMore.textContent = expanded ? 'Show less' : 'Show all';
     return;
   }
+  const itemPanelTab = event.target.closest('[data-item-panel-tab]');
+  if (itemPanelTab) {
+    view.itemPanel = { root: view.root, item: view.item, tab: itemPanelTab.dataset.itemPanelTab };
+    render();
+    return;
+  }
+  const itemPanelMore = event.target.closest('[data-item-panel-more]');
+  if (itemPanelMore) {
+    const card = itemPanelMore.closest('.item-panel-latest, .item-panel-expand');
+    const expanded = card.classList.toggle('expanded');
+    itemPanelMore.setAttribute('aria-expanded', String(expanded));
+    itemPanelMore.textContent = expanded ? 'Show less' : 'Show all';
+    return;
+  }
+  const itemPanelHistory = event.target.closest('[data-item-panel-history]');
+  if (itemPanelHistory) {
+    const list = itemPanelHistory.closest('.item-panel-history').querySelector('.item-panel-history-list');
+    const expanded = list.classList.toggle('expanded');
+    itemPanelHistory.setAttribute('aria-expanded', String(expanded));
+    itemPanelHistory.textContent = expanded ? 'Show less' : 'Show all ' + itemPanelHistory.dataset.count;
+    return;
+  }
   if (view.filterOpen && !event.target.closest('.filter-control')) { view.filterOpen = false; render(); }
   const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
