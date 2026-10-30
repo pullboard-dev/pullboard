@@ -35,8 +35,10 @@ function fixture(t, deterministic = false) {
   const root = made.document.path;
   const cli = (...args) => box.cliAt(root, ...args);
   const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
+  if (!deterministic) writeFileSync(box.counter, 'run\n'); // Baseline executes a genuine pass; no legacy one-pair quarantine is seeded.
   const added = box.cli('add', 'core', 'Controlled native Submit', '--criterion', 'Retain the actual initial failure.', '--check', config.gate, '--wait');
   assert.equal(added.code, 0, JSON.stringify(added.document));
+  assert.equal(added.document.item.item_check, config.gate, JSON.stringify(added.document));
   const id = added.document.item.item_id;
   assert.equal(cli('claim', String(id)).code, 0);
   mkdirSync(join(root, 'src'), { recursive: true });
@@ -61,6 +63,7 @@ function submit(box) {
 
 test('two actual Submit pairs quarantine once, retain raw receipts, and let the third computed verdict through [C7,H16]', t => {
   const box = fixture(t);
+  assert.equal(snapshot(box).quarantines.length, 0, 'the setup must not seed a legacy quarantine');
   const first = submit(box);
   assert.equal(first.code, 1, JSON.stringify(first.document));
   assert.equal(snapshot(box).quarantines.length, 0, 'one Submit cannot quarantine its own failed case');
@@ -102,8 +105,10 @@ test('two actual Submit pairs quarantine once, retain raw receipts, and let the 
 
 test('two real deterministic Submit failures never acquire automatic quarantine [C7,H16]', t => {
   const box = fixture(t, true);
-  assert.equal(submit(box).code, 1);
-  assert.equal(submit(box).code, 1);
+  const first = submit(box);
+  assert.equal(first.code, 1, JSON.stringify(first.document));
+  const second = submit(box);
+  assert.equal(second.code, 1, JSON.stringify(second.document));
   assert.deepEqual(snapshot(box).quarantines, []);
 });
 
