@@ -24,13 +24,14 @@ function fixture(t) {
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Pipeline fixture', criterion: CRITERION, check: 'true' });
   const freeze = () => ({ text: JSON.stringify({ criterion: CRITERION, rows: [], policy: { version: 1, commit: 'a'.repeat(40), verify: { policy: 'any', family: 'off' } } }), digest: 'typed-pipeline-bar' });
   const claim = extra => store.claim(board, id, { agentId: builder, lane: 'web', leaseMs: 3_600_000, freeze, ...extra });
-  let admission = 0;
-  const admit = () => claim({ submitAdmission: { id: String(++admission).padStart(8, '0') + '-0000-4000-8000-000000000000', commit: 'a'.repeat(40), tree: 'b'.repeat(40) } });
-  const submit = () => submitFixture(board, id, { agentId: builder, commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
+  let admission = 0, submission = 0;
+  const head = () => String.fromCharCode(97 + submission).repeat(40);
+  const admit = () => claim({ submitAdmission: { id: String(++admission).padStart(8, '0') + '-0000-4000-8000-000000000000', commit: head(), tree: head() } });
+  const submit = () => { const commit = head(); submitFixture(board, id, { agentId: builder, commit, tree: commit }); submission += 1; };
   const reserve = () => store.reserveReview(board, id, { agentId: reviewer, leaseMs: 3_600_000, policy: 'any' });
   const verdict = decision => store.verify(board, id, { agentId: reviewer, decision, reason: decision === 'REJECT' ? 'TEST_FAILURE' : undefined,
     note: decision === 'REJECT' ? 'The fixture title assertion failed.' : 'The fixture title assertion passed.', clause: CRITERION,
-    head: 'a'.repeat(40), digest: 'typed-pipeline-bar', policy: 'any' });
+    head: store.getItem(board, id).item_commit, digest: 'typed-pipeline-bar', policy: 'any' });
   return { board, id, builder, reviewer, freeze, claim, admit, submit, reserve, verdict, at(value) { seconds = value; } };
 }
 
