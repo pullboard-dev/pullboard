@@ -1,5 +1,8 @@
 /** Read-only projection of older native snapshots; new uploads carry the actual API state [H5]. */
 import { Refused } from '../src/refused.js';
+import { MACHINE } from '../src/machine.js';
+import { lifecycleEvent } from '../src/lifecycle-move.js';
+import { recordedWithdrawalFrom } from '../src/lifecycle-move.js';
 
 /** Validate an authenticated snapshot and preserve its importable native tables. */
 export function snapshotState(document, boardId) {
@@ -22,15 +25,20 @@ export function snapshotState(document, boardId) {
     owning: [...new Set(tables.item.map(row => row.item_lane))],
     items: tables.item.map(item => {
       const verdicts = tables.verdict.filter(row => row.item_id === item.item_id).map(verdict);
+      let history;
+      try { history = log.filter(event => event.item_id === item.item_id).map(lifecycleEvent); }
+      catch { throw new Refused('RELAY_SNAPSHOT', 'The snapshot lifecycle is malformed. Refresh it from a linked machine.'); }
       return {
         id: item.item_id, title: item.item_title, lane: item.item_lane, status: item.item_status,
+        withdrawnReason: item.item_status === 'withdrawn' ? item.item_withdrawn_reason ?? null : null,
+        withdrawnFrom: recordedWithdrawalFrom(MACHINE, history, item.item_status),
         route: item.item_route, owner: item.item_owner, reviewer: item.item_status === 'submitted' && item.item_review_by && item.item_review_until > new Date().toISOString() ? item.item_review_by : null,
         reviewUntil: item.item_review_until, builtBy: item.item_built_by, verifiedBy: item.item_verified_by,
         specs: item.item_spec_ids ? item.item_spec_ids.split(',') : [], criterion: item.item_criterion,
         brief: item.item_brief, commit: item.item_commit, merged: item.item_merged_commit,
         blockedBy: (item.item_after ? item.item_after.split(',').map(Number) : []).filter(id => statuses.get(id) !== 'verified'),
         updatedAt: item.item_updated_at, verdict: verdicts.at(-1) ?? null, verdicts,
-        history: log.filter(event => event.item_id === item.item_id).map(event => ({ kind: event.event_kind, by: event.event_by, at: event.event_at })),
+        history,
       };
     }),
     agents: tables.agent.map(agent => ({ ...agent, lastMoveAt: log.filter(event => event.event_by === agent.agent_id).at(-1)?.event_at ?? null })),
@@ -45,5 +53,10 @@ export function presentationState(document, boardId) {
   if (document?.version !== 1 || !state || !['items', 'agents', 'shouts', 'decisions', 'asked', 'events', 'holds', 'spec', 'practice', 'lanes', 'owning'].every(key => Array.isArray(state[key]))) {
     throw new Refused('RELAY_PRESENTATION', 'This board presentation is unsupported. Refresh it from a linked machine.');
   }
-  return { ...structuredClone(state), root: boardId };
+  const projected = structuredClone(state);
+  projected.items = projected.items.map(item => ({ ...item,
+    withdrawnReason: item.status === 'withdrawn' ? item.withdrawnReason ?? null : null,
+    withdrawnFrom: item.status === 'withdrawn' ? item.withdrawnFrom ?? recordedWithdrawalFrom(MACHINE, item.history ?? [], item.status) : null,
+  }));
+  return { ...projected, root: boardId };
 }
