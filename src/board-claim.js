@@ -210,8 +210,12 @@ export function claim(board, id, options, ports) {
       throw new Refused('EXIT_USAGE', 'an enabled exit policy requires its native immutable claim key');
     if (exitRules && (board.executionEngineVersion ?? ENGINE_VERSION) < EXIT_RULES_ENGINE)
       throw new Refused('ENGINE_VERSION', 'upgrade every writer before capturing claim exit budgets');
-    if (!renewed && exitRules && board.db.prepare("SELECT 1 FROM event WHERE event_kind='claim' AND json_extract(event_detail,'$.exitClaimKey')=? LIMIT 1").get(options.exitClaimKey))
-      throw new Refused('EXIT_USAGE', 'a native claim key is single-use; preserve the prior claim and capture a fresh key');
+    if (!renewed && exitRules) {
+      const key = `exit-claim-key:${options.exitClaimKey}`;
+      if (board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(key))
+        throw new Refused('EXIT_USAGE', 'a native claim key is single-use; preserve the prior claim and capture a fresh key');
+      board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)').run(key, JSON.stringify({ item: id, agent: agentId }));
+    }
     const continuationSummary = !renewed ? exitContinuationSummary(board, id) : null;
     if (!renewed && continuationSummary) board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`exit-handoff:${id}`);
     logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
