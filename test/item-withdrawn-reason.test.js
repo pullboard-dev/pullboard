@@ -7,6 +7,8 @@ import { itemSummary } from '../src/item-list.js';
 import { withdrawnFrom } from '../src/item-list.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
+import { exportBoard } from '../src/exchange.js';
+import { snapshotState } from '../relay/browser-model.js';
 
 /** Use actual board moves; synthetic submit proof is only a lifecycle input, not a gate claim. */
 function fixture(t) {
@@ -20,7 +22,7 @@ function fixture(t) {
     const row = store.getItem(board, id);
     return projectItemState(board, row, new Map([[id, row.item_status]]));
   };
-  return { board, builder, id, claim, project };
+  return { board, builder, id, claim, project, freeze };
 }
 
 test('withdrawn summary and detail keep the actual open, claimed or submitted origin [A2,C15,N26]', t => {
@@ -62,4 +64,23 @@ test('withdrawal origin requires recorded history, never a guessed current stage
   assert.equal(withdrawnFrom([{ kind: 'add' }, { kind: 'claim' }], 'withdrawn'), null);
   assert.equal(withdrawnFrom([{ kind: 'add' }, { kind: 'withdraw' }], 'open'), null);
   assert.equal(withdrawnFrom([{ kind: 'add' }, { kind: 'claim' }, { kind: 'lapse' }, { kind: 'withdraw' }], 'withdrawn'), 'open');
+});
+
+test('legacy hosted snapshots replay the same withdrawal lifecycle including retained refreezes [A2,C15,N26]', t => {
+  const f = fixture(t);
+  f.claim();
+  store.editItem(f.board, f.id, { agentId: 'coordinator', criterion: 'Corrected promise', reason: 'Clarify the bar', freeze: f.freeze });
+  assert.equal(store.refreeze(f.board, f.id, { agentId: 'coordinator', freeze: f.freeze }).retainedClaim, true);
+  store.withdraw(f.board, f.id, { agentId: 'coordinator', reason: 'The replacement is ready' });
+  const document = exportBoard(f.board);
+  const boardId = store.boardId(f.board);
+  const hosted = snapshotState(document, boardId).items.find(item => item.id === f.id);
+  const native = f.project();
+  for (const key of ['withdrawnReason', 'withdrawnFrom']) assert.equal(hosted[key], native[key]);
+  assert.equal(hosted.withdrawnFrom, 'claimed');
+  assert.equal(hosted.history.findLast(event => event.kind === 'refreeze').retainedClaim, true);
+  assert.equal(hosted.history.some(event => Object.hasOwn(event, 'event_detail')), false);
+  const malformed = structuredClone(document);
+  malformed.tables.event.find(event => event.event_kind === 'refreeze').event_detail = '{';
+  assert.throws(() => snapshotState(malformed, boardId), { code: 'RELAY_SNAPSHOT' });
 });
