@@ -10,7 +10,6 @@ import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from './board.js';
-import { openBoardForRead } from './native-board.js';
 import { codeIsFromMain } from './git.js';
 import { gitChildEnv } from './git.js';
 import { repoInfo } from './git.js';
@@ -30,7 +29,8 @@ function git(root, args) {
 export function sourceAdvanceDirectory(info) { return join(info.commonDir, 'pullboard', 'source-advances'); }
 
 /** Read a short native snapshot and close its connection before tests, admission or network work. */
-function readBoard(info, work) {
+function readBoard(info, work, openBoardForRead) {
+  if (typeof openBoardForRead !== 'function') throw new TypeError('source advance requires its actual native read opener');
   const board = openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
   if (!board) throw new Error('source-advance board is unavailable');
   try { return work(board); } finally { store.closeBoard(board); }
@@ -74,7 +74,7 @@ function ownerLive(owner) {
 }
 
 /** Capture finite exact-main obligations; an active landing completes before this worker starts a gate. */
-function snapshot(root, info, { landingLeaseState }) {
+function snapshot(root, info, { landingLeaseState, openBoardForRead }) {
   return readBoard(info, board => {
     if (landingLeaseState(board).holder) return [];
     return store.listItems(board, { all: true }).filter(item => ['submitted','verified'].includes(item.item_status)
@@ -91,7 +91,7 @@ function snapshot(root, info, { landingLeaseState }) {
           key: createHash('sha256').update(JSON.stringify([store.boardId(board),item.item_id,item.item_commit,item.item_frozen_digest,trunk,'unavailable'])).digest('hex') }];
       } // Unavailable objects/invalid inputs stay explicitly incomplete, never endorsed or silently dropped.
     });
-  });
+  }, openBoardForRead);
 }
 
 /** Exact readonly eligibility probe used by the foreground nudge before it spawns a worker. */
@@ -151,7 +151,7 @@ async function advance(root, directory, job, write, services) {
       const quarantines = readBoard(repoInfo(root), board => {
         board.quarantineEnabled = () => config.flakes?.quarantine === true;
         return board.nativePorts.quarantine.quarantineVerdictSnapshot(board);
-      });
+      }, services.openBoardForRead);
       custody.started();
       const gate = await runSubmitGate(composition.directory, config, { base: composition.inputHead, changed: composition.changed,
         executionServices: services.executionServices, check: frozenCheck(job.item), timing: frozenCheckTiming(job.item), agent: 'coordinator', item: String(job.item.item_id), sourceAdvance: true,
@@ -193,6 +193,7 @@ async function advance(root, directory, job, write, services) {
 export async function runSourceAdvances(root, token, services) {
   const info = repoInfo(root);
   if (!info.isMain || !codeIsFromMain() || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
+  if (typeof services?.openBoardForRead !== 'function') throw new TypeError('source advance requires its actual native read opener');
   if (typeof services?.selectors?.selectAffectedTests !== 'function' || typeof services?.selectors?.selectTestTreeGuards !== 'function') throw new TypeError('source advance worker needs explicit test selector operations');
   const selectors = Object.freeze({ selectAffectedTests: services.selectors.selectAffectedTests, selectTestTreeGuards: services.selectors.selectTestTreeGuards });
   services = { ...services, selectors };

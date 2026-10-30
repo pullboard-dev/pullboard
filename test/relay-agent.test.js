@@ -1,5 +1,7 @@
 /** @pullboard-test-gui */
 /** Private end-to-end proof for ordered agent enrollment and scoped relay credentials [H2,H9,A4]. */
+import { apiBoardOpeners } from './board-fixture.js';
+
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn, runFixtureChild as spawnSync, cleanupFixtureChildren, runFixtureChild, runFixtureChildAsync } from './fixture-child.js';
 import { createHash } from 'node:crypto';
@@ -264,7 +266,7 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   const previousApiHome = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   t.after(() => { if (previousApiHome === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = previousApiHome; });
-  const localApi = await serveApi({ refusalDocument,
+  const localApi = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument,
     runCommand: main,
     projects: () => [{ root: box.root, name: 'private relay fixture', project: 'fixture/repository', added: '2026-10-07T00:00:00.000Z' }],
   });

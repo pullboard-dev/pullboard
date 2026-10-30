@@ -15,7 +15,6 @@ import {
   join,
 } from 'node:path';
 import * as store from './board.js';
-import { openBoard } from './native-board.js';
 import {
   exportBoard,
   importBoard,
@@ -125,7 +124,7 @@ async function signIn(url, io) {
 }
 
 /** Return an exported local board with its persistent identity. */
-function localSnapshot(root) {
+function localSnapshot(root, openBoard) {
   const info = repoInfo(root);
   const board = openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
   try { return { board: store.boardId(board), snapshot: exportBoard(board) }; }
@@ -133,16 +132,17 @@ function localSnapshot(root) {
 }
 
 /** Create an encrypted one-use package using the native caller’s relay synchronization and origin ports. */
-export async function relayPair(root, io, { DEFAULT_RELAY, originRepository, syncRelay }) {
+export async function relayPair(root, io, { DEFAULT_RELAY, originRepository, syncRelay, openBoard }) {
+  if (typeof openBoard !== 'function') throw new TypeError('relay pairing requires its actual native board opener');
   const file = linkFile(root);
   loadState(file);
   // Freeze the native event boundary before asynchronous sync; retry if it changes during pairing.
-  const initialCursor = localSnapshot(root).snapshot.tables.event.at(-1)?.event_id ?? 0;
+  const initialCursor = localSnapshot(root, openBoard).snapshot.tables.event.at(-1)?.event_id ?? 0;
   await syncRelay(root, io);
   const state = loadState(file);
   if (state.unlinking) throw new Refused('RELAY_UNLINK_PENDING', 'finish unlinking this board before creating a pairing code');
   if (originRepository(root) !== state.repository) throw new Refused('RELAY_ORIGIN', 'the origin repository no longer matches this relay link; restore the linked GitHub origin first');
-  const local = localSnapshot(root);
+  const local = localSnapshot(root, openBoard);
   if (local.board !== state.board) throw new Refused('RELAY_STORAGE', 'the local board identity differs from its relay link; restore the matching board before pairing');
   const cursor = local.snapshot.tables.event.at(-1)?.event_id ?? 0;
   const metadata = new Map(local.snapshot.tables.board_meta.map((row) => [row.meta_key, row.meta_value]));
@@ -168,7 +168,7 @@ export async function relayPair(root, io, { DEFAULT_RELAY, originRepository, syn
     mode: ordered ? 'ordered' : 'mirror', sequence, cursor, key: encodeBoardKey(key), snapshot: local.snapshot,
   };
   const changed = () => {
-    const current = localSnapshot(root);
+    const current = localSnapshot(root, openBoard);
     return current.board !== local.board || (current.snapshot.tables.event.at(-1)?.event_id ?? 0) !== cursor;
   };
   const busy = () => new Refused('PAIR_BUSY', 'a local move changed during pairing; run pullboard relay pair again after sync completes');
@@ -194,7 +194,7 @@ export async function relayPair(root, io, { DEFAULT_RELAY, originRepository, syn
 }
 
 /** Refuse a nonempty target board before spending its one-use code. */
-function requireFreshTarget(root) {
+function requireFreshTarget(root, openBoard) {
   const info = repoInfo(root);
   const board = openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
   try {
@@ -217,12 +217,13 @@ function requireMissingKey(board) {
 
 /** Consume a printed code and save this device’s link using native caller-owned relay and machine ports. */
 export async function relayJoin(root, code, address, io, { name: labelInput } = {},
-  { DEFAULT_RELAY, originRepository, relayPersonCoordinator, syncRelay, updateRelayMachine }) {
+  { DEFAULT_RELAY, originRepository, relayPersonCoordinator, syncRelay, updateRelayMachine, openBoard }) {
   const label = computerName(labelInput);
   requirePersonChannel(io.personChannel);
+  if (typeof openBoard !== 'function') throw new TypeError('relay pairing requires its actual native board opener');
   const parsed = parsePairingCode(code);
   const url = relayOrigin(address || DEFAULT_RELAY);
-  requireFreshTarget(root);
+  requireFreshTarget(root, openBoard);
   requireMissingKey(parsed.board);
   const repository = originRepository(root);
   const signed = await signIn(url, io);
