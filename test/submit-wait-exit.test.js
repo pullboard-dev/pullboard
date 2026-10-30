@@ -3,6 +3,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { openBoard } from '../src/native-board.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
@@ -12,6 +15,8 @@ import { fixture } from './submit-main-red-fixture.js';
 import { source } from './submit-main-red-fixture.js';
 import { submittedProof } from './submit-main-red-fixture.js';
 import { cli } from './submit-main-red-fixture.js';
+import { runFixtureGit } from './fixture-child.js';
+import { exactStart } from '../src/gate.js';
 
 const helpers = createE2eHelpers();
 
@@ -55,7 +60,7 @@ function assertUnreviewed(box) {
   const shown = cli(box, box.root, 'show', String(box.item), '--history');
   assert.equal(shown.status, 0, shown.stdout + shown.stderr);
   const document = JSON.parse(shown.stdout);
-  assert.equal(document.item.item_status, 'submitted');
+  assert.equal(document.item_status, 'submitted');
   assert.ok(!document.verdicts?.length, 'no review is needed to end the gate wait');
 }
 
@@ -64,7 +69,7 @@ test('submit --wait exits on an accepted known-main red and retains its repair o
   assert.equal(child.exitCode, 0, child.stdoutText + child.stderrText);
   assert.equal(document.gate.green, false);
   assert.equal(document.gate.knownMainFailures.main, box.main);
-  assert.equal(document.gate.knownMainFailures.failures[0].item, box.rework);
+  assert.equal(document.gate.knownMainReworks[0].item, box.rework);
   assert.equal(document.verdict, undefined);
   assertUnreviewed(box);
 });
@@ -84,4 +89,64 @@ test('queued submit --wait waits for the exact known-main outcome instead of ret
   assert.equal(document.gate.knownMainFailures.main, box.main);
   assert.equal(document.verdict, undefined);
   assertUnreviewed(box);
+});
+
+test('a queued wait names an actually lost worker before any gate admission [V4,B3]', async t => {
+  let child;
+  let barrier;
+  let worker;
+  let release;
+  t.after(async () => {
+    if (release) writeFileSync(release, 'release\n');
+    if (worker?.started && exactStart(worker.pid) === worker.started) process.kill(worker.pid, 'SIGKILL');
+    if (child) {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
+      await child.closed;
+    }
+    if (barrier) await helpers.waitFor(() => exactStart(barrier.git) !== barrier.gitStart,
+      'the owned checkout Git child to actually exit', 30_000);
+  });
+  const box = fixture(t, { handoff: true });
+  release = join(box.directory, 'checkout-release');
+  const ready = join(box.directory, 'checkout-ready');
+  const hook = join(box.root, '.git/hooks/post-checkout');
+  const script = join(box.directory, 'checkout-barrier.mjs');
+  writeFileSync(script, [
+    "import { existsSync,writeFileSync } from 'node:fs';",
+    `import { exactStart } from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};`,
+    "if(process.cwd().includes('/submit-handoffs/') && process.cwd().endsWith('/source')) {",
+    ` writeFileSync(${JSON.stringify(ready)},JSON.stringify({git:process.ppid,gitStart:exactStart(process.ppid)}));`,
+    ' const deadline=Date.now()+120000;',
+    ` while(!existsSync(${JSON.stringify(release)})) { if(Date.now()>deadline) throw Error('checkout barrier unreleased'); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20); }`,
+    '}',
+  ].join('\n'));
+  // init has no post-checkout hook; refuse to replace any guard if that contract changes.
+  assert.equal(existsSync(hook), false);
+  writeFileSync(hook, `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`);
+  chmodSync(hook, 0o755);
+  runFixtureGit(['config', 'core.hooksPath', join(box.root, '.git/hooks')], { cwd: box.root, env: box.env });
+  child = helpers.launch(box, box.builder, process.execPath,
+    [BIN, 'submit', String(box.item), '--wait', '--no-next', '--json']);
+  await helpers.waitFor(() => existsSync(ready), 'the real private checkout barrier', 30_000);
+  barrier = JSON.parse(readFileSync(ready, 'utf8'));
+  assert.ok(barrier.gitStart, 'cleanup observes an exact owned Git incarnation');
+  // @pullboard-board-file journey: locate the real enqueued worker without creating a native job or receipt.
+  const board = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  let job;
+  try { job = submitHandoff(board, box.item); } finally { board.db.close(); }
+  assert.equal(job.state, 'queued', 'the checkout barrier precedes all gate holder/waiter admission');
+  const workerFile = join(box.root, '.git/pullboard/submit-handoffs', job.id, 'worker.json');
+  await helpers.waitFor(() => existsSync(workerFile), 'the real worker incarnation receipt', 30_000);
+  worker = JSON.parse(readFileSync(workerFile, 'utf8'));
+  assert.ok(worker.started);
+  assert.equal(exactStart(worker.pid), worker.started, 'only this owned fixture worker may be terminated');
+  process.kill(worker.pid, 'SIGKILL');
+  await helpers.waitFor(() => child.exitCode !== null, 'the lost-job named refusal', 30_000);
+  await child.closed;
+  assert.equal(child.exitCode, 1, child.stdoutText + child.stderrText);
+  const refusal = JSON.parse(child.stdoutText);
+  assert.equal(refusal.error.code, 'SUBMIT_HANDOFF_CHANGED');
+  assert.match(refusal.error.message, /lost its worker/u);
+  assert.match(refusal.error.message, /cleanup remains unknown/u);
+  assert.equal(submittedProof(box), null, 'a lost worker cannot fabricate a gate outcome');
 });
