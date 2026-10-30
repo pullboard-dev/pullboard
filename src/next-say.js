@@ -16,7 +16,7 @@ export function sayReviewOffer(ctx, found) {
   ctx.io.result?.({ item: found.item, review: true, held: Boolean(found.offer.held), shared: [], offer, build: found.build });
   ctx.io.say(found.offer.urgent === 'held-review' ? `${reviewQueueLine(ctx, offer.queue, span)}; resume the review already reserved by this seat`
     : found.offer.urgent === 'main-red' ? `${reviewQueueLine(ctx, offer.queue, span)}; this review repairs a failure on current main`
-    : found.offer.urgent ? `${reviewQueueLine(ctx, offer.queue, span)}; this submission has waited over ten minutes for its first reviewer`
+    : found.offer.urgent ? `${reviewQueueLine(ctx, offer.queue, span)}; this submission has waited over ${found.offer.starveMinutes ?? 10} minutes without a reviewer`
     : `${reviewQueueLine(ctx, offer.queue, span)}; ratio ${offer.ratio} reached (zero active reviewers counts as one)`);
   const agents = withBoardRead(ctx, (board) => store.listAgents(board));
   ctx.io.say(`review offered: #${found.item.item_id} ${found.item.item_title}, built by ${agentDisplayName(agents, ctx.config, found.item.item_built_by)}; reserve it explicitly: ${command}`);
