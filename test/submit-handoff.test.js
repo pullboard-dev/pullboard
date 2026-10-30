@@ -1,6 +1,6 @@
 /** Real queued submissions retain immutable source and native gate authority [V4,H16,E18]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -31,6 +31,7 @@ function fixture(t, { enabled = true, result = 'green', companion = false } = {}
   const box = helpers.project('true');
   const armed = join(box.dir, 'armed');
   const release = join(box.dir, 'release');
+  const releases = [release];
   const started = join(box.dir, 'started.jsonl');
   const finished = join(box.dir, 'finished.jsonl');
   const script = join(box.dir, 'gate.cjs');
@@ -66,7 +67,7 @@ function fixture(t, { enabled = true, result = 'green', companion = false } = {}
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   writeFileSync(armed, 'armed\n');
   t.after(async () => {
-    writeFileSync(release, 'release\n');
+    for (const file of releases) writeFileSync(file, 'release\n');
     const job = state(box, id).job;
     if (job) await helpers.waitFor(() => {
       const current = state(box, id).job;
@@ -74,7 +75,7 @@ function fixture(t, { enabled = true, result = 'green', companion = false } = {}
     }, `normal queued worker cleanup: ${workerDiagnostic(box, id)}`);
     helpers.cleanup();
   });
-  return { ...box, helpers, id, second, third, commit, release, started, finished };
+  return { ...box, helpers, id, second, third, commit, release, releases, started, finished };
 }
 
 
@@ -207,4 +208,53 @@ test('a handoff result cannot invent a green submission or complete another send
     assert.throws(() => completeSubmitHandoff(board, box.id, { agentId: job.agentId, job: job.id, result: { code: 0, commit: box.commit } }), { code: 'SUBMIT_HANDOFF_RESULT' });
     assert.equal(getItem(board, box.id).item_status, 'claimed');
   } finally { board.db.close(); }
+});
+
+/** Install a real checkout barrier while preserving and invoking any existing native hook byte-for-byte. */
+function checkoutBarrier(box) {
+  const ready = join(box.dir, 'private-checkout-ready');
+  const release = join(box.dir, 'private-checkout-release');
+  box.releases.push(release);
+  const script = join(box.dir, 'checkout-barrier.cjs');
+  writeFileSync(script, [
+    "const fs=require('node:fs'); const cwd=process.cwd();",
+    `if(cwd.includes('/submit-handoffs/') && cwd.endsWith('/source') && !fs.existsSync(${JSON.stringify(ready)})) {`,
+    ` fs.writeFileSync(${JSON.stringify(ready)},cwd); const deadline=Date.now()+120000;`,
+    ` while(!fs.existsSync(${JSON.stringify(release)})) { if(Date.now()>deadline) throw Error('checkout release never arrived'); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20); }`,
+    '}',
+  ].join('\n'));
+  const hooks = join(box.repo, '.git', 'hooks');
+  mkdirSync(hooks, { recursive: true });
+  const hook = join(hooks, 'post-checkout');
+  let original = '';
+  if (existsSync(hook)) {
+    const copy = join(hooks, 'post-checkout.native');
+    writeFileSync(copy, readFileSync(hook));
+    chmodSync(copy, 0o755);
+    original = `${word(copy)} "$@" || exit "$?"\n`;
+  }
+  writeFileSync(hook, `#!/bin/sh\n${original}exec ${word(process.execPath)} ${word(script)} "$@"\n`);
+  chmodSync(hook, 0o755);
+  return { ready, release };
+}
+
+test('removing the builder checkout during private source preparation cannot move or strand the queued gate [V4,H16,E18]', async t => {
+  const box = fixture(t);
+  const barrier = checkoutBarrier(box);
+  document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
+  await box.helpers.waitFor(() => existsSync(barrier.ready), 'actual private checkout hook', 120000);
+  box.git(box.web, 'checkout', '-q', '--detach', 'main');
+  assert.equal(helpersCommit(box, 'web/another-build.txt', 'independent\n').status, 0);
+  document(box.run(box.web, 'claim', String(box.second), '--json'));
+  box.git(box.repo, 'worktree', 'remove', box.web);
+  assert.equal(existsSync(box.web), false);
+  writeFileSync(barrier.release, 'release\n');
+  await box.helpers.waitFor(() => existsSync(box.started), 'captured gate after removal of original checkout', 120000);
+  writeFileSync(box.release, 'release\n');
+  await waitJob(box, 'green');
+  const completed = state(box, box.id);
+  assert.equal(completed.item.item_status, 'submitted');
+  assert.equal(completed.item.item_commit, box.commit);
+  assert.equal(state(box, box.second).item.item_owner, completed.job.agentId);
+  assert.deepEqual(readFileSync(box.finished, 'utf8').trim().split('\n').map(JSON.parse), [{ value: 'green', head: box.commit }]);
 });

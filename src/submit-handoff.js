@@ -26,7 +26,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
     const log = openSync(join(directory, 'worker.log'), 'a', 0o600);
     try {
       const worker = spawn(process.execPath, [fileURLToPath(new URL('./submit-handoff-worker.js', import.meta.url)), join(directory, 'request.json')],
-        { cwd: ctx.info.root, detached: true, stdio: ['ignore', log, log], env: { ...process.env } });
+        { cwd: ctx.info.commonDir, detached: true, stdio: ['ignore', log, log], env: { ...process.env } });
       worker.unref();
     } finally { closeSync(log); }
   }

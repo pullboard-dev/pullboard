@@ -122,7 +122,7 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
         : { reopenFirstRefusal: { builder: job.agentId, until: new Date(board.clock.now().getTime() + job.leaseMs).toISOString() } };
       release(board, id, job.agentId, 'the queued canonical submit was refused');
       logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, ...reservation });
-      insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${result.error.code}); read pullboard show ${id} for the original refusal and claim it to resume.`, lanes: [] });
+      insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${result.error.code}); read pullboard show ${id} for the original refusal; finish or release your current build at a natural break, then claim this item.`, lanes: [] });
     }
     return record(board, id, { ...job, state, error: { ...result.error }, completedAt: now(board) });
   });
