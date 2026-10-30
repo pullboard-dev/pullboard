@@ -1,3 +1,5 @@
+import { reviewPatchAuthors } from './review-composition.js';
+import { compositionFamilyFallback } from './review-composition.js';
 import { seatFamily } from './family-declaration.js';
 import { reviewHolder } from './board-query.js';
 /** Board moves read a seat's one derived family through the review routing they already use (#1783). */
@@ -13,7 +15,6 @@ import { familyAliasesOf } from './review-policy.js';
 export { familiesDiffer } from './review-policy.js';
 export { routingRuleProblem } from './routing-rules.js';
 import { itemReviewPolicy } from './review-policy.js';
-import { itemPatchAuthors } from './item-patch-state.js';
 import { Refused } from './refused.js';
 
 /** Historical recorded reservations retain the ordering and eligibility they originally used. */
@@ -30,9 +31,10 @@ function strictReview(board, item) {
 export function strictReviewProblem(board, item, agentId) {
   if (!reviewRoutingEnabled(board) || !strictReview(board, item)) return null;
   const family = familyName(seatFamily(board, agentId), familyAliasesOf(board));
-  const built = familyName(item.item_builder_family, familyAliasesOf(board));
+  const fallback = compositionFamilyFallback(board, item);
+  const built = fallback?.family ?? familyName(item.item_builder_family, familyAliasesOf(board));
   if (!(family && built && family !== built)) return new Refused('O2_FAMILY_MATCH', `#${item.item_id} is strict; ask a verifier from another declared vendor family`);
-  return companionFamilyProblem(board, item, family);
+  return fallback ? null : companionFamilyProblem(board, item, family);
 }
 
 /** Use the current submission event; facts, reservations and previous submissions cannot reset its age. */
@@ -79,7 +81,7 @@ export function prioritizeReviews(board, candidates, priority, focusCompare) {
 function companionFamilyProblem(board, item, family) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < FAMILY_ALIAS_ENGINE) return null;
   const aliases = familyAliasesOf(board);
-  for (const author of itemPatchAuthors(board, item.item_id)) {
+  for (const author of reviewPatchAuthors(board, item)) {
     const declared = seatFamily(board, author.agentId);
     if (familyName(declared, aliases) === family) {
       return new Refused('O2_FAMILY_MATCH', `#${item.item_id} is strict and companion author ${author.agentId} shares your vendor family; ask a verifier from another declared vendor family`);

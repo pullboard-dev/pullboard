@@ -14,8 +14,8 @@ import {
 import { Refused } from './refused.js';
 
 /** Read raw Git output, retaining NUL-delimited names without exposing Git diagnostics. */
-export function policyGit(root, args) {
-  const result = spawnSync('git', ['-c', 'core.quotepath=false', ...args], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+export function policyGit(root, args, { encoding = 'utf8' } = {}) {
+  const result = spawnSync('git', ['-c', 'core.quotepath=false', ...args], { cwd: root, env: cleanGitEnvironment(), encoding, maxBuffer: 32 * 1024 * 1024 });
   if (result.status !== 0) throw new Refused('NO_POLICY', 'the committed coordinator policy or claim base is missing; restore its Git objects or ask the coordinator to refreeze the item');
   return result.stdout;
 }

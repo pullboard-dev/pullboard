@@ -98,12 +98,13 @@ function boundSeats(info, digest) {
  * @param {string|null} [digest] - Current local session digest.
  * @param {string[]} [authors] - Historical author seats from the board's claim and submit events.
  */
-export function refuseSelfSession(info, item, digest, authors = [], { commitOnly = false } = {}) {
+export function refuseSelfSession(info, item, digest, authors = [], { commitOnly = false, currentAuthorSessions } = {}) {
   requireCapturedSession(digest);
   if (!digest) return;
   const builders = [item.item_built_by, ...(commitOnly ? [] : [item.item_owner]), ...authors].filter(Boolean);
   const seats = boundSeats(info, digest);
-  if (!ledgerDigests(info, item.item_id, commitOnly).has(digest) && !builders.some((builder) => seats.has(builder))) return;
+  const recorded = currentAuthorSessions === undefined ? ledgerDigests(info, item.item_id, commitOnly).has(digest) : currentAuthorSessions.includes(digest);
+  if (!recorded && !builders.some((builder) => seats.has(builder))) return;
   throw new Refused('SELF_SESSION_VERIFY', `this agent session built or submitted #${item.item_id}, so its verdict would be its own work under another seat's name`,
     'ask another agent session to verify it: pullboard next --verify from that session\'s own worktree');
 }

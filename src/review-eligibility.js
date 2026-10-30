@@ -1,3 +1,4 @@
+import { compositionFamilyFallback } from './review-composition.js';
 import { seatFamily } from './family-declaration.js';
 import { committedItemAuthors } from './review-independence.js';
 import { strictReviewProblem as strictAuthorProblem } from './review-independence.js';
@@ -75,6 +76,8 @@ function projectEligibility(board, item, options, strictOnly) {
   const result = { tier: twoTierReviews(board) ? policy.tier : 'legacy', requiredFamily: policy.reviewFamily,
     ready: item.item_status === 'submitted' || item.item_status === 'verified' && !item.item_merged_commit,
     eligible: [], ineligible: [] };
+  const fallback = policy.tier === 'strict' ? compositionFamilyFallback(board, item) : null;
+  if (fallback) result.owner = fallback.owner;
   if (!result.ready || strictOnly && result.tier !== 'strict') return result;
   const agents = board.db.prepare('SELECT agent_id,agent_route FROM agent ORDER BY agent_id').all();
   for (const agent of agents) {

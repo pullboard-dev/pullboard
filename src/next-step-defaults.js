@@ -435,6 +435,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "RUNNER_BUSY": "wait for the named runner's active tests to finish, then retry its settings change",
   "RUNNER_CAPACITY_MISMATCH": "wait for active runner leases to fit the configured capacity, then retry the run",
   "RUNNER_CLEANUP_TIMEOUT": "inspect the named job under that runner's namespace and confirm its cleanup before starting another run",
+  "RUNNER_INFRA_RETRY_EXHAUSTED": "inspect the retained runner diagnostic, restore the named runner, then retry this command",
   "RUNNER_NOT_REGISTERED": "choose a host already registered in this machine's runner settings, then run pullboard runner remove <ssh-host> again",
   "RUNNER_WAIT_DEADLINE": "check the runners the message names, or restore local gate capacity with pullboard settings, then retry",
   "SCALE_FROM_MAIN": "cd to the main checkout, then run pullboard run --scale --lane <lane> --model \"<model name>\" --agent \"<command>\" there",
