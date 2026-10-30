@@ -118,7 +118,7 @@ function shimBodies(read, path, seen = new Set()) {
  * re-export shim chain ends at. Fixtures that read or edit a shipped tool source resolve it here, so the same
  * test line is correct before and after a cells move.
  * @param {string} root - The package or fixture directory.
- * @param {string} path - A root-relative tool source path such as src/resources.js.
+ * @param {string} path - A root-relative tool source path such as packages/resources/index.js.
  * @returns {string} The absolute path of the file that holds the code.
  */
 export function toolSourcePath(root, path) {

@@ -21,9 +21,7 @@
   {"cell":"store","imports":2,"before":true},
   {"cell":"sandbox","imports":1,"before":true}
  ],
- "cuts": [
-  {"cell":"config","imports":1,"edges":["src/templates.js->src/doctrine.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": -1,
   "shims": 3,

@@ -13,9 +13,9 @@ import { itemsTouching } from '../packages/commits/index.js';
 import { rigorReport } from '../src/board-rigor.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
 import { coChangedPaths, historicalPaths, mappedCheck, readPathMap } from '../packages/codemap/index.js';
-import { prepareCauseProof, runCheckAt } from '../src/rigor-proof.js';
+import { prepareCauseProof, runCheckAt } from '../packages/rigor/index.js';
 import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
-import { proveCauseCheck } from '../src/rigor-proof.js';
+import { proveCauseCheck } from '../packages/rigor/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 

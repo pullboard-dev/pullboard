@@ -255,7 +255,7 @@ test("a red submit's comparisons keep FIFO and release between files [V4,C7]", a
   const main = commit(box.root, box.env);
   const driver = join(box.directory, 'queue-driver.mjs');
   writeFileSync(driver, [
-    `import { takeResource } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/resources.js')).href)};`,
+    `import { takeResource } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href)};`,
     `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/main-red.js')).href)};`,
     "import { appendFileSync, existsSync, writeFileSync } from 'node:fs';",
     "import { join } from 'node:path';",

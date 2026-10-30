@@ -131,7 +131,7 @@ const NON_MOVE_ENTRY_POINTS = [
   'native-board.js#openBoard', // Physical storage is composed before any item move.
   'cli.js#refuseRemoteCoordinatorModel',
   // Child-process commands may be serialized into scripts, so audit this exported setup guard directly.
-  'resources.js#gateSlotEnvironment',
+  '../packages/resources/src/shell/resources.js#gateSlotEnvironment',
   'person-signing-cli.js#pinRelayAuthority', // Reads the relay's authority before a person command (#408).
 ];
 
@@ -156,7 +156,7 @@ const CAUGHT = {
   // specApprovalState turns a Refused from the canonical baseline reader into invalid evidence.
   'spec-approval.js#specApprovalState': ['board-query.js#specApprovalBaseline'],
   // Historical decline metadata is parsed inside a non-throwing boundary, covered by the Rigor history control.
-  'board.js#reopen': ['rigor-notices.js#declinedRigorSource', '../packages/rigor/src/core/rigor-notices.js#declinedRigorSource'],
+  'board.js#reopen': ['../packages/rigor/src/core/rigor-notices.js#declinedRigorSource'],
   // Rigor projection folds inspect invalid cause results as data, never lifecycle refusals.
   'board-rigor.js#eventCauses': ['board-rigor.js#causeProblem'],
   '../src/board-rigor.js#eventCauses': ['../src/board-rigor.js#causeProblem'], // The same helper as reached from the moved Rigor cell.

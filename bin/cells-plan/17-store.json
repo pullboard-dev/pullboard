@@ -236,11 +236,12 @@
   {"cell":"items","imports":2,"edges":["src/item-patch-submit.js->src/board-query.js","src/item-patches.js->src/board-query.js"]},
   {
    "cell": "stats",
-   "imports": 6,
+   "imports": 7,
    "edges": [
     "src/cost-checkpoint.js->src/board-query.js",
     "src/cost-shared.js->src/board-event-log.js",
     "src/cost-shared.js->src/board-query.js",
+    "src/cost-usage-batch.js->src/board-event-log.js",
     "src/cost.js->src/board-event-log.js",
     "src/cost.js->src/board-query.js",
     "src/cost.js->src/board-read-auxiliary.js"

@@ -1,4 +1,5 @@
 import { seatFamily } from './family-declaration.js';
+import { reviewHolder } from './board-query.js';
 /** Board moves read a seat's one derived family through the review routing they already use (#1783). */
 export { seatFamily };
 /** Shared review urgency and tier adapter for selection and reservation [C7,V1,B3]. */
@@ -39,17 +40,21 @@ function reviewSubmission(board, item) {
   const submit = board.db.prepare("SELECT event_id,event_at FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1")
     .get(item.item_id);
   if (!submit) return null;
-  const reviewed = board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_id>? AND event_kind='reserve' LIMIT 1")
-    .get(item.item_id, submit.event_id);
   const at = Date.parse(submit.event_at);
-  return Number.isFinite(at) ? { at, firstReviewer: !reviewed, order: submit.event_id } : null;
+  return Number.isFinite(at) ? { at, order: submit.event_id } : null;
 }
 
-/** A free seat takes a normal submission awaiting its first reviewer for more than ten minutes. */
-export function overdueReview(board, item) {
-  if (item.item_status !== 'submitted' || !reviewRoutingEnabled(board) || strictReview(board, item)) return false;
+/** Observe the current submission's unreserved wait, including strict work and expired reservations. */
+export function reviewWait(board, item) {
+  if (item.item_status !== 'submitted' || !reviewRoutingEnabled(board) || reviewHolder(board, item)) return null;
   const submission = reviewSubmission(board, item);
-  return Boolean(submission?.firstReviewer && board.clock.now().getTime() - submission.at > 10 * 60_000);
+  return submission ? { since: new Date(submission.at).toISOString(), ageMs: board.clock.now().getTime() - submission.at } : null;
+}
+
+/** A free eligible seat interrupts new work after the configured wait; reservation guards still decide eligibility. */
+export function overdueReview(board, item, starveMinutes = 10) {
+  const wait = reviewWait(board, item);
+  return Boolean(wait && wait.ageMs > starveMinutes * 60_000);
 }
 
 /** Order eligible reviews by current submission age, with deterministic native event and item ties. */
