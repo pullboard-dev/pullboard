@@ -74,9 +74,9 @@ export function commandName(argv) {
   return flags.find(arg => !arg.startsWith('-')) ?? null;
 }
 
-/** Preserve byte-oriented exports and long-running protocols; finite interactive commands own one final action. */
+/** Preserve diagnostic reports, byte-oriented exports and long-running protocols; interactive commands own one final action. */
 export function interactiveNext(command) {
-  return !['export', 'hook', 'mcp', 'view', 'watch', 'serve', 'relay'].includes(command);
+  return !['export', 'hook', 'mcp', 'view', 'watch', 'serve', 'relay', 'health'].includes(command);
 }
 
 /** Choose one immediate action from acknowledged output, without reserving work or guessing a verdict. */
