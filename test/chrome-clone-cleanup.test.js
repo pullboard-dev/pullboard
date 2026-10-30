@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
@@ -47,16 +48,30 @@ test('killed private browser fixture leaves an old clone removed after its real 
   const { namespace, clone } = fixture(t);
   // This is a browser-process stand-in; it does not claim to create a native code-sign clone.
   const child = startFixtureChild(process.execPath, ['-e',
-    "require('node:fs').openSync(process.argv[1], 'r'); process.send('ready'); setInterval(() => {}, 1000)", join(clone, 'held')],
+    "process.on('message', () => { require('node:fs').openSync(process.argv[1], 'r'); process.send('opened'); }); process.send('ready'); setInterval(() => {}, 1000)", join(clone, 'held')],
   { stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
   const closed = once(child, 'close');
   t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); await closed; });
   await once(child, 'message');
   const custody = () => fixtureCustody(child, clone);
-  const held = custody();
-  assert.ok(held?.paths.includes(join(clone, 'held')), 'native lsof must identify the actual private open FD');
+  const before = lstatSync(clone).mtimeMs;
+  let observations = 0;
+  /** Open the real private FD only after the initial snapshot, preserving the directory timestamp. */
+  const racingCustody = async () => {
+    const observed = custody();
+    if (++observations === 1) {
+      assert.ok(observed && !observed.paths.includes(join(clone, 'held')));
+      const opened = once(child, 'message');
+      child.send('open');
+      await opened;
+    }
+    return observed;
+  };
   const options = { directories: [namespace], custody, now: Date.now() + 3600001, log() {} };
-  assert.equal((await sweepChromeClones(options)).removed, 0);
+  assert.equal((await sweepChromeClones({ ...options, custody: racingCustody })).removed, 0);
+  assert.ok(observations >= 2, 'removal requires a fresh second custody observation');
+  assert.ok(custody()?.paths.includes(join(clone, 'held')), 'native lsof identifies the newly opened private FD');
+  assert.equal(lstatSync(clone).mtimeMs, before, 'read-only FD opening did not change directory age');
   assert.ok(existsSync(clone), 'live process clone stays intact');
   child.kill('SIGKILL');
   await closed;

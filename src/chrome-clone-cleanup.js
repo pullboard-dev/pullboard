@@ -81,7 +81,7 @@ export async function sweepChromeClones({ directories = chromeCloneDirectories()
       names = readdirSync(directory).filter(name => NAME.test(name));
     } catch (error) { if (error.code !== 'ENOENT') summary.unknown = true; continue; }
     const before = available(canonical);
-    // One complete census per namespace, never O(clones × process-table-size).
+    // Initial custody skips known-held entries; fresh per-removal probes remain bounded by the original deadline.
     const observed = await custody(canonical, { deadline });
     if (!observed || observed.browserLive) { summary.kept += names.length; summary.unknown ||= !observed; continue; }
     for (const [index, name] of names.entries()) {
