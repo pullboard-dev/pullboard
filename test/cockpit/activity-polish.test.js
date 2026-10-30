@@ -8,12 +8,14 @@ import * as store from '../../src/board.js';
 import { openBoard } from '../../src/native-board.js';
 import { applyRelayMove, appliedSequence, prepareEngineMove } from '../../src/engine.js';
 import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
+import { scannedBoard } from './activity-data.js';
 
 test('Activity keeps shout words light, questions and item chips clear, and work and sentinels unchanged [N26]', { timeout: 120_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'real Chrome is required');
   const box = machine(), alpha = project(box, 'activity-polish');
   box.run(alpha.repo, 'add', 'web', 'A real Activity item', '--specs', 'G1', '--criterion', 'Represent the native Activity action.');
+  box.run(alpha.repo, 'add', 'web', 'Another real Activity item', '--specs', 'G1', '--criterion', 'Represent the seeded sentinel observation.');
   box.run(alpha.web, 'claim', '1');
   const words = 'Keep every literal <word> and reference #1.\n'.repeat(7);
   box.run(alpha.web, 'shout', 'coordinator', words + 'Can I proceed?', '--kind', 'question', '--decision');
@@ -22,7 +24,9 @@ test('Activity keeps shout words light, questions and item chips clear, and work
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   let scan;
   try {
-    const move = prepareEngineMove(board, 'recordHealthFindings', [{ agentId: 'coordinator', findings: [], observedRevision: store.events(board).at(-1).event_id }], { actor: 'coordinator' });
+    // Like the existing Activity journey, this is seeded health input recorded by the real engine, never an execution receipt.
+    const finding = { ...scannedBoard().finding, owner: { who: 'web-1', role: 'agent' }, why: 'web-1 claimed #1 while #2 ranks ahead in the web lane and sits free' };
+    const move = prepareEngineMove(board, 'recordHealthFindings', [{ agentId: 'coordinator', findings: [finding], observedRevision: store.events(board).at(-1).event_id }], { actor: 'coordinator' });
     const result = applyRelayMove(board, move, { sequence: appliedSequence(board) + 1, at: new Date().toISOString(), kind: 'move', sender: { kind: 'agent', agent: 'coordinator', userId: 'fixture-user' } });
     assert.equal(result.error, undefined, JSON.stringify(result));
     scan = store.events(board).findLast(entry => entry.event_kind === 'health-scan')?.event_id;

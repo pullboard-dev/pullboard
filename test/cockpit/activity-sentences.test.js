@@ -58,12 +58,12 @@ test('Activity related items prefer native context and otherwise only resolve ac
   ];
   const model = activityModel({ items, agents, shouts, events: shouts.map(row => event(row.shout_id, 'shout', { item: null, detail: { shout: row.shout_id } })) });
   const byId = new Map(model.rows.map(row => [row.id, row]));
-  assert.equal(byId.get(1).item.id, 2);
+  assert.equal(byId.get(1).item?.id, 2);
   assert.equal(byId.get(1).verb, 'asked');
-  assert.equal(byId.get(2).item.id, 1);
+  assert.equal(byId.get(2).item?.id, 1);
   assert.equal(byId.get(2).verb, 'told');
   assert.equal(byId.get(3).item, null);
-  assert.equal(byId.get(4).item.id, 2);
+  assert.equal(byId.get(4).item?.id, 2);
   assert.equal(byId.get(4).verb, 'asked');
 });
 
