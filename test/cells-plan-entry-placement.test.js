@@ -72,10 +72,25 @@ test('a library cannot borrow process ownership from examples or callbacks [C7,D
     'export const library = () => process.argv;\n',
     'export function library() { if (process.argv[1]) return true; }\n',
     'const process = { argv: [] };\nif (process.argv[1]) console.log(process.argv);\n',
+    '#!/usr/bin/env node\nconst argv = process.argv.slice(2);\nexport function parse() { return argv; }\n',
+    '#!/usr/bin/env node\nconst argv = process.argv.slice(2);\n',
   ]) {
     put(path, source);
     assert.throws(() => placePath(root, path, { cell: 'app:lib', entry: true }), error => error.code === 'CELLS_ENTRY');
     assert.equal(readFileSync(join(root, 'bin/cells-plan.json'), 'utf8'), before, 'refusal publishes no placement');
+  }
+});
+
+test('a module needs an own-file identity guard, not just process or URL mentions [C7,D3,CD64]', t => {
+  const { root, path, put } = box(t);
+  for (const condition of [
+    'process.argv[1] && import.meta.url',
+    'process.argv[1] !== fileURLToPath(import.meta.url)',
+    'true || process.argv[1] === fileURLToPath(import.meta.url)',
+    "process.argv[1] === fileURLToPath('file:///another-entry.js')",
+  ]) {
+    put(path, `import { fileURLToPath } from 'node:url';\nif (${condition}) console.log(process.argv);\n`);
+    assert.throws(() => placePath(root, path, { cell: 'app:lib', entry: true }), error => error.code === 'CELLS_ENTRY');
   }
 });
 

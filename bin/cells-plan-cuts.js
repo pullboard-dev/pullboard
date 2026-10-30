@@ -32,23 +32,53 @@ function ownerFor(plan, map) {
   return file => entries.get(file) ?? plan.cells.find(cell => file.startsWith(`${cell.root}/`))?.name ?? paths.get(file) ?? null;
 }
 
-/** Recognize real top-level process input, never quoted examples or an exported library callback. */
+/** Find a condition's matching parenthesis in lexed code, without interpreting quoted examples. */
+function closeParenthesis(code, start) {
+  let depth = 0;
+  for (let at = start; at < code.length; at++) {
+    if (code[at] === '(') depth++;
+    if (code[at] === ')' && --depth === 0) return at;
+  }
+  return -1;
+}
+
+/** Recognize a literal Node binding rather than a similarly named fixture or local callback. */
+function nodeBinding(parsed, module, name) {
+  return parsed.strings.some(row => row.text === module &&
+    /\bimport\s*\{([^{}]*)\}\s*from\s*$/u.exec(parsed.code.slice(0, row.start))?.[1]
+      .split(',').some(binding => binding.trim() === name));
+}
+
+/** Prove an own-file main guard, or a non-exporting Node script that actually awaits its program. */
 function processEntry(file, source) {
-  const code = lex(source).code;
+  const parsed = lex(source), code = parsed.code;
   if (/\b(?:const|let|var|function|class)\s+process\b/u.test(code)) return false;
-  let depth = 0, start = 0;
+  const identities = [];
+  if (nodeBinding(parsed, 'node:url', 'fileURLToPath')) {
+    const targets = ['fileURLToPath(import.meta.url)', ...[...code.matchAll(/\bconst\s+([\w$]+)\s*=\s*fileURLToPath\s*\(\s*import\s*\.\s*meta\s*\.\s*url\s*\)\s*;/gu)].map(row => row[1])];
+    for (const target of targets) {
+      identities.push(`process.argv[1]===${target}`);
+      if (nodeBinding(parsed, 'node:path', 'resolve')) identities.push(`resolve(process.argv[1])===${target}`);
+    }
+  }
+  let depth = 0, start = 0, processInput = false;
   for (let at = 0; at < code.length; at++) {
     if (code[at] === '{') depth++;
     if (code[at] === '}') depth--;
     if (depth === 0 && /[;}]/u.test(code[at])) start = at + 1;
+    if (depth === 0 && /^if\s*\(/u.test(code.slice(at)) && !/[\w$]/u.test(code[at - 1] ?? '')) {
+      const open = code.indexOf('(', at), end = closeParenthesis(code, open);
+      const condition = code.slice(open + 1, end).replace(/\s/gu, '');
+      if (end > open && !/[!?]|\|\|/u.test(condition) && condition.split('&&').some(part => identities.includes(part))) return true;
+    }
     if (depth !== 0 || !code.startsWith('process', at) || /[\w$.]/u.test(code[at - 1] ?? '')) continue;
     const tail = code.slice(at), prefix = code.slice(start, at);
     if (!/^process\s*\.\s*(?:argv|send)\b/u.test(tail) || prefix.includes('=>') || /^\s*export\b/u.test(prefix)) continue;
-    if (file.startsWith('bin/')) return true;
-    const condition = tail.split(/[;{}]/u, 1)[0];
-    if (/\bif\s*\([^;]*$/u.test(prefix) && (/^process\s*\.\s*send\b/u.test(tail) || /\bimport\s*\.\s*meta\s*\.\s*url\b/u.test(condition))) return true;
+    processInput = true;
   }
-  return false;
+  return file.startsWith('bin/') && /^#!\/usr\/bin\/env node\b/u.test(source) && processInput
+    && !/\b(?:export|function|class)\b|\basync\s*(?:\([^)]*\)|[\w$]+)\s*(?:=>|\()/u.test(code)
+    && /\bawait\s+[\w$]+\s*\(/u.test(code);
 }
 
 /** Entry ownership is explicit app composition, backed by the actual process source on every check. */
