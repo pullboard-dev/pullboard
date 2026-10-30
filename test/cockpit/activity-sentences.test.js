@@ -36,6 +36,37 @@ const prepare = (model, { itemAddress = id => '#item/' + id } = {}) => {
 };
 const render = (data, options = {}) => activityHtml(prepare(activityModel({ items, agents, ...data })), options);
 
+test('Activity questions keep their item as a quiet inline link without changing native words [N26]', () => {
+  const data = { items, agents,
+    shouts: [{ shout_id: 20, shout_from: 'view-1', shout_to: 'coordinator', shout_decision: 1, shout_text: 'Keep <these words> about #1?' }],
+    events: [event(20, 'shout', { item: 1, detail: { shout: 20, decision: true } })] };
+  const model = activityModel(data);
+  assert.equal(model.rows[0].verb, 'asked');
+  assert.equal(model.rows[0].item.id, 1);
+  const html = activityHtml(prepare(model, { itemAddress: id => '/board/items/' + id }));
+  assert.match(html, /asked the coordinator[^]*?<a class="activity-about ref" href="\/board\/items\/1" data-go="item:1">about #1<\/a><\/p>/u);
+  assert.match(html, /Keep &lt;these words&gt; about #1\?/u);
+  assert.doesNotMatch(html, /<span class="activity-item"/u, 'the shout has no duplicate work-item title underneath');
+});
+
+test('Activity related items prefer native context and otherwise only resolve actual mentioned items [N26]', () => {
+  const shouts = [
+    { shout_id: 1, shout_to: 'item:2', shout_text: 'A scoped question about #1?' },
+    { shout_id: 2, shout_to: 'coordinator', shout_text: 'Unknown #999 first, then actual #1.' },
+    { shout_id: 3, shout_to: 'coordinator', shout_text: 'Only unknown #999.' },
+    { shout_id: 4, shout_to: 'coordinator', shout_text: 'Can this proceed?', shout_evidence_item: 2 },
+  ];
+  const model = activityModel({ items, agents, shouts, events: shouts.map(row => event(row.shout_id, 'shout', { item: null, detail: { shout: row.shout_id } })) });
+  const byId = new Map(model.rows.map(row => [row.id, row]));
+  assert.equal(byId.get(1).item.id, 2);
+  assert.equal(byId.get(1).verb, 'asked');
+  assert.equal(byId.get(2).item.id, 1);
+  assert.equal(byId.get(2).verb, 'told');
+  assert.equal(byId.get(3).item, null);
+  assert.equal(byId.get(4).item.id, 2);
+  assert.equal(byId.get(4).verb, 'asked');
+});
+
 for (const [kind, verb] of Object.entries({ claim: 'started building', release: 'let go of', fact: 'added a note', note: 'added a note',
   'proof-run': 'ran the proof', reserve: 'started reviewing', accept: 'passed', reject: 'sent back', reopen: 'sent back' })) {
   test(`Activity ${kind} reads as ${verb}, with its item underneath [N26]`, () => {
