@@ -24,6 +24,7 @@ import {
   laneHold,
   itemHold,
   now,
+  reviewHolder,
 } from './board-query.js';
 import { outsideBuildProblem } from './outside-source.js';
 import { barReadyProblem } from './bar-readiness.js';
@@ -104,7 +105,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
           ? new Refused('ITEM_HELD', `item #${id} is held by coordinator: ${held.item_hold_reason}; wait for the coordinator to lift it with pullboard hold ${id} --off`)
           : null;
       },
-      lineCapacity: found => capacity.claimProblem(board, isRenewal(found), { agentId, policy: reviewPolicy, familyPolicy }, { reviewerChecks, reviewReleaseCooldown }),
+      lineCapacity: found => capacity.claimProblem(board, isRenewal(found), { agentId, policy: reviewPolicy, familyPolicy }, { reviewerChecks, reviewReleaseCooldown, reviewHolder }),
       oneLiveClaim: (found) => {
         if (found.item_parent_id !== null || isRework(found) || isRenewal(found) && pendingSubmitHandoff(board, found)) return null;
         const other = board.db

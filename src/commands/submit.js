@@ -51,6 +51,7 @@ import { selectAffectedTests } from '../affected-tests.js';
 import { explicitCheckFiles } from '../browser-admission.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
+import { agentSessionDigest } from '../person.js';
 import {
   refuseProvesNothing,
 } from '../check-accept.js';
@@ -260,7 +261,7 @@ export async function submitHere(ctx, id, infra) {
   const held = await withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
-    if (!isSubmitHandoffWorker(ctx)) seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit');
+    if (!isSubmitHandoffWorker(ctx)) seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
     if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;

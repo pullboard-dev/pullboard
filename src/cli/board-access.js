@@ -6,6 +6,7 @@ import { barActorForCommand as commandBarActor } from '../bar-actor.js';
 import * as store from '../board.js';
 import { personCommandContext } from '../cli-context.js';
 import { withBoard } from '../cli-context.js';
+import { nativeBoardOpeners } from '../cli-context.js';
 import { CHECKOUT_BOARD_ONLY } from '../cli-main.js';
 import { CHECKOUT_LEASES } from '../cli-main.js';
 import { main } from '../cli-main.js';
@@ -40,7 +41,7 @@ export function personMode(ctx, me, values) {
 export function actOn(io, work, { privateBoard = false } = {}) {
   const ctx = personCommandContext(io, { main, ordered });
   if (privateBoard) return runPrivateBoard(ctx, work, { withBoard, whoAmI,
-    checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY });
+    checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY, ...nativeBoardOpeners() });
   return withBoard(ctx, (board) => work(ctx, board, whoAmI(ctx, board)));
 }
 
