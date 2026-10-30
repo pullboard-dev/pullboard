@@ -245,7 +245,7 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
     try {
       let url;
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); } catch { throw new Refused('BAD_REQUEST', 'use a valid path under /api/v1/boards'); }
-      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests|code|tokens|items)$/.exec(url.pathname);
+      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests|code|tokens|items|cost-analytics)$/.exec(url.pathname);
       const shoutRoute = /^\/api\/v1\/boards\/([^/]+)\/shouts\/([^/]+)$/.exec(url.pathname);
       const proofRoute = /^\/api\/v1\/boards\/([^/]+)\/proofs\/([^/]+)$/.exec(url.pathname);
       const itemRoute = /^\/api\/v1\/boards\/([^/]+)\/items\/([^/]+)$/.exec(url.pathname);
@@ -358,6 +358,10 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
         const state = await adapter.state(board, who, seen, options);
         const eventLogVersion = await adapter.eventLogVersion?.(board, who);
         return sendState(req, res, JSON.stringify({ version: 1, state, ...(eventLogVersion === undefined ? {} : { eventLogVersion }) }), tagState);
+      }
+      if (req.method === 'GET' && route[2] === 'cost-analytics') {
+        if (typeof adapter.costAnalytics !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only from the private local board');
+        return json(res, 200, { costAnalytics: await adapter.costAnalytics(board, url.searchParams.get('window') ?? '30d', who) });
       }
       if (req.method === 'GET' && route[2] === 'code') {
         if (typeof adapter.code !== 'function') throw new Refused('CODE_NOT_AVAILABLE', 'this API adapter does not provide committed-code previews; use the local view or a local API server');

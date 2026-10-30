@@ -198,7 +198,7 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', () => {
   assert.equal(JSON.parse(chosen.out).setup.steps.find(step => step.number === 3).done, true,
     'the person choosing an actual project command completes the gate step');
   assert.equal(existsSync(marker), false, 'choosing a gate does not run it');
-  const released = box.run(worktree, 'release', id, '--json');
+  const released = box.run(worktree, 'release', id, '--reason', 'BLOCKED', '--json');
   assert.equal(released.code, 0, released.err || released.out);
   const configuredWorktree = join(box.dir, 'configured-app-agent');
   box.git(root, 'worktree', 'add', '-q', '-b', 'app/chosen', configuredWorktree, 'main');

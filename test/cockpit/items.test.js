@@ -854,7 +854,7 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
   const addFact = (kind, text, ...flags) => JSON.parse(box.run(alpha.web, 'fact', '1', kind, text, ...flags, '--json')).fact;
   const oldNote = addFact('note', 'Earlier observation, now replaced.');
   addFact('capture', 'Captured the rendered page.', '--ref', `SPEC.md:1-2@${sourceHead}`);
-  box.run(alpha.web, 'release', '1');
+  box.run(alpha.web, 'release', '1', '--reason', 'OTHER', '--note', 'The item detail fixture releases its claim before opening the thread.');
   addFact('measurement', 'The view settles in 8 seconds.');
   box.run(alpha.web, 'claim', '1');
   addFact('diff', 'The detail gained a thread.');

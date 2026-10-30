@@ -25,7 +25,7 @@ test('a fresh claim behind free earlier work retains its rank inversion [N2,B13]
   const entry = findings(box).find(row => row.key === `RANK_INVERSION:item:${later}`);
   assert.equal(entry?.owner.who, box.seats.actor.id);
   assert.equal(entry.detail.ahead, earlier);
-  assert.equal(entry.command, `pullboard release ${later}`);
+  assert.equal(entry.command, `pullboard release ${later} --reason ROUTED_ELSEWHERE`);
 });
 
 test('a genuine native check receipt since the claim protects proved work without changing its receipt [N2,B13,C7]', async t => {

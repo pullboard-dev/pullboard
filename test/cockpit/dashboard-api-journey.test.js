@@ -79,7 +79,7 @@ test('Dashboard API binds native summary leases, merge receipts and complete his
     assert.ok(input.events.some(event => event.event_kind === 'merged' && event.item_id === 2
       && JSON.parse(event.event_detail).commit === mergeCommit));
     assert.ok(input.project.milestones[0].summary.pace);
-    earlier(alpha.repo, Date.now(), board => store.release(board, 3, 'tests-1', 'Finish the fixture review stay.'));
+    earlier(alpha.repo, Date.now(), board => store.release(board, 3, 'tests-1', 'Finish the fixture review stay.', 'OTHER'));
     const released = await dashboardInput(view, alpha.repo);
     assert.equal(JSON.parse(released.events.findLast(event => event.event_kind === 'release' && event.item_id === 3).event_detail).review, true);
     assert.ok(!released.project.items.find(item => item.id === 3).claim);

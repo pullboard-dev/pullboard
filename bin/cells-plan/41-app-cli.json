@@ -5,6 +5,7 @@
  "root": "apps/cli",
  "frontDoor": "apps/cli/index.js",
  "paths": [
+  ["src/runner-loss-health.js","apps/cli/src/core/runner-loss-health.js","rule"],
   ["test/exit-rules.test.js","apps/cli/tests/exit-rules.test.js","rule"],
   ["src/exit-rules-runtime.js","apps/cli/src/shell/exit-rules-runtime.js","rule"],
   ["src/worktree-maintenance-diagnostics.js","apps/cli/src/shell/worktree-maintenance-diagnostics.js","rule"],
@@ -256,14 +257,14 @@
   ["src/documentation/events/submit_handoff_returned.json","apps/cli/src/shell/documentation/events/submit_handoff_returned.json","rule"],
   ["src/submit-handoff-origin.js","apps/cli/src/shell/submit-handoff-origin.js","rule"],
   ["src/submit-handoff-seal.js","apps/cli/src/shell/submit-handoff-seal.js","rule"],
-
   ["src/worktree-maintenance.js","apps/cli/src/shell/worktree-maintenance.js","rule"],
   ["src/worktree-maintenance-observation.js","apps/cli/src/shell/worktree-maintenance-observation.js","rule"],
   ["src/worktree-maintenance-command.js","apps/cli/src/shell/worktree-maintenance-command.js","rule"],
   ["src/worktree-maintenance-classify.js","apps/cli/src/shell/worktree-maintenance-classify.js","rule"],
   ["src/commands/maintenance.js","apps/cli/src/shell/commands/maintenance.js","rule"],
   ["src/command-docs/maintenance.json","apps/cli/src/shell/command-docs/maintenance.json","rule"],
-  ["src/worktree-maintenance-protection.js","apps/cli/src/shell/worktree-maintenance-protection.js","rule"]
+  ["src/worktree-maintenance-protection.js","apps/cli/src/shell/worktree-maintenance-protection.js","rule"],
+  ["src/post-land-suite-ports.js","apps/cli/src/shell/post-land-suite-ports.js","rule"]
  ],
  "reexports": [
   "src/cli-context.js",
@@ -329,28 +330,7 @@
   {"cell":"app:runner","imports":1,"before":true}
  ],
  "cuts": [
-  {
-   "cell": "seats",
-   "imports": 5,
-   "edges": [
-    "src/agent-hook-work.js->src/cli-presence.js",
-    "src/agent-hook-work.js->src/cli.js",
-    "src/agent-hook-work.js->src/cli.js",
-    "src/line-settings-cli.js->src/cli.js",
-    "src/seat-checkout.js->src/commands/worktree.js"
-   ]
-  },
   {"cell":"stats","imports":1,"edges":["src/cost-checkpoint.js->src/cli.js"]},
-  {"cell":"store","imports":1,"edges":["src/exchange.js->src/command-phase.js"]},
-  {
-   "cell": "person",
-   "imports": 3,
-   "edges": [
-    "src/person-bar-cli.js->src/cli.js",
-    "src/person-confirmation.js->src/cli-main.js",
-    "src/person-signing-cli.js->src/cli.js"
-   ]
-  },
   {
    "cell": "link",
    "imports": 6,
