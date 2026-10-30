@@ -597,7 +597,7 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
     assert.deepEqual(await footer(), { inPopover: true, settings: true, settingsText: 'Settings', github: true, githubText: 'GitHub ↗', footer: true }, 'the collapsed desktop popover exposes both project tools as visible controls');
     await click('.side-footer [data-tab="settings"]');
     await chrome.waitFor("document.querySelector('#settings-pane') && !document.querySelector('#settings-pane').hidden");
-    assert.equal(await chrome.stable("document.querySelector('#settings-pane').hidden"), 'false', 'the Settings action opens its pane from the collapsed desktop popover');
+    assert.equal(await chrome.stable("document.querySelector('#settings-pane').hidden"), false, 'the Settings action opens its pane from the collapsed desktop popover');
 
     // The theme is light or dark: it starts from the system's, each press switches, the title says which, a reload keeps
     // it; collapsed, the button still sits centred in the top bar.
