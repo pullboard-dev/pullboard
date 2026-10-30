@@ -277,6 +277,41 @@ export function registerMaintenanceEngineTests() {
     assert.equal(maintenanceSnapshot(held.path).signature, liveBefore);
   });
 
+  test('maintenance preserves dirty work when its owner has a verified, unmerged build [B3,C7]', async t => {
+    const fx = project(t, { born: Date.UTC(2026, 9, 30, 17), grace: '1s' });
+    const owner = fx.addTree('verified-unmerged-owner', { seat: true });
+    const reviewerTree = fx.addTree('verified-unmerged-reviewer');
+    const reviewer = store.register(fx.board, { lane: 'review', path: reviewerTree.path,
+      family: fx.box.declareFamily(reviewerTree.path) });
+
+    const released = claimItem(fx, owner.agent, 'Release eligible only without other obligations');
+    store.release(fx.board, released, owner.agent);
+    const pendingLanding = claimItem(fx, owner.agent, 'Verified implementation still awaiting landing');
+    const head = fx.box.git(owner.path, 'rev-parse', 'HEAD').trim();
+    const tree = fx.box.git(owner.path, 'rev-parse', 'HEAD^{tree}').trim();
+    submitFixture(fx.board, pendingLanding, { agentId: owner.agent, commit: head, tree });
+    store.reserveReview(fx.board, pendingLanding, { agentId: reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' });
+    const submitted = store.getItem(fx.board, pendingLanding);
+    store.verify(fx.board, pendingLanding, { agentId: reviewer, decision: 'ACCEPT', policy: 'any', head,
+      digest: submitted.item_frozen_digest, note: 'Native fixture verifies the pending landing; it is not merged.' });
+    const verified = store.getItem(fx.board, pendingLanding);
+    assert.equal(verified.item_status, 'verified');
+    assert.equal(verified.item_built_by, owner.agent);
+    assert.equal(verified.item_merged_commit, null, 'the native item remains verified but unmerged');
+
+    const dirtyPath = join(owner.path, 'untracked.bin');
+    fs.writeFileSync(dirtyPath, Buffer.from([0, 17, 34, 255]));
+    const before = maintenanceSnapshot(owner.path, { includeMetadata: true }).signature;
+    const result = await cleanMaintenanceSeat(owner.path, fx.config, fx.ports,
+      { path: owner.path, item: released, agent: owner.agent, now: fx.now() });
+
+    assert.equal(result, null, 'the verified-unmerged native obligation blocks lifecycle cleanup');
+    assert.equal(fs.existsSync(owner.path), true);
+    assert.deepEqual(fs.readFileSync(dirtyPath), Buffer.from([0, 17, 34, 255]));
+    assert.equal(maintenanceSnapshot(owner.path, { includeMetadata: true }).signature, before);
+    assert.deepEqual(archiveFacts(fx), [], 'cleanup does not archive or reset the protected checkout');
+  });
+
   test('retired takeover cleanup needs a complete clear process census before and after archival [B3,C7]', async t => {
     const setup = (fx, name) => {
       const retired = fx.addTree(`${name}-retired`, { seat: true });
