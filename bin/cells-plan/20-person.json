@@ -36,7 +36,9 @@
   ["test/relay-upload-status.test.js","packages/person/tests/relay-upload-status.test.js","seed"],
   ["test/row-decisions.test.js","packages/person/tests/row-decisions.test.js","seed"],
   ["test/sealed-pages.test.js","packages/person/tests/sealed-pages.test.js","seed"],
-  ["test/stale-frozen-items.test.js","packages/person/tests/stale-frozen-items.test.js","seed"]
+  ["test/stale-frozen-items.test.js","packages/person/tests/stale-frozen-items.test.js","seed"],
+  ["src/person-pairing-limit.js","packages/person/src/shell/person-pairing-limit.js","rule"],
+  ["src/person-request-digest.js","packages/person/src/shell/person-request-digest.js","rule"]
  ],
  "reexports": [
   "src/pairing.js",
