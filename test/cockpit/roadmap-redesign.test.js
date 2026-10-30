@@ -68,12 +68,13 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
         const card=document.querySelector('#roadmap-list > .milestone'), rows=[...card.querySelectorAll(':scope > .milestone-body .milestone-item')];
         const releases=[...document.querySelectorAll('#roadmap-releases [data-roadmap-jump^="m:"]')];
         const last=[...document.querySelectorAll('.roadmap-last-shipped')].find(node=>node.getBoundingClientRect().height>0);
+        const forecast=card.querySelector('.roadmap-forecast');
         const shippingCounts=[...document.querySelectorAll('.roadmap-stage-counts')].find(node=>node.getBoundingClientRect().height>0);
         const shippingCells=[...(shippingCounts?.children||[])].filter(node=>node.getBoundingClientRect().height>0);
         const rect=node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};};
         const rowFor=id=>rows.find(row=>row.dataset.roadmapKey==='i:#'+id);
         return {width:innerWidth,cardName:card.querySelector('.release-name')?.textContent||'',itemCount:card.querySelectorAll('.milestone-limit').length,
-          pace:rect(card.querySelector('.roadmap-forecast')),paceLineHeight:parseFloat(getComputedStyle(card.querySelector('.roadmap-forecast')).lineHeight),name:rect(card.querySelector('.release-name')),
+          pace:rect(forecast),paceLineHeight:parseFloat(getComputedStyle(forecast).lineHeight),paceFits:forecast.scrollWidth<=forecast.clientWidth,name:rect(card.querySelector('.release-name')),
           rows:rows.map(row=>({id:row.querySelector('.id')?.textContent||'',label:row.querySelector('.roadmap-stage-chip')?.textContent||row.querySelector('.chip')?.textContent||'',
             order:row.querySelector('.queue-position')?.textContent||'',icon:!!row.querySelector('.roadmap-state svg'),after:row.querySelector('.roadmap-after')?.textContent.trim()||'',
             afterHref:row.querySelector('.roadmap-after a')?.getAttribute('href')||'',blockDots:row.querySelectorAll('.block-dot').length,titleLines:row.querySelector('.milestone-title')?.getClientRects().length||0,
@@ -89,7 +90,7 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
       assert.equal(result.cardName, '0.9.4: Restructure for Speed and Cost', `${width}: the release uses the shared named header`);
       assert.equal(result.itemCount, 0, `${width}: the shared header replaces the extra item-count line`);
       assert.ok(result.pace.top >= result.name.bottom - 1, `${width}: pace appears beneath the release name`);
-      if (width === 1280) assert.ok(result.pace.height <= result.paceLineHeight + 1, 'desktop pace stays on the shared header line');
+      if (width === 1280) assert.ok(result.pace.height <= result.paceLineHeight + 1 && result.paceFits, `desktop pace stays on one shared header line without clipping: ${JSON.stringify({ rect: result.pace, lineHeight: result.paceLineHeight, fits: result.paceFits })}`);
       const rowsById = new Map(result.rows.map(row => [row.id, row]));
       assert.equal(rowsById.size, 5, `${width}: the release shows each of its five items once`);
       assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.label), ['Ready', 'Ready', 'Building', 'In review', 'Sent back'], `${width}: each item has its approved plain lifecycle chip`);

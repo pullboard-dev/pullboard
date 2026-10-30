@@ -1003,6 +1003,10 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .roadmap-left > span { color: var(--ink-muted); font: var(--text-xs) var(--mono); }
 .roadmap-forecast { grid-column: 1; grid-row: 2; display: block; min-width: 0; margin: 0; color: var(--ink-muted); font-size: var(--text-xs); line-height: var(--leading-body); }
 .roadmap-forecast .roadmap-estimate, .roadmap-forecast .roadmap-pace, .roadmap-forecast .roadmap-completion { color: inherit; }
+@media (width > 900px) {
+  .roadmap-has-summary .release-header-top > .roadmap-left { grid-row: 1; }
+  .roadmap-has-summary .roadmap-forecast { grid-column: 1 / -1; white-space: nowrap; }
+}
 .roadmap-summary { min-width: 0; }
 .roadmap-summary-row { display: grid; grid-template-columns: minmax(112px, 1fr) minmax(0, 1.15fr); align-items: center; gap: var(--space-5); min-width: 0; }
 .roadmap-summary-track { min-width: 0; }
