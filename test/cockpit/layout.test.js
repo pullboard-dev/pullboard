@@ -587,6 +587,25 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
     }
     assert.deepEqual([docked.mode, docked.arrow, collapsed.mode, collapsed.arrow], ['docked', false, 'collapsed', true], 'the arrow only where the name opens a list');
 
+    /** Read whether the Settings and GitHub project tools are visible in their sidebar container. */
+    const footer = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
+      const bar = document.querySelector('.side-footer'), settings = bar?.querySelector('[data-tab="settings"]'), github = bar?.querySelector('a[href]');
+      const shown = (element) => { const style = element && getComputedStyle(element), rect = element?.getBoundingClientRect(); return !!element && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0; };
+      return { bottomSibling: bar === document.querySelector('#side').lastElementChild && !bar.closest('#side-body'), settings: shown(settings), settingsText: settings?.textContent.trim(), github: shown(github), githubText: github?.textContent.trim(), footer: shown(bar) };
+    })())`));
+    assert.deepEqual(await footer(), { bottomSibling: true, settings: false, settingsText: 'Settings', github: false, githubText: 'GitHub ↗', footer: false }, 'collapsed, project tools leave the short logo row without shrinking it');
+    await click('#proj-switch');
+    await chrome.waitFor("document.querySelector('#side').classList.contains('open') && getComputedStyle(document.querySelector('.side-footer')).display === 'flex'");
+    assert.deepEqual(await footer(), { bottomSibling: true, settings: true, settingsText: 'Settings', github: true, githubText: 'GitHub ↗', footer: true }, 'the collapsed desktop popover exposes both project tools as visible controls');
+    assert.equal(await chrome.stable(`(() => {
+      const tools = document.querySelector('.side-footer').getBoundingClientRect();
+      const project = document.querySelector('#proj-list .proj').getBoundingClientRect();
+      return tools.bottom <= project.top && tools.right <= document.documentElement.clientWidth;
+    })()`), true, 'the collapsed tools fit above the project choices without covering them');
+    await click('.side-footer [data-tab="settings"]');
+    await chrome.waitFor("document.querySelector('#settings-pane') && !document.querySelector('#settings-pane').hidden");
+    assert.equal(await chrome.stable("document.querySelector('#settings-pane').hidden"), false, 'the Settings action opens its pane from the collapsed desktop popover');
+
     // The theme is light or dark: it starts from the system's, each press switches, the title says which, a reload keeps
     // it; collapsed, the button still sits centred in the top bar.
     assert.deepEqual([collapsed.theme.scheme, collapsed.theme.title, collapsed.theme.picked], ['light', 'Light theme: switch to dark', null], 'none picked yet: the system\'s, light here');

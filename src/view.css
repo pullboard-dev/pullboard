@@ -36,8 +36,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .shell { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); min-height: 100vh; }
-.side { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 0 var(--space-4) var(--space-5); background: var(--surface); border-right: 1px solid var(--line); }
-.side-top { display: flex; align-items: center; gap: var(--space-4); height: var(--top); margin: 0 calc(var(--space-4) * -1) var(--space-2); padding: 0 var(--space-5); border-bottom: 1px solid var(--line); }
+.side { display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 0 var(--space-4) var(--space-5); background: var(--surface); border-right: 1px solid var(--line); }
+.side-top { display: flex; flex: none; align-items: center; gap: var(--space-4); height: var(--top); margin: 0 calc(var(--space-4) * -1) var(--space-2); padding: 0 var(--space-5); border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: var(--space-3); margin-left: calc(var(--space-2) * -1); padding: 0 var(--space-2); border: 0; border-radius: var(--radius-lg); background: none; font-weight: 700; font-size: var(--text-lg); white-space: nowrap; cursor: pointer; }
 .brand:hover { background: var(--surface-2); }
 .brand svg { width: 22px; height: 22px; flex: none; }
@@ -51,7 +51,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .theme-btn:hover { color: var(--ink); background: var(--surface-2); }
 .theme-btn svg { display: none; width: 16px; height: 16px; }
 :root[data-scheme="light"] .theme-btn .sun, :root[data-scheme="dark"] .theme-btn .moon { display: block; }
-.side-body { display: grid; gap: var(--space-0); align-content: start; }
+.side-body { display: grid; flex: 1; gap: var(--space-0); align-content: start; }
 /* Collapsed, as the person chose: the sidebar shrinks to the project switcher at the left of the tab bar,
  * the board below takes the whole width, and the project list opens as a dropdown. The logo collapses and
  * restores it; phones always show the switcher, so there the logo is only the logo. The theme button sits at the
@@ -68,8 +68,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   :root[data-side="collapsed"] .brand span { display: none; }
   :root[data-side="collapsed"] .brand { justify-content: center; width: var(--tap); height: var(--tap); margin: 0; padding: 0; }
   :root[data-side="collapsed"] .switch-btn { display: flex; max-width: 16rem; }
-  :root[data-side="collapsed"] .side-body { display: none; }
-  :root[data-side="collapsed"] .side.open .side-body { display: grid; position: absolute; top: calc(var(--top) + 4px); left: 8px; width: 300px; max-height: calc(100vh - var(--top) - 16px); overflow-y: auto; padding: var(--space-3) var(--space-4) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); box-shadow: var(--shadow); }
+  :root[data-side="collapsed"] .side-body, :root[data-side="collapsed"] .side-footer { display: none; }
+  :root[data-side="collapsed"] .side.open .side-body, :root[data-side="collapsed"] .side.open .side-footer { position: absolute; top: calc(var(--top) + var(--space-1)); left: var(--space-3); width: 300px; border: 1px solid var(--line); background: var(--surface); }
+  :root[data-side="collapsed"] .side.open .side-body { display: grid; max-height: calc(100vh - var(--top) - var(--space-5)); overflow-y: auto; padding: calc(var(--space-8) + var(--space-4) + var(--space-7)) var(--space-4) var(--space-4); border-radius: var(--radius-card); box-shadow: var(--shadow); }
+  :root[data-side="collapsed"] .side.open .side-footer { display: flex; z-index: 1; margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-card) var(--radius-card) 0 0; }
 }
 .label { font: 600 var(--text-2xs)/1 var(--sans); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--ink-faint); padding: var(--space-3) var(--space-3) var(--space-2); }
 .proj { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px var(--space-3); align-items: center; width: 100%; text-align: left; border: 1px solid transparent; background: none; border-radius: var(--radius-lg); padding: var(--space-3) var(--space-3); cursor: pointer; }
@@ -771,7 +773,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .snapshot-controls { display: inline-flex; grid-column: 3; flex: none; min-width: 0; align-items: center; }
 .snapshot-controls button { justify-content: center; width: 2.25rem; padding: 0; }
 .snapshot-controls button svg { width: 14px; height: 14px; }
-.snapshot-speed { display: inline-flex; flex: none; align-items: center; gap: 4px; padding: 0 var(--space-2); }
+.snapshot-speed { display: inline-flex; flex: none; align-items: center; gap: var(--space-1); padding: 0 var(--space-2); }
 .snapshot-speed select { max-width: 3.25rem; min-height: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; }
 .snapshot-controls output { box-sizing: border-box; inline-size: 24ch; min-width: 0; flex: none; padding: 0 var(--space-2); overflow: hidden; color: var(--status-ink); font: var(--text-2xs) var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 @media (width < 480px) { .status.snap { grid-template-columns: max-content minmax(0, 1fr); } .snapshot .status-board { display: none; } .snapshot-controls { grid-column: 2; width: 100%; } .snapshot-controls output { width: auto; flex: 1; } }
@@ -1316,9 +1318,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .dash-comparison td { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* Settings keeps ordinary read-only values intact while narrowing to a single column on phones. */
-.side { display: flex; flex-direction: column; }
-.side-body { flex: 1; }
-.side-footer { display: flex; gap: var(--space-2); padding-top: var(--space-4); margin-top: var(--space-5); border-top: 1px solid var(--line); }
+.side-footer { display: flex; gap: var(--space-2); padding-top: var(--space-4); margin-top: auto; border-top: 1px solid var(--line); }
 .side-footer .ghost { min-height: 44px; flex: 1; justify-content: center; }
 .settings-heading, .settings-toolbar { display: flex; justify-content: space-between; align-items: start; gap: var(--space-4); flex-wrap: wrap; }
 .settings-heading { padding-bottom: var(--space-5); border-bottom: 1px solid var(--line); }
@@ -1369,7 +1369,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .window-tile { min-width: 0; padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius-md); }
 .window-key { font-size: var(--text-xs); color: var(--ink-muted); }
 .window-value { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-3); }
-.window-value b { font-size: var(--text-2xl); font-variant-numeric: tabular-nums; }
+.window-value b { min-width: 0; overflow-wrap: anywhere; font-size: var(--text-2xl); font-variant-numeric: tabular-nums; }
 .window-change { font: 600 var(--text-xs) var(--mono); border-radius: var(--radius-pill); padding: 0 var(--space-2); }
 .window-change.good { color: var(--accent-strong); background: var(--accent-soft); }
 .window-change.bad { color: var(--reject); background: var(--reject-soft); }
