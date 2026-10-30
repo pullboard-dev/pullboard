@@ -50,7 +50,13 @@ test('missing-board rows stay on one line and Forget targets only the still-miss
         return { pageFits: document.documentElement.scrollWidth <= innerWidth,
           rows: [...section.querySelectorAll('li')].map(row => {
             const copy = row.querySelector('.unreadable-copy'), name = copy.querySelector('b'), path = copy.querySelector('code');
-            const textLines = [...copy.children].map(node => { const range = document.createRange(); range.selectNodeContents(node); return [...range.getClientRects()].filter(rect => rect.width > 0).length; });
+            /** Ellipsis may add a second rectangle on the same line; count distinct actual line bands. */
+            const lineCount = node => {
+              const range = document.createRange();
+              range.selectNodeContents(node);
+              return new Set([...range.getClientRects()].filter(rect => rect.width > 0).map(rect => Math.round(rect.top * 2))).size;
+            };
+            const textLines = [...copy.children].map(lineCount);
             return { name: name.textContent, path: path.textContent, full: copy.title, textLines, nowrap: getComputedStyle(copy).whiteSpace,
               weight: Number(getComputedStyle(name).fontWeight), width: copy.getBoundingClientRect().width,
               fits: row.scrollWidth <= row.clientWidth, forget: row.querySelector('button')?.textContent };
