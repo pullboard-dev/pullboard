@@ -1331,7 +1331,6 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 #shouts-pane .primary { overflow: hidden; }
 #shouts-pane .detail { min-width: 0; }
 .shouts-card > .shout-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
-.shouts-card .composer textarea { field-sizing: fixed; height: var(--tap); }
 .shout-form > .answering, .shout-form > .console { grid-column: 1 / -1; }
 #asks-slot { min-width: 0; max-width: 100%; }
 #asks-slot .seg { flex: none; }
