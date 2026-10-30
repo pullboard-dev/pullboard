@@ -122,6 +122,9 @@ test('flow validators retain sliding-window membership and future event boundari
   const moved = await crossed.json();
   assert.equal(moved.state.statsComparison.current.coordinatorShouts, 0);
   assert.equal(moved.state.statsComparison.previous.coordinatorShouts, 1);
+  const delta = await apiFetch(api, path + '?since=' + initial.state.sequence);
+  assert.equal(delta.headers.get('x-pullboard-report-validator'), crossed.headers.get('x-pullboard-report-validator'),
+    'delta and full reads use the same explicit observation clock at a crossed window boundary');
   now = start + 46_000;
   const future = await apiFetch(api, path, { headers: { 'if-none-match': crossed.headers.get('etag') } });
   assert.equal(future.status, 200, 'a future recorded event entering the observed prefix remains material');

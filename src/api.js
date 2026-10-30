@@ -581,7 +581,7 @@ function reportValidation(entry, now = Date.now()) {
 
 /** Normalize only known elapsed-clock measures; counts, unavailable values and future fields stay material. */
 function comparisonForValidation(comparison) {
-  if (comparison?.available !== true) return comparison;
+  if (comparison?.available !== true || !Number.isFinite(comparison.durationMinutes) || comparison.durationMinutes <= 0) return comparison;
   const normalized = { ...comparison };
   for (const name of ['current', 'previous', 'change']) {
     const window = comparison[name];
@@ -1015,7 +1015,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     };
     const sent = withSnapshot(board, (entry, cached) => ({ entry, answer: answerFor(entry, cached) }), observedAt);
     if (sent.answer.delta) keepSentBase(sent.entry);
-    return Object.defineProperty(sent.answer, 'reportValidator', { value: reportValidation(sent.entry) });
+    return Object.defineProperty(sent.answer, 'reportValidator', { value: reportValidation(sent.entry, observedAt) });
   }
   /**
    * The spec-approval view one board's details share, kept while the files, HEAD and board records it
