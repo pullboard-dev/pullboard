@@ -2,11 +2,13 @@
 /** A native train landing repairs only live checks for test files it splits [H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { ENGINE_REGISTRY, ENGINE_VERSION } from '../src/machine.js';
-import { minimumMoveEngine, MOVE_REGISTRY } from '../src/move-registry.js';
+import { ENGINE_REGISTRY } from '../src/machine.js';
+import { minimumMoveEngine } from '../src/move-registry.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { readGateReceipt, receiptStore } from '../src/gate-run-receipt.js';
@@ -15,6 +17,7 @@ import { recordTrainLanding } from '../src/record-train-landing.js';
 import { copyCommittedPackageFiles } from './package-copy-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { unpackRelease } from './release-archive.js';
 
 /** Open the fixture's own SQLite board; no shared or live board is touched. */
 function onBoard(box, action) {
@@ -23,15 +26,41 @@ function onBoard(box, action) {
   try { return action(board); } finally { store.closeBoard(board); }
 }
 
-test('check-repoint landing moves keep their feature replay floor after later engine bumps [H16]', () => {
-  const payload = [{ checkRepointPlan: { version: 1 } }];
+test('check-repoint moves retain their feature floor in a later engine and refuse on the prior engine [H16]', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-check-repoint-engine-'));
+  const oldClient = join(directory, 'old-client');
+  const futureClient = join(directory, 'future-client');
+  mkdirSync(oldClient);
+  mkdirSync(futureClient);
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  unpackRelease('f8f7b957a85ff2bec478fc6927fede54329acdd6', oldClient);
+  unpackRelease('HEAD', futureClient);
+
   const featureEngine = ENGINE_REGISTRY['train-check-repoint'];
-  const laterEngine = ENGINE_VERSION + 1;
-  assert.ok(laterEngine > featureEngine);
-  assert.doesNotMatch(MOVE_REGISTRY.recordTrainLanding.minimumEngine.toString(), /\bENGINE_VERSION\b/u,
-    'a future registry maximum cannot raise this operation-specific replay floor');
-  assert.equal(minimumMoveEngine('recordTrainLanding', payload), featureEngine,
-    'the feature floor remains pinned while the current engine advances');
+  writeFileSync(join(futureClient, 'src/train-check-repoint-engine.js'),
+    `/** The original landing-assigned feature floor. */\nexport const TRAIN_CHECK_REPOINT_ENGINE = ${featureEngine};\n`);
+  writeFileSync(join(futureClient, 'src/future-engine.js'),
+    `/** A later engine added only to this private replay fixture. */\nexport const FUTURE_ENGINE = ${featureEngine + 1};\n`);
+
+  const oldClientUrl = pathToFileURL(join(oldClient, 'src/'));
+  const futureClientUrl = pathToFileURL(join(futureClient, 'src/'));
+  const [oldMachine, oldEngine, futureMachine, futureEngine, futureMoves] = await Promise.all([
+    import(new URL('machine.js', oldClientUrl)), import(new URL('engine.js', oldClientUrl)),
+    import(new URL('machine.js', futureClientUrl)), import(new URL('engine.js', futureClientUrl)),
+    import(new URL('move-registry.js', futureClientUrl)),
+  ]);
+  assert.equal(oldMachine.ENGINE_VERSION, featureEngine - 1);
+  assert.equal(futureMachine.ENGINE_VERSION, featureEngine + 1);
+  const move = { version: 1, engine: featureEngine, id: 'check-repoint-feature',
+    operation: 'recordTrainLanding', args: [{ checkRepointPlan: { version: 1 } }] };
+  assert.throws(() => oldEngine.requireSupportedEngine(move), error => error.code === 'ENGINE_VERSION',
+    'an older executable refuses a feature move before interpreting it');
+  assert.doesNotThrow(() => futureEngine.requireSupportedEngine(move),
+    'the later executable accepts the original feature-engine envelope');
+  assert.equal(futureMoves.minimumMoveEngine(move.operation, move.args), featureEngine,
+    'the later executable keeps the move at its fixed introduction floor');
+  assert.equal(minimumMoveEngine(move.operation, move.args), featureEngine,
+    'the current runtime uses the same recorded feature floor');
 });
 
 test('a split train landing repoints open and claimed checks and reports submitted checks unchanged [H16]',
