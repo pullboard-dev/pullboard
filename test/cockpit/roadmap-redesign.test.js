@@ -85,8 +85,10 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
       assert.equal(result.itemCount, 0, `${width}: the shared header replaces the extra item-count line`);
       assert.ok(result.pace.top >= result.name.bottom - 1, `${width}: pace appears beneath the release name`);
       if (width === 1280) assert.ok(result.pace.height <= result.paceLineHeight + 1, 'desktop pace stays on the shared header line');
-      assert.deepEqual(result.rows.map(row => row.label), ['Ready', 'Ready', 'Building', 'In review', 'Sent back'], `${width}: rows use the approved plain lifecycle chips`);
-      assert.deepEqual(result.rows.map(row => row.order), ['1', '2', '3', '4', '5'], `${width}: rows show their take order in sequence`);
+      const rowsById = new Map(result.rows.map(row => [row.id, row]));
+      assert.equal(rowsById.size, 5, `${width}: the release shows each of its five items once`);
+      assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.label), ['Ready', 'Ready', 'Building', 'In review', 'Sent back'], `${width}: each item has its approved plain lifecycle chip`);
+      assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.order), ['1', '2', '3', '4', '5'], `${width}: each item shows its own take-order number`);
       assert.ok(result.rows.every(row => row.icon && row.titleLines === 1), `${width}: each row has a state icon and one-line title`);
       const dependent = result.rows.find(row => row.id === '#2');
       assert.equal(dependent.after, 'after #1', `${width}: the dependency is shown quietly after its title`);
