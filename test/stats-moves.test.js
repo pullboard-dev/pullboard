@@ -118,7 +118,8 @@ test('automatic infra proof permits only import-path contents, preserving bindin
 test('claim states header and infra rules once in real text and JSON [C7,V4]', t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Measure claim guidance', '--spec', 'G1', '--check', 'true').code, 0);
+  const added = box.run(box.repo, 'add', 'web', 'Measure claim guidance', '--specs', 'G1', '--check', 'true');
+  assert.equal(added.code, 0, added.err);
   const claimed = box.run(box.web, 'claim', '1', '--json');
   assert.equal(claimed.code, 0, claimed.err);
   const document = JSON.parse(claimed.out);
