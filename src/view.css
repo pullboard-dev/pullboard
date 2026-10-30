@@ -1193,7 +1193,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .activity-quote { margin: var(--space-1) 0 0; padding: 0; background: none; border-radius: var(--radius-md); font-size: var(--text-sm); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .activity-event[data-activity-coordinator] .activity-quote { color: var(--ink); background: var(--accent-soft); padding: var(--space-1) var(--space-3); -webkit-line-clamp: 3; }
 .activity-event[data-activity-coordinator] .activity-verb { color: var(--accent-strong); background: var(--accent-soft); }
-.activity-about.ref { display: inline-flex; margin-left: var(--space-2); padding: 0 var(--space-3); border-radius: var(--radius-pill); background: var(--surface-2); color: var(--ink-muted); font: 500 var(--text-xs) var(--mono); text-decoration: none; }
+a.activity-about.ref[data-go] { display: inline-flex; margin-left: var(--space-2); padding: 0 var(--space-3); border-radius: var(--radius-pill); background: var(--surface-2); color: var(--ink-muted); font: 500 var(--text-xs) var(--mono); text-decoration: none; }
 .activity-run summary { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); align-items: center; cursor: pointer; list-style: none; }
 .activity-run summary::-webkit-details-marker { display: none; }
 .activity-run summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
