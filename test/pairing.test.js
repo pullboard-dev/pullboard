@@ -400,6 +400,7 @@ test('a move made during pairing is still refused as busy [H15,H17]', async t =>
   await box.link();
   const result = await box.script(`
     const store = await import(${JSON.stringify(new URL('../src/board.js', import.meta.url).href)});
+    const { openBoard } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
     const {relayPair} = await import(${JSON.stringify(new URL('../src/relay-pairing-client.js', import.meta.url).href)});
     const pairPorts = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
     const root = process.cwd();
@@ -408,7 +409,7 @@ test('a move made during pairing is still refused as busy [H15,H17]', async t =>
     globalThis.fetch = async (...args) => {
       if (!injected && String(args[0]).includes('/events?after=')) {
         injected = true;
-        const board = store.openBoard(root + '/.git/pullboard/board.sqlite');
+        const board = openBoard(root + '/.git/pullboard/board.sqlite');
         try { store.addItem(board, {by:'coordinator',lane:${JSON.stringify(box.lane)},title:'A real local move during pairing',criterion:'The pending pairing must refuse'}); }
         finally { store.closeBoard(board); }
       }
@@ -433,6 +434,7 @@ test('a local move during pairing upload refuses before issuing a code [H15,H17]
   await box.link();
   const result = await box.script(`
     const store = await import(${JSON.stringify(new URL('../src/board.js', import.meta.url).href)});
+    const { openBoard } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
     const {relayPair} = await import(${JSON.stringify(new URL('../src/relay-pairing-client.js', import.meta.url).href)});
     const pairPorts = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
     const root = process.cwd();
@@ -441,7 +443,7 @@ test('a local move during pairing upload refuses before issuing a code [H15,H17]
     globalThis.fetch = async (...args) => {
       if (!injected && String(args[0]).includes('/api/v1/pairings/')) {
         injected = true;
-        const board = store.openBoard(root + '/.git/pullboard/board.sqlite');
+        const board = openBoard(root + '/.git/pullboard/board.sqlite');
         try { store.addItem(board, {by:'coordinator',lane:${JSON.stringify(box.lane)},title:'A real local move during pairing upload',criterion:'Pairing must retry the changed native boundary'}); }
         finally { store.closeBoard(board); }
       }
@@ -466,6 +468,7 @@ test('a refused upload race discards only its unprinted package [H15,H17]', asyn
   await box.link();
   const result=await box.script(`
     const store=await import(${JSON.stringify(new URL('../src/board.js',import.meta.url).href)});
+    const { openBoard } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
     const {relayPair}=await import(${JSON.stringify(new URL('../src/relay-pairing-client.js',import.meta.url).href)});
     const pairPorts = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
     const root=process.cwd(), originalFetch=globalThis.fetch;
@@ -474,7 +477,7 @@ test('a refused upload race discards only its unprinted package [H15,H17]', asyn
       const url=String(args[0]);
       if(!injected && url.includes('/api/v1/pairings/') && !url.endsWith('/consume')) {
         injected=true;published=url;
-        const board=store.openBoard(root+'/.git/pullboard/board.sqlite');
+        const board=openBoard(root+'/.git/pullboard/board.sqlite');
         try{store.addItem(board,{by:'coordinator',lane:${JSON.stringify(box.lane)},title:'Late private local move',criterion:'Discard its unpublished package'});}finally{store.closeBoard(board);}
       }
       return originalFetch(...args);
@@ -501,6 +504,7 @@ test('a local move while sealing is refused before the pairing upload [H15,H17]'
   const result=await box.script(`
     const {webcrypto}=await import('node:crypto');
     const store=await import(${JSON.stringify(new URL('../src/board.js',import.meta.url).href)});
+    const { openBoard } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
     const {relayPair}=await import(${JSON.stringify(new URL('../src/relay-pairing-client.js',import.meta.url).href)});
     const pairPorts = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
     const root=process.cwd(), originalEncrypt=webcrypto.subtle.encrypt;
@@ -510,7 +514,7 @@ test('a local move while sealing is refused before the pairing upload [H15,H17]'
       const aad=new TextDecoder().decode(args[0].additionalData??new Uint8Array());
       if(!injected && aad.startsWith('["pullboard-pairing",')) {
         injected=true;
-        const board=store.openBoard(root+'/.git/pullboard/board.sqlite');
+        const board=openBoard(root+'/.git/pullboard/board.sqlite');
         try{store.addItem(board,{by:'coordinator',lane:${JSON.stringify(box.lane)},title:'A native move while the package is sealing',criterion:'No stale package is uploaded'});}finally{store.closeBoard(board);}
       }
       return result;

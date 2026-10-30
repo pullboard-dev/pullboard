@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { main } from '../src/cli.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -33,7 +34,7 @@ function fixture(t) {
   runFixtureGit(['add', 'pullboard.json', 'SPEC.md'], { cwd: root });
   runFixtureGit(['-c', 'user.name=Assurance fixture', '-c', 'user.email=assurance@example.invalid', 'commit', '-q', '-m', 'chore: initialize assurance fixture'], { cwd: root });
   mkdirSync(join(root, '.git', 'pullboard'), { recursive: true });
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date('2026-10-23T12:00:00.000Z') });
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date('2026-10-23T12:00:00.000Z') });
   t.after(() => store.closeBoard(board));
   const policy = { version: 1, commit: runFixtureGit(['rev-parse', 'HEAD'], { cwd: root }),
     verify: { policy: 'any', family: 'off' } };
@@ -87,7 +88,7 @@ test('[V1,B3] verdicts record independent assurance only for recorded different 
   assert.equal(store.verdictsFor(box.board, historical.id)[0].assurance, 'procedural', 'an earlier unknown author still limits assurance');
   const legacy = accepted(box, 'parent-P', 'parent-Q', { engine: 80 });
   assert.equal(store.verdictsFor(box.board, legacy.id)[0].assurance, 'procedural', 'old verdicts never invent parent assurance');
-  const restored = store.openBoard(join(box.root, 'restored.sqlite'));
+  const restored = openBoard(join(box.root, 'restored.sqlite'));
   try {
     importBoard(restored, exportBoard(box.board));
     assert.equal(store.verdictsFor(restored, independent.id)[0].assurance, 'independent');

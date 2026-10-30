@@ -17,7 +17,7 @@ import { applyStateDelta, createApiHandler } from '../src/api-http.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../src/api-delta-fields.js';
 import { registryFile, registerProject, forgetProject } from '../src/projects.js';
 import { Refused } from '../src/refused.js';
-import * as store from '../src/board.js';
+import { board as store } from '../src/native-board.js';
 import { preparePersonRequest } from '../src/person-request.js';
 import { receivePersonRequest } from '../src/relay-requests.js';
 import { fetchFresh } from './http-fixture.js';

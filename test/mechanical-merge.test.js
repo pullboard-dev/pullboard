@@ -19,6 +19,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { json } from './land-board-fixture.js';
 import { createHash, randomUUID } from 'node:crypto';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { appliedSequence, prepareEngineMove } from '../src/engine.js';
 import { requireComputedConflict, requireComputedConflictObjects } from '../src/computed-conflict-receipt.js';
 import { withRecordedConflictContext } from '../src/recorded-conflict-context.js';
@@ -212,7 +213,7 @@ test('version-one conflict replay keeps its original Git meaning while fresh mec
   writeFileSync(join(box.repo, 'test/snapshot.json'), '{"base":true,"right":true}\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: independent snapshot addition');
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const item = store.getItem(board, id);
   const fields = { version: 1, id: randomUUID(), board: board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='board_id'").get().meta_value,

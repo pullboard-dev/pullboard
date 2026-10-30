@@ -1,10 +1,11 @@
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 /** Real loopback relay and complete native API observations for reader parity [H5,H15,H16,A2]. */
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { addMilestone } from '../src/board-milestones.js';
 import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import { relayPresentation } from '../src/relay-presentation.js';
 import { presentationDigest } from '../src/relay-presentation.js';
@@ -20,7 +21,7 @@ const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 /** Seed actual native writes, keeping the operation receipts available for the fail-closed coverage inventory. */
 export function seedParityBoard(root, lane) {
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   const exercised = new Set(['register', 'ensureCoordinator']); // The real fixture init executes these operations.
   /** Record only an operation whose actual native call returned successfully. */
   function moved(operation, action) { const result = action(); exercised.add(operation); return result; }
@@ -28,7 +29,7 @@ export function seedParityBoard(root, lane) {
     const item = moved('addItem', () => store.addItem(board, { by: 'coordinator', lane, title: 'Reader parity lifecycle', criterion: 'Same native and relay fields' }));
     moved('editItem', () => store.editItem(board, item, { agentId: 'coordinator', brief: 'Reader parity updated' }));
     moved('shout', () => store.shout(board, { from: 'coordinator', to: 'person', text: 'Reader parity question', decision: true }));
-    moved('addMilestone', () => store.addMilestone(board, { agentId: 'coordinator', name: 'Reader parity release' }));
+    moved('addMilestone', () => addMilestone(board, { agentId: 'coordinator', name: 'Reader parity release' }));
     return { exercised: [...exercised], item };
   } finally { store.closeBoard(board); }
 }
@@ -39,7 +40,7 @@ function assertPresentationChangeClock(root, item) {
   const later = relayPresentation(root, { observedAt: Date.UTC(2026, 0, 2) }, RELAY_PRESENTATION_PORTS);
   assert.notEqual(first.state.observedAt, later.state.observedAt, 'emitted observations retain their actual caller clock');
   assert.equal(presentationDigest(first), presentationDigest(later), 'an unchanged board does not publish merely because its clock advanced');
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   try { store.editItem(board, item, { agentId: 'coordinator', brief: 'Business input changed after the clock-only observation.' }); }
   finally { store.closeBoard(board); }
   const changed = relayPresentation(root, { observedAt: Date.UTC(2026, 0, 2) }, RELAY_PRESENTATION_PORTS);
@@ -52,15 +53,15 @@ function foreignBoardFixture(t, box) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   assert.equal(runFixtureChild('git', ['init', '-q', '-b', 'main'], { cwd: root, env: box.env, encoding: 'utf8' }).status, 0);
   mkdirSync(join(root, '.git', 'pullboard'), { recursive: true });
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   const secret = 'Foreign board private title must never enter another board snapshot';
   let id;
   try {
     store.ensureCoordinator(board, root);
     id = store.addItem(board, { by: 'coordinator', lane: box.lane, title: secret, criterion: 'Private second-board work' });
   } finally { store.closeBoard(board); }
-  const own = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
-  try { store.addMilestone(own, { agentId: 'coordinator', name: 'Cross-board privacy', items: [`foreign-parity#${id}`] }); }
+  const own = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  try { addMilestone(own, { agentId: 'coordinator', name: 'Cross-board privacy', items: [`foreign-parity#${id}`] }); }
   finally { store.closeBoard(own); }
   return { root, name: 'foreign-parity', secret };
 }

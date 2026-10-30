@@ -10,6 +10,7 @@ import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from './board.js';
+import { openBoardForRead } from './native-board.js';
 import { codeIsFromMain } from './git.js';
 import { gitChildEnv } from './git.js';
 import { repoInfo } from './git.js';
@@ -30,7 +31,7 @@ export function sourceAdvanceDirectory(info) { return join(info.commonDir, 'pull
 
 /** Read a short native snapshot and close its connection before tests, admission or network work. */
 function readBoard(info, work) {
-  const board = store.openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
+  const board = openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
   if (!board) throw new Error('source-advance board is unavailable');
   try { return work(board); } finally { store.closeBoard(board); }
 }

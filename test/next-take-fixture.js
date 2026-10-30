@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { main } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
 import {
@@ -78,7 +79,7 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
   assert.equal(initialized.code, 0, initialized.out + initialized.err);
   const file = join(root, '.git/pullboard/board.sqlite');
   // @pullboard-board-file journey: share the durable board initialized by the real CLI and selected by its worktree dispatch.
-  const board = store.openBoard(file, clock);
+  const board = openBoard(file, clock);
   const seats = {};
   for (const [name, lane, parent, vendor] of [
     ['actor', 'web', 'fixture-A', 'Family Alpha'], ['builder', 'web', 'fixture-P', 'Family Alpha'],

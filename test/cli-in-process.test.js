@@ -8,6 +8,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { captureCommandInProcess, runCliInProcess } from './cli-in-process-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 
@@ -112,7 +113,7 @@ test('in-process writes use the private board and fresh reads match the binary [
   const created = await runCliInProcess(argv, { cwd: box.repo, env: box.env });
   assert.equal(created.status, 0, created.stderr || created.stdout);
   // @pullboard-board-file journey: inspect the durable board written by production in-process dispatch before comparing binary reads
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const item = store.getItem(board, 1);
     assert.equal(item.item_title, 'Created without a CLI child');

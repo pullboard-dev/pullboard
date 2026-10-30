@@ -5,6 +5,7 @@ import {
 } from 'node:child_process';
 import { join } from 'node:path';
 import * as store from './board.js';
+import { openBoard } from './native-board.js';
 import {
   invalidateGitFacts,
   mainCheckout,
@@ -179,7 +180,7 @@ function channel(group) {
 async function workerMain(options, { checkAtCommit, candidateWorkerFile, landingPorts }) {
   const pipe = channel(options.guardianPid);
   const { call } = pipe;
-  const board = store.openBoard(join(repoInfo(options.root).commonDir, 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(repoInfo(options.root).commonDir, 'pullboard', 'board.sqlite'));
   try {
     const { runLandingBatch } = await import('./land.js');
     /** Canonical catch-up may have moved proof or trunk while the request was in flight. */

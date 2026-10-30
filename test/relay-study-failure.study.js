@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { faultProxy } from './relay-study-fixture.js';
 
@@ -30,7 +31,7 @@ test('relay study measures native reads and local moves across private transport
       move = { code: null, document: null };
     }
     const moveMs = performance.now() - writeStarted;
-    const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+    const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
     let recorded;
     try { recorded = store.listItems(board, { all: true }).filter(item => item.item_title === title).length; }
     finally { store.closeBoard(board); }

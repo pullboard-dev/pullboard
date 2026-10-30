@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { captureMergeOnly } from '../src/merge-only-source.js';
 import { mergeOnlyBasis } from '../src/merge-only-verdict.js';
@@ -33,7 +34,7 @@ function succeeds(box, cwd, ...args) {
 
 /** Read authoritative native item state and its append-only receipts. */
 function state(box, id) {
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     return { item: store.getItem(board, id), verdicts: store.verdictsFor(board, id),
       events: store.events(board, { itemId: id }), snapshot: exportBoard(board) };
@@ -111,8 +112,8 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
   const options = { agentId: pending.item.item_owner, commit: head, tree: submitted.tree,
     policyCommit: submitted.policyCommit, submissionProof: submitted.submissionProof, gateGreen: submitted.gateGreen,
     mergeOnly: detail };
-  const origin = store.openBoard(':memory:', undefined, { gitRoot: box.web });
-  const objectless = store.openBoard(':memory:');
+  const origin = openBoard(':memory:', undefined, { gitRoot: box.web });
+  const objectless = openBoard(':memory:');
   try {
     importBoard(origin, pending.snapshot);
     importBoard(objectless, pending.snapshot);
@@ -160,7 +161,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
 
   } finally { store.closeBoard(origin); store.closeBoard(objectless); }
   for (const key of ['commit', 'tree', 'policyCommit']) {
-    const replica = store.openBoard(':memory:', undefined, { gitRoot: box.web });
+    const replica = openBoard(':memory:', undefined, { gitRoot: box.web });
     try {
       importBoard(replica, pending.snapshot);
       store.submit(replica, id, { ...options, [key]: '0'.repeat(40) });
@@ -169,7 +170,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
     } finally { store.closeBoard(replica); }
   }
   for (const key of ['acceptedHead', 'digest', 'verdict', 'reopen']) {
-    const replica = store.openBoard(':memory:', undefined, { gitRoot: box.web });
+    const replica = openBoard(':memory:', undefined, { gitRoot: box.web });
     try {
       importBoard(replica, pending.snapshot);
       const fake = { ...detail, [key]: typeof detail[key] === 'number' ? detail[key] + 100 : '0'.repeat(40) };
@@ -178,7 +179,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
       assert.equal(receipt[key], detail[key], `${key}: native history and Git replace caller-supplied facts`);
     } finally { store.closeBoard(replica); }
   }
-  const refrozen = store.openBoard(':memory:', undefined, { gitRoot: box.web });
+  const refrozen = openBoard(':memory:', undefined, { gitRoot: box.web });
   try {
     importBoard(refrozen, pending.snapshot);
     store.refreeze(refrozen, id, { agentId: 'coordinator', freeze: () => ({ text: pending.item.item_frozen, digest: 'a different frozen bar' }) });
@@ -189,7 +190,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
     assert.equal(store.events(refrozen, { itemId: id }).filter(event => event.event_kind === 'merge-only-accept').length, 0);
   } finally { store.closeBoard(refrozen); }
   for (const gateGreen of [false, undefined]) {
-    const ungated = store.openBoard(':memory:', undefined, { gitRoot: box.web });
+    const ungated = openBoard(':memory:', undefined, { gitRoot: box.web });
     try {
       importBoard(ungated, pending.snapshot);
       store.submit(ungated, id, { ...options, gateGreen });
@@ -205,7 +206,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
   assert.match(unclaimedAmend.stderr, /live claim|verified item in the landing checkout/u);
   assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), head, 'the refused amend cannot replace the accepted merge');
   box.git(box.web, 'reset', '--hard', extraHead);
-  const forged = store.openBoard(':memory:', undefined, { gitRoot: box.web });
+  const forged = openBoard(':memory:', undefined, { gitRoot: box.web });
   try {
     importBoard(forged, pending.snapshot);
     const move = prepareEngineMove(forged, 'submit', [id, options]);
@@ -224,7 +225,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
     assert.deepEqual(store.landingBatches(forged), []);
     // Adopt an already-gated trunk batch while an independent valid item remains ready.
     // That bypasses the earlier all-stale selection refusal and reaches the final publication guard.
-    const adoption = store.openBoard(':memory:', undefined, { gitRoot: box.web });
+    const adoption = openBoard(':memory:', undefined, { gitRoot: box.web });
     try {
       importBoard(adoption, exportBoard(forged));
       const readyCommit = box.git(box.repo, 'commit-tree', box.git(box.repo, 'rev-parse', `${trunk}^{tree}`),
@@ -278,7 +279,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
 
 
   } finally { store.closeBoard(forged); }
-  const absent = store.openBoard(':memory:');
+  const absent = openBoard(':memory:');
   try {
     importBoard(absent, pending.snapshot);
     const move = prepareEngineMove(absent, 'submit', [id, { ...options, gitRoot: box.web }]);
@@ -288,7 +289,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
       { sequence: 1, at: '2026-01-01T00:00:00.000Z' });
     assert.equal(store.getItem(absent, id).item_status, 'submitted', 'an objectless origin cannot derive carry from caller fields or a serialized gitRoot');
   } finally { store.closeBoard(absent); }
-  const historical = store.openBoard(':memory:', undefined, { gitRoot: box.web });
+  const historical = openBoard(':memory:', undefined, { gitRoot: box.web });
   try {
     importBoard(historical, pending.snapshot);
     const { gateGreen, mergeOnly, ...oldOptions } = options;
@@ -297,7 +298,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
       { sequence: 1, at: '2026-01-01T00:00:00.000Z' });
     assert.equal(store.getItem(historical, id).item_status, 'submitted', 'historical submit replay never gains carry semantics');
   } finally { store.closeBoard(historical); }
-  const replay = store.openBoard(':memory:', undefined, { gitRoot: box.web });
+  const replay = openBoard(':memory:', undefined, { gitRoot: box.web });
   try {
     importBoard(replay, pending.snapshot);
     const move = prepareEngineMove(replay, 'submit', [id, options]);

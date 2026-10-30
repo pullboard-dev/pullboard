@@ -6,10 +6,10 @@ import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { briefSections } from '../src/reference-lines.js';
 import * as store from '../src/board.js';
+import { openBoard, nativeBoardPorts } from '../src/native-board.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import { REFERENCE_ENGINE } from '../src/reference-engine.js';
 import { prepareEngineMove } from '../src/engine.js';
-import { nativeBoardPorts } from '../src/native-board.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -108,7 +108,7 @@ test('reference point 19: repeated external references remain separate labelled 
 test('historical brief references retain their old routing grammar and replay floor [C7,H16]', t => {
   const e2e = createE2eHelpers();
   const box = e2e.project('true');
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => { store.closeBoard(board); e2e.cleanup(); });
   const brief = 'Files: web/site.js\nReference: H21';
   assert.deepEqual(briefSections(brief, { references: false }).files, ['web/site.js', 'Reference: H21']);
@@ -267,7 +267,7 @@ test('only the person can add or edit an explicit GitHub author acknowledgement 
   const coordinatorAgentEnv = { ...box.env, CODEX_THREAD_ID: 'fixture-coordinator-agent' };
   const worktreeAgentEnv = { ...box.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'fixture-web-agent' };
   const beforeItems = () => {
-    const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+    const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
     try { return store.listItems(board).length; } finally { store.closeBoard(board); }
   };
   const initialItems = beforeItems();
@@ -321,7 +321,7 @@ test('only the person can add or edit an explicit GitHub author acknowledgement 
 
 test('a relay agent cannot forge person authority for handled add and edit references [C7,H16]', t => {
   const box = bridgeProject(t);
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(board));
   const target = 'https://github.com/fixture/repository/issues/6';
   const authors = [{ target, author: 'issue-author' }];

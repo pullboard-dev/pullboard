@@ -8,6 +8,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { addMilestone, editMilestoneItems, editMilestone, shipMilestone, removeMilestone } from '../src/board-milestones.js';
 import { proofStats } from '../src/stats.js';
 import { flowStats } from '../src/stats-flow.js';
 import { ensureProofCounters } from '../src/proof-counters.js';
@@ -22,7 +24,7 @@ const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCo
 function fixture(t, { item = true, now } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-report-cache-'));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
-  const board = store.openBoard(join(root, '.git', 'board.sqlite'), now ? { now } : undefined);
+  const board = openBoard(join(root, '.git', 'board.sqlite'), now ? { now } : undefined);
   store.register(board, { lane: 'coordinator', path: root });
   if (item) store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Known open history' });
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
@@ -146,8 +148,8 @@ test('cached flow retains every native milestone membership through edits remova
   let minute = 0;
   const board = fixture(t, { now: () => new Date(base + minute * 60_000) });
   const who = { agentId: 'coordinator' };
-  store.addMilestone(board, { ...who, name: 'A', items: [1] });
-  store.addMilestone(board, { ...who, name: 'B', items: [1] });
+  addMilestone(board, { ...who, name: 'A', items: [1] });
+  addMilestone(board, { ...who, name: 'B', items: [1] });
   store.setLineSetting(board, { ...who, key: 'focusMilestone', value: 'A', reason: 'Private focus control', window: { items: 1 } });
   /** Compare the hot cached projection with canonical replay after each native policy transition. */
   const observe = () => {
@@ -166,27 +168,27 @@ test('cached flow retains every native milestone membership through edits remova
   assert.deepEqual(report.items[0].stages.ready, { minutes: 10, unknown: 0 });
   assert.deepEqual(report.items[0].stages.later, { minutes: 0, unknown: 0 }, 'membership in focus A survives later membership in B');
   assert.deepEqual(report.milestones.map(row => row.milestone), ['A', 'B']);
-  store.editMilestoneItems(board, 'B', { ...who, remove: [1] });
+  editMilestoneItems(board, 'B', { ...who, remove: [1] });
   minute = 20;
   assert.deepEqual(observe().items[0].milestones, ['A']);
-  store.editMilestoneItems(board, 'B', { ...who, add: [1] });
+  editMilestoneItems(board, 'B', { ...who, add: [1] });
   minute = 30;
-  store.editMilestone(board, 'B', { ...who, newName: 'C' });
+  editMilestone(board, 'B', { ...who, newName: 'C' });
   assert.deepEqual(observe().items[0].milestones, ['A', 'C']);
   minute = 40;
-  store.shipMilestone(board, 'A', { ...who, commit: 'a'.repeat(40), next: 'C' });
+  shipMilestone(board, 'A', { ...who, commit: 'a'.repeat(40), next: 'C' });
   report = observe();
   assert.deepEqual(report.items[0].milestones, ['C'], 'shipping removes only its source membership and deduplicates the target');
   assert.equal(report.items[0].milestone, 'C');
   assert.deepEqual(report.milestones.map(row => row.milestone), ['C']);
   minute = 50;
-  store.removeMilestone(board, 'C', who);
+  removeMilestone(board, 'C', who);
   assert.deepEqual(observe().items[0].milestones, []);
   minute = 60;
-  store.addMilestone(board, { ...who, name: 'D', items: [1] });
+  addMilestone(board, { ...who, name: 'D', items: [1] });
   store.setLineSetting(board, { ...who, key: 'focusMilestone', value: 'D', reason: 'Private next focus', window: { items: 1 } });
   minute = 70;
-  store.editMilestoneItems(board, 'D', { ...who, remove: [1] });
+  editMilestoneItems(board, 'D', { ...who, remove: [1] });
   minute = 80;
   report = observe();
   assert.deepEqual(report.items[0].stages.ready, { minutes: 50, unknown: 0 });

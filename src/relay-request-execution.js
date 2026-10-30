@@ -5,6 +5,7 @@ import {
 } from 'node:crypto';
 import { join } from 'node:path';
 import * as store from './board.js';
+import { openBoard } from './native-board.js';
 import { executeMove } from './api.js';
 import { loadConfig } from './config.js';
 import {
@@ -27,7 +28,7 @@ import {
 
 /** Read durable intake without retaining a SQLite connection while the CLI runs. */
 function requests(root) {
-  const board = store.openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
+  const board = openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
   try { return personRequestRecords(board).filter(record => !record.duplicateOf); }
   finally { store.closeBoard(board); }
 }

@@ -23,7 +23,7 @@ export async function legacyMirrorQueueFragment({
   delete link.presentationDigest;
   writeFileSync(linkFile, JSON.stringify(link) + '\n', { mode: 0o600 });
 
-  const board = store.openBoard(boardFile);
+  const board = openBoard(boardFile);
   try {
     store.addItem(board, {
       by: 'coordinator', lane, title: 'legacy queued item', criterion: 'queued before ordered mode',

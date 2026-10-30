@@ -9,6 +9,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard, openBoardForRead } from '../src/native-board.js';
 import { withBoard } from '../src/cli-context.js';
 import { withBoardRead } from '../src/cli-context.js';
 import { pathToFileURL } from 'node:url';
@@ -121,14 +122,14 @@ test('read-only CLI fallback preserves coordinator registration and moved events
   assert.equal(first.status, 0, first.failure ?? first.stderr);
   assert.equal(JSON.parse(first.stdout).me.id, 'coordinator');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   try {
     assert.equal(store.events(board).filter(event => event.event_kind === 'join').length, 1);
     store.ensureCoordinator(board, '/previous/coordinator-location');
   } finally { store.closeBoard(board); }
   const moved = cli();
   assert.equal(moved.status, 0, moved.failure ?? moved.stderr);
-  const read = store.openBoardForRead(file);
+  const read = openBoardForRead(file);
   let events;
   try {
     assert.equal(store.agentById(read, 'coordinator').agent_path, box.repo);

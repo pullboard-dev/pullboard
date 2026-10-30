@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { moveArgs } from '../src/api-moves.js';
@@ -16,7 +17,7 @@ const TITLE_CLAUSE = 'The page renders its title.';
 
 /** Create a real SQLite board with independent builder and reviewer seats. */
 function fixture(t, criterion = CRITERION) {
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: '/reject-clause/main' });
   const builder = store.register(board, { lane: 'web', path: '/reject-clause/builder', route: 'strong' });
@@ -186,7 +187,7 @@ test('new clause payloads are engine-fenced and recorded replay never duplicates
   assert.equal(result.error, undefined);
   assert.equal(result.result.held, true);
   const recorded = exportBoard(board);
-  const replica = store.openBoard(':memory:');
+  const replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, recorded);
   for (const copy of [board, replica]) {
@@ -235,7 +236,7 @@ test('public CLI and API reject calls preserve the explicit frozen clause [V6,A2
   const committed = helpers.commitFile(box, box.web, 'web/page.html', '<main>Missing the title</main>', 'feat(web): render a page [G1]');
   assert.equal(committed.status, 0, committed.stderr);
   // @pullboard-board-file persistence: separate CLI reviewer commands read and append this exact private board file.
-  board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   submitFixture(board, id, { agentId: 'web-1', commit: head, tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}') });
   const reviewer = join(box.dir, 'clause-reviewer');
@@ -267,7 +268,7 @@ function freeze() {
 }
 
 test('rejects require a frozen clause before any verdict mutation [V6,R2,H16]', t => {
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: '/reject-clause/main' });
   const builder = store.register(board, { lane: 'web', path: '/reject-clause/builder', route: 'strong' });

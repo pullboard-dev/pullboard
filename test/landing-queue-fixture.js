@@ -15,6 +15,7 @@ import {
   receiptStore,
 } from '../src/gate-run-receipt.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { invalidateGitFacts } from '../src/git.js';
 import { runLandingBatch } from '../src/land.js';
 import { assertLandingLease } from '../src/board-landing-lease.js';
@@ -40,7 +41,7 @@ function run(box, root, ...args) {
 
 /** Read the real board, always closing its SQLite handle. */
 function readBoard(box, action) {
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { return action(board); }
   finally { store.closeBoard(board); }
 }
@@ -100,7 +101,7 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
 
 /** Use a real public lease and board for bounded internal boundary controls, never a fabricated grant. */
 async function withFixtureLease(box, branch, action) {
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const request = { agentId: 'coordinator', action: 'request', branch, token: randomUUID(), pid: process.pid };
   let fence;
   try {
@@ -154,7 +155,7 @@ async function repairedPolicyControls(box, batch) {
     assert.equal(store.landingBatches(options.board).length, count, 'repair does not invent another batch');
   });
   const explicit = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root: box.repo, board, config: { ...explicit, flakes: { quarantine: false } }, dryRun: true });
     assert.equal(board.quarantineEnabled(), false, 'explicit config and no-fence dry-run callers retain their behavior');

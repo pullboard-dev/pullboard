@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { configProblems, defaults } from '../src/config.js';
 import { names, productProblems, productsOfItem, productsOfLane, productsOfRow, productSummaries } from '../src/products.js';
 import { parseSpec } from '../src/spec.js';
@@ -114,7 +115,7 @@ test('in a real repo, status prints each product, and spec check fails on an ent
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: a spec with two products');
 
-  const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     store.register(board, { lane: 'coordinator', path: repo });
     store.register(board, { lane: 'board', path: join(dir, 'board-1') });

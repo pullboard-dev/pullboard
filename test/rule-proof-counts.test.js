@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { main } from '../src/cli.js';
 import { receiptBody } from '../src/gate-run-receipt.js';
 import { clearProofCounters } from '../src/proof-counters.js';
@@ -56,7 +57,7 @@ function fixture(spec = SPEC) {
   box.git(root, 'add', 'advance.txt');
   box.git(root, 'commit', '-q', '-m', 'chore(fixture): advance the rule proof trunk');
   const head = box.git(root, 'rev-parse', 'HEAD').trim();
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), undefined, { isMain: true });
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), undefined, { isMain: true });
   return { ...box, root, board, original, head };
 }
 
@@ -150,11 +151,12 @@ test('a read-only legacy board retains recent red counts and exact expiry withou
 function simulatedReaderContext(box, identity) {
   const script = `
 import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+import { openBoard } from ${JSON.stringify(new URL("../src/native-board.js", import.meta.url).href)};
 import { ruleProofCounts } from ${JSON.stringify(new URL('../src/rule-proof-counts.js', import.meta.url).href)};
 import { loadSpec } from ${JSON.stringify(new URL('../src/spec.js', import.meta.url).href)};
 const root = ${JSON.stringify(box.root)};
 const actualRuntime = { execPath: process.execPath, version: process.version };
-const board = store.openBoard(${JSON.stringify(join(box.root, '.git', 'pullboard', 'board.sqlite'))}, undefined, { isMain: false });
+const board = openBoard(${JSON.stringify(join(box.root, '.git', 'pullboard', 'board.sqlite'))}, undefined, { isMain: false });
 const rows = loadSpec(root, { spec: 'SPEC.md' }).rows;
 const simulated = ${JSON.stringify(identity)};
 Object.defineProperty(process, 'execPath', { value: simulated.execPath });

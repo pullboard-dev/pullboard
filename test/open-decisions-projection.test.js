@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import {
   COORDINATION_SHOUT,
   itemShoutReader,
@@ -19,7 +20,7 @@ function reference(board, recipient) {
 }
 
 test('recipient decision seeks retain live roles, options and legacy shapes without unrelated projection [B21,B27,C7]', t => {
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   for (const [lane, path] of [['coordinator', '/decision-seeks'], ['web', '/decision-seeks/web-1'], ['web', '/decision-seeks/web-2'], ['api', '/decision-seeks/api-1']]) store.register(board, { lane, path });
   const lanes = ['coordinator', 'web', 'api'];

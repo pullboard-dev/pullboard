@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { main } from '../src/cli.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
@@ -58,7 +59,7 @@ async function project(t, ratio = 3) {
   for (const [path, branch] of [[box.builder, 'web/one'], [box.peer, 'web/two'], [box.reviewer, 'review/one'], [box.reviewer2, 'review/two']]) {
     git(root, 'worktree', 'add', '-q', path, '-b', branch);
   }
-  box.board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
+  box.board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(box.board));
   box.builderId = store.register(box.board, { lane: 'web', path: box.builder, family: 'Fixture-Builder' });
   box.peerId = store.register(box.board, { lane: 'web', path: box.peer, family: 'Fixture-Peer' });

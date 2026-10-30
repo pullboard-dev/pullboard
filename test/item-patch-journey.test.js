@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
@@ -57,7 +58,7 @@ test('a native companion patch is independently checked and lands the exact acce
   box.git(box.repo, 'config', 'user.name', 'Patch journey fixture');
   box.git(box.repo, 'config', 'user.email', 'patch-journey@example.invalid');
   // @pullboard-board-file journey: production CLI verification and landing share this durable board
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const observations = join(box.dir, 'frozen-observations.jsonl');
   const joinMarker = join(box.dir, 'main-arrived-once');

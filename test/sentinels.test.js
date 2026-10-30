@@ -19,6 +19,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { main } from '../src/cli.js';
 import { appliedSequence } from '../src/engine.js';
 import { applyEngineMove } from '../src/engine.js';
@@ -72,7 +73,7 @@ function fixture(t, { agentRoute } = {}) {
   const settings = machineSettingsFile(); mkdirSync(dirname(settings), { recursive: true });
   writeFileSync(settings, JSON.stringify({ view: { background: false }, relay: { offerAtInit: false } }));
   const clock = { time: Date.parse('2026-10-18T03:00:00Z'), now() { return new Date(this.time); } };
-  const board = store.openBoard(join(root, '.git/pullboard/board.sqlite'), clock);
+  const board = openBoard(join(root, '.git/pullboard/board.sqlite'), clock);
   store.register(board, { lane: 'coordinator', path: root });
   const agent = store.register(board, { lane: 'core', path: join(directory, 'agent'), route: agentRoute });
   /** Apply the actual ordered board engine with deterministic injected receipt time. */
@@ -393,7 +394,7 @@ test('a published engine-55 reader refuses a board watch before inspecting it [A
 });
 
 test('watch receipts replay deterministically, export without execution and keep older engines unchanged [A6,H16]', async t => {
-  const box = fixture(t); const replica = store.openBoard(':memory:', box.clock); t.after(() => store.closeBoard(replica));
+  const box = fixture(t); const replica = openBoard(':memory:', box.clock); t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(box.board));
   const args = [{ agentId: box.agent, row: { name: 'replayed', check: 'false', every: '10m', owner: 'core' } }];
   const move = prepareEngineMove(box.board, 'proposeSentinel', args);

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard, openBoardForRead } from '../src/native-board.js';
 import { refreshLandedCodeMap } from '../src/landing-main-notices.js';
 import { mainMovedWarnings } from '../src/main-moved-warning.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -36,7 +37,7 @@ test('a landing warns on a claimed local HEAD, then submit refuses until a real 
   const beforeWorker = snapshot(box, box.web);
   const beforeMain = snapshot(box, box.repo);
   // @pullboard-board-file journey: the CLI and post-landing observer share this durable fixture board.
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   let landed;
   try {
     const builder = store.register(board, { lane: 'api', path: join(box.dir, 'landing-builder') });
@@ -62,7 +63,7 @@ test('a landing warns on a claimed local HEAD, then submit refuses until a real 
   assert.deepEqual(snapshot(box, box.web), beforeWorker);
   assert.deepEqual(snapshot(box, box.repo), beforeMain);
   // @pullboard-board-file journey: inspect the same durable warning after the native merged command.
-  const read = store.openBoardForRead(file);
+  const read = openBoardForRead(file);
   try {
     const notices = read.db.prepare("SELECT shout_text FROM shout WHERE shout_to='item:1'").all();
     assert.equal(notices.filter(notice => notice.shout_text.includes('web/shared.txt') && notice.shout_text.includes(trunk.slice(0, 12))).length, 1,

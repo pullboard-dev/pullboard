@@ -12,6 +12,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { MACHINE } from '../src/machine.js';
 import { storeTriggers } from '../src/machine.js';
 import { SCHEMA_DIGEST } from '../src/board-schema-source.js';
@@ -65,7 +66,7 @@ function legacyBoard(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-stamped-declaration-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'board.sqlite');
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   try { store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Keep this row' }); }
   finally { store.closeBoard(board); }
   olderDeclaration(file);
@@ -78,11 +79,11 @@ test('main refreshes a valid stamped older transition once; reads and branch ope
   assert.equal(before.standing, 'current', 'the old declaration has its own valid installed-shape stamp');
   const readonly = store.openBoardReadOnly(file);
   readonly.close();
-  const branch = store.openBoard(file, undefined, { isMain: false, onDiagnostic: () => {} });
+  const branch = openBoard(file, undefined, { isMain: false, onDiagnostic: () => {} });
   store.closeBoard(branch);
   assert.deepEqual(observe(file), before, 'neither read-only nor non-main code installs a declaration');
 
-  const main = store.openBoard(file);
+  const main = openBoard(file);
   store.closeBoard(main);
   const upgraded = observe(file);
   const installed = upgraded.schema.find(row => row.name === 'machine_item_move').sql;
@@ -95,7 +96,7 @@ test('main refreshes a valid stamped older transition once; reads and branch ope
   assert.deepEqual(upgraded.guards.map(row => JSON.parse(row.event_detail)),
     [{ missing: [], changed: ['machine_item_move'], stale: [] }]);
   const bytes = readFileSync(file);
-  const again = store.openBoard(file);
+  const again = openBoard(file);
   store.closeBoard(again);
   assert.deepEqual(observe(file), upgraded, 'an already-current declaration emits no repair event');
   assert.deepEqual(readFileSync(file), bytes, 'an already-current declaration makes no persistent write');
@@ -109,7 +110,7 @@ test('main leaves manually drifted triggers and their invalid stamp untouched [M
   const before = observe(file);
   assert.equal(before.standing, 'drifted');
   const diagnostics = [];
-  const board = store.openBoard(file, undefined, { onDiagnostic: text => diagnostics.push(text) });
+  const board = openBoard(file, undefined, { onDiagnostic: text => diagnostics.push(text) });
   store.closeBoard(board);
   assert.deepEqual(observe(file), before, 'a missing hand-edited trigger must not be silently approved or restamped');
   assert.match(diagnostics.join('\n'), /different shape/u);
@@ -194,8 +195,8 @@ function guardImage(board) {
 
 test('an older checkpoint restore preserves newer installed guards and reports the declaration difference [M3,A5,A6,H16]', () => {
   const diagnostics = [];
-  const board = store.openBoard(':memory:', undefined, { onDiagnostic: text => diagnostics.push(text) });
-  const source = store.openBoard(':memory:');
+  const board = openBoard(':memory:', undefined, { onDiagnostic: text => diagnostics.push(text) });
+  const source = openBoard(':memory:');
   try {
     store.addItem(source, { by: 'coordinator', lane: 'web', title: 'Restored data under current guards' });
     // Install after opening: verification must occur under the restore transaction, not at open time.
@@ -210,7 +211,7 @@ test('an older checkpoint restore preserves newer installed guards and reports t
 });
 
 test('an older queued undo restores exact newer guards, including when its transaction rolls back [M3,A5,A6,H16]', () => {
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   try {
     const session = board.db.createSession({ table: 'shout' });
     board.db.prepare('INSERT INTO shout(shout_from,shout_to,shout_text,shout_at) VALUES(?,?,?,?)')
@@ -233,7 +234,7 @@ test('an older queued undo restores exact newer guards, including when its trans
 
 test('main recovers a guard-only downgrade only when the unchanged stamp attests its complete target shape [M3,A5,A6,C7]', t => {
   const file = legacyBoard(t);
-  store.closeBoard(store.openBoard(file));
+  store.closeBoard(openBoard(file));
   const attested = observe(file);
   olderDeclaration(file, false);
   const drifted = observe(file);
@@ -241,9 +242,9 @@ test('main recovers a guard-only downgrade only when the unchanged stamp attests
   assert.equal(drifted.stamp, attested.stamp);
   const readonly = store.openBoardReadOnly(file);
   readonly.close();
-  store.closeBoard(store.openBoard(file, undefined, { isMain: false, onDiagnostic: () => {} }));
+  store.closeBoard(openBoard(file, undefined, { isMain: false, onDiagnostic: () => {} }));
   assert.deepEqual(observe(file), drifted, 'only main may recover the previously attested declaration');
-  store.closeBoard(store.openBoard(file));
+  store.closeBoard(openBoard(file));
   const recovered = observe(file);
   assert.equal(recovered.standing, 'current');
   assert.equal(recovered.stamp, attested.stamp, 'recovery must not invent a new stamp to bless drift');
@@ -252,25 +253,25 @@ test('main recovers a guard-only downgrade only when the unchanged stamp attests
   assert.equal(recovered.identity, attested.identity);
   assert.equal(recovered.guards.length, attested.guards.length + 1);
   const bytes = readFileSync(file);
-  store.closeBoard(store.openBoard(file));
+  store.closeBoard(openBoard(file));
   assert.deepEqual(readFileSync(file), bytes, 'recovered declaration is idempotent');
 });
 
 test('unrecognized stamps and non-guard drift cannot be approved by main recovery or restoration [M3,A5,A6,H16]', t => {
   const file = legacyBoard(t);
-  store.closeBoard(store.openBoard(file));
+  store.closeBoard(openBoard(file));
   olderDeclaration(file, false);
   const changed = new DatabaseSync(file);
   try { changed.exec('CREATE INDEX unexpected_item_name ON item(item_title)'); }
   finally { changed.close(); }
   const before = observe(file);
   const messages = [];
-  const board = store.openBoard(file, undefined, { onDiagnostic: text => messages.push(text) });
-  const source = store.openBoard(':memory:');
+  const board = openBoard(file, undefined, { onDiagnostic: text => messages.push(text) });
+  const source = openBoard(':memory:');
   try {
     assert.deepEqual(observe(file), before, 'a table or index change must not be hidden by guard repair');
     assert.throws(() => importBoard(board, exportBoard(source)), error => error.code === 'IMPORT_NOT_EMPTY');
-    const empty = store.openBoard(':memory:');
+    const empty = openBoard(':memory:');
     try {
       empty.db.exec('PRAGMA application_id = 123');
       const unknown = guardImage(empty);
@@ -285,8 +286,8 @@ test('unrecognized stamps and non-guard drift cannot be approved by main recover
 
 
 test('normal authority pinning and signed-format restore keep a verified stamp without approving prior drift [M3,E22,H16]', () => {
-  const board = store.openBoard(':memory:');
-  const source = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
+  const source = openBoard(':memory:');
   try {
     const authority = { version: 1, algorithm: 'Ed25519', publicKey: 'a'.repeat(43) };
     pinAuthority(board, 'https://relay.fixture', authority);
@@ -316,7 +317,7 @@ function legacySigningBoard(t, mode) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-legacy-signing-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'board.sqlite');
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   try {
     store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Keep signed legacy data' });
     board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)').run('relay_applied_sequence', '0');
@@ -344,9 +345,9 @@ test('main recognizes exact legacy pin-only, signed-only and intermediate signed
     const before = observe(file);
     assert.equal(before.standing, 'drifted', mode);
     store.openBoardReadOnly(file).close();
-    store.closeBoard(store.openBoard(file, undefined, { isMain: false, onDiagnostic: () => {} }));
+    store.closeBoard(openBoard(file, undefined, { isMain: false, onDiagnostic: () => {} }));
     assert.deepEqual(observe(file), before, `${mode}: readers and non-main do not heal`);
-    const board = store.openBoard(file);
+    const board = openBoard(file);
     try {
       assert.equal(boardStanding(board.db, SCHEMA_DIGEST, SCHEMA_VERSION), 'current', mode);
       assert.deepEqual(observe(file).items, before.items, `${mode}: business rows survive`);
@@ -359,7 +360,7 @@ test('main recognizes exact legacy pin-only, signed-only and intermediate signed
       assert.equal(localAuthority(board)?.origin ?? null, mode === 'signed-only' ? null : 'https://relay.fixture');
     } finally { store.closeBoard(board); }
     const bytes = readFileSync(file);
-    store.closeBoard(store.openBoard(file));
+    store.closeBoard(openBoard(file));
     assert.deepEqual(readFileSync(file), bytes, `${mode}: recovery is idempotent`);
   }
 });
@@ -368,7 +369,7 @@ test('legacy signing recognition also recovers the exact attested machine declar
   const file = legacySigningBoard(t, 'both');
   olderDeclaration(file, false);
   const before = observe(file);
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   try {
     assert.equal(boardStanding(board.db, SCHEMA_DIGEST, SCHEMA_VERSION), 'current');
     assert.deepEqual(observe(file).items, before.items);
@@ -390,7 +391,7 @@ test('legacy pin or signing recovery never approves missing guards, extra schema
     const db = new DatabaseSync(file);
     try { db.exec(sql); } finally { db.close(); }
     const before = observe(file);
-    const board = store.openBoard(file, undefined, { onDiagnostic: () => {} });
+    const board = openBoard(file, undefined, { onDiagnostic: () => {} });
     try {
       assert.equal(boardStanding(board.db, SCHEMA_DIGEST, SCHEMA_VERSION), 'drifted', sql);
       assert.deepEqual(observe(file), before, sql);
