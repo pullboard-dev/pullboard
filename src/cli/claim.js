@@ -1,3 +1,4 @@
+import { captureLapsedClaims } from '../../packages/health/index.js';
 /** Helpers for `pullboard claim`: ordered moves and the criterion freeze. Split from src/cli.js, which re-exports it [C7]. */
 import { itemCheckBaseline } from '../board-query.js';
 import { writeBoardCommand } from '../board-command-write.js';
@@ -59,6 +60,25 @@ export function relayOutboxSetting(root) {
   try { return configFromSource(coordinatorFile(root, CONFIG_FILE).stdout).relay?.outbox !== false; } catch { return false; }
 }
 
+const LAPSE_MAINTENANCE = new WeakSet();
+
+/** Capture bounded native liveness once before a requested write; nested bootstrap and maintenance never recurse. */
+async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
+  if (!actor || LAPSE_MAINTENANCE.has(board) || ['maintainStaleState', 'recordSpecApprovalBaseline'].includes(operation)
+    || operation === 'release' && args[3]?.staleClaim) return;
+  LAPSE_MAINTENANCE.add(board);
+  try {
+    const snapshot = captureLapsedClaims(ctx, board, actor);
+    if (!snapshot) return;
+    const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };
+    try { await ordered({ ...ctx, io }, board, 'maintainStaleState', [{ agentId: actor, snapshot, health: ctx.config.health ?? {}, claimsOnly: true }]); }
+    catch (error) {
+      if (error.code !== 'STALE_STATE_CHANGED') throw error;
+      ctx.io.err('Lapsed-claim observation changed; untouched claims will be observed on the next write.');
+    }
+  } finally { LAPSE_MAINTENANCE.delete(board); }
+}
+
 export async function ordered(ctx, board, operation, args) {
   // With signed person moves on, a person-only move counts only as a passkey-confirmed request [E22].
   const unsigned = signedMoveProblem(board, board.enginePorts.personAuthority({ operation, args }), ctx.io.personRequest, { strict: true });
@@ -95,6 +115,7 @@ export async function ordered(ctx, board, operation, args) {
     ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered, gitSyncLinked, ensureCoordinator: store.ensureCoordinator });
     const write = () => writeBoardCommand(board, operation, args, actor);
     if (initialBaseline && actor) await recordBaseline(actor);
+    await maintainLapsedBeforeWrite(ctx, board, operation, args, actor);
     const requestedCommand = ctx.io.relayCommand?.cliOperation ?? (ctx.privateBoard ? ctx.io.requestedCommand : undefined);
     const requested = requestedCommandMove(requestedCommand, operation);
     const heartbeat = requested ? (await import('../cli-presence.js')).heartbeatCommand : null;

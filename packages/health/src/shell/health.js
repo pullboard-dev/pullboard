@@ -1,3 +1,4 @@
+import { firstRefusal } from '../../../../src/board-item-read.js';
 import { eligibilityProblem } from '../../../../src/review-eligibility.js';
 import { lineSettings } from '../../../state/src/core/line-settings-read.js';
 import { familyIndex } from '../../../../src/review-policy.js';
@@ -164,6 +165,17 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
         owner: { role: 'builder', who: holder }, detail: { holder },
       }));
     }
+
+    const released = events.last.get('release');
+    const expiry = released ? JSON.parse(released.event_detail) : null;
+    const refusal = status === 'open' && expiry?.expiredClaim ? firstRefusal(board, id) : null;
+    if (refusal) found(report.waiting, finding('CLAIM_EXPIRED', item, {
+      since: released.event_at, now: at, title: 'lapsed idle claim freed',
+      why: `${expiry.expiredClaim.holder}'s lapsed claim returned to open; first refusal lasts until ${refusal.until}`,
+      next: `${refusal.builder} resumes with pullboard claim ${id}, or releases its first refusal`,
+      command: `pullboard claim ${id}`, owner: { role: 'builder', who: refusal.builder },
+      detail: { ...expiry.expiredClaim, firstRefusalUntil: refusal.until },
+    }));
 
     if (status === 'submitted') {
       const reviewer = item.item_review_by;

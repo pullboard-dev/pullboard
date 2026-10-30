@@ -1,6 +1,8 @@
 /** Apply captured expiry decisions atomically without consulting replica-private liveness [B4,C7]. */
 import { Refused } from './refused.js';
+import { IN_STATE } from './machine.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
+import { LEASE_LAPSE_ENGINE } from './lease-lapse-engine.js';
 import { STALE_STATE_ENGINE } from './stale-state-engine.js';
 import {
   staleInstant,
@@ -54,15 +56,25 @@ function observedExpiry(row, limit, observedAt) {
 }
 
 /** Apply one pure captured plan under coordinator authority and the ordinary board transaction. */
-export function applyStaleState(board, { agentId, snapshot, health = {} }, dependencies) {
-  const { atomic, getItem, setItem, releaseItemHold, logEvent, insertShout } = dependencies;
-  if (agentId !== 'coordinator') throw new Refused('COORDINATOR_ONLY', 'only the coordinator expires another holder or coordinator hold');
+export function applyStaleState(board, { agentId, snapshot, health = {}, claimsOnly = false }, dependencies) {
+  const { atomic, getItem, setItem, releaseItemHold, logEvent, insertShout, moveItem } = dependencies;
+  if (claimsOnly !== false && claimsOnly !== true) invalid();
+  if (claimsOnly && (board.executionEngineVersion ?? ENGINE_VERSION) < LEASE_LAPSE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before automatic lapsed-claim expiry');
+  if (claimsOnly && !board.db.prepare('SELECT 1 FROM agent WHERE agent_id=?').get(agentId)) throw new Refused('NOT_JOINED', 'join a lane before maintaining lapsed claims');
+  if (!claimsOnly && agentId !== 'coordinator') throw new Refused('COORDINATOR_ONLY', 'only the coordinator expires another holder or coordinator hold');
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < STALE_STATE_ENGINE) {
     throw new Refused('ENGINE_VERSION', 'stale-state maintenance needs an engine that preserves its captured observations');
   }
   return atomic(board, () => {
     validateSnapshot(board, snapshot, health);
-    const plan = planStaleState(snapshot);
+    if (claimsOnly && (snapshot.holds.length || snapshot.reviews.length || snapshot.claims.length > 32)) invalid();
+    if (claimsOnly) {
+      const cursor = Number(board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='lapsed_claim_scan_cursor'").get()?.meta_value ?? 0);
+      if (!Number.isSafeInteger(snapshot.claimScan?.previous) || snapshot.claimScan.previous < 0
+        || !Number.isSafeInteger(snapshot.claimScan?.next) || snapshot.claimScan.next <= 0) invalid();
+      if (snapshot.claimScan.previous !== cursor) changed();
+    }
+    const plan = claimsOnly ? { holdWarnings: [], holdExpiries: [], reviewReleases: [] } : planStaleState(snapshot);
     const result = { warnings: [], holds: [], reviews: [] };
     /** Use the existing sentinel channel and direct recipient; item routing would replace the holder address. */
     const notice = (to, text, item) => insertShout(board, { from: 'sentinel', to, text, lanes: [], detail: { item } });
@@ -103,7 +115,38 @@ export function applyStaleState(board, { agentId, snapshot, health = {} }, depen
       notice(row.reviewer, `Released your idle review reservation on #${row.id}: ${reason} The item is available for independent review.`, row.id);
       result.reviews.push(row.id);
     }
-    if (result.warnings.length || result.holds.length || result.reviews.length) {
+    if (claimsOnly) {
+      // Validate the complete batch against one event prefix before the first release appends another event.
+      const claims = snapshot.claims.map(row => {
+        const item = getItem(board, row.id);
+        const lease = board.db.prepare("SELECT event_id,event_at,event_detail FROM event WHERE item_id=? AND event_by=? AND event_kind IN ('claim','renew') ORDER BY event_id DESC LIMIT 1").get(row.id, row.actor);
+        const leaseMs = Date.parse(item.item_lease_until) - Date.parse(lease?.event_at);
+        if (!lease || item.item_status !== 'claimed' || item.item_owner !== row.actor || item.item_owner === agentId
+          || item.item_lease_until !== row.leaseUntil || lease?.event_id !== row.leaseEventId
+          || lease?.event_at !== row.leaseStartedAt || JSON.parse(lease.event_detail).leaseUntil !== row.leaseUntil
+          || !Number.isSafeInteger(leaseMs) || leaseMs <= 0 || row.leaseMs !== leaseMs) changed();
+        observedExpiry(row, snapshot.limits.claim, snapshot.observedAt);
+        const leaseAt = staleInstant(row.leaseUntil, Date.parse(snapshot.observedAt));
+        if (leaseAt === null || Date.parse(snapshot.observedAt) - leaseAt < snapshot.limits.claim) invalid();
+        return { row, item, leaseMs };
+      });
+      result.claims = [];
+      board.db.prepare("INSERT INTO board_meta(meta_key,meta_value) VALUES('lapsed_claim_scan_cursor',?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value").run(String(snapshot.claimScan.next));
+      result.claimScan = snapshot.claimScan;
+      for (const { row, item, leaseMs } of claims) {
+        const window = { builder: item.item_owner, until: new Date(board.clock.now().getTime() + leaseMs).toISOString() };
+        moveItem(board, row.id, 'release', {
+          checks: { joined: null, [IN_STATE]: null, releaseOwnsWork: () => null, reviewReleaseExplained: null },
+          set: () => ({ item_owner: null, item_lease_until: null }),
+        });
+        logEvent(board, agentId, 'release', row.id, { reason: 'Lapsed claim idle past its stale interval.',
+          expiredClaim: { holder: row.actor, leaseUntil: row.leaseUntil, lastActivity: row.lastActivity, observedAt: snapshot.observedAt, leaseEventId: row.leaseEventId },
+          reopenFirstRefusal: window });
+        notice(row.actor, `Your lapsed idle claim on #${row.id} returned to open; first refusal remains yours until ${window.until}.`, row.id);
+        result.claims.push(row.id);
+      }
+    }
+    if (result.warnings.length || result.holds.length || result.reviews.length || result.claims?.length || result.claimScan) {
       logEvent(board, agentId, 'stale_maintenance', null, { observedAt: snapshot.observedAt, ...result });
     }
     return result;
