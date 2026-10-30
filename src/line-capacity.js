@@ -2,7 +2,7 @@
 import { ENGINE_VERSION } from './machine.js';
 import { LINE_CAPACITY_ENGINE } from './line-capacity-engine.js';
 import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
-import { flowWindowBounds } from './stats-flow-window.js';
+import { flowWindowBounds } from './flow-window-bounds.js';
 import { Refused } from './refused.js';
 import {
   ACTIVE_REVIEWER_WINDOW_MINUTES,

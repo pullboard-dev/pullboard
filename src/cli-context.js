@@ -37,6 +37,11 @@ export {
   span,
 };
 
+/** Supply canonical connection-local runtime composition after cyclic CLI modules finish loading. */
+export function nativeBoardOpeners() {
+  return { openBoard: store.openBoard, openBoardForRead: store.openBoardForRead };
+}
+
 /** Build a CLI context with the signed-person capabilities of its application layer. */
 export function personCommandContext(io, { main, ordered } = {}) {
   const ctx = context(io);

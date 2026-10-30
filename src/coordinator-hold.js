@@ -10,10 +10,6 @@
  * holder, until that checkout runs pullboard takeover. An unlinked board's main checkout is already held by one
  * session through its checkout binding, so nothing here applies to it (#347).
  */
-import {
-  atomic,
-  logEvent,
-} from './board.js';
 import { COORDINATOR } from './config.js';
 import { COORDINATOR_HOLD_ENGINE } from './coordinator-hold-engine.js';
 import { Refused } from './refused.js';
@@ -111,9 +107,10 @@ export function requireCoordinatorHold(board, move, lineage, at) {
  *
  * @param {any} board
  * @param {{ agentId: string, machine?: string }} options
+ * @param {{ atomic: Function, logEvent: Function }} writers the store's transaction and event log, passed in so seats never load the board
  * @returns {{ holder: string, previous: string | null }}
  */
-export function takeCoordinator(board, { agentId, machine, name }) {
+export function takeCoordinator(board, { agentId, machine, name }, { atomic, logEvent }) {
   if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator takes over the coordinator; run pullboard takeover in the main checkout');
   const lineage = board.verifierStanding?.lineage;
   if (!lineage) {

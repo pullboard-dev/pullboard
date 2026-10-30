@@ -1,15 +1,17 @@
 /** Native hooks provide bounded context and warnings, never a blocking decision [I6]. */
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { AGENT_HOOK_EVENTS } from './agent-hooks.js';
 
-/** Run a single owned worker group; no inherited vendor payload can choose executable arguments. */
-export async function runAgentHook(io, event) {
+/**
+ * Run a single owned worker group; no inherited vendor payload can choose executable arguments.
+ * The CLI passes its own worker script path, so the seats cell never names a CLI module.
+ */
+export async function runAgentHook(io, event, worker) {
   if (!AGENT_HOOK_EVENTS.includes(event) && event !== 'SessionEnd') return 0;
   let response;
   try {
     const result = await new Promise(resolveResult => {
-      const child = spawn(process.execPath, [fileURLToPath(new URL('./agent-hook-work.js', import.meta.url)), event], {
+      const child = spawn(process.execPath, [worker, event], {
         cwd: io.cwd, env: process.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'],
       });
       let text = '', timedOut = false, finished = false;

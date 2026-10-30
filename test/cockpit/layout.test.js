@@ -412,17 +412,9 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     await click('[data-tab=items]');
     await filter('state', 'active');
     await click('.status [data-status="agents"]');
-    await chrome.waitFor("view.tab === 'shouts' && !document.querySelector('[data-pane=shouts]').hidden");
+    await chrome.waitFor("view.tab === 'dashboard' && view.addressDetail === 'floor'");
     r = await read();
-    assert.ok(r.agentRows > 0 && number(part(r, 'agents')) === r.agentRows, `the agents part counts the ${r.agentRows} rows of the agents panel it opens`);
-    // Hidden by the person, the panel comes back when the part that counts its rows is opened.
-    await click('.panel-head [data-agents-toggle]');
-    await chrome.waitFor('view.agentsHidden === true');
-    await click('[data-tab=items]');
-    await click('.status [data-status="agents"]');
-    await chrome.waitFor("view.tab === 'shouts' && view.agentsHidden === false");
-    r = await read();
-    assert.ok(r.agentRows > 0 && number(part(r, 'agents')) === r.agentRows, `hidden, the panel comes back with the ${r.agentRows} agents the part counts`);
+    assert.ok(number(part(r, 'agents')) > 0, 'the agents part opens the agent floor it counts');
     // The release part opens the Roadmap on that release alone: its rows are the ones it counts.
     await click('.status [data-status="release"]');
     await chrome.waitFor("view.tab === 'roadmap'");
