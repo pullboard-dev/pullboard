@@ -1,4 +1,6 @@
-import { pipelineLimit, pipelineStats, pipelineLines } from '../stats-pipeline.js';
+import { pipelineLimit } from '../stats-pipeline.js';
+import { pipelineStats } from '../stats-pipeline.js';
+import { pipelineLines } from '../stats-pipeline.js';
 import { loadMachineSettings } from '../settings-read.js';
 import { localUsage } from '../cost-prices.js';
 import { dollarText } from '../cost-prices.js';
