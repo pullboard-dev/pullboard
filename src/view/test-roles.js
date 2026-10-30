@@ -166,6 +166,10 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "dashboard: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
+  "test/cockpit/release-header.test.js": {
+    "kind": "journey",
+    "reason": "Real native landings and a seeded release are compared in authenticated Chrome on Dashboard and Roadmap at desktop and phone widths."
+  },
   "test/cockpit/demo.test.js": {
     "kind": "journey",
     "reason": "demo: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"

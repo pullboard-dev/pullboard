@@ -45,15 +45,9 @@ export function dashboardHtml(model, { needs = '', needsHeader = '', progress = 
     const line = entry => '<li>'+item(entry)+'<small>'+esc(kind==='claim'?entry.owner:entry.reviewer||'waiting for a reviewer')+(kind==='claim'||entry.reviewer?' · '+age(m.last(entry,kind)):'')+'</small></li>';
     return '<div class="dash-flight"><h3>'+label+' '+entries.length+'</h3><ul>'+entries.slice(0,4).map(line).join('')+'</ul>'+(entries.length>4?'<details data-dashboard-disclosure="'+kind+'"><summary>Show '+(entries.length-4)+' more</summary><ul>'+entries.slice(4).map(line).join('')+'</ul></details>':'')+'</div>';
   };
-  /** Render shared Roadmap bounds as both hours and actual local weekday/time. */
-  const finish = summary => {
-    if (!summary?.estimate) return summary?.reason==='few-landings'?'Too few landings yet to estimate':'No estimate yet';
-    const {low,high}=summary.estimate;
-    /** Format each bound against the same observed clock. */
-    const when = hours => new Date(m.now+hours*3_600_000).toLocaleString(locale, {timeZone,weekday:'long',hour:'numeric',minute:'2-digit'});
-    return esc(low+(low===high?'':'–'+high)+' h')+'<small>'+esc(when(low))+(low===high?'':' – '+esc(when(high)))+'</small>';
-  };
-  const shipping = card('Shipping now', m.milestone ? '<div class="dash-release" title="Current roadmap milestone: '+esc(m.milestone.name)+'; '+esc(m.milestone.summary.left)+' remaining"><h3>'+esc(m.milestone.name)+'</h3><b>'+m.milestone.summary.left+' to go</b></div><p title="Recorded landings among all items in this roadmap milestone">'+m.milestone.summary.landed+' of '+m.milestone.summary.total+' landed</p>'+progress+'<h3>In flight</h3><div class="dash-two">'+flight('Building',m.inFlight.building,'claim')+flight('In review',m.inFlight.review,'submit')+'</div><div class="dash-three dash-stats" title="Landing pace comes from recorded board history; the remaining-time estimate uses the current milestone"><div>Today’s pace<b>'+(six===null?'—':six.toFixed(1))+' <small>items an hour</small></b><small>'+count(m.pace?.last6h)+' landed in the last 6 h</small></div><div>Right now<b>'+(two===null?'—':two.toFixed(1))+' <small>items an hour</small></b><small>'+count(m.pace?.last2h)+' landed in the last 2 h</small></div><div>Done at this pace<b>'+finish(m.milestone.summary)+'</b></div></div>' : '<p>No release is in progress.</p>');
+  const shipping = '<section class="dash-card dash-release-card" aria-label="Shipping now">'
+    + (m.milestone ? progress+'<h3>In flight</h3><div class="dash-two">'+flight('Building',m.inFlight.building,'claim')+flight('In review',m.inFlight.review,'submit')+'</div>'
+      : '<p>No release is in progress.</p>') + '</section>';
   const maximum = Math.max(1,...m.bins.map(bin=>bin.count),six??0), chartHeight = 100;
   const hourLabel = at => new Date(at).toLocaleTimeString(locale, { timeZone, hour: 'numeric' });
   const paceY = chartHeight-(six??0)/maximum*90;
