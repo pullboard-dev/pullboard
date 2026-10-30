@@ -939,8 +939,9 @@ test('a pending Spec question can be answered in the view [I1,B26]', { timeout: 
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
-    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(demo.repo)} && !!document.querySelector('#spec-list [data-row="spec:G1"]')`);
+    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(demo.repo)}`);
     await press(chrome, "document.querySelector('[data-tab=spec]')");
+    await chrome.waitFor("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
     await press(chrome, "document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
     await chrome.waitFor("view.row.spec === 'G1' && !!document.querySelector('#spec-detail form[data-spec-answer=\"G1\"]')");
     assert.deepEqual(JSON.parse(await chrome.stable(`JSON.stringify({
