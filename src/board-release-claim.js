@@ -59,7 +59,7 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
       },
       set: () => ({ item_owner: null, item_lease_until: null }),
     });
-    logEvent(board, agentId, 'release', id, stale ? { staleClaim: stale, reason: stale.reason } : gone ? { goneSeat: gone, reason: `Released gone seat ${gone.seat}; last seen ${gone.lastSeen}.` } : undefined);
+    logEvent(board, agentId, 'release', id, stale ? { staleClaim: stale, reason: stale.reason, ...(stale.expiredClaim ? { expiredClaim: stale.expiredClaim, reopenFirstRefusal: stale.reopenFirstRefusal } : {}) } : gone ? { goneSeat: gone, reason: `Released gone seat ${gone.seat}; last seen ${gone.lastSeen}.` } : undefined);
     if (stale) insertShout(board, { from: 'sentinel', to: stale.holder,
       text: `Coordinator released your stale claim on #${id}: ${stale.reason.slice(0, 180)}. Last activity ${stale.lastActivity}.`, lanes: [], detail: { item: id } });
     return false;
