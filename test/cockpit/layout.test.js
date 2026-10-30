@@ -285,7 +285,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     const rows = [...document.querySelectorAll('#chain .row')].map((row) => {
       const s = getComputedStyle(row), why = row.querySelector('.meta .why b');
       return { id: row.dataset.item, row: box(row), title: box(row.querySelector('.t')), age: box(row.querySelector('.row-age')),
-        meta: words(row.querySelector('.meta')), chip: row.querySelector(':scope > .chip')?.textContent ?? null,
+        meta: words(row.querySelector('.meta')), chip: row.querySelector(':scope > .chip')?.textContent ?? null, waitTarget: row.querySelector(':scope > .chip [data-go]')?.dataset.go ?? null,
         why: why ? { text: why.textContent, code: why.querySelector('[title]')?.title, color: getComputedStyle(why).color } : null, gated: row.classList.contains('gated'),
         border: rgb(s.borderTopColor), borderWidth: s.borderTopWidth, edges: [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor].every((c) => c === s.borderTopColor),
         tint: rgb(s.backgroundColor) };
@@ -353,13 +353,13 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
         assert.deepEqual([row['6'].why?.text, row['6'].why?.color === r.warn, /\bweb\b/.test(row['6'].meta.replace('Behavior did not match', '')), /next line/.test(row['6'].meta)], ['Behavior did not match', true, false, false],
           `${at}: a sent-back row says why in the warning colour, first line only, in place of its lane: ${row['6'].meta}`);
         assert.equal(row['6'].why?.code, 'BEHAVIOR_MISMATCH', `${at}: the row keeps its native reason code in the tooltip`);
-        // Blocked: a red outline on every side, and what it waits on beside the gated chip. Waiting on a verdict: shaded gold.
-        for (const id of ['3', '4']) {
+        // A lane hold keeps its warning edge; dependency waits use the approved plain linked chip. Review stays gold.
+        for (const id of ['4']) {
           const [red, green, blue] = row[id].border;
           assert.ok(row[id].gated && row[id].edges && row[id].borderWidth === '1px' && red > green + 30 && red > blue + 30, `${at}: #${id} has a red outline: ${JSON.stringify(row[id])}`);
         }
-        assert.match(row['3'].meta, /waits on #2$/, `${at}: #3 says what it waits on`);
-        assert.equal(row['3'].chip, 'gated');
+        assert.deepEqual([row['3'].gated, row['3'].border, row['3'].borderWidth, row['3'].edges], [false, row['1'].border, row['1'].borderWidth, true], `${at}: a dependency wait has the same plain edge as an unclaimed row`);
+        assert.deepEqual([row['3'].chip, row['3'].waitTarget], ['Waiting on #2', 'item:2'], `${at}: the chip names and links the native dependency`);
         const [tr, tg, tb] = row['5'].tint;
         assert.ok(tr >= tg && tg > tb && row['5'].tint.join() !== row['1'].tint.join(), `${at}: a row waiting on a verdict is shaded gold: ${JSON.stringify([row['5'].tint, row['1'].tint])}`);
         if (scheme === 'dark') {
