@@ -291,14 +291,14 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     const rgb = (css) => { const n = (css.match(/[\\d.]+/g) || []).map(Number); return css.startsWith('color(srgb') ? [n[0] * 255, n[1] * 255, n[2] * 255, n[3] ?? 1] : [n[0], n[1], n[2], n[3] ?? 1]; };
     const words = (e) => [...e.children].map((child) => child.textContent.replace(/\\s+/g, ' ').trim()).join(' ');
     const probe = document.createElement('i');
-    probe.style.color = 'var(--warn)';
+    probe.style.color = 'var(--reject)';
     document.body.append(probe);
     const warn = getComputedStyle(probe).color;
     probe.remove();
     const rows = [...document.querySelectorAll('#chain .row')].map((row) => {
-      const s = getComputedStyle(row), why = row.querySelector('.meta .why b');
+      const s = getComputedStyle(row), why = row.querySelector('.meta .item-reason');
       return { id: row.dataset.item, row: box(row), title: box(row.querySelector('.t')), age: box(row.querySelector('.row-age')),
-        meta: words(row.querySelector('.meta')), chip: row.querySelector(':scope > .chip')?.textContent ?? null, waitTarget: row.querySelector(':scope > .chip [data-go]')?.dataset.go ?? null,
+        meta: words(row.querySelector('.meta')), chip: row.querySelector(':scope > .row-side > .chip')?.textContent ?? null, waitTarget: row.querySelector('.meta [data-go]')?.dataset.go ?? null,
         why: why ? { text: why.textContent, code: why.querySelector('[title]')?.title, color: getComputedStyle(why).color } : null, gated: row.classList.contains('gated'),
         border: rgb(s.borderTopColor), borderWidth: s.borderTopWidth, edges: [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor].every((c) => c === s.borderTopColor),
         tint: rgb(s.backgroundColor) };
@@ -524,7 +524,7 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
     const box = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; };
     const shown = (e) => !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0;
     const rgb = (css) => (css.match(/[\\d.]+/g) || []).map(Number);
-    const probe = document.createElement('i'); probe.style.color = 'var(--warn)'; document.body.append(probe); const warn = getComputedStyle(probe).color; probe.remove();
+    const probe = document.createElement('i'); probe.style.color = 'var(--reject)'; document.body.append(probe); const warn = getComputedStyle(probe).color; probe.remove();
     const theme = document.querySelector('#theme'), bar = document.querySelector('header.top'), side = document.querySelector('#side');
     return {
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
