@@ -114,12 +114,10 @@ test('submit keeps accepted placement authority when a candidate drops a row int
 
 test('submit compares lints with accepted allowances even if a candidate rewrites its own baseline [C7,D3,CD64]', async t => {
   const box = plannedFixture(t);
-  box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
-  // The new back edge closes the real existing stats -> store -> kernel chain.
+  box.put('src/refused.js', 'export class Refused extends Error {}\n' + '\n'.repeat(1501));
   const report = cellLintReport(box.root, { importsIn, commonJsIn });
-  const before = cellLintReport(box.root, { importsIn, commonJsIn });
   writeCellLintBaseline(box.root, cellLintBaseline(report));
-  assert.ok(before.metrics.cycles.count > 0, 'the real new dependency forms a cycle');
-  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /cell lint cycles:/u,
-    'the candidate baseline cannot authorize its own cycle');
+  assert.ok(report.metrics.fileSize.findings.some(row => row.key === 'src/refused.js' && row.count > 1000), 'the actual source crosses the unchanged hard 1500-line cap');
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /cell lint fileSize:src\/refused.js/u,
+    'the candidate baseline cannot authorize its own hard-cap rise');
 });
