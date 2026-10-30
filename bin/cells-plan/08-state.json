@@ -5,6 +5,7 @@
  "root": "packages/state",
  "frontDoor": "packages/state/index.js",
  "paths": [
+  ["src/exit-rules-engine.js","packages/state/src/core/exit-rules-engine.js","rule"],
   ["src/known-main-autofile-engine.js","packages/state/src/core/known-main-autofile-engine.js","rule"],
   ["src/review-default-engine.js","packages/state/src/core/review-default-engine.js","rule"],
   ["src/activity-delivery-engine.js","packages/state/src/core/activity-delivery-engine.js","seed"],
@@ -234,7 +235,8 @@
   ["src/train-check-repoint-engine.js","packages/state/src/core/train-check-repoint-engine.js","rule"],
   ["src/move-history/181.json","packages/state/src/shell/move-history/181.json","rule"],
   ["src/move-history/182.json","packages/state/src/shell/move-history/182.json","rule"],
-  ["src/rework-same-family-engine.js","packages/state/src/core/rework-same-family-engine.js","rule"]
+  ["src/rework-same-family-engine.js","packages/state/src/core/rework-same-family-engine.js","rule"],
+  ["src/move-history/183.json","packages/state/src/shell/move-history/183.json","rule"]
  ],
  "reexports": [
   "src/activity-delivery-engine.js",

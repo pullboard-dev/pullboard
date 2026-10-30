@@ -238,6 +238,7 @@ async function runCommand(argv, io) {
     }
     const load = COMMANDS[command];
     if (!load) return (await import('./cli-help.js')).unknownCommand(io, command);
+    await (await import('./exit-rules-runtime.js')).enforceExitBoundary(io, command);
     return await (await load()).run(io, args);
   } catch (error) {
     error = recordedMoveRefusal(io, error);

@@ -1,3 +1,9 @@
+import { EXIT_RULES_ENGINE } from '../packages/state/index.js';
+import { capturedExitRules } from './exit-rules-state.js';
+import {
+  exitContinuationSummary,
+  exitContinuationProblem,
+} from './exit-rules-continuation.js';
 import { pendingSubmitHandoff } from './submit-handoff-read.js';
 /** Native claim preparation and mutation preserve the same declared guards [B2,C7,V2]. */
 import {
@@ -94,6 +100,8 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       },
       notHeldByAnother: (found) => (isHeld(board, found) && found.item_owner !== agentId ? new Refused('HELD', `item #${id} is held by ${found.item_owner} until ${found.item_lease_until}`) : null),
       builderFirstRefusal: (found) => {
+        const continuation = exitContinuationProblem(board, id, agentId);
+        if (continuation) return continuation;
         if (reworkRoutingPolicy && (board.executionEngineVersion ?? ENGINE_VERSION) >= REWORK_SAME_FAMILY_ENGINE) {
           reworkRouting = reworkFamilyRoute(board, found, { agentId, listAgents: board.nativePorts.listAgents,
             routeOf, canTake, seatFamily: board.nativePorts.seatFamily, canonicalFamily: board.nativePorts.canonicalFamily,
@@ -223,7 +231,20 @@ export function claim(board, id, options, ports) {
       board.db.prepare('DELETE FROM board_meta WHERE meta_key = ?').run(`item_lineage:${id}`);
       if (board.verifierStanding.lineage) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`item_lineage:${id}`, board.verifierStanding.lineage);
     }
-    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(adopts ? { adoptedCorrection: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
+    const exitRules = capturedExitRules(options.exitRules);
+    if (exitRules && !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u.test(options.exitClaimKey ?? ''))
+      throw new Refused('EXIT_USAGE', 'an enabled exit policy requires its native immutable claim key');
+    if (exitRules && (board.executionEngineVersion ?? ENGINE_VERSION) < EXIT_RULES_ENGINE)
+      throw new Refused('ENGINE_VERSION', 'upgrade every writer before capturing claim exit budgets');
+    if (!renewed && exitRules) {
+      const key = `exit-claim-key:${options.exitClaimKey}`;
+      if (board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(key))
+        throw new Refused('EXIT_USAGE', 'a native claim key is single-use; preserve the prior claim and capture a fresh key');
+      board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)').run(key, JSON.stringify({ item: id, agent: agentId }));
+    }
+    const continuationSummary = !renewed ? exitContinuationSummary(board, id) : null;
+    if (!renewed && continuationSummary) board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`exit-handoff:${id}`);
+    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
       ...(admission ? { submitAdmission: admission } : {}),
       ...((board.executionEngineVersion ?? ENGINE_VERSION) >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}) });
     const route = plan.reworkRouting();
@@ -236,7 +257,7 @@ export function claim(board, id, options, ports) {
         logEvent(board, 'board', 'fact', id, { id: factId, kind: 'note', text: `No live ${route.builderFamily} family seat was available for rework #${id}; checked families: ${route.checkedFamilies.join(', ') || 'none'}. The ordinary queue assigned it to ${agentId}.`, ref: null, supersedes: null });
       }
     }
-    return { leaseUntil, digest, renewed };
+    return { leaseUntil, digest, renewed, ...(continuationSummary ? { continuationSummary } : {}) };
   });
 }
 

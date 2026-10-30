@@ -1,5 +1,10 @@
 /** General CLI recovery text; operation-owned codes live in src/moves/ [P4,C7]. */
 export const DEFAULT_NEXT_STEPS = Object.freeze({
+  EXIT_BUDGET: 'stop this session; release the item with --note "Done: <work>; Failed: <case or none>; Next: <next step>" so a fresh same-family seat continues',
+  EXIT_REPEAT_FAILURE: 'stop this session after the repeated native failure; release with --note "Done: <work>; Failed: <case>; Next: <next step>"',
+  EXIT_SUMMARY: 'release with --note "Done: <work>; Failed: <case or none>; Next: <next step>" to record the handoff atomically',
+  EXIT_CONTINUATION: 'read the item summary, then continue from a fresh native session of its reserved model family',
+  EXIT_USAGE: 'restore the original private claim anchor; unreadable or reset native counters must remain unknown',
   NO_ELIGIBLE_REVIEWER: 'credit the companion to a custodian of another family, or declare the missing family with pullboard join <lane> --family <vendor> on a seat that can review, then submit again',
   BAD_IDLE_REASON: 'run next again and use its structured idle observation',
   NEXT_TIMEOUT: 'read the named phase and item, inspect your current claim or review with pullboard whoami and pullboard show <id>, then retry next after resolving that blocker',

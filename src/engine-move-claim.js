@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { prepareFreeze } from './engine-move-freeze.js';
 import { restoreFreeze } from './engine-move-freeze.js';
 import { lineSettings } from '../packages/state/index.js';
@@ -9,6 +10,7 @@ export function prepareBefore(board, values) {
     ...(['wipPerReviewer', 'takeoverMinutes'].some(key => typeof settings[key] === 'number') ? { lineCapacity: true } : {}),
     ...(values[1]?.reworkRoutingPolicy ? { reworkSameFamily: true } : {}),
   };
+  if (values[1]?.exitRules?.enabled && values[1].exitClaimKey === undefined) values[1] = { ...values[1], exitClaimKey: randomUUID() };
   if (Object.keys(markers).length) values[1] = { ...values[1], ...markers };
 }
 

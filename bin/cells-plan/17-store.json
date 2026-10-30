@@ -5,6 +5,8 @@
  "root": "packages/store",
  "frontDoor": "packages/store/index.js",
  "paths": [
+  ["src/exit-rules-continuation.js","packages/store/src/core/exit-rules-continuation.js","rule"],
+  ["src/exit-rules-state.js","packages/store/src/core/exit-rules-state.js","rule"],
   ["src/known-main-autofile.js","packages/store/src/core/known-main-autofile.js","rule"],
   ["src/board-access.js","packages/store/src/shell/board-access.js","seed"],
   ["src/board-busy.js","packages/store/src/shell/board-busy.js","seed"],

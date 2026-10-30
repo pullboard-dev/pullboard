@@ -1,3 +1,4 @@
+import { exitedSession } from './exit-rules-continuation.js';
 /**
  * `pullboard run --scale` (B26,C7): the board runs as many agents as are worth running, within one budget the
  * person sets. The person never picks builder or reviewer counts: `pullboard settings workers.budget 40/day` is a
@@ -213,6 +214,7 @@ export async function scaleWorkers(io, values, deps) {
   const now = deps.now ?? Date.now;
   const ledger = deps.ledger ?? workerLedger();
   const running = new Map(); // seat id -> { child }
+  const retired = new Set(); // A completed exit handoff requires a fresh seat, never the old worktree binding.
   const parked = []; // joined worker worktrees whose agent process has exited, reused before making another
   const quiet = sink => ({ say() {}, err: message => io.err?.(message), result: value => { sink.value = value; } });
   const ports = {
@@ -236,12 +238,19 @@ export async function scaleWorkers(io, values, deps) {
       const env = { ...process.env, PULLBOARD_SEAT: seat.id, PULLBOARD_PROMPT: `${seat.prompt}\nTake work with pullboard next --take until it has nothing for you, then stop.` };
       const child = spawn(command, { cwd: seat.path, env, shell: true, detached: true, stdio: 'ignore' });
       running.set(seat.id, { child });
-      child.on('exit', () => { running.delete(seat.id); parked.push(seat); });
+      child.on('exit', () => { running.delete(seat.id); if (!retired.has(seat.id)) parked.push(seat); });
       io.say(`launched ${seat.id} in ${seat.path}`);
     },
   };
   for (let cycle = 0; cycle < cycles; cycle += 1) {
     if (cycle) await sleep(every * 1000);
+    for (const [id, entry] of running) {
+      const handedOff = deps.withBoard(ctx, board => Boolean(exitedSession(board, id)) && !seatHoldsWork(board, id));
+      if (handedOff && running.get(id) === entry && entry.child.exitCode === null && entry.child.signalCode === null) {
+        retired.add(id);
+        ports.stop(id); // Only this supervisor's still-owned child, after its atomic summary/release.
+      }
+    }
     io.say(scaleLine(await scaleCycle(ports)));
   }
   return 0;
