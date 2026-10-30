@@ -130,6 +130,7 @@ const OPTIONS = {
   remove: { type: 'string' },
   swap: { type: 'string' },
   limit: { type: 'string' },
+  transcripts: { type: 'string' },
   name: { type: 'string' },
   title: { type: 'string' },
   url: { type: 'string' },
@@ -309,6 +310,7 @@ export async function main(argv, streams) {
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
 async function runMain(argv, streams) {
   const io = commandOutput(argv, streams, {
+    nextActions: streams.nextActions ?? (process.env.PULLBOARD_TEXT_NEXT !== '0'),
     loadRefusal: async () => (await import('./next-step-words.js')).refusalDocument,
   });
   // Background launch is a CLI operation; lower relay code receives it explicitly.
