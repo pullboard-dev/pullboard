@@ -715,6 +715,10 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .spec-decision-actions { display: flex; align-items: center; gap: var(--space-3); cursor: default; }
 .detail-decision-actions { margin: 0 0 var(--space-4); }
 .detail-decision-actions kbd { margin-left: var(--space-2); font: var(--text-2xs) var(--mono); opacity: .75; }
+.spec-answer-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-4); }
+.spec-answer-form label { grid-column: 1 / -1; color: var(--ink-muted); font-size: var(--text-xs); }
+.spec-answer-form input { min-width: 0; min-height: var(--tap); padding: 0 var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface); color: var(--ink); font: inherit; }
+.spec-answer-form button { min-height: var(--tap); }
 .spec-reason-backdrop { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: var(--space-5); background: rgb(15 23 42 / 45%); }
 .spec-reason-dialog { width: min(100%, 420px); display: grid; gap: var(--space-4); padding: var(--space-6); border: 1px solid var(--line-strong); border-radius: var(--radius-card); background: var(--surface); box-shadow: 0 18px 60px rgb(0 0 0 / 24%); }
 .spec-reason-dialog h2 { margin: 0; font-size: var(--text-xl); }
