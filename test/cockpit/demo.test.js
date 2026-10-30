@@ -7,51 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { openShoutConversation, tapTarget, SPEC, machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, allowLiveHold, holdLive } from './fixture.js';
-import { assertFirstStateDelay } from './stable.js';
-
-/** Stage real chip clones and retain their node identities to diagnose a redraw between browser evaluations. */
-async function stageNaturalSpecChips(chrome) {
-  return JSON.parse(await chrome.stable(`JSON.stringify((() => {
-    const root = document.querySelector('#spec-chips');
-    if (!root) return { buttonCount: 0, cloneCount: 0 };
-    root.querySelectorAll('[data-natural-chip]').forEach(clone => clone.remove());
-    const buttons = [...root.querySelectorAll('button:not([data-natural-chip])')];
-    const clones = buttons.map(button => {
-      const clone = button.cloneNode(true);
-      clone.dataset.naturalChip = '';
-      clone.style.cssText += ';position:fixed;left:-10000px;opacity:0;width:max-content;flex:none';
-      button.parentElement.append(clone);
-      return clone;
-    });
-    window.__specChipStage = { buttons, clones };
-    return { buttonCount: buttons.length, cloneCount: clones.length };
-  })())`));
-}
-
-/** Clone, measure and remove natural-size chips in one page evaluation, so a render cannot split the sample. */
-async function measureNaturalSpecChips(chrome, beforeMeasure = null) {
-  if (beforeMeasure) await beforeMeasure();
-  return JSON.parse(await chrome.stable(`JSON.stringify((() => {
-    const root = document.querySelector('#spec-chips');
-    if (!root) return { buttonCount: 0, cloneCount: 0, chips: [] };
-    const buttons = [...root.querySelectorAll('button:not([data-natural-chip])')];
-    root.querySelectorAll('[data-natural-chip]').forEach(clone => clone.remove());
-    const clones = buttons.map(button => {
-      const clone = button.cloneNode(true);
-      clone.dataset.naturalChip = '';
-      clone.style.cssText += ';position:fixed;left:-10000px;opacity:0;width:max-content;flex:none';
-      button.parentElement.append(clone);
-      return clone;
-    });
-    const chips = buttons.map((button, index) => ({
-      text: button.textContent.trim(),
-      actualWidth: button.getBoundingClientRect().width,
-      naturalWidth: clones[index].getBoundingClientRect().width,
-    }));
-    clones.forEach(clone => clone.remove());
-    return { buttonCount: buttons.length, cloneCount: clones.length, chips };
-  })())`, "document.querySelectorAll('#spec-chips button:not([data-natural-chip])')"));
-}
+import { assertFirstStateDelay, stageNaturalSpecChips, measureNaturalSpecChips } from './stable.js';
 
 /** Observe the decision target, its render-time replacement, and native pointer geometry without changing input. */
 async function armDecisionPressCapture(chrome, selector) {
