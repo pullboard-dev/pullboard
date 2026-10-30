@@ -1,3 +1,6 @@
+import { recentReceipts } from '../gate-receipt.js';
+import { runnerLossHealth } from '../runner-loss-health.js';
+import { runnerLossLines } from '../runner-loss-health.js';
 import { maintenanceTimerHealth } from '../worktree-maintenance-scheduler.js';
 import { flakeQuarantines } from '../quarantine.js';
 import { toolBuildHealth } from '../pinned-tool-build.js';
@@ -24,6 +27,7 @@ import { runnerLeaseHealth } from '../../packages/resources/index.js';
 export async function run(io) {
   const ctx = context(io);
   const report = boardHealth(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), dispatchHealth, machineSettings: loadMachineSettings() });
+  report.runnerTransportLosses = runnerLossHealth(recentReceipts(ctx.info.root, ctx.clock.now().getTime()), ctx.clock.now().getTime());
   report.toolBuild = toolBuildHealth(ctx.info.root, fileURLToPath(new URL('../../', import.meta.url)), ctx.clock.now().getTime());
   report.gitSyncRepairs = readGitSyncRepairs(ctx.info.root);
   report.autoQuarantines = automaticQuarantines(ctx.file);
@@ -44,6 +48,7 @@ export async function run(io) {
     io.say(`maintenance timer: ${timer.state}; key ${timer.key ?? 'unknown'}; pid ${timer.pid ?? 'unknown'}; last run ${timer.lastRun?.completedAt ?? 'unknown'}${timer.cause ? '; ' + timer.cause : ''}`);
   }
   for (const line of healthLines(report)) io.say(line);
+  for (const line of runnerLossLines(report.runnerTransportLosses)) io.say(line);
   if (report.toolBuild.enabled) io.say(report.toolBuild.build
     ? `Pinned tool build ${report.toolBuild.build.commit}; age ${Math.floor(report.toolBuild.ageMs / 1000)}s; running ${report.toolBuild.runningCommit ?? 'live installation'}`
     : 'Pinned tool build: not published; coordinator must promote a gated build');
