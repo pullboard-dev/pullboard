@@ -56,16 +56,21 @@ test('missing connection query readers refuse before SQLite or its directory exi
 
 test('real read-only status scale and roadmap readers preserve ready order without native write ports [C7,N2]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-read-query-ports-'));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  let writer, reader;
+  t.after(() => {
+    try { if (reader) queries.closeBoard(reader); }
+    finally {
+      try { if (writer) store.closeBoard(writer); }
+      finally { rmSync(directory, { recursive: true, force: true }); }
+    }
+  });
   const file = join(directory, 'board.sqlite');
   // @pullboard-board-file persistence: prove the actual read-only opener has no native write capabilities.
-  const writer = openBoard(file);
-  t.after(() => store.closeBoard(writer));
+  writer = openBoard(file);
   store.register(writer, { lane: 'coordinator', path: directory, family: 'Fixture Owner' });
   const first = store.addItem(writer, { by: 'coordinator', lane: 'core', title: 'Ready first' });
   const blocked = store.addItem(writer, { by: 'coordinator', lane: 'core', title: 'Wait for first', after: [first] });
-  const reader = queries.openBoardForRead(file, writer.clock);
-  t.after(() => queries.closeBoard(reader));
+  reader = queries.openBoardForRead(file, writer.clock);
   assert.equal(reader.readOnly, true);
   assert.equal(reader.nativePorts, undefined);
   assert.deepEqual(readyItems(reader, store.foreignBlockers, queries).map(item => item.item_id), [first]);
