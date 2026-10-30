@@ -398,6 +398,13 @@ test('a repeated failure cause is noticed [D1,V1]', () => {
   assert.equal(lines[2], `refusal:UNDECLARED_REFUSAL  reads as work  2 failures  items #${third} (2 commits)`);
   assert.equal(lines[3], '0 rejects and reopens carry no cause key; name one with --cause <key> (test:<file>::<title>, refusal:<CODE>, row:<id>, doctrine:<id>, sentinel:<name>, conflict:<file>)');
   assert.equal(lines.length, 4, 'the single coarse verdict is not a repeat; the zero-uncaused footer remains explicit');
+
+  const help = box.run('rigor', '--help');
+  assert.equal(help.status, 0, help.stderr);
+  assert.match(help.stdout, /\nnext: pullboard status\n$/u, 'Rigor help retains interactive guidance');
+  const draft = box.run('rigor', 'draft');
+  assert.notEqual(draft.status, 0, 'an incomplete drafting command remains refused');
+  assert.match(draft.stdout + draft.stderr, /(?:^|\n)next: /u, 'actionable drafting refusals retain their guidance');
 });
 
 test('rigor reads old events by their structured fields only, never by their notes [D1,V1]', () => {
