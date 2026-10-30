@@ -1,4 +1,5 @@
 /** Two hand-computed windows use real Git/SQLite history; current rows intentionally disagree [R1,R2,N2]. */
+import { refusalDocument } from '../src/next-step-words.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
@@ -192,7 +193,7 @@ test('Dashboard API projects the same read-time windows from cached event histor
   const box = fixture(t);
   let now = Date.parse(at(120)), builds = 0;
   const before = box.history();
-  const api = await serveApi({ runCommand: main, projects: () => [{ root: box.root, name: 'Comparison fixture' }],
+  const api = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'Comparison fixture' }],
     now: () => now, onStateBuild: () => { builds++; } });
   t.after(() => api.close());
   const url = new URL(api.url), headers = { 'x-pullboard-key': url.searchParams.get('k') };
