@@ -40,9 +40,15 @@ export function recordExitProgress(board, request) {
     if (held.item_status !== 'claimed' || held.item_owner !== agentId || current?.id !== claim)
       throw new Refused('NOT_YOURS', 'record exit progress only for your current native claim');
     const old = progress(board, claim);
-    for (const key of ['tokens', 'calls']) if (old[key] !== null && request[key] !== null && request[key] < old[key])
-      throw new Refused('EXIT_USAGE', 'a decreased native counter is unknown; never restart a claim budget');
-    const value = { tokens, calls };
+    // Native capture precedes the checkout/board lock: a valid older capture may commit last.
+    // Retain each proven high-water separately, while an unknown observation remains explicitly unknown.
+    const highWater = Object.fromEntries(['tokens', 'calls'].map(key => {
+      const prior = old.highWater?.[key] ?? old[key];
+      const known = Number.isSafeInteger(prior) && prior >= 0 ? prior : null;
+      return [key, request[key] === null ? known : known === null ? request[key] : Math.max(known, request[key])];
+    }));
+    const value = { tokens: tokens === null ? null : highWater.tokens,
+      calls: calls === null ? null : highWater.calls, highWater };
     const decision = exitRulesDecision(current.policy, value);
     if (decision) board.db.prepare('INSERT OR IGNORE INTO board_meta(meta_key,meta_value) VALUES(?,?)')
       .run(`exit-stop:${claim}`, JSON.stringify(decision));

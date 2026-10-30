@@ -142,3 +142,23 @@ test('an external native CLI captures the claim prefix, refuses its next command
   assert.equal(fenced.code, 1, fenced.out + fenced.err);
   assert.equal(JSON.parse(fenced.out).error.code, 'EXIT_BUDGET');
 });
+
+test('out-of-order captures retain independent counter high-water through unknowns without false refusals [B3,C7,N2]', t => {
+  const f = setup(t);
+  const record = (tokens, calls) => store.recordExitProgress(f.board, {
+    agentId: 'core-1', item: f.id, claim: f.claim.id, tokens, calls });
+  record(12, 1); // The newer token capture obtains the writer before the older capture below.
+  const stale = record(10, 2); // Call and token observations need not arrive in the same order.
+  assert.deepEqual(stale, { tokens: 12, calls: 2, highWater: { tokens: 12, calls: 2 } });
+  const unknown = record(null, null);
+  assert.deepEqual(unknown, { tokens: null, calls: null, highWater: { tokens: 12, calls: 2 } });
+  assert.equal(exitClaimDecision(f.board, f.id, 'core-1'), null, 'unknown counters alone never trigger a stop');
+  assert.deepEqual(record(9, 1), { tokens: 12, calls: 2, highWater: { tokens: 12, calls: 2 } });
+  assert.equal(exitClaimDecision(f.board, f.id, 'core-1'), null);
+  assert.throws(() => store.recordExitProgress(f.board, { agentId: 'core-1', item: f.id,
+    claim: f.claim.id + 1000, tokens: 100, calls: 3 }), error => error.code === 'NOT_YOURS');
+  record(100, 2);
+  record(null, null);
+  record(10, 0);
+  assert.equal(exitClaimDecision(f.board, f.id, 'core-1').code, 'EXIT_BUDGET', 'known stop cannot be erased by unknown or late captures');
+});
