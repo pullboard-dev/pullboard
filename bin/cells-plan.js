@@ -25,6 +25,7 @@ import { readPathMap } from '../packages/codemap/index.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { tryGit } from '../src/git.js';
 import { Refused } from '../src/refused.js';
+import { retainEnginePaths } from './cells-engine-stays.js';
 import { cachedCellsRun } from '../src/cells-cache.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { fileCuts } from './cells-plan-cuts.js';
@@ -433,6 +434,13 @@ function fileItems(root, plan, yes) {
 function main(argv) {
   const [mode = '--check', ...rest] = argv;
   const root = resolve('.');
+  if (mode === '--engine-stays') {
+    const [cellName, ...paths] = rest;
+    const next = retainEnginePaths({ root, plan: readPlan(root), cellName, paths, pathMap: readPathMap(root) });
+    writePlan(root, next);
+    console.log(`retained ${paths.length} canonical engine paths in src`);
+    return;
+  }
   if (mode === '--refresh-cuts') {
     const plan = readPlan(root), { edges, unknown } = cellInventory(root, { importsIn, commonJsIn });
     const endpoints = new Set([...edges.keys(), ...[...edges.values()].flatMap(rows => rows.map(row => row.target))]);
@@ -485,7 +493,7 @@ function main(argv) {
     return problems.length ? 1 : 0;
   });
   if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --engine-stays state <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));

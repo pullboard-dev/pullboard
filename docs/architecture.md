@@ -148,6 +148,10 @@ A new relay process on the same `/data` volume keeps every account, link, creden
 
 A phone pairs again when its browser storage is cleared, when it signs in as another account, or when the device is revoked. The hosted page can be installed to the Home Screen and asks the browser to keep its storage, since Safari on iPhone can clear a site's storage after seven days without a visit (`relay/browser-install.js`).
 
+## Local main-facts cache
+
+Immutable facts derived from accepted main are stored in the private Git-common-directory cache. The cache retains current main and at most eight recent commit groups by default; older groups are evicted in the same transaction as insertion, and SQLite reclaims the freed space. The default database cap is 512 MiB. `PULLBOARD_MAIN_FACTS_MAX_BYTES` sets the local byte cap (minimum 16384); `PULLBOARD_MAIN_FACTS_RECENT_COMMITS` sets the number of recent groups (1–1000). Invalid values use the defaults. Oversized legacy cache contents are discarded and rebuilt. If the cache is unavailable, busy, unsafe or cannot write, facts are derived without the cache; source and board authority are unchanged. Evictions emit one diagnostic line.
+
 ## Honest limits
 
 The relay sees metadata. The section on what it can read lists all of it: accounts, repository names, record sizes and timing, seat names, machine ids, which phones hold which boards, and network addresses.

@@ -7,7 +7,7 @@ import { posix } from 'node:path';
 import { lex } from './js-lex.js';
 
 /** Read variable binding patterns, skipping initializer expressions so references remain allowed. */
-function engineBindings(code) {
+export function engineBindings(code) {
   const tokens = [...code.matchAll(/"[^"]*"|'[^']*'|[\p{ID_Start}_$][\p{ID_Continue}$]*|[0-9][\w.]*|\.\.\.|[^\s]/gu)];
   const found = new Map();
   /** Skip an expression through its next declaration or binding separator. */

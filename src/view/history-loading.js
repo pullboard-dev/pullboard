@@ -64,7 +64,7 @@ function drawHistoryNotes() {
   if (!progress) { stopHistoryNotes(); return; }
   for (const old of document.querySelectorAll('[data-history-note]')) old.remove();
   const places = [['shouts', $('feed')], ['activity', $('activity')],
-    ['item', [...$('detail').querySelectorAll('h3')].find((head) => head.textContent === 'History')?.parentElement]];
+    ['item', $('detail').querySelector('[data-item-panel-panel=history]') ?? [...$('detail').querySelectorAll('h3')].find((head) => head.textContent === 'History')?.parentElement]];
   historyWatch?.disconnect(); historyAtEnd.clear();
   historyWatch = typeof IntersectionObserver === 'function' ? new IntersectionObserver((seen) => {
     for (const entry of seen) {
