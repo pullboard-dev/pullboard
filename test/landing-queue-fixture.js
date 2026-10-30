@@ -73,8 +73,10 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
     run(box, root, 'join', 'web');
     const file = `web/queue-${number}.txt`;
     const added = JSON.parse(run(box, box.repo, 'add', 'web', `Queue item ${number}`, '--specs', 'G1',
-      '--criterion', `queue item ${number} works`, '--check', `grep -qx works ${file}`, '--json'));
+      '--criterion', `queue item ${number} works`, '--check', `grep -qx works ${file}`, '--wait', '--json'));
     const id = added.item.item_id;
+    assert.ok(added.item.item_check_baseline, 'the ordinary add observes its actual setup baseline');
+    assert.notEqual(added.item.item_check_baseline.result, 'pending', 'no detached setup baseline remains to publish during claim');
     run(box, root, 'claim', String(id));
     if (number === 2 && staleAfterFirst) {
       // The first-to-land item changes the lower id's checked path on an independent branch.
