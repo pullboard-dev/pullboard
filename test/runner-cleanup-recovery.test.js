@@ -1,3 +1,4 @@
+/** @pullboard-test-loads packages/resources/index.js */
 /** @pullboard-test-input source-tree */
 /** Cleanup holds need a fresh pinned idle worker, not a successful SSH connection alone [C7]. */
 import assert from 'node:assert/strict';
@@ -49,7 +50,7 @@ process.once('SIGTERM',()=>child.kill('SIGTERM'));
     import { existsSync, mkdirSync } from 'node:fs';
     import { join } from 'node:path';
     import { probeRunnerHealth } from ${JSON.stringify(url('runners.js'))};
-    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('runner-recovery.js'))};
+    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('../packages/resources/index.js'))};
     import { claimRunnerLaunch, runnerLaunchAllowed } from ${JSON.stringify(url('runner-transport.js'))};
     const root=${JSON.stringify(root)};
     const runner={host:${JSON.stringify(HOST)},node:${JSON.stringify(node)},root,slots:1,browser:0};

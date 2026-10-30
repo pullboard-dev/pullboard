@@ -310,3 +310,29 @@ test('a clean public export renders offline with public work and no write path [
     finally { await staticView.close(); }
   }
 });
+
+
+test('private native submit admission links stay out of all public history projections [N26]', () => {
+  const admission = { id: '018fc314-57c9-7318-a11f-55a08a28a101', commit: 'a'.repeat(40), tree: 'b'.repeat(64) };
+  const receipt = { id: '018fc314-57c9-7318-a11f-55a08a28a102', commit: admission.commit, submitAdmission: admission.id };
+  const thread = [{ kind: 'claim', detail: { digest: 'c'.repeat(64), submitAdmission: admission } },
+    { kind: 'renew', detail: { submitAdmission: admission } }, { kind: 'proof-run', detail: { receipt } }];
+  const events = thread.map(row => ({ event_kind: row.kind, event_detail: JSON.stringify(row.detail) }));
+  const input = { state: { state: { items: [{ thread }], events } }, events: { events } };
+  const before = JSON.stringify(input), output = publicSnapshot(input);
+  assert.deepEqual(output.state.state.items[0].thread.map(row => row.detail),
+    [{ digest: 'c'.repeat(64) }, {}, { receipt: { id: receipt.id, commit: receipt.commit } }]);
+  for (const rows of [output.state.state.events, output.events.events]) {
+    assert.deepEqual(rows.map(row => JSON.parse(row.event_detail)), output.state.state.items[0].thread.map(row => row.detail));
+  }
+  assert.equal(JSON.stringify(input), before, 'projection never mutates private native evidence');
+  for (const forged of [{ submitAdmission: admission },
+    { events: { events: [{ event_kind: 'fact', event_detail: JSON.stringify({ submitAdmission: admission }) }] } },
+    { state: { state: { items: [{ thread: [{ kind: 'claim', detail: { submitAdmission: { ...admission, id: 'sk-fixtureonly12345678' } } }] }] } } },
+    { state: { state: { events: [{ event_kind: 'renew', event_detail: JSON.stringify({ submitAdmission: { ...admission, commit: 'sk-fixtureonly12345678' } }) }] } } },
+    { events: { events: [{ event_kind: 'renew', event_detail: JSON.stringify({ submitAdmission: { ...admission, note: 'sk-fixtureonly12345678' } }) }] } },
+    { events: { events: [{ event_kind: 'claim', event_detail: JSON.stringify({ submitAdmission: 'sk-fixtureonly12345678' }) }] } },
+    { events: { events: [{ event_kind: 'proof-run', event_detail: JSON.stringify({ receipt: { submitAdmission: 'sk-fixtureonly12345678' } }) }] } }]) {
+    assert.throws(() => publicSnapshot(forged), error => error.code === 'PUBLIC_EXPORT_BLOCKED', 'arbitrary and malformed lookalikes keep the full privacy scan');
+  }
+});

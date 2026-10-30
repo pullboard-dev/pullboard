@@ -322,7 +322,22 @@ const rejected = (i) => i.status !== 'verified' && !!i.verdict && i.verdict.deci
 function agentName(id, project = data?.project) {
   const agent = project?.agents?.find((entry) => entry.agent_id === id);
   const model = [agent?.model, agent?.agent_model].find(value => typeof value === 'string' && value.trim() && value.trim().toLowerCase() !== 'unknown');
-  return model ? agent.displayName || id + ' (' + model + ')' : id;
+  if (!model) return id;
+  if (!privateCost) return agent.displayName || id + ' (' + model + ')';
+  const named = modelPresentation(model, agent.family).name;
+  return agent.displayName?.endsWith('-' + id) ? named + '-' + id : id + ' (' + named + ')';
+}
+/** Project model labels for private renderers while preserving the native API and public pages. */
+function privateModelProject(project) {
+  if (!privateCost || !project) return project;
+  return { ...project, agents: (project.agents || []).map(agent => {
+    const raw = agent.model || agent.agent_model;
+    if (typeof raw !== 'string' || !raw.trim()) return agent;
+    const name = modelPresentation(raw, agent.family).name;
+    const id = agent.agent_id || agent.id;
+    return { ...agent, model: name, agent_model: name,
+      displayName: agent.displayName?.endsWith('-' + id) ? name + '-' + id : id + ' (' + name + ')' };
+  }) };
 }
 /** Name a typed native event without changing its operation or replay identity. */
 const eventWords = kind => activityWords({ kind }).label;
@@ -571,7 +586,7 @@ function timeline(item, { newestFirst = false } = {}) {
   const modelFor = by => {
     const agent = data?.project?.agents?.find(row => row.agent_id === by);
     const model = agent?.model || agent?.agent_model;
-    return model && String(model).toLowerCase() !== 'unknown' ? model : '';
+    return model && String(model).toLowerCase() !== 'unknown' ? (privateCost ? modelPresentation(model, agent.family).name : model) : '';
   };
   const presentedEntries = replayEntries.map((entry) => entry.type === 'fact'
     ? { ...entry, text: findingWords({ why: entry.text }, true).text, kindLabel: eventWords(entry.kind), timeLabel: when(entry.at), ageHtml: age(entry.at), model: modelFor(entry.by),
