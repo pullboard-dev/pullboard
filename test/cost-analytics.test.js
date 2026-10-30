@@ -134,6 +134,7 @@ test('a seeded native board yields actual cohorts, Wilson bounds and verdicts [N
   assert.equal(result.totals.sentBack.items, 20);
   assert.equal(result.builders.verdict, 'clear');
   assert.equal(result.builders.best, 'alpha');
-  assert.deepEqual({ low: result.builders.rows[1].low, high: result.builders.rows[1].high }, wilson(10, 30));
+  const betaRow = result.builders.rows.find(row => row.model === 'beta');
+  assert.deepEqual({ low: betaRow.low, high: betaRow.high }, wilson(10, 30));
   assert.equal(result.verifiers.rows[0].accepts, 60);
 });
