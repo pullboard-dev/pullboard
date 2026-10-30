@@ -103,10 +103,12 @@ function itemAddress(id, root = view.root) {
   const path = prefix + '/items/' + encodeURIComponent(String(id));
   return routed ? path + location.search : location.pathname + location.search + '#' + path.slice(1);
 }
+// A migrated saved tab wins over stale embedded history on the first board read.
+let startupTabMigration = null;
 /** Use Dashboard for a fresh page and migrate saved Home selections; preserve other remembered destinations. */
 function landingTab() {
   const kept = keep('pb.tab');
-  if (kept === 'home') { keep('pb.tab', 'dashboard'); return 'dashboard'; }
+  if (kept === 'home') { startupTabMigration = 'dashboard'; keep('pb.tab', 'dashboard'); return 'dashboard'; }
   if (kept === 'cost' && !privateCost) { keep('pb.tab', 'dashboard'); return 'dashboard'; }
   return kept || 'dashboard';
 }
