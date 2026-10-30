@@ -6,12 +6,22 @@ export function milestoneRowHtml(row, presentation = {}) {
   const { hidden = false, open = false, root } = presentation;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const title = presentation.titleHtml ?? '<span class="muted">' + esc(row.why) + '</span>';
-  const place = Number.isInteger(row.position) && row.position > 0 ? '<span class="queue-position" data-position="' + row.position + '" title="Queue position ' + row.position + '">' + row.position + '.</span> ' : '';
-  const label = place + '<span class="id">' + esc(row.label) + '</span>' + title;
-  const text = row.block?.dot ? '<span class="milestone-title">' + label + '</span>' + row.block.dot : label;
+  const order = Number.isInteger(row.order) && row.order > 0 ? row.order : row.position;
+  const place = Number.isInteger(order) && order > 0 ? '<span class="queue-position" data-position="' + order + '" title="Queue position ' + order + '">' + order + '</span>' : '<span class="queue-position" aria-hidden="true"></span>';
+  const stage = row.stage === 'claimed' ? 'building' : row.stage === 'submitted' ? 'review' : row.stage === 'back' || row.state === 'back' ? 'back'
+    : row.stage === 'accepted' ? 'accepted' : row.stage === 'merged' || row.state === 'verified' ? 'landed' : 'ready';
+  const icons = { building: '<path d="m3 13 5-5 3 3-5 5H3zm7-7 2-2 6 6-2 2M5 16l-2 2v2h2l2-2"/>',
+    review: '<path d="M2 10s3.5-5 8-5 8 5 8 5-3.5 5-8 5-8-5-8-5Z"/><circle cx="10" cy="10" r="2"/>',
+    back: '<path d="m7 5-4 4 4 4M3 9h8a5 5 0 0 1 0 10h-2"/>',
+    accepted: '<path d="m3 10 5 5L17 5"/>', landed: '<path d="m3 10 5 5L17 5"/>', ready: '<circle cx="10" cy="10" r="2.5" fill="currentColor" stroke="none"/>' };
+  const icon = '<span class="roadmap-state ' + stage + '" aria-hidden="true"><span class="dot ' + esc(row.state) + '"></span><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + icons[stage] + '</svg></span>';
+  const label = '<span class="id">' + esc(row.label) + '</span>' + title;
+  const text = '<span class="milestone-title">' + label + '</span>' + (presentation.afterHtml || '') + (row.block?.dot && !row.after?.length ? row.block.dot : '');
   const key = 'i:' + row.label;
-  const status = (open && row.block?.dot ? '<span class="chip warn roadmap-blocked"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>blocked</span>' : '') + (row.stage === 'merged' ? '<span class="chip ok roadmap-landed">verified</span>' : row.stage === 'accepted' ? '<span class="chip ok">accepted</span>' : row.held ? heldChip(row.held) : row.state ? (presentation.stateChipHtml ?? '') : '<span class="chip">' + esc(row.word) + '</span>');
-  const inner = '<span class="dot' + (row.state ? ' ' + row.state : '') + '"></span><span class="t">' + text + '</span>' + (row.stale || '') + '<span class="roadmap-status">' + status + '</span>';
+  const labels = { building: 'Building', ready: 'Ready', review: 'In review', back: 'Sent back', accepted: 'Accepted', landed: 'Landed' };
+  const tones = { building: 'busy', ready: 'free', review: 'warn', back: 'no', accepted: 'ok', landed: 'ok' };
+  const status = row.held ? heldChip(row.held) : '<span class="chip ' + tones[stage] + ' roadmap-stage-chip">' + labels[stage] + '</span>';
+  const inner = place + icon + '<span class="t">' + text + (row.stale || '') + '</span><span class="roadmap-status">' + status + '</span>';
   const board = row.open && row.open.root !== root ? ' data-board="' + esc(row.open.root) + '"' : '';
   const toggle = 'class="milestone-item' + (row.block?.dot ? ' blocked' : '') + '" data-roadmap-key="' + esc(key) + '" aria-expanded="' + open + '"' + board + ' title="' + esc(row.title ? row.title + (!row.open && row.why ? ' (' + row.why + ')' : '') : row.why) + '"';
   const detail = row.block ? row.block.detail : '<p>' + esc(row.why || row.word) + '</p>';
@@ -32,7 +42,7 @@ export function readMilestoneModel(milestone, inputRows) {
   /** Open items carry the backend's queue position; that order stands and is never re-sorted by lifecycle. */
   const place = row => Number.isInteger(row.position) && row.position > 0 ? row.position : null;
   const rows = [...visible].sort((a, b) => place(a) !== null && place(b) !== null ? place(a) - place(b)
-    : place(a) !== null ? -1 : place(b) !== null ? 1 : rank(a) - rank(b));
+    : place(a) !== null ? -1 : place(b) !== null ? 1 : rank(a) - rank(b)).map((row, index) => ({ ...row, order: index + 1 }));
   // Current API milestones own their landed count and explicit shipment. Old exports retain their old count.
   /** Reject malformed snapshot counts before they reach numeric HTML attributes. */
   const numeric = value => Number.isInteger(value) && value >= 0 ? value : null;
@@ -57,6 +67,13 @@ export function roadmapRemainingCount(reads) {
   return total;
 }
 
+/** Format the latest shipped release date from its recorded UTC instant without exposing the release note. */
+function shippedDate(milestone) {
+  const instant = Date.parse(milestone?.shipped?.at || '');
+  if (!Number.isFinite(instant)) return '';
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(instant) + ' · on npm';
+}
+
 /** Render release cards, shipping counts and shipped history without browser state. */
 export function roadmapCardsHtml(read, presentation = {}) {
   const { only = null, root, held, open = new Map(), headers = new Map(), headings = new Map(), rows: rowPresentation = new Map(), notes = new Map(), targets = new Map() } = presentation;
@@ -73,10 +90,10 @@ export function roadmapCardsHtml(read, presentation = {}) {
   const stages = [['open', 'Open'], ['claimed', 'Building'], ['submitted', 'In review'], ['accepted', 'Accepted'], ['merged', 'Landed']];
   const counts = headerFor(next) ? null : Object.fromEntries(stages.map(([stage]) => [stage, next ? next.rows.filter((row) => row.stage === stage).length : 0]));
   const shippingCounts = headerFor(next)
-    ? '<dl class="roadmap-stage-counts">' + [['landed','Landed'],['landing','Accepted, landing'],['review','In review'],['building','Building'],['waiting','Waiting'],['held','Held']].map(([key,label]) => '<div data-shipping-stage="' + key + '"><dt>' + label + '</dt><dd>' + next.milestone.summary[key] + '</dd></div>').join('') + '</dl>'
-    : '<dl class="roadmap-stage-counts">' + stages.map(([stage, label]) => '<div data-shipping-stage="' + stage + '"><dt>' + label + '</dt><dd>' + counts[stage] + '</dd></div>').join('') + '</dl>';
+    ? '<dl class="roadmap-stage-counts">' + [['landed','Landed'],['landing','Accepted, landing'],['review','In review'],['building','Building'],['waiting','Waiting'],['held','Held']].map(([key,label]) => '<div data-shipping-stage="' + key + '"><dt><i class="roadmap-stage-swatch ' + key + '" aria-hidden="true"></i>' + label + '</dt><dd>' + next.milestone.summary[key] + '</dd></div>').join('') + '</dl>'
+    : '<dl class="roadmap-stage-counts">' + stages.map(([stage, label]) => '<div data-shipping-stage="' + stage + '"><dt><i class="roadmap-stage-swatch ' + stage + '" aria-hidden="true"></i>' + label + '</dt><dd>' + counts[stage] + '</dd></div>').join('') + '</dl>';
   const lastShipped = '<p class="roadmap-last-shipped"><span>Last shipped</span><b>' + esc(shipped[0]?.milestone.name || 'None yet') + '</b>'
-    + (shipped[0]?.milestone.note ? '<small>' + esc(firstLine(shipped[0].milestone.note)) + '</small>' : '') + '</p>';
+    + (shipped[0] ? '<small>' + esc(shippedDate(shipped[0].milestone)) + '</small>' : '') + '</p>';
   const mobileShipping = '<section class="roadmap-shipping roadmap-mobile-shipping" aria-label="Shipping counts">' + shippingCounts + lastShipped + '</section>';
   const mobileHistory = '<section class="roadmap-shipping roadmap-mobile-shipping" aria-label="Last shipped release">' + lastShipped + '</section>';
   /** Keep supplied landed progress beside an upcoming release without a modern summary. */
@@ -115,7 +132,9 @@ export function roadmapCardsHtml(read, presentation = {}) {
   const line = (m) => wrap('div', 'milestone shipped-one', 'm:' + m.milestone.name, false, '<h2>' + esc(m.milestone.name) + '</h2><small>' + esc(firstLine(m.milestone.note)) + '</small>' + '<span class="milestone-count">' + m.total + (m.total === 1 ? ' item' : ' items') + '</span>' + capacity(m), body(m), (m.milestone.shipped?.commit ? '<button class="hash-copy" type="button" title="' + esc(m.milestone.shipped.commit) + '" aria-label="Copy full hash ' + esc(m.milestone.shipped.commit) + '" data-copy="' + esc(m.milestone.shipped.commit) + '"><code class="roadmap-shipped-commit" title="' + esc(m.milestone.shipped.commit) + '">' + esc(m.milestone.shipped.commit.slice(0, 12)) + '</code></button>' : ''));
   const releaseButtons = coming.map((m) => {
     const key = 'm:' + m.milestone.name;
-    return '<button class="roadmap-release" data-roadmap-jump="' + esc(key) + '" type="button"><span>' + esc(m.milestone.name) + '</span><b>' + m.done + '/' + m.total + '</b></button>';
+    const total = Math.max(1, m.total), done = Math.min(m.done, total);
+    const progress = '<svg class="roadmap-release-progress" viewBox="0 0 ' + total + ' 1" preserveAspectRatio="none" role="img" aria-label="' + esc(m.milestone.name) + ': ' + m.done + ' of ' + m.total + ' landed"><rect width="' + done + '" height="1"/></svg>';
+    return '<button class="roadmap-release" data-roadmap-jump="' + esc(key) + '" type="button"><span>' + esc(m.milestone.name) + '</span><b>' + m.done + '/' + m.total + '</b>' + progress + '</button>';
   }).join('');
   const shippedButton = shipped.length
     ? '<button class="roadmap-release" data-roadmap-jump="shipped" type="button"><span>Shipped</span><b>' + shipped.length + '</b></button>' : '';

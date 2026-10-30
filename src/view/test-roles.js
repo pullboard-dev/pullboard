@@ -303,6 +303,10 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "roadmap-held: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
+  "test/cockpit/roadmap-redesign.test.js": {
+    "kind": "journey",
+    "reason": "The approved Roadmap design is checked against real seeded lifecycle rows, shipment data, and phone/desktop Chrome rendering."
+  },
   "test/cockpit/roadmap.test.js": {
     "kind": "journey",
     "reason": "roadmap: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
