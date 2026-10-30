@@ -1,0 +1,160 @@
+/** Trusted controller-only analysis of immutable submit compositions [C7,D3,CD64]. */
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { withMainCheckout } from '../src/main-red.js';
+import { git } from '../src/git.js';
+import { Refused } from '../src/refused.js';
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
+import { cellInventory } from '../packages/codemap/index.js';
+import { cellLintReport } from '../packages/codemap/index.js';
+import { cellLintGrowth } from '../packages/codemap/index.js';
+import { readCellLintBaseline } from '../packages/codemap/index.js';
+import { CELL_BASELINE_DESCRIPTOR } from '../packages/codemap/index.js';
+import { readPathMap } from '../packages/codemap/index.js';
+import { checkCuts } from './cells-plan-cuts.js';
+import { checkMoved } from './cells-plan.js';
+import { readPlan } from './cells-plan.js';
+import { unplanned } from './cells-plan.js';
+import { stalePlanRows } from './cells-plan.js';
+
+/** Exact multiset subtraction keeps duplicate diagnostics from borrowing one old allowance. */
+function additions(before, after) {
+  const counts = new Map();
+  for (const value of before) counts.set(value, (counts.get(value) ?? 0) + 1);
+  return after.filter(value => {
+    if (!(counts.get(value) > 0)) return true;
+    counts.set(value, counts.get(value) - 1);
+    return false;
+  });
+}
+
+/** A malformed analysis is a refusal, never an empty set of findings. */
+function refuse(problems) {
+  if (problems.length) throw new Refused('CELLS_SUBMIT', problems.join('; '));
+}
+
+/** Preserve accepted ownership; candidate metadata may not hide an existing implementation in a stay or later cell. */
+function policyProblems(before, after, beforeMap, afterMap) {
+  const problems = [], cells = new Map(after.cells.map(cell => [cell.name, cell]));
+  const rows = new Map();
+  for (const cell of after.cells) for (const row of cell.paths) {
+    if (rows.has(row[0])) problems.push(`plan repeats ${row[0]}`);
+    rows.set(row[0], { cell, row });
+  }
+  for (const cell of before.cells) {
+    const next = cells.get(cell.name);
+    if (!next || ['order', 'root', 'frontDoor', 'pureFrontDoor'].some(key => next[key] !== cell[key])) {
+      problems.push(`accepted cell ${cell.name} identity/order/front door changed`);
+      continue;
+    }
+    for (const row of cell.paths) {
+      const current = rows.get(row[0]);
+      const retired = after.retired?.some(entry => entry.cell === cell.name && JSON.stringify(entry.row) === JSON.stringify(row));
+      if (!current && !retired) problems.push(`${cell.name}: accepted row ${row[0]} disappeared without exact retirement`);
+      if (current && current.cell.order > cell.order) problems.push(`${cell.name}: ${row[0]} was relabeled as later ${current.cell.name}`);
+    }
+  }
+  for (const entry of before.retired ?? []) if (!after.retired?.some(row => JSON.stringify(row) === JSON.stringify(entry))) {
+    problems.push(`accepted retired provenance changed: ${entry.row[0]}`);
+  }
+  for (const [from, to] of afterMap) {
+    if (beforeMap.get(from) === to) continue;
+    const row = rows.get(from);
+    if (!row || row.row[1] !== to) problems.push(`path map ${from} -> ${to} has no exact declared move row`);
+  }
+  for (const [from, to] of beforeMap) if (!afterMap.has(from)) problems.push(`accepted path map disappeared: ${from} -> ${to}`);
+  return problems;
+}
+
+/** Metadata that supplies authority or global resolution can affect every cell. */
+function sharedPolicy(file) {
+  return file === 'package.json' || file === 'path-map.json' || file === 'bin/cells-plan.json'
+    || file.startsWith('bin/cells-plan/') || file.startsWith('bin/cell-lint-baselines/')
+    || file === 'bin/cell-lint-transition.json';
+}
+
+/** Attribute changed files and their transitive readers using the actual accepted graph and both declared roots. */
+function touchedCells(files, before, after, inventories) {
+  if (files.some(sharedPolicy)) return after.cells.map(cell => cell.name);
+  const known = file => [before, after].some(plan => plan.cells.some(cell => file === cell.frontDoor || file.startsWith(cell.root + '/')
+    || cell.paths.some(row => row[0] === file || row[1] === file)));
+  if (files.some(file => !known(file))) return after.cells.map(cell => cell.name);
+  const affected = new Set(files);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const inventory of inventories) for (const [file, imports] of inventory.edges) {
+      if (!affected.has(file) && imports.some(edge => affected.has(edge.target))) { affected.add(file); grew = true; }
+    }
+  }
+  const names = new Set();
+  for (const plan of [before, after]) for (const cell of plan.cells) {
+    if ([...affected].some(file => file === cell.frontDoor || file.startsWith(cell.root + '/')
+      || cell.paths.some(row => row[0] === file || row[1] === file))) names.add(cell.name);
+  }
+  return [...names].sort();
+}
+
+/** Temporary metadata is permission only for the exact frozen edge, never an exception to cut analysis. */
+function temporaryProblems(mainRoot, candidateRoot, criterion) {
+  const file = 'bin/cells-plan/temporary-edges.json';
+  const read = root => existsSync(join(root, file)) ? JSON.parse(readFileSync(join(root, file), 'utf8')).edges : [];
+  const before = read(mainRoot), after = read(candidateRoot);
+  if (!Array.isArray(before) || !Array.isArray(after)) return [`${file}: malformed edges`];
+  return after.filter(row => !before.some(old => JSON.stringify(old) === JSON.stringify(row)))
+    .filter(row => !criterion.includes(`${row.importer} -> ${row.target}`))
+    .map(row => `${file}: frozen criterion does not name exact edge ${row.importer} -> ${row.target}`);
+}
+
+/** Analyze clean real snapshots with loaded controller code; no candidate module is imported or executed. */
+export function cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', files } = {}) {
+  if (!existsSync(join(mainRoot, 'bin/cells-plan.json'))) return { cells: [], problems: [] };
+  const before = readPlan(mainRoot), after = readPlan(candidateRoot);
+  const mainMap = readPathMap(mainRoot), candidateMap = readPathMap(candidateRoot);
+  const policy = policyProblems(before, after, mainMap, candidateMap);
+  policy.push(...unplanned(candidateRoot, after).map(file => `unplaced ${file}`));
+  policy.push(...stalePlanRows(candidateRoot, after).map(row => `${row.cell}: stale ${row.row[0]}`));
+  policy.push(...temporaryProblems(mainRoot, candidateRoot, criterion));
+  if (policy.length) return { cells: [], problems: policy };
+  const parsers = { importsIn, commonJsIn };
+  const oldInventory = cellInventory(mainRoot, parsers), newInventory = cellInventory(candidateRoot, parsers);
+  const oldReport = cellLintReport(mainRoot, parsers, { inventory: oldInventory });
+  const newReport = cellLintReport(candidateRoot, parsers, { inventory: newInventory });
+  // Advisory transition authority comes only from the immutable accepted snapshot.
+  newReport.transition = oldReport.transition;
+  const baseline = existsSync(join(mainRoot, CELL_BASELINE_DESCRIPTOR)) ? readCellLintBaseline(mainRoot) : null;
+  if (!baseline) throw new Refused('CELLS_SUBMIT', 'accepted main lacks a complete cell lint baseline');
+  const changed = files ?? git(candidateRoot, ['diff', '--name-only', '--no-renames', '-z', acceptedMain, 'HEAD']).split('\0').filter(Boolean);
+  const cells = touchedCells(changed, before, after, [oldInventory, newInventory]);
+  const problems = cellLintGrowth(newReport, baseline, { enforcedOnly: true })
+    .map(row => `cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
+  for (const name of cells) {
+    const previous = before.cells.some(cell => cell.name === name);
+    const oldCuts = previous ? checkCuts(mainRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory }) : [];
+    const newCuts = checkCuts(candidateRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory });
+    problems.push(...additions(oldCuts, newCuts).map(problem => `${name} --cuts: ${problem}`));
+    const oldMoved = previous ? checkMoved(mainRoot, before, name, { acceptedBase: acceptedMain, lintReport: oldReport, lintBaseline: baseline }) : [];
+    const newMoved = checkMoved(candidateRoot, after, name, { acceptedBase: acceptedMain, lintReport: newReport, lintBaseline: baseline });
+    problems.push(...additions(oldMoved, newMoved).map(problem => `${name} --moved: ${problem}`));
+  }
+  return { cells, problems };
+}
+
+/** Controller structural preflight: exact immutable commits, canonical finally-cleaned snapshots, no candidate execution. */
+export async function requireSubmitCells(root, acceptedMain, commit, item) {
+  const criterion = JSON.parse(item.item_frozen ?? 'null')?.criterion ?? '';
+  if (typeof criterion !== 'string' || ![acceptedMain, commit].every(value => /^[a-f0-9]{40,64}$/u.test(value))) throw new Refused('CELLS_SUBMIT', 'submit needs exact immutable commits and its frozen criterion');
+  const result = await withMainCheckout(root, acceptedMain, mainRoot => withMainCheckout(root, commit, candidateRoot => {
+    const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion });
+    refuse(result.problems);
+    if (git(mainRoot, ['rev-parse', 'HEAD']) !== acceptedMain || git(candidateRoot, ['rev-parse', 'HEAD']) !== commit
+      || git(mainRoot, ['status', '--porcelain', '--untracked-files=all']) || git(candidateRoot, ['status', '--porcelain', '--untracked-files=all'])) {
+      throw new Refused('CELLS_SUBMIT', 'immutable analysis snapshot changed during inspection');
+    }
+    return { ...result, acceptedMain, commit };
+  }));
+  if (result?.unavailable) throw new Refused('CELLS_SUBMIT', result.unavailable);
+  return result;
+}

@@ -80,12 +80,12 @@ export function retiredProblems(root, plan, inventory) {
 }
 
 /** Follow this cell's imports and forwarding modules, leaving another cell's own imports to its cut. */
-export function checkCuts(root, plan, name, { allLaterCells = false, temporaryExceptions = true } = {}) {
+export function checkCuts(root, plan, name, { allLaterCells = false, temporaryExceptions = true, inventory: sharedInventory } = {}) {
   if (typeof allLaterCells !== 'boolean' || typeof temporaryExceptions !== 'boolean') throw new TypeError('cut modes must be explicit booleans');
   const cell = plan.cells.find(row => row.name === name);
   const group = importCuts(plan).find(row => row.cell === name);
   if (!cell || !group && !allLaterCells) throw new Refused('CELLS_PLAN_CELL', `no import-cut group ${name}; use an importing cell from node bin/cells-plan.js --file-cuts`);
-  const inventory = cellInventory(root, { importsIn, commonJsIn });
+  const inventory = sharedInventory ?? cellInventory(root, { importsIn, commonJsIn });
   const { files } = inventory;
   const { edges, unknown, computed } = withDeclaredLoads(files, inventory.edges, inventory.unknown);
   const map = readPathMap(root);

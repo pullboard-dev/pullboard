@@ -277,7 +277,7 @@ function baseUnsupported(root, base, file, { moves, dataReads }) {
  * Check that one cell's move happened as planned: every path sits at its target, every old path is gone or is
  * only a re-export through the reachable front door, and no enforced cell lint rose. This is each move item's frozen check.
  */
-export function checkMoved(root, plan, name, { notes = [] } = {}) {
+export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintReport, lintBaseline } = {}) {
   const cell = plan.cells.find(row => row.name === name);
   if (!cell) throw new Refused('CELLS_PLAN_CELL', `no cell ${name} in ${PLAN_FILE}; use a name from its cells list`);
   const problems = [];
@@ -309,7 +309,7 @@ export function checkMoved(root, plan, name, { notes = [] } = {}) {
   }
   const listed = tryGit(root, ['ls-files', '-z', '--', 'test', 'docs']);
   if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot inventory tracked fixture readers');
-  const base = moveBase(root);
+  const base = acceptedBase === undefined ? moveBase(root) : acceptedBase;
   const data = readMoveDataReads(root, cell.name), matchedDataReads = [];
   problems.push(...data.problems);
   for (const file of listed.stdout.split('\0').filter(file => /\.[cm]?js$/u.test(file))) {
@@ -340,14 +340,14 @@ export function checkMoved(root, plan, name, { notes = [] } = {}) {
     }
   }
   problems.push(...staleDataReads(data.reads, matchedDataReads));
-  const report = cellLintReport(root, { importsIn, commonJsIn });
+  const report = lintReport ?? cellLintReport(root, { importsIn, commonJsIn });
   const cellRoot = posix.dirname(cell.frontDoor);
   if (report.metrics.unreachable.findings.some(row => row.key === cell.frontDoor)
     || report.metrics.unreachablePackages.findings.some(row => row.key === cellRoot)) {
     problems.push(`unreachable front door ${cell.frontDoor}; ${cellRoot} must remain reachable from a production app through its front door`);
   }
   if (existsSync(join(root, CELL_BASELINE_DESCRIPTOR))) {
-    for (const row of cellLintGrowth(report, readCellLintBaseline(root), { enforcedOnly: true })) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
+    for (const row of cellLintGrowth(report, lintBaseline ?? readCellLintBaseline(root), { enforcedOnly: true })) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
   }
   return problems;
 }

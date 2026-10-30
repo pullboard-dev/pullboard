@@ -48,3 +48,78 @@ test('submit cuts follow a declared root tool body so a stay cannot hide a later
   assert.ok(checkCuts(root, plan, early.name, { allLaterCells: true, temporaryExceptions: false })
     .some(problem => problem.includes('cannot prove cut through bin/bridge.js')), 'an unknown root-tool loader also refuses');
 });
+
+import { requireSubmitCells } from '../bin/cells-submit-checks.js';
+import { writePlan } from '../bin/cells-plan.js';
+import { readPlan } from '../bin/cells-plan.js';
+import { cellLintReport } from '../packages/codemap/index.js';
+import { cellLintBaseline } from '../packages/codemap/index.js';
+import { writeCellLintBaseline } from '../packages/codemap/index.js';
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
+
+/** Commit the actual small plan and complete canonical baseline, with no production-source substitution. */
+function plannedFixture(t) {
+  const box = fixture(t);
+  writePlan(box.root, computePlan(box.root));
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '-m', 'plan actual fixture');
+  writeCellLintBaseline(box.root, cellLintBaseline(cellLintReport(box.root, { importsIn, commonJsIn })), { initialize: true });
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '-m', 'snapshot actual fixture debt');
+  return { ...box, main: git(box.root, 'rev-parse', 'HEAD').trim(), item: { item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries.' }) } };
+}
+
+/** Commit the exact candidate the real immutable-snapshot preflight will inspect. */
+function commitCandidate(box) {
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '--allow-empty', '-m', 'candidate composition');
+  return git(box.root, 'rev-parse', 'HEAD').trim();
+}
+
+test('submit accepts unchanged scheduled debt but refuses an unplaced committed source before executing it [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t);
+  const clean = await requireSubmitCells(box.root, box.main, box.main, box.item);
+  assert.deepEqual(clean.problems, []);
+  box.put('src/new-unsafe.js', 'throw new Error("candidate module must never execute");\n');
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /unplaced src\/new-unsafe.js/u);
+});
+
+test('submit names a new later edge even when candidate metadata declares it temporary [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t);
+  box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
+  const commit = commitCandidate(box);
+  await assert.rejects(requireSubmitCells(box.root, box.main, commit, box.item), /kernel --cuts: kernel still imports later stats: src\/refused.js -> src\/stats-flow.js/u);
+  box.put('bin/cells-plan/temporary-edges.json', JSON.stringify({ version: 1, edges: [{ importer: 'src/refused.js', target: 'src/stats-flow.js', contractItem: 123,
+    expires: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10) }] }));
+  const declared = commitCandidate(box);
+  await assert.rejects(requireSubmitCells(box.root, box.main, declared, box.item), /frozen criterion does not name exact edge/u);
+  const authorized = { item_frozen: JSON.stringify({ criterion: 'Temporary src/refused.js -> src/stats-flow.js under contract 123.' }) };
+  await assert.rejects(requireSubmitCells(box.root, box.main, declared, authorized), /kernel --cuts: kernel still imports later stats/u,
+    'exact metadata authority never exempts the actual new later-cell edge');
+});
+
+test('submit keeps accepted placement authority when a candidate drops a row into stays or changes cell order [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t), plan = readPlan(box.root);
+  const early = plan.cells.find(cell => cell.name === 'kernel');
+  const row = early.paths.shift();
+  plan.stays.push({ path: row[0], reason: 'forged candidate exemption' });
+  writePlan(box.root, plan);
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /accepted row src\/refused.js disappeared/u);
+  early.paths.push(row);
+  early.order = 999;
+  writePlan(box.root, plan);
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /accepted cell kernel identity\/order\/front door changed/u);
+});
+
+test('submit compares lints with accepted allowances even if a candidate rewrites its own baseline [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t);
+  box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
+  // The new back edge closes the real existing stats -> store -> kernel chain.
+  const report = cellLintReport(box.root, { importsIn, commonJsIn });
+  const before = cellLintReport(box.root, { importsIn, commonJsIn });
+  writeCellLintBaseline(box.root, cellLintBaseline(report));
+  assert.ok(before.metrics.cycles.count > 0, 'the real new dependency forms a cycle');
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /cell lint cycles:/u,
+    'the candidate baseline cannot authorize its own cycle');
+});
