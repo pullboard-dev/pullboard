@@ -183,6 +183,32 @@ function sameRecovery(actual, expected) {
   return recoveryIdentity(actual) && (actual.launchFence ?? 0) === (expected.launchFence ?? 0) && ['request', 'nonce', 'tooling'].every(key => actual[key] === expected[key]);
 }
 
+/** Observe an exact startup owner without cancelling, cleaning or signalling that remote job. */
+export function runnerJobReply(root, request, { census = processCensus, inspect = pid => process.kill(pid, 0) } = {}) {
+  const base = { version: 1, nonce: request?.nonce, worker: true, job: request?.job,
+    recovery: request?.recovery, state: 'unknown', cleanup: false };
+  if (!/^[A-Za-z0-9_-]{1,100}$/u.test(request?.job ?? '') || !recoveryIdentity(request?.recovery)
+    || request.job !== request.recovery.request) return base;
+  try {
+    const directory = join(root, 'recovery-launches', request.recovery.request);
+    const file = join(directory, 'startup.json'), stat = lstatSync(file);
+    if (!stat.isFile() || stat.size > 4096) return base;
+    const startup = JSON.parse(readFileSync(file, 'utf8'));
+    const owner = startup.owner;
+    if (!sameRecovery(startup, request.recovery) || !Number.isSafeInteger(owner?.pid) || owner.pid < 1
+      || typeof owner.started !== 'string' || !Number.isFinite(Date.parse(owner.started))) return base;
+    const observed = census();
+    if (!observed) return base;
+    const row = observed.get(owner.pid);
+    if (row) {
+      if (row.pid !== owner.pid || typeof row.started !== 'string' || !Number.isFinite(Date.parse(row.started)) || typeof row.state !== 'string' || !row.state) return base;
+      return { ...base, owner, state: row.started !== owner.started || row.state.startsWith('Z') ? 'gone' : 'running' };
+    }
+    try { inspect(owner.pid); } catch (error) { if (error.code === 'ESRCH') return { ...base, owner, state: 'gone' }; }
+    return base;
+  } catch { return base; /* Missing, foreign or unreadable custody is never positive absence. */ }
+}
+
 /** A fresh pinned worker proves exact drained jobs absent, or atomically fences a never-started request. */
 export function runnerHealthReply(root, request) {
   const base = { version: 1, nonce: request?.nonce, worker: true, cleanup: false };

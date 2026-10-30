@@ -2,6 +2,7 @@
 import { validateRunner } from './gate-policy-load.js';
 import { runOnRunner } from './runner-dispatch.js';
 import { runOnRunnerAsync } from './runner-dispatch.js';
+import { ownedTransportCompletion } from './runner-dispatch.js';
 import { localRunnerDescriptor } from './runner-load.js';
 import { sampleRunnerLoad } from './runner-load.js';
 import { carriedRunnerTrunk } from './runner-policy.js';
@@ -10,11 +11,47 @@ import { shellWord } from './runner-remote-tooling.js';
 import { sshEnvironment } from './runner-remote-tooling.js';
 import { trustedTooling } from './runner-remote-tooling.js';
 import { probeRunnerTransport } from './runner-transport.js';
+import { recoveryIdentity } from '../packages/resources/index.js';
 import { effectiveRunners } from './runner-slots.js';
 import { refreshRunnerMeasurements } from './runner-slots.js';
 import { transportText } from './runner-result.js';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+
+/** Ask only the pinned worker whether this exact startup owner still exists; no reply certifies cleanup. */
+export async function probeRunnerJob(runner, identity, { signal } = {}) {
+  if (!/^[A-Za-z0-9_-]{1,100}$/u.test(identity?.job ?? '') || !recoveryIdentity(identity?.recovery)
+    || identity.job !== identity.recovery.request) return { state: 'unknown' };
+  runner = validateRunner(runner);
+  const { worker, tooling, runtime } = trustedTooling(), nonce = randomUUID();
+  const request = { nonce, job: identity.job, recovery: identity.recovery, ...(runner.root ? { root: runner.root } : {}) };
+  const remote = remoteWorkerCommand(runner, worker, tooling, runtime,
+    ' --health ' + shellWord(Buffer.from(JSON.stringify(request)).toString('base64')));
+  const child = spawn('ssh', ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
+    '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=2', '--', runner.host, remote], { env: sshEnvironment(), stdio: ['ignore', 'pipe', 'pipe'] });
+  const transport = ownedTransportCompletion(child, { termMs: 500, drainMs: 500 });
+  let output = '', invalid = false;
+  const abort = () => { invalid = true; transport.stop(); };
+  // Budget: four seconds for the pinned observation plus one second to settle owned transport and inherited pipes.
+  const timer = setTimeout(abort, 4_000);
+  signal?.addEventListener('abort', abort, { once: true });
+  if (signal?.aborted) abort();
+  child.stdout.on('data', bytes => { output += bytes; if (Buffer.byteLength(output) > 4096) { output = ''; abort(); } });
+  child.stderr.resume();
+  child.once('error', abort);
+  try {
+    const result = await transport.wait();
+    let reply;
+    try { reply = JSON.parse(output); } catch { return { state: 'unknown' }; }
+    const exact = !invalid && !result.forced && result.status === 0 && !result.signal && reply?.version === 1
+      && reply.worker === true && reply.nonce === nonce && reply.job === identity.job && reply.cleanup === false
+      && recoveryIdentity(reply.recovery) && ['request', 'nonce', 'tooling', 'launchFence'].every(key => reply.recovery[key] === identity.recovery[key]);
+    if (!exact || !['running', 'gone', 'unknown'].includes(reply.state)) return { state: 'unknown' };
+    if (reply.state !== 'unknown' && (!Number.isSafeInteger(reply.owner?.pid) || reply.owner.pid < 1
+      || typeof reply.owner.started !== 'string' || !Number.isFinite(Date.parse(reply.owner.started)))) return { state: 'unknown' };
+    return { state: reply.state, job: identity.job, recovery: identity.recovery, owner: reply.owner };
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); transport.dispose(); }
+}
 
 /** Ask the pinned worker for exact cleanup or an explicitly requested idle and writable proof. */
 export async function probeRunnerHealth(runner, previous, { idle = false, restart = false } = {}) {

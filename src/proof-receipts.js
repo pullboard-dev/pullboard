@@ -1,3 +1,4 @@
+import { EXIT_RULES_ENGINE } from '../packages/state/index.js';
 import { proofReceipts } from './board-query.js';
 export { proofReceipts };
 /** Stamp the gate's own immutable receipt with the board's seat and recorded parent [C7,H16]. */
@@ -40,6 +41,10 @@ function proofReceiptFields(board, request, run) {
   if (run.proof.seat !== agentId) throw new Refused('PROOF_RUN_ACTOR', 'the native receipt belongs to another seat; use the receipts from your own check');
   const item = getItem(board, itemId);
   if (run.proof.frozenDigest !== (item.item_frozen_digest ?? null)) throw new Refused('PROOF_RUN_STALE', 'the criterion changed during this proof; read pullboard show <id> before checking again');
+  const existing = proofReceipts(board, itemId).find(value => value.id === run.id);
+  const exitFailures = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXIT_RULES_ENGINE
+    && (board.executionEngineVersion === undefined || request.exitFailures === true)
+    && (!existing || Object.hasOwn(existing, 'failures'));
   const receipt = { id: run.id, kind: run.kind, item: itemId, commit: run.head, tree: run.tree,
     frozenDigest: run.proof.frozenDigest, environment: run.proof.environment, runner: run.proof.runner,
     seat: agentId, parentSession: seats.agentParent?.(board, agentId) ?? null, exitCode: run.proof.exitCode,
@@ -48,10 +53,9 @@ function proofReceiptFields(board, request, run) {
   if (Object.hasOwn(run, 'blockingVerdict')) {
     receipt.blockingVerdict = run.blockingVerdict;
     receipt.failures = run.failures;
-  }
+  } else if (exitFailures) receipt.failures = run.failures;
   if (Object.hasOwn(run.proof, 'submitPhase')) { receipt.submitPhase = run.proof.submitPhase; receipt.command = run.command; }
   if (Object.hasOwn(run.proof, 'submitAdmission')) receipt.submitAdmission = run.proof.submitAdmission;
-  const existing = proofReceipts(board, itemId).find(value => value.id === receipt.id);
   if (existing) {
     const { eventId, ...fields } = existing;
     // Later registration cannot retroactively upgrade an originally unknown parent.
@@ -72,7 +76,7 @@ export function recordProofRun(board, request) {
   return atomic(board, () => {
     const { receipt, existing } = proofReceiptFields(board, request, run);
     if (existing) return existing;
-    logEvent(board, request.agentId, 'proof-run', request.itemId, { engine: receipt.blockingVerdict ? QUARANTINE_VERDICT_ENGINE : PROOF_RUN_ENGINE, receipt });
+    logEvent(board, request.agentId, 'proof-run', request.itemId, { engine: Object.hasOwn(receipt, 'failures') && !Object.hasOwn(receipt, 'blockingVerdict') ? EXIT_RULES_ENGINE : receipt.blockingVerdict ? QUARANTINE_VERDICT_ENGINE : PROOF_RUN_ENGINE, receipt });
     return receipt;
   });
 }
