@@ -1,6 +1,5 @@
 /** Verify client-held person roots without trusting relay identity assertions [H15]. */
 import { Refused } from './refused.js';
-import { devicePublicKey } from './relay-device-keys.js';
 
 const encoder = new TextEncoder();
 
@@ -15,6 +14,17 @@ function decode(value, length) {
     if (bytes.length !== length || encode(bytes) !== value) throw new Error();
     return bytes;
   } catch { throw new Refused('PERSON_ENROLL_AUTH', 'Use a fresh person-authenticated enrollment with canonical public fields.'); }
+}
+
+/** Copy only the public coordinates of a P-256 key for person-held roots and the device-key front door. */
+export function devicePublicKey(value) {
+  if (!value || value.kty !== 'EC' || value.crv !== 'P-256' || value.d !== undefined ||
+      Object.keys(value).some(key => !['kty', 'crv', 'x', 'y', 'ext', 'key_ops'].includes(key))) {
+    throw new Refused('DEVICE_KEY', 'Pair a device with a public ECDH P-256 key.');
+  }
+  try { decode(value.x, 32); decode(value.y, 32); }
+  catch { throw new Refused('DEVICE_FORMAT', 'Use a fresh device pairing link.'); }
+  return { kty: 'EC', crv: 'P-256', x: value.x, y: value.y };
 }
 
 /** Accept stable numeric account identifiers rather than mutable login names. */

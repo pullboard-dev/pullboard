@@ -152,7 +152,9 @@ test('real Chrome renders brief lists with inline paths [N26]', { timeout: 90_00
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-brief-lists-chrome-'));
   let chrome;
   try {
-    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    const link = new URL(view.link.href);
+    link.pathname = '/items/1';
+    chrome = await openSnapshotChrome(executable, link.href, profile);
     await chrome.waitFor("typeof data === 'object' && !!data && !!data.project && !!document.querySelector('#detail .text.muted')");
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });

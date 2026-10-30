@@ -28,6 +28,7 @@ import {
   workerBudget,
 } from '../settings.js';
 import {
+  actOn,
   context,
   withBoard,
 } from '../cli.js';
@@ -45,7 +46,7 @@ export function settingsCommand(io, { first, second, rest, values }) {
     io.say(`this board's landing pool: ${second}`);
     return 0;
   }
-  if (first === 'person.signed' && !rest.length) return signingSetting(io, second);
+  if (first === 'person.signed' && !rest.length) return signingSetting(io, second, { actOn });
   if (!first && !second && !rest.length) {
     const settings = loadMachineSettings();
     const queue = gateQueueSettings();
