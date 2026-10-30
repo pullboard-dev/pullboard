@@ -13,6 +13,7 @@ import { placePath } from '../bin/cells-plan.js';
 import { plannedProject } from './placement-project.fixture.js';
 import { success } from './placement-project.fixture.js';
 import { runFixtureChild } from './fixture-child.js';
+import { planRowChange } from '../src/plan-row-change.js';
 
 /** Reproduce the original merge shape: the builder's new row precedes a row independently accepted on main. */
 function mergedPlacement(t) {
@@ -85,4 +86,28 @@ test('a builder editing the accepted main row itself still fails public submit b
   assert.match(refused.out, /dashboard\.css/);
   assert.equal(existsSync(box.marker), false, 'no gate runs for the unauthorized foreign edit');
   assert.equal(success(box, box.view, 'show', String(box.id)).item_status, 'claimed');
+});
+
+/** Probe row authority only; these synthetic blobs are not native claim or execution evidence. */
+function insertedRows(change = () => {}) {
+  const path = 'bin/cells-plan/39-app-view.json';
+  const rows = ['first', 'last'].map(name => [`src/view/${name}.css`, `apps/view/src/shell/view/${name}.css`, 'seed']);
+  const before = { 'bin/cells-plan.json': { cells: [{ name: 'app:view', order: 39, file: path }], stays: [] },
+    [path]: { name: 'app:view', order: 39, root: 'apps/view', paths: rows } };
+  const after = structuredClone(before);
+  after[path].paths.splice(1, 0, ['src/view/new.css', 'apps/view/src/shell/view/new.css', 'rule']);
+  change(after[path].paths);
+  const read = state => file => state[file] && { mode: '100644', bytes: Buffer.from(JSON.stringify(state[file])) };
+  return planRowChange(path, { before: read(before), after: read(after), ownNewFile: file => file === 'src/view/new.css' });
+}
+
+test('an owned insertion preserves every old row and cannot hide deletion, reordering or duplication [L3,C7]', () => {
+  assert.equal(insertedRows().allowed, true);
+  for (const change of [
+    rows => rows.splice(0, 1),
+    rows => rows.reverse(),
+    rows => rows.push([...rows[0]]),
+    rows => { rows[0][1] += '-changed'; },
+    rows => { rows[1][0] = 'src/view/foreign.css'; },
+  ]) assert.equal(insertedRows(change).allowed, false);
 });
