@@ -167,28 +167,30 @@ test("the history is a timeline of the item's states [N26]", async () => {
   try {
     const page = await openPage(view);
     await page.click({ go: 'item:1' });
-    const done = timelineRows(page.show('detail'));
+    const done = timelineRows(page.show('detail')).reverse();
     assert.deepEqual(done.map((row) => [row.dot, row.event]), [
       ['tl-open', 'coordinator added this work'],
       ['tl-claimed', 'web-1 claimed it'],
+      ['tl-claimed', 'web-1 continued building'],
       ['tl-claimed tl-quiet', 'web-1 ran the proof'],
       ['tl-submitted', 'web-1 submitted it for review'],
       ['tl-open tl-back', 'coordinator sent it back'],
       ['tl-claimed', 'web-1 claimed it'],
+      ['tl-claimed', 'web-1 continued building'],
       ['tl-claimed tl-quiet', 'web-1 ran the proof'],
       ['tl-submitted', 'web-1 submitted it for review'],
       ['tl-verified', 'coordinator passed it'],
       ['tl-verified tl-quiet', 'coordinator landed it'],
     ], 'a dot per event in the colour of the state it led to; a merge moves nothing');
-    assert.deepEqual(done.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', 'claimed for', '', 'submitted for', 'sent back for', 'claimed for', '', 'submitted for', verifiedIsFinal ? '' : 'verified for', ''], 'each stay until the next move; a final state has none and quiet proof receipts and merge stay untimed');
+    assert.deepEqual(done.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', 'claimed for', 'claimed for', '', 'submitted for', 'sent back for', 'claimed for', 'claimed for', '', 'submitted for', verifiedIsFinal ? '' : 'verified for', ''], 'each stay until the next move; a final state has none and quiet proof receipts and merge stay untimed');
     assert.ok(done.filter(row => !row.dot.includes('tl-quiet')).slice(0, 6).every((row) => / for (under a minute|\d+m)$/.test(row.stay)), done.map((row) => row.stay).join(', '));
     assert.ok(done.every((row) => /^\d{1,2}:\d\d [AP]M$/.test(row.time)), 'every event keeps its time');
 
     await page.click({ go: 'item:2' });
-    assert.deepEqual(timelineRows(page.show('detail')).map((row) => [row.dot, row.stay]).slice(1), [['tl-claimed', 'claimed for now so far']]);
+    assert.deepEqual(timelineRows(page.show('detail')).reverse().map((row) => [row.dot, row.stay]).slice(1), [['tl-claimed', 'claimed for now so far']]);
     const later = await openPage(view, { later: 1 });
     await later.click({ go: 'item:2' });
-    assert.deepEqual(timelineRows(later.show('detail')).map((row) => row.stay).slice(1), ['claimed for 24h so far'], 'the stay so far counts on');
+    assert.deepEqual(timelineRows(later.show('detail')).reverse().map((row) => row.stay).slice(1), ['claimed for 24h so far'], 'the stay so far counts on');
 
     // A claim logged on an item the replay holds claimed: the clock lapsed the first claim between.
     const at = (minute) => new Date(Date.UTC(2026, 9, 6, 12, minute)).toISOString();
@@ -259,7 +261,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
     const keeping = MACHINE.states.filter((state) => MACHINE.moves.some((move) => move.to === state.id && move.from.includes(state.id))).map((state) => state.id);
     assert.deepEqual(Object.fromEntries(boxes.filter((entry) => entry.keeps).map((entry) => [entry.state, entry.keeps])), {
       open: '↻ release · escalate · refreeze (none yet)',
-      claimed: '↻ claim 1',
+      claimed: '↻ claim 4',
       submitted: '↻ patch · reserve (none yet)',
       verified: '↻ accept (none yet)',
     });
@@ -470,7 +472,7 @@ test('times say which day they were [N26]', async () => {
     assert.ok(times(later.show('activity')).length > 0 && times(later.show('activity')).every(time => /^\d{1,2}:\d\d [AP]M$/.test(time)), 'Activity uses the approved person-clock format');
     assert.deepEqual(ages(later.show('feed')).map(([age, clock]) => [age, new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(clock)]), [['2d ago', true]], 'a shout says how long ago, with its date and time on hover');
     const history = times(later.show('detail'));
-    assert.ok(history.length === 4 && history.every((time) => new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(time)), `the history dates every move including its proof receipt: ${history}`);
+    assert.ok(history.length === 5 && history.every((time) => new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(time)), `the history dates every move including its proof receipt: ${history}`);
 
     // A heading wherever the day changes, and only there.
     const at = (day, hour) => new Date(2026, 9, day, hour).toISOString();
@@ -663,6 +665,7 @@ export async function createTransport({ onUpdate }) {
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.click(`document.querySelector('[data-tab="items"]')`);
     await chrome.click(`document.querySelector('#chain [data-item]')`);
+    await chrome.click(`document.querySelector('[data-item-panel-tab=history]')`);
     await chrome.waitFor(`${note('item')} === 'Older entries are still loading (75%).'`);
 
     // Complete: every line goes, and a redraw brings none back.
