@@ -38,10 +38,10 @@ process.stdout.on('error', (error) => {
   process.exit(process.exitCode ?? 0);
 });
 
-// Select immutable tooling before loading a dispatcher or parsing a newer trunk's configuration.
+// Select immutable tooling before dispatch or parsing a newer trunk's configuration.
+const { main, selectedToolEntry } = await import('../src/cli-main.js');
 // Promotion must remain reachable when the published build predates its replacement.
 if (process.argv[2] !== 'tool-build') {
-  const { selectedToolEntry } = await import('../src/pinned-tool-build.js');
   try {
     const selected = await selectedToolEntry(process.cwd(), process.argv[1]);
     if (selected) {
@@ -62,7 +62,6 @@ if (process.argv[2] !== 'tool-build') {
 }
 
 // The entry loads only the dispatcher; each command's modules load through its own import() [C7].
-const { main } = await import('../src/cli-main.js');
 process.exitCode = await main(process.argv.slice(2), {
   cwd: process.cwd(),
   stdout: process.stdout,

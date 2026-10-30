@@ -1,3 +1,4 @@
+export { selectedToolEntry } from './pinned-tool-build.js';
 import { recordedMoveRefusal } from './recorded-move.js';
 /**
  * The command line's entry: parse the arguments, bind the checkout, run the relay and baseline work around the
