@@ -1,7 +1,9 @@
 /** Durable metadata for deferred withdrawal cleanup; target worktrees are never inspected [B3,C7]. */
 import { isAbsolute } from 'node:path';
 import { repoInfo } from './git.js';
-import { readMaintenanceState, withMaintenanceLock, writeMaintenanceState } from './worktree-maintenance-observation.js';
+import { readMaintenanceState } from './worktree-maintenance-observation.js';
+import { withMaintenanceLock } from './worktree-maintenance-observation.js';
+import { writeMaintenanceState } from './worktree-maintenance-observation.js';
 
 /** Record or clear retention only under the repository maintenance lock, preserving other observations. */
 export async function recordMaintenanceRetention(root, { path, item, agent, reason }, { now = Date.now(), clear = false } = {}) {
