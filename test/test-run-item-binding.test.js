@@ -55,7 +55,7 @@ test('a claimed pinned main-red test names its item and precedes an unclaimed ot
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap' }));
   mkdirSync(join(box.repo, 'test'));
   writeFileSync(join(box.repo, 'test/ready.test.js'), "import { test } from 'node:test';\nimport { appendFileSync } from 'node:fs';\ntest('private fixture body', () => appendFileSync(process.env.BINDING_LOG, process.env.BINDING_LABEL+'\\n'));\n");
-  box.git(box.repo, 'add', '-A'); box.git(box.repo, 'commit', '-q', '-m', 'fixture focused runner');
+  box.git(box.repo, 'add', '-A'); box.git(box.repo, 'commit', '-q', '-m', 'test(web): configure focused runner [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const added = box.run(box.repo, 'add', 'web', 'Main red: synthetic item binding', '--criterion', 'The actual queue retains the claimed item.', '--json');
   assert.equal(added.code, 0, added.err);
