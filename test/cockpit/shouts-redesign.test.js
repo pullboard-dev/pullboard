@@ -95,7 +95,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       assert.ok(conversation.height <= conversation.lineHeight * 3 + 1, 'long messages occupy at most three lines');
       assert.equal(conversation.more, 'Show all');
       assert.equal(conversation.model, 'GPT-6.1 Sol');
-      assert.match(conversation.clock, /\d/);
+      assert.match(conversation.clock, /^\d{1,2}:\d{2} [AP]M$/, 'the opened conversation keeps the approved person clock');
       assert.equal(conversation.avatars, 0);
       assert.notEqual(conversation.coordinatorBackground, 'rgba(0, 0, 0, 0)');
       assert.equal(conversation.hash, '0123456789ab');
@@ -111,6 +111,25 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 2');
       await press(chrome, 'document.querySelector("[data-shout-filter=you]")');
       await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 1 && document.querySelector(".conversation-row").dataset.shoutThread === "item:3"');
+      await press(chrome, 'document.querySelector(\'[data-shout-thread="item:3"]\')');
+      await chrome.waitFor('!!document.querySelector("#feed .answer[data-go]")');
+      await press(chrome, 'document.querySelector("#feed .answer[data-go]")');
+      await chrome.waitFor('!document.querySelector("#answering").hidden');
+      const answering = await observe(chrome, `(() => {
+        const composer = document.querySelector('#shout-form .composer').getBoundingClientRect();
+        const toggle = document.querySelector('#asks-slot .seg').getBoundingClientRect();
+        return { overlap:Math.min(composer.bottom,toggle.bottom)-Math.max(composer.top,toggle.top),
+          width:document.documentElement.scrollWidth, viewport:innerWidth,
+          question:document.querySelector('#answering-q').textContent,
+          locked:document.querySelector('#shout-to').disabled, action:document.querySelector('#shout-send').getAttribute('aria-label') };
+      })()`);
+      assert.ok(answering.overlap > 0, 'the answer form keeps the composer beside the shared filter');
+      assert.equal(answering.width, answering.viewport, 'answering never widens the phone or desktop');
+      assert.equal(answering.question, '#3: Which greeting should we use?', 'the complete native question reaches the answer form');
+      assert.equal(answering.locked, true);
+      assert.equal(answering.action, 'Answer');
+      await press(chrome, 'document.querySelector("#answer-cancel")');
+      await chrome.waitFor('document.querySelector("#answering").hidden && !document.querySelector("#shout-to").disabled');
       await press(chrome, 'document.querySelector("[data-shout-filter=all]")');
       await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 4');
     }

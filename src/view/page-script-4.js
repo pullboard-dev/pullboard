@@ -754,8 +754,8 @@ function tickDays() {
   before.setDate(then.getDate() - 1);
   const names = { Today: dayName(then.toISOString()), Yesterday: dayName(before.toISOString()) };
   document.querySelectorAll('.feed .day, #feed > .day-rule span').forEach((node) => { if (names[node.textContent]) node.textContent = names[node.textContent]; });
-  const first = $('feed')?.querySelector?.('.shout');
-  if (first && !$('feed').querySelector('.conversation-heading') && !first.previousElementSibling?.classList?.contains('day-rule')) first.insertAdjacentHTML('beforebegin', '<div class="day-rule" role="separator"><span>' + names.Today + '</span></div>');
+  const first = $('feed')?.querySelector?.('.shout, .conversation-row');
+  if (first && !first.previousElementSibling?.classList?.contains('day-rule')) first.insertAdjacentHTML('beforebegin', '<div class="day-rule" role="separator"><span>' + names.Today + '</span></div>');
   daysNamedAt = now;
 }
 

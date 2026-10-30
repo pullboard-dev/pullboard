@@ -1408,9 +1408,9 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 #shouts-pane > *, .shouts-card > *, .shout-main { min-width: 0; max-width: 100%; }
 #shouts-pane .primary { overflow: hidden; }
 #shouts-pane .detail { min-width: 0; }
-.shouts-card > .shout-form { flex-wrap: nowrap; }
+.shouts-card > .shout-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
 .shouts-card .composer textarea { field-sizing: fixed; height: var(--tap); }
-.shout-form > .answering, .shout-form > .console { flex-basis: 100%; }
+.shout-form > .answering, .shout-form > .console { grid-column: 1 / -1; }
 #asks-slot { min-width: 0; max-width: 100%; }
 #asks-slot .seg { flex: none; }
 .conversation-row { display: flex; align-items: center; gap: var(--space-4); width: 100%; min-width: 0; padding: var(--space-4) 0; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; }

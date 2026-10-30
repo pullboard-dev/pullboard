@@ -325,7 +325,7 @@ function render() {
   const shoutTo = (to) => {
     if (to === 'coordinator+person') return 'coordinator and you';
     const item = /^item:([1-9]\\d*)$/.exec(String(to));
-    return item ? '<a class="ref" href="' + esc(itemAddress(item[1], view.root)) + '" data-go="item:' + item[1] + '">#' + item[1] + '</a>' : shoutAgentName(to);
+    return item ? '<a class="ref" href="' + esc(itemAddress(item[1], view.root)) + '" data-go="item:' + item[1] + '">#' + item[1] + '</a>' : esc(to === 'person' ? 'you' : to);
   };
   // Opened from the status bar's unread, the feed is exactly those shouts, the ones after the mark the person had.
   const unread = view.unread?.root === view.root ? view.unread : null;
@@ -346,7 +346,7 @@ function render() {
     // A shout that reaches no agent at all, such as one to a lane nobody has joined, has not been heard either.
     if (!by.length) return '<div class="heard not">Not heard yet</div>';
     const first = by.find((a) => lead(a.agent_id)) || by[0], rest = by.length - 1;
-    return '<div class="heard" title="Heard by ' + esc(by.map((a) => agentName(a.agent_id)).join(', ')) + '"><span class="heard-faces">' + [first, ...by.filter((a) => a !== first)].slice(0, 4).map(dot).join('') + '</span>Heard by ' + esc(agentName(first.agent_id)) + (rest ? ' and ' + rest + (rest === 1 ? ' agent' : ' agents') : '') + '</div>';
+    return '<div class="heard" title="Heard by ' + esc(by.map((a) => agentName(a.agent_id)).join(', ')) + '">Heard by ' + esc(agentName(first.agent_id)) + (rest ? ' and ' + rest + (rest === 1 ? ' agent' : ' agents') : '') + '</div>';
   };
   // One card for a shout, in the feed and among the asks; tail adds what the place needs, such as Answer. Only the
   // feed's copy carries the band and the id an answer's link lands on, so an ask shown twice never repeats an id.
@@ -363,8 +363,8 @@ function render() {
   /** A message keeps the exact native words; only references and disclosure add presentation. */
   const card = (x, tail = '') => '<article class="shout' + (lead(x.shout_from) ? ' lead' : '') + (openShouts.has(x.shout_id) ? ' open' : '') + (x.shout_id === view.shout ? ' found' : '') + '" id="shout-' + x.shout_id + '" data-shout-id="' + x.shout_id + '"><div class="shout-main">'
     + (x.shout_id === view.shout ? '<h2 class="visually-hidden">Shout #' + x.shout_id + '</h2>' : '')
-    + '<header><b class="who" title="' + esc(modelOf(x.shout_from)) + '">' + esc(x.shout_from === 'person' ? 'you' : x.shout_from) + '</b><span class="to">→ ' + esc(x.shout_to === 'person' ? 'you' : x.shout_to === 'coordinator+person' ? 'coordinator and you' : x.shout_to) + '</span><time title="' + esc(when(x.shout_at)) + '">' + esc(clock(x.shout_at)) + '</time></header>'
-    + '<div class="text">' + rich(x.shout_text, titles) + (x.options ? '<ol>' + x.options.map(option => '<li>' + esc(option) + '</li>').join('') + '</ol>' : '') + '</div><button class="more" data-more type="button" aria-expanded="' + openShouts.has(x.shout_id) + '">' + (openShouts.has(x.shout_id) ? 'Show less' : 'Show all') + '</button>' + evidence(x) + tail + '</div></article>';
+    + '<header><b class="who" title="' + esc(modelOf(x.shout_from)) + '">' + esc(x.shout_from === 'person' ? 'you' : x.shout_from) + '</b><span class="to">→ ' + shoutTo(x.shout_to) + '</span><time title="' + esc(when(x.shout_at)) + '">' + esc(clock(x.shout_at)) + '</time></header>'
+    + '<div class="text">' + rich(x.shout_text, titles) + (x.options ? '<ol>' + x.options.map(option => '<li>' + esc(option) + '</li>').join('') + '</ol>' : '') + '</div><button class="more" data-more type="button" aria-expanded="' + openShouts.has(x.shout_id) + '">' + (openShouts.has(x.shout_id) ? 'Show less' : 'Show all') + '</button>' + evidence(x) + heardBy(x) + tail + '</div></article>';
   // Native pending-question lists are authoritative: answered or stale asks never keep a thread amber.
   const uniqueShouts = new Map([...heard, ...questions].map(x => [x.shout_id, x]));
   /** Replies inherit their original question's item even when the answer names no item. */
@@ -398,13 +398,13 @@ function render() {
   const conversationRow = thread => {
     const last = thread.messages.at(-1), title = thread.item ? titles.get(String(thread.item)) : 'No item';
     return '<button class="conversation-row" data-shout-thread="' + esc(thread.key) + '" type="button"><span class="conversation-copy"><span class="conversation-title">'
-      + (thread.item ? '<code>#' + esc(thread.item) + '</code> ' : '') + esc(title || 'Item #' + thread.item) + '</span><span class="conversation-preview">' + esc(last.shout_from + ': ' + last.shout_text) + '</span></span><span class="conversation-meta"><time data-ago="' + esc(last.shout_at) + '" title="' + esc(when(last.shout_at)) + '">' + ago(last.shout_at) + '</time><span class="chip' + (thread.open ? ' warn' : '') + '">' + (thread.open ? 'Question open' : thread.messages.length + (thread.messages.length === 1 ? ' message' : ' messages')) + '</span></span></button>';
+      + (thread.item ? '<code>#' + esc(thread.item) + '</code> ' : '') + esc(title || 'Item #' + thread.item) + '</span><span class="conversation-preview">' + esc(last.shout_from + ': ' + last.shout_text) + '</span></span><span class="conversation-meta"><time class="long" data-ago="' + esc(last.shout_at) + '" title="' + esc(when(last.shout_at)) + '">' + agoLong(last.shout_at) + '</time><span class="chip' + (thread.open ? ' warn' : '') + '">' + (thread.open ? 'Question open' : thread.messages.length + (thread.messages.length === 1 ? ' message' : ' messages')) + '</span></span></button>';
   };
   const rows = threads.filter(thread => filter === 'all' || (filter === 'questions' ? thread.open : thread.toYou));
   const missingAddress = view.shout !== null && !selected ? '<p class="empty" id="shout-address-status" role="status">' + esc(addressed?.error || 'Loading shout #' + view.shout + '…') + '</p>' : '';
   $('feed').innerHTML = missingAddress + bar + (selected ? '<div class="conversation-heading"><button class="link" data-shout-thread="" type="button">All conversations</button><b>' + (selected.item ? '#' + esc(selected.item) + ' ' + esc(titles.get(String(selected.item)) || '') : 'No item') + '</b></div>'
-    + selected.messages.map(message => card(message, open.has(message.shout_id) && message.shout_to === 'person' && !readOnly ? '<button class="ghost answer" data-go="decide:' + message.shout_id + '" type="button">Answer</button>' : '')).join('')
-    : rows.length ? rows.map(conversationRow).join('') : '<div class="empty">' + (filter === 'questions' ? 'No open questions.' : filter === 'you' ? 'No shouts to you.' : 'No shouts yet.') + '</div>');
+    + dayRules(selected.messages, message => message.shout_at, message => card(message, open.has(message.shout_id) && message.shout_to === 'person' && !readOnly ? '<button class="ghost answer" data-go="decide:' + message.shout_id + '" type="button">Answer</button>' : ''))
+    : rows.length ? dayRules(rows, thread => thread.messages.at(-1).shout_at, conversationRow) : '<div class="empty">' + (filter === 'questions' ? 'No open questions.' : filter === 'you' ? 'No shouts to you.' : 'No shouts yet.') + '</div>');
   // Keep legacy DOM anchors for older pages and automation; the decisions wall has no visible content.
   $('coordinator-decisions').hidden = true; $('coordinator-decisions').innerHTML = '';
   $('decisions').hidden = true; $('decisions').innerHTML = '';
