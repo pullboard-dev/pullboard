@@ -19,7 +19,10 @@ import {
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { closeBoard, SCHEMA_VERSION } from "../../../src/board.js";
+import {
+  closeBoard,
+  SCHEMA_VERSION,
+} from "../../../src/board.js";
 import { openBoard } from "../../../src/native-board.js";
 import {
   codeIsFromMain,
