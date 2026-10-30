@@ -18,9 +18,6 @@ import {
   join,
 } from 'node:path';
 import {
-  test,
-} from 'node:test';
-import {
   DatabaseSync,
 } from 'node:sqlite';
 import {
@@ -91,9 +88,7 @@ export function fixture(t, { main = 2, candidate = 2, check = FROZEN } = {}) {
   put(root, 'test/frozen.test.js', source(1));
   put(root, 'test/affected.test.js', source(main).replace('frozen case', 'affected case'));
   put(root, 'test/runner.js', [
-    "import {
-  spawnSync,
-} from 'node:child_process';",
+    "import { spawnSync } from 'node:child_process';",
     "const files = process.argv.slice(2).length ? process.argv.slice(2) : ['test/affected.test.js'];",
     "const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ...files], { encoding: 'utf8', env: process.env });",
     "process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? '');",
