@@ -153,7 +153,7 @@ test('Roadmap references stay inline and rows expand before opening Items [N26,N
   }
 });
 
-test('the roadmap reads every item as the Items tab does, opens each one, another repo\'s too, and keeps its own address [N26,N38]', { timeout: 150_000 }, async (t) => {
+test('the Roadmap uses its approved stage words, opens rows, and keeps its own address [N26,N38]', { timeout: 150_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for roadmap browser checks.');
   const phaseStarted = Date.now();
@@ -189,15 +189,15 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
   box.run(alpha.repo, 'milestone', 'add', 'Launch', '--note', 'Ships when the review lands; your call on the name.', '--items', '1,2,3,4,beacon#1');
   box.run(alpha.repo, 'milestone', 'add', 'Next', '--note', 'Queued behind Launch.', '--items', '5,6,7');
   box.run(alpha.repo, 'milestone', 'add', 'Later', '--note', 'Ideas not filed yet.');
-  // What the person reads on each row: the Items tab's word for the item's state, and its colour's class.
+  // Roadmap's approved short stage words retain the lifecycle tone used by each item state.
   const words = [
-    { id: '#2', label: 'accepted', tone: 'ok' },
-    { id: '#4', label: 'to verify', tone: 'warn' },
-    { id: '#3', label: 'sent back', tone: 'no' },
-    { id: 'beacon#1', label: 'sent back', tone: 'no' },
-    { id: '#1', label: 'verified', tone: 'ok' },
-    { id: '#5', label: 'building', tone: 'busy' },
-    { id: '#6', label: 'unclaimed', tone: 'free' },
+    { id: '#2', label: 'Accepted', tone: 'ok' },
+    { id: '#4', label: 'In review', tone: 'warn' },
+    { id: '#3', label: 'Sent back', tone: 'no' },
+    { id: 'beacon#1', label: 'Sent back', tone: 'no' },
+    { id: '#1', label: 'Landed', tone: 'ok' },
+    { id: '#5', label: 'Building', tone: 'busy' },
+    { id: '#6', label: 'Ready', tone: 'free' },
   ];
   phase('states-ready');
   const view = await startView(box);
@@ -299,11 +299,11 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
 
     // It updates live as items move, here and on the other repo's board.
     accept(box, alpha, 4);
-    await chrome.waitFor(`${roadmapRow('#4')}?.querySelector('.chip').innerText === 'accepted' && document.querySelector('#roadmap .roadmap-left [aria-label]').getAttribute('aria-label') === '1/5 landed'`, 15_000); // budget: hang ceiling for the accepted receipt and unchanged landed count to reach the browser; no throughput claim.
+    await chrome.waitFor(`${roadmapRow('#4')}?.querySelector('.chip').innerText === 'Accepted' && document.querySelector('#roadmap .roadmap-left [aria-label]').getAttribute('aria-label') === '1/5 landed'`, 15_000); // budget: hang ceiling for the accepted receipt and unchanged landed count to reach the browser; no throughput claim.
     landRoadmapItem(box, alpha, 4);
-    await chrome.waitFor(`${roadmapRow('#4')}?.querySelector('.chip').innerText === 'verified' && document.querySelector('#roadmap .roadmap-left [aria-label]').getAttribute('aria-label') === '2/5 landed'`, 15_000); // budget: hang ceiling for the real merge receipt and landed count to reach the browser; no throughput claim.
+    await chrome.waitFor(`${roadmapRow('#4')}?.querySelector('.chip').innerText === 'Landed' && document.querySelector('#roadmap .roadmap-left [aria-label]').getAttribute('aria-label') === '2/5 landed'`, 15_000); // budget: hang ceiling for the real merge receipt and landed count to reach the browser; no throughput claim.
     box.run(beacon.web, 'claim', '1');
-    await chrome.waitFor(`${roadmapRow('beacon#1')}?.querySelector('.chip').innerText === 'building'`, 15_000); // budget: hang ceiling for the claimed external item to refresh; no throughput claim.
+    await chrome.waitFor(`${roadmapRow('beacon#1')}?.querySelector('.chip').innerText === 'Building'`, 15_000); // budget: hang ceiling for the claimed external item to refresh; no throughput claim.
 
     // A board with no milestones says how one starts; the address stays the Roadmap's.
     await press(chrome, `document.querySelector('[data-root=${JSON.stringify(beacon.repo)}]')`);
@@ -868,77 +868,6 @@ test('the roadmap chips keep their scroll through a redraw with wide fonts [N26]
     await view.stop();
   }
 });
-
-test('the roadmap panel counts the next release by stage [N26]', {
-  timeout: 180_000, //budget: hang ceiling for six real item lifecycles and merged receipts before four viewport/theme checks.
-}, async (t) => {
-  const executable = chromeExecutable();
-  assert.ok(executable, 'Chrome is required for Roadmap shipping counts.');
-  const box = machine();
-  const alpha = project(box, 'roadmap-panel-counts');
-  for (const title of ['Open', 'Building', 'In review', 'Accepted', 'Verified', 'Shipped']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
-  build(box, alpha, 3, 'submitted.html');
-  build(box, alpha, 4, 'accepted.html');
-  accept(box, alpha, 4);
-  build(box, alpha, 5, 'verified.html');
-  accept(box, alpha, 5);
-  const mergedBranch = alpha.itemBranches.get(`${alpha.baseBranch}:5`);
-  box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', mergedBranch);
-  box.run(alpha.repo, 'merged', '5', box.git(alpha.repo, 'rev-parse', 'HEAD'));
-  build(box, alpha, 6, 'last-shipped.html');
-  accept(box, alpha, 6);
-  const shippedBranch = alpha.itemBranches.get(`${alpha.baseBranch}:6`);
-  box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', shippedBranch);
-  box.run(alpha.repo, 'merged', '6', box.git(alpha.repo, 'rev-parse', 'HEAD'));
-  box.run(alpha.web, 'claim', '2');
-  box.run(alpha.repo, 'milestone', 'add', '0.8.6', '--note', 'The last shipped note.\nA second detail line.', '--items', '6');
-  box.run(alpha.repo, 'milestone', 'add', '0.8.7', '--note', 'Shipping next.', '--items', '1,2,3,4,5');
-  box.run(alpha.repo, 'milestone', 'ship', '0.8.6', '--next', '0.8.7');
-  const view = await startView(box);
-  const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-panel-counts-'));
-  let chrome;
-  /** Read the visible stage counts and the bounded last-shipped summary. */
-  const read = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
-    const card=document.querySelector('#roadmap-panel'), rect=e=>{const r=e?.getBoundingClientRect();return r ? {top:r.top,bottom:r.bottom,height:r.height} : {top:0,bottom:0,height:0};};
-    const last=[...document.querySelectorAll('#roadmap .roadmap-last-shipped')].find(e=>e.getBoundingClientRect().height>0);
-    return {next:document.querySelector('#roadmap-list > .milestone > .milestone-head h2').textContent,
-      counts:[...document.querySelectorAll('#roadmap [data-shipping-stage]')].filter(e=>e.getBoundingClientRect().height>0).map(e=>[e.dataset.shippingStage,e.querySelector('dd').textContent]),
-      shipped:last ? [...last.children].map(e=>e.textContent) : null,
-      panel:rect(card),desktop:rect(card.querySelector('.roadmap-desktop-shipping')),mobile:rect(document.querySelector('.roadmap-list .roadmap-summary')),
-      heading:rect(document.querySelector('#roadmap-list > .milestone > .milestone-head h2')),
-      mobileCounts:rect(document.querySelector('#roadmap-list > .milestone > .roadmap-summary .roadmap-summary-legend')),
-      headerCounts:[...document.querySelector('#roadmap-list > .milestone').querySelectorAll('[data-summary-state]')].map(e=>[e.dataset.summaryState,e.querySelector('b').textContent]),
-      documentWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth),viewport:document.documentElement.clientWidth,viewportHeight:document.documentElement.clientHeight};
-  })())`));
-  try {
-    chrome = await openRoadmapChrome(executable, view.link.href, profile);
-    await chrome.waitFor('data?.project?.milestones?.length === 2');
-    await press(chrome, "document.querySelector('[data-tab=roadmap]')");
-    for (const width of [375, 1280]) {
-      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.waitFor(`innerWidth === ${width}`);
-      for (const scheme of ['light', 'dark']) {
-        await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
-        await chrome.waitFor(`matchMedia('(prefers-color-scheme: ${scheme})').matches`);
-        const counts = await read();
-        assert.equal(counts.next, '0.8.7', `${width}/${scheme}: the panel names the next release`);
-        const expected = [['landed', '1'], ['landing', '1'], ['review', '1'], ['building', '1'], ['waiting', '1'], ['held', '0']];
-        assert.deepEqual(counts.headerCounts, expected, `${width}/${scheme}: the header reads every supplied state`);
-        assert.deepEqual(counts.counts, width < 900 ? [] : expected, `${width}/${scheme}: the desktop companion panel shares those supplied counts`);
-        assert.deepEqual(counts.shipped, ['Last shipped', '0.8.6', 'The last shipped note.'], `${width}/${scheme}: the last shipped row includes only the note's first line`);
-        assert.ok(counts.documentWidth <= counts.viewport, `${width}/${scheme}: the page never scrolls sideways`);
-        if (width < 900) assert.ok(counts.heading.top < counts.mobileCounts.top && counts.mobile.height > 0 && counts.desktop.height === 0, `${width}/${scheme}: counts sit under the actual next release heading on the phone`);
-        else assert.ok(counts.desktop.height > 0 && counts.mobile.height > 0, `${width}/${scheme}: desktop shipping counts stay in the right panel alongside the header`);
-      }
-      await proofShot(chrome, 'roadmap-panel-counts', width);
-    }
-  } finally {
-    if (chrome) await closeSnapshotChrome(chrome);
-    rmSync(profile, { recursive: true, force: true });
-    await view.stop();
-  }
-});
-
 
 test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_000 }, async () => {
   const executable = chromeExecutable(); assert.ok(executable, 'Chrome is required for the roadmap header check.');

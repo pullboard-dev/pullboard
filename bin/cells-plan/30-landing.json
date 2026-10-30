@@ -51,7 +51,8 @@
   ["src/landing-step-trunk.js","packages/landing/src/shell/landing-step-trunk.js","rule"],
   ["src/landing-step-parallel.js","packages/landing/src/shell/landing-step-parallel.js","rule"],
   ["src/landing-step-batch.js","packages/landing/src/shell/landing-step-batch.js","rule"],
-  ["src/landing-history-plan.js","packages/landing/src/shell/landing-history-plan.js","rule"]
+  ["src/landing-history-plan.js","packages/landing/src/shell/landing-history-plan.js","rule"],
+  ["src/train-check-repoints.js","packages/landing/src/shell/train-check-repoints.js","rule"]
  ],
  "reexports": [
   "src/computed-conflict-receipt.js",
