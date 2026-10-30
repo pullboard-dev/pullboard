@@ -15,10 +15,12 @@ import {
 
 export const STANDARD_VERSION = 1;
 
+// Bind shipped data to this module generation before a landing can move or remove its source.
+const STANDARD_SOURCE = readFileSync(new URL('./standard-doctrine.md', import.meta.url), 'utf8');
+
 /** Read the shipped rows, preserving their source lines and marking the standard's version. */
 export function standardDoctrine() {
-  const source = readFileSync(new URL('./standard-doctrine.md', import.meta.url), 'utf8');
-  const parsed = parseSpec(source);
+  const parsed = parseSpec(STANDARD_SOURCE);
   const name = 'standard doctrine ' + STANDARD_VERSION;
   return {
     ...parsed, name, exists: true, version: STANDARD_VERSION,
