@@ -72,7 +72,7 @@ export function registerMaintenanceSchedulerTests() {
       config.worktreeMaintenance = { enabled, every: '20s', grace: '1d', exclude: [] };
       fs.writeFileSync(configFile, JSON.stringify(config, null, 2) + '\n');
       box.git(box.repo, 'add', 'pullboard.json');
-      box.git(box.repo, 'commit', '-qm', `private timer ${enabled ? 'on' : 'off'}`);
+      box.git(box.repo, 'commit', '-qm', `test: ${enabled ? 'enable' : 'disable'} private maintenance timer`);
     }
     t.after(async () => {
       // Opt out through accepted private main before stopping only exact native-owned identities.
