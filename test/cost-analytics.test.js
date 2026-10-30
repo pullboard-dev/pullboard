@@ -2,6 +2,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { logEvent } from '../src/board-event-log.js';
 import { createLocalApiHandler } from '../src/api.js';
 import { main } from '../src/cli.js';
 import { refusalDocument } from '../src/next-step-words.js';
@@ -101,4 +107,25 @@ test('recorded event model survives later seat relabeling [N26]', () => {
   const result = costAnalytics(input);
   assert.equal(result.builders.rows[0].model, 'old');
   assert.equal(result.unknownBuilderModelShare, 0);
+});
+
+
+test('the same cohort projection reads a seeded native SQLite board [N26]', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'pullboard-cost-cohort-'));
+  const board = openBoard(join(dir, 'board.sqlite'));
+  t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
+  const coordinator = store.register(board, { lane: 'coordinator', path: dir });
+  const builder = store.register(board, { lane: 'core', path: join(dir, 'builder'), model: 'Alpha' });
+  const verifier = store.register(board, { lane: 'review', path: join(dir, 'verifier'), model: 'Reviewer' });
+  const id = store.addItem(board, { by: coordinator, lane: 'core', title: 'Seeded native item' });
+  const at = new Date('2026-10-30T12:00:00Z');
+  logEvent(board, builder, 'submit', id, {}, at);
+  logEvent(board, verifier, 'accept', id, {}, at);
+  logEvent(board, builder, 'usage', null, { item: id, revision: 1, records: [{ model: 'Alpha', wallMs: 1000, inputTokens: 10 }] }, at);
+  logEvent(board, coordinator, 'merged', id, {}, at);
+  const result = costAnalytics({ items: store.listItems(board), agents: store.listAgents(board), events: store.events(board), window: 'today', now: new Date('2026-10-30T14:00:00Z'), timeZone: 'UTC', modelPresentation: presentation });
+  assert.equal(result.totals.itemCount, 1);
+  assert.equal(result.totals.agentMs, 1000);
+  assert.equal(result.builders.rows[0].model, 'alpha');
+  assert.equal(result.verifiers.rows[0].accepts, 1);
 });
