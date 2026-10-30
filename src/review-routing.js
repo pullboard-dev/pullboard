@@ -42,8 +42,8 @@ function reviewSubmission(board, item) {
 }
 
 /** Observe the current submission's unreserved wait, including strict work and expired reservations. */
-export function reviewWait(board, item) {
-  if (item.item_status !== 'submitted' || !reviewRoutingEnabled(board) || board.nativePorts.reviewHolder(board, item)) return null;
+export function reviewWait(board, item, reads = board.nativePorts) {
+  if (item.item_status !== 'submitted' || !reviewRoutingEnabled(board) || reads.reviewHolder(board, item)) return null;
   const submission = reviewSubmission(board, item);
   return submission ? { since: new Date(submission.at).toISOString(), ageMs: board.clock.now().getTime() - submission.at } : null;
 }

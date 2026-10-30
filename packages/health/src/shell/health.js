@@ -39,7 +39,9 @@ import { milestonePriorities } from '../../../../src/board.js';
 import { milestones } from '../../../../src/board.js';
 import { canTake } from '../../../../src/board.js';
 import { listItems } from '../../../../src/board.js';
-import { itemById, laneHold } from '../../../../src/board.js';
+import { itemById } from '../../../../src/board.js';
+import { laneHold } from '../../../../src/board.js';
+import { reviewHolder } from '../../../../src/board.js';
 import { listAgents } from '../../../../src/board.js';
 import { openBoardReadOnly } from '../../../../src/board.js';
 import { PERSON } from '../../../../src/board.js';
@@ -207,7 +209,7 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
           owner: { role: 'coordinator', who: COORDINATOR }, detail: { builder: item.item_built_by, undeclared: blocked.undeclared, excluding: blocked.excluding },
         }));
       }
-      const wait = reviewWait(board, item);
+      const wait = reviewWait(board, item, { reviewHolder });
       if (wait && wait.ageMs > (config?.review?.starveMinutes ?? 10) * 60_000) {
         const exclusions = [...seats().values()].map(agent => ({ agent: agent.agent_id,
           problem: eligibilityProblem(board, item, agent, { policy: config?.verify?.policy, familyPolicy: config?.verify?.family }) }));
