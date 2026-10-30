@@ -116,27 +116,34 @@ finally{clearInterval(watch);}`;
 function retryContract(box) {
   const gate = sourceURL('src/gate.js'), good = { ...box.runner, host: `${HOST}-setup`, root: join(box.dir, 'good-root') };
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const stages = join(box.dir, 'retry-stages.jsonl');
+  writeFileSync(stages, '');
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   writeFileSync(settings, JSON.stringify({ gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true }, runners: [box.runner] }));
   const source = `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
 import {RunnerDropped} from ${JSON.stringify(sourceURL('src/runners.js'))};
-import {readFileSync,writeFileSync} from 'node:fs';
+import {appendFileSync,readFileSync,writeFileSync} from 'node:fs';
+let stageCount=0;
+const stage=value=>{if(stageCount++<64||value.stage==='terminal')appendFileSync(${JSON.stringify(stages)},JSON.stringify({at:Date.now(),...value})+'\\n');};
 const seen=[],unavailable=[];let attempts=0,loss;
+stage({stage:'queue'});
 try{await withGateSlot(process.cwd(),async lease=>{seen.push(lease.runner.host);attempts++;
+ stage({stage:'action',attempts,host:lease.runner.host});
  if(attempts===1){try{await runProfiledShellAsync(process.cwd(),'true',{gateLease:lease});}
- catch(error){loss={code:error.code,message:error.message,diagnostic:error.diagnostic};throw error;}throw new Error('the controlled first job unexpectedly completed');}
+ catch(error){loss={code:error.code,message:error.message,diagnostic:error.diagnostic};stage({stage:'loss',...loss});throw error;}throw new Error('the controlled first job unexpectedly completed');}
  throw new RunnerDropped(lease.runner.host,{reason:'controlled second transport failure'});
-},{executionServices,remote:true,kind:'test',onWait(state){
+},{executionServices,remote:true,runnerOnly:true,kind:'test',onWait(state){
+ stage({stage:'wait',admitted:state.admitted??false,unavailable:state.runnerUnavailable??null});
  if(!state.runnerUnavailable)return;unavailable.push(state.runnerUnavailable);
  const config=JSON.parse(readFileSync(${JSON.stringify(settings)},'utf8'));
  if(!config.runners.some(row=>row.host===${JSON.stringify(good.host)})){config.runners.push(${JSON.stringify(good)});writeFileSync(${JSON.stringify(settings)},JSON.stringify(config));}
 }});console.log(JSON.stringify({unexpectedSuccess:true}));}
-catch(error){console.log(JSON.stringify({code:error.code,attempts,seen,unavailable,loss,infrastructureAttempts:error.infrastructureAttempts}));}`;
+catch(error){stage({stage:'terminal',code:error.code,attempts});console.log(JSON.stringify({code:error.code,attempts,seen,unavailable,loss,infrastructureAttempts:error.infrastructureAttempts}));}`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
     cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 60_000,
   });
-  assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
+  assert.equal(result.status, 0, [result.failure, result.stderr, result.stdout, readFileSync(stages, 'utf8')].filter(Boolean).join('\n'));
   return JSON.parse(result.stdout);
 }
 
