@@ -3,6 +3,7 @@
 /** A private native event import seeds two windows; this fixture is not review assurance [N26,R1,R2]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { renameSync } from 'node:fs';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
 import { openBoard } from '../../src/native-board.js';
@@ -15,11 +16,14 @@ function seedWindows(box, demo) {
   const base = Date.now() - 240 * 60_000;
   /** Fixed event gaps leave every transition inside its intended two-hour window. */
   const at = minute => new Date(base + minute * 60_000).toISOString();
+  let document;
+  const file = join(demo.repo, '.git/pullboard/board.sqlite');
   // @pullboard-board-file journey: the native export/import seeds the persisted board served over authenticated HTTP.
-  const board = openBoard(join(demo.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(file);
   try {
     const reviewer = store.register(board, { lane: 'review', path: join(box.dir, 'window-reviewer'), parentDigest: 'b'.repeat(64) });
-    const document = exportBoard(board), head = box.git(demo.repo, 'rev-parse', 'HEAD');
+    document = exportBoard(board);
+    const head = box.git(demo.repo, 'rev-parse', 'HEAD');
     const rows = [
       [0,'web-1','join',null,{lane:'web'}], [0,reviewer,'join',null,{lane:'review'}],
       [2,'coordinator','add',1,{lane:'web'}], [2,'coordinator','add',3,{lane:'web'}],
@@ -39,8 +43,13 @@ function seedWindows(box, demo) {
     ];
     document.tables.event = rows.map(([minute,by,kind,id,detail],index) => ({event_id:index+1,event_at:at(minute),event_by:by,event_kind:kind,item_id:id,event_detail:JSON.stringify(detail)}));
     document.tables.sqlite_sequence.find(row => row.name === 'event').seq = rows.length;
-    importBoard(board, document);
   } finally { store.closeBoard(board); }
+  // Preserve the original private fixture board; native import requires an empty destination.
+  assert.ok(demo.repo.startsWith(box.dir + '/'), 'only this test machine owns the restored board');
+  renameSync(file, join(demo.repo, '.git/pullboard/window-original.sqlite'));
+  // @pullboard-board-file journey: the authenticated view reopens this empty destination after a native import.
+  const restored = openBoard(file);
+  try { importBoard(restored, document); } finally { store.closeBoard(restored); }
 }
 
 test('window overview renders canonical seeded values, directions, shares and minute clocks in Chrome [N26,R1,R2]', { timeout:120_000 }, async () => { // budget: real private board, HTTP state/history and two Chrome viewport sizes.
