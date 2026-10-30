@@ -5,6 +5,8 @@
  "root": "apps/cli",
  "frontDoor": "apps/cli/index.js",
  "paths": [
+  ["src/worktree-maintenance-archive.js","apps/cli/src/shell/worktree-maintenance-archive.js","rule"],
+  ["test/worktree-maintenance-archive.fixture.js","apps/cli/tests/worktree-maintenance-archive.fixture.js","rule"],
   ["src/cli-board-read.js","apps/cli/src/shell/cli-board-read.js","seed"],
   ["src/cli-context.js","apps/cli/src/shell/cli-context.js","seed"],
   ["src/cli-help.js","apps/cli/src/shell/cli-help.js","seed"],
