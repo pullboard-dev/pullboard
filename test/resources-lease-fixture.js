@@ -196,7 +196,8 @@ function itemLeaseFixture(t, helpers) {
     mkdirSync(folder);
     const gate = helpers.holdingGate({ dir: folder });
     const added = clockedCli(box, box.repo, 'add', 'web', `Queued lease ${number}`, '--specs', 'G1',
-      '--criterion', 'The queued command retains only its own live item lease.', '--check', gate.command, '--json');
+      '--criterion', 'The queued command retains only its own live item lease.', '--check', gate.command, '--wait', '--json');
+    assert.notEqual(added.item.item_check_baseline?.result, 'pending', 'the fixture completes its baseline before preparing any item claim');
     const id = added.item.item_id;
     box.ids.push(id); box.gates.push(gate);
     if (number < 4) {
