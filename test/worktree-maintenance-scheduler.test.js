@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -48,6 +49,7 @@ test('actual CLI keeps a live timer silently and health names its exact key pid 
     { encoding: 'utf8', env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' } }).trim();
   const owner = { version: 1, token: randomUUID(), pid: process.pid, started,
     dueAt: new Date(Date.now() + 3_600_000).toISOString(), root: box.repo, common };
+  const key = createHash('sha256').update(owner.token).digest('hex');
   const bytes = JSON.stringify(owner) + '\n';
   writeFileSync(join(directory, 'timer.json'), bytes, { mode: 0o600 });
   assert.equal(maintenanceTimerHealth(common).lastRun, null, 'absence of a recorded run is unknown, not a fabricated completion');
@@ -59,12 +61,13 @@ test('actual CLI keeps a live timer silently and health names its exact key pid 
   assert.equal(readFileSync(join(directory, 'timer.json'), 'utf8'), bytes);
   const observed = maintenanceTimerHealth(common);
   assert.equal(observed.state, 'live');
-  assert.equal(observed.key, owner.token);
+  assert.equal(observed.key, key);
   assert.equal(observed.pid, process.pid);
   assert.ok(Number.isFinite(Date.parse(observed.lastRun.completedAt)));
   const health = box.run(box.repo, 'health', '--json');
   const document = JSON.parse(health.out);
-  assert.equal(document.maintenanceTimer.key, owner.token);
+  assert.equal(document.maintenanceTimer.key, key);
+  assert.ok(!health.out.includes(owner.token), 'the private watch token never appears in health output');
   assert.equal(document.maintenanceTimer.pid, process.pid);
   assert.equal(document.maintenanceTimer.lastRun.completedAt, observed.lastRun.completedAt);
   assert.doesNotMatch(health.err, /maintenance timer/u);

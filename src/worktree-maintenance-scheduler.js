@@ -2,6 +2,7 @@
 import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
 import { closeSync } from 'node:fs';
 import { fstatSync } from 'node:fs';
@@ -232,7 +233,7 @@ export async function runScheduledMaintenance(ctx, key) {
 export function maintenanceTimerHealth(common) {
   try {
     const files = timerFiles(realpathSync(common), false), owner = readTimer(files.file);
-    return { state: owner ? timerState(owner) : 'absent', key: owner?.token ?? null,
+    return { state: owner ? timerState(owner) : 'absent', key: owner ? createHash('sha256').update(owner.token).digest('hex') : null,
       pid: owner?.pid ?? null, dueAt: owner?.dueAt ?? null, lastRun: readMaintenanceLastRun(common) };
   } catch (error) {
     if (error.code === 'ENOENT') return { state: 'absent', key: null, pid: null, dueAt: null, lastRun: null };

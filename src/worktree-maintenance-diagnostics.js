@@ -17,7 +17,7 @@ export function maintenanceTimerWarning(error) {
   const stage = ['lookup', 'register', 'launch'].includes(error?.maintenanceStage) ? error.maintenanceStage : 'lookup';
   const code = String(error?.code ?? error?.name ?? 'Error').replace(/[\r\n\t]/gu, ' ').slice(0, 80);
   const message = String(error?.message ?? error).replace(/[\r\n\t]/gu, ' ').slice(0, 500);
-  return `maintenance timer could not be registered; stage=${stage}; ${code}: ${message}; the worktrees remain unchanged`;
+  return `maintenance timer could not be registered; stage=${stage}; ${code}: ${message}`;
 }
 
 /** Preserve private repository diagnostic custody without following a substituted directory. */
