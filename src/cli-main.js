@@ -322,6 +322,7 @@ async function runMain(argv, streams) {
   let checkoutSession;
   let auditAfterCommand = false;
   let advanceAfterCommand = false;
+  let maintenanceAfterCommand;
   try {
     parsed = parseCommandArgs(argv);
     const command = parsed.positionals[0];
@@ -387,6 +388,10 @@ async function runMain(argv, streams) {
     }
     if (code === 0) await (await syncWork())?.retrySync(io);
     const status = io.exitCode(code);
+    if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'maintenance') {
+      // The foreground command already read this configuration; disabled maintenance adds no second context read.
+      maintenanceAfterCommand = io.worktreeMaintenanceContext;
+    }
     if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('./blocks.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('./person.js')).requirePersonChannel });
     if (status !== 0) await io.prepareRefusal();
     io.flush(status);
@@ -395,6 +400,10 @@ async function runMain(argv, streams) {
     CHECKOUT_LEASES.delete(io);
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
+    if (maintenanceAfterCommand) {
+      try { await (await import('./worktree-maintenance-scheduler.js')).scheduleWorktreeMaintenance(maintenanceAfterCommand); }
+      catch { io.err('maintenance timer could not be registered; the worktrees remain unchanged'); }
+    }
     if (advanceAfterCommand) {
       try {
         let eligible = true;
