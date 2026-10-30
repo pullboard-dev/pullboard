@@ -23,3 +23,5 @@ export { SUBMISSION_SIZE_METHOD } from './src/core/submission-size.js';
 export { submissionSize } from './src/core/submission-size.js';
 export { submitAdmission } from './src/core/submit-admission.js';
 export { completesAdmittedSubmit } from './src/core/submit-admission.js';
+export { EXIT_RULES_ENGINE } from '../../src/exit-rules-engine.js';
+export { ENGINE_VERSION } from '../../src/engine-metadata.js';
