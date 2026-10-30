@@ -69,6 +69,13 @@ test('submit still refuses an actual static import to the same wildcard-covered 
     /kernel --cuts: kernel still imports later app:cli: src\/refused.js -> src\/new-cli.js/u);
 });
 
+test('submit cannot borrow old computed debt for a new static import to an existing file [C7,D3,CD64]', async t => {
+  const box = acceptedLoader(t);
+  box.put('src/refused.js', box.source + "import './stats-flow.js';\n");
+  await assert.rejects(requireSubmitCells(box.root, box.main, candidate(box), box.item, services),
+    /kernel --cuts: kernel still imports later stats: src\/refused.js -> src\/stats-flow.js/u);
+});
+
 test('submit refuses a newly widened wildcard rather than borrowing accepted narrower authority [C7,D3,CD64]', async t => {
   const box = acceptedLoader(t, 'src/stats*.js');
   addLaterFile(box);
