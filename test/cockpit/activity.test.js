@@ -595,13 +595,15 @@ export async function createTransport({ onUpdate }) {
     await chrome.waitFor(`data?.project?.items.some((item) => item.title === 'Greet the visitor')`);
     const note = (kind) => `(document.querySelector('[data-history-note="${kind}"]')?.textContent ?? null)`;
 
+    // The compact conversation list may already expose its end; prove the initial window before opening it.
+    assert.equal(await chrome.stable(`data.project.shouts.some(shout => shout.shout_text.includes('The oldest shout'))`), false, 'the oldest shout is not among the forty on hand');
+    assert.equal(reads.some((path) => /\/shouts\/\d+$/.test(path)), false, 'no older shout was requested before Shouts opens');
     // Streaming: the feed ends in the line, with how far along it is, and its end reads ten older shouts at a time.
     await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
     await chrome.waitFor(`${note('shouts')} === 'Older shouts are still loading (30%).'`);
     await chrome.click(`document.querySelector('[data-shout-thread="none"]')`);
     await chrome.waitFor('!!document.querySelector("#feed .shout")');
     assert.equal(await chrome.stable(`document.querySelector('#feed').lastElementChild.dataset.historyNote`), 'shouts', 'the line ends the feed');
-    assert.equal(await chrome.stable(`document.querySelector('#feed').textContent.includes('The oldest shout')`), false, 'the oldest shout is not among the forty on hand');
     await chrome.stable(`document.querySelector('[data-history-note="shouts"]').scrollIntoView({ block: 'end' })`);
     await chrome.waitFor(`document.querySelector('#feed').textContent.includes('The oldest shout, read once the feed reaches its end')`);
     assert.ok(reads.some((path) => /\/shouts\/\d+$/.test(path)), 'the next page came from addressed shout reads');
