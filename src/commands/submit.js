@@ -324,7 +324,7 @@ export async function submitHere(ctx, id, infra) {
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
   const preflightLines = changedLines(root, acceptedMain.commit, commit);
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
-  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize }, { atomic: store.atomic, submit: store.submit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }) }));
+  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize }, { atomic: store.atomic, submit: store.submit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
   const trunk = requireTrunkMerge(root, commit);
   const companion = await withBoard(ctx, async board => {
     if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
@@ -425,10 +425,12 @@ export async function submitHere(ctx, id, infra) {
     ? `${gate.deferFullFallback ? invariants : `affected tests: ${files}; `}full suite deferred to the landing gate`
     : gate.full ? `full gate: ${gate.reason}` : `affected tests: ${files}`;
   const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'}` : 'no item check';
+  const registry = gate.registryGuards?.length
+    ? `; registry guards: ${gate.registryGuards.slice(0, 8).join(', ')}${gate.registryGuards.length > 8 ? `, … ${gate.registryGuards.length - 8} more in the full log` : ''}` : '';
   const mechanicalFlag = mechanicalPaths.length
     ? `cross-lane mechanical edits: ${mechanicalPaths.join(', ')}` : '';
   const quarantineReport = (gate.phaseVerdicts ?? []).map(phase => `${phase.role} computed quarantine verdict ${phase.blockingVerdict.green ? 'green' : 'red'}; raw exit ${phase.rawExitCode}; ${phase.blockingVerdict.quarantines.length} covered case(s); first events ${phase.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}`).join('\n');
-  const displayedReport = `${check}; ${scope}${quarantineReport ? `\n${quarantineReport}` : ''}${mechanicalFlag ? `\n${mechanicalFlag}` : ''}\n${renderTestSummary(summary)}`;
+  const displayedReport = `${check}${registry}; ${scope}${quarantineReport ? `\n${quarantineReport}` : ''}${mechanicalFlag ? `\n${mechanicalFlag}` : ''}\n${renderTestSummary(summary)}`;
   const checkAccepted = Boolean(gate.check?.green || criterionMatched);
   // Only fully accounted exact-main failures or live person waivers pass a red proof; the item check stays mandatory [B3].
   const waived = !gate.isGreen && checkAccepted ? withBoard(ctx, (board) => waivedFailures(board, blockingFailures(gate, accountedFailures(gate, root)), { quarantineWaivers })) : null;

@@ -6,7 +6,6 @@ import { ITEM_PATCH_ENGINE } from './item-patch-engine.js';
 import { PATCH_REVIEW_CUSTODY_ENGINE } from './patch-review-custody-engine.js';
 import { PATCH_FOLLOW_ENGINE } from './patch-follow-engine.js';
 import { itemPatchSetDigest } from './item-patch-state.js';
-import { getItem } from './board-query.js';
 import { Refused } from './refused.js';
 import { NO_ELIGIBLE_REVIEWER_ENGINE } from './no-eligible-reviewer-engine.js';
 import { asSubmitted } from './review-reachability.js';
@@ -57,7 +56,7 @@ function save(board, id, patches) {
 /** Own the public writer using the board root's explicit sealing and canonical transaction ports. */
 export function followItemPatches(board, id, options) {
   const sealed = board.executionEngineVersion === undefined ? board.enginePorts.sealItemPatchFollow(board, id, options) : options;
-  return applyItemPatchFollow(board, id, sealed, { atomic: board.nativePorts.atomic, logEvent: board.nativePorts.logEvent, getItem });
+  return applyItemPatchFollow(board, id, sealed, { atomic: board.nativePorts.atomic, logEvent: board.nativePorts.logEvent, getItem: board.nativePorts.getItem });
 }
 
 /** Replay one all-or-nothing binding change without changing immutable bytes, authors or the claim. */
@@ -108,7 +107,7 @@ const PREVIEWED = Symbol('item patch author preview');
  * The author is written inside a transaction that always rolls back, so nothing is recorded; the ordered move
  * keeps its own deterministic check against every registered seat so replay never reads local heartbeats [C7,V4].
  */
-export function refuseLiveAttach(board, item, { key, author, commit, patch = '' }, { atomic, review }) {
+export function refuseLiveAttach(board, item, { key, author, commit, patch = '' }, { atomic, review, listAgents = board.nativePorts?.listAgents }) {
   try {
     atomic(board, () => {
       const patches = records(board, item.item_id);
@@ -116,7 +115,7 @@ export function refuseLiveAttach(board, item, { key, author, commit, patch = '' 
         patches.push({ key, commit: commit ?? item.item_commit, source: { commit: commit ?? item.item_commit }, patch, digest: hash(patch), author: authorIdentity(board, author), active: true });
         save(board, item.item_id, patches);
       }
-      refuseUnreviewable(board, asSubmitted(board, item), review);
+      refuseUnreviewable(board, asSubmitted(board, item), review, { listAgents });
       throw PREVIEWED;
     });
   } catch (error) {
@@ -150,7 +149,7 @@ export function applyItemPatchAttachment(board, id, options, ports) {
       ...(item.item_status === 'claimed' ? { presubmit: true } : {}) };
     patches.push(record); save(board, id, patches);
     // The new author may leave no seat able to review a strict item; the throw rolls this whole move back.
-    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= NO_ELIGIBLE_REVIEWER_ENGINE) refuseUnreviewable(board, asSubmitted(board, item), { registered: true });
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= NO_ELIGIBLE_REVIEWER_ENGINE) refuseUnreviewable(board, asSubmitted(board, item), { registered: true }, ports);
     ports.invalidate(id);
     ports.logEvent(board, options.agentId, 'item_patch_attach', id, { key: record.key, commit: record.commit, digest, author });
     return { item: id, key: options.key, digest: itemPatchDigest(board, id), changed: true };

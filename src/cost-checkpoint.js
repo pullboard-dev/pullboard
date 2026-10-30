@@ -4,7 +4,6 @@ import { publicUsage } from './cost-read.js';
 import { usageCheckpoint } from './cost-ledger.js';
 import { sharedSessionTotals } from './cost-shared.js';
 import { storedSeatUsage } from './cost.js';
-import { agentModel } from './board-query.js';
 import { ordered } from './cli.js';
 
 /** Recover missed local checkpoints as unknown usage bounded by actual ordered claim/end times. */
@@ -30,7 +29,7 @@ function lifecycleIntervals(board, agent, now) {
 export async function publishUsage(ctx, board, { agent, item, operation }) {
   const now = ctx.clock.now().getTime();
   const history = lifecycleIntervals(board, agent, now);
-  const changes = usageCheckpoint(ctx.info, { agent, item, operation, model: agentModel(board, agent), now,
+  const changes = usageCheckpoint(ctx.info, { agent, item, operation, model: board.nativePorts.agentModel(board, agent), now,
     existing: storedSeatUsage(board, agent), existingShared: sharedSessionTotals(board), intervals: history.intervals,
     newClaim: operation === 'claim' && history.latest?.event_kind === 'claim' && history.latest.item_id === item });
   // A claim only opens its private anchor: its own zero-length interval publishes at submit, release or refresh.

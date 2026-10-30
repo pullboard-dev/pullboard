@@ -21,6 +21,7 @@ import {
   setGateSlots,
   setGateRunnersFirst,
   setGateMeasuredSlots,
+  setGateLoadDispatch,
   setGateRunnersOnly,
   setGateRunnerWaitMs,
   setLandingPool,
@@ -38,7 +39,7 @@ import {
 import { boardId } from '../board.js';
 import { describeSetting } from '../settings-descriptions.js';
 
-const PRINTED = ['gateSlots', 'browserSlots', 'gate.queue.reviewsFirst', 'gate.queue.currentReleaseFirst', 'gate.queue.agingMinutes', 'gate.memoryFloorMB', 'view.background', 'relay.offerAtInit', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget'];
+const PRINTED = ['gateSlots', 'browserSlots', 'gate.queue.reviewsFirst', 'gate.queue.currentReleaseFirst', 'gate.queue.agingMinutes', 'gate.memoryFloorMB', 'view.background', 'relay.offerAtInit', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget'];
 
 /** Print one setting line; with --detail also its plain label and sentence beneath it. */
 function sayDescribed(io, line, detail) {
@@ -69,8 +70,10 @@ export function settingsCommand(io, { first, second, rest, values }) {
     const shortSlots = gateShortSlots();
     const runnersOnly = settings.gate?.runnersOnly === true;
     const runnersFirst = settings.gate?.runnersFirst === true;
+    const loadAwareDispatch = settings.gate?.loadAwareDispatch === true;
+    const runnerBusyCeiling = settings.gate?.runnerBusyCeiling ?? 90;
     const measuredSlots = settings.gate?.measuredSlots === true;
-    io.result?.({ settings: { ...settings, gate: { ...settings.gate, queue: { ...settings.gate?.queue, ...queue }, shortSlots, runnersFirst, runnersOnly, measuredSlots, runnerWaitMs: gateRunnerWaitMs() }, relay: { ...settings.relay, offerAtInit } }, memoryFloorMB: memoryFloorMB(), descriptions: Object.fromEntries(PRINTED.map(key => [key, describeSetting(key)])) });
+    io.result?.({ settings: { ...settings, gate: { ...settings.gate, queue: { ...settings.gate?.queue, ...queue }, shortSlots, runnersFirst, runnersOnly, measuredSlots, loadAwareDispatch, runnerBusyCeiling, runnerWaitMs: gateRunnerWaitMs() }, relay: { ...settings.relay, offerAtInit } }, memoryFloorMB: memoryFloorMB(), descriptions: Object.fromEntries(PRINTED.map(key => [key, describeSetting(key)])) });
     sayDescribed(io, `gateSlots: ${settings.gateSlots}`, values.detail === true);
     sayDescribed(io, `browserSlots: ${settings.browserSlots}`, values.detail === true);
     sayDescribed(io, `gate.queue.reviewsFirst: ${queue.reviewsFirst}${queue.reviewsFirst ? '' : ' (landings first, then arrival order)'}`, values.detail === true);
@@ -81,6 +84,8 @@ export function settingsCommand(io, { first, second, rest, values }) {
     sayDescribed(io, `relay.offerAtInit: ${offerAtInit}${offerAtInit ? ' (init asks once to share your boards with your phone)' : ' (init stays quiet about sharing)'}`, values.detail === true);
     sayDescribed(io, `gate.shortSlots: ${shortSlots}${shortSlots ? '' : ' (off; runs that name their test files wait for a gate slot)'}`, values.detail === true);
     sayDescribed(io, `gate.runnersFirst: ${runnersFirst} (registered runners are preferred before local slots when on)`, values.detail === true);
+    sayDescribed(io, `gate.loadAwareDispatch: ${loadAwareDispatch}`, values.detail === true);
+    sayDescribed(io, `gate.runnerBusyCeiling: ${runnerBusyCeiling}`, values.detail === true);
     sayDescribed(io, `gate.measuredSlots: ${measuredSlots} (${measuredSlots ? 'each measured runner offers slots from its own cores and memory unless declared fixed' : 'runners offer the slot counts they were registered with'})`, values.detail === true);
     sayDescribed(io, `gate.runnersOnly: ${runnersOnly} (submit and verify wait for registered runners, with no local fallback when on)`, values.detail === true);
     sayDescribed(io, `gate.runnerWaitMs: ${gateRunnerWaitMs()} (runner-only submit/review refuses; other runs retain ordinary local admission)`, values.detail === true);
@@ -96,6 +101,13 @@ export function settingsCommand(io, { first, second, rest, values }) {
     const settings = setGateRunnersFirst(second === 'on');
     io.result?.({ settings });
     io.say(`gate.runnersFirst set to ${second}`);
+    return 0;
+  }
+  if (first === 'gate.loadAwareDispatch' || first === 'gate.runnerBusyCeiling') {
+    if (first === 'gate.loadAwareDispatch' && !['on', 'off'].includes(second)) throw new Refused('BAD_MACHINE_SETTINGS', 'gate.loadAwareDispatch must be on or off');
+    const settings = setGateLoadDispatch(first.slice(5), first === 'gate.loadAwareDispatch' ? second === 'on' : Number(second));
+    io.result?.({ settings });
+    io.say(`${first} set to ${second}`);
     return 0;
   }
   if (first === 'gate.measuredSlots') {
