@@ -359,9 +359,19 @@ function render() {
     + '<div class="text">' + rich(x.shout_text, titles) + (x.options ? '<ol>' + x.options.map(option => '<li>' + esc(option) + '</li>').join('') + '</ol>' : '') + '</div><button class="more" data-more type="button" aria-expanded="' + openShouts.has(x.shout_id) + '">' + (openShouts.has(x.shout_id) ? 'Show less' : 'Show all') + '</button>' + evidence(x) + tail + '</div></article>';
   // Native pending-question lists are authoritative: answered or stale asks never keep a thread amber.
   const uniqueShouts = new Map([...heard, ...questions].map(x => [x.shout_id, x]));
+  /** Replies inherit their original question's item even when the answer names no item. */
+  const conversationItem = message => {
+    const visited = new Set();
+    for (let entry = message; entry && !visited.has(entry.shout_id); entry = uniqueShouts.get(entry.shout_answers)) {
+      visited.add(entry.shout_id);
+      const item = itemOf(entry);
+      if (item) return item;
+    }
+    return null;
+  };
   const conversations = new Map();
   for (const message of uniqueShouts.values()) {
-    const item = itemOf(message), key = item ? 'item:' + item : 'none';
+    const item = conversationItem(message), key = item ? 'item:' + item : 'none';
     if (!conversations.has(key)) conversations.set(key, { key, item, messages: [], open: false, toYou: false });
     const conversation = conversations.get(key);
     conversation.messages.push(message);

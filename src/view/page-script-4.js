@@ -71,6 +71,7 @@ function address(push = true) {
 
 /** Apply a parsed selection without recording another history entry. */
 function applyPlace(place, kept = null) {
+  if (place.root && place.root !== view.root) view.shoutThread = null;
   if (place.root) view.root = place.root;
   view.tab = place.tab;
   view.addressDetail = place.detail;
@@ -787,6 +788,7 @@ function switchTo(root, target = null, record = true) {
   leaveDialogs();
   const generation = ++switchGeneration;
   answer(null);
+  view.shoutThread = null;
   view.root = root;
   syncBoardMode(root);
   const item = typeof target === 'number' ? target : /^item:(\\d+)$/.exec(target || '');
