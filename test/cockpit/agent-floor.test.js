@@ -59,8 +59,8 @@ test('the floor\'s headline counts live agents, builders, reviewers and 24-hour 
 test('the floor\'s full row of numbers names every count the person asked for [N26]', () => {
   const { floor, html } = floorAt(seeded.now);
   const band = section(html, 'Board numbers');
-  const expected = { live: 3, building: 1, reviewing: 1, between: 1, landed: 2, accepted: 3, 'sent-back': 1, 'in-review': 2, waiting: 1, ready: 3, shouts: 1 };
-  const labels = ['Agents live', 'Building', 'Reviewing', 'Between items', 'Landed · 24 h', 'Accepted', 'Sent back', 'In review', 'Waiting to land', 'Ready to build', 'Shouts'];
+  const expected = { live: 3, building: 1, reviewing: 1, between: 1, landed: 2, accepted: 3, 'sent-back': 1, shouts: 1, 'in-review': 2, waiting: 1, ready: 3 };
+  const labels = ['Live', 'Building', 'Reviewing', 'Between', 'Landed', 'Passed', 'Sent back', 'Shouts', 'In review', 'To land', 'Ready'];
   const shown = [...band.matchAll(/data-floor-stat="([^"]+)" data-value="([^"]*)"><b>[^<]*<\/b><span>([^<]*)<\/span>/gu)].map(match => [match[1], match[2], match[3]]);
   assert.deepEqual(shown.map(([key]) => key), Object.keys(expected), 'eleven numbers, in the person\'s order');
   assert.deepEqual(shown.map(([, , label]) => label), labels);
