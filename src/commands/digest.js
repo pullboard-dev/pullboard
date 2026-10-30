@@ -18,11 +18,12 @@ import {
   context,
 } from '../cli.js';
 import { healthReport } from '../../packages/health/index.js';
+import { loadMachineSettings } from '../settings-read.js';
 import { dispatchHealth } from '../dispatch-health.js';
 
 /** Bind the upper dispatch operation while preserving the digest reader's exact SQLite snapshot. */
 function digestHealth(options) {
-  return healthReport({ ...options, dispatchHealth });
+  return healthReport({ ...options, dispatchHealth, machineSettings: loadMachineSettings() });
 }
 
 /** Run `pullboard digest` and return its exit code. */
