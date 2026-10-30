@@ -3,8 +3,7 @@ import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { cpSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createServer, request as httpRequest } from 'node:http';
 import { join, resolve } from 'node:path';
@@ -13,7 +12,6 @@ import { createLocalApiHandler, serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { serveView } from '../src/commands/view.js';
 import { main } from '../src/cli.js';
-import { projectState } from '../src/serve.js';
 import { applyStateDelta, createApiHandler } from '../src/api-http.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../src/api-delta-fields.js';
 import { registryFile, registerProject, forgetProject } from '../src/projects.js';
@@ -21,33 +19,12 @@ import { Refused } from '../src/refused.js';
 import { board as store } from '../src/native-board.js';
 import { preparePersonRequest } from '../src/person-request.js';
 import { receivePersonRequest } from '../src/relay-requests.js';
-import { apiFixtureEnvironment, bindApiFixtureMachine } from './api-fixture.js';
+import { apiHttpFixture as fixture } from './api-fixture.js';
+import { apiHttpBox as httpBox } from './api-fixture.js';
+import { shellWord } from './api-fixture.js';
 import { fetchFresh } from './http-fixture.js';
 import { liveFrames } from './http-stream-fixture.js';
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
-
-test('withdrawal facts agree in HTTP summary, detail and sealed projection [A2,C15,N26]', async t => {
-  const box = await httpBox(t);
-  const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
-  let withdrawn;
-  let open;
-  try {
-    withdrawn = store.addItem(board, { by: 'coordinator', lane: 'app', title: 'No longer needed' });
-    open = store.addItem(board, { by: 'coordinator', lane: 'app', title: 'Still needed' });
-    store.withdraw(board, withdrawn, { agentId: 'coordinator', reason: 'Replaced by the revised plan' });
-  } finally { store.closeBoard(board); }
-  const summary = await box.call(box.path + '/state');
-  const sealed = projectState(box.root);
-  for (const [id, reason, from] of [[withdrawn, 'Replaced by the revised plan', 'open'], [open, null, null]]) {
-    const detail = await box.call(box.path + '/items/' + id);
-    assert.equal(detail.status, 200);
-    for (const item of [summary.document.state.items.find(item => item.id === id), detail.document.item, sealed.items.find(item => item.id === id)]) {
-      assert.equal(item.withdrawnReason, reason);
-      assert.equal(item.withdrawnFrom, from);
-      assert.deepEqual(Object.keys(item).filter(key => key.startsWith('withdrawn')).sort(), ['withdrawnFrom', 'withdrawnReason']);
-    }
-  }
-});
 
 /** Run a private view in a child process with child-process accounting enabled only for warmed reads. */
 const REPEATED_READ_HARNESS = `
@@ -310,83 +287,6 @@ try {
   await view.close();
 }
 `;
-
-/** Quote an executable path literally for the fixture's source-bin hook shim. */
-function shellWord(value) {
-  return "'" + value.replace(/'/g, "'\\''") + "'";
-}
-
-/** Create a private, committed project, with an exact-build hook shim and no personal Git config. */
-function fixture(t) {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-http-')));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const root = join(dir, 'repo');
-  const bin = join(dir, 'bin');
-  mkdirSync(root);
-  mkdirSync(bin);
-  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
-  chmodSync(join(bin, 'pullboard'), 0o755);
-  const env = apiFixtureEnvironment(dir, bin);
-  bindApiFixtureMachine(t, env);
-  mkdirSync(env.HOME);
-  /** Run Git only inside the private fixture. */
-  const git = (...args) => runFixtureGit(args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
-  /** Exercise this worktree's real CLI with a private environment. */
-  const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
-  /** Decode one successful versioned CLI invocation without printing session links. */
-  function cli(cwd, ...args) {
-    const result = run(cwd, ...args, '--json');
-    let reason = result.stderr;
-    if (result.status !== 0 && result.stdout) {
-      try {
-        const response = JSON.parse(result.stdout);
-        const error = response?.error;
-        if (error && typeof error === 'object') {
-          reason = [result.stderr, error.code, error.message].filter(Boolean).join('\n');
-        }
-      } catch { /* Keep the existing stderr-only diagnostic for non-JSON failures. */ }
-    }
-    assert.equal(result.status, 0, reason);
-    return JSON.parse(result.stdout);
-  }
-  git('init', '-q', '-b', 'main');
-  cli(root, 'init');
-  // HTTP fixtures file "true" checks to move items, so they keep a board with no hold setting.
-  const { checks: _hold, ...config } = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
-  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...config, gate: 'true', lanes: { app: { owns: ['app/'] }, review: { owns: [] } } }));
-  writeFileSync(join(root, 'SPEC.md'), '# HTTP fixture\n\n## Goals\n- G1 [approved, must] Keep the board. | gate: true\n');
-  writeFileSync(join(root, 'DOCTRINE.md'), '');
-  git('add', '-A');
-  git('commit', '-q', '-m', 'chore: private HTTP fixture');
-  return { root, dir, env, cli, run, commit: git('rev-parse', 'HEAD').trim() };
-}
-
-/** Serve this fixture's explicit project, avoiding any registry outside its private home. */
-async function httpBox(t, { includeMissing = false, onStateBuild, additionalProjects = [] } = {}) {
-  const box = fixture(t);
-  const api = await serveApi({ refusalDocument, runCommand: main, onStateBuild, projects: () => [...(includeMissing ? [{ root: join(box.dir, 'gone'), name: 'Missing fixture' }] : []), { root: box.root, name: 'HTTP fixture' }, ...additionalProjects] });
-  t.after(() => api.close());
-  const url = new URL(api.url);
-  const key = url.searchParams.get('k');
-  const origin = url.origin;
-  /** Make a real HTTP call and decode its single versioned response. */
-  async function call(path, value, headers = {}) {
-    const response = await fetchFresh(origin + path, {
-      method: value === undefined ? 'GET' : 'POST',
-      headers: { 'x-pullboard-key': key, ...(value === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
-      ...(value === undefined ? {} : { body: JSON.stringify(value) }),
-    });
-    const document = await response.json();
-    assert.equal(document.version, 1);
-    return { status: response.status, document };
-  }
-  const listed = await call('/api/v1/boards');
-  assert.equal(listed.status, 200);
-  assert.equal(listed.document.boards.length, 1 + additionalProjects.length);
-  const id = listed.document.boards.find((entry) => resolve(entry.root) === resolve(box.root)).id;
-  assert.match(id, /^[0-9a-f]{32}$/);
-  return { ...box, api, origin, key, id, call, path: '/api/v1/boards/' + id };
-}
 
 /** Serve one registered private fixture through the actual person's view adapter. */
 async function viewHttpBox(t, existing = null) {

@@ -2,6 +2,19 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { join } from 'node:path';
+import { resolve } from 'node:path';
+import { chmodSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { runFixtureChild } from './fixture-child.js';
+import { runFixtureGit } from './fixture-child.js';
+import { serveApi } from '../src/api.js';
+import { main } from '../src/cli.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { JSON_SHAPES } from '../src/json.js';
 import { fetchFresh } from './http-fixture.js';
 
@@ -93,3 +106,78 @@ export function bindApiFixtureMachine(t, env) {
   }
   process.env.PULLBOARD_MACHINE_HOME = env.PULLBOARD_MACHINE_HOME;
 }
+
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+
+/** Create a private, committed project, with an exact-build hook shim and no personal Git config. */
+export function apiHttpFixture(t) {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-http-')));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const root = join(dir, 'repo');
+  const bin = join(dir, 'bin');
+  mkdirSync(root);
+  mkdirSync(bin);
+  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
+  chmodSync(join(bin, 'pullboard'), 0o755);
+  const env = apiFixtureEnvironment(dir, bin);
+  bindApiFixtureMachine(t, env);
+  mkdirSync(env.HOME);
+  /** Run Git only inside the private fixture. */
+  const git = (...args) => runFixtureGit(args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
+  /** Exercise this worktree's real CLI with a private environment. */
+  const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  /** Decode one successful versioned CLI invocation without printing session links. */
+  function cli(cwd, ...args) {
+    const result = run(cwd, ...args, '--json');
+    let reason = result.stderr;
+    if (result.status !== 0 && result.stdout) {
+      try {
+        const response = JSON.parse(result.stdout);
+        const error = response?.error;
+        if (error && typeof error === 'object') {
+          reason = [result.stderr, error.code, error.message].filter(Boolean).join('\n');
+        }
+      } catch { /* Keep the existing stderr-only diagnostic for non-JSON failures. */ }
+    }
+    assert.equal(result.status, 0, reason);
+    return JSON.parse(result.stdout);
+  }
+  git('init', '-q', '-b', 'main');
+  cli(root, 'init');
+  // HTTP fixtures file "true" checks to move items, so they keep a board with no hold setting.
+  const { checks: _hold, ...config } = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...config, gate: 'true', lanes: { app: { owns: ['app/'] }, review: { owns: [] } } }));
+  writeFileSync(join(root, 'SPEC.md'), '# HTTP fixture\n\n## Goals\n- G1 [approved, must] Keep the board. | gate: true\n');
+  writeFileSync(join(root, 'DOCTRINE.md'), '');
+  git('add', '-A');
+  git('commit', '-q', '-m', 'chore: private HTTP fixture');
+  return { root, dir, env, cli, run, commit: git('rev-parse', 'HEAD').trim() };
+}
+
+/** Serve this fixture's explicit project, avoiding any registry outside its private home. */
+export async function apiHttpBox(t, { includeMissing = false, onStateBuild, additionalProjects = [] } = {}) {
+  const box = apiHttpFixture(t);
+  const api = await serveApi({ refusalDocument, runCommand: main, onStateBuild, projects: () => [...(includeMissing ? [{ root: join(box.dir, 'gone'), name: 'Missing fixture' }] : []), { root: box.root, name: 'HTTP fixture' }, ...additionalProjects] });
+  t.after(() => api.close());
+  const url = new URL(api.url);
+  const key = url.searchParams.get('k');
+  const origin = url.origin;
+  /** Make a real HTTP call and decode its single versioned response. */
+  async function call(path, value, headers = {}) {
+    const response = await fetchFresh(origin + path, {
+      method: value === undefined ? 'GET' : 'POST',
+      headers: { 'x-pullboard-key': key, ...(value === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
+      ...(value === undefined ? {} : { body: JSON.stringify(value) }),
+    });
+    const document = await response.json();
+    assert.equal(document.version, 1);
+    return { status: response.status, document };
+  }
+  const listed = await call('/api/v1/boards');
+  assert.equal(listed.status, 200);
+  assert.equal(listed.document.boards.length, 1 + additionalProjects.length);
+  const id = listed.document.boards.find((entry) => resolve(entry.root) === resolve(box.root)).id;
+  assert.match(id, /^[0-9a-f]{32}$/);
+  return { ...box, api, origin, key, id, call, path: '/api/v1/boards/' + id };
+}
+

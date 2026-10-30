@@ -6,6 +6,11 @@ import { projectItemState } from '../src/api.js';
 import { itemSummary } from '../src/item-list.js';
 import { withdrawnFrom } from '../src/item-list.js';
 import { fixtureBoard } from './board-fixture.js';
+import { apiHttpBox as httpBox } from './api-fixture.js';
+import { openBoard } from '../src/native-board.js';
+import { closeBoard } from '../src/native-board.js';
+import { projectState } from '../src/serve.js';
+import { join } from 'node:path';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard } from '../src/exchange.js';
 import { snapshotState } from '../relay/browser-model.js';
@@ -113,3 +118,27 @@ test('legacy hosted snapshots replay the same withdrawal lifecycle including ret
   malformed.tables.event.find(event => event.event_kind === 'refreeze').event_detail = '{';
   assert.throws(() => snapshotState(malformed, boardId), { code: 'RELAY_SNAPSHOT' });
 });
+
+test('withdrawal facts agree in HTTP summary, detail and sealed projection [A2,C15,N26]', async t => {
+  const box = await httpBox(t);
+  const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  let withdrawn;
+  let open;
+  try {
+    withdrawn = store.addItem(board, { by: 'coordinator', lane: 'app', title: 'No longer needed' });
+    open = store.addItem(board, { by: 'coordinator', lane: 'app', title: 'Still needed' });
+    store.withdraw(board, withdrawn, { agentId: 'coordinator', reason: 'Replaced by the revised plan' });
+  } finally { closeBoard(board); }
+  const summary = await box.call(box.path + '/state');
+  const sealed = projectState(box.root);
+  for (const [id, reason, from] of [[withdrawn, 'Replaced by the revised plan', 'open'], [open, null, null]]) {
+    const detail = await box.call(box.path + '/items/' + id);
+    assert.equal(detail.status, 200);
+    for (const item of [summary.document.state.items.find(item => item.id === id), detail.document.item, sealed.items.find(item => item.id === id)]) {
+      assert.equal(item.withdrawnReason, reason);
+      assert.equal(item.withdrawnFrom, from);
+      assert.deepEqual(Object.keys(item).filter(key => key.startsWith('withdrawn')).sort(), ['withdrawnFrom', 'withdrawnReason']);
+    }
+  }
+});
+
