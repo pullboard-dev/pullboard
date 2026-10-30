@@ -1,3 +1,7 @@
+import { gateStages } from './gate-stages.js';
+import { stagedScript } from './gate-stages.js';
+import { readStages } from './gate-stages.js';
+import { readPipes } from './gate-stages.js';
 import { proofSourceAt } from './gate-observation.js';
 import { testValueProfile } from './gate-observation.js';
 import { sourcePreparationFields } from './runner-overhead.js';
@@ -44,6 +48,8 @@ import {
 import {
   existsSync,
   mkdirSync,
+  mkdtempSync,
+  rmSync,
   readFileSync,
   realpathSync,
   writeFileSync,
@@ -59,6 +65,7 @@ import {
   availableParallelism,
   freemem,
   loadavg,
+  tmpdir,
 } from 'node:os';
 import {
   fileURLToPath,
@@ -320,16 +327,27 @@ export function runFrozenProof(root, item, { gateLease, waitMs = 0 } = {}, { che
 /** Run an independent focused comparison without blocking other holders of the machine pool.
  * @param {string} root
  * @param {string} command
- * @param {{ waitMs?: number, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean }} [options]
+ * @param {{ waitMs?: number, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean, stages?: boolean }} [options]
  * @returns {Promise<object>} The unchanged shell verdict and its private timing profile.
  */
-export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlotHeld = false, gateLease, landing = false } = {}) {
+export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlotHeld = false, gateLease, landing = false, stages = false } = {}) {
   const started = Date.now();
+  const id = randomUUID();
+  const before = stages ? timingSourceForReceipt(root) : null;
+  /** Apply only the same source-bound protocol projection as the synchronous admitted gate. */
+  const account = run => {
+    if (!stages) return run;
+    const source = run.executionSource && { head: run.executionSource.commit, tree: run.executionSource.tree };
+    const bound = sameTimingSource(before, timingSourceForReceipt(root)) && run.executionSourceUnchanged !== false
+      && (!gateLease?.runner || Boolean(source)) && (!source || sameTimingSource(before, source)) ? before : null;
+    const outcomes = bound && committedTestOutcomes(root, before.head, readTestOutcomes(safeLog(run.output ?? ''), id), tryGit);
+    return { ...run, ...(outcomes ? { testOutcomes: outcomes } : {}), stages: timingAccountingStages(run.stages, id, bound) };
+  };
   gateLease?.tracker?.mark('runAt');
   if (gateLease?.runner) {
     const run = await gateLease.executionServices.runners.runOnRunnerAsync(root, command, { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
-      browser: gateLease.browser, metadata: { ...(gateLease.runMetadata ?? {}), landing,
-        testStage: gateLease.receiptKind ?? (landing ? 'land' : 'gate') } });
+      browser: gateLease.browser, stages, metadata: { ...(gateLease.runMetadata ?? {}), landing,
+        testStage: gateLease.receiptKind ?? (landing ? 'land' : 'gate'), ...(stages ? { timingRunId: id } : {}) } });
     gateLease.environment = run.environment ?? null;
     gateLease.gui = run.executionCapabilities?.gui ?? null;
     gateLease.executionAdmission = run.executionAdmission ?? null;
@@ -341,9 +359,10 @@ export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlo
     const sandboxBlocked = run.isGreen ? null : run.sandboxBlocked
       ?? sandboxBlockedOperation(root, run.output, { includeFilePaths: false });
     const profile = writeTimingProfile(profilePath, { ...runTiming(run, command, root), waitMs, wallMs, receipt: settleReceipt(gateLease) });
-    return { ...run, sandboxBlocked, seconds: Math.round(wallMs / 1000), profile, profilePath, logPath: null };
+    return account({ ...run, sandboxBlocked, seconds: Math.round(wallMs / 1000), profile, profilePath, logPath: null });
   }
   const inherited = {
+    ...(stages ? { [TIMING_RUN_ID_ENV]: id } : {}),
     ...(gateLease ? gateSlotEnvironment(gateLease) : gateSlotHeld ? { [GATE_SLOT_HELD_ENV]: '1' } : {}),
     [LANDING_RUN_ENV]: landing ? '1' : '0',
     PULLBOARD_TEST_STAGE: gateLease?.receiptKind ?? (landing ? 'land' : 'gate'),
@@ -352,32 +371,44 @@ export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlo
   const runtimes = captureTestRuntimes({ ...gitChildEnv(root, { report: diagnostics.push.bind(diagnostics) }), ...inherited });
   const env = runtimes.env;
   const environment = executionEnvironment();
-  const child = spawn(`(\n${command}\n) 2>&1`, { cwd: root, env, shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  const chunks = [...diagnostics];
-  let bytes = 0;
-  let overflow = false;
-  let failure = null;
-  /** Retain merged shell output within the same one-GiB limit as the synchronous gate runner. */
-  const capture = part => {
-    bytes += Buffer.byteLength(part);
-    if (bytes > 2 ** 30) { overflow = true; child.kill(); }
-    else chunks.push(part);
-  };
-  child.stdout.setEncoding('utf8').on('data', capture);
-  child.stderr.setEncoding('utf8').on('data', capture);
-  child.once('error', error => { failure = error; });
-  const status = await new Promise(resolveClose => child.once('close', resolveClose));
-  const testRuntimes = runtimes.finish();
-  gateLease?.tracker?.mark('ranAt');
-  if (gateLease) gateLease.environment = environment;
-  invalidateGitFacts();
-  const output = chunks.join('') + (overflow ? '\nFocused comparison output exceeded one GiB.\n' : '')
-    + (failure ? `\n${failure.message}\n` : '');
-  const wallMs = Math.max(0, Date.now() - started);
-  const profilePath = join(dirname(gitPath(root, LOG)), `pullboard-gate-${randomUUID()}.profile.json`);
-  const profile = writeTimingProfile(profilePath, { ...timingFromOutput(output, timingRunner(command)),
-    waitMs: Math.max(0, Math.round(waitMs)), wallMs, receipt: settleReceipt(gateLease) });
-  return { isGreen: status === 0 && !overflow && !failure, environment, testRuntimes, sandboxBlocked: status === 0 ? null : sandboxBlockedOperation(root, output), output, seconds: Math.round(wallMs / 1000), profile, profilePath, logPath: null };
+  const split = stages ? gateStages(command) : null;
+  const marker = `PULLBOARD_STAGE_${randomUUID().replaceAll('-', '')}`;
+  const pipes = split?.some(stage => stage.pipeline.length > 1) ? mkdtempSync(join(tmpdir(), 'pullboard-pipes-')) : null;
+  try {
+    const child = spawn(`(\n${split ? stagedScript(split, marker, pipes) : command}\n) 2>&1`, { cwd: root, env, shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const chunks = [...diagnostics];
+    let bytes = 0;
+    let overflow = false;
+    let failure = null;
+    /** Retain merged shell output within the same one-GiB limit as the synchronous gate runner. */
+    const capture = part => {
+      bytes += Buffer.byteLength(part);
+      if (bytes > 2 ** 30) { overflow = true; child.kill(); }
+      else chunks.push(part);
+    };
+    child.stdout.setEncoding('utf8').on('data', capture);
+    child.stderr.setEncoding('utf8').on('data', capture);
+    child.once('error', error => { failure = error; });
+    const status = await new Promise(resolveClose => child.once('close', resolveClose));
+    const testRuntimes = runtimes.finish();
+    gateLease?.tracker?.mark('ranAt');
+    if (gateLease) gateLease.environment = environment;
+    invalidateGitFacts();
+    const raw = chunks.join('') + (overflow ? '\nFocused comparison output exceeded one GiB.\n' : '')
+      + (failure ? `\n${failure.message}\n` : '');
+    const parsed = split ? readStages(raw, marker, split.length) : null;
+    const pipeStatuses = pipes ? readPipes(split, pipes) : null;
+    const output = parsed?.output ?? raw;
+    const stageRows = parsed?.stages.map((stage, index) => pipeStatuses?.[index] ? { ...stage, pipeline: pipeStatuses[index] } : stage) ?? null;
+    const wallMs = Math.max(0, Date.now() - started);
+    const profilePath = join(dirname(gitPath(root, LOG)), `pullboard-gate-${randomUUID()}.profile.json`);
+    const profile = writeTimingProfile(profilePath, { ...timingFromOutput(output, timingRunner(command)),
+      waitMs: Math.max(0, Math.round(waitMs)), wallMs, receipt: settleReceipt(gateLease) });
+    return account({ isGreen: status === 0 && !overflow && !failure, environment, testRuntimes, sandboxBlocked: status === 0 ? null : sandboxBlockedOperation(root, output), output, seconds: Math.round(wallMs / 1000), profile, profilePath, logPath: null, ...(stages ? { stages: stageRows } : {}) });
+  } finally {
+    runtimes.finish();
+    if (pipes) rmSync(pipes, { recursive: true, force: true });
+  }
 }
 
 
