@@ -6,7 +6,8 @@ import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { atomic, closeBoard, openBoard } from '../src/board.js';
+import { atomic, closeBoard } from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { captureBoardChanges } from '../src/board-capture.js';
 import { boardWriteHolderText } from '../src/board-write-lock.js';
 

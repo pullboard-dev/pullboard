@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { startFixtureChild } from './fixture-child.js';
 
@@ -83,7 +84,7 @@ export function landBridgeItems(box, { independent = false, briefs = [] } = {}) 
       assert.equal(box.run(path, 'join', 'web').code, 0);
     }
     if (independent) {
-      const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+      const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
       try {
         store.register(board, { lane: 'coordinator', path: box.repo, parent: 'fixture-pr-reviewer' });
         store.register(board, { lane: 'web', path, parent: `fixture-pr-builder-${index}` });
@@ -211,7 +212,7 @@ export function landBridgeRepair(box, id, file, { independent = false } = {}) {
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/repair-${id}`, path, 'main');
   assert.equal(box.run(path, 'join', 'web').code, 0);
   if (independent) {
-    const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+    const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
     try { store.register(board, { lane: 'web', path, parent: 'fixture-pr-repair-builder' }); }
     finally { store.closeBoard(board); }
   }

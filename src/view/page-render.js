@@ -24,6 +24,13 @@ function hashButton(value) {
   return '<button class="hash-copy" type="button" title="' + esc(hash) + '" aria-label="Copy full hash ' + esc(hash) + '" data-copy="' + esc(hash) + '"><code class="inline sha" title="' + esc(hash) + '">' + esc(short) + '</code></button>';
 }
 
+/** Render literal gate paths from the server's existence observations. */
+function specGateFiles(row, detail = false) {
+  const files = row.gateFiles || (row.gate ? [{ file: row.gate, exists: null }] : []);
+  return files.map(gate => '<span class="spec-gate' + (gate.exists === false ? ' missing' : '') + '"><span aria-hidden="true">⚗</span> <code>' + esc(gate.file) + (gate.exists === false ? ' · missing' : '') + '</code>'
+    + (detail && gate.ref ? codeRef(gate.ref, '', true, 12, 'Open') : '') + '</span>').join('');
+}
+
 function render() {
   renderIndexes = new WeakMap();
   // A refresh that moved the page to another board closes a confirmation opened on the last one.
@@ -80,6 +87,11 @@ function render() {
   const lanes = p.lanes, working = lanes.filter((lane) => lane !== 'coordinator');
   const heldLanes = new Map(p.holds.map((hold) => [hold.hold_lane, hold]));
   const gatedOf = (item) => stateOf(item) === 'open' && (item.blockedBy.length > 0 || heldLanes.has(item.lane));
+  if (view.tab === 'cost' && privateCost && !snapshot && !hosted.local && !readOnly && !data.group) {
+    const history = readCostHistory(p);
+    $('cost').innerHTML = costTabHtml(history.model, view.costOpen, history);
+    document.title = $('proj-name').textContent + ' · Cost · Pullboard';
+  }
   if (view.tab === 'roadmap') {
   // Every refresh redraws the Roadmap. Left alone, that would send the phone's release chips back to their start
   // and the panel back to its top under a person mid-scroll, so both keep where they were.
@@ -458,9 +470,13 @@ function render() {
     const selectedRows = ruleListModel(rows, { kind, filter, selectedId: view.row[kind],
       addressed: view.tab === kind && view.addressDetail !== null, approvalIds: agentApprovals.map(row => row.id), feedback });
     const { labels, counts: n, shown: shownRows, feedbackId, sectionCounts } = selectedRows;
+    if (kind === 'spec') {
+      const tab = $('tabs').querySelector?.('[data-tab=spec]');
+      if (tab) { tab.title = selectedRows.decisionTitle; tab.innerHTML = 'Spec <b>' + n.decide + '</b>'; }
+    }
     const undecidedIds = new Set(selectedRows.undecidedIds);
     const undecided = row => undecidedIds.has(row.id);
-    $(kind + '-chips').innerHTML = segmentedToggle({ label: kind === 'spec' ? 'Spec rows' : 'Doctrine rows', attribute: 'data-rows', value: kind + ':' + filter, options: Object.keys(labels).map(key => ({ value: kind + ':' + key, label: labels[key], count: n[key] })) });
+    $(kind + '-chips').innerHTML = segmentedToggle({ label: kind === 'spec' ? 'Spec rows' : 'Doctrine rows', attribute: 'data-rows', value: kind + ':' + filter, options: Object.keys(labels).map(key => ({ value: kind + ':' + key, label: labels[key], count: n[key], title: kind === 'spec' && key === 'decide' ? selectedRows.decisionTitle : undefined })) });
     // With no row picked, or the pick filtered out, the detail opens on the first row shown, as Items does.
     view.row[kind] = selectedRows.nextSelectedId;
     let section = null;
@@ -473,13 +489,14 @@ function render() {
       const text = declined ? '<s>' + linked(r.standardText || r.text, titles) + '</s>' : linked(r.text, titles);
       const source = kind === 'doctrine' ? ruleSource(r) : 'this repo';
       const reason = (declined || kind === 'spec' && r.status === 'wont') && r.reason ? '<span class="rule-reason" title="' + esc(r.reason) + '">Reason: ' + linked(r.reason, titles) + '</span>' : '';
-      const secondary = '<span class="rule-source" title="' + esc(source) + '">' + esc(source) + '</span>' + reason + (r.gate ? '<span class="gate" title="' + esc(r.gate) + '">' + esc(r.gate) + '</span>' : '');
+      const secondary = '<span class="rule-source" title="' + esc(source) + '">' + esc(source) + '</span>' + reason + (kind === 'spec' ? specGateFiles(r) : r.gate ? '<span class="gate" title="' + esc(r.gate) + '">' + esc(r.gate) + '</span>' : '');
       const statusShown = filter === 'all' || !!r.staleDecision || (filter === 'decide' && r.status !== 'draft');
-      const badge = statusShown ? '<span class="chip ' + tone(r.status) + '">' + esc(r.stage || r.status) + '</span>' : r.tier ? '<span class="chip">' + esc(r.tier) + '</span>' : '';
+      const badge = kind === 'spec' ? '<div class="spec-row-side">' + (r.tier ? '<span class="chip tier-' + esc(r.tier) + '">' + esc(r.tier) + '</span>' : '') + '<small>' + count(renderIndex(p).citations.get(r.id)?.length || 0, 'item', 'items') + '</small></div>' : statusShown ? '<span class="chip ' + tone(r.status) + '">' + esc(r.stage || r.status) + '</span>' : r.tier ? '<span class="chip">' + esc(r.tier) + '</span>' : '';
       const citations = renderIndex(p).citations.get(r.id)?.length || 0;
-      return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + recordRow({ tag: 'div', classes: view.row[kind] === r.id ? 'on' : '', attributes: 'data-row="' + kind + ':' + esc(r.id) + '"', title: r.text,
+      return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + recordRow({ tag: 'div', classes: (kind === 'spec' ? 'spec-record ' : '') + (view.row[kind] === r.id ? 'on' : ''), attributes: 'data-row="' + kind + ':' + esc(r.id) + '"', title: r.text,
+        iconHtml: kind === 'spec' ? (r.status === 'approved' ? '✓' : r.status === 'wont' ? '×' : '✎') : '',
         state: r.status === 'approved' ? 'verified' : r.status === 'wont' ? 'back' : 'open', primary: '<span class="row-id">' + esc(r.id) + '</span>' + text,
-        secondary, rightTop: citations ? count(citations, 'item', 'items') : '', rightBottom: badge });
+        secondary, rightTop: kind !== 'spec' && citations ? count(citations, 'item', 'items') : '', rightBottom: badge });
     }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No doctrine rows yet: they live in DOCTRINE.md.') + '</div>';
     if (feedback && !shownRows.length) $(kind + '-list').innerHTML += specFeedback(feedback);
     const row = rows.find((r) => r.id === view.row[kind]);
@@ -495,6 +512,15 @@ function render() {
     const rowDecisionActions = agentApproval ? agentApprovalActions(agentApproval, true) : !snapshot && (!readOnly || requests) && row && undecided(row) && (kind === 'spec' || row.origin !== 'standard')
       ? '<div class="spec-decision-actions detail-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-kind="' + kind + '" data-row-id="' + esc(row.id) + '" title="Approve (A, from the list)" type="button">Approve <kbd>A</kbd></button><button class="decline-row" data-row-decision="decline" data-row-kind="' + kind + '" data-row-id="' + esc(row.id) + '" title="Decline (D, from the list)" type="button">Decline <kbd>D</kbd></button></div>'
       : '';
+    if (kind === 'spec' && row) {
+      const change = !snapshot && (!readOnly || requests) ? '<button class="decline-row" type="button" data-row-change="' + esc(row.id) + '" title="Request a change through Shouts">Change</button>' : '';
+      const actions = rowDecisionActions ? rowDecisionActions.replace('<button class="decline-row"', change + '<button class="decline-row"') : change;
+      $('spec-detail').innerHTML = '<div class="spec-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + '</div>'
+        + '<div class="spec-fact"><span>Proved by</span><div>' + (row.gate ? specGateFiles(row, true) : 'No gate yet') + '</div></div><div class="spec-fact"><span>Cited by</span><div>' + (citing.length ? citing.map(item => '<button class="ref" type="button" data-item="' + item.id + '">#' + item.id + ' ' + rich(item.title, titles) + '</button>').join('') : 'No items yet') + '</div></div>'
+        + (reason ? '<dl class="kv">' + reason + '</dl>' : '') + (view.specFeedback?.root === view.root && view.specFeedback.kind === kind && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '')
+        + '<div class="spec-detail-actions">' + actions + '</div><p class="spec-authority">Only you can decide a row.</p></div>';
+      continue;
+    }
     $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div>' + rowDecisionActions + (kind === 'spec' && view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'detail' && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '') + '<dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div>' + (home ? '<div class="muted">' + home + '</div>' : '') + '</div>' : '<div class="empty">' + (view.tab === kind && view.addressDetail !== null ? 'No ' + (kind === 'spec' ? 'Spec' : 'Doctrine') + ' row ' + esc(view.addressDetail) + ' exists here.' : 'Pick a row to see it, and the items that cite it.') + '</div>';
   }
 

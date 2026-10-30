@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard } from '../src/exchange.js';
 import { importBoard } from '../src/exchange.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -20,7 +21,7 @@ after(e2e.cleanup);
 function badgeProject(total, outside, { independent = outside } = {}) {
   const box = e2e.sandbox();
   box.git(box.dir, 'init', '-q', '-b', 'main');
-  const source = store.openBoard(':memory:');
+  const source = openBoard(':memory:');
   let document;
   try {
     store.register(source, { lane: 'coordinator', path: box.dir });
@@ -44,7 +45,7 @@ function badgeProject(total, outside, { independent = outside } = {}) {
       for (const verdict of document.tables.verdict.filter(row => row.item_id === item.item_id)) verdict.verdict_by = builder;
     }
   } finally { store.closeBoard(source); }
-  const target = store.openBoard(join(box.dir, '.git', 'pullboard', 'board.sqlite'));
+  const target = openBoard(join(box.dir, '.git', 'pullboard', 'board.sqlite'));
   try { importBoard(target, document); } finally { store.closeBoard(target); }
   const initialized = box.run(box.dir, 'init');
   assert.equal(initialized.code, 0, initialized.err);

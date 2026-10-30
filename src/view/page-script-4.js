@@ -23,7 +23,7 @@ function showTab() {
 
 /** Read the selected repo, tab and detail from a path or the hosted page's fragment. */
 function placeAtAddress(page = data) {
-  const tabs = ['dashboard', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings'];
+  const tabs = ['dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings', ...(privateCost ? ['cost'] : [])];
   const hash = location.hash || '';
   let path = routed ? location.pathname || '/' : hash.slice(1);
   if (hash === '#items/pipeline' || hash === '#roadmap') path = hash.slice(1);
@@ -74,7 +74,7 @@ function address(push = true) {
 function applyPlace(place, kept = null) {
   if (place.root && place.root !== view.root) view.shoutThread = null;
   if (place.root) view.root = place.root;
-  view.tab = place.tab === 'home' ? 'dashboard' : place.tab;
+  view.tab = place.tab === 'home' ? 'dashboard' : place.tab === 'cost' && !privateCost ? landingTab() : place.tab;
   view.addressDetail = place.detail;
   view.item = place.tab === 'items' && place.detail !== null && place.detail !== 'pipeline' ? Number(place.detail) : null;
   view.itemsView = place.tab === 'items' && place.detail === 'pipeline' ? 'pipeline' : 'list';
@@ -122,6 +122,7 @@ function fromAddress(event) {
 
 /** Pick a tab or an explicit detail and record the complete place once. */
 function openTab(tab, detail = null) {
+  if (tab === 'cost' && !privateCost) return;
   view.tab = tab === 'home' ? 'dashboard' : tab;
   tab = view.tab;
   view.addressDetail = detail;
@@ -549,7 +550,8 @@ function askConfirmNeeds(value, anchor) {
 }
 
 function askApproveAll(section) {
-  const ids = data.project.spec.filter((row) => row.section === section && ['pending', 'draft'].includes(row.status) && !row.decision).map((row) => row.id);
+  const pending = ruleListModel(data.project.spec, { kind: 'spec', filter: 'decide', approvalIds: personNeeds(data.project).filter(row => row.kind === 'agent-approved').map(row => row.id) });
+  const ids = pending.shown.filter(row => row.section === section).map(row => row.id);
   // Every row was decided after the last redraw; this one drops the stale control.
   if (!ids.length) { render(); return; }
   // The confirmation belongs to the board it was opened on: its rows are that board's, and only that board records them.
@@ -868,11 +870,18 @@ document.addEventListener('click', (event) => {
     return;
   }
   if (view.filterOpen && !event.target.closest('.filter-control')) { view.filterOpen = false; render(); }
-  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],#proj-switch,#console');
+  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
   if (!t) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
   if (t.id === 'console') { t.hidden = true; return; }
+  if (t.dataset.costRow && privateCost && view.tab === 'cost') {
+    const id = Number(t.dataset.costRow);
+    view.costOpen = view.costOpen === id ? null : id;
+    render();
+    $('cost').querySelector?.('[data-cost-row="' + id + '"]')?.focus({ preventScroll: true });
+    return;
+  }
   if (t.tagName === 'A' && (t.dataset.go?.startsWith('item:') || t.dataset.tab)) {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
@@ -930,6 +939,13 @@ document.addEventListener('click', (event) => {
   }
   else if (t.hasAttribute('data-needs-list')) { view.state='active'; view.lane=null; openTab('items'); render(); $('needs').scrollIntoView({block:'start'}); }
   else if (t.dataset.needsConfirm) askConfirmNeeds(t.dataset.needsConfirm,t);
+  else if (t.dataset.rowChange) {
+    const row = data.project.spec.find(entry => entry.id === t.dataset.rowChange);
+    if (!row || snapshot || readOnly && !requests) return;
+    answer(null); addressTo('coordinator');
+    $('shout-text').value = 'Please propose a change to Spec row ' + row.id + ': ' + row.text + '\\nRequested change: ';
+    openTab('shouts'); showTab(); $('shout-text').focus();
+  }
   else if (t.dataset.rowDecision) {
     const id = t.dataset.rowId, kind = t.dataset.rowKind;
     if (t.dataset.rowDecision === 'approve') decideRow(kind, 'spec-approve', { ids: id }, t);

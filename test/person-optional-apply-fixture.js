@@ -14,6 +14,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import * as signing from '../src/person-signing.js';
 import { presenceAttestation } from '../src/person-presence.js';
 import { preparePersonRequest } from '../src/person-request.js';
@@ -56,7 +57,7 @@ export async function optionalPasskeyApply(t, { throughCli = false, fabricatedMe
   writeFileSync(join(box.root, '.pullboard', 'signers'), allowed);
   writeFileSync(join(box.root, '.pullboard', 'signers.initial'), createHash('sha256').update(allowed).digest('hex') + '\n');
   writeFileSync(join(box.root, '.pullboard', 'first-commit'), runFixtureGit(['rev-list', '--max-parents=0', 'HEAD'], { cwd: box.root, env: box.env }) + '\n');
-  const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   // The relay's own stamp key, as the relay vouches for it to this process (#408).
   const relayKey = relayStampKey(box);

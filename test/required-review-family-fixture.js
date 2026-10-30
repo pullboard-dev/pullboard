@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 
 /** Exercise the real add/edit parser, shared eligibility and exact-seat dispatch without fabricating stored rows. */
@@ -50,7 +51,7 @@ export async function proveRequiredReviewFamily(t, { fixture, cli }) {
   assert.equal(store.getItem(box.board, id).item_review_by, null);
 
   const snapshot = exportBoard(box.board);
-  const replica = store.openBoard(':memory:', box.clock);
+  const replica = openBoard(':memory:', box.clock);
   t.after(() => store.closeBoard(replica));
   importBoard(replica, snapshot);
   assert.equal(store.getItem(replica, id).item_review_family, 'fAmIlY bEtA', 'the exported board retains family metadata');

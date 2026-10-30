@@ -14,6 +14,8 @@ import { pathToFileURL } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { addMilestone } from '../src/board-milestones.js';
 import { sessionSnapshot, usageDifference } from '../src/cost-session.js';
 import { usageCheckpoint } from '../src/cost-ledger.js';
 import { replayHistory } from '../src/flow-replay-history.js';
@@ -65,7 +67,7 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
   assert.equal(box.run(second, 'join', 'web', '--model', 'fixture-codex').code, 0);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
-  const board = store.openBoard(boardFile);
+  const board = openBoard(boardFile);
   let id;
   let unknownId;
   try {
@@ -76,7 +78,7 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
     unknownId = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Unknown usage fixture', specIds: ['G1'],
       criterion: 'unreadable usage stays unknown', check: 'test -f web/ready',
       checkBaseline: { command: 'test -f web/ready', result: 'red', main: box.git(box.repo, 'rev-parse', 'HEAD'), seconds: 0 } });
-    store.addMilestone(board, { agentId: 'coordinator', name: 'Usage milestone', items: [id] });
+    addMilestone(board, { agentId: 'coordinator', name: 'Usage milestone', items: [id] });
   } finally { store.closeBoard(board); }
   const claudeDir = join(box.dir, 'claude', 'projects', 'private-fixture');
   const codexDir = join(box.dir, 'codex', 'sessions', '2026', '10', '23');
@@ -116,12 +118,12 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
   assert.ok(shown.usage.wallMs >= 0);
   assert.deepEqual(shown.usage.models.sort(), ['fixture-claude', 'fixture-codex']);
   // @pullboard-board-file journey: verify public reporting does not append accounting or lifecycle moves.
-  const beforeStats = store.openBoard(boardFile);
+  const beforeStats = openBoard(boardFile);
   let recordedBeforeStats;
   try { recordedBeforeStats = store.events(beforeStats); } finally { store.closeBoard(beforeStats); }
   const costs = JSON.parse(box.run(box.repo, 'stats', '--json').out).usage;
   // @pullboard-board-file journey: the same real board remains unchanged by a stats read.
-  const afterStats = store.openBoard(boardFile);
+  const afterStats = openBoard(boardFile);
   try { assert.deepEqual(store.events(afterStats), recordedBeforeStats, 'stats is a read, not an implicit usage checkpoint'); }
   finally { store.closeBoard(afterStats); }
   assert.equal(costs.items.find((entry) => entry.item === id).inputTokens, 300);
@@ -142,7 +144,7 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
   assert.ok(unknown.models.length > 0, 'declared seat model survives unreadable provider records');
   assert.equal(JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).usage.inputTokens, 300, 'recorded closed allocations survive transcript removal');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
-  const inspect = store.openBoard(boardFile);
+  const inspect = openBoard(boardFile);
   let publicRecords;
   try {
     const events = store.events(inspect), accounting = events.filter(event => ['usage', 'shared-usage'].includes(event.event_kind));
@@ -170,7 +172,7 @@ test('an item records the tokens and cost its seats spent when a checkpoint fail
   assert.equal(box.run(box.web, 'join', 'web', '--model', 'fixture-claude').code, 0);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
-  const board = store.openBoard(boardFile);
+  const board = openBoard(boardFile);
   let id;
   try {
     id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Failed checkpoint fixture', specIds: ['G1'],
@@ -193,7 +195,7 @@ test('an item records the tokens and cost its seats spent when a checkpoint fail
   Object.assign(env, identity);
   const claimed = runFixtureChild(process.execPath, [helpers.BIN, 'claim', String(id)], { cwd: box.web, env, encoding: 'utf8' });
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
-  const inspectClaim = store.openBoard(boardFile);
+  const inspectClaim = openBoard(boardFile);
   try { assert.equal(store.getItem(inspectClaim, id).item_status, 'claimed', 'the primary claim really committed'); }
   finally { store.closeBoard(inspectClaim); }
   assert.equal(claimed.status, 0, `${claimed.stdout}${claimed.stderr}`);
@@ -205,12 +207,12 @@ test('an item records the tokens and cost its seats spent when a checkpoint fail
   seatUsage(box, box.web, identity);
   record(file, { type: 'assistant', message: { id: 'work-two', model: 'fixture-claude', usage: { input_tokens: 5, output_tokens: 1 } } });
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
-  const fail = store.openBoard(boardFile);
+  const fail = openBoard(boardFile);
   try { fail.db.exec("CREATE TRIGGER fixture_usage_unavailable BEFORE INSERT ON event WHEN NEW.event_kind='usage' BEGIN SELECT RAISE(ABORT, 'fixture usage unavailable'); END"); }
   finally { store.closeBoard(fail); }
   const released = runFixtureChild(process.execPath, [helpers.BIN, 'release', String(id), '--no-next'], { cwd: box.web, env, encoding: 'utf8' });
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
-  const inspectRelease = store.openBoard(boardFile);
+  const inspectRelease = openBoard(boardFile);
   try {
     assert.equal(store.getItem(inspectRelease, id).item_status, 'open', 'the primary release really committed');
     inspectRelease.db.exec('DROP TRIGGER fixture_usage_unavailable');
@@ -237,7 +239,7 @@ test('an item records the tokens and cost its seats spent with a shared native s
   assert.equal(box.run(second, 'join', 'web', '--model', 'fixture-codex').code, 0);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
-  const board = store.openBoard(boardFile);
+  const board = openBoard(boardFile);
   let first;
   let last;
   try {
@@ -297,7 +299,7 @@ test('an item records the tokens and cost its seats spent with a shared native s
   seatUsage(box, box.web, identity);
   assert.equal(JSON.parse(box.run(box.repo, 'stats', '--json').out).usage.sharedSessions[0].inputTokens, 150, 'closed shared-session replay is idempotent');
   // @pullboard-board-file journey: inspect the actual CLI-written shared usage and presentation without changing its board.
-  const presentation = store.openBoard(boardFile);
+  const presentation = openBoard(boardFile);
   try { assertUsagePresentation(store.events(presentation), first, { root: box.repo, agents: store.listAgents(presentation) }); } finally { store.closeBoard(presentation); }
 });
 
@@ -306,7 +308,7 @@ test('an item records the tokens and cost its seats spent across an actual claim
   const box = helpers.project('true');
   assert.equal(box.run(box.web, 'join', 'web', '--model', 'fixture-claude').code, 0);
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const ids = [];
   try {
     for (const title of ['First claim usage', 'Second claim usage']) ids.push(store.addItem(board, { by: 'coordinator', lane: 'web', title, specIds: ['G1'],
@@ -398,7 +400,7 @@ test('an item records the tokens and cost its seats spent with an empty native u
     const model = `fixture-${provider}`;
     assert.equal(box.run(box.web, 'join', 'web', '--model', model).code, 0);
     // @pullboard-board-file journey: the real CLI seats share this repository board file.
-    const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+    const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     let unknownId;
     let zeroId;
     try {

@@ -16,6 +16,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard, recordGateRun } from '../src/native-board.js';
 import { configFromSource } from '../src/config.js';
 import { boardReceiptStore } from '../src/gate-run-receipt.js';
 import { readGateReceipt } from '../src/gate-run-receipt.js';
@@ -101,7 +102,7 @@ async function finishAudits(box, waitFor) {
 /** Read or mutate only this test's private real SQLite board. */
 function onBoard(box, action) {
   // @pullboard-board-file journey: inspect the private fixture board shared with real push and native audit flows
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { isMain: true });
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { isMain: true });
   try { return action(board); } finally { store.closeBoard(board); }
 }
 
@@ -170,13 +171,14 @@ async function audit(box, batch) {
   if (await finishAudits(box, box.waitFor)) return;
   const source = `import {runGate} from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};
 import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+import {openBoard,recordGateRun} from ${JSON.stringify(new URL("../src/native-board.js", import.meta.url).href)};
 import {readGateReceipt,receiptStore} from ${JSON.stringify(new URL('../src/gate-run-receipt.js', import.meta.url).href)};
 import { runnerExecutionServices } from ${JSON.stringify(new URL('../src/runners.js', import.meta.url).href)};
 import { landingExecutionServices } from ${JSON.stringify(new URL('../src/landing-shards.js', import.meta.url).href)};
 import { readFileSync } from 'node:fs';
 const root=process.cwd(); const run=await runGate(root,JSON.parse(readFileSync('pullboard.json','utf8')),{executionServices:{runners:runnerExecutionServices(),landing:landingExecutionServices()},trustStamp:false,landing:true,collectAll:true,auditBatchId:${JSON.stringify(batchId)},agent:'coordinator'});
 const receipt=readGateReceipt(receiptStore(root),run.receiptId); if(!receipt?.collection?.complete||!receipt.collection.full)throw new Error(run.output);
-const db=store.openBoard('.git/pullboard/board.sqlite',undefined,{isMain:true});try{store.recordGateRun(db,{agentId:'coordinator',receipt,lane:'web'});}finally{store.closeBoard(db);}console.log(receipt.id);`;
+const db=openBoard('.git/pullboard/board.sqlite',undefined,{isMain:true});try{recordGateRun(db,{agentId:'coordinator',receipt,lane:'web'});}finally{store.closeBoard(db);}console.log(receipt.id);`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 }
@@ -377,7 +379,7 @@ test('native train evidence seals at origin and replays without private receipt 
     const copy = join(box.dir, 'train-replica.sqlite');
     origin.db.exec(`VACUUM INTO '${copy.replaceAll("'", "''")}'`);
     // @pullboard-board-file persistence: replay the copied SQLite replica without the origin receipt sidecar
-    const replica = store.openBoard(copy, undefined, { isMain: true });
+    const replica = openBoard(copy, undefined, { isMain: true });
     try {
       assert.equal(readGateReceipt(boardReceiptStore(replica), receipt.id), null,
         'the replica has the native SQLite prefix but no origin private receipt file');

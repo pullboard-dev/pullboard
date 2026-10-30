@@ -63,13 +63,14 @@ import {QUARANTINE_CORE_ENGINE} from './src/quarantine-core-engine.js';
 import {quarantineWaivers} from './src/quarantine.js';
 import {proofCounts} from './src/proof-provenance.js';
 import * as store from './src/board.js';
+import {gateRuns,flakeQuarantines} from './src/native-board.js';
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8')),reports=[];
 const ctx=context({cwd:root,say:text=>reports.push(text),err:text=>reports.push(text)});
 const agentId=resourceAgent(ctx);
 const observer=Object.assign(async()=>{}, {recordRun:receiptRecorder(ctx,{agentId,acceptedConfig:config,ordered,withBoard})});
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 /** Read public projections while retaining the actual fixture board boundary. */
-const snapshot=()=>withBoard(ctx,board=>({runs:store.gateRuns(board),quarantines:store.flakeQuarantines(board),items:store.listItems(board,{all:true}),waivers:quarantineWaivers(board)}));
+const snapshot=()=>withBoard(ctx,board=>({runs:gateRuns(board),quarantines:flakeQuarantines(board),items:store.listItems(board,{all:true}),waivers:quarantineWaivers(board)}));
 /** Force a genuine fresh gate through normal admission, retaining its canonical private receipt. */
 async function run(mode){
  process.env.PULLBOARD_QUARANTINE_CASE_MODE=mode;
@@ -122,11 +123,11 @@ assert.match(state.items[0].item_brief,new RegExp(red.receipt.tree));
 assert.equal(state.items[0].item_created_at.slice(0,10),green.receipt.at.slice(0,10),'owner work is filed the same day');
 assert.deepEqual(state.waivers,[],'this narrowed change does not promote a new quarantine into landing authority');
 await withBoard(ctx,async board=>{
- const count=store.gateRuns(board).length;
+ const count=gateRuns(board).length;
  const again=await ordered(ctx,board,'recordGateRun',[{agentId,receipt:green.receipt,lane:'web',owners:{'test/control.test.js':'web'}}]);
  assert.equal(again.duplicate,true);
- assert.equal(store.gateRuns(board).length,count,'duplicate receipt reuse appends no new run');
- assert.equal(store.flakeQuarantines(board)[0].cleanRuns,0,'duplicate receipt reuse adds no clean execution');
+ assert.equal(gateRuns(board).length,count,'duplicate receipt reuse appends no new run');
+ assert.equal(flakeQuarantines(board)[0].cleanRuns,0,'duplicate receipt reuse adds no clean execution');
  const move=prepareEngineMove(board,'recordGateRun',[{agentId,receipt:green.receipt,lane:'web'}]);
  assert.ok(move.engine>=QUARANTINE_CORE_ENGINE);
  const sequence=appliedSequence(board)+1;

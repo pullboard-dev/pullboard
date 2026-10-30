@@ -10,6 +10,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { configFromSource } from '../src/config.js';
 import { gitReadSignature } from '../src/git.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { captureSpecApprovalBaseline, specApprovalState } from '../src/spec-approval.js';
 import { SPEC_APPROVAL_ENGINE } from '../src/spec-approval-engine.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -228,7 +229,7 @@ test('only new-engine acceptance receipts retain the verification note [H16,S1,P
   const payloads = [];
   const note = 'Fixture verification note; verified against agent-approved G1';
   for (const version of [SPEC_APPROVAL_ENGINE - 1, SPEC_APPROVAL_ENGINE]) {
-    const board = store.openBoard(':memory:');
+    const board = openBoard(':memory:');
     t.after(() => store.closeBoard(board));
     const builder = store.register(board, { lane: 'web', path: '/fixture-builder', model: 'Fixture builder' });
     const reviewer = store.register(board, { lane: 'review', path: '/fixture-reviewer', model: 'Fixture reviewer' });
@@ -348,7 +349,7 @@ test('an upgraded board stays pending until a coordinator command in the main ch
   // Model an already located legacy checkout; view startup need not repair its coordinator path.
   legacy.tables.agent.find(agent => agent.agent_id === 'coordinator').agent_path = root;
   box.git(box.repo, 'clone', '-q', box.repo, root);
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   try { importBoard(board, legacy); } finally { store.closeBoard(board); }
   const lane = join(box.dir, 'legacy-lane');
   box.git(root, 'worktree', 'add', '-q', '-b', 'web/legacy', lane);
@@ -383,8 +384,8 @@ test('an upgraded board stays pending until a coordinator command in the main ch
 });
 
 test('an approval baseline is ordered once with authenticated engine68 replay [H16,S1,P6]', t => {
-  const first = store.openBoard(':memory:');
-  const replica = store.openBoard(':memory:');
+  const first = openBoard(':memory:');
+  const replica = openBoard(':memory:');
   t.after(() => { store.closeBoard(first); store.closeBoard(replica); });
   store.register(first, { lane: 'coordinator', path: '/private-baseline-coordinator' });
   const agent = store.register(first, { lane: 'core', path: '/private-baseline-agent' });
@@ -420,8 +421,8 @@ test('an approval baseline is ordered once with authenticated engine68 replay [H
 
 for (const change of ['metadata changed', 'metadata missing']) {
   test(`a partial baseline restore stays invalid instead of blessing later rows: ${change} [H16,S1,P6]`, t => {
-    const original = store.openBoard(':memory:');
-    const restored = store.openBoard(':memory:');
+    const original = openBoard(':memory:');
+    const restored = openBoard(':memory:');
     t.after(() => { store.closeBoard(original); store.closeBoard(restored); });
     store.register(original, { lane: 'coordinator', path: '/private-baseline-restore' });
     const baseline = { version: 1, file: 'SPEC.md', anchor: null, rows: [] };
@@ -497,8 +498,8 @@ test('an invalid baseline stays diagnostic while flag work remains usable and re
 
 test('an authenticated first baseline cannot grandfather an absent future row [H16,S1,P6]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-baseline-forgery-'));
-  const board = store.openBoard(':memory:');
-  const replica = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
+  const replica = openBoard(':memory:');
   t.after(() => {
     store.closeBoard(board);
     store.closeBoard(replica);
@@ -560,7 +561,7 @@ test('cached origins follow dirty lines and changed history while person decisio
   sandbox.env.GIT_AUTHOR_DATE = '2001-02-03T04:05:06+00:00';
   sandbox.env.GIT_COMMITTER_DATE = '2004-05-06T07:08:09+05:30';
   const box = helpers.project('true', sandbox);
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const config = configFromSource(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   const read = (root = box.repo) => specApprovalState(root, { board, config }, { store, verifiedPasskeyRowDecision }).rows.find(row => row.id === 'G1');

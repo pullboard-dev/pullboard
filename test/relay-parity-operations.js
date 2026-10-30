@@ -3,8 +3,12 @@ import { seedStaleState } from './relay-parity-stale-state.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../src/board.js';
-import * as milestones from '../src/board.js';
+import * as rawStore from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { draftSpecRow } from '../src/native-board.js';
+import { recordRowVerification } from '../src/native-board.js';
+import { decideSpecRevisions } from '../src/native-board.js';
+import * as milestones from '../src/board-milestones.js';
 import { MOVE_OPERATIONS } from '../src/move-registry.js';
 import { publishLatestCheckpoint } from '../src/relay.js';
 import { captureSpecApprovalBaseline } from '../src/spec-approval.js';
@@ -20,11 +24,14 @@ import { seedNativeTrain } from './relay-parity-train.js';
 import { seedItemPatches } from './relay-parity-item-patches.js';
 import { syntheticFlakeObservation } from './flake-observation-fixture.js';
 
+/** The fixture root supplies canonical native operations to the unchanged lower recipes. */
+const store = Object.freeze({ ...rawStore, openBoard, draftSpecRow, recordRowVerification, decideSpecRevisions });
+
 /** Run inside the existing private fixture's genuine environment, retaining one HTTP server and person session. */
 export async function exerciseOperationParity({ root, origin, token, boardId, lane, keyFile }) {
   const key = decodeBoardKey(readFileSync(keyFile, 'utf8').trim());
   const reader = await createParityReader({ root, origin, token, boardId, key });
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   const notices = [];
   const io = { say() {}, err(message) { notices.push(message); } };
   let observing = 'initial baseline';

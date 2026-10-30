@@ -11,6 +11,7 @@ import {
   test,
 } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import {
   exportBoard,
   importBoard,
@@ -30,7 +31,7 @@ after(helpers.cleanup);
 
 /** Open the real board owned by the private fixture for exactly one observation. */
 function withBoard(root, action) {
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   try { return action(board); }
   finally { store.closeBoard(board); }
 }
@@ -96,7 +97,7 @@ test('an agent grant narrows at claim without changing old receipts or permittin
   const { AGENT_GRANT_ENGINE } = await import('../src/agent-grant-engine.js');
   const box = helpers.project();
   const clock = { now: () => new Date('2026-10-01T00:00:00.000Z') };
-  const boards = ['legacy-authority.sqlite', 'legacy-peer.sqlite'].map(name => store.openBoard(join(box.dir, name), clock));
+  const boards = ['legacy-authority.sqlite', 'legacy-peer.sqlite'].map(name => openBoard(join(box.dir, name), clock));
   t.after(() => boards.forEach(board => store.closeBoard(board)));
   const legacy = AGENT_GRANT_ENGINE - 1;
   const head = box.git(box.repo, 'rev-parse', 'HEAD');
@@ -242,7 +243,7 @@ test('an agent grant narrows at claim without trapping its own verdict withdrawa
   let instant = Date.parse('2026-10-24T00:00:00Z');
   const clock = { now: () => new Date(instant) };
   const boards = ['withdraw-grant-primary.sqlite', 'withdraw-grant-peer.sqlite']
-    .map(name => store.openBoard(join(box.dir, name), clock));
+    .map(name => openBoard(join(box.dir, name), clock));
   t.after(() => boards.forEach(board => store.closeBoard(board)));
   const primary = boards[0];
   store.register(primary, { lane: 'coordinator', path: box.repo });
@@ -353,7 +354,7 @@ test('an agent grant narrows at claim after the recorded engine high-water mark 
   const oldEngine = await import(pathToFileURL(join(directory, 'src/engine.js')).href);
   const oldExchange = await import(pathToFileURL(join(directory, 'src/exchange.js')).href);
   const old = oldStore.openBoard(':memory:');
-  const replicas = [store.openBoard(':memory:'), store.openBoard(':memory:')];
+  const replicas = [openBoard(':memory:'), openBoard(':memory:')];
   t.after(() => { oldStore.closeBoard(old); replicas.forEach(board => store.closeBoard(board)); });
   let sequence = 0;
   const at = new Date().toISOString();
@@ -403,7 +404,7 @@ test('an agent grant narrows at claim after the recorded engine high-water mark 
 test('an agent grant narrows at claim without losing its submitted attempt receipt [E21,H16]', t => {
   const box = helpers.project();
   const clock = { now: () => new Date('2026-10-24T00:00:00Z') };
-  const boards = ['attempt-primary.sqlite', 'attempt-peer.sqlite'].map(name => store.openBoard(join(box.dir, name), clock));
+  const boards = ['attempt-primary.sqlite', 'attempt-peer.sqlite'].map(name => openBoard(join(box.dir, name), clock));
   t.after(() => boards.forEach(board => store.closeBoard(board)));
   const primary = boards[0];
   store.register(primary, { lane: 'coordinator', path: box.repo });

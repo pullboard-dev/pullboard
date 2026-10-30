@@ -29,6 +29,8 @@ import { withMachineHomeWrite } from './machine-home.js';
 import { boardReferenceId } from '../packages/kernel/src/core/registry-guards.js';
 import { repoInfo } from './git.js';
 import * as store from './board.js';
+import { openBoard } from './native-board.js';
+import { openBoardForRead } from './native-board.js';
 import { Refused } from './refused.js';
 
 /**
@@ -95,7 +97,7 @@ export async function withPrivateBoard(repoBoardId, work, { create = false, cloc
   const ownerBoardId = boardReferenceId(repoBoardId);
   const file = create ? preparePrivateBoardPath(repoBoardId) : privateBoardPath(repoBoardId);
   if (!create && !existsSync(file)) throw new Refused('PRIVATE_BOARD_NOT_FOUND', 'this device has no private board for that repo; open it from the repo checkout first');
-  const board = store.openBoard(file, clock, { isMain: true });
+  const board = openBoard(file, clock, { isMain: true });
   try {
     protectPrivateBoard(file);
     const registered = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('private_repo_board_id');
@@ -401,7 +403,7 @@ export async function registerProjectAndLink(root, now, config, io, identity) {
   if (!exactIdentity) {
     const file = join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite');
     if (existsSync(file)) {
-      const board = store.openBoardForRead(file);
+      const board = openBoardForRead(file);
       try { exactIdentity = projectBoardIdentity(root, store.boardId(board)); }
       finally { store.closeBoard(board); }
     }

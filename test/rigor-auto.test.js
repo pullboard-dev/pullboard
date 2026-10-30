@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { personNeedsState } from '../src/needs-state.js';
 import { resumeNeeds } from '../src/resume-needs.js';
 import { resumeRigorCounters } from '../packages/rigor/index.js';
@@ -59,7 +60,7 @@ function fixture() {
   mkdirSync(directory, { recursive: true });
   const file = join(directory, 'board.sqlite');
   let now = new Date('2026-10-24T12:00:00Z');
-  const board = store.openBoard(file, { now: () => new Date(now) });
+  const board = openBoard(file, { now: () => new Date(now) });
   store.ensureCoordinator(board, root);
   const builder = store.register(board, { lane: 'app', path: join(root, 'builder'), model: 'Fixture builder' });
   const reviewer = store.register(board, { lane: 'app', path: join(root, 'reviewer'), model: 'Fixture reviewer' });

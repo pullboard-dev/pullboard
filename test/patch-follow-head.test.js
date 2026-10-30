@@ -7,6 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { itemPatchRecords } from '../src/item-patch-state.js';
 import { itemPatchAuthors } from '../src/item-patch-state.js';
 import { prepareEngineMove } from '../src/engine.js';
@@ -73,7 +74,7 @@ function fixture(t) {
   f.patchFile = join(box.dir, 'view.patch');
   writeFileSync(f.patchFile, "diff --git a/view/header.cjs b/view/header.cjs\nnew file mode 100644\n--- /dev/null\n+++ b/view/header.cjs\n@@ -0,0 +1 @@\n+module.exports = 'approved view';\n");
   // @pullboard-board-file journey: inspect the actual native attachment, follow and Submit events
-  f.board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  f.board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(f.board));
   document(run(f, f.coordinator, 'patch', 'attach', String(f.id), f.patchFile,
     '--key', 'approved-view', '--author', f.author.id, '--source', f.source));
@@ -153,7 +154,7 @@ test('a conflicting companion names its key file and hunk and no member of the s
 test('a sealed follow replays without origin Git and duplicate delivery records exactly one event [C7,H16]', t => {
   const f = fixture(t);
   const moved = mergeMain(f);
-  const replica = store.openBoard(':memory:');
+  const replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(f.board));
   const move = prepareEngineMove(f.board, 'followItemPatches', [f.id, { agentId: f.builder.id, commit: moved }], { id: 'follow-replay' });
@@ -181,7 +182,7 @@ test('a companion author cannot follow the builder and tampered set metadata ref
   assert.throws(() => prepareEngineMove(f.board, 'followItemPatches', [f.id, { agentId: f.author.id, commit: moved }]), { code: 'NOT_YOURS' });
   assert.throws(() => prepareEngineMove(f.board, 'followItemPatches', [f.id, { agentId: f.builder.id, commit: f.source }]), { code: 'ITEM_PATCH_SOURCE' });
   const move = prepareEngineMove(f.board, 'followItemPatches', [f.id, { agentId: f.builder.id, commit: moved }], { id: 'follow-tampered' });
-  const replica = store.openBoard(':memory:');
+  const replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(f.board));
   const forged = structuredClone(move);

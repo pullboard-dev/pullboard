@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 
@@ -30,7 +31,7 @@ function withoutHold(item) {
 test('a held item is never offered or claimed [N2,N22,M1]', t => {
   const box = e2e.project('true');
   t.after(e2e.cleanup);
-  const board = store.openBoard(`${box.repo}/.git/pullboard/board.sqlite`);
+  const board = openBoard(`${box.repo}/.git/pullboard/board.sqlite`);
   t.after(() => store.closeBoard(board));
   const held = new Map();
   const actors = [];
@@ -93,10 +94,10 @@ test('a held item is never offered or claimed [N2,N22,M1]', t => {
 test('lifting a hold makes the item offerable again [N2,N22,H16,M1]', t => {
   const box = e2e.project('true');
   t.after(e2e.cleanup);
-  const board = store.openBoard(`${box.repo}/.git/pullboard/board.sqlite`);
+  const board = openBoard(`${box.repo}/.git/pullboard/board.sqlite`);
   t.after(() => store.closeBoard(board));
   const id = addMidItem(board, 'web', 'Held item');
-  const peer = store.openBoard(':memory:');
+  const peer = openBoard(':memory:');
   t.after(() => store.closeBoard(peer));
   store.register(peer, { lane: 'coordinator', path: '/peer' });
   store.register(peer, { lane: 'web', path: '/peer-web' });
@@ -113,7 +114,7 @@ test('lifting a hold makes the item offerable again [N2,N22,H16,M1]', t => {
   const holdEvent = store.events(peer, { itemId: id }).at(-1);
   assert.equal(holdEvent.event_kind, 'hold_item');
   assert.equal(JSON.parse(holdEvent.event_detail).reason, 'review the release');
-  const restored = store.openBoard(':memory:');
+  const restored = openBoard(':memory:');
   t.after(() => store.closeBoard(restored));
   importBoard(restored, exportBoard(board));
   assert.deepEqual(store.getItem(restored, id), store.getItem(board, id), 'snapshot sync preserves the complete held item');
@@ -125,7 +126,7 @@ test('lifting a hold makes the item offerable again [N2,N22,H16,M1]', t => {
     delete item.item_hold_by;
     delete item.item_hold_at;
   }
-  const incompatible = store.openBoard(':memory:');
+  const incompatible = openBoard(':memory:');
   t.after(() => store.closeBoard(incompatible));
   assert.throws(() => importBoard(incompatible, legacyExport), error => error.code === 'IMPORT_SCHEMA'
     && error.message === '[IMPORT_SCHEMA] a item row does not have exactly its board columns; export it again',
@@ -151,7 +152,7 @@ test('lifting a hold makes the item offerable again [N2,N22,H16,M1]', t => {
   assert.equal(jsonSuccess(box, box.web, 'next', '--build').item.item_id, id);
   jsonSuccess(box, box.repo, 'hold', String(id), 'finish your current work');
   assert.equal(store.getItem(board, id).item_owner, 'web-1');
-  const heldClaimCopy = store.openBoard(':memory:');
+  const heldClaimCopy = openBoard(':memory:');
   t.after(() => store.closeBoard(heldClaimCopy));
   importBoard(heldClaimCopy, exportBoard(board));
   assert.deepEqual(store.getItem(heldClaimCopy, id), store.getItem(board, id), 'snapshot sync preserves the held claim and reason');

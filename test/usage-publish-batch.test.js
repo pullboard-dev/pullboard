@@ -6,6 +6,7 @@ import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { logEvent } from '../src/board-event-log.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
@@ -25,7 +26,7 @@ function fixture(t, count = 48) {
   assert.equal(who.code, 0, who.err);
   const agent = JSON.parse(who.out).id;
   // @pullboard-board-file journey: actual CLI and replay share this private repository board.
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const ids = [];
   const start = Date.now() - 100000;
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
@@ -161,7 +162,7 @@ test('48 revisions hold the production writer under one second with 1221 seats a
   // Opening the persisted board warms its proof projection exactly as a normal native opener does.
   store.closeBoard(board);
   // @pullboard-board-file journey: reopen the same private persisted fixture to warm its native proof projection.
-  board=store.openBoard(join(f.box.repo,'.git','pullboard','board.sqlite'));
+  board=openBoard(join(f.box.repo,'.git','pullboard','board.sqlite'));
   const prepare=board.db.prepare.bind(board.db),exec=board.db.exec.bind(board.db);
   let familyScans=0,acquired=null;const holds=[];
   board.db.prepare=sql=>{if(sql.includes('SELECT agent.*, model.meta_value'))familyScans++;return prepare(sql);};

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { DEFAULT_OUTPUT_BUDGET, LINE_BUDGET, commandName, commandOutput, cutLine, outputBudget } from '../src/json-output.js';
 import { COMMANDS } from '../src/commands/index.js';
@@ -48,7 +49,7 @@ function ratchetProblems(measured, baseline) {
 function seeded() {
   const box = helpers.project('true');
   // @pullboard-board-file journey: the real CLI subprocesses read this seeded project board.
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     for (let index = 0; index < 300; index += 1) {
       store.addItem(board, { by: 'coordinator', lane: 'web', title: `Seeded budget item ${index} ${'with a long readable title '.repeat(3)}`,
@@ -110,7 +111,7 @@ test('streams and reference pages are declared unbounded, and a single long line
 test('inbox after a read shows nothing old: a delivered interrupt comes back only as its id [N26,R2]', () => {
   const box = helpers.project('true');
   // @pullboard-board-file journey: the real CLI subprocesses read this answered decision as an interrupt.
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const question = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'Which path?', decision: true, lanes: ['web'] });
     store.answerDecision(board, question, { agentId: 'coordinator', text: 'Use the reviewed path', lanes: ['web'] });

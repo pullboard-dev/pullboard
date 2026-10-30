@@ -5,6 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { captureBoardChanges } from '../src/board-capture.js';
 import { applyEngineMove, engineReceipt, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
@@ -30,7 +31,7 @@ function submittedBoard(t) {
     'feat(web): render the private page [G1]').status, 0);
   const submitted = box.run(box.web, 'submit', '1');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   handles.push(board);
   const item = store.getItem(board, 1);
   const frozen = JSON.parse(item.item_frozen);
@@ -60,7 +61,7 @@ test('a queued accept for an old head is refused after a peer resubmission on bo
   mkdirSync(directory);
   const snapshot = exportBoard(board);
   const copies = ['offline', 'peer'].map(name => {
-    const copy = store.openBoard(join(directory, `${name}.sqlite`));
+    const copy = openBoard(join(directory, `${name}.sqlite`));
     importBoard(copy, snapshot);
     handles.push(copy);
     return copy;

@@ -14,7 +14,7 @@ import {
 } from '../../src/git-launch-ratchet.js';
 import { report } from './scan.js';
 
-const BASELINE = new URL('../../src/git-launch-baseline.json', import.meta.url);
+const BASELINE = new URL('../../packages/git/src/shell/git-launch-baseline.json', import.meta.url);
 
 /** Describe per-file growth as scan problems that name the next step. */
 function growthProblems(growth) {

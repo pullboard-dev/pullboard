@@ -35,6 +35,7 @@ import {
   join,
 } from 'node:path';
 import * as store from './board.js';
+import { openBoardForRead } from './native-board.js';
 import {
   codeIsFromMain,
 } from './git.js';
@@ -81,7 +82,7 @@ function git(root, args, encoding = 'utf8') {
 }
 /** Read native history without retaining an open board across locks, admission or execution. */
 function readBoard(info, action) {
-  const board = store.openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
+  const board = openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
   if (!board) throw new Error('main audit board is unavailable');
   try { return action(board); } finally { store.closeBoard(board); }
 }

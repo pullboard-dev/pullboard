@@ -31,22 +31,20 @@ import {
   tryGit,
 } from '../../../../src/git.js';
 import { gateControlFindings } from '../../../../src/gate-control.js';
-import {
-  boardBusyError,
-  buildOrder,
-  foreignBlockers,
-  milestonePriorities,
-  milestones,
-  canTake,
-  listItems,
-  listAgents,
-  openBoardReadOnly,
-  PERSON,
-  ROUTES,
-  roadmap,
-  rowDecisions,
-  unverifiedSubmissions,
-} from '../../../../src/board.js';
+import { boardBusyError } from '../../../../src/board.js';
+import { buildOrder } from '../../../../src/board.js';
+import { foreignBlockers } from '../../../../src/board.js';
+import { milestonePriorities } from '../../../../src/board.js';
+import { milestones } from '../../../../src/board.js';
+import { canTake } from '../../../../src/board.js';
+import { listItems } from '../../../../src/board.js';
+import { listAgents } from '../../../../src/board.js';
+import { openBoardReadOnly } from '../../../../src/board.js';
+import { PERSON } from '../../../../src/board.js';
+import { ROUTES } from '../../../../src/board.js';
+import { rowDecisions } from '../../../../src/board.js';
+import { unverifiedSubmissions } from '../../../../src/board.js';
+import { roadmap } from '../../../../src/board-milestones.js';
 import { staleRowDecisions } from '../../../../src/row-decision-state.js';
 import { localReleaseRank } from '../../../../src/release-queue.js';
 import { workQueue } from '../../../../src/queue.js';

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { CAPACITY_VERSION } from '../src/capacity-counter.js';
 import { readCapacity } from '../src/capacity-read.js';
 import { ensureProofCounters } from '../src/proof-counters.js';
@@ -21,7 +22,7 @@ function fixture(t) {
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
   let now = BASE;
   // @pullboard-board-file persistence: capacity shards and their cursor must survive real SQLite transactions and rollbacks
-  const board = store.openBoard(join(root, '.git', 'board.sqlite'), { now: () => new Date(now) });
+  const board = openBoard(join(root, '.git', 'board.sqlite'), { now: () => new Date(now) });
   store.register(board, { lane: 'coordinator', path: root });
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
   return { board, at: value => { now = value; } };

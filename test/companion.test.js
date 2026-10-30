@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { prepareEngineMove, applyRelayMove } from '../src/engine.js';
 import { COMPANION_ENGINE } from '../src/companion-engine.js';
 import { createdItems } from '../src/relay-created-items.js';
@@ -50,7 +51,7 @@ test('a companion request becomes one claimable child item and a second request 
   const refused = box.run(second, 'claim', String(child.item_id));
   assert.equal(refused.code, 1);
   assert.match(refused.err + refused.out, /HELD/u, 'ordinary exclusive claims prevent duplicate companion builders');
-  const read = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const read = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.equal(store.listItems(read, { all: true }).filter(item => item.item_parent_id === parent).length, 1);
     assert.equal(store.events(read).filter(event => event.event_kind === 'add' && event.item_id === child.item_id).length, 1);
@@ -66,7 +67,7 @@ test('a companion request becomes one claimable child item and a second request 
 test('companion delivery preserves authenticated actors, engine fences and durable child identities [B2,B12,H16]', () => {
   const box = helpers.project('true');
   const parent = run(box, box.repo, 'add', 'web', 'Transport parent', '--specs', 'G1', '--json').item.item_id;
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const agentId = store.agentAt(board, box.web).agent_id;
     const request = { agentId, parentId: parent, lane: 'api', key: 'wire-part', title: 'API transport work', criterion: 'one child', specIds: ['G2'] };
