@@ -13,14 +13,15 @@ export function modelPresentation(reported, family = '') {
     codex: ['Codex', 'OpenAI'],
   };
   const vendors = { openai: 'OpenAI', gpt: 'OpenAI', codex: 'OpenAI', anthropic: 'Anthropic', claude: 'Anthropic', google: 'Google', gemini: 'Google' };
-  let name = raw, vendor = vendors[String(family).trim().toLowerCase()] || 'Other';
+  const familyKey = String(family).trim().toLowerCase();
+  let name = raw, vendor = Object.hasOwn(vendors, familyKey) ? vendors[familyKey] : 'Other';
   if (Object.hasOwn(known, key)) [name, vendor] = known[key];
   else {
     const claude = /^claude-([a-z][a-z-]*)-(\d+)-(\d+)$/u.exec(key);
     if (claude) { name = claude[1].split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ') + ' ' + claude[2] + '.' + claude[3]; vendor = 'Anthropic'; }
     else if (/^(?:gpt-|o\d|codex)/u.test(key)) {
       vendor = 'OpenAI';
-      name = key.split('-').filter(Boolean).map((word, index) => index === 0 && word === 'gpt' ? 'GPT' : /^\d/u.test(word) || /^o\d/u.test(word) ? word : word[0]?.toUpperCase() + word.slice(1)).join(' ');
+      name = key.split('-').filter(Boolean).map((word, index) => index === 0 && word === 'gpt' ? 'GPT' : /^\d/u.test(word) || /^o\d/u.test(word) ? word : word[0]?.toUpperCase() + word.slice(1)).join(' ').replace(/^GPT /u, 'GPT-');
     } else if (/^gemini/u.test(key)) { vendor = 'Google'; name = key.split('-').filter(Boolean).map(word => word[0]?.toUpperCase() + word.slice(1)).join(' '); }
   }
   return { key, name, vendor };

@@ -18,6 +18,8 @@ test('private model names follow the approved known, family and fallback rules [
     ['  Future Custom Name  ', 'ClAuDe', 'Future Custom Name', 'Anthropic'],
     ['  kimi-k3  ', '', 'kimi-k3', 'Other'],
     ['New Custom Model', 'custom future family', 'New Custom Model', 'Other'],
+    ['constructor', 'constructor', 'constructor', 'Other'],
+    ['__proto__', '__proto__', '__proto__', 'Other'],
   ];
   for (const [reported, family, name, vendor] of fixtures) assert.deepEqual(
     { name: modelPresentation(reported, family).name, vendor: modelPresentation(reported, family).vendor }, { name, vendor }, reported);
@@ -31,7 +33,7 @@ test('private prices and cumulative usage use the same model alias key [N26,N2]'
   const events = [event(1, 'claim'), event(2, 'usage', { item: 1, revision: 1, records: [record('GPT-6.1 Sol', 1_000_000, 1000)] }),
     event(3, 'usage', { item: 1, revision: 2, records: [record('gpt-6.1-sol', 2_000_000, 2000)] }), event(4, 'submit'), event(5, 'merged')];
   const before = structuredClone({ board, events });
-  const priced = costTabModel(board, events, { 'GPT-6.1 Sol': { freshInput: 2, cacheRead: 0, cacheWrite: 0, output: 0 } });
+  const priced = costTabModel(board, events, { 'GPT-6.1 Sol': { freshInput: 2, cacheReadInput: 0, cacheWriteInput: 0, output: 0 } });
   assert.equal(priced.rows[0].usageRows.length, 1, 'alias revisions remain one model session');
   assert.equal(priced.rows[0].usageRows[0].freshInputTokens, 2_000_000, 'the alias change does not count the cumulative first checkpoint twice');
   assert.equal(priced.total, 4);
