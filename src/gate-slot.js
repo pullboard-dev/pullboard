@@ -205,14 +205,14 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         if (error instanceof Refused && error.code === 'RUNNER_SOURCE_CHANGED' && error.runnerCancellation?.version === 1) {
           if (lease.runner) {
             if (typeof lease.cancelRunner !== 'function') throw new Refused('RESOURCE_LEASE_LOST', 'source cancellation needs the owned remote lease cancellation operation');
-            lease.cancelRunner(error.runnerCancellation.diagnostic);
+            lease.cancelRunner(error.runnerCancellation);
           }
           throw error;
         }
         // A cleanup the runner could not verify is the runner's failure, not the run's: rerun it locally (#1063).
-        const cleanup = error instanceof Refused && ['RUNNER_CLEANUP_TIMEOUT', 'RUNNER_JOB_LOST'].includes(error.code);
-        const boundedRetry = retryInfrastructure || error?.code === 'RUNNER_JOB_LOST'
-          || infrastructureAttempts.some(attempt => attempt.code === 'RUNNER_JOB_LOST');
+        const cleanup = error instanceof Refused && ['RUNNER_CLEANUP_TIMEOUT', 'RUNNER_JOB_LOST', 'RUNNER_UNAVAILABLE'].includes(error.code);
+        const boundedRetry = retryInfrastructure || ['RUNNER_JOB_LOST', 'RUNNER_UNAVAILABLE'].includes(error?.code)
+          || infrastructureAttempts.some(attempt => ['RUNNER_JOB_LOST', 'RUNNER_UNAVAILABLE'].includes(attempt.code));
         if (!(error instanceof RunnerDropped || cleanup) || !lease.runner || !lease.requeueRunner) {
           if (infrastructureAttempts.length) {
             infrastructureAttempts.push({ kind: 'retry', code: error?.code ?? error?.name ?? 'unknown', runner: lease.runner?.host ?? 'local',

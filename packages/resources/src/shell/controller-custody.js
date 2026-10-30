@@ -17,9 +17,10 @@ import { isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { leaseTokenDigest } from './controller-disposition.js';
 
 /** Retain only this controller's declared deadline or unresolved lifecycle observation. */
-export function createControllerCustody(owner, parentPid, { processStarted, machineHome, registerController, releaseController }, sourceRoot) {
+export function createControllerCustody(owner, parentPid, { processStarted, machineHome, registerController, releaseController, observeUnavailable }, sourceRoot) {
   let file, started, deadline, problem;
   let registered;
   const holderStarted = processStarted(parentPid);
@@ -80,6 +81,8 @@ export function createControllerCustody(owner, parentPid, { processStarted, mach
       problem = next;
       publish();
     },
+    /** Read this exact registration's unavailable generation without releasing or certifying remote cleanup. */
+    unavailable() { return registered ? observeUnavailable(owner, parentPid, registered) : null; },
     close,
   };
 }
@@ -141,7 +144,7 @@ export function orphanedControllerLeases(db, { sameProcess }) {
   return registeredControllers(db).flatMap(({ holder, record }) => {
     if (!holder.runner) return [];
     const cause = orphanReason(record, holder, sameProcess);
-    return cause ? [{ ...holder, controllerPid: record.controllerPid, cause }] : [];
+    return cause ? [{ ...holder, controllerPid: record.controllerPid, controllerStarted: record.started, cause }] : [];
   });
 }
 
@@ -173,7 +176,8 @@ export function pruneControllerOrphans(db, { sameProcess, recordRunnerFailure })
   const rows = orphanedControllerLeases(db, { sameProcess });
   for (const row of rows) {
     const diagnostic = { reason: 'controller-orphan', phase: 'cleanup', cause: row.cause,
-      holderPid: row.pid, controllerPid: row.controllerPid, item: row.item, source: row.repo,
+      leaseDigest: leaseTokenDigest(row.token), holderPid: row.pid, holderStarted: row.started,
+      controllerPid: row.controllerPid, controllerStarted: row.controllerStarted, item: row.item, source: row.repo,
       remoteCleanup: 'unknown' };
     recordRunnerFailure(db, row.runner, 'cleanup-unverified', diagnostic);
     db.prepare('INSERT INTO runner_recovery_event VALUES(?,?,?,?,?)').run(randomUUID(), row.runner,
@@ -185,6 +189,20 @@ export function pruneControllerOrphans(db, { sameProcess, recordRunnerFailure })
 /** Bind native custody using the queue's canonical opener and transaction, never a diagnostic-file assertion. */
 export function controllerRegistrationPorts({ pool, open, update, processStarted }) {
   return {
+    /** Observe this registered lease's unavailable generation without changing queue or recovery state. */
+    observeUnavailable(owner, parentPid, identity) {
+      if (owner.pool !== pool() || identity.controllerPid !== process.pid
+        || identity.started !== processStarted(process.pid)
+        || parentPid !== process.pid && parentPid !== process.ppid) return null;
+      const db = new DatabaseSync(owner.pool, { readOnly: true });
+      try {
+        const holder = db.prepare('SELECT pid,started,runner,controller_identity FROM holder WHERE token=?').get(owner.token);
+        if (!holder || holder.pid !== parentPid || holder.started !== identity.holderStarted
+          || holder.controller_identity !== JSON.stringify(identity)) return null;
+        const row = db.prepare('SELECT since,detail FROM runner_unavailable WHERE host=?').get(holder.runner);
+        return row ? { host: holder.runner, since: row.since, reason: row.detail } : null;
+      } finally { db.close(); }
+    },
     /** Register this actual controller under its parent's unbound native lease. */
     registerController(owner, parentPid, identity) {
       if (owner.pool !== pool() || identity.controllerPid !== process.pid

@@ -434,6 +434,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "REVIEW_NOT_READY": "wait for the submit with pullboard watch, or check back: pullboard next --verify",
   "RUNNER_BUSY": "wait for the named runner's active tests to finish, then retry its settings change",
   "RUNNER_CAPACITY_MISMATCH": "wait for active runner leases to fit the configured capacity, then retry the run",
+  "RUNNER_UNAVAILABLE": "inspect the unavailable runner and its exact cleanup generation; restore it before another attempt",
   "RUNNER_JOB_LOST": "inspect the exact runner and job named in the diagnostic; cleanup remains unknown until the pinned worker proves it, then retry",
   "RUNNER_CLEANUP_TIMEOUT": "inspect the named job under that runner's namespace and confirm its cleanup before starting another run",
   "RUNNER_INFRA_RETRY_EXHAUSTED": "inspect the retained runner diagnostic, restore the named runner, then retry this command",

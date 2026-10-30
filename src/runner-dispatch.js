@@ -220,6 +220,17 @@ async function runInController(root, command, options, ports) {
     let heartbeatAt = null, probing = false;
     // Budget: an exact 5-second worker heartbeat earns 20 seconds of silence before one bounded status observation.
     jobWatch = setInterval(async () => {
+      if (request.phase !== 'ready' && !error && !options.signal?.aborted) {
+        try {
+          const unavailable = deadline.unavailable();
+          if (unavailable?.host === request.runner.host) {
+            error = new Refused('RUNNER_UNAVAILABLE', `runner ${unavailable.host} became ${unavailable.reason} while job ${request.spec.id} waited for READY; release its lease and dispatch once to a healthy runner`);
+            error.diagnostic = { ...runnerFailure(request, { status: null, stderr: '' }, 'runner-unavailable').diagnostic,
+              unavailable, remoteCleanup: 'unknown' };
+            transport.stop();
+          }
+        } catch { /* Unknown or foreign lease observation cannot stop this owned transport. */ }
+      }
       if (request.phase !== 'ready' || heartbeatAt === null || Date.now() - heartbeatAt < 20_000 || probing || error) return;
       probing = true;
       try {

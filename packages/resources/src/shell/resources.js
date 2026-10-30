@@ -2,6 +2,8 @@ import { createControllerCustody } from './controller-custody.js';
 import { controllerLeaseHealth } from './controller-custody.js';
 import { pruneControllerOrphans } from './controller-custody.js';
 import { controllerRegistrationPorts } from './controller-custody.js';
+import { consumeControllerDisposition } from './controller-disposition.js';
+import { settleControllerCancellation } from './controller-disposition.js';
 import { isAbsolute } from 'node:path';
 /** Machine and repository queues persist leases; landings first, then arrival order, or by class (landing, review, submit, other) aging up over time where the machine opts in [Q1,Q2,Q3]. */
 import {
@@ -1230,7 +1232,7 @@ export async function takeResource(options) {
         const release = () => {
           if (released || transferred) return;
           update(db, () => {
-            if (cancellationDiagnostic) recordRunnerFailure(db, acquired.runner.host, 'cleanup-unverified', cancellationDiagnostic);
+            if (cancellationDiagnostic) settleControllerCancellation(db, { token, pid, started, repo, host: acquired.runner.host }, cancellationDiagnostic, recordRunnerFailure);
             db.prepare('DELETE FROM holder WHERE token = ?').run(token);
             removeEmptyViewPortResource(db, name);
           });
@@ -1240,8 +1242,8 @@ export async function takeResource(options) {
         };
         /** Stop this exact remote attempt without readmission, retaining unknown remote cleanup atomically. */
         const cancelRunner = diagnostic => {
-          if (!acquired.runner || released || transferred || lost) throw new Refused('RESOURCE_LEASE_LOST', 'the owned remote lease is no longer cancellable');
-          cancellationDiagnostic = diagnostic ?? { reason: 'source-cancelled', phase: 'controller' };
+          if (!acquired.runner || released || transferred || diagnostic?.version !== 1 || typeof diagnostic.root !== 'string') throw new Refused('RESOURCE_LEASE_LOST', 'the owned remote lease is no longer cancellable');
+          cancellationDiagnostic = diagnostic;
           release();
         };
         /** Refresh this lease, or refuse if another process already evicted it. */
@@ -1258,17 +1260,17 @@ export async function takeResource(options) {
         const requeueRunner = async (reason = 'transport-lost', { local = false, quarantine = true, diagnostic: transportDiagnostic,
           infrastructureRetryCount = 0, infrastructureAttempts: priorInfrastructureAttempts = [] } = {}) => {
           if (!acquired.runner) throw new Refused('LOCAL_RUNNER_REQUEUE', 'only a remote lease can be returned to the runner queue');
-          if (released || transferred || lost) throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
+          if (released || transferred) throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
           transferred = true;
           clearInterval(heartbeat);
           let requeueTicket = acquired.ticket;
           let requeueOpportunity = acquired.queueTicket;
           try {
             update(db, () => {
-              recordRunnerFailure(db, acquired.runner.host, reason, transportDiagnostic, { quarantine });
               const holderName = runnerResourceName(acquired.runner.host);
               const holder = db.prepare('SELECT token FROM holder WHERE token = ? AND name = ? AND runner = ?').get(token, holderName, acquired.runner.host);
-              if (!holder) throw new Refused('RESOURCE_LEASE_LOST', `remote lease for "${name}" is no longer held`);
+              if (!holder) consumeControllerDisposition(db, { token, pid, started, repo, host: acquired.runner.host }, 'requeue');
+              else recordRunnerFailure(db, acquired.runner.host, reason, transportDiagnostic, { quarantine });
               // Under the class order the run keeps its original arrival ticket, so first come, first
               // served holds within each class (and its queuedAt, so its aging). Under arrival order
               // (reviewsFirst off, or an older pullboard waiting in the line) it takes #663's front

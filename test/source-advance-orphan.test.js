@@ -9,6 +9,8 @@ import { pathToFileURL } from 'node:url';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { registerRunnerJobLostTests } from './runner-job-lost.fixture.js';
+import { registerControllerDispositionTests } from './controller-disposition.fixture.js';
+import { registerRunnerUnavailableRedispatchTests } from './runner-unavailable-redispatch.fixture.js';
 
 for (const scenario of ['controller exits', 'source deleted', 'live controller', 'foreign record', 'unknown observation']) {
 test(`source-advance custody ${scenario} preserves exact cleanup authority [C7,P3]`, t => {
@@ -131,3 +133,6 @@ test(`source-advance custody ${scenario} preserves exact cleanup authority [C7,P
 }
 
 registerRunnerJobLostTests();
+registerControllerDispositionTests();
+
+registerRunnerUnavailableRedispatchTests();
