@@ -73,11 +73,11 @@ test(`source-advance custody ${scenario} preserves exact cleanup authority [C7,P
       assert.equal(record.holderPid,process.pid);
       assert.ok(record.holderStarted && record.started);
       assert.equal(record.source.root,root);
-      if(scenario==='controller exits' || scenario==='foreign record') {
+      if(scenario==='controller exits') {
         child.kill('SIGKILL'); await closed;
       }
       if(scenario==='source deleted') rmSync(root,{recursive:true});
-      if(scenario==='foreign record') writeFileSync(file,JSON.stringify({...record,holderStarted:'another incarnation'}));
+      if(scenario==='foreign record') writeFileSync(file,JSON.stringify({...record,started:{untrusted:'another incarnation'}}));
       if(scenario==='unknown observation') {
         cp.execFileSync=function(command,args,...options) {
           if(command==='/bin/ps' && args.includes(String(child.pid))) {

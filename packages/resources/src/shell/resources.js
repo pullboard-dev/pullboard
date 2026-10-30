@@ -1,9 +1,8 @@
 import { createControllerCustody } from './controller-custody.js';
 import { controllerLeaseHealth } from './controller-custody.js';
-import { orphanedControllerLeases } from './controller-custody.js';
-import { spawnSync } from 'node:child_process';
+import { pruneControllerOrphans } from './controller-custody.js';
+import { controllerRegistrationPorts } from './controller-custody.js';
 import { isAbsolute } from 'node:path';
-import { cleanGitEnvironment } from '../../../../src/git.js';
 /** Machine and repository queues persist leases; landings first, then arrival order, or by class (landing, review, submit, other) aging up over time where the machine opts in [Q1,Q2,Q3]. */
 import {
   existsSync,
@@ -59,7 +58,6 @@ export { QUEUE_CLASSES, QUEUE_AGE_MS, queueClass } from '../../../queue/index.js
 const LEASE_MS = 20_000;
 const HEARTBEAT_MS = 3_000;
 const POLL_MS = 40;
-const QUEUE_FILES = new WeakMap();
 const PROCESS_IDENTITY_CACHE_MS = 3_000;
 const processIdentities = new Map();
 const SLOT_DB_BUSY_MS = 10_000;
@@ -134,7 +132,6 @@ function open(file, machine = false) {
 function openQueue(file) {
   mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
-  QUEUE_FILES.set(db, realpathSync(file));
   db.exec(`PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`);
   let transaction = false;
   try {
@@ -157,6 +154,7 @@ function openQueue(file) {
       if (table === 'waiter' && !columns.includes('required_executor')) db.exec("ALTER TABLE waiter ADD COLUMN required_executor TEXT NOT NULL DEFAULT ''");
       if (table === 'waiter' && !columns.includes('runner_only')) db.exec('ALTER TABLE waiter ADD COLUMN runner_only INTEGER NOT NULL DEFAULT 0');
       if (table === 'holder' && !columns.includes('runner_execution')) db.exec('ALTER TABLE holder ADD COLUMN runner_execution INTEGER NOT NULL DEFAULT 0');
+      if (table === 'holder' && !columns.includes('controller_identity')) db.exec("ALTER TABLE holder ADD COLUMN controller_identity TEXT NOT NULL DEFAULT ''");
       if (!columns.includes('timing_aware')) db.exec(`ALTER TABLE ${table} ADD COLUMN timing_aware INTEGER NOT NULL DEFAULT 0`);
       if (!columns.includes('timing')) db.exec(`ALTER TABLE ${table} ADD COLUMN timing INTEGER NOT NULL DEFAULT 0`);
       if (!columns.includes('started')) db.exec(`ALTER TABLE ${table} ADD COLUMN started TEXT NOT NULL DEFAULT ''`);
@@ -332,22 +330,6 @@ function custodyProcessMatches(pid, started) {
   return !identity || !identity.zombie && (!started || identity.started === started);
 }
 
-/** Release only an exact proven orphan, with its cleanup audit and unknown-remote quarantine in the same queue commit. */
-function pruneControllerOrphans(db) {
-  const pool = QUEUE_FILES.get(db);
-  if (!pool) return;
-  const rows = orphanedControllerLeases(db, pool, { machineHome, sameProcess: custodyProcessMatches });
-  for (const row of rows) {
-    const diagnostic = { reason: 'controller-orphan', phase: 'cleanup', cause: row.cause,
-      holderPid: row.pid, controllerPid: row.controllerPid, item: row.item, source: row.repo,
-      remoteCleanup: 'unknown' };
-    recordRunnerFailure(db, row.runner, 'cleanup-unverified', diagnostic);
-    db.prepare('INSERT INTO runner_recovery_event VALUES(?,?,?,?,?)').run(randomUUID(), row.runner,
-      new Date().toISOString(), 'cleanup', JSON.stringify(diagnostic));
-    db.prepare('DELETE FROM holder WHERE token=? AND pid=? AND started=?').run(row.token, row.pid, row.started);
-  }
-}
-
 /** Return the Git root for display when the resource caller is inside a repository. */
 function repoRoot(root) {
   try { return repoInfo(root).root; } catch { return ''; }
@@ -357,7 +339,7 @@ function repoRoot(root) {
 function update(db, action) {
   db.exec('BEGIN IMMEDIATE');
   try {
-    pruneControllerOrphans(db);
+    pruneControllerOrphans(db, { sameProcess: custodyProcessMatches, recordRunnerFailure });
     const cutoff = Date.now() - LEASE_MS;
     for (const row of db.prepare('SELECT token, pid, started, heartbeat FROM holder').all()) {
       if (!alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) {
@@ -1421,7 +1403,12 @@ export function listResources({ scope = 'machine', root = process.cwd() } = {}) 
 }
 
 /** Bind controller diagnostic custody to the resource owner's canonical process identities. */
-export function controllerDeadline(owner, parentPid, sourceRoot) { return createControllerCustody(owner, parentPid, { processStarted, machineHome }, sourceRoot); }
+export function controllerDeadline(owner, parentPid, sourceRoot) {
+  const registration = controllerRegistrationPorts({
+    pool: () => canonicalResourceFile(machineResourceFile()), open, update, processStarted,
+  });
+  return createControllerCustody(owner, parentPid, { processStarted, machineHome, ...registration }, sourceRoot);
+}
 
 /** Read active controller health without changing availability or releasing a holder. */
 export function runnerLeaseHealth(now = Date.now()) { return controllerLeaseHealth(now, { processStarted, machineHome, sameProcess: custodyProcessMatches }); }
@@ -1429,31 +1416,5 @@ export function runnerLeaseHealth(now = Date.now()) { return controllerLeaseHeal
 /** Preserve the finite-deadline projection independently of lifecycle observation failures. */
 export function overdueRunnerLeases(now = Date.now()) { return runnerLeaseHealth(now).filter(row => row.deadline !== undefined); }
 
-/** Resolve the actual board of this checkout or its private clone origin, never a request-selected database. */
-export function runnerBoardFile(root, hops = 3) {
-  let info;
-  try { info = repoInfo(root); } catch { return null; }
-  const file = join(info.commonDir, 'pullboard', 'board.sqlite');
-  if (existsSync(file)) return file;
-  if (hops <= 0) return null;
-  const origin = spawnSync('git', ['config', '--get', 'remote.origin.url'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
-  const url = origin.status === 0 ? origin.stdout.trim() : '';
-  return url && isAbsolute(url) && existsSync(url) ? runnerBoardFile(url, hops - 1) : null;
-}
-
-/** Observe only board identity and item terminal state for resource lifecycle; no native or write authority. */
-export function runnerItemState(root, item) {
-  if (!/^[1-9][0-9]*$/u.test(String(item ?? ''))) return null;
-  const id = Number(item);
-  if (!Number.isSafeInteger(id)) return null;
-  const file = runnerBoardFile(root);
-  if (!file) return null;
-  const db = new DatabaseSync(file, { readOnly: true });
-  try {
-    const row = db.prepare("SELECT meta.meta_value AS board, item.item_id, item.item_status, item.item_merged_commit FROM item JOIN board_meta meta ON meta.meta_key='board_id' WHERE item.item_id=? AND NOT EXISTS(SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)").get(id);
-    if (!row) return null;
-    if (!['open', 'claimed', 'submitted', 'verified', 'withdrawn'].includes(row.item_status)) throw new Error('unknown item lifecycle status');
-    return { board: row.board, item: row.item_id,
-      terminal: Boolean(row.item_merged_commit || row.item_status === 'withdrawn') };
-  } finally { db.close(); }
-}
+export { runnerBoardFile } from './controller-custody.js';
+export { runnerItemState } from './controller-custody.js';
