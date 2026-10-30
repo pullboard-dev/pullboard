@@ -1,3 +1,10 @@
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { recordItemSession, refuseSelfSession } from '../src/item-sessions.js';
+import { compositionSessionOptions } from '../src/review-composition.js';
+import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
+import { exportBoard } from '../src/exchange.js';
 /** Real native SQLite moves prove current-composition authority and the bounded vendor fallback [V4,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -24,7 +31,7 @@ function fixture(t, { third = false } = {}) {
     ['core-5', 'core', 'claude', 'b']];
   if (third) seats.push(['core-6', 'core', 'gemini', 'e']);
   for (const [id, lane, family, parent] of seats) {
-    store.register(board, { id, lane, path: `/fixture/${id}`, family, parentDigest: parent.repeat(64), model: 'Synthetic fixture model' });
+    store.register(board, { id, lane, path: `/fixture/${id}`, family, parentDigest: parent.repeat(64), session: parent.repeat(64), model: 'Synthetic fixture model' });
     heartbeatSeat(board, id);
   }
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Composition fixture', sensitive: true });
@@ -103,4 +110,39 @@ test('old ordered review semantics still exclude historical contributors and ref
   assert.equal(result.owner, undefined);
   assert.ok(result.ineligible.some(row => row.agent === 'core-4' && row.code === 'O2_FAMILY_MATCH'));
   assert.throws(() => refuseUnreviewable(f.board, store.getItem(f.board, f.id), REVIEW), { code: 'NO_ELIGIBLE_REVIEWER' });
+});
+
+test('current strict local session checks ignore superseded ledger claims but still refuse current authors [V4,H16]', t => {
+  const f = fixture(t); f.claim('core-1'); f.attach('core-2'); f.submit();
+  const commonDir = mkdtempSync(join(tmpdir(), 'pullboard-current-author-'));
+  t.after(() => rmSync(commonDir, { recursive: true, force: true }));
+  const info = { commonDir }, digest = 'e'.repeat(64), item = store.getItem(f.board, f.id);
+  mkdirSync(join(commonDir, 'pullboard'));
+  recordItemSession(info, f.id, 'claim', digest);
+  assert.throws(() => refuseSelfSession(info, item, digest, ['core-1', 'core-2']), { code: 'SELF_SESSION_VERIFY' }, 'historical default ledger semantics are unchanged');
+  const options = compositionSessionOptions(f.board, item);
+  assert.doesNotThrow(() => refuseSelfSession(info, item, digest, ['core-1', 'core-2'], options), 'a former holder ledger row is not current material');
+  writeFileSync(join(commonDir, 'pullboard-checkout-session.json'), JSON.stringify({ agent: 'core-2', digest }));
+  assert.throws(() => refuseSelfSession(info, item, digest, ['core-1', 'core-2'], options), { code: 'SELF_SESSION_VERIFY' }, 'a current companion author remains excluded locally');
+  rmSync(join(commonDir, 'pullboard-checkout-session.json'));
+  assert.throws(() => refuseSelfSession(info, item, digest, [], { currentAuthorSessions: [digest] }), { code: 'SELF_SESSION_VERIFY' }, 'immutable current session snapshots refuse even without a local seat binding');
+});
+
+test('new native activation fences downgraded review while preserving genuine historical receipt bytes [V4,H16]', t => {
+  const f = fixture(t); f.claim('core-1'); f.attach('core-3'); f.submit();
+  const args = [f.id, { agentId: 'core-2', lane: 'core', leaseMs: 60_000, ...REVIEW }];
+  const old = { ...prepareEngineMove(f.board, 'reserveReview', args, { id: 'old-composition-review' }), engine: STRICT_COMPOSITION_ENGINE - 1 };
+  const first = applyEngineMove(f.board, old, { sequence: 1, at: f.board.clock.now().toISOString() });
+  assert.equal(first.error, undefined);
+  const receipt = f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value;
+  store.release(f.board, f.id, 'core-2', 'Private historical reservation ends before rollout');
+  const activate = prepareEngineMove(f.board, 'appendFact', [f.id, { agentId: 'coordinator', kind: 'note', text: 'Private native activation control.' }]);
+  assert.equal(applyEngineMove(f.board, activate, { sequence: 2, at: f.board.clock.now().toISOString() }).error, undefined);
+  const fresh = prepareEngineMove(f.board, 'reserveReview', [f.id, { ...args[1], agentId: 'core-4' }]);
+  const before = exportBoard(f.board);
+  assert.throws(() => applyEngineMove(f.board, { ...fresh, engine: STRICT_COMPOSITION_ENGINE - 1 }, { sequence: 3, at: f.board.clock.now().toISOString() }), { code: 'RELAY_MOVE' });
+  assert.deepEqual(exportBoard(f.board), before);
+  assert.equal(applyEngineMove(f.board, fresh, { sequence: 3, at: f.board.clock.now().toISOString() }).error, undefined);
+  assert.deepEqual(applyEngineMove(f.board, old, { sequence: 1, at: f.board.clock.now().toISOString() }), first);
+  assert.equal(f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value, receipt);
 });

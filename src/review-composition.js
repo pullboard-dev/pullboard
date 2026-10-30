@@ -69,3 +69,13 @@ export function compositionFamilyFallback(board, item) {
   const owner = compositionOwner(board, item);
   return { owner, family: canonical(owner) };
 }
+
+/** Current strict local checks use immutable native author session snapshots, never superseded local ledger rows. */
+export function compositionSessionOptions(board, item) {
+  if (!compositionReviews(board) || itemReviewPolicy(board, item.item_id).tier !== 'strict') return {};
+  const sessions = compositionAuthors(board, item).map(id => board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`agent_session:${id}`)?.meta_value);
+  // Missing legacy identity cannot erase a local ledger exclusion. Native sessions are write-once.
+  if (sessions.some(value => typeof value !== 'string' || !value)) return {};
+  sessions.push(...itemPatches(board, item.item_id).map(patch => patch.author.session));
+  return { currentAuthorSessions: sessions.filter(value => typeof value === 'string' && value) };
+}

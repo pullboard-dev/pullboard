@@ -58,7 +58,7 @@ export function itemReviewPolicy(board, id) {
 /** Modern recorded policy is an authority witness; old reviews cannot reinterpret its rules. */
 export function itemReviewPolicyEngine(board, id) {
   if (!board) return 1;
-  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= STRICT_COMPOSITION_ENGINE && itemReviewPolicy(board, id).tier === 'strict') return STRICT_COMPOSITION_ENGINE;
+  if (board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key='review_composition:active'").get()) return STRICT_COMPOSITION_ENGINE;
   const tierEngine = reviewTierFloor(board, id);
   if (tierEngine > 1) return tierEngine;
   const routingEngine = routingPolicyEngine(board);
@@ -69,8 +69,7 @@ export function itemReviewPolicyEngine(board, id) {
 
 /** A queue selector must understand every modern policy before excluding or choosing its target. */
 export function anyItemReviewPolicyEngine(board) {
-  if (board && (board.executionEngineVersion ?? ENGINE_VERSION) >= STRICT_COMPOSITION_ENGINE
-    && board.db.prepare('SELECT item_id FROM item').all().some(item => itemReviewPolicy(board, item.item_id).tier === 'strict')) return STRICT_COMPOSITION_ENGINE;
+  if (board?.db.prepare("SELECT 1 FROM board_meta WHERE meta_key='review_composition:active'").get()) return STRICT_COMPOSITION_ENGINE;
   const tierEngine = reviewTierFloor(board);
   if (tierEngine > 1) return tierEngine;
   const routingEngine = routingPolicyEngine(board);
