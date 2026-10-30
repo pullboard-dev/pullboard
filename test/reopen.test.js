@@ -258,6 +258,7 @@ test('the coordinator reopens a submitted item without a verdict [V2,V6,O8]', (t
   assert.deepEqual(JSON.parse(last.event_detail), {
     commit: submitted.commit, note: 'correct the frozen criterion, not the work', judgment: null, model: 'unknown',
     cause: 'refusal:REOPENED', causeDerivation: { kind: 'reopen-category', coarse: true },
+    pipelineCause: { type: 'other', cause: 'refusal:REOPENED', text: 'correct the frozen criterion, not the work' },
   });
   assert.equal(store.events(board).some((event) => event.event_kind === 'release' && JSON.parse(event.event_detail).review), false);
 

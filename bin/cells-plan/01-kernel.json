@@ -12,7 +12,8 @@
   ["src/registry-guards.js","packages/kernel/src/core/registry-guards.js","seed"],
   ["test/seal.test.js","packages/kernel/tests/seal.test.js","seed"],
   ["src/seal.js","packages/kernel/src/core/seal.js","seed"],
-  ["src/process-census.js","packages/kernel/src/core/process-census.js","seed"]
+  ["src/process-census.js","packages/kernel/src/core/process-census.js","seed"],
+  ["src/pipeline-cause.js","packages/kernel/src/core/pipeline-cause.js","rule"]
  ],
  "reexports": ["src/discovery.js","src/js-lex.js","src/literal-shell-words.js","src/refused.js","src/registry-guards.js"],
  "imports": [
