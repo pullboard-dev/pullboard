@@ -26,6 +26,8 @@ import { repoInfo } from './git.js';
 import { withGitFacts } from './git.js';
 import { mainPolicy } from './trusted-policy.js';
 import { withFileLock } from './relay-outbox-guard.js';
+import { maintenanceTimerWarning } from './worktree-maintenance-diagnostics.js';
+import { readMaintenanceLastRun } from './worktree-maintenance-diagnostics.js';
 import { maintenanceDurations } from './worktree-maintenance-config.js';
 
 const TOKEN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
@@ -140,31 +142,42 @@ function workerEnvironment(root) {
 /** Return immediately when disabled; a live or unknown existing timer is never replaced or signalled. */
 export async function scheduleWorktreeMaintenance(ctx) {
   if (ctx.config.worktreeMaintenance?.enabled !== true) return { scheduled: false, reason: 'disabled' };
-  const current = await canonical(ctx);
-  if (!current) return { scheduled: false, reason: 'disabled-on-main' };
-  const files = timerFiles(current.common, true);
-  return withFileLock(files.guard, async () => {
-    const old = readTimer(files.file);
-    if (old && timerState(old) !== 'gone') return { scheduled: false, reason: 'existing-timer', dueAt: old.dueAt };
-    // Main may have changed while this command waited for the repository lock.
-    const accepted = await canonical(ctx);
-    if (!accepted || accepted.common !== current.common || accepted.root !== current.root) return { scheduled: false, reason: 'policy-changed' };
-    const token = randomUUID(), dueAt = new Date(Date.now() + accepted.everyMs).toISOString();
-    const log = join(files.directory, 'scheduler.log');
-    const logFd = openSync(log, constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | NOFOLLOW, 0o600);
-    let child;
-    try {
-      const state = fstatSync(logFd);
-      if (!state.isFile() || state.mode & 0o077) throw new Error('maintenance scheduler log is not private');
-      child = spawn(process.execPath, [join(accepted.root, 'bin', 'pullboard.js'), 'maintenance', '--watch', '--key', token],
-        { cwd: accepted.root, env: workerEnvironment(accepted.root), detached: true, stdio: ['ignore', logFd, logFd] });
-      await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
-      const identity = processIdentity(child.pid);
-      if (!identity || identity.zombie) throw new Error('maintenance timer child identity is unknown');
-      writeTimer(files.file, { version: 1, token, pid: child.pid, started: identity.started, dueAt, root: accepted.root, common: accepted.common });
-      return { scheduled: true, dueAt };
-    } finally { child?.unref(); closeSync(logFd); }
-  });
+  let stage = 'lookup';
+  try {
+    const current = await canonical(ctx);
+    if (!current) return { scheduled: false, reason: 'disabled-on-main' };
+    stage = 'register';
+    const files = timerFiles(current.common, true);
+    return await withFileLock(files.guard, async () => {
+      stage = 'lookup';
+      const old = readTimer(files.file);
+      if (old && timerState(old) !== 'gone') return { scheduled: false, reason: 'existing-timer', dueAt: old.dueAt };
+      // Main may have changed while this command waited for the repository lock.
+      const accepted = await canonical(ctx);
+      if (!accepted || accepted.common !== current.common || accepted.root !== current.root) return { scheduled: false, reason: 'policy-changed' };
+      stage = 'register';
+      const token = randomUUID(), dueAt = new Date(Date.now() + accepted.everyMs).toISOString();
+      const log = join(files.directory, 'scheduler.log');
+      const logFd = openSync(log, constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | NOFOLLOW, 0o600);
+      let child;
+      try {
+        const state = fstatSync(logFd);
+        if (!state.isFile() || state.mode & 0o077) throw new Error('maintenance scheduler log is not private');
+        stage = 'launch';
+        child = spawn(process.execPath, [join(accepted.root, 'bin', 'pullboard.js'), 'maintenance', '--watch', '--key', token],
+          { cwd: accepted.root, env: workerEnvironment(accepted.root), detached: true, stdio: ['ignore', logFd, logFd] });
+        await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
+        const identity = processIdentity(child.pid);
+        if (!identity || identity.zombie) throw new Error('maintenance timer child identity is unknown');
+        stage = 'register';
+        writeTimer(files.file, { version: 1, token, pid: child.pid, started: identity.started, dueAt, root: accepted.root, common: accepted.common });
+        return { scheduled: true, dueAt };
+      } finally { child?.unref(); closeSync(logFd); }
+    });
+  } catch (error) {
+    error.maintenanceStage ??= stage;
+    throw error;
+  }
 }
 
 /** Match the exact registered process and repository, independently of agent identity. */
@@ -212,5 +225,17 @@ export async function runScheduledMaintenance(ctx, key) {
   } finally {
     // A failed sweep still gets its next ordinary interval; a successful child may already have registered it.
     await scheduleWorktreeMaintenance(ctx);
+  }
+}
+
+/** Read existing timer identity and last completed run without creating, replacing or signalling anything. */
+export function maintenanceTimerHealth(common) {
+  try {
+    const files = timerFiles(realpathSync(common), false), owner = readTimer(files.file);
+    return { state: owner ? timerState(owner) : 'absent', key: owner?.token ?? null,
+      pid: owner?.pid ?? null, dueAt: owner?.dueAt ?? null, lastRun: readMaintenanceLastRun(common) };
+  } catch (error) {
+    if (error.code === 'ENOENT') return { state: 'absent', key: null, pid: null, dueAt: null, lastRun: null };
+    return { state: 'unavailable', key: null, pid: null, lastRun: null, cause: maintenanceTimerWarning(error) };
   }
 }
