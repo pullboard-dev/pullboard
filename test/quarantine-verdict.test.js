@@ -135,7 +135,7 @@ withBoard(ctx,board=>{
  assert.equal(sourceAdvanceProblem(board,candidate,{...proof,phases:[{...proof.phases[0],receipt:raw}]}).code,'SOURCE_ADVANCE_PROOF');
 });
 const land=await runGate(root,config,{trustStamp:false,landing:true,agent:agentId,quarantines,onFailure:observer,executionServices});
-assert.equal(land.isGreen,true);assert.equal(land.exitCode,1);
+assert.equal(land.isGreen,true,JSON.stringify({output:land.output,stages:land.stages,profile:land.profile,receiptId:land.receiptId}));assert.equal(land.exitCode,1);
 const landReceipt=readGateReceipt(receiptStore(root),land.receiptId);
 assert.equal(checkTrainLandingReceipt(landReceipt,landReceipt.head).green,false);
 withBoard(ctx,board=>assert.equal(readTrainLandingReceipt(root,board,landReceipt.id,landReceipt.head).id,landReceipt.id));
