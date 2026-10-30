@@ -75,6 +75,7 @@ const ROWS = [
   ['submit.requireInfraNote', 'Explain test edits', 'Submit asks for a written reason when a change edits tests or infrastructure.', 'Checks', 'on/off'],
   ['submit.autoFileMainReds', 'File known main failures', 'Submit opens repair items for failures freshly confirmed to match main.', 'Checks', 'on/off'],
   ['itemSizeBudget', 'Item size budget', 'Changed lines an item may carry before submit notes it as oversize.', 'Checks', 'lines'],
+  ['cells.cache', 'Remember cells check answers', 'The cells checks answer from a saved result when the commit, tree and uncommitted changes are the same as last time.', 'Checks', 'on/off'],
   ['rigor.budget', 'Code a change may add', 'The most lines of non-test code one change may add.', 'Checks', 'lines'],
   ['flakes.rerun', 'Rerun flaky tests', 'A test known to be flaky is run again before a failure counts.', 'Checks', 'on/off'],
   ['flakes.quarantine', 'Quarantine flaky tests', 'A test that keeps flaking is set aside so it stops blocking work.', 'Checks', 'on/off'],
