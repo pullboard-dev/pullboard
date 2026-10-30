@@ -2,6 +2,7 @@
 import { Refused } from './refused.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { STALE_STATE_ENGINE } from './stale-state-engine.js';
+import { ROUTING_RULES_ENGINE } from './routing-rules-engine.js';
 import {
   staleInstant,
   staleStateLimits,
@@ -99,6 +100,7 @@ export function applyStaleState(board, { agentId, snapshot, health = {} }, depen
       const reason = `Review idle for 30 minutes; last observed activity ${row.lastActivity}.`;
       setItem(board, row.id, { item_review_by: null, item_review_until: null });
       logEvent(board, agentId, 'release', row.id, { review: true, reason,
+        ...((board.executionEngineVersion ?? ENGINE_VERSION) >= ROUTING_RULES_ENGINE ? { reasonCode: 'OTHER' } : {}),
         stale: { reviewer: row.reviewer, reservedAt: row.reservedAt, lastActivity: row.lastActivity } });
       notice(row.reviewer, `Released your idle review reservation on #${row.id}: ${reason} The item is available for independent review.`, row.id);
       result.reviews.push(row.id);

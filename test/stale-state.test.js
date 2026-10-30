@@ -190,6 +190,7 @@ test('an idle review reservation returns to the queue [B4,V1,H16]', async t => {
   assert.equal(release.event_by, 'coordinator');
   const detail = JSON.parse(release.event_detail);
   assert.equal(detail.review, true);
+  assert.equal(detail.reasonCode, 'OTHER', 'current automatic idle release retains its coded reason');
   assert.equal(detail.stale.reviewer, f.reviewer);
   assert.equal(detail.stale.lastActivity, new Date(lastActivity).toISOString());
   const notice = events.find(event => event.event_kind === 'shout');
@@ -543,7 +544,7 @@ test('stale releases carry observation plus code through native and ordered APIs
 });
 
 test('the stale CLI validates and retains an explicit maintenance reason override [B4,C7]', async t => {
-  const { captureStaleState } = await import('../src/stale-state-capture.js');
+  const { captureStaleState } = await import('../packages/health/src/shell/stale-state-capture.js');
   const f = fixture(t), id = f.add('Silent coded override');
   const path = store.agentById(f.board, f.builder).agent_path;
   f.worktree(path, 'private-coded-stale-override');
@@ -561,4 +562,31 @@ test('the stale CLI validates and retains an explicit maintenance reason overrid
   const detail = JSON.parse(store.events(f.board, { itemId: id }).findLast(event => event.event_kind === 'release').event_detail);
   assert.equal(detail.reasonCode, 'OTHER');
   assert.equal(detail.reason, 'An outside prerequisite blocks this claim');
+});
+
+/** Preserve historical release detail bytes while current automatic expiry uses a genuine coded reason. */
+test('automatic idle review release codes current maintenance without rewriting historical detail [B4,C7,H16]', t => {
+  for (const historical of [false, true]) {
+    const f = fixture(t), id = f.review();
+    f.advance(30 * MINUTE);
+    const snapshot = f.snapshot();
+    const previous = f.board.executionEngineVersion;
+    if (historical) f.board.executionEngineVersion = STALE_STATE_ENGINE;
+    try {
+      const result = store.maintainStaleState(f.board, { agentId: 'coordinator', snapshot });
+      assert.deepEqual(result.reviews, [id]);
+    } finally {
+      if (previous === undefined) delete f.board.executionEngineVersion;
+      else f.board.executionEngineVersion = previous;
+    }
+    const release = store.events(f.board, { itemId: id }).findLast(event => event.event_kind === 'release');
+    const detail = JSON.parse(release.event_detail);
+    const reason = `Review idle for 30 minutes; last observed activity ${snapshot.reviews[0].lastActivity}.`;
+    const expected = { review: true, reason, ...(historical ? {} : { reasonCode: 'OTHER' }),
+      stale: { reviewer: snapshot.reviews[0].reviewer, reservedAt: snapshot.reviews[0].reservedAt,
+        lastActivity: snapshot.reviews[0].lastActivity } };
+    const { model, ...payload } = detail;
+    assert.deepEqual(payload, expected);
+    assert.equal(Object.hasOwn(detail, 'reasonCode'), !historical);
+  }
 });

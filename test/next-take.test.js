@@ -46,7 +46,7 @@ test('a free seat is handed one eligible item without screening [N2,V1,B3]', asy
   const claims = () => store.listItems(box.board).filter(item => item.item_status === 'claimed' && item.item_owner === box.seats.actor.id);
   await cli(box, box.seats.actor.path, ['next', '--take']);
   assert.equal(claims().length, 1, 'a holding seat never acquires another item');
-  store.release(box.board, ready, box.seats.actor.id);
+  store.release(box.board, ready, box.seats.actor.id, 'Return the private fixture claim for the next selection', 'OTHER');
   const review = box.add('Review before another build', { route: 'light' });
   box.submit(review);
   const offered = await cli(box, box.seats.actor.path, ['next', '--take']);
@@ -147,7 +147,7 @@ test('ready work beside an idle seat for five minutes warns the coordinator [A6,
   assert.ok(store.getItem(box.board, id).item_owner);
   assert.equal(warnings().length, 1);
   assert.ok(store.allShouts(box.board).some(shout => shout.shout_text.startsWith('Resolved:') && shout.shout_text.includes('UNPAIRED_WORK')));
-  store.release(box.board, id, box.seats.actor.id);
+  store.release(box.board, id, box.seats.actor.id, 'Return the private fixture claim for the next selection', 'OTHER');
   box.scan();
   box.advance(299999);
   heartbeatSeat(box.board, box.seats.actor.id);
@@ -201,7 +201,7 @@ test('an explicit heartbeat and the installed native stop hook dispatch free sea
   const another = box.add('A busy heartbeat cannot claim twice');
   await cli(box, box.seats.actor.path, ['heartbeat']);
   assert.equal(store.getItem(box.board, another).item_owner, null);
-  store.release(box.board, id, box.seats.actor.id);
+  store.release(box.board, id, box.seats.actor.id, 'Return the private fixture claim for the next selection', 'OTHER');
   const hook = await cli(box, box.seats.actor.path, ['hook', 'Stop']);
   assert.equal(hook.code, 0, hook.out + hook.err);
   assert.equal(store.getItem(box.board, id).item_owner, box.seats.actor.id, hook.out + hook.err);
