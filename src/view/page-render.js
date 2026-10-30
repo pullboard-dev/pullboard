@@ -288,7 +288,7 @@ function render() {
     const baseline = item.checkBaseline;
     const baselineClass = baseline?.result === 'green' ? 'ok' : baseline?.result === 'red' ? 'no' : baseline?.result === 'pending' ? 'warn' : '';
     /** Render the item's lane, route and current milestone in the approved plain header. */
-    const where = [item.lane, item.route, (p.milestones || []).find(milestone => milestone.items?.includes(item.id))?.name].filter(Boolean);
+    const where = [item.lane, item.route, (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === item.id))?.name].filter(Boolean);
     /** Give the existing lifecycle states their person-facing status wording. */
     const statusLabel = ({ open: 'Unclaimed', building: 'Building', verify: 'Waiting for a reviewer', back: 'Sent back', verified: 'Passed', withdrawn: 'Withdrawn' })[s] || s;
     /** Parse a single named test case only from the recorded check or its baseline evidence. */
