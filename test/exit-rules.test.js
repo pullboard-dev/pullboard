@@ -247,7 +247,10 @@ test('ordinary native failed checks retain cases through receipt recording and s
     receipt: readGateReceipt(boardReceiptStore(board), receipts[0].id) };
   const old = store.recordProofRun(historical, oldRequest);
   assert.equal(Object.hasOwn(old, 'failures'), false, 'historical replay keeps the old receipt shape');
-  assert.deepEqual(store.recordProofRun(historical, oldRequest), old, 'historical receipt replay remains idempotent');
+  const { eventId, ...replayedOld } = store.recordProofRun(historical, oldRequest);
+  assert.ok(Number.isSafeInteger(eventId));
+  assert.deepEqual(replayedOld, old, 'historical receipt replay preserves every original field');
+  assert.equal(store.proofReceipts(historical, oldItem).length, 1, 'duplicate recording never publishes a second proof');
   const oldEvent = historical.db.prepare("SELECT event_detail FROM event WHERE event_kind='proof-run' AND item_id=?").get(oldItem);
   assert.ok(JSON.parse(oldEvent.event_detail).engine < EXIT_RULES_ENGINE, 'historical receipt events keep their original floor');
   assert.equal(exitClaimDecision(board, id, receipts[0].seat).code, 'EXIT_REPEAT_FAILURE');
