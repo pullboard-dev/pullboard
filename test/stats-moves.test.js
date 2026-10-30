@@ -100,8 +100,8 @@ test('moves real CLI reads explicit transcript file and leaves native history un
 test('real inbox history preserves numeric pagination and keeps its action distinct [A1,A2,R2]', t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const sent = box.run(box.web, 'shout', 'coordinator', 'History cursor control', '--json');
-  assert.equal(sent.code, 0, sent.err);
+  const sent = box.run(box.web, 'shout', 'coordinator', 'History cursor control', '--kind', 'question', '--json');
+  assert.equal(sent.code, 0, sent.out + sent.err);
   const read = box.run(box.web, 'inbox', '--history', '--since', '0', '--json');
   assert.equal(read.code, 0, read.err);
   const page = JSON.parse(read.out);
