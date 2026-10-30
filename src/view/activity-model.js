@@ -8,6 +8,14 @@ export function activityModel(project, { words } = {}) {
   const agents = new Map((project.agents ?? []).map(agent => [agent.agent_id, agent]));
   const shouts = new Map((project.shouts ?? []).map(shout => [shout.shout_id, shout]));
   const rows = [], consumed = new Set();
+  /** Count the blocked object, retaining distinct kinds and every original cause in the disclosure. */
+  const subjectKey = finding => {
+    const id = finding.item ?? /^#([1-9][0-9]*)\b/u.exec(finding.subject ?? '')?.[1];
+    if (Number.isSafeInteger(Number(id)) && Number(id) > 0) return `item:${Number(id)}`;
+    const cause = String(finding.cause ?? '').replace(/^refusal:/u, '');
+    const kind = /^RUNNER_/u.test(cause) ? 'runner' : /^(?:AGENT_|IDLE_AGENT$)/u.test(cause) ? 'seat' : 'subject';
+    return `${kind}:${finding.subject ?? finding.key}`;
+  };
   /** Native item context wins; otherwise use the first mentioned item that actually belongs to this board. */
   const relatedItem = (event, detail, shout, text) => {
     const target = /^item:(\d+)$/u.exec(shout?.shout_to ?? detail.to ?? '')?.[1];
@@ -64,9 +72,13 @@ export function activityModel(project, { words } = {}) {
     }
     // A scan may record no new notices while existing findings are still stuck.
     const changed = [...findings.values()], stuck = active.filter(entry => !changed.some(change => !change.resolved && change.key === entry.key));
+    const failingSubjects = new Set(changed.filter(entry => !entry.resolved).map(subjectKey));
+    const stuckSubjects = new Set(stuck.map(subjectKey));
+    // A newly reported cause and an older cause can describe the same still-blocked item.
+    for (const subject of failingSubjects) stuckSubjects.delete(subject);
     if (scan || changed.length || heldBack) rows.push({ id: `sentinels:${scan?.event_id ?? pending.at(-1)?.event_id}`, category: 'sentinels', kind: 'sentinels',
-      at: scan?.event_at ?? pending.at(-1)?.event_at, findings: changed, failing: changed.filter(entry => !entry.resolved).length,
-      resolved: changed.filter(entry => entry.resolved).length, stuck: stuck.length, heldBack, stillStuck: stuck });
+      at: scan?.event_at ?? pending.at(-1)?.event_at, findings: changed, failing: failingSubjects.size,
+      resolved: changed.filter(entry => entry.resolved).length, stuck: stuckSubjects.size, heldBack, stillStuck: stuck });
     previous = active; pending = [];
   };
   const verbs = { claim: 'started building', release: 'let go of', fact: 'added a note', note: 'added a note', 'proof-run': 'ran the proof',

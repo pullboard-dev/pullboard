@@ -29,7 +29,7 @@ function scalar(text) {
  * Read reported counts and the first diagnostic of each failed case without granting execution authority.
  * Unsupported output keeps counts unknown; the full native log remains the source for proof parsing.
  * @param {string} logPath
- * @param {{ root?: string, profile?: object }} [options]
+ * @param {{ root?: string, profile?: object, directory?: string }} [options]
  * @returns {{counts:object,failures:object[],omittedFailures:number,logPath:string}}
  */
 export function testOutputSummary(logPath, { root = process.cwd(), profile } = {}) {
@@ -82,10 +82,10 @@ export function testOutputSummary(logPath, { root = process.cwd(), profile } = {
  * Retain the complete sanitized output in this run's own directory before returning its presentation.
  * @param {string} root
  * @param {string} output
- * @param {{ root?: string, profile?: object }} [options]
+ * @param {{ root?: string, profile?: object, directory?: string }} [options]
  */
 export function retainTestOutput(root, output, options = {}) {
-  const directory = gitPath(root, join('pullboard-runs', randomUUID()));
+  const directory = options.directory ? join(options.directory, randomUUID()) : gitPath(root, join('pullboard-runs', randomUUID()));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const logPath = join(directory, 'output.log');
   writeFileSync(logPath, safeLog(output), { flag: 'wx', mode: 0o600 });

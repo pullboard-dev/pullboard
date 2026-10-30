@@ -1,3 +1,8 @@
+import {
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
 /** Every setting in the inventory carries a label, one sentence, a group and a display unit, and the CLI shows them [O5,O6,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -87,4 +92,26 @@ test('the inventory marks exactly the settings the CLI can set, so the view need
   const marked = inventory(box).filter(row => row.cli).map(row => row.key);
   assert.deepEqual([...new Set(marked)].sort(), [...CLI_SETTABLE].sort());
   assert.deepEqual([...CLI_SETTABLE].sort(), SETTING_FORMS.filter(form => !['workers.budget', 'landing.pool'].includes(form)).sort(), 'every CLI form that is an inventory key is marked');
+});
+
+
+test('optional submit handoff is described with default and configured provenance without adding a raw default [O5,O6,V4]', t => {
+  const helpers = createE2eHelpers();
+  const box = helpers.project('true');
+  t.after(() => helpers.cleanup());
+  const file = join(box.repo, 'pullboard.json');
+  const raw = JSON.parse(readFileSync(file, 'utf8'));
+  assert.equal(raw.submit?.handoff, undefined, 'existing default configuration bytes acquire no new submit key');
+  const row = () => inventory(box).find(setting => setting.scope === 'repo' && setting.key === 'submit.handoff');
+  assert.equal(row().value, false);
+  assert.equal(row().default, false);
+  assert.equal(row().origin, 'default');
+  assert.equal(row().cli, null, 'repository JSON configuration is not falsely offered as a machine settings CLI form');
+  assert.equal(row().label, 'Return while checks run');
+  writeFileSync(file, JSON.stringify({ ...raw, submit: { ...raw.submit, handoff: true } }) + '\n');
+  assert.equal(row().value, true);
+  assert.equal(row().origin, 'configured');
+  writeFileSync(file, JSON.stringify({ ...raw, submit: { ...raw.submit, handoff: false } }) + '\n');
+  assert.equal(row().value, false);
+  assert.equal(row().origin, 'configured');
 });
