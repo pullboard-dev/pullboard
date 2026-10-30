@@ -24,28 +24,8 @@ after(() => { for (const dir of DIRS) rmSync(dir, { recursive: true, force: true
 
 /** A freshly initialized repo with a private board, Pullboard home and Git identity. */
 function freshBoard(config = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'pullboard-blueprint-'));
-  DIRS.push(dir);
-  // The hooks init installs call pullboard by name, so this checkout's CLI is the one on PATH.
-  const bin = join(dir, 'bin');
-  mkdirSync(bin);
-  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec '${process.execPath.replaceAll("'", "'\\''")}' '${BIN.replaceAll("'", "'\\''")}' "$@"\n`);
-  chmodSync(join(bin, 'pullboard'), 0o755);
-  const env = { ...process.env };
-  for (const key of Object.keys(env)) if (key.startsWith('GIT_') || MARKERS.includes(key)) delete env[key];
-  Object.assign(env, {
-    PATH: `${bin}:${process.env.PATH}`,
-    PULLBOARD_HOME: join(dir, 'home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
-    GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'Blueprint fixture', GIT_AUTHOR_EMAIL: 'blueprint@example.invalid',
-    GIT_COMMITTER_NAME: 'Blueprint fixture', GIT_COMMITTER_EMAIL: 'blueprint@example.invalid',
-  });
-  const repo = join(dir, 'repo');
-  mkdirSync(repo);
+  const { dir, repo, run, runIn, env } = emptyRepo();
   const git = (...args) => runFixtureGit(args, { cwd: repo, env });
-  const runIn = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
-  const run = (...args) => runIn(repo, ...args);
-  git('init', '-q', '-b', 'main');
   const init = run('init');
   assert.equal(init.status, 0, init.stdout + init.stderr);
   const file = join(repo, 'pullboard.json');
