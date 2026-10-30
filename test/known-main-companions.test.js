@@ -125,8 +125,12 @@ function submittedProof(box) {
 /** Attach a real committed-source companion through the authenticated coordinator. */
 function attachCompanion(box, file, before, after) {
   const agent = JSON.parse(cli(box, box.builder, 'whoami').stdout).id;
+  const lines = readFileSync(join(box.builder, file), 'utf8').replace(/\n$/u, '').split('\n');
+  assert.equal(lines[0], before, 'the patch binds the actual first-line preimage');
+  const replacement = [after, ...lines.slice(1)];
   const patch = ['diff --git a/' + file + ' b/' + file, '--- a/' + file, '+++ b/' + file,
-    '@@ -1 +1 @@', '-' + before, '+' + after, ''].join('\n');
+    `@@ -1,${lines.length} +1,${replacement.length} @@`,
+    ...lines.map(line => '-' + line), ...replacement.map(line => '+' + line), ''].join('\n');
   const path = join(box.directory, 'companion.patch');
   writeFileSync(path, patch);
   const result = cli(box, box.root, 'patch', 'attach', String(box.item), path,
@@ -151,7 +155,7 @@ test('editing a failed test in a companion never inherits its main failure [V4,B
   attachCompanion(box, 'test/inherited.test.js', "import assert from 'node:assert/strict';", "import assert from 'node:assert/strict'; // Companion edit.");
   const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.equal(JSON.parse(result.stdout).error.code, 'GATE_RED');
+  assert.equal(JSON.parse(result.stdout).error.code, 'GATE_RED', result.stdout + result.stderr);
   assert.equal(submittedProof(box), null);
 });
 
