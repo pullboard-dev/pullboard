@@ -503,7 +503,8 @@ export async function submitHere(ctx, id, infra) {
           digest: job.digest, receipts: [...new Set(submissionReceiptIds)] } }]);
     });
     const composed = await composeAfterProof(root, { id, proofCommit: commit, proved: acceptedMain.commit, item: held, check: frozenCheck(held),
-      readTrunk: () => requireTrunkMerge(root, commit) }, { selectAffectedTests, explicitCheckFiles });
+      readTrunk: () => requireTrunkMerge(root, commit) }, { selectAffectedTests, explicitCheckFiles,
+        ...(ctx.submitHandoffOutput ? { onMergeFailure: error => writeFileSync(join(ctx.submitHandoffOutput, 'merge-failure.log'), String(error.stderr || error.stack || error.message), { mode: 0o600 }) } : {}) });
     submitted = composed.commit;
     trunkMove = composed.evidence;
     currentTrunk = requireTrunkMerge(root, submitted);

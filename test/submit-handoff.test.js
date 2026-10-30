@@ -85,8 +85,10 @@ function workerDiagnostic(box, id) {
   if (!current.job) return JSON.stringify(current);
   const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', current.job.id);
   const log = join(directory, 'worker.log');
+  const merge = join(directory, 'output', 'merge-failure.log');
   return JSON.stringify({ item: current.item.item_status, job: current.job,
-    worker: existsSync(log) ? readFileSync(log, 'utf8').slice(-6000) : null });
+    worker: existsSync(log) ? readFileSync(log, 'utf8').slice(-6000) : null,
+    merge: existsSync(merge) ? readFileSync(merge, 'utf8').slice(-6000) : null });
 }
 
 /** Wait for a real terminal state, exposing a stopped worker's retained refusal instead of hiding it in teardown. */
