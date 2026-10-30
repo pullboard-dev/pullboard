@@ -56,7 +56,7 @@ export function asSubmitted(board, item) {
 }
 
 /** Refuse the submit that no active seat could review. */
-export function refuseUnreviewable(board, item, options) {
-  const problem = unreviewableStrict(board, item, options);
+export function refuseUnreviewable(board, item, options, reads = board.nativePorts) {
+  const problem = unreviewableStrict(board, item, options, reads);
   if (problem) throw new Refused('NO_ELIGIBLE_REVIEWER', problem.message, problem.fix);
 }

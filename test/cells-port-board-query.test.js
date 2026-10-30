@@ -10,6 +10,13 @@ import { cellInventory, mappedPath, readPathMap } from '../packages/codemap/inde
 import { commonJsIn, importsIn } from '../src/module-imports.js';
 import { readPlan } from '../bin/cells-plan.js';
 import { nativeBoardPorts, openBoard } from '../src/native-board.js';
+import * as queries from '../src/board-query.js';
+import * as store from '../src/board.js';
+import { readyItems, workQueue } from '../src/queue.js';
+import { roadmap } from '../src/board-milestones.js';
+import { eligibilityProblem } from '../src/review-eligibility.js';
+import { routingCapacity } from '../src/routing-capacity.js';
+import { observeWorkers } from '../src/worker-scale.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 
@@ -45,4 +52,27 @@ test('missing connection query readers refuse before SQLite or its directory exi
     }, error => error.code === 'NO_POLICY' && error.message.includes(`nativePorts.${key}`));
     assert.equal(existsSync(parent), false, `${key} is checked before directory creation`);
   }
+});
+
+test('real read-only status scale and roadmap readers preserve ready order without native write ports [C7,N2]', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-read-query-ports-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'board.sqlite');
+  // @pullboard-board-file persistence: prove the actual read-only opener has no native write capabilities.
+  const writer = openBoard(file);
+  t.after(() => store.closeBoard(writer));
+  store.register(writer, { lane: 'coordinator', path: directory, family: 'Fixture Owner' });
+  const first = store.addItem(writer, { by: 'coordinator', lane: 'core', title: 'Ready first' });
+  const blocked = store.addItem(writer, { by: 'coordinator', lane: 'core', title: 'Wait for first', after: [first] });
+  const reader = queries.openBoardForRead(file, writer.clock);
+  t.after(() => queries.closeBoard(reader));
+  assert.equal(reader.readOnly, true);
+  assert.equal(reader.nativePorts, undefined);
+  assert.deepEqual(readyItems(reader, store.foreignBlockers, queries).map(item => item.item_id), [first]);
+  const ports = { ...store, roadmap, eligibilityProblem };
+  const queue = workQueue(reader, ports);
+  assert.deepEqual(queue, workQueue(writer, ports), 'the same persisted snapshot retains all queue ordering and blockers');
+  assert.ok(queue.unreleased.find(item => item.id === blocked).waits.some(reason => reason.includes(`#${first}`)));
+  assert.equal(routingCapacity(reader, queries.listAgents(reader), store.foreignBlockers, queries).readyItems, 1);
+  assert.equal(observeWorkers(reader, { lane: 'core', managed: [] }).builds, 1);
 });

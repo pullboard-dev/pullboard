@@ -34,7 +34,7 @@ function holderOf(item, now) {
  * @param {any} board
  * @returns {{ releases: { name: string, landed: number, total: number, items: any[] }[], unreleased: any[], first: Record<string, number | null> }} each item with its unblocks, effort and why
  */
-export function workQueue(board, ports, reviewer = null, options = {}, reads = board.nativePorts) {
+export function workQueue(board, ports, reviewer = null, options = {}, reads = board.nativePorts ?? ports) {
   const { buildOrder, canTake, listItems, milestonePriorities, milestones, roadmap, ROUTES, eligibilityProblem, foreignBlockers } = ports;
   const agent = reviewer ? board.db.prepare('SELECT agent_id,agent_route FROM agent WHERE agent_id=?').get(reviewer) : null;
   const now = board.clock.now().getTime();
