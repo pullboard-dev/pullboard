@@ -2,7 +2,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from './git.js';
-import { gateRuns } from './quarantine.js';
 import {
   readGateReceipt,
   receiptBinds,
@@ -25,7 +24,7 @@ export function readPublishState(root) {
 }
 
 /** Refuse new landing work until a full green or a bound same-tree green proves every named failure flaky. */
-export function requirePublishGreen(root, board, config) {
+export function requirePublishGreen(root, board, config, ports) {
   if (config.landing?.pauseOnRed !== true) return;
   const state = readPublishState(root);
   if (!state?.red) return;
@@ -34,7 +33,7 @@ export function requirePublishGreen(root, board, config) {
   if (!red || red.green || red.head !== state.red || red.kind !== 'land') {
     throw new Refused('PUBLISH_RED', `publish full suite is red at ${state.red}; its original receipt is unavailable; run publish on a corrected head before landing`);
   }
-  const paired = gateRuns(board).some(run => run.by === 'coordinator' && run.green
+  const paired = ports.gateRuns(board).some(run => run.by === 'coordinator' && run.green
     && run.tree === red.tree && run.command === red.command && receiptBinds(store, run));
   if (paired && red.failures.length > 0) return;
   const details = red.failures.map(failure => {

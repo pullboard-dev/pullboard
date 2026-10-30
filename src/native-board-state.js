@@ -155,7 +155,7 @@ export function stateFileInputs(root, config, { fitFile }) {
     { name: `config:${CONFIG_FILE}`, path: join(root, CONFIG_FILE) },
     { name: `spec:${config.spec}`, path: join(root, config.spec) },
     { name: `practice:${config.practice}`, path: join(root, config.practice) },
-    { name: 'builtin:standard-doctrine.md', path: new URL('./standard-doctrine.md', import.meta.url) },
+    { name: 'builtin:standard-doctrine.md', path: new URL('../packages/doctrine/src/shell/standard-doctrine.md', import.meta.url) },
     ...['signoffs.jsonl', 'signers', 'first-commit', 'signers.initial'].map(name => ({ name: `approval:${name}`, path: join(root, '.pullboard', name) })),
     { name: 'fit:blueprint-fit.json', path: fitFile(repoInfo(root).commonDir) },
     // A new block changes Needs you without a board move, so the ledger is a state input [C6].
