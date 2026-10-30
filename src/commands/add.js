@@ -35,6 +35,7 @@ import {
 } from '../spec.js';
 import {
   actOn,
+  personMode,
   barActorForCommand,
   briefArg,
   briefInLane,
@@ -92,7 +93,7 @@ export async function run(io, args) {
     if (sealedProblems.length) throw new Refused('UNKNOWN_SPEC', sealedProblems.join('; '));
     briefInLane(ctx, item.lane, item.brief);
   }
-  const asPerson = personBarMode(ctx, board, me, values);
+  const asPerson = personBarMode(ctx, board, me, values, personMode);
   const confirmed = await confirmBarEffect(ctx, board, me, { verb: 'add', args: {
     lane: item.lane, title: item.title, ...(values.wait ? { wait: true } : {}), as: 'person',
   } }, item, asPerson);
