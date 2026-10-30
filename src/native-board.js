@@ -1,6 +1,7 @@
 import { submitHandoffBoardRoot } from './submit-handoff-origin.js';
 import { sealSubmitHandoffQueue } from './submit-handoff-seal.js';
 import {
+  validateQuarantineProofIds,
   quarantineVerdictSnapshot,
   validateQuarantineGate,
   validateQuarantineLandingProof,
@@ -242,7 +243,7 @@ export { closeBoard } from './board-read-open.js';
 /** Build immutable native capabilities once per connection, without a registry or cross-connection defaults. */
 export function nativeBoardPorts() {
   const nativePorts = Object.freeze({
-    quarantine: Object.freeze({ quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, validateQuarantineVerdict, recordSealedGateRun, sealQuarantineVerdict, gateRuns, requireBound }),
+    quarantine: Object.freeze({ quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, validateQuarantineVerdict, recordSealedGateRun, sealQuarantineVerdict, gateRuns, requireBound, validateQuarantineProofIds }),
     sourceAdvanceCASProblem, beginCommandPhase, exportedMeta, guardRestore,
     newRigorNotices, rigorNoticeText, sealSourceAdvanceReturn, conflictValue, nextSteps: NEXT_STEPS, landingEnvironment, deriveRigorCause, recordAutomaticRigorDrafts, normalizedDispatch, rejectedWorkReturns,
     atomic, logEvent, rowDrafts: store.rowDrafts, rowDecisions: store.rowDecisions, PERSON: store.PERSON,
