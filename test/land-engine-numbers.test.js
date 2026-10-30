@@ -33,47 +33,47 @@ function fixture(t) {
     order: ['state', 'app:cli'], cells: { state: ['src/base-engine.js', 'src/engine-next.js',
       'src/moves/example.js', 'src/move-history/legacy.json'], 'app:cli': ['bin/cells-plan.js'] }, tests: {} }));
   for (const args of [['init', '-q', '-b', 'main'], ['config', 'user.name', 'Landing fixture'], ['config', 'user.email', 'landing@example.invalid'], ['add', '-A'], ['commit', '-q', '-m', 'fixture base']])
-    assert.equal(git(root, ...args).status, 0);
+    git(root, ...args);
   writePlan(root, computePlan(root));
-  assert.equal(git(root, 'add', '-A').status, 0);
-  assert.equal(git(root, 'commit', '-q', '-m', 'fixture plan').status, 0);
-  assert.equal(git(root, 'checkout', '-q', '-b', 'fixture-item').status, 0);
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'fixture plan');
+  git(root, 'checkout', '-q', '-b', 'fixture-item');
   put('src/feature-engine.js', "import { unassignedEngine } from './engine-next.js';\nexport const FEATURE_ENGINE = unassignedEngine();\n");
-  assert.equal(git(root, 'add', 'src/feature-engine.js').status, 0);
+  git(root, 'add', 'src/feature-engine.js');
   placePath(root, 'src/feature-engine.js', { cell: 'state' });
-  assert.equal(git(root, 'add', '-A').status, 0);
-  assert.equal(git(root, 'commit', '-q', '-m', 'fixture item').status, 0);
-  assert.equal(git(root, 'checkout', '-q', 'main').status, 0);
-  assert.equal(git(root, 'merge', '-q', '--no-ff', 'fixture-item', '-m', 'fixture landing').status, 0);
-  return { root, merge: git(root, 'rev-parse', 'HEAD').stdout.trim() };
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'fixture item');
+  git(root, 'checkout', '-q', 'main');
+  git(root, 'merge', '-q', '--no-ff', 'fixture-item', '-m', 'fixture landing');
+  return { root, merge: git(root, 'rev-parse', 'HEAD') };
 }
 
 test('an allocating landing places its new history by rule in the same merge and leaves cells-plan green [B3,C7,D3,H16]', t => {
   const { root, merge } = fixture(t);
-  const parents = git(root, 'show', '-s', '--format=%P', merge).stdout.trim();
+  const parents = git(root, 'show', '-s', '--format=%P', merge);
   assert.equal(parents.split(' ').length, 2, 'the input is a real item merge');
   const engines = amendLandingEngines(root);
   assert.deepEqual(engines.assigned, [{ name: 'FEATURE_ENGINE', number: 81 }]);
-  const head = git(root, 'rev-parse', 'HEAD').stdout.trim();
+  const head = git(root, 'rev-parse', 'HEAD');
   assert.notEqual(head, merge);
-  assert.equal(git(root, 'show', '-s', '--format=%P', head).stdout.trim(), parents, 'allocation and placement amend that same merge');
+  assert.equal(git(root, 'show', '-s', '--format=%P', head), parents, 'allocation and placement amend that same merge');
   const history = 'src/move-history/81.json';
-  assert.equal(JSON.parse(git(root, 'show', `${head}:${history}`).stdout).engine, 81);
+  assert.equal(JSON.parse(git(root, 'show', `${head}:${history}`)).engine, 81);
   const state = readPlan(root).cells.find(cell => cell.name === 'state');
   assert.deepEqual(state.paths.filter(([from]) => from === history), [[history, 'packages/state/src/shell/move-history/81.json', 'rule']]);
-  const committed = JSON.parse(git(root, 'show', `${head}:bin/cells-plan/01-state.json`).stdout);
+  const committed = JSON.parse(git(root, 'show', `${head}:bin/cells-plan/01-state.json`));
   assert.deepEqual(committed.paths.find(([from]) => from === history), state.paths.find(([from]) => from === history));
   const checked = runFixtureChild(process.execPath, [BIN, '--check'], { cwd: root, encoding: 'utf8' });
   assert.equal(checked.status, 0, checked.stderr + checked.stdout);
-  assert.equal(git(root, 'status', '--porcelain').stdout, '', 'no unplaced file or unstaged plan escapes the merge');
+  assert.equal(git(root, 'status', '--porcelain'), '', 'no unplaced file or unstaged plan escapes the merge');
   assert.deepEqual(amendLandingEngines(root).assigned, [], 'a retry never allocates or places the same history twice');
-  assert.equal(git(root, 'rev-parse', 'HEAD').stdout.trim(), head);
+  assert.equal(git(root, 'rev-parse', 'HEAD'), head);
 });
 
 test('a canonical placement failure refuses before an unplaced history can be committed [B3,C7,D3,H16]', t => {
   const { root, merge } = fixture(t);
   rmSync(join(root, 'bin/cells-plan/01-state.json'));
   assert.throws(() => amendLandingEngines(root), error => error.code === 'LAND_MERGE' && /src\/move-history\/81\.json/u.test(error.message));
-  assert.equal(git(root, 'rev-parse', 'HEAD').stdout.trim(), merge, 'the original merge was not amended after a failed placement');
-  assert.notEqual(git(root, 'cat-file', '-e', `${merge}:src/move-history/81.json`).status, 0, 'unplaced allocation never entered committed history');
+  assert.equal(git(root, 'rev-parse', 'HEAD'), merge, 'the original merge was not amended after a failed placement');
+  assert.notEqual(runFixtureChild('git', ['cat-file', '-e', `${merge}:src/move-history/81.json`], { cwd: root, encoding: 'utf8' }).status, 0, 'unplaced allocation never entered committed history');
 });
