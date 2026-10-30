@@ -208,6 +208,7 @@ test('the private view shows its last twenty native landings; a public export ke
     box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', alpha.itemBranches.get(`${alpha.baseBranch}:${id}`));
     box.run(alpha.repo, 'merged', String(id), box.git(alpha.repo, 'rev-parse', 'HEAD'));
   }
+  // @pullboard-board-file journey: the private Chrome view renders this persisted project board after native CLI landings.
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const agent = store.listAgents(board).find(row => row.agent_lane === 'web');
@@ -229,6 +230,7 @@ test('the private view shows its last twenty native landings; a public export ke
   const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const previousSettings = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, 'utf8')) : {};
   writeFileSync(settingsFile, JSON.stringify({ ...previousSettings, costPrices: fixturePrices }));
+  // @pullboard-board-file journey: compare the Cost presenter with actual usage events from the rendered private board.
   const diagnosticBoard = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   let pricingDiagnostic;
   try {
