@@ -1,5 +1,31 @@
 /** Private Cost-tab selection and rendering for the local board view [N26]. */
 
+/** Name private view models and rate keys without constraining native model or family declarations. */
+export function modelPresentation(reported, family = '') {
+  const raw = typeof reported === 'string' ? reported.trim() : '';
+  const key = raw.toLowerCase().replace(/[\s_]+/gu, '-');
+  const known = {
+    'claude-opus-5-5': ['Opus 5.5', 'Anthropic'],
+    'claude-sonnet-5-5': ['Sonnet 5.5', 'Anthropic'],
+    'gpt-6.1-sol': ['GPT-6.1 Sol', 'OpenAI'],
+    'gpt-6.1-terra': ['GPT-6.1 Terra', 'OpenAI'],
+    'gpt-6-luna': ['GPT-6 Luna', 'OpenAI'],
+    codex: ['Codex', 'OpenAI'],
+  };
+  const vendors = { openai: 'OpenAI', gpt: 'OpenAI', codex: 'OpenAI', anthropic: 'Anthropic', claude: 'Anthropic', google: 'Google', gemini: 'Google' };
+  let name = raw, vendor = vendors[String(family).trim().toLowerCase()] || 'Other';
+  if (Object.hasOwn(known, key)) [name, vendor] = known[key];
+  else {
+    const claude = /^claude-([a-z][a-z-]*)-(\d+)-(\d+)$/u.exec(key);
+    if (claude) { name = claude[1].split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ') + ' ' + claude[2] + '.' + claude[3]; vendor = 'Anthropic'; }
+    else if (/^(?:gpt-|o\d|codex)/u.test(key)) {
+      vendor = 'OpenAI';
+      name = key.split('-').filter(Boolean).map((word, index) => index === 0 && word === 'gpt' ? 'GPT' : /^\d/u.test(word) || /^o\d/u.test(word) ? word : word[0]?.toUpperCase() + word.slice(1)).join(' ');
+    } else if (/^gemini/u.test(key)) { vendor = 'Google'; name = key.split('-').filter(Boolean).map(word => word[0]?.toUpperCase() + word.slice(1)).join(' '); }
+  }
+  return { key, name, vendor };
+}
+
 /** Decode one event detail without letting malformed legacy JSON break the view. */
 function costEventDetail(event) {
   if (event?.detail && typeof event.detail === 'object') return event.detail;
@@ -109,11 +135,11 @@ function usageByItem(events) {
     const records = new Map();
     for (const record of detail.records) {
       if (!record || typeof record.model !== 'string' || !record.model.trim()) continue;
-      const old = prior?.records.get(record.model);
+      const old = prior?.records.get(modelPresentation(record.model).key);
       const fields = ['freshInputTokens', 'cacheReadInputTokens', 'cacheWriteInputTokens', 'inputTokens', 'outputTokens', 'wallMs', 'knownInputTokens', 'knownOutputTokens'];
       const delta = Object.fromEntries(fields.map(field => [field, counterDelta(record, old, field)]));
       deltas.push({ item, agent, revision, eventId: Number(event.event_id ?? 0), model: record.model, phaseKnown, ...delta });
-      records.set(record.model, record);
+      records.set(modelPresentation(record.model).key, record);
     }
     snapshots.set(key, { revision, records, eventId: Number(event.event_id ?? 0) });
   }
@@ -140,7 +166,7 @@ function sharedUsageItems(events) {
 
 /** Price a split record only when all required counters and normalized per-million rates exist. */
 function recordCost(record, prices) {
-  const rate = prices?.[record.model];
+  const rate = prices?.[modelPresentation(record.model).key];
   const fields = ['freshInputTokens', 'cacheReadInputTokens', 'cacheWriteInputTokens', 'outputTokens'];
   const rates = ['freshInput', 'cacheReadInput', 'cacheWriteInput', 'output'];
   if (!rate || fields.some(field => !Number.isSafeInteger(record[field]) || record[field] < 0)
@@ -153,6 +179,7 @@ function recordCost(record, prices) {
  * Rates are an optional normalized model table; without one, every dollar figure remains a dash.
  */
 export function costTabModel(project, events, prices = null) {
+  prices = prices ? Object.fromEntries(Object.entries(prices).map(([name, rate]) => [modelPresentation(name).key, rate])) : null;
   const items = new Map((project?.items ?? []).map(item => [Number(item.id), item]));
   const agents = new Map((project?.agents ?? []).map(agent => [agent.agent_id ?? agent.id, agent]));
   const itemEvents = new Map();
@@ -171,11 +198,12 @@ export function costTabModel(project, events, prices = null) {
     const sharedUsage = sharedItems.has(id);
     const checkpoints = usage.filter(entry => entry.item === id).map(entry => {
       const owner = agents.get(entry.agent) ?? {};
-      return { ...entry, vendor: owner.family ?? 'Vendor unknown', role: entry.phaseKnown ? usageRole(history, entry.agent, entry.eventId) : 'unattributed', costUSD: sharedUsage ? null : recordCost(entry, prices) };
+      const named = modelPresentation(entry.model, owner.family);
+      return { ...entry, model: named.name, modelKey: named.key, vendor: named.vendor, role: entry.phaseKnown ? usageRole(history, entry.agent, entry.eventId) : 'unattributed', costUSD: sharedUsage ? null : recordCost(entry, prices) };
     });
     const aggregates = new Map();
     for (const checkpoint of checkpoints) {
-      const key = [checkpoint.agent, checkpoint.model, checkpoint.vendor, checkpoint.role].join(':');
+      const key = [checkpoint.agent, checkpoint.modelKey, checkpoint.vendor, checkpoint.role].join(':');
       const old = aggregates.get(key);
       if (!old) aggregates.set(key, { ...checkpoint });
       else {
@@ -207,7 +235,7 @@ export function costTabModel(project, events, prices = null) {
       const ambiguousWindow = checkpoints.some(entry => entry.role === 'unattributed' && entry.eventId > after && entry.eventId < before);
       return { kind: kindOf(row), at: row.event_at ?? row.at, costUSD: reworkCosts.length && !ambiguousWindow ? completeSum(reworkCosts) : null };
     });
-    return { id, title: item.title ?? `Item ${id}`, landedAt: event.event_at ?? event.at ?? '', buildModels, reviewedModels,
+    return { id, title: item.title ?? `Item ${id}`, landedAt: event.event_at ?? event.at ?? '', buildModels: [...new Set(buildModels.map(value => modelPresentation(value).name))], reviewedModels: [...new Set(reviewedModels.map(value => modelPresentation(value).name))],
       agentHours: totalWallMs === null ? null : totalWallMs / 3_600_000, rounds: submits, usageRows, returns, totalCost: sharedUsage ? null : totalCost, sharedUsage };
   }).sort((a, b) => String(b.landedAt).localeCompare(String(a.landedAt)) || b.id - a.id).slice(0, 20);
   const knownCosts = rows.map(row => row.totalCost);
@@ -271,7 +299,7 @@ export function costTabHtml(model, opened = null, { loading = false, error = nul
 
 /** Embed this module's closure-free Cost functions into the standalone local-view page. */
 export function costTabScript() {
-  const functions = [costEventDetail, actorOf, kindOf, costFigure, dateLabel, escapeHtml, completeSum, median,
+  const functions = [modelPresentation, costEventDetail, actorOf, kindOf, costFigure, dateLabel, escapeHtml, completeSum, median,
     usageRole, firstSamplePhaseKnown, counterDelta, usageByItem, sharedUsageItems, recordCost, costTabModel, sessionHtml, costTabHtml];
   return functions.map((fn) => `const ${fn.name} = (${fn.toString()});`).join('\n');
 }
