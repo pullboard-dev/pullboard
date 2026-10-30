@@ -1,10 +1,23 @@
 /** A later reclaim cannot turn unchanged coordinator history into an item edit [L3,V4]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { after, test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
-import { submissionPaths } from '../src/trusted-policy.js';
+import {
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  join,
+} from 'node:path';
+import {
+  after,
+  test,
+} from 'node:test';
+import {
+  createE2eHelpers,
+} from '../../../test/e2e-helpers.js';
+import {
+  submissionPaths,
+} from '../src/shell/trusted-policy.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
