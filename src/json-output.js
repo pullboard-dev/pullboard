@@ -75,7 +75,9 @@ export function commandName(argv) {
 }
 
 /** Preserve diagnostic reports, byte-oriented exports and long-running protocols; interactive commands own one final action. */
-export function interactiveNext(command) {
+export function interactiveNext(command, argv = []) {
+  // Rigor's plain diagnostic report owns its body; drafting and quality commands still guide an action.
+  if (command === 'rigor' && !argv.some(arg => ['draft', 'quality', '--draft-splits', '--draft-quality'].includes(arg.split('=')[0]))) return false;
   return !['export', 'hook', 'mcp', 'view', 'watch', 'serve', 'relay', 'health'].includes(command);
 }
 
@@ -150,7 +152,7 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
   const command = commandName(argv);
   const guidanceCommand = command === 'help' || argv.includes('--help') || !command && !argv.includes('--version') ? 'help' : command;
   // Installed Git hooks use --version's last line as a protocol handshake, unlike interactive `version`.
-  const finalAction = nextActions && (guidanceCommand === 'help' || interactiveNext(command) && !argv.includes('--version'));
+  const finalAction = nextActions && (guidanceCommand === 'help' || interactiveNext(command, argv) && !argv.includes('--version'));
   let explicitNext, lastLine, previousLine;
   let renderer = suppliedRenderer;
   let preparing;
