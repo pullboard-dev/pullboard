@@ -196,7 +196,10 @@ test('the private view shows its last twenty native landings; a public export ke
   for (let id = 1; id <= 22; id++) {
     box.run(alpha.repo, 'add', 'web', 'Private cost fixture ' + id, '--specs', 'G1', '--criterion', 'The private view shows its landed row.');
     build(box, alpha, id, `cost-fixture-${id}.txt`);
-    accept(box, alpha, id);
+    const fixtureSession = box.env.CLAUDE_CODE_SESSION_ID;
+    delete box.env.CLAUDE_CODE_SESSION_ID;
+    try { accept(box, alpha, id); }
+    finally { box.env.CLAUDE_CODE_SESSION_ID = fixtureSession; }
     box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', alpha.itemBranches.get(`${alpha.baseBranch}:${id}`));
     box.run(alpha.repo, 'merged', String(id), box.git(alpha.repo, 'rev-parse', 'HEAD'));
   }
