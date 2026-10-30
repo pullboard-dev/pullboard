@@ -330,7 +330,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
         /** Run main's copy of the file under one gate slot, retaining detailed identity when requested. */
         const measure = remote => withGateSlot(checkout, async lease => {
           // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
-          const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs });
+          const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs, signatureCapture: { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } });
           if (pinned && ((executor.kind === 'ssh' ? !(executor.hosts ?? [executor.host]).includes(run.executionRunner) : Boolean(run.executionRunner))
             || !sameEnvironment(run.environment, execution.environment)
             || comparisonBrowser !== null && Boolean(lease.runner?.browser > 0) !== comparisonBrowser)) {

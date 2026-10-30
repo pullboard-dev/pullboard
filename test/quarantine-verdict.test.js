@@ -76,7 +76,8 @@ import {sourceAdvanceProblem} from './src/source-advance.js';
 import {sourceAdvanceEpisode,sourceAdvanceReviewEpisode} from './src/source-advance-state.js';
 import {itemPatchDigest} from './src/item-patch-state.js';
 import {proofCounts} from './src/proof-provenance.js';
-import {failureSignatures} from './src/main-failure-matches.js';
+import {failureSignatures,MAIN_FAILURE_SIGNATURE_VERSION} from './src/main-failure-matches.js';
+import {fullGateRun,recordRun} from './src/gate-execution.js';
 import {accountedFailures} from './src/landing-step-failures.js';
 import {checkAtCommit} from './src/runner-private-check.js';
 import * as store from './src/board.js';
@@ -87,6 +88,10 @@ const executionServices={runners:runnerExecutionServices(),landing:landingExecut
 const snapshot=()=>withBoard(ctx,quarantineVerdictSnapshot);
 async function gate(mode,quarantines=[]){
  process.env.PULLBOARD_QUARANTINE_CASE_MODE=mode;
+ if(mode==='mixed')return withGateSlot(root,async lease=>{
+  lease.quarantines=quarantines;lease.signatureCapture={version:MAIN_FAILURE_SIGNATURE_VERSION,derive:(run,root)=>failureSignatures(run,root,{raw:true})};
+  const result=fullGateRun(root,config,false,{gateLease:lease,stages:true});await recordRun(observer,result);return result;
+ },{executionServices,agent:agentId,kind:'gate'});
  return runGate(root,config,{trustStamp:false,agent:agentId,onFailure:observer,executionServices,quarantines});
 }
 const red=await gate('red'),green=await gate('green');
@@ -111,17 +116,23 @@ assert.equal(mixed.blockingVerdict.green,false);
 assert.equal(accountedFailures(mixed,root),null,'the old raw waiver parser remains strict about aggregate TAP');
 assert.deepEqual(blockingFailures(mixed,accountedFailures(mixed,root)).map(row=>row.name),['unrelated positive [C7]']);
 assert.deepEqual(failureSignatures(mixed,root).map(row=>row.name),['unrelated positive [C7]'],'known-main diagnostics retain only the uncovered actual case');
-assert.equal(readGateReceipt(receiptStore(root),mixed.receiptId).failures.length,2);
+const mixedReceipt=readGateReceipt(receiptStore(root),mixed.receiptId);
+assert.equal(mixedReceipt.failures.length,2);
+assert.equal(mixedReceipt.failureSignatures.failures.length,2,'native receipt retains both raw failures, including quarantine');
+assert.deepEqual(blockingFailures(mixedReceipt,mixedReceipt.failureSignatures.failures).map(row=>row.name),['unrelated positive [C7]'],'only authenticated uncovered signatures remain for automatic Main red ownership');
+withBoard(ctx,board=>validateQuarantineVerdict(board,mixedReceipt));
 const exit2=await runGate(root,{...config,gate:config.gate+'; exit 2'},
  {trustStamp:false,agent:agentId,onFailure:observer,executionServices,quarantines});
 assert.equal(exit2.isGreen,false);assert.equal(exit2.exitCode,2);assert.equal(exit2.blockingVerdict,undefined);
 process.env.PULLBOARD_QUARANTINE_CASE_MODE='red';
 const native=await withGateSlot(root,lease=>{
  lease.quarantines=quarantines;lease.proof=proofContext;
+ lease.signatureCapture={version:MAIN_FAILURE_SIGNATURE_VERSION,derive:(run,root)=>failureSignatures(run,root,{raw:true})};
  return runProfiledShell(root,config.gate,{gateLease:lease,stages:true});
 },{executionServices,agent:agentId,kind:'check'});
 assert.equal(native.isGreen,true);assert.equal(native.exitCode,1);
 const nativeReceipt=readGateReceipt(receiptStore(root),native.proofReceiptId);
+assert.equal(nativeReceipt.failureSignatures.failures.length,1,'version2 retains the full raw quarantined failure too');
 assert.equal(nativeReceipt.proof.exitCode,1);assert.equal(nativeReceipt.green,false);
 assert.equal(nativeReceipt.proof.counts.failed,1);assert.equal(receiptBlockingGreen(nativeReceipt),true);
 // Missing proving custody never creates a new native proof event, even while its event refs remain current.
@@ -277,6 +288,7 @@ const foreign=structuredClone(nativeReceipt);foreign.blockingVerdict.quarantines
 withBoard(ctx,board=>assert.throws(()=>validateQuarantineVerdict(board,foreign),error=>error.code==='PROOF_RUN_UNBOUND'));
 const legacy=readGateReceipt(receiptStore(root),red.receiptId);
 assert.equal(Object.hasOwn(legacy,'blockingVerdict'),false);
+assert.equal(Object.hasOwn(legacy,'failureSignatures'),false,'an absent producer preserves legacy receipt bytes');
 assert.equal(receiptBody(receiptFields(JSON.parse(receiptBody(legacy)))),receiptBody(legacy));
 // Twenty genuinely executed passes close this exact quarantine. A cached exception then loses authority.
 for(let index=0;index<20;index++)await gate('green');

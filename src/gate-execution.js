@@ -105,6 +105,7 @@ import {
 } from './trusted-policy.js';
 import {
   proofCounts,
+  observedFailureSignatures,
 } from './proof-provenance.js';
 import {
   logLines,
@@ -295,12 +296,17 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
     // A submit's pinned main (lease.pinnedMain) is the only main its phases may record (#1777).
     let main = lease?.pinnedMain ?? null;
     if (main === null) try { main = mainPolicy(root).commit; } catch { /* An unavailable policy remains unknown in this execution record. */ }
+    const failures = rawRunGreen(run) ? [] : run.quarantineFailures ?? tapTests(run.output ?? '', run.executionRoot ?? root)
+      .filter(row => !row.passed && !row.skip && row.file && row.type !== 'suite'
+        && !['subtestsFailed','cancelledByParent','testAborted'].includes(row.failureType)).slice(0, 500).map(({ file, name }) => ({ file, name }));
+    let signed = null;
+    try { signed = observedFailureSignatures({ version: lease?.signatureCapture?.version,
+      failures: !rawRunGreen(run) && run.stages ? lease?.signatureCapture?.derive(run, root) : null }, failures); }
+    catch { /* Optional diagnostics cannot erase the raw native receipt. */ }
     const receipt = receiptFields({ version: 2, id: randomUUID(), kind: context.kind,
       tree: before.tree, head: before.head, main, command: createHash('sha256').update(command).digest('hex'),
-      green: rawRunGreen(run), failures: rawRunGreen(run) ? []
-        : run.quarantineFailures ?? tapTests(run.output ?? '', run.executionRoot ?? root).filter(row => !row.passed && !row.skip && row.file
-          && row.type !== 'suite' && !['subtestsFailed','cancelledByParent','testAborted'].includes(row.failureType))
-          .slice(0, 500).map(({ file, name }) => ({ file, name })),
+      green: rawRunGreen(run), failures,
+      ...(signed ? { failureSignatures: signed } : {}),
       load: run.executionLoad ?? (remote || lease?.runner ? null : localLoad), at: new Date().toISOString(),
       ...(sourceClean && run.testOutcomes ? { testOutcomes: run.testOutcomes } : {}),
       ...(sourceClean && run.blockingVerdict ? { blockingVerdict: run.blockingVerdict } : {}),
@@ -538,7 +544,8 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
 }
 
 /** Run the accepted exact-file main comparison and seal only its own observed execution duration. */
-export async function runMainComparison(root, path, { detailed = false, gateLease, waitMs = 0 } = {}) {
+export async function runMainComparison(root, path, { detailed = false, gateLease, waitMs = 0, signatureCapture } = {}) {
+  if (gateLease && signatureCapture) gateLease.signatureCapture = signatureCapture;
   const before = timingSourceForReceipt(root);
   const policy = before && policyAt(root, before.head);
   if (!policy || typeof policy.config.affectedTests !== 'string' || !policy.config.affectedTests.trim()
@@ -554,7 +561,7 @@ export async function runMainComparison(root, path, { detailed = false, gateLeas
   const after = timingSourceForReceipt(root);
   const receiptId = sameTimingSource(before, after) && !run.sandboxBlocked
     ? leaveRunReceipt(root, { gate: command }, run, { before: before.tree, kind: 'main-red',
-      comparison: { path, source: before, compareMs }, receiptAt: new Date().toISOString() }) : null;
+      comparison: { path, source: before, compareMs }, gateLease, receiptAt: new Date().toISOString() }) : null;
   return { ...run, ...(receiptId ? { receiptId } : {}) };
 }
 
@@ -573,7 +580,7 @@ export async function recordRun(observer, run) {
  *
  * @returns {string | null} the receipt id
  */
-function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditFiles, releaseRequest, receiptAt, comparison }) {
+function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditFiles, releaseRequest, receiptAt, comparison, gateLease }) {
   try {
     if (before === null || committedTree(root) !== before || run.executionSourceUnchanged === false) return null;
     const head = kind === 'main-red' ? comparison?.source.head : headCommit(root);
@@ -599,8 +606,14 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
       full: report?.full === true, files: [...plan].sort(),
       complete: run.collectAllComplete === true, plannedFiles: plan.length, completedFiles: completed.length,
       planDigest: digest(plan), completedDigest: digest(completed) };
+    const rawFailures = run.quarantineFailures ?? [...failures.values()];
+    let signed = null;
+    try { signed = observedFailureSignatures({ version: gateLease?.signatureCapture?.version,
+      failures: !rawRunGreen(run) && run.stages ? gateLease?.signatureCapture?.derive(run, root) : null }, rawFailures); }
+    catch { /* Optional diagnostics cannot erase the raw native receipt. */ }
     const receipt = receiptFields({ version: 1, id: randomUUID(), kind, tree: before, head, main: policy.commit, command: createHash('sha256').update(config.gate).digest('hex'),
-      green: rawRunGreen(run), failures: run.quarantineFailures ?? [...failures.values()], load: Array.isArray(run.executionLoad?.average) ? run.executionLoad : local, at: receiptAt, environment: run.environment ?? null, ...(collection ? { collection } : {}),
+      ...(signed ? { failureSignatures: signed } : {}),
+      green: rawRunGreen(run), failures: rawFailures, load: Array.isArray(run.executionLoad?.average) ? run.executionLoad : local, at: receiptAt, environment: run.environment ?? null, ...(collection ? { collection } : {}),
       ...(run.testOutcomes ? { testOutcomes: run.testOutcomes } : {}),
       ...(run.blockingVerdict ? { blockingVerdict: run.blockingVerdict } : {}),
       full: kind === 'main-red' ? false : run.suiteTiming?.full ?? null,
@@ -628,7 +641,7 @@ export function fullGateRun(root, config, trustStamp = false, { waitMs = 0, log 
   const receiptAt = new Date().toISOString();
   if (releaseRequest) run.releaseParticipation = releaseParticipationFields({ ...run.releaseParticipation,
     command: createHash('sha256').update(config.gate).digest('hex'), startedAt: releaseStartedAt, finishedAt: receiptAt });
-  const receiptId = run.sandboxBlocked ? null : leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditFiles, releaseRequest, receiptAt });
+  const receiptId = run.sandboxBlocked ? null : leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditFiles, releaseRequest, receiptAt, gateLease });
   refuseSandboxBlocked(run);
   // The release producer validates full collection and every executor before it may stamp this tree.
   if (kind !== 'suite' && !releaseRequest && rawRunGreen(run) && !config[VALUE_GATE] && before !== null && committedTree(root) === before) writeFileSync(gitPath(root, STAMP), `${before}\n`);

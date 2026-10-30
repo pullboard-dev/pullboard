@@ -127,7 +127,7 @@ function submitTestOutcomes(profiles) {
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, timing?:boolean, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, runnerAdmission = {}, executionServices }) {
+export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, runnerAdmission = {}, executionServices, signatureCapture }) {
   if (!config.gate.trim()) throw missingGate(root);
   // One pinned main per submit: every phase reads this commit, so a landing mid-submit cannot split the seal (#1777).
   if (trunk !== undefined && trunk !== null && !contains(root, trunk, mainPolicy(root).commit)) {
@@ -154,6 +154,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   return await withGateSlot(root, async (lease) => {
     // Immediate resource admission may have no queue poll. Bind this actual acquired lease through the same native claim callback.
     if (proofContext?.admission && !proofContext.admission.id) await onWait?.({ admitted: true });
+    if (signatureCapture) lease.signatureCapture = signatureCapture;
     lease.quarantines = proofContext?.quarantines ?? [];
     if (proofContext) lease.proof = { ...proofContext, kind: 'submit',
       ...(proofContext.companion ? { submitPhase: 'criterion' } : {}),

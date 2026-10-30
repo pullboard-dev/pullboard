@@ -43,13 +43,13 @@ export function cachedFailureSignatures(outcome, file) {
 }
 
 /** Null means some process failure or diagnostic cannot be accounted for; it never authorizes acceptance. */
-export function failureSignatures(run, root) {
+export function failureSignatures(run, root, { raw = false } = {}) {
   let executionRoot = run.executionRoot ?? root;
   if (!run.executionRunner) {
     try { executionRoot = realpathSync(executionRoot); }
     catch { /* An unavailable path cannot invent a failure location. */ }
   }
-  const failures = accountedFailures({ ...run, executionRoot }, executionRoot, { nativeLeaves: Boolean(run.blockingVerdict) });
+  const failures = accountedFailures({ ...run, ...(raw ? { isGreen: run.rawIsGreen ?? run.isGreen } : {}), executionRoot }, executionRoot, { nativeLeaves: Boolean(run.blockingVerdict) });
   if (!failures) return null;
   const stages = run.stages.flatMap(stage => stage.pipeline ?? [stage]);
   const details = stages.filter(stage => stage.status !== 0).flatMap(stage => diagnostics(stage.output ?? '', executionRoot))
@@ -57,7 +57,7 @@ export function failureSignatures(run, root) {
   if (details.length !== failures.length) return null;
   const signed = failures.map((failure, index) => ({ ...failure, signature: details[index].name === failure.name ? details[index].signature : null }))
     .every(row => row.file && row.signature) ? failures.map((failure, index) => ({ ...failure, signature: details[index].signature })) : null;
-  return signed ? blockingFailures(run, signed) : null;
+  return signed ? raw ? signed : blockingFailures(run, signed) : null;
 }
 
 /** Every actual candidate failure must match the exact main test and its failure details. */
