@@ -1,5 +1,5 @@
 /**
- * `pullboard.json` is merged over defaults and validated once per command, naming invalid fields.
+ * `pullboard.json`: repo settings, merged over defaults and checked once per command.
  */
 import {
   existsSync,
@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { Refused } from './refused.js';
 import { registryGuardsProblem } from './registry-guards.js';
 import { exitRulesDefaults, exitRulesConfigProblems, mergeExitRules } from './exit-rules-config.js';
+import * as maintenanceSettings from './worktree-maintenance-config.js';
 import { knownConfigKeys } from './config-forward-compat.js';
 
 export const CONFIG_FILE = 'pullboard.json';
@@ -36,11 +37,7 @@ const COMMIT_TYPES = [
   'revert',
 ];
 
-/**
- * Every setting a repo gets without saying otherwise.
- *
- * @returns {object}
- */
+/** Every setting a repo gets without saying otherwise. @returns {object} */
 export function defaults() {
   return {
     spec: 'SPEC.md',
@@ -56,6 +53,7 @@ export function defaults() {
     claims: { releaseGone: false }, exitRules: exitRulesDefaults(),
     reviewLease: '30m',
     worktrees: 'beside',
+    worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
     verify: { policy: 'any', family: 'off', reviewRatio: 3 },
     review: { starveMinutes: 10 },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
@@ -115,6 +113,9 @@ function merge(base, raw) {
   return {
     ...base,
     ...raw, exitRules: mergeExitRules(base.exitRules, raw.exitRules),
+    worktreeMaintenance: raw.worktreeMaintenance === undefined ? base.worktreeMaintenance
+      : raw.worktreeMaintenance && typeof raw.worktreeMaintenance === 'object' && !Array.isArray(raw.worktreeMaintenance)
+        ? { ...base.worktreeMaintenance, ...raw.worktreeMaintenance } : raw.worktreeMaintenance,
     testEconomics: raw.testEconomics === undefined ? base.testEconomics
       : raw.testEconomics && typeof raw.testEconomics === 'object' && !Array.isArray(raw.testEconomics)
         ? { ...base.testEconomics, ...raw.testEconomics } : raw.testEconomics,
@@ -190,7 +191,7 @@ function laneProblems(name, lane) {
  * @returns {string[]}
  */
 export function configProblems(config) {
-  const problems = exitRulesConfigProblems(config.exitRules);
+  const problems = [...exitRulesConfigProblems(config.exitRules), ...maintenanceSettings.maintenanceConfigProblems(config.worktreeMaintenance)];
   const costs = config.testEconomics;
   if (!costs || typeof costs !== 'object' || Array.isArray(costs)
     || Object.keys(costs).some(key => !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].includes(key))
