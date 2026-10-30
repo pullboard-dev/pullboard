@@ -48,11 +48,11 @@ export function originalSession(board, id, declared = null) {
  * family field and whose family has since been changed, which is when the receipt is the first record.
  */
 function receiptRegistrations(board) {
-  const count = board.db.prepare("SELECT COUNT(*) AS n FROM board_meta WHERE meta_key LIKE 'relay\\_receipt\\_%' ESCAPE '\\'").get().n;
+  const count = board.db.prepare("SELECT COUNT(*) AS n FROM board_meta WHERE meta_key GLOB 'relay_receipt_*'").get().n;
   const cached = RECEIPTS.get(board.db);
   if (cached?.count === count) return cached.paths;
   const rows = [];
-  for (const row of board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key LIKE 'relay\\_receipt\\_%' ESCAPE '\\'").all()) {
+  for (const row of board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key GLOB 'relay_receipt_*'").all()) {
     const receipt = parsed(row.meta_value);
     const move = typeof receipt?.move === 'string' ? parsed(receipt.move) : null;
     if (move?.operation !== 'register' || receipt.outcome?.error || typeof move.args?.[0]?.path !== 'string') continue;
@@ -67,8 +67,8 @@ function receiptRegistrations(board) {
 /** Every family record of one seat, each with its board order: the join (its own field, else its insert), then family events. */
 function seatRecords(board, id, { inserting = false } = {}, snapshot = null) {
   const seat = snapshot ? snapshot.seats.get(id) : board.db.prepare('SELECT agent_path FROM agent WHERE agent_id = ?').get(id);
-  const join = snapshot ? snapshot.joins.get(id) : board.db.prepare("SELECT event_id, event_detail FROM event WHERE event_kind='join' AND event_by=? ORDER BY event_id LIMIT 1").get(id);
-  const families = snapshot ? snapshot.families.get(id) ?? [] : board.db.prepare("SELECT event_id, event_detail FROM event WHERE event_kind='family' AND event_by=? ORDER BY event_id").all(id)
+  const join = snapshot ? snapshot.joins.get(id) : board.db.prepare("SELECT event_id, event_detail FROM event WHERE +event_kind='join' AND event_by=? ORDER BY event_id LIMIT 1").get(id);
+  const families = snapshot ? snapshot.families.get(id) ?? [] : board.db.prepare("SELECT event_id, event_detail FROM event WHERE +event_kind='family' AND event_by=? ORDER BY event_id").all(id)
     .map(row => ({ order: row.event_id, family: parsed(row.event_detail)?.family }));
   const records = [];
   const joined = join ? parsed(join.event_detail) : null;
@@ -92,7 +92,7 @@ function seatRecords(board, id, { inserting = false } = {}, snapshot = null) {
 export function derivedFamily(board, id, { session = null, inserting = false } = {}) {
   const original = id ? originalSession(board, id, session) : session;
   const seats = new Set(id ? [id] : []);
-  if (original) for (const row of board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key LIKE 'agent\\_session:%' ESCAPE '\\' AND meta_value=?").all(original)) {
+  if (original) for (const row of board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'agent_session:*' AND meta_value=?").all(original)) {
     seats.add(row.meta_key.slice('agent_session:'.length));
   }
   let first = null;
@@ -141,7 +141,7 @@ export function withDerivedFamily(board, row) {
 function familySnapshot(board) {
   const seats = new Map(board.db.prepare('SELECT agent_id, agent_path, agent_family FROM agent').all().map(row => [row.agent_id, row]));
   const sessions = new Map(), peers = new Map(), joins = new Map(), families = new Map();
-  for (const row of board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key LIKE 'agent\\_session:%' ESCAPE '\\' ORDER BY rowid").all()) {
+  for (const row of board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key GLOB 'agent_session:*' ORDER BY rowid").all()) {
     const id = row.meta_key.slice('agent_session:'.length);
     if (row.meta_key === 'agent_session:' + id) sessions.set(id, row.meta_value);
     if (!peers.has(row.meta_value)) peers.set(row.meta_value, []);
