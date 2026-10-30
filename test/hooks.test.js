@@ -366,9 +366,9 @@ test('a lane agent drafts a row and cites it without leaving its lane [S1,B26]',
   assert.equal(box.run(box.repo, 'add', 'web', 'Show the list', '--criterion', 'web/list.html exists').code, 0);
   const claimed = box.run(box.web, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
-  const drafted = box.run(box.web, 'spec', 'draft', 'A person sees their list');
+  const drafted = box.run(box.web, 'spec', 'draft', 'A person sees their list', '--json');
   assert.equal(drafted.code, 0, drafted.out + drafted.err);
-  const id = drafted.out.trim().split('\n').at(-1);
+  const id = JSON.parse(drafted.out).id;
   assert.match(id, /^G\d+$/u, `spec draft prints the new id: ${drafted.out}`);
   assert.equal(box.tryGit(box.web, 'status', '--porcelain').stdout, '', 'drafting from the lane leaves its worktree clean');
   mkdirSync(join(box.web, 'web'), { recursive: true });
@@ -394,9 +394,9 @@ test('a lane agent drafts a row and cites it without leaving its lane [S1,B26]',
 test('a lane draft and a coordinator draft never share an id, in either order [S1,B26]', () => {
   const box = e2e.project('pullboard spec check');
   const draft = (cwd, text) => {
-    const result = box.run(cwd, 'spec', 'draft', text);
+    const result = box.run(cwd, 'spec', 'draft', text, '--json');
     assert.equal(result.code, 0, result.out + result.err);
-    return result.out.trim().split('\n').at(-1);
+    return JSON.parse(result.out).id;
   };
   // Lane first: the coordinator's next id skips the lane's board draft.
   const laneFirst = draft(box.web, 'A lane row drafted first');

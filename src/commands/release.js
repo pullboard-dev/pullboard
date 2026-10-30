@@ -29,7 +29,7 @@ export async function run(io, args) {
     const snapshot = await prepareStaleObservation(ctx, board, ordered, { relayRecovered, specApprovalBaselineExists: store.specApprovalBaselineExists });
     const row = snapshot.claims.find(entry => entry.id === args[0]);
     if (!row) throw new Refused('NOT_YOURS', 'this item has no current claim to release as stale');
-    args.push({ staleClaim: row, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: ctx.config.health ?? {} });
+    args.push({ leaseLapse: true, staleClaim: row, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: ctx.config.health ?? {} });
   } else seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), store.getItem(board, args[0]), 'release');
   const problem = store.reviewReleaseNoteProblem(board, ...args);
   if (problem) throw problem;

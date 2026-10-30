@@ -5,6 +5,8 @@ import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { git } from '../src/git.js';
+import { tryGit } from '../src/git.js';
+import { cleanGitEnvironment } from '../src/git.js';
 import { Refused } from '../src/refused.js';
 import { cellInventory } from '../packages/codemap/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
@@ -163,8 +165,8 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
     .map(row => `cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
   for (const name of cells) {
     const previous = before.cells.some(cell => cell.name === name);
-    const oldCuts = previous ? checkCuts(mainRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory }) : [];
-    const newCuts = checkCuts(candidateRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory });
+    const oldCuts = previous ? checkCuts(mainRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory, acceptedInventory: oldInventory }) : [];
+    const newCuts = checkCuts(candidateRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory, acceptedInventory: oldInventory });
     problems.push(...additions(oldCuts, newCuts).map(problem => `${name} --cuts: ${problem}`));
     const moved = [before, after].some((plan, index) => plan.cells.find(cell => cell.name === name)?.paths
       .some(([from, to]) => [mainMap, candidateMap][index].get(from) === to));
@@ -176,12 +178,28 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   return { cells, problems };
 }
 
+/** Analyze the clean immutable union with pinned main without moving a ref, index or checkout. */
+function cellsComposition(root, acceptedMain, commit) {
+  if (tryGit(root, ['merge-base', '--is-ancestor', acceptedMain, commit]).status === 0) return commit;
+  const merged = tryGit(root, ['merge-tree', '--write-tree', '--name-only', '-z', acceptedMain, commit]);
+  if (merged.status !== 0) throw new Refused('CELLS_SUBMIT', 'the candidate cannot compose cleanly with pinned accepted main; merge main, resolve conflicts and submit again');
+  const tree = merged.stdout.split('\0')[0].trim();
+  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(tree)) throw new Refused('CELLS_SUBMIT', 'Git did not return an immutable composed tree');
+  const env = { ...cleanGitEnvironment(), GIT_AUTHOR_NAME: 'Pullboard cells', GIT_AUTHOR_EMAIL: 'cells@pullboard.invalid',
+    GIT_COMMITTER_NAME: 'Pullboard cells', GIT_COMMITTER_EMAIL: 'cells@pullboard.invalid',
+    GIT_AUTHOR_DATE: '2000-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2000-01-01T00:00:00Z' };
+  return git(root, ['-c', 'commit.gpgSign=false', 'commit-tree', tree, '-p', acceptedMain, '-p', commit,
+    '-m', 'chore(cells): inspect immutable submit composition [C7,D3]'], { env });
+}
+
 /** Controller structural preflight: exact immutable commits, canonical finally-cleaned snapshots, no candidate execution. */
 export async function requireSubmitCells(root, acceptedMain, commit, item, services) {
   if (typeof services?.withImportParseCache !== 'function' || typeof services?.cacheEligible !== 'function' || typeof services?.withMainCheckout !== 'function' || typeof services?.parsers?.importsIn !== 'function' || typeof services?.parsers?.commonJsIn !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical checkout and parser services are required');
   const { withMainCheckout, parsers, withImportParseCache, cacheEligible } = services;
   const criterion = JSON.parse(item.item_frozen ?? 'null')?.criterion ?? '';
   if (typeof criterion !== 'string' || ![acceptedMain, commit].every(value => /^[a-f0-9]{40,64}$/u.test(value))) throw new Refused('CELLS_SUBMIT', 'submit needs exact immutable commits and its frozen criterion');
+  const source = commit;
+  commit = cellsComposition(root, acceptedMain, source);
   const result = await withMainCheckout(root, acceptedMain, mainRoot => withMainCheckout(root, commit, candidateRoot => {
     const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible });
     refuse(result.problems);
@@ -189,7 +207,7 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
       || git(mainRoot, ['status', '--porcelain', '--untracked-files=all']) || git(candidateRoot, ['status', '--porcelain', '--untracked-files=all'])) {
       throw new Refused('CELLS_SUBMIT', 'immutable analysis snapshot changed during inspection');
     }
-    return { ...result, acceptedMain, commit };
+    return { ...result, acceptedMain, commit, source };
   }));
   if (result?.unavailable) throw new Refused('CELLS_SUBMIT', result.unavailable);
   return result;

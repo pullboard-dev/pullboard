@@ -1,0 +1,5 @@
+{
+  "name": "stats moves",
+  "help": "  pullboard stats moves [--limit <N>] [--transcripts <file>]  native event moves and separately supplied command transcripts per landed item\n",
+  "required": { "moves": "object" }
+}

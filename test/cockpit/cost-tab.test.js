@@ -1,5 +1,5 @@
 /** @pullboard-test-gui */
-/** @pullboard-test-input src/view.css src/view/cost.css */
+/** @pullboard-test-input src/view.css src/view/cost.css src/view/doctrine.css */
 /** Private cost presentation and actual local-board rendering with configured machine prices [N26]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
