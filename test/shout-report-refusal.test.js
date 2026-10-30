@@ -73,3 +73,33 @@ test('[C7] the refusal covers only the sender, only the last ten minutes and onl
     assert.doesNotThrow(() => refuseRestatedReport(board, { ...shout, from: 'person' }, now), 'the person is exempt');
   } finally { store.closeBoard(board); }
 });
+
+
+test('[C7,B22] validated integration purposes pass while plain reports and unbound receipts still refuse', () => {
+  const box = fixtures.project('true');
+  assert.equal(box.run(box.repo, 'add', 'web', 'Integration item', '--specs', 'G1', '--criterion', 'works').code, 0);
+  record(box, 'submit', new Date());
+  const commit = box.git(box.repo, 'rev-parse', 'HEAD');
+  /** Drive the real evidence parser, guard and persisted item message with a genuine Git object. */
+  const send = (kind, outcome, rev = commit) => box.run(box.web, 'shout', '--item', '1', 'Integration state for #1',
+    '--evidence', kind, '--outcome', outcome, '--commit', rev, '--json');
+  /** A refused integration label cannot turn a redundant report into a persisted message. */
+  const refuses = (result, code) => {
+    assert.equal(result.code, 1, result.out);
+    assert.equal(JSON.parse(result.out).error.code, code, result.out);
+  };
+  const before = shouts(box);
+  refuses(send('receipt', 'done'), 'REPORT_RESTATES_EVENT');
+  refuses(send('attempt', 'measured'), 'REPORT_RESTATES_EVENT');
+  refuses(send('unknown', 'integrating'), 'BAD_EVIDENCE');
+  refuses(send('attempt', 'integrating', 'missing-integration-commit'), 'BAD_EVIDENCE');
+  assert.equal(shouts(box), before, 'invalid or irrelevant metadata bypasses no refusal');
+  const attempt = send('attempt', 'integrating');
+  assert.equal(attempt.code, 0, attempt.out);
+  const plain = box.run(box.web, 'shout', '--item', '1', 'Submitted #1', '--kind', 'idea', '--json');
+  refuses(plain, 'REPORT_RESTATES_EVENT');
+  const receipt = send('receipt', 'superseded');
+  assert.equal(receipt.code, 0, receipt.out);
+  refuses(send('receipt', 'done'), 'REPORT_RESTATES_EVENT');
+  assert.equal(shouts(box), before + 2, 'only the real attempt and its closing receipt are recorded');
+});

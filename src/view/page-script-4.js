@@ -36,7 +36,7 @@ function placeAtAddress(page = data) {
   const named = (repo || group) && (tabs.includes(parts[1]) || parts[1] === 'home');
   const root = named ? repo?.root || group.key : null;
   if (named) parts.shift();
-  const requested = tabs.includes(parts[0]) || parts[0] === 'home' ? parts.shift() : (!path && transportModule && globalThis.history?.state?.tab) || landingTab(page);
+  const requested = tabs.includes(parts[0]) || parts[0] === 'home' ? parts.shift() : (!path && !addressReady && startupTabMigration) || (!path && transportModule && globalThis.history?.state?.tab) || landingTab(page);
   const tab = requested === 'home' ? 'dashboard' : requested;
   return { root, tab, detail: parts[0] ?? null };
 }
