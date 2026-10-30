@@ -12,6 +12,13 @@ export function lifecycleMove(machine, state, event) {
 export function lifecycleEvent(event) {
   const projected = { kind: event.event_kind, by: event.event_by, at: event.event_at };
   if (event.event_kind === 'refreeze' && JSON.parse(event.event_detail).retainedClaim === true) projected.retainedClaim = true;
+  if (['claim', 'renew'].includes(event.event_kind)) {
+    try {
+      const lease = JSON.parse(event.event_detail).leaseUntil;
+      projected.leaseUntil = typeof lease === 'string' && lease.length <= 64 && Number.isFinite(Date.parse(lease)) ? lease : null;
+    }
+    catch { projected.leaseUntil = null; /* Malformed legacy claim metadata cannot prove a live lease. */ }
+  }
   return projected;
 }
 
@@ -50,6 +57,15 @@ export function lifecycleSteps(machine, history, status) {
 /** Read the last stage from the complete recorded lifecycle, never the withdrawn row's current state. */
 export function recordedWithdrawalFrom(machine, history, status) {
   if (status !== 'withdrawn' || !history.some(event => ['add', 'intake', 'outside-intake'].includes(event.kind))) return null;
-  return lifecycleSteps(machine, history, status).findLast(step => step.move?.verb === 'withdraw')?.from ?? null;
+  const from = lifecycleSteps(machine, history, status).findLast(step => step.move?.verb === 'withdraw')?.from ?? null;
+  if (from !== 'claimed') return from;
+  const index = history.findLastIndex(event => event.kind === 'withdraw');
+  const claim = history.slice(0, index).findLast(event => ['claim', 'renew'].includes(event.kind));
+  const deadline = typeof claim?.leaseUntil === 'string' ? Date.parse(claim.leaseUntil) : NaN;
+  const at = Date.parse(history[index]?.at);
+  if (!Number.isFinite(deadline) || !Number.isFinite(at)) return null;
+  if (at < deadline) return from;
+  const lapse = machine.moves.find(move => move.verb === 'lapse' && move.by.includes('clock') && move.from.includes(from));
+  return lapse && machine.moves.some(move => move.verb === 'withdraw' && move.from.includes(lapse.to)) ? lapse.to : null;
 }
 

@@ -12,8 +12,8 @@ import { snapshotState } from '../relay/browser-model.js';
 import { presentationState } from '../relay/browser-model.js';
 
 /** Use actual board moves; synthetic submit proof is only a lifecycle input, not a gate claim. */
-function fixture(t) {
-  const board = fixtureBoard(t);
+function fixture(t, clock) {
+  const board = fixtureBoard(t, { clock });
   store.register(board, { lane: 'coordinator', path: '/withdraw/root' });
   const builder = store.register(board, { lane: 'core', path: '/withdraw/builder', session: 'builder' });
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Withdrawal projection', criterion: 'Keep the reason' });
@@ -72,6 +72,27 @@ test('withdrawal origin requires recorded history, never a guessed current stage
   assert.equal(withdrawnFrom([{ kind: 'add' }, { kind: 'claim' }], 'withdrawn'), null);
   assert.equal(withdrawnFrom([{ kind: 'add' }, { kind: 'withdraw' }], 'open'), null);
   assert.equal(withdrawnFrom([{ kind: 'add' }, { kind: 'claim' }, { kind: 'lapse' }, { kind: 'withdraw' }], 'withdrawn'), 'open');
+  assert.equal(withdrawnFrom([{ kind: 'add' }, { kind: 'claim' }, { kind: 'withdraw', at: '2026-10-30T00:00:00Z' }], 'withdrawn'), null);
+  assert.equal(withdrawnFrom([{ kind: 'add' }, { kind: 'claim', leaseUntil: 'invalid' }, { kind: 'withdraw', at: '2026-10-30T00:00:00Z' }], 'withdrawn'), null);
+});
+
+test('withdrawal uses the public stage at the recorded lease expiry boundary [A2,C15,N26]', t => {
+  for (const offset of [-1, 0, 1]) {
+    let now = Date.parse('2026-10-30T00:00:00Z');
+    const f = fixture(t, { now: () => new Date(now) });
+    f.claim();
+    const deadline = store.getItem(f.board, f.id).item_lease_until;
+    now = Date.parse(deadline) + offset;
+    const expected = offset < 0 ? 'claimed' : 'open';
+    assert.equal(store.getItem(f.board, f.id).item_status, expected, 'the public stage is authoritative, including equality');
+    assert.equal(f.board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(f.id).item_status, 'claimed', 'the old writer row alone cannot prove the public stage');
+    store.withdraw(f.board, f.id, { agentId: 'coordinator', reason: 'Use the public lifecycle stage' });
+    const native = f.project();
+    const hosted = snapshotState(exportBoard(f.board), store.boardId(f.board)).items[0];
+    assert.equal(native.withdrawnFrom, expected);
+    assert.equal(hosted.withdrawnFrom, expected);
+    assert.equal(native.history.find(event => event.kind === 'claim').leaseUntil, deadline);
+  }
 });
 
 test('legacy hosted snapshots replay the same withdrawal lifecycle including retained refreezes [A2,C15,N26]', t => {
