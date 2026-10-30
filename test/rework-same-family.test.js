@@ -74,6 +74,8 @@ test('[H16] returned work waits for its builder until gone, then prefers live sa
   claim(f.board, unrelated, f.peer);
   f.advance(f.windows.graceMs);
   claim(f.board, unrelated, f.peer);
+  store.release(f.board, unrelated, f.peer, 'finish the presence fixture');
+  store.holdItem(f.board, unrelated, { agentId: 'coordinator', reason: 'Keep the presence fixture out of ordinary next.' });
   const liveFamily = route(f.board, id, f.peer, f.windows);
   assert.equal(liveFamily.mode, 'family');
   assert.deepEqual(liveFamily.allowed, [f.peer]);
@@ -81,8 +83,6 @@ test('[H16] returned work waits for its builder until gone, then prefers live sa
   assert.equal(store.nextFor(f.board, { agentId: f.other, lane: 'core', reworkRoutingPolicy: f.windows }).item, null,
     'a live same-family seat excludes other families from next');
 
-  store.release(f.board, unrelated, f.peer, 'finish the presence fixture');
-  store.holdItem(f.board, unrelated, { agentId: 'coordinator', reason: 'Keep the presence fixture out of ordinary next.' });
   f.advance(f.windows.graceMs);
   const fallback = route(f.board, id, f.other, f.windows);
   assert.equal(fallback.mode, 'fallback', 'no same-family work event is still live');
