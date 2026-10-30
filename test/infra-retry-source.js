@@ -4,7 +4,7 @@ export function deadlineRetrySource(gateUrl, resourcesUrl, runner, shellCommand,
 ${servicesSource}
 import { takeResource } from ${JSON.stringify(resourcesUrl)};
 const runner = ${JSON.stringify(runner)};
-const blocker = await takeResource({name:'runner:'+runner.host,root:process.cwd(),capacity:1,remote:false,scope:'machine',agent:'infra-retry-blocker',kind:'submit',itemCheck:true});
+const blocker = await takeResource({name:'gate',root:process.cwd(),capacity:0,remote:true,scope:'machine',runnerProvider:()=>[runner],runnerWaitMs:15000,agent:'infra-retry-blocker',kind:'submit',itemCheck:true});
 const deadline = Date.now() + 75;
 const releaseTimer = setTimeout(() => blocker.release(), 250);
 const receipts = [];
