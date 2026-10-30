@@ -2,7 +2,7 @@ import { dispatchHealth } from './dispatch-health.js';
 import { rejectedWorkReturns } from './rejected-work-return.js';
 /** Snapshot health without keeping a board write lock across Git's merge checks [A6]. */
 import { existsSync } from 'node:fs';
-import { openBoardReadOnly } from './board.js';
+import { openBoardReadOnly, readBoardSnapshot } from './board.js';
 import { healthReport } from '../packages/health/index.js';
 import { healthSentinelEnabled } from './settings.js';
 import { loadMachineSettings } from './settings.js';
@@ -21,7 +21,7 @@ export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFind
     db.exec('BEGIN');
     const observedRevision = db.prepare('SELECT COALESCE(MAX(event_id), 0) AS revision FROM event').get().revision;
     const report = healthReport({ db, root, config, now, dispatchHealth, machineSettings: loadMachineSettings() });
-    const { dispatch } = dispatchHealth({ db, clock: { now: () => now } }, config);
+    const { dispatch } = dispatchHealth(readBoardSnapshot(db, { now: () => now }), config);
     const last = db.prepare("SELECT event_detail FROM event WHERE event_kind = 'health-scan' ORDER BY event_id DESC LIMIT 1").get();
     const processes = cpu(db);
     report.stuck.push(...(processes ?? (last ? JSON.parse(last.event_detail).active : []).filter(finding => finding.cause === 'AGENT_CPU').map(finding => ({ ...finding, owner: { who: finding.owner } }))));
