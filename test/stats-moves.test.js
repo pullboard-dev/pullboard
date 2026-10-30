@@ -155,6 +155,7 @@ test('finite output ends with one next move while raw export and refusal wire re
   const raw = '{"version":1,"tables":{}}';
   assert.equal(output(['export'], io => io.say(raw)).text, raw + '\n');
   assert.deepEqual(JSON.parse(output(['export', '--json'], io => io.say(raw)).text), JSON.parse(raw));
+  assert.equal(output(['--version'], io => io.say('0.9.3')).text, '0.9.3\n', 'installed hook version handshake stays byte-compatible');
   const refused = JSON.parse(output(['show', '--json'], io => io.refusal({ code: 'NO_ITEM', message: 'missing', next: 'pullboard list' }), 1).text);
   assert.deepEqual(refused, { version: 1, error: { code: 'NO_ITEM', message: 'missing', next: 'pullboard list' } });
 });

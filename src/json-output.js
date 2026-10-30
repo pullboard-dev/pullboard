@@ -146,7 +146,9 @@ export function selectFields(document, fields) {
  * Long-running view explicitly flushes its address before waiting for a shutdown signal.
  */
 export function commandOutput(argv, streams, { version = 1, refusalDocument: suppliedRenderer, loadRefusal } = {}) {
-  const command = commandName(argv), finalAction = interactiveNext(command);
+  const command = commandName(argv);
+  // Installed Git hooks use --version's last line as a protocol handshake, unlike interactive `version`.
+  const finalAction = interactiveNext(command) && !argv.includes('--version');
   let explicitNext;
   let renderer = suppliedRenderer;
   let preparing;
