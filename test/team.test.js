@@ -1033,7 +1033,8 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
   const ciKeychainBin = join(ciHome, 'keychain-bin');
   mkdirSync(ciKeychainBin, { mode: 0o700 });
   // Keep these two private tools inside the all-file audit, without following links outside its origin.
-  for (const name of readdirSync(box.env.PATH)) {
+  assert.deepEqual(readdirSync(box.env.PATH).sort(), ['git', 'node'], 'the CI tool source is exactly the two native executables');
+  for (const name of ['git', 'node']) {
     const tool = join(ciKeychainBin, name);
     copyFileSync(join(box.env.PATH, name), tool);
     chmodSync(tool, 0o700);
