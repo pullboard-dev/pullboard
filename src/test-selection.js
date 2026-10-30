@@ -1,4 +1,5 @@
 /** Count selected native cases independently of the caller's public reporter [C7,S13]. */
+import { isDefaultTestFile } from '../packages/codemap/index.js';
 import {
   gitExecFileSync,
   gitSpawnSync,
@@ -45,7 +46,7 @@ export default async function* recordSelectedTests(events) {
   writeFileSync(process.env.PULLBOARD_TEST_SELECTION, JSON.stringify({ cases }), { mode: 0o600 });
 }
 
-export { isDefaultTestFile } from '../packages/codemap/index.js';
+export { isDefaultTestFile };
 
 /** Preserve native discovery outside Git, but never hide a repository access failure. */
 export function isGitWorkTree(cwd, env) {
