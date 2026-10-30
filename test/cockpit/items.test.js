@@ -9,7 +9,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
-import { addItem, closeBoard, completeCheckBaseline, openBoard } from '../../src/board.js';
+import { addItem, closeBoard, completeCheckBaseline } from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { tapTarget, SPEC, machine, project, build, sendBack, startView, element, target, openPage, agentEntries, accept, itemRow, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, settled, earlier, press, travel, chooseFilter, pickProject } from './fixture.js';
 
 
