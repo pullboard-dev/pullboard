@@ -166,9 +166,12 @@ export async function ordered(ctx, board, operation, args) {
 export async function claimOrdered(ctx, board, args) {
   refuseClaimProvesNothing(ctx.info.root, board, args[0], { mainPolicy });
   const adoptCorrection = store.pendingRefreeze(board, args[0]).length > 0;
-  return await ordered(ctx, board, 'claim', [args[0], { ...args[1],
+  const exitRules = mainPolicy(ctx.info.root).config.exitRules;
+  const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(exitRules?.enabled ? { exitRules } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
+  if (!result.renewed && exitRules?.enabled) (await import('../exit-rules-runtime.js')).captureExitAnchor(ctx, board, args[0], args[1].agentId);
+  return result;
 }
 
 /**

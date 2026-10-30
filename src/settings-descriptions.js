@@ -2,6 +2,9 @@
 
 // [key, label, one sentence on what it does, group, unit]. Wording is checked against each setting's reader in src/.
 const ROWS = [
+  ['exitRules.enabled', 'Session exit rules', 'Off by default; stop a claim at its known native budget or repeated failure and require a same-family handoff.', 'Order', 'on/off'],
+  ['exitRules.tokens', 'Tokens per claim', 'Input plus output tokens, including cached reads as recorded; unknown usage never triggers a stop.', 'Order', 'count'],
+  ['exitRules.calls', 'Tool calls per claim', 'Distinct native tool-call IDs since the claim; streamed duplicates count once and unknown usage never triggers a stop.', 'Order', 'count'],
   // This machine: Capacity
   ['gateSlots', 'Checks at once', 'How many test runs this computer does at the same time.', 'Capacity', 'count'],
   ['browserSlots', 'Browser checks at once', 'How many runs that need a real browser go at the same time on this computer; 0 needs a registered runner.', 'Capacity', 'count'],

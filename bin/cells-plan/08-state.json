@@ -5,6 +5,7 @@
  "root": "packages/state",
  "frontDoor": "packages/state/index.js",
  "paths": [
+  ["src/exit-rules-engine.js","packages/state/src/core/exit-rules-engine.js","rule"],
   ["src/known-main-autofile-engine.js","packages/state/src/core/known-main-autofile-engine.js","rule"],
   ["src/review-default-engine.js","packages/state/src/core/review-default-engine.js","rule"],
   ["src/activity-delivery-engine.js","packages/state/src/core/activity-delivery-engine.js","seed"],

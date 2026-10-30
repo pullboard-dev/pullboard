@@ -1,6 +1,5 @@
 /**
- * `pullboard.json`: the gate, the spec file, the lanes and the commit rules. Read once per command,
- * merged over defaults, and checked, so a typo refuses with its field name instead of misbehaving.
+ * `pullboard.json` is merged over defaults and validated once per command, naming invalid fields.
  */
 import {
   existsSync,
@@ -9,6 +8,7 @@ import {
 import { join } from 'node:path';
 import { Refused } from './refused.js';
 import { registryGuardsProblem } from './registry-guards.js';
+import { exitRulesDefaults, exitRulesConfigProblems, mergeExitRules } from './exit-rules-config.js';
 import { knownConfigKeys } from './config-forward-compat.js';
 
 export const CONFIG_FILE = 'pullboard.json';
@@ -53,7 +53,7 @@ export function defaults() {
     registryGuards: [],
     staticChecks: '',
     lease: '2h',
-    claims: { releaseGone: false },
+    claims: { releaseGone: false }, exitRules: exitRulesDefaults(),
     reviewLease: '30m',
     worktrees: 'beside',
     verify: { policy: 'any', family: 'off', reviewRatio: 3 },
@@ -114,7 +114,7 @@ function merge(base, raw) {
   if (spec && Object.keys(spec).some(key => !['file', 'agentApproval'].includes(key))) throw new Refused('BAD_CONFIG', '"spec" has only "file" and "agentApproval"');
   return {
     ...base,
-    ...raw,
+    ...raw, exitRules: mergeExitRules(base.exitRules, raw.exitRules),
     testEconomics: raw.testEconomics === undefined ? base.testEconomics
       : raw.testEconomics && typeof raw.testEconomics === 'object' && !Array.isArray(raw.testEconomics)
         ? { ...base.testEconomics, ...raw.testEconomics } : raw.testEconomics,
@@ -190,7 +190,7 @@ function laneProblems(name, lane) {
  * @returns {string[]}
  */
 export function configProblems(config) {
-  const problems = [];
+  const problems = exitRulesConfigProblems(config.exitRules);
   const costs = config.testEconomics;
   if (!costs || typeof costs !== 'object' || Array.isArray(costs)
     || Object.keys(costs).some(key => !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].includes(key))

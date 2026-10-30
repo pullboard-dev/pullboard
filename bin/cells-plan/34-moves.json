@@ -5,6 +5,7 @@
  "root": "packages/moves",
  "frontDoor": "packages/moves/index.js",
  "paths": [
+  ["src/moves/recordExitProgress.js","packages/moves/src/core/moves/recordExitProgress.js","rule"],
   ["src/bar-ready-setting.js","packages/moves/src/core/bar-ready-setting.js","seed"],
   ["src/move-registry.js","packages/moves/src/shell/move-registry.js","seed"],
   ["src/moves/acceptCheck.js","packages/moves/src/core/moves/acceptCheck.js","seed"],
