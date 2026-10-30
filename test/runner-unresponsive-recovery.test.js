@@ -18,10 +18,10 @@ function observe(t, live) {
   const bin = join(box.dir, 'probe-bin'), home = join(box.dir, 'remote-home');
   const root = join(home, '.pullboard-runner'), machineHome = join(home, '.pullboard');
   const worker = join(box.dir, 'worker');
-  const requests = join(box.dir, 'requests.jsonl');
+  const requests = join(box.dir, 'requests.jsonl'), stderrLog = join(box.dir, 'worker-stderr');
   for (const directory of [bin, worker, root, join(root, 'jobs'), machineHome]) mkdirSync(directory, { recursive: true });
   installSshStandIn({ bin, worker, home, machineHome, requests,
-    nodeCommand: process.execPath, healthFailures: 1 });
+    nodeCommand: process.execPath, healthFailures: 1, stderrLog });
   const url = name => pathToFileURL(join(import.meta.dirname, '../src', name)).href;
   const script = `
     import { DatabaseSync } from 'node:sqlite';
@@ -65,7 +65,10 @@ function observe(t, live) {
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script],
     { cwd: box.repo, env, encoding: 'utf8', timeout: 90_000 });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
-  return { actual: JSON.parse(result.stdout), probes: readFileSync(requests + '.health-probes', 'utf8').trim().split('\n').map(JSON.parse) };
+  const probes = readFileSync(requests + '.health-probes', 'utf8').trim().split('\n').map(JSON.parse);
+  let workerError = '';
+  try { workerError = readFileSync(stderrLog, 'utf8'); } catch { /* A refused transport never starts the worker. */ }
+  return { actual: { ...JSON.parse(result.stdout), probes, workerError }, probes };
 }
 
 test('an unresponsive exact worker restarts through the pinned idle proof on the next probe [C7]', t => {
