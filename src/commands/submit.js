@@ -95,6 +95,7 @@ import {
 import {
   withMainCheckout,
   compareMainFailures,
+  companionMainFailuresUntouched,
   mainRedMessage,
 } from '../main-red.js';
 import * as nativeFlakes from '../native-flake-cli.js';
@@ -372,6 +373,8 @@ export async function submitHere(ctx, id, infra) {
   let criterionMatched = null;
   let criterionUnowned = [];
   let criterionProblem = '';
+  const companionAllowsMain = failures => !companion || companionMainFailuresUntouched(root,
+    { base: mainFailureBase, source: commit, composed: companion.commit }, failures);
   const criterionCases = criterionRed && mainFailureBase && !companion ? failureSignatures(criterionRed, root) : null;
   if (criterionCases) {
     try {
@@ -420,7 +423,7 @@ export async function submitHere(ctx, id, infra) {
   let proofMatched = null;
   let proofUnowned = [];
   const failures = !gate.isGreen && checkAccepted && !waived ? failureSignatures(gate, root) : null;
-  if (failures && mainFailureBase && !companion) {
+  if (failures && mainFailureBase && companionAllowsMain(failures)) {
     try {
       comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, onMeasuredReceipt, runnerAdmission,
         execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
