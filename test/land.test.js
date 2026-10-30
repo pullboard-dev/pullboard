@@ -31,6 +31,7 @@ import {
   startExclusiveBoardWriter,
 } from './land-board-fixture.js';
 import { landingTimeoutFixture } from './landing-timeout-fixture.js';
+import { settleRecordedSourceWake } from './landing-queue-fixture.js';
 import { assertParallelLanding, assertParallelCliLease, assertParallelNestedGate } from './land-parallel-fixture.js';
 import { landEnginesInOrder } from './land-engine-fixture.js';
 import { assertWholeQueueBatch } from './land-batch-fixture.js';
@@ -1013,14 +1014,24 @@ test('land adoption recovers an interrupted gate and keeps one receipt under a n
   const box = landProject();
   const entries = verifiedFour(box);
   writeFileSync(box.hold, 'armed');
-  const child = startFixtureChild(process.execPath, [BIN, 'land', '--json'], { cwd: box.repo, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  child.stdout.resume(); child.stderr.resume();
+  const startup = join(box.dir, 'adoption-startup.jsonl');
+  const env = { ...box.env, PULLBOARD_STARTUP_TRACE_FILE: startup, PULLBOARD_STARTUP_TRACE_ENTRY: BIN };
+  const child = startFixtureChild(process.execPath, [BIN, 'land', '--json'], { cwd: box.repo, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  let outputBytes = 0;
+  child.stdout.on('data', part => { outputBytes += Buffer.byteLength(part); });
+  child.stderr.on('data', part => { outputBytes += Buffer.byteLength(part); });
   const closed = new Promise((resolveClose) => child.once('close', (status, signal) => resolveClose({ status, signal })));
   t.after(() => {
     writeFileSync(box.release, 'release');
     if (child.exitCode === null && child.signalCode === null) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} }
   });
-  await waitFor(() => existsSync(box.entered), 'landing gate entered');
+  await waitForFixtureProgress({
+    child,
+    ready: () => existsSync(box.entered),
+    progress: () => outputBytes + [box.calls, box.trace, startup].reduce((bytes, file) =>
+      bytes + (existsSync(file) ? readFileSync(file).length : 0), 0),
+    description: 'landing gate entered',
+  });
   const card = json(box, box.repo, 'resume');
   const batch = card.landingBatches.at(-1);
   assert.equal(batch.state, 'gating');
@@ -1356,7 +1367,7 @@ test('an item with no spec rows lands under a header its commit hook accepts [B3
   assert.equal(subject, 'docs(merge): docs fixture with no rows', 'a docs-lane item with no rows lands under docs(merge)');
 });
 
-test('publish pushes only a head the whole suite passed and names every red [B3,R3]', () => {
+test('publish pushes only a head the whole suite passed and names every red [B3,R3]', async () => {
   const box = landProject();
   const entries = verifiedFour(box, { red: 1 });
   const before = box.git(box.remote, 'rev-parse', 'main');
@@ -1366,6 +1377,8 @@ test('publish pushes only a head the whole suite passed and names every red [B3,
     const merged = box.run(box.repo, 'merged', String(entry.item), box.git(box.repo, 'rev-parse', 'HEAD'));
     assert.equal(merged.code, 0, merged.err);
   }
+  // Manual merged calls start native source advances; close their exact recorded wake before measuring publish.
+  await settleRecordedSourceWake(box, { waitFor });
   const head = box.git(box.repo, 'rev-parse', 'main');
   const start = calls(box).length;
   const red = box.run(box.repo, 'publish', '--json');
@@ -1375,7 +1388,6 @@ test('publish pushes only a head the whole suite passed and names every red [B3,
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), before, 'a red head is never pushed');
   assert.deepEqual(report.red.map((entry) => entry.file), [FILES[1]], 'every failing test is named from the one run');
   assert.deepEqual(report.red[0].items, [entries[1].item], 'the failing file names the landed item whose merge touched it');
-  if (calls(box).length - start !== 1) console.error('publish invocation diagnostic:', JSON.stringify(calls(box).slice(start)));
   assert.equal(calls(box).length - start, 1, 'one whole-suite run');
   const again = box.run(box.repo, 'publish', '--json');
   assert.equal(again.code, 0);

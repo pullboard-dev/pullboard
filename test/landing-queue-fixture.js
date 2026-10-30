@@ -215,6 +215,19 @@ async function closePolicySourceWake(box, helpers, expectedGeneration) {
   }, 'the exact native source wake closes before private branch repair or cleanup', 120_000);
 }
 
+/** Settle only the exact native wake recorded by this private fixture before counting foreground publish calls. */
+export async function settleRecordedSourceWake(box, helpers) {
+  const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
+  const path = join(directory, 'wake.json');
+  if (!existsSync(path)) {
+    assert.equal(existsSync(join(directory, 'owner.json')), false, 'an unrecorded source worker cannot be treated as settled');
+    return null;
+  }
+  const wake = readMainAudit(path);
+  assert.ok(Number.isSafeInteger(wake?.generation) && wake.generation > 0, 'the fixture records a valid exact native wake');
+  return closePolicySourceWake(box, helpers, wake.generation);
+}
+
 /** Count every foreground invocation; exclude only independently source-bound native work for these batches. */
 function landingPolicyCalls(box, batches, records) {
   const roots = new Set(batches.map(batch => batch.root));
