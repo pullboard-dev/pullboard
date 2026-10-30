@@ -131,7 +131,7 @@ test('Dashboard consumes labelled API comparison scalars without rebuilding thei
   assert.strictEqual(model.comparison,input.project.statsComparison,'API comparison remains authoritative even while browser history is loading');
   const html = section(dashboardHtml(model),'Window comparison');
   assert.match(html,/data-stats-as-of="2026-10-28T12:00:00.000Z"/u);
-  assert.ok(html.includes(new Date(current.until).toLocaleString('en-US', { timeZone:'UTC' })), 'canonical observation time uses the supplied display zone');
+  assert.ok(html.includes(new Date(current.until).toLocaleTimeString('en-US', { timeZone:'UTC', hour:'numeric', minute:'2-digit' })), 'canonical observation time uses the supplied display zone');
   assert.match(html,/120-minute windows/u);
   assert.equal([...html.matchAll(/data-stats-comparison=/gu)].length,17);
   assert.match(html,/data-stats-comparison="landed" data-current="2" data-previous="1" data-change="1"/u);
