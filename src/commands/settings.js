@@ -20,6 +20,7 @@ import {
   setGateShortSlots,
   setGateSlots,
   setGateRunnersFirst,
+  setGateMeasuredSlots,
   setGateRunnersOnly,
   setGateRunnerWaitMs,
   setLandingPool,
@@ -55,7 +56,8 @@ export function settingsCommand(io, { first, second, rest, values }) {
     const shortSlots = gateShortSlots();
     const runnersOnly = settings.gate?.runnersOnly === true;
     const runnersFirst = settings.gate?.runnersFirst === true;
-    io.result?.({ settings: { ...settings, gate: { ...settings.gate, queue: { ...settings.gate?.queue, ...queue }, shortSlots, runnersFirst, runnersOnly, runnerWaitMs: gateRunnerWaitMs() }, relay: { ...settings.relay, offerAtInit } }, memoryFloorMB: memoryFloorMB() });
+    const measuredSlots = settings.gate?.measuredSlots === true;
+    io.result?.({ settings: { ...settings, gate: { ...settings.gate, queue: { ...settings.gate?.queue, ...queue }, shortSlots, runnersFirst, runnersOnly, measuredSlots, runnerWaitMs: gateRunnerWaitMs() }, relay: { ...settings.relay, offerAtInit } }, memoryFloorMB: memoryFloorMB() });
     io.say(`gateSlots: ${settings.gateSlots}`);
     io.say(`browserSlots: ${settings.browserSlots}`);
     io.say(`gate.queue.reviewsFirst: ${queue.reviewsFirst}${queue.reviewsFirst ? '' : ' (landings first, then arrival order)'}`);
@@ -66,6 +68,7 @@ export function settingsCommand(io, { first, second, rest, values }) {
     io.say(`relay.offerAtInit: ${offerAtInit}${offerAtInit ? ' (init asks once to share your boards with your phone)' : ' (init stays quiet about sharing)'}`);
     io.say(`gate.shortSlots: ${shortSlots}${shortSlots ? '' : ' (off; runs that name their test files wait for a gate slot)'}`);
     io.say(`gate.runnersFirst: ${runnersFirst} (registered runners are preferred before local slots when on)`);
+    io.say(`gate.measuredSlots: ${measuredSlots} (${measuredSlots ? 'each measured runner offers slots from its own cores and memory unless declared fixed' : 'runners offer the slot counts they were registered with'})`);
     io.say(`gate.runnersOnly: ${runnersOnly} (submit and verify wait for registered runners, with no local fallback when on)`);
     io.say(`gate.runnerWaitMs: ${gateRunnerWaitMs()} (runner-only submit/review refuses; other runs retain ordinary local admission)`);
     const budget = workerBudget();
@@ -80,6 +83,13 @@ export function settingsCommand(io, { first, second, rest, values }) {
     const settings = setGateRunnersFirst(second === 'on');
     io.result?.({ settings });
     io.say(`gate.runnersFirst set to ${second}`);
+    return 0;
+  }
+  if (first === 'gate.measuredSlots') {
+    if (!['on', 'off'].includes(second)) throw new Refused('BAD_MACHINE_SETTINGS', 'gate.measuredSlots must be on or off; run pullboard settings gate.measuredSlots on|off');
+    const settings = setGateMeasuredSlots(second === 'on');
+    io.result?.({ settings });
+    io.say(`gate.measuredSlots set to ${second}`);
     return 0;
   }
   if (first === 'gate.runnersOnly') {

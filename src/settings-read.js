@@ -34,6 +34,9 @@ export function loadMachineSettings() {
   if (value.gate?.browserByLaunch !== undefined && typeof value.gate.browserByLaunch !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.browserByLaunch in ${file} must be true or false`);
   }
+  if (value.gate?.measuredSlots !== undefined && typeof value.gate.measuredSlots !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.measuredSlots in ${file} must be true or false`);
+  }
   validateGateQueue(value, file);
   validateCostPrices(value.costPrices);
   if (value.view !== undefined && (!value.view || typeof value.view !== 'object' || Array.isArray(value.view)
@@ -92,8 +95,15 @@ export function validateRunner(value) {
       throw new Refused('BAD_RUNNER', `runner ${key} must be an absolute remote path${key === 'node' ? ' or node' : ''}`);
     }
   }
+  if (value.fixed !== undefined && typeof value.fixed !== 'boolean') throw new Refused('BAD_RUNNER', 'runner fixed must be true or false');
+  for (const key of ['cores', 'memoryMB']) {
+    if (value[key] !== undefined && (!Number.isSafeInteger(value[key]) || value[key] < 1)) throw new Refused('BAD_RUNNER', `runner ${key} must be a positive whole number measured on the runner`);
+  }
+  if (value.measuredAt !== undefined && !Number.isFinite(Date.parse(value.measuredAt))) throw new Refused('BAD_RUNNER', 'runner measuredAt must be a timestamp');
   return { host: value.host, slots: value.slots, browser: value.browser, ...(value.gui !== undefined ? { gui: value.gui } : {}),
-    ...(value.node ? { node: value.node } : {}), ...(value.root ? { root: value.root } : {}) };
+    ...(value.node ? { node: value.node } : {}), ...(value.root ? { root: value.root } : {}),
+    ...(value.fixed === true ? { fixed: true } : {}),
+    ...(value.cores !== undefined && value.memoryMB !== undefined ? { cores: value.cores, memoryMB: value.memoryMB, ...(value.measuredAt !== undefined ? { measuredAt: value.measuredAt } : {}) } : {}) };
 }
 
 

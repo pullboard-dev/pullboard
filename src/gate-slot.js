@@ -2,6 +2,7 @@ import { mainCheckout } from './git.js';
 import { sourcePreparationFields } from './runner-overhead.js';
 /** Machine admission and receipts without eagerly loading board or full proof execution [Q1,Q2,Q3,C7]. */
 import { Refused } from './refused.js';
+import { recordRunnerMeasurement } from './settings.js';
 import {
   inheritedGateSlot,
   memoryAdmission,
@@ -31,7 +32,7 @@ import {
 
 /** Snapshot required canonical operations before admission; functions remain private process-local lease state. */
 export function requireGateExecutionServices(value) {
-  const runners = ['sampleRunnerLoad', 'localRunnerDescriptor', 'carriedRunnerTrunk', 'probeRunnerTransport', 'probeRunnerHealth', 'runOnRunner', 'runOnRunnerAsync'];
+  const runners = ['sampleRunnerLoad', 'localRunnerDescriptor', 'carriedRunnerTrunk', 'probeRunnerTransport', 'probeRunnerHealth', 'runOnRunner', 'runOnRunnerAsync', 'effectiveRunners', 'refreshRunnerMeasurements'];
   const landing = ['captureReleaseQueue', 'constrainedLandingHost', 'releaseExecutors'];
   if (!runners.every(name => typeof value?.runners?.[name] === 'function')
     || !landing.every(name => typeof value?.landing?.[name] === 'function')) {
@@ -95,7 +96,7 @@ export async function withGateSlot(root, action, options = {}) {
 
 /** One gate admission and its action; withGateSlot may call it again for a local rerun. */
 async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, runnerWaitMs, runnerDeadlineAt, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, readMemory = readMachineMemory, executionServices, infrastructureRetry = false } = {}) {
-  const { localRunnerDescriptor, sampleRunnerLoad, carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth } = executionServices.runners;
+  const { localRunnerDescriptor, sampleRunnerLoad, carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth, effectiveRunners, refreshRunnerMeasurements } = executionServices.runners;
   const restriction = requiredExecutorOf(requiredExecutor);
   const tracker = startReceipt();
   const receiptKind = kind || (landing ? 'landing' : 'gate');
@@ -127,6 +128,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     }
   }
   const settingsProvider = () => loadMachineSettings();
+  if (remote) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement });
   const floorMB = memoryFloorMB();
   const capacityProvider = () => settingsProvider().gateSlots;
   const source = runnerSource(root);
@@ -162,7 +164,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     remote: remote && Boolean(source),
     runnerOnly,
     ...(restriction ? { requiredExecutor: restriction } : {}),
-    runnerProvider: () => loadMachineSettings().runners ?? [],
+    runnerProvider: () => effectiveRunners(loadMachineSettings()),
     runnerHealthProbe: probeRunnerHealth,
     /** Keep legacy fallback distinct from the ordinary exact-job health observation. */
     runnerIdleProbe: (runner, previous) => probeRunnerHealth(runner, previous, { idle: true }),
