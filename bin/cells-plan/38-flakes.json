@@ -54,8 +54,7 @@
     "src/record-train-landing.js->src/quarantine.js",
     "src/train-landing-receipt.js->src/quarantine.js"
    ]
-  },
-  {"cell":"moves","imports":1,"edges":["src/moves/recordLandingBatch.js->src/quarantine.js"]}
+  }
  ],
  "ratchets": {
   "legacySource": -1,
