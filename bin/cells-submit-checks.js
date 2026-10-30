@@ -38,8 +38,19 @@ function refuse(problems) {
 /** Preserve accepted ownership; candidate metadata may not hide an existing implementation in a stay or later cell. */
 function policyProblems(before, after, beforeMap, afterMap) {
   const problems = [], cells = new Map(after.cells.map(cell => [cell.name, cell]));
-  const rows = new Map();
+  const rows = new Map(), targets = new Set(), orders = new Set(), roots = new Set();
+  const relative = value => typeof value === 'string' && value.length > 0 && !/[\\:\x00-\x1f]/u.test(value)
+    && value.split('/').every(part => part && part !== '.' && part !== '..');
+  for (const cell of after.cells) {
+    if (!Number.isSafeInteger(cell.order) || cell.order < 1 || orders.has(cell.order)) problems.push(`invalid or duplicate cell order: ${cell.name}`);
+    orders.add(cell.order);
+    if (!relative(cell.root) || !relative(cell.frontDoor) || !cell.frontDoor.startsWith(cell.root + '/')) problems.push(`invalid cell root/front door: ${cell.name}`);
+    if ([...roots].some(root => root === cell.root || root.startsWith(cell.root + '/') || cell.root.startsWith(root + '/'))) problems.push(`overlapping cell root: ${cell.root}`);
+    roots.add(cell.root);
+  }
   for (const cell of after.cells) for (const row of cell.paths) {
+    if (!Array.isArray(row) || row.length !== 3 || !relative(row[0]) || !relative(row[1]) || !row[1].startsWith(cell.root + '/') || targets.has(row[1])) problems.push(`invalid or duplicate placement target in ${cell.name}: ${row?.[1]}`);
+    targets.add(row[1]);
     if (rows.has(row[0])) problems.push(`plan repeats ${row[0]}`);
     rows.set(row[0], { cell, row });
   }

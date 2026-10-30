@@ -59,8 +59,9 @@ import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
 
 /** Commit the actual small plan and complete canonical baseline, with no production-source substitution. */
-function plannedFixture(t) {
+function plannedFixture(t, prepare = () => {}) {
   const box = fixture(t);
+  prepare(box);
   writePlan(box.root, computePlan(box.root));
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'plan actual fixture');
@@ -120,4 +121,39 @@ test('submit compares lints with accepted allowances even if a candidate rewrite
   assert.ok(report.metrics.fileSize.findings.some(row => row.key === 'src/refused.js' && row.count > 1000), 'the actual source crosses the unchanged hard 1500-line cap');
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /cell lint fileSize:src\/refused.js/u,
     'the candidate baseline cannot authorize its own hard-cap rise');
+});
+
+
+test('submit accepts a real clean move and keeps an existing temporary edge as unchanged debt [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t, box => {
+    box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
+    box.put('bin/cells-plan/temporary-edges.json', JSON.stringify({ version: 1, edges: [{ importer: 'src/refused.js', target: 'src/stats-flow.js', contractItem: 123,
+      expires: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10) }] }));
+    git(box.root, 'add', '-A'); git(box.root, 'commit', '-q', '-m', 'actual preexisting temporary edge');
+  });
+  box.put('bin/tool.js', "import '../src/cli.js'; // unchanged runtime dependency\n");
+  assert.deepEqual((await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item)).problems, [],
+    'temporary exceptions are disabled in both snapshots and the old exact edge is still equal debt');
+  const clean = plannedFixture(t);
+  clean.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
+  clean.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+  clean.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
+  clean.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
+  assert.deepEqual((await requireSubmitCells(clean.root, clean.main, commitCandidate(clean), clean.item)).problems, [],
+    'the actual reachable named front door and body satisfy the canonical move check');
+});
+
+test('submit ignores candidate checker code and refuses a forged overlapping ownership root [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t, box => {
+    box.put('bin/cells-plan-cuts.js', 'export const fixtureChecker = true;\n');
+    git(box.root, 'add', '-A'); git(box.root, 'commit', '-q', '-m', 'private checker source');
+  });
+  box.put('bin/cells-plan-cuts.js', 'throw new Error("candidate checker execution is forbidden");\n');
+  box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /kernel --cuts: kernel still imports later stats/u);
+  const plan = readPlan(box.root);
+  plan.cells.unshift({ order: 999, name: 'forged', kind: 'package', root: 'packages', frontDoor: 'packages/index.js', paths: [], reexports: [], imports: [], cuts: [] });
+  writePlan(box.root, plan);
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /overlapping cell root/u,
+    'a new cell cannot shadow all accepted package owners');
 });

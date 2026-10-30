@@ -17,6 +17,11 @@ import {
   writePlan,
   placePath,
 } from '../bin/cells-plan.js';
+import { cellLintReport } from '../packages/codemap/index.js';
+import { cellLintBaseline } from '../packages/codemap/index.js';
+import { writeCellLintBaseline } from '../packages/codemap/index.js';
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
 import { requirePlannedSource } from '../src/submit-preflight.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
@@ -32,15 +37,22 @@ function plannedProject(t, { companionLanes = false } = {}) {
   const marker = join(box.dir, 'check-ran');
   writeFileSync(join(box.repo, 'check.cjs'), `require('node:fs').appendFileSync(${JSON.stringify(marker)}, 'ran\\n');\n`);
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
-  writePlan(box.repo, readPlan(SOURCE));
+  // This is a tiny real project, not a claim that all production source exists in it.
+  const plan = readPlan(SOURCE);
+  plan.cells = plan.cells.map(cell => ({ ...cell, paths: [], reexports: [], cuts: [], imports: [] }));
+  plan.stays = []; plan.retired = [];
+  writePlan(box.repo, plan);
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   if (companionLanes) {
-    config.lanes.view = { owns: ['src/view/'], specs: ['G1'] };
+    config.lanes.view = { owns: ['src/view/', 'apps/view/'], specs: ['G1'] };
     config.lanes.core = { owns: ['bin/cells-plan.json', 'bin/cells-plan/'], specs: ['G1'] };
-  } else config.lanes.web.owns.push('src/', 'bin/cells-plan.json', 'bin/cells-plan/');
+  } else config.lanes.web.owns.push('src/', 'packages/items/', 'apps/web/', 'bin/cells-plan.json', 'bin/cells-plan/');
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2) + '\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize the real placement fixture');
+  writeCellLintBaseline(box.repo, cellLintBaseline(cellLintReport(box.repo, { importsIn, commonJsIn })), { initialize: true });
+  box.git(box.repo, 'add', 'bin/cell-lint-baselines');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: capture the tiny project baseline');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   return { ...box, marker };
 }
@@ -84,8 +96,14 @@ test('native submit names an unplanned source before its check, then the same pl
   assert.deepEqual(after.stays, before.stays);
   assert.deepEqual(after.cells.find(cell => cell.name === 'items').paths.at(-1),
     ['src/plan-gate-added.js', 'packages/items/src/shell/plan-gate-added.js', 'rule']);
-  box.git(box.web, 'add', 'bin/cells-plan.json', 'bin/cells-plan');
-  box.git(box.web, 'commit', '-q', '-m', 'chore: place the added source');
+  mkdirSync(join(box.web, 'packages/items/src/shell'), { recursive: true });
+  mkdirSync(join(box.web, 'apps/web'), { recursive: true });
+  writeFileSync(join(box.web, 'packages/items/src/shell/plan-gate-added.js'), 'export const value = 1;\n');
+  writeFileSync(join(box.web, 'packages/items/index.js'), "export { value } from './src/shell/plan-gate-added.js';\n");
+  writeFileSync(join(box.web, 'src/plan-gate-added.js'), "export { value } from '../packages/items/index.js';\n");
+  writeFileSync(join(box.web, 'apps/web/index.js'), "import { value } from '../../packages/items/index.js'; console.log(value);\n");
+  box.git(box.web, 'add', 'bin/cells-plan.json', 'bin/cells-plan', 'src', 'packages', 'apps');
+  box.git(box.web, 'commit', '-q', '-m', 'chore: place and complete the real fixture move');
   const submitted = success(box, box.web, 'submit', String(id));
   assert.equal(submitted.gate.green, true);
   assert.equal(existsSync(box.marker), true, 'the real check now runs normally');
@@ -104,8 +122,11 @@ test('native view submit validates its core companion placement on the composed 
   success(box, view, 'claim', String(id));
   const file = 'src/view/plan-companion-added.js';
   mkdirSync(join(view, 'src/view'), { recursive: true });
-  writeFileSync(join(view, file), 'export const companionPlaced = true;\n');
-  box.git(view, 'add', file);
+  mkdirSync(join(view, 'apps/view/src/shell/view'), { recursive: true });
+  writeFileSync(join(view, 'apps/view/src/shell/view/plan-companion-added.js'), 'export const companionPlaced = true;\n');
+  writeFileSync(join(view, 'apps/view/index.js'), "export { companionPlaced } from './src/shell/view/plan-companion-added.js';\n");
+  writeFileSync(join(view, file), "export { companionPlaced } from '../../apps/view/index.js';\n");
+  box.git(view, 'add', file, 'apps/view');
   box.git(view, 'commit', '-q', '-m', 'feat(view): add the companion-placed source [G1]');
   const source = box.git(view, 'rev-parse', 'HEAD');
   rmSync(box.marker);
