@@ -76,7 +76,7 @@ function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSu
   assert.equal(result.status, 0, result.stdout + result.stderr);
   put(root, 'package.json', '{"type":"module"}\n');
   put(root, 'pullboard.json', JSON.stringify({ gate: 'node test/runner.js' + gateSuffix,
-    affectedTests: 'node test/runner.js', lanes: { core: { owns: ['test/', 'change.txt', 'docs/'], specs: ['G'] } } }));
+    affectedTests: 'node test/runner.js', lanes: { core: { owns: ['test/', 'change.txt', 'docs/', 'src/'], specs: ['G'] } } }));
   put(root, 'SPEC.md', '# Fixture\n\n## G · Goals\n- G1 [approved, must] The unrelated change works. | gate: test/inherited.test.js\n');
   put(root, 'test/inherited.test.js', source());
   put(root, 'docs/companion.md', 'Before.\n');
