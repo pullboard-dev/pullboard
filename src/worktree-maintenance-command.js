@@ -42,7 +42,7 @@ export async function cleanupMaintenanceLifecycle(ctx, agentId, details) {
     const result = await cleanMaintenanceSeat(ctx.info.root, accepted,
       { ...maintenanceCommandPorts(ctx, agentId), completedTakeover: details.completedTakeover === true,
         completedWithdrawal: details.completedWithdrawal === true && ctx.info.isMain && agentId === 'coordinator' }, details);
-    if (details.withdrawn && accepted.worktreeMaintenance?.enabled === true) {
+    if ((details.withdrawn || result?.clean) && accepted.worktreeMaintenance?.enabled === true) {
       await recordMaintenanceRetention(ctx.info.root, { ...details,
         reason: 'withdrawal cleanup deferred: checkout is protected, busy or still holds another obligation' }, { clear: Boolean(result?.clean) });
     }
