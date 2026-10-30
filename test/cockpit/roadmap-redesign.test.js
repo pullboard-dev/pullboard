@@ -68,6 +68,8 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
         const card=document.querySelector('#roadmap-list > .milestone'), rows=[...card.querySelectorAll(':scope > .milestone-body .milestone-item')];
         const releases=[...document.querySelectorAll('#roadmap-releases [data-roadmap-jump^="m:"]')];
         const last=[...document.querySelectorAll('.roadmap-last-shipped')].find(node=>node.getBoundingClientRect().height>0);
+        const shippingCounts=[...document.querySelectorAll('.roadmap-stage-counts')].find(node=>node.getBoundingClientRect().height>0);
+        const shippingCells=[...(shippingCounts?.children||[])].filter(node=>node.getBoundingClientRect().height>0);
         const rect=node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};};
         const rowFor=id=>rows.find(row=>row.dataset.roadmapKey==='i:#'+id);
         return {width:innerWidth,cardName:card.querySelector('.release-name')?.textContent||'',itemCount:card.querySelectorAll('.milestone-limit').length,
@@ -78,9 +80,9 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
             title:row.querySelector('.milestone-title')?.textContent||''})),
           releases:releases.map(button=>({name:button.querySelector(':scope > span')?.textContent||'',count:button.querySelector('b')?.textContent||'',
             progress:button.querySelector('svg')?{viewBox:button.querySelector('svg').getAttribute('viewBox'),rect:button.querySelector('rect')?.getAttribute('width')||''}:null})),
-          shipping:[...document.querySelectorAll('.roadmap-stage-counts > div')].filter(node=>node.getBoundingClientRect().height>0).map(node=>{const key=node.dataset.shippingStage;return {key,label:node.querySelector('dt')?.textContent.trim(),swatch:getComputedStyle(node.querySelector('i')).backgroundColor,
+          shipping:shippingCells.map(node=>{const key=node.dataset.shippingStage;return {key,label:node.querySelector('dt')?.textContent.trim(),swatch:getComputedStyle(node.querySelector('i')).backgroundColor,
             headerSwatch:getComputedStyle(card.querySelector('.roadmap-summary-swatch.'+key)).backgroundColor};}),
-          shippingColumns:getComputedStyle(document.querySelector('.roadmap-stage-counts')).gridTemplateColumns.split(' ').length,
+          shippingColumns:new Set(shippingCells.map(node=>Math.round(rect(node).left))).size,
           last:last?[...last.children].map(node=>node.textContent):null,lastText:last?.textContent||'',
           bodyWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth),viewport:document.documentElement.clientWidth};
       })())`));
