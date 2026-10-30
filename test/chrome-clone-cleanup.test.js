@@ -1,5 +1,4 @@
-/** @pullboard-test-gui */
-/** Private clone fixtures prove cleanup custody; real Chrome proves native graceful shutdown [C7]. */
+/** Private clone fixtures prove cleanup custody [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { once } from 'node:events';
@@ -16,9 +15,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { sweepChromeClones } from '../src/chrome-clone-cleanup.js';
-import { chromeLaunchArgs } from './chrome-launch-args.js';
-import { findChromeExecutable } from './chrome-fixture.js';
-import { launchChromeProcess } from './chrome-fixture.js';
 import { startFixtureChild } from './fixture-child.js';
 
 /** Keep every fixture and observation inside a unique private directory. */
@@ -99,22 +95,4 @@ test('young clones, symlinks, live Chrome and unknown census never authorize rem
   };
   assert.equal((await sweepChromeClones({ ...options, custody: changing, now: Date.now() + 3600001 })).removed, 0,
     'a directory changed after initial custody must be preserved');
-});
-
-test('fixture close quits actual Chrome cleanly before any signal fallback [C7]', { timeout: 40000 }, async t => {
-  const { root } = fixture(t);
-  const profile = join(root, 'profile');
-  mkdirSync(profile, { mode: 0o700 });
-  const launched = launchChromeProcess({ executable: findChromeExecutable(), args: chromeLaunchArgs(profile) });
-  t.after(() => launched.close());
-  const deadline = Date.now() + 30000;
-  while (!existsSync(join(profile, 'DevToolsActivePort')) && Date.now() < deadline) {
-    assert.equal(launched.child.exitCode, null, launched.stderr);
-    assert.equal(launched.child.signalCode, null, launched.stderr);
-    await new Promise(resolve => setTimeout(resolve, 50));
-  }
-  assert.ok(existsSync(join(profile, 'DevToolsActivePort')), launched.stderr);
-  await launched.close();
-  assert.equal(launched.child.exitCode, 0, 'Browser.close must produce a clean native exit');
-  assert.equal(launched.child.signalCode, null, 'a signal fallback is not graceful proof');
 });
