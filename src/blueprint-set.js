@@ -155,7 +155,7 @@ export function combinedSummary(added) {
  * @returns {any}
  */
 export function initBlueprintResult(added) {
-  return { name: added.blueprint.name, title: added.blueprint.title, section: added.section, waiting: added.rows.length,
+  return { name: added.blueprint.name, title: added.blueprint.title, section: added.section, waiting: added.rows.filter((row) => ['draft', 'pending'].includes(row.status)).length,
     items: added.items.length, gate: added.gate, checksNotRun: added.checksNotRun, shared: added.shared ?? [] };
 }
 
@@ -210,8 +210,9 @@ export async function landEach(list, add) {
  * @returns {string[]}
  */
 export function initBlueprintLines(added, laneNotes) {
+  const waiting = added.rows.filter((row) => ['draft', 'pending'].includes(row.status)).length;
   const proposed = added.proposedLanes.length ? ` in the ${added.proposedLanes.map((lane) => lane.name).join(' and ')} lane, proposed above; add it with the command printed there` : '';
-  return [`added the ${added.blueprint.title} blueprint: ${added.rows.length} ${added.rows.length === 1 ? 'row waits' : 'rows wait'} for your approval in SPEC.md (${added.section}), `
+  return [`added the ${added.blueprint.title} blueprint: ${waiting} ${waiting === 1 ? 'row waits' : 'rows wait'} for your approval in SPEC.md (${added.section}), `
     + `${added.items.length} starter ${added.items.length === 1 ? 'item' : 'items'} filed${proposed}${added.gate ? `, gate set to ${added.gate}` : ''}`,
   ...laneNotes.map((note) => `  ${note}`),
   ...(added.checksNotRun.length ? [`  checks stored, not run: ${added.checksNotRun.map((id) => `#${id}`).join(', ')}; no check baseline ran, so read each check before work starts: pullboard show <id>`] : []),

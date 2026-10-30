@@ -15,6 +15,7 @@ import { assertArchitectureBlueprintCoverage } from './blueprint-architecture-co
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const PUBLISHED = JSON.parse(readFileSync(resolve(import.meta.dirname, '../src/blueprints/web-app.json'), 'utf8'));
+const LEGACY_FRAMEWORK = { key: 'Q1', ask: 'The app is built with', choices: ['Next.js', 'SvelteKit', 'Rails', 'Something else'], detect: 'framework' };
 const MARKERS = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL'];
 const DIRS = [];
 
@@ -74,18 +75,13 @@ test('blueprint add files a blueprint as drafts [S1,I1]', () => {
   assert.equal(section.length, 1, 'one section named after the blueprint');
   assert.equal(added.section, section[0].name);
   const rows = spec.rows.filter((row) => row.section === section[0].name);
-  assert.equal(rows.length, 11, '7 rules and 4 questions');
+  assert.equal(rows.length, 11, '7 rules and 4 defaults');
   assert.equal(spec.rows.filter((row) => row.status === 'approved').length, 0, 'nothing is approved');
   const rules = rows.filter((row) => row.status === 'draft');
   assert.deepEqual(rules.map((row) => row.text), PUBLISHED.rules.map((rule) => `${rule.text} Why: ${rule.why}`));
   assert.equal(rules[0].text, 'Every change ships with a test that fails without it. Why: a test that passes either way proves nothing.');
-  const questions = rows.filter((row) => row.status === 'pending');
-  assert.deepEqual(questions.map((row) => row.text), [
-    'The app is built with: (choose one). Choices: Next.js, SvelteKit, Rails, Something else.',
-    'It deploys to: Vercel. Choices: Vercel, Netlify, Fly.io, My own server.',
-    'People sign in with: Email links. Choices: Email links, Passwords, Google, No sign-in yet.',
-    'A change is done when: It runs on a preview link. Choices: It runs on a preview link, Its tests pass, I have looked at it.',
-  ]);
+  assert.deepEqual(rows.filter((row) => row.status === 'pending'), []);
+  assert.deepEqual(rows.filter((row) => row.status === 'fact').map((row) => row.text), PUBLISHED.defaults.map((entry) => entry.text));
   const ids = Object.fromEntries(added.rows.map((row) => [row.key, row.id]));
   assert.deepEqual(added.rows.map((row) => row.id), rows.map((row) => row.id));
   const doctrine = parseSpec(readFileSync(join(box.repo, 'DOCTRINE.md'), 'utf8'));
@@ -144,10 +140,10 @@ test('blueprint add files a blueprint as drafts even when approved rows say the 
   const file = join(box.repo, 'SPEC.md');
   const rule = `${PUBLISHED.rules[0].text} Why: ${PUBLISHED.rules[0].why}`;
   writeFileSync(file, readFileSync(file, 'utf8').replace('## G · Goals: what the client asked for\n',
-    `## G · Goals: what the client asked for\n- G1 [approved, must] ${rule} | gate: review\n- G2 [approved, must] ${PUBLISHED.questions[0].ask}: Rails. Choices: Rails. | gate: review\n`));
+    `## G · Goals: what the client asked for\n- G1 [approved, must] ${rule} | gate: review\n- G2 [approved, must] ${LEGACY_FRAMEWORK.ask}: Rails. Choices: Rails. | gate: review\n`));
   box.git('commit', '-q', '-am', 'chore: approve two rows first');
   const added = json(box, 'blueprint', 'add', 'web-app');
-  assert.deepEqual(added.rows.map((row) => row.status), [...Array(7).fill('draft'), ...Array(4).fill('pending')]);
+  assert.deepEqual(added.rows.map((row) => row.status), [...Array(7).fill('draft'), ...Array(4).fill('fact')]);
   const spec = parseSpec(readFileSync(file, 'utf8'));
   const own = spec.rows.filter((row) => row.section === added.section);
   assert.equal(own.length, 11, 'the blueprint section holds all its own rows');
@@ -191,7 +187,7 @@ test('blueprint add files a blueprint as drafts or nothing at all [S1,I1]', () =
 const GALLERY = {
   pullboard: { title: 'Pullboard, built on Pullboard', rules: ['A builder never verifies their own work.', "Every item's check fails before the change and passes after it.", 'Main only moves when the whole test suite passes.'], asks: 0 },
   website: { title: 'Website', rules: ['Every page reads in full with JavaScript turned off.', 'No change leaves a link pointing at a missing page.'], asks: 2 },
-  'web-app': { title: 'Web app', rules: ['Every change ships with a test that fails without it.', 'Every page works at phone width before it ships.'], asks: 3 },
+  'web-app': { title: 'Web app', rules: ['Every change ships with a test that fails without it.', 'Every page works at phone width before it ships.'], asks: 0 },
   library: { title: 'Open-source library', rules: ['A breaking change bumps the major version.', 'Every public function has a working example in the docs.'], asks: 2 },
   'ios-app': { title: 'iOS app', rules: ['Every screen has a light and a dark screenshot test.', 'No change removes a VoiceOver label from a screen.'], asks: 2 },
   serverless: { title: 'Serverless', rules: ['Every function has an alarm before it ships.', "No function runs past its platform's time limit."], asks: 3 },
@@ -506,12 +502,12 @@ test('blueprint add files a blueprint as drafts beside approved rows in its own 
   const box = freshBoard();
   const file = join(box.repo, 'SPEC.md');
   const rule = `${PUBLISHED.rules[0].text} Why: ${PUBLISHED.rules[0].why}`;
-  writeFileSync(file, `${readFileSync(file, 'utf8').trimEnd()}\n\n## A · Web app\n\n- A1 [approved, must] ${rule} | gate: review\n- A2 [approved, must] ${PUBLISHED.questions[0].ask}: Rails. Choices: Rails, Next.js. | gate: review\n`);
+  writeFileSync(file, `${readFileSync(file, 'utf8').trimEnd()}\n\n## A · Web app\n\n- A1 [approved, must] ${rule} | gate: review\n- A2 [approved, must] ${LEGACY_FRAMEWORK.ask}: Rails. Choices: Rails, Next.js. | gate: review\n`);
   box.git('commit', '-q', '-am', 'chore: approve rows in the blueprint section');
   const added = json(box, 'blueprint', 'add', 'web-app');
   assert.equal(added.section, 'A · Web app', 'the rows go in the existing section');
   assert.deepEqual(added.rows.map((row) => [row.key, row.status]), [
-    ...PUBLISHED.rules.map((entry) => [entry.key, 'draft']), ...PUBLISHED.questions.map((entry) => [entry.key, 'pending'])]);
+    ...PUBLISHED.rules.map((entry) => [entry.key, 'draft']), ...PUBLISHED.questions.map((entry) => [entry.key, 'pending']), ...PUBLISHED.defaults.map((entry) => [entry.key, 'fact'])]);
   const spec = parseSpec(readFileSync(file, 'utf8'));
   assert.deepEqual(spec.rows.filter((row) => row.status === 'approved').map((row) => row.id), ['A1', 'A2']);
   assert.equal(spec.rows.filter((row) => row.section === 'A · Web app').length, 13);
@@ -753,7 +749,7 @@ test('init --blueprint starts a board from a blueprint [I1,S1]', () => {
   const section = spec.sections.find((entry) => entry.name.includes(PUBLISHED.title));
   assert.ok(section, 'the blueprint has its own SPEC.md section');
   const rows = spec.rows.filter((row) => row.section === section.name);
-  assert.equal(rows.length, waiting);
+  assert.equal(rows.length, waiting + PUBLISHED.defaults.length);
   assert.ok(rows.every((row) => row.status !== 'approved'), 'nothing is approved');
   const items = JSON.parse(known.run('list', '--json').stdout).items ?? [];
   assert.equal(items.length, PUBLISHED.items.length, 'each starter item is filed once');
@@ -862,7 +858,8 @@ test('a question defaults from the repo it lands in [S1,I1]', () => {
   writeFileSync(join(next.repo, 'package.json'), `${JSON.stringify({ name: 'web', dependencies: { next: '15.0.0', react: '19.0.0' } })}\n`);
   next.git('add', '-A');
   next.git('commit', '-q', '-m', 'chore: a Next.js app');
-  json(next, 'blueprint', 'add', 'web-app');
+  writeFileSync(join(next.repo, 'framework.json'), JSON.stringify({ ...PUBLISHED, defaults: [], questions: [LEGACY_FRAMEWORK], items: [] }));
+  json(next, 'blueprint', 'add', 'framework.json');
   assert.equal(pendingQuestion(next.repo, 'The app is built with'), `The app is built with: Next.js. ${FRAMEWORKS}`, 'a Next.js project defaults to Next.js');
 
   // No test script: one test runner among devDependencies is the answer.
@@ -875,7 +872,7 @@ test('a question defaults from the repo it lands in [S1,I1]', () => {
 
   // A detected answer the question does not offer is never used: the blueprint's own default stands.
   const narrow = { ...PUBLISHED, name: 'narrow', title: 'Narrow', prefix: 'NAR', items: [],
-    questions: [{ key: 'Q1', ask: 'Its runner is', choices: ['Vitest', 'Jest'], default: 'Jest', detect: 'test-runner' }] };
+    defaults: [], questions: [{ key: 'Q1', ask: 'Its runner is', choices: ['Vitest', 'Jest'], default: 'Jest', detect: 'test-runner' }] };
   writeFileSync(join(mocha.repo, 'narrow.json'), `${JSON.stringify(narrow)}\n`);
   json(mocha, 'blueprint', 'add', 'narrow.json');
   assert.equal(pendingQuestion(mocha.repo, 'Its runner is'), 'Its runner is: Jest. Choices: Vitest, Jest.', 'an answer outside the choices is never used');
@@ -891,10 +888,11 @@ test('a question with nothing to read has no default [S1,I1]', () => {
   writeFileSync(join(plain.repo, 'package.json'), `${JSON.stringify({ name: 'web', scripts: { test: 'make check' }, dependencies: { express: '5.0.0' } })}\n`);
   plain.git('add', '-A');
   plain.git('commit', '-q', '-m', 'chore: an app with nothing to read');
-  json(plain, 'blueprint', 'add', 'web-app');
+  writeFileSync(join(plain.repo, 'framework.json'), JSON.stringify({ ...PUBLISHED, defaults: [], questions: [LEGACY_FRAMEWORK], items: [] }));
+  json(plain, 'blueprint', 'add', 'framework.json');
   assert.equal(pendingQuestion(plain.repo, 'The app is built with'), `The app is built with: (choose one). ${FRAMEWORKS}`, 'no known framework leaves the question unanswered');
   // A blueprint without a default for a question it cannot detect is valid and files the same way.
-  const own = { ...PUBLISHED, name: 'own', title: 'Own', kind: 'practice', prefix: 'OWN', items: [], questions: [{ key: 'Q1', ask: 'Its colour is', choices: ['Red', 'Blue'] }] };
+  const own = { ...PUBLISHED, name: 'own', title: 'Own', kind: 'practice', prefix: 'OWN', items: [], defaults: [], questions: [{ key: 'Q1', ask: 'Its colour is', choices: ['Red', 'Blue'] }] };
   writeFileSync(join(plain.repo, 'own.json'), `${JSON.stringify(own)}\n`);
   json(plain, 'blueprint', 'add', 'own.json');
   assert.equal(pendingQuestion(plain.repo, 'Its colour is'), 'Its colour is: (choose one). Choices: Red, Blue.');
@@ -971,7 +969,8 @@ function bundled(name) {
 /** Every row text a blueprint drafts, rules then questions, as SPEC.md carries them. */
 function draftedTexts(blueprint) {
   return [...blueprint.rules.map((rule) => `${rule.text} Why: ${rule.why}`),
-    ...(blueprint.questions ?? []).map((question) => `${question.ask}: ${question.default ?? '(choose one)'}. Choices: ${question.choices.join(', ')}.`)];
+    ...(blueprint.questions ?? []).map((question) => `${question.ask}: ${question.default ?? '(choose one)'}. Choices: ${question.choices.join(', ')}.`),
+    ...(blueprint.defaults ?? []).map((entry) => entry.text)];
 }
 
 test('init takes a product and an architecture blueprint together [S1,I1]', () => {
@@ -1043,7 +1042,7 @@ test('init takes a product and an architecture blueprint together [S1,I1]', () =
   assert.deepEqual(added.blueprints.map((entry) => entry.blueprint.name), ['web-app', 'serverless']);
   assert.deepEqual(added.items.map((item) => item.blueprint), [...product.items.map(() => 'web-app'), ...architecture.items.map(() => 'serverless')]);
   assert.equal(added.rows.length, draftedTexts(product).length + draftedTexts(architecture).length);
-  assert.ok(added.rows.every((row) => ['draft', 'pending'].includes(row.status)), 'rows wait as drafts or pending');
+  assert.ok(added.rows.every((row) => ['draft', 'pending', 'fact'].includes(row.status)), 'rules and questions wait; defaults remain facts');
 });
 
 test('a second blueprint of the same kind is refused [S1,I1]', () => {
