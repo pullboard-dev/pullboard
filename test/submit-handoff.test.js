@@ -93,7 +93,7 @@ function workerDiagnostic(box, id) {
 
 /** Wait for a real terminal state, exposing a stopped worker's retained refusal instead of hiding it in teardown. */
 async function waitJob(box, expected) {
-  try { await box.helpers.waitFor(() => {
+  try { await box.helpers.waitFor(() => { // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
     const current = state(box, box.id);
     if (current.job?.state === expected) return true;
     if (current.job) {
@@ -124,7 +124,7 @@ test('queued submit returns before its gate and remains bound when the builder c
   assert.match(queued.companionDigest, /^[a-f0-9]{64}$/u);
   assert.equal(document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json')).commit, queued.commit);
   assert.equal(existsSync(box.release), false, 'submit acknowledged while the gate was still blocked');
-  await box.helpers.waitFor(() => existsSync(box.started), 'actual captured gate execution', 120000);
+  await box.helpers.waitFor(() => existsSync(box.started), 'actual captured gate execution', 120000); // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
   assert.equal(state(box, box.id).item.item_status, 'claimed', 'unproved work is never reviewable');
   box.git(box.web, 'checkout', '-q', '--detach', 'main');
   assert.equal(helpersCommit(box, 'web/later.txt', 'later\n').status, 0);
@@ -136,7 +136,7 @@ test('queued submit returns before its gate and remains bound when the builder c
   const duplicate = state(box, box.id).job;
   assert.equal(duplicate.commit, box.commit);
   writeFileSync(box.release, 'release\n');
-  await box.helpers.waitFor(() => state(box, box.id).job?.state === 'green', 'native proved submission', 120000);
+  await box.helpers.waitFor(() => state(box, box.id).job?.state === 'green', 'native proved submission', 120000); // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
   const completed = state(box, box.id);
   assert.equal(completed.item.item_status, 'submitted');
   assert.equal(completed.item.item_commit, box.commit);
@@ -158,7 +158,7 @@ function helpersCommit(box, path, body) {
 test('a queued red retains the exact canonical refusal and builder first refusal while another claim stays owned [V4,H16]', async t => {
   const box = fixture(t, { result: 'red' });
   document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
-  await box.helpers.waitFor(() => existsSync(box.started), 'actual red candidate execution', 120000);
+  await box.helpers.waitFor(() => existsSync(box.started), 'actual red candidate execution', 120000); // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
   document(box.run(box.web, 'claim', String(box.second), '--json'));
   writeFileSync(box.release, 'release\n');
   await waitJob(box, 'red');
@@ -191,7 +191,7 @@ test('setting off retains foreground submit until the real gate finishes [V4]', 
   const child = box.helpers.launch(box, box.web, process.execPath, [box.helpers.BIN, 'submit', String(box.id), '--no-next', '--json']);
   let closed = false;
   child.closed.then(() => { closed = true; });
-  await box.helpers.waitFor(() => existsSync(box.started), 'foreground gate execution', 120000);
+  await box.helpers.waitFor(() => existsSync(box.started), 'foreground gate execution', 120000); // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
   assert.equal(closed, false);
   assert.equal(state(box, box.id).job, null);
   writeFileSync(box.release, 'release\n');
@@ -246,14 +246,14 @@ test('removing the builder checkout during private source preparation cannot mov
   const box = fixture(t);
   const barrier = checkoutBarrier(box);
   document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
-  await box.helpers.waitFor(() => existsSync(barrier.ready), 'actual private checkout hook', 120000);
+  await box.helpers.waitFor(() => existsSync(barrier.ready), 'actual private checkout hook', 120000); // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
   box.git(box.web, 'checkout', '-q', '--detach', 'main');
   assert.equal(helpersCommit(box, 'web/another-build.txt', 'independent\n').status, 0);
   document(box.run(box.web, 'claim', String(box.second), '--json'));
   box.git(box.repo, 'worktree', 'remove', box.web);
   assert.equal(existsSync(box.web), false);
   writeFileSync(barrier.release, 'release\n');
-  await box.helpers.waitFor(() => existsSync(box.started), 'captured gate after removal of original checkout', 120000);
+  await box.helpers.waitFor(() => existsSync(box.started), 'captured gate after removal of original checkout', 120000); // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
   writeFileSync(box.release, 'release\n');
   await waitJob(box, 'green');
   const completed = state(box, box.id);
@@ -316,7 +316,7 @@ function mainAdvanceFixture(t) {
 test('queued submit keeps the ordinary hook-checked unrelated-main merge after captured proof [V4,H16,C7]', async t => {
   const box = mainAdvanceFixture(t);
   const queued = document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
-  try { await box.helpers.waitFor(() => existsSync(box.started), 'real captured feature gate', 120000); }
+  try { await box.helpers.waitFor(() => existsSync(box.started), 'real captured feature gate', 120000); } // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
   catch (error) { throw new Error(`${error.message}\n${workerDiagnostic(box, box.id)}`, { cause: error }); }
   mkdirSync(join(box.repo, 'docs'), { recursive: true });
   writeFileSync(join(box.repo, 'docs/unrelated.md'), 'accepted unrelated main content\n');
