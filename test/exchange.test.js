@@ -169,7 +169,7 @@ test('export keeps a single SQLite snapshot while another connection writes [A7]
         return typeof value === 'function' ? value.bind(target) : value;
       },
     });
-    const duringWrite = JSON.stringify(exportBoard({ db }));
+    const duringWrite = JSON.stringify(exportBoard({ db }, source.nativePorts));
     assert.equal(wrote, true, 'the second connection wrote after the item table was read');
     assert.equal(duringWrite, before, 'every exported table came from the same pre-write snapshot');
     assert.equal(exportBoard(writer).tables.item.length, 2, 'the legitimate write committed to the board');
@@ -395,4 +395,10 @@ test('fresh-init grant markers permit pairing without admitting other history [A
     store.closeBoard(source);
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+
+test('raw exports require the real command-phase provider before reading the database [A7,C7]', () => {
+  assert.throws(() => exportBoard({ get db() { throw new Error('database touched'); } }),
+    { name: 'TypeError', message: 'exportBoard needs beginCommandPhase' });
 });

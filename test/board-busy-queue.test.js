@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { join, resolve } from 'node:path';
 import { writeFileSync } from 'node:fs';
 import { exportBoard } from '../src/exchange.js';
+import { beginCommandPhase } from '../src/command-phase.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync, startFixtureChild } from './fixture-child.js';
 
@@ -16,7 +17,7 @@ const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 /** Snapshot the real private board without acquiring a write lock. */
 function snapshot(file) {
   const db = new DatabaseSync(file, { readOnly: true });
-  try { return exportBoard({ db }); }
+  try { return exportBoard({ db }, { beginCommandPhase }); }
   finally { db.close(); }
 }
 
