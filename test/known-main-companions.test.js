@@ -13,7 +13,6 @@ import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { persistentFixtureDirectory } from './persistent-fixture.js';
 import { companionMainFailuresUntouched } from '../src/main-red.js';
 import { DatabaseSync } from 'node:sqlite';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
@@ -47,13 +46,12 @@ function commit(box, root) {
 /** Produce a real assertion failure whose name and error details are independently variable. */
 function source(name = 'shared failure [G1]', expected = 2) {
   return `import assert from 'node:assert/strict';\nimport { test } from 'node:test';
-import { persistentFixtureDirectory } from './persistent-fixture.js';
 import { companionMainFailuresUntouched } from '../src/main-red.js';\ntest(${JSON.stringify(name)}, () => assert.equal(1, ${expected}));\n`;
 }
 
 /** Build and claim one private board whose accepted main already has a named red test. */
 function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSuffix = '', mainRed = true } = {}) {
-  const directory = persistentFixtureDirectory('pullboard-known-main-companion-');
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-known-main-companion-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const root = join(directory, 'repo');
   mkdirSync(root);
