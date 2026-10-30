@@ -47,7 +47,7 @@ test('unrelated positive [C7]',()=>assert.notEqual(mode,'mixed'));\n`);
 
 // The installed private program executes real red/green children and canonical ordered receipt moves.
 const DRIVER = `import assert from 'node:assert/strict';
-import {readFileSync,writeFileSync} from 'node:fs';
+import {readFileSync,writeFileSync,renameSync} from 'node:fs';
 import {randomUUID,createHash} from 'node:crypto';
 import {prepareItemPatchSubmit,withItemPatchSubmit} from './src/item-patch-submit.js';
 import {submitGateConfig} from './src/gate-submit.js';
@@ -61,7 +61,7 @@ import {landingExecutionServices} from './src/landing-shards.js';
 import {readGateReceipt,receiptStore,receiptBody,receiptFields} from './src/gate-run-receipt.js';
 import {prepareEngineMove,applyEngineMove,appliedSequence} from './src/engine.js';
 import {QUARANTINE_VERDICT_ENGINE} from './src/quarantine-verdict-engine.js';
-import {quarantineVerdictSnapshot,validateQuarantineVerdict,validateQuarantineGate,recordGateRun,quarantineWaivers,validateQuarantineProofIds,validateQuarantineLandingProof} from './src/quarantine.js';
+import {quarantineVerdictSnapshot,flakeQuarantines,validateQuarantineVerdict,validateQuarantineGate,recordGateRun,quarantineWaivers,validateQuarantineProofIds,validateQuarantineLandingProof} from './src/quarantine.js';
 import {receiptBlockingGreen,nativeProofBlockingGreen,blockingFailures} from './src/quarantine-verdict.js';
 import {proofRunReceipt} from './src/proof-receipts.js';
 import submitMove from './src/moves/submit.js';
@@ -124,6 +124,17 @@ assert.equal(native.isGreen,true);assert.equal(native.exitCode,1);
 const nativeReceipt=readGateReceipt(receiptStore(root),native.proofReceiptId);
 assert.equal(nativeReceipt.proof.exitCode,1);assert.equal(nativeReceipt.green,false);
 assert.equal(nativeReceipt.proof.counts.failed,1);assert.equal(receiptBlockingGreen(nativeReceipt),true);
+// Missing proving custody never creates a new native proof event, even while its event refs remain current.
+withBoard(ctx,board=>{
+ const entry=flakeQuarantines(board).find(row=>row.eventId===quarantines[0].eventId);
+ const proving=receiptStore(root)+'/'+entry.runs[0]+'.json',held=proving+'.held';
+ renameSync(proving,held);
+ try {
+  validateQuarantineVerdict(board,nativeReceipt);
+  assert.throws(()=>store.recordProofRun(board,{agentId,itemId:item.item_id,receiptId:nativeReceipt.id}),
+   error=>error.code==='PROOF_RUN_UNBOUND','origin custody must be sealed before the atomic proof append');
+ } finally {renameSync(held,proving);}
+});
 let nativeBoardReceipt;
 await withBoard(ctx,async board=>{
  nativeBoardReceipt=await ordered(ctx,board,'recordProofRun',[{agentId,itemId:item.item_id,receiptId:native.proofReceiptId}]);

@@ -1,5 +1,5 @@
 import { boundProofReceipt } from '../proof-receipts.js';
-import { validateQuarantineVerdict } from '../quarantine.js';
+import { sealQuarantineVerdict } from '../quarantine.js';
 import { compositionSessionOptions } from '../review-composition.js';
 import { frozenCheckTiming } from '../check-timing.js';
 import {
@@ -253,7 +253,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     const approvalNote = agentApprovalLine(approvalRows);
     if (decision === 'ACCEPT') git(root, ['update-ref', `refs/pullboard/items/${id}/${review.head.slice(0, 12)}`, review.head]);
     if (decision === 'ACCEPT' && check?.blockingVerdict) {
-      validateQuarantineVerdict(board, boundProofReceipt(board, { receiptId: check.proofReceiptId }));
+      sealQuarantineVerdict(board, boundProofReceipt(board, { receiptId: check.proofReceiptId }));
     }
     return await ordered(ctx, board, 'verify', [id, {
       agentId: me.id,

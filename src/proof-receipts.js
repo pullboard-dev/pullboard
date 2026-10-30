@@ -12,6 +12,7 @@ import { PROOF_RUN_ENGINE } from './proof-run-engine.js';
 import { Refused } from './refused.js';
 import * as seats from './seats.js';
 import { validateQuarantineVerdict } from './quarantine.js';
+import { sealQuarantineVerdict } from './quarantine.js';
 import { QUARANTINE_VERDICT_ENGINE } from './quarantine-verdict-engine.js';
 
 /** Read the native gate's file before sealing a replayable move; caller-supplied fields are not evidence. */
@@ -22,16 +23,21 @@ export function boundProofReceipt(board, request) {
   if (!stored || stored.version !== 2 || request?.receipt && receiptBody(request.receipt) !== receiptBody(stored)) {
     throw new Refused('PROOF_RUN_UNBOUND', 'proof provenance comes from the gate receipt it stored; run the check, then read pullboard show <id>');
   }
+  if (!proofReceipts(board, stored.proof.item).some(run => run.id === stored.id)) sealQuarantineVerdict(board, stored);
   return stored;
 }
 
 /** Validate native facts against current board-owned identities without changing the board. */
 export function proofRunReceipt(board, request) {
+  if (!listAgents(board).some(agent => agent.agent_id === request?.agentId)) throw new Refused('NOT_JOINED', 'join before recording a proof run');
+  const run = board.executionEngineVersion === undefined ? boundProofReceipt(board, request) : board.runtimePorts.sourceAdvanceReceipts.receiptFields(request.receipt);
+  return proofReceiptFields(board, request, run);
+}
+
+/** Check board state again under the atomic boundary using only origin-sealed immutable receipt bytes. */
+function proofReceiptFields(board, request, run) {
   const { agentId, itemId } = request;
   if (!listAgents(board).some(agent => agent.agent_id === agentId)) throw new Refused('NOT_JOINED', 'join before recording a proof run');
-  // Only the engine establishes this in-process replay context after origin sealing, as for legacy gate runs.
-  // A replica cannot read the origin's receipt file; normal direct calls always require that file.
-  const run = board.executionEngineVersion === undefined ? boundProofReceipt(board, request) : board.runtimePorts.sourceAdvanceReceipts.receiptFields(request.receipt);
   if (!run || run.version !== 2 || run.proof.item !== itemId) throw new Refused('PROOF_RUN_UNBOUND', 'the native receipt must name this item; run its check and read pullboard show <id>');
   if (run.proof.seat !== agentId) throw new Refused('PROOF_RUN_ACTOR', 'the native receipt belongs to another seat; use the receipts from your own check');
   const item = getItem(board, itemId);
@@ -63,8 +69,10 @@ export function recordProofRun(board, request) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < PROOF_RUN_ENGINE) {
     throw new Refused('ENGINE_VERSION', `proof receipts require engine ${PROOF_RUN_ENGINE}; upgrade Pullboard`);
   }
+  if (!listAgents(board).some(agent => agent.agent_id === request?.agentId)) throw new Refused('NOT_JOINED', 'join before recording a proof run');
+  const run = board.executionEngineVersion === undefined ? boundProofReceipt(board, request) : board.runtimePorts.sourceAdvanceReceipts.receiptFields(request.receipt);
   return atomic(board, () => {
-    const { receipt, existing } = proofRunReceipt(board, request);
+    const { receipt, existing } = proofReceiptFields(board, request, run);
     if (existing) return existing;
     logEvent(board, request.agentId, 'proof-run', request.itemId, { engine: receipt.blockingVerdict ? QUARANTINE_VERDICT_ENGINE : PROOF_RUN_ENGINE, receipt });
     return receipt;

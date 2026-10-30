@@ -1,7 +1,7 @@
 import { blockingFailures } from '../quarantine-verdict.js';
 import { quarantineWaivers } from '../quarantine.js';
 import { quarantineVerdictSnapshot } from '../quarantine.js';
-import { validateQuarantineVerdict } from '../quarantine.js';
+import { sealQuarantineVerdict } from '../quarantine.js';
 import { boardReceiptStore } from '../gate-run-receipt.js';
 import { readGateReceipt } from '../gate-run-receipt.js';
 import { checkAtCommit } from '../runner-private-check.js';
@@ -87,7 +87,7 @@ export async function run(io, { first, second, rest, values }) {
   if (gate.blockingVerdict) withBoard(ctx, board => {
     const receipt = readGateReceipt(boardReceiptStore(board), gate.receiptId);
     if (!receipt) throw new Refused('PROOF_RUN_UNBOUND', 'the computed gate verdict needs its stored native receipt');
-    validateQuarantineVerdict(board, receipt);
+    sealQuarantineVerdict(board, receipt);
   });
   // A landing gate honours the person's live waivers exactly as land does; a red run never stamps, so it stays waived, not green [B3,R3].
   const waived = values.landing && !gate.isGreen ? withBoard(ctx, (board) => waivedFailures(board, blockingFailures(gate, accountedFailures(gate, ctx.info.root)), { quarantineWaivers })) : null;

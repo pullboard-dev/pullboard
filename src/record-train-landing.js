@@ -7,7 +7,7 @@ import { landingBatches } from './board.js';
 import { recordLandingBatch } from './board.js';
 import { COORDINATOR } from './config.js';
 import { ENGINE_VERSION } from './machine.js';
-import { recordGateRun } from './quarantine.js';
+import { recordSealedGateRun } from './quarantine.js';
 import { requireBound } from './quarantine.js';
 import { Refused } from './refused.js';
 import { receiptBody } from './gate-run-receipt.js';
@@ -48,21 +48,21 @@ export function recordTrainLanding(board, { agentId, batch, receipt, landingFenc
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < TRAIN_LANDING_ENGINE) {
     throw new Refused('ENGINE_VERSION', `train landing receipts require engine ${TRAIN_LANDING_ENGINE}; upgrade Pullboard`);
   }
+  const value = checkTrainLandingReceipt(receipt, batch?.tip);
+  if (board.executionEngineVersion === undefined) requireBound(board, value);
   return atomic(board, () => {
-    const value = checkTrainLandingReceipt(receipt, batch?.tip);
     if (!batch || batch.id !== (nativeBatch ?? `train-${value.id}`) || !Array.isArray(batch.items) || !batch.items.length
       || new Set(batch.items.map(entry => entry?.id)).size !== batch.items.length
       || batch.items.some(entry => entry?.merge !== value.head)
       || batch.proof?.tree !== value.tree) throw changedBatch();
     validateLandingBatch({ ...batch, state: 'trunk' }, 0);
-    if (board.executionEngineVersion === undefined) requireBound(board, value);
     const previous = landingBatches(board).find(entry => entry.id === batch.id);
     if (previous && nativeBatch && previous.state !== 'landed') {
       if (JSON.stringify(previous) !== JSON.stringify(batch) || !['trunk', 'pushed'].includes(previous.state)
         || receiptBody(previous.proof?.receipt) !== receiptBody(value)) throw changedBatch();
       validateQuarantineVerdict(board, value);
       const first = getItem(board, batch.items[0].id);
-      recordGateRun(board, { agentId, receipt: value, lane: first.item_lane });
+      recordSealedGateRun(board, { agentId, receipt: value, lane: first.item_lane });
       return finishLandingBatch(board, { agentId, id: batch.id, tip: value.head, landingFence });
     }
     if (nativeBatch && !previous) throw changedBatch();
@@ -73,7 +73,7 @@ export function recordTrainLanding(board, { agentId, batch, receipt, landingFenc
     validateQuarantineVerdict(board, value);
     // All writes remain inside this transaction: any native batch, fence or review refusal rolls them back.
     const first = getItem(board, batch.items[0].id);
-    recordGateRun(board, { agentId, receipt: value, lane: first.item_lane });
+    recordSealedGateRun(board, { agentId, receipt: value, lane: first.item_lane });
     const recorded = recordLandingBatch(board, { agentId, batch: { ...batch, state: 'trunk',
       proof: { tree: value.tree, failures: [], logPath: batch.logPath, receipt: value } }, revision: 0, landingFence });
     return finishLandingBatch(board, { agentId, id: recorded.id, tip: value.head, landingFence });

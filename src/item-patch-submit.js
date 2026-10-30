@@ -26,6 +26,7 @@ import { Refused } from './refused.js';
 import { nativeProofBlockingGreen } from './quarantine-verdict.js';
 import { receiptBlockingGreen } from './quarantine-verdict.js';
 import { validateQuarantineVerdict } from './quarantine.js';
+import { sealQuarantineVerdict } from './quarantine.js';
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
@@ -138,7 +139,7 @@ export function sealItemPatchSubmit(board, id, options) {
       || options.gateGreen === true && !receiptBlockingGreen(receipt)
       || receipt.proof.seat !== options.agentId || receipt.proof.item !== id
       || receipt.proof.frozenDigest !== item.item_frozen_digest || !receipt.proof.sourceClean)) throw new Error('unbound native proof');
-    for (const receipt of receipts) validateQuarantineVerdict(board, receipt);
+    for (const receipt of receipts) sealQuarantineVerdict(board, receipt);
     const config = submitGateConfig(policyAt(root, binding.commit).config, policyAt(root, options.policyCommit).config);
     const plan = submitGatePlan(root, config, { base: item.item_claim_head, trunk: options.policyCommit,
       check: frozenCheck(item), commit: binding.commit });

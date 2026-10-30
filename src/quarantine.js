@@ -118,7 +118,7 @@ export function quarantineVerdictSnapshot(board) {
     .map(({ eventId, item, file, name }) => ({ eventId, item, file, name }));
 }
 
-/** Origin binding checks real receipt custody; replay checks the same already-sealed event references. */
+/** Atomic outcomes and replay check current board-owned event authority without touching origin files. */
 export function validateQuarantineVerdict(board, receipt, { historical = false } = {}) {
   if (!Object.hasOwn(receipt, 'blockingVerdict')) return;
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < QUARANTINE_VERDICT_ENGINE) {
@@ -129,11 +129,27 @@ export function validateQuarantineVerdict(board, receipt, { historical = false }
   const active = historical ? board.db.prepare("SELECT event_id, item_id, event_detail FROM event WHERE event_kind = 'test-quarantine' ORDER BY event_id").all().flatMap(row => {
     const detail = JSON.parse(row.event_detail);
     return detail.engine >= QUARANTINE_CORE_ENGINE ? [{ eventId: row.event_id, item: row.item_id, file: detail.file, name: detail.name }] : [];
-  }) : board.executionEngineVersion === undefined ? quarantineVerdictSnapshot(board)
-    : flakeQuarantines(board).filter(entry => entry.nativeCore && entry.status === 'quarantined');
+  }) : flakeQuarantines(board).filter(entry => entry.nativeCore && entry.status === 'quarantined');
   if (!verdict || verdict.quarantines.some(row => !active.some(entry => entry.eventId === row.eventId
     && entry.item === row.item && entry.file === row.file && entry.name === row.name))) {
     throw new Refused('PROOF_RUN_UNBOUND', 'the computed verdict must name current native quarantine events and their exact failed cases');
+  }
+}
+
+/** Seal actual proving receipt custody before ordering; the atomic validator separately rechecks event authority. */
+export function sealQuarantineVerdict(board, receipt, { historical = false } = {}) {
+  if (!Object.hasOwn(receipt ?? {}, 'blockingVerdict')) return;
+  validateQuarantineVerdict(board, receipt, { historical });
+  const runs = new Map(gateRuns(board).map(({ eventId, by, ...run }) => [run.id, run]));
+  const store = boardReceiptStore(board);
+  const entries = historical ? board.db.prepare("SELECT event_id, item_id, event_detail FROM event WHERE event_kind = 'test-quarantine' ORDER BY event_id").all().flatMap(row => {
+    const detail = JSON.parse(row.event_detail);
+    return detail.engine >= QUARANTINE_CORE_ENGINE ? [{ ...detail, eventId: row.event_id, item: row.item_id }] : [];
+  }) : flakeQuarantines(board).filter(entry => entry.nativeCore && entry.status === 'quarantined');
+  if (!historical && !quarantineOn(board) || receipt.blockingVerdict.quarantines.some(row => !entries.some(entry =>
+    entry.eventId === row.eventId && entry.item === row.item && entry.file === row.file && entry.name === row.name
+    && Array.isArray(entry.runs) && entry.runs.length && entry.runs.every(id => runs.has(id) && receiptBinds(store, runs.get(id)))))) {
+    throw new Refused('PROOF_RUN_UNBOUND', 'the quarantine event needs its actual native proving receipts at origin before ordering');
   }
 }
 
@@ -206,18 +222,11 @@ export function runReceipt(receipt) {
  */
 export function requireBound(board, receipt) {
   if (!receiptBinds(boardReceiptStore(board), runReceipt(receipt))) throw new Refused('GATE_RUN_UNBOUND', 'a run counts only as the receipt its own gate stored for it; run the gate, which records its runs itself');
+  if (!gateRuns(board).some(run => run.id === receipt.id)) sealQuarantineVerdict(board, receipt);
 }
 
-/**
- * Append one gate run and, when it completes a proof, file the repair item and quarantine the test. A test is proven
- * flaky by two actual structured verdicts for that test on one tree. Legacy receipts retain coordinator-only inference;
- * a different tree, unrelated green case, skipped body or unbound run never supplies the missing verdict.
- *
- * @param {any} board
- * @param {{ agentId: string, receipt: object, lane: string, owners?: Record<string,string> }} request
- * @returns {{ run: object, duplicate?: boolean, quarantined: {file: string, name: string, item: number}[] }}
- */
-export function recordGateRun(board, { agentId, receipt, lane, owners }) {
+/** Validate the complete gate wire shape and actor before any origin binding or board append. */
+function gateRunValue(board, { agentId, receipt }) {
   if (Object.hasOwn(receipt ?? {}, 'testOutcomes') && (board.executionEngineVersion ?? ENGINE_VERSION) < QUARANTINE_CORE_ENGINE) {
     throw new Refused('ENGINE_VERSION', `structured quarantine outcomes require engine ${QUARANTINE_CORE_ENGINE}`);
   }
@@ -233,9 +242,29 @@ export function recordGateRun(board, { agentId, receipt, lane, owners }) {
   if (!listAgents(board).some(agent => agent.agent_id === agentId)) throw new Refused('NOT_JOINED', 'join this board before recording a gate run');
   const value = runReceipt(receipt);
   if (value.version === 2 && value.proof.seat !== agentId) throw new Refused('GATE_RUN_UNBOUND', 'a native test outcome must be recorded by the seat that executed its proof');
+  return value;
+}
+
+/**
+ * Append one gate run and, when it completes a proof, file the repair item and quarantine the test. A test is proven
+ * flaky by two actual structured verdicts for that test on one tree. Legacy receipts retain coordinator-only inference;
+ * a different tree, unrelated green case, skipped body or unbound run never supplies the missing verdict.
+ *
+ * @param {any} board
+ * @param {{ agentId: string, receipt: object, lane: string, owners?: Record<string,string> }} request
+ * @returns {{ run: object, duplicate?: boolean, quarantined: {file: string, name: string, item: number}[] }}
+ */
+export function recordGateRun(board, { agentId, receipt, lane, owners }) {
+  const value = gateRunValue(board, { agentId, receipt });
   // A caller's own run must be the receipt its gate stored. A sealed move being replayed was checked where it was made
   // (prepareEngineMove), because another machine holds no copy of that receipt; quarantineWaivers checks again here.
   if (board.executionEngineVersion === undefined) requireBound(board, value);
+  return recordSealedGateRun(board, { agentId, receipt: value, lane, owners });
+}
+
+/** Append a gate already bound by the native origin adapter; callers retain pure current-event revalidation. */
+export function recordSealedGateRun(board, { agentId, receipt, lane, owners }) {
+  const value = gateRunValue(board, { agentId, receipt });
   return atomic(board, () => {
     if (Object.hasOwn(value, 'collection')) {
       if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator records a landed batch audit');

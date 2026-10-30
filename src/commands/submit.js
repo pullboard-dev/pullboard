@@ -1,6 +1,6 @@
 import { blockingFailures } from '../quarantine-verdict.js';
 import { boundProofReceipt } from '../proof-receipts.js';
-import { validateQuarantineVerdict } from '../quarantine.js';
+import { sealQuarantineVerdict } from '../quarantine.js';
 import { privateCheckEnvelope } from '../runner-private-mode.js';
 import { trunkRef } from '../trusted-policy-read.js';
 import {
@@ -476,7 +476,7 @@ export async function submitHere(ctx, id, infra) {
     const quarantineProofIds = [];
     for (const receiptId of submissionReceiptIds) {
       const receipt = boundProofReceipt(board, { receiptId });
-      validateQuarantineVerdict(board, receipt);
+      sealQuarantineVerdict(board, receipt);
       if (Object.hasOwn(receipt, 'blockingVerdict')) quarantineProofIds.push(receiptId);
     }
     const submittedMove = await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit: submitted, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...(infraRecord ? { infra: infraRecord } : {}),
