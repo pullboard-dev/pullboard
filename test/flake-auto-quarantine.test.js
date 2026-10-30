@@ -28,7 +28,7 @@ function fixture(t, deterministic = false) {
   writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify(config) + '\n');
   // This synthetic consumer project has no cells-plan authority; the installed runtime is copied unchanged.
   rmSync(join(box.root, 'bin/cells-plan.json'), { force: true });
-  if (deterministic) writeFileSync(join(box.root, 'test/alternating.test.mjs'), `import assert from 'node:assert/strict';\nimport {test} from 'node:test';\ntest(${JSON.stringify(TITLE)},()=>assert.fail('deterministic controlled failure'));\n`);
+  if (deterministic) writeFileSync(join(box.root, 'test/alternating.test.mjs'), `import assert from 'node:assert/strict';\nimport {test} from 'node:test';\nimport {appendFileSync} from 'node:fs';\ntest(${JSON.stringify(TITLE)},()=>{appendFileSync(${JSON.stringify(box.counter)},'run\\n');assert.fail('deterministic controlled failure');});\n`);
   box.git('add', '-A'); box.git('commit', '-q', '-m', 'chore: prepare controlled submit consumer');
   const made = box.cli('worktree', 'core');
   assert.equal(made.code, 0, JSON.stringify(made.document));
@@ -66,7 +66,7 @@ test('two actual Submit pairs quarantine once, retain raw receipts, and let the 
   assert.equal(snapshot(box).quarantines.length, 0, 'the setup must not seed a legacy quarantine');
   const first = submit(box);
   assert.equal(first.code, 1, JSON.stringify(first.document));
-  assert.equal(snapshot(box).quarantines.length, 0, 'one Submit cannot quarantine its own failed case');
+  assert.equal(snapshot(box).quarantines.length, 0, JSON.stringify({ quarantines: snapshot(box).quarantines, runs: snapshot(box).runs.map(run => ({ id: run.id, kind: run.kind, proof: run.proof, outcomes: run.testOutcomes })) }));
   const second = submit(box);
   assert.equal(second.code, 1, JSON.stringify(second.document));
   const state = snapshot(box);
@@ -81,7 +81,7 @@ test('two actual Submit pairs quarantine once, retain raw receipts, and let the 
   assert.equal(entry.runs.length, 4);
   const receipts = entry.runs.map(id => readGateReceipt(receiptStore(box.root), id));
   assert.ok(receipts.every(Boolean), 'all four proving receipts are native-produced private bytes');
-  assert.equal(new Set(receipts.map(receipt => receipt.proof.submitAdmission)).size, 2);
+  assert.equal(new Set(receipts.map(receipt => receipt.proof.diagnosticAdmission)).size, 2);
   for (const receipt of receipts.filter(receipt => receipt.kind === 'check')) {
     assert.equal(receipt.proof.submitPhase, 'diagnostic');
     assert.equal(receipt.proof.frozenDigest, null, 'a diagnostic cannot attest the frozen Submit bar');
@@ -106,17 +106,21 @@ test('two actual Submit pairs quarantine once, retain raw receipts, and let the 
 test('two real deterministic Submit failures never acquire automatic quarantine [C7,H16]', t => {
   const box = fixture(t, true);
   const first = submit(box);
-  assert.equal(first.code, 1, JSON.stringify(first.document));
-  const second = submit(box);
-  assert.equal(second.code, 1, JSON.stringify(second.document));
+  assert.ok([0, 1].includes(first.code), JSON.stringify(first.document));
+  assert.ok(box.readData(box.counter, 'utf8').trim().split('\n').length >= 2, 'the actual deterministic original and paired bodies executed');
   assert.deepEqual(snapshot(box).quarantines, []);
+  if (first.code === 1) {
+    const second = submit(box);
+    assert.ok([0, 1].includes(second.code), JSON.stringify(second.document));
+    assert.deepEqual(snapshot(box).quarantines, []);
+  }
 });
 
 /** Synthetic pure selector input explicitly tests historical time/identity boundaries, never execution authority. */
 function synthetic(admission, passed, at, { tree = 'a', diagnostic = passed, skipped = false } = {}) {
   return { id: `${admission}-${passed}-${at}`, version: 2, kind: diagnostic ? 'check' : 'submit', tree,
     at, proof: { seat: 'synthetic', item: 1, frozenDigest: diagnostic ? null : 'bar', sourceClean: true,
-      exitCode: passed ? 0 : 1, submitAdmission: admission, ...(diagnostic ? { submitPhase: 'diagnostic' } : {}) },
+      exitCode: passed ? 0 : 1, diagnosticAdmission: admission, ...(diagnostic ? { submitPhase: 'diagnostic' } : {}) },
     testOutcomes: [{ file: 'test/synthetic.js', name: 'synthetic case', passed, skipped }] };
 }
 

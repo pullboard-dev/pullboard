@@ -324,9 +324,9 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
 
 /** Execute a private immutable check before the gate writes its provenance. */
 export function runFrozenProof(root, item, { gateLease, waitMs = 0, diagnostic = false } = {}, { checkAtCommit }) {
-  if (diagnostic && (gateLease?.proof?.kind !== 'submit' || !gateLease.proof.submitAdmission || item.item_id !== gateLease.proof.item)) throw new Refused('PROOF_RUN_UNBOUND', 'a diagnostic needs its actual admitted Submit item');
+  if (diagnostic && (gateLease?.proof?.kind !== 'submit' || !gateLease.proof.diagnosticAdmission || item.item_id !== gateLease.proof.item)) throw new Refused('PROOF_RUN_UNBOUND', 'a diagnostic needs its actual admitted Submit item');
   const context = diagnostic
-    ? { item: item.item_id, frozenDigest: null, seat: gateLease.proof.seat, kind: 'check', commit: item.item_commit, submitPhase: 'diagnostic', submitAdmission: gateLease.proof.submitAdmission }
+    ? { item: item.item_id, frozenDigest: null, seat: gateLease.proof.seat, kind: 'check', commit: item.item_commit, submitPhase: 'diagnostic', diagnosticAdmission: gateLease.proof.diagnosticAdmission }
     : { item: item.item_id, frozenDigest: item.item_frozen_digest ?? null,
       seat: gateLease?.proof?.seat, kind: 'verdict', commit: item.item_commit };
   const before = proofSourceAt(root, item.item_commit, committedTree);

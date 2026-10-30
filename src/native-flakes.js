@@ -253,7 +253,7 @@ function probeFile(root, pin, lease, prefix, checkAtCommit, file, group) {
   const names = group.map(entry => entry.failure.name);
   const pattern = '^(?:' + names.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|') + ')$';
   const selected = prefix + ' --test-name-pattern ' + word(pattern) + ' ' + word(file);
-  const submitDiagnostic = lease?.proof?.kind === 'submit' && Boolean(lease.proof.submitAdmission);
+  const submitDiagnostic = lease?.proof?.kind === 'submit' && Boolean(lease.proof.diagnosticAdmission);
   const pairRun = pin.privateCheck || submitDiagnostic ? privateProbe(root, pin.head, selected, lease, pin.main ?? pin.head, checkAtCommit, submitDiagnostic)
     : runProfiledShell(root, selected, { gateLease: lease });
   // Every remote receipt a classification rests on carries both facts, the paired rerun's and main's included; a

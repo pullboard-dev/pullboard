@@ -10,10 +10,10 @@ export function submitFlakePairs(runs, file, name, at) {
     const outcome = run.testOutcomes?.find(row => row.file === file && row.name === name);
     const diagnostic = run.kind === 'check' && proof?.submitPhase === 'diagnostic' && proof.frozenDigest === null;
     if (!(run.kind === 'submit' || diagnostic) || run.version !== 2 || proof?.sourceClean !== true
-      || ![0, 1].includes(proof.exitCode) || !proof.submitAdmission || !run.tree
+      || ![0, 1].includes(proof.exitCode) || !proof.diagnosticAdmission || !run.tree
       || !Number.isFinite(time) || time > end || time < end - DAY_MS || !outcome || outcome.skipped) continue;
     // Each pair keeps its own tree and actor/item; unrelated phases cannot complete another submit's evidence.
-    const key = JSON.stringify([proof.submitAdmission, proof.seat, proof.item, run.tree]);
+    const key = JSON.stringify([proof.diagnosticAdmission, proof.seat, proof.item, run.tree]);
     const group = admissions.get(key) ?? [];
     if (!group.some(entry => entry.run.id === run.id)) group.push({ run, time, passed: outcome.passed, diagnostic });
     admissions.set(key, group);
@@ -23,7 +23,7 @@ export function submitFlakePairs(runs, file, name, at) {
     group.sort((a, b) => a.time - b.time);
     const red = group.find(entry => !entry.passed && !entry.diagnostic);
     const green = red && group.find(entry => entry.passed && entry.diagnostic && entry.time > red.time);
-    if (green && !pairs.has(red.run.proof.submitAdmission)) pairs.set(red.run.proof.submitAdmission, [red.run, green.run]);
+    if (green && !pairs.has(red.run.proof.diagnosticAdmission)) pairs.set(red.run.proof.diagnosticAdmission, [red.run, green.run]);
   }
   return [...pairs.values()];
 }

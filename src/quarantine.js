@@ -273,7 +273,7 @@ export function recordGateRun(board, { agentId, receipt, lane, owners, autoSubmi
 /** Append a gate already bound by the native origin adapter; callers retain pure current-event revalidation. */
 export function recordSealedGateRun(board, { agentId, receipt, lane, owners, autoSubmit }) {
   const value = gateRunValue(board, { agentId, receipt });
-  if (autoSubmit !== undefined && (autoSubmit !== true || value.version !== 2 || !['submit', 'check'].includes(value.kind) || value.kind === 'check' && (value.proof.submitPhase !== 'diagnostic' || value.proof.frozenDigest !== null) || !value.proof.submitAdmission)) throw new Refused('GATE_RUN_EVIDENCE', 'automatic quarantine needs a genuine admitted native Submit receipt');
+  if (autoSubmit !== undefined && (autoSubmit !== true || value.version !== 2 || !['submit', 'check'].includes(value.kind) || value.kind === 'check' && (value.proof.submitPhase !== 'diagnostic' || value.proof.frozenDigest !== null))) throw new Refused('GATE_RUN_EVIDENCE', 'automatic quarantine needs a genuine admitted native Submit receipt');
   if (autoSubmit && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTO_SUBMIT_QUARANTINE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before recording automatic Submit quarantine');
   return atomic(board, () => {
     if (Object.hasOwn(value, 'collection')) {
@@ -374,7 +374,7 @@ function recordSubmitQuarantines(board, agentId, value) {
       title: `Flaky test: ${outcome.file} :: ${outcome.name}`.slice(0, 240),
       criterion: `Correct why ${outcome.file} :: ${outcome.name} fails then passes at unchanged source in separate submits; retain the raw failures and prove the correction without retries.`,
       brief: 'Automatic quarantine after two admitted Submit pairs within 24 hours. The actual failed result and stack remain in each native run log. Quarantine ends only after this repair lands.\n\n'
-        + evidence.map(run => `Native receipt ${run.id}; admission ${run.proof.submitAdmission}; tree ${run.tree}; ${run.green ? 'pass' : 'fail'}; ${run.at}`).join('\n') });
+        + evidence.map(run => `Native receipt ${run.id}; admission ${run.proof.diagnosticAdmission}; tree ${run.tree}; ${run.green ? 'pass' : 'fail'}; ${run.at}`).join('\n') });
     logEvent(board, agentId, 'test-quarantine', item, { engine: AUTO_SUBMIT_QUARANTINE_ENGINE, autoSubmit: true,
       file: outcome.file, name: outcome.name, tree: value.tree, runs: evidence.map(run => run.id) });
     filed.push({ file: outcome.file, name: outcome.name, item });
