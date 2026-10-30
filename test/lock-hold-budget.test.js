@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-test-loads bin/pullboard.js test/lock-hold-budget-preload.fixture.js */
 /** Real policy reads must precede the actual SQLite writer lease [B2,C7,V4]. */
 import assert from 'node:assert/strict';
 import cp from 'node:child_process';
@@ -6,6 +7,7 @@ import fs from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { familyName } from '../src/review-policy.js';
 import { seatFamily } from '../src/family-declaration.js';
+import { assertCommandHoldBudget } from './lock-hold-budget-command.fixture.js';
 import { syncBuiltinESMExports } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -119,18 +121,22 @@ test('a policy change during work refuses without replaying work or hiding the n
 
 test('unavailable preparation preserves earlier refusal and diagnoses actual lazy evaluation [C7,V4]', t => {
   const { board, ctx, box } = setup(t);
-  const file = join(box.repo, 'pullboard.json');
-  writeFileSync(file, '{invalid');
-  box.git(box.repo, 'add', 'pullboard.json');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: unavailable fixture policy');
+  // A detached primary is a real unavailable main-policy state, while every committed config stays valid.
+  box.git(box.repo, 'checkout', '-q', '--detach', 'HEAD');
   const lines = [];
   ctx.io.err = line => lines.push(line);
   const first = new Error('original earlier guard');
   withOpenedBoard(ctx, opened => {
     assert.throws(() => atomic(opened, () => { throw first; }), error => error === first);
     assert.deepEqual(lines, [], 'preparation failure is not a consuming guard');
-    assert.throws(() => atomic(opened, () => opened.familyAliases));
-    assert.deepEqual(lines, ['PULLBOARD_WRITE_POLICY_FALLBACK input=familyAliases']);
+    assert.throws(() => atomic(opened, () => opened.quarantineEnabled()), error => error.code === 'NO_POLICY');
+    assert.deepEqual(lines, ['PULLBOARD_WRITE_POLICY_FALLBACK input=quarantine']);
+    // Recovery in the same opened command must not replay a previously captured refusal.
+    atomic(opened, () => {
+      box.git(box.repo, 'checkout', '-q', 'main');
+      assert.equal(typeof opened.quarantineEnabled(), 'boolean');
+    });
+    assert.deepEqual(lines, ['PULLBOARD_WRITE_POLICY_FALLBACK input=quarantine', 'PULLBOARD_WRITE_POLICY_FALLBACK input=quarantine']);
   }, board);
 });
 
@@ -180,4 +186,9 @@ test('800 historical seats use two policy witnesses per real writer, with median
   assert.equal(holds.length, 3);
   const median = [...holds].sort((a, b) => a - b)[1];
   assert.ok(median < 1000, `median real writer hold ${median.toFixed(3)}ms exceeds 1000ms; samples=${JSON.stringify(holds)}`);
+});
+
+
+test('actual claim release submit verify medians stay under one second and API reads acquire no writer [B2,C7,V4]', async t => {
+  await assertCommandHoldBudget(t);
 });
