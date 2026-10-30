@@ -32,3 +32,56 @@ export function itemPatchPaths(patch) {
   return paths;
 }
 
+
+/** Refuse a plain intake without echoing untrusted source lines or inventing missing metadata. */
+function plainPatchRefusal() {
+  throw new Refused('ITEM_PATCH_FORMAT', 'plain companions need matching safe --- a/path and +++ b/path headers with complete text hunks; use an ordinary unified diff without renames or binary data');
+}
+
+/**
+ * Add only Git file headers to a complete plain unified text diff at CLI intake.
+ * Native Git-format records retain their exact bytes; hunk counts distinguish content from file headers.
+ */
+export function normalizeItemPatch(patch) {
+  if (typeof patch !== 'string' || !patch || patch.includes('\0') || Buffer.byteLength(patch, 'utf8') > 8 * 1024 * 1024) plainPatchRefusal();
+  if (patch.startsWith('diff --git ')) return patch;
+  const lines = patch.split('\n'), output = [];
+  let cursor = 0;
+  while (cursor < lines.length) {
+    if (cursor === lines.length - 1 && lines[cursor] === '') { output.push(''); break; }
+    const before = /^--- a\/(\S+)$/u.exec(lines[cursor]);
+    const after = /^\+\+\+ b\/(\S+)$/u.exec(lines[cursor + 1] ?? '');
+    if (!before || !after || before[1] !== after[1] || !safeItemPatchPath(before[1])) plainPatchRefusal();
+    output.push(`diff --git a/${before[1]} b/${before[1]}`, lines[cursor++], lines[cursor++]);
+    let hunks = 0;
+    while (cursor < lines.length && lines[cursor].startsWith('@@ ')) {
+      const hunk = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$/u.exec(lines[cursor]);
+      if (!hunk) plainPatchRefusal();
+      const positions = [hunk[1], hunk[2] ?? '1', hunk[3], hunk[4] ?? '1'].map(Number);
+      if (!positions.every(Number.isSafeInteger)) plainPatchRefusal();
+      let oldLines = positions[1], newLines = positions[3], content = false;
+      if (oldLines === 0 && newLines === 0) plainPatchRefusal();
+      output.push(lines[cursor++]); hunks += 1;
+      while (oldLines || newLines) {
+        const line = lines[cursor];
+        if (line === '\\ No newline at end of file') {
+          if (!content) plainPatchRefusal();
+          content = false; output.push(line); cursor += 1; continue;
+        }
+        if (typeof line !== 'string' || ![' ', '-', '+'].includes(line[0])) plainPatchRefusal();
+        if (line[0] !== '+') oldLines -= 1;
+        if (line[0] !== '-') newLines -= 1;
+        if (oldLines < 0 || newLines < 0) plainPatchRefusal();
+        content = true; output.push(line); cursor += 1;
+      }
+      if (lines[cursor] === '\\ No newline at end of file') {
+        if (!content) plainPatchRefusal();
+        output.push(lines[cursor++]);
+      }
+    }
+    if (!hunks) plainPatchRefusal();
+  }
+  const normalized = output.join('\n');
+  if (Buffer.byteLength(normalized, 'utf8') > 8 * 1024 * 1024) plainPatchRefusal();
+  return normalized;
+}

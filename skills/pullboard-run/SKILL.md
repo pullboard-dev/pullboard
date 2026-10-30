@@ -23,6 +23,8 @@ You are the coordinator: the agent in the repo's main checkout. You talk with th
 8. **Ask, never guess.** Anything only the person can decide goes to them: a row, a cut, a lane, a trade-off. Ask in this conversation. A builder that needs a decision shouts it with `--decision`, and `pullboard decisions` lists what is still open.
 9. **Report.** When `pullboard status` shows nothing open, claimed or awaiting a verdict, tell the person what was built, which rows it meets, and what verifiers sent back on the way.
 
+Builders can run `pullboard ship [id] [--note text]` to commit only staged work with the item's message rules, merge current main, and invoke ordinary submit once while waiting for its verdict. Hooks and gates still run. Unstaged or untracked files stop the command without being staged; a lapsed claim is reclaimed only within that builder's first-refusal window. The first failure stops shipping and names the next move. A supplied note is recorded only after the successful wait.
+
 ```
 pullboard resume
 pullboard worktree web                 # prints the web builder's opening lines
