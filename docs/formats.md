@@ -511,7 +511,7 @@ The computed-grant engine adds `grantEngine` to new join, claim and renewal even
 | `source_advanced` | coordinator | Exact checked source and native receipt custody: `version`, `board`, `submitted`, `status`, `previous`, `inputHead`, `trunk`, `bar`, `patchDigest`, `episode`, `reviewEpisode`, `reviewBy`, `reviewUntil`, `verdict`, `head`, `tree`, `mergeTree`, `paths`, `generated`, `selectionDigest`, `phases`. |
 | `next-idle` | idle seat | `version`, `engine`, `reason` (structured next observation; absent historical reasons stay unknown) |
 | `review-default` | board | Review-policy migration: `engine`, `count`, `unfinished`. |
-| `submit-handoff` | queued builder | Queue state (`queued`, `running`, `green`, `red` or `incomplete`) and captured source `commit`; job identifiers and refusal text stay in private board metadata. |
+| `submit-handoff` | queued builder | Queue state (`queued`, `running`, `green`, `submitted`, `red` or `incomplete`) and captured source `commit`; `submitted` retains an accepted submission whose native gate was not green; job identifiers and refusal text stay in private board metadata. |
 | `submit_handoff_returned` | queued builder | Captured `commit` and original builder `reopenFirstRefusal`; only the failed queued item returns open, without releasing another claim. |
 <!-- events:end -->
 

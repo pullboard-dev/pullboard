@@ -63,6 +63,9 @@ export async function runSubmitHandoffWorker(requestFile) {
   }
 }
 
+/** Expose the real worker module as a declared import dependency of its launcher. */
+export function submitHandoffWorkerEntrypoint() { return fileURLToPath(import.meta.url); }
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   runSubmitHandoffWorker(process.argv[2]).catch(error => { process.stderr.write(error.message + '\n'); process.exitCode = 1; });
 }

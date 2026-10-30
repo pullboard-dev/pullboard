@@ -7,7 +7,7 @@ import { atomic, logEvent } from './board-event-log.js';
 import { release } from './board.js';
 import { firstRefusalDetail } from './claims.js';
 import { itemPatchDigest } from './item-patch-state.js';
-import { getItem, now } from './board-query.js';
+import { getItem, now, proofReceipts } from './board-query.js';
 import { Refused } from './refused.js';
 
 const PREFIX = 'submit_handoff:';
@@ -109,7 +109,15 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
       if (item.item_status !== 'submitted' || item.item_built_by !== job.agentId || item.item_commit !== result.commit) {
         throw new Refused('SUBMIT_HANDOFF_RESULT', 'a queue result cannot replace the normal proved submit transition');
       }
-      return record(board, id, { ...job, state: 'green', submitted: result.commit, completedAt: now(board) });
+      const latest = board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='submit' AND event_by=? ORDER BY event_id DESC LIMIT 1").get(id, job.agentId);
+      const submitted = latest ? JSON.parse(latest.event_detail) : null;
+      const proved = proofReceipts(board, id).some(receipt => receipt.kind === 'submit' && receipt.commit === job.executionCommit
+        && receipt.tree === job.executionTree && receipt.seat === job.agentId && receipt.frozenDigest === job.digest && receipt.sourceClean === true);
+      if (!submitted || submitted.commit !== result.commit || submitted.criterionDigest !== job.digest || submitted.policyCommit !== job.main || !proved) {
+        throw new Refused('SUBMIT_HANDOFF_RESULT', 'the queued source needs its own actual native submit event and captured-source proof receipts');
+      }
+      const gateGreen = submitted.gateGreen === true;
+      return record(board, id, { ...job, state: gateGreen ? 'green' : 'submitted', gateGreen, submitted: result.commit, completedAt: now(board) });
     }
     if (result?.code !== 1 || !result.error || typeof result.error.code !== 'string' || !result.error.code
       || typeof result.error.message !== 'string' || typeof result.error.next !== 'string') {
