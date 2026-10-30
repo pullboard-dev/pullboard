@@ -553,7 +553,7 @@ const span = (ms) => {
  * or how long so far while the item can still leave. A lapse has a row but no time, so a stay that
  * ends or begins at one says its length was not logged rather than guess it.
  */
-function timeline(item) {
+function timeline(item, { newestFirst = false } = {}) {
   const fromThread = Array.isArray(item.thread) && item.thread.length > 0;
   const entries = (fromThread
     ? item.thread
@@ -582,7 +582,7 @@ function timeline(item) {
   const presentedSteps = steps.map((step) => ({ ...step, kindLabel: eventWords(step.kind), momentLabel: eventMoment(step.kind), timeLabel: step.at ? when(step.at) : '',
     ageHtml: step.at ? age(step.at) : '', model: modelFor(step.by) }));
   return renderTimelineHtml({ entries: presentedEntries, steps: presentedSteps, flow: FLOW,
-    open: view.timelineOpen?.get(JSON.stringify([view.root, item.id])) || [] });
+    open: view.timelineOpen?.get(JSON.stringify([view.root, item.id])) || [], newestFirst });
 }
 
 /**

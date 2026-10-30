@@ -39,6 +39,9 @@ import { milestonePriorities } from '../../../../src/board.js';
 import { milestones } from '../../../../src/board.js';
 import { canTake } from '../../../../src/board.js';
 import { listItems } from '../../../../src/board.js';
+import { itemById } from '../../../../src/board.js';
+import { laneHold } from '../../../../src/board.js';
+import { reviewHolder } from '../../../../src/board.js';
 import { listAgents } from '../../../../src/board.js';
 import { openBoardReadOnly } from '../../../../src/board.js';
 import { PERSON } from '../../../../src/board.js';
@@ -79,13 +82,13 @@ export function healthThresholds(config = {}) {
  * @param {{ root: string, config?: any, now: Date, dispatchHealth: Function }} options Explicit upper-layer dispatch observation.
  * @returns {ReturnType<typeof healthReport>}
  */
-export function boardHealth(file, { root, config, now, dispatchHealth }) {
-  if (!existsSync(file)) return healthReport({ db: null, root, config, now, dispatchHealth });
+export function boardHealth(file, { root, config, now, dispatchHealth, machineSettings }) {
+  if (!existsSync(file)) return healthReport({ db: null, root, config, now, dispatchHealth, machineSettings });
   const startedAt = Date.now();
   let db;
   try {
     db = openBoardReadOnly(file);
-    return healthReport({ db, root, config, now, dispatchHealth });
+    return healthReport({ db, root, config, now, dispatchHealth, machineSettings });
   } catch (error) {
     throw boardBusyError(file, startedAt, error);
   } finally {
@@ -99,7 +102,7 @@ export function boardHealth(file, { root, config, now, dispatchHealth }) {
  * @param {{ db: any, root: string, config?: any, now: Date, dispatchHealth: Function }} options Explicit upper-layer dispatch observation.
  * @returns {{ asOf: string, thresholds: { stuck: string, holds: string, release: string }, stuck: Finding[], waiting: Finding[] }}
  */
-export function healthReport({ db, root, config, now, dispatchHealth }) {
+export function healthReport({ db, root, config, now, dispatchHealth, machineSettings }) {
   const limits = healthThresholds(config);
   const asOf = now.toISOString();
   const report = { asOf, thresholds: { stuck: limits.stuck, holds: limits.holds, release: limits.release }, stuck: [], waiting: [] };
@@ -120,6 +123,24 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
       why,
       next: 'inspect pullboard relay canary; keep working locally while queued moves await the relay',
       owner: { role: 'coordinator', who: COORDINATOR }, detail: { step, code, roundTripMs: canary.roundTripMs, p95Ms: canary.p95Ms },
+    }));
+  }
+  const settings = machineSettings;
+  if (settings?.gate?.loadAwareDispatch === true) {
+    const fresh = (settings.runners ?? []).filter(runner => {
+      const age = now.getTime() - Date.parse(runner.cpuLoad?.at);
+      return Number.isFinite(age) && age >= 0 && age <= 30_000;
+    });
+    report.runnerCpu = { ceiling: settings.gate?.runnerBusyCeiling ?? 90,
+      readings: fresh.map(runner => ({ host: runner.host, ...runner.cpuLoad })),
+      spread: fresh.length ? Math.max(...fresh.map(runner => runner.cpuLoad.busyPercent)) - Math.min(...fresh.map(runner => runner.cpuLoad.busyPercent)) : null,
+      note: fresh.length ? 'Recent runner-reported CPU busy percentages; incompatible and full runners remain excluded at dispatch' : 'No fresh runner CPU readings; dispatch falls back to free slots' };
+    if (fresh.some(runner => runner.cpuLoad.busyPercent >= report.runnerCpu.ceiling) && fresh.some(runner => runner.cpuLoad.busyPercent < report.runnerCpu.ceiling)) report.stuck.push(finding('RUNNER_CPU_SPREAD', null, {
+      subject: 'runner CPU load', key: 'RUNNER_CPU_SPREAD:machine', since: fresh.map(runner => runner.cpuLoad.at).sort()[0], now: now.getTime(),
+      title: `runner CPU busy spread is ${Math.round(report.runnerCpu.spread)} percentage points`,
+      why: fresh.map(runner => `${runner.host}: ${Math.round(runner.cpuLoad.busyPercent)}% busy, load ${runner.cpuLoad.average[0]}`).join('; '),
+      next: 'let measured dispatch prefer compatible quieter runners; inspect runner health if the spread persists',
+      owner: { role: 'coordinator', who: COORDINATOR }, detail: report.runnerCpu,
     }));
   }
   if (!db) return report;
@@ -197,7 +218,7 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
           owner: { role: 'reviewer', who: null }, detail: { reviewer, commit: item.item_commit },
         }));
       } else if (!reviewer) {
-        const blocked = unreviewableStrict(board, item, { policy: config?.verify?.policy, familyPolicy: config?.verify?.family });
+        const blocked = unreviewableStrict(board, item, { policy: config?.verify?.policy, familyPolicy: config?.verify?.family }, { listAgents });
         if (blocked) found(report.stuck, finding('NO_ELIGIBLE_REVIEWER', item, {
           since: submittedAt, now: at,
           title: 'no seat can review',
@@ -206,7 +227,7 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
           owner: { role: 'coordinator', who: COORDINATOR }, detail: { builder: item.item_built_by, undeclared: blocked.undeclared, excluding: blocked.excluding },
         }));
       }
-      const wait = reviewWait(board, item);
+      const wait = reviewWait(board, item, { reviewHolder });
       if (wait && wait.ageMs > (config?.review?.starveMinutes ?? 10) * 60_000) {
         const exclusions = [...seats().values()].map(agent => ({ agent: agent.agent_id,
           problem: eligibilityProblem(board, item, agent, { policy: config?.verify?.policy, familyPolicy: config?.verify?.family }) }));
@@ -386,7 +407,7 @@ const QUEUE_ACTIVE_MS = 30 * 60_000;
  * @returns {Finding[]}
  */
 function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
-  const queue = workQueue(board, { buildOrder, canTake, listItems, milestonePriorities, milestones, roadmap, ROUTES, foreignBlockers, eligibilityProblem });
+  const queue = workQueue(board, { buildOrder, canTake, listItems, milestonePriorities, milestones, roadmap, ROUTES, foreignBlockers, eligibilityProblem }, null, {}, { itemById, laneHold });
   const current = (queue.releases.find((release) => release.landed < release.total)?.items ?? queue.unreleased)
     .filter((entry) => entry.status === 'open' && !entry.waits.length);
   const waiting = [...queue.releases.flatMap((release) => release.items), ...queue.unreleased]

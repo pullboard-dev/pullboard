@@ -51,17 +51,18 @@ export const RUNNER_MEASUREMENT_MS = 5 * 60_000;
 
 /** Refresh outside resource admission; only an authenticated healthy nonce can replace measured facts. */
 export async function refreshRunnerMeasurements(settings, { measure, record, now = Date.now() }) {
-  if (settings.gate?.measuredSlots !== true) return;
+  const cpu = settings.gate?.loadAwareDispatch === true;
+  if (settings.gate?.measuredSlots !== true && !cpu) return;
   if (typeof measure !== 'function' || typeof record !== 'function') throw new TypeError('runner measurement requires canonical transport and persistence');
   await Promise.all((settings.runners ?? []).map(async runner => {
-    const at = Date.parse(runner.measuredAt);
-    if (Number.isFinite(at) && now >= at && now - at < RUNNER_MEASUREMENT_MS) return;
+    const at = Date.parse(cpu ? runner.cpuLoad?.at : runner.measuredAt);
+    if (Number.isFinite(at) && now >= at && now - at < (cpu ? 15_000 : RUNNER_MEASUREMENT_MS)) return;
     try {
-      const observed = await measure(runner, { observeGui: true });
+      const observed = await measure(runner, { observeGui: true, ...(cpu ? { observeLoad: true } : {}) });
       if (!observed.healthy || !Number.isSafeInteger(observed.cores) || observed.cores < 1
           || !Number.isSafeInteger(observed.memoryMB) || observed.memoryMB < 1) return;
       record(runner.host, { cores: observed.cores, memoryMB: observed.memoryMB,
-        measuredAt: new Date(now).toISOString(), gui: observed.gui });
+        measuredAt: new Date(now).toISOString(), gui: observed.gui, ...(observed.cpuLoad ? { cpuLoad: observed.cpuLoad } : {}) });
     } catch { /* Failed or busy observations preserve prior facts and every transport recovery obligation. */ }
   }));
 }
