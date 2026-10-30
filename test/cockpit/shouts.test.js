@@ -310,13 +310,15 @@ test('real Chrome styles shout code and item text without growing linked lines [
     await chrome.click("document.querySelector('#add-cancel')");
     await chrome.waitFor("document.querySelector('#add-form').hidden");
     await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+    await openConversation(chrome);
     await chrome.waitFor('document.querySelectorAll("#feed > .shout").length >= 4');
 
-    const rendered = JSON.parse(await chrome.stable(`JSON.stringify((() => {
+    /** Measure only messages in the actually opened native conversation and the unchanged Items/Needs surfaces. */
+    const readRendered = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const shout = [...document.querySelectorAll('#feed > .shout')].find((row) => row.textContent.includes('Inline'));
       const shoutCode=[...(shout?.querySelectorAll('code.inline')||[])].find(code=>code.textContent==='--flag'), shoutLine=shout?.querySelector('.text');
       const shoutRect=shoutCode?.getBoundingClientRect(), shoutLineRect=shoutLine?.getBoundingClientRect();
-      const ask = [...document.querySelectorAll('#decisions .shout')].find((row) => row.textContent.includes('Inline'));
+      const ask = document.querySelector('#needs [data-needs-key=\"decision:1\"] .needs-detail');
       const titleNode = document.querySelector('#chain .row .t');
       const outside = [...document.querySelectorAll('#feed > .shout')].find((row) => row.textContent.includes('alert(2)'));
       const itemDetail = document.querySelector('#detail');
@@ -327,26 +329,32 @@ test('real Chrome styles shout code and item text without growing linked lines [
           const content = entry.querySelector('.text');
           return content && content.textContent.trim() === message;
         });
+        if (!row) return null;
         const content = row.querySelector('.text');
         const height = content.getBoundingClientRect().height;
         const lineHeight = parseFloat(getComputedStyle(content).lineHeight);
         return { height, lineHeight, lines: Math.round(height / lineHeight) };
       };
       return {
-        shoutHtml: shout.innerHTML, shoutScripts: shout.querySelectorAll('script').length,
+        shoutHtml: shout?.innerHTML, shoutScripts: shout?.querySelectorAll('script').length,
         shoutCodeMetrics: {display:shoutCode&&getComputedStyle(shoutCode).display,width:shoutRect?.width,lineWidth:shoutLineRect?.width},
-        askHtml: ask.innerHTML, titleHtml: titleNode.innerHTML,
+        askHtml: ask?.innerHTML, titleHtml: titleNode.innerHTML,
         linkedMetrics: lineMetrics('X #1'), plainMetrics: lineMetrics('X'),
         wrapLinked: lineMetrics(${JSON.stringify(wrappedLinkedText)}), wrapPlain: lineMetrics('OK'),
         linkedButtons: [...document.querySelectorAll('#feed > .shout')].find((entry) => entry.textContent.includes('A linked line'))?.querySelectorAll('a.ref[data-go]').length,
-        previewLinks: shout.querySelectorAll('button[data-code^="SPEC.md:1-2@"]').length,
-        outsideHtml: outside.innerHTML, askNestedButtons: [...ask.querySelectorAll('button')].filter(link => link.parentElement.closest('button')).length,
+        previewLinks: shout?.querySelectorAll('button[data-code^="SPEC.md:1-2@"]').length,
+        outsideHtml: outside?.innerHTML, askNestedButtons: [...(ask?.querySelectorAll('button') || [])].filter(link => link.parentElement.closest('button')).length,
         criterionHtml: itemDetail.querySelector('.text')?.innerHTML, briefHtml: itemDetail.querySelector('.text.muted')?.innerHTML,
         needsNestedButtons: [...document.querySelectorAll('#needs button.ref')].filter(link => link.parentElement.closest('button')).length,
         agentNestedButtons: [...document.querySelectorAll('#agents button.ref')].filter(link => link.parentElement.closest('button')).length,
         agentItemHeight: agentItem?.getBoundingClientRect().height,
       };
     })())`));
+    const noItemRendered = await readRendered();
+    await press(chrome, "document.querySelector('#feed [data-shout-thread=\"\"]')");
+    await openConversation(chrome, 'item:1');
+    const itemRendered = await readRendered();
+    const rendered = { ...noItemRendered, linkedMetrics: itemRendered.linkedMetrics, wrapLinked: itemRendered.wrapLinked, linkedButtons: itemRendered.linkedButtons };
     assert.equal(rendered.shoutCodeMetrics.display, 'inline', `1280px shout code computes inline: ${JSON.stringify(rendered.shoutCodeMetrics)}`);
     assert.ok(rendered.shoutCodeMetrics.width > 0 && rendered.shoutCodeMetrics.width < rendered.shoutCodeMetrics.lineWidth / 2,
       `1280px shout code is a compact chip: ${JSON.stringify(rendered.shoutCodeMetrics)}`);
@@ -354,7 +362,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.match(rendered.shoutHtml, /<code class="inline cmd(?: long" title="pullboard shout --decision)?">pullboard shout --decision<\/code>/, 'a pullboard command is inline code, with the flags that follow it');
     assert.match(rendered.shoutHtml, /<code class="inline cmd">--flag<\/code>/, 'a flag on its own is a command chip');
     assert.match(rendered.shoutHtml, /<code class="inline path">src\/cockpit\.js<\/code>/, 'slash paths are path chips');
-    assert.match(rendered.shoutHtml, /<code class="inline sha" title="0123456789abcdef0123456789abcdef01234567">0123456789<\/code>/, 'a hex SHA is a ten-character chip with the whole SHA on hover');
+    assert.match(rendered.shoutHtml, /<code class="inline sha" title="0123456789abcdef0123456789abcdef01234567">0123456789ab<\/code>/, 'a hex SHA is a twelve-character chip with the whole SHA on hover');
     assert.ok((rendered.shoutHtml.match(/<code class="code block">/g) ?? []).length >= 2, 'fences and dollar-prefixed lines are code blocks');
     assert.match(rendered.shoutHtml, /<code class="code block">\$ pullboard claim 1<\/code>/, 'the shell prompt stays visible in command blocks');
     assert.match(rendered.shoutHtml, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/, 'script text is escaped inside code');
@@ -362,6 +370,8 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.match(rendered.outsideHtml, /&lt;script&gt;alert\(2\)&lt;\/script&gt; outside code/, 'script text outside code is escaped too');
     assert.equal(rendered.previewLinks, 1, 'only a path:lines@SHA reference with the original whole-word boundaries becomes an actionable preview');
     assert.match(rendered.shoutHtml, /Invalid prefix:<code class="inline long" title="SPEC\.md:1-2@[0-9a-f]+">SPEC\.md:1-2@/, 'a path:lines@SHA suffix after a colon stays plain inline code');
+    await press(chrome, "document.querySelector('#feed [data-shout-thread=\"\"]')");
+    await openConversation(chrome);
     await chrome.click(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]')`);
     await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').getAttribute('aria-expanded') === 'true'`);
     await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code-ref .code-wrap > .code')?.textContent.includes('Demo spec')`);
@@ -405,14 +415,17 @@ test('real Chrome styles shout code and item text without growing linked lines [
     await chrome.click("document.querySelector('#add-cancel')");
     await chrome.waitFor("document.querySelector('#add-form').hidden");
     await chrome.click("document.querySelector('[data-tab=shouts]')");
+    await openConversation(chrome);
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden])") && document.querySelector("#feed code.inline")?.getBoundingClientRect().width > 0');
-    const phoneMetrics = JSON.parse(await chrome.stable(`JSON.stringify((() => {
+    /** Compare native linked and plain line boxes after visiting their respective conversations at the same viewport. */
+    const readPhone = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
       /** Measure the complete rendered content line box, including its item link. */
       const lineMetrics = (message) => {
         const row = [...document.querySelectorAll('#feed > .shout')].find((entry) => {
           const content = entry.querySelector('.text');
           return content && content.textContent.trim() === message;
         });
+        if (!row) return null;
         const content = row.querySelector('.text');
         const height = content.getBoundingClientRect().height;
         const lineHeight = parseFloat(getComputedStyle(content).lineHeight);
@@ -422,6 +435,11 @@ test('real Chrome styles shout code and item text without growing linked lines [
       const code=[...(row?.querySelectorAll('code.inline')||[])].find(entry=>entry.textContent==='--flag'), line=row?.querySelector('.text'), codeRect=code?.getBoundingClientRect(), lineRect=line?.getBoundingClientRect();
       return { linked: lineMetrics('X #1'), plain: lineMetrics('X'), wrapLinked: lineMetrics(${JSON.stringify(wrappedLinkedText)}), wrapPlain: lineMetrics('OK'), shoutCode:{display:code&&getComputedStyle(code).display,width:codeRect?.width,lineWidth:lineRect?.width} };
     })())`));
+    const noItemPhone = await readPhone();
+    await press(chrome, "document.querySelector('#feed [data-shout-thread=\"\"]')");
+    await openConversation(chrome, 'item:1');
+    const itemPhone = await readPhone();
+    const phoneMetrics = { ...noItemPhone, linked: itemPhone.linked, wrapLinked: itemPhone.wrapLinked };
     assert.equal(phoneMetrics.shoutCode.display, 'inline', `375px shout code computes inline: ${JSON.stringify(phoneMetrics.shoutCode)}`);
     assert.ok(phoneMetrics.shoutCode.width > 0 && phoneMetrics.shoutCode.width < phoneMetrics.shoutCode.lineWidth / 2,
       `375px shout code is a compact chip: ${JSON.stringify(phoneMetrics.shoutCode)}`);
