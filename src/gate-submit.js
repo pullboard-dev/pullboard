@@ -127,7 +127,7 @@ function submitTestOutcomes(profiles) {
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, timing?:boolean, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, runnerAdmission = {}, executionServices }) {
+export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, runnerAdmission = {}, executionServices, signatureCapture }) {
   if (!config.gate.trim()) throw missingGate(root);
   // One pinned main per submit: every phase reads this commit, so a landing mid-submit cannot split the seal (#1777).
   if (trunk !== undefined && trunk !== null && !contains(root, trunk, mainPolicy(root).commit)) {
@@ -156,6 +156,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     await onStart?.();
     // Immediate admission may have no queue poll; retain the existing quarantine callback when no witness exists yet.
     if (proofContext?.admission && !proofContext.admission.id) await onWait?.({ admitted: true });
+    if (signatureCapture) lease.signatureCapture = signatureCapture;
     lease.quarantines = proofContext?.quarantines ?? [];
     if (proofContext) lease.proof = { ...proofContext, kind: 'submit',
       ...(proofContext.companion ? { submitPhase: 'criterion' } : {}),
@@ -190,7 +191,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
           executionSource: profiles.find(value => value.executionSource)?.executionSource } : {}),
       });
       refuseSandboxBlocked(proof);
-      return { ...proof, ...(criterion.cleanupUnverified || proof.cleanupUnverified ? { cleanupUnverified: true } : {}), log, seconds: criterion.seconds + proof.seconds, ...selection, files: proofFiles, registryGuards, ...(deferred ? { submitInvariants: invariants } : {}),
+      return { ...proof, executionRoot: proof.executionRoot ?? root, ...(criterion.cleanupUnverified || proof.cleanupUnverified ? { cleanupUnverified: true } : {}), log, seconds: criterion.seconds + proof.seconds, ...selection, files: proofFiles, registryGuards, ...(deferred ? { submitInvariants: invariants } : {}),
         ...(deferSelection ? { deferredFiles: selection.files, deferAbove: config.submitDeferAbove } : {}), deferred, deferFullFallback, check: receipt,
         profile, profilePath, proofProfilePath: proof.profilePath, proofLog: proof.log,
         ...(criterion.blockingVerdict || proof.blockingVerdict ? { phaseVerdicts: [criterion, proof].flatMap((phase, index) => phase.blockingVerdict ? [{
@@ -206,7 +207,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       const red = finish({ isGreen: false, sandboxBlocked: criterion.sandboxBlocked, isCached: false, output: criterion.output, seconds: 0, log: '' });
       return { ...red, criterionRed: { isGreen: false, output: criterion.output, stages: criterion.stages,
         ...(criterion.blockingVerdict ? { blockingVerdict: criterion.blockingVerdict, exitCode: criterion.exitCode, rawIsGreen: false, quarantineFailures: criterion.quarantineFailures } : {}),
-        executionRoot: criterion.executionRoot, executionRunner: criterion.executionRunner, environment: criterion.environment, profile: criterion.profile } };
+        executionRoot: criterion.executionRoot ?? root, executionRunner: criterion.executionRunner, environment: criterion.environment, profile: criterion.profile } };
     }
     // The proof already owns this lease: its phase profile has no additional queue wait.
     if (hasFinalProof && proofContext?.admission?.id) lease.proof.submitAdmission = proofContext.admission.id;
