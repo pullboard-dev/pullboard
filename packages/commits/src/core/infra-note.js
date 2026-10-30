@@ -8,6 +8,9 @@ import { posix } from 'node:path';
 import { relative } from 'node:path';
 import { Refused } from "../../../../src/refused.js";
 import { tryGit } from "../../../../src/git.js";
+import { gitChildEnv } from "../../../../src/git.js";
+import { gitExecFileSync } from "../../../../src/git-adapter.js";
+import { importOnlyChange } from "../../../../src/import-only-change.js";
 
 /** A test file, by its name or by its folder. */
 const TEST_FILE = /^test\/|\.(?:test|spec)\.[cm]?js$/u;
@@ -83,17 +86,43 @@ export function existingGuardedEdits(root, claimHead, files, gates) {
   return guarded.filter((path) => tryGit(root, ['cat-file', '-e', `${claimHead}:${path}`]).status === 0).sort();
 }
 
+/** Read an exact regular committed blob; modes, missing files and malformed text cannot authorize an automatic note. */
+function committedTest(root, revision, path) {
+  const row = tryGit(root, ['ls-tree', revision, '--', `:(literal)${path}`]);
+  const match = /^(100644|100755) blob ([a-f0-9]{40,64})\t([^\n]+)$/u.exec(row.stdout);
+  if (row.status !== 0 || !match || match[3] !== path) return null;
+  try {
+    const bytes = gitExecFileSync(['cat-file', 'blob', match[2]], {
+      cwd: root, env: gitChildEnv(root), encoding: null, maxBuffer: 8 * 1024 * 1024,
+    });
+    return { mode: match[1], bytes };
+  } catch { return null; }
+}
+
+/** Draft a reason only when every guarded change preserves all bytes except static import-path contents. */
+function importPathNote(root, claimHead, commit, edited) {
+  if (!commit || !edited.length || !edited.every(path => TEST_FILE.test(path))) return null;
+  for (const path of edited) {
+    const before = committedTest(root, claimHead, path), after = committedTest(root, commit, path);
+    if (!before || !after || before.mode !== after.mode
+      || !importOnlyChange(before.bytes, after.bytes, { specifiersOnly: true })) return null;
+  }
+  return { note: 'Updated static test import paths; test bindings, assertions and other source bytes are unchanged.', files: edited };
+}
+
 /**
  * Decide whether a submit may proceed: an enabled board policy requires an --infra reason for an existing guarded
  * edit. A supplied note is recorded with its files whether or not the requirement is enabled.
  *
- * @param {{ root: string, claimHead: string, files: string[], gates: string[], infra: string | undefined, requireInfraNote?: boolean }} submit
+ * @param {{ root: string, claimHead: string, commit?: string, files: string[], gates: string[], infra: string | undefined, requireInfraNote?: boolean }} submit
  * @returns {{ note: string, files: string[] } | null} the infra record, or null when none is needed or given
  * @throws {Refused} INFRA_NOTE_REQUIRED, or USAGE for a malformed --infra value
  */
-export function infraNote({ root, claimHead, files, gates, infra, requireInfraNote = false }) {
+export function infraNote({ root, claimHead, commit, files, gates, infra, requireInfraNote = false }) {
   const edited = existingGuardedEdits(root, claimHead, files, gates);
   if (infra === undefined) {
+    const drafted = importPathNote(root, claimHead, commit, edited);
+    if (drafted) return drafted;
     if (!requireInfraNote || !edited.length) return null;
     throw new Refused('INFRA_NOTE_REQUIRED', `this change edits existing test or gate file${edited.length > 1 ? 's' : ''} ${edited.join(', ')}; say why with --infra "<why>"`,
       'run pullboard submit <id> --infra "<why>", giving the reason the edit is needed');
