@@ -394,3 +394,22 @@ test('presentation providers retain exact identities and all missing ports refus
     assert.equal(effects, 0);
   }
 });
+
+/** Supplied custom runtime ports must not bypass the composition factory's missing-provider guard. */
+test('sandbox policy capabilities refuse before any SQLite path is created [C7,B1]', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-sandbox-policy-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'never-created', 'board.sqlite');
+  const ports = native.nativeBoardPorts();
+  for (const name of ['policyAt', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge']) {
+    const sandboxPolicyReads = { ...ports.enginePorts.sandboxPolicyReads };
+    delete sandboxPolicyReads[name];
+    const enginePorts = { ...ports.enginePorts, sandboxPolicyReads };
+    assert.throws(() => {
+      // @pullboard-board-file persistence: missing sandbox policy must refuse before storage exists.
+      const board = native.openBoard(file, undefined, { ports: { ...ports, enginePorts } });
+      native.closeBoard(board);
+    }, error => error.code === 'NO_POLICY' && error.message.includes(`sandboxPolicyReads.${name}`));
+    assert.equal(existsSync(join(directory, 'never-created')), false);
+  }
+});
