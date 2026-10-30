@@ -225,8 +225,8 @@ function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers 
     if (!landedCells.has(name) || !after.cells.some(cell => cell.name === name)) continue;
     const newCuts = checkCuts(sourceRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory, acceptedInventory: oldInventory });
     problems.push(...additions(oldCuts, newCuts).map(problem => `${name} --cuts: ${problem}; import a lower cell or take a port`));
-    const oldDoors = previous ? frontDoorBypasses(baseRoot, before, name, { inventory: oldInventory }) : new Map();
-    for (const [key, text] of frontDoorBypasses(sourceRoot, after, name, { inventory: newInventory })) {
+    const oldDoors = previous ? frontDoorBypasses(baseRoot, before, name, { inventory: oldInventory, acceptedInventory: oldInventory }) : new Map();
+    for (const [key, text] of frontDoorBypasses(sourceRoot, after, name, { inventory: newInventory, acceptedInventory: oldInventory })) {
       if (!oldDoors.has(key)) problems.push(`${name} --cuts: ${text}; import the lower cell's front door or take a port`);
     }
   }

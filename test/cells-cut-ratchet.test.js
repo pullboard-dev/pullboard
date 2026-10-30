@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { computePlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
+import { readPlan } from '../bin/cells-plan.js';
 import { requireSubmitCells as preflight } from '../bin/cells-submit-checks.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintBaseline } from '../packages/codemap/index.js';
@@ -177,4 +178,24 @@ test('a newly declared computed import cannot bypass a landed cell front door wi
   box.put('src/cli.js', '/** @pullboard-module-loads src/board.js */\n' + source);
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item, () => landedCutItemRows(board.db)),
     /app:cli imports lower store past its front door .*src\/cli.js -> src\/board.js/u);
+});
+
+test('an actual static lower import cannot borrow unchanged accepted wildcard authority [C7,D3]', async t => {
+  const source = '/** @pullboard-module-loads src/stats*.js */\nexport const load = name => import(name);\n';
+  const box = plannedFixture(t, box => box.put('src/cli.js', source));
+  const board = cutBoard(t, 'app:cli', 'verified', box.main);
+  box.put('src/cli.js', source + "import './stats-flow.js';\n");
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item, () => landedCutItemRows(board.db)),
+    /app:cli imports lower stats past its front door .*src\/cli.js -> src\/stats-flow.js/u);
+});
+
+test('unchanged accepted wildcard authority still covers a future matching lower file [C7,D3]', async t => {
+  const source = '/** @pullboard-module-loads src/stats*.js */\nexport const load = name => import(name);\n';
+  const box = plannedFixture(t, box => box.put('src/cli.js', source));
+  const board = cutBoard(t, 'app:cli', 'verified', box.main), plan = readPlan(box.root);
+  box.put('src/stats-extra.js', 'export const extra = true;\n');
+  const cell = plan.cells.find(row => row.name === 'stats');
+  cell.paths.push(['src/stats-extra.js', `${cell.root}/src/core/stats-extra.js`, 'rule']);
+  writePlan(box.root, plan);
+  assert.deepEqual((await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item, () => landedCutItemRows(board.db))).problems, []);
 });
