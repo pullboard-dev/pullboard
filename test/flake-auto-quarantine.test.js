@@ -10,11 +10,10 @@ import { commitFixtureFiles } from './package-copy-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 import { openBoard, flakeQuarantines, gateRuns } from '../src/native-board.js';
 import * as store from '../src/board.js';
-import { recordGateRun, requireSubmitDiagnosticAdmission } from '../src/quarantine.js';
+import { recordGateRun, requireSubmitDiagnosticAdmission, submitFlakePairs } from '../src/quarantine.js';
 import recordGateRunMove from '../src/moves/recordGateRun.js';
 import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../src/auto-submit-quarantine-engine.js';
 import { proofRunReceipt } from '../src/proof-receipts.js';
-import { submitFlakePairs } from '../src/auto-submit-quarantine.js';
 import { readGateReceipt, receiptStore } from '../src/gate-run-receipt.js';
 
 /** Build genuine private package source and an ordinary joined/claimed builder; no receipt is fabricated. */
