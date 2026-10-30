@@ -1,4 +1,4 @@
-/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css */
+/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-rows.css */
 /** @pullboard-test-gui */
 /** Cockpit layout checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
@@ -157,7 +157,7 @@ test("the authenticated local view assembles its shared and private styles [N26]
     assert.equal(css.status, 200);
     assert.equal(css.headers.get('content-type'), 'text/css; charset=utf-8');
     const dashboardCss = readFileSync(new URL('../../src/view/dashboard.css', import.meta.url), 'utf8').trimEnd();
-    const sharedCss = readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', dashboardCss);
+    const sharedCss = readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', dashboardCss).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('../../src/view/item-rows.css', import.meta.url), 'utf8').trimEnd());
     const privateCss = readFileSync(new URL('../../src/view/cost.css', import.meta.url), 'utf8');
     const doctrineCss = readFileSync(new URL('../../src/view/doctrine.css', import.meta.url), 'utf8');
     assert.equal(sharedCss.split('/* @private-view-css src/view/cost.css */').length - 1, 1, 'the local view has one private-style insertion point');
