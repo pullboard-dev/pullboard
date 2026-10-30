@@ -518,6 +518,16 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
   await box.git(repo, 'add', '-A');
   await box.git(repo, 'commit', '-q', '-m', 'chore: set up refusal fixture');
 
+  const noShip = await box.run(repo, 'ship', '--json');
+  assert.equal(noShip.status, 1, noShip.stdout + noShip.stderr);
+  assert.equal(noShip.stderr, '', 'ship refuses without mixing text into JSON output');
+  const shipDocument = parseOneDocument(noShip.stdout);
+  assertRequiredShape(shipDocument, JSON_SHAPES.error.required, 'ship error envelope');
+  assertRequiredShape(shipDocument.error, JSON_SHAPES.errorFields, 'ship refusal');
+  assert.equal(shipDocument.error.code, 'USAGE');
+  assert.match(shipDocument.error.message, /ship needs exactly one owned item/u);
+  coveredRoots.add('ship');
+
   const noRow = await jsonError(box, repo, 'spec', ['show', 'G99'], {
     status: 1,
     code: 'NO_ROW',

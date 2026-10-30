@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { cockpitPage } from '../src/cockpit.js';
 import { ENGINE_VERSION } from '../src/machine.js';
+import { MACHINE } from '../src/machine.js';
 import { Refused } from '../src/refused.js';
 import { APPROVAL_CARD_STYLES } from './browser-approval-card.js';
 import { relayScreenMarkup } from './browser-notice.js';
@@ -64,8 +65,9 @@ export function createRelayBrowserHandler({ authenticate }) {
     ['/relay/browser-history.js', ['text/javascript', readFileSync(new URL('./browser-history.js', import.meta.url), 'utf8')]],
     ['/relay/page-layout.js', ['text/javascript', readFileSync(new URL('../packages/pages/src/core/relay-page-layout.js', import.meta.url), 'utf8').replace('"../../../../src/refused.js"', '"./refused.js"')]],
     ['/relay/sealed-pages.js', ['text/javascript', readFileSync(new URL('../packages/pages/src/core/sealed-pages.js', import.meta.url), 'utf8').replace('"../../../../src/refused.js"', '"./refused.js"').replace('"../../../kernel/src/core/seal.js"', '"./seal.js"')]],
-    ['/relay/model.js', ['text/javascript', readFileSync(new URL('./browser-model.js', import.meta.url), 'utf8').replace("'../src/refused.js'", "'./refused.js'")]],
-    ['/relay/engine.js', ['text/javascript', 'export const ENGINE_VERSION = ' + ENGINE_VERSION + ';\n']],
+    ['/relay/model.js', ['text/javascript', readFileSync(new URL('./browser-model.js', import.meta.url), 'utf8').replace("'../src/refused.js'", "'./refused.js'").replace("'../src/machine.js'", "'./engine.js'").replaceAll("'../src/lifecycle-move.js'", "'./lifecycle-move.js'")]],
+    ['/relay/engine.js', ['text/javascript', 'export const ENGINE_VERSION = ' + ENGINE_VERSION + ';\nexport const MACHINE = ' + JSON.stringify({ initial: MACHINE.initial, moves: MACHINE.moves.map(({ verb, from, to, by }) => ({ verb, from, to, by })) }) + ';\n']],
+    ['/relay/lifecycle-move.js', ['text/javascript', readFileSync(new URL('../src/lifecycle-move.js', import.meta.url), 'utf8')]],
     ['/relay/seal.js', ['text/javascript', readFileSync(new URL('../packages/kernel/src/core/seal.js', import.meta.url), 'utf8')]],
     ['/relay/api-moves.js', ['text/javascript', readFileSync(new URL('../src/api-moves.js', import.meta.url), 'utf8')]],
     ['/relay/person-bar-effect.js', ['text/javascript', readFileSync(new URL('../src/person-bar-effect.js', import.meta.url), 'utf8')]],

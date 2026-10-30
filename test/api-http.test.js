@@ -3,8 +3,7 @@ import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { cpSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createServer, request as httpRequest } from 'node:http';
 import { join, resolve } from 'node:path';
@@ -20,7 +19,9 @@ import { Refused } from '../src/refused.js';
 import { board as store } from '../src/native-board.js';
 import { preparePersonRequest } from '../src/person-request.js';
 import { receivePersonRequest } from '../src/relay-requests.js';
-import { apiFixtureEnvironment, bindApiFixtureMachine } from './api-fixture.js';
+import { apiHttpFixture as fixture } from './api-fixture.js';
+import { apiHttpBox as httpBox } from './api-fixture.js';
+import { shellWord } from './api-fixture.js';
 import { fetchFresh } from './http-fixture.js';
 import { liveFrames } from './http-stream-fixture.js';
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -286,83 +287,6 @@ try {
   await view.close();
 }
 `;
-
-/** Quote an executable path literally for the fixture's source-bin hook shim. */
-function shellWord(value) {
-  return "'" + value.replace(/'/g, "'\\''") + "'";
-}
-
-/** Create a private, committed project, with an exact-build hook shim and no personal Git config. */
-function fixture(t) {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-http-')));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const root = join(dir, 'repo');
-  const bin = join(dir, 'bin');
-  mkdirSync(root);
-  mkdirSync(bin);
-  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
-  chmodSync(join(bin, 'pullboard'), 0o755);
-  const env = apiFixtureEnvironment(dir, bin);
-  bindApiFixtureMachine(t, env);
-  mkdirSync(env.HOME);
-  /** Run Git only inside the private fixture. */
-  const git = (...args) => runFixtureGit(args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
-  /** Exercise this worktree's real CLI with a private environment. */
-  const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
-  /** Decode one successful versioned CLI invocation without printing session links. */
-  function cli(cwd, ...args) {
-    const result = run(cwd, ...args, '--json');
-    let reason = result.stderr;
-    if (result.status !== 0 && result.stdout) {
-      try {
-        const response = JSON.parse(result.stdout);
-        const error = response?.error;
-        if (error && typeof error === 'object') {
-          reason = [result.stderr, error.code, error.message].filter(Boolean).join('\n');
-        }
-      } catch { /* Keep the existing stderr-only diagnostic for non-JSON failures. */ }
-    }
-    assert.equal(result.status, 0, reason);
-    return JSON.parse(result.stdout);
-  }
-  git('init', '-q', '-b', 'main');
-  cli(root, 'init');
-  // HTTP fixtures file "true" checks to move items, so they keep a board with no hold setting.
-  const { checks: _hold, ...config } = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
-  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...config, gate: 'true', lanes: { app: { owns: ['app/'] }, review: { owns: [] } } }));
-  writeFileSync(join(root, 'SPEC.md'), '# HTTP fixture\n\n## Goals\n- G1 [approved, must] Keep the board. | gate: true\n');
-  writeFileSync(join(root, 'DOCTRINE.md'), '');
-  git('add', '-A');
-  git('commit', '-q', '-m', 'chore: private HTTP fixture');
-  return { root, dir, env, cli, run, commit: git('rev-parse', 'HEAD').trim() };
-}
-
-/** Serve this fixture's explicit project, avoiding any registry outside its private home. */
-async function httpBox(t, { includeMissing = false, onStateBuild, additionalProjects = [] } = {}) {
-  const box = fixture(t);
-  const api = await serveApi({ refusalDocument, runCommand: main, onStateBuild, projects: () => [...(includeMissing ? [{ root: join(box.dir, 'gone'), name: 'Missing fixture' }] : []), { root: box.root, name: 'HTTP fixture' }, ...additionalProjects] });
-  t.after(() => api.close());
-  const url = new URL(api.url);
-  const key = url.searchParams.get('k');
-  const origin = url.origin;
-  /** Make a real HTTP call and decode its single versioned response. */
-  async function call(path, value, headers = {}) {
-    const response = await fetchFresh(origin + path, {
-      method: value === undefined ? 'GET' : 'POST',
-      headers: { 'x-pullboard-key': key, ...(value === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
-      ...(value === undefined ? {} : { body: JSON.stringify(value) }),
-    });
-    const document = await response.json();
-    assert.equal(document.version, 1);
-    return { status: response.status, document };
-  }
-  const listed = await call('/api/v1/boards');
-  assert.equal(listed.status, 200);
-  assert.equal(listed.document.boards.length, 1 + additionalProjects.length);
-  const id = listed.document.boards.find((entry) => resolve(entry.root) === resolve(box.root)).id;
-  assert.match(id, /^[0-9a-f]{32}$/);
-  return { ...box, api, origin, key, id, call, path: '/api/v1/boards/' + id };
-}
 
 /** Serve one registered private fixture through the actual person's view adapter. */
 async function viewHttpBox(t, existing = null) {
@@ -682,7 +606,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   let leaseUntil;
   try { leaseUntil = board.db.prepare('SELECT item_lease_until FROM item WHERE item_id = ?').get(claimed).item_lease_until; } finally { store.closeBoard(board); }
 
-  const summaryFields = ['id', 'title', 'lane', 'status', 'route', 'milestone', 'specs', 'claim', 'builtBy', 'blockedBy', 'updatedAt', 'stage', 'since', 'counts', 'verdict'];
+  const summaryFields = ['id', 'title', 'lane', 'status', 'route', 'milestone', 'specs', 'claim', 'builtBy', 'blockedBy', 'updatedAt', 'stage', 'since', 'counts', 'verdict', 'withdrawnReason', 'withdrawnFrom'];
   const summaryState = await box.call(box.path + '/state');
   assert.equal(summaryState.status, 200);
   const fullState = await box.call(box.path + '/state?detail=full');
@@ -706,7 +630,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
     id: accepted, title: 'Accepted summary item', lane: 'app', status: 'verified', route: acceptedFull.route, milestone: 'Delivery',
     specs: ['G1'], claim: null, builtBy: builder.agent, blockedBy: [], updatedAt: acceptedFull.updatedAt, stage: 'accepted',
     since: acceptedFull.history.findLast((event) => event.kind === 'accept').at, counts: { verdicts: 1, facts: 1 },
-    verdict: { decision: 'ACCEPT', reason: 'CRITERION_MET' },
+    verdict: { decision: 'ACCEPT', reason: 'CRITERION_MET' }, withdrawnReason: null, withdrawnFrom: null,
   });
   const claimedFull = fulls.get(claimed);
   assert.deepEqual(summaries.get(claimed).claim, { by: builder.agent, until: leaseUntil });
@@ -715,7 +639,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   assert.deepEqual(summaries.get(open), {
     id: open, title: 'Open summary item', lane: 'app', status: 'open', route: fulls.get(open).route, milestone: null,
     specs: ['G1'], claim: null, builtBy: null, blockedBy: [], updatedAt: fulls.get(open).updatedAt, stage: 'open',
-    since: fulls.get(open).history.find((event) => event.kind === 'add').at, counts: { verdicts: 0, facts: 0 }, verdict: null,
+    since: fulls.get(open).history.find((event) => event.kind === 'add').at, counts: { verdicts: 0, facts: 0 }, verdict: null, withdrawnReason: null, withdrawnFrom: null,
   });
   assert.deepEqual(summaryState.document.state.moveCounts, {
     'open>claimed:claim': 2, 'claimed>submitted:submit': 1, 'submitted>submitted:reserve': 1, 'submitted>verified:accept': 1,
@@ -727,7 +651,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
     assert.equal(detail.status, 200);
     assert.deepEqual({ ...summaries.get(id), ...detail.document.item }, full, `#${id}'s summary and detail make its full item`);
     const carried = Object.keys(detail.document.item).filter((field) => summaryFields.includes(field));
-    assert.deepEqual(carried, ['id', 'verdict'], 'the detail repeats only the id and the whole latest verdict');
+    assert.deepEqual(carried, ['id', 'withdrawnReason', 'withdrawnFrom', 'verdict'], 'the detail repeats identity, withdrawal facts and the whole latest verdict');
     for (const field of ['thread', 'verdicts', 'history', 'brief', 'criterion', 'check', 'owner', 'reviewer', 'reviewUntil', 'verifiedBy', 'commit', 'merged']) {
       assert.ok(Object.hasOwn(detail.document.item, field), `#${id}'s detail carries ${field}`);
     }
