@@ -162,7 +162,7 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
       const reservation = reopenFirstRefusalMinutes > 0
         ? board.enginePorts.firstRefusalDetail(board, { ...item, item_built_by: job.agentId }, reopenFirstRefusalMinutes)
         : { reopenFirstRefusal: { builder: job.agentId, until: new Date(board.clock.now().getTime() + job.leaseMs).toISOString() } };
-      release(board, id, job.agentId, 'the queued canonical submit was refused');
+      release(board, id, job.agentId, 'the queued canonical submit was refused', undefined, 'OTHER');
       logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, ...reservation });
       insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${result.error.code}); read pullboard show ${id} for the original refusal; finish or release your current build at a natural break, then claim this item.`, lanes: [] });
     }
