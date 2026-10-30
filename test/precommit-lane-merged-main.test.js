@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureChild } from './fixture-child.js';
 
 const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
 
@@ -26,7 +26,7 @@ function fixture(t) {
     GIT_COMMITTER_NAME: 'Merged Main Fixture', GIT_COMMITTER_EMAIL: 'merged-main@example.invalid',
     HOME: join(dir, 'home'), PULLBOARD_HOME: join(dir, 'board-home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   });
-  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8' });
+  const git = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
   const cli = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   assert.equal(git(main, 'init', '-q', '-b', 'main').status, 0);
   assert.equal(cli(main, 'init').status, 0, 'the native CLI initializes the private fixture and installs hooks');
