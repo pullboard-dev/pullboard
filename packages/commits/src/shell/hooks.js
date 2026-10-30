@@ -437,7 +437,9 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile, preM
   const ownershipTouched = mergeHeads
     ? mergeTouched.filter((path) => !outOfLane(ownershipConfig, agent.agent_lane, [path]).length || !unchangedMergePath(root, path, mergeHeads))
     : touched;
-  const foreignPaths = ownershipTouched.filter((path) => outOfLane(ownershipConfig, agent.agent_lane, [path]).length);
+  const mainOnlyStaged = mergeHeads ? new Set() : stagedMainOnlyPaths(root, ownershipTouched);
+  const foreignPaths = ownershipTouched.filter((path) => !mainOnlyStaged.has(path)
+    && outOfLane(ownershipConfig, agent.agent_lane, [path]).length);
   const resolved = mergeHeads && !preMergeHook
     ? foreignPaths.filter((path) => resolvedMergeConflictPath(root, path, mergeHeads))
     : [];
@@ -696,6 +698,22 @@ function committedObject(root, commit, path) {
   if (records.length !== 1) return null;
   const fields = /^(\d{6}) \w+ ([0-9a-f]{40,64})\t/.exec(records[0]);
   return fields ? fields[1] + ' ' + fields[2] : null;
+}
+
+/** Identify staged foreign files that match accepted main or its merge-base ancestry. */
+function stagedMainOnlyPaths(root, paths) {
+  let main;
+  try { main = mainCheckout(root)?.commit; } catch { return new Set(); }
+  if (!main) return new Set();
+  const result = tryGit(root, ['merge-base', '--all', main, 'HEAD']);
+  if (result.status !== 0) return new Set();
+  const bases = result.stdout.trim().split(/\r?\n/u).filter(Boolean);
+  return new Set(paths.filter(path => {
+    const staged = stagedObject(root, path);
+    if (staged === null) return false;
+    if (staged === committedObject(root, main, path)) return true;
+    return bases.length > 0 && bases.every(base => staged === committedObject(root, base, path));
+  }));
 }
 
 /** Main integration may preserve either parent's exact foreign object. */
