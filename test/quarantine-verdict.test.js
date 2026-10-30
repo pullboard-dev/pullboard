@@ -233,7 +233,7 @@ try {
    patch=git(root,['diff','--',file]);
   } finally {writeFileSync(file,original);}
   assert.ok(patch.includes('+'),'the companion is a real Git source delta');
-  store.attachItemPatch(board,id,{agentId,key:'native-quarantine-companion',commit:source,patch:patch+'\n',author:agentId});
+  store.attachItemPatch(board,id,{agentId,key:'native-quarantine-companion',commit:source,patch:patch+String.fromCharCode(10),author:agentId});
   binding=prepareItemPatchSubmit(root,board,companionItem,source);
  });
  assert.notEqual(binding.commit,source);
