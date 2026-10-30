@@ -417,20 +417,19 @@ export function mainFailureNotices(root, failures, comparison, { items = [], exc
     const receipt = readGateReceipt(store, entry.receiptId);
     const word = "'" + ('./' + failure.file).replaceAll("'", "'\\''") + "'";
     const command = `PULLBOARD_TEST_REUSE=0 ${runner.trimEnd()} ${word}`;
-    if (!receipt || receipt.kind !== 'main-red' || receipt.head !== comparison.main || receipt.main !== comparison.main
+    if (!['red', 'green'].includes(entry.result) || !receipt || receipt.kind !== 'main-red' || receipt.head !== comparison.main || receipt.main !== comparison.main
       || receipt.command !== createHash('sha256').update(command).digest('hex')
-      || receipt.green !== (entry.result === 'green') || !Array.isArray(entry.failures)
-      || entry.result === 'red' && !cachedFailureSignatures(entry, failure.file)) return [];
+      || receipt.green !== (entry.result === 'green') || !cachedFailureSignatures(entry, failure.file)) return [];
     const matched = matchingMainFailures([failure], comparison, comparison.main);
     const mainCases = entry.failures.filter(row => row.name === failure.name);
     // A duplicate case or incomplete native failure account cannot become a candidate-only claim.
     if (entry.result === 'red' && (mainCases.length > 1 || entry.failures.length !== receipt.failures.length || entry.failures.some(row =>
       !receipt.failures.some(actual => actual.file === row.file && actual.name === row.name)))) return [];
     const owner = matched && linkKnownMainReworks(matched, items, exclude)?.failures[0].item;
-    const status = matched ? 'also-main' : 'candidate-only';
+    const status = matched ? 'also-main' : mainCases.length ? 'different-on-main' : 'candidate-only';
     const message = matched
       ? `also fails on main at ${comparison.main}: ${failure.file} :: ${failure.name} (not yours; ${owner ? `owner #${owner}` : 'accepted'})`
-      : `fails only with your change: ${failure.file} :: ${failure.name}`;
+      : `${mainCases.length ? 'fails differently with your change' : 'fails only with your change'}: ${failure.file} :: ${failure.name}`;
     return [{ status, main: comparison.main, file: failure.file, name: failure.name,
       receiptId: receipt.id, ...(owner ? { owner } : {}), message: `${message} [main receipt ${receipt.id}]` }];
   });

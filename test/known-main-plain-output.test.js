@@ -100,6 +100,27 @@ test('candidate-only failures stay red, are first in text, and remain structured
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
 });
 
+test('a case red on both sources with different diagnostics is not described as passing main [V4,B3,C7]', t => {
+  const box = fixture(t, { main: 2, candidate: 3 });
+  const tested = cli(box, box.builder, 'test', FILE);
+  assert.equal(tested.status, 1, tested.stdout + tested.stderr);
+  const report = JSON.parse(tested.stdout);
+  assert.equal(report.mainFailures.length, 1, tested.stdout);
+  assert.equal(report.mainFailures[0].status, 'different-on-main');
+  assert.match(report.mainFailures[0].message, /^fails differently with your change:/u);
+  assert.doesNotMatch(report.mainFailures[0].message, /not yours|fails only/u);
+  const plain = text(box, 'test', FILE);
+  assert.equal(plain.status, 1, plain.stdout + plain.stderr);
+  assert.match(plain.stdout.split('\n')[0], /^fails differently with your change:/u);
+  const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
+  assert.equal(submitted.status, 1, submitted.stdout + submitted.stderr);
+  const refusal = JSON.parse(submitted.stdout);
+  assert.equal(refusal.error.code, 'GATE_RED');
+  assert.equal(refusal.mainFailures[0].status, 'different-on-main');
+  assert.match(refusal.error.message, /^fails differently with your change:/u);
+  assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
+});
+
 /** Quote one real executable or private fixture path for the shell. */
 function word(value) { return "'" + value.replaceAll("'", "'\\''") + "'"; }
 
